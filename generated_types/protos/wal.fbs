@@ -53,7 +53,7 @@ table Delete {
   stop_time: int64;
 }
 
-// Segment is a collection of ReplicatedWrites. It is the payload of a WAL
+// Segment is a collection of ReplicatedWrites. It is the payload of a Write Buffer
 // segment file.
 table Segment {
   // the segment number

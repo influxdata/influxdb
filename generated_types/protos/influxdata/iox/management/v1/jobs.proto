@@ -29,7 +29,7 @@ message Dummy {
   repeated uint64 nanos = 1;
 }
 
-// A job that persists a WAL segment to object store
+// A job that persists a Write Buffer segment to object store
 message PersistSegment {
   uint32 writer_id = 1;
   uint64 segment_id = 2;

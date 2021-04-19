@@ -226,8 +226,8 @@ pub fn split_lines_into_write_entry_partitions(
             .push(line);
     }
 
-    // create a WALEntry for each batch of lines going to a partition (one WALEntry
-    // per partition)
+    // create a WriteBufferEntry for each batch of lines going to a partition (one
+    // WriteBufferEntry per partition)
     let entries = partition_writes
         .into_iter()
         .map(|(key, lines)| add_write_entry(&mut fbb, Some(&key), &lines))

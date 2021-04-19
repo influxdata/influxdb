@@ -248,9 +248,9 @@ pub struct Config {
     /// The identifier for the server.
     ///
     /// Used for writing to object storage and as an identifier that is added to
-    /// replicated writes, WAL segments and Chunks. Must be unique in a group of
-    /// connected or semi-connected IOx servers. Must be a number that can be
-    /// represented by a 32-bit unsigned integer.
+    /// replicated writes, write buffer segments, and Chunks. Must be unique in
+    /// a group of connected or semi-connected IOx servers. Must be a number
+    /// that can be represented by a 32-bit unsigned integer.
     #[structopt(long = "--writer-id", env = "INFLUXDB_IOX_ID")]
     pub writer_id: Option<NonZeroU32>,
 

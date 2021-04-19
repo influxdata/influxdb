@@ -398,7 +398,7 @@ mem,host=A,region=west used=45 1
             server_id,
             object_store,
             exec,
-            None, // wal buffer
+            None, // write buffer
             Arc::new(JobRegistry::new()),
         )
     }

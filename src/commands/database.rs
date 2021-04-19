@@ -191,7 +191,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                     }],
                 }),
 
-                // Note no wal buffer config
+                // Note no write buffer config
                 ..Default::default()
             };
 

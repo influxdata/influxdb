@@ -20,7 +20,7 @@ pub fn make_db() -> Db {
         server_id,
         object_store,
         exec,
-        None, // wal buffer
+        None, // write buffer
         Arc::new(JobRegistry::new()),
     )
 }
@@ -32,7 +32,7 @@ pub fn make_database(server_id: NonZeroU32, object_store: Arc<ObjectStore>, db_n
         server_id,
         object_store,
         exec,
-        None, // wal buffer
+        None, // write buffer
         Arc::new(JobRegistry::new()),
     )
 }

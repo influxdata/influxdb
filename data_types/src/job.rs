@@ -15,7 +15,7 @@ pub enum Job {
         nanos: Vec<u64>,
     },
 
-    /// Persist a WAL segment to object store
+    /// Persist a Write Buffer segment to object store
     PersistSegment {
         writer_id: u32,
         segment_id: u64,

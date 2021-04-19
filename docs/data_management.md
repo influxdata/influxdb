@@ -8,7 +8,7 @@ The data lifecycle of time series data usually involves some sort of real-time i
 
 The real-time aspect of time series data for monitoring, ETL, and visualization for recent data is what IOx is optimizing for. Because IOx uses object storage and Parquet as its persistence format, we can defer larger scale and more ad hoc processing to systems that are well suited for the task.
 
-IOx defines APIs and configuration to manage the movement of data as it arrives and periodically in the background. These can be used to send data to other IOx servers for processing, query or sending it to object storage in the form of write ahead log segments or Parquet files and their summaries.
+IOx defines APIs and configuration to manage the movement of data as it arrives and periodically in the background. These can be used to send data to other IOx servers for processing, query or sending it to object storage in the form of write buffer segments or Parquet files and their summaries.
 
 ## Vocabulary Definitions
 This section describes the key terms and vocabulary that is used in this document. Brief descriptions are given, but their meanings should become more clear as you read through the rest of this document. It’s impossible to talk about the data lifecycle without touching on each of these terms.
@@ -22,17 +22,17 @@ This section describes the key terms and vocabulary that is used in this documen
 
 *Partition*: a grouping of data within a database defined by the administrator of IOx. Each row is assigned to a partition based on a string identifier called its partition key. Partitions within a database are generally non-overlapping, but because the rules for how to generate partition keys can change over time, this isn’t a strict requirement. When querying data, a partition key is irrelevant and only the actual data contained in the partition is considered when determining the best plan for querying.
 
-*WAL Buffer*: a buffer for entries into a write ahead log. This buffer can exist in-memory only or as a file appended to on the local filesystem.
+*Write Buffer*: a buffer for entries into a write buffer. This buffer can exist in-memory only or as a file appended to on the local filesystem.
 
-*WAL Segment*: a historical part of the WAL buffer that has a monotonically increasing identifier. Segments are an ordered collection of individual WAL entries. Segments can exist in memory or as a read-only file on local disk or object storage. Its filename should be its identifier as a base 10 number with 10 digits with leading zero padding to make it sort correctly by filename.
+*Write Buffer Segment*: a historical part of the Write Buffer that has a monotonically increasing identifier. Segments are an ordered collection of individual Write Buffer entries. Segments can exist in memory or as a read-only file on local disk or object storage. Its filename should be its identifier as a base 10 number with 10 digits with leading zero padding to make it sort correctly by filename.
 
 *Mutable Buffer*: an in-memory collection of data that can be actively written to and queried from. It is optimized for incoming, real-time writes. Its purpose is to buffer data for a given partition while that partition is being actively written to so that it can later be converted to a read-optimized format for persistence and querying.
 
-*Read Buffer*: an in-memory read-optimized collection of data. Data within the read buffer is organized into large immutable chunks. Each chunk within the read buffer must be created all at once (rather than as data is written into the DB). This can be done from data buffered in the mutable buffer, or from Parquet files, or from WAL segments.
+*Read Buffer*: an in-memory read-optimized collection of data. Data within the read buffer is organized into large immutable chunks. Each chunk within the read buffer must be created all at once (rather than as data is written into the DB). This can be done from data buffered in the mutable buffer, or from Parquet files, or from Write Buffer segments.
 
 *Object Store*: a store that can get, put, or delete individual objects with a path like /foo/bar/asdf.txt. It also supports listing objects in the store with an optional prefix filter. Underlying implementations exist for AWS S3, Google Cloud Storage, Azure Blob Storage, and for single node deployments, the local file system, or in memory.
 
-*Chunk*: a chunk is a collection of data within a partition. A database can have many partitions, and each partition can have many chunks. Each chunk only contains data from a single partition. A chunk is a collection of tables and their data, the schema, and the summary statistics that describe the data within a chunk. Chunks, like WAL segments, have a monotonically increasing ID, which is reflected in their path in the durable store. Chunks can exist in the Mutable Buffer, Read Buffer, and Object Store.
+*Chunk*: a chunk is a collection of data within a partition. A database can have many partitions, and each partition can have many chunks. Each chunk only contains data from a single partition. A chunk is a collection of tables and their data, the schema, and the summary statistics that describe the data within a chunk. Chunks, like Write Buffer segments, have a monotonically increasing ID, which is reflected in their path in the durable store. Chunks can exist in the Mutable Buffer, Read Buffer, and Object Store.
 
 *Chunk Summary*: the summary information for what tables exist, what their column and data types are, and additional metadata such as what the min, max and count are for each column in each table. Chunk summaries can be rolled up to create a partition summary and partition summaries can be rolled up to create a database summary.
 
@@ -42,13 +42,13 @@ This section describes the key terms and vocabulary that is used in this documen
 1. An IOx server defines the following parts of the data lifecycle:
 2. Ingest (from InfluxDB Line Protocol, JSON, or Flatbuffers)
 3. Schema validation & partition key creation
-4. WAL buffering and shipping WAL segments to object storage
+4. Write buffering and shipping Write Buffer segments to object storage
 5. Writes to In-memory buffer that is queryable (named MutableBuffer)
 6. Synchronous Replication (inside the write request/response)
-7. Subscriptions (sent outside the write request/response from the WAL buffer)
+7. Subscriptions (sent outside the write request/response from the Write Buffer)
 8. Creation of immutable in-memory Chunks (in the ReadBuffer)
 9. Creation of immutable durable Chunks (in the ObjectStore)
-10. Tails (subscriptions, but from WAL Segments in object storage potentially from many writers)
+10. Tails (subscriptions, but from Write Buffer Segments in object storage potentially from many writers)
 11. Loading of Parquet files into the Read Buffer
 
 Each part of this lifecycle is optional. This can be run entirely on a single server or it can be split up across many servers to isolate workloads. Here’s a high level overview of the lifecycle flow:
@@ -84,7 +84,7 @@ From drawings/data_lifecycle.monopic
                             ▼                          ▼                           ▼
                  ┌─────────────────────┐   ┌───────────────────────┐    ┌────────────────────┐
                  │                     │   │      Synchronous      │    │                    │
-                 │   Mutable Buffer    │   │      Replication      │    │     WAL Buffer     │
+                 │   Mutable Buffer    │   │      Replication      │    │    Write Buffer    │
                  │                     │   │                       │    │                    │
                  └─────────────────────┘   └───────────────────────┘    └────────────────────┘
                             │                                                      │
@@ -93,13 +93,13 @@ From drawings/data_lifecycle.monopic
          │                  │                   │                      │                        │
          ▼                  ▼                   ▼                      ▼                        ▼
  ┌──────────────┐  ┌────────────────┐  ┌────────────────┐   ┌────────────────────┐   ┌────────────────────┐
- │   Queries    │  │    Chunk to    │  │    Chunk to    │   │   WAL Segment to   │   │   Subscriptions    │
+ │   Queries    │  │    Chunk to    │  │    Chunk to    │   │    WB Segment to   │   │   Subscriptions    │
  │              │  │  Read Buffer   │  │  Object Store  │   │    Object Store    │   │                    │
  └──────────────┘  └────────────────┘  └────────────────┘   └────────────────────┘   └────────────────────┘
  ```
 
 
-As mentioned previously, any of these boxes is optional. Because data can come from WAL Segments or Chunks in object storage, even the ingest path is optional.
+As mentioned previously, any of these boxes is optional. Because data can come from Write Buffer Segments or Chunks in object storage, even the ingest path is optional.
 
 ## How data is logically organized
 

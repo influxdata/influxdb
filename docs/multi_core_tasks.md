@@ -49,7 +49,7 @@ This can not always be done (e.g. with a library such as parquet writer which is
 
 There will, of course, always be a judgment call to be made of where "CPU bound work" starts and "work acceptable for I/O processing"  ends. A reasonable rule of thumb is if a job will *always* be completed in less than 100ms then that is probably fine for an I/O thread). This number may be revised as we tune the system.
 
-The following is a specific example of why it is important to be cautious when receiving RPC work and ensuring only minimal CPU work is done before handing off to a pool of workers. In some versions of InfluxDB, the `/write` HTTP handlers read, parse, allocate and forward the points to the InfluxDB TSM engine for writing to the WAL. The WAL is the first place where back pressure appears. The problem with this approach is you can have 1,000s of HTTP requests in flight parsing, allocating, consuming huge amounts of memory and CPU resources, causing servers to fall over. This situation can be avoided by forwarding the work to a work queue (from parsing onwards).
+The following is a specific example of why it is important to be cautious when receiving RPC work and ensuring only minimal CPU work is done before handing off to a pool of workers. In some versions of InfluxDB, the `/write` HTTP handlers read, parse, allocate and forward the points to the InfluxDB TSM engine for writing to the Write Buffer. The Write Buffer is the first place where back pressure appears. The problem with this approach is you can have 1,000s of HTTP requests in flight parsing, allocating, consuming huge amounts of memory and CPU resources, causing servers to fall over. This situation can be avoided by forwarding the work to a work queue (from parsing onwards).
 
 
 ## Examples
