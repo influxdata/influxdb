@@ -2,9 +2,9 @@
 use crate::write_buffer::SegmentSummary;
 use serde::{Deserialize, Serialize};
 
-/// Query string for WAL metadata endpoint
+/// Query string for the Write Buffer metadata endpoint
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
-pub struct WalMetadataQuery {
+pub struct WriteBufferMetadataQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -13,8 +13,8 @@ pub struct WalMetadataQuery {
     pub newer_than: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-/// Response for WAL metadata endpoint
+/// Response for the Write Buffer metadata endpoint
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct WalMetadataResponse {
+pub struct WriteBufferMetadataResponse {
     pub segments: Vec<SegmentSummary>,
 }

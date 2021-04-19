@@ -13,7 +13,7 @@
 // Influx crates
 use super::{super::commands::metrics, planner::Planner};
 use data_types::{
-    http::WalMetadataQuery,
+    http::WriteBufferMetadataQuery,
     names::{org_and_bucket_to_database, OrgBucketMappingError},
     DatabaseName,
 };
@@ -37,7 +37,7 @@ use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError, Router
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 
-use data_types::http::WalMetadataResponse;
+use data_types::http::WriteBufferMetadataResponse;
 use hyper::server::conn::AddrIncoming;
 use std::{
     fmt::Debug,
@@ -556,7 +556,7 @@ async fn get_write_buffer_meta<M: ConnectionManager + Send + Sync + Debug + 'sta
         .expect("db name must have been set")
         .clone();
 
-    let query: WalMetadataQuery = req
+    let query: WriteBufferMetadataQuery = req
         .uri()
         .query()
         .map(|query| {
@@ -593,7 +593,7 @@ async fn get_write_buffer_meta<M: ConnectionManager + Send + Sync + Debug + 'sta
     let response = Response::builder()
         .status(StatusCode::OK)
         .body(Body::from(
-            serde_json::to_string(&WalMetadataResponse { segments })
+            serde_json::to_string(&WriteBufferMetadataResponse { segments })
                 .expect("json encoding should not fail"),
         ))
         .expect("builder should be successful");
