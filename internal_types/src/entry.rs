@@ -334,6 +334,12 @@ impl TryFrom<Vec<u8>> for Entry {
     }
 }
 
+impl From<Entry> for Vec<u8> {
+    fn from(entry: Entry) -> Self {
+        entry.into_heads().data
+    }
+}
+
 /// Wrapper struct for the flatbuffers PartitionWrite. Has convenience methods
 /// for iterating through the table batches.
 #[derive(Debug)]

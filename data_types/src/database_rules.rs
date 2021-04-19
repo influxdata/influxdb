@@ -774,7 +774,7 @@ pub trait Sharder {
 /// based on table name and assign to 1 of 10 shards. Within each
 /// shard you would have partitions, which would likely be based off time.
 /// This makes it possible to horizontally scale out writes.
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Default)]
 pub struct ShardConfig {
     /// An optional matcher. If there is a match, the route will be evaluated to
     /// the given targets, otherwise the hash ring will be evaluated. This is
@@ -851,7 +851,7 @@ pub type NodeGroup = Vec<WriterId>;
 
 /// HashRing is a rule for creating a hash key for a row and mapping that to
 /// an individual node on a ring.
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Default)]
 pub struct HashRing {
     /// If true the table name will be included in the hash key
     pub table_name: bool,

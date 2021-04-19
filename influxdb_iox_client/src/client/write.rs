@@ -74,4 +74,24 @@ impl Client {
 
         Ok(response.into_inner().lines_written as usize)
     }
+
+    /// Write an [Entry] to database `name`.
+    ///
+    /// An Entry unit of write payload encoded as Flatbuffer structure
+    /// and passed as a bytes field in the gRPC protobuf API.
+    /// [Entry](https://github.com/influxdata/influxdb_iox/blob/main/generated_types/protos/influxdata/iox/write/v1/entry.fbs)
+    pub async fn write_entry(
+        &mut self,
+        db_name: impl Into<String>,
+        entry: impl Into<Vec<u8>>,
+    ) -> Result<(), WriteError> {
+        let db_name = db_name.into();
+        let entry = entry.into();
+        self.inner
+            .write_entry(WriteEntryRequest { db_name, entry })
+            .await
+            .map_err(WriteError::ServerError)?;
+
+        Ok(())
+    }
 }

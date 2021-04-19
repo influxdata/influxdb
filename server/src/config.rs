@@ -115,6 +115,11 @@ impl Config {
         state.remotes.remove(&id)
     }
 
+    pub(crate) fn resolve_remote(&self, id: WriterId) -> Option<GRpcConnectionString> {
+        let state = self.state.read().expect("mutex poisoned");
+        state.remotes.get(&id).cloned()
+    }
+
     fn commit(
         &self,
         rules: DatabaseRules,

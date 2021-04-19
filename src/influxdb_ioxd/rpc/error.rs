@@ -35,6 +35,13 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
             description: "hard buffer limit reached".to_string(),
         }
         .into(),
+        Error::NoRemoteConfigured { node_group } => NotFound {
+            resource_type: "remote".to_string(),
+            resource_name: format!("{:?}", node_group),
+            ..Default::default()
+        }
+        .into(),
+        Error::RemoteError { source } => tonic::Status::unavailable(source.to_string()),
         error => {
             error!(?error, "Unexpected error");
             InternalError {}.into()

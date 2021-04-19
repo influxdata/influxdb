@@ -100,7 +100,9 @@ use crate::{
     db::Db,
 };
 use data_types::database_rules::{NodeGroup, ShardId};
+use influxdb_iox_client::{connection::Builder, write};
 use internal_types::entry::SequencedEntry;
+use rand::seq::SliceRandom;
 use std::collections::HashMap;
 use std::num::NonZeroU32;
 
@@ -163,6 +165,14 @@ pub enum Error {
     ShardNotFound { shard_id: ShardId },
     #[snafu(display("hard buffer limit reached"))]
     HardLimitReached {},
+    #[snafu(display("no remote configured for node group: {:?}", node_group))]
+    NoRemoteConfigured { node_group: NodeGroup },
+    #[snafu(display("all remotes failed connecting: {:?}", errors))]
+    NoRemoteReachable {
+        errors: HashMap<GRpcConnectionString, ConnectionManagerError>,
+    },
+    #[snafu(display("remote error: {}", source))]
+    RemoteError { source: ConnectionManagerError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -445,10 +455,10 @@ impl<M: ConnectionManager> Server<M> {
         match sharded_entry.shard_id {
             Some(shard_id) => {
                 let node_group = shards.get(&shard_id).context(ShardNotFound { shard_id })?;
-                self.write_entry_downstream(db_name, node_group, &sharded_entry.entry)
+                self.write_entry_downstream(db_name, node_group, sharded_entry.entry)
                     .await?
             }
-            None => self.write_entry_local(&db, sharded_entry.entry).await?,
+            None => self.write_entry_local(db, sharded_entry.entry).await?,
         }
         Ok(())
     }
@@ -457,13 +467,35 @@ impl<M: ConnectionManager> Server<M> {
         &self,
         db_name: &str,
         node_group: &[WriterId],
-        _entry: &Entry,
+        entry: Entry,
     ) -> Result<()> {
-        todo!(
-            "perform API call of sharded entry {} to one of the nodes {:?}",
-            db_name,
-            node_group
-        )
+        let addrs: Vec<_> = node_group
+            .iter()
+            .filter_map(|&node| self.config.resolve_remote(node))
+            .collect();
+        if addrs.is_empty() {
+            return NoRemoteConfigured { node_group }.fail();
+        }
+
+        let mut errors = HashMap::new();
+        // this needs to be in its own statement because rand::thread_rng is not Send and the loop below is async.
+        // braces around the expression would work but clippy don't know that and complains the braces are useless.
+        let random_addrs_iter = addrs.choose_multiple(&mut rand::thread_rng(), addrs.len());
+        for addr in random_addrs_iter {
+            match self.connection_manager.remote_server(addr).await {
+                Err(err) => {
+                    info!("error obtaining remote for {}: {}", addr, err);
+                    errors.insert(addr.to_owned(), err);
+                }
+                Ok(remote) => {
+                    return remote
+                        .write_entry(&db_name, entry)
+                        .await
+                        .context(RemoteError)
+                }
+            };
+        }
+        return NoRemoteReachable { errors }.fail();
     }
 
     pub async fn write_entry(&self, db_name: &str, entry_bytes: Vec<u8>) -> Result<()> {
@@ -682,27 +714,36 @@ where
     }
 }
 
+type RemoteServerError = Box<dyn std::error::Error + Send + Sync + 'static>;
+
+#[derive(Debug, Snafu)]
+pub enum ConnectionManagerError {
+    #[snafu(display("cannot connect to remote: {}", source))]
+    RemoteServerConnectError { source: RemoteServerError },
+    #[snafu(display("cannot write to remote: {}", source))]
+    RemoteServerWriteError { source: write::WriteError },
+}
+
 /// The `Server` will ask the `ConnectionManager` for connections to a specific
 /// remote server. These connections can be used to communicate with other
 /// servers. This is implemented as a trait for dependency injection in testing.
 #[async_trait]
 pub trait ConnectionManager {
-    type Error: std::error::Error + Send + Sync + 'static;
-
     type RemoteServer: RemoteServer + Send + Sync + 'static;
 
-    async fn remote_server(&self, connect: &str) -> Result<Arc<Self::RemoteServer>, Self::Error>;
+    async fn remote_server(
+        &self,
+        connect: &str,
+    ) -> Result<Arc<Self::RemoteServer>, ConnectionManagerError>;
 }
 
 /// The `RemoteServer` represents the API for replicating, subscribing, and
 /// querying other servers.
 #[async_trait]
 pub trait RemoteServer {
-    type Error: std::error::Error + Send + Sync + 'static;
-
     /// Sends an Entry to the remote server. An IOx server acting as a
     /// router/sharder will call this method to send entries to remotes.
-    async fn write_entry(&self, db: &str, entry: Entry) -> Result<(), Self::Error>;
+    async fn write_entry(&self, db: &str, entry: Entry) -> Result<(), ConnectionManagerError>;
 
     /// Sends a SequencedEntry to the remote server. An IOx server acting as a
     /// write buffer will call this method to replicate to other write
@@ -711,7 +752,7 @@ pub trait RemoteServer {
         &self,
         db: &str,
         sequenced_entry: SequencedEntry,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<(), ConnectionManagerError>;
 }
 
 /// The connection manager maps a host identifier to a remote server.
@@ -720,11 +761,20 @@ pub struct ConnectionManagerImpl {}
 
 #[async_trait]
 impl ConnectionManager for ConnectionManagerImpl {
-    type Error = Error;
     type RemoteServer = RemoteServerImpl;
 
-    async fn remote_server(&self, _connect: &str) -> Result<Arc<Self::RemoteServer>, Self::Error> {
-        unimplemented!()
+    async fn remote_server(
+        &self,
+        connect: &str,
+    ) -> Result<Arc<Self::RemoteServer>, ConnectionManagerError> {
+        // TODO(mkm): cache the connections
+        let connection = Builder::default()
+            .build(connect)
+            .await
+            .map_err(|e| Box::new(e) as _)
+            .context(RemoteServerConnectError)?;
+        let client = write::Client::new(connection);
+        Ok(Arc::new(RemoteServerImpl { client }))
     }
 }
 
@@ -732,16 +782,20 @@ impl ConnectionManager for ConnectionManagerImpl {
 /// be moved into and implemented in an influxdb_iox_client create at a later
 /// date.
 #[derive(Debug)]
-pub struct RemoteServerImpl {}
+pub struct RemoteServerImpl {
+    client: write::Client,
+}
 
 #[async_trait]
 impl RemoteServer for RemoteServerImpl {
-    type Error = Error;
-
     /// Sends an Entry to the remote server. An IOx server acting as a
     /// router/sharder will call this method to send entries to remotes.
-    async fn write_entry(&self, _db: &str, _entry: Entry) -> Result<(), Self::Error> {
-        unimplemented!()
+    async fn write_entry(&self, db_name: &str, entry: Entry) -> Result<(), ConnectionManagerError> {
+        self.client
+            .clone() // cheap, see https://docs.rs/tonic/0.4.2/tonic/client/index.html#concurrent-usage
+            .write_entry(db_name, entry)
+            .await
+            .context(RemoteServerWriteError)
     }
 
     /// Sends a SequencedEntry to the remote server. An IOx server acting as a
@@ -751,7 +805,7 @@ impl RemoteServer for RemoteServerImpl {
         &self,
         _db: &str,
         _sequenced_entry: SequencedEntry,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), ConnectionManagerError> {
         unimplemented!()
     }
 }
@@ -784,12 +838,15 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use arrow_deps::assert_table_eq;
-    use data_types::database_rules::{PartitionTemplate, TemplatePart, NO_SHARD_CONFIG};
+    use data_types::database_rules::{
+        HashRing, PartitionTemplate, ShardConfig, TemplatePart, NO_SHARD_CONFIG,
+    };
     use influxdb_line_protocol::parse_lines;
     use object_store::{memory::InMemory, path::ObjectStorePath};
     use query::{frontend::sql::SqlQueryPlanner, Database};
 
     use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     fn config() -> ServerConfig {
         ServerConfig::new(Arc::new(ObjectStore::new_in_memory(InMemory::new())))
@@ -1007,6 +1064,107 @@ mod tests {
         assert_table_eq!(expected, &batches);
     }
 
+    // This tests sets up a database with a sharding config which defines exactly one shard
+    // backed by 3 remote nodes. One of the nodes is modeled to be "down", while the other two
+    // can record write entry events.
+    // This tests goes through a few trivial error cases before checking that the both working
+    // mock remote servers actually receive write entry events.
+    //
+    // This test is theoretically flaky, low probability though (in the order of 1e-30)
+    #[tokio::test]
+    async fn write_entry_downstream() {
+        const TEST_SHARD_ID: ShardId = 1;
+        const GOOD_REMOTE_ID_1: WriterId = 1;
+        const GOOD_REMOTE_ID_2: WriterId = 2;
+        const BAD_REMOTE_ID: WriterId = 666;
+        const GOOD_REMOTE_ADDR_1: &str = "http://localhost:111";
+        const GOOD_REMOTE_ADDR_2: &str = "http://localhost:222";
+        const BAD_REMOTE_ADDR: &str = "http://localhost:666";
+
+        let mut manager = TestConnectionManager::new();
+        let written_1 = Arc::new(AtomicBool::new(false));
+        manager.remotes.insert(
+            GOOD_REMOTE_ADDR_1.to_owned(),
+            Arc::new(TestRemoteServer {
+                written: Arc::clone(&written_1),
+            }),
+        );
+        let written_2 = Arc::new(AtomicBool::new(false));
+        manager.remotes.insert(
+            GOOD_REMOTE_ADDR_2.to_owned(),
+            Arc::new(TestRemoteServer {
+                written: Arc::clone(&written_2),
+            }),
+        );
+
+        let server = Server::new(manager, config());
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+
+        let db_name = DatabaseName::new("foo").unwrap();
+        server
+            .create_database(
+                DatabaseRules::new(db_name.clone()),
+                server.require_id().unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let remote_ids = vec![BAD_REMOTE_ID, GOOD_REMOTE_ID_1, GOOD_REMOTE_ID_2];
+        let db = server.db(&db_name).unwrap();
+        {
+            let mut rules = db.rules.write();
+            rules.shard_config = Some(ShardConfig {
+                hash_ring: Some(HashRing {
+                    shards: vec![TEST_SHARD_ID].into(),
+                    ..Default::default()
+                }),
+                shards: Arc::new(
+                    vec![(TEST_SHARD_ID, remote_ids.clone())]
+                        .into_iter()
+                        .collect(),
+                ),
+                ..Default::default()
+            });
+        }
+
+        let line = "cpu bar=1 10";
+        let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
+
+        let err = server.write_lines(&db_name, &lines).await.unwrap_err();
+        assert!(
+            matches!(err, Error::NoRemoteConfigured { node_group } if node_group == remote_ids)
+        );
+
+        // one remote is configured but it's down and we'll get connection error
+        server.update_remote(BAD_REMOTE_ID, BAD_REMOTE_ADDR.into());
+        let err = server.write_lines(&db_name, &lines).await.unwrap_err();
+        assert!(matches!(
+            err,
+            Error::NoRemoteReachable { errors } if matches!(
+                errors[BAD_REMOTE_ADDR],
+                ConnectionManagerError::RemoteServerConnectError {..}
+            )
+        ));
+        assert_eq!(written_1.load(Ordering::Relaxed), false);
+        assert_eq!(written_2.load(Ordering::Relaxed), false);
+
+        // We configure the address for the other remote, this time connection will succeed
+        // despite the bad remote failing to connect.
+        server.update_remote(GOOD_REMOTE_ID_1, GOOD_REMOTE_ADDR_1.into());
+        server.update_remote(GOOD_REMOTE_ID_2, GOOD_REMOTE_ADDR_2.into());
+
+        // Remotes are tried in random order, so we need to repeat the test a few times to have a reasonable
+        // probability both the remotes will get hit.
+        for _ in 0..100 {
+            server
+                .write_lines(&db_name, &lines)
+                .await
+                .expect("cannot write lines");
+        }
+        assert_eq!(written_1.load(Ordering::Relaxed), true);
+        assert_eq!(written_2.load(Ordering::Relaxed), true);
+    }
+
     #[tokio::test]
     async fn close_chunk() {
         test_helpers::maybe_start_logging();
@@ -1114,30 +1272,46 @@ mod tests {
 
     #[async_trait]
     impl ConnectionManager for TestConnectionManager {
-        type Error = TestClusterError;
         type RemoteServer = TestRemoteServer;
 
-        async fn remote_server(&self, id: &str) -> Result<Arc<TestRemoteServer>, Self::Error> {
-            Ok(Arc::clone(&self.remotes.get(id).unwrap()))
+        async fn remote_server(
+            &self,
+            id: &str,
+        ) -> Result<Arc<TestRemoteServer>, ConnectionManagerError> {
+            #[derive(Debug, Snafu)]
+            enum TestRemoteError {
+                #[snafu(display("remote not found"))]
+                NotFound,
+            }
+            Ok(Arc::clone(self.remotes.get(id).ok_or_else(|| {
+                ConnectionManagerError::RemoteServerConnectError {
+                    source: Box::new(TestRemoteError::NotFound),
+                }
+            })?))
         }
     }
 
-    #[derive(Debug, Default)]
-    struct TestRemoteServer {}
+    #[derive(Debug)]
+    struct TestRemoteServer {
+        written: Arc<AtomicBool>,
+    }
 
     #[async_trait]
-    impl RemoteServer for TestRemoteServer {
-        type Error = TestClusterError;
-
-        async fn write_entry(&self, _db: &str, _entry: Entry) -> Result<(), Self::Error> {
-            unimplemented!()
+    impl<'a> RemoteServer for TestRemoteServer {
+        async fn write_entry(
+            &self,
+            _db: &str,
+            _entry: Entry,
+        ) -> Result<(), ConnectionManagerError> {
+            self.written.store(true, Ordering::Relaxed);
+            Ok(())
         }
 
         async fn write_sequenced_entry(
             &self,
             _db: &str,
             _sequenced_entry: SequencedEntry,
-        ) -> Result<(), Self::Error> {
+        ) -> Result<(), ConnectionManagerError> {
             unimplemented!()
         }
     }
