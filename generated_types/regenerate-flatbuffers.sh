@@ -37,8 +37,7 @@ if [ -z ${LOCAL} ]; then
 
   DOCKER_IOX_DIR=/home/rust/influxdb_iox
 
-  docker kill flatc || true
-  docker rm flatc || true
+  docker rm --force flatc || true
 
   docker pull ${CI_IMAGE} || true
 
@@ -51,8 +50,7 @@ if [ -z ${LOCAL} ]; then
 
   docker exec -e LOCAL=1 flatc .${DOCKER_IOX_DIR}/generated_types/regenerate-flatbuffers.sh
 
-  docker kill flatc || true
-  docker rm flatc || true
+  docker rm --force flatc || true
 else
   echo "Running locally..."
 
