@@ -27,13 +27,13 @@ FB_COMMIT="86401e078d0746d2381735415f8c2dfe849f3f52"
 # By default, this script will run a Docker container that uses the same image we use in CI that
 # will have all the necessary dependencies. If you don't want to run Docker, run this script with
 # LOCAL=1.
-if [ -z ${LOCAL} ]; then
+if [ -z "${LOCAL}" ]; then
   echo "Running in Docker..."
 
   CI_IMAGE=quay.io/influxdb/rust:ci
 
   DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-  pushd $DIR
+  pushd "$DIR"
 
   DOCKER_IOX_DIR=/home/rust/influxdb_iox
 
@@ -45,7 +45,7 @@ if [ -z ${LOCAL} ]; then
     -it \
     --detach \
     --name=flatc \
-    --volume ${DIR}/..:${DOCKER_IOX_DIR} \
+    --volume "${DIR}/..:${DOCKER_IOX_DIR}" \
     ${CI_IMAGE}
 
   docker exec -e LOCAL=1 flatc .${DOCKER_IOX_DIR}/generated_types/regenerate-flatbuffers.sh
@@ -55,7 +55,7 @@ else
   echo "Running locally..."
 
   DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-  pushd $DIR
+  pushd "$DIR"
 
   echo "Building flatc from source ..."
 
@@ -63,7 +63,7 @@ else
   FB_DIR=".flatbuffers"
   FLATC="$FB_DIR/bazel-bin/flatc"
 
-  if [ -z $(which bazel) ]; then
+  if [ -z "$(which bazel)" ]; then
       echo "bazel is required to build flatc"
       exit 1
   fi
@@ -89,8 +89,8 @@ else
   RUST_DIR="$DIR/src"
   while read -r FBS_FILE; do
       echo "Compiling ${FBS_FILE}"
-      $FLATC --rust -o $RUST_DIR $FBS_FILE
-  done < <(git ls-files $DIR/*.fbs)
+      $FLATC --rust -o "$RUST_DIR" "$FBS_FILE"
+  done < <(git ls-files "$DIR"/*.fbs)
 
   cargo fmt
   popd
