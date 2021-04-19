@@ -587,9 +587,12 @@ mod tests {
                     expected_column_type,
                     actual_column_type,
                     column,
-                } if expected_column_type == "tag" && actual_column_type == "String" && column == "t1"),
-                "didn't match returned error: {:?}",
-                response
+                } if expected_column_type == "tag"
+                     && actual_column_type == "String"
+                     && column == "t1"
+            ),
+            "didn't match returned error: {:?}",
+            response
         );
 
         let lp = "foo iv=1u 1";
@@ -612,7 +615,16 @@ mod tests {
             .err()
             .unwrap();
         assert!(
-            matches!(&response, Error::ColumnTypeMismatch {expected_column_type, actual_column_type, column} if expected_column_type == "i64" && actual_column_type == "u64" && column == "iv"),
+            matches!(
+                &response,
+                Error::ColumnTypeMismatch {
+                    expected_column_type,
+                    actual_column_type,
+                    column
+                } if expected_column_type == "i64"
+                    && actual_column_type == "u64"
+                    && column == "iv"
+            ),
             "didn't match returned error: {:?}",
             response
         );
@@ -637,7 +649,16 @@ mod tests {
             .err()
             .unwrap();
         assert!(
-            matches!(&response, Error::ColumnTypeMismatch {expected_column_type, actual_column_type, column} if expected_column_type == "f64" && actual_column_type == "i64" && column == "fv"),
+            matches!(
+                &response,
+                Error::ColumnTypeMismatch {
+                    expected_column_type,
+                    actual_column_type,
+                    column
+                } if expected_column_type == "f64"
+                    && actual_column_type == "i64"
+                    && column == "fv"
+            ),
             "didn't match returned error: {:?}",
             response
         );
@@ -662,7 +683,16 @@ mod tests {
             .err()
             .unwrap();
         assert!(
-            matches!(&response, Error::ColumnTypeMismatch {expected_column_type, actual_column_type, column} if expected_column_type == "bool" && actual_column_type == "f64" && column == "bv"),
+            matches!(
+                &response,
+                Error::ColumnTypeMismatch {
+                    expected_column_type,
+                    actual_column_type,
+                    column
+                } if expected_column_type == "bool"
+                    && actual_column_type == "f64"
+                    && column == "bv"
+            ),
             "didn't match returned error: {:?}",
             response
         );
@@ -687,7 +717,16 @@ mod tests {
             .err()
             .unwrap();
         assert!(
-            matches!(&response, Error::ColumnTypeMismatch {expected_column_type, actual_column_type, column} if expected_column_type == "String" && actual_column_type == "bool" && column == "sv"),
+            matches!(
+                &response,
+                Error::ColumnTypeMismatch {
+                    expected_column_type,
+                    actual_column_type,
+                    column
+                } if expected_column_type == "String"
+                    && actual_column_type == "bool"
+                    && column == "sv"
+            ),
             "didn't match returned error: {:?}",
             response
         );
