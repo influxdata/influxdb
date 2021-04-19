@@ -49,6 +49,18 @@ pub enum Error {
         actual_column_type: String,
     },
 
+    #[snafu(display(
+        "Expected column {} to be a tag but received it as a string field",
+        column
+    ))]
+    ExpectedTag { column: String },
+
+    #[snafu(display(
+        "Expected column {} to be a string field but received it as a tag",
+        column
+    ))]
+    ExpectedField { column: String },
+
     #[snafu(display("Internal error: unexpected aggregate request for None aggregate",))]
     InternalUnexpectedNoneAggregate {},
 
@@ -173,20 +185,16 @@ impl Table {
                         (entry::TypedValuesIterator::I64(_), Column::I64(_, _)) => (),
                         (entry::TypedValuesIterator::String(_), Column::String(_, _)) => {
                             if !insert_column.is_field() {
-                                ColumnTypeMismatch {
+                                ExpectedField {
                                     column: insert_column.name(),
-                                    expected_column_type: c.type_description(),
-                                    actual_column_type: values.type_description(),
                                 }
                                 .fail()?
                             };
                         }
                         (entry::TypedValuesIterator::String(_), Column::Tag(_, _)) => {
                             if !insert_column.is_tag() {
-                                ColumnTypeMismatch {
+                                ExpectedTag {
                                     column: insert_column.name(),
-                                    expected_column_type: c.type_description(),
-                                    actual_column_type: values.type_description(),
                                 }
                                 .fail()?
                             };
@@ -583,13 +591,9 @@ mod tests {
         assert!(
             matches!(
                 &response,
-                Error::ColumnTypeMismatch {
-                    expected_column_type,
-                    actual_column_type,
+                Error::ExpectedTag {
                     column,
-                } if expected_column_type == "tag"
-                     && actual_column_type == "String"
-                     && column == "t1"
+                } if column == "t1"
             ),
             "didn't match returned error: {:?}",
             response
@@ -726,6 +730,36 @@ mod tests {
                 } if expected_column_type == "String"
                     && actual_column_type == "bool"
                     && column == "sv"
+            ),
+            "didn't match returned error: {:?}",
+            response
+        );
+
+        let lp = "foo,sv=\"bar\" f=3i 1";
+        let entry = lp_to_entry(&lp);
+        let response = table
+            .write_columns(
+                &mut dictionary,
+                ClockValue::new(0),
+                0,
+                entry
+                    .partition_writes()
+                    .unwrap()
+                    .first()
+                    .unwrap()
+                    .table_batches()
+                    .first()
+                    .unwrap()
+                    .columns(),
+            )
+            .err()
+            .unwrap();
+        assert!(
+            matches!(
+                &response,
+                Error::ExpectedField {
+                    column
+                } if column == "sv"
             ),
             "didn't match returned error: {:?}",
             response
