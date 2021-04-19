@@ -29,11 +29,11 @@ commands:
     description: Install nightly Rust toolchain
     steps:
       - run:
-          name: Install rust nightly-2020-11-19
-          command: rustup toolchain install nightly-2020-11-19
+          name: Install rust nightly-2021-03-24
+          command: rustup toolchain install nightly-2021-03-24
       - run:
-          name: Install rustfmt and clippy for nightly-2020-11-19
-          command: rustup component add rustfmt clippy --toolchain nightly-2020-11-19
+          name: Install rustfmt and clippy for nightly-2021-03-24
+          command: rustup component add rustfmt clippy --toolchain nightly-2021-03-24
   cache_restore:
     description: Restore Cargo Cache
     steps:
