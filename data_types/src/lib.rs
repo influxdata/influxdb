@@ -20,7 +20,7 @@ pub mod job;
 pub mod names;
 pub mod partition_metadata;
 pub mod timestamp;
-pub mod wal;
+pub mod write_buffer;
 
 pub mod consistent_hasher;
 mod database_name;

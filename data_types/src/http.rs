@@ -1,5 +1,5 @@
 //! This module contains structs for the HTTP API
-use crate::wal::SegmentSummary;
+use crate::write_buffer::SegmentSummary;
 use serde::{Deserialize, Serialize};
 
 /// Query string for WAL metadata endpoint

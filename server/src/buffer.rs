@@ -19,7 +19,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use crc32fast::Hasher;
 use data_types::database_rules::WriteBufferConfig;
-use data_types::wal::{SegmentPersistence, SegmentSummary, WriterSummary};
+use data_types::write_buffer::{SegmentPersistence, SegmentSummary, WriterSummary};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
