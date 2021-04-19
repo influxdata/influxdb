@@ -157,8 +157,8 @@ struct TestServer {
     ready: Mutex<ServerState>,
     /// Handle to the server process being controlled
     server_process: Child,
-    /// When using Docker, the ID of the detached child
-    docker_id: Option<String>,
+    /// When using Docker, the name of the detached child
+    docker_name: Option<String>,
     /// HTTP API base
     http_base: String,
     /// Admin token, if onboarding has happened
@@ -194,7 +194,7 @@ impl TestServer {
 
         let local = std::env::var("LOCAL").is_ok();
 
-        let (server_process, docker_id) = if local {
+        let (server_process, docker_name) = if local {
             let cmd = Command::new("influxd")
                 .arg("--http-bind-address")
                 .arg(format!(":{}", http_port))
@@ -212,7 +212,7 @@ impl TestServer {
             let ci_image = "quay.io/influxdb/rust:bf4ea222";
             let container_name = format!("influxdb2_{}", http_port);
 
-            let run_output = Command::new("docker")
+            Command::new("docker")
                 .arg("run")
                 .arg("--name")
                 .arg(&container_name)
@@ -227,30 +227,22 @@ impl TestServer {
                 .output()
                 .expect("starting of docker server process");
 
-            let stdout = String::from_utf8(run_output.stdout).expect("Output was not UTF-8");
-            let id = stdout
-                .trim()
-                .lines()
-                .next()
-                .expect("Must have at least one line of output")
-                .to_owned();
-
             let cmd = Command::new("docker")
                 .arg("logs")
-                .arg(&id)
+                .arg(&container_name)
                 // redirect output to log file
                 .stdout(stdout_log_file)
                 .stderr(stderr_log_file)
                 .spawn()
                 .expect("starting of docker logs process");
 
-            (cmd, Some(id))
+            (cmd, Some(container_name))
         };
 
         Ok(Self {
             ready,
             server_process,
-            docker_id,
+            docker_name,
             http_base,
             admin_token: None,
         })
@@ -346,11 +338,11 @@ impl Drop for TestServer {
             .kill()
             .expect("Should have been able to kill the test server");
 
-        if let Some(docker_id) = &self.docker_id {
+        if let Some(docker_name) = &self.docker_name {
             Command::new("docker")
                 .arg("rm")
                 .arg("--force")
-                .arg(docker_id)
+                .arg(docker_name)
                 .stdout(Stdio::null())
                 .status()
                 .expect("killing of docker process");
