@@ -31,5 +31,7 @@ pub use self::query::{
 };
 pub mod file;
 pub use self::file::File;
+pub mod health;
+pub use self::health::{HealthCheck, Status};
 pub mod data_point;
 pub use data_point::{DataPoint, FieldValue, WriteDataPoint};
