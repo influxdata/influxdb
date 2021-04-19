@@ -319,7 +319,10 @@ where
         .get("/health", health)
         .get("/metrics", handle_metrics)
         .get("/iox/api/v1/databases/:name/query", query::<M>)
-        .get("/iox/api/v1/databases/:name/wal/meta", get_wal_meta::<M>)
+        .get(
+            "/iox/api/v1/databases/:name/wb/meta",
+            get_write_buffer_meta::<M>,
+        )
         .get("/api/v1/partitions", list_partitions::<M>)
         .post("/api/v1/snapshot", snapshot_partition::<M>)
         // Specify the error handler to handle any errors caused by
@@ -543,7 +546,7 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
 }
 
 #[tracing::instrument(level = "debug")]
-async fn get_wal_meta<M: ConnectionManager + Send + Sync + Debug + 'static>(
+async fn get_write_buffer_meta<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
     let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
