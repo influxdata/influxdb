@@ -420,7 +420,7 @@ impl Db {
             })?
         };
 
-        debug!(%partition_key, %chunk_id, "chunk marked MOVING, loading tables into read buffer");
+        info!(%partition_key, %chunk_id, "chunk marked MOVING, loading tables into read buffer");
 
         let mut batches = Vec::new();
         let table_stats = mb_chunk.table_summaries();
