@@ -420,7 +420,7 @@ impl Db {
             })?
         };
 
-        debug!(%partition_key, %chunk_id, "chunk marked MOVING, loading tables into read buffer");
+        info!(%partition_key, %chunk_id, "chunk marked MOVING, loading tables into read buffer");
 
         let mut batches = Vec::new();
         let table_stats = mb_chunk.table_summaries();
@@ -546,10 +546,7 @@ impl Db {
             let schema = Arc::clone(&arrow_schema)
                 .try_into()
                 .context(SchemaConversion)?;
-            let table_time_range = match time_range {
-                None => None,
-                Some((start, end)) => Some(TimestampRange::new(start, end)),
-            };
+            let table_time_range = time_range.map(|(start, end)| TimestampRange::new(start, end));
             parquet_chunk.add_table(stats, path, schema, table_time_range);
         }
 
@@ -904,11 +901,11 @@ mod tests {
         let batches = run_query(db, "select * from cpu").await;
 
         let expected = vec![
-            "+-----+------+",
-            "| bar | time |",
-            "+-----+------+",
-            "| 1   | 10   |",
-            "+-----+------+",
+            "+-----+-------------------------------+",
+            "| bar | time                          |",
+            "+-----+-------------------------------+",
+            "| 1   | 1970-01-01 00:00:00.000000010 |",
+            "+-----+-------------------------------+",
         ];
         assert_table_eq!(expected, &batches);
     }
@@ -923,11 +920,11 @@ mod tests {
         assert_eq!(mb_chunk.id(), 0);
 
         let expected = vec![
-            "+-----+------+",
-            "| bar | time |",
-            "+-----+------+",
-            "| 1   | 10   |",
-            "+-----+------+",
+            "+-----+-------------------------------+",
+            "| bar | time                          |",
+            "+-----+-------------------------------+",
+            "| 1   | 1970-01-01 00:00:00.000000010 |",
+            "+-----+-------------------------------+",
         ];
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_batches_sorted_eq!(expected, &batches);
@@ -935,12 +932,12 @@ mod tests {
         // add new data
         write_lp(db.as_ref(), "cpu bar=2 20");
         let expected = vec![
-            "+-----+------+",
-            "| bar | time |",
-            "+-----+------+",
-            "| 1   | 10   |",
-            "| 2   | 20   |",
-            "+-----+------+",
+            "+-----+-------------------------------+",
+            "| bar | time                          |",
+            "+-----+-------------------------------+",
+            "| 1   | 1970-01-01 00:00:00.000000010 |",
+            "| 2   | 1970-01-01 00:00:00.000000020 |",
+            "+-----+-------------------------------+",
         ];
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_batches_sorted_eq!(&expected, &batches);
@@ -973,13 +970,13 @@ mod tests {
         assert_eq!(mb_chunk.id(), 0);
 
         let expected = vec![
-            "+------+--------+------+------+",
-            "| core | region | time | user |",
-            "+------+--------+------+------+",
-            "|      | west   | 10   | 23.2 |",
-            "|      |        | 11   | 10   |",
-            "| one  |        | 11   | 10   |",
-            "+------+--------+------+------+",
+            "+------+--------+-------------------------------+------+",
+            "| core | region | time                          | user |",
+            "+------+--------+-------------------------------+------+",
+            "|      | west   | 1970-01-01 00:00:00.000000010 | 23.2 |",
+            "|      |        | 1970-01-01 00:00:00.000000011 | 10   |",
+            "| one  |        | 1970-01-01 00:00:00.000000011 | 10   |",
+            "+------+--------+-------------------------------+------+",
         ];
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_table_eq!(expected, &batches);
@@ -1009,12 +1006,12 @@ mod tests {
 
         // data should be readable
         let expected = vec![
-            "+-----+------+",
-            "| bar | time |",
-            "+-----+------+",
-            "| 1   | 10   |",
-            "| 2   | 20   |",
-            "+-----+------+",
+            "+-----+-------------------------------+",
+            "| bar | time                          |",
+            "+-----+-------------------------------+",
+            "| 1   | 1970-01-01 00:00:00.000000010 |",
+            "| 2   | 1970-01-01 00:00:00.000000020 |",
+            "+-----+-------------------------------+",
         ];
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_table_eq!(&expected, &batches);
@@ -1123,12 +1120,12 @@ mod tests {
         let content = ctx.sql(&sql).unwrap().collect().await.unwrap();
         println!("Content: {:?}", content);
         let expected = vec![
-            "+-----+------+",
-            "| bar | time |",
-            "+-----+------+",
-            "| 1   | 10   |",
-            "| 2   | 20   |",
-            "+-----+------+",
+            "+-----+-------------------------------+",
+            "| bar | time                          |",
+            "+-----+-------------------------------+",
+            "| 1   | 1970-01-01 00:00:00.000000010 |",
+            "| 2   | 1970-01-01 00:00:00.000000020 |",
+            "+-----+-------------------------------+",
         ];
         assert_table_eq!(expected, &content);
     }
@@ -1219,21 +1216,21 @@ mod tests {
             let expected = if path_string.contains("cpu") {
                 // file name: cpu.parquet
                 vec![
-                    "+-----+------+",
-                    "| bar | time |",
-                    "+-----+------+",
-                    "| 1   | 10   |",
-                    "| 2   | 20   |",
-                    "+-----+------+",
+                    "+-----+-------------------------------+",
+                    "| bar | time                          |",
+                    "+-----+-------------------------------+",
+                    "| 1   | 1970-01-01 00:00:00.000000010 |",
+                    "| 2   | 1970-01-01 00:00:00.000000020 |",
+                    "+-----+-------------------------------+",
                 ]
             } else {
                 // file name: disk.parquet
                 vec![
-                    "+-----+------+",
-                    "| ops | time |",
-                    "+-----+------+",
-                    "| 1   | 20   |",
-                    "+-----+------+",
+                    "+-----+-------------------------------+",
+                    "| ops | time                          |",
+                    "+-----+-------------------------------+",
+                    "| 1   | 1970-01-01 00:00:00.000000020 |",
+                    "+-----+-------------------------------+",
                 ]
             };
 

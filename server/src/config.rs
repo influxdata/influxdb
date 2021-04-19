@@ -299,7 +299,7 @@ mod test {
         {
             let _db_reservation = config.create_db(rules.clone()).unwrap();
             let err = config.create_db(rules.clone()).unwrap_err();
-            assert!(matches!(err, Error::DatabaseAlreadyExists{ .. }));
+            assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
         }
 
         let db_reservation = config.create_db(rules).unwrap();

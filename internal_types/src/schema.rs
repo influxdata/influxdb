@@ -9,11 +9,28 @@ use std::{
 
 use arrow_deps::arrow::datatypes::{
     DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema,
-    SchemaRef as ArrowSchemaRef,
+    SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 
 /// The name of the timestamp column in the InfluxDB datamodel
 pub const TIME_COLUMN_NAME: &str = "time";
+
+/// The Timezone to use for InfluxDB timezone (should be a constant)
+#[allow(non_snake_case)]
+pub fn TIME_DATA_TIMEZONE() -> Option<String> {
+    // TODO: we should use the "UTC" timezone as that is what the
+    // InfluxDB data model timestamps are relative to. However,
+    // DataFusion doesn't currently do a great job with such
+    // timezones so punting for now
+    //Some(String::from("UTC"));
+    None
+}
+
+/// the Arrow [`DataType`] to use for InfluxDB timestamps
+#[allow(non_snake_case)]
+pub fn TIME_DATA_TYPE() -> ArrowDataType {
+    ArrowDataType::Timestamp(TimeUnit::Nanosecond, TIME_DATA_TIMEZONE())
+}
 
 pub mod builder;
 
@@ -631,7 +648,7 @@ impl From<&InfluxColumnType> for ArrowDataType {
         match t {
             InfluxColumnType::Tag => Self::Utf8,
             InfluxColumnType::Field(influxdb_field_type) => (*influxdb_field_type).into(),
-            InfluxColumnType::Timestamp => Self::Int64,
+            InfluxColumnType::Timestamp => TIME_DATA_TYPE(),
         }
     }
 }
@@ -737,7 +754,7 @@ mod test {
             ArrowField::new("float_col", ArrowDataType::Float64, false),
             ArrowField::new("str_col", ArrowDataType::Utf8, false),
             ArrowField::new("bool_col", ArrowDataType::Boolean, false),
-            ArrowField::new("time_col", ArrowDataType::Int64, false),
+            ArrowField::new("time_col", TIME_DATA_TYPE(), false),
         ];
 
         let metadata: HashMap<_, _> = vec![

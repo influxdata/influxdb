@@ -3,6 +3,7 @@ use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
     convert::{TryFrom, TryInto},
+    fmt::Display,
     sync::Arc,
 };
 
@@ -17,7 +18,11 @@ use crate::schema::{AggregateType, LogicalDataType, ResultSchema};
 use crate::value::{
     AggregateVec, EncodedValues, OwnedValue, Scalar, Value, Values, ValuesIterator,
 };
-use arrow_deps::arrow::record_batch::RecordBatch;
+use arrow_deps::arrow::{
+    array::ArrayRef,
+    datatypes::{DataType, TimeUnit},
+    record_batch::RecordBatch,
+};
 use arrow_deps::{
     arrow, datafusion::logical_plan::Expr as DfExpr,
     datafusion::scalar::ScalarValue as DFScalarValue,
@@ -1055,16 +1060,35 @@ impl RowGroup {
             };
 
             let results = dst.entry(name.clone()).or_default();
-            for value in column.distinct_values(row_itr).into_iter() {
-                if let Some(v) = value {
-                    if !results.contains(v) {
-                        results.insert(v.to_owned());
-                    }
+            for v in column.distinct_values(row_itr).into_iter().flatten() {
+                if !results.contains(v) {
+                    results.insert(v.to_owned());
                 }
             }
         }
 
         dst
+    }
+}
+
+impl std::fmt::Display for &RowGroup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.metadata().fmt(f)?;
+
+        writeln!(f, "[DATA]")?;
+
+        for (name, idx) in &self.all_columns_by_name {
+            writeln!(
+                f,
+                "'{}' (pos {}): size: {} {}",
+                name,
+                idx,
+                self.size(),
+                self.columns[*idx]
+            )?;
+        }
+
+        Ok(())
     }
 }
 
@@ -1409,6 +1433,23 @@ impl ColumnMeta {
     }
 }
 
+impl Display for &ColumnMeta {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Can't rely on ColumnType Display impl.
+        let semantic_type = match self.typ {
+            schema::ColumnType::Tag(_) => "TAG",
+            schema::ColumnType::Field(_) => "FIELD",
+            schema::ColumnType::Timestamp(_) => "TIMESTAMP",
+            schema::ColumnType::Other(_) => "IOX",
+        };
+
+        write!(
+            f,
+            "sem_type: {}, log_type: {}, range: ({}, {})",
+            semantic_type, self.logical_data_type, &self.range.0, &self.range.1
+        )
+    }
+}
 // column metadata is equivalent for two columns if their logical type and
 // semantic type are equivalent.
 impl PartialEq for ColumnMeta {
@@ -1440,6 +1481,22 @@ pub struct MetaData {
     // This can be used to skip the table entirely if the time range for a query
     // falls outside of this range.
     pub time_range: (i64, i64),
+}
+
+impl std::fmt::Display for &MetaData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "[META] rows: {}, columns: {}",
+            self.rows,
+            self.columns.len()
+        )?;
+
+        for (name, meta) in &self.columns {
+            writeln!(f, "'{}': {}", name, meta)?;
+        }
+        Ok(())
+    }
 }
 
 impl MetaData {
@@ -1582,11 +1639,43 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
             .map_err(|source| Error::SchemaError { source })?;
         let arrow_schema: arrow_deps::arrow::datatypes::SchemaRef = schema.into();
 
-        let columns = result
+        let columns: Vec<ArrayRef> = result
             .data
             .into_iter()
-            .map(arrow::array::ArrayRef::from)
-            .collect::<Vec<_>>();
+            .enumerate()
+            .map(|(i, values)| {
+                // Note: here we are special-casing columns that have been
+                // specified as being represented by `TimestampNanosecondArray`
+                // according to the Arrow schema. Currently this is done so that
+                // when they're fed into a data-fusion query engine, it will
+                // emit a friendlier representation of them.
+                if let DataType::Timestamp(TimeUnit::Nanosecond, timestamp) =
+                    arrow_schema.field(i).data_type()
+                {
+                    return match values {
+                        Values::I64(arr) => {
+                            Ok(Arc::new(arrow::array::TimestampNanosecondArray::from_vec(
+                                arr,
+                                timestamp.clone(),
+                            )) as arrow::array::ArrayRef)
+                        }
+                        Values::I64N(arr) => Ok(Arc::new(
+                            arrow::array::TimestampNanosecondArray::from_opt_vec(
+                                arr,
+                                timestamp.clone(),
+                            ),
+                        )
+                            as arrow::array::ArrayRef),
+                        t => UnsupportedOperation {
+                            msg: format!("cannot convert {:?} to TimestampNanosecondArray", t),
+                        }
+                        .fail(),
+                    };
+                }
+
+                Ok(arrow::array::ArrayRef::from(values))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         // try_new only returns an error if the schema is invalid or the number
         // of rows on columns differ. We have full control over both so there
@@ -1598,15 +1687,15 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
 impl std::fmt::Debug for &ReadFilterResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Display the header
-        std::fmt::Display::fmt(self.schema(), f)?;
+        Display::fmt(self.schema(), f)?;
         writeln!(f)?;
 
         // Display the rest of the values.
-        std::fmt::Display::fmt(&self, f)
+        Display::fmt(&self, f)
     }
 }
 
-impl std::fmt::Display for &ReadFilterResult<'_> {
+impl Display for &ReadFilterResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_empty() {
             return Ok(());
@@ -2109,19 +2198,19 @@ impl PartialEq for ReadAggregateResult<'_> {
 
 /// The Debug implementation emits both the schema and the column data for the
 /// results.
-impl std::fmt::Debug for &ReadAggregateResult<'_> {
+impl std::fmt::Debug for ReadAggregateResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Display the schema
-        std::fmt::Display::fmt(&self.schema(), f)?;
+        Display::fmt(&self.schema(), f)?;
 
         // Display the rest of the values.
-        std::fmt::Display::fmt(&self, f)
+        Display::fmt(&self, f)
     }
 }
 
 /// The Display implementation emits all of the column data for the results, but
 /// omits the schema.
-impl std::fmt::Display for &ReadAggregateResult<'_> {
+impl Display for ReadAggregateResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_empty() {
             return Ok(());

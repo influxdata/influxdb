@@ -91,7 +91,7 @@ pub async fn stats_for_file(config: &Config, input_reader: InputReader) -> Resul
             }
             .fail()
         }
-        FileType::TSM => {
+        FileType::Tsm => {
             return NotImplemented {
                 operation_name: "TSM storage statistics",
             }

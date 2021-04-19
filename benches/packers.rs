@@ -136,10 +136,8 @@ fn benchmark_iter(c: &mut Criterion, benchmark_group_name: &str, batch_sizes: &[
             |b, packer| {
                 let mut sum = 0;
                 b.iter(|| {
-                    for v in packer.iter() {
-                        if let Some(v) = v {
-                            sum += *v;
-                        }
+                    for v in packer.iter().flatten() {
+                        sum += *v;
                     }
                 });
             },

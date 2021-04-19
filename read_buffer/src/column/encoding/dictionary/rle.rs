@@ -12,6 +12,7 @@ use crate::column::{cmp, RowIDs};
 
 // `RLE` is a run-length encoding for dictionary columns, where all dictionary
 // entries are utf-8 valid strings.
+#[allow(clippy::upper_case_acronyms)] // this looks weird as `Rle`
 pub struct RLE {
     // TODO(edd): revisit choice of storing owned string versus references.
 
@@ -924,7 +925,7 @@ impl std::fmt::Display for RLE {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[RLE Dictionary] size: {:?} rows: {:?} cardinality: {}, runs: {} ",
+            "[RLE] size: {:?} rows: {:?} cardinality: {}, runs: {} ",
             self.size(),
             self.num_rows,
             self.cardinality(),

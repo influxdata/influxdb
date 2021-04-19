@@ -400,26 +400,24 @@ impl Error {
         use rusoto_core::RusotoError;
         use Error::*;
 
-        matches! (self,
-             UnableToPutData {
-                 source: RusotoError::Credentials(_),
-                 bucket: _,
-                 location: _,
-             } |
-             UnableToGetData {
-                 source: RusotoError::Credentials(_),
-                 bucket: _,
-                 location: _,
-             } |
-             UnableToDeleteData {
-                 source: RusotoError::Credentials(_),
-                 bucket: _,
-                 location: _,
-             } |
-             UnableToListData {
-                 source: RusotoError::Credentials(_),
-                 bucket: _,
-             }
+        matches!(
+            self,
+            UnableToPutData {
+                source: RusotoError::Credentials(_),
+                bucket: _,
+                location: _,
+            } | UnableToGetData {
+                source: RusotoError::Credentials(_),
+                bucket: _,
+                location: _,
+            } | UnableToDeleteData {
+                source: RusotoError::Credentials(_),
+                bucket: _,
+                location: _,
+            } | UnableToListData {
+                source: RusotoError::Credentials(_),
+                bucket: _,
+            }
         )
     }
 }

@@ -5,8 +5,8 @@
 
 use arrow_deps::{
     arrow::{
-        array::{ArrayRef, Int64Array, StringArray},
-        datatypes::DataType,
+        array::{ArrayRef, Int64Array, StringArray, TimestampNanosecondArray},
+        datatypes::{DataType, TimeUnit},
         record_batch::RecordBatch,
     },
     datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream},
@@ -248,6 +248,9 @@ impl TestChunk {
             .map(|(_influxdb_column_type, field)| match field.data_type() {
                 DataType::Int64 => Arc::new(Int64Array::from(vec![1000])) as ArrayRef,
                 DataType::Utf8 => Arc::new(StringArray::from(vec!["MA"])) as ArrayRef,
+                DataType::Timestamp(TimeUnit::Nanosecond, _) => {
+                    Arc::new(TimestampNanosecondArray::from_vec(vec![1000], None)) as ArrayRef
+                }
                 _ => unimplemented!(
                     "Unimplemented data type for test database: {:?}",
                     field.data_type()

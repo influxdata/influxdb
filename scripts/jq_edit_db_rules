@@ -1,0 +1,51 @@
+#!/bin/bash
+
+set -eu -o pipefail
+
+# This is a simple shell script edits a database rules config
+# using a `jq` expression
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+usage() {
+  echo "$0 <host> <db_name> <jq_expression>"
+  exit 1
+}
+
+edit_db_rules() {
+  "${SCRIPT_DIR}"/edit_db_rules "$@"
+}
+
+declare -a tmps
+cleanup() {
+  # https://stackoverflow.com/questions/7577052/bash-empty-array-expansion-with-set-u
+  rm -rf ${tmps[@]+"${tmps[@]}"}
+}
+trap cleanup EXIT
+
+main() {
+  if [ $# -lt 3 ]; then
+    usage
+  fi
+
+  local host="${1}"
+  local db_name="${2}"
+  local jq_expr="${3}"
+
+  if ! command -v sponge &> /dev/null; then
+    echo "sponge could not be found; please install moreutils"
+    exit
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+  tmps+=("${tmp}")
+
+  cat >"${tmp}" <<EOF || true
+jq <"\$1" '${jq_expr}' | sponge "\$1"
+EOF
+  chmod +x "${tmp}"
+
+  EDITOR="${tmp}" edit_db_rules "${host}" "${db_name}"
+}
+main "$@"
+

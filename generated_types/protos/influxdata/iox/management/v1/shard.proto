@@ -19,6 +19,8 @@ message ShardConfig {
   /// and your ring has 4 slots. If two tables that are very hot get
   /// assigned to the same slot you can override that by putting in a
   /// specific matcher to pull that table over to a different node.
+  ///
+  /// TODO(#1224): consider turning this into a repeated field.
   MatcherToShard specific_targets = 1;
 
   /// An optional default hasher which will route to one in a collection of

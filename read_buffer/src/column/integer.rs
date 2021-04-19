@@ -384,6 +384,26 @@ impl IntegerEncoding {
     }
 }
 
+impl std::fmt::Display for IntegerEncoding {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::I64I64(enc) => write!(f, "phys i64: {}", enc),
+            Self::I64I32(enc) => write!(f, "phys i32: {}", enc),
+            Self::I64U32(enc) => write!(f, "phys u32: {}", enc),
+            Self::I64I16(enc) => write!(f, "phys i16: {}", enc),
+            Self::I64U16(enc) => write!(f, "phys u16: {}", enc),
+            Self::I64I8(enc) => write!(f, "phys i8: {}", enc),
+            Self::I64U8(enc) => write!(f, "phys u8: {}", enc),
+            Self::U64U64(enc) => write!(f, "phys u64: {}", enc),
+            Self::U64U32(enc) => write!(f, "phys u32: {}", enc),
+            Self::U64U16(enc) => write!(f, "phys u16: {}", enc),
+            Self::U64U8(enc) => write!(f, "phys u8: {}", enc),
+            Self::I64I64N(enc) => write!(f, "phys i64: {}", enc),
+            Self::U64U64N(enc) => write!(f, "phys u64: {}", enc),
+        }
+    }
+}
+
 /// Converts a slice of i64 values into an IntegerEncoding.
 ///
 /// The most compact physical type needed to store the columnar values is

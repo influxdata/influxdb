@@ -1,14 +1,12 @@
 mod internal;
 
 pub use internal::{Duration, Window};
+use internal_types::schema::TIME_DATA_TYPE;
 
-use std::sync::Arc;
+use std::{iter::FromIterator, sync::Arc};
 
 use arrow_deps::{
-    arrow::{
-        array::{ArrayRef, Int64Array, Int64Builder},
-        datatypes::DataType,
-    },
+    arrow::array::{ArrayRef, TimestampNanosecondArray},
     datafusion::{logical_plan::Expr, physical_plan::functions::make_scalar_function, prelude::*},
 };
 
@@ -46,7 +44,7 @@ fn window_bounds(
 
     let time = &args[0]
         .as_any()
-        .downcast_ref::<Int64Array>()
+        .downcast_ref::<TimestampNanosecondArray>()
         .expect("cast of time failed");
 
     // Note: the Go code uses the `Stop` field of the `GetEarliestBounds` call as
@@ -57,16 +55,16 @@ fn window_bounds(
     let window = internal::Window::new(every.into(), period, offset.into());
 
     // calculate the output times, one at a time, one element at a time
-    let mut builder = Int64Builder::new(time.len());
-    time.iter().try_for_each(|ts| match ts {
-        Some(ts) => {
-            let bounds = window.get_earliest_bounds(ts);
-            builder.append_value(bounds.stop)
-        }
-        None => builder.append_null(),
-    })?;
 
-    Ok(Arc::new(builder.finish()))
+    let values = time.iter().map(|ts| {
+        ts.map(|ts| {
+            let bounds = window.get_earliest_bounds(ts);
+            bounds.stop
+        })
+    });
+
+    let array = TimestampNanosecondArray::from_iter(values);
+    Ok(Arc::new(array) as ArrayRef)
 }
 
 /// Create a DataFusion `Expr` that invokes `window_bounds` with the
@@ -86,8 +84,8 @@ pub fn make_window_bound_expr(
 
     let udf = create_udf(
         "window_bounds",
-        vec![DataType::Int64],     // argument types
-        Arc::new(DataType::Int64), // return type
+        vec![TIME_DATA_TYPE()],     // argument types
+        Arc::new(TIME_DATA_TYPE()), // return type
         func_ptr,
     );
 
@@ -96,17 +94,17 @@ pub fn make_window_bound_expr(
 
 #[cfg(test)]
 mod tests {
+    use arrow_deps::arrow::array::TimestampNanosecondArray;
+    use internal_types::schema::TIME_DATA_TIMEZONE;
+
     use super::*;
 
     #[test]
     fn test_window_bounds() {
-        let input: ArrayRef = Arc::new(Int64Array::from(vec![
-            Some(100),
-            None,
-            Some(200),
-            Some(300),
-            Some(400),
-        ]));
+        let input: ArrayRef = Arc::new(TimestampNanosecondArray::from_opt_vec(
+            vec![Some(100), None, Some(200), Some(300), Some(400)],
+            TIME_DATA_TIMEZONE(),
+        ));
 
         let every = WindowDuration::from_nanoseconds(200);
         let offset = WindowDuration::from_nanoseconds(50);
@@ -114,13 +112,10 @@ mod tests {
         let bounds_array =
             window_bounds(&[input], &every, &offset).expect("window_bounds executed correctly");
 
-        let expected_array: ArrayRef = Arc::new(Int64Array::from(vec![
-            Some(250),
-            None,
-            Some(250),
-            Some(450),
-            Some(450),
-        ]));
+        let expected_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_opt_vec(
+            vec![Some(250), None, Some(250), Some(450), Some(450)],
+            TIME_DATA_TIMEZONE(),
+        ));
 
         assert_eq!(
             &expected_array, &bounds_array,

@@ -104,10 +104,10 @@ impl FieldIndexes {
     }
 }
 
-impl Into<FieldIndexes> for Vec<FieldIndex> {
-    fn into(self) -> FieldIndexes {
-        FieldIndexes {
-            inner: Arc::new(self),
+impl From<Vec<FieldIndex>> for FieldIndexes {
+    fn from(list: Vec<FieldIndex>) -> Self {
+        Self {
+            inner: Arc::new(list),
         }
     }
 }

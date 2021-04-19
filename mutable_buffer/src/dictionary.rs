@@ -20,6 +20,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// string in the dictionary. The same string always maps the same DID. DIDs can
 /// be compared, hashed and cheaply copied around, just like small integers.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[allow(clippy::upper_case_acronyms)] // Don't want to confuse with the verb "Did"
 pub struct DID(DefaultSymbol);
 
 impl DID {

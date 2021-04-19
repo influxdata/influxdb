@@ -42,7 +42,7 @@ pub enum Error {
     UnableToCreateDir { source: io::Error, path: PathBuf },
 
     #[snafu(display("Unable to create file {}: {}", path.display(), err))]
-    UnableToCreateFile { err: io::Error, path: PathBuf },
+    UnableToCreateFile { path: PathBuf, err: io::Error },
 
     #[snafu(display("Unable to delete file {}: {}", path.display(), source))]
     UnableToDeleteFile { source: io::Error, path: PathBuf },

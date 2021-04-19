@@ -1,4 +1,4 @@
-use std::{cmp, collections::BTreeMap, sync::Arc};
+use std::{cmp, collections::BTreeMap, iter::FromIterator, sync::Arc};
 
 use crate::{
     column,
@@ -21,7 +21,8 @@ use arrow_deps::{
     arrow,
     arrow::{
         array::{
-            ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder, UInt64Builder,
+            ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray,
+            TimestampNanosecondArray, UInt64Array,
         },
         datatypes::DataType as ArrowDataType,
         record_batch::RecordBatch,
@@ -30,9 +31,6 @@ use arrow_deps::{
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Tag value ID {} not found in dictionary of chunk", value))]
-    TagValueIdNotFoundInDictionary { value: DID, source: DictionaryError },
-
     #[snafu(display("Column error on column {}: {}", column, source))]
     ColumnError {
         column: String,
@@ -361,73 +359,44 @@ impl Table {
         for col in &selection.cols {
             let column = self.column(col.column_id)?;
 
-            let array = match column {
+            let array: ArrayRef = match column {
                 Column::String(vals, _) => {
-                    let mut builder = StringBuilder::with_capacity(vals.len(), vals.len() * 10);
-
-                    for v in vals {
-                        match v {
-                            None => builder.append_null(),
-                            Some(s) => builder.append_value(s),
-                        }
-                        .context(ArrowError {})?;
-                    }
-
-                    Arc::new(builder.finish()) as ArrayRef
+                    let iter = vals.iter().map(|s| s.as_deref());
+                    let array = StringArray::from_iter(iter);
+                    Arc::new(array)
                 }
                 Column::Tag(vals, _) => {
-                    let mut builder = StringBuilder::with_capacity(vals.len(), vals.len() * 10);
+                    let iter = vals.iter().map(|id| {
+                        id.as_ref().map(|value_id| {
+                            dictionary
+                                .lookup_id(*value_id)
+                                .expect("dictionary had mapping for tag value")
+                        })
+                    });
 
-                    for v in vals {
-                        match v {
-                            None => builder.append_null(),
-                            Some(value_id) => {
-                                let tag_value = dictionary
-                                    .lookup_id(*value_id)
-                                    .context(TagValueIdNotFoundInDictionary { value: *value_id })?;
-                                builder.append_value(tag_value)
-                            }
-                        }
-                        .context(ArrowError {})?;
-                    }
-
-                    Arc::new(builder.finish()) as ArrayRef
+                    let array = StringArray::from_iter(iter);
+                    Arc::new(array)
                 }
                 Column::F64(vals, _) => {
-                    let mut builder = Float64Builder::new(vals.len());
-
-                    for v in vals {
-                        builder.append_option(*v).context(ArrowError {})?;
-                    }
-
-                    Arc::new(builder.finish()) as ArrayRef
+                    let array = Float64Array::from_iter(vals.iter());
+                    Arc::new(array)
                 }
                 Column::I64(vals, _) => {
-                    let mut builder = Int64Builder::new(vals.len());
-
-                    for v in vals {
-                        builder.append_option(*v).context(ArrowError {})?;
+                    if col.column_name == TIME_COLUMN_NAME {
+                        let array = TimestampNanosecondArray::from_iter(vals.iter());
+                        Arc::new(array)
+                    } else {
+                        let array = Int64Array::from_iter(vals.iter());
+                        Arc::new(array)
                     }
-
-                    Arc::new(builder.finish()) as ArrayRef
                 }
                 Column::U64(vals, _) => {
-                    let mut builder = UInt64Builder::new(vals.len());
-
-                    for v in vals {
-                        builder.append_option(*v).context(ArrowError {})?;
-                    }
-
-                    Arc::new(builder.finish()) as ArrayRef
+                    let array = UInt64Array::from_iter(vals.iter());
+                    Arc::new(array)
                 }
                 Column::Bool(vals, _) => {
-                    let mut builder = BooleanBuilder::new(vals.len());
-
-                    for v in vals {
-                        builder.append_option(*v).context(ArrowError {})?;
-                    }
-
-                    Arc::new(builder.finish()) as ArrayRef
+                    let array = BooleanArray::from_iter(vals.iter());
+                    Arc::new(array)
                 }
             };
 
@@ -619,7 +588,8 @@ mod tests {
                     actual_column_type,
                     ..
                 } if expected_column_type == "tag" && actual_column_type == "String"),
-            format!("didn't match returned error: {:?}", response)
+            "didn't match returned error: {:?}",
+            response
         );
 
         let lp = "foo iv=1u 1";
@@ -643,7 +613,8 @@ mod tests {
             .unwrap();
         assert!(
             matches!(&response, Error::InternalColumnTypeMismatch {expected_column_type, actual_column_type, ..} if expected_column_type == "i64" && actual_column_type == "u64"),
-            format!("didn't match returned error: {:?}", response)
+            "didn't match returned error: {:?}",
+            response
         );
 
         let lp = "foo fv=1i 1";
@@ -667,7 +638,8 @@ mod tests {
             .unwrap();
         assert!(
             matches!(&response, Error::InternalColumnTypeMismatch {expected_column_type, actual_column_type, ..} if expected_column_type == "f64" && actual_column_type == "i64"),
-            format!("didn't match returned error: {:?}", response)
+            "didn't match returned error: {:?}",
+            response
         );
 
         let lp = "foo bv=1 1";
@@ -691,7 +663,8 @@ mod tests {
             .unwrap();
         assert!(
             matches!(&response, Error::InternalColumnTypeMismatch {expected_column_type, actual_column_type, ..} if expected_column_type == "bool" && actual_column_type == "f64"),
-            format!("didn't match returned error: {:?}", response)
+            "didn't match returned error: {:?}",
+            response
         );
 
         let lp = "foo sv=true 1";
@@ -715,7 +688,8 @@ mod tests {
             .unwrap();
         assert!(
             matches!(&response, Error::InternalColumnTypeMismatch {expected_column_type, actual_column_type, ..} if expected_column_type == "String" && actual_column_type == "bool"),
-            format!("didn't match returned error: {:?}", response)
+            "didn't match returned error: {:?}",
+            response
         );
     }
 

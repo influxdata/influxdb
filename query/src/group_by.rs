@@ -108,13 +108,13 @@ impl WindowDuration {
 
 // Translation to the structures for the underlying window
 // implementation
-impl Into<window::Duration> for &WindowDuration {
-    fn into(self) -> window::Duration {
-        match *self {
+impl From<&WindowDuration> for window::Duration {
+    fn from(window_duration: &WindowDuration) -> Self {
+        match window_duration {
             WindowDuration::Variable { months, negative } => {
-                window::Duration::from_months_with_negative(months, negative)
+                Self::from_months_with_negative(*months, *negative)
             }
-            WindowDuration::Fixed { nanoseconds } => window::Duration::from_nsecs(nanoseconds),
+            WindowDuration::Fixed { nanoseconds } => Self::from_nsecs(*nanoseconds),
         }
     }
 }

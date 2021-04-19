@@ -901,7 +901,7 @@ mod tests {
             .await
             .unwrap_err();
 
-        if !matches!(got, Error::DatabaseAlreadyExists {..}) {
+        if !matches!(got, Error::DatabaseAlreadyExists { .. }) {
             panic!("expected already exists error");
         }
     }
@@ -953,11 +953,11 @@ mod tests {
 
         let batches = executor.collect(physical_plan).await.unwrap();
         let expected = vec![
-            "+-----+------+",
-            "| bar | time |",
-            "+-----+------+",
-            "| 1   | 10   |",
-            "+-----+------+",
+            "+-----+-------------------------------+",
+            "| bar | time                          |",
+            "+-----+-------------------------------+",
+            "| 1   | 1970-01-01 00:00:00.000000010 |",
+            "+-----+-------------------------------+",
         ];
         assert_table_eq!(expected, &batches);
     }
@@ -996,11 +996,11 @@ mod tests {
 
         let batches = executor.collect(physical_plan).await.unwrap();
         let expected = vec![
-            "+-----+------+",
-            "| bar | time |",
-            "+-----+------+",
-            "| 1   | 10   |",
-            "+-----+------+",
+            "+-----+-------------------------------+",
+            "| bar | time                          |",
+            "+-----+-------------------------------+",
+            "| 1   | 1970-01-01 00:00:00.000000010 |",
+            "+-----+-------------------------------+",
         ];
         assert_table_eq!(expected, &batches);
     }

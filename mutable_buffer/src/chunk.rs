@@ -247,7 +247,7 @@ pub mod test_helpers {
 mod tests {
     use super::test_helpers::write_lp_to_chunk;
     use super::*;
-    use arrow_deps::arrow::util::pretty::pretty_format_batches;
+    use arrow_deps::assert_table_eq;
 
     #[test]
     fn writes_table_batches() {
@@ -263,30 +263,43 @@ mod tests {
 
         write_lp_to_chunk(&lp, &mut chunk).unwrap();
 
-        assert_table(
-            &chunk,
-            "cpu",
-            &[
-                "+------+------+-----+",
-                "| host | time | val |",
-                "+------+------+-----+",
-                "| a    | 1    | 23  |",
-                "| b    | 1    | 2   |",
-                "+------+------+-----+\n",
+        assert_table_eq!(
+            vec![
+                "+------+-------------------------------+-----+",
+                "| host | time                          | val |",
+                "+------+-------------------------------+-----+",
+                "| a    | 1970-01-01 00:00:00.000000001 | 23  |",
+                "| b    | 1970-01-01 00:00:00.000000001 | 2   |",
+                "+------+-------------------------------+-----+",
             ],
+            &chunk_to_batches(&chunk, "cpu")
         );
 
-        assert_table(
-            &chunk,
-            "mem",
-            &[
-                "+------+------+-------+",
-                "| host | time | val   |",
-                "+------+------+-------+",
-                "| a    | 1    | 23432 |",
-                "+------+------+-------+\n",
+        assert_table_eq!(
+            vec![
+                "+------+-------------------------------+-------+",
+                "| host | time                          | val   |",
+                "+------+-------------------------------+-------+",
+                "| a    | 1970-01-01 00:00:00.000000001 | 23432 |",
+                "+------+-------------------------------+-------+",
             ],
+            &chunk_to_batches(&chunk, "mem")
         );
+    }
+
+    #[test]
+    fn writes_table_3_batches() {
+        let mr = MemRegistry::new();
+        let mut chunk = Chunk::new(1, &mr);
+
+        let lp = vec![
+            "cpu,host=a val=23 1",
+            "cpu,host=b val=2 1",
+            "mem,host=a val=23432i 1",
+        ]
+        .join("\n");
+
+        write_lp_to_chunk(&lp, &mut chunk).unwrap();
 
         let lp = vec![
             "cpu,host=c val=11 1",
@@ -297,43 +310,40 @@ mod tests {
 
         write_lp_to_chunk(&lp, &mut chunk).unwrap();
 
-        assert_table(
-            &chunk,
-            "cpu",
-            &[
-                "+------+------+-----+",
-                "| host | time | val |",
-                "+------+------+-----+",
-                "| a    | 1    | 23  |",
-                "| b    | 1    | 2   |",
-                "| c    | 1    | 11  |",
-                "+------+------+-----+\n",
+        assert_table_eq!(
+            vec![
+                "+------+-------------------------------+-----+",
+                "| host | time                          | val |",
+                "+------+-------------------------------+-----+",
+                "| a    | 1970-01-01 00:00:00.000000001 | 23  |",
+                "| b    | 1970-01-01 00:00:00.000000001 | 2   |",
+                "| c    | 1970-01-01 00:00:00.000000001 | 11  |",
+                "+------+-------------------------------+-----+",
             ],
+            &chunk_to_batches(&chunk, "cpu")
         );
 
-        assert_table(
-            &chunk,
-            "disk",
-            &[
-                "+------+------+",
-                "| time | val  |",
-                "+------+------+",
-                "| 1    | true |",
-                "+------+------+\n",
+        assert_table_eq!(
+            vec![
+                "+-------------------------------+------+",
+                "| time                          | val  |",
+                "+-------------------------------+------+",
+                "| 1970-01-01 00:00:00.000000001 | true |",
+                "+-------------------------------+------+",
             ],
+            &chunk_to_batches(&chunk, "disk")
         );
 
-        assert_table(
-            &chunk,
-            "mem",
-            &[
-                "+------+------+------+-------+",
-                "| host | sval | time | val   |",
-                "+------+------+------+-------+",
-                "| a    |      | 1    | 23432 |",
-                "|      | hi   | 2    |       |",
-                "+------+------+------+-------+\n",
+        assert_table_eq!(
+            vec![
+                "+------+------+-------------------------------+-------+",
+                "| host | sval | time                          | val   |",
+                "+------+------+-------------------------------+-------+",
+                "| a    |      | 1970-01-01 00:00:00.000000001 | 23432 |",
+                "|      | hi   | 1970-01-01 00:00:00.000000002 |       |",
+                "+------+------+-------------------------------+-------+",
             ],
+            &chunk_to_batches(&chunk, "mem")
         );
     }
 
@@ -362,17 +372,11 @@ mod tests {
         assert_eq!(Arc::as_ptr(&s3), Arc::as_ptr(&s4));
     }
 
-    fn assert_table(chunk: &Chunk, table: &str, data: &[&str]) {
+    fn chunk_to_batches(chunk: &Chunk, table: &str) -> Vec<RecordBatch> {
         let mut batches = vec![];
         chunk
             .table_to_arrow(&mut batches, table, Selection::All)
             .unwrap();
-        let res = pretty_format_batches(&batches).unwrap();
-        let data = data.join("\n");
-        assert_eq!(
-            res, data,
-            "\n{} table results not as expected:\nEXPECTED:\n{}\nRECEIVED:\n{}",
-            table, data, res
-        );
+        batches
     }
 }

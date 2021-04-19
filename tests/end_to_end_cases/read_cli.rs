@@ -68,12 +68,12 @@ async fn create_database(db_name: &str, addr: &str) {
 }
 
 async fn test_read_default(db_name: &str, addr: &str) {
-    let expected = "+--------+------+------+\n\
-                    | region | time | user |\n\
-                    +--------+------+------+\n\
-                    | west   | 100  | 23.2 |\n\
-                    | west   | 150  | 21   |\n\
-                    +--------+------+------+";
+    let expected = "+--------+-------------------------------+------+\n\
+                    | region | time                          | user |\n\
+                    +--------+-------------------------------+------+\n\
+                    | west   | 1970-01-01 00:00:00.000000100 | 23.2 |\n\
+                    | west   | 1970-01-01 00:00:00.000000150 | 21   |\n\
+                    +--------+-------------------------------+------+";
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -89,12 +89,12 @@ async fn test_read_default(db_name: &str, addr: &str) {
 }
 
 async fn test_read_format_pretty(db_name: &str, addr: &str) {
-    let expected = "+--------+------+------+\n\
-                    | region | time | user |\n\
-                    +--------+------+------+\n\
-                    | west   | 100  | 23.2 |\n\
-                    | west   | 150  | 21   |\n\
-                    +--------+------+------+";
+    let expected = "+--------+-------------------------------+------+\n\
+                    | region | time                          | user |\n\
+                    +--------+-------------------------------+------+\n\
+                    | west   | 1970-01-01 00:00:00.000000100 | 23.2 |\n\
+                    | west   | 1970-01-01 00:00:00.000000150 | 21   |\n\
+                    +--------+-------------------------------+------+";
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -112,7 +112,8 @@ async fn test_read_format_pretty(db_name: &str, addr: &str) {
 }
 
 async fn test_read_format_csv(db_name: &str, addr: &str) {
-    let expected = "region,time,user\nwest,100,23.2\nwest,150,21.0";
+    let expected =
+        "west,1970-01-01T00:00:00.000000100,23.2\nwest,1970-01-01T00:00:00.000000150,21.0";
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -130,8 +131,7 @@ async fn test_read_format_csv(db_name: &str, addr: &str) {
 }
 
 async fn test_read_format_json(db_name: &str, addr: &str) {
-    let expected =
-        r#"[{"region":"west","time":100,"user":23.2},{"region":"west","time":150,"user":21.0}]"#;
+    let expected = r#"[{"region":"west","time":"1970-01-01 00:00:00.000000100","user":23.2},{"region":"west","time":"1970-01-01 00:00:00.000000150","user":21.0}]"#;
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()

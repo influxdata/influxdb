@@ -597,9 +597,10 @@ impl MetaData {
     ) -> Vec<(ColumnType, LogicalDataType)> {
         names
             .iter()
-            .filter_map(|&name| match self.columns.get(name) {
-                Some(schema) => Some((schema.typ.clone(), schema.logical_data_type)),
-                None => None,
+            .filter_map(|&name| {
+                self.columns
+                    .get(name)
+                    .map(|schema| (schema.typ.clone(), schema.logical_data_type))
             })
             .collect::<Vec<_>>()
     }
@@ -955,15 +956,16 @@ mod test {
 
     #[test]
     fn meta_data_update_with() {
-        let mut columns = vec![];
-        columns.push((
-            "time".to_string(),
-            ColumnType::create_time(&[100, 200, 300]),
-        ));
-        columns.push((
-            "region".to_string(),
-            ColumnType::create_tag(&["west", "west", "north"]),
-        ));
+        let columns = vec![
+            (
+                "time".to_string(),
+                ColumnType::create_time(&[100, 200, 300]),
+            ),
+            (
+                "region".to_string(),
+                ColumnType::create_tag(&["west", "west", "north"]),
+            ),
+        ];
         let rg = RowGroup::new(3, columns);
 
         let mut meta = MetaData::new(&rg);
@@ -979,12 +981,13 @@ mod test {
             )
         );
 
-        let mut columns = vec![];
-        columns.push(("time".to_string(), ColumnType::create_time(&[10, 400])));
-        columns.push((
-            "region".to_string(),
-            ColumnType::create_tag(&["east", "south"]),
-        ));
+        let columns = vec![
+            ("time".to_string(), ColumnType::create_time(&[10, 400])),
+            (
+                "region".to_string(),
+                ColumnType::create_tag(&["east", "south"]),
+            ),
+        ];
         let rg = RowGroup::new(2, columns);
 
         meta = MetaData::update_with(meta, &rg);
@@ -1002,9 +1005,8 @@ mod test {
 
     #[test]
     fn add_remove_row_groups() {
-        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[0_i64, 2, 3][..]));
-        columns.push(("time".to_string(), tc));
+        let columns = vec![("time".to_string(), tc)];
 
         let rg = RowGroup::new(3, columns);
         let mut table = Table::new("cpu".to_owned(), rg);
@@ -1012,9 +1014,8 @@ mod test {
         assert_eq!(table.rows(), 3);
 
         // add another row group
-        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5][..]));
-        columns.push(("time".to_string(), tc));
+        let columns = vec![("time".to_string(), tc)];
         let rg = RowGroup::new(5, columns);
         table.add_row_group(rg);
 
@@ -1048,27 +1049,29 @@ mod test {
 
     #[test]
     fn could_pass_predicate() {
-        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[10_i64, 20, 30][..]));
-        columns.push(("time".to_string(), tc));
         let rc = ColumnType::Tag(Column::from(&["south", "north", "east"][..]));
-        columns.push(("region".to_string(), rc));
         let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
-        columns.push(("count".to_string(), fc));
+        let columns = vec![
+            ("time".to_string(), tc),
+            ("region".to_string(), rc),
+            ("count".to_string(), fc),
+        ];
         let row_group = RowGroup::new(3, columns);
 
         let mut table = Table::new("cpu".to_owned(), row_group);
 
         // add another row group
-        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
-        columns.push(("time".to_string(), tc));
         let rc = ColumnType::Tag(Column::from(
             &["west", "west", "east", "west", "south", "north"][..],
         ));
-        columns.push(("region".to_string(), rc));
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
-        columns.push(("count".to_string(), fc));
+        let columns = vec![
+            ("time".to_string(), tc),
+            ("region".to_string(), rc),
+            ("count".to_string(), fc),
+        ];
         let rg = RowGroup::new(6, columns);
         table.add_row_group(rg);
 
@@ -1123,17 +1126,16 @@ mod test {
     #[test]
     fn select() {
         // Build first row group.
-        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
-        columns.push(("time".to_string(), tc));
-
         let rc = ColumnType::Tag(Column::from(
             &["west", "west", "east", "west", "south", "north"][..],
         ));
-        columns.push(("region".to_string(), rc));
-
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
-        columns.push(("count".to_string(), fc));
+        let columns = vec![
+            ("time".to_string(), tc),
+            ("region".to_string(), rc),
+            ("count".to_string(), fc),
+        ];
 
         let rg = RowGroup::new(6, columns);
 
@@ -1156,13 +1158,14 @@ mod test {
         );
 
         // Build another row group.
-        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[10_i64, 20, 30][..]));
-        columns.push(("time".to_string(), tc));
         let rc = ColumnType::Tag(Column::from(&["south", "north", "east"][..]));
-        columns.push(("region".to_string(), rc));
         let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
-        columns.push(("count".to_string(), fc));
+        let columns = vec![
+            ("time".to_string(), tc),
+            ("region".to_string(), rc),
+            ("count".to_string(), fc),
+        ];
         let row_group = RowGroup::new(3, columns);
         table.add_row_group(row_group);
 
@@ -1251,25 +1254,27 @@ mod test {
     #[test]
     fn read_aggregate_no_groups() {
         // Build first row group.
-        let mut columns = vec![];
-        columns.push((
-            "time".to_string(),
-            ColumnType::create_time(&[100, 200, 300]),
-        ));
-        columns.push((
-            "region".to_string(),
-            ColumnType::create_tag(&["west", "west", "east"]),
-        ));
+        let columns = vec![
+            (
+                "time".to_string(),
+                ColumnType::create_time(&[100, 200, 300]),
+            ),
+            (
+                "region".to_string(),
+                ColumnType::create_tag(&["west", "west", "east"]),
+            ),
+        ];
         let rg = RowGroup::new(3, columns);
         let mut table = Table::new("cpu", rg);
 
         // Build another row group.
-        let mut columns = vec![];
-        columns.push(("time".to_string(), ColumnType::create_time(&[2, 3])));
-        columns.push((
-            "region".to_string(),
-            ColumnType::create_tag(&["north", "north"]),
-        ));
+        let columns = vec![
+            ("time".to_string(), ColumnType::create_time(&[2, 3])),
+            (
+                "region".to_string(),
+                ColumnType::create_tag(&["north", "north"]),
+            ),
+        ];
         let rg = RowGroup::new(2, columns);
         table.add_row_group(rg);
 
@@ -1397,23 +1402,17 @@ west,host-b,100
     #[test]
     fn column_names() {
         // Build a row group.
-        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3][..]));
-        columns.push(("time".to_string(), tc));
-
         let rc = ColumnType::Tag(Column::from(&["west", "south", "north"][..]));
-        columns.push(("region".to_string(), rc));
+        let columns = vec![("time".to_string(), tc), ("region".to_string(), rc)];
 
         let rg = RowGroup::new(3, columns);
         let mut table = Table::new("cpu".to_owned(), rg);
 
         // add another row group
-        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[200_i64, 300, 400][..]));
-        columns.push(("time".to_string(), tc));
-
         let rc = ColumnType::Tag(Column::from(vec![Some("north"), None, None].as_slice()));
-        columns.push(("region".to_string(), rc));
+        let columns = vec![("time".to_string(), tc), ("region".to_string(), rc)];
 
         let rg = RowGroup::new(3, columns);
         table.add_row_group(rg);
@@ -1472,12 +1471,12 @@ west,host-b,100
     #[test]
     fn time_range() {
         // Build a row group.
-        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[-29_i64, -100, 3, 2][..]));
-        columns.push((row_group::TIME_COLUMN_NAME.to_string(), tc));
-
         let rc = ColumnType::Tag(Column::from(&["west", "south", "north", "west"][..]));
-        columns.push(("region".to_string(), rc));
+        let columns = vec![
+            (row_group::TIME_COLUMN_NAME.to_string(), tc),
+            ("region".to_string(), rc),
+        ];
 
         let rg = RowGroup::new(4, columns);
         let table = Table::new("cpu".to_owned(), rg);

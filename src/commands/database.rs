@@ -102,11 +102,12 @@ struct Create {
     buffer_size_hard: usize,
 
     /// Allow dropping data that has not been persisted to object storage
-    #[structopt(long)]
+    /// once the database size has exceeded the configured limits
+    #[structopt(long = "drop-persisted-only", parse(from_flag = std::ops::Not::not))]
     drop_non_persisted: bool,
 
     /// Persists chunks to object storage.
-    #[structopt(long)]
+    #[structopt(long = "skip-persist", parse(from_flag = std::ops::Not::not))]
     persist: bool,
 
     /// Do not allow writing new data to this database

@@ -2,6 +2,7 @@ use std::convert::TryFrom;
 
 /// Possible comparison operators
 #[derive(Debug, PartialEq, Copy, Clone)]
+#[allow(clippy::upper_case_acronyms)] // these look weird when not capitalized
 pub enum Operator {
     Equal,
     NotEqual,
