@@ -182,8 +182,8 @@ pub enum ApplicationError {
     #[snafu(display("Database {} not found", name))]
     DatabaseNotFound { name: String },
 
-    #[snafu(display("Database {} does not have a WAL", name))]
-    WalNotFound { name: String },
+    #[snafu(display("Database {} does not have a Write Buffer", name))]
+    WriteBufferNotFound { name: String },
 
     #[snafu(display("Internal error creating HTTP response:  {}", source))]
     CreatingResponse { source: http::Error },
@@ -236,7 +236,7 @@ impl ApplicationError {
             Self::ErrorCreatingDatabase { .. } => self.bad_request(),
             Self::DatabaseNameError { .. } => self.bad_request(),
             Self::DatabaseNotFound { .. } => self.not_found(),
-            Self::WalNotFound { .. } => self.not_found(),
+            Self::WriteBufferNotFound { .. } => self.not_found(),
             Self::CreatingResponse { .. } => self.internal_error(),
             Self::FormattingResult { .. } => self.internal_error(),
             Self::ParsingFormat { .. } => self.bad_request(),
@@ -576,7 +576,7 @@ async fn get_write_buffer_meta<M: ConnectionManager + Send + Sync + Debug + 'sta
     let wb = db
         .write_buffer
         .as_ref()
-        .context(WalNotFound { name: &db_name_str })?;
+        .context(WriteBufferNotFound { name: &db_name_str })?;
     let write_buffer = wb.lock();
 
     let segments = write_buffer
