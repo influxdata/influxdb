@@ -200,6 +200,6 @@ to be updated as well.
 
 Instructions for updating the generated code are in [`docs/regenerating_flatbuffers.md`].
 
-[`generated_types/protos/wal.fbs`]: generated_types/protos/wal.fbs
-[`generated_types/src/wal_generated.rs`]: generated_types/src/wal_generated.rs
+[`generated_types/protos/write_buffer.fbs`]: generated_types/protos/write_buffer.fbs
+[`generated_types/src/write_buffer_generated.rs`]: generated_types/src/write_buffer_generated.rs
 [`docs/regenerating_flatbuffers.md`]: docs/regenerating_flatbuffers.md

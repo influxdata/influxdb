@@ -3,7 +3,7 @@
 
 use crate::schema::TIME_COLUMN_NAME;
 use data_types::database_rules::Partitioner;
-use generated_types::wal as wb;
+use generated_types::wb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 
 use std::{collections::BTreeMap, convert::TryFrom, fmt};

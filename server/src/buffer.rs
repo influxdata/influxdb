@@ -4,7 +4,7 @@ use data_types::{
     database_rules::{WriteBufferRollover, WriterId},
     DatabaseName,
 };
-use generated_types::wal;
+use generated_types::wb;
 use internal_types::data::ReplicatedWrite;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 
@@ -428,19 +428,19 @@ impl Segment {
             .iter()
             .map(|rw| {
                 let payload = fbb.create_vector_direct(rw.data());
-                wal::ReplicatedWriteData::create(
+                wb::ReplicatedWriteData::create(
                     &mut fbb,
-                    &wal::ReplicatedWriteDataArgs {
+                    &wb::ReplicatedWriteDataArgs {
                         payload: Some(payload),
                     },
                 )
             })
-            .collect::<Vec<flatbuffers::WIPOffset<wal::ReplicatedWriteData<'_>>>>();
+            .collect::<Vec<flatbuffers::WIPOffset<wb::ReplicatedWriteData<'_>>>>();
         let writes = fbb.create_vector(&writes);
 
-        let segment = wal::Segment::create(
+        let segment = wb::Segment::create(
             &mut fbb,
-            &wal::SegmentArgs {
+            &wb::SegmentArgs {
                 id: self.id,
                 writer_id,
                 writes: Some(writes),
@@ -512,7 +512,7 @@ impl Segment {
 
         // Use verified flatbuffer functionality here
         let fb_segment =
-            flatbuffers::root::<wal::Segment<'_>>(&data).context(InvalidFlatbuffersSegment)?;
+            flatbuffers::root::<wb::Segment<'_>>(&data).context(InvalidFlatbuffersSegment)?;
 
         let writes = fb_segment
             .writes()

@@ -1,4 +1,4 @@
-namespace wal;
+namespace wb;
 
 table Entry {
   entry_type: EntryType;

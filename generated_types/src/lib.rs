@@ -74,9 +74,9 @@ pub mod grpc {
     }
 }
 
-/// Generated Flatbuffers code for working with the write-ahead log
-pub mod wal_generated;
-pub use wal_generated::wal;
+/// Generated Flatbuffers code for working with the Write Buffer
+pub mod write_buffer_generated;
+pub use write_buffer_generated::wb;
 
 /// Generated Flatbuffers code for replicating and writing data between IOx
 /// servers

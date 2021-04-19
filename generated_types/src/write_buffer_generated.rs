@@ -7,7 +7,7 @@ extern crate flatbuffers;
 use self::flatbuffers::EndianScalar;
 
 #[allow(unused_imports, dead_code)]
-pub mod wal {
+pub mod wb {
 
     use std::cmp::Ordering;
     use std::mem;
@@ -3217,4 +3217,4 @@ pub mod wal {
             ds.finish()
         }
     }
-} // pub mod wal
+} // pub mod wb
