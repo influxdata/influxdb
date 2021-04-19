@@ -538,7 +538,7 @@ pub struct WriterSequence {
     pub sequence: u64,
 }
 
-const WAL_DIR: &str = "wal";
+const WRITE_BUFFER_DIR: &str = "wb";
 const MAX_SEGMENT_ID: u64 = 999_999_999;
 const SEGMENT_FILE_EXTENSION: &str = ".segment";
 
@@ -558,7 +558,7 @@ fn object_store_path_for_segment<P: ObjectStorePath>(root_path: &P, segment_id: 
 
     let mut path = root_path.clone();
     path.push_all_dirs(&[
-        WAL_DIR,
+        WRITE_BUFFER_DIR,
         &format!("{:03}", millions_place),
         &format!("{:03}", thousands_place),
     ]);
@@ -902,19 +902,19 @@ mod tests {
 
         let segment_path = object_store_path_for_segment(&base_path, 23).unwrap();
         let mut expected_segment_path = base_path.clone();
-        expected_segment_path.push_all_dirs(&["wal", "000", "000"]);
+        expected_segment_path.push_all_dirs(&["wb", "000", "000"]);
         expected_segment_path.set_file_name("023.segment");
         assert_eq!(segment_path, expected_segment_path);
 
         let segment_path = object_store_path_for_segment(&base_path, 20_003).unwrap();
         let mut expected_segment_path = base_path.clone();
-        expected_segment_path.push_all_dirs(&["wal", "000", "020"]);
+        expected_segment_path.push_all_dirs(&["wb", "000", "020"]);
         expected_segment_path.set_file_name("003.segment");
         assert_eq!(segment_path, expected_segment_path);
 
         let segment_path = object_store_path_for_segment(&base_path, 45_010_105).unwrap();
         let mut expected_segment_path = base_path;
-        expected_segment_path.push_all_dirs(&["wal", "045", "010"]);
+        expected_segment_path.push_all_dirs(&["wb", "045", "010"]);
         expected_segment_path.set_file_name("105.segment");
         assert_eq!(segment_path, expected_segment_path);
     }
