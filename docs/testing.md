@@ -38,7 +38,7 @@ with both that and IOx. If you have `docker` in your path, the integration tests
 container. If you do not have `docker`, by default, those tests will not be run and will silently
 pass.
 
-If you do not have and do not want to have Docker locally, but you do have `influxd` for InfluxDB
+If you do not want to use Docker locally, but you do have `influxd` for InfluxDB
 2.0 locally, you can use that instead by running the tests with the environment variable `LOCAL=1`.
 
 To ensure you're running the `influxdb2_client` integration tests, you can run `TEST_INTEGRATION=1
