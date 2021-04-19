@@ -31,7 +31,8 @@
 //!
 //! ```
 //! async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//!     use influxdb2_client::{Client, DataPoint};
+//!     use influxdb2_client::Client;
+//!     use influxdb2_client::models::{DataPoint, PostBucketRequest};
 //!     use futures::stream;
 //!
 //!     let org = "myorg";
@@ -40,7 +41,7 @@
 //!
 //!     let client = Client::new("http://localhost:8888", "some-token");
 //!
-//!     client.create_bucket(org_id, bucket).await?;
+//!     client.create_bucket(Some(PostBucketRequest::new(org_id.to_string(), bucket.to_string()))).await?;
 //!
 //!     let points = vec![
 //!         DataPoint::builder("cpu")
@@ -59,15 +60,8 @@
 //! }
 //! ```
 
-use bytes::BufMut;
-use futures::{Stream, StreamExt};
-use reqwest::{Body, Method};
-use serde::Serialize;
-use snafu::{ResultExt, Snafu};
-use std::io::{self, Write};
-
-pub mod data_point;
-pub use data_point::{DataPoint, FieldValue, WriteDataPoint};
+use reqwest::Method;
+use snafu::Snafu;
 
 /// Errors that occur while making requests to the Influx server.
 #[derive(Debug, Snafu)]
@@ -141,170 +135,6 @@ impl Client {
         }
 
         req
-    }
-
-    /// Write line protocol data to the specified organization and bucket.
-    pub async fn write_line_protocol(
-        &self,
-        org: &str,
-        bucket: &str,
-        body: impl Into<Body>,
-    ) -> Result<(), RequestError> {
-        let body = body.into();
-        let write_url = format!("{}/api/v2/write", self.url);
-
-        let response = self
-            .request(Method::POST, &write_url)
-            .query(&[("bucket", bucket), ("org", org)])
-            .body(body)
-            .send()
-            .await
-            .context(ReqwestProcessing)?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response.text().await.context(ReqwestProcessing)?;
-            Http { status, text }.fail()?;
-        }
-
-        Ok(())
-    }
-
-    /// Write a `Stream` of `DataPoint`s to the specified organization and
-    /// bucket.
-    pub async fn write(
-        &self,
-        org: &str,
-        bucket: &str,
-        body: impl Stream<Item = impl WriteDataPoint> + Send + Sync + 'static,
-    ) -> Result<(), RequestError> {
-        let mut buffer = bytes::BytesMut::new();
-
-        let body = body.map(move |point| {
-            let mut w = (&mut buffer).writer();
-            point.write_data_point_to(&mut w)?;
-            w.flush()?;
-            Ok::<_, io::Error>(buffer.split().freeze())
-        });
-
-        let body = Body::wrap_stream(body);
-
-        Ok(self.write_line_protocol(org, bucket, body).await?)
-    }
-
-    /// Create a new bucket in the organization specified by the 16-digit
-    /// hexadecimal `org_id` and with the bucket name `bucket`.
-    pub async fn create_bucket(&self, org_id: &str, bucket: &str) -> Result<(), RequestError> {
-        let create_bucket_url = format!("{}/api/v2/buckets", self.url);
-
-        #[derive(Serialize, Debug, Default)]
-        struct CreateBucketInfo {
-            #[serde(rename = "orgID")]
-            org_id: String,
-            name: String,
-            #[serde(rename = "retentionRules")]
-            // The type of `retentionRules` isn't `String`; this is included and always set to
-            // an empty vector to be compatible with the Influx 2.0 API where `retentionRules` is
-            // a required parameter. InfluxDB IOx ignores this parameter.
-            retention_rules: Vec<String>,
-        }
-
-        let body = CreateBucketInfo {
-            org_id: org_id.into(),
-            name: bucket.into(),
-            ..Default::default()
-        };
-
-        let response = self
-            .request(Method::POST, &create_bucket_url)
-            .body(serde_json::to_string(&body).context(Serializing)?)
-            .send()
-            .await
-            .context(ReqwestProcessing)?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response.text().await.context(ReqwestProcessing)?;
-            Http { status, text }.fail()?;
-        }
-
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use futures::stream;
-    use mockito::mock;
-
-    #[tokio::test]
-    async fn writing_points() {
-        let org = "some-org";
-        let bucket = "some-bucket";
-        let token = "some-token";
-
-        let mock_server = mock(
-            "POST",
-            format!("/api/v2/write?bucket={}&org={}", bucket, org).as_str(),
-        )
-        .match_header("Authorization", format!("Token {}", token).as_str())
-        .match_body(
-            "\
-cpu,host=server01 usage=0.5
-cpu,host=server01,region=us-west usage=0.87
-",
-        )
-        .create();
-
-        let client = Client::new(&mockito::server_url(), token);
-
-        let points = vec![
-            DataPoint::builder("cpu")
-                .tag("host", "server01")
-                .field("usage", 0.5)
-                .build()
-                .unwrap(),
-            DataPoint::builder("cpu")
-                .tag("host", "server01")
-                .tag("region", "us-west")
-                .field("usage", 0.87)
-                .build()
-                .unwrap(),
-        ];
-
-        // If the requests made are incorrect, Mockito returns status 501 and `write`
-        // will return an error, which causes the test to fail here instead of
-        // when we assert on mock_server. The error messages that Mockito
-        // provides are much clearer for explaining why a test failed than just
-        // that the server returned 501, so don't use `?` here.
-        let _result = client.write(org, bucket, stream::iter(points)).await;
-
-        mock_server.assert();
-    }
-
-    #[tokio::test]
-    async fn create_bucket() {
-        let org_id = "0000111100001111";
-        let bucket = "some-bucket";
-        let token = "some-token";
-
-        let mock_server = mock("POST", "/api/v2/buckets")
-            .match_header("Authorization", format!("Token {}", token).as_str())
-            .match_body(
-                format!(
-                    r#"{{"orgID":"{}","name":"{}","retentionRules":[]}}"#,
-                    org_id, bucket
-                )
-                .as_str(),
-            )
-            .create();
-
-        let client = Client::new(&mockito::server_url(), token);
-
-        let _result = client.create_bucket(org_id, bucket).await;
-
-        mock_server.assert();
     }
 }
 

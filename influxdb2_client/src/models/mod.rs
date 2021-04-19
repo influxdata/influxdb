@@ -9,7 +9,7 @@ pub use self::user::{User, UserLinks, Users, UsersLinks};
 pub mod organization;
 pub use self::organization::{Organization, OrganizationLinks, Organizations};
 pub mod bucket;
-pub use self::bucket::{Bucket, BucketLinks, Buckets};
+pub use self::bucket::{Bucket, BucketLinks, Buckets, PostBucketRequest};
 pub mod onboarding;
 pub use self::onboarding::{IsOnboarding, OnboardingRequest, OnboardingResponse};
 pub mod links;
@@ -31,3 +31,5 @@ pub use self::query::{
 };
 pub mod file;
 pub use self::file::File;
+pub mod data_point;
+pub use data_point::{DataPoint, FieldValue, WriteDataPoint};

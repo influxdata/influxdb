@@ -118,47 +118,47 @@ impl Scenario {
         // TODO: make a more extensible way to manage data for tests, such as in
         // external fixture files or with factories.
         let points = vec![
-            influxdb2_client::DataPoint::builder("cpu_load_short")
+            influxdb2_client::models::DataPoint::builder("cpu_load_short")
                 .tag("host", "server01")
                 .tag("region", "us-west")
                 .field("value", 0.64)
                 .timestamp(self.ns_since_epoch())
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("cpu_load_short")
+            influxdb2_client::models::DataPoint::builder("cpu_load_short")
                 .tag("host", "server01")
                 .field("value", 27.99)
                 .timestamp(self.ns_since_epoch() + 1)
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("cpu_load_short")
+            influxdb2_client::models::DataPoint::builder("cpu_load_short")
                 .tag("host", "server02")
                 .tag("region", "us-west")
                 .field("value", 3.89)
                 .timestamp(self.ns_since_epoch() + 2)
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("cpu_load_short")
+            influxdb2_client::models::DataPoint::builder("cpu_load_short")
                 .tag("host", "server01")
                 .tag("region", "us-east")
                 .field("value", 1234567.891011)
                 .timestamp(self.ns_since_epoch() + 3)
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("cpu_load_short")
+            influxdb2_client::models::DataPoint::builder("cpu_load_short")
                 .tag("host", "server01")
                 .tag("region", "us-west")
                 .field("value", 0.000003)
                 .timestamp(self.ns_since_epoch() + 4)
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("system")
+            influxdb2_client::models::DataPoint::builder("system")
                 .tag("host", "server03")
                 .field("uptime", 1303385)
                 .timestamp(self.ns_since_epoch() + 5)
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("swap")
+            influxdb2_client::models::DataPoint::builder("swap")
                 .tag("host", "server01")
                 .tag("name", "disk0")
                 .field("in", 3)
@@ -166,12 +166,12 @@ impl Scenario {
                 .timestamp(self.ns_since_epoch() + 6)
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("status")
+            influxdb2_client::models::DataPoint::builder("status")
                 .field("active", true)
                 .timestamp(self.ns_since_epoch() + 7)
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("attributes")
+            influxdb2_client::models::DataPoint::builder("attributes")
                 .field("color", "blue")
                 .timestamp(self.ns_since_epoch() + 8)
                 .build()
@@ -232,7 +232,7 @@ impl Scenario {
     async fn write_data(
         &self,
         client: &influxdb2_client::Client,
-        points: Vec<influxdb2_client::DataPoint>,
+        points: Vec<influxdb2_client::models::DataPoint>,
     ) -> Result<()> {
         client
             .write(
