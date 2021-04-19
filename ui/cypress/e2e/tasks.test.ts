@@ -41,13 +41,6 @@ from(bucket: "${name}"{rightarrow}
       .should('have.length', 1)
       .and('contain', taskName)
 
-    // TODO: extend to create from template overlay
-    cy.getByTestID('add-resource-dropdown--button').click()
-    cy.getByTestID('add-resource-dropdown--template').click()
-    cy.getByTestID('task-import-template--overlay').within(() => {
-      cy.get('.cf-overlay--dismiss').click()
-    })
-
     // TODO: extend to create a template from JSON
     cy.getByTestID('add-resource-dropdown--button').click()
     cy.getByTestID('add-resource-dropdown--import').click()

@@ -164,6 +164,7 @@ type notificationRuleResponse struct {
 	LatestScheduled time.Time             `json:"latestScheduled,omitempty"`
 	LastRunStatus   string                `json:"LastRunStatus,omitempty"`
 	LastRunError    string                `json:"LastRunError,omitempty"`
+	TaskID          platform.ID           `json:"taskID,omitempty"`
 }
 
 type ruleResponseMeta struct {
@@ -174,6 +175,7 @@ type ruleResponseMeta struct {
 	LatestScheduled time.Time             `json:"latestScheduled,omitempty"`
 	LastRunStatus   string                `json:"lastRunStatus,omitempty"`
 	LastRunError    string                `json:"lastRunError,omitempty"`
+	TaskID          platform.ID           `json:"taskID,omitempty"`
 }
 
 func (resp *notificationRuleResponse) UnmarshalJSON(v []byte) (err error) {
@@ -208,6 +210,7 @@ func (resp notificationRuleResponse) MarshalJSON() ([]byte, error) {
 		LatestScheduled: resp.LatestScheduled,
 		LastRunStatus:   resp.LastRunStatus,
 		LastRunError:    resp.LastRunError,
+		TaskID:          resp.TaskID,
 	})
 	if err != nil {
 		return nil, err
@@ -228,7 +231,6 @@ func (h *NotificationRuleHandler) newNotificationRuleResponse(ctx context.Contex
 		return nil, err
 	}
 
-	nr.ClearPrivateData()
 	res := &notificationRuleResponse{
 		NotificationRule: nr,
 		Links: notificationRuleLinks{
@@ -244,6 +246,7 @@ func (h *NotificationRuleHandler) newNotificationRuleResponse(ctx context.Contex
 		LatestScheduled: t.LatestScheduled,
 		LastRunStatus:   t.LastRunStatus,
 		LastRunError:    t.LastRunError,
+		TaskID:          t.ID,
 	}
 
 	for _, l := range labels {

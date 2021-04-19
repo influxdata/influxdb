@@ -733,7 +733,7 @@ type LinePlusSingleStatProperties struct {
 	Queries                    []DashboardQuery `json:"queries"`
 	Axes                       map[string]Axis  `json:"axes"`
 	Type                       string           `json:"type"`
-	Legend                     Legend           `json:"legend"`
+	StaticLegend               StaticLegend     `json:"staticLegend"`
 	ViewColors                 []ViewColor      `json:"colors"`
 	Prefix                     string           `json:"prefix"`
 	Suffix                     string           `json:"suffix"`
@@ -764,7 +764,7 @@ type XYViewProperties struct {
 	Queries                    []DashboardQuery `json:"queries"`
 	Axes                       map[string]Axis  `json:"axes"`
 	Type                       string           `json:"type"`
-	Legend                     Legend           `json:"legend"`
+	StaticLegend               StaticLegend     `json:"staticLegend"`
 	Geom                       string           `json:"geom"` // Either "line", "step", "stacked", or "bar"
 	ViewColors                 []ViewColor      `json:"colors"`
 	Note                       string           `json:"note"`
@@ -793,7 +793,7 @@ type BandViewProperties struct {
 	Queries                    []DashboardQuery `json:"queries"`
 	Axes                       map[string]Axis  `json:"axes"`
 	Type                       string           `json:"type"`
-	Legend                     Legend           `json:"legend"`
+	StaticLegend               StaticLegend     `json:"staticLegend"`
 	Geom                       string           `json:"geom"`
 	ViewColors                 []ViewColor      `json:"colors"`
 	Note                       string           `json:"note"`
@@ -1174,10 +1174,14 @@ type ViewColor struct {
 	Value float64 `json:"value"` // Value is the data value mapped to this color
 }
 
-// Legend represents the encoding of data into a legend
-type Legend struct {
-	Type        string `json:"type,omitempty"`
-	Orientation string `json:"orientation,omitempty"`
+// StaticLegend represents the options specific to the static legend
+type StaticLegend struct {
+	ColorizeRows         bool    `json:"colorizeRows,omitempty"`
+	HeightRatio          float64 `json:"heightRatio,omitempty"`
+	Opacity              float64 `json:"opacity,omitempty"`
+	OrientationThreshold int     `json:"orientationThreshold,omitempty"`
+	ValueAxis            string  `json:"valueAxis,omitempty"`
+	WidthRatio           float64 `json:"widthRatio,omitempty"`
 }
 
 // TableOptions is a type of options for a DashboardView with type Table
