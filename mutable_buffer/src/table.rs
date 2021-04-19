@@ -88,12 +88,6 @@ pub enum Error {
     ))]
     InternalNoColumnInIndex { column_name: String, column_id: DID },
 
-    #[snafu(display("Error creating column from wal for column {}: {}", column, source))]
-    CreatingFromWal {
-        column: DID,
-        source: crate::column::Error,
-    },
-
     #[snafu(display("Error evaluating column predicate for column {}: {}", column, source))]
     ColumnPredicateEvaluation {
         column: DID,
