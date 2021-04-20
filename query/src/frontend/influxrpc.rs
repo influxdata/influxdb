@@ -184,9 +184,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// categories with the same data type, columns of different
 /// categories are treated differently in the different query types.
 #[derive(Default, Debug)]
-pub struct InfluxRPCPlanner {}
+pub struct InfluxRpcPlanner {}
 
-impl InfluxRPCPlanner {
+impl InfluxRpcPlanner {
     /// Create a new instance of the RPC planner
     pub fn new() -> Self {
         Self {}

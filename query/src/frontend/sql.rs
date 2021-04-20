@@ -74,9 +74,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// This struct can create plans for running SQL queries against databases
 #[derive(Debug, Default)]
-pub struct SQLQueryPlanner {}
+pub struct SqlQueryPlanner {}
 
-impl SQLQueryPlanner {
+impl SqlQueryPlanner {
     pub fn new() -> Self {
         Self::default()
     }

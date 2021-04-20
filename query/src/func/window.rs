@@ -18,11 +18,7 @@ pub use arrow_deps::datafusion::error::{DataFusionError as Error, Result};
 /// This is the implementation of the `window_bounds` user defined
 /// function used in IOx to compute window boundaries when doing
 /// grouping by windows.
-fn window_bounds(
-    args: &[ArrayRef],
-    every: &WindowDuration,
-    offset: &WindowDuration,
-) -> Result<ArrayRef> {
+fn window_bounds(args: &[ArrayRef], every: &WindowDuration, offset: &WindowDuration) -> ArrayRef {
     // Note:  At the time of writing, DataFusion creates arrays of constants for
     // constant arguments (which 4 of 5 arguments to window bounds are). We
     // should eventually contribute some way back upstream to make DataFusion
@@ -64,7 +60,7 @@ fn window_bounds(
     });
 
     let array = TimestampNanosecondArray::from_iter(values);
-    Ok(Arc::new(array) as ArrayRef)
+    Arc::new(array) as ArrayRef
 }
 
 /// Create a DataFusion `Expr` that invokes `window_bounds` with the
@@ -80,7 +76,7 @@ pub fn make_window_bound_expr(
 
     // TODO provide optimized implementations (that took every/offset
     // as a constant rather than arrays)
-    let func_ptr = make_scalar_function(move |args| window_bounds(args, &every, &offset));
+    let func_ptr = make_scalar_function(move |args| Ok(window_bounds(args, &every, &offset)));
 
     let udf = create_udf(
         "window_bounds",
@@ -109,8 +105,7 @@ mod tests {
         let every = WindowDuration::from_nanoseconds(200);
         let offset = WindowDuration::from_nanoseconds(50);
 
-        let bounds_array =
-            window_bounds(&[input], &every, &offset).expect("window_bounds executed correctly");
+        let bounds_array = window_bounds(&[input], &every, &offset);
 
         let expected_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_opt_vec(
             vec![Some(250), None, Some(250), Some(450), Some(450)],
