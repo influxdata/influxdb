@@ -13,6 +13,7 @@ async fn test_write() {
     let db_name = rand_name();
     create_readable_database(&db_name, fixture.grpc_channel()).await;
 
+    // ---- test successfull writes ----
     let lp_lines = vec![
         "cpu,region=west user=23.2 100",
         "cpu,region=west user=21.0 150",
@@ -49,4 +50,24 @@ async fn test_write() {
         r#"Unexpected server error: Some requested entity was not found: Resource database/Non_existent_database not found"#
     );
     assert!(matches!(dbg!(err), WriteError::ServerError(_)));
+
+    // ---- test hard limit ----
+    // stream data until limit is reached
+    let mut maybe_err = None;
+    for i in 0..1_000 {
+        let lp_lines: Vec<_> = (0..1_000)
+            .map(|j| format!("flood,tag1={},tag2={} x={},y={} 0", i, j, i, j))
+            .collect();
+        if let Err(err) = write_client.write(&db_name, lp_lines.join("\n")).await {
+            maybe_err = Some(err);
+            break;
+        }
+    }
+    assert!(maybe_err.is_some());
+    let err = maybe_err.unwrap();
+    let WriteError::ServerError(status) = dbg!(err);
+    assert_eq!(status.code(), tonic::Code::ResourceExhausted);
+
+    // IMPORTANT: At this point, the database is flooded and pretty much
+    // useless. Don't append any tests after the "hard limit" test!
 }
