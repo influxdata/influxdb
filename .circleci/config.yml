@@ -25,6 +25,15 @@
 version: 2.1
 
 commands:
+  rust_stable:
+    description: Install stable Rust toolchain
+    steps:
+      - run:
+          name: Install rust stable
+          command: rustup toolchain install stable
+      - run:
+          name: Install rustfmt and clippy for stable
+          command: rustup component add rustfmt clippy --toolchain stable
   rust_nightly:
     description: Install nightly Rust toolchain
     steps:
@@ -62,7 +71,7 @@ jobs:
         RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
-      - rust_nightly
+      - rust_stable
       - cache_restore
       - run:
           name: Rust fmt
@@ -77,7 +86,7 @@ jobs:
         RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
-      - rust_nightly
+      - rust_stable
       - cache_restore
       - run:
           name: Clippy
@@ -93,7 +102,7 @@ jobs:
         RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
-      - rust_nightly
+      - rust_stable
       - cache_restore
       - run:
           name: Cargo test
@@ -116,7 +125,7 @@ jobs:
               curl -o influxdb2.tar.gz https://dl.influxdata.com/influxdb/releases/influxdb2-2.0.4-linux-amd64.tar.gz
               tar xvzf influxdb2.tar.gz
               sudo cp influxdb2-2.0.4-linux-amd64/{influx,influxd} /usr/local/bin/
-      - rust_nightly
+      - rust_stable
       - cache_restore
       - run:
           name: Cargo test
@@ -137,7 +146,7 @@ jobs:
         RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
-      - rust_nightly
+      - rust_stable
       - cache_restore
       - run:
           name: Cargo build
@@ -164,7 +173,7 @@ jobs:
     resource_class: xlarge # use of a smaller executor tends crashes on link
     steps:
       - checkout
-      - rust_nightly # Regenerating flatbuffers uses rustfmt
+      - rust_stable # Regenerating flatbuffers uses rustfmt
       - run:
           name: Check Flatbuffers
           command: ./generated_types/check-flatbuffers.sh
@@ -193,7 +202,7 @@ jobs:
         RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
-      - rust_nightly
+      - rust_stable
       - cache_restore
       - run:
           name: Cargo release build with target arch set for CRoaring

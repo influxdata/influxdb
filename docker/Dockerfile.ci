@@ -47,7 +47,7 @@ RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
 RUN locale-gen C.UTF-8 || true
 ENV LANG=C.UTF-8
 
-RUN rustup toolchain install nightly-2021-03-24
+RUN rustup toolchain install stable
 RUN rustup component add rustfmt clippy --toolchain stable
 
 RUN groupadd -g 1500 rust \
