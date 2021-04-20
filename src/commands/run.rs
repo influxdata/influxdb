@@ -1,8 +1,9 @@
 //! Implementation of command line option for running server
 
-use crate::commands::logging::LoggingLevel;
+use crate::commands::tracing;
 use crate::influxdb_ioxd;
 use clap::arg_enum;
+use core::num::NonZeroU16;
 use std::num::NonZeroU32;
 use std::{net::SocketAddr, net::ToSocketAddrs, path::PathBuf};
 use structopt::StructOpt;
@@ -42,30 +43,32 @@ Configuration is loaded from the following sources (highest precedence first):
         - pre-configured default values"
 )]
 pub struct Config {
-    /// This controls the IOx server logging level, as described in
-    /// https://crates.io/crates/env_logger.
+    /// Logs: filter directive
     ///
-    /// Levels for different modules can be specified as well. For example
+    /// Configures log severity level filter, by target.
+    ///
+    /// Simplest options: error, warn, info, debug, trace
+    ///
+    /// Levels for different modules can be specified. For example
     /// `debug,hyper::proto::h1=info` specifies debug logging for all modules
     /// except for the `hyper::proto::h1' module which will only display info
     /// level logging.
-    #[structopt(long = "--log", env = "RUST_LOG")]
-    pub rust_log: Option<String>,
+    ///
+    /// Extended syntax provided by `tracing-subscriber` includes span/field
+    /// filters. See <https://docs.rs/tracing-subscriber/0.2.17/tracing_subscriber/filter/struct.EnvFilter.html> for more details.
+    #[structopt(long = "--log-filter", env = "LOG_FILTER", default_value = "warn")]
+    pub log_filter: String,
 
-    /// Log message format. Can be one of:
+    /// Logs: filter short-hand
     ///
-    /// "rust" (default)
-    /// "logfmt" (logfmt/Heroku style - https://brandur.org/logfmt)
-    #[structopt(long = "--log_format", env = "INFLUXDB_IOX_LOG_FORMAT")]
-    pub log_format: Option<LogFormat>,
-
-    /// This sets logging up with a pre-configured set of convenient log levels.
+    /// Convenient way to set log severity level filter.
+    /// Overrides `--log-filter`.
     ///
-    /// -v  means 'info' log levels
-    /// -vv means 'verbose' log level (with the exception of some particularly
-    /// low level libraries)
+    /// -v   'info'
     ///
-    /// This option is ignored if  --log / RUST_LOG are set
+    /// -vv  'debug,hyper::proto::h1=info,h2=info'
+    ///
+    /// -vvv 'trace,hyper::proto::h1=info,h2=info'
     #[structopt(
         short = "-v",
         long = "--verbose",
@@ -73,7 +76,174 @@ pub struct Config {
         takes_value = false,
         parse(from_occurrences)
     )]
-    pub verbose_count: u64,
+    pub log_verbose_count: u8,
+
+    #[rustfmt::skip]
+    /// Logs: message format
+    ///
+    /// Can be one of:
+    ///
+    /// full: human-readable, single line
+    ///
+    ///   Oct 24 12:55:47.815 ERROR shaving_yaks{yaks=3}: fmt::yak_shave: failed to shave yak yak=3 error=missing yak
+    ///   Oct 24 12:55:47.815 TRACE shaving_yaks{yaks=3}: fmt::yak_shave: yaks_shaved=2
+    ///   Oct 24 12:55:47.815  INFO fmt: yak shaving completed all_yaks_shaved=false
+    ///
+    /// pretty: human-readable, multi line
+    ///
+    ///   Oct 24 12:57:29.387 fmt_pretty::yak_shave: failed to shave yak, yak: 3, error: missing yak
+    ///     at examples/examples/fmt/yak_shave.rs:48 on main
+    ///     in fmt_pretty::yak_shave::shaving_yaks with yaks: 3
+    ///
+    ///   Oct 24 12:57:29.387 fmt_pretty::yak_shave: yaks_shaved: 2
+    ///     at examples/examples/fmt/yak_shave.rs:52 on main
+    ///     in fmt_pretty::yak_shave::shaving_yaks with yaks: 3
+    ///
+    ///   Oct 24 12:57:29.387 fmt_pretty: yak shaving completed, all_yaks_shaved: false
+    ///     at examples/examples/fmt-pretty.rs:19 on main
+    ///
+    /// json: machine-parseable
+    ///
+    ///   {"timestamp":"Oct 24 13:00:00.875","level":"ERROR","fields":{"message":"failed to shave yak","yak":3,"error":"missing yak"},"target":"fmt_json::yak_shave","spans":[{"yaks":3,"name":"shaving_yaks"}]}
+    ///   {"timestamp":"Oct 24 13:00:00.875","level":"TRACE","fields":{"yaks_shaved":2},"target":"fmt_json::yak_shave","spans":[{"yaks":3,"name":"shaving_yaks"}]}
+    ///   {"timestamp":"Oct 24 13:00:00.875","level":"INFO","fields":{"message":"yak shaving completed","all_yaks_shaved":false},"target":"fmt_json"}
+    ///
+    /// logfmt: human-readable and machine-parseable
+    ///
+    ///   level=info msg="This is an info message" target="logging" location="logfmt/tests/logging.rs:36" time=1612181556329599000
+    ///   level=debug msg="This is a debug message" target="logging" location="logfmt/tests/logging.rs:37" time=1612181556329618000
+    ///   level=trace msg="This is a trace message" target="logging" location="logfmt/tests/logging.rs:38" time=1612181556329634000
+    #[structopt(long = "--log-format", env = "LOG_FORMAT", default_value = "full", verbatim_doc_comment)]
+    pub log_format: tracing::LogFormat,
+
+    /// Logs: destination
+    ///
+    /// Can be one of: stdout, stderr
+    //
+    // TODO(jacobmarble): consider adding file path, file rotation, syslog, ?
+    #[structopt(
+        long = "--log-destination",
+        env = "LOG_DESTINATION",
+        default_value = "stdout",
+        verbatim_doc_comment
+    )]
+    pub log_destination: tracing::LogDestination,
+
+    /// Tracing: exporter type
+    ///
+    /// Can be one of: none, jaeger, otlp
+    ///
+    /// When enabled, additional flags are considered (see flags related to OTLP
+    /// and Jaeger), and log output is disabled.
+    //
+    // TODO(jacobmarble): allow logs and traces simultaneously
+    #[structopt(
+        long = "--traces-exporter",
+        env = "TRACES_EXPORTER",
+        default_value = "none"
+    )]
+    pub traces_exporter: tracing::TracesExporter,
+
+    /// Tracing: filter directive
+    ///
+    /// Configures traces severity level filter, by target.
+    ///
+    /// Simplest options: error, warn, info, debug, trace
+    ///
+    /// Levels for different modules can be specified. For example
+    /// `debug,hyper::proto::h1=info` specifies debug tracing for all modules
+    /// except for the `hyper::proto::h1` module which will only display info
+    /// level tracing.
+    ///
+    /// Extended syntax provided by `tracing-subscriber` includes span/field
+    /// filters. See <https://docs.rs/tracing-subscriber/0.2.17/tracing_subscriber/filter/struct.EnvFilter.html> for more details.
+    ///
+    /// No filter by default.
+    #[structopt(long = "--traces-filter", env = "TRACES_FILTER")]
+    pub traces_filter: Option<String>,
+
+    /// Tracing: sampler type
+    ///
+    /// Can be one of:
+    /// always_on, always_off, traceidratio,
+    /// parentbased_always_on, parentbased_always_off, parentbased_traceidratio
+    ///
+    /// These alternatives are described in detail at <https://github.com/open-telemetry/opentelemetry-specification/blob/v1.1.0/specification/sdk-environment-variables.md#general-sdk-configuration>.
+    #[structopt(
+        long = "--traces-sampler",
+        env = "TRACES_SAMPLER",
+        default_value = "parentbased_traceidratio"
+    )]
+    pub traces_sampler: tracing::TracesSampler,
+
+    #[rustfmt::skip]
+    /// Tracing: sampler argument
+    ///
+    /// Valid range: [0.0, 1.0].
+    /// 
+    /// Only used if `--traces-sampler` is set to
+    /// parentbased_traceidratio (default) or traceidratio.
+    ///
+    /// With sample parentbased_traceidratio, the following rules apply:
+    /// - if parent is sampled, then all of its children are sampled
+    /// - else sample this portion of traces (0.5 = 50%)
+    ///
+    /// More details about this sampling argument at <https://github.com/open-telemetry/opentelemetry-specification/blob/v1.1.0/specification/sdk-environment-variables.md#general-sdk-configuration>.
+    #[structopt(
+        long = "--traces-sampler-arg",
+        env = "TRACES_SAMPLER_ARG",
+        default_value = "1.0",
+        verbatim_doc_comment
+    )]
+    pub traces_sampler_arg: f64,
+
+    /// Tracing: OTLP (eg OpenTelemetry collector) network hostname
+    ///
+    /// Only used if `--traces-exporter` is "otlp".
+    ///
+    /// Protocol is gRPC. HTTP is not supported.
+    #[structopt(
+        long = "--traces-exporter-otlp-host",
+        env = "TRACES_EXPORTER_OTLP_HOST",
+        default_value = "localhost"
+    )]
+    pub traces_exporter_otlp_host: String,
+
+    /// Tracing: OTLP (eg OpenTelemetry collector) network port
+    ///
+    /// Only used if `--traces-exporter` is "otlp".
+    ///
+    /// Protocol is gRPC. HTTP is not supported.
+    #[structopt(
+        long = "--traces-exporter-otlp-port",
+        env = "TRACES_EXPORTER_OTLP_PORT",
+        default_value = "4317"
+    )]
+    pub traces_exporter_otlp_port: NonZeroU16,
+
+    /// Tracing: Jaeger agent network hostname
+    ///
+    /// Protocol is Thrift/Compact over UDP.
+    ///
+    /// Only used if `--traces-exporter` is "jaeger".
+    #[structopt(
+        long = "--traces-exporter-jaeger-agent-host",
+        env = "TRACES_EXPORTER_JAEGER_AGENT_HOST",
+        default_value = "0.0.0.0"
+    )]
+    pub traces_exporter_jaeger_agent_host: String,
+
+    /// Tracing: Jaeger agent network port
+    ///
+    /// Protocol is Thrift/Compact over UDP.
+    ///
+    /// Only used if `--traces-exporter` is "jaeger".
+    #[structopt(
+        long = "--traces-exporter-jaeger-agent-port",
+        env = "TRACES_EXPORTER_JAEGER_AGENT_PORT",
+        default_value = "6831"
+    )]
+    pub traces_exporter_jaeger_agent_port: NonZeroU16,
 
     /// The identifier for the server.
     ///
@@ -109,7 +279,7 @@ pub struct Config {
     /// The number of threads to use for the query worker pool.
     ///
     /// IOx uses `--num-threads` threads for handling API requests and
-    /// will use a dedicated thread pool woth `--num-worker-threads`
+    /// will use a dedicated thread pool with `--num-worker-threads`
     /// for running queries.
     ///
     /// If not specified, defaults to the number of cores on the system
@@ -214,29 +384,10 @@ Possible values (case insensitive):
     /// environments.
     #[structopt(long = "--azure-storage-access-key", env = "AZURE_STORAGE_ACCESS_KEY")]
     pub azure_storage_access_key: Option<String>,
-
-    /// If set, Jaeger traces are emitted to this host
-    /// using the OpenTelemetry tracer.
-    ///
-    /// NOTE: The OpenTelemetry agent CAN ONLY be
-    /// configured using environment variables. It CAN NOT be configured
-    /// using the command line at this time. Some useful variables:
-    ///
-    /// * OTEL_SERVICE_NAME: emitter service name (iox by default)
-    /// * OTEL_EXPORTER_JAEGER_AGENT_HOST: hostname/address of the collector
-    /// * OTEL_EXPORTER_JAEGER_AGENT_PORT: listening port of the collector.
-    ///
-    /// The entire list of variables can be found in
-    /// https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/sdk-environment-variables.md#jaeger-exporter
-    #[structopt(
-        long = "--oetl_exporter_jaeger_agent",
-        env = "OTEL_EXPORTER_JAEGER_AGENT_HOST"
-    )]
-    pub jaeger_host: Option<String>,
 }
 
-pub async fn command(logging_level: LoggingLevel, config: Config) -> Result<()> {
-    Ok(influxdb_ioxd::main(logging_level, config).await?)
+pub async fn command(config: Config) -> Result<()> {
+    Ok(influxdb_ioxd::main(config).await?)
 }
 
 fn parse_socket_addr(s: &str) -> std::io::Result<SocketAddr> {
@@ -257,48 +408,6 @@ arg_enum! {
         S3,
         Google,
         Azure,
-    }
-}
-
-/// How to format output logging messages
-#[derive(Debug, Clone, Copy)]
-pub enum LogFormat {
-    /// Default formatted logging
-    ///
-    /// Example:
-    /// ```
-    /// level=warn msg="NO PERSISTENCE: using memory for object storage" target="influxdb_iox::influxdb_ioxd"
-    /// ```
-    Rust,
-
-    /// Use the (somwhat pretentiously named) Heroku / logfmt formatted output
-    /// format
-    ///
-    /// Example:
-    /// ```
-    /// Jan 31 13:19:39.059  WARN influxdb_iox::influxdb_ioxd: NO PERSISTENCE: using memory for object storage
-    /// ```
-    LogFmt,
-}
-
-impl Default for LogFormat {
-    fn default() -> Self {
-        Self::Rust
-    }
-}
-
-impl std::str::FromStr for LogFormat {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
-            "rust" => Ok(Self::Rust),
-            "logfmt" => Ok(Self::LogFmt),
-            _ => Err(format!(
-                "Invalid log format '{}'. Valid options: rust, logfmt",
-                s
-            )),
-        }
     }
 }
 
