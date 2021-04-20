@@ -183,7 +183,7 @@ pub enum ApplicationError {
     DatabaseNotFound { name: String },
 
     #[snafu(display("Database {} does not have a WAL", name))]
-    WALNotFound { name: String },
+    WalNotFound { name: String },
 
     #[snafu(display("Internal error creating HTTP response:  {}", source))]
     CreatingResponse { source: http::Error },
@@ -236,7 +236,7 @@ impl ApplicationError {
             Self::ErrorCreatingDatabase { .. } => self.bad_request(),
             Self::DatabaseNameError { .. } => self.bad_request(),
             Self::DatabaseNotFound { .. } => self.not_found(),
-            Self::WALNotFound { .. } => self.not_found(),
+            Self::WalNotFound { .. } => self.not_found(),
             Self::CreatingResponse { .. } => self.internal_error(),
             Self::FormattingResult { .. } => self.internal_error(),
             Self::ParsingFormat { .. } => self.bad_request(),
@@ -573,7 +573,7 @@ async fn get_wal_meta<M: ConnectionManager + Send + Sync + Debug + 'static>(
     let wal = db
         .wal_buffer
         .as_ref()
-        .context(WALNotFound { name: &db_name_str })?;
+        .context(WalNotFound { name: &db_name_str })?;
     let wal_buffer = wal.lock();
 
     let segments = wal_buffer

@@ -53,7 +53,7 @@ pub enum Error {
     ServingHttp { source: hyper::Error },
 
     #[snafu(display("Error serving RPC: {}", source))]
-    ServingRPC { source: tonic::transport::Error },
+    ServingRpc { source: tonic::transport::Error },
 
     #[snafu(display(
         "Specified {} for the object store, required configuration missing for {}",
@@ -243,7 +243,7 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
                 Ok(_) => info!("gRPC server shutdown"),
                 Err(error) => {
                     error!(%error, "gRPC server error");
-                    res = res.and(Err(Error::ServingRPC{source: error}))
+                    res = res.and(Err(Error::ServingRpc{source: error}))
                 }
             },
             result = http_server => match result {

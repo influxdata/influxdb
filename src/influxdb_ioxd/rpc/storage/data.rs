@@ -96,14 +96,14 @@ fn series_set_to_frames(series_set: SeriesSet) -> Result<Vec<Frame>> {
 pub fn series_set_item_to_read_response(series_set_item: SeriesSetItem) -> Result<ReadResponse> {
     let frames = match series_set_item {
         SeriesSetItem::GroupStart(group_description) => {
-            group_description_to_frames(group_description)?
+            group_description_to_frames(group_description)
         }
         SeriesSetItem::Data(series_set) => series_set_to_frames(series_set)?,
     };
     Ok(ReadResponse { frames })
 }
 
-fn group_description_to_frames(group_description: GroupDescription) -> Result<Vec<Frame>> {
+fn group_description_to_frames(group_description: GroupDescription) -> Vec<Frame> {
     // split key=value pairs into two separate vectors
     let (tag_keys, partition_key_vals): (Vec<Vec<u8>>, Vec<Vec<u8>>) = group_description
         .tags
@@ -118,7 +118,7 @@ fn group_description_to_frames(group_description: GroupDescription) -> Result<Ve
 
     let data = Some(Data::Group(group_frame));
 
-    Ok(vec![Frame { data }])
+    vec![Frame { data }]
 }
 
 fn data_type(array: &ArrayRef) -> Result<DataType> {

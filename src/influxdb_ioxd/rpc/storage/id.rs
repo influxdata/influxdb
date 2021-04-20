@@ -13,13 +13,13 @@ use std::{
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("ID cannot be zero"))]
-    IDCannotBeZero,
+    IdCannotBeZero,
 
     #[snafu(display("ID must have a length of {} bytes, was {} bytes: '{}'", ID_LENGTH, hex.len(), hex))]
-    IDLengthIncorrect { hex: String },
+    IdLengthIncorrect { hex: String },
 
     #[snafu(display("Invalid ID: {}", source))]
-    InvalidID { source: ParseIntError },
+    InvalidId { source: ParseIntError },
 }
 
 /// ID_LENGTH is the exact length a string (or a byte slice representing it)
@@ -30,23 +30,23 @@ const ID_LENGTH: usize = 16;
 ///
 /// Its zero value is not a valid ID.
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
-pub struct ID(NonZeroU64);
+pub struct Id(NonZeroU64);
 
-impl TryFrom<u64> for ID {
+impl TryFrom<u64> for Id {
     type Error = Error;
 
     fn try_from(value: u64) -> Result<Self, Self::Error> {
-        Ok(Self(NonZeroU64::new(value).context(IDCannotBeZero)?))
+        Ok(Self(NonZeroU64::new(value).context(IdCannotBeZero)?))
     }
 }
 
-impl From<ID> for u64 {
-    fn from(value: ID) -> Self {
+impl From<Id> for u64 {
+    fn from(value: Id) -> Self {
         value.0.get()
     }
 }
 
-impl<'de> Deserialize<'de> for ID {
+impl<'de> Deserialize<'de> for Id {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -56,19 +56,19 @@ impl<'de> Deserialize<'de> for ID {
     }
 }
 
-impl TryFrom<&str> for ID {
+impl TryFrom<&str> for Id {
     type Error = Error;
 
     fn try_from(hex: &str) -> Result<Self, Self::Error> {
-        ensure!(hex.len() == ID_LENGTH, IDLengthIncorrect { hex });
+        ensure!(hex.len() == ID_LENGTH, IdLengthIncorrect { hex });
 
         u64::from_str_radix(hex, 16)
-            .context(InvalidID)
+            .context(InvalidId)
             .and_then(|value| value.try_into())
     }
 }
 
-impl FromStr for ID {
+impl FromStr for Id {
     type Err = Error;
 
     fn from_str(hex: &str) -> Result<Self, Self::Err> {
@@ -76,20 +76,20 @@ impl FromStr for ID {
     }
 }
 
-impl fmt::Display for ID {
+impl fmt::Display for Id {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:016x}", self.0)
     }
 }
 
-impl fmt::Debug for ID {
+impl fmt::Debug for Id {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self, f)
     }
 }
 
-impl From<ID> for String {
-    fn from(value: ID) -> Self {
+impl From<Id> for String {
+    fn from(value: Id) -> Self {
         value.to_string()
     }
 }
@@ -105,15 +105,15 @@ mod tests {
         let success_cases = [
             (
                 "ffffffffffffffff",
-                ID(NonZeroU64::new(18_446_744_073_709_551_615).unwrap()),
+                Id(NonZeroU64::new(18_446_744_073_709_551_615).unwrap()),
             ),
             (
                 "020f755c3c082000",
-                ID(NonZeroU64::new(148_466_351_731_122_176).unwrap()),
+                Id(NonZeroU64::new(148_466_351_731_122_176).unwrap()),
             ),
             (
                 "0000111100001111",
-                ID(NonZeroU64::new(18_764_712_120_593).unwrap()),
+                Id(NonZeroU64::new(18_764_712_120_593).unwrap()),
             ),
         ];
 
@@ -139,7 +139,7 @@ mod tests {
         ];
 
         for &(input, expected_output) in &failure_cases {
-            let actual_output: Result<ID, Error> = input.try_into();
+            let actual_output: Result<Id, Error> = input.try_into();
             let actual_output: Error = actual_output.unwrap_err();
             let actual_output = actual_output.to_string();
             assert_eq!(expected_output, actual_output, "input was `{}`", input);
@@ -149,17 +149,17 @@ mod tests {
     #[test]
     fn test_id_to_string() {
         let cases = [
-            (ID(NonZeroU64::new(0x1234).unwrap()), "0000000000001234"),
+            (Id(NonZeroU64::new(0x1234).unwrap()), "0000000000001234"),
             (
-                ID(NonZeroU64::new(18_446_744_073_709_551_615).unwrap()),
+                Id(NonZeroU64::new(18_446_744_073_709_551_615).unwrap()),
                 "ffffffffffffffff",
             ),
             (
-                ID(NonZeroU64::new(148_466_351_731_122_176).unwrap()),
+                Id(NonZeroU64::new(148_466_351_731_122_176).unwrap()),
                 "020f755c3c082000",
             ),
             (
-                ID(NonZeroU64::new(18_764_712_120_593).unwrap()),
+                Id(NonZeroU64::new(18_764_712_120_593).unwrap()),
                 "0000111100001111",
             ),
         ];
@@ -172,18 +172,18 @@ mod tests {
 
     #[test]
     fn test_deserialize_then_to_string() {
-        let i: ID = "0000111100001111".parse().unwrap();
-        assert_eq!(ID(NonZeroU64::new(18_764_712_120_593).unwrap()), i);
+        let i: Id = "0000111100001111".parse().unwrap();
+        assert_eq!(Id(NonZeroU64::new(18_764_712_120_593).unwrap()), i);
 
         #[derive(Deserialize)]
         struct WriteInfo {
-            org: ID,
+            org: Id,
         }
 
         let query = "org=0000111100001111";
         let write_info: WriteInfo = serde_urlencoded::from_str(query).unwrap();
         assert_eq!(
-            ID(NonZeroU64::new(18_764_712_120_593).unwrap()),
+            Id(NonZeroU64::new(18_764_712_120_593).unwrap()),
             write_info.org
         );
         assert_eq!("0000111100001111", write_info.org.to_string());

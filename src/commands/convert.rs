@@ -1,7 +1,7 @@
 use influxdb_line_protocol::parse_lines;
 use ingest::{
     parquet::writer::{CompressionLevel, Error as ParquetWriterError, IOxParquetTableWriter},
-    ConversionSettings, Error as IngestError, LineProtocolConverter, TSMFileConverter,
+    ConversionSettings, Error as IngestError, LineProtocolConverter, TsmFileConverter,
 };
 use internal_types::schema::Schema;
 use observability_deps::tracing::{debug, info, warn};
@@ -197,7 +197,7 @@ pub fn convert(
             })
         };
 
-        let mut converter = TSMFileConverter::new(writer_source);
+        let mut converter = TsmFileConverter::new(writer_source);
         return converter
             .convert(index_readers, block_readers)
             .context(UnableToCloseTableWriter);
@@ -312,7 +312,7 @@ fn convert_tsm_to_parquet(
         })
     };
 
-    let mut converter = TSMFileConverter::new(writer_source);
+    let mut converter = TsmFileConverter::new(writer_source);
     converter
         .convert(vec![(index_stream, index_stream_size)], vec![block_stream])
         .context(UnableToCloseTableWriter)
