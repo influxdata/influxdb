@@ -46,7 +46,7 @@ pub enum Annotations {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum DateTimeFormat {
     /// RFC3339
-    RFC3339,
+    Rfc3339,
     /// RFC3339Nano
-    RFC3339Nano,
+    Rfc3339Nano,
 }

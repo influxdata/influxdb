@@ -123,7 +123,7 @@ fn build_store(
 
                 total_rows_read += rb.num_rows();
                 let mut segment = Segment::new(rb.num_rows(), schema);
-                convert_record_batch(rb, &mut segment)?;
+                convert_record_batch(rb, &mut segment);
 
                 debug!("{}", &segment);
                 store.add_segment(segment);
@@ -141,7 +141,7 @@ fn build_store(
     }
 }
 
-fn convert_record_batch(rb: RecordBatch, segment: &mut Segment) -> Result<(), Error> {
+fn convert_record_batch(rb: RecordBatch, segment: &mut Segment) {
     println!(
         "Loading record batch: cols {:?} rows {:?}",
         rb.num_columns(),
@@ -270,7 +270,6 @@ fn convert_record_batch(rb: RecordBatch, segment: &mut Segment) -> Result<(), Er
             _ => panic!("unsupported datatype"),
         }
     }
-    Ok(())
 }
 
 //

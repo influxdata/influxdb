@@ -1515,19 +1515,18 @@ mod tests {
              "#;
     static EXPECTED_NUM_LINES: usize = 9;
 
-    fn parse_data_into_sampler() -> Result<MeasurementSampler<'static>, Error> {
+    fn parse_data_into_sampler() -> MeasurementSampler<'static> {
         let mut sampler = MeasurementSampler::new(get_sampler_settings());
 
         for line in only_good_lines(LP_DATA) {
             sampler.add_sample(line);
         }
-        Ok(sampler)
+        sampler
     }
 
     #[test]
     fn pack_data_schema() {
         let schema = parse_data_into_sampler()
-            .unwrap()
             .deduce_schema_from_sample()
             .unwrap();
 
@@ -1564,7 +1563,7 @@ mod tests {
 
     #[test]
     fn pack_data_value() {
-        let mut sampler = parse_data_into_sampler().unwrap();
+        let mut sampler = parse_data_into_sampler();
         let schema = sampler.deduce_schema_from_sample().unwrap();
 
         let packers = pack_lines(&schema, &sampler.schema_sample);
