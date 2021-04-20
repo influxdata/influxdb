@@ -10,7 +10,7 @@ description = "Apache Arrow / Parquet / DataFusion dependencies for InfluxDB IOx
 
 # The version can be found here: https://github.com/apache/arrow/commit/d4c5c3c02e52e76579d95a84ae33491b9c1284c9
 #
-arrow = { git = "https://github.com/apache/arrow.git", rev = "d4c5c3c02e52e76579d95a84ae33491b9c1284c9" , features = ["simd"] }
+arrow = { git = "https://github.com/apache/arrow.git", rev = "d4c5c3c02e52e76579d95a84ae33491b9c1284c9" , default-features = false }
 arrow-flight = { git = "https://github.com/apache/arrow.git", rev = "d4c5c3c02e52e76579d95a84ae33491b9c1284c9" }
 
 # Turn off optional datafusion features (function packages)

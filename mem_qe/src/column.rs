@@ -1134,21 +1134,21 @@ impl Column {
         if !self.maybe_contains(value) {
             return None;
         }
-        self.row_ids(value, std::cmp::Ordering::Equal)
+        Some(self.row_ids(value, std::cmp::Ordering::Equal))
     }
 
     pub fn row_ids_gt(&self, value: &Value<'_>) -> Option<croaring::Bitmap> {
         if self.max_less_than(value) {
             return None;
         }
-        self.row_ids(value, std::cmp::Ordering::Greater)
+        Some(self.row_ids(value, std::cmp::Ordering::Greater))
     }
 
     pub fn row_ids_lt(&self, value: &Value<'_>) -> Option<croaring::Bitmap> {
         if self.min_greater_than(value) {
             return None;
         }
-        self.row_ids(value, std::cmp::Ordering::Less)
+        Some(self.row_ids(value, std::cmp::Ordering::Less))
     }
 
     // allows you to do:
@@ -1230,7 +1230,7 @@ impl Column {
     }
 
     // TODO(edd) shouldn't let roaring stuff leak out...
-    fn row_ids(&self, value: &Value<'_>, order: std::cmp::Ordering) -> Option<croaring::Bitmap> {
+    fn row_ids(&self, value: &Value<'_>, order: std::cmp::Ordering) -> croaring::Bitmap {
         match self {
             Column::String(c) => {
                 if order != std::cmp::Ordering::Equal {
@@ -1238,21 +1238,21 @@ impl Column {
                 }
 
                 if let Value::String(v) = value {
-                    Some(c.data.row_ids_eq_roaring(Some(v.to_string())))
+                    c.data.row_ids_eq_roaring(Some(v.to_string()))
                 } else {
                     panic!("invalid value");
                 }
             }
             Column::Float(c) => {
                 if let Value::Scalar(Scalar::Float(v)) = value {
-                    Some(c.data.row_ids_single_cmp_roaring(v, order))
+                    c.data.row_ids_single_cmp_roaring(v, order)
                 } else {
                     panic!("invalid value or unsupported null");
                 }
             }
             Column::Integer(c) => {
                 if let Value::Scalar(Scalar::Integer(v)) = value {
-                    Some(c.data.row_ids_single_cmp_roaring(v, order))
+                    c.data.row_ids_single_cmp_roaring(v, order)
                 } else {
                     panic!("invalid value or unsupported null");
                 }
@@ -1369,7 +1369,7 @@ pub struct String {
     meta: metadata::Metadata<std::string::String>,
 
     // TODO(edd): this would probably have multiple possible encodings
-    data: encoding::DictionaryRLE,
+    data: encoding::DictionaryRle,
 }
 
 impl String {
@@ -1377,7 +1377,7 @@ impl String {
         dictionary: std::collections::BTreeSet<Option<std::string::String>>,
     ) -> Self {
         Self {
-            data: encoding::DictionaryRLE::with_dictionary(dictionary),
+            data: encoding::DictionaryRle::with_dictionary(dictionary),
             ..Default::default()
         }
     }

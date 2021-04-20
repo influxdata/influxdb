@@ -4,7 +4,7 @@ use crate::query_tests::scenarios::*;
 use arrow_deps::{arrow::util::pretty::pretty_format_batches, datafusion::prelude::*};
 use async_trait::async_trait;
 use query::{
-    frontend::influxrpc::InfluxRPCPlanner,
+    frontend::influxrpc::InfluxRpcPlanner,
     group_by::Aggregate,
     predicate::{Predicate, PredicateBuilder},
 };
@@ -19,12 +19,12 @@ macro_rules! run_read_group_test_case {
         let group_columns = $GROUP_COLUMNS;
         let expected_results = $EXPECTED_RESULTS;
         for scenario in $DB_SETUP.make().await {
-            let DBScenario {
+            let DbScenario {
                 scenario_name, db, ..
             } = scenario;
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
-            let planner = InfluxRPCPlanner::new();
+            let planner = InfluxRpcPlanner::new();
 
             let plans = planner
                 .read_group(&db, predicate.clone(), agg, &group_columns)
@@ -79,8 +79,8 @@ async fn test_read_group_no_data_no_pred() {
 
 struct OneMeasurementForAggs {}
 #[async_trait]
-impl DBSetup for OneMeasurementForAggs {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for OneMeasurementForAggs {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
         let lp_lines1 = vec![
@@ -149,8 +149,8 @@ async fn test_read_group_data_field_restriction() {
 
 struct AnotherMeasurementForAggs {}
 #[async_trait]
-impl DBSetup for AnotherMeasurementForAggs {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for AnotherMeasurementForAggs {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
         let lp_lines1 = vec![
@@ -275,8 +275,8 @@ async fn test_grouped_series_set_plan_mean() {
 
 struct MeasurementForSelectors {}
 #[async_trait]
-impl DBSetup for MeasurementForSelectors {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for MeasurementForSelectors {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
         let lp_lines1 = vec!["h2o,state=MA,city=Cambridge f=8.0,i=8i,b=true,s=\"d\" 1000"];
@@ -346,8 +346,8 @@ async fn test_grouped_series_set_plan_last() {
 
 struct MeasurementForMin {}
 #[async_trait]
-impl DBSetup for MeasurementForMin {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for MeasurementForMin {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
         let lp_lines1 = vec![
@@ -392,8 +392,8 @@ async fn test_grouped_series_set_plan_min() {
 
 struct MeasurementForMax {}
 #[async_trait]
-impl DBSetup for MeasurementForMax {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for MeasurementForMax {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
         let lp_lines1 = vec![
@@ -436,8 +436,8 @@ async fn test_grouped_series_set_plan_max() {
 
 struct MeasurementForGroupKeys {}
 #[async_trait]
-impl DBSetup for MeasurementForGroupKeys {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for MeasurementForGroupKeys {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
         let lp_lines1 = vec![

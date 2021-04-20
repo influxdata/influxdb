@@ -84,7 +84,7 @@ fn map_field_columns(c: &mut Criterion) {
             || (decoder.clone(), measurement_table.clone()),
             |(mut data, mut measurement_table)| {
                 measurement_table
-                    .process(&mut data, |section: TableSection| -> Result<(), TSMError> {
+                    .process(&mut data, |section: TableSection| -> Result<(), TsmError> {
                         assert_eq!(section.len(), 1800);
                         Ok(())
                     })

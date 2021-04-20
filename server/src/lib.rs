@@ -95,7 +95,7 @@ use futures::{pin_mut, FutureExt};
 
 use crate::{
     config::{
-        object_store_path_for_database_config, Config, GRPCConnectionString, DB_RULES_FILE_NAME,
+        object_store_path_for_database_config, Config, GRpcConnectionString, DB_RULES_FILE_NAME,
     },
     db::Db,
 };
@@ -163,6 +163,8 @@ pub enum Error {
     },
     #[snafu(display("shard not found: {}", shard_id))]
     ShardNotFound { shard_id: ShardId },
+    #[snafu(display("hard buffer limit reached"))]
+    HardLimitReached {},
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -480,10 +482,12 @@ impl<M: ConnectionManager> Server<M> {
     }
 
     pub async fn write_entry_local(&self, db: &Db, entry: Entry) -> Result<()> {
-        db.store_entry(entry)
-            .map_err(|e| Error::UnknownDatabaseError {
+        db.store_entry(entry).map_err(|e| match e {
+            db::Error::HardLimitReached {} => Error::HardLimitReached {},
+            _ => Error::UnknownDatabaseError {
                 source: Box::new(e),
-            })?;
+            },
+        })?;
 
         Ok(())
     }
@@ -533,11 +537,11 @@ impl<M: ConnectionManager> Server<M> {
         self.config.remotes_sorted()
     }
 
-    pub fn update_remote(&self, id: WriterId, addr: GRPCConnectionString) {
+    pub fn update_remote(&self, id: WriterId, addr: GRpcConnectionString) {
         self.config.update_remote(id, addr)
     }
 
-    pub fn delete_remote(&self, id: WriterId) -> Option<GRPCConnectionString> {
+    pub fn delete_remote(&self, id: WriterId) -> Option<GRpcConnectionString> {
         self.config.delete_remote(id)
     }
 
@@ -785,7 +789,7 @@ mod tests {
     use data_types::database_rules::{PartitionTemplate, TemplatePart, NO_SHARD_CONFIG};
     use influxdb_line_protocol::parse_lines;
     use object_store::{memory::InMemory, path::ObjectStorePath};
-    use query::{frontend::sql::SQLQueryPlanner, Database};
+    use query::{frontend::sql::SqlQueryPlanner, Database};
 
     use super::*;
 
@@ -945,7 +949,7 @@ mod tests {
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).unwrap();
 
-        let planner = SQLQueryPlanner::default();
+        let planner = SqlQueryPlanner::default();
         let executor = server.executor();
         let physical_plan = planner
             .query(db, "select * from cpu", executor.as_ref())
@@ -988,7 +992,7 @@ mod tests {
             .await
             .expect("write entry");
 
-        let planner = SQLQueryPlanner::default();
+        let planner = SqlQueryPlanner::default();
         let executor = server.executor();
         let physical_plan = planner
             .query(db, "select * from cpu", executor.as_ref())
@@ -1149,5 +1153,46 @@ mod tests {
         M: ConnectionManager + Send + Sync + 'static,
     {
         tokio::task::spawn(async move { server.background_worker(token).await })
+    }
+
+    #[tokio::test]
+    async fn hard_buffer_limit() {
+        let manager = TestConnectionManager::new();
+        let server = Server::new(manager, config());
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+
+        let name = DatabaseName::new("foo".to_string()).unwrap();
+        server
+            .create_database(DatabaseRules::new(name), server.require_id().unwrap())
+            .await
+            .unwrap();
+
+        let db_name = DatabaseName::new("foo").unwrap();
+        let db = server.db(&db_name).unwrap();
+        db.rules.write().lifecycle_rules.buffer_size_hard =
+            Some(std::num::NonZeroUsize::new(10).unwrap());
+
+        // inserting first line does not trigger hard buffer limit
+        let line_1 = "cpu bar=1 10";
+        let lines_1: Vec<_> = parse_lines(line_1).map(|l| l.unwrap()).collect();
+        let sharded_entries_1 =
+            lines_to_sharded_entries(&lines_1, NO_SHARD_CONFIG, &*db.rules.read())
+                .expect("first sharded entries");
+
+        let entry_1 = &sharded_entries_1[0].entry;
+        server
+            .write_entry("foo", entry_1.data().into())
+            .await
+            .expect("write first entry");
+
+        // inserting second line will
+        let line_2 = "cpu bar=2 20";
+        let lines_2: Vec<_> = parse_lines(line_2).map(|l| l.unwrap()).collect();
+        let sharded_entries_2 =
+            lines_to_sharded_entries(&lines_2, NO_SHARD_CONFIG, &*db.rules.read())
+                .expect("second sharded entries");
+        let entry_2 = &sharded_entries_2[0].entry;
+        let res = server.write_entry("foo", entry_2.data().into()).await;
+        assert!(matches!(res, Err(super::Error::HardLimitReached {})));
     }
 }

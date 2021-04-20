@@ -154,14 +154,14 @@ pub enum GroupByAndAggregate {
 }
 
 /// A trait for adding gRPC specific nodes to the generic predicate builder
-pub trait AddRPCNode
+pub trait AddRpcNode
 where
     Self: Sized,
 {
     fn rpc_predicate(self, predicate: Option<RPCPredicate>) -> Result<Self>;
 }
 
-impl AddRPCNode for PredicateBuilder {
+impl AddRpcNode for PredicateBuilder {
     /// Adds the predicates represented by the Node (predicate tree)
     /// into predicates that can be evaluted by the storage system
     ///
@@ -1325,49 +1325,45 @@ mod tests {
     fn test_convert_aggregate() {
         assert_eq!(convert_aggregate(None).unwrap(), QueryAggregate::None);
         assert_eq!(
-            convert_aggregate(make_aggregate_opt(0)).unwrap(),
+            convert_aggregate(Some(make_aggregate(0))).unwrap(),
             QueryAggregate::None
         );
         assert_eq!(
-            convert_aggregate(make_aggregate_opt(1)).unwrap(),
+            convert_aggregate(Some(make_aggregate(1))).unwrap(),
             QueryAggregate::Sum
         );
         assert_eq!(
-            convert_aggregate(make_aggregate_opt(2)).unwrap(),
+            convert_aggregate(Some(make_aggregate(2))).unwrap(),
             QueryAggregate::Count
         );
         assert_eq!(
-            convert_aggregate(make_aggregate_opt(3)).unwrap(),
+            convert_aggregate(Some(make_aggregate(3))).unwrap(),
             QueryAggregate::Min
         );
         assert_eq!(
-            convert_aggregate(make_aggregate_opt(4)).unwrap(),
+            convert_aggregate(Some(make_aggregate(4))).unwrap(),
             QueryAggregate::Max
         );
         assert_eq!(
-            convert_aggregate(make_aggregate_opt(5)).unwrap(),
+            convert_aggregate(Some(make_aggregate(5))).unwrap(),
             QueryAggregate::First
         );
         assert_eq!(
-            convert_aggregate(make_aggregate_opt(6)).unwrap(),
+            convert_aggregate(Some(make_aggregate(6))).unwrap(),
             QueryAggregate::Last
         );
         assert_eq!(
-            convert_aggregate(make_aggregate_opt(7)).unwrap(),
+            convert_aggregate(Some(make_aggregate(7))).unwrap(),
             QueryAggregate::Mean
         );
         assert_eq!(
-            error_result_to_string(convert_aggregate(make_aggregate_opt(100))),
+            error_result_to_string(convert_aggregate(Some(make_aggregate(100)))),
             "Error creating aggregate: Unknown aggregate type 100"
         );
     }
 
     fn make_aggregate(t: i32) -> RPCAggregate {
         RPCAggregate { r#type: t }
-    }
-
-    fn make_aggregate_opt(t: i32) -> Option<RPCAggregate> {
-        Some(make_aggregate(t))
     }
 
     fn make_rpc_window(

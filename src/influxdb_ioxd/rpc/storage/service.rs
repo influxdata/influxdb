@@ -9,7 +9,7 @@ use crate::influxdb_ioxd::{
             fieldlist_to_measurement_fields_response, series_set_item_to_read_response,
             tag_keys_to_byte_vecs,
         },
-        expr::{self, AddRPCNode, GroupByAndAggregate, Loggable, SpecialTagKeys},
+        expr::{self, AddRpcNode, GroupByAndAggregate, Loggable, SpecialTagKeys},
         input::GrpcInputs,
         StorageService,
     },
@@ -1041,7 +1041,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::super::id::ID;
+    use super::super::id::Id;
 
     use super::*;
     use arrow_deps::datafusion::logical_plan::{col, lit, Expr};
@@ -1211,8 +1211,8 @@ mod tests {
 
         let request = TagKeysRequest {
             tags_source: source.clone(),
-            range: make_timestamp_range(150, 200),
-            predicate: make_state_ma_predicate(),
+            range: Some(make_timestamp_range(150, 200)),
+            predicate: Some(make_state_ma_predicate()),
         };
 
         let actual_tag_keys = fixture.storage_client.tag_keys(request).await.unwrap();
@@ -1320,8 +1320,8 @@ mod tests {
         let request = MeasurementTagKeysRequest {
             measurement: "m4".into(),
             source: source.clone(),
-            range: make_timestamp_range(150, 200),
-            predicate: make_state_ma_predicate(),
+            range: Some(make_timestamp_range(150, 200)),
+            predicate: Some(make_state_ma_predicate()),
         };
 
         let actual_tag_keys = fixture
@@ -1434,8 +1434,8 @@ mod tests {
 
         let request = TagValuesRequest {
             tags_source: source.clone(),
-            range: make_timestamp_range(150, 2000),
-            predicate: make_state_ma_predicate(),
+            range: Some(make_timestamp_range(150, 2000)),
+            predicate: Some(make_state_ma_predicate()),
             tag_key: "state".into(),
         };
 
@@ -1468,7 +1468,7 @@ mod tests {
         // ---
         let request = TagValuesRequest {
             tags_source: source.clone(),
-            range: make_timestamp_range(1000, 1500),
+            range: Some(make_timestamp_range(1000, 1500)),
             predicate: None,
             tag_key: [0].into(),
         };
@@ -1524,8 +1524,8 @@ mod tests {
         // ---
         let request = TagValuesRequest {
             tags_source: source.clone(),
-            range: make_timestamp_range(0, 2000),
-            predicate: make_state_ma_predicate(),
+            range: Some(make_timestamp_range(0, 2000)),
+            predicate: Some(make_state_ma_predicate()),
             tag_key: [255].into(),
         };
 
@@ -1634,8 +1634,8 @@ mod tests {
         let request = MeasurementTagValuesRequest {
             measurement: "TheMeasurement".into(),
             source: source.clone(),
-            range: make_timestamp_range(150, 2000),
-            predicate: make_state_ma_predicate(),
+            range: Some(make_timestamp_range(150, 2000)),
+            predicate: Some(make_state_ma_predicate()),
             tag_key: "state".into(),
         };
 
@@ -1782,8 +1782,8 @@ mod tests {
 
         let request = ReadFilterRequest {
             read_source: source.clone(),
-            range: make_timestamp_range(0, 10000),
-            predicate: make_state_ma_predicate(),
+            range: Some(make_timestamp_range(0, 10000)),
+            predicate: Some(make_state_ma_predicate()),
         };
 
         let actual_frames = fixture.storage_client.read_filter(request).await.unwrap();
@@ -1866,8 +1866,8 @@ mod tests {
 
         let request = ReadGroupRequest {
             read_source: source.clone(),
-            range: make_timestamp_range(0, 2000),
-            predicate: make_state_ma_predicate(),
+            range: Some(make_timestamp_range(0, 2000)),
+            predicate: Some(make_state_ma_predicate()),
             group_keys: vec!["state".into()],
             group,
             aggregate: Some(RPCAggregate {
@@ -1996,8 +1996,8 @@ mod tests {
 
         let request_window_every = ReadWindowAggregateRequest {
             read_source: source.clone(),
-            range: make_timestamp_range(0, 2000),
-            predicate: make_state_ma_predicate(),
+            range: Some(make_timestamp_range(0, 2000)),
+            predicate: Some(make_state_ma_predicate()),
             window_every: 1122,
             offset: 15,
             aggregate: vec![RPCAggregate {
@@ -2054,8 +2054,8 @@ mod tests {
 
         let request_window = ReadWindowAggregateRequest {
             read_source: source.clone(),
-            range: make_timestamp_range(150, 200),
-            predicate: make_state_ma_predicate(),
+            range: Some(make_timestamp_range(150, 200)),
+            predicate: Some(make_state_ma_predicate()),
             window_every: 0,
             offset: 0,
             aggregate: vec![RPCAggregate {
@@ -2119,8 +2119,8 @@ mod tests {
 
         let request_window = ReadWindowAggregateRequest {
             read_source: source.clone(),
-            range: make_timestamp_range(0, 2000),
-            predicate: make_state_ma_predicate(),
+            range: Some(make_timestamp_range(0, 2000)),
+            predicate: Some(make_state_ma_predicate()),
             window_every: 1122,
             offset: 15,
             aggregate: vec![RPCAggregate {
@@ -2173,8 +2173,8 @@ mod tests {
         let request = MeasurementFieldsRequest {
             source: source.clone(),
             measurement: "TheMeasurement".into(),
-            range: make_timestamp_range(0, 2000),
-            predicate: make_state_ma_predicate(),
+            range: Some(make_timestamp_range(0, 2000)),
+            predicate: Some(make_state_ma_predicate()),
         };
 
         let actual_fields = fixture
@@ -2233,14 +2233,14 @@ mod tests {
         assert_contains!(response_string, "Sugar we are going down");
     }
 
-    fn make_timestamp_range(start: i64, end: i64) -> Option<TimestampRange> {
-        Some(TimestampRange { start, end })
+    fn make_timestamp_range(start: i64, end: i64) -> TimestampRange {
+        TimestampRange { start, end }
     }
 
     /// return a gRPC predicate like
     ///
     /// state="MA"
-    fn make_state_ma_predicate() -> Option<Predicate> {
+    fn make_state_ma_predicate() -> Predicate {
         use node::{Comparison, Type, Value};
         let root = Node {
             node_type: Type::ComparisonExpression as i32,
@@ -2258,7 +2258,7 @@ mod tests {
                 },
             ],
         };
-        Some(Predicate { root: Some(root) })
+        Predicate { root: Some(root) }
     }
 
     /// return an DataFusion Expr predicate like
@@ -2287,9 +2287,9 @@ mod tests {
 
     impl OrgAndBucket {
         fn new(org_id: u64, bucket_id: u64) -> Self {
-            let org_id_str = ID::try_from(org_id).expect("org_id was valid").to_string();
+            let org_id_str = Id::try_from(org_id).expect("org_id was valid").to_string();
 
-            let bucket_id_str = ID::try_from(bucket_id)
+            let bucket_id_str = Id::try_from(bucket_id)
                 .expect("bucket_id was valid")
                 .to_string();
 

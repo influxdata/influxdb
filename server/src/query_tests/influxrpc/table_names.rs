@@ -1,7 +1,7 @@
 //! Tests for the Influx gRPC queries
 use query::{
     exec::stringset::{IntoStringSet, StringSetRef},
-    frontend::influxrpc::InfluxRPCPlanner,
+    frontend::influxrpc::InfluxRpcPlanner,
     predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
 };
 
@@ -14,12 +14,12 @@ macro_rules! run_table_names_test_case {
         test_helpers::maybe_start_logging();
         let predicate = $PREDICATE;
         for scenario in $DB_SETUP.make().await {
-            let DBScenario {
+            let DbScenario {
                 scenario_name, db, ..
             } = scenario;
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
-            let planner = InfluxRPCPlanner::new();
+            let planner = InfluxRpcPlanner::new();
 
             let plan = planner
                 .table_names(&db, predicate.clone())

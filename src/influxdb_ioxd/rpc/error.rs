@@ -1,4 +1,6 @@
-use generated_types::google::{FieldViolation, InternalError, NotFound, PreconditionViolation};
+use generated_types::google::{
+    FieldViolation, InternalError, NotFound, PreconditionViolation, QuotaFailure,
+};
 use observability_deps::tracing::error;
 
 /// map common `server::Error` errors  to the appropriate tonic Status
@@ -26,6 +28,11 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         Error::DecodingEntry { source } => FieldViolation {
             field: "entry".into(),
             description: source.to_string(),
+        }
+        .into(),
+        Error::HardLimitReached {} => QuotaFailure {
+            subject: "influxdata.com/iox/buffer".to_string(),
+            description: "hard buffer limit reached".to_string(),
         }
         .into(),
         error => {

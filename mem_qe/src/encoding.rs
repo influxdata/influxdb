@@ -524,7 +524,7 @@ impl From<&[f64]> for PlainFixed<f64> {
 }
 
 #[derive(Debug, Default)]
-pub struct DictionaryRLE {
+pub struct DictionaryRle {
     // stores the mapping between an entry and its assigned index.
     entry_index: BTreeMap<Option<String>, usize>,
 
@@ -544,7 +544,7 @@ pub struct DictionaryRLE {
     total: u64,
 }
 
-impl DictionaryRLE {
+impl DictionaryRle {
     pub fn new() -> Self {
         Self {
             entry_index: BTreeMap::new(),
@@ -1005,7 +1005,7 @@ impl DictionaryRLE {
     }
 }
 
-impl std::fmt::Display for DictionaryRLE {
+impl std::fmt::Display for DictionaryRle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -1020,7 +1020,7 @@ impl std::fmt::Display for DictionaryRLE {
 }
 
 // TODO(edd): improve perf here....
-impl std::convert::From<Vec<&str>> for DictionaryRLE {
+impl std::convert::From<Vec<&str>> for DictionaryRle {
     fn from(vec: Vec<&str>) -> Self {
         let mut drle = Self::new();
         for v in vec {
@@ -1031,7 +1031,7 @@ impl std::convert::From<Vec<&str>> for DictionaryRLE {
 }
 
 // TODO(edd): improve perf here....
-impl std::convert::From<&packers::Packer<packers::ByteArray>> for DictionaryRLE {
+impl std::convert::From<&packers::Packer<packers::ByteArray>> for DictionaryRle {
     fn from(p: &packers::Packer<packers::ByteArray>) -> Self {
         let mut drle = Self::new();
         for v in p.values() {
@@ -1122,7 +1122,7 @@ mod test {
 
     #[test]
     fn dict_rle() {
-        let mut drle = super::DictionaryRLE::new();
+        let mut drle = super::DictionaryRle::new();
         drle.push("hello");
         drle.push("hello");
         drle.push("world");
@@ -1180,7 +1180,7 @@ mod test {
 
     #[test]
     fn dict_rle_scan_from() {
-        let mut drle = super::DictionaryRLE::new();
+        let mut drle = super::DictionaryRle::new();
         let west = Some("west".to_string());
         let east = Some("east".to_string());
         let north = Some("north".to_string());
@@ -1220,7 +1220,7 @@ mod test {
 
     #[test]
     fn dict_rle_has_value_no_null() {
-        let mut drle = super::DictionaryRLE::new();
+        let mut drle = super::DictionaryRle::new();
         let west = Some("west".to_string());
         let east = Some("east".to_string());
         let north = Some("north".to_string());
@@ -1238,7 +1238,7 @@ mod test {
 
     #[test]
     fn dict_rle_has_value() {
-        let mut drle = super::DictionaryRLE::new();
+        let mut drle = super::DictionaryRle::new();
         let west = Some("west".to_string());
         let east = Some("east".to_string());
         let north = Some("north".to_string());
@@ -1266,7 +1266,7 @@ mod test {
 
     #[test]
     fn dict_rle_values() {
-        let mut drle = super::DictionaryRLE::new();
+        let mut drle = super::DictionaryRle::new();
         let west = Some("west".to_string());
         let east = Some("east".to_string());
         let north = Some("north".to_string());
@@ -1301,7 +1301,7 @@ mod test {
 
     #[test]
     fn dict_rle_encoded_values() {
-        let mut drle = super::DictionaryRLE::new();
+        let mut drle = super::DictionaryRle::new();
         let west = Some("west".to_string());
         let east = Some("east".to_string());
         let north = Some("north".to_string());
@@ -1336,7 +1336,7 @@ mod test {
 
     #[test]
     fn rle_dict_row_ids() {
-        let mut drle = super::DictionaryRLE::new();
+        let mut drle = super::DictionaryRle::new();
         drle.push_additional(Some("abc".to_string()), 3);
         drle.push_additional(Some("dre".to_string()), 2);
         drle.push("abc");
@@ -1360,7 +1360,7 @@ mod test {
 
     #[test]
     fn dict_rle_row_ids_roaring() {
-        let mut drle = super::DictionaryRLE::new();
+        let mut drle = super::DictionaryRle::new();
         drle.push_additional(Some("abc".to_string()), 3);
         drle.push_additional(Some("dre".to_string()), 2);
         drle.push("abc");

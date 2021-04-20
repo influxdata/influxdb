@@ -25,7 +25,7 @@ use arrow_deps::{
 };
 
 use catalog::{chunk::ChunkState, Catalog};
-pub(crate) use chunk::DBChunk;
+pub(crate) use chunk::DbChunk;
 use data_types::{
     chunk::ChunkSummary, database_rules::DatabaseRules, partition_metadata::PartitionSummary,
     timestamp::TimestampRange,
@@ -142,6 +142,9 @@ pub enum Error {
 
     #[snafu(display("Cannot write to this database: no mutable buffer configured"))]
     DatabaseNotWriteable {},
+
+    #[snafu(display("Hard buffer size limit reached"))]
+    HardLimitReached {},
 
     #[snafu(display("Can not write entry {} {}: {}", partition_key, chunk_id, source))]
     WriteEntry {
@@ -270,6 +273,13 @@ struct MemoryRegistries {
     parquet: Arc<MemRegistry>,
 }
 
+impl MemoryRegistries {
+    /// Total bytes over all registries.
+    pub fn bytes(&self) -> usize {
+        self.mutable_buffer.bytes() + self.read_buffer.bytes() + self.parquet.bytes()
+    }
+}
+
 impl Db {
     pub fn new(
         rules: DatabaseRules,
@@ -307,7 +317,7 @@ impl Db {
 
     /// Rolls over the active chunk in the database's specified
     /// partition. Returns the previously open (now closed) Chunk
-    pub async fn rollover_partition(&self, partition_key: &str) -> Result<Arc<DBChunk>> {
+    pub async fn rollover_partition(&self, partition_key: &str) -> Result<Arc<DbChunk>> {
         let partition = self
             .catalog
             .valid_partition(partition_key)
@@ -326,7 +336,7 @@ impl Db {
         // make a new chunk to track the newly created chunk in this partition
         partition.create_open_chunk(self.memory_registries.mutable_buffer.as_ref());
 
-        return Ok(DBChunk::snapshot(&chunk));
+        return Ok(DbChunk::snapshot(&chunk));
     }
 
     /// Drops the specified chunk from the catalog and all storage systems
@@ -392,7 +402,7 @@ impl Db {
         &self,
         partition_key: &str,
         chunk_id: u32,
-    ) -> Result<Arc<DBChunk>> {
+    ) -> Result<Arc<DbChunk>> {
         let chunk = {
             let partition = self
                 .catalog
@@ -455,14 +465,14 @@ impl Db {
 
         debug!(%partition_key, %chunk_id, "chunk marked MOVED. loading complete");
 
-        Ok(DBChunk::snapshot(&chunk))
+        Ok(DbChunk::snapshot(&chunk))
     }
 
     pub async fn write_chunk_to_object_store(
         &self,
         partition_key: &str,
         chunk_id: u32,
-    ) -> Result<Arc<DBChunk>> {
+    ) -> Result<Arc<DbChunk>> {
         // Get the chunk from the catalog
         let chunk = {
             let partition =
@@ -564,7 +574,7 @@ impl Db {
 
         debug!(%partition_key, %chunk_id, "chunk marked MOVED. Persisting to object store complete");
 
-        Ok(DBChunk::snapshot(&chunk))
+        Ok(DbChunk::snapshot(&chunk))
     }
 
     /// Spawns a task to perform
@@ -732,6 +742,11 @@ impl Db {
         if rules.lifecycle_rules.immutable {
             return DatabaseNotWriteable {}.fail();
         }
+        if let Some(hard_limit) = rules.lifecycle_rules.buffer_size_hard {
+            if self.memory_registries.bytes() > hard_limit.get() {
+                return HardLimitReached {}.fail();
+            }
+        }
         std::mem::drop(rules);
 
         // TODO: Direct writes to closing chunks
@@ -781,7 +796,7 @@ impl Db {
 #[async_trait]
 impl Database for Db {
     type Error = Error;
-    type Chunk = DBChunk;
+    type Chunk = DbChunk;
 
     /// Return a covering set of chunks for a particular partition
     ///
@@ -799,7 +814,7 @@ impl Database for Db {
             .chunks()
             .map(|chunk| {
                 let chunk = chunk.read();
-                DBChunk::snapshot(&chunk)
+                DbChunk::snapshot(&chunk)
             })
             .collect()
     }
@@ -839,11 +854,15 @@ pub mod test_helpers {
     use super::*;
     use internal_types::entry::test_helpers::lp_to_entries;
 
-    pub fn write_lp(db: &Db, lp: &str) {
+    pub fn try_write_lp(db: &Db, lp: &str) -> Result<()> {
         let entries = lp_to_entries(lp);
-        for entry in entries {
-            db.store_entry(entry).unwrap();
-        }
+        entries
+            .into_iter()
+            .try_for_each(|entry| db.store_entry(entry))
+    }
+
+    pub fn write_lp(db: &Db, lp: &str) {
+        try_write_lp(db, lp).unwrap()
     }
 }
 
@@ -864,14 +883,14 @@ mod tests {
     use object_store::{
         disk::File, path::ObjectStorePath, path::Path, ObjectStore, ObjectStoreApi,
     };
-    use query::{frontend::sql::SQLQueryPlanner, PartitionChunk};
+    use query::{frontend::sql::SqlQueryPlanner, PartitionChunk};
 
     use super::*;
     use futures::stream;
     use futures::{StreamExt, TryStreamExt};
     use std::iter::Iterator;
 
-    use super::test_helpers::write_lp;
+    use super::test_helpers::{try_write_lp, write_lp};
     use internal_types::entry::test_helpers::lp_to_entry;
     use std::num::NonZeroUsize;
     use std::str;
@@ -1703,7 +1722,7 @@ mod tests {
 
     // run a sql query against the database, returning the results as record batches
     async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
-        let planner = SQLQueryPlanner::default();
+        let planner = SqlQueryPlanner::default();
         let executor = db.executor();
 
         let physical_plan = planner.query(db, query, &executor).unwrap();
@@ -1789,5 +1808,20 @@ mod tests {
         assert_eq!(mutable_chunk_ids(&db, partition_key), vec![1]);
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![0]);
         assert_eq!(read_parquet_file_chunk_ids(&db, partition_key), vec![0]);
+    }
+
+    #[tokio::test]
+    async fn write_hard_limit() {
+        let db = Arc::new(make_db());
+        db.rules.write().lifecycle_rules.buffer_size_hard = Some(NonZeroUsize::new(10).unwrap());
+
+        // inserting first line does not trigger hard buffer limit
+        write_lp(db.as_ref(), "cpu bar=1 10");
+
+        // but second line will
+        assert!(matches!(
+            try_write_lp(db.as_ref(), "cpu bar=2 20"),
+            Err(super::Error::HardLimitReached {})
+        ));
     }
 }

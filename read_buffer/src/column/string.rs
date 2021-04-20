@@ -18,7 +18,7 @@ use crate::column::{RowIDs, Value, Values};
 pub const TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT: usize = 100_000;
 
 pub enum StringEncoding {
-    RLEDictionary(RLE),
+    RleDictionary(RLE),
     Dictionary(Plain),
     // TODO - simple array encoding, e.g., via Arrow String array.
 }
@@ -29,7 +29,7 @@ impl StringEncoding {
     /// The total size in bytes of the store columnar data.
     pub fn size(&self) -> usize {
         match self {
-            Self::RLEDictionary(enc) => enc.size(),
+            Self::RleDictionary(enc) => enc.size(),
             Self::Dictionary(enc) => enc.size(),
         }
     }
@@ -37,7 +37,7 @@ impl StringEncoding {
     /// The total number of rows in the column.
     pub fn num_rows(&self) -> u32 {
         match self {
-            Self::RLEDictionary(enc) => enc.num_rows(),
+            Self::RleDictionary(enc) => enc.num_rows(),
             Self::Dictionary(enc) => enc.num_rows(),
         }
     }
@@ -45,7 +45,7 @@ impl StringEncoding {
     /// The lexicographical min and max values in the column.
     pub fn column_range(&self) -> Option<(String, String)> {
         match self {
-            Self::RLEDictionary(enc) => match (enc.column_min(), enc.column_max()) {
+            Self::RleDictionary(enc) => match (enc.column_min(), enc.column_max()) {
                 (None, None) => None,
                 (Some(min), Some(max)) => Some((min.to_owned(), max.to_owned())),
                 (min, max) => panic!("invalid column range: ({:?}, {:?})", min, max),
@@ -61,7 +61,7 @@ impl StringEncoding {
     /// Determines if the column contains a NULL value.
     pub fn contains_null(&self) -> bool {
         match self {
-            Self::RLEDictionary(enc) => enc.contains_null(),
+            Self::RleDictionary(enc) => enc.contains_null(),
             Self::Dictionary(enc) => enc.contains_null(),
         }
     }
@@ -69,7 +69,7 @@ impl StringEncoding {
     /// Returns true if encoding can return row ID sets for logical values.
     pub fn has_pre_computed_row_id_sets(&self) -> bool {
         match &self {
-            Self::RLEDictionary(_) => true,
+            Self::RleDictionary(_) => true,
             Self::Dictionary(_) => false,
         }
     }
@@ -77,7 +77,7 @@ impl StringEncoding {
     /// Determines if the column contains a non-null value
     pub fn has_any_non_null_value(&self) -> bool {
         match &self {
-            Self::RLEDictionary(c) => c.has_any_non_null_value(),
+            Self::RleDictionary(c) => c.has_any_non_null_value(),
             Self::Dictionary(c) => c.has_any_non_null_value(),
         }
     }
@@ -86,7 +86,7 @@ impl StringEncoding {
     /// provided rows.
     pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
         match &self {
-            Self::RLEDictionary(c) => c.has_non_null_value(row_ids),
+            Self::RleDictionary(c) => c.has_non_null_value(row_ids),
             Self::Dictionary(c) => c.has_non_null_value(row_ids),
         }
     }
@@ -95,7 +95,7 @@ impl StringEncoding {
     /// Short-circuits execution as soon as it finds a value not in `values`.
     pub fn has_other_non_null_values(&self, values: &BTreeSet<String>) -> bool {
         match &self {
-            Self::RLEDictionary(c) => c.has_other_non_null_values(values),
+            Self::RleDictionary(c) => c.has_other_non_null_values(values),
             Self::Dictionary(c) => c.has_other_non_null_values(values),
         }
     }
@@ -103,7 +103,7 @@ impl StringEncoding {
     /// Returns the logical value found at the provided row id.
     pub fn value(&self, row_id: u32) -> Value<'_> {
         match &self {
-            Self::RLEDictionary(c) => match c.value(row_id) {
+            Self::RleDictionary(c) => match c.value(row_id) {
                 Some(v) => Value::String(v),
                 None => Value::Null,
             },
@@ -119,7 +119,7 @@ impl StringEncoding {
     /// TODO(edd): perf - pooling of destination vectors.
     pub fn values(&self, row_ids: &[u32]) -> Values<'_> {
         match &self {
-            Self::RLEDictionary(c) => Values::String(c.values(row_ids, vec![])),
+            Self::RleDictionary(c) => Values::String(c.values(row_ids, vec![])),
             Self::Dictionary(c) => Values::String(c.values(row_ids, vec![])),
         }
     }
@@ -129,7 +129,7 @@ impl StringEncoding {
     /// TODO(edd): perf - pooling of destination vectors.
     pub fn all_values(&self) -> Values<'_> {
         match &self {
-            Self::RLEDictionary(c) => Values::String(c.all_values(vec![])),
+            Self::RleDictionary(c) => Values::String(c.all_values(vec![])),
             Self::Dictionary(c) => Values::String(c.all_values(vec![])),
         }
     }
@@ -137,7 +137,7 @@ impl StringEncoding {
     /// Returns the logical value for the specified encoded representation.
     pub fn decode_id(&self, encoded_id: u32) -> Value<'_> {
         match &self {
-            Self::RLEDictionary(c) => match c.decode_id(encoded_id) {
+            Self::RleDictionary(c) => match c.decode_id(encoded_id) {
                 Some(v) => Value::String(v),
                 None => Value::Null,
             },
@@ -153,7 +153,7 @@ impl StringEncoding {
     /// TODO(edd): perf - pooling of destination sets.
     pub fn distinct_values(&self, row_ids: impl Iterator<Item = u32>) -> BTreeSet<Option<&'_ str>> {
         match &self {
-            Self::RLEDictionary(c) => c.distinct_values(row_ids, BTreeSet::new()),
+            Self::RleDictionary(c) => c.distinct_values(row_ids, BTreeSet::new()),
             Self::Dictionary(c) => c.distinct_values(row_ids, BTreeSet::new()),
         }
     }
@@ -161,7 +161,7 @@ impl StringEncoding {
     /// Returns the row ids that satisfy the provided predicate.
     pub fn row_ids_filter(&self, op: &cmp::Operator, value: &str, dst: RowIDs) -> RowIDs {
         match &self {
-            Self::RLEDictionary(c) => c.row_ids_filter(value, op, dst),
+            Self::RleDictionary(c) => c.row_ids_filter(value, op, dst),
             Self::Dictionary(c) => c.row_ids_filter(value, op, dst),
         }
     }
@@ -171,7 +171,7 @@ impl StringEncoding {
     /// ids.
     pub fn min(&self, row_ids: &[u32]) -> Value<'_> {
         match &self {
-            Self::RLEDictionary(c) => match c.min(row_ids) {
+            Self::RleDictionary(c) => match c.min(row_ids) {
                 Some(min) => Value::String(min),
                 None => Value::Null,
             },
@@ -187,7 +187,7 @@ impl StringEncoding {
     /// ids.
     pub fn max(&self, row_ids: &[u32]) -> Value<'_> {
         match &self {
-            Self::RLEDictionary(c) => match c.max(row_ids) {
+            Self::RleDictionary(c) => match c.max(row_ids) {
                 Some(max) => Value::String(max),
                 None => Value::Null,
             },
@@ -201,7 +201,7 @@ impl StringEncoding {
     /// The number of non-null values at the provided row ids.
     pub fn count(&self, row_ids: &[u32]) -> u32 {
         match &self {
-            Self::RLEDictionary(c) => c.count(row_ids),
+            Self::RleDictionary(c) => c.count(row_ids),
             Self::Dictionary(c) => c.count(row_ids),
         }
     }
@@ -209,7 +209,7 @@ impl StringEncoding {
     /// Calculate all row ids for each distinct value in the column.
     pub fn group_row_ids(&self) -> Either<Vec<&RowIDs>, Vec<RowIDs>> {
         match self {
-            Self::RLEDictionary(enc) => Either::Left(enc.group_row_ids()),
+            Self::RleDictionary(enc) => Either::Left(enc.group_row_ids()),
             Self::Dictionary(enc) => Either::Right(enc.group_row_ids()),
         }
     }
@@ -219,7 +219,7 @@ impl StringEncoding {
     /// TODO(edd): perf - pooling of destination vectors.
     pub fn encoded_values(&self, row_ids: &[u32], dst: Vec<u32>) -> Vec<u32> {
         match &self {
-            Self::RLEDictionary(c) => c.encoded_values(row_ids, dst),
+            Self::RleDictionary(c) => c.encoded_values(row_ids, dst),
             Self::Dictionary(c) => c.encoded_values(row_ids, dst),
         }
     }
@@ -229,7 +229,7 @@ impl StringEncoding {
     /// TODO(edd): perf - pooling of destination vectors.
     pub fn all_encoded_values(&self, dst: Vec<u32>) -> Vec<u32> {
         match &self {
-            Self::RLEDictionary(c) => c.all_encoded_values(dst),
+            Self::RleDictionary(c) => c.all_encoded_values(dst),
             Self::Dictionary(c) => c.all_encoded_values(dst),
         }
     }
@@ -238,7 +238,7 @@ impl StringEncoding {
 impl std::fmt::Display for StringEncoding {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::RLEDictionary(data) => write!(f, "{}", data),
+            Self::RleDictionary(data) => write!(f, "{}", data),
             Self::Dictionary(data) => write!(f, "{}", data),
         }
     }
@@ -300,7 +300,7 @@ impl From<arrow::array::StringArray> for StringEncoding {
         };
 
         match data {
-            Encoding::RLE(enc) => Self::RLEDictionary(enc),
+            Encoding::RLE(enc) => Self::RleDictionary(enc),
             Encoding::Plain(enc) => Self::Dictionary(enc),
         }
     }
@@ -345,7 +345,7 @@ impl From<&[Option<&str>]> for StringEncoding {
         };
 
         match data {
-            Encoding::RLE(enc) => Self::RLEDictionary(enc),
+            Encoding::RLE(enc) => Self::RleDictionary(enc),
             Encoding::Plain(enc) => Self::Dictionary(enc),
         }
     }
@@ -379,7 +379,7 @@ impl From<&[&str]> for StringEncoding {
         data.push_additional(Some(prev.to_string()), count);
 
         match data {
-            Encoding::RLE(enc) => Self::RLEDictionary(enc),
+            Encoding::RLE(enc) => Self::RleDictionary(enc),
             Encoding::Plain(enc) => Self::Dictionary(enc),
         }
     }

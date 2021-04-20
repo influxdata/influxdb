@@ -17,7 +17,7 @@ enum Location {
 }
 
 enum EncType {
-    RLEDictionary,
+    RleDictionary,
     Dictionary,
 }
 
@@ -26,7 +26,7 @@ fn select(c: &mut Criterion) {
     benchmark_select(
         c,
         "encoding_rle_select",
-        EncType::RLEDictionary,
+        EncType::RleDictionary,
         &ROWS,
         &LOCATIONS,
         &ROWS_MATCHING_VALUE,
@@ -83,7 +83,7 @@ fn benchmark_select(
 
                 group.throughput(Throughput::Elements(num_rows as u64));
                 let encoding: dictionary::Encoding = match enc_type {
-                    EncType::RLEDictionary => {
+                    EncType::RleDictionary => {
                         let mut encoding = dictionary::RLE::with_dictionary(col_dict);
                         // Could be faster but it's just the bench setup...
                         for v in &col_data {

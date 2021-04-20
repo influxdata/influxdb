@@ -4,15 +4,15 @@ use crate::query_tests::scenarios::*;
 use arrow_deps::datafusion::logical_plan::{col, lit};
 use async_trait::async_trait;
 use query::{
-    frontend::influxrpc::InfluxRPCPlanner,
+    frontend::influxrpc::InfluxRpcPlanner,
     predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
 };
 
 #[derive(Debug)]
 pub struct TwoMeasurementsMultiSeries {}
 #[async_trait]
-impl DBSetup for TwoMeasurementsMultiSeries {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for TwoMeasurementsMultiSeries {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
         let mut lp_lines = vec![
@@ -40,12 +40,12 @@ macro_rules! run_read_filter_test_case {
         let predicate = $PREDICATE;
         let expected_results = $EXPECTED_RESULTS;
         for scenario in $DB_SETUP.make().await {
-            let DBScenario {
+            let DbScenario {
                 scenario_name, db, ..
             } = scenario;
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
-            let planner = InfluxRPCPlanner::new();
+            let planner = InfluxRpcPlanner::new();
 
             let plan = planner
                 .read_filter(&db, predicate.clone())
@@ -311,8 +311,8 @@ async fn test_read_filter_data_pred_unsupported_in_scan() {
 #[derive(Debug)]
 pub struct MeasurementsSortableTags {}
 #[async_trait]
-impl DBSetup for MeasurementsSortableTags {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for MeasurementsSortableTags {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
         let lp_lines = vec![

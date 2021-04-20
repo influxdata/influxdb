@@ -13,9 +13,9 @@
 
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 use influxdb_tsm::{
-    mapper::{ColumnData, MeasurementTable, TSMMeasurementMapper},
-    reader::{BlockDecoder, TSMBlockReader, TSMIndexReader},
-    BlockType, TSMError,
+    mapper::{ColumnData, MeasurementTable, TsmMeasurementMapper},
+    reader::{BlockDecoder, TsmBlockReader, TsmIndexReader},
+    BlockType, TsmError,
 };
 use internal_types::schema::{
     builder::InfluxSchemaBuilder, InfluxFieldType, Schema, TIME_COLUMN_NAME,
@@ -84,7 +84,7 @@ pub enum Error {
     WriterCreation { source: TableError },
 
     #[snafu(display(r#"Error processing TSM File: {}"#, source))]
-    TSMProcessing { source: TSMError },
+    TsmProcessing { source: TsmError },
 
     // TODO clean this error up
     #[snafu(display(r#"could not find ts column"#))]
@@ -663,11 +663,11 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
 
 /// Converts one or more TSM files into the packers internal columnar
 /// data format and then passes that converted data to a `IOxTableWriter`.
-pub struct TSMFileConverter {
+pub struct TsmFileConverter {
     table_writer_source: Box<dyn IOxTableWriterSource>,
 }
 
-impl TSMFileConverter {
+impl TsmFileConverter {
     pub fn new(table_writer_source: Box<dyn IOxTableWriterSource>) -> Self {
         Self {
             table_writer_source,
@@ -688,14 +688,14 @@ impl TSMFileConverter {
         R: Read + Seek,
     {
         if index_readers.is_empty() {
-            return Err(Error::TSMProcessing {
-                source: TSMError {
+            return Err(Error::TsmProcessing {
+                source: TsmError {
                     description: "at least one reader required".to_string(),
                 },
             });
         } else if index_readers.len() != block_readers.len() {
-            return Err(Error::TSMProcessing {
-                source: TSMError {
+            return Err(Error::TsmProcessing {
+                source: TsmError {
                     description: "different number of readers".to_string(),
                 },
             });
@@ -705,13 +705,13 @@ impl TSMFileConverter {
         let mut mappers = Vec::with_capacity(index_readers.len());
 
         for (i, (reader, size)) in index_readers.into_iter().enumerate() {
-            let index_reader = TSMIndexReader::try_new(reader, size).context(TSMProcessing)?;
-            mappers.push(TSMMeasurementMapper::new(index_reader.peekable(), i));
+            let index_reader = TsmIndexReader::try_new(reader, size).context(TsmProcessing)?;
+            mappers.push(TsmMeasurementMapper::new(index_reader.peekable(), i));
         }
 
         // track all the block readers for each file, so that the correct reader
         // can be used to decode each block
-        let mut block_reader = TSMBlockReader::new(block_readers.remove(0));
+        let mut block_reader = TsmBlockReader::new(block_readers.remove(0));
         for reader in block_readers.into_iter() {
             block_reader.add_reader(reader);
         }
@@ -779,7 +779,7 @@ impl TSMFileConverter {
                 // TODO(edd): perf - could calculate a more efficient merge
                 // order.
                 let mut next_table = inputs[idx].take().unwrap();
-                first_table.merge(&mut next_table).context(TSMProcessing)?;
+                first_table.merge(&mut next_table).context(TsmProcessing)?;
             }
             return Ok((Some(first_table), inputs));
         }
@@ -791,14 +791,14 @@ impl TSMFileConverter {
     // Ensures that the destination vector has the next
     // measurement table for each input iterator.
     fn refill_input_tables(
-        inputs: &mut Vec<impl Iterator<Item = Result<MeasurementTable, TSMError>>>,
+        inputs: &mut Vec<impl Iterator<Item = Result<MeasurementTable, TsmError>>>,
         mut dst: Vec<Option<MeasurementTable>>,
     ) -> Result<Vec<Option<MeasurementTable>>, Error> {
         for (input, dst) in inputs.iter_mut().zip(dst.iter_mut()) {
             if dst.is_none() {
                 match input.next() {
                     Some(res) => {
-                        let table = res.context(TSMProcessing)?;
+                        let table = res.context(TsmProcessing)?;
                         *dst = Some(table);
                     }
                     None => continue,
@@ -862,7 +862,7 @@ impl TSMFileConverter {
         //
         m.process(
             &mut block_reader,
-            |section: influxdb_tsm::mapper::TableSection| -> Result<(), TSMError> {
+            |section: influxdb_tsm::mapper::TableSection| -> Result<(), TsmError> {
                 // number of rows in each column in this table section.
                 let col_len = section.len();
 
@@ -878,7 +878,7 @@ impl TSMFileConverter {
                 let ts_idx = name_packer
                     .get(TIME_COLUMN_NAME)
                     .context(CouldNotFindTsColumn)
-                    .map_err(|e| TSMError {
+                    .map_err(|e| TsmError {
                         description: e.to_string(),
                     })?;
 
@@ -897,7 +897,7 @@ impl TSMFileConverter {
                     let idx = name_packer
                         .get(tag_key)
                         .context(CouldNotFindColumn)
-                        .map_err(|e| TSMError {
+                        .map_err(|e| TsmError {
                             description: e.to_string(),
                         })?;
 
@@ -927,7 +927,7 @@ impl TSMFileConverter {
                     let idx = name_packer
                         .get(key)
                         .context(CouldNotFindColumn)
-                        .map_err(|e| TSMError {
+                        .map_err(|e| TsmError {
                             description: e.to_string(),
                         })?;
 
@@ -951,7 +951,7 @@ impl TSMFileConverter {
                     let idx = name_packer
                         .get(&field_key)
                         .context(CouldNotFindColumn)
-                        .map_err(|e| TSMError {
+                        .map_err(|e| TsmError {
                             description: e.to_string(),
                         })?;
 
@@ -1007,7 +1007,7 @@ impl TSMFileConverter {
                     let idx = name_packer
                         .get(key)
                         .context(CouldNotFindColumn)
-                        .map_err(|e| TSMError {
+                        .map_err(|e| TsmError {
                             description: e.to_string(),
                         })?;
 
@@ -1068,7 +1068,7 @@ impl TSMFileConverter {
                 Ok(())
             },
         )
-        .context(TSMProcessing)?;
+        .context(TsmProcessing)?;
         Ok((schema, packed_columns))
     }
 }
@@ -1083,7 +1083,7 @@ fn to_data_type(value: &BlockType) -> InfluxFieldType {
     }
 }
 
-impl std::fmt::Debug for TSMFileConverter {
+impl std::fmt::Debug for TsmFileConverter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TSMFileConverter")
             .field("table_writer_source", &"DYNAMIC")
@@ -1515,19 +1515,18 @@ mod tests {
              "#;
     static EXPECTED_NUM_LINES: usize = 9;
 
-    fn parse_data_into_sampler() -> Result<MeasurementSampler<'static>, Error> {
+    fn parse_data_into_sampler() -> MeasurementSampler<'static> {
         let mut sampler = MeasurementSampler::new(get_sampler_settings());
 
         for line in only_good_lines(LP_DATA) {
             sampler.add_sample(line);
         }
-        Ok(sampler)
+        sampler
     }
 
     #[test]
     fn pack_data_schema() {
         let schema = parse_data_into_sampler()
-            .unwrap()
             .deduce_schema_from_sample()
             .unwrap();
 
@@ -1564,7 +1563,7 @@ mod tests {
 
     #[test]
     fn pack_data_value() {
-        let mut sampler = parse_data_into_sampler().unwrap();
+        let mut sampler = parse_data_into_sampler();
         let schema = sampler.deduce_schema_from_sample().unwrap();
 
         let packers = pack_lines(&schema, &sampler.schema_sample);
@@ -1885,7 +1884,7 @@ mod tests {
 
         let decoder = MockBlockDecoder::new(block_map);
         let (schema, packers) =
-            TSMFileConverter::process_measurement_table(decoder, &mut table).unwrap();
+            TsmFileConverter::process_measurement_table(decoder, &mut table).unwrap();
 
         assert_column_eq!(schema, 0, InfluxColumnType::Tag, "az");
         assert_column_eq!(schema, 1, InfluxColumnType::Tag, "region");
@@ -2061,7 +2060,7 @@ mod tests {
             .unwrap();
         inputs.push(Some(table));
 
-        let mut res = TSMFileConverter::merge_input_tables(inputs).unwrap();
+        let mut res = TsmFileConverter::merge_input_tables(inputs).unwrap();
         let mut merged = res.0.unwrap();
         inputs = res.1;
         assert_eq!(merged.name, "cpu".to_string());
@@ -2069,7 +2068,7 @@ mod tests {
         assert_eq!(inputs[0], None);
         assert_eq!(inputs[1], None);
 
-        res = TSMFileConverter::merge_input_tables(inputs).unwrap();
+        res = TsmFileConverter::merge_input_tables(inputs).unwrap();
         merged = res.0.unwrap();
         assert_eq!(merged.name, "disk".to_string());
         assert_eq!(res.1, vec![None, None, None]);
@@ -2083,7 +2082,7 @@ mod tests {
         decoder.read_to_end(&mut buf).unwrap();
 
         let log = Arc::new(Mutex::new(WriterLog::new()));
-        let mut converter = TSMFileConverter::new(NoOpWriterSource::new(Arc::clone(&log)));
+        let mut converter = TsmFileConverter::new(NoOpWriterSource::new(Arc::clone(&log)));
         let index_steam = BufReader::new(Cursor::new(&buf));
         let block_stream = BufReader::new(Cursor::new(&buf));
         converter
@@ -2134,7 +2133,7 @@ mod tests {
         block_streams.push(BufReader::new(Cursor::new(&buf_b)));
 
         let log = Arc::new(Mutex::new(WriterLog::new()));
-        let mut converter = TSMFileConverter::new(NoOpWriterSource::new(Arc::clone(&log)));
+        let mut converter = TsmFileConverter::new(NoOpWriterSource::new(Arc::clone(&log)));
 
         converter.convert(index_streams, block_streams).unwrap();
 

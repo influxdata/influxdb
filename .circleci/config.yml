@@ -25,15 +25,16 @@
 version: 2.1
 
 commands:
-  rust_nightly:
-    description: Install nightly Rust toolchain
+  rust_components:
+    description: Install additional toolchain components
     steps:
       - run:
-          name: Install rust nightly-2021-03-24
-          command: rustup toolchain install nightly-2021-03-24
-      - run:
-          name: Install rustfmt and clippy for nightly-2021-03-24
-          command: rustup component add rustfmt clippy --toolchain nightly-2021-03-24
+          # Cargo will automatically install the toolchain based on rust-toolchain
+          # But won't install optional components
+          # This will only matter when the CI image is out of date
+          name: Install rustfmt and clippy
+          command: rustup component add rustfmt clippy
+
   cache_restore:
     description: Restore Cargo Cache
     steps:
@@ -62,7 +63,7 @@ jobs:
         RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
-      - rust_nightly
+      - rust_components
       - cache_restore
       - run:
           name: Rust fmt
@@ -77,7 +78,7 @@ jobs:
         RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
-      - rust_nightly
+      - rust_components
       - cache_restore
       - run:
           name: Clippy
@@ -93,7 +94,7 @@ jobs:
         RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
-      - rust_nightly
+      - rust_components
       - cache_restore
       - run:
           name: Cargo test
@@ -116,7 +117,7 @@ jobs:
               curl -o influxdb2.tar.gz https://dl.influxdata.com/influxdb/releases/influxdb2-2.0.4-linux-amd64.tar.gz
               tar xvzf influxdb2.tar.gz
               sudo cp influxdb2-2.0.4-linux-amd64/{influx,influxd} /usr/local/bin/
-      - rust_nightly
+      - rust_components
       - cache_restore
       - run:
           name: Cargo test
@@ -137,7 +138,7 @@ jobs:
         RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
-      - rust_nightly
+      - rust_components
       - cache_restore
       - run:
           name: Cargo build
@@ -164,7 +165,7 @@ jobs:
     resource_class: xlarge # use of a smaller executor tends crashes on link
     steps:
       - checkout
-      - rust_nightly # Regenerating flatbuffers uses rustfmt
+      - rust_components # Regenerating flatbuffers uses rustfmt
       - run:
           name: Check Flatbuffers
           command: ./generated_types/check-flatbuffers.sh
@@ -193,7 +194,7 @@ jobs:
         RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
-      - rust_nightly
+      - rust_components
       - cache_restore
       - run:
           name: Cargo release build with target arch set for CRoaring
@@ -230,7 +231,7 @@ jobs:
           echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
       - run: |
           COMMIT_SHA=$(git rev-parse --short HEAD)
-          docker build -t quay.io/influxdb/rust:$COMMIT_SHA -f docker/Dockerfile.ci .
+          docker build -t quay.io/influxdb/rust:$COMMIT_SHA -f docker/Dockerfile.ci --build-arg RUST_VERSION=$(cat rust-toolchain) .
           docker tag quay.io/influxdb/rust:$COMMIT_SHA quay.io/influxdb/rust:ci
           docker push quay.io/influxdb/rust:$COMMIT_SHA
           docker push quay.io/influxdb/rust:ci

@@ -17,7 +17,7 @@ use std::error;
 use std::fmt;
 use std::io;
 
-pub use key::ParsedTSMKey;
+pub use key::ParsedTsmKey;
 
 #[derive(Clone, Debug, Copy, PartialEq)]
 pub enum BlockType {
@@ -29,7 +29,7 @@ pub enum BlockType {
 }
 
 impl TryFrom<u8> for BlockType {
-    type Error = TSMError;
+    type Error = TsmError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
@@ -38,7 +38,7 @@ impl TryFrom<u8> for BlockType {
             2 => Ok(Self::Bool),
             3 => Ok(Self::Str),
             4 => Ok(Self::Unsigned),
-            _ => Err(TSMError {
+            _ => Err(TsmError {
                 description: format!("{:?} is invalid block type", value),
             }),
         }
@@ -73,14 +73,14 @@ impl Block {
 const MAX_BLOCK_VALUES: usize = 1000;
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-/// `InfluxID` represents an InfluxDB ID used in InfluxDB 2.x to represent
+/// `InfluxId` represents an InfluxDB ID used in InfluxDB 2.x to represent
 /// organization and bucket identifiers.
-pub struct InfluxID(u64);
+pub struct InfluxId(u64);
 
-impl InfluxID {
+impl InfluxId {
     #[allow(dead_code)]
-    fn new_str(s: &str) -> Result<Self, TSMError> {
-        let v = u64::from_str_radix(s, 16).map_err(|e| TSMError {
+    fn new_str(s: &str) -> Result<Self, TsmError> {
+        let v = u64::from_str_radix(s, 16).map_err(|e| TsmError {
             description: e.to_string(),
         })?;
         Ok(Self(v))
@@ -91,31 +91,31 @@ impl InfluxID {
     }
 }
 
-impl std::fmt::Display for InfluxID {
+impl std::fmt::Display for InfluxId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(f, "{:016x}", self.0)
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TSMError {
+pub struct TsmError {
     pub description: String,
 }
 
-impl fmt::Display for TSMError {
+impl fmt::Display for TsmError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.description)
     }
 }
 
-impl error::Error for TSMError {
+impl error::Error for TsmError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         // Generic error, underlying cause isn't tracked.
         None
     }
 }
 
-impl From<io::Error> for TSMError {
+impl From<io::Error> for TsmError {
     fn from(e: io::Error) -> Self {
         Self {
             description: format!("TODO - io error: {} ({:?})", e, e),
@@ -123,7 +123,7 @@ impl From<io::Error> for TSMError {
     }
 }
 
-impl From<std::str::Utf8Error> for TSMError {
+impl From<std::str::Utf8Error> for TsmError {
     fn from(e: std::str::Utf8Error) -> Self {
         Self {
             description: format!("TODO - utf8 error: {} ({:?})", e, e),
@@ -137,8 +137,8 @@ mod tests {
 
     #[test]
     fn influx_id() {
-        let id = InfluxID::new_str("20aa9b0").unwrap();
-        assert_eq!(id, InfluxID(34_253_232));
+        let id = InfluxId::new_str("20aa9b0").unwrap();
+        assert_eq!(id, InfluxId(34_253_232));
         assert_eq!(format!("{}", id), "00000000020aa9b0");
     }
 

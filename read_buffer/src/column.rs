@@ -1313,7 +1313,7 @@ mod test {
         let arr = StringArray::from(input);
 
         let col = Column::from(arr);
-        if let Column::String(meta, StringEncoding::RLEDictionary(enc)) = col {
+        if let Column::String(meta, StringEncoding::RleDictionary(enc)) = col {
             assert_eq!(
                 meta,
                 super::MetaData::<String> {
@@ -1339,7 +1339,7 @@ mod test {
     fn from_strs() {
         let arr = vec!["world", "hello"];
         let col = Column::from(arr.as_slice());
-        if let Column::String(meta, StringEncoding::RLEDictionary(enc)) = col {
+        if let Column::String(meta, StringEncoding::RleDictionary(enc)) = col {
             assert_eq!(
                 meta,
                 super::MetaData::<String> {

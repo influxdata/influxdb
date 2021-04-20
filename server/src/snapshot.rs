@@ -268,7 +268,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{
-        db::{DBChunk, Db},
+        db::{Db, DbChunk},
         JobRegistry,
     };
 
@@ -353,7 +353,7 @@ mem,host=A,region=west used=45 1
 
         let registry = MemRegistry::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let chunk = Arc::new(DBChunk::MutableBuffer {
+        let chunk = Arc::new(DbChunk::MutableBuffer {
             chunk: ChunkWB::new(11, &registry).snapshot(),
         });
         let mut metadata_path = store.new_path();

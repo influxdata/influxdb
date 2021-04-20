@@ -14,9 +14,6 @@ use futures::prelude::*;
 use std::time::Duration;
 use tempfile::TempDir;
 
-type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
-type Result<T, E = Error> = std::result::Result<T, E>;
-
 // These port numbers are chosen to not collide with a development ioxd server
 // running locally.
 // TODO(786): allocate random free ports instead of hardcoding.
@@ -106,7 +103,7 @@ impl ServerFixture {
             Some(server) => server,
             None => {
                 // if not, create one
-                let server = TestServer::new().expect("Could start test server");
+                let server = TestServer::new();
                 let server = Arc::new(server);
 
                 // ensure the server is ready
@@ -128,7 +125,7 @@ impl ServerFixture {
     /// waits.  The database is left unconfigured (no writer id) and
     /// is not shared with any other tests.
     pub async fn create_single_use() -> Self {
-        let server = TestServer::new().expect("Could start test server");
+        let server = TestServer::new();
         let server = Arc::new(server);
 
         // ensure the server is ready
@@ -224,7 +221,7 @@ struct TestServer {
 }
 
 impl TestServer {
-    fn new() -> Result<Self> {
+    fn new() -> Self {
         let addrs = BindAddresses::new();
         let ready = Mutex::new(ServerState::Started);
 
@@ -260,16 +257,16 @@ impl TestServer {
             .spawn()
             .unwrap();
 
-        Ok(Self {
+        Self {
             ready,
             server_process,
             addrs,
             dir,
-        })
+        }
     }
 
     #[allow(dead_code)]
-    fn restart(&mut self) -> Result<()> {
+    fn restart(&mut self) {
         self.server_process.kill().unwrap();
         self.server_process.wait().unwrap();
         self.server_process = Command::cargo_bin("influxdb_iox")
@@ -280,7 +277,6 @@ impl TestServer {
             .env("INFLUXDB_IOX_DB_DIR", self.dir.path())
             .spawn()
             .unwrap();
-        Ok(())
     }
 
     async fn wait_until_ready(&self, initial_config: InitialConfig) {

@@ -201,7 +201,7 @@ impl SeriesSetConverter {
             let mut tag_transitions = tag_indexes
                 .iter()
                 .map(|&col| Self::compute_transitions(&batch, col))
-                .collect::<Result<Vec<_>>>()?;
+                .collect::<Vec<_>>();
 
             // no tag columns, emit a single tagset
             let intersections = if tag_transitions.is_empty() {
@@ -273,12 +273,12 @@ impl SeriesSetConverter {
     /// returns a bitset with all row indexes where the value of the
     /// batch[col_idx] changes.  Does not include row 0, always includes
     /// the last row, `batch.num_rows() - 1`
-    fn compute_transitions(batch: &RecordBatch, col_idx: usize) -> Result<Bitmap> {
+    fn compute_transitions(batch: &RecordBatch, col_idx: usize) -> Bitmap {
         let num_rows = batch.num_rows();
 
         let mut bitmap = Bitmap::create_with_capacity(num_rows as u32);
         if num_rows < 1 {
-            return Ok(bitmap);
+            return bitmap;
         }
 
         // otherwise, scan the column for transitions
@@ -308,7 +308,7 @@ impl SeriesSetConverter {
         // for now, always treat the last row as ending a series
         bitmap.add(num_rows as u32);
 
-        Ok(bitmap)
+        bitmap
     }
 
     /// Creates (column_name, column_value) pairs for each column

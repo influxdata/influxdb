@@ -932,7 +932,7 @@ impl TryFrom<management::ShardConfig> for ShardConfig {
                 proto
                     .shards
                     .into_iter()
-                    .map(|(k, v)| Ok((k, try_from_management_node_group_for_node_group(v)?)))
+                    .map(|(k, v)| Ok((k, try_from_management_node_group_for_node_group(v))))
                     .collect::<Result<HashMap<u32, NodeGroup>, FieldViolation>>()?,
             ),
         })
@@ -1002,8 +1002,8 @@ fn from_node_group_for_management_node_group(node_group: NodeGroup) -> managemen
 
 fn try_from_management_node_group_for_node_group(
     proto: management::NodeGroup,
-) -> Result<NodeGroup, FieldViolation> {
-    Ok(proto.nodes.into_iter().map(|i| i.id).collect())
+) -> std::vec::Vec<u32> {
+    proto.nodes.into_iter().map(|i| i.id).collect()
 }
 
 impl From<Matcher> for management::Matcher {

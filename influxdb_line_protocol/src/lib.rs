@@ -262,21 +262,21 @@ impl<'a> Series<'a> {
     pub fn generate_base(self) -> Result<Cow<'a, str>> {
         match (!self.is_escaped(), self.is_sorted_and_unique()) {
             (true, true) => Ok(self.raw_input.into()),
-            (_, true) => self.generate_base_with_escaping().map(Into::into),
+            (_, true) => Ok(self.generate_base_with_escaping().into()),
             (_, _) => self
                 .generate_base_with_escaping_sorting_deduplicating()
                 .map(Into::into),
         }
     }
 
-    fn generate_base_with_escaping(self) -> Result<String> {
+    fn generate_base_with_escaping(self) -> String {
         let mut series_base = self.measurement.to_string();
         for (tag_key, tag_value) in self.tag_set.unwrap_or_default() {
             use std::fmt::Write;
             write!(&mut series_base, ",{}={}", tag_key, tag_value)
                 .expect("Could not append string");
         }
-        Ok(series_base)
+        series_base
     }
 
     fn generate_base_with_escaping_sorting_deduplicating(self) -> Result<String> {

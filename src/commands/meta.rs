@@ -1,4 +1,4 @@
-use influxdb_tsm::{reader::IndexEntry, reader::TSMIndexReader, InfluxID, TSMError};
+use influxdb_tsm::{reader::IndexEntry, reader::TsmIndexReader, InfluxId, TsmError};
 use ingest::parquet::metadata::print_parquet_metadata;
 use observability_deps::tracing::{debug, info};
 use snafu::{ResultExt, Snafu};
@@ -24,9 +24,9 @@ pub fn dump_meta(input_filename: &str) -> Result<()> {
                 .len()
                 .try_into()
                 .expect("File size more than usize");
-            let reader = TSMIndexReader::try_new(input_reader, len).context(CreateTsm)?;
+            let reader = TsmIndexReader::try_new(input_reader, len).context(CreateTsm)?;
 
-            let mut stats_builder = TSMMetadataBuilder::new();
+            let mut stats_builder = TsmMetadataBuilder::new();
 
             for entry in reader {
                 let entry = entry.context(UnableToReadTsmEntry)?;
@@ -105,14 +105,14 @@ impl BucketMetadata {
 }
 
 #[derive(Debug, Default)]
-struct TSMMetadataBuilder {
+struct TsmMetadataBuilder {
     num_entries: u32,
 
     // (org_id, bucket_id) --> Bucket Metadata
-    bucket_stats: BTreeMap<(InfluxID, InfluxID), BucketMetadata>,
+    bucket_stats: BTreeMap<(InfluxId, InfluxId), BucketMetadata>,
 }
 
-impl TSMMetadataBuilder {
+impl TsmMetadataBuilder {
     fn new() -> Self {
         Self::default()
     }
@@ -155,11 +155,11 @@ pub enum Error {
     },
 
     #[snafu(display(r#"Unable to create TSM reader: {}"#, source))]
-    CreateTsm { source: TSMError },
+    CreateTsm { source: TsmError },
 
     #[snafu(display(r#"Unable to parse TSM key: {}"#, source))]
-    UnableToParseTsmKey { source: TSMError },
+    UnableToParseTsmKey { source: TsmError },
 
     #[snafu(display(r#"Unable to read TSM entry: {}"#, source))]
-    UnableToReadTsmEntry { source: TSMError },
+    UnableToReadTsmEntry { source: TsmError },
 }

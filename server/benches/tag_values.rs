@@ -7,10 +7,10 @@ use criterion::{BenchmarkId, Criterion};
 use flate2::read::GzDecoder;
 use tokio::runtime::Runtime;
 
-use query::frontend::influxrpc::InfluxRPCPlanner;
+use query::frontend::influxrpc::InfluxRpcPlanner;
 use query::predicate::PredicateBuilder;
 use query::{exec::Executor, predicate::Predicate};
-use server::{benchmarks::scenarios::DBScenario, db::Db};
+use server::{benchmarks::scenarios::DbScenario, db::Db};
 
 // Uses the `query_tests` module to generate some chunk scenarios, specifically
 // the scenarios where there are:
@@ -34,7 +34,7 @@ use server::{benchmarks::scenarios::DBScenario, db::Db};
 //
 // The timespan of the points in the line protocol is around 1m or wall-clock
 // time.
-async fn setup_scenarios() -> Vec<DBScenario> {
+async fn setup_scenarios() -> Vec<DbScenario> {
     let raw = include_bytes!("../../tests/fixtures/lineproto/tag_values.lp.gz");
     let mut gz = GzDecoder::new(&raw[..]);
     let mut lp = String::new();
@@ -54,8 +54,8 @@ pub fn benchmark_tag_values(c: &mut Criterion) {
 
 // Runs an async criterion benchmark against the provided scenarios and
 // predicate.
-fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DBScenario]) {
-    let planner = InfluxRPCPlanner::new();
+fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DbScenario]) {
+    let planner = InfluxRpcPlanner::new();
 
     let predicates = vec![
         (PredicateBuilder::default().build(), "no_pred"),
@@ -75,7 +75,7 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DBScenario]) {
     let tag_keys = &["tag0", "tag1", "tag2"];
 
     for scenario in scenarios {
-        let DBScenario { scenario_name, db } = scenario;
+        let DbScenario { scenario_name, db } = scenario;
         let mut group = c.benchmark_group(scenario_name);
 
         for (predicate, pred_name) in &predicates {
@@ -105,7 +105,7 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DBScenario]) {
 
 // Plans and runs a tag_values query.
 async fn run_tag_values_query(
-    planner: &InfluxRPCPlanner,
+    planner: &InfluxRpcPlanner,
     executor: &Executor,
     db: &Db,
     tag_key: &str,

@@ -105,12 +105,12 @@ impl Config {
         state.remotes.iter().map(|(&a, b)| (a, b.clone())).collect()
     }
 
-    pub(crate) fn update_remote(&self, id: WriterId, addr: GRPCConnectionString) {
+    pub(crate) fn update_remote(&self, id: WriterId, addr: GRpcConnectionString) {
         let mut state = self.state.write().expect("mutex poisoned");
         state.remotes.insert(id, addr);
     }
 
-    pub(crate) fn delete_remote(&self, id: WriterId) -> Option<GRPCConnectionString> {
+    pub(crate) fn delete_remote(&self, id: WriterId) -> Option<GRpcConnectionString> {
         let mut state = self.state.write().expect("mutex poisoned");
         state.remotes.remove(&id)
     }
@@ -208,14 +208,14 @@ pub fn object_store_path_for_database_config<P: ObjectStorePath>(
 }
 
 /// A gRPC connection string.
-pub type GRPCConnectionString = String;
+pub type GRpcConnectionString = String;
 
 #[derive(Default, Debug)]
 struct ConfigState {
     reservations: BTreeSet<DatabaseName<'static>>,
     databases: BTreeMap<DatabaseName<'static>, DatabaseState>,
     /// Map between remote IOx server IDs and management API connection strings.
-    remotes: BTreeMap<WriterId, GRPCConnectionString>,
+    remotes: BTreeMap<WriterId, GRpcConnectionString>,
 }
 
 #[derive(Debug)]

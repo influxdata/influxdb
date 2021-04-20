@@ -7,7 +7,7 @@ use crate::{
 use arrow_deps::{arrow::util::pretty::pretty_format_batches, datafusion::prelude::*};
 use async_trait::async_trait;
 use query::{
-    frontend::influxrpc::InfluxRPCPlanner,
+    frontend::influxrpc::InfluxRpcPlanner,
     group_by::{Aggregate, WindowDuration},
     predicate::{Predicate, PredicateBuilder},
 };
@@ -23,12 +23,12 @@ macro_rules! run_read_window_aggregate_test_case {
         let offset = $OFFSET;
         let expected_results = $EXPECTED_RESULTS;
         for scenario in $DB_SETUP.make().await {
-            let DBScenario {
+            let DbScenario {
                 scenario_name, db, ..
             } = scenario;
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
-            let planner = InfluxRPCPlanner::new();
+            let planner = InfluxRpcPlanner::new();
 
             let plans = planner
                 .read_window_aggregate(&db, predicate.clone(), agg, every.clone(), offset.clone())
@@ -82,8 +82,8 @@ async fn test_read_window_aggregate_no_data_no_pred() {
 
 struct MeasurementForWindowAggregate {}
 #[async_trait]
-impl DBSetup for MeasurementForWindowAggregate {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for MeasurementForWindowAggregate {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
         let lp_lines1 = vec![
@@ -148,8 +148,8 @@ async fn test_read_window_aggregate_nanoseconds() {
 
 struct MeasurementForWindowAggregateMonths {}
 #[async_trait]
-impl DBSetup for MeasurementForWindowAggregateMonths {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for MeasurementForWindowAggregateMonths {
+    async fn make(&self) -> Vec<DbScenario> {
         // Note the lines are written into 4 different partititions (as we are
         // partitioned by day, effectively)
         let lp_lines = vec![
@@ -164,7 +164,7 @@ impl DBSetup for MeasurementForWindowAggregateMonths {
         let db = make_db();
         let data = lp_lines.join("\n");
         write_lp(&db, &data);
-        let scenario1 = DBScenario {
+        let scenario1 = DbScenario {
             scenario_name: "Data in 4 partitions, open chunks of mutable buffer".into(),
             db,
         };
@@ -174,7 +174,7 @@ impl DBSetup for MeasurementForWindowAggregateMonths {
         write_lp(&db, &data);
         db.rollover_partition("2020-03-01T00").await.unwrap();
         db.rollover_partition("2020-03-02T00").await.unwrap();
-        let scenario2 = DBScenario {
+        let scenario2 = DbScenario {
             scenario_name:
                 "Data in 4 partitions, two open chunk and two closed chunks of mutable buffer"
                     .into(),
@@ -188,7 +188,7 @@ impl DBSetup for MeasurementForWindowAggregateMonths {
         rollover_and_load(&db, "2020-03-02T00").await;
         rollover_and_load(&db, "2020-04-01T00").await;
         rollover_and_load(&db, "2020-04-02T00").await;
-        let scenario3 = DBScenario {
+        let scenario3 = DbScenario {
             scenario_name: "Data in 4 partitions, 4 closed chunks in mutable buffer".into(),
             db,
         };
