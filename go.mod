@@ -18,7 +18,7 @@ require (
 	github.com/golang/mock v1.4.3
 	github.com/golang/snappy v0.0.1
 	github.com/google/go-cmp v0.5.0
-	github.com/influxdata/flux v0.112.1
+	github.com/influxdata/flux v0.113.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v1.1.1-0.20210223160523-b6ab99450c93
 	github.com/influxdata/pkg-config v0.2.7
