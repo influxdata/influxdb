@@ -6,11 +6,14 @@
 # for example:
 #
 # cd influxdb_iox
-# docker build -f docker/Dockerfile.ci .
+# docker build -f docker/Dockerfile.ci --build-arg RUST_VERSION=$(cat rust-toolchain) .
 ##
 
+ARG RUST_VERSION
 # Build actual image used for CI pipeline
-FROM rust:slim-buster
+FROM rust:${RUST_VERSION}-slim-buster
+
+RUN rustup component add rustfmt clippy
 
 # make Apt non-interactive
 RUN echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/90ci \
@@ -46,9 +49,6 @@ RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
 # Use unicode
 RUN locale-gen C.UTF-8 || true
 ENV LANG=C.UTF-8
-
-RUN rustup toolchain install stable
-RUN rustup component add rustfmt clippy --toolchain stable
 
 RUN groupadd -g 1500 rust \
   && useradd -u 1500 -g rust -s /bin/bash -m rust \
