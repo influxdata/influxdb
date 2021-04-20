@@ -312,7 +312,7 @@ pub async fn create_readable_database(
             }],
         }),
         lifecycle_rules: Some(LifecycleRules {
-            buffer_size_hard: 10 * 1024 * 1024,
+            buffer_size_hard: 1024 * 1024,
             ..Default::default()
         }),
         ..Default::default()
