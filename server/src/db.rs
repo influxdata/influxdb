@@ -143,6 +143,9 @@ pub enum Error {
     #[snafu(display("Cannot write to this database: no mutable buffer configured"))]
     DatabaseNotWriteable {},
 
+    #[snafu(display("Hard buffer size limit reached"))]
+    HardLimitReached {},
+
     #[snafu(display("Can not write entry {} {}: {}", partition_key, chunk_id, source))]
     WriteEntry {
         partition_key: String,
@@ -268,6 +271,13 @@ struct MemoryRegistries {
     read_buffer: Arc<MemRegistry>,
 
     parquet: Arc<MemRegistry>,
+}
+
+impl MemoryRegistries {
+    /// Total bytes over all registries.
+    pub fn bytes(&self) -> usize {
+        self.mutable_buffer.bytes() + self.read_buffer.bytes() + self.parquet.bytes()
+    }
 }
 
 impl Db {
@@ -732,6 +742,11 @@ impl Db {
         if rules.lifecycle_rules.immutable {
             return DatabaseNotWriteable {}.fail();
         }
+        if let Some(hard_limit) = rules.lifecycle_rules.buffer_size_hard {
+            if self.memory_registries.bytes() > hard_limit.get() {
+                return HardLimitReached {}.fail();
+            }
+        }
         std::mem::drop(rules);
 
         // TODO: Direct writes to closing chunks
@@ -839,11 +854,15 @@ pub mod test_helpers {
     use super::*;
     use internal_types::entry::test_helpers::lp_to_entries;
 
-    pub fn write_lp(db: &Db, lp: &str) {
+    pub fn try_write_lp(db: &Db, lp: &str) -> Result<()> {
         let entries = lp_to_entries(lp);
-        for entry in entries {
-            db.store_entry(entry).unwrap();
-        }
+        entries
+            .into_iter()
+            .try_for_each(|entry| db.store_entry(entry))
+    }
+
+    pub fn write_lp(db: &Db, lp: &str) {
+        try_write_lp(db, lp).unwrap()
     }
 }
 
@@ -871,7 +890,7 @@ mod tests {
     use futures::{StreamExt, TryStreamExt};
     use std::iter::Iterator;
 
-    use super::test_helpers::write_lp;
+    use super::test_helpers::{try_write_lp, write_lp};
     use internal_types::entry::test_helpers::lp_to_entry;
     use std::num::NonZeroUsize;
     use std::str;
@@ -1789,5 +1808,20 @@ mod tests {
         assert_eq!(mutable_chunk_ids(&db, partition_key), vec![1]);
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![0]);
         assert_eq!(read_parquet_file_chunk_ids(&db, partition_key), vec![0]);
+    }
+
+    #[tokio::test]
+    async fn write_hard_limit() {
+        let db = Arc::new(make_db());
+        db.rules.write().lifecycle_rules.buffer_size_hard = Some(NonZeroUsize::new(10).unwrap());
+
+        // inserting first line does not trigger hard buffer limit
+        write_lp(db.as_ref(), "cpu bar=1 10");
+
+        // but second line will
+        assert!(matches!(
+            try_write_lp(db.as_ref(), "cpu bar=2 20"),
+            Err(super::Error::HardLimitReached {})
+        ));
     }
 }

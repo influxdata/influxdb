@@ -274,3 +274,18 @@ where
         })
     }
 }
+
+#[derive(Debug, Default, Clone)]
+pub struct QuotaFailure {
+    pub subject: String,
+    pub description: String,
+}
+
+impl From<QuotaFailure> for tonic::Status {
+    fn from(quota_failure: QuotaFailure) -> Self {
+        tonic::Status::new(
+            tonic::Code::ResourceExhausted,
+            format!("{}: {}", quota_failure.subject, quota_failure.description),
+        )
+    }
+}
