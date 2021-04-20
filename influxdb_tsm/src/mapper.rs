@@ -1,7 +1,7 @@
 ///! Types for mapping and converting series data from TSM indexes produced by
 ///! InfluxDB >= 2.x
-use crate::reader::{BlockData, BlockDecoder, TSMIndexReader, ValuePair};
-use crate::{Block, BlockType, TSMError};
+use crate::reader::{BlockData, BlockDecoder, TsmIndexReader, ValuePair};
+use crate::{Block, BlockType, TsmError};
 
 use observability_deps::tracing::warn;
 
@@ -18,19 +18,19 @@ use std::iter::Peekable;
 /// transformation step that allows one to convert per-series/per-field data
 /// into measurement-oriented table data.
 #[derive(Debug)]
-pub struct TSMMeasurementMapper<R>
+pub struct TsmMeasurementMapper<R>
 where
     R: Read + Seek,
 {
-    iter: Peekable<TSMIndexReader<R>>,
+    iter: Peekable<TsmIndexReader<R>>,
     reader_idx: usize,
 }
 
-impl<R> TSMMeasurementMapper<R>
+impl<R> TsmMeasurementMapper<R>
 where
     R: Read + Seek,
 {
-    pub fn new(iter: Peekable<TSMIndexReader<R>>, reader_idx: usize) -> Self {
+    pub fn new(iter: Peekable<TsmIndexReader<R>>, reader_idx: usize) -> Self {
         Self { iter, reader_idx }
     }
 }
@@ -46,8 +46,8 @@ macro_rules! try_or_some {
     };
 }
 
-impl<R: Read + Seek> Iterator for TSMMeasurementMapper<R> {
-    type Item = Result<MeasurementTable, TSMError>;
+impl<R: Read + Seek> Iterator for TsmMeasurementMapper<R> {
+    type Item = Result<MeasurementTable, TsmError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // `None` indicates the end of index iteration.
@@ -161,7 +161,7 @@ impl MeasurementTable {
         tagset: Vec<(String, String)>,
         field_key: String,
         mut block: Block,
-    ) -> Result<(), TSMError> {
+    ) -> Result<(), TsmError> {
         // Invariant: our data model does not support a field column for a
         // measurement table having multiple data types, even though this is
         // supported in InfluxDB.
@@ -206,9 +206,9 @@ impl MeasurementTable {
         &mut self,
         mut block_reader: impl BlockDecoder,
         mut apply_fn: F,
-    ) -> Result<(), TSMError>
+    ) -> Result<(), TsmError>
     where
-        F: FnMut(TableSection) -> Result<(), TSMError>,
+        F: FnMut(TableSection) -> Result<(), TsmError>,
     {
         for (i, (tag_set_pair, blocks)) in self.tag_set_fields_blocks().iter_mut().enumerate() {
             let (ts, field_cols) = map_field_columns(&mut block_reader, blocks)?;
@@ -233,9 +233,9 @@ impl MeasurementTable {
     /// files) it is possible that blocks for the same tagset and field will
     /// overlap with each other. It is the callers responsibility to handle
     /// merging this data when decoding those blocks.
-    pub fn merge(&mut self, other: &mut Self) -> Result<(), TSMError> {
+    pub fn merge(&mut self, other: &mut Self) -> Result<(), TsmError> {
         if self.name != other.name {
-            return Err(TSMError {
+            return Err(TsmError {
                 description: format!(
                     "cannot merge measurement {:?} into {:?}",
                     self.name, other.name
@@ -413,7 +413,7 @@ pub enum ColumnData {
 fn map_field_columns(
     mut decoder: impl BlockDecoder,
     field_blocks: &mut FieldKeyBlocks,
-) -> Result<(Vec<i64>, BTreeMap<String, ColumnData>), TSMError> {
+) -> Result<(Vec<i64>, BTreeMap<String, ColumnData>), TsmError> {
     // This function maintains two main buffers. The first holds the next
     // decoded block for each field in the input fields. `refill_block_buffer`
     // is responsible for determining if each value in the buffer (a decoded
@@ -580,7 +580,7 @@ fn refill_block_buffer(
     decoder: &mut impl BlockDecoder,
     field_blocks: &mut FieldKeyBlocks,
     dst: &mut BTreeMap<String, BlockData>,
-) -> Result<(), TSMError> {
+) -> Result<(), TsmError> {
     // Determine for each input block if the destination container needs
     // refilling.
     for (field, blocks) in field_blocks.iter_mut() {
@@ -661,8 +661,8 @@ mod tests {
         decoder.read_to_end(&mut buf).unwrap();
 
         let reader =
-            TSMIndexReader::try_new(BufReader::new(Cursor::new(buf)), TSM_FIXTURE_SIZE).unwrap();
-        let mapper = TSMMeasurementMapper::new(reader.peekable(), 0);
+            TsmIndexReader::try_new(BufReader::new(Cursor::new(buf)), TSM_FIXTURE_SIZE).unwrap();
+        let mapper = TsmMeasurementMapper::new(reader.peekable(), 0);
 
         // Although there  are over 2,000 series keys in the TSM file, there are
         // only 121 unique measurements.
@@ -677,10 +677,10 @@ mod tests {
         decoder.read_to_end(&mut buf).unwrap();
 
         let index_reader =
-            TSMIndexReader::try_new(BufReader::new(Cursor::new(&buf)), TSM_FIXTURE_SIZE).unwrap();
-        let mut mapper = TSMMeasurementMapper::new(index_reader.peekable(), 0);
+            TsmIndexReader::try_new(BufReader::new(Cursor::new(&buf)), TSM_FIXTURE_SIZE).unwrap();
+        let mut mapper = TsmMeasurementMapper::new(index_reader.peekable(), 0);
 
-        let mut block_reader = TSMBlockReader::new(BufReader::new(Cursor::new(&buf)));
+        let mut block_reader = TsmBlockReader::new(BufReader::new(Cursor::new(&buf)));
 
         let mut cpu = mapper
             .find(|m| m.as_ref().unwrap().name == "cpu")
@@ -720,8 +720,8 @@ mod tests {
         decoder.read_to_end(&mut buf).unwrap();
 
         let reader =
-            TSMIndexReader::try_new(BufReader::new(Cursor::new(buf)), TSM_FIXTURE_SIZE).unwrap();
-        let mut mapper = TSMMeasurementMapper::new(reader.peekable(), 0);
+            TsmIndexReader::try_new(BufReader::new(Cursor::new(buf)), TSM_FIXTURE_SIZE).unwrap();
+        let mut mapper = TsmMeasurementMapper::new(reader.peekable(), 0);
 
         let cpu = mapper
             .find(|table| table.as_ref().unwrap().name == "cpu")

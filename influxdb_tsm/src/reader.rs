@@ -26,7 +26,7 @@ use std::u64;
 /// # let data_len = buf.len();
 /// # let r = Cursor::new(buf);
 ///
-/// let reader = TSMIndexReader::try_new(BufReader::new(r), 4_222_248).unwrap();
+/// let reader = TsmIndexReader::try_new(BufReader::new(r), 4_222_248).unwrap();
 ///
 /// // reader allows you to access each index entry, and each block for each
 /// // entry in order.
@@ -45,7 +45,7 @@ use std::u64;
 /// }
 /// ```
 #[derive(Debug)]
-pub struct TSMIndexReader<R>
+pub struct TsmIndexReader<R>
 where
     R: Read + Seek,
 {
@@ -58,11 +58,11 @@ where
     next: Option<IndexEntry>,
 }
 
-impl<R> TSMIndexReader<R>
+impl<R> TsmIndexReader<R>
 where
     R: Read + Seek,
 {
-    pub fn try_new(mut r: R, len: usize) -> Result<Self, TSMError> {
+    pub fn try_new(mut r: R, len: usize) -> Result<Self, TsmError> {
         // determine offset to index, which is held in last 8 bytes of file.
         r.seek(SeekFrom::End(-8))?;
         let mut buf = [0u8; 8];
@@ -84,7 +84,7 @@ where
     /// index or will return an error. `next_index_entry` updates the offset on
     /// the Index, but it's the caller's responsibility to stop reading entries
     /// when the index has been exhausted.
-    fn next_index_entry(&mut self) -> Result<IndexEntry, TSMError> {
+    fn next_index_entry(&mut self) -> Result<IndexEntry, TsmError> {
         // read length of series key
         let mut buf = [0u8; 2];
         self.r.read_exact(&mut buf)?;
@@ -119,7 +119,7 @@ where
     /// next_block_entry will return the next block entry within an index entry.
     /// It is the caller's responsibility to stop reading block entries when
     /// they have all been read for an index entry.
-    fn next_block_entry(&mut self, typ: BlockType) -> Result<Block, TSMError> {
+    fn next_block_entry(&mut self, typ: BlockType) -> Result<Block, TsmError> {
         // read min time on block entry
         let mut buf = [0u8; 8];
         self.r.read_exact(&mut buf[..])?;
@@ -152,8 +152,8 @@ where
     }
 }
 
-impl<R: Read + Seek> Iterator for TSMIndexReader<R> {
-    type Item = Result<IndexEntry, TSMError>;
+impl<R: Read + Seek> Iterator for TsmIndexReader<R> {
+    type Item = Result<IndexEntry, TsmError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.curr_offset == self.end_offset {
@@ -205,23 +205,23 @@ pub struct IndexEntry {
 
 impl IndexEntry {
     /// Get the organization ID that this entry belongs to.
-    pub fn org_id(&self) -> InfluxID {
+    pub fn org_id(&self) -> InfluxId {
         Self::extract_id_from_slice(&self.key[..8])
     }
 
     /// Get the bucket ID that this entry belongs to.
-    pub fn bucket_id(&self) -> InfluxID {
+    pub fn bucket_id(&self) -> InfluxId {
         Self::extract_id_from_slice(&self.key[8..16])
     }
 
-    fn extract_id_from_slice(data: &[u8]) -> InfluxID {
+    fn extract_id_from_slice(data: &[u8]) -> InfluxId {
         let mut buf = [0u8; 8];
         buf.copy_from_slice(&data[..8]);
-        InfluxID::from_be_bytes(buf)
+        InfluxId::from_be_bytes(buf)
     }
 
-    pub fn parse_key(&self) -> Result<ParsedTSMKey, TSMError> {
-        key::parse_tsm_key(&self.key).map_err(|e| TSMError {
+    pub fn parse_key(&self) -> Result<ParsedTsmKey, TsmError> {
+        key::parse_tsm_key(&self.key).map_err(|e| TsmError {
             description: e.to_string(),
         })
     }
@@ -231,14 +231,14 @@ impl IndexEntry {
 /// (timestamps and value vectors).
 
 pub trait BlockDecoder {
-    fn decode(&mut self, block: &Block) -> Result<BlockData, TSMError>;
+    fn decode(&mut self, block: &Block) -> Result<BlockData, TsmError>;
 }
 
 impl<T> BlockDecoder for &mut T
 where
     T: BlockDecoder,
 {
-    fn decode(&mut self, block: &Block) -> Result<BlockData, TSMError> {
+    fn decode(&mut self, block: &Block) -> Result<BlockData, TsmError> {
         (&mut **self).decode(block)
     }
 }
@@ -258,8 +258,8 @@ impl MockBlockDecoder {
 }
 
 impl BlockDecoder for MockBlockDecoder {
-    fn decode(&mut self, block: &Block) -> std::result::Result<BlockData, TSMError> {
-        self.blocks.get(&block.min_time).cloned().ok_or(TSMError {
+    fn decode(&mut self, block: &Block) -> std::result::Result<BlockData, TsmError> {
+        self.blocks.get(&block.min_time).cloned().ok_or(TsmError {
             description: "block not found".to_string(),
         })
     }
@@ -459,7 +459,6 @@ impl BlockData {
     /// overwrites previous values. Therefore, in order to have "last write
     /// wins" semantics it is important that the provided vector of blocks
     /// is ordered by the wall-clock time the blocks were created.
-    #[allow(clippy::manual_flatten)] // https://github.com/rust-lang/rust-clippy/issues/6784
     pub fn merge(mut blocks: Vec<Self>) -> Self {
         if blocks.is_empty() {
             panic!("merge called with zero blocks");
@@ -553,14 +552,14 @@ impl ValuePair {
 /// `TSMBlockReader` allows you to read and decode TSM blocks from within a TSM
 /// file.
 #[derive(Debug)]
-pub struct TSMBlockReader<R>
+pub struct TsmBlockReader<R>
 where
     R: Read + Seek,
 {
     readers: Vec<R>,
 }
 
-impl<R> TSMBlockReader<R>
+impl<R> TsmBlockReader<R>
 where
     R: Read + Seek,
 {
@@ -573,7 +572,7 @@ where
     }
 }
 
-impl<R> BlockDecoder for TSMBlockReader<R>
+impl<R> BlockDecoder for TsmBlockReader<R>
 where
     R: Read + Seek,
 {
@@ -582,7 +581,7 @@ where
     ///
     /// The components of the returned `BlockData` are guaranteed to have
     /// identical lengths.
-    fn decode(&mut self, block: &Block) -> Result<BlockData, TSMError> {
+    fn decode(&mut self, block: &Block) -> Result<BlockData, TsmError> {
         match self.readers.get_mut(block.reader_idx) {
             Some(r) => {
                 r.seek(SeekFrom::Start(block.offset))?;
@@ -602,7 +601,7 @@ where
                 let (len, n) = u64::decode_var(&data[idx..]); // size of timestamp block
                 idx += n;
                 encoders::timestamp::decode(&data[idx..idx + (len as usize)], &mut ts).map_err(
-                    |e| TSMError {
+                    |e| TsmError {
                         description: e.to_string(),
                     },
                 )?;
@@ -613,7 +612,7 @@ where
                         // values will be same length as time-stamps.
                         let mut values = Vec::with_capacity(ts.len());
                         encoders::float::decode_influxdb(&data[idx..], &mut values).map_err(
-                            |e| TSMError {
+                            |e| TsmError {
                                 description: e.to_string(),
                             },
                         )?;
@@ -624,7 +623,7 @@ where
                         // values will be same length as time-stamps.
                         let mut values = Vec::with_capacity(ts.len());
                         encoders::integer::decode(&data[idx..], &mut values).map_err(|e| {
-                            TSMError {
+                            TsmError {
                                 description: e.to_string(),
                             }
                         })?;
@@ -635,7 +634,7 @@ where
                         // values will be same length as time-stamps.
                         let mut values = Vec::with_capacity(ts.len());
                         encoders::boolean::decode(&data[idx..], &mut values).map_err(|e| {
-                            TSMError {
+                            TsmError {
                                 description: e.to_string(),
                             }
                         })?;
@@ -646,7 +645,7 @@ where
                         // values will be same length as time-stamps.
                         let mut values = Vec::with_capacity(ts.len());
                         encoders::string::decode(&data[idx..], &mut values).map_err(|e| {
-                            TSMError {
+                            TsmError {
                                 description: e.to_string(),
                             }
                         })?;
@@ -656,7 +655,7 @@ where
                         // values will be same length as time-stamps.
                         let mut values = Vec::with_capacity(ts.len());
                         encoders::unsigned::decode(&data[idx..], &mut values).map_err(|e| {
-                            TSMError {
+                            TsmError {
                                 description: e.to_string(),
                             }
                         })?;
@@ -664,7 +663,7 @@ where
                     }
                 }
             }
-            None => Err(TSMError {
+            None => Err(TsmError {
                 description: format!("cannot decode block {:?} with no associated decoder", block),
             }),
         }
@@ -688,7 +687,7 @@ mod tests {
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
 
-        let reader = TSMIndexReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
+        let reader = TsmIndexReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
 
         assert_eq!(reader.curr_offset, 3_893_272);
         assert_eq!(reader.count(), 2159)
@@ -701,7 +700,7 @@ mod tests {
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
 
-        let reader = TSMIndexReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
+        let reader = TsmIndexReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
 
         let mut got_blocks = 0;
         let mut got_min_time = i64::MAX;
@@ -709,8 +708,8 @@ mod tests {
 
         // every block in the fixture file is for the 05c19117091a1000 org and
         // 05c19117091a1001 bucket.
-        let org_id = InfluxID::new_str("05c19117091a1000").unwrap();
-        let bucket_id = InfluxID::new_str("05c19117091a1001").unwrap();
+        let org_id = InfluxId::new_str("05c19117091a1000").unwrap();
+        let bucket_id = InfluxId::new_str("05c19117091a1001").unwrap();
 
         for index_entry in reader {
             match index_entry {
@@ -756,7 +755,7 @@ mod tests {
         decoder.read_to_end(&mut buf).unwrap();
         let r = Cursor::new(buf);
 
-        let mut block_reader = TSMBlockReader::new(BufReader::new(r));
+        let mut block_reader = TsmBlockReader::new(BufReader::new(r));
 
         let block_defs = vec![
             super::Block {
@@ -808,7 +807,7 @@ mod tests {
         let data_len = buf.len();
 
         let mut index_reader =
-            TSMIndexReader::try_new(BufReader::new(Cursor::new(&buf)), data_len).unwrap();
+            TsmIndexReader::try_new(BufReader::new(Cursor::new(&buf)), data_len).unwrap();
         let mut blocks = Vec::new();
 
         for res in &mut index_reader {
@@ -819,7 +818,7 @@ mod tests {
             blocks.push(entry.block);
         }
 
-        let mut block_reader = TSMBlockReader::new(Cursor::new(&buf));
+        let mut block_reader = TsmBlockReader::new(Cursor::new(&buf));
         for block in blocks {
             block_reader
                 .decode(&block)

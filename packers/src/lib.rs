@@ -27,7 +27,7 @@ pub enum Error {
     },
 
     #[snafu(display(r#"IO Error: {} ({})"#, message, source,))]
-    IO {
+    Io {
         message: String,
         source: std::io::Error,
     },
@@ -50,7 +50,7 @@ pub enum Error {
 
 impl Error {
     pub fn from_io(source: std::io::Error, message: impl Into<String>) -> Self {
-        Self::IO {
+        Self::Io {
             source,
             message: message.into(),
         }

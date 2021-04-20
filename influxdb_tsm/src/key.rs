@@ -1,7 +1,7 @@
 use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Clone, Debug)]
-pub struct ParsedTSMKey {
+pub struct ParsedTsmKey {
     pub measurement: String,
     pub tagset: Vec<(String, String)>,
     pub field_key: String,
@@ -12,7 +12,7 @@ pub struct ParsedTSMKey {
 #[derive(Debug, Snafu, PartialEq)]
 pub enum Error {
     #[snafu(display(r#"Error while parsing tsm tag key '{}': {}"#, key, source))]
-    ParsingTSMKey { key: String, source: DataError },
+    ParsingTsmKey { key: String, source: DataError },
 }
 
 #[derive(Debug, Snafu, PartialEq)]
@@ -47,20 +47,20 @@ pub enum DataError {
     ParsingFieldKey { details: String },
 
     #[snafu(display(r#"Error parsing tsm tag key: {}"#, description))]
-    ParsingTSMTagKey { description: String },
+    ParsingTsmTagKey { description: String },
 
     #[snafu(display(
         r#"Error parsing tsm tag value for key '{}': {}"#,
         tag_key,
         description
     ))]
-    ParsingTSMTagValue {
+    ParsingTsmTagValue {
         tag_key: String,
         description: String,
     },
 
     #[snafu(display(r#"Error parsing tsm field key: {}"#, description))]
-    ParsingTSMFieldKey { description: String },
+    ParsingTsmFieldKey { description: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -85,14 +85,14 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///    measurement = "http_api_request"
 ///    tags = [("status", "2XX")]
 ///    field = "sum"
-pub fn parse_tsm_key(key: &[u8]) -> Result<ParsedTSMKey, Error> {
+pub fn parse_tsm_key(key: &[u8]) -> Result<ParsedTsmKey, Error> {
     // Wrap in an internal function to translate error types and add key context
-    parse_tsm_key_internal(key).context(ParsingTSMKey {
+    parse_tsm_key_internal(key).context(ParsingTsmKey {
         key: String::from_utf8_lossy(key),
     })
 }
 
-fn parse_tsm_key_internal(key: &[u8]) -> Result<ParsedTSMKey, DataError> {
+fn parse_tsm_key_internal(key: &[u8]) -> Result<ParsedTsmKey, DataError> {
     // skip over org id, bucket id, comma
     // The next n-1 bytes are the measurement name, where the nᵗʰ byte is a `,`.
     let mut rem_key = key.iter().copied().skip(8 + 8 + 1);
@@ -148,7 +148,7 @@ fn parse_tsm_key_internal(key: &[u8]) -> Result<ParsedTSMKey, DataError> {
         }
     }
 
-    Ok(ParsedTSMKey {
+    Ok(ParsedTsmKey {
         measurement: measurement.context(NoMeasurement)?,
         tagset,
         field_key: field_key.context(NoFieldKey)?,
@@ -186,16 +186,16 @@ fn parse_tsm_field_key_value(rem_key: impl Iterator<Item = u8>) -> Result<String
     // return the next byte if its value is not a valid unless escaped
     fn check_next_byte(byte: u8) -> Result<u8, DataError> {
         match byte {
-            b'=' => ParsingTSMFieldKey {
+            b'=' => ParsingTsmFieldKey {
                 description: "invalid unescaped '='",
             }
             .fail(),
             // An unescaped space is an invalid tag value.
-            b' ' => ParsingTSMFieldKey {
+            b' ' => ParsingTsmFieldKey {
                 description: "invalid unescaped ' '",
             }
             .fail(),
-            b',' => ParsingTSMFieldKey {
+            b',' => ParsingTsmFieldKey {
                 description: "invalid unescaped ','",
             }
             .fail(),
@@ -335,13 +335,13 @@ fn parse_tsm_tag_key(rem_key: impl Iterator<Item = u8>) -> Result<KeyType, DataE
                 }
                 b'=' => return Ok(KeyType::Tag(key)),
                 b',' => {
-                    return ParsingTSMTagKey {
+                    return ParsingTsmTagKey {
                         description: "unescaped comma",
                     }
                     .fail();
                 }
                 b' ' => {
-                    return ParsingTSMTagKey {
+                    return ParsingTsmTagKey {
                         description: "unescaped space",
                     }
                     .fail();
@@ -354,7 +354,7 @@ fn parse_tsm_tag_key(rem_key: impl Iterator<Item = u8>) -> Result<KeyType, DataE
                     return Ok(KeyType::Measurement);
                 }
                 _ => {
-                    return ParsingTSMTagKey {
+                    return ParsingTsmTagKey {
                         description: "extra data after special 0x00",
                     }
                     .fail();
@@ -365,7 +365,7 @@ fn parse_tsm_tag_key(rem_key: impl Iterator<Item = u8>) -> Result<KeyType, DataE
                     return Ok(KeyType::Field);
                 }
                 _ => {
-                    return ParsingTSMTagKey {
+                    return ParsingTsmTagKey {
                         description: "extra data after special 0xff",
                     }
                     .fail();
@@ -378,7 +378,7 @@ fn parse_tsm_tag_key(rem_key: impl Iterator<Item = u8>) -> Result<KeyType, DataE
         }
     }
 
-    ParsingTSMTagKey {
+    ParsingTsmTagKey {
         description: "unexpected end of data",
     }
     .fail()
@@ -416,7 +416,7 @@ fn parse_tsm_tag_value(
                     // An unescaped equals sign is an invalid tag value.
                     // cpu,tag={'=', 'fo=o'}
                     b'=' => {
-                        return ParsingTSMTagValue {
+                        return ParsingTsmTagValue {
                             tag_key,
                             description: "invalid unescaped '='",
                         }
@@ -424,14 +424,14 @@ fn parse_tsm_tag_value(
                     }
                     // An unescaped space is an invalid tag value.
                     b' ' => {
-                        return ParsingTSMTagValue {
+                        return ParsingTsmTagValue {
                             tag_key,
                             description: "invalid unescaped ' '",
                         }
                         .fail()
                     }
                     b',' => {
-                        return ParsingTSMTagValue {
+                        return ParsingTsmTagValue {
                             tag_key,
                             description: "missing tag value",
                         }
@@ -449,7 +449,7 @@ fn parse_tsm_tag_value(
                     // An unescaped equals sign is an invalid tag value.
                     // cpu,tag={'=', 'fo=o'}
                     b'=' => {
-                        return ParsingTSMTagValue {
+                        return ParsingTsmTagValue {
                             tag_key,
                             description: "invalid unescaped '='",
                         }
@@ -457,7 +457,7 @@ fn parse_tsm_tag_value(
                     }
                     // An unescaped space is an invalid tag value.
                     b' ' => {
-                        return ParsingTSMTagValue {
+                        return ParsingTsmTagValue {
                             tag_key,
                             description: "invalid unescaped ' '",
                         }
@@ -481,12 +481,12 @@ fn parse_tsm_tag_value(
 
     // Tag value cannot be empty.
     match state {
-        State::Start => ParsingTSMTagValue {
+        State::Start => ParsingTsmTagValue {
             tag_key,
             description: "missing tag value",
         }
         .fail(),
-        State::Escape => ParsingTSMTagValue {
+        State::Escape => ParsingTsmTagValue {
             tag_key,
             description: "tag value ends in escape",
         }
