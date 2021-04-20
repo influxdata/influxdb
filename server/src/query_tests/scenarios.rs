@@ -11,27 +11,27 @@ use super::utils::{count_mutable_buffer_chunks, count_read_buffer_chunks, make_d
 
 /// Holds a database and a description of how its data was configured
 #[derive(Debug)]
-pub struct DBScenario {
+pub struct DbScenario {
     pub scenario_name: String,
     pub db: Db,
 }
 
 #[async_trait]
-pub trait DBSetup {
+pub trait DbSetup {
     // Create several scenarios, scenario has the same data, but
     // different physical arrangements (e.g.  the data is in different chunks)
-    async fn make(&self) -> Vec<DBScenario>;
+    async fn make(&self) -> Vec<DbScenario>;
 }
 
 /// No data
 #[derive(Debug)]
 pub struct NoData {}
 #[async_trait]
-impl DBSetup for NoData {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for NoData {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
         let db = make_db();
-        let scenario1 = DBScenario {
+        let scenario1 = DbScenario {
             scenario_name: "New, Empty Database".into(),
             db,
         };
@@ -41,7 +41,7 @@ impl DBSetup for NoData {
         let db = make_db();
         assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 0);
-        let scenario2 = DBScenario {
+        let scenario2 = DbScenario {
             scenario_name: "New, Empty Database after partitions are listed".into(),
             db,
         };
@@ -69,7 +69,7 @@ impl DBSetup for NoData {
         assert_eq!(count_mutable_buffer_chunks(&db), 1);
         assert_eq!(count_read_buffer_chunks(&db), 0);
 
-        let scenario3 = DBScenario {
+        let scenario3 = DbScenario {
             scenario_name: "Empty Database after drop chunk".into(),
             db,
         };
@@ -82,8 +82,8 @@ impl DBSetup for NoData {
 #[derive(Debug)]
 pub struct TwoMeasurements {}
 #[async_trait]
-impl DBSetup for TwoMeasurements {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for TwoMeasurements {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
         let lp_lines = vec![
             "cpu,region=west user=23.2 100",
@@ -98,8 +98,8 @@ impl DBSetup for TwoMeasurements {
 #[derive(Debug)]
 pub struct TwoMeasurementsUnsignedType {}
 #[async_trait]
-impl DBSetup for TwoMeasurementsUnsignedType {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for TwoMeasurementsUnsignedType {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
         let lp_lines = vec![
             "restaurant,town=andover count=40000u 100",
@@ -117,8 +117,8 @@ impl DBSetup for TwoMeasurementsUnsignedType {
 #[derive(Debug)]
 pub struct MultiChunkSchemaMerge {}
 #[async_trait]
-impl DBSetup for MultiChunkSchemaMerge {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for MultiChunkSchemaMerge {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
         let lp_lines1 = vec![
             "cpu,region=west user=23.2,system=5.0 100",
@@ -137,8 +137,8 @@ impl DBSetup for MultiChunkSchemaMerge {
 #[derive(Debug)]
 pub struct TwoMeasurementsManyNulls {}
 #[async_trait]
-impl DBSetup for TwoMeasurementsManyNulls {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for TwoMeasurementsManyNulls {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
         let lp_lines1 = vec![
             "h2o,state=CA,city=LA,county=LA temp=70.4 100",
@@ -159,8 +159,8 @@ impl DBSetup for TwoMeasurementsManyNulls {
 #[derive(Debug)]
 pub struct TwoMeasurementsManyFields {}
 #[async_trait]
-impl DBSetup for TwoMeasurementsManyFields {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for TwoMeasurementsManyFields {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
         let lp_lines1 = vec![
@@ -179,8 +179,8 @@ impl DBSetup for TwoMeasurementsManyFields {
 #[derive(Debug)]
 pub struct TwoMeasurementsManyFieldsOneChunk {}
 #[async_trait]
-impl DBSetup for TwoMeasurementsManyFieldsOneChunk {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
+    async fn make(&self) -> Vec<DbScenario> {
         let db = make_db();
 
         let lp_lines = vec![
@@ -192,7 +192,7 @@ impl DBSetup for TwoMeasurementsManyFieldsOneChunk {
         ];
 
         write_lp(&db, &lp_lines.join("\n"));
-        vec![DBScenario {
+        vec![DbScenario {
             scenario_name: "Data in open chunk of mutable buffer".into(),
             db,
         }]
@@ -202,8 +202,8 @@ impl DBSetup for TwoMeasurementsManyFieldsOneChunk {
 #[derive(Debug)]
 pub struct OneMeasurementManyFields {}
 #[async_trait]
-impl DBSetup for OneMeasurementManyFields {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for OneMeasurementManyFields {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
         // Order this so field3 comes before field2
@@ -223,8 +223,8 @@ impl DBSetup for OneMeasurementManyFields {
 #[derive(Debug)]
 pub struct EndToEndTest {}
 #[async_trait]
-impl DBSetup for EndToEndTest {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for EndToEndTest {
+    async fn make(&self) -> Vec<DbScenario> {
         let lp_lines = vec![
             "cpu_load_short,host=server01,region=us-west value=0.64 0000",
             "cpu_load_short,host=server01 value=27.99 1000",
@@ -242,7 +242,7 @@ impl DBSetup for EndToEndTest {
         let db = make_db();
         write_lp(&db, &lp_data);
 
-        let scenario1 = DBScenario {
+        let scenario1 = DbScenario {
             scenario_name: "Data in open chunk of mutable buffer".into(),
             db,
         };
@@ -256,10 +256,10 @@ impl DBSetup for EndToEndTest {
 /// Data in single closed mutable buffer chunk, one closed mutable chunk
 /// Data in both read buffer and mutable buffer chunk
 /// Data in one only read buffer chunk
-pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) -> Vec<DBScenario> {
+pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) -> Vec<DbScenario> {
     let db = make_db();
     write_lp(&db, data);
-    let scenario1 = DBScenario {
+    let scenario1 = DbScenario {
         scenario_name: "Data in open chunk of mutable buffer".into(),
         db,
     };
@@ -267,7 +267,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     let db = make_db();
     write_lp(&db, data);
     db.rollover_partition(partition_key).await.unwrap();
-    let scenario2 = DBScenario {
+    let scenario2 = DbScenario {
         scenario_name: "Data in closed chunk of mutable buffer".into(),
         db,
     };
@@ -278,7 +278,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     db.load_chunk_to_read_buffer(partition_key, 0)
         .await
         .unwrap();
-    let scenario3 = DBScenario {
+    let scenario3 = DbScenario {
         scenario_name: "Data in read buffer".into(),
         db,
     };
@@ -296,11 +296,11 @@ pub async fn make_two_chunk_scenarios(
     partition_key: &str,
     data1: &str,
     data2: &str,
-) -> Vec<DBScenario> {
+) -> Vec<DbScenario> {
     let db = make_db();
     write_lp(&db, data1);
     write_lp(&db, data2);
-    let scenario1 = DBScenario {
+    let scenario1 = DbScenario {
         scenario_name: "Data in single open chunk of mutable buffer".into(),
         db,
     };
@@ -310,7 +310,7 @@ pub async fn make_two_chunk_scenarios(
     write_lp(&db, data1);
     db.rollover_partition(partition_key).await.unwrap();
     write_lp(&db, data2);
-    let scenario2 = DBScenario {
+    let scenario2 = DbScenario {
         scenario_name: "Data in one open chunk and one closed chunk of mutable buffer".into(),
         db,
     };
@@ -323,7 +323,7 @@ pub async fn make_two_chunk_scenarios(
         .await
         .unwrap();
     write_lp(&db, data2);
-    let scenario3 = DBScenario {
+    let scenario3 = DbScenario {
         scenario_name: "Data in open chunk of mutable buffer, and one chunk of read buffer".into(),
         db,
     };
@@ -342,7 +342,7 @@ pub async fn make_two_chunk_scenarios(
     db.load_chunk_to_read_buffer(partition_key, 1)
         .await
         .unwrap();
-    let scenario4 = DBScenario {
+    let scenario4 = DbScenario {
         scenario_name: "Data in two read buffer chunks".into(),
         db,
     };

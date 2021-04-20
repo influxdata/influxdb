@@ -203,7 +203,7 @@ impl SchemaProvider for Catalog {
                 let chunk = chunk.read();
 
                 if chunk.has_table(table_name) {
-                    let chunk = super::DBChunk::snapshot(&chunk);
+                    let chunk = super::DbChunk::snapshot(&chunk);
 
                     // This should only fail if the table doesn't exist which isn't possible
                     let schema = chunk

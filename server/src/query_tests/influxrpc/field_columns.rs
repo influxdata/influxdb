@@ -5,7 +5,7 @@ use arrow_deps::{
 };
 use query::{
     exec::fieldlist::{Field, FieldList},
-    frontend::influxrpc::InfluxRPCPlanner,
+    frontend::influxrpc::InfluxRpcPlanner,
     predicate::PredicateBuilder,
 };
 
@@ -22,12 +22,12 @@ macro_rules! run_field_columns_test_case {
         let predicate = $PREDICATE;
         let expected_fields = $EXPECTED_FIELDS;
         for scenario in $DB_SETUP.make().await {
-            let DBScenario {
+            let DbScenario {
                 scenario_name, db, ..
             } = scenario;
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
-            let planner = InfluxRPCPlanner::new();
+            let planner = InfluxRpcPlanner::new();
             let executor = db.executor();
 
             let plan = planner
@@ -123,12 +123,12 @@ async fn test_field_name_plan() {
     for scenario in scenarios {
         let predicate = PredicateBuilder::default().timestamp_range(0, 200).build();
 
-        let DBScenario {
+        let DbScenario {
             scenario_name, db, ..
         } = scenario;
         println!("Running scenario '{}'", scenario_name);
         println!("Predicate: '{:#?}'", predicate);
-        let planner = InfluxRPCPlanner::new();
+        let planner = InfluxRpcPlanner::new();
 
         let plan = planner
             .field_columns(&db, predicate.clone())

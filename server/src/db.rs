@@ -25,7 +25,7 @@ use arrow_deps::{
 };
 
 use catalog::{chunk::ChunkState, Catalog};
-pub(crate) use chunk::DBChunk;
+pub(crate) use chunk::DbChunk;
 use data_types::{
     chunk::ChunkSummary, database_rules::DatabaseRules, partition_metadata::PartitionSummary,
     timestamp::TimestampRange,
@@ -317,7 +317,7 @@ impl Db {
 
     /// Rolls over the active chunk in the database's specified
     /// partition. Returns the previously open (now closed) Chunk
-    pub async fn rollover_partition(&self, partition_key: &str) -> Result<Arc<DBChunk>> {
+    pub async fn rollover_partition(&self, partition_key: &str) -> Result<Arc<DbChunk>> {
         let partition = self
             .catalog
             .valid_partition(partition_key)
@@ -336,7 +336,7 @@ impl Db {
         // make a new chunk to track the newly created chunk in this partition
         partition.create_open_chunk(self.memory_registries.mutable_buffer.as_ref());
 
-        return Ok(DBChunk::snapshot(&chunk));
+        return Ok(DbChunk::snapshot(&chunk));
     }
 
     /// Drops the specified chunk from the catalog and all storage systems
@@ -402,7 +402,7 @@ impl Db {
         &self,
         partition_key: &str,
         chunk_id: u32,
-    ) -> Result<Arc<DBChunk>> {
+    ) -> Result<Arc<DbChunk>> {
         let chunk = {
             let partition = self
                 .catalog
@@ -465,14 +465,14 @@ impl Db {
 
         debug!(%partition_key, %chunk_id, "chunk marked MOVED. loading complete");
 
-        Ok(DBChunk::snapshot(&chunk))
+        Ok(DbChunk::snapshot(&chunk))
     }
 
     pub async fn write_chunk_to_object_store(
         &self,
         partition_key: &str,
         chunk_id: u32,
-    ) -> Result<Arc<DBChunk>> {
+    ) -> Result<Arc<DbChunk>> {
         // Get the chunk from the catalog
         let chunk = {
             let partition =
@@ -574,7 +574,7 @@ impl Db {
 
         debug!(%partition_key, %chunk_id, "chunk marked MOVED. Persisting to object store complete");
 
-        Ok(DBChunk::snapshot(&chunk))
+        Ok(DbChunk::snapshot(&chunk))
     }
 
     /// Spawns a task to perform
@@ -796,7 +796,7 @@ impl Db {
 #[async_trait]
 impl Database for Db {
     type Error = Error;
-    type Chunk = DBChunk;
+    type Chunk = DbChunk;
 
     /// Return a covering set of chunks for a particular partition
     ///
@@ -814,7 +814,7 @@ impl Database for Db {
             .chunks()
             .map(|chunk| {
                 let chunk = chunk.read();
-                DBChunk::snapshot(&chunk)
+                DbChunk::snapshot(&chunk)
             })
             .collect()
     }
@@ -883,7 +883,7 @@ mod tests {
     use object_store::{
         disk::File, path::ObjectStorePath, path::Path, ObjectStore, ObjectStoreApi,
     };
-    use query::{frontend::sql::SQLQueryPlanner, PartitionChunk};
+    use query::{frontend::sql::SqlQueryPlanner, PartitionChunk};
 
     use super::*;
     use futures::stream;
@@ -1722,7 +1722,7 @@ mod tests {
 
     // run a sql query against the database, returning the results as record batches
     async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
-        let planner = SQLQueryPlanner::default();
+        let planner = SqlQueryPlanner::default();
         let executor = db.executor();
 
         let physical_plan = planner.query(db, query, &executor).unwrap();

@@ -69,7 +69,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// A IOx DatabaseChunk can come from one of three places:
 /// MutableBuffer, ReadBuffer, or a ParquetFile
 #[derive(Debug)]
-pub enum DBChunk {
+pub enum DbChunk {
     MutableBuffer {
         chunk: Arc<ChunkSnapshot>,
     },
@@ -82,7 +82,7 @@ pub enum DBChunk {
     },
 }
 
-impl DBChunk {
+impl DbChunk {
     /// Create a DBChunk snapshot of the catalog chunk
     pub fn snapshot(chunk: &super::catalog::chunk::Chunk) -> Arc<Self> {
         let partition_key = Arc::new(chunk.key().to_string());
@@ -124,7 +124,7 @@ impl DBChunk {
     }
 }
 
-impl PartitionChunk for DBChunk {
+impl PartitionChunk for DbChunk {
     type Error = Error;
 
     fn id(&self) -> u32 {

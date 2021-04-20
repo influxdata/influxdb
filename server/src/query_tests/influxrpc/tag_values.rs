@@ -1,7 +1,7 @@
 use arrow_deps::datafusion::logical_plan::{col, lit};
 use query::{
     exec::stringset::{IntoStringSet, StringSetRef},
-    frontend::influxrpc::InfluxRPCPlanner,
+    frontend::influxrpc::InfluxRpcPlanner,
     predicate::PredicateBuilder,
 };
 
@@ -16,12 +16,12 @@ macro_rules! run_tag_values_test_case {
         let tag_name = $TAG_NAME;
         let expected_values = $EXPECTED_VALUES;
         for scenario in $DB_SETUP.make().await {
-            let DBScenario {
+            let DbScenario {
                 scenario_name, db, ..
             } = scenario;
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
-            let planner = InfluxRPCPlanner::new();
+            let planner = InfluxRpcPlanner::new();
 
             let plan = planner
                 .tag_values(&db, &tag_name, predicate.clone())
@@ -226,12 +226,12 @@ async fn list_tag_values_field_col() {
     let predicate = PredicateBuilder::default().build();
 
     for scenario in db_setup.make().await {
-        let DBScenario {
+        let DbScenario {
             scenario_name, db, ..
         } = scenario;
         println!("Running scenario '{}'", scenario_name);
         println!("Predicate: '{:#?}'", predicate);
-        let planner = InfluxRPCPlanner::new();
+        let planner = InfluxRpcPlanner::new();
 
         // Test: temp is a field, not a tag
         let tag_name = "temp";

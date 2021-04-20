@@ -34,8 +34,7 @@ pub fn dump_arc_vec(v: Vec<(Arc<String>, Arc<String>)>) -> Vec<String> {
 
 /// Format a series set into a format that is easy to compare in tests
 pub fn dump_series_set(s: SeriesSet) -> Vec<String> {
-    let mut f = vec![];
-    f.push("SeriesSet".into());
+    let mut f = vec!["SeriesSet".into()];
     f.push(format!("table_name: {}", s.table_name));
     f.push("tags".to_string());
     f.extend(dump_arc_vec(s.tags).into_iter());

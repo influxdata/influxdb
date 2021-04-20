@@ -95,7 +95,7 @@ use futures::{pin_mut, FutureExt};
 
 use crate::{
     config::{
-        object_store_path_for_database_config, Config, GRPCConnectionString, DB_RULES_FILE_NAME,
+        object_store_path_for_database_config, Config, GRpcConnectionString, DB_RULES_FILE_NAME,
     },
     db::Db,
 };
@@ -537,11 +537,11 @@ impl<M: ConnectionManager> Server<M> {
         self.config.remotes_sorted()
     }
 
-    pub fn update_remote(&self, id: WriterId, addr: GRPCConnectionString) {
+    pub fn update_remote(&self, id: WriterId, addr: GRpcConnectionString) {
         self.config.update_remote(id, addr)
     }
 
-    pub fn delete_remote(&self, id: WriterId) -> Option<GRPCConnectionString> {
+    pub fn delete_remote(&self, id: WriterId) -> Option<GRpcConnectionString> {
         self.config.delete_remote(id)
     }
 
@@ -789,7 +789,7 @@ mod tests {
     use data_types::database_rules::{PartitionTemplate, TemplatePart, NO_SHARD_CONFIG};
     use influxdb_line_protocol::parse_lines;
     use object_store::{memory::InMemory, path::ObjectStorePath};
-    use query::{frontend::sql::SQLQueryPlanner, Database};
+    use query::{frontend::sql::SqlQueryPlanner, Database};
 
     use super::*;
 
@@ -949,7 +949,7 @@ mod tests {
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).unwrap();
 
-        let planner = SQLQueryPlanner::default();
+        let planner = SqlQueryPlanner::default();
         let executor = server.executor();
         let physical_plan = planner
             .query(db, "select * from cpu", executor.as_ref())
@@ -992,7 +992,7 @@ mod tests {
             .await
             .expect("write entry");
 
-        let planner = SQLQueryPlanner::default();
+        let planner = SqlQueryPlanner::default();
         let executor = server.executor();
         let physical_plan = planner
             .query(db, "select * from cpu", executor.as_ref())

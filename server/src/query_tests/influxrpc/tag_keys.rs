@@ -1,7 +1,7 @@
 use arrow_deps::datafusion::logical_plan::{col, lit};
 use query::{
     exec::stringset::{IntoStringSet, StringSetRef},
-    frontend::influxrpc::InfluxRPCPlanner,
+    frontend::influxrpc::InfluxRpcPlanner,
     predicate::PredicateBuilder,
 };
 
@@ -18,12 +18,12 @@ macro_rules! run_tag_keys_test_case {
         let predicate = $PREDICATE;
         let expected_names = $EXPECTED_NAMES;
         for scenario in $DB_SETUP.make().await {
-            let DBScenario {
+            let DbScenario {
                 scenario_name, db, ..
             } = scenario;
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
-            let planner = InfluxRPCPlanner::new();
+            let planner = InfluxRpcPlanner::new();
 
             let plan = planner
                 .tag_keys(&db, predicate.clone())

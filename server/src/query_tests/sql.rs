@@ -7,7 +7,7 @@
 
 use super::scenarios::*;
 use arrow_deps::{arrow::record_batch::RecordBatch, assert_batches_sorted_eq};
-use query::frontend::sql::SQLQueryPlanner;
+use query::frontend::sql::SqlQueryPlanner;
 use std::sync::Arc;
 
 /// runs table_names(predicate) and compares it to the expected
@@ -17,14 +17,14 @@ macro_rules! run_sql_test_case {
         test_helpers::maybe_start_logging();
         let sql = $SQL.to_string();
         for scenario in $DB_SETUP.make().await {
-            let DBScenario {
+            let DbScenario {
                 scenario_name, db, ..
             } = scenario;
             let db = Arc::new(db);
 
             println!("Running scenario '{}'", scenario_name);
             println!("SQL: '{:#?}'", sql);
-            let planner = SQLQueryPlanner::default();
+            let planner = SqlQueryPlanner::default();
             let executor = db.executor();
 
             let physical_plan = planner
