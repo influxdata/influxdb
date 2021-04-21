@@ -10,8 +10,6 @@ use std::{
 };
 use tokio::sync::Mutex;
 
-type Result<T = (), E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
-
 #[macro_export]
 /// If InfluxDB 2.0 OSS is available (either locally via `influxd` directly if
 /// the `INFLUXDB_IOX_INTEGRATION_LOCAL` environment variable is set, or via
@@ -77,7 +75,7 @@ impl ServerFixture {
             Some(server) => server,
             None => {
                 // if not, create one
-                let mut server = TestServer::new().expect("Starting of test server");
+                let mut server = TestServer::new();
                 // ensure the server is ready
                 server.wait_until_ready(InitialConfig::Onboarded).await;
 
@@ -99,7 +97,7 @@ impl ServerFixture {
     /// waits. The database is left unconfigured and is not shared
     /// with any other tests.
     pub async fn create_single_use() -> Self {
-        let mut server = TestServer::new().expect("Could start test server");
+        let mut server = TestServer::new();
 
         // ensure the server is ready
         server.wait_until_ready(InitialConfig::None).await;
@@ -166,7 +164,7 @@ struct TestServer {
 }
 
 impl TestServer {
-    fn new() -> Result<Self> {
+    fn new() -> Self {
         let ready = Mutex::new(ServerState::Started);
         let http_port = NEXT_PORT.fetch_add(1, SeqCst);
         let http_base = format!("http://127.0.0.1:{}", http_port);
@@ -239,13 +237,13 @@ impl TestServer {
             (cmd, Some(container_name))
         };
 
-        Ok(Self {
+        Self {
             ready,
             server_process,
             docker_name,
             http_base,
             admin_token: None,
-        })
+        }
     }
 
     async fn wait_until_ready(&mut self, initial_config: InitialConfig) {
