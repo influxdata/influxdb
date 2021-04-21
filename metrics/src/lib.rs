@@ -5,81 +5,65 @@
     clippy::use_self,
     clippy::clone_on_ref_ptr
 )]
-use std::sync::Arc;
 
 use observability_deps::{
     opentelemetry::metrics::Meter as OTMeter,
-    opentelemetry::{self},
-    opentelemetry_prometheus::{self, ExporterBuilder},
+    opentelemetry::{
+        metrics::{registry::RegistryMeterProvider, MeterProvider},
+        sdk::{
+            export::metrics::ExportKindSelector,
+            metrics::{controllers, selectors::simple::Selector},
+        },
+    },
+    opentelemetry_prometheus::PrometheusExporter,
     prometheus::{Encoder, Registry, TextEncoder},
-    tracing::log::warn,
+    tracing::*,
 };
 use once_cell::sync::Lazy;
-use parking_lot::{const_rwlock, RwLock};
 
 pub mod metrics;
 pub use crate::metrics::*;
 
 /// global metrics
-pub static IOXD_METRICS_REGISTRY: Lazy<GlobalRegistry> = Lazy::new(GlobalRegistry::new);
-
-// // TODO(jacobmarble): better way to write-once-read-many without a lock
-// // TODO(jacobmarble): generic OTel exporter, rather than just prometheus
-// static PROMETHEUS_EXPORTER: RwLock<Option<opentelemetry_prometheus::PrometheusExporter>> =
-//     const_rwlock(None);
-
-// /// Returns the data in the Prom exposition format.
-// pub fn metrics_as_text() -> Vec<u8> {
-//     let metric_families = PROMETHEUS_EXPORTER
-//         .read()
-//         .as_ref()
-//         .unwrap()
-//         .registry()
-//         .gather();
-//     let mut result = Vec::new();
-//     TextEncoder::new()
-//         .encode(&metric_families, &mut result)
-//         .unwrap();
-//     result
-// }
-
-/// Configuration options for the global registry.
-///
-///
-/// TODO add flags to config, to configure the OpenTelemetry exporter (OTLP)
-/// This sets the global meter provider, for other code to use
-#[derive(Debug)]
-pub struct Config {}
+pub static IOXD_METRICS_REGISTRY: Lazy<MetricRegistry> = Lazy::new(MetricRegistry::new);
 
 #[derive(Debug)]
-pub struct GlobalRegistry {
-    meter: Arc<OTMeter>,
-    exporter: RwLock<opentelemetry_prometheus::PrometheusExporter>,
+pub struct MetricRegistry {
+    provider: RegistryMeterProvider,
+    exporter: PrometheusExporter,
 }
 
-// TODO(jacobmarble): better way to write-once-read-many without a lock
-// // TODO(jacobmarble): generic OTel exporter, rather than just prometheus
-// static PROMETHEUS_EXPORTER: RwLock<Option<opentelemetry_prometheus::PrometheusExporter>> =
-//     const_rwlock(None);
+impl MetricRegistry {
+    /// initialise a new metrics registry.
+    pub fn new() -> Self {
+        let registry = Registry::new();
+        let default_histogram_boundaries = vec![0.5, 0.9, 0.99];
+        let selector = Box::new(Selector::Histogram(default_histogram_boundaries.clone()));
+        let controller = controllers::pull(selector, Box::new(ExportKindSelector::Cumulative))
+            // Disables caching
+            .with_cache_period(std::time::Duration::from_secs(0))
+            // Remember all metrics observed, not just recently updated
+            .with_memory(true)
+            .build();
 
-impl GlobalRegistry {
-    // `new` is private because this is only initialised via
-    // `IOXD_METRICS_REGISTRY`.
-    fn new() -> Self {
-        // Self::init();
-        let prom_reg = Registry::new();
-        let exporter = RwLock::new(ExporterBuilder::default().with_registry(prom_reg).init());
+        // Initialise the prometheus exporter
+        let default_summary_quantiles = vec![0.5, 0.9, 0.99];
+        let exporter = PrometheusExporter::new(
+            registry,
+            controller,
+            default_summary_quantiles,
+            default_histogram_boundaries,
+        )
+        .unwrap();
 
-        // let exporter = RwLock::new(opentelemetry_prometheus::exporter().init());
-        Self {
-            meter: Arc::new(opentelemetry::global::meter("iox")),
-            exporter,
-        }
+        let provider = exporter.provider().unwrap();
+
+        Self { provider, exporter }
     }
 
     /// Returns the data in the Prom exposition format.
     pub fn metrics_as_text(&self) -> Vec<u8> {
-        let metric_families = self.exporter.read().registry().gather();
+        let metric_families = dbg!(self.exporter.registry().gather());
         let mut result = Vec::new();
         TextEncoder::new()
             .encode(&metric_families, &mut result)
@@ -87,30 +71,11 @@ impl GlobalRegistry {
         result
     }
 
-    // /// Initializes global registry
-    // pub fn init() {
-    //     let exporter = opentelemetry_prometheus::exporter().init();
-    //     let mut guard = PROMETHEUS_EXPORTER.write();
-    //     if guard.is_some() {
-    //         warn!("metrics were already initialized, overwriting configuration");
-    //     }
-    //     *guard = Some(exporter);
-    // }
-
-    /// Initializes global registry with configuration options
-    // pub fn init_with_config(_config: &Config) {
-    //     let exporter = opentelemetry_prometheus::exporter().init();
-    //     let mut guard = PROMETHEUS_EXPORTER.write();
-    //     if guard.is_some() {
-    //         warn!("metrics were already initialized, overwriting configuration");
-    //     }
-    //     *guard = Some(exporter);
-    // }
-
     /// This method should be used to register a new domain such as a
     /// sub-system, crate or similar.
     pub fn register_domain(&self, name: &'static str) -> Domain {
-        Domain::new(name, Arc::clone(&self.meter))
+        let meter = self.provider.meter(name, None);
+        Domain::new(name, meter)
     }
 }
 
@@ -123,23 +88,21 @@ impl GlobalRegistry {
 #[derive(Debug)]
 pub struct Domain {
     name: &'static str,
-    meter: Arc<OTMeter>,
+    meter: OTMeter,
 }
 
 impl Domain {
-    pub(crate) fn new(name: &'static str, meter: Arc<OTMeter>) -> Self {
+    pub(crate) fn new(name: &'static str, meter: OTMeter) -> Self {
         Self { name, meter }
     }
 
-    // Creates an appropriate metric name prefix based on the Domain's name and
-    // an optional suffix.
-    fn build_metric_prefix(&self, suffix: Option<String>) -> String {
-        let suffix = match suffix {
-            Some(name) => format!(".{}", name),
-            None => "".to_string(),
-        };
-
-        format!("{}{}", self.name, suffix)
+    // Creates an appropriate metric name based on the Domain's name and an
+    // optional subsystem name.
+    fn build_metric_prefix(&self, metric_name: &str, subname: Option<String>) -> String {
+        match subname {
+            Some(subname) => format!("{}.{}.{}", self.name, subname, metric_name),
+            None => format!("{}.{}", self.name, metric_name),
+        }
     }
 
     /// Registers a new metric following the RED methodology.
@@ -160,8 +123,8 @@ impl Domain {
     //
     /// `mydomain.somename.requests.total`
     /// `mydomain.somename.requests.duration.seconds`
-    pub fn register_red_metric(&self, name: Option<String>) -> metrics::RedMetric {
-        self.register_red_metric_with_labels(name, &[])
+    pub fn register_red_metric(&self, subname: Option<String>) -> metrics::RedMetric {
+        self.register_red_metric_with_labels(subname, &[])
     }
 
     /// As `register_red_metric` but with a set of default labels. These labels
@@ -173,19 +136,13 @@ impl Domain {
     ) -> metrics::RedMetric {
         let requests = self
             .meter
-            .u64_counter(format!(
-                "{}.requests.total",
-                self.build_metric_prefix(name.clone())
-            ))
+            .u64_counter(self.build_metric_prefix("requests.total", name.clone()))
             .with_description("accumulated total requests")
             .init();
 
         let duration = self
             .meter
-            .f64_value_recorder(format!(
-                "{}.request.duration.seconds",
-                self.build_metric_prefix(name)
-            ))
+            .f64_value_recorder(self.build_metric_prefix("request.duration.seconds", name.clone()))
             .with_description("distribution of request latencies")
             .init();
 
@@ -200,7 +157,7 @@ mod test {
 
     #[test]
     fn red_metric() {
-        let reg = GlobalRegistry::new();
+        let reg = MetricRegistry::new();
         let domain = reg.register_domain("http");
 
         // create a RED metrics
@@ -284,7 +241,7 @@ mod test {
 
     #[test]
     fn red_metric_labels() {
-        let reg = GlobalRegistry::new();
+        let reg = MetricRegistry::new();
         let domain = reg.register_domain("ftp");
 
         // create a RED metrics
