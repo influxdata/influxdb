@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use std::{fs, path::PathBuf};
-use wal::{Entry, WalBuilder};
+use write_buffer::{Entry, WalBuilder};
 
 type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub type Result<T = (), E = TestError> = std::result::Result<T, E>;

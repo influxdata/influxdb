@@ -1498,7 +1498,7 @@ dependencies = [
  "tonic",
  "tonic-health",
  "tracker",
- "wal",
+ "write_buffer",
 ]
 
 [[package]]
@@ -4140,25 +4140,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wal"
-version = "0.1.0"
-dependencies = [
- "byteorder",
- "crc32fast",
- "futures",
- "itertools 0.9.0",
- "observability_deps",
- "once_cell",
- "regex",
- "serde",
- "serde_json",
- "snafu",
- "snap",
- "test_helpers",
- "tokio",
-]
-
-[[package]]
 name = "walkdir"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4345,6 +4326,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0120db82e8a1e0b9fb3345a539c478767c0048d842860994d96113d5b667bd69"
 dependencies = [
  "winapi",
+]
+
+[[package]]
+name = "write_buffer"
+version = "0.1.0"
+dependencies = [
+ "byteorder",
+ "crc32fast",
+ "futures",
+ "itertools 0.9.0",
+ "observability_deps",
+ "once_cell",
+ "regex",
+ "serde",
+ "serde_json",
+ "snafu",
+ "snap",
+ "test_helpers",
+ "tokio",
 ]
 
 [[package]]

@@ -1,4 +1,4 @@
-use wal::{WalBuilder, WritePayload};
+use write_buffer::{WalBuilder, WritePayload};
 
 #[test]
 fn no_concurrency() {
