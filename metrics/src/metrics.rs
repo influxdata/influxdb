@@ -93,15 +93,18 @@ impl RedMetric {
     ) -> RedObservation<impl Fn(RedRequestStatus, Duration, &[KeyValue]) + '_> {
         // The recording call-back
         let record = move |status: RedRequestStatus, duration: Duration, labels: &[KeyValue]| {
-            let status_idx = labels.len(); // status label will be located at end of labels vec.
             let labels = match labels.is_empty() {
                 // If there are no labels specified just borrow defaults
                 true => Cow::Borrowed(&self.default_labels),
                 false => {
                     // Otherwise merge the provided labels and the defaults.
-                    let mut labels = labels.to_vec();
-                    labels.extend(self.default_labels.iter().cloned());
-                    Cow::Owned(labels)
+                    // Note: provided labels need to go last so that they overwrite
+                    // any default labels.
+                    //
+                    // PERF(edd): this seems expensive to me.
+                    let mut new_labels: Vec<KeyValue> = self.default_labels.clone();
+                    new_labels.extend(labels.iter().cloned());
+                    Cow::Owned(new_labels)
                 }
             };
 
@@ -112,7 +115,7 @@ impl RedMetric {
                 }
                 RedRequestStatus::OkError => {
                     let mut labels = labels.into_owned();
-                    labels[status_idx] = KeyValue::new(
+                    labels[0] = KeyValue::new(
                         RED_REQUEST_STATUS_LABEL,
                         RedRequestStatus::OkError.to_string(),
                     );
@@ -122,7 +125,7 @@ impl RedMetric {
                 }
                 RedRequestStatus::Error => {
                     let mut labels = labels.into_owned();
-                    labels[status_idx] = KeyValue::new(
+                    labels[0] = KeyValue::new(
                         RED_REQUEST_STATUS_LABEL,
                         RedRequestStatus::Error.to_string(),
                     );
@@ -206,5 +209,62 @@ where
     pub fn error_with_labels(self, labels: &[KeyValue]) {
         let duration = self.start.elapsed();
         self.observe(RedRequestStatus::Error, duration, labels);
+    }
+}
+#[derive(Debug)]
+/// A Counter is a metric exposing a monotonically increasing counter.
+/// It is best used to track increases in something over time.
+///
+/// If you want to track some notion of success, failure and latency consider
+/// using a `REDMetric` instead rather than expressing that with labels on a
+/// `Counter`.
+pub struct Counter {
+    counter: OTCounter<u64>,
+    default_labels: Vec<KeyValue>,
+}
+
+impl Counter {
+    pub(crate) fn new(counter: OTCounter<u64>, default_labels: Vec<KeyValue>) -> Self {
+        Self {
+            counter,
+            default_labels,
+        }
+    }
+
+    // Increase the count by `value`.
+    pub fn add(&self, value: u64) {
+        self.add_with_labels(value, &[]);
+    }
+
+    /// Increase the count by `value` and associate the observation with the
+    /// provided labels.
+    pub fn add_with_labels(&self, value: u64, labels: &[KeyValue]) {
+        let labels = match labels.is_empty() {
+            // If there are no labels specified just borrow defaults
+            true => Cow::Borrowed(&self.default_labels),
+            false => {
+                // Otherwise merge the provided labels and the defaults.
+                // Note: provided labels need to go last so that they overwrite
+                // any default labels.
+                //
+                // PERF(edd): this seems expensive to me.
+                let mut new_labels: Vec<KeyValue> = self.default_labels.clone();
+                new_labels.extend(labels.iter().cloned());
+                Cow::Owned(new_labels)
+            }
+        };
+
+        self.counter.add(value, &labels);
+    }
+
+    // Increase the count by 1.
+    pub fn inc(&self) {
+        self.add_with_labels(1, &[]);
+    }
+
+    /// Increase the count by 1 and associate the observation with the provided
+    /// labels.
+    pub fn inc_with_labels(&self, labels: &[KeyValue]) {
+        self.add_with_labels(1, labels)
     }
 }

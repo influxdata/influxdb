@@ -41,7 +41,7 @@ impl MetricRegistry {
 
     /// Returns the data in the Prom exposition format.
     pub fn metrics_as_text(&self) -> Vec<u8> {
-        let metric_families = dbg!(self.exporter.registry().gather());
+        let metric_families = self.exporter.registry().gather();
         let mut result = Vec::new();
         TextEncoder::new()
             .encode(&metric_families, &mut result)
@@ -105,7 +105,7 @@ impl Domain {
 
     // Creates an appropriate metric name based on the Domain's name and an
     // optional subsystem name.
-    fn build_metric_prefix(&self, metric_name: &str, subname: Option<String>) -> String {
+    fn build_metric_prefix(&self, metric_name: &str, subname: Option<&str>) -> String {
         match subname {
             Some(subname) => format!("{}.{}.{}", self.name, subname, metric_name),
             None => format!("{}.{}", self.name, metric_name),
@@ -130,7 +130,7 @@ impl Domain {
     //
     /// `mydomain.somename.requests.total`
     /// `mydomain.somename.requests.duration.seconds`
-    pub fn register_red_metric(&self, subname: Option<String>) -> metrics::RedMetric {
+    pub fn register_red_metric(&self, subname: Option<&str>) -> metrics::RedMetric {
         self.register_red_metric_with_labels(subname, vec![])
     }
 
@@ -138,12 +138,12 @@ impl Domain {
     /// will be associated with each observation given to the metric.
     pub fn register_red_metric_with_labels(
         &self,
-        name: Option<String>,
+        name: Option<&str>,
         default_labels: Vec<KeyValue>,
     ) -> metrics::RedMetric {
         let requests = self
             .meter
-            .u64_counter(self.build_metric_prefix("requests.total", name.clone()))
+            .u64_counter(self.build_metric_prefix("requests.total", name))
             .with_description("accumulated total requests")
             .init();
 
@@ -154,6 +154,48 @@ impl Domain {
             .init();
 
         metrics::RedMetric::new(requests, duration, default_labels)
+    }
+
+    /// Registers a new counter metric.
+    ///
+    /// `name` should be a noun that describes the thing being counted, e.g.,
+    /// lines, payloads, accesses, compactions etc.
+    ///
+    /// `unit` is optional and will appear in the metric name before a final
+    /// `total` suffix. Consider reviewing
+    /// https://prometheus.io/docs/practices/naming/#base-units for appropriate
+    /// units.
+    pub fn register_counter_metric(
+        &self,
+        name: &str,
+        unit: Option<String>,
+        description: impl Into<String>,
+    ) -> metrics::Counter {
+        self.register_counter_metric_with_labels(name, unit, description, vec![])
+    }
+
+    /// Registers a new counter metric with default labels.
+    pub fn register_counter_metric_with_labels(
+        &self,
+        name: &str,
+        unit: Option<String>,
+        description: impl Into<String>,
+        default_labels: Vec<KeyValue>,
+    ) -> metrics::Counter {
+        let counter = self
+            .meter
+            .u64_counter(format!(
+                "{}{}.total",
+                self.build_metric_prefix(name, None),
+                match unit {
+                    Some(unit) => format!(".{}", unit),
+                    None => "".to_string(),
+                }
+            ))
+            .with_description(description)
+            .init();
+
+        metrics::Counter::new(counter, default_labels)
     }
 }
 
@@ -301,6 +343,36 @@ r#"ftp_requests_total{account="abc123",status="error"} 1"#,
 r#"ftp_requests_total{account="abc123",status="ok"} 1"#,
 r#"ftp_requests_total{account="other",status="ok_error"} 1"#,
 ""
+            ]
+            .join("\n")
+        );
+    }
+
+    #[test]
+    fn counter_metric() {
+        let reg = MetricRegistry::new();
+        let domain = reg.register_domain("http");
+
+        // create a counter metric
+        let metric = domain.register_counter_metric_with_labels(
+            "mem",
+            Some("bytes".to_string()),
+            "total bytes consumed",
+            vec![KeyValue::new("tier", "a")],
+        );
+
+        metric.inc();
+        metric.add(22);
+        metric.inc_with_labels(&[KeyValue::new("tier", "b")]);
+
+        assert_eq!(
+            String::from_utf8(reg.metrics_as_text()).unwrap(),
+            vec![
+                "# HELP http_mem_bytes_total total bytes consumed",
+                "# TYPE http_mem_bytes_total counter",
+                r#"http_mem_bytes_total{tier="a"} 23"#,
+                r#"http_mem_bytes_total{tier="b"} 1"#, // tier is overridden
+                ""
             ]
             .join("\n")
         );
