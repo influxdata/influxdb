@@ -826,6 +826,14 @@ mod tests {
             "+----------------+--------------+-------+-----------------+---------------------+",
         ];
         assert_table_eq!(expected, &batches);
+
+        // test metrics triggered.
+        //
+        // TODO(edd): add testing helpers to the `MetricRegistry`.
+        //
+        // Ideally we would have assertions available on metrics that they were
+        // certain values.
+        assert!(!app_server.metrics.registry.metrics_as_text().is_empty());
     }
 
     #[tokio::test]
