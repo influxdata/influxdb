@@ -37,7 +37,7 @@ describe('Onboarding', () => {
     cy.route('POST', 'api/v2/setup').as('orgSetup')
 
     //Check and visit splash page
-    cy.getByTestID('init-step--head-main').contains('Welcome to InfluxDB 2.0')
+    cy.getByTestID('init-step--head-main').contains('Welcome to InfluxDB')
     cy.getByTestID('credits').contains('Powered by')
     cy.getByTestID('credits').contains('InfluxData')
 
