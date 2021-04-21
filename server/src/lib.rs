@@ -87,6 +87,7 @@ use internal_types::{
     entry::{self, lines_to_sharded_entries, Entry, ShardedEntry},
     once::OnceNonZeroU32,
 };
+use metrics::MetricRegistry;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, DatabaseStore};
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
@@ -214,14 +215,17 @@ pub struct ServerConfig {
 
     /// The `ObjectStore` instance to use for persistence
     object_store: Arc<ObjectStore>,
+
+    metric_registry: Arc<MetricRegistry>,
 }
 
 impl ServerConfig {
-    /// Create a new config using the specified store
-    pub fn new(object_store: Arc<ObjectStore>) -> Self {
+    /// Create a new config using the specified store.
+    pub fn new(object_store: Arc<ObjectStore>, metric_registry: Arc<MetricRegistry>) -> Self {
         Self {
             num_worker_threads: None,
             object_store,
+            metric_registry,
         }
     }
 
@@ -237,6 +241,50 @@ impl ServerConfig {
     }
 }
 
+// A collection of metrics used to instrument the Server.
+#[derive(Debug)]
+pub struct ServerMetrics {
+    /// This metric tracks all requests associated with writes using the HTTP
+    /// API.
+    pub write_requests: metrics::RedMetric,
+
+    /// This metric tracks all requests associated with non-write API calls using
+    /// the HTTP API.
+    pub api_requests: metrics::RedMetric,
+
+    /// The number of LP points written via the HTTP API
+    pub points_written: metrics::Counter,
+
+    /// The number of bytes written via the HTTP API
+    pub bytes_written: metrics::Counter,
+
+    /// The metrics registry associated with the server. Usually this doesn't
+    /// need to be held, but in this case the Server needs to expose it via
+    /// the metrics endpoint.
+    pub registry: Arc<metrics::MetricRegistry>,
+}
+
+impl ServerMetrics {
+    pub fn new(registry: Arc<metrics::MetricRegistry>) -> Self {
+        let domain = registry.register_domain("http");
+        Self {
+            write_requests: domain.register_red_metric(Some("write")),
+            api_requests: domain.register_red_metric(Some("api")),
+            points_written: domain.register_counter_metric(
+                "points",
+                None,
+                "total LP points written",
+            ),
+            bytes_written: domain.register_counter_metric(
+                "points",
+                Some("bytes".to_owned()),
+                "total LP bytes written",
+            ),
+            registry,
+        }
+    }
+}
+
 /// `Server` is the container struct for how servers store data internally, as
 /// well as how they communicate with other servers. Each server will have one
 /// of these structs, which keeps track of all replication and query rules.
@@ -248,6 +296,7 @@ pub struct Server<M: ConnectionManager> {
     pub store: Arc<ObjectStore>,
     exec: Arc<Executor>,
     jobs: Arc<JobRegistry>,
+    pub metrics: Arc<ServerMetrics>,
 }
 
 #[derive(Debug)]
@@ -269,6 +318,8 @@ impl<M: ConnectionManager> Server<M> {
         let ServerConfig {
             num_worker_threads,
             object_store,
+            // to test the metrics provide a different registry to the `ServerConfig`.
+            metric_registry,
         } = config;
         let num_worker_threads = num_worker_threads.unwrap_or_else(num_cpus::get);
 
@@ -279,6 +330,7 @@ impl<M: ConnectionManager> Server<M> {
             connection_manager: Arc::new(connection_manager),
             exec: Arc::new(Executor::new(num_worker_threads)),
             jobs,
+            metrics: Arc::new(ServerMetrics::new(Arc::clone(&metric_registry))),
         }
     }
 
@@ -844,6 +896,7 @@ mod tests {
         HashRing, PartitionTemplate, ShardConfig, TemplatePart, NO_SHARD_CONFIG,
     };
     use influxdb_line_protocol::parse_lines;
+    use metrics::MetricRegistry;
     use object_store::{memory::InMemory, path::ObjectStorePath};
     use query::{frontend::sql::SqlQueryPlanner, Database};
 
@@ -851,8 +904,11 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     fn config() -> ServerConfig {
-        ServerConfig::new(Arc::new(ObjectStore::new_in_memory(InMemory::new())))
-            .with_num_worker_threads(1)
+        ServerConfig::new(
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+            Arc::new(MetricRegistry::new()), // new registry ensures test isolation of metrics
+        )
+        .with_num_worker_threads(1)
     }
 
     #[tokio::test]
@@ -925,7 +981,8 @@ mod tests {
         store.list_with_delimiter(&store.new_path()).await.unwrap();
 
         let manager = TestConnectionManager::new();
-        let config2 = ServerConfig::new(store).with_num_worker_threads(1);
+        let config2 =
+            ServerConfig::new(store, Arc::new(MetricRegistry::new())).with_num_worker_threads(1);
         let server2 = Server::new(manager, config2);
         server2.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         server2.load_database_configs().await.unwrap();

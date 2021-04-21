@@ -3288,6 +3288,7 @@ dependencies = [
  "influxdb_iox_client",
  "influxdb_line_protocol",
  "internal_types",
+ "metrics",
  "mutable_buffer",
  "num_cpus",
  "object_store",

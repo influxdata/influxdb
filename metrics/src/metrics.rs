@@ -140,7 +140,7 @@ impl RedMetric {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RedObservation<T>
 where
     T: Fn(RedRequestStatus, Duration, &[KeyValue]),
@@ -163,19 +163,19 @@ where
     /// Record that an observation was successful. The duration of the
     /// observation should be provided. Callers might prefer `ok` where the
     /// timing will be handled for them.
-    pub fn observe(self, observation: RedRequestStatus, duration: Duration, labels: &[KeyValue]) {
+    pub fn observe(&self, observation: RedRequestStatus, duration: Duration, labels: &[KeyValue]) {
         (self.record)(observation, duration, labels);
     }
 
     /// Record that the observation was successful. Timing of observation is
     /// handled automatically.
-    pub fn ok(self) {
+    pub fn ok(&self) {
         self.ok_with_labels(&[])
     }
 
     /// Record that the observation was successful with provided labels.
     /// Timing of observation is handled automatically.
-    pub fn ok_with_labels(self, labels: &[KeyValue]) {
+    pub fn ok_with_labels(&self, labels: &[KeyValue]) {
         let duration = self.start.elapsed();
         self.observe(RedRequestStatus::Ok, duration, labels);
     }
@@ -183,7 +183,7 @@ where
     /// Record that the observation was not successful but was still valid.
     /// `ok_error` is the right thing to choose when the request failed perhaps
     /// due to client error. Timing of observation is handled automatically.
-    pub fn ok_error(self) {
+    pub fn ok_error(&self) {
         self.ok_error_with_labels(&[])
     }
 
@@ -191,7 +191,7 @@ where
     /// valid. `ok_error` is the right thing to choose when the request failed
     /// perhaps due to client error. Timing of observation is handled
     /// automatically.
-    pub fn ok_error_with_labels(self, labels: &[KeyValue]) {
+    pub fn ok_error_with_labels(&self, labels: &[KeyValue]) {
         let duration = self.start.elapsed();
         self.observe(RedRequestStatus::OkError, duration, labels);
     }
@@ -199,14 +199,14 @@ where
     /// Record that the observation was not successful and results in an error
     /// caused by the service under observation. Timing of observation is
     /// handled automatically.
-    pub fn error(self) {
+    pub fn error(&self) {
         self.error_with_labels(&[]);
     }
 
     /// Record with labels that the observation was not successful and results
     /// in an error caused by the service under observation. Timing of
     /// observation is handled automatically.
-    pub fn error_with_labels(self, labels: &[KeyValue]) {
+    pub fn error_with_labels(&self, labels: &[KeyValue]) {
         let duration = self.start.elapsed();
         self.observe(RedRequestStatus::Error, duration, labels);
     }

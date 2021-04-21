@@ -24,7 +24,6 @@ mod commands {
     pub mod database;
     mod input;
     pub mod meta;
-    pub mod metrics;
     pub mod operations;
     pub mod run;
     pub mod server;

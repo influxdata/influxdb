@@ -1,9 +1,7 @@
-use crate::commands::{
-    metrics,
-    run::{Config, ObjectStore as ObjStoreOpt},
-};
+use crate::commands::run::{Config, ObjectStore as ObjStoreOpt};
 use futures::{future::FusedFuture, pin_mut, FutureExt};
 use hyper::server::conn::AddrIncoming;
+use metrics::MetricRegistry;
 use object_store::{
     self, aws::AmazonS3, azure::MicrosoftAzure, gcp::GoogleCloudStorage, ObjectStore,
 };
@@ -100,8 +98,6 @@ async fn wait_for_signal() {
 /// This is the entry point for the IOx server. `config` represents
 /// command line arguments, if any.
 pub async fn main(config: Config) -> Result<()> {
-    metrics::init_metrics(&config);
-
     let git_hash = option_env!("GIT_HASH").unwrap_or("UNKNOWN");
     info!(git_hash, "InfluxDB IOx server starting");
 
@@ -125,7 +121,8 @@ pub async fn main(config: Config) -> Result<()> {
 
     let object_store = ObjectStore::try_from(&config)?;
     let object_storage = Arc::new(object_store);
-    let server_config = AppServerConfig::new(object_storage);
+    let metric_registry = Arc::new(metrics::MetricRegistry::new());
+    let server_config = AppServerConfig::new(object_storage, metric_registry);
 
     let server_config = if let Some(n) = config.num_worker_threads {
         info!(

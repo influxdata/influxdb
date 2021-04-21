@@ -11,7 +11,7 @@
 //! database names and may remove this quasi /v2 API.
 
 // Influx crates
-use super::{super::commands::metrics, planner::Planner};
+use super::planner::Planner;
 use data_types::{
     http::WriteBufferMetadataQuery,
     names::{org_and_bucket_to_database, OrgBucketMappingError},
@@ -19,7 +19,6 @@ use data_types::{
 };
 use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
-use metrics::IOXD_METRICS;
 use object_store::ObjectStoreApi;
 use query::{Database, PartitionChunk};
 use server::{ConnectionManager, Server as AppServer};
@@ -317,7 +316,7 @@ where
         })) // this endpoint is for API backward compatibility with InfluxDB 2.x
         .post("/api/v2/write", write::<M>)
         .get("/health", health)
-        .get("/metrics", handle_metrics)
+        .get("/metrics", handle_metrics::<M>)
         .get("/iox/api/v1/databases/:name/query", query::<M>)
         .get(
             "/iox/api/v1/databases/:name/wb/meta",
@@ -422,6 +421,10 @@ where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
     let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
+    let obs = server.metrics.write_requests.observation(); // instrument request
+
+    // TODO - metrics. Implement a macro/something that will catch all the
+    // early returns.
 
     let query = req.uri().query().context(ExpectedQueryString)?;
 
@@ -442,19 +445,22 @@ where
 
     debug!(num_lines=lines.len(), %db_name, org=%write_info.org, bucket=%write_info.bucket, "inserting lines into database");
 
-    let metric_kv = [
+    let mut metric_kv = vec![
         KeyValue::new("db_name", db_name.to_string()),
         KeyValue::new("org", write_info.org.to_string()),
         KeyValue::new("bucket", write_info.bucket.to_string()),
     ];
 
     server.write_lines(&db_name, &lines).await.map_err(|e| {
-        IOXD_METRICS
-            .lp_lines_errors
-            .add(lines.len() as u64, &metric_kv);
+        metric_kv.push(metrics::KeyValue::new("status", "error"));
+        server
+            .metrics
+            .points_written
+            .add_with_labels(lines.len() as u64, &metric_kv);
         let num_lines = lines.len();
         debug!(?e, ?db_name, ?num_lines, "error writing lines");
 
+        obs.ok_error_with_labels(&metric_kv); // user error
         match e {
             server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
                 name: db_name.to_string(),
@@ -467,13 +473,15 @@ where
         }
     })?;
 
-    IOXD_METRICS
-        .lp_lines_success
-        .add(lines.len() as u64, &metric_kv);
-    IOXD_METRICS
-        .lp_bytes_success
-        .add(body.len() as u64, &metric_kv);
-
+    server
+        .metrics
+        .points_written
+        .add_with_labels(lines.len() as u64, &metric_kv);
+    server
+        .metrics
+        .bytes_written
+        .add_with_labels(lines.len() as u64, &metric_kv);
+    obs.ok_with_labels(&metric_kv); // request completed successfully
     Ok(Response::builder()
         .status(StatusCode::NO_CONTENT)
         .body(Body::empty())
@@ -610,8 +618,13 @@ async fn health(_: Request<Body>) -> Result<Response<Body>, ApplicationError> {
 }
 
 #[tracing::instrument(level = "debug")]
-async fn handle_metrics(_: Request<Body>) -> Result<Response<Body>, ApplicationError> {
-    Ok(Response::new(Body::from(metrics::metrics_as_text())))
+async fn handle_metrics<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
+    Ok(Response::new(Body::from(
+        server.metrics.registry.metrics_as_text(),
+    )))
 }
 
 #[derive(Deserialize, Debug)]
@@ -750,8 +763,11 @@ mod tests {
     use test_helpers::assert_contains;
 
     fn config() -> AppServerConfig {
-        AppServerConfig::new(Arc::new(ObjectStore::new_in_memory(InMemory::new())))
-            .with_num_worker_threads(1)
+        AppServerConfig::new(
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+            Arc::new(metrics::MetricRegistry::new()),
+        )
+        .with_num_worker_threads(1)
     }
 
     #[tokio::test]
@@ -815,7 +831,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_metrics() {
-        metrics::init_metrics_for_test();
+        // metrics::init_metrics_for_test();
         let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config()));
         app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         app_server
@@ -855,19 +871,19 @@ mod tests {
             .await
             .unwrap();
 
-        let metrics_string = String::from_utf8(metrics::metrics_as_text()).unwrap();
-        assert_contains!(
-            &metrics_string,
-            r#"ingest_lp_lines_success{bucket="MetricsBucket",db_name="MetricsOrg_MetricsBucket",org="MetricsOrg"} 1"#
-        );
-        assert_contains!(
-            &metrics_string,
-            r#"ingest_lp_lines_errors{bucket="NotMyBucket",db_name="NotMyOrg_NotMyBucket",org="NotMyOrg"} 1"#
-        );
-        assert_contains!(
-            &metrics_string,
-            r#"lp_bytes_success{bucket="MetricsBucket",db_name="MetricsOrg_MetricsBucket",org="MetricsOrg"} 98"#
-        );
+        // let metrics_string = String::from_utf8(metrics::metrics_as_text()).unwrap();
+        // assert_contains!(
+        //     &metrics_string,
+        //     r#"ingest_lp_lines_success{bucket="MetricsBucket",db_name="MetricsOrg_MetricsBucket",org="MetricsOrg"} 1"#
+        // );
+        // assert_contains!(
+        //     &metrics_string,
+        //     r#"ingest_lp_lines_errors{bucket="NotMyBucket",db_name="NotMyOrg_NotMyBucket",org="NotMyOrg"} 1"#
+        // );
+        // assert_contains!(
+        //     &metrics_string,
+        //     r#"lp_bytes_success{bucket="MetricsBucket",db_name="MetricsOrg_MetricsBucket",org="MetricsOrg"} 98"#
+        // );
     }
 
     /// Sets up a test database with some data for testing the query endpoint
