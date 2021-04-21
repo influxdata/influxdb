@@ -131,7 +131,7 @@ impl Domain {
     /// `mydomain.somename.requests.total`
     /// `mydomain.somename.requests.duration.seconds`
     pub fn register_red_metric(&self, subname: Option<String>) -> metrics::RedMetric {
-        self.register_red_metric_with_labels(subname, &[])
+        self.register_red_metric_with_labels(subname, vec![])
     }
 
     /// As `register_red_metric` but with a set of default labels. These labels
@@ -139,7 +139,7 @@ impl Domain {
     pub fn register_red_metric_with_labels(
         &self,
         name: Option<String>,
-        default_labels: &[KeyValue],
+        default_labels: Vec<KeyValue>,
     ) -> metrics::RedMetric {
         let requests = self
             .meter
@@ -153,7 +153,7 @@ impl Domain {
             .with_description("distribution of request latencies")
             .init();
 
-        metrics::RedMetric::new(requests, duration, &default_labels)
+        metrics::RedMetric::new(requests, duration, default_labels)
     }
 }
 
@@ -180,7 +180,7 @@ mod test {
         // testing.
         //
         // Usually caller would call `ob.ok()`.
-        ob.observe(RedRequestStatus::Ok, duration, vec![]);
+        ob.observe(RedRequestStatus::Ok, duration, &[]);
 
         assert_eq!(
             String::from_utf8(reg.metrics_as_text()).unwrap(),
@@ -203,14 +203,10 @@ mod test {
 
         // report some other observations
         let ob = metric.observation();
-        ob.observe(
-            RedRequestStatus::OkError,
-            Duration::from_millis(2000),
-            vec![],
-        );
+        ob.observe(RedRequestStatus::OkError, Duration::from_millis(2000), &[]);
 
         let ob = metric.observation();
-        ob.observe(RedRequestStatus::Error, Duration::from_millis(350), vec![]);
+        ob.observe(RedRequestStatus::Error, Duration::from_millis(350), &[]);
 
         assert_eq!(
             String::from_utf8(reg.metrics_as_text()).unwrap(),
@@ -261,19 +257,19 @@ mod test {
         ob.observe(
             RedRequestStatus::Ok,
             Duration::from_millis(100),
-            vec![KeyValue::new("account", "abc123")],
+            &[KeyValue::new("account", "abc123")],
         );
 
         metric.observation().observe(
             RedRequestStatus::OkError,
             Duration::from_millis(200),
-            vec![KeyValue::new("account", "other")],
+            &[KeyValue::new("account", "other")],
         );
 
         metric.observation().observe(
             RedRequestStatus::Error,
             Duration::from_millis(203),
-            vec![KeyValue::new("account", "abc123")],
+            &[KeyValue::new("account", "abc123")],
         );
 
         assert_eq!(

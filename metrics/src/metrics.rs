@@ -69,16 +69,15 @@ impl RedMetric {
     pub(crate) fn new(
         requests: OTCounter<u64>,
         duration: OTHistorgram<f64>,
-        labels: &[KeyValue],
+        mut default_labels: Vec<KeyValue>,
     ) -> Self {
-        let mut default_labels = vec![KeyValue::new(
-            RED_REQUEST_STATUS_LABEL,
-            RedRequestStatus::Ok.to_string(),
-        )];
-
         // TODO(edd): decide what to do if `labels` contains
         // RED_REQUEST_STATUS_LABEL.
-        default_labels.extend(labels.iter().cloned());
+        // RedMetric always has a status label.
+        default_labels.insert(
+            0,
+            KeyValue::new(RED_REQUEST_STATUS_LABEL, RedRequestStatus::Ok.to_string()),
+        );
 
         Self {
             requests,
@@ -91,48 +90,48 @@ impl RedMetric {
     /// observation the metric is tracking.
     pub fn observation(
         &'_ self,
-    ) -> RedObservation<impl Fn(RedRequestStatus, Duration, Vec<KeyValue>) + '_> {
+    ) -> RedObservation<impl Fn(RedRequestStatus, Duration, &[KeyValue]) + '_> {
         // The recording call-back
-        let record =
-            move |status: RedRequestStatus, duration: Duration, mut labels: Vec<KeyValue>| {
-                let status_idx = labels.len(); // status label will be located at end of labels vec.
-                let labels = match labels.is_empty() {
-                    // If there are no labels specified just borrow defaults
-                    true => Cow::Borrowed(&self.default_labels),
-                    false => {
-                        // Otherwise merge the provided labels and the defaults.
-                        labels.extend(self.default_labels.iter().cloned());
-                        Cow::Owned(labels)
-                    }
-                };
-
-                match status {
-                    RedRequestStatus::Ok => {
-                        self.requests.add(1, &labels);
-                        self.duration.record(duration.as_secs_f64(), &labels);
-                    }
-                    RedRequestStatus::OkError => {
-                        let mut labels = labels.into_owned();
-                        labels[status_idx] = KeyValue::new(
-                            RED_REQUEST_STATUS_LABEL,
-                            RedRequestStatus::OkError.to_string(),
-                        );
-
-                        self.requests.add(1, &labels);
-                        self.duration.record(duration.as_secs_f64(), &labels);
-                    }
-                    RedRequestStatus::Error => {
-                        let mut labels = labels.into_owned();
-                        labels[status_idx] = KeyValue::new(
-                            RED_REQUEST_STATUS_LABEL,
-                            RedRequestStatus::Error.to_string(),
-                        );
-
-                        self.requests.add(1, &labels);
-                        self.duration.record(duration.as_secs_f64(), &labels);
-                    }
-                };
+        let record = move |status: RedRequestStatus, duration: Duration, labels: &[KeyValue]| {
+            let status_idx = labels.len(); // status label will be located at end of labels vec.
+            let labels = match labels.is_empty() {
+                // If there are no labels specified just borrow defaults
+                true => Cow::Borrowed(&self.default_labels),
+                false => {
+                    // Otherwise merge the provided labels and the defaults.
+                    let mut labels = labels.to_vec();
+                    labels.extend(self.default_labels.iter().cloned());
+                    Cow::Owned(labels)
+                }
             };
+
+            match status {
+                RedRequestStatus::Ok => {
+                    self.requests.add(1, &labels);
+                    self.duration.record(duration.as_secs_f64(), &labels);
+                }
+                RedRequestStatus::OkError => {
+                    let mut labels = labels.into_owned();
+                    labels[status_idx] = KeyValue::new(
+                        RED_REQUEST_STATUS_LABEL,
+                        RedRequestStatus::OkError.to_string(),
+                    );
+
+                    self.requests.add(1, &labels);
+                    self.duration.record(duration.as_secs_f64(), &labels);
+                }
+                RedRequestStatus::Error => {
+                    let mut labels = labels.into_owned();
+                    labels[status_idx] = KeyValue::new(
+                        RED_REQUEST_STATUS_LABEL,
+                        RedRequestStatus::Error.to_string(),
+                    );
+
+                    self.requests.add(1, &labels);
+                    self.duration.record(duration.as_secs_f64(), &labels);
+                }
+            };
+        };
 
         RedObservation::new(record)
     }
@@ -141,7 +140,7 @@ impl RedMetric {
 #[derive(Debug)]
 pub struct RedObservation<T>
 where
-    T: Fn(RedRequestStatus, Duration, Vec<KeyValue>),
+    T: Fn(RedRequestStatus, Duration, &[KeyValue]),
 {
     start: Instant,
     record: T, // a call-back that records the observation on the metric.
@@ -149,7 +148,7 @@ where
 
 impl<T> RedObservation<T>
 where
-    T: Fn(RedRequestStatus, Duration, Vec<KeyValue>),
+    T: Fn(RedRequestStatus, Duration, &[KeyValue]),
 {
     pub(crate) fn new(record: T) -> Self {
         Self {
@@ -161,41 +160,51 @@ where
     /// Record that an observation was successful. The duration of the
     /// observation should be provided. Callers might prefer `ok` where the
     /// timing will be handled for them.
-    pub fn observe(
-        self,
-        observation: RedRequestStatus,
-        duration: Duration,
-        labels_itr: Vec<KeyValue>,
-    ) {
-        (self.record)(observation, duration, labels_itr);
+    pub fn observe(self, observation: RedRequestStatus, duration: Duration, labels: &[KeyValue]) {
+        (self.record)(observation, duration, labels);
     }
 
     /// Record that the observation was successful. Timing of observation is
     /// handled automatically.
     pub fn ok(self) {
-        let duration = self.start.elapsed();
+        self.ok_with_labels(&[])
+    }
 
-        // PERF: allocation here but not convinced worth worrying about yet.
-        self.observe(RedRequestStatus::Ok, duration, vec![]);
+    /// Record that the observation was successful with provided labels.
+    /// Timing of observation is handled automatically.
+    pub fn ok_with_labels(self, labels: &[KeyValue]) {
+        let duration = self.start.elapsed();
+        self.observe(RedRequestStatus::Ok, duration, labels);
     }
 
     /// Record that the observation was not successful but was still valid.
     /// `ok_error` is the right thing to choose when the request failed perhaps
     /// due to client error. Timing of observation is handled automatically.
     pub fn ok_error(self) {
-        let duration = self.start.elapsed();
+        self.ok_error_with_labels(&[])
+    }
 
-        // PERF: allocation here but not convinced worth worrying about yet.
-        self.observe(RedRequestStatus::OkError, duration, vec![]);
+    /// Record with labels that the observation was not successful but was still
+    /// valid. `ok_error` is the right thing to choose when the request failed
+    /// perhaps due to client error. Timing of observation is handled
+    /// automatically.
+    pub fn ok_error_with_labels(self, labels: &[KeyValue]) {
+        let duration = self.start.elapsed();
+        self.observe(RedRequestStatus::OkError, duration, labels);
     }
 
     /// Record that the observation was not successful and results in an error
     /// caused by the service under observation. Timing of observation is
     /// handled automatically.
     pub fn error(self) {
-        let duration = self.start.elapsed();
+        self.error_with_labels(&[]);
+    }
 
-        // PERF: allocation here but not convinced worth worrying about yet.
-        self.observe(RedRequestStatus::Error, duration, vec![]);
+    /// Record with labels that the observation was not successful and results
+    /// in an error caused by the service under observation. Timing of
+    /// observation is handled automatically.
+    pub fn error_with_labels(self, labels: &[KeyValue]) {
+        let duration = self.start.elapsed();
+        self.observe(RedRequestStatus::Error, duration, labels);
     }
 }
