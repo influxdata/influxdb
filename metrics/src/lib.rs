@@ -36,29 +36,7 @@ pub struct MetricRegistry {
 impl MetricRegistry {
     /// initialise a new metrics registry.
     pub fn new() -> Self {
-        let registry = Registry::new();
-        let default_histogram_boundaries = vec![0.5, 0.9, 0.99];
-        let selector = Box::new(Selector::Histogram(default_histogram_boundaries.clone()));
-        let controller = controllers::pull(selector, Box::new(ExportKindSelector::Cumulative))
-            // Disables caching
-            .with_cache_period(std::time::Duration::from_secs(0))
-            // Remember all metrics observed, not just recently updated
-            .with_memory(true)
-            .build();
-
-        // Initialise the prometheus exporter
-        let default_summary_quantiles = vec![0.5, 0.9, 0.99];
-        let exporter = PrometheusExporter::new(
-            registry,
-            controller,
-            default_summary_quantiles,
-            default_histogram_boundaries,
-        )
-        .unwrap();
-
-        let provider = exporter.provider().unwrap();
-
-        Self { provider, exporter }
+        Self::default()
     }
 
     /// Returns the data in the Prom exposition format.
@@ -76,6 +54,35 @@ impl MetricRegistry {
     pub fn register_domain(&self, name: &'static str) -> Domain {
         let meter = self.provider.meter(name, None);
         Domain::new(name, meter)
+    }
+}
+
+impl Default for MetricRegistry {
+    fn default() -> Self {
+        let registry = Registry::new();
+        let default_histogram_boundaries = vec![0.5, 0.9, 0.99];
+        let selector = Box::new(Selector::Histogram(default_histogram_boundaries.clone()));
+        let controller = controllers::pull(selector, Box::new(ExportKindSelector::Cumulative))
+            // Disables caching
+            .with_cache_period(std::time::Duration::from_secs(0))
+            // Remember all metrics observed, not just recently updated
+            .with_memory(true)
+            .build();
+
+        // Initialise the prometheus exporter
+        let default_summary_quantiles = vec![0.5, 0.9, 0.99];
+
+        let exporter = PrometheusExporter::new(
+            registry,
+            controller,
+            default_summary_quantiles,
+            default_histogram_boundaries,
+        )
+        .unwrap();
+
+        let provider = exporter.provider().unwrap();
+
+        Self { provider, exporter }
     }
 }
 
@@ -142,7 +149,7 @@ impl Domain {
 
         let duration = self
             .meter
-            .f64_value_recorder(self.build_metric_prefix("request.duration.seconds", name.clone()))
+            .f64_value_recorder(self.build_metric_prefix("request.duration.seconds", name))
             .with_description("distribution of request latencies")
             .init();
 
