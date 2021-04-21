@@ -140,6 +140,7 @@ impl Chunk {
     }
 
     /// Returns a queryable snapshot of this chunk
+    #[cfg(not(feature = "nocache"))]
     pub fn snapshot(&self) -> Arc<ChunkSnapshot> {
         let mut guard = self.snapshot.lock();
         if let Some(snapshot) = &*guard {
@@ -150,6 +151,12 @@ impl Chunk {
         let snapshot = Arc::new(ChunkSnapshot::new(self));
         *guard = Some(Arc::clone(&snapshot));
         snapshot
+    }
+
+    /// Returns a queryable snapshot of this chunk
+    #[cfg(feature = "nocache")]
+    pub fn snapshot(&self) -> Arc<ChunkSnapshot> {
+        Arc::new(ChunkSnapshot::new(self))
     }
 
     /// returns true if there is no data in this chunk

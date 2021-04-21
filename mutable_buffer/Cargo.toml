@@ -33,3 +33,8 @@ tracker = { path = "../tracker" }
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }
 criterion = "0.3"
+
+[features]
+default = []
+# Disables snapshot caching
+nocache = []
