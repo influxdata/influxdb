@@ -2,10 +2,12 @@ For more detailed and up to date information check out the [GitHub Repository](h
 
 ##### Add Dependency
 
+_The client is cross-built against Scala 2.12 and 2.13. The following example uses the Scala 2.13._
+
 Build with sbt
 
 ```
-libraryDependencies += "com.influxdb" % "influxdb-client-scala" % "2.0.0"
+libraryDependencies += "com.influxdb" % "influxdb-client-scala_2.12" % "2.2.0"
 ```
 
 Build with Maven
@@ -13,8 +15,8 @@ Build with Maven
 ```
 <dependency>
   <groupId>com.influxdb</groupId>
-  <artifactId>influxdb-client-scala</artifactId>
-  <version>2.0.0</version>
+  <artifactId>influxdb-client-scala_2.12</artifactId>
+  <version>2.2.0</version>
 </dependency>
 ```
 
@@ -22,7 +24,7 @@ Build with Gradle
 
 ```
 dependencies {
-  compile "com.influxdb:influxdb-client-scala:2.0.0"
+  compile "com.influxdb:influxdb-client-scala_2.12:2.2.0"
 }
 ```
 

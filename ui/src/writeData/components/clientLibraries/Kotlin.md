@@ -8,7 +8,7 @@ Build with Maven
 <dependency>
   <groupId>com.influxdb</groupId>
   <artifactId>influxdb-client-kotlin</artifactId>
-  <version>2.0.0</version>
+  <version>2.2.0</version>
 </dependency>
 ```
 
@@ -16,7 +16,7 @@ Build with Gradle
 
 ```
 dependencies {
-  compile "com.influxdb:influxdb-client-kotlin:2.0.0"
+  compile "com.influxdb:influxdb-client-kotlin:2.2.0"
 }
 ```
 
