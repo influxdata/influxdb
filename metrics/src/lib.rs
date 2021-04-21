@@ -19,14 +19,23 @@ use observability_deps::{
     prometheus::{Encoder, Registry, TextEncoder},
     tracing::*,
 };
-use once_cell::sync::Lazy;
 
 pub mod metrics;
 pub use crate::metrics::*;
 
-/// global metrics
-pub static IOXD_METRICS_REGISTRY: Lazy<MetricRegistry> = Lazy::new(MetricRegistry::new);
-
+/// A registry responsible for initialising IOx metrics and exposing their
+/// current state in Prometheus exposition format.
+///
+/// Typically when IOx is running there should be a single `MetricRegistry`
+/// initialised very close to program startup. This registry should then be
+/// passed to every sub-system that needs to be instrumented.
+///
+/// Each sub-system should register a _domain_, which will result in all metrics
+/// for that domain having a common name prefix. Domains allow callers to
+/// register individual metrics.
+///
+/// To test your metrics in isolation simply provide a new `MetricRegistry`
+/// during test setup; this will ensure no other tests interfere.
 #[derive(Debug)]
 pub struct MetricRegistry {
     provider: RegistryMeterProvider,
@@ -39,7 +48,26 @@ impl MetricRegistry {
         Self::default()
     }
 
-    /// Returns the data in the Prom exposition format.
+    /// Returns the current metrics state, in UTF-8 encoded Prometheus
+    /// Exposition Format.
+    ///
+    /// https://prometheus.io/docs/instrumenting/exposition_formats/
+    ///
+    /// For example:
+    ///
+    ///
+    /// # HELP a_counter Counts things
+    /// # TYPE a_counter counter
+    /// a_counter{key="value"} 100
+    /// # HELP a_value_recorder Records values
+    /// # TYPE a_value_recorder histogram
+    /// a_value_recorder_bucket{key="value",le="0.5"} 0
+    /// a_value_recorder_bucket{key="value",le="0.9"} 0
+    /// a_value_recorder_bucket{key="value",le="0.99"} 0
+    /// a_value_recorder_bucket{key="value",le="+Inf"} 1
+    /// a_value_recorder_sum{key="value"} 100
+    /// a_value_recorder_count{key="value"} 1
+    ///
     pub fn metrics_as_text(&self) -> Vec<u8> {
         let metric_families = self.exporter.registry().gather();
         let mut result = Vec::new();
@@ -90,7 +118,7 @@ impl Default for MetricRegistry {
 /// metrics. Within the domain all metrics' names will be prefixed by the name
 /// of the domain; for example "http", "read_buffer", "wal".
 ///
-/// Domains should be registered on the global registry. The returned domain
+/// Domains should be registered on a `MetricRegistry`. The returned domain
 /// allows individual metrics to then be registered and used.
 #[derive(Debug)]
 pub struct Domain {

@@ -760,7 +760,6 @@ mod tests {
     use serde::de::DeserializeOwned;
     use server::{db::Db, ConnectionManagerImpl, ServerConfig as AppServerConfig};
     use std::num::NonZeroU32;
-    use test_helpers::assert_contains;
 
     fn config() -> AppServerConfig {
         AppServerConfig::new(
