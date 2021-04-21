@@ -27,5 +27,5 @@ new major or minor version:
 
 By default, the `generated_types/regenerate-flatbuffers.sh` script will run a Docker container that
 uses the same image we use in CI that will have all the necessary dependencies. If you don't want
-to use Docker, run this script with `LOCAL=1`, which will require you to have `bazel` available.
-You can likely install `bazel` with your favourite package manager.
+to use Docker, run this script with `INFLUXDB_IOX_INTEGRATION_LOCAL=1`, which will require you to
+have `bazel` available. You can likely install `bazel` with your favourite package manager.

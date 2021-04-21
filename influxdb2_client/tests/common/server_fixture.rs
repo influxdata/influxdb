@@ -14,15 +14,15 @@ type Result<T = (), E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
 #[macro_export]
 /// If InfluxDB 2.0 OSS is available (either locally via `influxd` directly if
-/// the `LOCAL` environment variable is set, or via `docker` otherwise), set
-/// up the server as requested and return it to the caller.
+/// the `INFLUXDB_IOX_INTEGRATION_LOCAL` environment variable is set, or via
+/// `docker` otherwise), set up the server as requested and return it to the caller.
 ///
 /// If InfluxDB is not available, skip the calling test by returning
 /// early. Additionally if `TEST_INTEGRATION` is set, turn this early return
 /// into a panic to force a hard fail for skipped integration tests.
 macro_rules! maybe_skip_integration {
     ($server_fixture:expr) => {{
-        let local = std::env::var("LOCAL").is_ok();
+        let local = std::env::var("INFLUXDB_IOX_INTEGRATION_LOCAL").is_ok();
         let command = if local { "influxd" } else { "docker" };
 
         match (
@@ -192,7 +192,7 @@ impl TestServer {
             .expect("cloning file handle for stdout");
         let stderr_log_file = log_file;
 
-        let local = std::env::var("LOCAL").is_ok();
+        let local = std::env::var("INFLUXDB_IOX_INTEGRATION_LOCAL").is_ok();
 
         let (server_process, docker_name) = if local {
             let cmd = Command::new("influxd")

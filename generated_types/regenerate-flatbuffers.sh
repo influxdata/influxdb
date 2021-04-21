@@ -26,8 +26,8 @@ FB_COMMIT="86401e078d0746d2381735415f8c2dfe849f3f52"
 
 # By default, this script will run a Docker container that uses the same image we use in CI that
 # will have all the necessary dependencies. If you don't want to run Docker, run this script with
-# LOCAL=1.
-if [ -z "${LOCAL}" ]; then
+# INFLUXDB_IOX_INTEGRATION_LOCAL=1.
+if [ -z "${INFLUXDB_IOX_INTEGRATION_LOCAL}" ]; then
   echo "Running in Docker..."
 
   CI_IMAGE=quay.io/influxdb/rust:ci
@@ -48,7 +48,7 @@ if [ -z "${LOCAL}" ]; then
     --volume "${DIR}/..:${DOCKER_IOX_DIR}" \
     ${CI_IMAGE}
 
-  docker exec -e LOCAL=1 flatc .${DOCKER_IOX_DIR}/generated_types/regenerate-flatbuffers.sh
+  docker exec -e INFLUXDB_IOX_INTEGRATION_LOCAL=1 flatc .${DOCKER_IOX_DIR}/generated_types/regenerate-flatbuffers.sh
 
   docker rm --force flatc || true
 else

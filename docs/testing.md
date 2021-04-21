@@ -39,8 +39,9 @@ container. If you do not have `docker`, by default, those tests will not be run 
 pass.
 
 If you do not want to use Docker locally, but you do have `influxd` for InfluxDB
-2.0 locally, you can use that instead by running the tests with the environment variable `LOCAL=1`.
+2.0 locally, you can use that instead by running the tests with the environment variable
+`INFLUXDB_IOX_INTEGRATION_LOCAL=1`.
 
 To ensure you're running the `influxdb2_client` integration tests, you can run `TEST_INTEGRATION=1
-cargo test -p influxdb2_client`, which will fail the tests if `docker` (or `influxd`, if `LOCAL=1`
-is set) is not available.
+cargo test -p influxdb2_client`, which will fail the tests if `docker` (or `influxd`, if
+`INFLUXDB_IOX_INTEGRATION_LOCAL=1` is set) is not available.
