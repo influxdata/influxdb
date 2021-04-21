@@ -1467,6 +1467,7 @@ dependencies = [
  "itertools 0.9.0",
  "logfmt",
  "mem_qe",
+ "metrics",
  "mutable_buffer",
  "object_store",
  "observability_deps",
@@ -1799,6 +1800,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f83fb6581e8ed1f85fd45c116db8405483899489e38406156c25eb743554361d"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "metrics"
+version = "0.1.0"
+dependencies = [
+ "observability_deps",
+ "once_cell",
+ "parking_lot",
 ]
 
 [[package]]

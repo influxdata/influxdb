@@ -51,6 +51,7 @@ internal_types = { path = "internal_types" }
 ingest = { path = "ingest" }
 logfmt = { path = "logfmt" }
 mem_qe = { path = "mem_qe" }
+metrics = { path = "metrics" }
 mutable_buffer = { path = "mutable_buffer" }
 object_store = { path = "object_store" }
 observability_deps = { path = "observability_deps" }
