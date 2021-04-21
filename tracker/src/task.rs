@@ -84,12 +84,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use observability_deps::tracing::warn;
 use tokio_util::sync::CancellationToken;
 
 pub use future::{TrackedFuture, TrackedFutureExt};
 pub use history::TaskRegistryWithHistory;
 pub use registry::{TaskId, TaskRegistry};
+use tokio::sync::Notify;
 
 mod future;
 mod history;
@@ -107,7 +107,7 @@ struct TrackerState {
     pending_futures: AtomicUsize,
     pending_registrations: AtomicUsize,
 
-    watch: tokio::sync::watch::Receiver<bool>,
+    notify: Notify,
 }
 
 /// The status of the tracked task
@@ -227,16 +227,15 @@ impl<T> TaskTracker<T> {
     /// Blocks until all futures associated with the tracker have been
     /// dropped and no more can be created
     pub async fn join(&self) {
-        let mut watch = self.state.watch.clone();
+        // Request notification before checking if complete
+        // to avoid a race condition
+        let notify = self.state.notify.notified();
 
-        // Wait until watch is set to true or the tx side is dropped
-        while !*watch.borrow() {
-            if watch.changed().await.is_err() {
-                // tx side has been dropped
-                warn!("tracker watch dropped without signalling");
-                break;
-            }
+        if self.is_complete() {
+            return;
         }
+
+        notify.await
     }
 }
 
@@ -265,7 +264,7 @@ impl Clone for TaskRegistration {
 }
 
 impl TaskRegistration {
-    fn new(watch: tokio::sync::watch::Receiver<bool>) -> Self {
+    fn new() -> Self {
         let state = Arc::new(TrackerState {
             start_instant: Instant::now(),
             cpu_nanos: AtomicUsize::new(0),
@@ -274,7 +273,7 @@ impl TaskRegistration {
             created_futures: AtomicUsize::new(0),
             pending_futures: AtomicUsize::new(0),
             pending_registrations: AtomicUsize::new(1),
-            watch,
+            notify: Notify::new(),
         });
 
         Self { state }
@@ -306,14 +305,14 @@ mod tests {
     async fn test_lifecycle() {
         let (sender, receive) = oneshot::channel();
         let mut registry = TaskRegistry::new();
-        let (_, registration) = registry.register(());
+        let (tracker, registration) = registry.register(());
 
-        let task = tokio::spawn(receive.track(registration));
+        tokio::spawn(receive.track(registration));
 
         assert_eq!(registry.running().len(), 1);
 
         sender.send(()).unwrap();
-        task.await.unwrap().unwrap().unwrap();
+        tracker.join().await;
 
         assert_eq!(registry.running().len(), 0);
     }
@@ -323,25 +322,24 @@ mod tests {
         let (sender1, receive1) = oneshot::channel();
         let (sender2, receive2) = oneshot::channel();
         let mut registry = TaskRegistry::new();
-        let (_, registration1) = registry.register(1);
-        let (_, registration2) = registry.register(2);
+        let (t1, registration1) = registry.register(1);
+        let (t2, registration2) = registry.register(2);
 
-        let task1 = tokio::spawn(receive1.track(registration1));
-        let task2 = tokio::spawn(receive2.track(registration2));
+        tokio::spawn(receive1.track(registration1));
+        tokio::spawn(receive2.track(registration2));
 
         let tracked = sorted(registry.running());
         assert_eq!(get_metadata(&tracked), vec![1, 2]);
 
         sender2.send(()).unwrap();
-        task2.await.unwrap().unwrap().unwrap();
+        t2.join().await;
 
         let tracked: Vec<_> = sorted(registry.running());
         assert_eq!(get_metadata(&tracked), vec![1]);
 
         sender1.send(42).unwrap();
-        let ret = task1.await.unwrap().unwrap().unwrap();
+        t1.join().await;
 
-        assert_eq!(ret, 42);
         assert_eq!(registry.running().len(), 0);
     }
 

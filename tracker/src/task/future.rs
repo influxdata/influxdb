@@ -87,5 +87,14 @@ impl<F: Future> PinnedDrop for TrackedFuture<F> {
         // Failure implies a TrackedFuture has somehow been created
         // without it incrementing the pending_futures counter
         assert_ne!(previous, 0);
+
+        // Need to signal completion
+        if previous == 1 {
+            // Perform an acquire load to establish ordering with respect
+            // to all other decrements
+            state.pending_futures.load(Ordering::Acquire);
+
+            state.notify.notify_waiters();
+        }
     }
 }
