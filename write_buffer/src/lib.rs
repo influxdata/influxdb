@@ -7,10 +7,10 @@
     clippy::clone_on_ref_ptr
 )]
 
-//! # wal
+//! # Write Buffer
 //!
-//! This crate provides a local-disk based WAL tailored for InfluxDB
-//! IOx `Partition`s.
+//! This crate provides a local-disk based Write Buffer tailored for
+//! InfluxDB IOx `Partition`s.
 //!
 //! It is not currently connected to anything, but the intent is to
 //! permit IOx running in standalone mode better durability.
@@ -35,14 +35,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// WAL Writer and related utilties
+/// Write Buffer Writer and related utilties
 pub mod writer;
 
 /// Opaque public `Error` type
 #[derive(Debug, Snafu)]
 pub struct Error(InternalError);
 
-/// SequenceNumber is a u64 monotonically increasing number for each WAL entry
+/// SequenceNumber is a u64 monotonically increasing number for each Write
+/// Buffer entry
 pub type SequenceNumber = u64;
 
 #[derive(Debug, Snafu)]
@@ -132,25 +133,25 @@ enum InternalError {
     },
 }
 
-/// A specialized `Result` for WAL-related errors
+/// A specialized `Result` for Write Buffer-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Build a Wal rooted at a directory.
+/// Build a Write Buffer rooted at a directory.
 ///
 /// May take more configuration options in the future.
 #[derive(Debug, Clone)]
-pub struct WalBuilder {
+pub struct WriteBufferBuilder {
     root: PathBuf,
     file_rollover_size: u64,
 }
 
-impl WalBuilder {
-    /// The default size to create new WAL files at. Currently 10MiB.
+impl WriteBufferBuilder {
+    /// The default size to create new Write Buffer files at. Currently 10MiB.
     ///
-    /// See [WalBuilder::file_rollover_size]
+    /// See [WriteBufferBuilder::file_rollover_size]
     pub const DEFAULT_FILE_ROLLOVER_SIZE_BYTES: u64 = 10 * 1024 * 1024;
 
-    /// Create a new WAL rooted at the provided directory on disk.
+    /// Create a new Write Buffer rooted at the provided directory on disk.
     pub fn new(root: impl Into<PathBuf>) -> Self {
         // TODO: Error if `root` is not a directory?
         let root = root.into();
@@ -160,33 +161,33 @@ impl WalBuilder {
         }
     }
 
-    /// Set the size (in bytes) of each WAL file that should prompt a file
-    /// rollover when it is exceeded.
+    /// Set the size (in bytes) of each Write Buffer file that should prompt
+    /// a file rollover when it is exceeded.
     ///
     /// File rollover happens per sync batch. If the file is underneath this
     /// file size limit at the start of a sync operation, the entire sync
     /// batch will be written to that file even if some of the entries in
     /// the batch cause the file to exceed the file size limit.
     ///
-    /// See [WalBuilder::DEFAULT_FILE_ROLLOVER_SIZE_BYTES]
+    /// See [WriteBufferBuilder::DEFAULT_FILE_ROLLOVER_SIZE_BYTES]
     pub fn file_rollover_size(mut self, file_rollover_size: u64) -> Self {
         self.file_rollover_size = file_rollover_size;
         self
     }
 
-    /// Consume the builder and create a `Wal`.
+    /// Consume the builder and create a `WriteBuffer`.
     ///
     /// # Asynchronous considerations
     ///
     /// This method performs blocking IO and care should be taken when using
     /// it in an asynchronous context.
-    pub fn wal(self) -> Result<Wal> {
+    pub fn write_buffer(self) -> Result<WriteBuffer> {
         let rollover_size = self.file_rollover_size;
-        Wal::new(self.file_locator(), rollover_size)
+        WriteBuffer::new(self.file_locator(), rollover_size)
     }
 
     /// Consume the builder to get an iterator of all entries in this
-    /// WAL that have been persisted to disk.
+    /// Write Buffer that have been persisted to disk.
     ///
     /// Sequence numbers on the entries will be in increasing order, but if
     /// files have been modified or deleted since getting this iterator,
@@ -208,37 +209,39 @@ impl WalBuilder {
     }
 }
 
-/// The main WAL type to interact with.
+/// The main Write Buffer type to interact with.
 ///
 /// For use in single-threaded synchronous contexts. For multi-threading or
-/// asynchronous, you should wrap the WAL in the appropriate patterns.
+/// asynchronous, you should wrap the Write Buffer in the appropriate patterns.
 ///
 /// # Example
 ///
-/// This demonstrates using the WAL with the Tokio asynchronous runtime.
+/// This demonstrates using the Write Buffer with the Tokio asynchronous
+/// runtime.
 ///
 /// ```
 /// # fn example(root_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
-/// use wal::{WalBuilder, WritePayload};
+/// use write_buffer::{WriteBufferBuilder, WritePayload};
 ///
-/// // This wal should be either protected with a mutex or moved into a single
+/// // This Write Buffer should be either protected with a mutex or moved into a single
 /// // worker thread that receives writes from channels.
-/// let mut wal = WalBuilder::new(root_path).wal()?;
+/// let mut write_buffer = WriteBufferBuilder::new(root_path).write_buffer()?;
 ///
 /// // Now create a payload and append it
 /// let payload = WritePayload::new(Vec::from("some data"))?;
 ///
-/// // append will create a new WAL entry with its own sequence number, which is returned
-/// let sequence_number = wal.append(payload)?;
+/// // append will create a new Write Buffer entry with its own sequence number,
+/// // which is returned
+/// let sequence_number = write_buffer.append(payload)?;
 ///
-/// // after appends, call sync_all to fsync the underlying WAL file
-/// wal.sync_all()?;
+/// // after appends, call sync_all to fsync the underlying Write Buffer file
+/// write_buffer.sync_all()?;
 ///
 /// # Ok(())
 /// # }
 /// ```
 #[derive(Debug)]
-pub struct Wal {
+pub struct WriteBuffer {
     files: FileLocator,
     sequence_number: u64,
     total_size: u64,
@@ -246,7 +249,7 @@ pub struct Wal {
     file_rollover_size: u64,
 }
 
-impl Wal {
+impl WriteBuffer {
     fn new(files: FileLocator, file_rollover_size: u64) -> Result<Self> {
         let last_sequence_number = Loader::last_sequence_number(&files)?;
         let sequence_number = last_sequence_number.map_or(0, |last| last + 1);
@@ -262,14 +265,14 @@ impl Wal {
         })
     }
 
-    /// A path to a file for storing arbitrary metadata about this WAL,
+    /// A path to a file for storing arbitrary metadata about this Write Buffer,
     /// guaranteed not to collide with the data files.
     pub fn metadata_path(&self) -> PathBuf {
         self.files.root.join("metadata")
     }
 
-    /// Appends a WritePayload to the active segment file in the WAL and returns
-    /// its assigned sequence number.
+    /// Appends a WritePayload to the active segment file in the Write Buffer
+    /// and returns its assigned sequence number.
     ///
     /// To ensure the data is written to disk, `sync_all` should be called after
     /// a single or batch of append operations.
@@ -297,9 +300,10 @@ impl Wal {
         Ok(sequence_number)
     }
 
-    /// Total size, in bytes, of all the data in all the files in the WAL. If
-    /// files are deleted from disk without deleting them through the WAL,
-    /// the size won't reflect that deletion until the WAL is recreated.
+    /// Total size, in bytes, of all the data in all the files in the Write
+    /// Buffer. If files are deleted from disk without deleting them through
+    /// the Write Buffer, the size won't reflect that deletion until the
+    /// Write Buffer is recreated.
     pub fn total_size(&self) -> u64 {
         self.total_size
     }
@@ -342,7 +346,7 @@ impl Wal {
     }
 }
 
-// Manages files within the WAL directory
+// Manages files within the Write Buffer directory
 #[derive(Debug)]
 struct FileLocator {
     root: PathBuf,
@@ -350,7 +354,7 @@ struct FileLocator {
 }
 
 impl FileLocator {
-    const PREFIX: &'static str = "wal_";
+    const PREFIX: &'static str = "wb_";
     const EXTENSION: &'static str = "db";
 
     fn open_files_for_read(&self) -> Result<impl Iterator<Item = Result<Option<File>>> + '_> {
@@ -421,7 +425,7 @@ impl FileLocator {
             Regex::new(&pattern).expect("Hardcoded regex should be valid")
         });
 
-        let mut wal_paths: Vec<_> = fs::read_dir(&self.root)
+        let mut write_buffer_paths: Vec<_> = fs::read_dir(&self.root)
             .context(UnableToReadDirectoryContents { path: &self.root })?
             .flatten() // Discard errors
             .map(|e| e.path())
@@ -434,9 +438,9 @@ impl FileLocator {
             })
             .collect();
 
-        wal_paths.sort();
+        write_buffer_paths.sort();
 
-        Ok(wal_paths.into_iter())
+        Ok(write_buffer_paths.into_iter())
     }
 
     fn filename_starting_at_sequence_number(&self, starting_sequence_number: u64) -> PathBuf {
@@ -447,7 +451,7 @@ impl FileLocator {
     }
 }
 
-/// Produces an iterator over the on-disk entries in the WAL.
+/// Produces an iterator over the on-disk entries in the Write Buffer.
 ///
 /// # Asynchronous considerations
 ///
@@ -617,9 +621,9 @@ impl Header {
     }
 }
 
-/// One batch of data read from the WAL.
+/// One batch of data read from the Write Buffer.
 ///
-/// This corresponds to one call to `Wal::append`.
+/// This corresponds to one call to `WriteBuffer::append`.
 #[derive(Debug, Clone)]
 pub struct Entry {
     sequence_number: u64,
@@ -643,7 +647,7 @@ impl Entry {
     }
 }
 
-/// A single write to append to the WAL file
+/// A single write to append to the Write Buffer file
 #[derive(Debug)]
 pub struct WritePayload {
     checksum: u32,
@@ -689,57 +693,57 @@ mod tests {
     #[test]
     fn sequence_numbers_are_persisted() {
         let dir = test_helpers::tmp_dir().unwrap();
-        let builder = WalBuilder::new(dir.as_ref());
-        let mut wal;
+        let builder = WriteBufferBuilder::new(dir.as_ref());
+        let mut write_buffer;
 
-        // Create one in-memory WAL and sync it
+        // Create one in-memory Write Buffer and sync it
         {
-            wal = builder.clone().wal().unwrap();
+            write_buffer = builder.clone().write_buffer().unwrap();
 
             let data = Vec::from("somedata");
             let data = WritePayload::new(data).unwrap();
-            let seq = wal.append(data).unwrap();
+            let seq = write_buffer.append(data).unwrap();
             assert_eq!(0, seq);
-            wal.sync_all().unwrap();
+            write_buffer.sync_all().unwrap();
         }
 
         // Pretend the process restarts
         {
-            wal = builder.wal().unwrap();
+            write_buffer = builder.write_buffer().unwrap();
 
-            assert_eq!(1, wal.sequence_number);
+            assert_eq!(1, write_buffer.sequence_number);
         }
     }
 
     #[test]
     fn sequence_numbers_increase_by_number_of_pending_entries() {
         let dir = test_helpers::tmp_dir().unwrap();
-        let builder = WalBuilder::new(dir.as_ref());
-        let mut wal = builder.wal().unwrap();
+        let builder = WriteBufferBuilder::new(dir.as_ref());
+        let mut write_buffer = builder.write_buffer().unwrap();
 
         // Write 1 entry then sync
         let data = Vec::from("some");
         let data = WritePayload::new(data).unwrap();
-        let seq = wal.append(data).unwrap();
-        wal.sync_all().unwrap();
+        let seq = write_buffer.append(data).unwrap();
+        write_buffer.sync_all().unwrap();
         assert_eq!(0, seq);
 
         // Sequence number should increase by 1
-        assert_eq!(1, wal.sequence_number);
+        assert_eq!(1, write_buffer.sequence_number);
 
         // Write 2 entries then sync
         let data = Vec::from("other");
         let data = WritePayload::new(data).unwrap();
-        let seq = wal.append(data).unwrap();
+        let seq = write_buffer.append(data).unwrap();
         assert_eq!(1, seq);
 
         let data = Vec::from("again");
         let data = WritePayload::new(data).unwrap();
-        let seq = wal.append(data).unwrap();
+        let seq = write_buffer.append(data).unwrap();
         assert_eq!(2, seq);
-        wal.sync_all().unwrap();
+        write_buffer.sync_all().unwrap();
 
         // Sequence number should increase by 2
-        assert_eq!(3, wal.sequence_number);
+        assert_eq!(3, write_buffer.sequence_number);
     }
 }

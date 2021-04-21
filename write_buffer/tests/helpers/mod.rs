@@ -2,21 +2,21 @@
 #![allow(dead_code)]
 
 use std::{fs, path::PathBuf};
-use write_buffer::{Entry, WalBuilder};
+use write_buffer::{Entry, WriteBufferBuilder};
 
 type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub type Result<T = (), E = TestError> = std::result::Result<T, E>;
 
-pub fn wal_file_names(dir: impl Into<PathBuf>) -> Vec<String> {
-    wal_paths(dir)
+pub fn write_buffer_file_names(dir: impl Into<PathBuf>) -> Vec<String> {
+    write_buffer_paths(dir)
         .iter()
         .filter_map(|path| path.file_name().map(|p| p.to_string_lossy().to_string()))
         .collect()
 }
 
-pub fn wal_paths(dir: impl Into<PathBuf>) -> Vec<PathBuf> {
+pub fn write_buffer_paths(dir: impl Into<PathBuf>) -> Vec<PathBuf> {
     let mut paths: Vec<_> = fs::read_dir(&dir.into())
-        .expect("Cannot read WAL directory")
+        .expect("Cannot read Write Buffer directory")
         .flatten() // Ignore errors
         .map(|entry| entry.path())
         .collect();
@@ -25,7 +25,7 @@ pub fn wal_paths(dir: impl Into<PathBuf>) -> Vec<PathBuf> {
 }
 
 pub fn total_size_on_disk(dir: impl Into<PathBuf>) -> u64 {
-    wal_paths(&dir.into())
+    write_buffer_paths(&dir.into())
         .iter()
         .map(|file| {
             fs::metadata(file)
@@ -36,10 +36,10 @@ pub fn total_size_on_disk(dir: impl Into<PathBuf>) -> u64 {
 }
 
 pub fn file_name_for_sequence_number(id: u64) -> String {
-    format!("wal_{:016x}.db", id)
+    format!("wb_{:016x}.db", id)
 }
 
-pub fn all_entries(builder: &WalBuilder) -> Result<Vec<Entry>> {
+pub fn all_entries(builder: &WriteBufferBuilder) -> Result<Vec<Entry>> {
     builder
         .clone()
         .entries()?
@@ -49,7 +49,7 @@ pub fn all_entries(builder: &WalBuilder) -> Result<Vec<Entry>> {
 
 macro_rules! assert_filenames_for_sequence_numbers {
     ($dir:expr, [$($id:expr),* $(,)?] $(,)?) => {{
-        let actual = wal_file_names(&$dir.as_ref());
+        let actual = write_buffer_file_names(&$dir.as_ref());
         let expected = [$(file_name_for_sequence_number($id)),*];
         assert_eq!(actual, expected);
     }};
@@ -63,13 +63,13 @@ macro_rules! assert_entry {
 }
 
 macro_rules! create_and_sync_batch {
-    ($wal:expr, [$($entry:expr),* $(,)?] $(,)?) => {{
+    ($write_buffer:expr, [$($entry:expr),* $(,)?] $(,)?) => {{
         $({
             let data = Vec::from($entry);
             let data = WritePayload::new(data)?;
-            $wal.append(data)?;
+            $write_buffer.append(data)?;
         })*
 
-        $wal.sync_all()?;
+        $write_buffer.sync_all()?;
     }};
 }
