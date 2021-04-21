@@ -423,6 +423,9 @@ where
     let path = req.uri().path().to_string();
     let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
 
+    // TODO - metrics. Implement a macro/something that will catch all the
+    // early returns.
+
     // TODO(edd): figure out best way of catching all errors in this observation.
     let obs = server.metrics.http_requests.observation(); // instrument request
 

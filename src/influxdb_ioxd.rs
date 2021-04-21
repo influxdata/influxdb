@@ -1,6 +1,7 @@
 use crate::commands::run::{Config, ObjectStore as ObjStoreOpt};
 use futures::{future::FusedFuture, pin_mut, FutureExt};
 use hyper::server::conn::AddrIncoming;
+use metrics::MetricRegistry;
 use object_store::{
     self, aws::AmazonS3, azure::MicrosoftAzure, gcp::GoogleCloudStorage, ObjectStore,
 };
