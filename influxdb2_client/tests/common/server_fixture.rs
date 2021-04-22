@@ -11,13 +11,12 @@ use std::{
 use tokio::sync::Mutex;
 
 #[macro_export]
-/// If InfluxDB 2.0 OSS is available (either locally via `influxd` directly if
-/// the `INFLUXDB_IOX_INTEGRATION_LOCAL` environment variable is set, or via
-/// `docker` otherwise), set up the server as requested and return it to the caller.
+/// If `TEST_INTEGRATION` is set and InfluxDB 2.0 OSS is available (either locally
+/// via `influxd` directly if  the `INFLUXDB_IOX_INTEGRATION_LOCAL` environment
+// variable is set, or via `docker` otherwise), set up the server as requested and
+/// return it to the caller.
 ///
-/// If InfluxDB is not available, skip the calling test by returning
-/// early. Additionally if `TEST_INTEGRATION` is set, turn this early return
-/// into a panic to force a hard fail for skipped integration tests.
+/// If `TEST_INTEGRATION` is not set, skip the calling test by returning early.
 macro_rules! maybe_skip_integration {
     ($server_fixture:expr) => {{
         let local = std::env::var("INFLUXDB_IOX_INTEGRATION_LOCAL").is_ok();
@@ -32,7 +31,7 @@ macro_rules! maybe_skip_integration {
                 .success(),
             std::env::var("TEST_INTEGRATION").is_ok(),
         ) {
-            (true, _) => $server_fixture,
+            (true, true) => $server_fixture,
             (false, true) => {
                 panic!(
                     "TEST_INTEGRATION is set which requires running integration tests, but \
@@ -41,7 +40,11 @@ macro_rules! maybe_skip_integration {
                 )
             }
             _ => {
-                eprintln!("skipping integration test - install `{}` to run", command);
+                eprintln!(
+                    "skipping integration test - set the TEST_INTEGRATION environment variable \
+                     and install `{}` to run",
+                    command
+                );
                 return Ok(());
             }
         }
