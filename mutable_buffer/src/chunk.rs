@@ -1,12 +1,15 @@
 //! Represents a Chunk of data (a collection of tables and their data within
 //! some chunk) in the mutable store.
-use std::collections::{BTreeSet, HashMap};
-use std::sync::Arc;
+use std::{
+    collections::{BTreeSet, HashMap},
+    convert::TryFrom,
+    sync::Arc,
+};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use arrow_deps::arrow::record_batch::RecordBatch;
-use data_types::{database_rules::WriterId, partition_metadata::TableSummary};
+use data_types::{partition_metadata::TableSummary, server_id::ServerId};
 use internal_types::{
     entry::{ClockValue, TableBatch},
     selection::Selection,
@@ -100,7 +103,7 @@ impl Chunk {
     pub fn write_table_batches(
         &mut self,
         clock_value: ClockValue,
-        writer_id: WriterId,
+        server_id: ServerId,
         batches: &[TableBatch<'_>],
     ) -> Result<()> {
         for batch in batches {
@@ -114,7 +117,7 @@ impl Chunk {
 
             let columns = batch.columns();
             table
-                .write_columns(&mut self.dictionary, clock_value, writer_id, columns)
+                .write_columns(&mut self.dictionary, clock_value, server_id, columns)
                 .context(TableWrite { table_name })?;
         }
 
@@ -238,12 +241,16 @@ pub mod test_helpers {
 
     /// A helper that will write line protocol string to the passed in Chunk.
     /// All data will be under a single partition with a clock value and
-    /// writer id of 0.
+    /// server id of 1.
     pub fn write_lp_to_chunk(lp: &str, chunk: &mut Chunk) -> Result<()> {
         let entry = lp_to_entry(lp);
 
         for w in entry.partition_writes().unwrap() {
-            chunk.write_table_batches(ClockValue::new(0), 0, &w.table_batches())?;
+            chunk.write_table_batches(
+                ClockValue::new(0),
+                ServerId::try_from(1).unwrap(),
+                &w.table_batches(),
+            )?;
         }
 
         Ok(())

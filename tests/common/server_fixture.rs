@@ -1,7 +1,6 @@
 use assert_cmd::prelude::*;
 use std::{
     fs::File,
-    num::NonZeroU32,
     process::{Child, Command},
     str,
     sync::{
@@ -359,7 +358,7 @@ impl TestServer {
         let channel = self.grpc_channel().await.expect("gRPC should be running");
         let mut management_client = influxdb_iox_client::management::Client::new(channel);
 
-        if let Ok(id) = management_client.get_writer_id().await {
+        if let Ok(id) = management_client.get_server_id().await {
             // tell others that this server had some problem
             *ready = ServerState::Error;
             std::mem::drop(ready);
@@ -369,10 +368,10 @@ impl TestServer {
         // Set the writer id, if requested
         match initial_config {
             InitialConfig::SetWriterId => {
-                let id = NonZeroU32::new(42).expect("42 is non zero, among its other properties");
+                let id = 42;
 
                 management_client
-                    .update_writer_id(id)
+                    .update_server_id(id)
                     .await
                     .expect("set ID failed");
 

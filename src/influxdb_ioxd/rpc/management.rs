@@ -2,8 +2,10 @@ use std::convert::{TryFrom, TryInto};
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use data_types::{database_rules::DatabaseRules, server_id::ServerId};
-use data_types::{field_validation::FromFieldOpt, DatabaseName};
+use data_types::{
+    database_rules::DatabaseRules, field_validation::FromFieldOpt, server_id::ServerId,
+    DatabaseName,
+};
 use generated_types::google::{
     AlreadyExists, FieldViolation, FieldViolationExt, InternalError, NotFound,
 };
@@ -51,29 +53,29 @@ impl<M> management_service_server::ManagementService for ManagementService<M>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    async fn get_writer_id(
+    async fn get_server_id(
         &self,
-        _: Request<GetWriterIdRequest>,
-    ) -> Result<Response<GetWriterIdResponse>, Status> {
+        _: Request<GetServerIdRequest>,
+    ) -> Result<Response<GetServerIdResponse>, Status> {
         match self.server.require_id().ok() {
-            Some(id) => Ok(Response::new(GetWriterIdResponse { id: id.get_u32() })),
+            Some(id) => Ok(Response::new(GetServerIdResponse { id: id.get_u32() })),
             None => return Err(NotFound::default().into()),
         }
     }
 
-    async fn update_writer_id(
+    async fn update_server_id(
         &self,
-        request: Request<UpdateWriterIdRequest>,
-    ) -> Result<Response<UpdateWriterIdResponse>, Status> {
+        request: Request<UpdateServerIdRequest>,
+    ) -> Result<Response<UpdateServerIdResponse>, Status> {
         let id =
             ServerId::try_from(request.get_ref().id).map_err(|_| FieldViolation::required("id"))?;
 
         match self.server.set_id(id) {
-            Ok(_) => Ok(Response::new(UpdateWriterIdResponse {})),
-            Err(Error::IdAlreadySet { id }) => {
+            Ok(_) => Ok(Response::new(UpdateServerIdResponse {})),
+            Err(e @ Error::IdAlreadySet { .. }) => {
                 return Err(FieldViolation {
                     field: "id".to_string(),
-                    description: format!("id already set to {}", id),
+                    description: e.to_string(),
                 }
                 .into())
             }
@@ -208,7 +210,7 @@ where
             .remotes_sorted()
             .into_iter()
             .map(|(id, connection_string)| Remote {
-                id,
+                id: id.get_u32(),
                 connection_string,
             })
             .collect();
@@ -223,11 +225,10 @@ where
             .into_inner()
             .remote
             .ok_or_else(|| FieldViolation::required("remote"))?;
-        if remote.id == 0 {
-            return Err(FieldViolation::required("id").scope("remote").into());
-        }
+        let remote_id = ServerId::try_from(remote.id)
+            .map_err(|_| FieldViolation::required("id").scope("remote"))?;
         self.server
-            .update_remote(remote.id, remote.connection_string);
+            .update_remote(remote_id, remote.connection_string);
         Ok(Response::new(UpdateRemoteResponse {}))
     }
 
@@ -236,11 +237,10 @@ where
         request: Request<DeleteRemoteRequest>,
     ) -> Result<Response<DeleteRemoteResponse>, Status> {
         let request = request.into_inner();
-        if request.id == 0 {
-            return Err(FieldViolation::required("id").into());
-        }
+        let remote_id =
+            ServerId::try_from(request.id).map_err(|_| FieldViolation::required("id"))?;
         self.server
-            .delete_remote(request.id)
+            .delete_remote(remote_id)
             .ok_or_else(NotFound::default)?;
 
         Ok(Response::new(DeleteRemoteResponse {}))

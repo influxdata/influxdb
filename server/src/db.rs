@@ -363,7 +363,7 @@ impl Db {
             ),
             default_labels: vec![
                 metrics::KeyValue::new("db_name", db_name.to_string()),
-                metrics::KeyValue::new("svr_id", format!("{:?}", server_id)),
+                metrics::KeyValue::new("svr_id", format!("{}", server_id)),
             ],
         };
         Self {
@@ -917,7 +917,7 @@ impl Db {
                     mb_chunk
                         .write_table_batches(
                             sequenced_entry.clock_value(),
-                            sequenced_entry.writer_id(),
+                            sequenced_entry.server_id(),
                             &[table_batch],
                         )
                         .context(WriteEntry {

@@ -276,8 +276,7 @@ mod tests {
 
     use super::*;
     use crate::db::test_helpers::write_lp;
-    use data_types::DatabaseName;
-    use data_types::{database_rules::DatabaseRules, server_id::ServerId};
+    use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
     use futures::TryStreamExt;
     use mutable_buffer::chunk::Chunk as ChunkWB;
     use object_store::memory::InMemory;

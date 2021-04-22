@@ -1,9 +1,6 @@
 //! This module contains code for managing the Write Buffer
 
-use data_types::{
-    database_rules::{WriteBufferRollover, WriterId},
-    DatabaseName,
-};
+use data_types::{database_rules::WriteBufferRollover, server_id::ServerId, DatabaseName};
 use generated_types::wb;
 use internal_types::data::ReplicatedWrite;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
@@ -38,19 +35,24 @@ pub enum Error {
     UnableToDropSegment { size: u64, segment_count: usize },
 
     #[snafu(display(
-        "Sequence from writer {} out of order. Current: {}, incomming {}",
-        writer,
+        "Sequence from server {} out of order. Current: {}, incomming {}",
+        server,
         current_sequence,
         incoming_sequence,
     ))]
     SequenceOutOfOrder {
-        writer: WriterId,
+        server: ServerId,
         current_sequence: u64,
         incoming_sequence: u64,
     },
 
     #[snafu(display("segment id must be between [1, 1,000,000,000)"))]
     SegmentIdOutOfBounds,
+
+    #[snafu(display("Server ID must not be 0: {}", source))]
+    ServerIdInvalid {
+        source: data_types::server_id::Error,
+    },
 
     #[snafu(display("unable to compress segment id {}: {}", segment_id, source))]
     UnableToCompressData {
@@ -283,7 +285,7 @@ pub struct Segment {
     pub(crate) id: u64,
     size: u64,
     pub writes: Vec<Arc<ReplicatedWrite>>,
-    writers: BTreeMap<WriterId, WriterSummary>,
+    writers: BTreeMap<ServerId, WriterSummary>,
     // Time this segment was initialized
     created_at: DateTime<Utc>,
     // Persistence metadata if segment is persisted
@@ -316,8 +318,8 @@ impl Segment {
     // appends the write to the segment, keeping track of the summary information
     // about the writer
     fn append(&mut self, write: Arc<ReplicatedWrite>) -> Result<()> {
-        let (writer_id, sequence_number) = write.writer_and_sequence();
-        self.validate_and_update_sequence_summary(writer_id, sequence_number)?;
+        let (server_id, sequence_number) = write.writer_and_sequence();
+        self.validate_and_update_sequence_summary(server_id, sequence_number)?;
 
         let size = write.data().len();
         let size = u64::try_from(size).expect("appended data must be less than a u64 in length");
@@ -332,14 +334,14 @@ impl Segment {
     // and if any were missing.
     fn validate_and_update_sequence_summary(
         &mut self,
-        writer_id: WriterId,
+        server_id: ServerId,
         sequence_number: u64,
     ) -> Result<()> {
-        match self.writers.get_mut(&writer_id) {
+        match self.writers.get_mut(&server_id) {
             Some(summary) => {
                 if summary.end_sequence >= sequence_number {
                     return SequenceOutOfOrder {
-                        writer: writer_id,
+                        server: server_id,
                         current_sequence: summary.end_sequence,
                         incoming_sequence: sequence_number,
                     }
@@ -357,7 +359,7 @@ impl Segment {
                     missing_sequence: false,
                 };
 
-                self.writers.insert(writer_id, summary);
+                self.writers.insert(server_id, summary);
             }
         }
 
@@ -380,12 +382,12 @@ impl Segment {
     pub fn persist_bytes_in_background(
         &self,
         tracker: TaskRegistration,
-        writer_id: u32,
+        server_id: ServerId,
         db_name: &DatabaseName<'_>,
         store: Arc<ObjectStore>,
     ) -> Result<()> {
-        let data = self.to_file_bytes(writer_id)?;
-        let location = database_object_store_path(writer_id, db_name, &store);
+        let data = self.to_file_bytes(server_id)?;
+        let location = database_object_store_path(server_id, db_name, &store);
         let location = object_store_path_for_segment(&location, self.id)?;
 
         let len = data.len();
@@ -419,7 +421,7 @@ impl Segment {
     }
 
     /// converts the segment to its flatbuffer bytes
-    fn fb_bytes(&self, writer_id: u32) -> Vec<u8> {
+    fn fb_bytes(&self, server_id: ServerId) -> Vec<u8> {
         let mut fbb = flatbuffers::FlatBufferBuilder::new_with_capacity(
             usize::try_from(self.size).expect("unable to serialize segment of this size"),
         );
@@ -442,7 +444,7 @@ impl Segment {
             &mut fbb,
             &wb::SegmentArgs {
                 id: self.id,
-                writer_id,
+                server_id: server_id.get_u32(),
                 writes: Some(writes),
             },
         );
@@ -468,8 +470,8 @@ impl Segment {
     /// serialize the segment to the bytes to represent it in a file. This
     /// compresses the flatbuffers payload and writes a crc32 checksum at
     /// the end.
-    pub fn to_file_bytes(&self, writer_id: u32) -> Result<Bytes> {
-        let fb_bytes = self.fb_bytes(writer_id);
+    pub fn to_file_bytes(&self, server_id: ServerId) -> Result<Bytes> {
+        let fb_bytes = self.fb_bytes(server_id);
 
         let mut encoder = snap::raw::Encoder::new();
         let mut compressed_data =
@@ -518,12 +520,14 @@ impl Segment {
             .writes()
             .context(FlatbuffersMissingField { field: "writes" })?;
         let mut segment = Self::new_with_capacity(fb_segment.id(), writes.len());
+        let server_id = ServerId::try_from(fb_segment.server_id()).context(ServerIdInvalid)?;
         for w in writes {
             let data = w
                 .payload()
                 .context(FlatbuffersMissingField { field: "payload" })?
                 .to_vec();
-            let rw = ReplicatedWrite::try_from(data).context(InvalidFlatbuffersSegment)?;
+            let rw =
+                ReplicatedWrite::try_from((data, server_id)).context(InvalidFlatbuffersSegment)?;
 
             segment.append(Arc::new(rw))?;
         }
@@ -534,7 +538,7 @@ impl Segment {
 
 #[derive(Debug, Clone, Copy)]
 pub struct WriterSequence {
-    pub id: WriterId,
+    pub id: ServerId,
     pub sequence: u64,
 }
 
@@ -569,12 +573,12 @@ fn object_store_path_for_segment<P: ObjectStorePath>(root_path: &P, segment_id: 
 
 // base location in object store for a given database name
 fn database_object_store_path(
-    writer_id: u32,
+    server_id: ServerId,
     database_name: &DatabaseName<'_>,
     store: &ObjectStore,
 ) -> object_store::path::Path {
     let mut path = store.new_path();
-    path.push_dir(format!("{}", writer_id));
+    path.push_dir(format!("{}", server_id));
     path.push_dir(database_name.to_string());
     path
 }
@@ -592,7 +596,8 @@ mod tests {
         let max = 1 << 32;
         let segment = 1 << 16;
         let mut buf = Buffer::new(max, segment, WriteBufferRollover::ReturnError, false);
-        let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
+        let server_id = ServerId::try_from(1).unwrap();
+        let write = lp_to_replicated_write(server_id, 1, "cpu val=1 10");
 
         let size = write.data().len() as u64;
         assert_eq!(0, buf.size());
@@ -600,7 +605,7 @@ mod tests {
         assert_eq!(size, buf.size());
         assert!(segment.is_none());
 
-        let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id, 2, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         assert_eq!(size * 2, buf.size());
         assert!(segment.is_none());
@@ -611,13 +616,14 @@ mod tests {
         let max = 1 << 16;
         let segment = 1;
         let mut buf = Buffer::new(max, segment, WriteBufferRollover::ReturnError, false);
-        let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
+        let server_id = ServerId::try_from(1).unwrap();
+        let write = lp_to_replicated_write(server_id, 1, "cpu val=1 10");
 
         let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(segment.id, 1);
 
-        let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id, 2, "cpu val=1 10");
 
         let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
@@ -629,8 +635,9 @@ mod tests {
         let max = 600;
         let segment = 1;
         let mut buf = Buffer::new(max, segment, WriteBufferRollover::ReturnError, false);
+        let server_id = ServerId::try_from(1).unwrap();
 
-        let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id, 1, "cpu val=1 10");
         let segment = buf.append(write).unwrap().unwrap();
         assert_eq!(1, segment.id);
         assert!(segment.persisted().is_none());
@@ -639,7 +646,7 @@ mod tests {
             time: Utc::now(),
         });
 
-        let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id, 2, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(2, segment.id);
@@ -648,7 +655,7 @@ mod tests {
         assert_eq!(1, buf.closed_segments[0].id);
         assert_eq!(2, buf.closed_segments[1].id);
 
-        let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id, 3, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(3, segment.id);
@@ -664,12 +671,13 @@ mod tests {
         let max = 600;
         let segment = 1;
         let mut buf = Buffer::new(max, segment, WriteBufferRollover::DropOldSegment, false);
+        let server_id = ServerId::try_from(1).unwrap();
 
-        let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id, 1, "cpu val=1 10");
         let segment = buf.append(write).unwrap().unwrap();
         assert_eq!(1, segment.id);
 
-        let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id, 2, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(2, segment.id);
@@ -678,7 +686,7 @@ mod tests {
         assert_eq!(1, buf.closed_segments[0].id);
         assert_eq!(2, buf.closed_segments[1].id);
 
-        let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id, 3, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(3, segment.id);
@@ -693,12 +701,13 @@ mod tests {
         let max = 600;
         let segment = 1;
         let mut buf = Buffer::new(max, segment, WriteBufferRollover::DropIncoming, false);
+        let server_id = ServerId::try_from(1).unwrap();
 
-        let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id, 1, "cpu val=1 10");
         let segment = buf.append(write).unwrap().unwrap();
         assert_eq!(1, segment.id);
 
-        let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id, 2, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(2, segment.id);
@@ -707,7 +716,7 @@ mod tests {
         assert_eq!(1, buf.closed_segments[0].id);
         assert_eq!(2, buf.closed_segments[1].id);
 
-        let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id, 3, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
@@ -721,12 +730,13 @@ mod tests {
         let max = 600;
         let segment = 1;
         let mut buf = Buffer::new(max, segment, WriteBufferRollover::ReturnError, false);
+        let server_id = ServerId::try_from(1).unwrap();
 
-        let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id, 1, "cpu val=1 10");
         let segment = buf.append(write).unwrap().unwrap();
         assert_eq!(1, segment.id);
 
-        let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id, 2, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(2, segment.id);
@@ -735,7 +745,7 @@ mod tests {
         assert_eq!(1, buf.closed_segments[0].id);
         assert_eq!(2, buf.closed_segments[1].id);
 
-        let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id, 3, "cpu val=1 10");
         assert!(buf.append(write).is_err());
 
         assert_eq!(2, buf.closed_segments.len());
@@ -746,134 +756,170 @@ mod tests {
     #[test]
     fn all_writes_since() {
         let max = 1 << 63;
-        let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
+        let server_id1 = ServerId::try_from(1).unwrap();
+        let server_id2 = ServerId::try_from(2).unwrap();
+        let server_id3 = ServerId::try_from(3).unwrap();
+        let write = lp_to_replicated_write(server_id1, 1, "cpu val=1 10");
         let segment = (write.data().len() + 1) as u64;
         let mut buf = Buffer::new(max, segment, WriteBufferRollover::ReturnError, false);
 
         let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
-        let write = lp_to_replicated_write(2, 1, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id2, 1, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(1, segment.id);
 
-        let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id1, 2, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
-        let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id1, 3, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(2, segment.id);
 
-        let write = lp_to_replicated_write(2, 2, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id2, 2, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
-        let writes = buf.all_writes_since(WriterSequence { id: 0, sequence: 1 });
+        let writes = buf.all_writes_since(WriterSequence {
+            id: server_id3,
+            sequence: 1,
+        });
         assert_eq!(5, writes.len());
-        assert!(writes[0].equal_to_writer_and_sequence(1, 1));
-        assert!(writes[1].equal_to_writer_and_sequence(2, 1));
-        assert!(writes[2].equal_to_writer_and_sequence(1, 2));
-        assert!(writes[3].equal_to_writer_and_sequence(1, 3));
-        assert!(writes[4].equal_to_writer_and_sequence(2, 2));
+        assert!(writes[0].equal_to_writer_and_sequence(server_id1, 1));
+        assert!(writes[1].equal_to_writer_and_sequence(server_id2, 1));
+        assert!(writes[2].equal_to_writer_and_sequence(server_id1, 2));
+        assert!(writes[3].equal_to_writer_and_sequence(server_id1, 3));
+        assert!(writes[4].equal_to_writer_and_sequence(server_id2, 2));
 
-        let writes = buf.all_writes_since(WriterSequence { id: 1, sequence: 1 });
+        let writes = buf.all_writes_since(WriterSequence {
+            id: server_id1,
+            sequence: 1,
+        });
         assert_eq!(4, writes.len());
-        assert!(writes[0].equal_to_writer_and_sequence(2, 1));
-        assert!(writes[1].equal_to_writer_and_sequence(1, 2));
-        assert!(writes[2].equal_to_writer_and_sequence(1, 3));
-        assert!(writes[3].equal_to_writer_and_sequence(2, 2));
+        assert!(writes[0].equal_to_writer_and_sequence(server_id2, 1));
+        assert!(writes[1].equal_to_writer_and_sequence(server_id1, 2));
+        assert!(writes[2].equal_to_writer_and_sequence(server_id1, 3));
+        assert!(writes[3].equal_to_writer_and_sequence(server_id2, 2));
 
-        let writes = buf.all_writes_since(WriterSequence { id: 2, sequence: 1 });
+        let writes = buf.all_writes_since(WriterSequence {
+            id: server_id2,
+            sequence: 1,
+        });
         assert_eq!(3, writes.len());
-        assert!(writes[0].equal_to_writer_and_sequence(1, 2));
-        assert!(writes[1].equal_to_writer_and_sequence(1, 3));
-        assert!(writes[2].equal_to_writer_and_sequence(2, 2));
+        assert!(writes[0].equal_to_writer_and_sequence(server_id1, 2));
+        assert!(writes[1].equal_to_writer_and_sequence(server_id1, 3));
+        assert!(writes[2].equal_to_writer_and_sequence(server_id2, 2));
 
-        let writes = buf.all_writes_since(WriterSequence { id: 1, sequence: 3 });
+        let writes = buf.all_writes_since(WriterSequence {
+            id: server_id1,
+            sequence: 3,
+        });
         assert_eq!(1, writes.len());
-        assert!(writes[0].equal_to_writer_and_sequence(2, 2));
+        assert!(writes[0].equal_to_writer_and_sequence(server_id2, 2));
 
-        let writes = buf.all_writes_since(WriterSequence { id: 2, sequence: 2 });
+        let writes = buf.all_writes_since(WriterSequence {
+            id: server_id2,
+            sequence: 2,
+        });
         assert_eq!(0, writes.len());
     }
 
     #[test]
     fn writes_since() {
         let max = 1 << 63;
-        let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
+        let server_id1 = ServerId::try_from(1).unwrap();
+        let server_id2 = ServerId::try_from(2).unwrap();
+        let server_id3 = ServerId::try_from(3).unwrap();
+        let write = lp_to_replicated_write(server_id1, 1, "cpu val=1 10");
         let segment = (write.data().len() + 1) as u64;
         let mut buf = Buffer::new(max, segment, WriteBufferRollover::ReturnError, false);
 
         let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
-        let write = lp_to_replicated_write(2, 1, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id2, 1, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(1, segment.id);
 
-        let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id1, 2, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
-        let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id1, 3, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(2, segment.id);
 
-        let write = lp_to_replicated_write(2, 2, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id2, 2, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
-        let writes = buf.writes_since(WriterSequence { id: 0, sequence: 1 });
+        let writes = buf.writes_since(WriterSequence {
+            id: server_id3,
+            sequence: 1,
+        });
         assert_eq!(0, writes.len());
 
-        let writes = buf.writes_since(WriterSequence { id: 1, sequence: 0 });
+        let writes = buf.writes_since(WriterSequence {
+            id: server_id1,
+            sequence: 0,
+        });
         assert_eq!(3, writes.len());
-        assert!(writes[0].equal_to_writer_and_sequence(1, 1));
-        assert!(writes[1].equal_to_writer_and_sequence(1, 2));
-        assert!(writes[2].equal_to_writer_and_sequence(1, 3));
+        assert!(writes[0].equal_to_writer_and_sequence(server_id1, 1));
+        assert!(writes[1].equal_to_writer_and_sequence(server_id1, 2));
+        assert!(writes[2].equal_to_writer_and_sequence(server_id1, 3));
 
-        let writes = buf.writes_since(WriterSequence { id: 1, sequence: 1 });
+        let writes = buf.writes_since(WriterSequence {
+            id: server_id1,
+            sequence: 1,
+        });
         assert_eq!(2, writes.len());
-        assert!(writes[0].equal_to_writer_and_sequence(1, 2));
-        assert!(writes[1].equal_to_writer_and_sequence(1, 3));
+        assert!(writes[0].equal_to_writer_and_sequence(server_id1, 2));
+        assert!(writes[1].equal_to_writer_and_sequence(server_id1, 3));
 
-        let writes = buf.writes_since(WriterSequence { id: 2, sequence: 1 });
+        let writes = buf.writes_since(WriterSequence {
+            id: server_id2,
+            sequence: 1,
+        });
         assert_eq!(1, writes.len());
-        assert!(writes[0].equal_to_writer_and_sequence(2, 2));
+        assert!(writes[0].equal_to_writer_and_sequence(server_id2, 2));
     }
 
     #[test]
     fn returns_error_if_sequence_decreases() {
         let max = 1 << 63;
-        let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
+        let server_id = ServerId::try_from(1).unwrap();
+        let write = lp_to_replicated_write(server_id, 3, "cpu val=1 10");
         let segment = (write.data().len() + 1) as u64;
         let mut buf = Buffer::new(max, segment, WriteBufferRollover::ReturnError, false);
 
         let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
-        let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id, 1, "cpu val=1 10");
         assert!(buf.append(write).is_err());
     }
 
     #[test]
     fn segment_keeps_writer_summaries() {
         let mut segment = Segment::new(1);
-        let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
+        let server_id1 = ServerId::try_from(1).unwrap();
+        let server_id2 = ServerId::try_from(2).unwrap();
+        let write = lp_to_replicated_write(server_id1, 1, "cpu val=1 10");
         segment.append(write).unwrap();
-        let write = lp_to_replicated_write(2, 1, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id2, 1, "cpu val=1 10");
         segment.append(write).unwrap();
-        let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id1, 2, "cpu val=1 10");
         segment.append(write).unwrap();
-        let write = lp_to_replicated_write(2, 4, "cpu val=1 10");
+        let write = lp_to_replicated_write(server_id2, 4, "cpu val=1 10");
         segment.append(write).unwrap();
 
-        let summary = segment.writers.get(&1).unwrap();
+        let summary = segment.writers.get(&server_id1).unwrap();
         assert_eq!(
             &WriterSummary {
                 start_sequence: 1,
@@ -883,7 +929,7 @@ mod tests {
             summary
         );
 
-        let summary = segment.writers.get(&2).unwrap();
+        let summary = segment.writers.get(&server_id2).unwrap();
         assert_eq!(
             &WriterSummary {
                 start_sequence: 1,
@@ -936,17 +982,17 @@ mod tests {
 
     #[test]
     fn segment_serialize_deserialize() {
+        let server_id = ServerId::try_from(1).unwrap();
         let id = 1;
         let mut segment = Segment::new(id);
-        let writer_id = 2;
         segment
-            .append(lp_to_replicated_write(writer_id, 0, "foo val=1 123"))
+            .append(lp_to_replicated_write(server_id, 0, "foo val=1 123"))
             .unwrap();
         segment
-            .append(lp_to_replicated_write(writer_id, 1, "foo val=2 124"))
+            .append(lp_to_replicated_write(server_id, 1, "foo val=2 124"))
             .unwrap();
 
-        let data = segment.to_file_bytes(writer_id).unwrap();
+        let data = segment.to_file_bytes(server_id).unwrap();
         let recovered_segment = Segment::from_file_bytes(&data).unwrap();
 
         assert_eq!(segment.id, recovered_segment.id);
@@ -955,14 +1001,14 @@ mod tests {
     }
 
     fn lp_to_replicated_write(
-        writer_id: u32,
+        server_id: ServerId,
         sequence_number: u64,
         lp: &str,
     ) -> Arc<ReplicatedWrite> {
         let lines: Vec<_> = parse_lines(lp).map(|l| l.unwrap()).collect();
         let partitioner = PartitionTemplate::default();
         Arc::new(lines_to_replicated_write(
-            writer_id,
+            server_id,
             sequence_number,
             &lines,
             &partitioner,

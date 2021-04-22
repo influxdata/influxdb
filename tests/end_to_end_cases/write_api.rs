@@ -12,7 +12,6 @@ use influxdb_line_protocol::parse_lines;
 use internal_types::entry::lines_to_sharded_entries;
 use internal_types::entry::test_helpers::{partitioner, sharder};
 use std::collections::HashMap;
-use std::num::NonZeroU32;
 
 #[tokio::test]
 async fn test_write() {
@@ -123,25 +122,28 @@ async fn test_write_entry() {
 
 #[tokio::test]
 async fn test_write_routed() {
-    const TEST_ROUTER_ID: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(1) };
-    const TEST_TARGET_ID_1: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(2) };
-    const TEST_TARGET_ID_2: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(3) };
+    const TEST_ROUTER_ID: u32 = 1;
+
+    const TEST_TARGET_ID_1: u32 = 2;
+    const TEST_TARGET_ID_2: u32 = 3;
+
     const TEST_REMOTE_ID_1: u32 = 2;
     const TEST_REMOTE_ID_2: u32 = 3;
+
     const TEST_SHARD_ID_1: u32 = 42;
     const TEST_SHARD_ID_2: u32 = 43;
 
     let router = ServerFixture::create_single_use().await;
     let mut router_mgmt = router.management_client();
     router_mgmt
-        .update_writer_id(TEST_ROUTER_ID)
+        .update_server_id(TEST_ROUTER_ID)
         .await
         .expect("set ID failed");
 
     let target_1 = ServerFixture::create_single_use().await;
     let mut target_1_mgmt = target_1.management_client();
     target_1_mgmt
-        .update_writer_id(TEST_TARGET_ID_1)
+        .update_server_id(TEST_TARGET_ID_1)
         .await
         .expect("set ID failed");
 
@@ -153,7 +155,7 @@ async fn test_write_routed() {
     let target_2 = ServerFixture::create_single_use().await;
     let mut target_2_mgmt = target_2.management_client();
     target_2_mgmt
-        .update_writer_id(TEST_TARGET_ID_2)
+        .update_server_id(TEST_TARGET_ID_2)
         .await
         .expect("set ID failed");
 
@@ -288,14 +290,14 @@ async fn test_write_routed() {
 
 #[tokio::test]
 async fn test_write_routed_errors() {
-    const TEST_ROUTER_ID: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(1) };
+    const TEST_ROUTER_ID: u32 = 1;
     const TEST_REMOTE_ID: u32 = 2;
     const TEST_SHARD_ID: u32 = 42;
 
     let router = ServerFixture::create_single_use().await;
     let mut router_mgmt = router.management_client();
     router_mgmt
-        .update_writer_id(TEST_ROUTER_ID)
+        .update_server_id(TEST_ROUTER_ID)
         .await
         .expect("set ID failed");
 
@@ -342,7 +344,8 @@ async fn test_write_routed_errors() {
     assert_eq!(
         err.to_string(),
         format!(
-            "Unexpected server error: Some requested entity was not found: Resource remote/[{}] not found",
+            "Unexpected server error: Some requested entity was not found: Resource \
+             remote/[ServerId({})] not found",
             TEST_REMOTE_ID
         )
     );

@@ -13,20 +13,20 @@ pub mod generated_types {
     pub use generated_types::influxdata::iox::management::v1::*;
 }
 
-/// Errors returned by Client::update_writer_id
+/// Errors returned by Client::update_server_id
 #[derive(Debug, Error)]
-pub enum UpdateWriterIdError {
+pub enum UpdateServerIdError {
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
 }
 
-/// Errors returned by Client::get_writer_id
+/// Errors returned by Client::get_server_id
 #[derive(Debug, Error)]
-pub enum GetWriterIdError {
-    /// Writer ID is not set
-    #[error("Writer ID not set")]
-    NoWriterId,
+pub enum GetServerIdError {
+    /// Server ID is not set
+    #[error("Server ID not set")]
+    NoServerId,
 
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
@@ -36,9 +36,9 @@ pub enum GetWriterIdError {
 /// Errors returned by Client::create_database
 #[derive(Debug, Error)]
 pub enum CreateDatabaseError {
-    /// Writer ID is not set
-    #[error("Writer ID not set")]
-    NoWriterId,
+    /// Server ID is not set
+    #[error("Server ID not set")]
+    NoServerId,
 
     /// Database already exists
     #[error("Database already exists")]
@@ -56,9 +56,9 @@ pub enum CreateDatabaseError {
 /// Errors returned by Client::update_database
 #[derive(Debug, Error)]
 pub enum UpdateDatabaseError {
-    /// Writer ID is not set
-    #[error("Writer ID not set")]
-    NoWriterId,
+    /// Server ID is not set
+    #[error("Server ID not set")]
+    NoServerId,
 
     /// Database not found
     #[error("Database not found")]
@@ -84,9 +84,9 @@ pub enum ListDatabaseError {
 /// Errors returned by Client::get_database
 #[derive(Debug, Error)]
 pub enum GetDatabaseError {
-    /// Writer ID is not set
-    #[error("Writer ID not set")]
-    NoWriterId,
+    /// Server ID is not set
+    #[error("Server ID not set")]
+    NoServerId,
 
     /// Database not found
     #[error("Database not found")]
@@ -244,31 +244,31 @@ impl Client {
         }
     }
 
-    /// Set the server's writer ID.
-    pub async fn update_writer_id(&mut self, id: NonZeroU32) -> Result<(), UpdateWriterIdError> {
+    /// Set the server's ID.
+    pub async fn update_server_id(&mut self, id: u32) -> Result<(), UpdateServerIdError> {
         self.inner
-            .update_writer_id(UpdateWriterIdRequest { id: id.into() })
+            .update_server_id(UpdateServerIdRequest { id })
             .await
-            .map_err(UpdateWriterIdError::ServerError)?;
+            .map_err(UpdateServerIdError::ServerError)?;
         Ok(())
     }
 
-    /// Get the server's writer ID.
-    pub async fn get_writer_id(&mut self) -> Result<NonZeroU32, GetWriterIdError> {
+    /// Get the server's ID.
+    pub async fn get_server_id(&mut self) -> Result<NonZeroU32, GetServerIdError> {
         let response = self
             .inner
-            .get_writer_id(GetWriterIdRequest {})
+            .get_server_id(GetServerIdRequest {})
             .await
             .map_err(|status| match status.code() {
-                tonic::Code::NotFound => GetWriterIdError::NoWriterId,
-                _ => GetWriterIdError::ServerError(status),
+                tonic::Code::NotFound => GetServerIdError::NoServerId,
+                _ => GetServerIdError::ServerError(status),
             })?;
 
         let id = response
             .get_ref()
             .id
             .try_into()
-            .map_err(|_| GetWriterIdError::NoWriterId)?;
+            .map_err(|_| GetServerIdError::NoServerId)?;
 
         Ok(id)
     }
@@ -283,7 +283,7 @@ impl Client {
             .await
             .map_err(|status| match status.code() {
                 tonic::Code::AlreadyExists => CreateDatabaseError::DatabaseAlreadyExists,
-                tonic::Code::FailedPrecondition => CreateDatabaseError::NoWriterId,
+                tonic::Code::FailedPrecondition => CreateDatabaseError::NoServerId,
                 tonic::Code::InvalidArgument => CreateDatabaseError::InvalidArgument(status),
                 _ => CreateDatabaseError::ServerError(status),
             })?;
@@ -302,7 +302,7 @@ impl Client {
             .await
             .map_err(|status| match status.code() {
                 tonic::Code::NotFound => UpdateDatabaseError::DatabaseNotFound,
-                tonic::Code::FailedPrecondition => UpdateDatabaseError::NoWriterId,
+                tonic::Code::FailedPrecondition => UpdateDatabaseError::NoServerId,
                 tonic::Code::InvalidArgument => UpdateDatabaseError::InvalidArgument(status),
                 _ => UpdateDatabaseError::ServerError(status),
             })?;
@@ -331,7 +331,7 @@ impl Client {
             .await
             .map_err(|status| match status.code() {
                 tonic::Code::NotFound => GetDatabaseError::DatabaseNotFound,
-                tonic::Code::FailedPrecondition => GetDatabaseError::NoWriterId,
+                tonic::Code::FailedPrecondition => GetDatabaseError::NoServerId,
                 _ => GetDatabaseError::ServerError(status),
             })?;
 

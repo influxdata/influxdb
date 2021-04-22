@@ -5,7 +5,7 @@ use crate::{
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError, DID},
 };
-use data_types::{database_rules::WriterId, partition_metadata::ColumnSummary};
+use data_types::{partition_metadata::ColumnSummary, server_id::ServerId};
 use internal_types::{
     entry::{self, ClockValue},
     schema::{builder::SchemaBuilder, Schema},
@@ -131,7 +131,7 @@ impl Table {
         &mut self,
         dictionary: &mut Dictionary,
         _clock_value: ClockValue,
-        _writer_id: WriterId,
+        _server_id: ServerId,
         columns: Vec<entry::Column<'_>>,
     ) -> Result<()> {
         let row_count_before_insert = self.row_count();
@@ -330,11 +330,13 @@ impl<'a> TableColSelection<'a> {
 
 #[cfg(test)]
 mod tests {
-    use arrow::datatypes::DataType as ArrowDataType;
-    use internal_types::entry::test_helpers::lp_to_entry;
-    use internal_types::schema::{InfluxColumnType, InfluxFieldType};
-
     use super::*;
+    use arrow::datatypes::DataType as ArrowDataType;
+    use internal_types::{
+        entry::test_helpers::lp_to_entry,
+        schema::{InfluxColumnType, InfluxFieldType},
+    };
+    use std::convert::TryFrom;
 
     #[test]
     fn table_size() {
@@ -417,6 +419,7 @@ mod tests {
     fn write_columns_validates_schema() {
         let mut dictionary = Dictionary::new();
         let mut table = Table::new(dictionary.lookup_value_or_insert("foo"));
+        let server_id = ServerId::try_from(1).unwrap();
 
         let lp = "foo,t1=asdf iv=1i,uv=1u,fv=1.0,bv=true,sv=\"hi\" 1";
         let entry = lp_to_entry(&lp);
@@ -424,7 +427,7 @@ mod tests {
             .write_columns(
                 &mut dictionary,
                 ClockValue::new(0),
-                0,
+                server_id,
                 entry
                     .partition_writes()
                     .unwrap()
@@ -443,7 +446,7 @@ mod tests {
             .write_columns(
                 &mut dictionary,
                 ClockValue::new(0),
-                0,
+                server_id,
                 entry
                     .partition_writes()
                     .unwrap()
@@ -477,7 +480,7 @@ mod tests {
             .write_columns(
                 &mut dictionary,
                 ClockValue::new(0),
-                0,
+                server_id,
                 entry
                     .partition_writes()
                     .unwrap()
@@ -511,7 +514,7 @@ mod tests {
             .write_columns(
                 &mut dictionary,
                 ClockValue::new(0),
-                0,
+                server_id,
                 entry
                     .partition_writes()
                     .unwrap()
@@ -545,7 +548,7 @@ mod tests {
             .write_columns(
                 &mut dictionary,
                 ClockValue::new(0),
-                0,
+                server_id,
                 entry
                     .partition_writes()
                     .unwrap()
@@ -579,7 +582,7 @@ mod tests {
             .write_columns(
                 &mut dictionary,
                 ClockValue::new(0),
-                0,
+                server_id,
                 entry
                     .partition_writes()
                     .unwrap()
@@ -613,7 +616,7 @@ mod tests {
             .write_columns(
                 &mut dictionary,
                 ClockValue::new(0),
-                0,
+                server_id,
                 entry
                     .partition_writes()
                     .unwrap()
@@ -655,7 +658,12 @@ mod tests {
             .table_batches()
         {
             table
-                .write_columns(dictionary, ClockValue::new(0), 0, batch.columns())
+                .write_columns(
+                    dictionary,
+                    ClockValue::new(0),
+                    ServerId::try_from(1).unwrap(),
+                    batch.columns(),
+                )
                 .unwrap();
         }
     }

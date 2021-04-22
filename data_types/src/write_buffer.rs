@@ -1,4 +1,4 @@
-use crate::database_rules::WriterId;
+use crate::server_id::ServerId;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -24,5 +24,5 @@ pub struct SegmentSummary {
     pub size: u64,
     pub created_at: DateTime<Utc>,
     pub persisted: Option<SegmentPersistence>,
-    pub writers: BTreeMap<WriterId, WriterSummary>,
+    pub writers: BTreeMap<ServerId, WriterSummary>,
 }

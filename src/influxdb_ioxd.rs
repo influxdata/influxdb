@@ -138,8 +138,8 @@ pub async fn main(config: Config) -> Result<()> {
 
     // if this ID isn't set the server won't be usable until this is set via an API
     // call
-    if let Some(id) = config.writer_id {
-        app_server.set_id(id).expect("writer id already set");
+    if let Some(id) = config.server_id {
+        app_server.set_id(id).expect("server id already set");
         app_server
             .load_database_configs()
             .await

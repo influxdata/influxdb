@@ -37,7 +37,7 @@ fn sequenced_entry(c: &mut Criterion) {
             let sequenced_entry =
                 SequencedEntry::new_from_entry_bytes(clock_value, server_id, data).unwrap();
             assert_eq!(sequenced_entry.clock_value(), clock_value);
-            assert_eq!(sequenced_entry.writer_id(), 2);
+            assert_eq!(sequenced_entry.server_id(), server_id);
         })
     });
 

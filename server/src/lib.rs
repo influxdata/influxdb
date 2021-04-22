@@ -78,7 +78,7 @@ use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use data_types::{
-    database_rules::{DatabaseRules, WriterId},
+    database_rules::DatabaseRules,
     job::Job,
     server_id::ServerId,
     {DatabaseName, DatabaseNameError},
@@ -544,7 +544,7 @@ impl<M: ConnectionManager> Server<M> {
     async fn write_entry_downstream(
         &self,
         db_name: &str,
-        node_group: &[WriterId],
+        node_group: &[ServerId],
         entry: Entry,
     ) -> Result<()> {
         let addrs: Vec<_> = node_group
@@ -641,15 +641,15 @@ impl<M: ConnectionManager> Server<M> {
         Ok(rules)
     }
 
-    pub fn remotes_sorted(&self) -> Vec<(WriterId, String)> {
+    pub fn remotes_sorted(&self) -> Vec<(ServerId, String)> {
         self.config.remotes_sorted()
     }
 
-    pub fn update_remote(&self, id: WriterId, addr: GRpcConnectionString) {
+    pub fn update_remote(&self, id: ServerId, addr: GRpcConnectionString) {
         self.config.update_remote(id, addr)
     }
 
-    pub fn delete_remote(&self, id: WriterId) -> Option<GRpcConnectionString> {
+    pub fn delete_remote(&self, id: ServerId) -> Option<GRpcConnectionString> {
         self.config.delete_remote(id)
     }
 
@@ -1159,12 +1159,13 @@ mod tests {
     #[tokio::test]
     async fn write_entry_downstream() {
         const TEST_SHARD_ID: ShardId = 1;
-        const GOOD_REMOTE_ID_1: WriterId = 1;
-        const GOOD_REMOTE_ID_2: WriterId = 2;
-        const BAD_REMOTE_ID: WriterId = 666;
         const GOOD_REMOTE_ADDR_1: &str = "http://localhost:111";
         const GOOD_REMOTE_ADDR_2: &str = "http://localhost:222";
         const BAD_REMOTE_ADDR: &str = "http://localhost:666";
+
+        let good_remote_id_1 = ServerId::try_from(1).unwrap();
+        let good_remote_id_2 = ServerId::try_from(2).unwrap();
+        let bad_remote_id = ServerId::try_from(666).unwrap();
 
         let mut manager = TestConnectionManager::new();
         let written_1 = Arc::new(AtomicBool::new(false));
@@ -1194,7 +1195,7 @@ mod tests {
             .await
             .unwrap();
 
-        let remote_ids = vec![BAD_REMOTE_ID, GOOD_REMOTE_ID_1, GOOD_REMOTE_ID_2];
+        let remote_ids = vec![bad_remote_id, good_remote_id_1, good_remote_id_2];
         let db = server.db(&db_name).unwrap();
         {
             let mut rules = db.rules.write();
@@ -1221,7 +1222,7 @@ mod tests {
         );
 
         // one remote is configured but it's down and we'll get connection error
-        server.update_remote(BAD_REMOTE_ID, BAD_REMOTE_ADDR.into());
+        server.update_remote(bad_remote_id, BAD_REMOTE_ADDR.into());
         let err = server.write_lines(&db_name, &lines).await.unwrap_err();
         assert!(matches!(
             err,
@@ -1235,8 +1236,8 @@ mod tests {
 
         // We configure the address for the other remote, this time connection will succeed
         // despite the bad remote failing to connect.
-        server.update_remote(GOOD_REMOTE_ID_1, GOOD_REMOTE_ADDR_1.into());
-        server.update_remote(GOOD_REMOTE_ID_2, GOOD_REMOTE_ADDR_2.into());
+        server.update_remote(good_remote_id_1, GOOD_REMOTE_ADDR_1.into());
+        server.update_remote(good_remote_id_2, GOOD_REMOTE_ADDR_2.into());
 
         // Remotes are tried in random order, so we need to repeat the test a few times to have a reasonable
         // probability both the remotes will get hit.

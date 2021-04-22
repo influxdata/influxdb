@@ -2,7 +2,7 @@
 //! based on `DatabaseRules`.
 
 use crate::schema::TIME_COLUMN_NAME;
-use data_types::database_rules::Partitioner;
+use data_types::{database_rules::Partitioner, server_id::ServerId};
 use generated_types::wb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 
@@ -37,6 +37,7 @@ pub struct ReplicatedWrite {
     #[borrows(data)]
     #[covariant]
     write_buffer_batch: Option<wb::WriteBufferBatch<'this>>,
+    server_id: ServerId,
 }
 
 impl ReplicatedWrite {
@@ -52,13 +53,17 @@ impl ReplicatedWrite {
     }
 
     /// Returns true if this replicated write matches the writer and sequence.
-    pub fn equal_to_writer_and_sequence(&self, writer_id: u32, sequence_number: u64) -> bool {
-        self.fb().writer() == writer_id && self.fb().sequence() == sequence_number
+    pub fn equal_to_writer_and_sequence(&self, server_id: ServerId, sequence_number: u64) -> bool {
+        self.server_id() == server_id && self.fb().sequence() == sequence_number
     }
 
     /// Returns the writer id and sequence number
-    pub fn writer_and_sequence(&self) -> (u32, u64) {
-        (self.fb().writer(), self.fb().sequence())
+    pub fn writer_and_sequence(&self) -> (ServerId, u64) {
+        (self.server_id(), self.fb().sequence())
+    }
+
+    pub fn server_id(&self) -> ServerId {
+        *self.borrow_server_id()
     }
 
     /// Returns the serialized bytes for the write
@@ -73,12 +78,12 @@ impl ReplicatedWrite {
     }
 }
 
-impl TryFrom<Vec<u8>> for ReplicatedWrite {
+impl TryFrom<(Vec<u8>, ServerId)> for ReplicatedWrite {
     type Error = flatbuffers::InvalidFlatbuffer;
 
-    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
+    fn try_from(data: (Vec<u8>, ServerId)) -> Result<Self, Self::Error> {
         ReplicatedWriteTryBuilder {
-            data,
+            data: data.0,
             fb_builder: |data| flatbuffers::root::<wb::ReplicatedWrite<'_>>(data),
             write_buffer_batch_builder: |data| match flatbuffers::root::<wb::ReplicatedWrite<'_>>(
                 data,
@@ -90,6 +95,7 @@ impl TryFrom<Vec<u8>> for ReplicatedWrite {
                 )?)),
                 None => Ok(None),
             },
+            server_id: data.1,
         }
         .try_build()
     }
@@ -100,8 +106,8 @@ impl fmt::Display for ReplicatedWrite {
         let fb = self.fb();
         write!(
             f,
-            "\nwriter:{}, sequence:{}, checksum:{}\n",
-            fb.writer(),
+            "\nserver_id:{}, sequence:{}, checksum:{}\n",
+            fb.server_id(),
             fb.sequence(),
             fb.checksum()
         )?;
@@ -173,7 +179,7 @@ impl fmt::Display for ReplicatedWrite {
 }
 
 pub fn lines_to_replicated_write(
-    writer: u32,
+    server_id: ServerId,
     sequence: u64,
     lines: &[ParsedLine<'_>],
     partitioner: &impl Partitioner,
@@ -194,7 +200,7 @@ pub fn lines_to_replicated_write(
     let write = wb::ReplicatedWrite::create(
         &mut fbb,
         &wb::ReplicatedWriteArgs {
-            writer,
+            server_id: server_id.get_u32(),
             sequence,
             checksum,
             payload: Some(payload),
@@ -204,7 +210,7 @@ pub fn lines_to_replicated_write(
     fbb.finish(write, None);
 
     let (mut data, idx) = fbb.collapse();
-    ReplicatedWrite::try_from(data.split_off(idx))
+    ReplicatedWrite::try_from((data.split_off(idx), server_id))
         .expect("Flatbuffer data just constructed should be valid")
 }
 

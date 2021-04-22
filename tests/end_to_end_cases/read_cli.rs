@@ -12,7 +12,7 @@ pub async fn test() {
     let db_name = rand_name();
     let addr = server_fixture.grpc_base();
 
-    set_writer_id(addr).await;
+    set_server_id(addr).await;
     create_database(&db_name, addr).await;
     test_read_default(&db_name, addr).await;
     test_read_format_pretty(&db_name, addr).await;
@@ -21,10 +21,10 @@ pub async fn test() {
     test_read_error(&db_name, addr).await;
 }
 
-async fn set_writer_id(addr: &str) {
+async fn set_server_id(addr: &str) {
     Command::cargo_bin("influxdb_iox")
         .unwrap()
-        .arg("writer")
+        .arg("server")
         .arg("set")
         .arg("23")
         .arg("--host")

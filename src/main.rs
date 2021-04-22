@@ -32,7 +32,6 @@ mod commands {
     pub mod server_remote;
     pub mod stats;
     pub mod tracing;
-    pub mod writer;
 }
 
 pub mod influxdb_ioxd;
@@ -147,7 +146,6 @@ enum Command {
     Run(Box<commands::run::Config>),
     Stats(commands::stats::Config),
     Server(commands::server::Config),
-    Writer(commands::writer::Config),
     Operation(commands::operations::Config),
 }
 
@@ -211,13 +209,6 @@ fn main() -> Result<(), std::io::Error> {
             Command::Database(config) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 if let Err(e) = commands::database::command(host, config).await {
-                    eprintln!("{}", e);
-                    std::process::exit(ReturnCode::Failure as _)
-                }
-            }
-            Command::Writer(config) => {
-                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                if let Err(e) = commands::writer::command(host, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }

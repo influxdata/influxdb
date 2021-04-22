@@ -8,12 +8,12 @@ use crate::common::server_fixture::ServerFixture;
 use super::scenario::{create_readable_database, rand_name};
 
 #[tokio::test]
-async fn test_writer_id() {
+async fn test_server_id() {
     let server_fixture = ServerFixture::create_single_use().await;
     let addr = server_fixture.grpc_base();
     Command::cargo_bin("influxdb_iox")
         .unwrap()
-        .arg("writer")
+        .arg("server")
         .arg("set")
         .arg("32")
         .arg("--host")
@@ -24,7 +24,7 @@ async fn test_writer_id() {
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
-        .arg("writer")
+        .arg("server")
         .arg("get")
         .arg("--host")
         .arg(addr)
@@ -34,14 +34,14 @@ async fn test_writer_id() {
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
-        .arg("writer")
+        .arg("server")
         .arg("set")
         .arg("42")
         .arg("--host")
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("id already set to 32"));
+        .stderr(predicate::str::contains("id already set"));
 }
 
 #[tokio::test]

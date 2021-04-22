@@ -9,9 +9,9 @@ import "influxdata/iox/management/v1/chunk.proto";
 import "influxdata/iox/management/v1/partition.proto";
 
 service ManagementService {
-  rpc GetWriterId(GetWriterIdRequest) returns (GetWriterIdResponse);
+  rpc GetServerId(GetServerIdRequest) returns (GetServerIdResponse);
 
-  rpc UpdateWriterId(UpdateWriterIdRequest) returns (UpdateWriterIdResponse);
+  rpc UpdateServerId(UpdateServerIdRequest) returns (UpdateServerIdResponse);
 
   rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
 
@@ -61,17 +61,17 @@ service ManagementService {
   rpc ClosePartitionChunk(ClosePartitionChunkRequest) returns (ClosePartitionChunkResponse);
 }
 
-message GetWriterIdRequest {}
+message GetServerIdRequest {}
 
-message GetWriterIdResponse {
+message GetServerIdResponse {
   uint32 id = 1;
 }
 
-message UpdateWriterIdRequest {
+message UpdateServerIdRequest {
   uint32 id = 1;
 }
 
-message UpdateWriterIdResponse {}
+message UpdateServerIdResponse {}
 
 message ListDatabasesRequest {}
 
@@ -128,7 +128,7 @@ message ListRemotesResponse {
 
 // This resource represents a remote IOx server.
 message Remote {
-  // The writer ID associated with a remote IOx server.
+  // The server ID associated with a remote IOx server.
   uint32 id = 1;
 
   // The address of the remote IOx server gRPC endpoint.

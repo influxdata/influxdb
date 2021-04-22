@@ -2313,12 +2313,12 @@ pub mod influxdata {
                         if let Some(x) = args.entries {
                             builder.add_entries(x);
                         }
-                        builder.add_writer_id(args.writer_id);
+                        builder.add_server_id(args.server_id);
                         builder.finish()
                     }
 
                     pub const VT_ID: flatbuffers::VOffsetT = 4;
-                    pub const VT_WRITER_ID: flatbuffers::VOffsetT = 6;
+                    pub const VT_SERVER_ID: flatbuffers::VOffsetT = 6;
                     pub const VT_CONSISTENCY_HIGH_WATER_CLOCK: flatbuffers::VOffsetT = 8;
                     pub const VT_ENTRIES: flatbuffers::VOffsetT = 10;
 
@@ -2327,9 +2327,9 @@ pub mod influxdata {
                         self._tab.get::<u64>(Segment::VT_ID, Some(0)).unwrap()
                     }
                     #[inline]
-                    pub fn writer_id(&self) -> u32 {
+                    pub fn server_id(&self) -> u32 {
                         self._tab
-                            .get::<u32>(Segment::VT_WRITER_ID, Some(0))
+                            .get::<u32>(Segment::VT_SERVER_ID, Some(0))
                             .unwrap()
                     }
                     #[inline]
@@ -2359,7 +2359,7 @@ pub mod influxdata {
                         use self::flatbuffers::Verifiable;
                         v.visit_table(pos)?
                             .visit_field::<u64>(&"id", Self::VT_ID, false)?
-                            .visit_field::<u32>(&"writer_id", Self::VT_WRITER_ID, false)?
+                            .visit_field::<u32>(&"server_id", Self::VT_SERVER_ID, false)?
                             .visit_field::<u64>(
                                 &"consistency_high_water_clock",
                                 Self::VT_CONSISTENCY_HIGH_WATER_CLOCK,
@@ -2377,7 +2377,7 @@ pub mod influxdata {
                 }
                 pub struct SegmentArgs<'a> {
                     pub id: u64,
-                    pub writer_id: u32,
+                    pub server_id: u32,
                     pub consistency_high_water_clock: u64,
                     pub entries: Option<
                         flatbuffers::WIPOffset<
@@ -2393,7 +2393,7 @@ pub mod influxdata {
                     fn default() -> Self {
                         SegmentArgs {
                             id: 0,
-                            writer_id: 0,
+                            server_id: 0,
                             consistency_high_water_clock: 0,
                             entries: None,
                         }
@@ -2409,9 +2409,9 @@ pub mod influxdata {
                         self.fbb_.push_slot::<u64>(Segment::VT_ID, id, 0);
                     }
                     #[inline]
-                    pub fn add_writer_id(&mut self, writer_id: u32) {
+                    pub fn add_server_id(&mut self, server_id: u32) {
                         self.fbb_
-                            .push_slot::<u32>(Segment::VT_WRITER_ID, writer_id, 0);
+                            .push_slot::<u32>(Segment::VT_SERVER_ID, server_id, 0);
                     }
                     #[inline]
                     pub fn add_consistency_high_water_clock(
@@ -2460,7 +2460,7 @@ pub mod influxdata {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                         let mut ds = f.debug_struct("Segment");
                         ds.field("id", &self.id());
-                        ds.field("writer_id", &self.writer_id());
+                        ds.field("server_id", &self.server_id());
                         ds.field(
                             "consistency_high_water_clock",
                             &self.consistency_high_water_clock(),
@@ -2501,12 +2501,12 @@ pub mod influxdata {
                         if let Some(x) = args.entry_bytes {
                             builder.add_entry_bytes(x);
                         }
-                        builder.add_writer_id(args.writer_id);
+                        builder.add_server_id(args.server_id);
                         builder.finish()
                     }
 
                     pub const VT_CLOCK_VALUE: flatbuffers::VOffsetT = 4;
-                    pub const VT_WRITER_ID: flatbuffers::VOffsetT = 6;
+                    pub const VT_SERVER_ID: flatbuffers::VOffsetT = 6;
                     pub const VT_ENTRY_BYTES: flatbuffers::VOffsetT = 8;
 
                     #[inline]
@@ -2516,9 +2516,9 @@ pub mod influxdata {
                             .unwrap()
                     }
                     #[inline]
-                    pub fn writer_id(&self) -> u32 {
+                    pub fn server_id(&self) -> u32 {
                         self._tab
-                            .get::<u32>(SequencedEntry::VT_WRITER_ID, Some(0))
+                            .get::<u32>(SequencedEntry::VT_SERVER_ID, Some(0))
                             .unwrap()
                     }
                     #[inline]
@@ -2541,7 +2541,7 @@ pub mod influxdata {
                         use self::flatbuffers::Verifiable;
                         v.visit_table(pos)?
      .visit_field::<u64>(&"clock_value", Self::VT_CLOCK_VALUE, false)?
-     .visit_field::<u32>(&"writer_id", Self::VT_WRITER_ID, false)?
+     .visit_field::<u32>(&"server_id", Self::VT_SERVER_ID, false)?
      .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u8>>>(&"entry_bytes", Self::VT_ENTRY_BYTES, false)?
      .finish();
                         Ok(())
@@ -2549,7 +2549,7 @@ pub mod influxdata {
                 }
                 pub struct SequencedEntryArgs<'a> {
                     pub clock_value: u64,
-                    pub writer_id: u32,
+                    pub server_id: u32,
                     pub entry_bytes: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u8>>>,
                 }
                 impl<'a> Default for SequencedEntryArgs<'a> {
@@ -2557,7 +2557,7 @@ pub mod influxdata {
                     fn default() -> Self {
                         SequencedEntryArgs {
                             clock_value: 0,
-                            writer_id: 0,
+                            server_id: 0,
                             entry_bytes: None,
                         }
                     }
@@ -2573,9 +2573,9 @@ pub mod influxdata {
                             .push_slot::<u64>(SequencedEntry::VT_CLOCK_VALUE, clock_value, 0);
                     }
                     #[inline]
-                    pub fn add_writer_id(&mut self, writer_id: u32) {
+                    pub fn add_server_id(&mut self, server_id: u32) {
                         self.fbb_
-                            .push_slot::<u32>(SequencedEntry::VT_WRITER_ID, writer_id, 0);
+                            .push_slot::<u32>(SequencedEntry::VT_SERVER_ID, server_id, 0);
                     }
                     #[inline]
                     pub fn add_entry_bytes(
@@ -2608,7 +2608,7 @@ pub mod influxdata {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                         let mut ds = f.debug_struct("SequencedEntry");
                         ds.field("clock_value", &self.clock_value());
-                        ds.field("writer_id", &self.writer_id());
+                        ds.field("server_id", &self.server_id());
                         ds.field("entry_bytes", &self.entry_bytes());
                         ds.finish()
                     }

@@ -180,7 +180,7 @@ pub struct Config {
     /// Tracing: sampler argument
     ///
     /// Valid range: [0.0, 1.0].
-    /// 
+    ///
     /// Only used if `--traces-sampler` is set to
     /// parentbased_traceidratio (default) or traceidratio.
     ///
@@ -249,10 +249,10 @@ pub struct Config {
     ///
     /// Used for writing to object storage and as an identifier that is added to
     /// replicated writes, write buffer segments, and Chunks. Must be unique in
-    /// a group of connected or semi-connected IOx servers. Must be a number
-    /// that can be represented by a 32-bit unsigned integer.
-    #[structopt(long = "--writer-id", env = "INFLUXDB_IOX_ID")]
-    pub writer_id: Option<ServerId>,
+    /// a group of connected or semi-connected IOx servers. Must be a nonzero
+    /// number that can be represented by a 32-bit unsigned integer.
+    #[structopt(long = "--server-id", env = "INFLUXDB_IOX_ID")]
+    pub server_id: Option<ServerId>,
 
     /// The address on which IOx will serve HTTP API requests.
     #[structopt(

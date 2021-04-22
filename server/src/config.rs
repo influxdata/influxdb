@@ -3,11 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use data_types::{
-    database_rules::{DatabaseRules, WriterId},
-    server_id::ServerId,
-    DatabaseName,
-};
+use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
 use metrics::MetricRegistry;
 use object_store::{path::ObjectStorePath, ObjectStore};
 use query::exec::Executor;
@@ -103,22 +99,22 @@ impl Config {
         Ok(rules.clone())
     }
 
-    pub(crate) fn remotes_sorted(&self) -> Vec<(WriterId, String)> {
+    pub(crate) fn remotes_sorted(&self) -> Vec<(ServerId, String)> {
         let state = self.state.read().expect("mutex poisoned");
         state.remotes.iter().map(|(&a, b)| (a, b.clone())).collect()
     }
 
-    pub(crate) fn update_remote(&self, id: WriterId, addr: GRpcConnectionString) {
+    pub(crate) fn update_remote(&self, id: ServerId, addr: GRpcConnectionString) {
         let mut state = self.state.write().expect("mutex poisoned");
         state.remotes.insert(id, addr);
     }
 
-    pub(crate) fn delete_remote(&self, id: WriterId) -> Option<GRpcConnectionString> {
+    pub(crate) fn delete_remote(&self, id: ServerId) -> Option<GRpcConnectionString> {
         let mut state = self.state.write().expect("mutex poisoned");
         state.remotes.remove(&id)
     }
 
-    pub(crate) fn resolve_remote(&self, id: WriterId) -> Option<GRpcConnectionString> {
+    pub(crate) fn resolve_remote(&self, id: ServerId) -> Option<GRpcConnectionString> {
         let state = self.state.read().expect("mutex poisoned");
         state.remotes.get(&id).cloned()
     }
@@ -224,7 +220,7 @@ struct ConfigState {
     reservations: BTreeSet<DatabaseName<'static>>,
     databases: BTreeMap<DatabaseName<'static>, DatabaseState>,
     /// Map between remote IOx server IDs and management API connection strings.
-    remotes: BTreeMap<WriterId, GRpcConnectionString>,
+    remotes: BTreeMap<ServerId, GRpcConnectionString>,
 }
 
 #[derive(Debug)]

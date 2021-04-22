@@ -58,8 +58,8 @@ table Delete {
 table Segment {
   // the segment number
   id: uint64;
-  // the writer id of the server that persisted this segment
-  writer_id: uint32;
+  // the server id of the server that persisted this segment
+  server_id: uint32;
   writes: [ReplicatedWriteData];
 }
 
@@ -70,9 +70,9 @@ table ReplicatedWriteData {
   payload: [ubyte];
 }
 
-// WriterSummary contains the inormation for a writer that has writes in a Segment
+// WriterSummary contains the inormation for a server that has writes in a Segment
 table WriterSummary {
-  writer_id: uint64;
+  server_id: uint64;
   start_sequence: uint64;
   end_sequence: uint64;
   // if true, there are sequence numbers between start and end that were missing
@@ -81,12 +81,12 @@ table WriterSummary {
 
 // ReplicatedWrite is what gets sent between InfluxDB IOx servers and potentially
 // persisted up to object storage from the servers that receive it. The combination
-// of the writer, timestamp and checksum in this table can be used to deduplicate
+// of the server id, timestamp and checksum in this table can be used to deduplicate
 // replicated writes from other hosts.
 table ReplicatedWrite {
-  // writer is a unique identifier for the router that received this write
-  writer: uint32;
-  // sequence is number this write comes in. This resets on restart of the writer
+  // server_id is a unique identifier for the router that received this write
+  server_id: uint32;
+  // sequence is number this write comes in. This resets on restart of the server
   sequence: uint64;
   // checksum is a crc32 checksum of the payload
   checksum: uint32;

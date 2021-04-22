@@ -1617,12 +1617,12 @@ pub mod wb {
             if let Some(x) = args.writes {
                 builder.add_writes(x);
             }
-            builder.add_writer_id(args.writer_id);
+            builder.add_server_id(args.server_id);
             builder.finish()
         }
 
         pub const VT_ID: flatbuffers::VOffsetT = 4;
-        pub const VT_WRITER_ID: flatbuffers::VOffsetT = 6;
+        pub const VT_SERVER_ID: flatbuffers::VOffsetT = 6;
         pub const VT_WRITES: flatbuffers::VOffsetT = 8;
 
         #[inline]
@@ -1630,9 +1630,9 @@ pub mod wb {
             self._tab.get::<u64>(Segment::VT_ID, Some(0)).unwrap()
         }
         #[inline]
-        pub fn writer_id(&self) -> u32 {
+        pub fn server_id(&self) -> u32 {
             self._tab
-                .get::<u32>(Segment::VT_WRITER_ID, Some(0))
+                .get::<u32>(Segment::VT_SERVER_ID, Some(0))
                 .unwrap()
         }
         #[inline]
@@ -1655,7 +1655,7 @@ pub mod wb {
             use self::flatbuffers::Verifiable;
             v.visit_table(pos)?
                 .visit_field::<u64>(&"id", Self::VT_ID, false)?
-                .visit_field::<u32>(&"writer_id", Self::VT_WRITER_ID, false)?
+                .visit_field::<u32>(&"server_id", Self::VT_SERVER_ID, false)?
                 .visit_field::<flatbuffers::ForwardsUOffset<
                     flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<ReplicatedWriteData>>,
                 >>(&"writes", Self::VT_WRITES, false)?
@@ -1665,7 +1665,7 @@ pub mod wb {
     }
     pub struct SegmentArgs<'a> {
         pub id: u64,
-        pub writer_id: u32,
+        pub server_id: u32,
         pub writes: Option<
             flatbuffers::WIPOffset<
                 flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<ReplicatedWriteData<'a>>>,
@@ -1677,7 +1677,7 @@ pub mod wb {
         fn default() -> Self {
             SegmentArgs {
                 id: 0,
-                writer_id: 0,
+                server_id: 0,
                 writes: None,
             }
         }
@@ -1692,9 +1692,9 @@ pub mod wb {
             self.fbb_.push_slot::<u64>(Segment::VT_ID, id, 0);
         }
         #[inline]
-        pub fn add_writer_id(&mut self, writer_id: u32) {
+        pub fn add_server_id(&mut self, server_id: u32) {
             self.fbb_
-                .push_slot::<u32>(Segment::VT_WRITER_ID, writer_id, 0);
+                .push_slot::<u32>(Segment::VT_SERVER_ID, server_id, 0);
         }
         #[inline]
         pub fn add_writes(
@@ -1725,7 +1725,7 @@ pub mod wb {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             let mut ds = f.debug_struct("Segment");
             ds.field("id", &self.id());
-            ds.field("writer_id", &self.writer_id());
+            ds.field("server_id", &self.server_id());
             ds.field("writes", &self.writes());
             ds.finish()
         }
@@ -1872,20 +1872,20 @@ pub mod wb {
             let mut builder = WriterSummaryBuilder::new(_fbb);
             builder.add_end_sequence(args.end_sequence);
             builder.add_start_sequence(args.start_sequence);
-            builder.add_writer_id(args.writer_id);
+            builder.add_server_id(args.server_id);
             builder.add_missing_sequences(args.missing_sequences);
             builder.finish()
         }
 
-        pub const VT_WRITER_ID: flatbuffers::VOffsetT = 4;
+        pub const VT_SERVER_ID: flatbuffers::VOffsetT = 4;
         pub const VT_START_SEQUENCE: flatbuffers::VOffsetT = 6;
         pub const VT_END_SEQUENCE: flatbuffers::VOffsetT = 8;
         pub const VT_MISSING_SEQUENCES: flatbuffers::VOffsetT = 10;
 
         #[inline]
-        pub fn writer_id(&self) -> u64 {
+        pub fn server_id(&self) -> u64 {
             self._tab
-                .get::<u64>(WriterSummary::VT_WRITER_ID, Some(0))
+                .get::<u64>(WriterSummary::VT_SERVER_ID, Some(0))
                 .unwrap()
         }
         #[inline]
@@ -1916,7 +1916,7 @@ pub mod wb {
         ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
             use self::flatbuffers::Verifiable;
             v.visit_table(pos)?
-                .visit_field::<u64>(&"writer_id", Self::VT_WRITER_ID, false)?
+                .visit_field::<u64>(&"server_id", Self::VT_SERVER_ID, false)?
                 .visit_field::<u64>(&"start_sequence", Self::VT_START_SEQUENCE, false)?
                 .visit_field::<u64>(&"end_sequence", Self::VT_END_SEQUENCE, false)?
                 .visit_field::<bool>(&"missing_sequences", Self::VT_MISSING_SEQUENCES, false)?
@@ -1925,7 +1925,7 @@ pub mod wb {
         }
     }
     pub struct WriterSummaryArgs {
-        pub writer_id: u64,
+        pub server_id: u64,
         pub start_sequence: u64,
         pub end_sequence: u64,
         pub missing_sequences: bool,
@@ -1934,7 +1934,7 @@ pub mod wb {
         #[inline]
         fn default() -> Self {
             WriterSummaryArgs {
-                writer_id: 0,
+                server_id: 0,
                 start_sequence: 0,
                 end_sequence: 0,
                 missing_sequences: false,
@@ -1947,9 +1947,9 @@ pub mod wb {
     }
     impl<'a: 'b, 'b> WriterSummaryBuilder<'a, 'b> {
         #[inline]
-        pub fn add_writer_id(&mut self, writer_id: u64) {
+        pub fn add_server_id(&mut self, server_id: u64) {
             self.fbb_
-                .push_slot::<u64>(WriterSummary::VT_WRITER_ID, writer_id, 0);
+                .push_slot::<u64>(WriterSummary::VT_SERVER_ID, server_id, 0);
         }
         #[inline]
         pub fn add_start_sequence(&mut self, start_sequence: u64) {
@@ -1989,7 +1989,7 @@ pub mod wb {
     impl std::fmt::Debug for WriterSummary<'_> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             let mut ds = f.debug_struct("WriterSummary");
-            ds.field("writer_id", &self.writer_id());
+            ds.field("server_id", &self.server_id());
             ds.field("start_sequence", &self.start_sequence());
             ds.field("end_sequence", &self.end_sequence());
             ds.field("missing_sequences", &self.missing_sequences());
@@ -2029,19 +2029,19 @@ pub mod wb {
                 builder.add_payload(x);
             }
             builder.add_checksum(args.checksum);
-            builder.add_writer(args.writer);
+            builder.add_server_id(args.server_id);
             builder.finish()
         }
 
-        pub const VT_WRITER: flatbuffers::VOffsetT = 4;
+        pub const VT_SERVER_ID: flatbuffers::VOffsetT = 4;
         pub const VT_SEQUENCE: flatbuffers::VOffsetT = 6;
         pub const VT_CHECKSUM: flatbuffers::VOffsetT = 8;
         pub const VT_PAYLOAD: flatbuffers::VOffsetT = 10;
 
         #[inline]
-        pub fn writer(&self) -> u32 {
+        pub fn server_id(&self) -> u32 {
             self._tab
-                .get::<u32>(ReplicatedWrite::VT_WRITER, Some(0))
+                .get::<u32>(ReplicatedWrite::VT_SERVER_ID, Some(0))
                 .unwrap()
         }
         #[inline]
@@ -2075,7 +2075,7 @@ pub mod wb {
         ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
             use self::flatbuffers::Verifiable;
             v.visit_table(pos)?
-                .visit_field::<u32>(&"writer", Self::VT_WRITER, false)?
+                .visit_field::<u32>(&"server_id", Self::VT_SERVER_ID, false)?
                 .visit_field::<u64>(&"sequence", Self::VT_SEQUENCE, false)?
                 .visit_field::<u32>(&"checksum", Self::VT_CHECKSUM, false)?
                 .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u8>>>(
@@ -2088,7 +2088,7 @@ pub mod wb {
         }
     }
     pub struct ReplicatedWriteArgs<'a> {
-        pub writer: u32,
+        pub server_id: u32,
         pub sequence: u64,
         pub checksum: u32,
         pub payload: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u8>>>,
@@ -2097,7 +2097,7 @@ pub mod wb {
         #[inline]
         fn default() -> Self {
             ReplicatedWriteArgs {
-                writer: 0,
+                server_id: 0,
                 sequence: 0,
                 checksum: 0,
                 payload: None,
@@ -2110,9 +2110,9 @@ pub mod wb {
     }
     impl<'a: 'b, 'b> ReplicatedWriteBuilder<'a, 'b> {
         #[inline]
-        pub fn add_writer(&mut self, writer: u32) {
+        pub fn add_server_id(&mut self, server_id: u32) {
             self.fbb_
-                .push_slot::<u32>(ReplicatedWrite::VT_WRITER, writer, 0);
+                .push_slot::<u32>(ReplicatedWrite::VT_SERVER_ID, server_id, 0);
         }
         #[inline]
         pub fn add_sequence(&mut self, sequence: u64) {
@@ -2154,7 +2154,7 @@ pub mod wb {
     impl std::fmt::Debug for ReplicatedWrite<'_> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             let mut ds = f.debug_struct("ReplicatedWrite");
-            ds.field("writer", &self.writer());
+            ds.field("server_id", &self.server_id());
             ds.field("sequence", &self.sequence());
             ds.field("checksum", &self.checksum());
             ds.field("payload", &self.payload());
