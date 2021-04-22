@@ -127,10 +127,9 @@ impl ChunkSnapshot {
         self.records
             .iter()
             .flat_map(move |(table_name, table_snapshot)| {
-                match table_snapshot.matches_predicate(&timestamp_range) {
-                    true => Some(table_name),
-                    false => None,
-                }
+                table_snapshot
+                    .matches_predicate(&timestamp_range)
+                    .then(|| table_name)
             })
     }
 
