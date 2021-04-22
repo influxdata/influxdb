@@ -287,8 +287,7 @@ mod test {
         service_account: String,
     }
 
-    // Helper macro to skip tests if the GCP environment variables are not set.
-    // Skips become hard errors if TEST_INTEGRATION is set.
+    // Helper macro to skip tests if TEST_INTEGRATION and the GCP environment variables are not set.
     macro_rules! maybe_skip_integration {
         () => {{
             dotenv::dotenv().ok();
@@ -311,11 +310,14 @@ mod test {
                             but variable(s) {} need to be set",
                     unset_var_names
                 )
-            } else if force.is_err() && !unset_var_names.is_empty() {
+            } else if force.is_err() {
                 eprintln!(
-                    "skipping Google Cloud integration test - set \
-                               {} to run",
-                    unset_var_names
+                    "skipping Google Cloud integration test - set {}TEST_INTEGRATION to run",
+                    if unset_var_names.is_empty() {
+                        String::new()
+                    } else {
+                        format!("{} and ", unset_var_names)
+                    }
                 );
                 return;
             } else {
