@@ -24,7 +24,7 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/internal/shard"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -2887,7 +2887,7 @@ func TestStorageReader_ReadGroup(t *testing.T) {
 // values vary among the candidate items for select and the read-group
 // operation must track and return the correct set of tags.
 func TestStorageReader_ReadGroupSelectTags(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
@@ -2975,7 +2975,7 @@ func TestStorageReader_ReadGroupSelectTags(t *testing.T) {
 
 // TestStorageReader_ReadGroupNoAgg exercises the path where no aggregate is specified
 func TestStorageReader_ReadGroupNoAgg(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
