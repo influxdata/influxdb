@@ -50,7 +50,7 @@ describe('Onboarding', () => {
     cy.getByTestID('nav-step--welcome').click()
 
     //Check splash page
-    cy.getByTestID('init-step--head-main').contains('Welcome to InfluxDB 2.0')
+    cy.getByTestID('init-step--head-main').contains('Welcome to InfluxDB')
     cy.getByTestID('credits').contains('Powered by')
     cy.getByTestID('credits').contains('InfluxData')
 
