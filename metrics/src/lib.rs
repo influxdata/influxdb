@@ -5,6 +5,8 @@
     clippy::use_self,
     clippy::clone_on_ref_ptr
 )]
+mod metrics;
+mod tests;
 
 use observability_deps::{
     opentelemetry::metrics::Meter as OTMeter,
@@ -20,8 +22,8 @@ use observability_deps::{
     tracing::*,
 };
 
-pub mod metrics;
-pub use crate::metrics::*;
+pub use crate::metrics::{Counter, KeyValue, RedMetric};
+pub use crate::tests::*;
 
 /// A registry responsible for initialising IOx metrics and exposing their
 /// current state in Prometheus exposition format.
@@ -34,8 +36,9 @@ pub use crate::metrics::*;
 /// for that domain having a common name prefix. Domains allow callers to
 /// register individual metrics.
 ///
-/// To test your metrics in isolation simply provide a new `MetricRegistry`
-/// during test setup; this will ensure no other tests interfere.
+/// To test your metrics in isolation simply provide a new `TestMetricRegistry`
+/// during test setup. As well as ensuring isolation of your metrics it also
+/// provides handy builder to easily assert conditions on your metrics.
 #[derive(Debug)]
 pub struct MetricRegistry {
     provider: RegistryMeterProvider,
@@ -75,6 +78,15 @@ impl MetricRegistry {
             .encode(&metric_families, &mut result)
             .unwrap();
         result
+    }
+
+    pub(crate) fn metrics_as_str(&self) -> String {
+        let metric_families = self.exporter.registry().gather();
+        let mut result = Vec::new();
+        TextEncoder::new()
+            .encode(&metric_families, &mut result)
+            .unwrap();
+        String::from_utf8(result).unwrap()
     }
 
     /// This method should be used to register a new domain such as a
@@ -234,8 +246,8 @@ mod test {
 
     #[test]
     fn red_metric() {
-        let reg = MetricRegistry::new();
-        let domain = reg.register_domain("http");
+        let reg = TestMetricRegistry::default();
+        let domain = reg.registry().register_domain("http");
 
         // create a RED metrics
         let metric = domain.register_red_metric(None);
@@ -250,36 +262,45 @@ mod test {
         // testing.
         //
         // Usually caller would call `ob.ok()`.
-        ob.observe(RedRequestStatus::Ok, duration, &[]);
+        ob.observe(metrics::RedRequestStatus::Ok, duration, &[]);
 
-        assert_eq!(
-            String::from_utf8(reg.metrics_as_text()).unwrap(),
-            vec![
-                "# HELP http_request_duration_seconds distribution of request latencies",
-                "# TYPE http_request_duration_seconds histogram",
-                r#"http_request_duration_seconds_bucket{status="ok",le="0.5"} 1"#,
-                r#"http_request_duration_seconds_bucket{status="ok",le="0.9"} 1"#,
-                r#"http_request_duration_seconds_bucket{status="ok",le="0.99"} 1"#,
-                r#"http_request_duration_seconds_bucket{status="ok",le="+Inf"} 1"#,
-                r#"http_request_duration_seconds_sum{status="ok"} 0.1"#,
-                r#"http_request_duration_seconds_count{status="ok"} 1"#,
-                "# HELP http_requests_total accumulated total requests",
-                "# TYPE http_requests_total counter",
-                r#"http_requests_total{status="ok"} 1"#,
-                ""
-            ]
-            .join("\n")
-        );
+        reg.has_metric_family("http_requests_total")
+            .with_labels(&[("status", "ok")])
+            .counter()
+            .eq(1.0)
+            .unwrap();
+
+        reg.has_metric_family("http_request_duration_seconds")
+            .with_labels(&[("status", "ok")])
+            .histogram()
+            .sample_count_eq(1)
+            .unwrap();
+
+        reg.has_metric_family("http_request_duration_seconds")
+            .with_labels(&[("status", "ok")])
+            .histogram()
+            .sample_sum_eq(0.1)
+            .unwrap();
 
         // report some other observations
         let ob = metric.observation();
-        ob.observe(RedRequestStatus::OkError, Duration::from_millis(2000), &[]);
+        ob.observe(
+            metrics::RedRequestStatus::OkError,
+            Duration::from_millis(2000),
+            &[],
+        );
 
         let ob = metric.observation();
-        ob.observe(RedRequestStatus::Error, Duration::from_millis(350), &[]);
+        ob.observe(
+            metrics::RedRequestStatus::Error,
+            Duration::from_millis(350),
+            &[],
+        );
 
+        // You are always welcome to assert against the exposition format
+        // directly.
         assert_eq!(
-            String::from_utf8(reg.metrics_as_text()).unwrap(),
+            String::from_utf8(reg.registry().metrics_as_text()).unwrap(),
             vec![
                 "# HELP http_request_duration_seconds distribution of request latencies",
                 "# TYPE http_request_duration_seconds histogram",
@@ -325,19 +346,19 @@ mod test {
 
         // Usually a caller would use `ob.ok_with_labels(labels)`;
         ob.observe(
-            RedRequestStatus::Ok,
+            metrics::RedRequestStatus::Ok,
             Duration::from_millis(100),
             &[KeyValue::new("account", "abc123")],
         );
 
         metric.observation().observe(
-            RedRequestStatus::OkError,
+            metrics::RedRequestStatus::OkError,
             Duration::from_millis(200),
             &[KeyValue::new("account", "other")],
         );
 
         metric.observation().observe(
-            RedRequestStatus::Error,
+            metrics::RedRequestStatus::Error,
             Duration::from_millis(203),
             &[KeyValue::new("account", "abc123")],
         );
@@ -378,8 +399,8 @@ r#"ftp_requests_total{account="other",status="ok_error"} 1"#,
 
     #[test]
     fn counter_metric() {
-        let reg = MetricRegistry::new();
-        let domain = reg.register_domain("http");
+        let reg = TestMetricRegistry::default();
+        let domain = reg.registry().register_domain("http");
 
         // create a counter metric
         let metric = domain.register_counter_metric_with_labels(
@@ -393,16 +414,16 @@ r#"ftp_requests_total{account="other",status="ok_error"} 1"#,
         metric.add(22);
         metric.inc_with_labels(&[KeyValue::new("tier", "b")]);
 
-        assert_eq!(
-            String::from_utf8(reg.metrics_as_text()).unwrap(),
-            vec![
-                "# HELP http_mem_bytes_total total bytes consumed",
-                "# TYPE http_mem_bytes_total counter",
-                r#"http_mem_bytes_total{tier="a"} 23"#,
-                r#"http_mem_bytes_total{tier="b"} 1"#, // tier is overridden
-                ""
-            ]
-            .join("\n")
-        );
+        reg.has_metric_family("http_mem_bytes_total")
+            .with_labels(&[("tier", "a")])
+            .counter()
+            .eq(23.0)
+            .unwrap();
+
+        reg.has_metric_family("http_mem_bytes_total")
+            .with_labels(&[("tier", "b")])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 }

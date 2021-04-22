@@ -1807,8 +1807,7 @@ name = "metrics"
 version = "0.1.0"
 dependencies = [
  "observability_deps",
- "once_cell",
- "parking_lot",
+ "snafu",
 ]
 
 [[package]]

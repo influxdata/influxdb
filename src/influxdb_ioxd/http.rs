@@ -460,7 +460,7 @@ where
         let num_lines = lines.len();
         debug!(?e, ?db_name, ?num_lines, "error writing lines");
 
-        obs.ok_error_with_labels(&metric_kv); // user error
+        obs.client_error_with_labels(&metric_kv); // user error
         match e {
             server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
                 name: db_name.to_string(),
@@ -475,13 +475,16 @@ where
 
     server
         .metrics
-        .points_written
-        .add_with_labels(lines.len() as u64, &metric_kv);
+        .bytes_written
+        .add_with_labels(body.len() as u64, &metric_kv);
+    obs.ok_with_labels(&metric_kv); // request completed successfully
+
+    metric_kv.push(metrics::KeyValue::new("status", "ok"));
     server
         .metrics
-        .bytes_written
+        .points_written
         .add_with_labels(lines.len() as u64, &metric_kv);
-    obs.ok_with_labels(&metric_kv); // request completed successfully
+
     Ok(Response::builder()
         .status(StatusCode::NO_CONTENT)
         .body(Body::empty())
@@ -761,17 +764,23 @@ mod tests {
     use server::{db::Db, ConnectionManagerImpl, ServerConfig as AppServerConfig};
     use std::num::NonZeroU32;
 
-    fn config() -> AppServerConfig {
-        AppServerConfig::new(
-            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
-            Arc::new(metrics::MetricRegistry::new()),
+    fn config() -> (metrics::TestMetricRegistry, AppServerConfig) {
+        let registry = Arc::new(metrics::MetricRegistry::new());
+        let test_registry = metrics::TestMetricRegistry::new(Arc::clone(&registry));
+        (
+            test_registry,
+            AppServerConfig::new(
+                Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+                registry,
+            )
+            .with_num_worker_threads(1),
         )
-        .with_num_worker_threads(1)
     }
 
     #[tokio::test]
     async fn test_health() {
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config()));
+        let (_, config) = config();
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
         let server_url = test_server(Arc::clone(&app_server));
 
         let client = Client::new();
@@ -783,7 +792,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_write() {
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config()));
+        let (_, config) = config();
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
         app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         app_server
             .create_database(
@@ -826,20 +836,12 @@ mod tests {
             "+----------------+--------------+-------+-----------------+---------------------+",
         ];
         assert_table_eq!(expected, &batches);
-
-        // test metrics triggered.
-        //
-        // TODO(edd): add testing helpers to the `MetricRegistry`.
-        //
-        // Ideally we would have assertions available on metrics that they were
-        // certain values.
-        assert!(!app_server.metrics.registry.metrics_as_text().is_empty());
     }
 
     #[tokio::test]
     async fn test_write_metrics() {
-        // metrics::init_metrics_for_test();
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config()));
+        let (metrics_registry, config) = config();
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
         app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         app_server
             .create_database(
@@ -867,6 +869,44 @@ mod tests {
             .await
             .expect("sent data");
 
+        // The request completed successfully
+        metrics_registry
+            .has_metric_family("http_write_request_duration_seconds")
+            .with_labels(&[
+                ("bucket", "MetricsBucket"),
+                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("org", "MetricsOrg"),
+                ("status", "ok"),
+            ])
+            .histogram()
+            .sample_count_eq(1)
+            .unwrap();
+
+        // A single successful point landed
+        metrics_registry
+            .has_metric_family("http_points_total")
+            .with_labels(&[
+                ("bucket", "MetricsBucket"),
+                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("org", "MetricsOrg"),
+                ("status", "ok"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
+
+        // Bytes of data were written
+        metrics_registry
+            .has_metric_family("http_points_bytes_total")
+            .with_labels(&[
+                ("bucket", "MetricsBucket"),
+                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("org", "MetricsOrg"),
+            ])
+            .counter()
+            .eq(98.0)
+            .unwrap();
+
         // Generate an error
         client
             .post(&format!(
@@ -878,26 +918,26 @@ mod tests {
             .await
             .unwrap();
 
-        // let metrics_string = String::from_utf8(metrics::metrics_as_text()).unwrap();
-        // assert_contains!(
-        //     &metrics_string,
-        //     r#"ingest_lp_lines_success{bucket="MetricsBucket",db_name="MetricsOrg_MetricsBucket",org="MetricsOrg"} 1"#
-        // );
-        // assert_contains!(
-        //     &metrics_string,
-        //     r#"ingest_lp_lines_errors{bucket="NotMyBucket",db_name="NotMyOrg_NotMyBucket",org="NotMyOrg"} 1"#
-        // );
-        // assert_contains!(
-        //     &metrics_string,
-        //     r#"lp_bytes_success{bucket="MetricsBucket",db_name="MetricsOrg_MetricsBucket",org="MetricsOrg"} 98"#
-        // );
+        // A single point was rejected
+        metrics_registry
+            .has_metric_family("http_points_total")
+            .with_labels(&[
+                ("bucket", "NotMyBucket"),
+                ("db_name", "NotMyOrg_NotMyBucket"),
+                ("org", "NotMyOrg"),
+                ("status", "error"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 
     /// Sets up a test database with some data for testing the query endpoint
-    /// returns a client for communicting with the server, and the server
+    /// returns a client for communicating with the server, and the server
     /// endpoint
     async fn setup_test_data() -> (Client, String) {
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config()));
+        let (_, config) = config();
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
         app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         app_server
             .create_database(
@@ -1033,7 +1073,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_gzip_write() {
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config()));
+        let (_, config) = config();
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
         app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         app_server
             .create_database(
@@ -1081,7 +1122,8 @@ mod tests {
 
     #[tokio::test]
     async fn write_to_invalid_database() {
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config()));
+        let (_, config) = config();
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
         app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         app_server
             .create_database(

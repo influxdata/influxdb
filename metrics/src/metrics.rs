@@ -181,17 +181,17 @@ where
     }
 
     /// Record that the observation was not successful but was still valid.
-    /// `ok_error` is the right thing to choose when the request failed perhaps
+    /// `client_error` is the right thing to choose when the request failed perhaps
     /// due to client error. Timing of observation is handled automatically.
-    pub fn ok_error(&self) {
-        self.ok_error_with_labels(&[])
+    pub fn client_error(&self) {
+        self.client_error_with_labels(&[])
     }
 
     /// Record with labels that the observation was not successful but was still
-    /// valid. `ok_error` is the right thing to choose when the request failed
+    /// valid. `client_error` is the right thing to choose when the request failed
     /// perhaps due to client error. Timing of observation is handled
     /// automatically.
-    pub fn ok_error_with_labels(&self, labels: &[KeyValue]) {
+    pub fn client_error_with_labels(&self, labels: &[KeyValue]) {
         let duration = self.start.elapsed();
         self.observe(RedRequestStatus::OkError, duration, labels);
     }

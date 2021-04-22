@@ -7,12 +7,15 @@ edition = "2018"
 # This crate contains the application-specific abstraction of the metrics 
 # implementation for IOx. Any crate that wants to expose telemetry should use 
 # this crate. 
+#
+# The crate exposes a special type of metrics registry which allows users to 
+# isolate their metrics from the rest of the system so they can be tested 
+# in isolation.
 
 
 [dependencies] # In alphabetical order
 observability_deps = { path = "../observability_deps" }
-once_cell = { version = "1.4.0", features = ["parking_lot"] }
-parking_lot = "0.11.1"
+snafu = "0.6"
 
 [dev-dependencies] # In alphabetical order
 
