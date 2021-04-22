@@ -102,6 +102,9 @@ async fn wait_for_signal() {
 pub async fn main(config: Config) -> Result<()> {
     metrics::init_metrics(&config);
 
+    let git_hash = option_env!("GIT_HASH").unwrap_or("UNKNOWN");
+    info!(git_hash, "InfluxDB IOx server starting");
+
     // Install custom panic handler and forget about it.
     //
     // This leaks the handler and prevents it from ever being dropped during the
@@ -171,7 +174,6 @@ pub async fn main(config: Config) -> Result<()> {
     let http_server = http::serve(addr, Arc::clone(&app_server), frontend_shutdown.clone()).fuse();
     info!(bind_address=?bind_addr, "HTTP server listening");
 
-    let git_hash = option_env!("GIT_HASH").unwrap_or("UNKNOWN");
     info!(git_hash, "InfluxDB IOx server ready");
 
     // Get IOx background worker task
