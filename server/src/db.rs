@@ -1,20 +1,7 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
-use std::any::Any;
-use std::{
-    convert::TryInto,
-    sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
-        Arc,
-    },
-};
-
-use async_trait::async_trait;
-use observability_deps::tracing::{debug, info};
-use parking_lot::{Mutex, RwLock};
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
-
+use super::{buffer::Buffer, JobRegistry};
 use arrow_deps::{
     arrow::datatypes::SchemaRef as ArrowSchemaRef,
     datafusion::{
@@ -22,27 +9,40 @@ use arrow_deps::{
         physical_plan::SendableRecordBatchStream,
     },
 };
-
-use super::{buffer::Buffer, JobRegistry};
+use async_trait::async_trait;
 use catalog::{chunk::ChunkState, Catalog};
 pub(crate) use chunk::DbChunk;
-use data_types::job::Job;
 use data_types::{
-    chunk::ChunkSummary, database_rules::DatabaseRules, partition_metadata::PartitionSummary,
-    server_id::ServerId, timestamp::TimestampRange,
+    chunk::ChunkSummary,
+    database_rules::DatabaseRules,
+    job::Job,
+    partition_metadata::{PartitionSummary, TableSummary},
+    server_id::ServerId,
+    timestamp::TimestampRange,
 };
-use internal_types::selection::Selection;
+use internal_types::{
+    entry::{self, ClockValue, Entry, SequencedEntry},
+    selection::Selection,
+};
+use lifecycle::LifecycleManager;
 use metrics::MetricRegistry;
 use object_store::ObjectStore;
+use observability_deps::tracing::{debug, info};
+use parking_lot::{Mutex, RwLock};
 use parquet_file::{chunk::Chunk, storage::Storage};
 use query::{exec::Executor, Database, DEFAULT_SCHEMA};
 use read_buffer::Chunk as ReadBufferChunk;
-use tracker::{MemRegistry, TaskTracker, TrackedFutureExt};
-
-use data_types::partition_metadata::TableSummary;
-use internal_types::entry::{self, ClockValue, Entry, SequencedEntry};
-use lifecycle::LifecycleManager;
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use std::{
+    any::Any,
+    convert::TryInto,
+    sync::{
+        atomic::{AtomicU64, AtomicUsize, Ordering},
+        Arc,
+    },
+};
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
+use tracker::{MemRegistry, TaskTracker, TrackedFutureExt};
 
 pub mod catalog;
 mod chunk;

@@ -1,23 +1,23 @@
-use std::convert::{TryFrom, TryInto};
-
+use crate::{
+    consistent_hasher::ConsistentHasher,
+    field_validation::{FromField, FromFieldOpt, FromFieldString, FromFieldVec},
+    DatabaseName,
+};
 use chrono::{DateTime, TimeZone, Utc};
-use regex::Regex;
-use snafu::{OptionExt, Snafu};
-
-use generated_types::google::protobuf::Empty;
 use generated_types::{
-    google::{FieldViolation, FieldViolationExt},
+    google::{protobuf::Empty, FieldViolation, FieldViolationExt},
     influxdata::iox::management::v1 as management,
 };
 use influxdb_line_protocol::ParsedLine;
-
-use crate::consistent_hasher::ConsistentHasher;
-use crate::field_validation::{FromField, FromFieldOpt, FromFieldString, FromFieldVec};
-use crate::DatabaseName;
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
-use std::num::{NonZeroU32, NonZeroUsize};
-use std::sync::Arc;
+use regex::Regex;
+use snafu::{OptionExt, Snafu};
+use std::{
+    collections::HashMap,
+    convert::{TryFrom, TryInto},
+    hash::{Hash, Hasher},
+    num::{NonZeroU32, NonZeroUsize},
+    sync::Arc,
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {

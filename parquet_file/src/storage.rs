@@ -19,17 +19,16 @@ use arrow_deps::{
         file::{reader::FileReader, serialized_reader::SerializedFileReader, writer::TryClone},
     },
 };
+use bytes::Bytes;
 use data_types::server_id::ServerId;
+use futures::{Stream, StreamExt};
 use internal_types::selection::Selection;
 use object_store::{
     path::{ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
-use query::predicate::Predicate;
-
-use bytes::Bytes;
-use futures::{Stream, StreamExt};
 use parking_lot::Mutex;
+use query::predicate::Predicate;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     fs::File,
@@ -37,8 +36,10 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
-use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::task;
+use tokio::{
+    sync::mpsc::{channel, Receiver, Sender},
+    task,
+};
 use tokio_stream::wrappers::ReceiverStream;
 
 #[derive(Debug, Snafu)]
