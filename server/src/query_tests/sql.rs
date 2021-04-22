@@ -223,13 +223,14 @@ async fn sql_select_from_information_schema_columns() {
     "| public        | iox          | o2         | state               | 2                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
     "| public        | iox          | o2         | temp                | 3                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
     "| public        | iox          | o2         | time                | 4                |                | NO          | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
-    "| public        | system       | chunks     | estimated_bytes     | 3                |                | YES         | UInt64                      |                          |                        |                   |                         |               |                    |               |",
+    "| public        | system       | chunks     | estimated_bytes     | 4                |                | YES         | UInt64                      |                          |                        |                   |                         |               |                    |               |",
     "| public        | system       | chunks     | id                  | 0                |                | NO          | UInt32                      |                          |                        | 32                | 2                       |               |                    |               |",
     "| public        | system       | chunks     | partition_key       | 1                |                | NO          | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
-    "| public        | system       | chunks     | storage             | 2                |                | NO          | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
-    "| public        | system       | chunks     | time_closing        | 6                |                | YES         | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
-    "| public        | system       | chunks     | time_of_first_write | 4                |                | YES         | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
-    "| public        | system       | chunks     | time_of_last_write  | 5                |                | YES         | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
+    "| public        | system       | chunks     | storage             | 3                |                | NO          | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
+    "| public        | system       | chunks     | table_name          | 2                |                | NO          | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
+    "| public        | system       | chunks     | time_closing        | 7                |                | YES         | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
+    "| public        | system       | chunks     | time_of_first_write | 5                |                | YES         | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
+    "| public        | system       | chunks     | time_of_last_write  | 6                |                | YES         | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
     "| public        | system       | columns    | column_name         | 2                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
     "| public        | system       | columns    | count               | 3                |                | YES         | UInt64                      |                          |                        |                   |                         |               |                    |               |",
     "| public        | system       | columns    | partition_key       | 0                |                | NO          | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
@@ -275,15 +276,16 @@ async fn sql_select_from_system_tables() {
     //  test timestamps, etc)
 
     let expected = vec![
-        "+----+---------------+-------------------+-----------------+",
-        "| id | partition_key | storage           | estimated_bytes |",
-        "+----+---------------+-------------------+-----------------+",
-        "| 0  | 1970-01-01T00 | OpenMutableBuffer | 501             |",
-        "+----+---------------+-------------------+-----------------+",
+        "+----+---------------+------------+-------------------+-----------------+",
+        "| id | partition_key | table_name | storage           | estimated_bytes |",
+        "+----+---------------+------------+-------------------+-----------------+",
+        "| 0  | 1970-01-01T00 | h2o        | OpenMutableBuffer | 324             |",
+        "| 0  | 1970-01-01T00 | o2         | OpenMutableBuffer | 264             |",
+        "+----+---------------+------------+-------------------+-----------------+",
     ];
     run_sql_test_case!(
         TwoMeasurementsManyFieldsOneChunk {},
-        "SELECT id, partition_key, storage, estimated_bytes from system.chunks",
+        "SELECT id, partition_key, table_name, storage, estimated_bytes from system.chunks",
         &expected
     );
 

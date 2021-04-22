@@ -596,19 +596,21 @@ impl<M: ConnectionManager> Server<M> {
         &self,
         db_name: DatabaseName<'_>,
         partition_key: impl Into<String>,
+        table_name: impl Into<String>,
         chunk_id: u32,
     ) -> Result<TaskTracker<Job>> {
         let db_name = db_name.to_string();
         let name = DatabaseName::new(&db_name).context(InvalidDatabaseName)?;
 
         let partition_key = partition_key.into();
+        let table_name = table_name.into();
 
         let db = self
             .config
             .db(&name)
             .context(DatabaseNotFound { db_name: &db_name })?;
 
-        Ok(db.load_chunk_to_read_buffer_in_background(partition_key, chunk_id))
+        Ok(db.load_chunk_to_read_buffer_in_background(partition_key, table_name, chunk_id))
     }
 
     /// Returns a list of all jobs tracked by this server
@@ -1191,13 +1193,17 @@ mod tests {
 
         // start the close (note this is not an async)
         let partition_key = "";
+        let table_name = "cpu";
         let db_name_string = db_name.to_string();
-        let tracker = server.close_chunk(db_name, partition_key, 0).unwrap();
+        let tracker = server
+            .close_chunk(db_name, partition_key, table_name, 0)
+            .unwrap();
 
         let metadata = tracker.metadata();
         let expected_metadata = Job::CloseChunk {
             db_name: db_name_string,
             partition_key: partition_key.to_string(),
+            table_name: table_name.to_string(),
             chunk_id: 0,
         };
         assert_eq!(metadata, &expected_metadata);

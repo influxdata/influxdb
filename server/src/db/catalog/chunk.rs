@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
@@ -63,6 +62,9 @@ pub struct Chunk {
     /// What partition does the chunk belong to?
     partition_key: Arc<String>,
 
+    /// What table does the chunk belong to?
+    table_name: Arc<String>,
+
     /// The ID of the chunk
     id: u32,
 
@@ -87,6 +89,7 @@ macro_rules! unexpected_state {
     ($SELF: expr, $OP: expr, $EXPECTED: expr, $STATE: expr) => {
         InternalChunkState {
             partition_key: $SELF.partition_key.as_str(),
+            table_name: $SELF.table_name.as_str(),
             chunk_id: $SELF.id,
             operation: $OP,
             expected: $EXPECTED,
@@ -98,9 +101,15 @@ macro_rules! unexpected_state {
 
 impl Chunk {
     /// Create a new chunk in the provided state
-    pub(crate) fn new(partition_key: impl Into<String>, id: u32, state: ChunkState) -> Self {
+    pub(crate) fn new(
+        partition_key: impl Into<String>,
+        table_name: impl Into<String>,
+        id: u32,
+        state: ChunkState,
+    ) -> Self {
         Self {
             partition_key: Arc::new(partition_key.into()),
+            table_name: Arc::new(table_name.into()),
             id,
             state,
             time_of_first_write: None,
@@ -112,11 +121,12 @@ impl Chunk {
     /// Creates a new open chunk
     pub(crate) fn new_open(
         partition_key: impl Into<String>,
+        table_name: impl Into<String>,
         id: u32,
         memory_registry: &MemRegistry,
     ) -> Self {
         let state = ChunkState::Open(mutable_buffer::chunk::Chunk::new(id, memory_registry));
-        Self::new(partition_key, id, state)
+        Self::new(partition_key, table_name, id, state)
     }
 
     /// Used for testing
@@ -136,6 +146,10 @@ impl Chunk {
 
     pub fn key(&self) -> &str {
         self.partition_key.as_ref()
+    }
+
+    pub fn table_name(&self) -> &str {
+        self.table_name.as_ref()
     }
 
     pub fn state(&self) -> &ChunkState {
@@ -181,6 +195,7 @@ impl Chunk {
 
         ChunkSummary {
             partition_key: Arc::clone(&self.partition_key),
+            table_name: Arc::clone(&self.table_name),
             id: self.id,
             storage,
             estimated_bytes,
@@ -190,63 +205,74 @@ impl Chunk {
         }
     }
 
-    /// Return TableSummary metadata for each table in this chunk
-    pub fn table_summaries(&self) -> Vec<TableSummary> {
+    /// Return TableSummary metadata
+    ///
+    /// May be `None` if no data is present within the chunk state (also see [`Self::has_data`](Self::has_data)).
+    pub fn table_summary(&self) -> Option<TableSummary> {
         match &self.state {
             ChunkState::Invalid => panic!("invalid chunk state"),
-            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.table_summaries(),
-            ChunkState::Moving(chunk) => chunk.table_summaries(),
-            ChunkState::Moved(chunk) => chunk.table_summaries(),
-            ChunkState::WritingToObjectStore(chunk) => chunk.table_summaries(),
-            ChunkState::WrittenToObjectStore(chunk, _) => chunk.table_summaries(),
-        }
-    }
-
-    /// Returns true if this chunk contains a table with the provided name
-    pub fn has_table(&self, table_name: &str) -> bool {
-        match &self.state {
-            ChunkState::Invalid => false,
-            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.has_table(table_name),
-            ChunkState::Moving(chunk) => chunk.has_table(table_name),
-            ChunkState::Moved(chunk) => chunk.has_table(table_name),
-            ChunkState::WritingToObjectStore(chunk) => chunk.has_table(table_name),
-            ChunkState::WrittenToObjectStore(chunk, _) => chunk.has_table(table_name),
-        }
-    }
-
-    /// Collects the chunk's table names into `names`
-    pub fn table_names(&self, names: &mut BTreeSet<String>) {
-        match &self.state {
-            ChunkState::Invalid => {}
-            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.all_table_names(names),
-            ChunkState::Moving(chunk) => chunk.all_table_names(names),
+            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => {
+                let mut summaries = chunk.table_summaries();
+                assert!(summaries.len() <= 1);
+                if summaries.len() == 1 {
+                    Some(summaries.remove(0))
+                } else {
+                    None
+                }
+            }
+            ChunkState::Moving(chunk) => {
+                let mut summaries = chunk.table_summaries();
+                assert!(summaries.len() <= 1);
+                if summaries.len() == 1 {
+                    Some(summaries.remove(0))
+                } else {
+                    None
+                }
+            }
             ChunkState::Moved(chunk) => {
-                // TODO - the RB API returns a new set each time, so maybe this
-                // method should be updated to do the same across the mutable
-                // buffer.
-                let rb_names = chunk.all_table_names(names);
-                for name in rb_names {
-                    names.insert(name);
+                let mut summaries = chunk.table_summaries();
+                assert!(summaries.len() <= 1);
+                if summaries.len() == 1 {
+                    Some(summaries.remove(0))
+                } else {
+                    None
                 }
             }
             ChunkState::WritingToObjectStore(chunk) => {
-                // TODO - the RB API returns a new set each time, so maybe this
-                // method should be updated to do the same across the mutable
-                // buffer.
-                let rb_names = chunk.all_table_names(names);
-                for name in rb_names {
-                    names.insert(name);
+                let mut summaries = chunk.table_summaries();
+                assert!(summaries.len() <= 1);
+                if summaries.len() == 1 {
+                    Some(summaries.remove(0))
+                } else {
+                    None
                 }
             }
             ChunkState::WrittenToObjectStore(chunk, _) => {
-                // TODO - the RB API returns a new set each time, so maybe this
-                // method should be updated to do the same across the mutable
-                // buffer.
-                let rb_names = chunk.all_table_names(names);
-                for name in rb_names {
-                    names.insert(name);
+                let mut summaries = chunk.table_summaries();
+                assert!(summaries.len() <= 1);
+                if summaries.len() == 1 {
+                    Some(summaries.remove(0))
+                } else {
+                    None
                 }
             }
+        }
+    }
+
+    /// Returns true if this chunk contains any real data.
+    ///
+    /// This is required because some chunk states can be empty (= no schema data at all) which confused the heck out of
+    /// our query engine.
+    pub fn has_data(&self) -> bool {
+        match &self.state {
+            ChunkState::Invalid => false,
+            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => {
+                chunk.has_table(&self.table_name)
+            }
+            ChunkState::Moving(chunk) => chunk.has_table(&self.table_name),
+            ChunkState::Moved(chunk) => chunk.has_table(&self.table_name),
+            ChunkState::WritingToObjectStore(chunk) => chunk.has_table(&self.table_name),
+            ChunkState::WrittenToObjectStore(chunk, _) => chunk.has_table(&self.table_name),
         }
     }
 

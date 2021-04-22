@@ -329,6 +329,7 @@ where
         let NewPartitionChunkRequest {
             db_name,
             partition_key,
+            table_name,
         } = request.into_inner();
         let db_name = DatabaseName::new(db_name).field("db_name")?;
 
@@ -338,7 +339,7 @@ where
             ..Default::default()
         })?;
 
-        db.rollover_partition(&partition_key)
+        db.rollover_partition(&partition_key, &table_name)
             .await
             .map_err(default_db_error_handler)?;
 
@@ -352,6 +353,7 @@ where
         let ClosePartitionChunkRequest {
             db_name,
             partition_key,
+            table_name,
             chunk_id,
         } = request.into_inner();
 
@@ -360,7 +362,7 @@ where
 
         let tracker = self
             .server
-            .close_chunk(db_name, partition_key, chunk_id)
+            .close_chunk(db_name, partition_key, table_name, chunk_id)
             .map_err(default_server_error_handler)?;
 
         let operation = Some(super::operations::encode_tracker(tracker)?);

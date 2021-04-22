@@ -85,6 +85,9 @@ struct NewChunk {
 
     /// The partition key
     partition_key: String,
+
+    /// The table name
+    table_name: String,
 }
 
 /// Closes a chunk in the mutable buffer for writing and starts its migration to
@@ -96,6 +99,9 @@ struct CloseChunk {
 
     /// The partition key
     partition_key: String,
+
+    /// The table name
+    table_name: String,
 
     /// The chunk id
     chunk_id: u32,
@@ -168,21 +174,25 @@ pub async fn command(url: String, config: Config) -> Result<()> {
             let NewChunk {
                 db_name,
                 partition_key,
+                table_name,
             } = new_chunk;
 
             // Ignore response for now
-            client.new_partition_chunk(db_name, partition_key).await?;
+            client
+                .new_partition_chunk(db_name, partition_key, table_name)
+                .await?;
             println!("Ok");
         }
         Command::CloseChunk(close_chunk) => {
             let CloseChunk {
                 db_name,
                 partition_key,
+                table_name,
                 chunk_id,
             } = close_chunk;
 
             let operation: Operation = client
-                .close_partition_chunk(db_name, partition_key, chunk_id)
+                .close_partition_chunk(db_name, partition_key, table_name, chunk_id)
                 .await?
                 .try_into()?;
 

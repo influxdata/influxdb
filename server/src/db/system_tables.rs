@@ -81,6 +81,7 @@ fn append_time(
 fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
     let mut id = UInt32Builder::new(chunks.len());
     let mut partition_key = StringBuilder::new(chunks.len());
+    let mut table_name = StringBuilder::new(chunks.len());
     let mut storage = StringBuilder::new(chunks.len());
     let mut estimated_bytes = UInt64Builder::new(chunks.len());
     let mut time_of_first_write = TimestampNanosecondBuilder::new(chunks.len());
@@ -90,6 +91,7 @@ fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
     for chunk in chunks {
         id.append_value(chunk.id)?;
         partition_key.append_value(chunk.partition_key.as_ref())?;
+        table_name.append_value(chunk.table_name.as_ref())?;
         storage.append_value(chunk.storage.as_str())?;
         estimated_bytes.append_value(chunk.estimated_bytes as u64)?;
 
@@ -100,6 +102,7 @@ fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
 
     let id = id.finish();
     let partition_key = partition_key.finish();
+    let table_name = table_name.finish();
     let storage = storage.finish();
     let estimated_bytes = estimated_bytes.finish();
     let time_of_first_write = time_of_first_write.finish();
@@ -109,6 +112,7 @@ fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
     let schema = Schema::new(vec![
         Field::new("id", id.data_type().clone(), false),
         Field::new("partition_key", partition_key.data_type().clone(), false),
+        Field::new("table_name", table_name.data_type().clone(), false),
         Field::new("storage", storage.data_type().clone(), false),
         Field::new("estimated_bytes", estimated_bytes.data_type().clone(), true),
         Field::new(
@@ -129,6 +133,7 @@ fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
         vec![
             Arc::new(id),
             Arc::new(partition_key),
+            Arc::new(table_name),
             Arc::new(storage),
             Arc::new(estimated_bytes),
             Arc::new(time_of_first_write),
@@ -196,7 +201,8 @@ mod tests {
     fn test_from_chunk_summaries() {
         let chunks = vec![
             ChunkSummary {
-                partition_key: Arc::new("".to_string()),
+                partition_key: Arc::new("p1".to_string()),
+                table_name: Arc::new("table1".to_string()),
                 id: 0,
                 storage: ChunkStorage::OpenMutableBuffer,
                 estimated_bytes: 23754,
@@ -208,7 +214,8 @@ mod tests {
                 time_closing: None,
             },
             ChunkSummary {
-                partition_key: Arc::new("".to_string()),
+                partition_key: Arc::new("p1".to_string()),
+                table_name: Arc::new("table1".to_string()),
                 id: 0,
                 storage: ChunkStorage::OpenMutableBuffer,
                 estimated_bytes: 23454,
@@ -222,12 +229,12 @@ mod tests {
         ];
 
         let expected = vec![
-            "+----+---------------+-------------------+-----------------+---------------------+---------------------+--------------+",
-            "| id | partition_key | storage           | estimated_bytes | time_of_first_write | time_of_last_write  | time_closing |",
-            "+----+---------------+-------------------+-----------------+---------------------+---------------------+--------------+",
-            "| 0  |               | OpenMutableBuffer | 23754           | 1970-01-01 00:00:10 |                     |              |",
-            "| 0  |               | OpenMutableBuffer | 23454           |                     | 1970-01-01 00:01:20 |              |",
-            "+----+---------------+-------------------+-----------------+---------------------+---------------------+--------------+",
+            "+----+---------------+------------+-------------------+-----------------+---------------------+---------------------+--------------+",
+            "| id | partition_key | table_name | storage           | estimated_bytes | time_of_first_write | time_of_last_write  | time_closing |",
+            "+----+---------------+------------+-------------------+-----------------+---------------------+---------------------+--------------+",
+            "| 0  | p1            | table1     | OpenMutableBuffer | 23754           | 1970-01-01 00:00:10 |                     |              |",
+            "| 0  | p1            | table1     | OpenMutableBuffer | 23454           |                     | 1970-01-01 00:01:20 |              |",
+            "+----+---------------+------------+-------------------+-----------------+---------------------+---------------------+--------------+",
         ];
 
         let batch = from_chunk_summaries(chunks).unwrap();

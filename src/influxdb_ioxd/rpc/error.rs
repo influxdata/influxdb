@@ -59,12 +59,22 @@ pub fn default_catalog_error_handler(error: server::db::catalog::Error) -> tonic
             ..Default::default()
         }
         .into(),
+        Error::UnknownTable {
+            partition_key,
+            table_name,
+        } => NotFound {
+            resource_type: "table".to_string(),
+            resource_name: format!("{}:{}", partition_key, table_name),
+            ..Default::default()
+        }
+        .into(),
         Error::UnknownChunk {
             partition_key,
+            table_name,
             chunk_id,
         } => NotFound {
             resource_type: "chunk".to_string(),
-            resource_name: format!("{}:{}", partition_key, chunk_id),
+            resource_name: format!("{}:{}:{}", partition_key, table_name, chunk_id),
             ..Default::default()
         }
         .into(),

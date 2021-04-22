@@ -43,6 +43,9 @@ message CloseChunk {
   // partition key
   string partition_key = 2;
 
+  // table name
+  string table_name = 4;
+
   // chunk_id
   uint32 chunk_id = 3;
 }
@@ -54,6 +57,9 @@ message WriteChunk {
 
   // partition key
   string partition_key = 2;
+
+  // table name
+  string table_name = 4;
 
   // chunk_id
   uint32 chunk_id = 3;

@@ -232,7 +232,7 @@ pub fn snapshot_chunk<T>(
     store: Arc<ObjectStore>,
     partition_key: &str,
     chunk: Arc<T>,
-    table_stats: Vec<TableSummary>,
+    table_stats: TableSummary,
     notify: Option<oneshot::Sender<()>>,
 ) -> Result<Arc<Snapshot<T>>>
 where
@@ -244,7 +244,7 @@ where
         data_path,
         store,
         chunk,
-        table_stats,
+        vec![table_stats],
     );
     let snapshot = Arc::new(snapshot);
 
@@ -288,7 +288,6 @@ mod tests {
 cpu,host=A,region=west user=23.2,system=55.1 1
 cpu,host=A,region=west user=3.2,system=50.1 10
 cpu,host=B,region=east user=10.0,system=74.1 1
-mem,host=A,region=west used=45 1
         "#;
 
         let db = make_db();
@@ -303,7 +302,9 @@ mem,host=A,region=west used=45 1
         data_path.push_dir("data");
 
         let chunk = Arc::clone(&db.chunks("1970-01-01T00")[0]);
-        let table_summaries = db.table_summaries("1970-01-01T00", chunk.id());
+        let table_summary = db
+            .table_summary("1970-01-01T00", "cpu", chunk.id())
+            .unwrap();
 
         let snapshot = snapshot_chunk(
             metadata_path.clone(),
@@ -311,7 +312,7 @@ mem,host=A,region=west used=45 1
             Arc::clone(&store),
             "testaroo",
             chunk,
-            table_summaries,
+            table_summary,
             Some(tx),
         )
         .unwrap();
