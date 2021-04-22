@@ -47,12 +47,12 @@ The prefix used for Prometheus metrics from the query controller has changed fro
 1. [21030](https://github.com/influxdata/influxdb/pull/21030): Update Telegraf plugins in UI to include additions and changes in 1.18 release.
 1. [21049](https://github.com/influxdata/influxdb/pull/21049): Write to standard out when `--output-path -` is passed to `influxd inspect export-lp`.
 1. [21050](https://github.com/influxdata/influxdb/pull/21050): Add `-p, --profilers` flag to `influx query` command.
-1. [21227](https://github.com/influxdata/influxdb/pull/21227): Upgrade Flux to v0.112.1.
 1. [21126](https://github.com/influxdata/influxdb/pull/21126): Update UI to match InfluxDB Cloud.
 1. [21144](https://github.com/influxdata/influxdb/pull/21144): Allow for disabling concurrency-limits in Flux controller.
 1. [21166](https://github.com/influxdata/influxdb/pull/21166): Replace unique resource IDs (UI assets, backup shards) with slugs to reduce cardinality of telemetry data.
 1. [21181](https://github.com/influxdata/influxdb/pull/21181): Enabled several UI features: Band & mosaic plot types, axis tick mark configuration, CSV file uploader, editable telegraf configurations, legend orientation options, and dashboard single cell refresh.
 1. [21241](https://github.com/influxdata/influxdb/pull/21241): HTTP server errors output logs following the standard format.
+1. [21227](https://github.com/influxdata/influxdb/pull/21268): Upgrade Flux to v0.113.0.
 
 ### Bug Fixes
 
@@ -77,6 +77,7 @@ The prefix used for Prometheus metrics from the query controller has changed fro
 1. [21144](https://github.com/influxdata/influxdb/pull/21144): Fix race condition in Flux controller shutdown.
 1. [21151](https://github.com/influxdata/influxdb/pull/21151): Use descending cursor when needed in window aggregate Flux queries.
 1. [21230](https://github.com/influxdata/influxdb/pull/21230): Reduce lock contention when adding new fields and measurements.
+1. [21232](https://github.com/influxdata/influxdb/pull/21232): Escape dots in community templates hostname regex.
 
 ## v2.0.4 [2021-02-08]
 ----------------------

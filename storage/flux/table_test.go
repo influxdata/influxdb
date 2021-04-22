@@ -2887,7 +2887,6 @@ func TestStorageReader_ReadGroup(t *testing.T) {
 // values vary among the candidate items for select and the read-group
 // operation must track and return the correct set of tags.
 func TestStorageReader_ReadGroupSelectTags(t *testing.T) {
-	t.Skip("fixme")
 	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
@@ -2951,24 +2950,97 @@ func TestStorageReader_ReadGroupSelectTags(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		mem := &memory.Allocator{}
-		got, err := reader.ReadGroup(context.Background(), query.ReadGroupSpec{
-			ReadFilterSpec: query.ReadFilterSpec{
-				OrganizationID: reader.Org,
-				BucketID:       reader.Bucket,
-				Bounds:         reader.Bounds,
-			},
-			GroupMode:       query.GroupModeBy,
-			GroupKeys:       []string{"t0"},
-			AggregateMethod: tt.aggregate,
-		}, mem)
-		if err != nil {
-			t.Fatal(err)
-		}
+		t.Run("", func(t *testing.T) {
+			mem := &memory.Allocator{}
+			got, err := reader.ReadGroup(context.Background(), query.ReadGroupSpec{
+				ReadFilterSpec: query.ReadFilterSpec{
+					OrganizationID: reader.Org,
+					BucketID:       reader.Bucket,
+					Bounds:         reader.Bounds,
+				},
+				GroupMode:       query.GroupModeBy,
+				GroupKeys:       []string{"t0"},
+				AggregateMethod: tt.aggregate,
+			}, mem)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		if diff := table.Diff(tt.want, got); diff != "" {
-			t.Errorf("unexpected results -want/+got:\n%s", diff)
-		}
+			if diff := table.Diff(tt.want, got); diff != "" {
+				t.Errorf("unexpected results -want/+got:\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestStorageReader_ReadGroupNoAgg exercises the path where no aggregate is specified
+func TestStorageReader_ReadGroupNoAgg(t *testing.T) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(org, bucket,
+			MeasurementSpec("m0",
+				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
+				TagValuesSequence("t1", "b-%s", 0, 2),
+			),
+		)
+		tr := TimeRange("2019-11-25T00:00:00Z", "2019-11-25T00:00:40Z")
+		return datagen.NewSeriesGeneratorFromSpec(spec, tr), tr
+	})
+	defer reader.Close()
+
+	cases := []struct {
+		aggregate string
+		want      flux.TableIterator
+	}{
+		{
+			want: static.TableGroup{
+				static.TableMatrix{
+					{
+						static.Table{
+							static.StringKey("t1", "b-0"),
+							static.Strings("_measurement", "m0", "m0", "m0", "m0"),
+							static.Strings("_field", "f0", "f0", "f0", "f0"),
+							static.TimeKey("_start", "2019-11-25T00:00:00Z"),
+							static.TimeKey("_stop", "2019-11-25T00:00:40Z"),
+							static.Times("_time", "2019-11-25T00:00:00Z", "2019-11-25T00:00:10Z", "2019-11-25T00:00:20Z", "2019-11-25T00:00:30Z"),
+							static.Floats("_value", 1.0, 2.0, 3.0, 4.0),
+						},
+					},
+					{
+						static.Table{
+							static.StringKey("t1", "b-1"),
+							static.Strings("_measurement", "m0", "m0", "m0", "m0"),
+							static.Strings("_field", "f0", "f0", "f0", "f0"),
+							static.TimeKey("_start", "2019-11-25T00:00:00Z"),
+							static.TimeKey("_stop", "2019-11-25T00:00:40Z"),
+							static.Times("_time", "2019-11-25T00:00:00Z", "2019-11-25T00:00:10Z", "2019-11-25T00:00:20Z", "2019-11-25T00:00:30Z"),
+							static.Floats("_value", 1.0, 2.0, 3.0, 4.0),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run("", func(t *testing.T) {
+			mem := &memory.Allocator{}
+			got, err := reader.ReadGroup(context.Background(), query.ReadGroupSpec{
+				ReadFilterSpec: query.ReadFilterSpec{
+					OrganizationID: reader.Org,
+					BucketID:       reader.Bucket,
+					Bounds:         reader.Bounds,
+				},
+				GroupMode: query.GroupModeBy,
+				GroupKeys: []string{"t1"},
+			}, mem)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if diff := table.Diff(tt.want, got); diff != "" {
+				t.Errorf("unexpected results -want/+got:\n%s", diff)
+			}
+		})
 	}
 }
 

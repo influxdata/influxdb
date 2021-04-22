@@ -30,7 +30,7 @@ func init() {
 		PushDownWindowAggregateByTimeRule{},
 		PushDownBareAggregateRule{},
 		GroupWindowAggregateTransposeRule{},
-		// PushDownGroupAggregateRule{},
+		PushDownGroupAggregateRule{},
 	)
 	plan.RegisterLogicalRules(
 		MergeFiltersRule{},
