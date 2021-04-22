@@ -491,10 +491,9 @@ impl Chunk {
                     return None;
                 }
 
-                match table.satisfies_predicate(predicate) {
-                    true => Some(name.to_owned()),
-                    false => None,
-                }
+                table
+                    .satisfies_predicate(predicate)
+                    .then(|| name.to_owned())
             })
             .collect::<BTreeSet<_>>()
     }
