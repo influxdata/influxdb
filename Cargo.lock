@@ -1867,6 +1867,7 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 name = "mutable_buffer"
 version = "0.1.0"
 dependencies = [
+ "ahash 0.7.2",
  "arrow_deps",
  "async-trait",
  "criterion",
@@ -1874,12 +1875,12 @@ dependencies = [
  "flatbuffers",
  "flate2",
  "generated_types",
+ "hashbrown 0.9.1",
  "influxdb_line_protocol",
  "internal_types",
  "observability_deps",
  "parking_lot",
  "snafu",
- "string-interner",
  "test_helpers",
  "tokio",
  "tracker",
@@ -3499,17 +3500,6 @@ name = "stdweb-internal-runtime"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "213701ba3370744dcd1a12960caa4843b3d68b4d1c0a5d575e0d65b2ee9d16c0"
-
-[[package]]
-name = "string-interner"
-version = "0.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "383196d1876517ee6f9f0864d1fc1070331b803335d3c6daaa04bbcccd823c08"
-dependencies = [
- "cfg-if",
- "hashbrown 0.9.1",
- "serde",
-]
 
 [[package]]
 name = "strsim"

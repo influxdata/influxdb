@@ -369,11 +369,14 @@ impl Table {
                 }
                 Column::Tag(vals, _) => {
                     let iter = vals.iter().map(|id| {
-                        id.as_ref().map(|value_id| {
+                        if *id == DID::invalid() {
+                            return None;
+                        }
+                        Some(
                             dictionary
-                                .lookup_id(*value_id)
-                                .expect("dictionary had mapping for tag value")
-                        })
+                                .lookup_id(*id)
+                                .expect("dictionary had mapping for tag value"),
+                        )
                     });
 
                     let array = StringArray::from_iter(iter);

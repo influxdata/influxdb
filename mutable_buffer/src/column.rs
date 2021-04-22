@@ -36,7 +36,7 @@ pub enum Column {
     U64(Vec<Option<u64>>, StatValues<u64>),
     String(Vec<Option<String>>, StatValues<String>),
     Bool(Vec<Option<bool>>, StatValues<bool>),
-    Tag(Vec<Option<DID>>, StatValues<String>),
+    Tag(Vec<DID>, StatValues<String>),
 }
 
 impl Column {
@@ -52,12 +52,12 @@ impl Column {
         match values {
             TypedValuesIterator::String(vals) => match logical_type {
                 LogicalColumnType::Tag => {
-                    let mut tag_values = vec![None; row_count];
+                    let mut tag_values = vec![DID::invalid(); row_count];
                     let mut stats: Option<StatValues<String>> = None;
 
                     let mut added_tag_values: Vec<_> = vals
-                        .map(|tag| {
-                            tag.map(|tag| {
+                        .map(|tag| match tag {
+                            Some(tag) => {
                                 match stats.as_mut() {
                                     Some(s) => StatValues::update_string(s, tag),
                                     None => {
@@ -66,7 +66,8 @@ impl Column {
                                 }
 
                                 dictionary.lookup_value_or_insert(tag)
-                            })
+                            }
+                            None => DID::invalid(),
                         })
                         .collect();
 
@@ -255,9 +256,9 @@ impl Column {
                         Some(v) => {
                             StatValues::update_string(stats, v);
                             let id = dictionary.lookup_value_or_insert(v);
-                            col.push(Some(id));
+                            col.push(id);
                         }
-                        None => col.push(None),
+                        None => col.push(DID::invalid()),
                     }
                 }
             }
@@ -277,7 +278,7 @@ impl Column {
         match self {
             Self::Tag(vals, _) => {
                 if len > vals.len() {
-                    vals.resize(len, None);
+                    vals.resize(len, DID::invalid());
                 }
             }
             Self::I64(vals, _) => {
@@ -355,9 +356,7 @@ impl Column {
             Self::Bool(v, stats) => {
                 mem::size_of::<Option<bool>>() * v.len() + mem::size_of_val(&stats)
             }
-            Self::Tag(v, stats) => {
-                mem::size_of::<Option<DID>>() * v.len() + mem::size_of_val(&stats)
-            }
+            Self::Tag(v, stats) => mem::size_of::<DID>() * v.len() + mem::size_of_val(&stats),
             Self::String(v, stats) => {
                 let string_bytes_size = v
                     .iter()

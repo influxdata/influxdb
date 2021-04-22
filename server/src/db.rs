@@ -1446,7 +1446,7 @@ mod tests {
             to_arc("1970-01-05T15"),
             0,
             ChunkStorage::OpenMutableBuffer,
-            107,
+            127,
         )];
 
         let size: usize = db
@@ -1556,30 +1556,30 @@ mod tests {
                 to_arc("1970-01-01T00"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
-                101,
+                121,
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-05T15"),
                 0,
                 ChunkStorage::ClosedMutableBuffer,
-                133,
+                157,
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-05T15"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
-                135,
+                159,
             ),
         ];
-
-        assert_eq!(db.memory_registries.mutable_buffer.bytes(), 101 + 133 + 135);
-        assert_eq!(db.memory_registries.read_buffer.bytes(), 1269);
 
         assert_eq!(
             expected, chunk_summaries,
             "expected:\n{:#?}\n\nactual:{:#?}\n\n",
             expected, chunk_summaries
         );
+
+        assert_eq!(db.memory_registries.mutable_buffer.bytes(), 121 + 157 + 159);
+        assert_eq!(db.memory_registries.read_buffer.bytes(), 1269);
     }
 
     #[tokio::test]

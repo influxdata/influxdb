@@ -223,7 +223,7 @@ impl Chunk {
     /// dictionary, tables, and their rows.
     pub fn size(&self) -> usize {
         let data_size = self.tables.values().fold(0, |acc, val| acc + val.size());
-        data_size + self.dictionary.size
+        data_size + self.dictionary.size()
     }
 
     /// Return true if this chunk has the specified table name
