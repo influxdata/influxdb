@@ -3,7 +3,7 @@ use std::sync::Arc;
 use snafu::{OptionExt, Snafu};
 
 use observability_deps::prometheus::proto::{
-    Counter as PromCounter, Histogram as PromHistogram, Metric, MetricFamily,
+    Counter as PromCounter, Histogram as PromHistogram, MetricFamily,
 };
 
 use crate::MetricRegistry;

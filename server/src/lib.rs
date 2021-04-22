@@ -244,43 +244,34 @@ impl ServerConfig {
 // A collection of metrics used to instrument the Server.
 #[derive(Debug)]
 pub struct ServerMetrics {
-    /// This metric tracks all requests associated with writes using the HTTP
-    /// API.
-    pub write_requests: metrics::RedMetric,
+    /// This metric tracks all requests to the Server
+    pub http_requests: metrics::RedMetric,
 
-    /// This metric tracks all requests associated with non-write API calls using
-    /// the HTTP API.
-    pub api_requests: metrics::RedMetric,
+    /// The number of LP points written
+    pub ingest_points_total: metrics::Counter,
 
-    /// The number of LP points written via the HTTP API
-    pub points_written: metrics::Counter,
-
-    /// The number of bytes written via the HTTP API
-    pub bytes_written: metrics::Counter,
-
-    /// The metrics registry associated with the server. Usually this doesn't
-    /// need to be held, but in this case the Server needs to expose it via
-    /// the metrics endpoint.
-    pub registry: Arc<metrics::MetricRegistry>,
+    /// The number of bytes written
+    pub ingest_points_bytes_total: metrics::Counter,
 }
 
 impl ServerMetrics {
     pub fn new(registry: Arc<metrics::MetricRegistry>) -> Self {
-        let domain = registry.register_domain("http");
+        // Server manages multiple domains.
+        let http_domain = registry.register_domain("http");
+        let ingest_domain = registry.register_domain("ingest");
+
         Self {
-            write_requests: domain.register_red_metric(Some("write")),
-            api_requests: domain.register_red_metric(Some("api")),
-            points_written: domain.register_counter_metric(
+            http_requests: http_domain.register_red_metric(None),
+            ingest_points_total: ingest_domain.register_counter_metric(
                 "points",
                 None,
                 "total LP points written",
             ),
-            bytes_written: domain.register_counter_metric(
+            ingest_points_bytes_total: ingest_domain.register_counter_metric(
                 "points",
                 Some("bytes".to_owned()),
-                "total LP bytes written",
+                "total LP points bytes written",
             ),
-            registry,
         }
     }
 }
@@ -297,6 +288,11 @@ pub struct Server<M: ConnectionManager> {
     exec: Arc<Executor>,
     jobs: Arc<JobRegistry>,
     pub metrics: Arc<ServerMetrics>,
+
+    /// The metrics registry associated with the server. This is needed not for
+    /// recording telemetry, but because the server hosts the /metric endpoint
+    /// and populates the endpoint with this data.
+    pub registry: Arc<metrics::MetricRegistry>,
 }
 
 #[derive(Debug)]
@@ -331,6 +327,7 @@ impl<M: ConnectionManager> Server<M> {
             exec: Arc::new(Executor::new(num_worker_threads)),
             jobs,
             metrics: Arc::new(ServerMetrics::new(Arc::clone(&metric_registry))),
+            registry: Arc::clone(&metric_registry),
         }
     }
 
@@ -493,6 +490,14 @@ impl<M: ConnectionManager> Server<M> {
                 .map(|e| self.write_sharded_entry(&db_name, &db, Arc::clone(&shards), e)),
         )
         .await?;
+
+        self.metrics.ingest_points_total.add_with_labels(
+            lines.len() as u64,
+            &[
+                metrics::KeyValue::new("status", "ok"),
+                metrics::KeyValue::new("db_name", db_name.to_string()),
+            ],
+        );
 
         Ok(())
     }

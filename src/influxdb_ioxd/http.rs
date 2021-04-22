@@ -315,7 +315,7 @@ where
             Ok(res)
         })) // this endpoint is for API backward compatibility with InfluxDB 2.x
         .post("/api/v2/write", write::<M>)
-        .get("/health", health)
+        .get("/health", health::<M>)
         .get("/metrics", handle_metrics::<M>)
         .get("/iox/api/v1/databases/:name/query", query::<M>)
         .get(
@@ -420,8 +420,11 @@ async fn write<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
+    let path = req.uri().path().to_string();
     let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
-    let obs = server.metrics.write_requests.observation(); // instrument request
+
+    // TODO(edd): figure out best way of catching all errors in this observation.
+    let obs = server.metrics.http_requests.observation(); // instrument request
 
     // TODO - metrics. Implement a macro/something that will catch all the
     // early returns.
@@ -445,18 +448,20 @@ where
 
     debug!(num_lines=lines.len(), %db_name, org=%write_info.org, bucket=%write_info.bucket, "inserting lines into database");
 
-    let mut metric_kv = vec![
-        KeyValue::new("db_name", db_name.to_string()),
+    let metric_kv = vec![
         KeyValue::new("org", write_info.org.to_string()),
         KeyValue::new("bucket", write_info.bucket.to_string()),
+        KeyValue::new("path", path),
     ];
 
     server.write_lines(&db_name, &lines).await.map_err(|e| {
-        metric_kv.push(metrics::KeyValue::new("status", "error"));
-        server
-            .metrics
-            .points_written
-            .add_with_labels(lines.len() as u64, &metric_kv);
+        server.metrics.ingest_points_total.add_with_labels(
+            lines.len() as u64,
+            &[
+                metrics::KeyValue::new("status", "error"),
+                metrics::KeyValue::new("db_name", db_name.to_string()),
+            ],
+        );
         let num_lines = lines.len();
         debug!(?e, ?db_name, ?num_lines, "error writing lines");
 
@@ -472,19 +477,13 @@ where
             },
         }
     })?;
+    // line protocol bytes successfully written
+    server.metrics.ingest_points_bytes_total.add_with_labels(
+        body.len() as u64,
+        &[metrics::KeyValue::new("db_name", db_name.to_string())],
+    );
 
-    server
-        .metrics
-        .bytes_written
-        .add_with_labels(body.len() as u64, &metric_kv);
     obs.ok_with_labels(&metric_kv); // request completed successfully
-
-    metric_kv.push(metrics::KeyValue::new("status", "ok"));
-    server
-        .metrics
-        .points_written
-        .add_with_labels(lines.len() as u64, &metric_kv);
-
     Ok(Response::builder()
         .status(StatusCode::NO_CONTENT)
         .body(Body::empty())
@@ -507,7 +506,11 @@ fn default_format() -> String {
 async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
+    let path = req.uri().path().to_string();
     let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
+
+    // TODO(edd): figure out best way of catching all errors in this observation.
+    let obs = server.metrics.http_requests.observation(); // instrument request
 
     let uri_query = req.uri().query().context(ExpectedQueryString {})?;
 
@@ -522,6 +525,11 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .param("name")
         .expect("db name must have been set by routerify")
         .clone();
+
+    let metric_kv = vec![
+        KeyValue::new("db_name", db_name_str.clone()),
+        KeyValue::new("path", path),
+    ];
 
     let db_name = DatabaseName::new(&db_name_str).context(DatabaseNameError)?;
     debug!(uri = ?req.uri(), %q, ?format, %db_name, "running SQL query");
@@ -555,6 +563,9 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .body(body)
         .context(CreatingResponse)?;
 
+    // successful query
+    obs.ok_with_labels(&metric_kv);
+
     Ok(response)
 }
 
@@ -563,11 +574,19 @@ async fn get_write_buffer_meta<M: ConnectionManager + Send + Sync + Debug + 'sta
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
     let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
+    let path = req.uri().path().to_string();
+    // TODO - catch error conditions
+    let obs = server.metrics.http_requests.observation();
 
     let db_name_str = req
         .param("name")
         .expect("db name must have been set")
         .clone();
+
+    let metric_kv = vec![
+        KeyValue::new("db_name", db_name_str.clone()),
+        KeyValue::new("path", path),
+    ];
 
     let query: WriteBufferMetadataQuery = req
         .uri()
@@ -611,11 +630,22 @@ async fn get_write_buffer_meta<M: ConnectionManager + Send + Sync + Debug + 'sta
         ))
         .expect("builder should be successful");
 
+    obs.ok_with_labels(&metric_kv);
     Ok(response)
 }
 
 #[tracing::instrument(level = "debug")]
-async fn health(_: Request<Body>) -> Result<Response<Body>, ApplicationError> {
+async fn health<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
+    let path = req.uri().path().to_string();
+    server
+        .metrics
+        .http_requests
+        .observation()
+        .ok_with_labels(&[metrics::KeyValue::new("path", path)]);
+
     let response_body = "OK";
     Ok(Response::new(Body::from(response_body.to_string())))
 }
@@ -625,9 +655,13 @@ async fn handle_metrics<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
     let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
-    Ok(Response::new(Body::from(
-        server.metrics.registry.metrics_as_text(),
-    )))
+    let path = req.uri().path().to_string();
+    server
+        .metrics
+        .http_requests
+        .observation()
+        .ok_with_labels(&[metrics::KeyValue::new("path", path)]);
+    Ok(Response::new(Body::from(server.registry.metrics_as_text())))
 }
 
 #[derive(Deserialize, Debug)]
@@ -641,7 +675,12 @@ struct DatabaseInfo {
 async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
+    let path = req.uri().path().to_string();
+
     let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
+
+    // TODO - catch error conditions
+    let obs = server.metrics.http_requests.observation();
     let query = req.uri().query().context(ExpectedQueryString {})?;
 
     let info: DatabaseInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
@@ -650,6 +689,11 @@ async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
 
     let db_name =
         org_and_bucket_to_database(&info.org, &info.bucket).context(BucketMappingError)?;
+
+    let metric_kv = vec![
+        KeyValue::new("db_name", db_name.to_string()),
+        KeyValue::new("path", path),
+    ];
 
     let db = server.db(&db_name).context(BucketNotFound {
         org: &info.org,
@@ -666,6 +710,7 @@ async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
 
     let result = serde_json::to_string(&partition_keys).context(JsonGenerationError)?;
 
+    obs.ok_with_labels(&metric_kv);
     Ok(Response::new(Body::from(result)))
 }
 
@@ -684,7 +729,10 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
 ) -> Result<Response<Body>, ApplicationError> {
     use object_store::path::ObjectStorePath;
 
+    let path = req.uri().path().to_string();
     let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
+    // TODO - catch error conditions
+    let obs = server.metrics.http_requests.observation();
     let query = req.uri().query().context(ExpectedQueryString {})?;
 
     let snapshot: SnapshotInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
@@ -693,6 +741,11 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
 
     let db_name =
         org_and_bucket_to_database(&snapshot.org, &snapshot.bucket).context(BucketMappingError)?;
+
+    let metric_kv = vec![
+        KeyValue::new("db_name", db_name.to_string()),
+        KeyValue::new("path", path),
+    ];
 
     // TODO: refactor the rest of this out of the http route and into the server
     // crate.
@@ -729,6 +782,7 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
     )
     .unwrap();
 
+    obs.ok_with_labels(&metric_kv);
     let ret = format!("{}", snapshot.id);
     Ok(Response::new(Body::from(ret)))
 }
@@ -871,11 +925,11 @@ mod tests {
 
         // The request completed successfully
         metrics_registry
-            .has_metric_family("http_write_request_duration_seconds")
+            .has_metric_family("http_request_duration_seconds")
             .with_labels(&[
                 ("bucket", "MetricsBucket"),
-                ("db_name", "MetricsOrg_MetricsBucket"),
                 ("org", "MetricsOrg"),
+                ("path", "/api/v2/write"),
                 ("status", "ok"),
             ])
             .histogram()
@@ -884,25 +938,16 @@ mod tests {
 
         // A single successful point landed
         metrics_registry
-            .has_metric_family("http_points_total")
-            .with_labels(&[
-                ("bucket", "MetricsBucket"),
-                ("db_name", "MetricsOrg_MetricsBucket"),
-                ("org", "MetricsOrg"),
-                ("status", "ok"),
-            ])
+            .has_metric_family("ingest_points_total")
+            .with_labels(&[("db_name", "MetricsOrg_MetricsBucket"), ("status", "ok")])
             .counter()
             .eq(1.0)
             .unwrap();
 
         // Bytes of data were written
         metrics_registry
-            .has_metric_family("http_points_bytes_total")
-            .with_labels(&[
-                ("bucket", "MetricsBucket"),
-                ("db_name", "MetricsOrg_MetricsBucket"),
-                ("org", "MetricsOrg"),
-            ])
+            .has_metric_family("ingest_points_bytes_total")
+            .with_labels(&[("db_name", "MetricsOrg_MetricsBucket")])
             .counter()
             .eq(98.0)
             .unwrap();
@@ -920,13 +965,8 @@ mod tests {
 
         // A single point was rejected
         metrics_registry
-            .has_metric_family("http_points_total")
-            .with_labels(&[
-                ("bucket", "NotMyBucket"),
-                ("db_name", "NotMyOrg_NotMyBucket"),
-                ("org", "NotMyOrg"),
-                ("status", "error"),
-            ])
+            .has_metric_family("ingest_points_total")
+            .with_labels(&[("db_name", "NotMyOrg_NotMyBucket"), ("status", "error")])
             .counter()
             .eq(1.0)
             .unwrap();
