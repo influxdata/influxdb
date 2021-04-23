@@ -13,11 +13,10 @@ v1.9.0 [unreleased]
 -	[#17814](https://github.com/influxdata/influxdb/pull/17814): feat(prometheus): update prometheus remote protocol
 -	[#17596](https://github.com/influxdata/influxdb/pull/17596): improvement(query): performance improvement for sorted merge iterator [Tristan Su]
 -	[#21015](https://github.com/influxdata/influxdb/pull/21015): build: upgrade to go 1.15.10
--	[#21074](https://github.com/influxdata/influxdb/pull/21074): feat: upgrade to flux 0.111.0
 -	[#21100](https://github.com/influxdata/influxdb/pull/21100): feat: add memory and concurrency limits in flux controller
 -	[#21108](https://github.com/influxdata/influxdb/pull/21108): feat: make flux controller limits configurable
 -	[#21168](https://github.com/influxdata/influxdb/pull/21168): feat: implement rewrite rules for window and bare aggregates
--	[#21229](https://github.com/influxdata/influxdb/pull/21229): feat: flux upgrade to v0.112.1
+-	[#21285](https://github.com/influxdata/influxdb/pull/21285): feat: upgrade to flux v0.113.0
 
 ### Bugfixes
 
@@ -46,6 +45,7 @@ v1.9.0 [unreleased]
 -	[#17495](https://github.com/influxdata/influxdb/pull/17495): fix(snapshotter): properly read payload
 -	[#21139](https://github.com/influxdata/influxdb/pull/21139): fix(tsdb): exclude stop time from array cursors
 -	[#21168](https://github.com/influxdata/influxdb/pull/21168): fix(storage): Detect need for descending cursor in WindowAggregate
+-	[#21285](https://github.com/influxdata/influxdb/pull/21285): fix(storage): Detect need for descending cursor in GroupAggregate
 
 v1.8.5 [unreleased]
 -------------------
