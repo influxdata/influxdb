@@ -39,13 +39,19 @@ pub enum RedRequestStatus {
     Error,
 }
 
+impl RedRequestStatus {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Ok => "ok",
+            Self::ClientError => "client_error",
+            Self::Error => "error",
+        }
+    }
+}
+
 impl Display for RedRequestStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Ok => write!(f, "ok"),
-            Self::ClientError => write!(f, "client_error"),
-            Self::Error => write!(f, "error"),
-        }
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -78,7 +84,7 @@ impl RedMetric {
         // RedMetric always has a status label.
         default_labels.insert(
             0,
-            KeyValue::new(RED_REQUEST_STATUS_LABEL, RedRequestStatus::Ok.to_string()),
+            KeyValue::new(RED_REQUEST_STATUS_LABEL, RedRequestStatus::Ok.as_str()),
         );
 
         Self {
@@ -118,7 +124,7 @@ impl RedMetric {
                     let mut labels = labels.into_owned();
                     labels[0] = KeyValue::new(
                         RED_REQUEST_STATUS_LABEL,
-                        RedRequestStatus::ClientError.to_string(),
+                        RedRequestStatus::ClientError.as_str(),
                     );
 
                     self.requests.add(1, &labels);
@@ -126,10 +132,8 @@ impl RedMetric {
                 }
                 RedRequestStatus::Error => {
                     let mut labels = labels.into_owned();
-                    labels[0] = KeyValue::new(
-                        RED_REQUEST_STATUS_LABEL,
-                        RedRequestStatus::Error.to_string(),
-                    );
+                    labels[0] =
+                        KeyValue::new(RED_REQUEST_STATUS_LABEL, RedRequestStatus::Error.as_str());
 
                     self.requests.add(1, &labels);
                     self.duration.record(duration.as_secs_f64(), &labels);

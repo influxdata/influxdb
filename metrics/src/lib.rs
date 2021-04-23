@@ -128,7 +128,7 @@ impl Default for MetricRegistry {
 
 /// A `Domain` provides a namespace that describes a collection of related
 /// metrics. Within the domain all metrics' names will be prefixed by the name
-/// of the domain; for example "http", "read_buffer", "wal".
+/// of the domain; for example "http", "read_buffer", "wb".
 ///
 /// Domains should be registered on a `MetricRegistry`. The returned domain
 /// allows individual metrics to then be registered and used.
@@ -207,7 +207,7 @@ impl Domain {
     pub fn register_counter_metric(
         &self,
         name: &str,
-        unit: Option<String>,
+        unit: Option<&str>,
         description: impl Into<String>,
     ) -> metrics::Counter {
         self.register_counter_metric_with_labels(name, unit, description, vec![])
@@ -217,20 +217,16 @@ impl Domain {
     pub fn register_counter_metric_with_labels(
         &self,
         name: &str,
-        unit: Option<String>,
+        unit: Option<&str>,
         description: impl Into<String>,
         default_labels: Vec<KeyValue>,
     ) -> metrics::Counter {
         let counter = self
             .meter
-            .u64_counter(format!(
-                "{}{}.total",
-                self.build_metric_prefix(name, None),
-                match unit {
-                    Some(unit) => format!(".{}", unit),
-                    None => "".to_string(),
-                }
-            ))
+            .u64_counter(match unit {
+                Some(unit) => format!("{}.{}.total", self.build_metric_prefix(name, None), unit),
+                None => format!("{}.total", self.build_metric_prefix(name, None)),
+            })
             .with_description(description)
             .init();
 
@@ -404,7 +400,7 @@ r#"ftp_requests_total{account="other",status="client_error"} 1"#,
         // create a counter metric
         let metric = domain.register_counter_metric_with_labels(
             "mem",
-            Some("bytes".to_string()),
+            Some("bytes"),
             "total bytes consumed",
             vec![KeyValue::new("tier", "a")],
         );

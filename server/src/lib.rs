@@ -269,7 +269,7 @@ impl ServerMetrics {
             ),
             ingest_points_bytes_total: ingest_domain.register_counter_metric(
                 "points",
-                Some("bytes".to_owned()),
+                Some("bytes"),
                 "total LP points bytes written",
             ),
         }
