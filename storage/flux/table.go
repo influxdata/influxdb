@@ -203,7 +203,7 @@ func (t *table) readTags(tags models.Tags) {
 	for _, tag := range tags {
 		j := execute.ColIdx(string(tag.Key), t.cols)
 		// In the case of group aggregate, tags that are not referenced in group() are not included in the result, but
-		// readTags () still get a complete tag list. Here is just to skip the tags that should not present in the result.
+		// readTags () still get a complete tag list. Here is just to skip the tags that should not be present in the result.
 		if j < 0 {
 			continue
 		}
@@ -211,14 +211,19 @@ func (t *table) readTags(tags models.Tags) {
 	}
 }
 
-// appendTags fills the colBufs for the tag columns with the tag value.
-func (t *table) appendTags(cr *colReader) {
+// appendTheseTags fills the colBufs for the tag columns with the given tag values.
+func (t *table) appendTheseTags(cr *colReader, tags [][]byte) {
 	for j := range t.cols {
-		v := t.tags[j]
+		v := tags[j]
 		if v != nil {
 			cr.cols[j] = t.cache.GetTag(string(v), cr.l, t.alloc)
 		}
 	}
+}
+
+// appendTags fills the colBufs for the tag columns with the tag values from the table structure.
+func (t *table) appendTags(cr *colReader) {
+	t.appendTheseTags(cr, t.tags)
 }
 
 // appendBounds fills the colBufs for the time bounds
