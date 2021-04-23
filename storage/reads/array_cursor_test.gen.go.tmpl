@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/values"
-	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 var cmpOptions = cmp.AllowUnexported(interval.Window{})
@@ -74,7 +74,7 @@ func TestNewWindowAggregateArrayCursorMonths_{{$ColType}}(t *testing.T) {
 			Type: datatypes.AggregateType{{$Agg}},
 		}
 
-		got, _ := newWindowAggregateArrayCursor(context.Background(), agg, window, &Mock{{$ColType}}ArrayCursor{})
+		got, _ := NewWindowAggregateArrayCursor(context.Background(), agg, window, &Mock{{$ColType}}ArrayCursor{})
 
 		if diff := cmp.Diff(got, want, cmp.AllowUnexported({{$colType}}Window{{$Agg}}ArrayCursor{}), cmpOptions); diff != "" {
 			t.Fatalf("did not get expected cursor; -got/+want:\n%v", diff)
@@ -104,7 +104,7 @@ func TestNewWindowAggregateArrayCursor_{{$ColType}}(t *testing.T) {
 			Type: datatypes.AggregateType{{$Agg}},
 		}
 
-		got, _ := newWindowAggregateArrayCursor(context.Background(), agg, window, &Mock{{$ColType}}ArrayCursor{})
+		got, _ := NewWindowAggregateArrayCursor(context.Background(), agg, window, &Mock{{$ColType}}ArrayCursor{})
 
 		if diff := cmp.Diff(got, want, cmp.AllowUnexported({{$colType}}Window{{$Agg}}ArrayCursor{}), cmpOptions); diff != "" {
 			t.Fatalf("did not get expected cursor; -got/+want:\n%v", diff)
