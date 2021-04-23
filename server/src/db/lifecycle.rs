@@ -71,13 +71,13 @@ trait ChunkMover {
     fn is_write_active(&self) -> bool;
 
     /// Starts an operation to move a chunk to the read buffer
-    fn move_to_read_buffer(&mut self, partition_key: String, chunk_id: u32);
+    fn move_to_read_buffer(&mut self, partition_key: String, table_name: String, chunk_id: u32);
 
     /// Starts an operation to write a chunk to the object store
-    fn write_to_object_store(&mut self, partition_key: String, chunk_id: u32);
+    fn write_to_object_store(&mut self, partition_key: String, table_name: String, chunk_id: u32);
 
     /// Drops a chunk from the database
-    fn drop_chunk(&mut self, partition_key: String, chunk_id: u32);
+    fn drop_chunk(&mut self, partition_key: String, table_name: String, chunk_id: u32);
 
     /// The core policy logic
     fn check_for_work(&mut self, now: DateTime<Utc>) {
@@ -111,30 +111,33 @@ trait ChunkMover {
                     chunk_guard.set_closing().expect("cannot close open chunk");
 
                     let partition_key = chunk_guard.key().to_string();
+                    let table_name = chunk_guard.table_name().to_string();
                     let chunk_id = chunk_guard.id();
 
                     std::mem::drop(chunk_guard);
 
                     move_active = true;
-                    self.move_to_read_buffer(partition_key, chunk_id);
+                    self.move_to_read_buffer(partition_key, table_name, chunk_id);
                 }
                 ChunkState::Closing(_) if would_move => {
                     let partition_key = chunk_guard.key().to_string();
+                    let table_name = chunk_guard.table_name().to_string();
                     let chunk_id = chunk_guard.id();
 
                     std::mem::drop(chunk_guard);
 
                     move_active = true;
-                    self.move_to_read_buffer(partition_key, chunk_id);
+                    self.move_to_read_buffer(partition_key, table_name, chunk_id);
                 }
                 ChunkState::Moved(_) if would_write => {
                     let partition_key = chunk_guard.key().to_string();
+                    let table_name = chunk_guard.table_name().to_string();
                     let chunk_id = chunk_guard.id();
 
                     std::mem::drop(chunk_guard);
 
                     write_active = true;
-                    self.write_to_object_store(partition_key, chunk_id);
+                    self.write_to_object_store(partition_key, table_name, chunk_id);
                 }
                 _ => {}
             }
@@ -154,13 +157,14 @@ trait ChunkMover {
                             || matches!(chunk_guard.state(), ChunkState::WrittenToObjectStore(_, _))
                         {
                             let partition_key = chunk_guard.key().to_string();
+                            let table_name = chunk_guard.table_name().to_string();
                             let chunk_id = chunk_guard.id();
                             buffer_size =
                                 buffer_size.saturating_sub(Self::chunk_size(&*chunk_guard));
 
                             std::mem::drop(chunk_guard);
 
-                            self.drop_chunk(partition_key, chunk_id)
+                            self.drop_chunk(partition_key, table_name, chunk_id)
                         }
                     }
                     None => {
@@ -197,27 +201,29 @@ impl ChunkMover for LifecycleManager {
             .unwrap_or(false)
     }
 
-    fn move_to_read_buffer(&mut self, partition_key: String, chunk_id: u32) {
+    fn move_to_read_buffer(&mut self, partition_key: String, table_name: String, chunk_id: u32) {
         info!(%partition_key, %chunk_id, "moving chunk to read buffer");
-        self.move_task = Some(
-            self.db
-                .load_chunk_to_read_buffer_in_background(partition_key, chunk_id),
-        )
+        self.move_task = Some(self.db.load_chunk_to_read_buffer_in_background(
+            partition_key,
+            table_name,
+            chunk_id,
+        ))
     }
 
-    fn write_to_object_store(&mut self, partition_key: String, chunk_id: u32) {
+    fn write_to_object_store(&mut self, partition_key: String, table_name: String, chunk_id: u32) {
         info!(%partition_key, %chunk_id, "write chunk to object store");
-        self.write_task = Some(
-            self.db
-                .write_chunk_to_object_store_in_background(partition_key, chunk_id),
-        )
+        self.write_task = Some(self.db.write_chunk_to_object_store_in_background(
+            partition_key,
+            table_name,
+            chunk_id,
+        ))
     }
 
-    fn drop_chunk(&mut self, partition_key: String, chunk_id: u32) {
+    fn drop_chunk(&mut self, partition_key: String, table_name: String, chunk_id: u32) {
         info!(%partition_key, %chunk_id, "dropping chunk");
         let _ = self
             .db
-            .drop_chunk(&partition_key, chunk_id)
+            .drop_chunk(&partition_key, &table_name, chunk_id)
             .log_if_error("dropping chunk to free up memory");
     }
 
@@ -279,7 +285,7 @@ mod tests {
         time_of_first_write: Option<i64>,
         time_of_last_write: Option<i64>,
     ) -> Chunk {
-        let mut chunk = Chunk::new_open("", id, &MemRegistry::new());
+        let mut chunk = Chunk::new_open("", "table1", id, &MemRegistry::new());
         chunk.set_timestamps(
             time_of_first_write.map(from_secs),
             time_of_last_write.map(from_secs),
@@ -388,7 +394,12 @@ mod tests {
             self.write_active
         }
 
-        fn move_to_read_buffer(&mut self, _: String, chunk_id: u32) {
+        fn move_to_read_buffer(
+            &mut self,
+            _partition_key: String,
+            _table_name: String,
+            chunk_id: u32,
+        ) {
             let chunk = self
                 .chunks
                 .iter()
@@ -398,7 +409,12 @@ mod tests {
             self.events.push(MoverEvents::Move(chunk_id))
         }
 
-        fn write_to_object_store(&mut self, _partition_key: String, chunk_id: u32) {
+        fn write_to_object_store(
+            &mut self,
+            _partition_key: String,
+            _table_name: String,
+            chunk_id: u32,
+        ) {
             let chunk = self
                 .chunks
                 .iter()
@@ -408,7 +424,7 @@ mod tests {
             self.events.push(MoverEvents::Write(chunk_id))
         }
 
-        fn drop_chunk(&mut self, _: String, chunk_id: u32) {
+        fn drop_chunk(&mut self, _partition_key: String, _table_name: String, chunk_id: u32) {
             self.chunks = self
                 .chunks
                 .drain(..)

@@ -30,6 +30,9 @@ message Chunk {
   // The partitition key of this chunk
   string partition_key = 1;
 
+  // The table of this chunk
+  string table_name = 8;
+
   // The id of this chunk
   uint32 id = 2;
 

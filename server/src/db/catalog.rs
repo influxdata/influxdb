@@ -30,15 +30,23 @@ pub enum Error {
     #[snafu(display("unknown partition: {}", partition_key))]
     UnknownPartition { partition_key: String },
 
-    #[snafu(display("unknown chunk: {}:{}", partition_key, chunk_id))]
+    #[snafu(display("unknown table: {}:{}", partition_key, table_name))]
+    UnknownTable {
+        partition_key: String,
+        table_name: String,
+    },
+
+    #[snafu(display("unknown chunk: {}:{}:{}", partition_key, table_name, chunk_id))]
     UnknownChunk {
         partition_key: String,
+        table_name: String,
         chunk_id: u32,
     },
 
     #[snafu(display(
-        "Internal unexpected chunk state for {}:{}  during {}. Expected {}, got {}",
+        "Internal unexpected chunk state for {}:{}:{}  during {}. Expected {}, got {}",
         partition_key,
+        table_name,
         chunk_id,
         operation,
         expected,
@@ -46,6 +54,7 @@ pub enum Error {
     ))]
     InternalChunkState {
         partition_key: String,
+        table_name: String,
         chunk_id: u32,
         operation: String,
         expected: String,
@@ -186,7 +195,7 @@ impl SchemaProvider for Catalog {
         self.partitions().for_each(|partition| {
             let partition = partition.read();
             partition.chunks().for_each(|chunk| {
-                chunk.read().table_names(&mut names);
+                names.insert(chunk.read().table_name().to_string());
             })
         });
 
@@ -202,7 +211,7 @@ impl SchemaProvider for Catalog {
             for chunk in partition.chunks() {
                 let chunk = chunk.read();
 
-                if chunk.has_table(table_name) {
+                if (chunk.table_name() == table_name) && chunk.has_data() {
                     let chunk = super::DbChunk::snapshot(&chunk);
 
                     // This should only fail if the table doesn't exist which isn't possible
@@ -275,19 +284,30 @@ mod tests {
         let p1 = catalog.get_or_create_partition("p1");
 
         let mut p1 = p1.write();
-        p1.create_open_chunk(&registry);
-        p1.create_open_chunk(&registry);
+        p1.create_open_chunk("table1", &registry);
+        p1.create_open_chunk("table1", &registry);
+        p1.create_open_chunk("table2", &registry);
 
-        let c1_0 = p1.chunk(0).unwrap();
+        let c1_0 = p1.chunk("table1", 0).unwrap();
+        assert_eq!(c1_0.read().table_name(), "table1");
         assert_eq!(c1_0.read().key(), "p1");
         assert_eq!(c1_0.read().id(), 0);
 
-        let c1_1 = p1.chunk(1).unwrap();
+        let c1_1 = p1.chunk("table1", 1).unwrap();
+        assert_eq!(c1_1.read().table_name(), "table1");
         assert_eq!(c1_1.read().key(), "p1");
         assert_eq!(c1_1.read().id(), 1);
 
-        let err = p1.chunk(100).unwrap_err();
-        assert_eq!(err.to_string(), "unknown chunk: p1:100");
+        let c2_0 = p1.chunk("table2", 0).unwrap();
+        assert_eq!(c2_0.read().table_name(), "table2");
+        assert_eq!(c2_0.read().key(), "p1");
+        assert_eq!(c2_0.read().id(), 0);
+
+        let err = p1.chunk("table1", 100).unwrap_err();
+        assert_eq!(err.to_string(), "unknown chunk: p1:table1:100");
+
+        let err = p1.chunk("table3", 0).unwrap_err();
+        assert_eq!(err.to_string(), "unknown table: p1:table3");
     }
 
     #[test]
@@ -299,26 +319,39 @@ mod tests {
         {
             let mut p1 = p1.write();
 
-            p1.create_open_chunk(&registry);
-            p1.create_open_chunk(&registry);
+            p1.create_open_chunk("table1", &registry);
+            p1.create_open_chunk("table1", &registry);
+            p1.create_open_chunk("table2", &registry);
         }
 
         let p2 = catalog.get_or_create_partition("p2");
         {
             let mut p2 = p2.write();
-            p2.create_open_chunk(&registry);
+            p2.create_open_chunk("table1", &registry);
         }
 
         assert_eq!(
             chunk_strings(&catalog),
-            vec!["Chunk p1:0", "Chunk p1:1", "Chunk p2:0"]
+            vec![
+                "Chunk p1:table1:0",
+                "Chunk p1:table1:1",
+                "Chunk p1:table2:0",
+                "Chunk p2:table1:0"
+            ]
         );
 
         assert_eq!(
             partition_chunk_strings(&catalog, "p1"),
-            vec!["Chunk p1:0", "Chunk p1:1"]
+            vec![
+                "Chunk p1:table1:0",
+                "Chunk p1:table1:1",
+                "Chunk p1:table2:0"
+            ]
         );
-        assert_eq!(partition_chunk_strings(&catalog, "p2"), vec!["Chunk p2:0"]);
+        assert_eq!(
+            partition_chunk_strings(&catalog, "p2"),
+            vec!["Chunk p2:table1:0"]
+        );
     }
 
     fn chunk_strings(catalog: &Catalog) -> Vec<String> {
@@ -329,7 +362,7 @@ mod tests {
                 p.chunks()
                     .map(|c| {
                         let c = c.read();
-                        format!("Chunk {}:{}", c.key(), c.id())
+                        format!("Chunk {}:{}:{}", c.key(), c.table_name(), c.id())
                     })
                     .collect::<Vec<_>>()
                     .into_iter()
@@ -348,7 +381,7 @@ mod tests {
             .chunks()
             .map(|c| {
                 let c = c.read();
-                format!("Chunk {}:{}", c.key(), c.id())
+                format!("Chunk {}:{}:{}", c.key(), c.table_name(), c.id())
             })
             .collect();
 
@@ -364,41 +397,55 @@ mod tests {
         let p1 = catalog.get_or_create_partition("p1");
         {
             let mut p1 = p1.write();
-            p1.create_open_chunk(&registry);
-            p1.create_open_chunk(&registry);
+            p1.create_open_chunk("table1", &registry);
+            p1.create_open_chunk("table1", &registry);
+            p1.create_open_chunk("table2", &registry);
         }
 
         let p2 = catalog.get_or_create_partition("p2");
         {
             let mut p2 = p2.write();
-            p2.create_open_chunk(&registry);
+            p2.create_open_chunk("table1", &registry);
         }
 
+        assert_eq!(chunk_strings(&catalog).len(), 4);
+
+        {
+            let mut p1 = p1.write();
+            p1.drop_chunk("table2", 0).unwrap();
+            p1.chunk("table2", 0).unwrap_err(); // chunk is gone
+        }
         assert_eq!(chunk_strings(&catalog).len(), 3);
 
         {
             let mut p1 = p1.write();
-            p1.drop_chunk(1).unwrap();
-            p1.chunk(1).unwrap_err(); // chunk is gone
+            p1.drop_chunk("table1", 1).unwrap();
+            p1.chunk("table1", 1).unwrap_err(); // chunk is gone
         }
         assert_eq!(chunk_strings(&catalog).len(), 2);
 
         {
             let mut p2 = p1.write();
-            p2.drop_chunk(0).unwrap();
-            p2.chunk(0).unwrap_err(); // chunk is gone
+            p2.drop_chunk("table1", 0).unwrap();
+            p2.chunk("table1", 0).unwrap_err(); // chunk is gone
         }
         assert_eq!(chunk_strings(&catalog).len(), 1);
     }
 
     #[test]
     fn chunk_drop_non_existent_chunk() {
+        let registry = MemRegistry::new();
         let catalog = Catalog::new();
         let p3 = catalog.get_or_create_partition("p3");
         let mut p3 = p3.write();
 
-        let err = p3.drop_chunk(0).unwrap_err();
-        assert_eq!(err.to_string(), "unknown chunk: p3:0");
+        p3.create_open_chunk("table1", &registry);
+
+        let err = p3.drop_chunk("table2", 0).unwrap_err();
+        assert_eq!(err.to_string(), "unknown table: p3:table2");
+
+        let err = p3.drop_chunk("table1", 1).unwrap_err();
+        assert_eq!(err.to_string(), "unknown chunk: p3:table1:1");
     }
 
     #[test]
@@ -410,22 +457,28 @@ mod tests {
 
         {
             let mut p1 = p1.write();
-            p1.create_open_chunk(&registry);
-            p1.create_open_chunk(&registry);
+            p1.create_open_chunk("table1", &registry);
+            p1.create_open_chunk("table1", &registry);
         }
-        assert_eq!(chunk_strings(&catalog).len(), 2);
+        assert_eq!(
+            chunk_strings(&catalog),
+            vec!["Chunk p1:table1:0", "Chunk p1:table1:1"]
+        );
 
         {
             let mut p1 = p1.write();
-            p1.drop_chunk(0).unwrap();
+            p1.drop_chunk("table1", 0).unwrap();
         }
-        assert_eq!(chunk_strings(&catalog).len(), 1);
+        assert_eq!(chunk_strings(&catalog), vec!["Chunk p1:table1:1"]);
 
-        // should be ok to recreate (thought maybe not a great idea)
+        // should be ok to "re-create", it gets another chunk_id though
         {
             let mut p1 = p1.write();
-            p1.create_open_chunk(&registry);
+            p1.create_open_chunk("table1", &registry);
         }
-        assert_eq!(chunk_strings(&catalog).len(), 2);
+        assert_eq!(
+            chunk_strings(&catalog),
+            vec!["Chunk p1:table1:1", "Chunk p1:table1:2"]
+        );
     }
 }

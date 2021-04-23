@@ -30,6 +30,7 @@ pub struct NoData {}
 impl DbSetup for NoData {
     async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
+        let table_name = "cpu";
         let db = make_db();
         let scenario1 = DbScenario {
             scenario_name: "New, Empty Database".into(),
@@ -52,19 +53,25 @@ impl DbSetup for NoData {
         let data = "cpu,region=west user=23.2 100";
         write_lp(&db, data);
         // move data out of open chunk
-        assert_eq!(db.rollover_partition(partition_key).await.unwrap().id(), 0);
+        assert_eq!(
+            db.rollover_partition(partition_key, table_name)
+                .await
+                .unwrap()
+                .id(),
+            0
+        );
 
         assert_eq!(count_mutable_buffer_chunks(&db), 2);
         assert_eq!(count_read_buffer_chunks(&db), 0); // only open chunk
 
-        db.load_chunk_to_read_buffer(partition_key, 0)
+        db.load_chunk_to_read_buffer(partition_key, table_name, 0)
             .await
             .unwrap();
 
         assert_eq!(count_mutable_buffer_chunks(&db), 1);
         assert_eq!(count_read_buffer_chunks(&db), 1); // only open chunk
 
-        db.drop_chunk(partition_key, 0).unwrap();
+        db.drop_chunk(partition_key, table_name, 0).unwrap();
 
         assert_eq!(count_mutable_buffer_chunks(&db), 1);
         assert_eq!(count_read_buffer_chunks(&db), 0);
@@ -85,6 +92,7 @@ pub struct TwoMeasurements {}
 impl DbSetup for TwoMeasurements {
     async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
+
         let lp_lines = vec![
             "cpu,region=west user=23.2 100",
             "cpu,region=west user=21.0 150",
@@ -101,6 +109,7 @@ pub struct TwoMeasurementsUnsignedType {}
 impl DbSetup for TwoMeasurementsUnsignedType {
     async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
+
         let lp_lines = vec![
             "restaurant,town=andover count=40000u 100",
             "restaurant,town=reading count=632u 120",
@@ -120,6 +129,7 @@ pub struct MultiChunkSchemaMerge {}
 impl DbSetup for MultiChunkSchemaMerge {
     async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
+
         let lp_lines1 = vec![
             "cpu,region=west user=23.2,system=5.0 100",
             "cpu,region=west user=21.0,system=6.0 150",
@@ -140,6 +150,7 @@ pub struct TwoMeasurementsManyNulls {}
 impl DbSetup for TwoMeasurementsManyNulls {
     async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
+
         let lp_lines1 = vec![
             "h2o,state=CA,city=LA,county=LA temp=70.4 100",
             "h2o,state=MA,city=Boston,county=Suffolk temp=72.4 250",
@@ -265,19 +276,27 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     };
 
     let db = make_db();
-    write_lp(&db, data);
-    db.rollover_partition(partition_key).await.unwrap();
+    let table_names = write_lp(&db, data);
+    for table_name in &table_names {
+        db.rollover_partition(partition_key, &table_name)
+            .await
+            .unwrap();
+    }
     let scenario2 = DbScenario {
         scenario_name: "Data in closed chunk of mutable buffer".into(),
         db,
     };
 
     let db = make_db();
-    write_lp(&db, data);
-    db.rollover_partition(partition_key).await.unwrap();
-    db.load_chunk_to_read_buffer(partition_key, 0)
-        .await
-        .unwrap();
+    let table_names = write_lp(&db, data);
+    for table_name in &table_names {
+        db.rollover_partition(partition_key, &table_name)
+            .await
+            .unwrap();
+        db.load_chunk_to_read_buffer(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+    }
     let scenario3 = DbScenario {
         scenario_name: "Data in read buffer".into(),
         db,
@@ -307,8 +326,12 @@ pub async fn make_two_chunk_scenarios(
 
     // spread across 2 mutable buffer chunks
     let db = make_db();
-    write_lp(&db, data1);
-    db.rollover_partition(partition_key).await.unwrap();
+    let table_names = write_lp(&db, data1);
+    for table_name in &table_names {
+        db.rollover_partition(partition_key, &table_name)
+            .await
+            .unwrap();
+    }
     write_lp(&db, data2);
     let scenario2 = DbScenario {
         scenario_name: "Data in one open chunk and one closed chunk of mutable buffer".into(),
@@ -317,11 +340,15 @@ pub async fn make_two_chunk_scenarios(
 
     // spread across 1 mutable buffer, 1 read buffer chunks
     let db = make_db();
-    write_lp(&db, data1);
-    db.rollover_partition(partition_key).await.unwrap();
-    db.load_chunk_to_read_buffer(partition_key, 0)
-        .await
-        .unwrap();
+    let table_names = write_lp(&db, data1);
+    for table_name in &table_names {
+        db.rollover_partition(partition_key, &table_name)
+            .await
+            .unwrap();
+        db.load_chunk_to_read_buffer(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+    }
     write_lp(&db, data2);
     let scenario3 = DbScenario {
         scenario_name: "Data in open chunk of mutable buffer, and one chunk of read buffer".into(),
@@ -330,18 +357,26 @@ pub async fn make_two_chunk_scenarios(
 
     // in 2 read buffer chunks
     let db = make_db();
-    write_lp(&db, data1);
-    db.rollover_partition(partition_key).await.unwrap();
+    let table_names = write_lp(&db, data1);
+    for table_name in &table_names {
+        db.rollover_partition(partition_key, &table_name)
+            .await
+            .unwrap();
+    }
     write_lp(&db, data2);
-    db.rollover_partition(partition_key).await.unwrap();
+    for table_name in &table_names {
+        db.rollover_partition(partition_key, &table_name)
+            .await
+            .unwrap();
 
-    db.load_chunk_to_read_buffer(partition_key, 0)
-        .await
-        .unwrap();
+        db.load_chunk_to_read_buffer(partition_key, &table_name, 0)
+            .await
+            .unwrap();
 
-    db.load_chunk_to_read_buffer(partition_key, 1)
-        .await
-        .unwrap();
+        db.load_chunk_to_read_buffer(partition_key, &table_name, 1)
+            .await
+            .unwrap();
+    }
     let scenario4 = DbScenario {
         scenario_name: "Data in two read buffer chunks".into(),
         db,
@@ -351,9 +386,11 @@ pub async fn make_two_chunk_scenarios(
 }
 
 /// Rollover the mutable buffer and load chunk 0 to the read bufer
-pub async fn rollover_and_load(db: &Db, partition_key: &str) {
-    db.rollover_partition(partition_key).await.unwrap();
-    db.load_chunk_to_read_buffer(partition_key, 0)
+pub async fn rollover_and_load(db: &Db, partition_key: &str, table_name: &str) {
+    db.rollover_partition(partition_key, table_name)
+        .await
+        .unwrap();
+    db.load_chunk_to_read_buffer(partition_key, table_name, 0)
         .await
         .unwrap();
 }

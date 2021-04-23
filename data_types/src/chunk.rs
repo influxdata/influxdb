@@ -48,6 +48,9 @@ pub struct ChunkSummary {
     /// The partition key of this chunk
     pub partition_key: Arc<String>,
 
+    /// The table of this chunk
+    pub table_name: Arc<String>,
+
     /// The id of this chunk
     pub id: u32,
 
@@ -75,12 +78,14 @@ impl ChunkSummary {
     /// Construct a ChunkSummary that has None for all timestamps
     pub fn new_without_timestamps(
         partition_key: Arc<String>,
+        table_name: Arc<String>,
         id: u32,
         storage: ChunkStorage,
         estimated_bytes: usize,
     ) -> Self {
         Self {
             partition_key,
+            table_name,
             id,
             storage,
             estimated_bytes,
@@ -96,6 +101,7 @@ impl From<ChunkSummary> for management::Chunk {
     fn from(summary: ChunkSummary) -> Self {
         let ChunkSummary {
             partition_key,
+            table_name,
             id,
             storage,
             estimated_bytes,
@@ -112,8 +118,14 @@ impl From<ChunkSummary> for management::Chunk {
         let partition_key = match Arc::try_unwrap(partition_key) {
             // no one else has a reference so take the string
             Ok(partition_key) => partition_key,
-            // some other refernece exists to this string, so clone it
+            // some other reference exists to this string, so clone it
             Err(partition_key) => partition_key.as_ref().clone(),
+        };
+        let table_name = match Arc::try_unwrap(table_name) {
+            // no one else has a reference so take the string
+            Ok(table_name) => table_name,
+            // some other reference exists to this string, so clone it
+            Err(table_name) => table_name.as_ref().clone(),
         };
 
         let time_of_first_write = time_of_first_write.map(|t| t.into());
@@ -122,6 +134,7 @@ impl From<ChunkSummary> for management::Chunk {
 
         Self {
             partition_key,
+            table_name,
             id,
             storage,
             estimated_bytes,
@@ -181,6 +194,7 @@ impl TryFrom<management::Chunk> for ChunkSummary {
 
         let management::Chunk {
             partition_key,
+            table_name,
             id,
             estimated_bytes,
             ..
@@ -188,9 +202,11 @@ impl TryFrom<management::Chunk> for ChunkSummary {
 
         let estimated_bytes = estimated_bytes as usize;
         let partition_key = Arc::new(partition_key);
+        let table_name = Arc::new(table_name);
 
         Ok(Self {
             partition_key,
+            table_name,
             id,
             storage,
             estimated_bytes,
@@ -226,6 +242,7 @@ mod test {
     fn valid_proto_to_summary() {
         let proto = management::Chunk {
             partition_key: "foo".to_string(),
+            table_name: "bar".to_string(),
             id: 42,
             estimated_bytes: 1234,
             storage: management::ChunkStorage::ObjectStoreOnly.into(),
@@ -237,6 +254,7 @@ mod test {
         let summary = ChunkSummary::try_from(proto).expect("conversion successful");
         let expected = ChunkSummary {
             partition_key: Arc::new("foo".to_string()),
+            table_name: Arc::new("bar".to_string()),
             id: 42,
             estimated_bytes: 1234,
             storage: ChunkStorage::ObjectStoreOnly,
@@ -256,6 +274,7 @@ mod test {
     fn valid_summary_to_proto() {
         let summary = ChunkSummary {
             partition_key: Arc::new("foo".to_string()),
+            table_name: Arc::new("bar".to_string()),
             id: 42,
             estimated_bytes: 1234,
             storage: ChunkStorage::ObjectStoreOnly,
@@ -268,6 +287,7 @@ mod test {
 
         let expected = management::Chunk {
             partition_key: "foo".to_string(),
+            table_name: "bar".to_string(),
             id: 42,
             estimated_bytes: 1234,
             storage: management::ChunkStorage::ObjectStoreOnly.into(),

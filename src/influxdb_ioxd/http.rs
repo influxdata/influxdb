@@ -657,6 +657,7 @@ struct SnapshotInfo {
     org: String,
     bucket: String,
     partition: String,
+    table_name: String,
 }
 
 #[tracing::instrument(level = "debug")]
@@ -691,8 +692,14 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
     data_path.push_all_dirs(&["data", &snapshot.partition]);
 
     let partition_key = &snapshot.partition;
-    let chunk = db.rollover_partition(partition_key).await.unwrap();
-    let table_stats = db.table_summaries(partition_key, chunk.id());
+    let table_name = &snapshot.table_name;
+    let chunk = db
+        .rollover_partition(partition_key, table_name)
+        .await
+        .unwrap();
+    let table_stats = db
+        .table_summary(partition_key, table_name, chunk.id())
+        .unwrap();
     let snapshot = server::snapshot::snapshot_chunk(
         metadata_path,
         data_path,

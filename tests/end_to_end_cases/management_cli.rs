@@ -406,6 +406,7 @@ async fn test_list_partition_chunks() {
 
     let expected = r#"
     "partition_key": "cpu",
+    "table_name": "cpu",
     "id": 0,
     "storage": "OpenMutableBuffer",
 "#;
@@ -472,6 +473,7 @@ async fn test_new_partition_chunk() {
         .arg("new-chunk")
         .arg(&db_name)
         .arg("cpu")
+        .arg("cpu")
         .arg("--host")
         .arg(addr)
         .assert()
@@ -504,6 +506,7 @@ async fn test_new_partition_chunk_error() {
         .arg("new-chunk")
         .arg("non_existent_database")
         .arg("non_existent_partition")
+        .arg("non_existent_table")
         .arg("--host")
         .arg(addr)
         .assert()
@@ -532,6 +535,7 @@ async fn test_close_partition_chunk() {
             .arg("close-chunk")
             .arg(&db_name)
             .arg("cpu")
+            .arg("cpu")
             .arg("0")
             .arg("--host")
             .arg(addr)
@@ -545,6 +549,7 @@ async fn test_close_partition_chunk() {
     let expected_job = Job::CloseChunk {
         db_name,
         partition_key: "cpu".into(),
+        table_name: "cpu".into(),
         chunk_id: 0,
     };
 
@@ -568,6 +573,7 @@ async fn test_close_partition_chunk_error() {
         .arg("close-chunk")
         .arg("non_existent_database")
         .arg("non_existent_partition")
+        .arg("non_existent_table")
         .arg("0")
         .arg("--host")
         .arg(addr)

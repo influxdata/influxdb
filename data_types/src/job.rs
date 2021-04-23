@@ -25,6 +25,7 @@ pub enum Job {
     CloseChunk {
         db_name: String,
         partition_key: String,
+        table_name: String,
         chunk_id: u32,
     },
 
@@ -32,6 +33,7 @@ pub enum Job {
     WriteChunk {
         db_name: String,
         partition_key: String,
+        table_name: String,
         chunk_id: u32,
     },
 }
@@ -50,19 +52,23 @@ impl From<Job> for management::operation_metadata::Job {
             Job::CloseChunk {
                 db_name,
                 partition_key,
+                table_name,
                 chunk_id,
             } => Self::CloseChunk(management::CloseChunk {
                 db_name,
                 partition_key,
+                table_name,
                 chunk_id,
             }),
             Job::WriteChunk {
                 db_name,
                 partition_key,
+                table_name,
                 chunk_id,
             } => Self::WriteChunk(management::WriteChunk {
                 db_name,
                 partition_key,
+                table_name,
                 chunk_id,
             }),
         }
@@ -84,19 +90,23 @@ impl From<management::operation_metadata::Job> for Job {
             Job::CloseChunk(management::CloseChunk {
                 db_name,
                 partition_key,
+                table_name,
                 chunk_id,
             }) => Self::CloseChunk {
                 db_name,
                 partition_key,
+                table_name,
                 chunk_id,
             },
             Job::WriteChunk(management::WriteChunk {
                 db_name,
                 partition_key,
+                table_name,
                 chunk_id,
             }) => Self::WriteChunk {
                 db_name,
                 partition_key,
+                table_name,
                 chunk_id,
             },
         }

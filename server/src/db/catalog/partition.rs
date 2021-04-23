@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use super::{
     chunk::{Chunk, ChunkState},
-    Result, UnknownChunk,
+    Result, UnknownChunk, UnknownTable,
 };
 use chrono::{DateTime, Utc};
 use data_types::chunk::ChunkSummary;
@@ -21,11 +21,8 @@ pub struct Partition {
     /// The partition key
     key: String,
 
-    /// What the next chunk id is
-    next_chunk_id: u32,
-
-    /// The chunks that make up this partition, indexed by id
-    chunks: BTreeMap<u32, Arc<RwLock<Chunk>>>,
+    /// Tables within this partition
+    tables: BTreeMap<String, PartitionTable>,
 
     /// When this partition was created
     created_at: DateTime<Utc>,
@@ -54,8 +51,7 @@ impl Partition {
         let now = Utc::now();
         Self {
             key,
-            next_chunk_id: 0,
-            chunks: BTreeMap::new(),
+            tables: BTreeMap::new(),
             created_at: now,
             last_write_at: now,
         }
@@ -77,17 +73,28 @@ impl Partition {
     }
 
     /// Create a new Chunk in the open state
-    pub fn create_open_chunk(&mut self, memory_registry: &MemRegistry) -> Arc<RwLock<Chunk>> {
-        let chunk_id = self.next_chunk_id;
-        self.next_chunk_id += 1;
+    pub fn create_open_chunk(
+        &mut self,
+        table_name: impl Into<String>,
+        memory_registry: &MemRegistry,
+    ) -> Arc<RwLock<Chunk>> {
+        let table_name: String = table_name.into();
+
+        let table = self
+            .tables
+            .entry(table_name.clone())
+            .or_insert_with(PartitionTable::new);
+        let chunk_id = table.next_chunk_id;
+        table.next_chunk_id += 1;
 
         let chunk = Arc::new(RwLock::new(Chunk::new_open(
             &self.key,
+            table_name,
             chunk_id,
             memory_registry,
         )));
 
-        if self.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
+        if table.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
             // A fundamental invariant has been violated - abort
             panic!("chunk already existed with id {}", chunk_id)
         }
@@ -96,52 +103,82 @@ impl Partition {
     }
 
     /// Drop the specified chunk
-    pub fn drop_chunk(&mut self, chunk_id: u32) -> Result<()> {
-        match self.chunks.remove(&chunk_id) {
-            Some(_) => Ok(()),
-            None => UnknownChunk {
+    pub fn drop_chunk(&mut self, table_name: impl Into<String>, chunk_id: u32) -> Result<()> {
+        let table_name = table_name.into();
+
+        match self.tables.get_mut(&table_name) {
+            Some(table) => match table.chunks.remove(&chunk_id) {
+                Some(_) => Ok(()),
+                None => UnknownChunk {
+                    partition_key: self.key(),
+                    table_name,
+                    chunk_id,
+                }
+                .fail(),
+            },
+            None => UnknownTable {
                 partition_key: self.key(),
-                chunk_id,
+                table_name,
             }
             .fail(),
         }
     }
 
     /// return the first currently open chunk, if any
-    pub fn open_chunk(&self) -> Option<Arc<RwLock<Chunk>>> {
-        self.chunks
-            .values()
-            .find(|chunk| {
-                let chunk = chunk.read();
-                matches!(chunk.state(), ChunkState::Open(_))
-            })
-            .cloned()
+    pub fn open_chunk(&self, table_name: impl Into<String>) -> Result<Option<Arc<RwLock<Chunk>>>> {
+        let table_name = table_name.into();
+
+        match self.tables.get(&table_name) {
+            Some(table) => Ok(table
+                .chunks
+                .values()
+                .find(|chunk| {
+                    let chunk = chunk.read();
+                    matches!(chunk.state(), ChunkState::Open(_))
+                })
+                .cloned()),
+            None => UnknownTable {
+                partition_key: self.key(),
+                table_name,
+            }
+            .fail(),
+        }
     }
 
     /// Return an immutable chunk reference by chunk id
-    pub fn chunk(&self, chunk_id: u32) -> Result<Arc<RwLock<Chunk>>> {
-        self.chunks.get(&chunk_id).cloned().context(UnknownChunk {
-            partition_key: self.key(),
-            chunk_id,
-        })
-    }
+    pub fn chunk(
+        &self,
+        table_name: impl Into<String>,
+        chunk_id: u32,
+    ) -> Result<Arc<RwLock<Chunk>>> {
+        let table_name = table_name.into();
 
-    pub fn chunk_ids(&self) -> impl Iterator<Item = u32> + '_ {
-        self.chunks.keys().cloned()
+        match self.tables.get(&table_name) {
+            Some(table) => table.chunks.get(&chunk_id).cloned().context(UnknownChunk {
+                partition_key: self.key(),
+                table_name,
+                chunk_id,
+            }),
+            None => UnknownTable {
+                partition_key: self.key(),
+                table_name,
+            }
+            .fail(),
+        }
     }
 
     /// Return a iterator over chunks in this partition
     pub fn chunks(&self) -> impl Iterator<Item = &Arc<RwLock<Chunk>>> {
-        self.chunks.values()
+        self.tables.values().flat_map(|table| table.chunks.values())
     }
 
     /// Return a PartitionSummary for this partition
     pub fn summary(&self) -> PartitionSummary {
         let table_summaries = self
             .chunks()
-            .flat_map(|chunk| {
+            .filter_map(|chunk| {
                 let chunk = chunk.read();
-                chunk.table_summaries()
+                chunk.table_summary()
             })
             .collect();
 
@@ -150,6 +187,24 @@ impl Partition {
 
     /// Return chunk summaries for all chunks in this partition
     pub fn chunk_summaries(&self) -> impl Iterator<Item = ChunkSummary> + '_ {
-        self.chunks.values().map(|x| x.read().summary())
+        self.chunks().map(|x| x.read().summary())
+    }
+}
+
+#[derive(Debug)]
+struct PartitionTable {
+    /// What the next chunk id is
+    next_chunk_id: u32,
+
+    /// The chunks that make up this partition, indexed by id
+    chunks: BTreeMap<u32, Arc<RwLock<Chunk>>>,
+}
+
+impl PartitionTable {
+    fn new() -> Self {
+        Self {
+            next_chunk_id: 0,
+            chunks: BTreeMap::new(),
+        }
     }
 }

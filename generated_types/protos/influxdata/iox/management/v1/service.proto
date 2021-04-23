@@ -199,6 +199,9 @@ message NewPartitionChunkRequest {
 
   // the partition key
   string partition_key = 2;
+
+  // the table name
+  string table_name = 3;
 }
 
 message NewPartitionChunkResponse {
@@ -211,6 +214,9 @@ message ClosePartitionChunkRequest {
 
   // the partition key
   string partition_key = 2;
+
+  // the table name
+  string table_name = 4;
 
   // the chunk id
   uint32 chunk_id = 3;

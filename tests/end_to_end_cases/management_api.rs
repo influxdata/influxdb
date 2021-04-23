@@ -275,6 +275,7 @@ async fn test_chunk_get() {
     let expected: Vec<Chunk> = vec![
         Chunk {
             partition_key: "cpu".into(),
+            table_name: "cpu".into(),
             id: 0,
             storage: ChunkStorage::OpenMutableBuffer as i32,
             estimated_bytes: 161,
@@ -284,6 +285,7 @@ async fn test_chunk_get() {
         },
         Chunk {
             partition_key: "disk".into(),
+            table_name: "disk".into(),
             id: 0,
             storage: ChunkStorage::OpenMutableBuffer as i32,
             estimated_bytes: 127,
@@ -450,6 +452,7 @@ async fn test_list_partition_chunks() {
 
     let expected: Vec<Chunk> = vec![Chunk {
         partition_key: "cpu".into(),
+        table_name: "cpu".into(),
         id: 0,
         storage: ChunkStorage::OpenMutableBuffer as i32,
         estimated_bytes: 161,
@@ -505,10 +508,11 @@ async fn test_new_partition_chunk() {
 
     assert_eq!(chunks.len(), 1, "Chunks: {:#?}", chunks);
     let partition_key = "cpu";
+    let table_name = "cpu";
 
     // Rollover the a second chunk
     management_client
-        .new_partition_chunk(&db_name, partition_key)
+        .new_partition_chunk(&db_name, partition_key, table_name)
         .await
         .expect("new partition chunk");
 
@@ -538,12 +542,23 @@ async fn test_new_partition_chunk() {
 
     // Rollover a (currently non existent) partition which is not OK
     let err = management_client
-        .new_partition_chunk(&db_name, "non_existent_partition")
+        .new_partition_chunk(&db_name, "non_existent_partition", table_name)
         .await
         .expect_err("new partition chunk");
 
     assert_eq!(
         "Resource partition/non_existent_partition not found",
+        err.to_string()
+    );
+
+    // Rollover a (currently non existent) table in an existing partition which is not OK
+    let err = management_client
+        .new_partition_chunk(&db_name, partition_key, "non_existing_table")
+        .await
+        .expect_err("new partition chunk");
+
+    assert_eq!(
+        "Resource table/cpu:non_existing_table not found",
         err.to_string()
     );
 }
@@ -554,7 +569,11 @@ async fn test_new_partition_chunk_error() {
     let mut management_client = fixture.management_client();
 
     let err = management_client
-        .new_partition_chunk("this database does not exist", "nor_does_this_partition")
+        .new_partition_chunk(
+            "this database does not exist",
+            "nor_does_this_partition",
+            "nor_does_this_table",
+        )
         .await
         .expect_err("expected error");
 
@@ -578,6 +597,7 @@ async fn test_close_partition_chunk() {
     create_readable_database(&db_name, fixture.grpc_channel()).await;
 
     let partition_key = "cpu";
+    let table_name = "cpu";
     let lp_lines = vec!["cpu,region=west user=23.2 100"];
 
     write_client
@@ -596,7 +616,7 @@ async fn test_close_partition_chunk() {
 
     // Move the chunk to read buffer
     let operation = management_client
-        .close_partition_chunk(&db_name, partition_key, 0)
+        .close_partition_chunk(&db_name, partition_key, table_name, 0)
         .await
         .expect("new partition chunk");
 
@@ -640,7 +660,12 @@ async fn test_close_partition_chunk_error() {
     let mut management_client = fixture.management_client();
 
     let err = management_client
-        .close_partition_chunk("this database does not exist", "nor_does_this_partition", 0)
+        .close_partition_chunk(
+            "this database does not exist",
+            "nor_does_this_partition",
+            "nor_does_this_table",
+            0,
+        )
         .await
         .expect_err("expected error");
 
@@ -701,6 +726,7 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
         .map(|summary| {
             let Chunk {
                 partition_key,
+                table_name,
                 id,
                 storage,
                 estimated_bytes,
@@ -708,6 +734,7 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
             } = summary;
             Chunk {
                 partition_key,
+                table_name,
                 id,
                 storage,
                 estimated_bytes,

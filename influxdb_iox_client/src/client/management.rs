@@ -465,13 +465,16 @@ impl Client {
         &mut self,
         db_name: impl Into<String>,
         partition_key: impl Into<String>,
+        table_name: impl Into<String>,
     ) -> Result<(), NewPartitionChunkError> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
+        let table_name = table_name.into();
 
         self.inner
             .new_partition_chunk(NewPartitionChunkRequest {
                 db_name,
+                table_name,
                 partition_key,
             })
             .await
@@ -512,16 +515,19 @@ impl Client {
         &mut self,
         db_name: impl Into<String>,
         partition_key: impl Into<String>,
+        table_name: impl Into<String>,
         chunk_id: u32,
     ) -> Result<Operation, ClosePartitionChunkError> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
+        let table_name = table_name.into();
 
         let response = self
             .inner
             .close_partition_chunk(ClosePartitionChunkRequest {
                 db_name,
                 partition_key,
+                table_name,
                 chunk_id,
             })
             .await
