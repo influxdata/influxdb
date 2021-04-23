@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use snafu::{OptionExt, Snafu};
+use snafu::{ensure, OptionExt, Snafu};
 
 use observability_deps::prometheus::proto::{
     Counter as PromCounter, Histogram as PromHistogram, MetricFamily,
@@ -68,7 +68,7 @@ impl TestMetricRegistry {
             .into_iter()
             .find(|fam| fam.get_name() == name)
             .context(MetricFamilyNotFoundError {
-                name: name.to_owned(),
+                name,
                 metrics: self.registry.metrics_as_str(),
             })?;
         Ok(AssertionBuilder::new(family, &self.registry))
@@ -188,19 +188,21 @@ impl<'a> AssertionBuilder<'a> {
         });
 
         // Can't find metric matching labels
-        if metric.is_none() {
-            return Histogram {
-                c: NoMatchingLabelsError {
-                    name: self.family.get_name().to_owned(),
-                    labels: self.labels.clone(),
-                    metrics: self.registry.metrics_as_str(),
-                }
-                .fail(),
-                family_name: "".to_string(),
-                metric_dump: "".to_string(),
-            };
-        }
-        let metric = metric.unwrap();
+        let metric = match metric {
+            Some(metric) => metric,
+            None => {
+                return Histogram {
+                    c: NoMatchingLabelsError {
+                        name: self.family.get_name(),
+                        labels: self.labels.clone(), // Maybe `labels: &self.labels`
+                        metrics: self.registry.metrics_as_str(),
+                    }
+                    .fail(),
+                    family_name: "".to_string(),
+                    metric_dump: "".to_string(),
+                };
+            }
+        };
 
         if !metric.has_histogram() {
             return Histogram {
@@ -237,14 +239,14 @@ impl<'a> Counter<'a> {
     pub fn eq(self, v: f64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        if v != c.get_value() {
-            return FailedMetricAssertionError {
+        ensure!(
+            v == c.get_value(),
+            FailedMetricAssertionError {
                 name: self.family_name,
                 msg: format!("{:?} == {:?} failed", c.get_value(), v),
                 metrics: self.metric_dump,
             }
-            .fail();
-        }
+        );
         Ok(())
     }
 

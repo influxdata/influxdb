@@ -59,6 +59,7 @@ impl MetricRegistry {
     /// For example:
     ///
     ///
+    /// ```text
     /// # HELP a_counter Counts things
     /// # TYPE a_counter counter
     /// a_counter{key="value"} 100
@@ -70,6 +71,7 @@ impl MetricRegistry {
     /// a_value_recorder_bucket{key="value",le="+Inf"} 1
     /// a_value_recorder_sum{key="value"} 100
     /// a_value_recorder_count{key="value"} 1
+    /// ```
     ///
     pub fn metrics_as_text(&self) -> Vec<u8> {
         let metric_families = self.exporter.registry().gather();
