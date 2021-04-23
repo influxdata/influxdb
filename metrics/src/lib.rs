@@ -154,10 +154,9 @@ impl Domain {
 
     /// Registers a new metric following the RED methodology.
     ///
-    /// By default, two distinct metrics will be created. One will be a counter
-    /// that will track the number of total requests and failed requests. The
-    /// second will be a metric that tracks a latency distributions of all
-    /// requests in seconds.
+    /// Two distinct metrics will be created. One will be a counter tracking
+    /// the number of total requests and failed requests. The second will be a
+    /// metric that tracks a latency distributions of all requests in seconds.
     ///
     /// If `name` is not provided then the metrics registered on the `mydomain`
     /// domain will be named:
@@ -285,7 +284,7 @@ mod test {
         // report some other observations
         let ob = metric.observation();
         ob.observe(
-            metrics::RedRequestStatus::OkError,
+            metrics::RedRequestStatus::ClientError,
             Duration::from_millis(2000),
             &[],
         );
@@ -304,6 +303,12 @@ mod test {
             vec![
                 "# HELP http_request_duration_seconds distribution of request latencies",
                 "# TYPE http_request_duration_seconds histogram",
+                r#"http_request_duration_seconds_bucket{status="client_error",le="0.5"} 0"#,
+                r#"http_request_duration_seconds_bucket{status="client_error",le="0.9"} 0"#,
+                r#"http_request_duration_seconds_bucket{status="client_error",le="0.99"} 0"#,
+                r#"http_request_duration_seconds_bucket{status="client_error",le="+Inf"} 1"#,
+                r#"http_request_duration_seconds_sum{status="client_error"} 2"#,
+                r#"http_request_duration_seconds_count{status="client_error"} 1"#,
                 r#"http_request_duration_seconds_bucket{status="error",le="0.5"} 1"#,
                 r#"http_request_duration_seconds_bucket{status="error",le="0.9"} 1"#,
                 r#"http_request_duration_seconds_bucket{status="error",le="0.99"} 1"#,
@@ -316,17 +321,11 @@ mod test {
                 r#"http_request_duration_seconds_bucket{status="ok",le="+Inf"} 1"#,
                 r#"http_request_duration_seconds_sum{status="ok"} 0.1"#,
                 r#"http_request_duration_seconds_count{status="ok"} 1"#,
-                r#"http_request_duration_seconds_bucket{status="ok_error",le="0.5"} 0"#,
-                r#"http_request_duration_seconds_bucket{status="ok_error",le="0.9"} 0"#,
-                r#"http_request_duration_seconds_bucket{status="ok_error",le="0.99"} 0"#,
-                r#"http_request_duration_seconds_bucket{status="ok_error",le="+Inf"} 1"#,
-                r#"http_request_duration_seconds_sum{status="ok_error"} 2"#,
-                r#"http_request_duration_seconds_count{status="ok_error"} 1"#,
                 "# HELP http_requests_total accumulated total requests",
                 "# TYPE http_requests_total counter",
+                r#"http_requests_total{status="client_error"} 1"#,
                 r#"http_requests_total{status="error"} 1"#,
                 r#"http_requests_total{status="ok"} 1"#,
-                r#"http_requests_total{status="ok_error"} 1"#,
                 "",
             ]
             .join("\n")
@@ -352,7 +351,7 @@ mod test {
         );
 
         metric.observation().observe(
-            metrics::RedRequestStatus::OkError,
+            metrics::RedRequestStatus::ClientError,
             Duration::from_millis(200),
             &[KeyValue::new("account", "other")],
         );
@@ -380,17 +379,17 @@ r#"ftp_request_duration_seconds_bucket{account="abc123",status="ok",le="0.99"} 1
 r#"ftp_request_duration_seconds_bucket{account="abc123",status="ok",le="+Inf"} 1"#,
 r#"ftp_request_duration_seconds_sum{account="abc123",status="ok"} 0.1"#,
 r#"ftp_request_duration_seconds_count{account="abc123",status="ok"} 1"#,
-r#"ftp_request_duration_seconds_bucket{account="other",status="ok_error",le="0.5"} 1"#,
-r#"ftp_request_duration_seconds_bucket{account="other",status="ok_error",le="0.9"} 1"#,
-r#"ftp_request_duration_seconds_bucket{account="other",status="ok_error",le="0.99"} 1"#,
-r#"ftp_request_duration_seconds_bucket{account="other",status="ok_error",le="+Inf"} 1"#,
-r#"ftp_request_duration_seconds_sum{account="other",status="ok_error"} 0.2"#,
-r#"ftp_request_duration_seconds_count{account="other",status="ok_error"} 1"#,
+r#"ftp_request_duration_seconds_bucket{account="other",status="client_error",le="0.5"} 1"#,
+r#"ftp_request_duration_seconds_bucket{account="other",status="client_error",le="0.9"} 1"#,
+r#"ftp_request_duration_seconds_bucket{account="other",status="client_error",le="0.99"} 1"#,
+r#"ftp_request_duration_seconds_bucket{account="other",status="client_error",le="+Inf"} 1"#,
+r#"ftp_request_duration_seconds_sum{account="other",status="client_error"} 0.2"#,
+r#"ftp_request_duration_seconds_count{account="other",status="client_error"} 1"#,
 r#"# HELP ftp_requests_total accumulated total requests"#,
 r#"# TYPE ftp_requests_total counter"#,
 r#"ftp_requests_total{account="abc123",status="error"} 1"#,
 r#"ftp_requests_total{account="abc123",status="ok"} 1"#,
-r#"ftp_requests_total{account="other",status="ok_error"} 1"#,
+r#"ftp_requests_total{account="other",status="client_error"} 1"#,
 ""
             ]
             .join("\n")

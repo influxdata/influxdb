@@ -14,13 +14,14 @@ const RED_REQUEST_STATUS_LABEL: &str = "status";
 
 /// Possible types of RED metric observation status.
 ///
-/// Ok      - an observed request was successful.
-/// OkError - an observed request was unsuccessful but it was not the fault of
-///           the observed service.
-/// Error   - an observed request failed and it was the fault of the service.
+/// Ok          - an observed request was successful.
+/// ClientError - an observed request was unsuccessful but it was not the fault
+///               of the observed service.
+/// Error       - an observed request failed and it was the fault of the
+///               service.
 ///
-/// What is the difference between OkError and Error? The difference is to do
-/// where the failure occurred. When thinking about measuring SLOs like
+/// What is the difference between `ClientError` and `Error`? The difference is
+/// to do where the failure occurred. When thinking about measuring SLOs like
 /// availability it's necessary to calculate things like:
 ///
 ///    Availability = 1 - (failed_requests / all_valid_requests)
@@ -29,12 +30,12 @@ const RED_REQUEST_STATUS_LABEL: &str = "status";
 /// failed but not due to the fault of the service (e.g., client errors).
 ///
 /// It is useful to track the components of `all_valid_requests` separately so
-/// operators can also monitor external errors (ok_error) errors to help
+/// operators can also monitor external errors (client_error) errors to help
 /// improve their APIs or other systems.
 #[derive(Debug)]
 pub enum RedRequestStatus {
     Ok,
-    OkError,
+    ClientError,
     Error,
 }
 
@@ -42,7 +43,7 @@ impl Display for RedRequestStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Ok => write!(f, "ok"),
-            Self::OkError => write!(f, "ok_error"),
+            Self::ClientError => write!(f, "client_error"),
             Self::Error => write!(f, "error"),
         }
     }
@@ -51,7 +52,8 @@ impl Display for RedRequestStatus {
 #[derive(Debug)]
 /// A REDMetric is a metric that tracks requests to some resource.
 ///
-/// The RED methodology stipulates you should track three key measures:
+/// The [RED methodology](https://www.weave.works/blog/the-red-method-key-metrics-for-microservices-architecture/)
+/// stipulates you should track three key measures:
 ///
 ///  - Request Rate: (total number of requests / second);
 ///  - Error Rate: (total number of failed requests / second);
@@ -113,11 +115,11 @@ impl RedMetric {
                     self.requests.add(1, &labels);
                     self.duration.record(duration.as_secs_f64(), &labels);
                 }
-                RedRequestStatus::OkError => {
+                RedRequestStatus::ClientError => {
                     let mut labels = labels.into_owned();
                     labels[0] = KeyValue::new(
                         RED_REQUEST_STATUS_LABEL,
-                        RedRequestStatus::OkError.to_string(),
+                        RedRequestStatus::ClientError.to_string(),
                     );
 
                     self.requests.add(1, &labels);
@@ -193,7 +195,7 @@ where
     /// automatically.
     pub fn client_error_with_labels(&self, labels: &[KeyValue]) {
         let duration = self.start.elapsed();
-        self.observe(RedRequestStatus::OkError, duration, labels);
+        self.observe(RedRequestStatus::ClientError, duration, labels);
     }
 
     /// Record that the observation was not successful and results in an error
