@@ -452,6 +452,8 @@ where
         IOXD_METRICS
             .lp_lines_errors
             .add(lines.len() as u64, &metric_kv);
+        let num_lines = lines.len();
+        debug!(?e, ?db_name, ?num_lines, "error writing lines");
 
         match e {
             server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
