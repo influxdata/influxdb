@@ -390,6 +390,7 @@ cpu,host=B,region=east user=10.0,system=74.1 1
 
     /// Create a Database with a local store
     pub fn make_db() -> Db {
+        let metrics_registry = Arc::new(metrics::MetricRegistry::new());
         let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server_id = std::num::NonZeroU32::new(1).unwrap();
         let exec = Arc::new(Executor::new(1));
@@ -401,6 +402,7 @@ cpu,host=B,region=east user=10.0,system=74.1 1
             exec,
             None, // write buffer
             Arc::new(JobRegistry::new()),
+            Arc::clone(&metrics_registry),
         )
     }
 }

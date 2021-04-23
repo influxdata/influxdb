@@ -24,21 +24,21 @@ use arrow_deps::{
     },
 };
 
+use super::{buffer::Buffer, JobRegistry};
 use catalog::{chunk::ChunkState, Catalog};
 pub(crate) use chunk::DbChunk;
+use data_types::job::Job;
 use data_types::{
     chunk::ChunkSummary, database_rules::DatabaseRules, partition_metadata::PartitionSummary,
     timestamp::TimestampRange,
 };
 use internal_types::selection::Selection;
+use metrics::MetricRegistry;
 use object_store::ObjectStore;
 use parquet_file::{chunk::Chunk, storage::Storage};
 use query::{exec::Executor, Database, DEFAULT_SCHEMA};
 use read_buffer::Chunk as ReadBufferChunk;
 use tracker::{MemRegistry, TaskTracker, TrackedFutureExt};
-
-use super::{buffer::Buffer, JobRegistry};
-use data_types::job::Job;
 
 use data_types::partition_metadata::TableSummary;
 use internal_types::entry::{self, ClockValue, Entry, SequencedEntry};
@@ -319,6 +319,7 @@ impl Db {
         exec: Arc<Executor>,
         write_buffer: Option<Buffer>,
         jobs: Arc<JobRegistry>,
+        metrics: Arc<MetricRegistry>,
     ) -> Self {
         let rules = RwLock::new(rules);
         let server_id = server_id;

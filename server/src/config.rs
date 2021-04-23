@@ -8,6 +8,7 @@ use data_types::{
     database_rules::{DatabaseRules, WriterId},
     DatabaseName,
 };
+use metrics::MetricRegistry;
 use object_store::{path::ObjectStorePath, ObjectStore};
 use query::exec::Executor;
 
@@ -32,6 +33,7 @@ pub(crate) struct Config {
     shutdown: CancellationToken,
     jobs: Arc<JobRegistry>,
     state: RwLock<ConfigState>,
+    metric_registry: Arc<MetricRegistry>,
 }
 
 pub(crate) enum UpdateError<E> {
@@ -46,11 +48,12 @@ impl<E> From<Error> for UpdateError<E> {
 }
 
 impl Config {
-    pub(crate) fn new(jobs: Arc<JobRegistry>) -> Self {
+    pub(crate) fn new(jobs: Arc<JobRegistry>, metric_registry: Arc<MetricRegistry>) -> Self {
         Self {
             shutdown: Default::default(),
             state: Default::default(),
             jobs,
+            metric_registry,
         }
     }
 
@@ -146,6 +149,7 @@ impl Config {
             exec,
             write_buffer,
             Arc::clone(&self.jobs),
+            Arc::clone(&self.metric_registry),
         ));
 
         let shutdown = self.shutdown.child_token();
@@ -298,7 +302,8 @@ mod test {
     #[tokio::test]
     async fn create_db() {
         let name = DatabaseName::new("foo").unwrap();
-        let config = Config::new(Arc::new(JobRegistry::new()));
+        let metric_registry = Arc::new(metrics::MetricRegistry::new());
+        let config = Config::new(Arc::new(JobRegistry::new()), Arc::clone(&metric_registry));
         let rules = DatabaseRules::new(name.clone());
 
         {
@@ -331,7 +336,8 @@ mod test {
     #[tokio::test]
     async fn test_db_drop() {
         let name = DatabaseName::new("foo").unwrap();
-        let config = Config::new(Arc::new(JobRegistry::new()));
+        let metric_registry = Arc::new(metrics::MetricRegistry::new());
+        let config = Config::new(Arc::new(JobRegistry::new()), Arc::clone(&metric_registry));
         let rules = DatabaseRules::new(name.clone());
 
         let db_reservation = config.create_db(rules).unwrap();

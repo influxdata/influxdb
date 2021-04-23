@@ -321,7 +321,7 @@ impl<M: ConnectionManager> Server<M> {
 
         Self {
             id: Default::default(),
-            config: Arc::new(Config::new(Arc::clone(&jobs))),
+            config: Arc::new(Config::new(Arc::clone(&jobs), Arc::clone(&metric_registry))),
             store: object_store,
             connection_manager: Arc::new(connection_manager),
             exec: Arc::new(Executor::new(num_worker_threads)),

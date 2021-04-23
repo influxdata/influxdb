@@ -14,6 +14,7 @@ pub fn make_db() -> Db {
     let server_id: NonZeroU32 = NonZeroU32::new(1).unwrap();
     let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
     let exec = Arc::new(Executor::new(1));
+    let metrics_registry = Arc::new(metrics::MetricRegistry::new());
 
     Db::new(
         DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
@@ -22,11 +23,13 @@ pub fn make_db() -> Db {
         exec,
         None, // write buffer
         Arc::new(JobRegistry::new()),
+        metrics_registry,
     )
 }
 
 pub fn make_database(server_id: NonZeroU32, object_store: Arc<ObjectStore>, db_name: &str) -> Db {
     let exec = Arc::new(Executor::new(1));
+    let metrics_registry = Arc::new(metrics::MetricRegistry::new());
     Db::new(
         DatabaseRules::new(DatabaseName::new(db_name.to_string()).unwrap()),
         server_id,
@@ -34,6 +37,7 @@ pub fn make_database(server_id: NonZeroU32, object_store: Arc<ObjectStore>, db_n
         exec,
         None, // write buffer
         Arc::new(JobRegistry::new()),
+        metrics_registry,
     )
 }
 
