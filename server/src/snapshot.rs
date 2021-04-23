@@ -267,6 +267,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryFrom;
+
     use crate::{
         db::{Db, DbChunk},
         JobRegistry,
@@ -274,8 +276,8 @@ mod tests {
 
     use super::*;
     use crate::db::test_helpers::write_lp;
-    use data_types::database_rules::DatabaseRules;
     use data_types::DatabaseName;
+    use data_types::{database_rules::DatabaseRules, server_id::ServerId};
     use futures::TryStreamExt;
     use mutable_buffer::chunk::Chunk as ChunkWB;
     use object_store::memory::InMemory;
@@ -392,7 +394,7 @@ cpu,host=B,region=east user=10.0,system=74.1 1
     pub fn make_db() -> Db {
         let metrics_registry = Arc::new(metrics::MetricRegistry::new());
         let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server_id = std::num::NonZeroU32::new(1).unwrap();
+        let server_id = ServerId::try_from(1).unwrap();
         let exec = Arc::new(Executor::new(1));
 
         Db::new(

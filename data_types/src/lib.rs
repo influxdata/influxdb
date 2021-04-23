@@ -19,6 +19,7 @@ pub mod http;
 pub mod job;
 pub mod names;
 pub mod partition_metadata;
+pub mod server_id;
 pub mod timestamp;
 pub mod write_buffer;
 

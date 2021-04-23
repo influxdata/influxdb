@@ -807,16 +807,18 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::{
+        convert::TryFrom,
+        net::{IpAddr, Ipv4Addr, SocketAddr},
+    };
 
     use arrow_deps::{arrow::record_batch::RecordBatch, assert_table_eq};
     use reqwest::{Client, Response};
 
-    use data_types::{database_rules::DatabaseRules, DatabaseName};
+    use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
     use object_store::{memory::InMemory, ObjectStore};
     use serde::de::DeserializeOwned;
     use server::{db::Db, ConnectionManagerImpl, ServerConfig as AppServerConfig};
-    use std::num::NonZeroU32;
 
     fn config() -> (metrics::TestMetricRegistry, AppServerConfig) {
         let registry = Arc::new(metrics::MetricRegistry::new());
@@ -848,7 +850,7 @@ mod tests {
     async fn test_write() {
         let (_, config) = config();
         let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
-        app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server
             .create_database(
                 DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
@@ -896,7 +898,7 @@ mod tests {
     async fn test_write_metrics() {
         let (metrics_registry, config) = config();
         let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
-        app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server
             .create_database(
                 DatabaseRules::new(DatabaseName::new("MetricsOrg_MetricsBucket").unwrap()),
@@ -978,7 +980,7 @@ mod tests {
     async fn setup_test_data() -> (Client, String) {
         let (_, config) = config();
         let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
-        app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server
             .create_database(
                 DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
@@ -1115,7 +1117,7 @@ mod tests {
     async fn test_gzip_write() {
         let (_, config) = config();
         let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
-        app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server
             .create_database(
                 DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
@@ -1164,7 +1166,7 @@ mod tests {
     async fn write_to_invalid_database() {
         let (_, config) = config();
         let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
-        app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server
             .create_database(
                 DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),

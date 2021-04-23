@@ -1,13 +1,14 @@
 use data_types::{
     chunk::{ChunkStorage, ChunkSummary},
     database_rules::DatabaseRules,
+    server_id::ServerId,
     DatabaseName,
 };
 use object_store::{memory::InMemory, ObjectStore};
 use query::{exec::Executor, Database};
 
 use crate::{db::Db, JobRegistry};
-use std::{num::NonZeroU32, sync::Arc};
+use std::{convert::TryFrom, sync::Arc};
 
 // A wrapper around a Db and a metrics registry allowing for isolated testing
 // of a Db and its metrics.
@@ -19,7 +20,7 @@ pub struct TestDb {
 
 /// Used for testing: create a Database with a local store
 pub fn make_db() -> TestDb {
-    let server_id: NonZeroU32 = NonZeroU32::new(1).unwrap();
+    let server_id = ServerId::try_from(1).unwrap();
     let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
     let exec = Arc::new(Executor::new(1));
     let metrics_registry = Arc::new(metrics::MetricRegistry::new());
@@ -38,7 +39,7 @@ pub fn make_db() -> TestDb {
     }
 }
 
-pub fn make_database(server_id: NonZeroU32, object_store: Arc<ObjectStore>, db_name: &str) -> Db {
+pub fn make_database(server_id: ServerId, object_store: Arc<ObjectStore>, db_name: &str) -> Db {
     let exec = Arc::new(Executor::new(1));
     let metrics_registry = Arc::new(metrics::MetricRegistry::new());
     Db::new(

@@ -4,7 +4,6 @@
 use std::any::Any;
 use std::{
     convert::TryInto,
-    num::NonZeroU32,
     sync::{
         atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc,
@@ -30,7 +29,7 @@ pub(crate) use chunk::DbChunk;
 use data_types::job::Job;
 use data_types::{
     chunk::ChunkSummary, database_rules::DatabaseRules, partition_metadata::PartitionSummary,
-    timestamp::TimestampRange,
+    server_id::ServerId, timestamp::TimestampRange,
 };
 use internal_types::selection::Selection;
 use metrics::MetricRegistry;
@@ -255,7 +254,7 @@ const STARTING_SEQUENCE: u64 = 1;
 pub struct Db {
     pub rules: RwLock<DatabaseRules>,
 
-    pub server_id: NonZeroU32, // this is also the Query Server ID
+    pub server_id: ServerId, // this is also the Query Server ID
 
     /// Interface to use for peristence
     pub store: Arc<ObjectStore>,
@@ -339,7 +338,7 @@ impl DbMetrics {
 impl Db {
     pub fn new(
         rules: DatabaseRules,
-        server_id: NonZeroU32,
+        server_id: ServerId,
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
         write_buffer: Option<Buffer>,
@@ -861,7 +860,7 @@ impl Db {
         // TODO: build this based on either this or on the write buffer, if configured
         let sequenced_entry = SequencedEntry::new_from_entry_bytes(
             ClockValue::new(self.next_sequence()),
-            self.server_id.get(),
+            self.server_id,
             entry.data(),
         )
         .context(SequencedEntryError)?;
@@ -1055,7 +1054,7 @@ mod tests {
     use super::*;
     use futures::stream;
     use futures::{StreamExt, TryStreamExt};
-    use std::iter::Iterator;
+    use std::{convert::TryFrom, iter::Iterator};
 
     use super::test_helpers::{try_write_lp, write_lp};
     use internal_types::entry::test_helpers::lp_to_entry;
@@ -1320,7 +1319,7 @@ mod tests {
         let object_store = Arc::new(ObjectStore::new_file(File::new(root.path())));
 
         // Create a DB given a server id, an object store and a db name
-        let server_id: NonZeroU32 = NonZeroU32::new(10).unwrap();
+        let server_id = ServerId::try_from(10).unwrap();
         let db_name = "parquet_test_db";
         let db = Arc::new(make_database(server_id, Arc::clone(&object_store), db_name));
 

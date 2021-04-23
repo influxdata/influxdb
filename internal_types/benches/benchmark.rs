@@ -1,7 +1,8 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use data_types::database_rules::ShardConfig;
+use data_types::{database_rules::ShardConfig, server_id::ServerId};
 use internal_types::entry::test_helpers::partitioner;
 use internal_types::entry::{lines_to_sharded_entries, ClockValue, SequencedEntry};
+use std::convert::TryFrom;
 
 static LINES: &str = include_str!("../../tests/fixtures/lineproto/prometheus.lp");
 
@@ -29,11 +30,12 @@ fn sequenced_entry(c: &mut Criterion) {
     );
 
     let clock_value = ClockValue::new(23);
+    let server_id = ServerId::try_from(2).unwrap();
 
     group.bench_function("new_from_entry_bytes", |b| {
         b.iter(|| {
             let sequenced_entry =
-                SequencedEntry::new_from_entry_bytes(clock_value, 2, data).unwrap();
+                SequencedEntry::new_from_entry_bytes(clock_value, server_id, data).unwrap();
             assert_eq!(sequenced_entry.clock_value(), clock_value);
             assert_eq!(sequenced_entry.writer_id(), 2);
         })

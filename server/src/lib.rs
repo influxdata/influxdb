@@ -80,6 +80,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use data_types::{
     database_rules::{DatabaseRules, WriterId},
     job::Job,
+    server_id::ServerId,
     {DatabaseName, DatabaseNameError},
 };
 use influxdb_line_protocol::ParsedLine;
@@ -105,7 +106,6 @@ use influxdb_iox_client::{connection::Builder, write};
 use internal_types::entry::SequencedEntry;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
-use std::num::NonZeroU32;
 
 pub mod buffer;
 mod config;
@@ -143,7 +143,7 @@ pub enum Error {
     #[snafu(display("error replicating to remote: {}", source))]
     ErrorReplicating { source: DatabaseError },
     #[snafu(display("id already set"))]
-    IdAlreadySet { id: NonZeroU32 },
+    IdAlreadySet { id: ServerId },
     #[snafu(display("unable to use server until id is set"))]
     IdNotSet,
     #[snafu(display("error serializing configuration {}", source))]
@@ -282,12 +282,27 @@ impl ServerMetrics {
     }
 }
 
+#[derive(Debug, Default)]
+struct CurrentServerId(OnceNonZeroU32);
+
+impl CurrentServerId {
+    fn set(&self, id: ServerId) -> Result<()> {
+        self.0.set(id.get()).map_err(|id| Error::IdAlreadySet {
+            id: ServerId::new(id),
+        })
+    }
+
+    fn get(&self) -> Result<ServerId> {
+        self.0.get().map(ServerId::new).context(IdNotSet)
+    }
+}
+
 /// `Server` is the container struct for how servers store data internally, as
 /// well as how they communicate with other servers. Each server will have one
 /// of these structs, which keeps track of all replication and query rules.
 #[derive(Debug)]
 pub struct Server<M: ConnectionManager> {
-    id: OnceNonZeroU32,
+    id: CurrentServerId,
     config: Arc<Config>,
     connection_manager: Arc<M>,
     pub store: Arc<ObjectStore>,
@@ -341,17 +356,17 @@ impl<M: ConnectionManager> Server<M> {
     /// path in object storage.
     ///
     /// A valid server ID Must be non-zero.
-    pub fn set_id(&self, id: NonZeroU32) -> Result<()> {
-        self.id.set(id).map_err(|id| Error::IdAlreadySet { id })
+    pub fn set_id(&self, id: ServerId) -> Result<()> {
+        self.id.set(id)
     }
 
     /// Returns the current server ID, or an error if not yet set.
-    pub fn require_id(&self) -> Result<NonZeroU32> {
-        self.id.get().context(IdNotSet)
+    pub fn require_id(&self) -> Result<ServerId> {
+        self.id.get()
     }
 
     /// Tells the server the set of rules for a database.
-    pub async fn create_database(&self, rules: DatabaseRules, server_id: NonZeroU32) -> Result<()> {
+    pub async fn create_database(&self, rules: DatabaseRules, server_id: ServerId) -> Result<()> {
         // Return an error if this server hasn't yet been setup with an id
         self.require_id()?;
         let db_reservation = self.config.create_db(rules)?;
@@ -894,7 +909,7 @@ async fn get_store_bytes(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::{collections::BTreeMap, convert::TryFrom};
 
     use async_trait::async_trait;
     use futures::TryStreamExt;
@@ -941,7 +956,7 @@ mod tests {
         let config = config();
         let store = config.store();
         let server = Server::new(manager, config);
-        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
 
         let name = DatabaseName::new("bananas").unwrap();
 
@@ -995,7 +1010,7 @@ mod tests {
         let config2 =
             ServerConfig::new(store, Arc::new(MetricRegistry::new())).with_num_worker_threads(1);
         let server2 = Server::new(manager, config2);
-        server2.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        server2.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server2.load_database_configs().await.unwrap();
 
         let _ = server2.db(&db2).unwrap();
@@ -1008,7 +1023,7 @@ mod tests {
 
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config());
-        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
 
         let name = DatabaseName::new("bananas").unwrap();
 
@@ -1039,7 +1054,7 @@ mod tests {
     async fn db_names_sorted() {
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config());
-        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
 
         let names = vec!["bar", "baz"];
 
@@ -1059,7 +1074,7 @@ mod tests {
     async fn writes_local() {
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config());
-        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
@@ -1095,7 +1110,7 @@ mod tests {
     async fn write_entry_local() {
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config());
-        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
@@ -1168,7 +1183,7 @@ mod tests {
         );
 
         let server = Server::new(manager, config());
-        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
         server
@@ -1244,7 +1259,7 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
 
-        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
         server
@@ -1405,7 +1420,7 @@ mod tests {
     async fn hard_buffer_limit() {
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config());
-        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server

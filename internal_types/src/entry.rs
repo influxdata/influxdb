@@ -2,7 +2,10 @@
 //! from line protocol and the `DatabaseRules` configuration.
 
 use crate::schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
-use data_types::database_rules::{Error as DataError, Partitioner, ShardId, Sharder, WriterId};
+use data_types::{
+    database_rules::{Error as DataError, Partitioner, ShardId, Sharder, WriterId},
+    server_id::ServerId,
+};
 use generated_types::entry as entry_fb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 
@@ -1185,7 +1188,7 @@ pub struct SequencedEntry {
 impl SequencedEntry {
     pub fn new_from_entry_bytes(
         clock_value: ClockValue,
-        writer_id: u32,
+        writer_id: ServerId,
         entry_bytes: &[u8],
     ) -> Result<Self> {
         // The flatbuffer contains:
@@ -1202,7 +1205,7 @@ impl SequencedEntry {
             &mut fbb,
             &entry_fb::SequencedEntryArgs {
                 clock_value: clock_value.get(),
-                writer_id,
+                writer_id: writer_id.get_u32(),
                 entry_bytes: Some(entry_bytes),
             },
         );
@@ -1884,8 +1887,9 @@ mod tests {
 
         let entry_bytes = sharded_entries.first().unwrap().entry.data();
         let clock_value = ClockValue::new(23);
+        let server_id = ServerId::try_from(2).unwrap();
         let sequenced_entry =
-            SequencedEntry::new_from_entry_bytes(clock_value, 2, entry_bytes).unwrap();
+            SequencedEntry::new_from_entry_bytes(clock_value, server_id, entry_bytes).unwrap();
         assert_eq!(sequenced_entry.clock_value(), clock_value);
         assert_eq!(sequenced_entry.writer_id(), 2);
 

@@ -19,6 +19,7 @@ use arrow_deps::{
         file::{reader::FileReader, serialized_reader::SerializedFileReader, writer::TryClone},
     },
 };
+use data_types::server_id::ServerId;
 use internal_types::selection::Selection;
 use object_store::{
     path::{ObjectStorePath, Path},
@@ -33,7 +34,6 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     fs::File,
     io::{Cursor, Seek, SeekFrom, Write},
-    num::NonZeroU32,
     sync::Arc,
     task::{Context, Poll},
 };
@@ -123,12 +123,12 @@ impl RecordBatchStream for ParquetStream {
 #[derive(Debug, Clone)]
 pub struct Storage {
     object_store: Arc<ObjectStore>,
-    writer_id: NonZeroU32,
+    writer_id: ServerId,
     db_name: String,
 }
 
 impl Storage {
-    pub fn new(store: Arc<ObjectStore>, id: NonZeroU32, db: String) -> Self {
+    pub fn new(store: Arc<ObjectStore>, id: ServerId, db: String) -> Self {
         Self {
             object_store: store,
             writer_id: id,
