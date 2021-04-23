@@ -9,22 +9,33 @@ use query::{exec::Executor, Database};
 use crate::{db::Db, JobRegistry};
 use std::{num::NonZeroU32, sync::Arc};
 
+// A wrapper around a Db and a metrics registry allowing for isolated testing
+// of a Db and its metrics.
+#[derive(Debug)]
+pub struct TestDb {
+    pub db: Db,
+    pub metric_registry: metrics::TestMetricRegistry,
+}
+
 /// Used for testing: create a Database with a local store
-pub fn make_db() -> Db {
+pub fn make_db() -> TestDb {
     let server_id: NonZeroU32 = NonZeroU32::new(1).unwrap();
     let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
     let exec = Arc::new(Executor::new(1));
     let metrics_registry = Arc::new(metrics::MetricRegistry::new());
 
-    Db::new(
-        DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
-        server_id,
-        object_store,
-        exec,
-        None, // write buffer
-        Arc::new(JobRegistry::new()),
-        metrics_registry,
-    )
+    TestDb {
+        metric_registry: metrics::TestMetricRegistry::new(Arc::clone(&metrics_registry)),
+        db: Db::new(
+            DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
+            server_id,
+            object_store,
+            exec,
+            None, // write buffer
+            Arc::new(JobRegistry::new()),
+            metrics_registry,
+        ),
+    }
 }
 
 pub fn make_database(server_id: NonZeroU32, object_store: Arc<ObjectStore>, db_name: &str) -> Db {

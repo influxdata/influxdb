@@ -52,6 +52,19 @@ impl ChunkState {
             Self::WrittenToObjectStore(_, _) => "Written to Object Store",
         }
     }
+
+    /// A more concise version of `name`, more suited to metric labels.
+    pub fn metric_label(&self) -> &'static str {
+        match self {
+            Self::Invalid => "invalid",
+            Self::Open(_) => "open",
+            Self::Closing(_) => "closing",
+            Self::Moving(_) => "moving",
+            Self::Moved(_) => "moved",
+            Self::WritingToObjectStore(_) => "writing_os",
+            Self::WrittenToObjectStore(_, _) => "os",
+        }
+    }
 }
 
 /// The catalog representation of a Chunk in IOx. Note that a chunk

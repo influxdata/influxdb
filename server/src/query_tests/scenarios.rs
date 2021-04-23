@@ -31,7 +31,7 @@ impl DbSetup for NoData {
     async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
         let table_name = "cpu";
-        let db = make_db();
+        let db = make_db().db;
         let scenario1 = DbScenario {
             scenario_name: "New, Empty Database".into(),
             db,
@@ -39,7 +39,7 @@ impl DbSetup for NoData {
 
         // listing partitions (which may create an entry in a map)
         // in an empty database
-        let db = make_db();
+        let db = make_db().db;
         assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 0);
         let scenario2 = DbScenario {
@@ -49,7 +49,7 @@ impl DbSetup for NoData {
 
         // a scenario where the database has had data loaded and then deleted
 
-        let db = make_db();
+        let db = make_db().db;
         let data = "cpu,region=west user=23.2 100";
         write_lp(&db, data);
         // move data out of open chunk
@@ -192,7 +192,7 @@ pub struct TwoMeasurementsManyFieldsOneChunk {}
 #[async_trait]
 impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
     async fn make(&self) -> Vec<DbScenario> {
-        let db = make_db();
+        let db = make_db().db;
 
         let lp_lines = vec![
             "h2o,state=MA,city=Boston temp=70.4 50",
@@ -250,7 +250,7 @@ impl DbSetup for EndToEndTest {
 
         let lp_data = lp_lines.join("\n");
 
-        let db = make_db();
+        let db = make_db().db;
         write_lp(&db, &lp_data);
 
         let scenario1 = DbScenario {
@@ -268,14 +268,14 @@ impl DbSetup for EndToEndTest {
 /// Data in both read buffer and mutable buffer chunk
 /// Data in one only read buffer chunk
 pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) -> Vec<DbScenario> {
-    let db = make_db();
+    let db = make_db().db;
     write_lp(&db, data);
     let scenario1 = DbScenario {
         scenario_name: "Data in open chunk of mutable buffer".into(),
         db,
     };
 
-    let db = make_db();
+    let db = make_db().db;
     let table_names = write_lp(&db, data);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)
@@ -287,7 +287,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db,
     };
 
-    let db = make_db();
+    let db = make_db().db;
     let table_names = write_lp(&db, data);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)
@@ -316,7 +316,7 @@ pub async fn make_two_chunk_scenarios(
     data1: &str,
     data2: &str,
 ) -> Vec<DbScenario> {
-    let db = make_db();
+    let db = make_db().db;
     write_lp(&db, data1);
     write_lp(&db, data2);
     let scenario1 = DbScenario {
@@ -325,7 +325,7 @@ pub async fn make_two_chunk_scenarios(
     };
 
     // spread across 2 mutable buffer chunks
-    let db = make_db();
+    let db = make_db().db;
     let table_names = write_lp(&db, data1);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)
@@ -339,7 +339,7 @@ pub async fn make_two_chunk_scenarios(
     };
 
     // spread across 1 mutable buffer, 1 read buffer chunks
-    let db = make_db();
+    let db = make_db().db;
     let table_names = write_lp(&db, data1);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)
@@ -356,7 +356,7 @@ pub async fn make_two_chunk_scenarios(
     };
 
     // in 2 read buffer chunks
-    let db = make_db();
+    let db = make_db().db;
     let table_names = write_lp(&db, data1);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)

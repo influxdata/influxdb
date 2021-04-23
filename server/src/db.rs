@@ -282,6 +282,9 @@ pub struct Db {
     /// A handle to the global jobs registry for long running tasks
     jobs: Arc<JobRegistry>,
 
+    /// All of the metrics for this Db.
+    metrics: DbMetrics,
+
     /// Memory registries used for tracking memory usage by this Db
     memory_registries: MemoryRegistries,
 
@@ -311,6 +314,28 @@ impl MemoryRegistries {
     }
 }
 
+// The set of metrics for `Db`, exposed via our /metrics endpoint.
+#[derive(Debug)]
+struct DbMetrics {
+    // The total number of chunks created moved through various stages of the
+    // catalog data lifecycle.
+    catalog_chunks: metrics::Counter,
+
+    // Default labels for the metrics.
+    // TODO(edd): you should be able to set these on the metrics when they're
+    // created.
+    default_labels: Vec<metrics::KeyValue>,
+}
+
+impl DbMetrics {
+    // updates the catalog_chunks metric with a new chunk state
+    fn update_chunk_state(&self, state: &ChunkState) {
+        let mut labels = self.default_labels.to_vec();
+        labels.push(metrics::KeyValue::new("state", state.metric_label()));
+        self.catalog_chunks.inc_with_labels(&labels);
+    }
+}
+
 impl Db {
     pub fn new(
         rules: DatabaseRules,
@@ -321,12 +346,27 @@ impl Db {
         jobs: Arc<JobRegistry>,
         metrics: Arc<MetricRegistry>,
     ) -> Self {
+        let db_name = rules.name.clone();
         let rules = RwLock::new(rules);
         let server_id = server_id;
         let store = Arc::clone(&object_store);
         let write_buffer = write_buffer.map(Mutex::new);
         let catalog = Arc::new(Catalog::new());
         let system_tables = Arc::new(SystemSchemaProvider::new(Arc::clone(&catalog)));
+
+        let domain = metrics.register_domain("catalog");
+        let db_metrics = DbMetrics {
+            catalog_chunks: domain.register_counter_metric(
+                "chunks",
+                None,
+                "In-memory chunks created in various life-cycle stages",
+            ),
+            default_labels: vec![
+                metrics::KeyValue::new("db_name", db_name.to_string()),
+                metrics::KeyValue::new("svr_id", format!("{:?}", server_id)),
+            ],
+        };
+
         Self {
             rules,
             server_id,
@@ -335,6 +375,7 @@ impl Db {
             catalog,
             write_buffer,
             jobs,
+            metrics: db_metrics,
             system_tables,
             memory_registries: Default::default(),
             sequence: AtomicU64::new(STARTING_SEQUENCE),
@@ -379,9 +420,12 @@ impl Db {
             partition_key,
             table_name,
         })?;
+        self.metrics.update_chunk_state(chunk.state());
 
         // make a new chunk to track the newly created chunk in this partition
-        partition.create_open_chunk(table_name, self.memory_registries.mutable_buffer.as_ref());
+        let new_chunk =
+            partition.create_open_chunk(table_name, self.memory_registries.mutable_buffer.as_ref());
+        self.metrics.update_chunk_state(new_chunk.read().state());
 
         return Ok(DbChunk::snapshot(&chunk));
     }
@@ -430,6 +474,8 @@ impl Db {
                     chunk_state,
                 }
             );
+
+            self.metrics.update_chunk_state(chunk.state());
         };
 
         debug!(%partition_key, %table_name, %chunk_id, %chunk_state, "dropping chunk");
@@ -491,6 +537,7 @@ impl Db {
             })?
         };
 
+        self.metrics.update_chunk_state(chunk.read().state());
         info!(%partition_key, %table_name, %chunk_id, "chunk marked MOVING, loading tables into read buffer");
 
         let mut batches = Vec::new();
@@ -525,6 +572,7 @@ impl Db {
             chunk_id,
         })?;
 
+        self.metrics.update_chunk_state(chunk.state());
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked MOVED. loading complete");
 
         Ok(DbChunk::snapshot(&chunk))
@@ -571,6 +619,7 @@ impl Db {
                 })?
         };
 
+        self.metrics.update_chunk_state(chunk.read().state());
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked WRITING , loading tables into object store");
 
         // Get all tables in this chunk
@@ -650,6 +699,7 @@ impl Db {
                 chunk_id,
             })?;
 
+        self.metrics.update_chunk_state(chunk.state());
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked MOVED. Persisting to object store complete");
 
         Ok(DbChunk::snapshot(&chunk))
@@ -860,6 +910,7 @@ impl Db {
                     let mut chunk = chunk.write();
                     chunk.record_write();
                     let chunk_id = chunk.id();
+                    self.metrics.update_chunk_state(chunk.state());
 
                     let mb_chunk = chunk.mutable_buffer().expect("cannot mutate open chunk");
 
@@ -1017,7 +1068,7 @@ mod tests {
     #[tokio::test]
     async fn write_no_mutable_buffer() {
         // Validate that writes are rejected if there is no mutable buffer
-        let db = make_db();
+        let db = make_db().db;
         db.rules.write().lifecycle_rules.immutable = true;
         let entry = lp_to_entry("cpu bar=1 10");
         let res = db.store_entry(entry);
@@ -1029,8 +1080,8 @@ mod tests {
 
     #[tokio::test]
     async fn read_write() {
-        let db = Arc::new(make_db());
-        write_lp(db.as_ref(), "cpu bar=1 10");
+        let db = Arc::new(make_db().db);
+        write_lp(&db, "cpu bar=1 10");
 
         let batches = run_query(db, "select * from cpu").await;
 
@@ -1045,8 +1096,74 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn metrics_during_rollover() {
+        let test_db = make_db();
+        let db = Arc::new(test_db.db);
+
+        write_lp(db.as_ref(), "cpu bar=1 10");
+
+        // A chunk has been opened
+        test_db
+            .metric_registry
+            .has_metric_family("catalog_chunks_total")
+            .with_labels(&[
+                ("db_name", "placeholder"),
+                ("state", "open"),
+                ("svr_id", "1"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
+
+        db.rollover_partition("1970-01-01T00", "cpu").await.unwrap();
+
+        // A chunk is now closing
+        test_db
+            .metric_registry
+            .has_metric_family("catalog_chunks_total")
+            .with_labels(&[
+                ("db_name", "placeholder"),
+                ("state", "closing"),
+                ("svr_id", "1"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
+
+        db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", 1)
+            .await
+            .unwrap();
+
+        // A chunk is now in the read buffer
+        test_db
+            .metric_registry
+            .has_metric_family("catalog_chunks_total")
+            .with_labels(&[
+                ("db_name", "placeholder"),
+                ("state", "closing"),
+                ("svr_id", "1"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
+
+        db.write_chunk_to_object_store("1970-01-01T00", "cpu", 1)
+            .await
+            .unwrap();
+
+        // A chunk is now in the object store
+        test_db
+            .metric_registry
+            .has_metric_family("catalog_chunks_total")
+            .with_labels(&[("db_name", "placeholder"), ("state", "os"), ("svr_id", "1")])
+            .counter()
+            .eq(1.0)
+            .unwrap();
+    }
+
+    #[tokio::test]
     async fn write_with_rollover() {
-        let db = Arc::new(make_db());
+        let db = Arc::new(make_db().db);
         write_lp(db.as_ref(), "cpu bar=1 10");
         assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
 
@@ -1086,7 +1203,7 @@ mod tests {
 
     #[tokio::test]
     async fn write_with_missing_tags_are_null() {
-        let db = Arc::new(make_db());
+        let db = Arc::new(make_db().db);
         // Note the `region` tag is introduced in the second line, so
         // the values in prior rows for the region column are
         // null. Likewise the `core` tag is introduced in the third
@@ -1119,7 +1236,7 @@ mod tests {
     #[tokio::test]
     async fn read_from_read_buffer() {
         // Test that data can be loaded into the ReadBuffer
-        let db = Arc::new(make_db());
+        let db = Arc::new(make_db().db);
         write_lp(db.as_ref(), "cpu bar=1 10");
         write_lp(db.as_ref(), "cpu bar=2 20");
 
@@ -1266,7 +1383,7 @@ mod tests {
 
     #[tokio::test]
     async fn write_updates_last_write_at() {
-        let db = make_db();
+        let db = Arc::new(make_db().db);
         let before_create = Utc::now();
 
         let partition_key = "1970-01-01T00";
@@ -1294,7 +1411,7 @@ mod tests {
     #[tokio::test]
     async fn test_chunk_timestamps() {
         let start = Utc::now();
-        let db = make_db();
+        let db = Arc::new(make_db().db);
 
         // Given data loaded into two chunks
         write_lp(&db, "cpu bar=1 10");
@@ -1330,7 +1447,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_chunk_closing() {
-        let db = make_db();
+        let db = Arc::new(make_db().db);
         db.rules.write().lifecycle_rules.mutable_size_threshold =
             Some(NonZeroUsize::new(2).unwrap());
 
@@ -1351,7 +1468,7 @@ mod tests {
 
     #[tokio::test]
     async fn chunks_sorted_by_times() {
-        let db = make_db();
+        let db = Arc::new(make_db().db);
         write_lp(&db, "cpu val=1 1");
         write_lp(&db, "mem val=2 400000000000001");
         write_lp(&db, "cpu val=1 2");
@@ -1384,7 +1501,7 @@ mod tests {
     #[tokio::test]
     async fn chunk_id_listing() {
         // Test that chunk id listing is hooked up
-        let db = make_db();
+        let db = Arc::new(make_db().db);
         let partition_key = "1970-01-01T00";
 
         write_lp(&db, "cpu bar=1 10");
@@ -1443,7 +1560,7 @@ mod tests {
     #[tokio::test]
     async fn partition_chunk_summaries() {
         // Test that chunk id listing is hooked up
-        let db = make_db();
+        let db = Arc::new(make_db().db);
 
         write_lp(&db, "cpu bar=1 1");
         db.rollover_partition("1970-01-01T00", "cpu").await.unwrap();
@@ -1486,7 +1603,7 @@ mod tests {
 
     #[tokio::test]
     async fn partition_chunk_summaries_timestamp() {
-        let db = make_db();
+        let db = Arc::new(make_db().db);
         let start = Utc::now();
         write_lp(&db, "cpu bar=1 1");
         let after_first_write = Utc::now();
@@ -1537,7 +1654,7 @@ mod tests {
     #[tokio::test]
     async fn chunk_summaries() {
         // Test that chunk id listing is hooked up
-        let db = make_db();
+        let db = Arc::new(make_db().db);
 
         // get three chunks: one open, one closed in mb and one close in rb
         write_lp(&db, "cpu bar=1 1");
@@ -1608,7 +1725,7 @@ mod tests {
     #[tokio::test]
     async fn partition_summaries() {
         // Test that chunk id listing is hooked up
-        let db = make_db();
+        let db = Arc::new(make_db().db);
 
         write_lp(&db, "cpu bar=1 1");
         let chunk_id = db
@@ -1803,7 +1920,7 @@ mod tests {
     #[tokio::test]
     async fn write_chunk_to_object_store_in_background() {
         // Test that data can be written to object store using a background task
-        let db = Arc::new(make_db());
+        let db = Arc::new(make_db().db);
 
         // create MB partition
         write_lp(db.as_ref(), "cpu bar=1 10");
@@ -1846,7 +1963,7 @@ mod tests {
 
     #[tokio::test]
     async fn write_hard_limit() {
-        let db = Arc::new(make_db());
+        let db = Arc::new(make_db().db);
         db.rules.write().lifecycle_rules.buffer_size_hard = Some(NonZeroUsize::new(10).unwrap());
 
         // inserting first line does not trigger hard buffer limit
