@@ -91,23 +91,22 @@ impl RedMetric {
     /// Returns a new observation that will handle timing and recording an
     /// observation the metric is tracking.
     pub fn observation(
-        &'_ self,
+        &self,
     ) -> RedObservation<impl Fn(RedRequestStatus, Duration, &[KeyValue]) + '_> {
         // The recording call-back
         let record = move |status: RedRequestStatus, duration: Duration, labels: &[KeyValue]| {
-            let labels = match labels.is_empty() {
+            let labels = if labels.is_empty() {
                 // If there are no labels specified just borrow defaults
-                true => Cow::Borrowed(&self.default_labels),
-                false => {
-                    // Otherwise merge the provided labels and the defaults.
-                    // Note: provided labels need to go last so that they overwrite
-                    // any default labels.
-                    //
-                    // PERF(edd): this seems expensive to me.
-                    let mut new_labels: Vec<KeyValue> = self.default_labels.clone();
-                    new_labels.extend(labels.iter().cloned());
-                    Cow::Owned(new_labels)
-                }
+                Cow::Borrowed(&self.default_labels)
+            } else {
+                // Otherwise merge the provided labels and the defaults.
+                // Note: provided labels need to go last so that they overwrite
+                // any default labels.
+                //
+                // PERF(edd): this seems expensive to me.
+                let mut new_labels: Vec<KeyValue> = self.default_labels.clone();
+                new_labels.extend_from_slice(labels);
+                Cow::Owned(new_labels)
             };
 
             match status {
