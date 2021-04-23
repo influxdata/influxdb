@@ -901,16 +901,17 @@ impl Db {
                         .ok()
                         .flatten()
                         .unwrap_or_else(|| {
-                            partition.create_open_chunk(
+                            let new_chunk = partition.create_open_chunk(
                                 table_batch.name(),
                                 self.memory_registries.mutable_buffer.as_ref(),
-                            )
+                            );
+                            self.metrics.update_chunk_state(new_chunk.read().state()); // track new chunk
+                            new_chunk
                         });
 
                     let mut chunk = chunk.write();
                     chunk.record_write();
                     let chunk_id = chunk.id();
-                    self.metrics.update_chunk_state(chunk.state());
 
                     let mb_chunk = chunk.mutable_buffer().expect("cannot mutate open chunk");
 
@@ -1103,6 +1104,22 @@ mod tests {
         write_lp(db.as_ref(), "cpu bar=1 10");
 
         // A chunk has been opened
+        test_db
+            .metric_registry
+            .has_metric_family("catalog_chunks_total")
+            .with_labels(&[
+                ("db_name", "placeholder"),
+                ("state", "open"),
+                ("svr_id", "1"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
+
+        // write into same chunk again.
+        write_lp(db.as_ref(), "cpu bar=2 10");
+
+        // Still only one chunk open
         test_db
             .metric_registry
             .has_metric_family("catalog_chunks_total")
