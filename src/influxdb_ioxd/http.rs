@@ -462,6 +462,13 @@ where
                 metrics::KeyValue::new("db_name", db_name.to_string()),
             ],
         );
+        server.metrics.ingest_points_bytes_total.add_with_labels(
+            body.len() as u64,
+            &[
+                metrics::KeyValue::new("status", "error"),
+                metrics::KeyValue::new("db_name", db_name.to_string()),
+            ],
+        );
         let num_lines = lines.len();
         debug!(?e, ?db_name, ?num_lines, "error writing lines");
 
@@ -480,7 +487,10 @@ where
     // line protocol bytes successfully written
     server.metrics.ingest_points_bytes_total.add_with_labels(
         body.len() as u64,
-        &[metrics::KeyValue::new("db_name", db_name.to_string())],
+        &[
+            metrics::KeyValue::new("status", "ok"),
+            metrics::KeyValue::new("db_name", db_name.to_string()),
+        ],
     );
 
     obs.ok_with_labels(&metric_kv); // request completed successfully
@@ -949,7 +959,7 @@ mod tests {
         // Bytes of data were written
         metrics_registry
             .has_metric_family("ingest_points_bytes_total")
-            .with_labels(&[("db_name", "MetricsOrg_MetricsBucket")])
+            .with_labels(&[("status", "ok"), ("db_name", "MetricsOrg_MetricsBucket")])
             .counter()
             .eq(98.0)
             .unwrap();
