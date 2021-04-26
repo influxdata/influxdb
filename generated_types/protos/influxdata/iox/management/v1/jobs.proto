@@ -17,7 +17,9 @@ message OperationMetadata {
   // What kind of job is it?
   oneof job {
     Dummy dummy = 5;
+    /* historical artifact
     PersistSegment persist_segment = 6;
+    */
     CloseChunk close_chunk = 7;
     WriteChunk write_chunk = 8;
   }
@@ -27,12 +29,6 @@ message OperationMetadata {
 message Dummy {
   // How long the job should sleep for before returning
   repeated uint64 nanos = 1;
-}
-
-// A job that persists a Write Buffer segment to object store
-message PersistSegment {
-  uint32 writer_id = 1;
-  uint64 segment_id = 2;
 }
 
 // Move a chunk from mutable buffer to read buffer

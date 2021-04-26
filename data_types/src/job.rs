@@ -15,12 +15,6 @@ pub enum Job {
         nanos: Vec<u64>,
     },
 
-    /// Persist a Write Buffer segment to object store
-    PersistSegment {
-        writer_id: u32,
-        segment_id: u64,
-    },
-
     /// Move a chunk from mutable buffer to read buffer
     CloseChunk {
         db_name: String,
@@ -42,13 +36,6 @@ impl From<Job> for management::operation_metadata::Job {
     fn from(job: Job) -> Self {
         match job {
             Job::Dummy { nanos } => Self::Dummy(management::Dummy { nanos }),
-            Job::PersistSegment {
-                writer_id,
-                segment_id,
-            } => Self::PersistSegment(management::PersistSegment {
-                writer_id,
-                segment_id,
-            }),
             Job::CloseChunk {
                 db_name,
                 partition_key,
@@ -80,13 +67,6 @@ impl From<management::operation_metadata::Job> for Job {
         use management::operation_metadata::Job;
         match value {
             Job::Dummy(management::Dummy { nanos }) => Self::Dummy { nanos },
-            Job::PersistSegment(management::PersistSegment {
-                writer_id,
-                segment_id,
-            }) => Self::PersistSegment {
-                writer_id,
-                segment_id,
-            },
             Job::CloseChunk(management::CloseChunk {
                 db_name,
                 partition_key,
@@ -118,7 +98,6 @@ impl Job {
     pub fn db_name(&self) -> Option<&str> {
         match self {
             Self::Dummy { .. } => None,
-            Self::PersistSegment { .. } => None,
             Self::CloseChunk { db_name, .. } => Some(db_name),
             Self::WriteChunk { db_name, .. } => Some(db_name),
         }
@@ -128,7 +107,6 @@ impl Job {
     pub fn partition_key(&self) -> Option<&str> {
         match self {
             Self::Dummy { .. } => None,
-            Self::PersistSegment { .. } => None,
             Self::CloseChunk { partition_key, .. } => Some(partition_key),
             Self::WriteChunk { partition_key, .. } => Some(partition_key),
         }
@@ -138,7 +116,6 @@ impl Job {
     pub fn chunk_id(&self) -> Option<u32> {
         match self {
             Self::Dummy { .. } => None,
-            Self::PersistSegment { .. } => None,
             Self::CloseChunk { chunk_id, .. } => Some(*chunk_id),
             Self::WriteChunk { chunk_id, .. } => Some(*chunk_id),
         }
@@ -148,7 +125,6 @@ impl Job {
     pub fn description(&self) -> &str {
         match self {
             Self::Dummy { .. } => "Dummy Job, for testing",
-            Self::PersistSegment { .. } => "Persisting segment to Object Store",
             Self::CloseChunk { .. } => "Loading chunk to ReadBuffer",
             Self::WriteChunk { .. } => "Writing chunk to Object Storage",
         }
