@@ -1,5 +1,6 @@
 //! Log and trace initialization and setup
 
+use observability_deps::tracing::dispatcher::SetGlobalDefaultError;
 use observability_deps::{
     opentelemetry,
     opentelemetry::sdk::trace,
@@ -10,7 +11,7 @@ use observability_deps::{
 };
 
 /// Start simple logger. Panics on error.
-pub fn init_simple_logs(log_verbose_count: u8) -> TracingGuard {
+pub fn init_simple_logs(log_verbose_count: u8) -> Result<TracingGuard, SetGlobalDefaultError> {
     let log_layer_filter = match log_verbose_count {
         0 => EnvFilter::try_new("warn").unwrap(),
         1 => EnvFilter::try_new("info").unwrap(),
@@ -21,16 +22,15 @@ pub fn init_simple_logs(log_verbose_count: u8) -> TracingGuard {
         .with(log_layer_filter)
         .with(fmt::layer());
 
-    let tracing_guard = tracing::subscriber::set_default(subscriber);
-
-    TracingGuard(tracing_guard)
+    tracing::subscriber::set_global_default(subscriber)?;
+    Ok(TracingGuard)
 }
 
 /// Start log or trace emitter. Panics on error.
 pub fn init_logs_and_tracing(
     log_verbose_count: u8,
     config: &crate::commands::run::Config,
-) -> TracingGuard {
+) -> Result<TracingGuard, SetGlobalDefaultError> {
     // Handle the case if -v/-vv is specified both before and after the server
     // command
     let log_verbose_count = if log_verbose_count > config.log_verbose_count {
@@ -115,9 +115,8 @@ pub fn init_logs_and_tracing(
         .with(traces_layer_otel)
         .with(traces_layer_filter);
 
-    let tracing_guard = tracing::subscriber::set_default(subscriber);
-
-    TracingGuard(tracing_guard)
+    tracing::subscriber::set_global_default(subscriber)?;
+    Ok(TracingGuard)
 }
 
 fn construct_opentelemetry_tracer(config: &crate::commands::run::Config) -> Option<trace::Tracer> {
@@ -184,8 +183,8 @@ fn construct_opentelemetry_tracer(config: &crate::commands::run::Config) -> Opti
     }
 }
 
-/// An RAII guard. On Drop, tracing and OpenTelemetry are flushed and shut down.
-pub struct TracingGuard(tracing::subscriber::DefaultGuard);
+/// A RAII guard. On Drop, tracing and OpenTelemetry are flushed and shut down.
+pub struct TracingGuard;
 
 impl Drop for TracingGuard {
     fn drop(&mut self) {

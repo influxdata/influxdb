@@ -17,6 +17,8 @@ use commands::tracing::{init_logs_and_tracing, init_simple_logs};
 use ingest::parquet::writer::CompressionLevel;
 use observability_deps::tracing::{debug, warn};
 
+use crate::commands::tracing::TracingGuard;
+use observability_deps::tracing::dispatcher::SetGlobalDefaultError;
 use tikv_jemallocator::Jemalloc;
 
 mod commands {
@@ -159,13 +161,24 @@ fn main() -> Result<(), std::io::Error> {
     tokio_runtime.block_on(async move {
         let host = config.host;
         let log_verbose_count = config.log_verbose_count;
+
+        fn handle_init_logs(r: Result<TracingGuard, SetGlobalDefaultError>) -> TracingGuard {
+            match r {
+                Ok(guard) => guard,
+                Err(e) => {
+                    eprintln!("Initializing logs failed: {}", e);
+                    std::process::exit(ReturnCode::Failure as _);
+                }
+            }
+        }
+
         match config.command {
             Command::Convert {
                 input,
                 output,
                 compression_level,
             } => {
-                let _tracing_guard = init_simple_logs(log_verbose_count);
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let compression_level = CompressionLevel::from_str(&compression_level).unwrap();
                 match commands::convert::convert(&input, &output, compression_level) {
                     Ok(()) => debug!("Conversion completed successfully"),
@@ -176,7 +189,7 @@ fn main() -> Result<(), std::io::Error> {
                 }
             }
             Command::Meta { input } => {
-                let _tracing_guard = init_simple_logs(log_verbose_count);
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 match commands::meta::dump_meta(&input) {
                     Ok(()) => debug!("Metadata dump completed successfully"),
                     Err(e) => {
@@ -186,7 +199,7 @@ fn main() -> Result<(), std::io::Error> {
                 }
             }
             Command::Stats(config) => {
-                let _tracing_guard = init_simple_logs(log_verbose_count);
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 match commands::stats::stats(&config).await {
                     Ok(()) => debug!("Storage statistics dump completed successfully"),
                     Err(e) => {
@@ -196,35 +209,36 @@ fn main() -> Result<(), std::io::Error> {
                 }
             }
             Command::Database(config) => {
-                let _tracing_guard = init_simple_logs(log_verbose_count);
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 if let Err(e) = commands::database::command(host, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Command::Writer(config) => {
-                let _tracing_guard = init_simple_logs(log_verbose_count);
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 if let Err(e) = commands::writer::command(host, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Command::Operation(config) => {
-                let _tracing_guard = init_simple_logs(log_verbose_count);
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 if let Err(e) = commands::operations::command(host, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Command::Server(config) => {
-                let _tracing_guard = init_simple_logs(log_verbose_count);
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 if let Err(e) = commands::server::command(host, config).await {
                     eprintln!("Server command failed: {}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Command::Run(config) => {
-                let _tracing_guard = init_logs_and_tracing(log_verbose_count, &config);
+                let _tracing_guard =
+                    handle_init_logs(init_logs_and_tracing(log_verbose_count, &config));
                 if let Err(e) = commands::run::command(*config).await {
                     eprintln!("Server command failed: {}", e);
                     std::process::exit(ReturnCode::Failure as _)
