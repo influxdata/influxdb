@@ -106,15 +106,6 @@ impl RowGroup {
                 ColumnType::Time(c) => {
                     assert_eq!(c.num_rows(), rows);
 
-                    meta.time_range = match c.column_range() {
-                        None => panic!("time column must have non-null value"),
-                        Some((
-                            OwnedValue::Scalar(Scalar::I64(min)),
-                            OwnedValue::Scalar(Scalar::I64(max)),
-                        )) => (min, max),
-                        Some((_, _)) => unreachable!("unexpected types for time range"),
-                    };
-
                     meta.add_column(
                         &name,
                         c.size(),
@@ -183,11 +174,6 @@ impl RowGroup {
     // Returns a reference to the timestamp column.
     fn time_column(&self) -> &Column {
         &self.columns[self.time_column]
-    }
-
-    /// The time range of the `RowGroup` (of the time column).
-    pub fn time_range(&self) -> (i64, i64) {
-        self.meta.time_range
     }
 
     /// Efficiently determines if the row group _might_ satisfy all of the
@@ -1475,12 +1461,6 @@ pub struct MetaData {
     pub columns: BTreeMap<String, ColumnMeta>,
 
     pub column_names: Vec<String>,
-
-    // The total time range of this `RowGroup`.
-    //
-    // This can be used to skip the table entirely if the time range for a query
-    // falls outside of this range.
-    pub time_range: (i64, i64),
 }
 
 impl std::fmt::Display for &MetaData {

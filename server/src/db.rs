@@ -1704,7 +1704,7 @@ mod tests {
                 to_arc("cpu"),
                 0,
                 ChunkStorage::ReadBuffer,
-                1269,
+                1213,
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-01T00"),
@@ -1736,7 +1736,7 @@ mod tests {
         );
 
         assert_eq!(db.memory_registries.mutable_buffer.bytes(), 121 + 157 + 159);
-        assert_eq!(db.memory_registries.read_buffer.bytes(), 1269);
+        assert_eq!(db.memory_registries.read_buffer.bytes(), 1213);
     }
 
     #[tokio::test]
