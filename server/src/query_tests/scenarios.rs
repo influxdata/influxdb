@@ -1,7 +1,5 @@
 //! This module contains testing scenarios for Db
 
-use std::time::Duration;
-
 #[allow(unused_imports, dead_code, unused_macros)]
 use query::PartitionChunk;
 
@@ -241,7 +239,7 @@ impl DbSetup for TwoMeasurementsManyFieldsLifecycle {
             "h2o".to_string(),
             0,
         );
-        assert_eq!(job.wait_for_complete(Duration::from_secs(3)).await, true);
+        job.join().await;
 
         write_lp(
             &db,
@@ -253,7 +251,7 @@ impl DbSetup for TwoMeasurementsManyFieldsLifecycle {
             "h2o".to_string(),
             0,
         );
-        assert_eq!(job.wait_for_complete(Duration::from_secs(3)).await, true);
+        job.join().await;
 
         let db =
             std::sync::Arc::try_unwrap(db).expect("All background handles to db should be done");

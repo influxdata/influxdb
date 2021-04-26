@@ -80,11 +80,12 @@
 //! etc... between threads as any such functionality must perform the necessary
 //! synchronisation to be well-formed.
 
-use std::sync::Arc;
-use std::time::Instant;
 use std::{
-    sync::atomic::{AtomicUsize, Ordering},
-    time::Duration,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Instant,
 };
 
 use tokio_util::sync::CancellationToken;
@@ -246,31 +247,6 @@ impl<T> TaskTracker<T> {
     /// Returns if this tracker has been cancelled
     pub fn is_cancelled(&self) -> bool {
         self.state.cancel_token.is_cancelled()
-    }
-
-    /// Waits for up to N seconds for the task to complete Returns
-    /// true if the task is complete after this timeout false
-    /// otherwise, false if not
-    pub async fn wait_for_complete(&self, timeout: Duration) -> bool {
-        let state = Arc::clone(&self.state);
-        let wait_loop = async move {
-            let mut interval = tokio::time::interval(Duration::from_millis(500));
-            loop {
-                let pending_registrations = state.pending_registrations.load(Ordering::Acquire);
-                let pending_futures = state.pending_futures.load(Ordering::Acquire);
-
-                if pending_registrations == 0 && pending_futures == 0 {
-                    return;
-                } else {
-                    interval.tick().await;
-                }
-            }
-        };
-
-        match tokio::time::timeout(timeout, wait_loop).await {
-            Ok(()) => true,
-            Err(_) => false,
-        }
     }
 
     /// Blocks until all futures associated with the tracker have been
