@@ -218,11 +218,11 @@ impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
 /// test queries that depend on that
 pub struct TwoMeasurementsManyFieldsLifecycle {}
 #[async_trait]
-impl DBSetup for TwoMeasurementsManyFieldsLifecycle {
-    async fn make(&self) -> Vec<DBScenario> {
+impl DbSetup for TwoMeasurementsManyFieldsLifecycle {
+    async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
-        let db = std::sync::Arc::new(make_db());
+        let db = std::sync::Arc::new(make_db().db);
 
         write_lp(
             &db,
@@ -236,26 +236,29 @@ impl DBSetup for TwoMeasurementsManyFieldsLifecycle {
         // Use a background task to do the work note when I used
         // TaskTracker::join, it ended up hanging for reasons I don't
         // now
-        let job = db.load_chunk_to_read_buffer_in_background(partition_key.to_string(), 0);
+        let job = db.load_chunk_to_read_buffer_in_background(
+            partition_key.to_string(),
+            "h2o".to_string(),
+            0,
+        );
         assert_eq!(job.wait_for_complete(Duration::from_secs(3)).await, true);
 
         write_lp(
             &db,
-            &vec![
-                "h2o,state=CA,city=Boston other_temp=72.4 350",
-                "o2,state=MA,city=Boston temp=53.4,reading=51 50",
-                "o2,state=CA temp=79.0 300",
-            ]
-            .join("\n"),
+            &vec!["h2o,state=CA,city=Boston other_temp=72.4 350"].join("\n"),
         );
 
-        let job = db.write_chunk_to_object_store_in_background(partition_key.to_string(), 0);
+        let job = db.write_chunk_to_object_store_in_background(
+            partition_key.to_string(),
+            "h2o".to_string(),
+            0,
+        );
         assert_eq!(job.wait_for_complete(Duration::from_secs(3)).await, true);
 
         let db =
             std::sync::Arc::try_unwrap(db).expect("All background handles to db should be done");
 
-        vec![DBScenario {
+        vec![DbScenario {
             scenario_name: "Data in parquet, and MUB".into(),
             db,
         }]
