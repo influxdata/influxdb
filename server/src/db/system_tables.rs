@@ -8,8 +8,8 @@ use chrono::{DateTime, Utc};
 use arrow_deps::{
     arrow::{
         array::{
-            Array, StringArray, StringBuilder, Time64NanosecondArray, TimestampNanosecondBuilder,
-            UInt32Array, UInt32Builder, UInt64Builder,
+            Array, StringArray, StringBuilder, Time64NanosecondArray, TimestampNanosecondArray,
+            UInt32Array, UInt64Array, UInt64Builder,
         },
         datatypes::{Field, Schema},
         error::Result,
@@ -83,48 +83,27 @@ impl SchemaProvider for SystemSchemaProvider {
     }
 }
 
-fn append_time(
-    builder: &mut TimestampNanosecondBuilder,
-    time: Option<DateTime<Utc>>,
-) -> Result<()> {
-    match time {
-        Some(time) => builder.append_value(time.timestamp_nanos()),
-        None => builder.append_null(),
-    }
+// TODO: Use a custom proc macro or serde to reduce the boilerplate
+fn time_to_ts(time: Option<DateTime<Utc>>) -> Option<i64> {
+    time.map(|ts| ts.timestamp_nanos())
 }
 
-// TODO: Use a custom proc macro or serde to reduce the boilerplate
-
 fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
-    let mut id = UInt32Builder::new(chunks.len());
-    let mut partition_key = StringBuilder::new(chunks.len());
-    let mut table_name = StringBuilder::new(chunks.len());
-    let mut storage = StringBuilder::new(chunks.len());
-    let mut estimated_bytes = UInt64Builder::new(chunks.len());
-    let mut time_of_first_write = TimestampNanosecondBuilder::new(chunks.len());
-    let mut time_of_last_write = TimestampNanosecondBuilder::new(chunks.len());
-    let mut time_closing = TimestampNanosecondBuilder::new(chunks.len());
-
-    for chunk in chunks {
-        id.append_value(chunk.id)?;
-        partition_key.append_value(chunk.partition_key.as_ref())?;
-        table_name.append_value(chunk.table_name.as_ref())?;
-        storage.append_value(chunk.storage.as_str())?;
-        estimated_bytes.append_value(chunk.estimated_bytes as u64)?;
-
-        append_time(&mut time_of_first_write, chunk.time_of_first_write)?;
-        append_time(&mut time_of_last_write, chunk.time_of_last_write)?;
-        append_time(&mut time_closing, chunk.time_closing)?;
-    }
-
-    let id = id.finish();
-    let partition_key = partition_key.finish();
-    let table_name = table_name.finish();
-    let storage = storage.finish();
-    let estimated_bytes = estimated_bytes.finish();
-    let time_of_first_write = time_of_first_write.finish();
-    let time_of_last_write = time_of_last_write.finish();
-    let time_closing = time_closing.finish();
+    let id = UInt32Array::from_iter(chunks.iter().map(|c| Some(c.id)));
+    let partition_key =
+        StringArray::from_iter(chunks.iter().map(|c| Some(c.partition_key.as_ref())));
+    let table_name = StringArray::from_iter(chunks.iter().map(|c| Some(c.table_name.as_ref())));
+    let storage = StringArray::from_iter(chunks.iter().map(|c| Some(c.storage.as_str())));
+    let estimated_bytes =
+        UInt64Array::from_iter(chunks.iter().map(|c| Some(c.estimated_bytes as u64)));
+    let time_of_first_write = TimestampNanosecondArray::from_iter(
+        chunks.iter().map(|c| c.time_of_first_write).map(time_to_ts),
+    );
+    let time_of_last_write = TimestampNanosecondArray::from_iter(
+        chunks.iter().map(|c| c.time_of_last_write).map(time_to_ts),
+    );
+    let time_closing =
+        TimestampNanosecondArray::from_iter(chunks.iter().map(|c| c.time_closing).map(time_to_ts));
 
     let schema = Schema::new(vec![
         Field::new("id", id.data_type().clone(), false),
