@@ -509,13 +509,6 @@ pub struct MetaData {
 
     // The names of the columns for this table in the order they appear.
     column_names: Vec<String>,
-
-    // The total time range of this table spanning all of the row groups within
-    // the table.
-    //
-    // This can be used to skip the table entirely if the time range for a query
-    // falls outside of this range.
-    time_range: Option<(i64, i64)>,
 }
 
 impl MetaData {
@@ -525,7 +518,6 @@ impl MetaData {
             rows: rg.rows() as u64,
             columns: rg.metadata().columns.clone(),
             column_names: rg.metadata().column_names.clone(),
-            time_range: Some(rg.metadata().time_range),
         }
     }
 
@@ -572,16 +564,6 @@ impl MetaData {
 
             if column_range_max > &curr_range.1 {
                 curr_range.1 = column_range_max.clone();
-            }
-
-            match this.time_range {
-                Some(time_range) => {
-                    this.time_range = Some((
-                        time_range.0.min(other.time_range.0),
-                        time_range.1.max(other.time_range.1),
-                    ));
-                }
-                None => panic!("cannot call `update` on empty Metadata"),
             }
         }
 
@@ -972,7 +954,6 @@ mod test {
         assert_eq!(meta.rows, 3);
         let meta_size = meta.size;
         assert!(meta_size > 0);
-        assert_eq!(meta.time_range, Some((100, 300)));
         assert_eq!(
             meta.columns.get("region").unwrap().range,
             (
@@ -993,7 +974,6 @@ mod test {
         meta = MetaData::update_with(meta, &rg);
         assert_eq!(meta.rows, 5);
         assert!(meta.size > meta_size);
-        assert_eq!(meta.time_range, Some((10, 400)));
         assert_eq!(
             meta.columns.get("region").unwrap().range,
             (
@@ -1020,7 +1000,6 @@ mod test {
         table.add_row_group(rg);
 
         assert_eq!(table.rows(), 8);
-        assert_eq!(table.meta().time_range, Some((0, 5)));
         assert_eq!(
             table.meta().columns.get("time").unwrap().range,
             (
@@ -1032,7 +1011,6 @@ mod test {
         // remove the first row group
         table.drop_row_group(0).unwrap();
         assert_eq!(table.rows(), 5);
-        assert_eq!(table.meta().time_range, Some((1, 5)));
         assert_eq!(
             table.meta().columns.get("time").unwrap().range,
             (
