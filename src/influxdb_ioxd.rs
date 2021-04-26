@@ -12,6 +12,7 @@ use server::{
 };
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, fs, net::SocketAddr, path::PathBuf, sync::Arc};
+use tokio::time::Duration;
 
 mod http;
 mod planner;
@@ -263,6 +264,27 @@ impl TryFrom<&Config> for ObjectStore {
         match config.object_store {
             Some(ObjStoreOpt::Memory) | None => {
                 Ok(Self::new_in_memory(object_store::memory::InMemory::new()))
+            }
+            Some(ObjStoreOpt::MemoryThrottled) => {
+                let inner = object_store::memory::InMemory::new();
+                let mut outer = object_store::throttle::ThrottledStore::new(inner);
+
+                // for every call: assume a 100ms latency
+                outer.wait_delete_per_call = Duration::from_millis(100);
+                outer.wait_get_per_call = Duration::from_millis(100);
+                outer.wait_list_per_call = Duration::from_millis(100);
+                outer.wait_list_with_delimiter_per_call = Duration::from_millis(100);
+                outer.wait_put_per_call = Duration::from_millis(100);
+
+                // for list operations: assume we need 1 call per 1k entries at 100ms
+                outer.wait_list_per_entry = Duration::from_millis(100) / 1_000;
+                outer.wait_list_with_delimiter_per_entry = Duration::from_millis(100) / 1_000;
+
+                // for upload/download: assume 1GByte/s
+                outer.wait_get_per_byte = Duration::from_secs(1) / 1_000_000_000;
+                outer.wait_put_per_byte = Duration::from_secs(1) / 1_000_000_000;
+
+                Ok(Self::new_in_memory_throttled(outer))
             }
 
             Some(ObjStoreOpt::Google) => {
