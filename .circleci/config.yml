@@ -193,6 +193,9 @@ jobs:
       - run:
           name: Cargo release build with target arch set for CRoaring
           command: ROARING_ARCH=x86-64 cargo build --release
+      - run: |
+          echo sha256sum after build is
+          sha256sum target/release/influxdb_iox
       - setup_remote_docker:
           docker_layer_caching: true
       - run: |
