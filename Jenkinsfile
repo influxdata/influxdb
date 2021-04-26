@@ -18,7 +18,7 @@ pipeline {
         withDockerContainer(image: "jsternberg/changelog") {
           withCredentials(
             [[$class: "UsernamePasswordMultiBinding",
-              credentialsId: "hercules-username-password",
+              credentialsId: "team-edge-influx-github-username-token",
               usernameVariable: "GITHUB_USER",
               passwordVariable: "GITHUB_TOKEN"]]) {
             script {
@@ -31,7 +31,7 @@ pipeline {
           }
         }
 
-        sshagent(credentials: ['jenkins-hercules-ssh']) {
+        sshagent(credentials: ['team-edge-influx-github-ssh']) {
           sh """
           set -e
           if ! git diff --quiet; then
