@@ -1599,7 +1599,7 @@ mod tests {
             to_arc("cpu"),
             0,
             ChunkStorage::OpenMutableBuffer,
-            127,
+            106,
         )];
 
         let size: usize = db
@@ -1711,21 +1711,21 @@ mod tests {
                 to_arc("cpu"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
-                121,
+                100,
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-05T15"),
                 to_arc("cpu"),
                 0,
                 ChunkStorage::ClosedMutableBuffer,
-                157,
+                129,
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-05T15"),
                 to_arc("cpu"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
-                159,
+                131,
             ),
         ];
 
@@ -1735,7 +1735,7 @@ mod tests {
             expected, chunk_summaries
         );
 
-        assert_eq!(db.memory_registries.mutable_buffer.bytes(), 121 + 157 + 159);
+        assert_eq!(db.memory_registries.mutable_buffer.bytes(), 100 + 129 + 131);
         assert_eq!(db.memory_registries.read_buffer.bytes(), 1213);
     }
 

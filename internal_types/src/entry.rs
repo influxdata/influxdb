@@ -1,7 +1,7 @@
 //! This module contains helper code for building `Entry` and `SequencedEntry`
 //! from line protocol and the `DatabaseRules` configuration.
 
-use crate::schema::TIME_COLUMN_NAME;
+use crate::schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
 use data_types::database_rules::{Error as DataError, Partitioner, ShardId, Sharder, WriterId};
 use generated_types::entry as entry_fb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
@@ -443,6 +443,37 @@ impl<'a> Column<'a> {
         self.fb
             .name()
             .expect("name must be present in flatbuffers Column")
+    }
+
+    pub fn inner(&self) -> &entry_fb::Column<'a> {
+        &self.fb
+    }
+
+    pub fn influx_type(&self) -> InfluxColumnType {
+        match (self.fb.values_type(), self.fb.logical_column_type()) {
+            (entry_fb::ColumnValues::BoolValues, entry_fb::LogicalColumnType::Field) => {
+                InfluxColumnType::Field(InfluxFieldType::Boolean)
+            }
+            (entry_fb::ColumnValues::U64Values, entry_fb::LogicalColumnType::Field) => {
+                InfluxColumnType::Field(InfluxFieldType::UInteger)
+            }
+            (entry_fb::ColumnValues::F64Values, entry_fb::LogicalColumnType::Field) => {
+                InfluxColumnType::Field(InfluxFieldType::Float)
+            }
+            (entry_fb::ColumnValues::I64Values, entry_fb::LogicalColumnType::Field) => {
+                InfluxColumnType::Field(InfluxFieldType::Integer)
+            }
+            (entry_fb::ColumnValues::StringValues, entry_fb::LogicalColumnType::Tag) => {
+                InfluxColumnType::Tag
+            }
+            (entry_fb::ColumnValues::StringValues, entry_fb::LogicalColumnType::Field) => {
+                InfluxColumnType::Field(InfluxFieldType::String)
+            }
+            (entry_fb::ColumnValues::I64Values, entry_fb::LogicalColumnType::Time) => {
+                InfluxColumnType::Timestamp
+            }
+            _ => unreachable!(),
+        }
     }
 
     pub fn logical_type(&self) -> entry_fb::LogicalColumnType {

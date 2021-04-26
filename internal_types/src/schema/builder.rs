@@ -84,7 +84,7 @@ impl SchemaBuilder {
         )
     }
 
-    /// Add a new field column with the specified InfluxDB data model  type
+    /// Add a new field column with the specified InfluxDB data model type
     pub fn influx_field(self, column_name: &str, influxdb_field_type: InfluxFieldType) -> Self {
         let arrow_type: ArrowDataType = influxdb_field_type.into();
         self.add_column(
@@ -93,6 +93,15 @@ impl SchemaBuilder {
             Some(InfluxColumnType::Field(influxdb_field_type)),
             arrow_type,
         )
+    }
+
+    /// Add a new field column with the specified InfluxDB data model type
+    pub fn influx_column(self, column_name: &str, column_type: InfluxColumnType) -> Self {
+        match column_type {
+            InfluxColumnType::Tag => self.tag(column_name),
+            InfluxColumnType::Field(field) => self.field(column_name, field.into()),
+            InfluxColumnType::Timestamp => self.timestamp(),
+        }
     }
 
     /// Add a new nullable field column with the specified Arrow datatype.

@@ -306,11 +306,11 @@ mod tests {
                     columns: vec![
                         ColumnSummary {
                             name: "c1".to_string(),
-                            stats: Statistics::I64(StatValues::new(23)),
+                            stats: Statistics::I64(StatValues::new_with_value(23)),
                         },
                         ColumnSummary {
                             name: "c2".to_string(),
-                            stats: Statistics::I64(StatValues::new(43)),
+                            stats: Statistics::I64(StatValues::new_with_value(43)),
                         },
                     ],
                 }],

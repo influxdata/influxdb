@@ -617,10 +617,10 @@ impl From<&InfluxColumnType> for &'static str {
     }
 }
 
-impl ToString for InfluxColumnType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for InfluxColumnType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s: &str = self.into();
-        s.into()
+        write!(f, "{}", s)
     }
 }
 

@@ -1,340 +1,252 @@
-use snafu::Snafu;
+use snafu::{ensure, Snafu};
 
 use crate::dictionary::{Dictionary, DID};
-use data_types::partition_metadata::StatValues;
-use generated_types::entry::LogicalColumnType;
-use internal_types::entry::TypedValuesIterator;
+use data_types::partition_metadata::{StatValues, Statistics};
+use internal_types::entry::Column as EntryColumn;
 
+use crate::bitset::{iter_set_positions, BitSet};
+use arrow_deps::arrow::array::{
+    ArrayDataBuilder, ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray,
+    TimestampNanosecondArray, UInt64Array,
+};
+use arrow_deps::arrow::datatypes::DataType;
+use internal_types::schema::{InfluxColumnType, InfluxFieldType, TIME_DATA_TYPE};
+use std::iter::FromIterator;
 use std::mem;
+use std::sync::Arc;
 
 #[derive(Debug, Snafu)]
+#[allow(missing_copy_implementations)]
 pub enum Error {
-    #[snafu(display("Don't know how to insert a column of type {}", inserted_value_type))]
-    UnknownColumnType { inserted_value_type: String },
-
-    #[snafu(display(
-        "Unable to insert {} type into a column of {}",
-        inserted_value_type,
-        existing_column_type
-    ))]
+    #[snafu(display("Unable to insert {} type into a column of {}", inserted, existing,))]
     TypeMismatch {
-        existing_column_type: String,
-        inserted_value_type: String,
+        existing: InfluxColumnType,
+        inserted: InfluxColumnType,
     },
 
-    #[snafu(display("InternalError: Applying i64 range on a column with non-i64 type"))]
-    InternalTypeMismatchForTimePredicate,
+    #[snafu(display(
+        "Invalid null mask, expected to be {} bytes but was {}",
+        expected_bytes,
+        actual_bytes
+    ))]
+    InvalidNullMask {
+        expected_bytes: usize,
+        actual_bytes: usize,
+    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Stores the actual data for columns in a chunk along with summary
 /// statistics
-#[derive(Debug, Clone)]
-pub enum Column {
-    F64(Vec<Option<f64>>, StatValues<f64>),
-    I64(Vec<Option<i64>>, StatValues<i64>),
-    U64(Vec<Option<u64>>, StatValues<u64>),
-    String(Vec<Option<String>>, StatValues<String>),
-    Bool(Vec<Option<bool>>, StatValues<bool>),
+#[derive(Debug)]
+pub struct Column {
+    influx_type: InfluxColumnType,
+    valid: BitSet,
+    data: ColumnData,
+}
+
+#[derive(Debug)]
+pub enum ColumnData {
+    F64(Vec<f64>, StatValues<f64>),
+    I64(Vec<i64>, StatValues<i64>),
+    U64(Vec<u64>, StatValues<u64>),
+    String(Vec<String>, StatValues<String>),
+    Bool(BitSet, StatValues<bool>),
     Tag(Vec<DID>, StatValues<String>),
 }
 
 impl Column {
-    /// Initializes a new column from typed values, the column on a table write
-    /// batch on an Entry. Will initialize the stats with the first
-    /// non-null value and update with any other non-null values included.
-    pub fn new_from_typed_values(
-        dictionary: &mut Dictionary,
-        row_count: usize,
-        logical_type: LogicalColumnType,
-        values: TypedValuesIterator<'_>,
-    ) -> Self {
-        match values {
-            TypedValuesIterator::String(vals) => match logical_type {
-                LogicalColumnType::Tag => {
-                    let mut tag_values = vec![DID::invalid(); row_count];
-                    let mut stats: Option<StatValues<String>> = None;
+    pub fn new(row_count: usize, column_type: InfluxColumnType) -> Self {
+        let mut valid = BitSet::new();
+        valid.append_unset(row_count);
 
-                    let mut added_tag_values: Vec<_> = vals
-                        .map(|tag| match tag {
-                            Some(tag) => {
-                                match stats.as_mut() {
-                                    Some(s) => StatValues::update_string(s, tag),
-                                    None => {
-                                        stats = Some(StatValues::new(tag.to_string()));
-                                    }
-                                }
-
-                                dictionary.lookup_value_or_insert(tag)
-                            }
-                            None => DID::invalid(),
-                        })
-                        .collect();
-
-                    tag_values.append(&mut added_tag_values);
-
-                    Self::Tag(
-                        tag_values,
-                        stats.expect("can't insert tag column with no values"),
-                    )
-                }
-                LogicalColumnType::Field => {
-                    let mut values = vec![None; row_count];
-                    let mut stats: Option<StatValues<String>> = None;
-
-                    for value in vals {
-                        match value {
-                            Some(v) => {
-                                match stats.as_mut() {
-                                    Some(s) => StatValues::update_string(s, v),
-                                    None => stats = Some(StatValues::new(v.to_string())),
-                                }
-
-                                values.push(Some(v.to_string()));
-                            }
-                            None => values.push(None),
-                        }
-                    }
-
-                    Self::String(
-                        values,
-                        stats.expect("can't insert string column with no values"),
-                    )
-                }
-                _ => panic!("unsupported!"),
-            },
-            TypedValuesIterator::I64(vals) => {
-                let mut values = vec![None; row_count];
-                let mut stats: Option<StatValues<i64>> = None;
-
-                for v in vals {
-                    if let Some(val) = v {
-                        match stats.as_mut() {
-                            Some(s) => s.update(val),
-                            None => stats = Some(StatValues::new(val)),
-                        }
-                    }
-                    values.push(v);
-                }
-
-                Self::I64(
-                    values,
-                    stats.expect("can't insert i64 column with no values"),
-                )
+        let data = match column_type {
+            InfluxColumnType::Field(InfluxFieldType::Boolean) => {
+                let mut data = BitSet::new();
+                data.append_unset(row_count);
+                ColumnData::Bool(data, StatValues::new())
             }
-            TypedValuesIterator::F64(vals) => {
-                let mut values = vec![None; row_count];
-                let mut stats: Option<StatValues<f64>> = None;
-
-                for v in vals {
-                    if let Some(val) = v {
-                        match stats.as_mut() {
-                            Some(s) => s.update(val),
-                            None => stats = Some(StatValues::new(val)),
-                        }
-                    }
-                    values.push(v);
-                }
-
-                Self::F64(
-                    values,
-                    stats.expect("can't insert f64 column with no values"),
-                )
+            InfluxColumnType::Field(InfluxFieldType::UInteger) => {
+                ColumnData::U64(vec![0; row_count], StatValues::new())
             }
-            TypedValuesIterator::U64(vals) => {
-                let mut values = vec![None; row_count];
-                let mut stats: Option<StatValues<u64>> = None;
-
-                for v in vals {
-                    if let Some(val) = v {
-                        match stats.as_mut() {
-                            Some(s) => s.update(val),
-                            None => stats = Some(StatValues::new(val)),
-                        }
-                    }
-                    values.push(v);
-                }
-
-                Self::U64(
-                    values,
-                    stats.expect("can't insert u64 column with no values"),
-                )
+            InfluxColumnType::Field(InfluxFieldType::Float) => {
+                ColumnData::F64(vec![0.0; row_count], StatValues::new())
             }
-            TypedValuesIterator::Bool(vals) => {
-                let mut values = vec![None; row_count];
-                let mut stats: Option<StatValues<bool>> = None;
-
-                for v in vals {
-                    if let Some(val) = v {
-                        match stats.as_mut() {
-                            Some(s) => s.update(val),
-                            None => stats = Some(StatValues::new(val)),
-                        }
-                    }
-                    values.push(v);
-                }
-
-                Self::Bool(
-                    values,
-                    stats.expect("can't insert bool column with no values"),
-                )
+            InfluxColumnType::Field(InfluxFieldType::Integer) | InfluxColumnType::Timestamp => {
+                ColumnData::I64(vec![0; row_count], StatValues::new())
             }
+            InfluxColumnType::Field(InfluxFieldType::String) => {
+                ColumnData::String(vec![String::new(); row_count], StatValues::new())
+            }
+            InfluxColumnType::Tag => {
+                ColumnData::Tag(vec![DID::invalid(); row_count], StatValues::new())
+            }
+        };
+
+        Self {
+            influx_type: column_type,
+            valid,
+            data,
         }
     }
 
-    /// Pushes typed values, the column from a table write batch on an Entry.
-    /// Updates statsistics for any non-null values.
-    pub fn push_typed_values(
-        &mut self,
-        dictionary: &mut Dictionary,
-        logical_type: LogicalColumnType,
-        values: TypedValuesIterator<'_>,
-    ) -> Result<()> {
-        match (self, values) {
-            (Self::Bool(col, stats), TypedValuesIterator::Bool(values)) => {
-                for val in values {
-                    if let Some(v) = val {
-                        stats.update(v)
-                    };
-                    col.push(val);
-                }
-            }
-            (Self::I64(col, stats), TypedValuesIterator::I64(values)) => {
-                for val in values {
-                    if let Some(v) = val {
-                        stats.update(v)
-                    };
-                    col.push(val);
-                }
-            }
-            (Self::F64(col, stats), TypedValuesIterator::F64(values)) => {
-                for val in values {
-                    if let Some(v) = val {
-                        stats.update(v)
-                    };
-                    col.push(val);
-                }
-            }
-            (Self::U64(col, stats), TypedValuesIterator::U64(values)) => {
-                for val in values {
-                    if let Some(v) = val {
-                        stats.update(v)
-                    };
-                    col.push(val);
-                }
-            }
-            (Self::String(col, stats), TypedValuesIterator::String(values)) => {
-                if logical_type != LogicalColumnType::Field {
-                    TypeMismatch {
-                        existing_column_type: "String",
-                        inserted_value_type: "tag",
-                    }
-                    .fail()?;
-                }
+    pub fn validate_schema(&self, entry: &EntryColumn<'_>) -> Result<()> {
+        let entry_type = entry.influx_type();
 
-                for val in values {
-                    match val {
-                        Some(v) => {
-                            StatValues::update_string(stats, v);
-                            col.push(Some(v.to_string()));
-                        }
-                        None => col.push(None),
-                    }
-                }
+        ensure!(
+            entry_type == self.influx_type,
+            TypeMismatch {
+                existing: self.influx_type,
+                inserted: entry_type
             }
-            (Self::Tag(col, stats), TypedValuesIterator::String(values)) => {
-                if logical_type != LogicalColumnType::Tag {
-                    TypeMismatch {
-                        existing_column_type: "tag",
-                        inserted_value_type: "String",
-                    }
-                    .fail()?;
-                }
-
-                for val in values {
-                    match val {
-                        Some(v) => {
-                            StatValues::update_string(stats, v);
-                            let id = dictionary.lookup_value_or_insert(v);
-                            col.push(id);
-                        }
-                        None => col.push(DID::invalid()),
-                    }
-                }
-            }
-            (existing, values) => TypeMismatch {
-                existing_column_type: existing.type_description(),
-                inserted_value_type: values.type_description(),
-            }
-            .fail()?,
-        }
+        );
 
         Ok(())
     }
 
-    /// Pushes None values onto the column until its len is equal to that passed
-    /// in
+    pub fn influx_type(&self) -> InfluxColumnType {
+        self.influx_type
+    }
+
+    pub fn append(&mut self, entry: &EntryColumn<'_>, dictionary: &mut Dictionary) -> Result<()> {
+        self.validate_schema(entry)?;
+
+        let row_count = entry.row_count;
+        if row_count == 0 {
+            return Ok(());
+        }
+
+        let mask = construct_valid_mask(entry)?;
+
+        match &mut self.data {
+            ColumnData::Bool(col_data, stats) => {
+                let entry_data = entry
+                    .inner()
+                    .values_as_bool_values()
+                    .expect("invalid flatbuffer")
+                    .values()
+                    .expect("invalid payload");
+
+                let data_offset = col_data.len();
+                col_data.append_unset(row_count);
+
+                let initial_non_null_count = stats.count;
+
+                for (idx, value) in iter_set_positions(&mask).zip(entry_data) {
+                    stats.update(value);
+
+                    if *value {
+                        col_data.set(data_offset + idx);
+                    }
+                }
+                assert_eq!(
+                    stats.count - initial_non_null_count,
+                    entry_data.len() as u64
+                );
+            }
+            ColumnData::U64(col_data, stats) => {
+                let entry_data = entry
+                    .inner()
+                    .values_as_u64values()
+                    .expect("invalid flatbuffer")
+                    .values()
+                    .expect("invalid payload")
+                    .into_iter();
+
+                handle_write(row_count, &mask, entry_data, col_data, stats);
+            }
+            ColumnData::F64(col_data, stats) => {
+                let entry_data = entry
+                    .inner()
+                    .values_as_f64values()
+                    .expect("invalid flatbuffer")
+                    .values()
+                    .expect("invalid payload")
+                    .into_iter();
+
+                handle_write(row_count, &mask, entry_data, col_data, stats);
+            }
+            ColumnData::I64(col_data, stats) => {
+                let entry_data = entry
+                    .inner()
+                    .values_as_i64values()
+                    .expect("invalid flatbuffer")
+                    .values()
+                    .expect("invalid payload")
+                    .into_iter();
+
+                handle_write(row_count, &mask, entry_data, col_data, stats);
+            }
+            ColumnData::String(col_data, stats) => {
+                let entry_data = entry
+                    .inner()
+                    .values_as_string_values()
+                    .expect("invalid flatbuffer")
+                    .values()
+                    .expect("invalid payload")
+                    .into_iter()
+                    .map(ToString::to_string);
+
+                handle_write(row_count, &mask, entry_data, col_data, stats);
+            }
+            ColumnData::Tag(col_data, stats) => {
+                let entry_data = entry
+                    .inner()
+                    .values_as_string_values()
+                    .expect("invalid flatbuffer")
+                    .values()
+                    .expect("invalid payload");
+
+                let data_offset = col_data.len();
+                col_data.resize(data_offset + row_count, DID::invalid());
+
+                let initial_non_null_count = stats.count;
+                let to_add = entry_data.len();
+
+                for (idx, value) in iter_set_positions(&mask).zip(entry_data) {
+                    stats.update(value);
+                    col_data[data_offset + idx] = dictionary.lookup_value_or_insert(value);
+                }
+
+                assert_eq!(stats.count - initial_non_null_count, to_add as u64);
+            }
+        };
+
+        self.valid.append_bits(entry.row_count, &mask);
+        Ok(())
+    }
+
     pub fn push_nulls_to_len(&mut self, len: usize) {
-        match self {
-            Self::Tag(vals, _) => {
-                if len > vals.len() {
-                    vals.resize(len, DID::invalid());
-                }
-            }
-            Self::I64(vals, _) => {
-                if len > vals.len() {
-                    vals.resize(len, None);
-                }
-            }
-            Self::F64(vals, _) => {
-                if len > vals.len() {
-                    vals.resize(len, None);
-                }
-            }
-            Self::U64(vals, _) => {
-                if len > vals.len() {
-                    vals.resize(len, None);
-                }
-            }
-            Self::Bool(vals, _) => {
-                if len > vals.len() {
-                    vals.resize(len, None);
-                }
-            }
-            Self::String(vals, _) => {
-                if len > vals.len() {
-                    vals.resize(len, None);
-                }
-            }
+        if self.valid.len() == len {
+            return;
+        }
+        assert!(len > self.valid.len(), "cannot shrink column");
+        let delta = len - self.valid.len();
+        self.valid.append_unset(delta);
+
+        match &mut self.data {
+            ColumnData::F64(data, _) => data.resize(len, 0.),
+            ColumnData::I64(data, _) => data.resize(len, 0),
+            ColumnData::U64(data, _) => data.resize(len, 0),
+            ColumnData::String(data, _) => data.resize(len, String::new()),
+            ColumnData::Bool(data, _) => data.append_unset(delta),
+            ColumnData::Tag(data, _) => data.resize(len, DID::invalid()),
         }
     }
 
     pub fn len(&self) -> usize {
-        match self {
-            Self::F64(v, _) => v.len(),
-            Self::I64(v, _) => v.len(),
-            Self::U64(v, _) => v.len(),
-            Self::String(v, _) => v.len(),
-            Self::Bool(v, _) => v.len(),
-            Self::Tag(v, _) => v.len(),
-        }
+        self.valid.len()
     }
 
-    pub fn type_description(&self) -> &'static str {
-        match self {
-            Self::F64(_, _) => "f64",
-            Self::I64(_, _) => "i64",
-            Self::U64(_, _) => "u64",
-            Self::String(_, _) => "String",
-            Self::Bool(_, _) => "bool",
-            Self::Tag(_, _) => "tag",
-        }
-    }
-
-    pub fn get_i64_stats(&self) -> Option<StatValues<i64>> {
-        match self {
-            Self::I64(_, values) => Some(values.clone()),
-            _ => None,
+    pub fn stats(&self) -> Statistics {
+        match &self.data {
+            ColumnData::F64(_, stats) => Statistics::F64(stats.clone()),
+            ColumnData::I64(_, stats) => Statistics::I64(stats.clone()),
+            ColumnData::U64(_, stats) => Statistics::U64(stats.clone()),
+            ColumnData::Bool(_, stats) => Statistics::Bool(stats.clone()),
+            ColumnData::String(_, stats) | ColumnData::Tag(_, stats) => {
+                Statistics::String(stats.clone())
+            }
         }
     }
 
@@ -343,27 +255,150 @@ impl Column {
     /// the dictionary size in the chunk that holds the table that has this
     /// column. The size returned here is only for their identifiers.
     pub fn size(&self) -> usize {
-        match self {
-            Self::F64(v, stats) => {
-                mem::size_of::<Option<f64>>() * v.len() + mem::size_of_val(&stats)
-            }
-            Self::I64(v, stats) => {
-                mem::size_of::<Option<i64>>() * v.len() + mem::size_of_val(&stats)
-            }
-            Self::U64(v, stats) => {
-                mem::size_of::<Option<u64>>() * v.len() + mem::size_of_val(&stats)
-            }
-            Self::Bool(v, stats) => {
-                mem::size_of::<Option<bool>>() * v.len() + mem::size_of_val(&stats)
-            }
-            Self::Tag(v, stats) => mem::size_of::<DID>() * v.len() + mem::size_of_val(&stats),
-            Self::String(v, stats) => {
-                let string_bytes_size = v
-                    .iter()
-                    .fold(0, |acc, val| acc + val.as_ref().map_or(0, |s| s.len()));
-                let vec_pointer_sizes = mem::size_of::<Option<String>>() * v.len();
+        let data_size = match &self.data {
+            ColumnData::F64(v, stats) => mem::size_of::<f64>() * v.len() + mem::size_of_val(&stats),
+            ColumnData::I64(v, stats) => mem::size_of::<i64>() * v.len() + mem::size_of_val(&stats),
+            ColumnData::U64(v, stats) => mem::size_of::<u64>() * v.len() + mem::size_of_val(&stats),
+            ColumnData::Bool(v, stats) => v.byte_len() + mem::size_of_val(&stats),
+            ColumnData::Tag(v, stats) => mem::size_of::<DID>() * v.len() + mem::size_of_val(&stats),
+            ColumnData::String(v, stats) => {
+                let string_bytes_size = v.iter().fold(0, |acc, val| acc + val.len());
+                let vec_pointer_sizes = mem::size_of::<String>() * v.len();
                 string_bytes_size + vec_pointer_sizes + mem::size_of_val(&stats)
             }
+        };
+        data_size + self.valid.byte_len()
+    }
+
+    pub fn to_arrow(&self, dictionary: &Dictionary) -> Result<ArrayRef> {
+        let nulls = self.valid.to_arrow();
+        let data: ArrayRef = match &self.data {
+            ColumnData::F64(data, _) => {
+                let data = ArrayDataBuilder::new(DataType::Float64)
+                    .len(data.len())
+                    .add_buffer(data.iter().cloned().collect())
+                    .null_bit_buffer(nulls)
+                    .build();
+                Arc::new(Float64Array::from(data))
+            }
+            ColumnData::I64(data, _) => match self.influx_type {
+                InfluxColumnType::Timestamp => {
+                    let data = ArrayDataBuilder::new(TIME_DATA_TYPE())
+                        .len(data.len())
+                        .add_buffer(data.iter().cloned().collect())
+                        .null_bit_buffer(nulls)
+                        .build();
+                    Arc::new(TimestampNanosecondArray::from(data))
+                }
+                InfluxColumnType::Field(InfluxFieldType::Integer) => {
+                    let data = ArrayDataBuilder::new(DataType::Int64)
+                        .len(data.len())
+                        .add_buffer(data.iter().cloned().collect())
+                        .null_bit_buffer(nulls)
+                        .build();
+
+                    Arc::new(Int64Array::from(data))
+                }
+                _ => unreachable!(),
+            },
+            ColumnData::U64(data, _) => {
+                let data = ArrayDataBuilder::new(DataType::UInt64)
+                    .len(data.len())
+                    .add_buffer(data.iter().cloned().collect())
+                    .null_bit_buffer(nulls)
+                    .build();
+                Arc::new(UInt64Array::from(data))
+            }
+            ColumnData::String(data, _) => {
+                // TODO: Store this closer to the arrow representation
+                let iter = data
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, value)| self.valid.get(idx).then(|| value) as _);
+
+                let array = StringArray::from_iter(iter);
+                Arc::new(array)
+            }
+            ColumnData::Bool(data, _) => {
+                let data = ArrayDataBuilder::new(DataType::Boolean)
+                    .len(data.len())
+                    .add_buffer(data.to_arrow())
+                    .null_bit_buffer(nulls)
+                    .build();
+                Arc::new(BooleanArray::from(data))
+            }
+            ColumnData::Tag(data, _) => {
+                // TODO: Store this closer to the arrow representation
+                let iter = data.iter().enumerate().map(|(idx, id)| {
+                    self.valid.get(idx).then(|| {
+                        dictionary
+                            .lookup_id(*id)
+                            .expect("dictionary had mapping for tag value")
+                    })
+                });
+
+                let array = StringArray::from_iter(iter);
+                Arc::new(array)
+            }
+        };
+
+        assert_eq!(data.len(), self.len());
+
+        Ok(data)
+    }
+}
+
+/// Construct a validity mask from the given column's null mask
+fn construct_valid_mask(column: &EntryColumn<'_>) -> Result<Vec<u8>> {
+    let buf_len = (column.row_count + 7) >> 3;
+    match column.inner().null_mask() {
+        Some(data) => {
+            ensure!(
+                data.len() == buf_len,
+                InvalidNullMask {
+                    expected_bytes: buf_len,
+                    actual_bytes: data.len()
+                }
+            );
+
+            Ok(data
+                .iter()
+                .map(|x| {
+                    // Currently the bit mask is backwards
+                    !x.reverse_bits()
+                })
+                .collect())
+        }
+        None => {
+            // If no null mask they're all valid
+            let mut data = Vec::new();
+            data.resize(buf_len, 0xFF);
+            Ok(data)
         }
     }
+}
+
+/// Writes entry data into a column based on the valid mask
+fn handle_write<T, E>(
+    row_count: usize,
+    valid_mask: &[u8],
+    entry_data: E,
+    col_data: &mut Vec<T>,
+    stats: &mut StatValues<T>,
+) where
+    T: Clone + Default + PartialOrd,
+    E: Iterator<Item = T> + ExactSizeIterator,
+{
+    let data_offset = col_data.len();
+    col_data.resize(data_offset + row_count, Default::default());
+
+    let initial_non_null_count = stats.count;
+    let to_add = entry_data.len();
+
+    for (idx, value) in iter_set_positions(valid_mask).zip(entry_data) {
+        stats.update(&value);
+        col_data[data_offset + idx] = value;
+    }
+
+    assert_eq!(stats.count - initial_non_null_count, to_add as u64);
 }

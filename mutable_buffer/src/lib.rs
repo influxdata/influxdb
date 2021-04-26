@@ -57,6 +57,7 @@
     clippy::clone_on_ref_ptr
 )]
 
+mod bitset;
 pub mod chunk;
 mod column;
 mod dictionary;

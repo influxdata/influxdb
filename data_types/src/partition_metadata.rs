@@ -1,10 +1,10 @@
 //! This module contains structs that describe the metadata for a partition
 //! including schema, summary statistics, and file locations in storage.
 
-use std::fmt::{Debug, Display};
 use std::mem;
 
 use serde::{Deserialize, Serialize};
+use std::borrow::Borrow;
 
 /// Describes the schema, summary statistics for each column in each table and
 /// the location of the partition in storage.
@@ -222,8 +222,8 @@ impl Statistics {
 }
 
 /// Summary statistics for a column.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-pub struct StatValues<T: PartialEq + PartialOrd + Debug + Display + Clone> {
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
+pub struct StatValues<T> {
     pub min: T,
     pub max: T,
     /// number of non-nil values in this column
@@ -232,51 +232,38 @@ pub struct StatValues<T: PartialEq + PartialOrd + Debug + Display + Clone> {
 
 impl<T> StatValues<T>
 where
-    T: PartialEq + PartialOrd + Debug + Display + Clone,
+    T: Default + Clone,
 {
-    pub fn new(starting_value: T) -> Self {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn new_with_value(starting_value: T) -> Self {
         Self {
             min: starting_value.clone(),
             max: starting_value,
             count: 1,
         }
     }
-
-    /// updates the statistics keeping the min, max and incrementing count.
-    pub fn update(&mut self, other: T) {
-        self.count += 1;
-
-        let set_min = self.min > other;
-        let set_max = self.max < other;
-
-        match (set_min, set_max) {
-            (true, true) => {
-                self.min = other.clone();
-                self.max = other;
-            }
-            (true, false) => {
-                self.min = other;
-            }
-            (false, true) => {
-                self.max = other;
-            }
-            (false, false) => (),
-        }
-    }
 }
 
-impl StatValues<String> {
-    /// Function for string stats to avoid allocating if we're not updating min
-    /// or max
-    pub fn update_string(stats: &mut Self, other: &str) {
-        stats.count += 1;
+impl<T> StatValues<T> {
+    /// updates the statistics keeping the min, max and incrementing count.
+    ///
+    /// The type plumbing exists to allow calling with &str on a StatValues<String>
+    pub fn update<U: ?Sized>(&mut self, other: &U)
+    where
+        T: Borrow<U>,
+        U: ToOwned<Owned = T> + PartialOrd,
+    {
+        self.count += 1;
 
-        if stats.min.as_str() > other {
-            stats.min = other.to_string();
+        if self.count == 1 || self.min.borrow() > other {
+            self.min = other.to_owned();
         }
 
-        if stats.max.as_str() < other {
-            stats.max = other.to_string();
+        if self.count == 1 || self.max.borrow() < other {
+            self.max = other.to_owned();
         }
     }
 }
@@ -287,45 +274,73 @@ mod tests {
 
     #[test]
     fn statistics_update() {
-        let mut stat = StatValues::new(23);
+        let mut stat = StatValues::new_with_value(23);
         assert_eq!(stat.min, 23);
         assert_eq!(stat.max, 23);
         assert_eq!(stat.count, 1);
 
-        stat.update(55);
+        stat.update(&55);
         assert_eq!(stat.min, 23);
         assert_eq!(stat.max, 55);
         assert_eq!(stat.count, 2);
 
-        stat.update(6);
+        stat.update(&6);
         assert_eq!(stat.min, 6);
         assert_eq!(stat.max, 55);
         assert_eq!(stat.count, 3);
 
-        stat.update(30);
+        stat.update(&30);
         assert_eq!(stat.min, 6);
         assert_eq!(stat.max, 55);
         assert_eq!(stat.count, 4);
     }
 
     #[test]
+    fn statistics_default() {
+        let mut stat = StatValues::new();
+        assert_eq!(stat.min, 0);
+        assert_eq!(stat.max, 0);
+        assert_eq!(stat.count, 0);
+
+        stat.update(&55);
+        assert_eq!(stat.min, 55);
+        assert_eq!(stat.max, 55);
+        assert_eq!(stat.count, 1);
+
+        let mut stat = StatValues::new();
+        assert_eq!(&stat.min, "");
+        assert_eq!(&stat.max, "");
+        assert_eq!(stat.count, 0);
+
+        stat.update("cupcakes");
+        assert_eq!(&stat.min, "cupcakes");
+        assert_eq!(&stat.max, "cupcakes");
+        assert_eq!(stat.count, 1);
+
+        stat.update("woo");
+        assert_eq!(&stat.min, "cupcakes");
+        assert_eq!(&stat.max, "woo");
+        assert_eq!(stat.count, 2);
+    }
+
+    #[test]
     fn update_string() {
-        let mut stat = StatValues::new("bbb".to_string());
+        let mut stat = StatValues::new_with_value("bbb".to_string());
         assert_eq!(stat.min, "bbb".to_string());
         assert_eq!(stat.max, "bbb".to_string());
         assert_eq!(stat.count, 1);
 
-        StatValues::update_string(&mut stat, "aaa");
+        stat.update("aaa");
         assert_eq!(stat.min, "aaa".to_string());
         assert_eq!(stat.max, "bbb".to_string());
         assert_eq!(stat.count, 2);
 
-        StatValues::update_string(&mut stat, "z");
+        stat.update("z");
         assert_eq!(stat.min, "aaa".to_string());
         assert_eq!(stat.max, "z".to_string());
         assert_eq!(stat.count, 3);
 
-        StatValues::update_string(&mut stat, "p");
+        stat.update("p");
         assert_eq!(stat.min, "aaa".to_string());
         assert_eq!(stat.max, "z".to_string());
         assert_eq!(stat.count, 4);
@@ -333,22 +348,22 @@ mod tests {
 
     #[test]
     fn table_update_from() {
-        let mut string_stats = StatValues::new("foo".to_string());
-        string_stats.update("bar".to_string());
+        let mut string_stats = StatValues::new_with_value("foo".to_string());
+        string_stats.update("bar");
         let string_col = ColumnSummary {
             name: "string".to_string(),
             stats: Statistics::String(string_stats),
         };
 
-        let mut int_stats = StatValues::new(1);
-        int_stats.update(5);
+        let mut int_stats = StatValues::new_with_value(1);
+        int_stats.update(&5);
         let int_col = ColumnSummary {
             name: "int".to_string(),
             stats: Statistics::I64(int_stats),
         };
 
-        let mut float_stats = StatValues::new(9.1);
-        float_stats.update(1.3);
+        let mut float_stats = StatValues::new_with_value(9.1);
+        float_stats.update(&1.3);
         let float_col = ColumnSummary {
             name: "float".to_string(),
             stats: Statistics::F64(float_stats),
@@ -359,15 +374,15 @@ mod tests {
             columns: vec![string_col, int_col, float_col],
         };
 
-        let mut string_stats = StatValues::new("aaa".to_string());
-        string_stats.update("zzz".to_string());
+        let mut string_stats = StatValues::new_with_value("aaa".to_string());
+        string_stats.update("zzz");
         let string_col = ColumnSummary {
             name: "string".to_string(),
             stats: Statistics::String(string_stats),
         };
 
-        let mut int_stats = StatValues::new(3);
-        int_stats.update(9);
+        let mut int_stats = StatValues::new_with_value(3);
+        int_stats.update(&9);
         let int_col = ColumnSummary {
             name: "int".to_string(),
             stats: Statistics::I64(int_stats),
@@ -446,15 +461,15 @@ mod tests {
 
     #[test]
     fn from_table_summaries() {
-        let mut string_stats = StatValues::new("foo".to_string());
-        string_stats.update("bar".to_string());
+        let mut string_stats = StatValues::new_with_value("foo".to_string());
+        string_stats.update("bar");
         let string_col = ColumnSummary {
             name: "string".to_string(),
             stats: Statistics::String(string_stats),
         };
 
-        let mut int_stats = StatValues::new(1);
-        int_stats.update(5);
+        let mut int_stats = StatValues::new_with_value(1);
+        int_stats.update(&5);
         let int_col = ColumnSummary {
             name: "int".to_string(),
             stats: Statistics::I64(int_stats),
@@ -467,7 +482,7 @@ mod tests {
 
         let int_col = ColumnSummary {
             name: "int".to_string(),
-            stats: Statistics::I64(StatValues::new(10)),
+            stats: Statistics::I64(StatValues::new_with_value(10)),
         };
         let table_b = TableSummary {
             name: "b".to_string(),
@@ -481,7 +496,7 @@ mod tests {
 
         let int_col = ColumnSummary {
             name: "int".to_string(),
-            stats: Statistics::I64(StatValues::new(203)),
+            stats: Statistics::I64(StatValues::new_with_value(203)),
         };
         let table_b_2 = TableSummary {
             name: "b".to_string(),

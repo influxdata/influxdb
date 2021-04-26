@@ -1,33 +1,20 @@
-use std::{cmp, collections::BTreeMap, iter::FromIterator, sync::Arc};
+use std::collections::BTreeMap;
 
 use crate::{
     column,
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError, DID},
 };
-use data_types::{
-    database_rules::WriterId,
-    partition_metadata::{ColumnSummary, Statistics},
-};
+use data_types::{database_rules::WriterId, partition_metadata::ColumnSummary};
 use internal_types::{
     entry::{self, ClockValue},
-    schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME},
+    schema::{builder::SchemaBuilder, Schema},
     selection::Selection,
 };
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
-use arrow_deps::{
-    arrow,
-    arrow::{
-        array::{
-            ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray,
-            TimestampNanosecondArray, UInt64Array,
-        },
-        datatypes::DataType as ArrowDataType,
-        record_batch::RecordBatch,
-    },
-};
+use arrow_deps::{arrow, arrow::record_batch::RecordBatch};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -37,29 +24,12 @@ pub enum Error {
         source: column::Error,
     },
 
-    #[snafu(display(
-        "Expected column {} to be type {} but was {}",
-        column,
-        expected_column_type,
-        actual_column_type
-    ))]
-    ColumnTypeMismatch {
+    #[snafu(display("Column {} had {} rows, expected {}", column, expected, actual))]
+    IncorrectRowCount {
         column: String,
-        expected_column_type: String,
-        actual_column_type: String,
+        expected: usize,
+        actual: usize,
     },
-
-    #[snafu(display(
-        "Expected column {} to be a tag but received it as a string field",
-        column
-    ))]
-    ExpectedTag { column: String },
-
-    #[snafu(display(
-        "Expected column {} to be a string field but received it as a tag",
-        column
-    ))]
-    ExpectedField { column: String },
 
     #[snafu(display("Internal error: unexpected aggregate request for None aggregate",))]
     InternalUnexpectedNoneAggregate {},
@@ -115,7 +85,7 @@ pub enum Error {
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Table {
     /// Name of the table as a DID in the chunk dictionary
     pub id: DID,
@@ -164,83 +134,51 @@ impl Table {
         _writer_id: WriterId,
         columns: Vec<entry::Column<'_>>,
     ) -> Result<()> {
-        // get the column ids and validate schema for those that already exist
-        let columns_with_inserts = columns
-            .into_iter()
-            .map(|insert_column| {
-                let column_id = dictionary.lookup_value_or_insert(insert_column.name());
-                let values = insert_column.values();
-
-                if let Some(c) = self.columns.get(&column_id) {
-                    match (&values, c) {
-                        (entry::TypedValuesIterator::Bool(_), Column::Bool(_, _)) => (),
-                        (entry::TypedValuesIterator::U64(_), Column::U64(_, _)) => (),
-                        (entry::TypedValuesIterator::F64(_), Column::F64(_, _)) => (),
-                        (entry::TypedValuesIterator::I64(_), Column::I64(_, _)) => (),
-                        (entry::TypedValuesIterator::String(_), Column::String(_, _)) => {
-                            if !insert_column.is_field() {
-                                ExpectedField {
-                                    column: insert_column.name(),
-                                }
-                                .fail()?
-                            };
-                        }
-                        (entry::TypedValuesIterator::String(_), Column::Tag(_, _)) => {
-                            if !insert_column.is_tag() {
-                                ExpectedTag {
-                                    column: insert_column.name(),
-                                }
-                                .fail()?
-                            };
-                        }
-                        _ => ColumnTypeMismatch {
-                            column: insert_column.name(),
-                            expected_column_type: c.type_description(),
-                            actual_column_type: values.type_description(),
-                        }
-                        .fail()?,
-                    }
-                }
-
-                Ok((column_id, insert_column.logical_type(), values))
-            })
-            .collect::<Result<Vec<_>>>()?;
-
         let row_count_before_insert = self.row_count();
+        let additional_rows = columns.first().map(|x| x.row_count).unwrap_or_default();
+        let final_row_count = row_count_before_insert + additional_rows;
 
-        for (column_id, logical_type, values) in columns_with_inserts.into_iter() {
-            match self.columns.get_mut(&column_id) {
-                Some(c) => c
-                    .push_typed_values(dictionary, logical_type, values)
-                    .with_context(|| {
-                        let column = dictionary
-                            .lookup_id(column_id)
-                            .expect("column name must be present in dictionary");
-                        ColumnError { column }
-                    })?,
-                None => {
-                    self.columns.insert(
-                        column_id,
-                        Column::new_from_typed_values(
-                            dictionary,
-                            row_count_before_insert,
-                            logical_type,
-                            values,
-                        ),
-                    );
+        // get the column ids and validate schema for those that already exist
+        let column_ids = columns
+            .iter()
+            .map(|column| {
+                ensure!(
+                    column.row_count == additional_rows,
+                    IncorrectRowCount {
+                        column: column.name(),
+                        expected: additional_rows,
+                        actual: column.row_count,
+                    }
+                );
+
+                let id = dictionary.lookup_value_or_insert(column.name());
+                if let Some(c) = self.columns.get(&id) {
+                    c.validate_schema(&column).context(ColumnError {
+                        column: column.name(),
+                    })?;
                 }
-            }
+
+                Ok(id)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        for (fb_column, column_id) in columns.into_iter().zip(column_ids.into_iter()) {
+            let influx_type = fb_column.influx_type();
+
+            let column = self
+                .columns
+                .entry(column_id)
+                .or_insert_with(|| Column::new(row_count_before_insert, influx_type));
+
+            column.append(&fb_column, dictionary).context(ColumnError {
+                column: fb_column.name(),
+            })?;
+
+            assert_eq!(column.len(), final_row_count);
         }
 
-        // ensure all columns have the same number of rows as the one with the most.
-        // This adds nulls to the columns that weren't included in this write
-        let max_row_count = self
-            .columns
-            .values()
-            .fold(row_count_before_insert, |max, col| cmp::max(max, col.len()));
-
         for c in self.columns.values_mut() {
-            c.push_nulls_to_len(max_row_count);
+            c.push_nulls_to_len(final_row_count);
         }
 
         Ok(())
@@ -324,27 +262,10 @@ impl Table {
     /// Returns the Schema of this table
     fn schema_impl(&self, selection: &TableColSelection<'_>) -> Result<Schema> {
         let mut schema_builder = SchemaBuilder::new();
-
         for col in &selection.cols {
-            let column_name = col.column_name;
             let column = self.column(col.column_id)?;
-
-            schema_builder = match column {
-                Column::String(_, _) => schema_builder.field(column_name, ArrowDataType::Utf8),
-                Column::Tag(_, _) => schema_builder.tag(column_name),
-                Column::F64(_, _) => schema_builder.field(column_name, ArrowDataType::Float64),
-                Column::I64(_, _) => {
-                    if column_name == TIME_COLUMN_NAME {
-                        schema_builder.timestamp()
-                    } else {
-                        schema_builder.field(column_name, ArrowDataType::Int64)
-                    }
-                }
-                Column::U64(_, _) => schema_builder.field(column_name, ArrowDataType::UInt64),
-                Column::Bool(_, _) => schema_builder.field(column_name, ArrowDataType::Boolean),
-            };
+            schema_builder = schema_builder.influx_column(col.column_name, column.influx_type());
         }
-
         schema_builder.build().context(InternalSchema)
     }
 
@@ -356,60 +277,18 @@ impl Table {
         dictionary: &Dictionary,
         selection: &TableColSelection<'_>,
     ) -> Result<RecordBatch> {
-        let mut columns = Vec::with_capacity(selection.cols.len());
-
-        for col in &selection.cols {
-            let column = self.column(col.column_id)?;
-
-            let array: ArrayRef = match column {
-                Column::String(vals, _) => {
-                    let iter = vals.iter().map(|s| s.as_deref());
-                    let array = StringArray::from_iter(iter);
-                    Arc::new(array)
-                }
-                Column::Tag(vals, _) => {
-                    let iter = vals.iter().map(|id| {
-                        if *id == DID::invalid() {
-                            return None;
-                        }
-                        Some(
-                            dictionary
-                                .lookup_id(*id)
-                                .expect("dictionary had mapping for tag value"),
-                        )
-                    });
-
-                    let array = StringArray::from_iter(iter);
-                    Arc::new(array)
-                }
-                Column::F64(vals, _) => {
-                    let array = Float64Array::from_iter(vals.iter());
-                    Arc::new(array)
-                }
-                Column::I64(vals, _) => {
-                    if col.column_name == TIME_COLUMN_NAME {
-                        let array = TimestampNanosecondArray::from_iter(vals.iter());
-                        Arc::new(array)
-                    } else {
-                        let array = Int64Array::from_iter(vals.iter());
-                        Arc::new(array)
-                    }
-                }
-                Column::U64(vals, _) => {
-                    let array = UInt64Array::from_iter(vals.iter());
-                    Arc::new(array)
-                }
-                Column::Bool(vals, _) => {
-                    let array = BooleanArray::from_iter(vals.iter());
-                    Arc::new(array)
-                }
-            };
-
-            columns.push(array);
-        }
+        let columns = selection
+            .cols
+            .iter()
+            .map(|col| {
+                let column = self.column(col.column_id)?;
+                column.to_arrow(dictionary).context(ColumnError {
+                    column: col.column_name,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         let schema = self.schema_impl(selection)?.into();
-
         RecordBatch::try_new(schema, columns).context(ArrowError {})
     }
 
@@ -421,19 +300,9 @@ impl Table {
                     .lookup_id(*column_id)
                     .expect("column name in dictionary");
 
-                let stats = match c {
-                    Column::F64(_, stats) => Statistics::F64(stats.clone()),
-                    Column::I64(_, stats) => Statistics::I64(stats.clone()),
-                    Column::U64(_, stats) => Statistics::U64(stats.clone()),
-                    Column::Bool(_, stats) => Statistics::Bool(stats.clone()),
-                    Column::String(_, stats) | Column::Tag(_, stats) => {
-                        Statistics::String(stats.clone())
-                    }
-                };
-
                 ColumnSummary {
                     name: column_name.to_string(),
-                    stats,
+                    stats: c.stats(),
                 }
             })
             .collect()
@@ -461,7 +330,9 @@ impl<'a> TableColSelection<'a> {
 
 #[cfg(test)]
 mod tests {
+    use arrow::datatypes::DataType as ArrowDataType;
     use internal_types::entry::test_helpers::lp_to_entry;
+    use internal_types::schema::{InfluxColumnType, InfluxFieldType};
 
     use super::*;
 
@@ -476,15 +347,15 @@ mod tests {
         ];
 
         write_lines_to_table(&mut table, &mut dictionary, lp_lines.clone());
-        assert_eq!(112, table.size());
+        assert_eq!(84, table.size());
 
         // doesn't double because of the stats overhead
         write_lines_to_table(&mut table, &mut dictionary, lp_lines.clone());
-        assert_eq!(192, table.size());
+        assert_eq!(132, table.size());
 
         // now make sure it increased by the same amount minus stats overhead
         write_lines_to_table(&mut table, &mut dictionary, lp_lines);
-        assert_eq!(272, table.size());
+        assert_eq!(180, table.size());
     }
 
     #[test]
@@ -588,8 +459,12 @@ mod tests {
         assert!(
             matches!(
                 &response,
-                Error::ExpectedTag {
+                Error::ColumnError {
                     column,
+                    source: column::Error::TypeMismatch {
+                        existing: InfluxColumnType::Tag,
+                        inserted: InfluxColumnType::Field(InfluxFieldType::String)
+                    }
                 } if column == "t1"
             ),
             "didn't match returned error: {:?}",
@@ -618,13 +493,13 @@ mod tests {
         assert!(
             matches!(
                 &response,
-                Error::ColumnTypeMismatch {
-                    expected_column_type,
-                    actual_column_type,
-                    column
-                } if expected_column_type == "i64"
-                    && actual_column_type == "u64"
-                    && column == "iv"
+                Error::ColumnError {
+                    column,
+                    source: column::Error::TypeMismatch {
+                        inserted: InfluxColumnType::Field(InfluxFieldType::UInteger),
+                        existing: InfluxColumnType::Field(InfluxFieldType::Integer)
+                    }
+                } if column == "iv"
             ),
             "didn't match returned error: {:?}",
             response
@@ -652,13 +527,13 @@ mod tests {
         assert!(
             matches!(
                 &response,
-                Error::ColumnTypeMismatch {
-                    expected_column_type,
-                    actual_column_type,
-                    column
-                } if expected_column_type == "f64"
-                    && actual_column_type == "i64"
-                    && column == "fv"
+                Error::ColumnError {
+                    column,
+                    source: column::Error::TypeMismatch {
+                        existing: InfluxColumnType::Field(InfluxFieldType::Float),
+                        inserted: InfluxColumnType::Field(InfluxFieldType::Integer)
+                    }
+                } if column == "fv"
             ),
             "didn't match returned error: {:?}",
             response
@@ -686,13 +561,13 @@ mod tests {
         assert!(
             matches!(
                 &response,
-                Error::ColumnTypeMismatch {
-                    expected_column_type,
-                    actual_column_type,
-                    column
-                } if expected_column_type == "bool"
-                    && actual_column_type == "f64"
-                    && column == "bv"
+                Error::ColumnError {
+                    column,
+                    source: column::Error::TypeMismatch {
+                        existing: InfluxColumnType::Field(InfluxFieldType::Boolean),
+                        inserted: InfluxColumnType::Field(InfluxFieldType::Float)
+                    }
+                } if column == "bv"
             ),
             "didn't match returned error: {:?}",
             response
@@ -720,13 +595,13 @@ mod tests {
         assert!(
             matches!(
                 &response,
-                Error::ColumnTypeMismatch {
-                    expected_column_type,
-                    actual_column_type,
-                    column
-                } if expected_column_type == "String"
-                    && actual_column_type == "bool"
-                    && column == "sv"
+                Error::ColumnError {
+                    column,
+                    source: column::Error::TypeMismatch {
+                        existing: InfluxColumnType::Field(InfluxFieldType::String),
+                        inserted: InfluxColumnType::Field(InfluxFieldType::Boolean),
+                    }
+                } if column == "sv"
             ),
             "didn't match returned error: {:?}",
             response
@@ -754,8 +629,12 @@ mod tests {
         assert!(
             matches!(
                 &response,
-                Error::ExpectedField {
-                    column
+                Error::ColumnError {
+                    column,
+                    source: column::Error::TypeMismatch {
+                        existing: InfluxColumnType::Field(InfluxFieldType::String),
+                        inserted: InfluxColumnType::Tag,
+                    }
                 } if column == "sv"
             ),
             "didn't match returned error: {:?}",

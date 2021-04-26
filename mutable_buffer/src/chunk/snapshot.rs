@@ -8,6 +8,7 @@ use internal_types::selection::Selection;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use super::Chunk;
+use data_types::partition_metadata::Statistics;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -64,12 +65,15 @@ impl ChunkSnapshot {
                 .lookup_value(TIME_COLUMN_NAME)
                 .ok()
                 .and_then(|column_id| {
-                    table.column(column_id).ok().and_then(|column| {
-                        // TimestampRange has an exclusive upper bound
-                        column
-                            .get_i64_stats()
-                            .map(|x| TimestampRange::new(x.min, x.max + 1))
-                    })
+                    table
+                        .column(column_id)
+                        .ok()
+                        .and_then(|column| match column.stats() {
+                            Statistics::I64(stats) => {
+                                Some(TimestampRange::new(stats.min, stats.max + 1))
+                            }
+                            _ => None,
+                        })
                 });
 
             records.insert(
