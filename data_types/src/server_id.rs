@@ -50,18 +50,6 @@ impl fmt::Display for ServerId {
     }
 }
 
-impl PartialEq<u32> for ServerId {
-    fn eq(&self, other: &u32) -> bool {
-        self.get_u32() == *other
-    }
-}
-
-impl PartialEq<ServerId> for u32 {
-    fn eq(&self, other: &ServerId) -> bool {
-        *self == other.get_u32()
-    }
-}
-
 #[derive(Debug, Snafu)]
 pub struct Error(InnerError);
 
@@ -93,7 +81,7 @@ mod tests {
     fn can_be_nonzero() {
         let value = 2;
         let server_id = ServerId::try_from(value).unwrap();
-        assert_eq!(server_id, value);
+        assert_eq!(server_id.get_u32(), value);
     }
 
     #[test]
@@ -108,7 +96,7 @@ mod tests {
         ));
 
         let server_id = "1337".parse::<ServerId>().unwrap();
-        assert_eq!(server_id, 1337);
+        assert_eq!(server_id.get_u32(), 1337);
     }
 
     #[test]
