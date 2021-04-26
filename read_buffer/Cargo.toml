@@ -18,7 +18,7 @@ either = "1.6.1"
 hashbrown = "0.9.1"
 internal_types = { path = "../internal_types" }
 itertools = "0.9.0"
-"observability_deps" = { path = "../observability_deps" }
+observability_deps = { path = "../observability_deps" }
 packers = { path = "../packers" }
 parking_lot = "0.11"
 permutation = "0.2.5"
