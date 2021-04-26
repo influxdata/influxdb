@@ -78,7 +78,7 @@ type Engine interface {
 	Statistics(tags map[string]string) []models.Statistic
 	LastModified() time.Time
 	DiskSize() int64
-	IsIdle() bool
+	IsIdle(isLogged bool) bool
 	Free() error
 
 	io.WriterTo

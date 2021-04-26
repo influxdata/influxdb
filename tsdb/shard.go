@@ -452,7 +452,16 @@ func (s *Shard) IsIdle() bool {
 	if err != nil {
 		return true
 	}
-	return engine.IsIdle()
+	return engine.IsIdle(false)
+}
+
+// IsIdle return true if the shard is not receiving writes and is fully compacted.
+func (s *Shard) LoggedIsIdle() bool {
+	engine, err := s.Engine()
+	if err != nil {
+		return true
+	}
+	return engine.IsIdle(true)
 }
 
 func (s *Shard) Free() error {
@@ -1200,7 +1209,7 @@ func (s *Shard) TagKeyCardinality(name, key []byte) int {
 }
 
 // Digest returns a digest of the shard.
-func (s *Shard) Digest() (io.ReadCloser, int64, error) {
+func (s *Shard) Digest(isLogged bool) (io.ReadCloser, int64, error) {
 	engine, err := s.Engine()
 	if err != nil {
 		return nil, 0, err
@@ -1208,7 +1217,7 @@ func (s *Shard) Digest() (io.ReadCloser, int64, error) {
 
 	// Make sure the shard is idle/cold. (No use creating a digest of a
 	// hot shard that is rapidly changing.)
-	if !engine.IsIdle() {
+	if !engine.IsIdle(isLogged) {
 		return nil, 0, ErrShardNotIdle
 	}
 

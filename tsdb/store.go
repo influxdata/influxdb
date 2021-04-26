@@ -593,7 +593,7 @@ func (s *Store) ShardDigest(id uint64) (io.ReadCloser, int64, error) {
 		return nil, 0, ErrShardNotFound
 	}
 
-	return sh.Digest()
+	return sh.Digest(false)
 }
 
 // CreateShard creates a shard with the given id and retention policy on a database.
