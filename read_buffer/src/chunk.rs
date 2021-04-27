@@ -245,14 +245,16 @@ impl Chunk {
             .sum::<usize>();
 
         // This call is expensive. Complete it before locking.
+        let now = std::time::Instant::now();
         let row_group = RowGroup::from(table_data);
+        let compressing_took = now.elapsed();
         let table_name = table_name.into();
 
         let rows = row_group.rows();
         let rg_size = row_group.size();
         let compression = format!("{:.2}%", (1.0 - (rg_size as f64 / rb_size as f64)) * 100.0);
         let chunk_id = self.id();
-        info!(%rows, rb_size, rg_size, %compression, ?table_name, %chunk_id, "row group added");
+        info!(%rows, rb_size, rg_size, %compression, ?table_name, %chunk_id, ?compressing_took, "row group added");
 
         let mut chunk_data = self.chunk_data.write();
 
