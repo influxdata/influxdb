@@ -44,7 +44,7 @@ impl Partition {
     /// Create a new partition catalog object.
     ///
     /// This function is not pub because `Partition`s should be
-    /// created using the interfaces on [`Catalog`] and not
+    /// created using the interfaces on [`Catalog`](crate::db::catalog::Catalog) and not
     /// instantiated directly.
     pub(crate) fn new(key: impl Into<String>) -> Self {
         let key = key.into();
