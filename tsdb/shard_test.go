@@ -47,9 +47,8 @@ func TestShardWriteAndIndex(t *testing.T) {
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
 
-	// Calling WritePoints when the engine is not open will return
-	// ErrEngineClosed.
-	if got, exp := sh.WritePoints(nil), tsdb.ErrEngineClosed; got != exp {
+	// Calling WritePoints will open the engine if needed
+	if got, exp := sh.WritePoints(nil), error(nil); got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
@@ -117,9 +116,8 @@ func TestShard_Open_CorruptFieldsIndex(t *testing.T) {
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
 
-	// Calling WritePoints when the engine is not open will return
-	// ErrEngineClosed.
-	if got, exp := sh.WritePoints(nil), tsdb.ErrEngineClosed; got != exp {
+	// Calling WritePoints will open the engine if needed
+	if got, exp := sh.WritePoints(nil), error(nil); got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
@@ -695,11 +693,10 @@ func TestShard_CreateIterator_Ascending(t *testing.T) {
 			sh := NewShard(index)
 			defer sh.Close()
 
-			// Calling CreateIterator when the engine is not open will return
-			// ErrEngineClosed.
+			// Calling WritePoints will open the engine if needed
 			m := &influxql.Measurement{Name: "cpu"}
 			_, got := sh.CreateIterator(context.Background(), m, query.IteratorOptions{})
-			if exp := tsdb.ErrEngineClosed; got != exp {
+			if exp := error(nil); got != exp {
 				t.Fatalf("got %v, expected %v", got, exp)
 			}
 
@@ -778,11 +775,10 @@ func TestShard_CreateIterator_Descending(t *testing.T) {
 	test := func(index string) {
 		sh = NewShard(index)
 
-		// Calling CreateIterator when the engine is not open will return
-		// ErrEngineClosed.
+		// Calling WritePoints will open the engine if needed
 		m := &influxql.Measurement{Name: "cpu"}
 		_, got := sh.CreateIterator(context.Background(), m, query.IteratorOptions{})
-		if exp := tsdb.ErrEngineClosed; got != exp {
+		if exp := error(nil); got != exp {
 			t.Fatalf("got %v, expected %v", got, exp)
 		}
 

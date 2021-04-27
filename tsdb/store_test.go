@@ -181,6 +181,8 @@ func TestStore_CreateMixedShards(t *testing.T) {
 		}
 
 		sh := s.Shard(1)
+		// open shard since only the active and latest shards will be loaded
+		sh.Open()
 		if sh.IndexType() != index1 {
 			t.Fatalf("got index %v, expected %v", sh.IndexType(), index1)
 		}
