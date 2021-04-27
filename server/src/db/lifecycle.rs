@@ -273,6 +273,8 @@ fn can_move(rules: &LifecycleRules, chunk: &Chunk, now: DateTime<Utc>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use data_types::server_id::ServerId;
+    use internal_types::entry::{test_helpers::lp_to_entry, ClockValue};
     use std::num::{NonZeroU32, NonZeroUsize};
     use tracker::MemRegistry;
 
@@ -285,7 +287,18 @@ mod tests {
         time_of_first_write: Option<i64>,
         time_of_last_write: Option<i64>,
     ) -> Chunk {
-        let mut chunk = Chunk::new_open("", "table1", id, &MemRegistry::new());
+        let entry = lp_to_entry("table1 bar=10 10");
+        let write = entry.partition_writes().unwrap().remove(0);
+        let batch = write.table_batches().remove(0);
+        let mut chunk = Chunk::new_open(
+            batch,
+            "",
+            id,
+            ClockValue::new(0),
+            ServerId::new(NonZeroU32::new(1).unwrap()),
+            &MemRegistry::new(),
+        )
+        .unwrap();
         chunk.set_timestamps(
             time_of_first_write.map(from_secs),
             time_of_last_write.map(from_secs),

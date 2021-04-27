@@ -10,7 +10,10 @@ use arrow_deps::{
     },
 };
 use async_trait::async_trait;
-use catalog::{chunk::ChunkState, Catalog};
+use catalog::{
+    chunk::{Chunk as CatalogChunk, ChunkState},
+    Catalog,
+};
 pub(crate) use chunk::DbChunk;
 use data_types::{
     chunk::ChunkSummary,
@@ -28,14 +31,15 @@ use lifecycle::LifecycleManager;
 use metrics::MetricRegistry;
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, info};
-use parking_lot::{Mutex, RwLock};
+use parking_lot::{lock_api::RwLockWriteGuard, Mutex, RawRwLock, RwLock};
 use parquet_file::{chunk::Chunk, storage::Storage};
 use query::{exec::Executor, Database, DEFAULT_SCHEMA};
 use read_buffer::Chunk as ReadBufferChunk;
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use snafu::{ensure, ResultExt, Snafu};
 use std::{
     any::Any,
     convert::TryInto,
+    num::NonZeroUsize,
     sync::{
         atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc,
@@ -77,16 +81,6 @@ pub enum Error {
         partition_key: String,
         table_name: String,
         source: catalog::Error,
-    },
-
-    #[snafu(display(
-        "Internal error: no open chunk while rolling over partition {}:{}",
-        partition_key,
-        table_name,
-    ))]
-    InternalNoOpenChunk {
-        partition_key: String,
-        table_name: String,
     },
 
     #[snafu(display(
@@ -176,11 +170,17 @@ pub enum Error {
     #[snafu(display("Hard buffer size limit reached"))]
     HardLimitReached {},
 
-    #[snafu(display("Can not write entry {} {}: {}", partition_key, chunk_id, source))]
+    #[snafu(display("Can not write entry {}:{} : {}", partition_key, chunk_id, source))]
     WriteEntry {
         partition_key: String,
         chunk_id: u32,
         source: mutable_buffer::chunk::Error,
+    },
+
+    #[snafu(display("Can not create open entry {} : {}", partition_key, source))]
+    OpenEntry {
+        partition_key: String,
+        source: catalog::Error,
     },
 
     #[snafu(display("Error building sequenced entry: {}", source))]
@@ -388,12 +388,12 @@ impl Db {
     }
 
     /// Rolls over the active chunk in the database's specified
-    /// partition. Returns the previously open (now closed) Chunk
+    /// partition. Returns the previously open (now closed) Chunk if there was any.
     pub async fn rollover_partition(
         &self,
         partition_key: &str,
         table_name: &str,
-    ) -> Result<Arc<DbChunk>> {
+    ) -> Result<Option<Arc<DbChunk>>> {
         let partition =
             self.catalog
                 .valid_partition(partition_key)
@@ -402,31 +402,25 @@ impl Db {
                     table_name,
                 })?;
 
-        let mut partition = partition.write();
-        let chunk = partition
+        let partition = partition.write();
+        if let Some(chunk) = partition
             .open_chunk(table_name)
             .context(RollingOverPartition {
                 partition_key,
                 table_name,
             })?
-            .context(InternalNoOpenChunk {
+        {
+            let mut chunk = chunk.write();
+            chunk.set_closing().context(RollingOverPartition {
                 partition_key,
                 table_name,
             })?;
+            self.metrics.update_chunk_state(chunk.state());
 
-        let mut chunk = chunk.write();
-        chunk.set_closing().context(RollingOverPartition {
-            partition_key,
-            table_name,
-        })?;
-        self.metrics.update_chunk_state(chunk.state());
-
-        // make a new chunk to track the newly created chunk in this partition
-        let new_chunk =
-            partition.create_open_chunk(table_name, self.memory_registries.mutable_buffer.as_ref());
-        self.metrics.update_chunk_state(new_chunk.read().state());
-
-        return Ok(DbChunk::snapshot(&chunk));
+            Ok(Some(DbChunk::snapshot(&chunk)))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Drops the specified chunk from the catalog and all storage systems
@@ -815,7 +809,7 @@ impl Db {
         if let Some(partition) = self.catalog.partition(partition_key) {
             let partition = partition.read();
             if let Ok(chunk) = partition.chunk(table_name, chunk_id) {
-                return chunk.read().table_summary();
+                return Some(chunk.read().table_summary());
             }
         }
         None
@@ -895,48 +889,71 @@ impl Db {
                 partition.update_last_write_at();
 
                 for table_batch in write.table_batches() {
-                    let chunk = partition
-                        .open_chunk(table_batch.name())
-                        .ok()
-                        .flatten()
-                        .unwrap_or_else(|| {
-                            let new_chunk = partition.create_open_chunk(
-                                table_batch.name(),
-                                self.memory_registries.mutable_buffer.as_ref(),
-                            );
-                            self.metrics.update_chunk_state(new_chunk.read().state()); // track new chunk
-                            new_chunk
-                        });
+                    match partition.open_chunk(table_batch.name()).ok().flatten() {
+                        Some(chunk) => {
+                            let mut chunk = chunk.write();
+                            chunk.record_write();
+                            let chunk_id = chunk.id();
 
-                    let mut chunk = chunk.write();
-                    chunk.record_write();
-                    let chunk_id = chunk.id();
+                            let mb_chunk =
+                                chunk.mutable_buffer().expect("cannot mutate open chunk");
 
-                    let mb_chunk = chunk.mutable_buffer().expect("cannot mutate open chunk");
+                            mb_chunk
+                                .write_table_batches(
+                                    sequenced_entry.clock_value(),
+                                    sequenced_entry.server_id(),
+                                    &[table_batch],
+                                )
+                                .context(WriteEntry {
+                                    partition_key,
+                                    chunk_id,
+                                })?;
 
-                    mb_chunk
-                        .write_table_batches(
-                            sequenced_entry.clock_value(),
-                            sequenced_entry.server_id(),
-                            &[table_batch],
-                        )
-                        .context(WriteEntry {
-                            partition_key,
-                            chunk_id,
-                        })?;
-
-                    let size = mb_chunk.size();
-
-                    if let Some(threshold) = mutable_size_threshold {
-                        if size > threshold.get() {
-                            chunk.set_closing().expect("cannot close open chunk")
+                            check_chunk_closing(chunk, mutable_size_threshold, &self.metrics);
                         }
-                    }
+                        None => {
+                            let new_chunk = partition
+                                .create_open_chunk(
+                                    table_batch,
+                                    sequenced_entry.clock_value(),
+                                    sequenced_entry.server_id(),
+                                    self.memory_registries.mutable_buffer.as_ref(),
+                                )
+                                .context(OpenEntry { partition_key })?;
+                            self.metrics.update_chunk_state(new_chunk.read().state()); // track new chunk
+
+                            check_chunk_closing(
+                                new_chunk.write(),
+                                mutable_size_threshold,
+                                &self.metrics,
+                            );
+                        }
+                    };
                 }
             }
         }
 
         Ok(())
+    }
+}
+
+/// Check if the given chunk should be closed based on the the MutableBuffer size threshold.
+///
+/// If the chunk should be closed, it will be set to "closing",
+fn check_chunk_closing(
+    mut chunk: RwLockWriteGuard<'_, RawRwLock, CatalogChunk>,
+    mutable_size_threshold: Option<NonZeroUsize>,
+    metrics: &DbMetrics,
+) {
+    if let Some(threshold) = mutable_size_threshold {
+        if let Ok(mb_chunk) = chunk.mutable_buffer() {
+            let size = mb_chunk.size();
+
+            if size > threshold.get() {
+                chunk.set_closing().expect("cannot close open chunk");
+                metrics.update_chunk_state(chunk.state());
+            }
+        }
     }
 }
 
@@ -1146,7 +1163,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", 1)
+        db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", 0)
             .await
             .unwrap();
 
@@ -1163,7 +1180,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        db.write_chunk_to_object_store("1970-01-01T00", "cpu", 1)
+        db.write_chunk_to_object_store("1970-01-01T00", "cpu", 0)
             .await
             .unwrap();
 
@@ -1183,7 +1200,11 @@ mod tests {
         write_lp(db.as_ref(), "cpu bar=1 10");
         assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
 
-        let mb_chunk = db.rollover_partition("1970-01-01T00", "cpu").await.unwrap();
+        let mb_chunk = db
+            .rollover_partition("1970-01-01T00", "cpu")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(mb_chunk.id(), 0);
 
         let expected = vec![
@@ -1210,7 +1231,11 @@ mod tests {
         assert_batches_sorted_eq!(&expected, &batches);
 
         // And expect that we still get the same thing when data is rolled over again
-        let chunk = db.rollover_partition("1970-01-01T00", "cpu").await.unwrap();
+        let chunk = db
+            .rollover_partition("1970-01-01T00", "cpu")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(chunk.id(), 1);
 
         let batches = run_query(db, "select * from cpu").await;
@@ -1233,7 +1258,11 @@ mod tests {
         write_lp(db.as_ref(), &lines.join("\n"));
         assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
 
-        let mb_chunk = db.rollover_partition("1970-01-01T00", "cpu").await.unwrap();
+        let mb_chunk = db
+            .rollover_partition("1970-01-01T00", "cpu")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(mb_chunk.id(), 0);
 
         let expected = vec![
@@ -1257,7 +1286,11 @@ mod tests {
         write_lp(db.as_ref(), "cpu bar=2 20");
 
         let partition_key = "1970-01-01T00";
-        let mb_chunk = db.rollover_partition(partition_key, "cpu").await.unwrap();
+        let mb_chunk = db
+            .rollover_partition(partition_key, "cpu")
+            .await
+            .unwrap()
+            .unwrap();
         let rb_chunk = db
             .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
             .await
@@ -1266,9 +1299,8 @@ mod tests {
         // it should be the same chunk!
         assert_eq!(mb_chunk.id(), rb_chunk.id());
 
-        // we should have chunks in both the mutable buffer and read buffer
-        // (Note the currently open chunk is not listed)
-        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![1]);
+        // we should have chunks in both the read buffer only
+        assert!(mutable_chunk_ids(&db, partition_key).is_empty());
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![0]);
 
         // data should be readable
@@ -1329,7 +1361,11 @@ mod tests {
 
         //Now mark the MB chunk close
         let partition_key = "1970-01-01T00";
-        let mb_chunk = db.rollover_partition("1970-01-01T00", "cpu").await.unwrap();
+        let mb_chunk = db
+            .rollover_partition("1970-01-01T00", "cpu")
+            .await
+            .unwrap()
+            .unwrap();
         // Move that MB chunk to RB chunk and drop it from MB
         let rb_chunk = db
             .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
@@ -1345,9 +1381,8 @@ mod tests {
         assert_eq!(mb_chunk.id(), rb_chunk.id());
         assert_eq!(mb_chunk.id(), pq_chunk.id());
 
-        // we should have chunks in the mutable buffer, read buffer, and object store
-        // (Note the currently open chunk is not listed)
-        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![1]);
+        // we should have chunks in both the read buffer only
+        assert!(mutable_chunk_ids(&db, partition_key).is_empty());
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![0]);
         assert_eq!(read_parquet_file_chunk_ids(&db, partition_key), vec![0]);
 
@@ -1438,6 +1473,7 @@ mod tests {
         let chunk_id = db
             .rollover_partition("1970-01-01T00", "cpu")
             .await
+            .unwrap()
             .unwrap()
             .id();
         let after_rollover = Utc::now();
@@ -1530,13 +1566,21 @@ mod tests {
         );
 
         let partition_key = "1970-01-01T00";
-        let mb_chunk = db.rollover_partition("1970-01-01T00", "cpu").await.unwrap();
+        let mb_chunk = db
+            .rollover_partition("1970-01-01T00", "cpu")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(mb_chunk.id(), 0);
 
         // add a new chunk in mutable buffer, and move chunk1 (but
         // not chunk 0) to read buffer
         write_lp(&db, "cpu bar=1 30");
-        let mb_chunk = db.rollover_partition("1970-01-01T00", "cpu").await.unwrap();
+        let mb_chunk = db
+            .rollover_partition("1970-01-01T00", "cpu")
+            .await
+            .unwrap()
+            .unwrap();
         db.load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
             .await
             .unwrap();
@@ -1748,6 +1792,7 @@ mod tests {
             .rollover_partition("1970-01-01T00", "cpu")
             .await
             .unwrap()
+            .unwrap()
             .id();
         write_lp(&db, "cpu bar=2,baz=3.0 2");
         write_lp(&db, "mem foo=1 1");
@@ -1948,6 +1993,7 @@ mod tests {
         let mb_chunk = db
             .rollover_partition(partition_key, table_name)
             .await
+            .unwrap()
             .unwrap();
         let rb_chunk = db
             .load_chunk_to_read_buffer(partition_key, table_name, mb_chunk.id())
@@ -1970,9 +2016,8 @@ mod tests {
             );
         }
 
-        // we should have chunks in the mutable buffer, read buffer, and object store
-        // (Note the currently open chunk is not listed)
-        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![1]);
+        // we should have chunks in both the read buffer only
+        assert!(mutable_chunk_ids(&db, partition_key).is_empty());
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![0]);
         assert_eq!(read_parquet_file_chunk_ids(&db, partition_key), vec![0]);
     }
