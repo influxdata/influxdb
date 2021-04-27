@@ -1,3 +1,5 @@
+#![deny(broken_intra_doc_links, rust_2018_idioms)]
+
 use observability_deps::{
     tracing::{
         self,
@@ -18,7 +20,7 @@ use std::{io::Write, time::SystemTime};
 /// https://github.com/mcountryman/logfmt_logger from @mcountryman
 /// looked very small and did not (obviously) work with the tracing subscriber
 ///
-/// [logfmt](https://brandur.org/logfmt)
+/// [logfmt]: https://brandur.org/logfmt
 pub struct LogFmtLayer<W: MakeWriter> {
     writer: W,
 }

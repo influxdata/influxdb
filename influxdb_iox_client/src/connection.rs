@@ -66,7 +66,7 @@ impl std::default::Default for Builder {
 }
 
 impl Builder {
-    /// Construct the [`Client`] instance using the specified base URL.
+    /// Construct the [`Connection`] instance using the specified base URL.
     pub async fn build<D>(self, dst: D) -> Result<Connection>
     where
         D: TryInto<Uri, Error = InvalidUri>,

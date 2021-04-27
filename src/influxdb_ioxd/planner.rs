@@ -71,7 +71,7 @@ impl Planner {
     }
 
     /// Creates a plan as described on
-    /// [`InfluxRPCPlanner::table_names`], on a separate threadpool
+    /// [`InfluxRpcPlanner::table_names`], on a separate threadpool
     pub async fn table_names<D>(
         &self,
         database: Arc<D>,
@@ -93,7 +93,7 @@ impl Planner {
     }
 
     /// Creates a plan as described on
-    /// [`InfluxRPCPlanner::tag_keys`], on a separate threadpool
+    /// [`InfluxRpcPlanner::tag_keys`], on a separate threadpool
     pub async fn tag_keys<D>(&self, database: Arc<D>, predicate: Predicate) -> Result<StringSetPlan>
     where
         D: Database + 'static,
@@ -111,7 +111,7 @@ impl Planner {
     }
 
     /// Creates a plan as described on
-    /// [`InfluxRPCPlanner::tag_values`], on a separate threadpool
+    /// [`InfluxRpcPlanner::tag_values`], on a separate threadpool
     pub async fn tag_values<D>(
         &self,
         database: Arc<D>,
@@ -135,7 +135,7 @@ impl Planner {
     }
 
     /// Creates a plan as described on
-    /// [`InfluxRPCPlanner::field_columns`], on a separate threadpool
+    /// [`InfluxRpcPlanner::field_columns`], on a separate threadpool
     pub async fn field_columns<D>(
         &self,
         database: Arc<D>,
@@ -157,7 +157,7 @@ impl Planner {
     }
 
     /// Creates a plan as described on
-    /// [`InfluxRPCPlanner::read_filter`], on a separate threadpool
+    /// [`InfluxRpcPlanner::read_filter`], on a separate threadpool
     pub async fn read_filter<D>(
         &self,
         database: Arc<D>,
@@ -179,7 +179,7 @@ impl Planner {
     }
 
     /// Creates a plan as described on
-    /// [`InfluxRPCPlanner::read_group`], on a separate threadpool
+    /// [`InfluxRpcPlanner::read_group`], on a separate threadpool
     pub async fn read_group<D>(
         &self,
         database: Arc<D>,
@@ -203,7 +203,7 @@ impl Planner {
     }
 
     /// Creates a plan as described on
-    /// [`InfluxRPCPlanner::read_window_aggregate`], on a separate threadpool
+    /// [`InfluxRpcPlanner::read_window_aggregate`], on a separate threadpool
     pub async fn read_window_aggregate<D>(
         &self,
         database: Arc<D>,

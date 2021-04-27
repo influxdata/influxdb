@@ -18,7 +18,7 @@ message WriteRequest {
 
   // data, in [LineProtocol] format
   //
-  // [LineProtocol](https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/#data-types-and-format)
+  // [LineProtocol]: https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/#data-types-and-format
   string lp_data = 2;
 }
 
@@ -34,7 +34,7 @@ message WriteEntryRequest {
 
   // entry, in serialized flatbuffers [Entry] format
   //
-  // [Entry](https://github.com/influxdata/influxdb_iox/blob/main/generated_types/protos/influxdata/iox/write/v1/entry.fbs)
+  // [Entry]: https://github.com/influxdata/influxdb_iox/blob/main/generated_types/protos/influxdata/iox/write/v1/entry.fbs
   bytes entry = 2;
 }
 

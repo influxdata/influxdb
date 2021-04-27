@@ -48,7 +48,7 @@
 //! is done on a per-Chunk basis, so that as soon as the chunk is
 //! closed the corresponding dictionary also becomes immutable
 
-#![deny(rust_2018_idioms)]
+#![deny(broken_intra_doc_links, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,

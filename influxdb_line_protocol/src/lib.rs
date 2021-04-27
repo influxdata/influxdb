@@ -7,7 +7,7 @@
 //! However, this implementation uses a nom combinator based parser
 //! rather than attempting to port the imperative Go logic.
 
-#![deny(rust_2018_idioms)]
+#![deny(broken_intra_doc_links, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,

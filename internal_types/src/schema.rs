@@ -26,7 +26,7 @@ pub fn TIME_DATA_TIMEZONE() -> Option<String> {
     None
 }
 
-/// the Arrow [`DataType`] to use for InfluxDB timestamps
+/// the [`ArrowDataType`] to use for InfluxDB timestamps
 #[allow(non_snake_case)]
 pub fn TIME_DATA_TYPE() -> ArrowDataType {
     ArrowDataType::Timestamp(TimeUnit::Nanosecond, TIME_DATA_TIMEZONE())
