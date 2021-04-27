@@ -115,7 +115,7 @@ async fn test_field_columns_with_ts_pred() {
 }
 
 #[tokio::test]
-async fn test_field_name_plan() {
+async fn test_field_name_plan() {  // TODO: Test fails
     test_helpers::maybe_start_logging();
     // Tests that the ordering that comes out is reasonable
     let scenarios = OneMeasurementManyFields {}.make().await;

@@ -252,7 +252,8 @@ impl File {
         }
     }
 
-    fn path(&self, location: &FilePath) -> PathBuf {
+    /// Return full path of the given location
+    pub fn path(&self, location: &FilePath) -> PathBuf {
         let mut path = self.root.clone();
         path.push_path(location);
         path.to_raw()
