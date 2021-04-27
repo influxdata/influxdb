@@ -60,6 +60,13 @@ pub enum Error {
         expected: String,
         actual: String,
     },
+
+    #[snafu(display("Can not open chunk {}:{} : {}", partition_key, chunk_id, source))]
+    OpenChunk {
+        partition_key: String,
+        chunk_id: u32,
+        source: mutable_buffer::chunk::Error,
+    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -211,7 +218,7 @@ impl SchemaProvider for Catalog {
             for chunk in partition.chunks() {
                 let chunk = chunk.read();
 
-                if (chunk.table_name() == table_name) && chunk.has_data() {
+                if chunk.table_name() == table_name {
                     let chunk = super::DbChunk::snapshot(&chunk);
 
                     // This should only fail if the table doesn't exist which isn't possible
@@ -239,8 +246,27 @@ impl SchemaProvider for Catalog {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use super::*;
+    use data_types::server_id::ServerId;
+    use internal_types::entry::{test_helpers::lp_to_entry, ClockValue};
     use tracker::MemRegistry;
+
+    fn create_open_chunk(partition: &Arc<RwLock<Partition>>, table: &str, registry: &MemRegistry) {
+        let entry = lp_to_entry(&format!("{} bar=1 10", table));
+        let write = entry.partition_writes().unwrap().remove(0);
+        let batch = write.table_batches().remove(0);
+        let mut partition = partition.write();
+        partition
+            .create_open_chunk(
+                batch,
+                ClockValue::new(0),
+                ServerId::new(NonZeroU32::new(1).unwrap()),
+                registry,
+            )
+            .unwrap();
+    }
 
     #[test]
     fn partition_get() {
@@ -283,10 +309,11 @@ mod tests {
         let catalog = Catalog::new();
         let p1 = catalog.get_or_create_partition("p1");
 
-        let mut p1 = p1.write();
-        p1.create_open_chunk("table1", &registry);
-        p1.create_open_chunk("table1", &registry);
-        p1.create_open_chunk("table2", &registry);
+        create_open_chunk(&p1, "table1", &registry);
+        create_open_chunk(&p1, "table1", &registry);
+        create_open_chunk(&p1, "table2", &registry);
+
+        let p1 = p1.write();
 
         let c1_0 = p1.chunk("table1", 0).unwrap();
         assert_eq!(c1_0.read().table_name(), "table1");
@@ -316,19 +343,12 @@ mod tests {
         let catalog = Catalog::new();
 
         let p1 = catalog.get_or_create_partition("p1");
-        {
-            let mut p1 = p1.write();
-
-            p1.create_open_chunk("table1", &registry);
-            p1.create_open_chunk("table1", &registry);
-            p1.create_open_chunk("table2", &registry);
-        }
+        create_open_chunk(&p1, "table1", &registry);
+        create_open_chunk(&p1, "table1", &registry);
+        create_open_chunk(&p1, "table2", &registry);
 
         let p2 = catalog.get_or_create_partition("p2");
-        {
-            let mut p2 = p2.write();
-            p2.create_open_chunk("table1", &registry);
-        }
+        create_open_chunk(&p2, "table1", &registry);
 
         assert_eq!(
             chunk_strings(&catalog),
@@ -395,18 +415,12 @@ mod tests {
         let catalog = Catalog::new();
 
         let p1 = catalog.get_or_create_partition("p1");
-        {
-            let mut p1 = p1.write();
-            p1.create_open_chunk("table1", &registry);
-            p1.create_open_chunk("table1", &registry);
-            p1.create_open_chunk("table2", &registry);
-        }
+        create_open_chunk(&p1, "table1", &registry);
+        create_open_chunk(&p1, "table1", &registry);
+        create_open_chunk(&p1, "table2", &registry);
 
         let p2 = catalog.get_or_create_partition("p2");
-        {
-            let mut p2 = p2.write();
-            p2.create_open_chunk("table1", &registry);
-        }
+        create_open_chunk(&p2, "table1", &registry);
 
         assert_eq!(chunk_strings(&catalog).len(), 4);
 
@@ -437,9 +451,9 @@ mod tests {
         let registry = MemRegistry::new();
         let catalog = Catalog::new();
         let p3 = catalog.get_or_create_partition("p3");
-        let mut p3 = p3.write();
+        create_open_chunk(&p3, "table1", &registry);
 
-        p3.create_open_chunk("table1", &registry);
+        let mut p3 = p3.write();
 
         let err = p3.drop_chunk("table2", 0).unwrap_err();
         assert_eq!(err.to_string(), "unknown table: p3:table2");
@@ -454,12 +468,8 @@ mod tests {
         let catalog = Catalog::new();
 
         let p1 = catalog.get_or_create_partition("p1");
-
-        {
-            let mut p1 = p1.write();
-            p1.create_open_chunk("table1", &registry);
-            p1.create_open_chunk("table1", &registry);
-        }
+        create_open_chunk(&p1, "table1", &registry);
+        create_open_chunk(&p1, "table1", &registry);
         assert_eq!(
             chunk_strings(&catalog),
             vec!["Chunk p1:table1:0", "Chunk p1:table1:1"]
@@ -472,10 +482,7 @@ mod tests {
         assert_eq!(chunk_strings(&catalog), vec!["Chunk p1:table1:1"]);
 
         // should be ok to "re-create", it gets another chunk_id though
-        {
-            let mut p1 = p1.write();
-            p1.create_open_chunk("table1", &registry);
-        }
+        create_open_chunk(&p1, "table1", &registry);
         assert_eq!(
             chunk_strings(&catalog),
             vec!["Chunk p1:table1:1", "Chunk p1:table1:2"]

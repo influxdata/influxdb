@@ -207,6 +207,18 @@ pub enum ApplicationError {
 
     #[snafu(display("Error while planning query: {}", source))]
     Planning { source: super::planner::Error },
+
+    #[snafu(display(
+        "Cannot create snapshot because there is no data: {} {}:{}",
+        db_name,
+        partition,
+        table_name
+    ))]
+    NoSnapshot {
+        db_name: String,
+        partition: String,
+        table_name: String,
+    },
 }
 
 impl ApplicationError {
@@ -240,6 +252,7 @@ impl ApplicationError {
             Self::FormattingResult { .. } => self.internal_error(),
             Self::ParsingFormat { .. } => self.bad_request(),
             Self::Planning { .. } => self.bad_request(),
+            Self::NoSnapshot { .. } => self.not_modified(),
         }
     }
 
@@ -261,6 +274,13 @@ impl ApplicationError {
         Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body(Body::empty())
+            .unwrap()
+    }
+
+    fn not_modified(&self) -> Response<Body> {
+        Response::builder()
+            .status(StatusCode::NOT_MODIFIED)
+            .body(self.body())
             .unwrap()
     }
 
@@ -776,27 +796,35 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
 
     let partition_key = &snapshot.partition;
     let table_name = &snapshot.table_name;
-    let chunk = db
+    if let Some(chunk) = db
         .rollover_partition(partition_key, table_name)
         .await
+        .unwrap()
+    {
+        let table_stats = db
+            .table_summary(partition_key, table_name, chunk.id())
+            .unwrap();
+        let snapshot = server::snapshot::snapshot_chunk(
+            metadata_path,
+            data_path,
+            store,
+            partition_key,
+            chunk,
+            table_stats,
+            None,
+        )
         .unwrap();
-    let table_stats = db
-        .table_summary(partition_key, table_name, chunk.id())
-        .unwrap();
-    let snapshot = server::snapshot::snapshot_chunk(
-        metadata_path,
-        data_path,
-        store,
-        partition_key,
-        chunk,
-        table_stats,
-        None,
-    )
-    .unwrap();
 
-    obs.ok_with_labels(&metric_kv);
-    let ret = format!("{}", snapshot.id);
-    Ok(Response::new(Body::from(ret)))
+        obs.ok_with_labels(&metric_kv);
+        let ret = format!("{}", snapshot.id);
+        Ok(Response::new(Body::from(ret)))
+    } else {
+        Err(ApplicationError::NoSnapshot {
+            db_name: db_name.to_string(),
+            partition: partition_key.to_string(),
+            table_name: table_name.to_string(),
+        })
+    }
 }
 
 pub async fn serve<M>(
@@ -822,6 +850,7 @@ mod tests {
     use std::{
         convert::TryFrom,
         net::{IpAddr, Ipv4Addr, SocketAddr},
+        num::NonZeroU32,
     };
 
     use arrow_deps::{arrow::record_batch::RecordBatch, assert_table_eq};
@@ -855,7 +884,7 @@ mod tests {
         let response = client.get(&format!("{}/health", server_url)).send().await;
 
         // Print the response so if the test fails, we have a log of what went wrong
-        check_response("health", response, StatusCode::OK, "OK").await;
+        check_response("health", response, StatusCode::OK, Some("OK")).await;
     }
 
     #[tokio::test]
@@ -888,7 +917,7 @@ mod tests {
             .send()
             .await;
 
-        check_response("write", response, StatusCode::NO_CONTENT, "").await;
+        check_response("write", response, StatusCode::NO_CONTENT, Some("")).await;
 
         // Check that the data got into the right bucket
         let test_db = app_server
@@ -1018,7 +1047,7 @@ mod tests {
             .send()
             .await;
 
-        check_response("write", response, StatusCode::NO_CONTENT, "").await;
+        check_response("write", response, StatusCode::NO_CONTENT, Some("")).await;
         (client, server_url)
     }
 
@@ -1044,7 +1073,7 @@ mod tests {
 | 50.4           | santa_monica | CA    | 65.2            | 2021-04-01 14:10:24 |\n\
 +----------------+--------------+-------+-----------------+---------------------+\n";
 
-        check_response("query", response, StatusCode::OK, res).await;
+        check_response("query", response, StatusCode::OK, Some(res)).await;
 
         // same response is expected if we explicitly request 'format=pretty'
         let response = client
@@ -1056,7 +1085,7 @@ mod tests {
             .await;
         assert_eq!(get_content_type(&response), "text/plain");
 
-        check_response("query", response, StatusCode::OK, res).await;
+        check_response("query", response, StatusCode::OK, Some(res)).await;
     }
 
     #[tokio::test]
@@ -1076,7 +1105,7 @@ mod tests {
 
         let res = "bottom_degrees,location,state,surface_degrees,time\n\
                    50.4,santa_monica,CA,65.2,2021-04-01T14:10:24.000000000\n";
-        check_response("query", response, StatusCode::OK, res).await;
+        check_response("query", response, StatusCode::OK, Some(res)).await;
     }
 
     #[tokio::test]
@@ -1099,7 +1128,7 @@ mod tests {
             .send()
             .await;
 
-        check_response("write", response, StatusCode::NO_CONTENT, "").await;
+        check_response("write", response, StatusCode::NO_CONTENT, Some("")).await;
 
         // send query data
         let response = client
@@ -1114,7 +1143,7 @@ mod tests {
 
         // Note two json records: one record on each line
         let res = r#"[{"bottom_degrees":50.4,"location":"santa_monica","state":"CA","surface_degrees":65.2,"time":"2021-04-01 14:10:24"},{"location":"Boston","state":"MA","surface_degrees":50.2,"time":"2021-04-01 14:10:24"}]"#;
-        check_response("query", response, StatusCode::OK, res).await;
+        check_response("query", response, StatusCode::OK, Some(res)).await;
     }
 
     fn gzip_str(s: &str) -> Vec<u8> {
@@ -1155,7 +1184,7 @@ mod tests {
             .send()
             .await;
 
-        check_response("gzip_write", response, StatusCode::NO_CONTENT, "").await;
+        check_response("gzip_write", response, StatusCode::NO_CONTENT, Some("")).await;
 
         // Check that the data got into the right bucket
         let test_db = app_server
@@ -1204,9 +1233,56 @@ mod tests {
             "write_to_invalid_databases",
             response,
             StatusCode::NOT_FOUND,
-            "",
+            Some(""),
         )
         .await;
+    }
+
+    #[tokio::test]
+    async fn test_snapshot() {
+        let (_, config) = config();
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
+        app_server
+            .set_id(ServerId::new(NonZeroU32::new(1).unwrap()))
+            .unwrap();
+        app_server
+            .create_database(
+                DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
+                app_server.require_id().unwrap(),
+            )
+            .await
+            .unwrap();
+        let server_url = test_server(Arc::clone(&app_server));
+
+        let client = Client::new();
+
+        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1617286224000000000";
+
+        // send write data
+        let bucket_name = "MyBucket";
+        let org_name = "MyOrg";
+        let response = client
+            .post(&format!(
+                "{}/api/v2/write?bucket={}&org={}",
+                server_url, bucket_name, org_name
+            ))
+            .body(lp_data)
+            .send()
+            .await;
+
+        check_response("write", response, StatusCode::NO_CONTENT, Some("")).await;
+
+        // issue first snapshot => OK
+        let url = format!(
+            "{}/api/v1/snapshot?bucket={}&org={}&partition=&table_name=h2o_temperature",
+            server_url, bucket_name, org_name
+        );
+        let response = client.post(&url).body(lp_data).send().await;
+        check_response("snapshot", response, StatusCode::OK, None).await;
+
+        // second snapshot results in "not modified"
+        let response = client.post(&url).body(lp_data).send().await;
+        check_response("snapshot", response, StatusCode::NOT_MODIFIED, None).await;
     }
 
     fn get_content_type(response: &Result<Response, reqwest::Error>) -> String {
@@ -1227,7 +1303,7 @@ mod tests {
         description: &str,
         response: Result<Response, reqwest::Error>,
         expected_status: StatusCode,
-        expected_body: &str,
+        expected_body: Option<&str>,
     ) {
         // Print the response so if the test fails, we have a log of
         // what went wrong
@@ -1241,7 +1317,9 @@ mod tests {
                 .expect("Converting request body to string");
 
             assert_eq!(status, expected_status);
-            assert_eq!(body, expected_body);
+            if let Some(expected_body) = expected_body {
+                assert_eq!(body, expected_body);
+            }
         } else {
             panic!("Unexpected error response: {:?}", response);
         }
