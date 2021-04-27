@@ -193,6 +193,8 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
             db,
         };
 
+        // TODO: Add 2 more scenarios: one for RUB and one for RUB+OS
+
         vec![scenario1, scenario2, scenario3]
     }
 }

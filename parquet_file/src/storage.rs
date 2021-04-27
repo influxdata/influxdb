@@ -1,42 +1,24 @@
 /// This module responsible to write given data to specify object store and
 /// read them back
-use arrow_deps::{
-    arrow::{
+use arrow_deps::{arrow::{
         datatypes::{Schema, SchemaRef},
         error::ArrowError,
         error::Result as ArrowResult,
         record_batch::RecordBatch,
-    },
-    datafusion::{
-        error::DataFusionError,
-        physical_plan::{
-            parquet::RowGroupPredicateBuilder, RecordBatchStream, SendableRecordBatchStream,
-        },
-    },
-    parquet::{
+    }, datafusion::{error::DataFusionError, physical_plan::{RecordBatchStream, SendableRecordBatchStream, common::SizedRecordBatchStream, parquet::RowGroupPredicateBuilder}}, parquet::{
         self,
         arrow::{arrow_reader::ParquetFileArrowReader, ArrowReader, ArrowWriter},
         file::{reader::FileReader, serialized_reader::SerializedFileReader, writer::TryClone},
-    },
-};
+    }};
 use internal_types::selection::Selection;
-use object_store::{
-    path::{ObjectStorePath, Path},
-    ObjectStore, ObjectStoreApi,
-};
+use object_store::{ObjectStore, ObjectStoreApi, ObjectStoreIntegration, path::{ObjectStorePath, Path}};
 use query::predicate::Predicate;
 
 use bytes::Bytes;
 use futures::{Stream, StreamExt};
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::{
-    fs::File,
-    io::{Cursor, Seek, SeekFrom, Write},
-    num::NonZeroU32,
-    sync::Arc,
-    task::{Context, Poll},
-};
+use std::{fs::File, io::{Cursor, Seek, SeekFrom, Write}, num::NonZeroU32, sync::Arc, task::{Context, Poll}};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::task;
 use tokio_stream::wrappers::ReceiverStream;
@@ -256,27 +238,18 @@ impl Storage {
         predicate: &Predicate,
         selection: Selection<'_>,
         schema: SchemaRef,
-        path: &Path,
+        path: Path,
+        store: Arc<ObjectStore>
     ) -> Result<SendableRecordBatchStream> {
-        // TODO: support non local file object store
-        if !path.local_file() {
-            panic!("Non local file object store not supported")
-        }
 
         // The below code is based on
         // datafusion::physical_plan::parquet::ParquetExec::execute
         // Will be improved as we go
 
-        let (response_tx, response_rx): (
-            Sender<ArrowResult<RecordBatch>>,
-            Receiver<ArrowResult<RecordBatch>>,
-        ) = channel(2);
-
-        // Full path of the parquet file
-        // Might need different function if this display function does not show the full
-        // path
-        let filename = path.display();
-        // println!("Parquet filename: {}", filename); // TODO: remove after tests
+        // let (response_tx, response_rx): (
+        //     Sender<ArrowResult<RecordBatch>>,
+        //     Receiver<ArrowResult<RecordBatch>>,
+        // ) = channel(2);
 
         // Indices of columns in the schema needed to read
         let projection: Vec<usize> = Self::column_indices(selection, Arc::clone(&schema));
@@ -293,55 +266,164 @@ impl Storage {
 
         // Todo: Convert this tokio into using thread pool Andrew has implemented
         // recently
-        task::spawn_blocking(move || {
-            if let Err(e) = Self::read_file(
-                filename,
-                projection.as_slice(),
-                predicate_builder.as_ref(),
-                batch_size,
-                response_tx,
-                limit,
-            ) {
-                println!("Parquet reader thread terminated due to error: {:?}", e);
-            }
-        });
+        // TODO: Until this read_filter is an async, we cannot mate this mutlthread yet
+        //       because it returns wrong results if other thread rerun before full results are returned
+        // task::spawn_blocking(move || {
+        //     if let Err(e) = Self::read_file(
+        //         path,
+        //         Arc::clone(&store),
+        //         projection.as_slice(),
+        //         predicate_builder.as_ref(),
+        //         batch_size,
+        //         response_tx,
+        //         limit,
+        //     ) {
+        //         println!("Parquet reader thread terminated due to error: {:?}", e);
+        //     }
+        // });
 
-        Ok(Box::pin(ParquetStream {
+        // Ok(Box::pin(ParquetStream {
+        //     schema,
+        //     inner: ReceiverStream::new(response_rx),
+        // }))
+
+        let mut batches: Vec<Arc<RecordBatch>> = vec![];
+        if let Err(e) = Self::read_file(
+            path,
+            Arc::clone(&store),
+            projection.as_slice(),
+            predicate_builder.as_ref(),
+            batch_size,
+            &mut batches,
+            limit,
+        ) {
+            println!("Parquet reader thread terminated due to error: {:?}", e);
+        }
+
+        println!("Record batches from read_file: {:#?}", batches);
+
+        //let batches = vec![Arc::new(batch)];
+        Ok(Box::pin(SizedRecordBatchStream::new(
             schema,
-            inner: ReceiverStream::new(response_rx),
-        }))
+            batches,
+        )))
+
+
     }
 
-    fn send_result(
-        response_tx: &Sender<ArrowResult<RecordBatch>>,
-        result: ArrowResult<RecordBatch>,
-    ) -> Result<()> {
-        // Note this function is running on its own blocking tokio thread so blocking
-        // here is ok.
-        response_tx
-            .blocking_send(result)
-            .map_err(|e| DataFusionError::Execution(e.to_string()))
-            .context(SendResult)?;
-        Ok(())
-    }
+    // fn send_result(
+    //     response_tx: &Sender<ArrowResult<RecordBatch>>,
+    //     result: ArrowResult<RecordBatch>,
+    // ) -> Result<()> {
+    //     // Note this function is running on its own blocking tokio thread so blocking
+    //     // here is ok.
+    //     response_tx
+    //         .blocking_send(result)
+    //         .map_err(|e| DataFusionError::Execution(e.to_string()))
+    //         .context(SendResult)?;
+    //     Ok(())
+    // }
+
+    // fn read_file(
+    //     path: Path,
+    //     store: Arc<ObjectStore>,
+    //     projection: &[usize],
+    //     predicate_builder: Option<&RowGroupPredicateBuilder>,
+    //     batch_size: usize,
+    //     response_tx: Sender<ArrowResult<RecordBatch>>,
+    //     limit: Option<usize>,
+    // ) -> Result<()> {
+
+    //     // TODO: support non local file object store
+    //     let (file_root, file_path) = match (&store.0, path) {
+    //         (ObjectStoreIntegration::File(file), Path::File(location)) => (file, location),
+    //         (_, _) => { 
+    //             panic!("Non local file object store not supported")
+    //         }
+    //     };
+    //     // Get full string path
+    //     let full_path = format!("{:?}", file_root.path(&file_path));
+    //     let full_path = full_path.trim_matches('"');
+    //     println!("Full path filename: {}", full_path);
+     
+    //     let mut total_rows = 0;
+    
+    //     let file = File::open(&full_path).context(OpenFile)?; 
+    //     let mut file_reader = SerializedFileReader::new(file).context(SerializedFileReaderError)?;
+    //     if let Some(predicate_builder) = predicate_builder {
+    //         let row_group_predicate =
+    //             predicate_builder.build_row_group_predicate(file_reader.metadata().row_groups());
+    //         file_reader.filter_row_groups(&row_group_predicate); //filter out
+    //                                                              // row group based
+    //                                                              // on the predicate
+    //     }
+    //     let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
+    //     let mut batch_reader = arrow_reader
+    //         .get_record_reader_by_columns(projection.to_owned(), batch_size)
+    //         .context(ParquetArrowReaderError)?;
+    //     loop {
+    //         match batch_reader.next() {
+    //             Some(Ok(batch)) => {
+    //                 //println!("ParquetExec got new batch from {}", filename);
+    //                 total_rows += batch.num_rows();
+    //                 Self::send_result(&response_tx, Ok(batch))?;
+    //                 if limit.map(|l| total_rows >= l).unwrap_or(false) {
+    //                     break;
+    //                 }
+    //             }
+    //             None => {
+    //                 break;
+    //             }
+    //             Some(Err(e)) => {
+    //                 let err_msg =
+    //                     //format!("Error reading batch from {}: {}", filename, e.to_string());
+    //                     format!("Error reading batch: {}", e.to_string());
+    //                 // send error to operator
+    //                 Self::send_result(&response_tx, Err(ArrowError::ParquetError(err_msg)))?;
+    //                 // terminate thread with error
+    //                 return Err(e).context(ReadingFile);
+    //             }
+    //         }
+    //     }
+
+    //     // finished reading files (dropping response_tx will close
+    //     // channel)
+    //     Ok(())
+    // }
+
+
     fn read_file(
-        filename: String,
+        path: Path,
+        store: Arc<ObjectStore>,
         projection: &[usize],
         predicate_builder: Option<&RowGroupPredicateBuilder>,
         batch_size: usize,
-        response_tx: Sender<ArrowResult<RecordBatch>>,
+        batches : &mut Vec<Arc<RecordBatch>>,
         limit: Option<usize>,
     ) -> Result<()> {
+
+        // TODO: support non local file object store
+        let (file_root, file_path) = match (&store.0, path) {
+            (ObjectStoreIntegration::File(file), Path::File(location)) => (file, location),
+            (_, _) => { 
+                panic!("Non local file object store not supported")
+            }
+        };
+        // Get full string path
+        let full_path = format!("{:?}", file_root.path(&file_path));
+        let full_path = full_path.trim_matches('"');
+        println!("Full path filename: {}", full_path);
+    
         let mut total_rows = 0;
 
-        let file = File::open(&filename).context(OpenFile)?;
+        let file = File::open(&full_path).context(OpenFile)?; 
         let mut file_reader = SerializedFileReader::new(file).context(SerializedFileReaderError)?;
         if let Some(predicate_builder) = predicate_builder {
             let row_group_predicate =
                 predicate_builder.build_row_group_predicate(file_reader.metadata().row_groups());
             file_reader.filter_row_groups(&row_group_predicate); //filter out
-                                                                 // row group based
-                                                                 // on the predicate
+                                                                // row group based
+                                                                // on the predicate
         }
         let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
         let mut batch_reader = arrow_reader
@@ -352,7 +434,7 @@ impl Storage {
                 Some(Ok(batch)) => {
                     //println!("ParquetExec got new batch from {}", filename);
                     total_rows += batch.num_rows();
-                    Self::send_result(&response_tx, Ok(batch))?;
+                    batches.push(Arc::new(batch));
                     if limit.map(|l| total_rows >= l).unwrap_or(false) {
                         break;
                     }
@@ -362,14 +444,15 @@ impl Storage {
                 }
                 Some(Err(e)) => {
                     let err_msg =
-                        format!("Error reading batch from {}: {}", filename, e.to_string());
-                    // send error to operator
-                    Self::send_result(&response_tx, Err(ArrowError::ParquetError(err_msg)))?;
+                        //format!("Error reading batch from {}: {}", filename, e.to_string());
+                        format!("Error reading batch: {}", e.to_string());
                     // terminate thread with error
                     return Err(e).context(ReadingFile);
                 }
             }
         }
+
+        println!("Record batches right after reading from file: {:#?}", batches);
 
         // finished reading files (dropping response_tx will close
         // channel)

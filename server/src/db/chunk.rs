@@ -107,9 +107,31 @@ impl DbChunk {
                 chunk: Arc::clone(chunk),
                 partition_key,
             },
+            ChunkState::WrittenToObjectStore(chunk, _) => Self::ReadBuffer {
+                chunk: Arc::clone(chunk),
+                partition_key,
+                // Since data exists in both read buffer and object store, we should
+                // return chunk of read buffer
+            },
+            // Todo: When we have a state for parquet_file chunk only,
+            // ChunkState::InObjectStoreOnly(chunk) => {  
+            //     let chunk = Arc::clone(chunk);
+            //     Self::ParquetFile { chunk }
+            // }
+        };
+        Arc::new(db_chunk)
+    }
+
+    pub fn parquet_file_snapshot(chunk: &super::catalog::chunk::Chunk) -> Arc<Self> {
+        use super::catalog::chunk::ChunkState;
+
+        let db_chunk = match chunk.state() {
             ChunkState::WrittenToObjectStore(_, chunk) => {
                 let chunk = Arc::clone(chunk);
                 Self::ParquetFile { chunk }
+            },
+            _ => {
+                panic!("This is not state of a parquet_fil chunk");
             }
         };
         Arc::new(db_chunk)

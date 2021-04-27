@@ -683,7 +683,7 @@ impl Db {
                 .try_into()
                 .context(SchemaConversion)?;
             let table_time_range = time_range.map(|(start, end)| TimestampRange::new(start, end));
-            parquet_chunk.add_table(stats, path, schema, table_time_range);
+            parquet_chunk.add_table(stats, path, Arc::clone(&self.store), schema, table_time_range);
         }
 
         // Relock the chunk again (nothing else should have been able
@@ -702,7 +702,7 @@ impl Db {
         self.metrics.update_chunk_state(chunk.state());
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked MOVED. Persisting to object store complete");
 
-        Ok(DbChunk::snapshot(&chunk))
+        Ok(DbChunk::parquet_file_snapshot(&chunk))
     }
 
     /// Spawns a task to perform
@@ -1686,6 +1686,10 @@ mod tests {
             .await
             .unwrap();
 
+        db.write_chunk_to_object_store("1970-01-01T00", "cpu", 0)
+            .await
+            .unwrap();
+
         print!("Partitions2: {:?}", db.partition_keys().unwrap());
 
         db.rollover_partition("1970-01-05T15", "cpu").await.unwrap();
@@ -1703,8 +1707,8 @@ mod tests {
                 to_arc("1970-01-01T00"),
                 to_arc("cpu"),
                 0,
-                ChunkStorage::ReadBuffer,
-                1213,
+                ChunkStorage::ReadBufferAndObjectStore,
+                1213 + 675, // size of RB and OB chunks
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-01T00"),
@@ -1737,6 +1741,7 @@ mod tests {
 
         assert_eq!(db.memory_registries.mutable_buffer.bytes(), 121 + 157 + 159);
         assert_eq!(db.memory_registries.read_buffer.bytes(), 1213);
+        assert_eq!(db.memory_registries.parquet.bytes(), 89);  // TODO: This 89 must be replaced with 675. Ticket #1311
     }
 
     #[tokio::test]
@@ -1755,6 +1760,11 @@ mod tests {
 
         // load a chunk to the read buffer
         db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", chunk_id)
+            .await
+            .unwrap();
+
+        // write the read buffer chunk to object store
+        db.write_chunk_to_object_store("1970-01-01T00", "cpu", chunk_id)
             .await
             .unwrap();
 
