@@ -46,6 +46,7 @@ v1.9.0 [unreleased]
 -	[#21139](https://github.com/influxdata/influxdb/pull/21139): fix(tsdb): exclude stop time from array cursors
 -	[#21168](https://github.com/influxdata/influxdb/pull/21168): fix(storage): Detect need for descending cursor in WindowAggregate
 -	[#21285](https://github.com/influxdata/influxdb/pull/21285): fix(storage): Detect need for descending cursor in GroupAggregate
+-	[#21308](https://github.com/influxdata/influxdb/pull/21308): fix(models): grow tag index buffer if needed
 
 v1.8.5 [unreleased]
 -------------------
