@@ -66,7 +66,7 @@ pub enum Error {
     },
 
     #[snafu(display("Internal error executing field set plan: {}", source))]
-    FieldListExectuon {
+    FieldListExectuor {
         source: datafusion::error::DataFusionError,
     },
 
@@ -233,7 +233,7 @@ impl Executor {
                     let fieldlist = ctx
                         .collect(physical_plan)
                         .await
-                        .context(FieldListExectuon)?
+                        .context(FieldListExectuor)?
                         .into_fieldlist()
                         .context(FieldListConversion);
 

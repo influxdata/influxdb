@@ -4,23 +4,22 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
+use arrow_deps::arrow::array::DictionaryArray;
+use arrow_deps::arrow::datatypes::Int32Type;
 use arrow_deps::{
     arrow,
     arrow::array::{Array, StringArray},
     arrow::datatypes::DataType,
 };
-use snafu::{ensure, OptionExt, Snafu};
+use snafu::{ensure, Snafu};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display(
-        "Error extracting results from Record Batches: schema not a single Utf8: {:?}",
+        "Error extracting results from Record Batches: schema not a single Utf8 or string dictionary: {:?}",
         schema
     ))]
     InternalSchemaWasNotString { schema: SchemaRef },
-
-    #[snafu(display("Internal error, failed to downcast field to Utf8"))]
-    InternalFailedToDowncast {},
 
     #[snafu(display("Internal error, unexpected null value"))]
     InternalUnexpectedNull {},
@@ -72,20 +71,32 @@ impl IntoStringSet for Vec<RecordBatch> {
 
             let field = &fields[0];
 
-            ensure!(
-                field.data_type() == &DataType::Utf8,
-                InternalSchemaWasNotString {
+            match field.data_type() {
+                DataType::Utf8 => {
+                    let array = record_batch
+                        .column(0)
+                        .as_any()
+                        .downcast_ref::<StringArray>()
+                        .unwrap();
+
+                    add_utf8_array_to_stringset(&mut strings, array, num_rows)?;
+                }
+                DataType::Dictionary(key, value)
+                    if key.as_ref() == &DataType::Int32 && value.as_ref() == &DataType::Utf8 =>
+                {
+                    let array = record_batch
+                        .column(0)
+                        .as_any()
+                        .downcast_ref::<DictionaryArray<Int32Type>>()
+                        .unwrap();
+
+                    add_utf8_dictionary_to_stringset(&mut strings, array, num_rows)?;
+                }
+                _ => InternalSchemaWasNotString {
                     schema: Arc::clone(&schema),
                 }
-            );
-
-            let array = record_batch
-                .column(0)
-                .as_any()
-                .downcast_ref::<StringArray>()
-                .context(InternalFailedToDowncast)?;
-
-            add_utf8_array_to_stringset(&mut strings, array, num_rows)?;
+                .fail()?,
+            }
         }
         Ok(StringSetRef::new(strings))
     }
@@ -103,6 +114,34 @@ fn add_utf8_array_to_stringset(
             return InternalUnexpectedNull {}.fail();
         } else {
             let src_value = src.value(i);
+            if !dest.contains(src_value) {
+                dest.insert(src_value.into());
+            }
+        }
+    }
+    Ok(())
+}
+
+fn add_utf8_dictionary_to_stringset(
+    dest: &mut StringSet,
+    dictionary: &DictionaryArray<Int32Type>,
+    num_rows: usize,
+) -> Result<()> {
+    let keys = dictionary.keys();
+    let values = dictionary.values();
+    let values = values.as_any().downcast_ref::<StringArray>().unwrap();
+
+    // It might be quicker to construct an intermediate collection
+    // of unique indexes and then hydrate them
+
+    for i in 0..num_rows {
+        // Not sure how to handle a NULL -- StringSet contains
+        // Strings, not Option<String>
+        if keys.is_null(i) {
+            return InternalUnexpectedNull {}.fail();
+        } else {
+            let idx = keys.value(i);
+            let src_value = values.value(idx as _);
             if !dest.contains(src_value) {
                 dest.insert(src_value.into());
             }

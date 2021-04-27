@@ -326,8 +326,10 @@ where
     // Create a router and specify the the handlers.
     Router::builder()
         .data(server)
-        .middleware(Middleware::pre(|req| async move {
-            debug!(request = ?req, "Processing request");
+        .middleware(Middleware::pre(|mut req| async move {
+            // we don't need the authorization header and we don't want to accidentally log it.
+            req.headers_mut().remove("authorization");
+            debug!(request = ?req,"Processing request");
             Ok(req)
         }))
         .middleware(Middleware::post(|res| async move {

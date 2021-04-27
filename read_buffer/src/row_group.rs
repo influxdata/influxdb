@@ -1100,29 +1100,42 @@ impl From<RecordBatch> for RowGroup {
 
             match lp_type {
                 Some(InfluxColumnType::Tag) => {
-                    assert_eq!(arrow_column.data_type(), &arrow::datatypes::DataType::Utf8);
-                    let column_data =
-                        Column::from(arrow::array::StringArray::from(arrow_column.data().clone()));
+                    let column_data = match arrow_column.data_type() {
+                        DataType::Utf8 => Column::from(arrow::array::StringArray::from(
+                            arrow_column.data().clone(),
+                        )),
+                        DataType::Dictionary(key, value)
+                            if key.as_ref() == &DataType::Int32
+                                && value.as_ref() == &DataType::Utf8 =>
+                        {
+                            Column::from(
+                                arrow::array::DictionaryArray::<arrow::datatypes::Int32Type>::from(
+                                    arrow_column.data().clone(),
+                                ),
+                            )
+                        }
+                        _ => panic!("invalid tag column type"),
+                    };
 
                     columns.push((col_name.to_owned(), ColumnType::Tag(column_data)));
                 }
                 Some(InfluxColumnType::Field(_)) => {
                     let column_data = match arrow_column.data_type() {
-                        arrow::datatypes::DataType::Int64 => Column::from(
-                            arrow::array::Int64Array::from(arrow_column.data().clone()),
-                        ),
-                        arrow::datatypes::DataType::Float64 => Column::from(
-                            arrow::array::Float64Array::from(arrow_column.data().clone()),
-                        ),
-                        arrow::datatypes::DataType::UInt64 => Column::from(
-                            arrow::array::UInt64Array::from(arrow_column.data().clone()),
-                        ),
-                        arrow::datatypes::DataType::Boolean => Column::from(
-                            arrow::array::BooleanArray::from(arrow_column.data().clone()),
-                        ),
-                        arrow::datatypes::DataType::Utf8 => Column::from(
-                            arrow::array::StringArray::from(arrow_column.data().clone()),
-                        ),
+                        DataType::Int64 => Column::from(arrow::array::Int64Array::from(
+                            arrow_column.data().clone(),
+                        )),
+                        DataType::Float64 => Column::from(arrow::array::Float64Array::from(
+                            arrow_column.data().clone(),
+                        )),
+                        DataType::UInt64 => Column::from(arrow::array::UInt64Array::from(
+                            arrow_column.data().clone(),
+                        )),
+                        DataType::Boolean => Column::from(arrow::array::BooleanArray::from(
+                            arrow_column.data().clone(),
+                        )),
+                        DataType::Utf8 => Column::from(arrow::array::StringArray::from(
+                            arrow_column.data().clone(),
+                        )),
                         dt => unimplemented!(
                             "data type {:?} currently not supported for field columns",
                             dt
@@ -1617,7 +1630,6 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
     fn try_from(result: ReadFilterResult<'_>) -> Result<Self, Self::Error> {
         let schema = internal_types::schema::Schema::try_from(result.schema())
             .map_err(|source| Error::SchemaError { source })?;
-        let arrow_schema: arrow_deps::arrow::datatypes::SchemaRef = schema.into();
 
         let columns: Vec<ArrayRef> = result
             .data
@@ -1630,7 +1642,7 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
                 // when they're fed into a data-fusion query engine, it will
                 // emit a friendlier representation of them.
                 if let DataType::Timestamp(TimeUnit::Nanosecond, timestamp) =
-                    arrow_schema.field(i).data_type()
+                    schema.field(i).1.data_type()
                 {
                     return match values {
                         Values::I64(arr) => {
@@ -1653,9 +1665,32 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
                     };
                 }
 
+                if let Some(InfluxColumnType::Tag) = schema.field(i).0 {
+                    return match values {
+                        Values::String(values) => {
+                            // TODO: Preserve dictionary encoding
+                            Ok(
+                                    Arc::new(
+                                        values
+                                            .into_iter()
+                                            .collect::<arrow::array::DictionaryArray<
+                                                arrow::datatypes::Int32Type,
+                                            >>(),
+                                    ) as _,
+                                )
+                        }
+                        t => UnsupportedOperation {
+                            msg: format!("cannot convert {:?} to DictionaryArray", t),
+                        }
+                        .fail(),
+                    };
+                }
+
                 Ok(arrow::array::ArrayRef::from(values))
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        let arrow_schema: arrow_deps::arrow::datatypes::SchemaRef = schema.into();
 
         // try_new only returns an error if the schema is invalid or the number
         // of rows on columns differ. We have full control over both so there

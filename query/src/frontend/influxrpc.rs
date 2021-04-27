@@ -383,7 +383,9 @@ impl InfluxRpcPlanner {
                     }
                 );
                 ensure!(
-                    field.data_type() == &DataType::Utf8,
+                    influx_column_type
+                        .unwrap()
+                        .valid_arrow_type(field.data_type()),
                     InternalInvalidTagType {
                         tag_name,
                         data_type: field.data_type().clone(),

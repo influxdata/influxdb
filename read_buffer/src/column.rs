@@ -790,6 +790,20 @@ impl From<arrow::array::StringArray> for Column {
     }
 }
 
+impl From<arrow::array::DictionaryArray<arrow::datatypes::Int32Type>> for Column {
+    fn from(arr: arrow::array::DictionaryArray<arrow::datatypes::Int32Type>) -> Self {
+        let data = StringEncoding::from(arr);
+        let meta = MetaData {
+            range: data.column_range(),
+            properties: ColumnProperties {
+                has_pre_computed_row_ids: data.has_pre_computed_row_id_sets(),
+            },
+        };
+
+        Self::String(meta, data)
+    }
+}
+
 impl From<&[Option<&str>]> for Column {
     fn from(arr: &[Option<&str>]) -> Self {
         let data = StringEncoding::from(arr);

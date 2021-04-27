@@ -14,7 +14,7 @@ use internal_types::{
 
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
-use arrow_deps::{arrow, arrow::record_batch::RecordBatch};
+use arrow_deps::{arrow, arrow::array::Array, arrow::record_batch::RecordBatch};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -277,14 +277,17 @@ impl Table {
         dictionary: &Dictionary,
         selection: &TableColSelection<'_>,
     ) -> Result<RecordBatch> {
+        let encoded_dictionary = dictionary.to_arrow();
         let columns = selection
             .cols
             .iter()
             .map(|col| {
                 let column = self.column(col.column_id)?;
-                column.to_arrow(dictionary).context(ColumnError {
-                    column: col.column_name,
-                })
+                column
+                    .to_arrow(encoded_dictionary.data())
+                    .context(ColumnError {
+                        column: col.column_name,
+                    })
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -349,15 +352,16 @@ mod tests {
         ];
 
         write_lines_to_table(&mut table, &mut dictionary, lp_lines.clone());
-        assert_eq!(84, table.size());
+        let s1 = table.size();
 
-        // doesn't double because of the stats overhead
         write_lines_to_table(&mut table, &mut dictionary, lp_lines.clone());
-        assert_eq!(132, table.size());
+        let s2 = table.size();
 
-        // now make sure it increased by the same amount minus stats overhead
         write_lines_to_table(&mut table, &mut dictionary, lp_lines);
-        assert_eq!(180, table.size());
+        let s3 = table.size();
+
+        // Should increase by a constant amount each time
+        assert_eq!(s2 - s1, s3 - s2);
     }
 
     #[test]

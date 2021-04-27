@@ -244,11 +244,11 @@ impl std::fmt::Display for StringEncoding {
     }
 }
 
-// Converts an Arrow `StringArray` into a `StringEncoding`.
-//
-// Note: this currently runs through the array and builds the dictionary before
-// creating the encoding. There is room for performance improvement here but
-// ideally it's a "write once read many" scenario.
+/// Converts an Arrow `StringArray` into a `StringEncoding`.
+///
+/// Note: this currently runs through the array and builds the dictionary before
+/// creating the encoding. There is room for performance improvement here but
+/// ideally it's a "write once read many" scenario.
 impl From<arrow::array::StringArray> for StringEncoding {
     fn from(arr: arrow::array::StringArray) -> Self {
         // build a sorted dictionary.
@@ -296,6 +296,71 @@ impl From<arrow::array::StringArray> for StringEncoding {
         // Add final batch to column if any
         match prev {
             Some(x) => data.push_additional(Some(x.to_string()), count),
+            None => data.push_additional(None, count),
+        };
+
+        match data {
+            Encoding::RLE(enc) => Self::RleDictionary(enc),
+            Encoding::Plain(enc) => Self::Dictionary(enc),
+        }
+    }
+}
+
+/// Converts an Arrow `StringDictionary` into a `StringEncoding`.
+///
+/// Note: This could be made more performant by constructing a mapping from
+/// arrow dictionary key to RB dictionary key, instead of converting
+/// to the string and back again
+///
+/// Note: Further to the above if the arrow dictionary is ordered we
+/// could reuse its encoding directly
+impl From<arrow::array::DictionaryArray<arrow::datatypes::Int32Type>> for StringEncoding {
+    fn from(arr: arrow::array::DictionaryArray<arrow::datatypes::Int32Type>) -> Self {
+        let keys = arr.keys();
+        let values = arr.values();
+        let values = values
+            .as_any()
+            .downcast_ref::<arrow::array::StringArray>()
+            .unwrap();
+
+        let dictionary: BTreeSet<_> = values.iter().flatten().map(Into::into).collect();
+
+        let mut data: Encoding = if dictionary.len() > TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT {
+            Encoding::Plain(Plain::with_dictionary(dictionary))
+        } else {
+            Encoding::RLE(RLE::with_dictionary(dictionary))
+        };
+
+        let mut prev = if !keys.is_null(0) {
+            Some(keys.value(0))
+        } else {
+            None
+        };
+
+        let mut count = 1;
+        for i in 1..keys.len() {
+            let next = if keys.is_null(i) {
+                None
+            } else {
+                Some(keys.value(i))
+            };
+
+            if prev == next {
+                count += 1;
+                continue;
+            }
+
+            match prev {
+                Some(x) => data.push_additional(Some(values.value(x as usize).to_string()), count),
+                None => data.push_additional(None, count),
+            }
+            prev = next;
+            count = 1;
+        }
+
+        // Add final batch to column if any
+        match prev {
+            Some(x) => data.push_additional(Some(values.value(x as usize).to_string()), count),
             None => data.push_additional(None, count),
         };
 

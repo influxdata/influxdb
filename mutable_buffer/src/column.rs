@@ -5,11 +5,13 @@ use data_types::partition_metadata::{StatValues, Statistics};
 use internal_types::entry::Column as EntryColumn;
 
 use crate::bitset::{iter_set_positions, BitSet};
-use arrow_deps::arrow::array::{
-    ArrayDataBuilder, ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray,
-    TimestampNanosecondArray, UInt64Array,
+use arrow_deps::arrow::{
+    array::{
+        ArrayData, ArrayDataBuilder, ArrayRef, BooleanArray, DictionaryArray, Float64Array,
+        Int64Array, StringArray, TimestampNanosecondArray, UInt64Array,
+    },
+    datatypes::{DataType, Int32Type},
 };
-use arrow_deps::arrow::datatypes::DataType;
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, TIME_DATA_TYPE};
 use std::iter::FromIterator;
 use std::mem;
@@ -270,7 +272,7 @@ impl Column {
         data_size + self.valid.byte_len()
     }
 
-    pub fn to_arrow(&self, dictionary: &Dictionary) -> Result<ArrayRef> {
+    pub fn to_arrow(&self, dictionary: &ArrayData) -> Result<ArrayRef> {
         let nulls = self.valid.to_arrow();
         let data: ArrayRef = match &self.data {
             ColumnData::F64(data, _) => {
@@ -328,16 +330,18 @@ impl Column {
                 Arc::new(BooleanArray::from(data))
             }
             ColumnData::Tag(data, _) => {
-                // TODO: Store this closer to the arrow representation
-                let iter = data.iter().enumerate().map(|(idx, id)| {
-                    self.valid.get(idx).then(|| {
-                        dictionary
-                            .lookup_id(*id)
-                            .expect("dictionary had mapping for tag value")
-                    })
-                });
+                let data = ArrayDataBuilder::new(DataType::Dictionary(
+                    Box::new(DataType::Int32),
+                    Box::new(DataType::Utf8),
+                ))
+                .len(data.len())
+                .add_buffer(data.iter().map(|x| x.as_i32()).collect())
+                .null_bit_buffer(nulls)
+                .add_child_data(dictionary.clone())
+                .build();
 
-                let array = StringArray::from_iter(iter);
+                let array = DictionaryArray::<Int32Type>::from(data);
+
                 Arc::new(array)
             }
         };
