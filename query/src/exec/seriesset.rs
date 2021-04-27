@@ -277,7 +277,7 @@ impl SeriesSetConverter {
     }
 
     /// returns a bitset with all row indexes where the value of the
-    /// batch[col_idx] changes.  Does not include row 0, always includes
+    /// batch `col_idx` changes.  Does not include row 0, always includes
     /// the last row, `batch.num_rows() - 1`
     ///
     /// Note: This may return false positives in the presence of dictionaries
