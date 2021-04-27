@@ -97,7 +97,7 @@ jobs:
       - cache_restore
       - run:
           name: Cargo doc
-          command: cargo doc --workspace
+          command: cargo doc --no-deps --workspace
       - cache_save
   test:
     docker:
