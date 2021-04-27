@@ -7,8 +7,9 @@ use super::{
     Result, UnknownChunk, UnknownTable,
 };
 use chrono::{DateTime, Utc};
-use data_types::chunk::ChunkSummary;
 use data_types::partition_metadata::PartitionSummary;
+use data_types::{chunk::ChunkSummary, server_id::ServerId};
+use internal_types::entry::{ClockValue, TableBatch};
 use parking_lot::RwLock;
 use snafu::OptionExt;
 use tracker::MemRegistry;
@@ -72,34 +73,41 @@ impl Partition {
         self.last_write_at
     }
 
-    /// Create a new Chunk in the open state
+    /// Create a new Chunk in the open state.
+    ///
+    /// This will draw a new chunk ID, call [`Chunk::new_open`](Chunk::new_open) using the provided parameters, and will
+    /// insert the chunk into this partition.
     pub fn create_open_chunk(
         &mut self,
-        table_name: impl Into<String>,
+        batch: TableBatch<'_>,
+        clock_value: ClockValue,
+        server_id: ServerId,
         memory_registry: &MemRegistry,
-    ) -> Arc<RwLock<Chunk>> {
-        let table_name: String = table_name.into();
+    ) -> Result<Arc<RwLock<Chunk>>> {
+        let table_name: String = batch.name().into();
 
         let table = self
             .tables
-            .entry(table_name.clone())
+            .entry(table_name)
             .or_insert_with(PartitionTable::new);
         let chunk_id = table.next_chunk_id;
         table.next_chunk_id += 1;
 
         let chunk = Arc::new(RwLock::new(Chunk::new_open(
+            batch,
             &self.key,
-            table_name,
             chunk_id,
+            clock_value,
+            server_id,
             memory_registry,
-        )));
+        )?));
 
         if table.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
             // A fundamental invariant has been violated - abort
             panic!("chunk already existed with id {}", chunk_id)
         }
 
-        chunk
+        Ok(chunk)
     }
 
     /// Drop the specified chunk
@@ -176,7 +184,7 @@ impl Partition {
     pub fn summary(&self) -> PartitionSummary {
         let table_summaries = self
             .chunks()
-            .filter_map(|chunk| {
+            .map(|chunk| {
                 let chunk = chunk.read();
                 chunk.table_summary()
             })

@@ -57,23 +57,24 @@ impl DbSetup for NoData {
             db.rollover_partition(partition_key, table_name)
                 .await
                 .unwrap()
+                .unwrap()
                 .id(),
             0
         );
 
-        assert_eq!(count_mutable_buffer_chunks(&db), 2);
+        assert_eq!(count_mutable_buffer_chunks(&db), 1);
         assert_eq!(count_read_buffer_chunks(&db), 0); // only open chunk
 
         db.load_chunk_to_read_buffer(partition_key, table_name, 0)
             .await
             .unwrap();
 
-        assert_eq!(count_mutable_buffer_chunks(&db), 1);
+        assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 1); // only open chunk
 
         db.drop_chunk(partition_key, table_name, 0).unwrap();
 
-        assert_eq!(count_mutable_buffer_chunks(&db), 1);
+        assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 0);
 
         let scenario3 = DbScenario {
@@ -416,7 +417,7 @@ pub async fn make_two_chunk_scenarios(
             .await
             .unwrap();
     }
-    write_lp(&db, data2);
+    let table_names = write_lp(&db, data2);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)
             .await

@@ -212,7 +212,11 @@ jobs:
           echo sha256sum after build is
           sha256sum target/release/influxdb_iox
       - setup_remote_docker:
-          docker_layer_caching: true
+          # There seems to be a cache invalidation bug in docker
+          # or in the way that circleci implements layer caching.
+          # Disabling for now, and tracked further investigations
+          # in https://github.com/influxdata/k8s-idpe/issues/3038
+          docker_layer_caching: false
       - run: |
           sudo apt-get update
           sudo apt-get install -y docker.io

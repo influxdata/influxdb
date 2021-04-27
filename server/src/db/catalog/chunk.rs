@@ -4,12 +4,15 @@ use chrono::{DateTime, Utc};
 use data_types::{
     chunk::{ChunkStorage, ChunkSummary},
     partition_metadata::TableSummary,
+    server_id::ServerId,
 };
+use internal_types::entry::{ClockValue, TableBatch};
 use mutable_buffer::chunk::Chunk as MBChunk;
 use parquet_file::chunk::Chunk as ParquetChunk;
 use read_buffer::Chunk as ReadBufferChunk;
+use snafu::ResultExt;
 
-use super::{InternalChunkState, Result};
+use super::{InternalChunkState, OpenChunk, Result};
 use tracker::MemRegistry;
 
 /// The state a Chunk is in and what its underlying backing storage is
@@ -113,33 +116,44 @@ macro_rules! unexpected_state {
 }
 
 impl Chunk {
-    /// Create a new chunk in the provided state
-    pub(crate) fn new(
+    /// Creates a new open chunk from given table batch.
+    ///
+    /// This consists of the following steps:
+    ///
+    /// 1. [`MutableBuffer`](MBChunk) is created using this ID and the passed memory registry
+    /// 2. the passed table batch is written into the buffer using the provided clock value
+    /// 3. a new open chunk is created using the buffer
+    /// 4. a write is recorded (see [`record_write`](Self::record_write))
+    pub(crate) fn new_open(
+        batch: TableBatch<'_>,
         partition_key: impl Into<String>,
-        table_name: impl Into<String>,
         id: u32,
-        state: ChunkState,
-    ) -> Self {
-        Self {
-            partition_key: Arc::new(partition_key.into()),
-            table_name: Arc::new(table_name.into()),
+        clock_value: ClockValue,
+        server_id: ServerId,
+        memory_registry: &MemRegistry,
+    ) -> Result<Self> {
+        let table_name = batch.name().to_string();
+        let partition_key: String = partition_key.into();
+
+        let mut mb = mutable_buffer::chunk::Chunk::new(id, memory_registry);
+        mb.write_table_batches(clock_value, server_id, &[batch])
+            .context(OpenChunk {
+                partition_key: partition_key.clone(),
+                chunk_id: id,
+            })?;
+
+        let state = ChunkState::Open(mb);
+        let mut chunk = Self {
+            partition_key: Arc::new(partition_key),
+            table_name: Arc::new(table_name),
             id,
             state,
             time_of_first_write: None,
             time_of_last_write: None,
             time_closing: None,
-        }
-    }
-
-    /// Creates a new open chunk
-    pub(crate) fn new_open(
-        partition_key: impl Into<String>,
-        table_name: impl Into<String>,
-        id: u32,
-        memory_registry: &MemRegistry,
-    ) -> Self {
-        let state = ChunkState::Open(mutable_buffer::chunk::Chunk::new(id, memory_registry));
-        Self::new(partition_key, table_name, id, state)
+        };
+        chunk.record_write();
+        Ok(chunk)
     }
 
     /// Used for testing
@@ -218,74 +232,35 @@ impl Chunk {
         }
     }
 
-    /// Return TableSummary metadata
-    ///
-    /// May be `None` if no data is present within the chunk state (also see [`Self::has_data`](Self::has_data)).
-    pub fn table_summary(&self) -> Option<TableSummary> {
+    /// Return TableSummary metadata.
+    pub fn table_summary(&self) -> TableSummary {
         match &self.state {
             ChunkState::Invalid => panic!("invalid chunk state"),
             ChunkState::Open(chunk) | ChunkState::Closing(chunk) => {
                 let mut summaries = chunk.table_summaries();
-                assert!(summaries.len() <= 1);
-                if summaries.len() == 1 {
-                    Some(summaries.remove(0))
-                } else {
-                    None
-                }
+                assert_eq!(summaries.len(), 1);
+                summaries.remove(0)
             }
             ChunkState::Moving(chunk) => {
                 let mut summaries = chunk.table_summaries();
-                assert!(summaries.len() <= 1);
-                if summaries.len() == 1 {
-                    Some(summaries.remove(0))
-                } else {
-                    None
-                }
+                assert_eq!(summaries.len(), 1);
+                summaries.remove(0)
             }
             ChunkState::Moved(chunk) => {
                 let mut summaries = chunk.table_summaries();
-                assert!(summaries.len() <= 1);
-                if summaries.len() == 1 {
-                    Some(summaries.remove(0))
-                } else {
-                    None
-                }
+                assert_eq!(summaries.len(), 1);
+                summaries.remove(0)
             }
             ChunkState::WritingToObjectStore(chunk) => {
                 let mut summaries = chunk.table_summaries();
-                assert!(summaries.len() <= 1);
-                if summaries.len() == 1 {
-                    Some(summaries.remove(0))
-                } else {
-                    None
-                }
+                assert_eq!(summaries.len(), 1);
+                summaries.remove(0)
             }
             ChunkState::WrittenToObjectStore(chunk, _) => {
                 let mut summaries = chunk.table_summaries();
-                assert!(summaries.len() <= 1);
-                if summaries.len() == 1 {
-                    Some(summaries.remove(0))
-                } else {
-                    None
-                }
+                assert_eq!(summaries.len(), 1);
+                summaries.remove(0)
             }
-        }
-    }
-
-    /// Returns true if this chunk contains any real data.
-    ///
-    /// This is required because some chunk states can be empty (= no schema data at all) which confused the heck out of
-    /// our query engine.
-    pub fn has_data(&self) -> bool {
-        match &self.state {
-            ChunkState::Invalid => false,
-            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => {
-                chunk.has_table(&self.table_name)
-            }
-            ChunkState::Moving(chunk) => chunk.has_table(&self.table_name),
-            ChunkState::Moved(chunk) => chunk.has_table(&self.table_name),
-            ChunkState::WritingToObjectStore(chunk) => chunk.has_table(&self.table_name),
-            ChunkState::WrittenToObjectStore(chunk, _) => chunk.has_table(&self.table_name),
         }
     }
 
