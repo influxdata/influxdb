@@ -24,6 +24,7 @@ use data_types::{
     timestamp::TimestampRange,
 };
 use internal_types::{
+    arrow::sort::sort_record_batch,
     entry::{self, ClockValue, Entry, SequencedEntry},
     selection::Selection,
 };
@@ -552,7 +553,8 @@ impl Db {
                 .expect("Loading chunk to mutable buffer");
 
             for batch in batches.drain(..) {
-                rb_chunk.upsert_table(&stats.name, batch)
+                let sorted = sort_record_batch(batch).expect("failed to sort");
+                rb_chunk.upsert_table(&stats.name, sorted)
             }
         }
 
@@ -1315,6 +1317,78 @@ mod tests {
         // query after all data dropped!"); let expected = vec![] as
         // Vec<&str>; let batches = run_query(&db, "select * from
         // cpu").await; assert_table_eq!(expected, &batches);
+    }
+
+    async fn collect_read_filter(chunk: &DbChunk, table_name: &str) -> Vec<RecordBatch> {
+        chunk
+            .read_filter(table_name, &Default::default(), Selection::All)
+            .unwrap()
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .map(Result::unwrap)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn load_to_read_buffer_sorted() {
+        let db = Arc::new(make_db().db);
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10");
+        write_lp(db.as_ref(), "cpu,tag1=asfd,tag2=foo bar=2 20");
+        write_lp(db.as_ref(), "cpu,tag1=bingo,tag2=foo bar=2 10");
+        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 20");
+        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 10");
+        write_lp(db.as_ref(), "cpu,tag2=a bar=3 5");
+
+        let partition_key = "1970-01-01T00";
+        let mb_chunk = db
+            .rollover_partition(partition_key, "cpu")
+            .await
+            .unwrap()
+            .unwrap();
+
+        let mb = collect_read_filter(&mb_chunk, "cpu").await;
+
+        let rb_chunk = db
+            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
+            .await
+            .unwrap();
+
+        let rb = collect_read_filter(&rb_chunk, "cpu").await;
+
+        // Test that data on load into the read buffer is sorted
+
+        assert_table_eq!(
+            &[
+                "+-----+----------+------+-------------------------------+",
+                "| bar | tag1     | tag2 | time                          |",
+                "+-----+----------+------+-------------------------------+",
+                "| 1   | cupcakes |      | 1970-01-01 00:00:00.000000010 |",
+                "| 2   | asfd     | foo  | 1970-01-01 00:00:00.000000020 |",
+                "| 2   | bingo    | foo  | 1970-01-01 00:00:00.000000010 |",
+                "| 2   | bongo    | a    | 1970-01-01 00:00:00.000000020 |",
+                "| 2   | bongo    | a    | 1970-01-01 00:00:00.000000010 |",
+                "| 3   |          | a    | 1970-01-01 00:00:00.000000005 |",
+                "+-----+----------+------+-------------------------------+",
+            ],
+            &mb
+        );
+
+        assert_table_eq!(
+            &[
+                "+-----+----------+------+-------------------------------+",
+                "| bar | tag1     | tag2 | time                          |",
+                "+-----+----------+------+-------------------------------+",
+                "| 1   | cupcakes |      | 1970-01-01 00:00:00.000000010 |",
+                "| 3   |          | a    | 1970-01-01 00:00:00.000000005 |",
+                "| 2   | bongo    | a    | 1970-01-01 00:00:00.000000010 |",
+                "| 2   | bongo    | a    | 1970-01-01 00:00:00.000000020 |",
+                "| 2   | asfd     | foo  | 1970-01-01 00:00:00.000000020 |",
+                "| 2   | bingo    | foo  | 1970-01-01 00:00:00.000000010 |",
+                "+-----+----------+------+-------------------------------+",
+            ],
+            &rb
+        );
     }
 
     async fn flatten_list_stream(

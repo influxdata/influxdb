@@ -6,6 +6,7 @@
     clippy::clone_on_ref_ptr
 )]
 
+pub mod arrow;
 pub mod data;
 pub mod entry;
 pub mod once;
