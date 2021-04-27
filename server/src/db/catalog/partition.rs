@@ -11,6 +11,7 @@ use data_types::partition_metadata::PartitionSummary;
 use data_types::{chunk::ChunkSummary, server_id::ServerId};
 use internal_types::entry::{ClockValue, TableBatch};
 use parking_lot::RwLock;
+use query::predicate::Predicate;
 use snafu::OptionExt;
 use tracker::MemRegistry;
 
@@ -178,6 +179,18 @@ impl Partition {
     /// Return a iterator over chunks in this partition
     pub fn chunks(&self) -> impl Iterator<Item = &Arc<RwLock<Chunk>>> {
         self.tables.values().flat_map(|table| table.chunks.values())
+    }
+
+    /// Return an iterator over chunks in this partition that
+    /// may pass the provided predicate
+    pub fn filtered_chunks<'a>(
+        &'a self,
+        predicate: &'a Predicate,
+    ) -> impl Iterator<Item = &Arc<RwLock<Chunk>>> + 'a {
+        self.tables
+            .iter()
+            .filter(move |(table_name, _)| predicate.should_include_table(table_name))
+            .flat_map(|(_, table)| table.chunks.values())
     }
 
     /// Return a PartitionSummary for this partition

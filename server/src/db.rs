@@ -33,6 +33,7 @@ use object_store::ObjectStore;
 use observability_deps::tracing::{debug, info};
 use parking_lot::{lock_api::RwLockWriteGuard, Mutex, RawRwLock, RwLock};
 use parquet_file::{chunk::Chunk, storage::Storage};
+use query::predicate::{Predicate, PredicateBuilder};
 use query::{exec::Executor, Database, DEFAULT_SCHEMA};
 use read_buffer::Chunk as ReadBufferChunk;
 use snafu::{ensure, ResultExt, Snafu};
@@ -780,10 +781,10 @@ impl Db {
     /// Return chunk summary information for all chunks in the specified
     /// partition across all storage systems
     pub fn partition_chunk_summaries(&self, partition_key: &str) -> Vec<ChunkSummary> {
-        self.catalog
-            .partition(partition_key)
-            .map(|partition| partition.read().chunk_summaries().collect())
-            .unwrap_or_default()
+        self.catalog.filtered_chunks(
+            &PredicateBuilder::new().partition_key(partition_key).build(),
+            CatalogChunk::summary,
+        )
     }
 
     /// Return Summary information for all columns in all chunks in the
@@ -966,21 +967,8 @@ impl Database for Db {
     ///
     /// Note there could/should be an error here (if the partition
     /// doesn't exist... but the trait doesn't have an error)
-    fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>> {
-        let partition = match self.catalog.partition(partition_key) {
-            Some(partition) => partition,
-            None => return vec![],
-        };
-
-        let partition = partition.read();
-
-        partition
-            .chunks()
-            .map(|chunk| {
-                let chunk = chunk.read();
-                DbChunk::snapshot(&chunk)
-            })
-            .collect()
+    fn chunks(&self, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
+        self.catalog.filtered_chunks(predicate, DbChunk::snapshot)
     }
 
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {

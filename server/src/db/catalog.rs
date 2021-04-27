@@ -18,6 +18,7 @@ use internal_types::selection::Selection;
 use partition::Partition;
 use query::{
     exec::stringset::StringSet,
+    predicate::Predicate,
     provider::{self, ProviderBuilder},
     PartitionChunk,
 };
@@ -149,6 +150,10 @@ impl Catalog {
             .collect()
     }
 
+    pub fn chunk_summaries(&self) -> Vec<ChunkSummary> {
+        self.filtered_chunks(&Predicate::default(), Chunk::summary)
+    }
+
     /// Returns all chunks within the catalog in an arbitrary order
     pub fn chunks(&self) -> Vec<Arc<RwLock<Chunk>>> {
         let mut chunks = Vec::new();
@@ -159,15 +164,6 @@ impl Catalog {
             chunks.extend(partition.chunks().cloned())
         }
         chunks
-    }
-
-    pub fn chunk_summaries(&self) -> Vec<ChunkSummary> {
-        let mut summaries = Vec::new();
-        for partition in self.partitions.read().values() {
-            let partition = partition.read();
-            summaries.extend(partition.chunk_summaries())
-        }
-        summaries
     }
 
     /// Returns the chunks in the requested sort order
@@ -187,6 +183,33 @@ impl Catalog {
             chunks.reverse();
         }
 
+        chunks
+    }
+
+    /// Calls `map` with every chunk matching `predicate` and returns a
+    /// collection of the results
+    pub fn filtered_chunks<F, C>(&self, predicate: &Predicate, map: F) -> Vec<C>
+    where
+        F: Fn(&Chunk) -> C + Copy,
+    {
+        let mut chunks = Vec::new();
+        let partitions = self.partitions.read();
+
+        let partitions = match &predicate.partition_key {
+            None => itertools::Either::Left(partitions.values()),
+            Some(partition_key) => {
+                itertools::Either::Right(partitions.get(partition_key).into_iter())
+            }
+        };
+
+        for partition in partitions {
+            let partition = partition.read();
+            chunks.extend(partition.filtered_chunks(predicate).map(|chunk| {
+                let chunk = chunk.read();
+                // TODO: Filter chunks
+                map(&chunk)
+            }))
+        }
         chunks
     }
 }
@@ -251,6 +274,7 @@ mod tests {
     use super::*;
     use data_types::server_id::ServerId;
     use internal_types::entry::{test_helpers::lp_to_entry, ClockValue};
+    use query::predicate::PredicateBuilder;
     use tracker::MemRegistry;
 
     fn create_open_chunk(partition: &Arc<RwLock<Partition>>, table: &str, registry: &MemRegistry) {
@@ -487,5 +511,36 @@ mod tests {
             chunk_strings(&catalog),
             vec!["Chunk p1:table1:1", "Chunk p1:table1:2"]
         );
+    }
+
+    #[test]
+    fn filtered_chunks() {
+        let registry = MemRegistry::new();
+        let catalog = Catalog::new();
+
+        let p1 = catalog.get_or_create_partition("p1");
+        let p2 = catalog.get_or_create_partition("p2");
+        create_open_chunk(&p1, "table1", &registry);
+        create_open_chunk(&p1, "table2", &registry);
+        create_open_chunk(&p2, "table2", &registry);
+
+        let a = catalog.filtered_chunks(&Predicate::default(), |_| ());
+
+        let b = catalog.filtered_chunks(&PredicateBuilder::new().table("table1").build(), |_| ());
+
+        let c = catalog.filtered_chunks(&PredicateBuilder::new().table("table2").build(), |_| ());
+
+        let d = catalog.filtered_chunks(
+            &PredicateBuilder::new()
+                .table("table2")
+                .partition_key("p2")
+                .build(),
+            |_| (),
+        );
+
+        assert_eq!(a.len(), 3);
+        assert_eq!(b.len(), 1);
+        assert_eq!(c.len(), 2);
+        assert_eq!(d.len(), 1);
     }
 }

@@ -290,30 +290,6 @@ impl PartitionChunk for DbChunk {
         }
     }
 
-    fn could_pass_predicate(&self, _predicate: &Predicate) -> Result<bool> {
-        match self {
-            Self::MutableBuffer { .. } => {
-                // For now, we might get an error if we try and
-                // compile a chunk predicate (e.g. for tables that
-                // don't exist in the chunk) which could signal the
-                // chunk can't pass the predicate.
-
-                // However, we can also get an error if there is some
-                // unsupported operation and we need a way to
-                // distinguish the two cases.
-                Ok(true)
-            }
-            Self::ReadBuffer { .. } => {
-                // TODO: ask Edd how he wants this wired up in the read buffer
-                Ok(true)
-            }
-            Self::ParquetFile { .. } => {
-                // TODO proper filtering for parquet files
-                Ok(true)
-            }
-        }
-    }
-
     fn column_names(
         &self,
         table_name: &str,
