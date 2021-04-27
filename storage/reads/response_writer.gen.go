@@ -26,7 +26,6 @@ func (w *ResponseWriter) getFloatPointsFrame() *datatypes.ReadResponse_Frame_Flo
 			},
 		}
 	}
-
 	return res
 }
 
@@ -34,6 +33,28 @@ func (w *ResponseWriter) putFloatPointsFrame(f *datatypes.ReadResponse_Frame_Flo
 	f.FloatPoints.Timestamps = f.FloatPoints.Timestamps[:0]
 	f.FloatPoints.Values = f.FloatPoints.Values[:0]
 	w.buffer.Float = append(w.buffer.Float, f)
+}
+
+func (w *ResponseWriter) getFloatValues() *datatypes.ReadResponse_AnyPoints_Floats {
+	var res *datatypes.ReadResponse_AnyPoints_Floats
+	if len(w.buffer.FloatValues) > 0 {
+		i := len(w.buffer.FloatValues) - 1
+		res = w.buffer.FloatValues[i]
+		w.buffer.FloatValues[i] = nil
+		w.buffer.FloatValues = w.buffer.FloatValues[:i]
+	} else {
+		res = &datatypes.ReadResponse_AnyPoints_Floats{
+			Floats: &datatypes.ReadResponse_FloatValues{
+				Values: make([]float64, 0, batchSize),
+			},
+		}
+	}
+	return res
+}
+
+func (w *ResponseWriter) putFloatValues(f *datatypes.ReadResponse_AnyPoints_Floats) {
+	f.Floats.Values = f.Floats.Values[:0]
+	w.buffer.FloatValues = append(w.buffer.FloatValues, f)
 }
 
 func (w *ResponseWriter) streamFloatArraySeries(cur cursors.FloatArrayCursor) {
@@ -129,7 +150,6 @@ func (w *ResponseWriter) getIntegerPointsFrame() *datatypes.ReadResponse_Frame_I
 			},
 		}
 	}
-
 	return res
 }
 
@@ -137,6 +157,28 @@ func (w *ResponseWriter) putIntegerPointsFrame(f *datatypes.ReadResponse_Frame_I
 	f.IntegerPoints.Timestamps = f.IntegerPoints.Timestamps[:0]
 	f.IntegerPoints.Values = f.IntegerPoints.Values[:0]
 	w.buffer.Integer = append(w.buffer.Integer, f)
+}
+
+func (w *ResponseWriter) getIntegerValues() *datatypes.ReadResponse_AnyPoints_Integers {
+	var res *datatypes.ReadResponse_AnyPoints_Integers
+	if len(w.buffer.IntegerValues) > 0 {
+		i := len(w.buffer.IntegerValues) - 1
+		res = w.buffer.IntegerValues[i]
+		w.buffer.IntegerValues[i] = nil
+		w.buffer.IntegerValues = w.buffer.IntegerValues[:i]
+	} else {
+		res = &datatypes.ReadResponse_AnyPoints_Integers{
+			Integers: &datatypes.ReadResponse_IntegerValues{
+				Values: make([]int64, 0, batchSize),
+			},
+		}
+	}
+	return res
+}
+
+func (w *ResponseWriter) putIntegerValues(f *datatypes.ReadResponse_AnyPoints_Integers) {
+	f.Integers.Values = f.Integers.Values[:0]
+	w.buffer.IntegerValues = append(w.buffer.IntegerValues, f)
 }
 
 func (w *ResponseWriter) streamIntegerArraySeries(cur cursors.IntegerArrayCursor) {
@@ -232,7 +274,6 @@ func (w *ResponseWriter) getUnsignedPointsFrame() *datatypes.ReadResponse_Frame_
 			},
 		}
 	}
-
 	return res
 }
 
@@ -240,6 +281,28 @@ func (w *ResponseWriter) putUnsignedPointsFrame(f *datatypes.ReadResponse_Frame_
 	f.UnsignedPoints.Timestamps = f.UnsignedPoints.Timestamps[:0]
 	f.UnsignedPoints.Values = f.UnsignedPoints.Values[:0]
 	w.buffer.Unsigned = append(w.buffer.Unsigned, f)
+}
+
+func (w *ResponseWriter) getUnsignedValues() *datatypes.ReadResponse_AnyPoints_Unsigneds {
+	var res *datatypes.ReadResponse_AnyPoints_Unsigneds
+	if len(w.buffer.UnsignedValues) > 0 {
+		i := len(w.buffer.UnsignedValues) - 1
+		res = w.buffer.UnsignedValues[i]
+		w.buffer.UnsignedValues[i] = nil
+		w.buffer.UnsignedValues = w.buffer.UnsignedValues[:i]
+	} else {
+		res = &datatypes.ReadResponse_AnyPoints_Unsigneds{
+			Unsigneds: &datatypes.ReadResponse_UnsignedValues{
+				Values: make([]uint64, 0, batchSize),
+			},
+		}
+	}
+	return res
+}
+
+func (w *ResponseWriter) putUnsignedValues(f *datatypes.ReadResponse_AnyPoints_Unsigneds) {
+	f.Unsigneds.Values = f.Unsigneds.Values[:0]
+	w.buffer.UnsignedValues = append(w.buffer.UnsignedValues, f)
 }
 
 func (w *ResponseWriter) streamUnsignedArraySeries(cur cursors.UnsignedArrayCursor) {
@@ -335,7 +398,6 @@ func (w *ResponseWriter) getStringPointsFrame() *datatypes.ReadResponse_Frame_St
 			},
 		}
 	}
-
 	return res
 }
 
@@ -343,6 +405,28 @@ func (w *ResponseWriter) putStringPointsFrame(f *datatypes.ReadResponse_Frame_St
 	f.StringPoints.Timestamps = f.StringPoints.Timestamps[:0]
 	f.StringPoints.Values = f.StringPoints.Values[:0]
 	w.buffer.String = append(w.buffer.String, f)
+}
+
+func (w *ResponseWriter) getStringValues() *datatypes.ReadResponse_AnyPoints_Strings {
+	var res *datatypes.ReadResponse_AnyPoints_Strings
+	if len(w.buffer.StringValues) > 0 {
+		i := len(w.buffer.StringValues) - 1
+		res = w.buffer.StringValues[i]
+		w.buffer.StringValues[i] = nil
+		w.buffer.StringValues = w.buffer.StringValues[:i]
+	} else {
+		res = &datatypes.ReadResponse_AnyPoints_Strings{
+			Strings: &datatypes.ReadResponse_StringValues{
+				Values: make([]string, 0, batchSize),
+			},
+		}
+	}
+	return res
+}
+
+func (w *ResponseWriter) putStringValues(f *datatypes.ReadResponse_AnyPoints_Strings) {
+	f.Strings.Values = f.Strings.Values[:0]
+	w.buffer.StringValues = append(w.buffer.StringValues, f)
 }
 
 func (w *ResponseWriter) streamStringArraySeries(cur cursors.StringArrayCursor) {
@@ -438,7 +522,6 @@ func (w *ResponseWriter) getBooleanPointsFrame() *datatypes.ReadResponse_Frame_B
 			},
 		}
 	}
-
 	return res
 }
 
@@ -446,6 +529,28 @@ func (w *ResponseWriter) putBooleanPointsFrame(f *datatypes.ReadResponse_Frame_B
 	f.BooleanPoints.Timestamps = f.BooleanPoints.Timestamps[:0]
 	f.BooleanPoints.Values = f.BooleanPoints.Values[:0]
 	w.buffer.Boolean = append(w.buffer.Boolean, f)
+}
+
+func (w *ResponseWriter) getBooleanValues() *datatypes.ReadResponse_AnyPoints_Booleans {
+	var res *datatypes.ReadResponse_AnyPoints_Booleans
+	if len(w.buffer.BooleanValues) > 0 {
+		i := len(w.buffer.BooleanValues) - 1
+		res = w.buffer.BooleanValues[i]
+		w.buffer.BooleanValues[i] = nil
+		w.buffer.BooleanValues = w.buffer.BooleanValues[:i]
+	} else {
+		res = &datatypes.ReadResponse_AnyPoints_Booleans{
+			Booleans: &datatypes.ReadResponse_BooleanValues{
+				Values: make([]bool, 0, batchSize),
+			},
+		}
+	}
+	return res
+}
+
+func (w *ResponseWriter) putBooleanValues(f *datatypes.ReadResponse_AnyPoints_Booleans) {
+	f.Booleans.Values = f.Booleans.Values[:0]
+	w.buffer.BooleanValues = append(w.buffer.BooleanValues, f)
 }
 
 func (w *ResponseWriter) streamBooleanArraySeries(cur cursors.BooleanArrayCursor) {

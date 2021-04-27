@@ -196,6 +196,26 @@ func newWindowMeanArrayCursor(cur cursors.Cursor, window interval.Window) (curso
 	}
 }
 
+func newWindowMeanCountArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
+	switch cur := cur.(type) {
+
+	case cursors.FloatArrayCursor:
+		return newFloatWindowMeanCountArrayCursor(cur, window), nil
+
+	case cursors.IntegerArrayCursor:
+		return newIntegerWindowMeanCountArrayCursor(cur, window), nil
+
+	case cursors.UnsignedArrayCursor:
+		return newUnsignedWindowMeanCountArrayCursor(cur, window), nil
+
+	default:
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg:  fmt.Sprintf("unsupported input type for meancount aggregate: %s", arrayCursorType(cur)),
+		}
+	}
+}
+
 // ********************
 // Float Array Cursor
 
@@ -525,6 +545,7 @@ func (c *floatWindowCountArrayCursor) Stats() cursors.CursorStats {
 func (c *floatWindowCountArrayCursor) Next() *cursors.IntegerArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.FloatArray
@@ -587,7 +608,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.FloatArrayCursor.Next()
 		if a.Len() == 0 {
@@ -604,6 +624,7 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
 
 	return c.res
@@ -636,6 +657,7 @@ func (c *floatWindowSumArrayCursor) Stats() cursors.CursorStats {
 func (c *floatWindowSumArrayCursor) Next() *cursors.FloatArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.FloatArray
@@ -698,7 +720,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.FloatArrayCursor.Next()
 		if a.Len() == 0 {
@@ -715,6 +736,7 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
 
 	return c.res
@@ -747,6 +769,7 @@ func (c *floatWindowMinArrayCursor) Stats() cursors.CursorStats {
 func (c *floatWindowMinArrayCursor) Next() *cursors.FloatArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.FloatArray
@@ -813,7 +836,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.FloatArrayCursor.Next()
 		if a.Len() == 0 {
@@ -830,6 +852,7 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
 
 	return c.res
@@ -862,6 +885,7 @@ func (c *floatWindowMaxArrayCursor) Stats() cursors.CursorStats {
 func (c *floatWindowMaxArrayCursor) Next() *cursors.FloatArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.FloatArray
@@ -928,7 +952,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.FloatArrayCursor.Next()
 		if a.Len() == 0 {
@@ -945,6 +968,7 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
 
 	return c.res
@@ -977,6 +1001,7 @@ func (c *floatWindowMeanArrayCursor) Stats() cursors.CursorStats {
 func (c *floatWindowMeanArrayCursor) Next() *cursors.FloatArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.FloatArray
@@ -1042,7 +1067,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.FloatArrayCursor.Next()
 		if a.Len() == 0 {
@@ -1059,7 +1083,127 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
+
+	return c.res
+}
+
+type floatWindowMeanCountArrayCursor struct {
+	cursors.FloatArrayCursor
+	res    *cursors.MeanCountArray
+	tmp    *cursors.FloatArray
+	window interval.Window
+}
+
+func newFloatWindowMeanCountArrayCursor(cur cursors.FloatArrayCursor, window interval.Window) *floatWindowMeanCountArrayCursor {
+	resLen := MaxPointsPerBlock
+	if window.IsZero() {
+		resLen = 1
+	}
+	return &floatWindowMeanCountArrayCursor{
+		FloatArrayCursor: cur,
+		res:              cursors.NewMeanCountArrayLen(resLen),
+		tmp:              &cursors.FloatArray{},
+		window:           window,
+	}
+}
+
+func (c *floatWindowMeanCountArrayCursor) Stats() cursors.CursorStats {
+	return c.FloatArrayCursor.Stats()
+}
+
+func (c *floatWindowMeanCountArrayCursor) Next() *cursors.MeanCountArray {
+	pos := 0
+	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
+	c.res.Values0 = c.res.Values0[:cap(c.res.Values0)]
+	c.res.Values1 = c.res.Values1[:cap(c.res.Values1)]
+
+	var a *cursors.FloatArray
+	if c.tmp.Len() > 0 {
+		a = c.tmp
+	} else {
+		a = c.FloatArrayCursor.Next()
+	}
+
+	if a.Len() == 0 {
+		return &cursors.MeanCountArray{}
+	}
+
+	rowIdx := 0
+	var sum float64
+	var count int64
+
+	var windowEnd int64
+	if !c.window.IsZero() {
+		windowEnd = int64(c.window.GetLatestBounds(values.Time(a.Timestamps[rowIdx])).Stop())
+	} else {
+		windowEnd = math.MaxInt64
+	}
+	windowHasPoints := false
+
+	// enumerate windows
+WINDOWS:
+	for {
+		for ; rowIdx < a.Len(); rowIdx++ {
+			ts := a.Timestamps[rowIdx]
+			if !c.window.IsZero() && ts >= windowEnd {
+				// new window detected, close the current window
+				// do not generate a point for empty windows
+				if windowHasPoints {
+					c.res.Timestamps[pos] = windowEnd
+					c.res.Values0[pos] = sum / float64(count)
+					c.res.Values1[pos] = count
+					pos++
+					if pos >= MaxPointsPerBlock {
+						// the output array is full,
+						// save the remaining points in the input array in tmp.
+						// they will be processed in the next call to Next()
+						c.tmp.Timestamps = a.Timestamps[rowIdx:]
+						c.tmp.Values = a.Values[rowIdx:]
+						break WINDOWS
+					}
+				}
+
+				// start the new window
+				sum = 0
+				count = 0
+				windowEnd = int64(c.window.GetLatestBounds(values.Time(ts)).Stop())
+				windowHasPoints = false
+
+				continue WINDOWS
+			} else {
+				sum += a.Values[rowIdx]
+				count++
+				windowHasPoints = true
+			}
+		}
+
+		// Clear buffered timestamps & values if we make it through a cursor.
+		// The break above will skip this if a cursor is partially read.
+		c.tmp.Timestamps = nil
+		c.tmp.Values = nil
+		// get the next chunk
+		a = c.FloatArrayCursor.Next()
+		if a.Len() == 0 {
+			// write the final point
+			// do not generate a point for empty windows
+			if windowHasPoints {
+				c.res.Timestamps[pos] = windowEnd
+				c.res.Values0[pos] = sum / float64(count)
+				c.res.Values1[pos] = count
+				pos++
+			}
+			break WINDOWS
+		}
+		rowIdx = 0
+	}
+
+	c.res.Timestamps = c.res.Timestamps[:pos]
+
+	c.res.Values0 = c.res.Values0[:pos]
+	c.res.Values1 = c.res.Values1[:pos]
 
 	return c.res
 }
@@ -1404,6 +1548,7 @@ func (c *integerWindowCountArrayCursor) Stats() cursors.CursorStats {
 func (c *integerWindowCountArrayCursor) Next() *cursors.IntegerArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.IntegerArray
@@ -1466,7 +1611,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.IntegerArrayCursor.Next()
 		if a.Len() == 0 {
@@ -1483,6 +1627,7 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
 
 	return c.res
@@ -1515,6 +1660,7 @@ func (c *integerWindowSumArrayCursor) Stats() cursors.CursorStats {
 func (c *integerWindowSumArrayCursor) Next() *cursors.IntegerArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.IntegerArray
@@ -1577,7 +1723,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.IntegerArrayCursor.Next()
 		if a.Len() == 0 {
@@ -1594,6 +1739,7 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
 
 	return c.res
@@ -1626,6 +1772,7 @@ func (c *integerWindowMinArrayCursor) Stats() cursors.CursorStats {
 func (c *integerWindowMinArrayCursor) Next() *cursors.IntegerArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.IntegerArray
@@ -1692,7 +1839,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.IntegerArrayCursor.Next()
 		if a.Len() == 0 {
@@ -1709,6 +1855,7 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
 
 	return c.res
@@ -1741,6 +1888,7 @@ func (c *integerWindowMaxArrayCursor) Stats() cursors.CursorStats {
 func (c *integerWindowMaxArrayCursor) Next() *cursors.IntegerArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.IntegerArray
@@ -1807,7 +1955,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.IntegerArrayCursor.Next()
 		if a.Len() == 0 {
@@ -1824,6 +1971,7 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
 
 	return c.res
@@ -1856,6 +2004,7 @@ func (c *integerWindowMeanArrayCursor) Stats() cursors.CursorStats {
 func (c *integerWindowMeanArrayCursor) Next() *cursors.FloatArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.IntegerArray
@@ -1921,7 +2070,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.IntegerArrayCursor.Next()
 		if a.Len() == 0 {
@@ -1938,7 +2086,127 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
+
+	return c.res
+}
+
+type integerWindowMeanCountArrayCursor struct {
+	cursors.IntegerArrayCursor
+	res    *cursors.MeanCountArray
+	tmp    *cursors.IntegerArray
+	window interval.Window
+}
+
+func newIntegerWindowMeanCountArrayCursor(cur cursors.IntegerArrayCursor, window interval.Window) *integerWindowMeanCountArrayCursor {
+	resLen := MaxPointsPerBlock
+	if window.IsZero() {
+		resLen = 1
+	}
+	return &integerWindowMeanCountArrayCursor{
+		IntegerArrayCursor: cur,
+		res:                cursors.NewMeanCountArrayLen(resLen),
+		tmp:                &cursors.IntegerArray{},
+		window:             window,
+	}
+}
+
+func (c *integerWindowMeanCountArrayCursor) Stats() cursors.CursorStats {
+	return c.IntegerArrayCursor.Stats()
+}
+
+func (c *integerWindowMeanCountArrayCursor) Next() *cursors.MeanCountArray {
+	pos := 0
+	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
+	c.res.Values0 = c.res.Values0[:cap(c.res.Values0)]
+	c.res.Values1 = c.res.Values1[:cap(c.res.Values1)]
+
+	var a *cursors.IntegerArray
+	if c.tmp.Len() > 0 {
+		a = c.tmp
+	} else {
+		a = c.IntegerArrayCursor.Next()
+	}
+
+	if a.Len() == 0 {
+		return &cursors.MeanCountArray{}
+	}
+
+	rowIdx := 0
+	var sum float64
+	var count int64
+
+	var windowEnd int64
+	if !c.window.IsZero() {
+		windowEnd = int64(c.window.GetLatestBounds(values.Time(a.Timestamps[rowIdx])).Stop())
+	} else {
+		windowEnd = math.MaxInt64
+	}
+	windowHasPoints := false
+
+	// enumerate windows
+WINDOWS:
+	for {
+		for ; rowIdx < a.Len(); rowIdx++ {
+			ts := a.Timestamps[rowIdx]
+			if !c.window.IsZero() && ts >= windowEnd {
+				// new window detected, close the current window
+				// do not generate a point for empty windows
+				if windowHasPoints {
+					c.res.Timestamps[pos] = windowEnd
+					c.res.Values0[pos] = sum / float64(count)
+					c.res.Values1[pos] = count
+					pos++
+					if pos >= MaxPointsPerBlock {
+						// the output array is full,
+						// save the remaining points in the input array in tmp.
+						// they will be processed in the next call to Next()
+						c.tmp.Timestamps = a.Timestamps[rowIdx:]
+						c.tmp.Values = a.Values[rowIdx:]
+						break WINDOWS
+					}
+				}
+
+				// start the new window
+				sum = 0
+				count = 0
+				windowEnd = int64(c.window.GetLatestBounds(values.Time(ts)).Stop())
+				windowHasPoints = false
+
+				continue WINDOWS
+			} else {
+				sum += float64(a.Values[rowIdx])
+				count++
+				windowHasPoints = true
+			}
+		}
+
+		// Clear buffered timestamps & values if we make it through a cursor.
+		// The break above will skip this if a cursor is partially read.
+		c.tmp.Timestamps = nil
+		c.tmp.Values = nil
+		// get the next chunk
+		a = c.IntegerArrayCursor.Next()
+		if a.Len() == 0 {
+			// write the final point
+			// do not generate a point for empty windows
+			if windowHasPoints {
+				c.res.Timestamps[pos] = windowEnd
+				c.res.Values0[pos] = sum / float64(count)
+				c.res.Values1[pos] = count
+				pos++
+			}
+			break WINDOWS
+		}
+		rowIdx = 0
+	}
+
+	c.res.Timestamps = c.res.Timestamps[:pos]
+
+	c.res.Values0 = c.res.Values0[:pos]
+	c.res.Values1 = c.res.Values1[:pos]
 
 	return c.res
 }
@@ -2283,6 +2551,7 @@ func (c *unsignedWindowCountArrayCursor) Stats() cursors.CursorStats {
 func (c *unsignedWindowCountArrayCursor) Next() *cursors.IntegerArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.UnsignedArray
@@ -2345,7 +2614,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.UnsignedArrayCursor.Next()
 		if a.Len() == 0 {
@@ -2362,6 +2630,7 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
 
 	return c.res
@@ -2394,6 +2663,7 @@ func (c *unsignedWindowSumArrayCursor) Stats() cursors.CursorStats {
 func (c *unsignedWindowSumArrayCursor) Next() *cursors.UnsignedArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.UnsignedArray
@@ -2456,7 +2726,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.UnsignedArrayCursor.Next()
 		if a.Len() == 0 {
@@ -2473,6 +2742,7 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
 
 	return c.res
@@ -2505,6 +2775,7 @@ func (c *unsignedWindowMinArrayCursor) Stats() cursors.CursorStats {
 func (c *unsignedWindowMinArrayCursor) Next() *cursors.UnsignedArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.UnsignedArray
@@ -2571,7 +2842,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.UnsignedArrayCursor.Next()
 		if a.Len() == 0 {
@@ -2588,6 +2858,7 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
 
 	return c.res
@@ -2620,6 +2891,7 @@ func (c *unsignedWindowMaxArrayCursor) Stats() cursors.CursorStats {
 func (c *unsignedWindowMaxArrayCursor) Next() *cursors.UnsignedArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.UnsignedArray
@@ -2686,7 +2958,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.UnsignedArrayCursor.Next()
 		if a.Len() == 0 {
@@ -2703,6 +2974,7 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
 
 	return c.res
@@ -2735,6 +3007,7 @@ func (c *unsignedWindowMeanArrayCursor) Stats() cursors.CursorStats {
 func (c *unsignedWindowMeanArrayCursor) Next() *cursors.FloatArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.UnsignedArray
@@ -2800,7 +3073,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.UnsignedArrayCursor.Next()
 		if a.Len() == 0 {
@@ -2817,7 +3089,127 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
+
+	return c.res
+}
+
+type unsignedWindowMeanCountArrayCursor struct {
+	cursors.UnsignedArrayCursor
+	res    *cursors.MeanCountArray
+	tmp    *cursors.UnsignedArray
+	window interval.Window
+}
+
+func newUnsignedWindowMeanCountArrayCursor(cur cursors.UnsignedArrayCursor, window interval.Window) *unsignedWindowMeanCountArrayCursor {
+	resLen := MaxPointsPerBlock
+	if window.IsZero() {
+		resLen = 1
+	}
+	return &unsignedWindowMeanCountArrayCursor{
+		UnsignedArrayCursor: cur,
+		res:                 cursors.NewMeanCountArrayLen(resLen),
+		tmp:                 &cursors.UnsignedArray{},
+		window:              window,
+	}
+}
+
+func (c *unsignedWindowMeanCountArrayCursor) Stats() cursors.CursorStats {
+	return c.UnsignedArrayCursor.Stats()
+}
+
+func (c *unsignedWindowMeanCountArrayCursor) Next() *cursors.MeanCountArray {
+	pos := 0
+	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
+	c.res.Values0 = c.res.Values0[:cap(c.res.Values0)]
+	c.res.Values1 = c.res.Values1[:cap(c.res.Values1)]
+
+	var a *cursors.UnsignedArray
+	if c.tmp.Len() > 0 {
+		a = c.tmp
+	} else {
+		a = c.UnsignedArrayCursor.Next()
+	}
+
+	if a.Len() == 0 {
+		return &cursors.MeanCountArray{}
+	}
+
+	rowIdx := 0
+	var sum float64
+	var count int64
+
+	var windowEnd int64
+	if !c.window.IsZero() {
+		windowEnd = int64(c.window.GetLatestBounds(values.Time(a.Timestamps[rowIdx])).Stop())
+	} else {
+		windowEnd = math.MaxInt64
+	}
+	windowHasPoints := false
+
+	// enumerate windows
+WINDOWS:
+	for {
+		for ; rowIdx < a.Len(); rowIdx++ {
+			ts := a.Timestamps[rowIdx]
+			if !c.window.IsZero() && ts >= windowEnd {
+				// new window detected, close the current window
+				// do not generate a point for empty windows
+				if windowHasPoints {
+					c.res.Timestamps[pos] = windowEnd
+					c.res.Values0[pos] = sum / float64(count)
+					c.res.Values1[pos] = count
+					pos++
+					if pos >= MaxPointsPerBlock {
+						// the output array is full,
+						// save the remaining points in the input array in tmp.
+						// they will be processed in the next call to Next()
+						c.tmp.Timestamps = a.Timestamps[rowIdx:]
+						c.tmp.Values = a.Values[rowIdx:]
+						break WINDOWS
+					}
+				}
+
+				// start the new window
+				sum = 0
+				count = 0
+				windowEnd = int64(c.window.GetLatestBounds(values.Time(ts)).Stop())
+				windowHasPoints = false
+
+				continue WINDOWS
+			} else {
+				sum += float64(a.Values[rowIdx])
+				count++
+				windowHasPoints = true
+			}
+		}
+
+		// Clear buffered timestamps & values if we make it through a cursor.
+		// The break above will skip this if a cursor is partially read.
+		c.tmp.Timestamps = nil
+		c.tmp.Values = nil
+		// get the next chunk
+		a = c.UnsignedArrayCursor.Next()
+		if a.Len() == 0 {
+			// write the final point
+			// do not generate a point for empty windows
+			if windowHasPoints {
+				c.res.Timestamps[pos] = windowEnd
+				c.res.Values0[pos] = sum / float64(count)
+				c.res.Values1[pos] = count
+				pos++
+			}
+			break WINDOWS
+		}
+		rowIdx = 0
+	}
+
+	c.res.Timestamps = c.res.Timestamps[:pos]
+
+	c.res.Values0 = c.res.Values0[:pos]
+	c.res.Values1 = c.res.Values1[:pos]
 
 	return c.res
 }
@@ -3162,6 +3554,7 @@ func (c *stringWindowCountArrayCursor) Stats() cursors.CursorStats {
 func (c *stringWindowCountArrayCursor) Next() *cursors.IntegerArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.StringArray
@@ -3224,7 +3617,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.StringArrayCursor.Next()
 		if a.Len() == 0 {
@@ -3241,6 +3633,7 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
 
 	return c.res
@@ -3586,6 +3979,7 @@ func (c *booleanWindowCountArrayCursor) Stats() cursors.CursorStats {
 func (c *booleanWindowCountArrayCursor) Next() *cursors.IntegerArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
 	var a *cursors.BooleanArray
@@ -3648,7 +4042,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.BooleanArrayCursor.Next()
 		if a.Len() == 0 {
@@ -3665,6 +4058,7 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+
 	c.res.Values = c.res.Values[:pos]
 
 	return c.res

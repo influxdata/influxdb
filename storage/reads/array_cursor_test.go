@@ -77,6 +77,21 @@ func makeFloatArray(n int, tsStart time.Time, tsStep time.Duration, valueFn func
 	return fa
 }
 
+func makeMeanCountArray(n int, tsStart time.Time, tsStep time.Duration, valueFn func(i int64) (float64, int64)) *cursors.MeanCountArray {
+	fa := &cursors.MeanCountArray{
+		Timestamps: make([]int64, n),
+		Values0:    make([]float64, n),
+		Values1:    make([]int64, n),
+	}
+
+	for i := 0; i < n; i++ {
+		fa.Timestamps[i] = tsStart.UnixNano() + int64(i)*int64(tsStep)
+		fa.Values0[i], fa.Values1[i] = valueFn(int64(i))
+	}
+
+	return fa
+}
+
 func mustParseTime(ts string) time.Time {
 	t, err := time.Parse(time.RFC3339, ts)
 	if err != nil {
@@ -99,6 +114,14 @@ func copyFloatArray(src *cursors.FloatArray) *cursors.FloatArray {
 	return dst
 }
 
+func copyMeanCountArray(src *cursors.MeanCountArray) *cursors.MeanCountArray {
+	dst := cursors.NewMeanCountArrayLen(src.Len())
+	copy(dst.Timestamps, src.Timestamps)
+	copy(dst.Values0, src.Values0)
+	copy(dst.Values1, src.Values1)
+	return dst
+}
+
 type aggArrayCursorTest struct {
 	name           string
 	createCursorFn func(cur cursors.IntegerArrayCursor, every, offset int64, window interval.Window) cursors.Cursor
@@ -107,6 +130,7 @@ type aggArrayCursorTest struct {
 	inputArrays    []*cursors.IntegerArray
 	wantIntegers   []*cursors.IntegerArray
 	wantFloats     []*cursors.FloatArray
+	wantMeanCounts []*cursors.MeanCountArray
 	window         interval.Window
 }
 
@@ -145,6 +169,15 @@ func (a *aggArrayCursorTest) run(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(got, a.wantFloats); diff != "" {
+				t.Fatalf("did not get expected result from count array cursor; -got/+want:\n%v", diff)
+			}
+		case cursors.MeanCountArrayCursor:
+			got := make([]*cursors.MeanCountArray, 0, len(a.wantMeanCounts))
+			for a := cursor.Next(); a.Len() != 0; a = cursor.Next() {
+				got = append(got, copyMeanCountArray(a))
+			}
+
+			if diff := cmp.Diff(got, a.wantMeanCounts); diff != "" {
 				t.Fatalf("did not get expected result from count array cursor; -got/+want:\n%v", diff)
 			}
 		default:
@@ -2058,6 +2091,114 @@ func TestWindowMaxArrayCursor(t *testing.T) {
 				)
 			}
 			return newIntegerWindowMaxArrayCursor(cur, window)
+		}
+		tc.run(t)
+	}
+}
+
+func TestWindowMeanCountArrayCursor(t *testing.T) {
+	maxTimestamp := time.Unix(0, math.MaxInt64)
+
+	testcases := []aggArrayCursorTest{
+		{
+			name:  "no window",
+			every: 0,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					5,
+					mustParseTime("2010-01-01T00:00:00Z"), time.Minute,
+					func(i int64) int64 { return i + 1 },
+				),
+			},
+			wantMeanCounts: []*cursors.MeanCountArray{
+				makeMeanCountArray(1, maxTimestamp, 0, func(int64) (float64, int64) { return 3.0, 5 }),
+			},
+		},
+		{
+			name:  "no window fraction result",
+			every: 0,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					6,
+					mustParseTime("2010-01-01T00:00:00Z"), time.Minute,
+					func(i int64) int64 { return i + 1 },
+				),
+			},
+			wantMeanCounts: []*cursors.MeanCountArray{
+				makeMeanCountArray(1, maxTimestamp, 0, func(int64) (float64, int64) { return 3.5, 6 }),
+			},
+		},
+		{
+			name:           "no window empty",
+			every:          0,
+			inputArrays:    []*cursors.IntegerArray{},
+			wantMeanCounts: []*cursors.MeanCountArray{},
+		},
+		{
+			name:  "window",
+			every: 30 * time.Minute,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					8,
+					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						return i
+					},
+				),
+			},
+			wantMeanCounts: []*cursors.MeanCountArray{
+				makeMeanCountArray(4, mustParseTime("2010-01-01T00:30:00Z"), 30*time.Minute,
+					func(i int64) (float64, int64) { return 0.5 + float64(i)*2, 2 }),
+			},
+		},
+		{
+			name:   "window offset",
+			every:  30 * time.Minute,
+			offset: 5 * time.Minute,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					8,
+					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						return i
+					},
+				),
+			},
+			wantMeanCounts: []*cursors.MeanCountArray{
+				makeMeanCountArray(5, mustParseTime("2010-01-01T00:05:00Z"), 30*time.Minute,
+					func(i int64) (float64, int64) {
+						return []float64{0, 1.5, 3.5, 5.5, 7}[i], []int64{1, 2, 2, 2, 1}[i]
+					}),
+			},
+		},
+		{
+			name:  "empty window",
+			every: 15 * time.Minute,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					2,
+					mustParseTime("2010-01-01T00:05:00Z"), 30*time.Minute,
+					func(i int64) int64 {
+						return 100 + i
+					},
+				),
+			},
+			wantMeanCounts: []*cursors.MeanCountArray{
+				makeMeanCountArray(2, mustParseTime("2010-01-01T00:15:00Z"), 30*time.Minute,
+					func(i int64) (float64, int64) { return 100 + float64(i), 1 }),
+			},
+		},
+	}
+	for _, tc := range testcases {
+		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every, offset int64, window interval.Window) cursors.Cursor {
+			if every != 0 || offset != 0 {
+				window, _ = interval.NewWindow(
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(offset, 0, false),
+				)
+			}
+			return newIntegerWindowMeanCountArrayCursor(cur, window)
 		}
 		tc.run(t)
 	}

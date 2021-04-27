@@ -17,6 +17,7 @@ v1.9.0 [unreleased]
 -	[#21100](https://github.com/influxdata/influxdb/pull/21100): feat: add memory and concurrency limits in flux controller
 -	[#21108](https://github.com/influxdata/influxdb/pull/21108): feat: make flux controller limits configurable
 -	[#21226](https://github.com/influxdata/influxdb/pull/21226): feat: flux upgrade to v0.112.1
+-	[#21291](https://github.com/influxdata/influxdb/pull/21291): feat: meancount aggregation for WindowAggregate pushdown in enterprise
 
 ### Bugfixes
 
