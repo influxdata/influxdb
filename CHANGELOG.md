@@ -45,6 +45,7 @@ v1.9.0 [unreleased]
 -	[#17495](https://github.com/influxdata/influxdb/pull/17495): fix(snapshotter): properly read payload
 -	[#21139](https://github.com/influxdata/influxdb/pull/21139): fix(tsdb): exclude stop time from array cursors
 -	[#21036](https://github.com/influxdata/influxdb/pull/21306): fix(models): grow tag index buffer if needed
+-	[#21275](https://github.com/influxdata/influxdb/pull/21275): fix: Anti-Entropy loops endlessly with empty shard
 
 v1.8.5 [unreleased]
 -------------------
