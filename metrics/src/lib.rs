@@ -65,12 +65,12 @@ impl MetricRegistry {
     /// a_counter{key="value"} 100
     /// # HELP a_value_recorder Records values
     /// # TYPE a_value_recorder histogram
-    /// a_value_recorder_bucket{key="value",le="0.5"} 0
-    /// a_value_recorder_bucket{key="value",le="0.9"} 0
-    /// a_value_recorder_bucket{key="value",le="0.99"} 0
+    /// a_value_recorder_bucket{key="value",le="0.01"} 99
+    /// a_value_recorder_bucket{key="value",le="0.1"} 0
+    /// a_value_recorder_bucket{key="value",le="1.0"} 1
     /// a_value_recorder_bucket{key="value",le="+Inf"} 1
-    /// a_value_recorder_sum{key="value"} 100
-    /// a_value_recorder_count{key="value"} 1
+    /// a_value_recorder_sum{key="value"} 1.99
+    /// a_value_recorder_count{key="value"} 100
     /// ```
     ///
     pub fn metrics_as_text(&self) -> Vec<u8> {
@@ -102,7 +102,9 @@ impl MetricRegistry {
 impl Default for MetricRegistry {
     fn default() -> Self {
         let registry = Registry::new();
-        let default_histogram_boundaries = vec![0.5, 0.9, 0.99];
+        let default_histogram_boundaries = vec![
+            0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+        ];
         let selector = Box::new(Selector::Histogram(default_histogram_boundaries.clone()));
         let controller = controllers::pull(selector, Box::new(ExportKindSelector::Cumulative))
             // Disables caching
@@ -294,40 +296,45 @@ mod test {
             &[],
         );
 
-        // You are always welcome to assert against the exposition format
-        // directly.
-        assert_eq!(
-            String::from_utf8(reg.registry().metrics_as_text()).unwrap(),
-            vec![
-                "# HELP http_request_duration_seconds distribution of request latencies",
-                "# TYPE http_request_duration_seconds histogram",
-                r#"http_request_duration_seconds_bucket{status="client_error",le="0.5"} 0"#,
-                r#"http_request_duration_seconds_bucket{status="client_error",le="0.9"} 0"#,
-                r#"http_request_duration_seconds_bucket{status="client_error",le="0.99"} 0"#,
-                r#"http_request_duration_seconds_bucket{status="client_error",le="+Inf"} 1"#,
-                r#"http_request_duration_seconds_sum{status="client_error"} 2"#,
-                r#"http_request_duration_seconds_count{status="client_error"} 1"#,
-                r#"http_request_duration_seconds_bucket{status="error",le="0.5"} 1"#,
-                r#"http_request_duration_seconds_bucket{status="error",le="0.9"} 1"#,
-                r#"http_request_duration_seconds_bucket{status="error",le="0.99"} 1"#,
-                r#"http_request_duration_seconds_bucket{status="error",le="+Inf"} 1"#,
-                r#"http_request_duration_seconds_sum{status="error"} 0.35"#,
-                r#"http_request_duration_seconds_count{status="error"} 1"#,
-                r#"http_request_duration_seconds_bucket{status="ok",le="0.5"} 1"#,
-                r#"http_request_duration_seconds_bucket{status="ok",le="0.9"} 1"#,
-                r#"http_request_duration_seconds_bucket{status="ok",le="0.99"} 1"#,
-                r#"http_request_duration_seconds_bucket{status="ok",le="+Inf"} 1"#,
-                r#"http_request_duration_seconds_sum{status="ok"} 0.1"#,
-                r#"http_request_duration_seconds_count{status="ok"} 1"#,
-                "# HELP http_requests_total accumulated total requests",
-                "# TYPE http_requests_total counter",
-                r#"http_requests_total{status="client_error"} 1"#,
-                r#"http_requests_total{status="error"} 1"#,
-                r#"http_requests_total{status="ok"} 1"#,
-                "",
-            ]
-            .join("\n")
-        );
+        // There are too many buckets (and we could change the defaults in the future) for a direct assertion
+        // of the exposition format.
+        let should_contain_lines = vec![
+            "# HELP http_request_duration_seconds distribution of request latencies",
+            "# TYPE http_request_duration_seconds histogram",
+            r#"http_request_duration_seconds_bucket{status="client_error",le="0.005"} 0"#,
+            r#"http_request_duration_seconds_bucket{status="client_error",le="0.01"} 0"#,
+            r#"http_request_duration_seconds_bucket{status="client_error",le="10"} 1"#,
+            r#"http_request_duration_seconds_bucket{status="client_error",le="+Inf"} 1"#,
+            r#"http_request_duration_seconds_sum{status="client_error"} 2"#,
+            r#"http_request_duration_seconds_count{status="client_error"} 1"#,
+            r#"http_request_duration_seconds_bucket{status="error",le="0.5"} 1"#,
+            r#"http_request_duration_seconds_bucket{status="error",le="1"} 1"#,
+            r#"http_request_duration_seconds_bucket{status="error",le="10"} 1"#,
+            r#"http_request_duration_seconds_bucket{status="error",le="+Inf"} 1"#,
+            r#"http_request_duration_seconds_sum{status="error"} 0.35"#,
+            r#"http_request_duration_seconds_count{status="error"} 1"#,
+            r#"http_request_duration_seconds_bucket{status="ok",le="0.5"} 1"#,
+            r#"http_request_duration_seconds_bucket{status="ok",le="1"} 1"#,
+            r#"http_request_duration_seconds_bucket{status="ok",le="10"} 1"#,
+            r#"http_request_duration_seconds_bucket{status="ok",le="+Inf"} 1"#,
+            r#"http_request_duration_seconds_sum{status="ok"} 0.1"#,
+            r#"http_request_duration_seconds_count{status="ok"} 1"#,
+            "# HELP http_requests_total accumulated total requests",
+            "# TYPE http_requests_total counter",
+            r#"http_requests_total{status="client_error"} 1"#,
+            r#"http_requests_total{status="error"} 1"#,
+            r#"http_requests_total{status="ok"} 1"#,
+            "",
+        ];
+        let metrics_response = String::from_utf8(reg.registry().metrics_as_text()).unwrap();
+        for line in should_contain_lines {
+            assert!(
+                metrics_response.contains(line),
+                "line: {}\nshould be contained in: {}",
+                line,
+                &metrics_response,
+            );
+        }
     }
 
     #[test]
@@ -360,38 +367,44 @@ mod test {
             &[KeyValue::new("account", "abc123")],
         );
 
-        assert_eq!(
-            String::from_utf8(reg.metrics_as_text()).unwrap(),
-            vec![
-                "# HELP ftp_request_duration_seconds distribution of request latencies",
-"# TYPE ftp_request_duration_seconds histogram",
-r#"ftp_request_duration_seconds_bucket{account="abc123",status="error",le="0.5"} 1"#,
-r#"ftp_request_duration_seconds_bucket{account="abc123",status="error",le="0.9"} 1"#,
-r#"ftp_request_duration_seconds_bucket{account="abc123",status="error",le="0.99"} 1"#,
-r#"ftp_request_duration_seconds_bucket{account="abc123",status="error",le="+Inf"} 1"#,
-r#"ftp_request_duration_seconds_sum{account="abc123",status="error"} 0.203"#,
-r#"ftp_request_duration_seconds_count{account="abc123",status="error"} 1"#,
-r#"ftp_request_duration_seconds_bucket{account="abc123",status="ok",le="0.5"} 1"#,
-r#"ftp_request_duration_seconds_bucket{account="abc123",status="ok",le="0.9"} 1"#,
-r#"ftp_request_duration_seconds_bucket{account="abc123",status="ok",le="0.99"} 1"#,
-r#"ftp_request_duration_seconds_bucket{account="abc123",status="ok",le="+Inf"} 1"#,
-r#"ftp_request_duration_seconds_sum{account="abc123",status="ok"} 0.1"#,
-r#"ftp_request_duration_seconds_count{account="abc123",status="ok"} 1"#,
-r#"ftp_request_duration_seconds_bucket{account="other",status="client_error",le="0.5"} 1"#,
-r#"ftp_request_duration_seconds_bucket{account="other",status="client_error",le="0.9"} 1"#,
-r#"ftp_request_duration_seconds_bucket{account="other",status="client_error",le="0.99"} 1"#,
-r#"ftp_request_duration_seconds_bucket{account="other",status="client_error",le="+Inf"} 1"#,
-r#"ftp_request_duration_seconds_sum{account="other",status="client_error"} 0.2"#,
-r#"ftp_request_duration_seconds_count{account="other",status="client_error"} 1"#,
-r#"# HELP ftp_requests_total accumulated total requests"#,
-r#"# TYPE ftp_requests_total counter"#,
-r#"ftp_requests_total{account="abc123",status="error"} 1"#,
-r#"ftp_requests_total{account="abc123",status="ok"} 1"#,
-r#"ftp_requests_total{account="other",status="client_error"} 1"#,
-""
-            ]
-            .join("\n")
-        );
+        // There are too many buckets (and we could change the defaults in the future) for a direct assertion
+        // of the exposition format.
+        let should_contain_lines = vec![
+            "# HELP ftp_request_duration_seconds distribution of request latencies",
+            "# TYPE ftp_request_duration_seconds histogram",
+            r#"ftp_request_duration_seconds_bucket{account="abc123",status="error",le="0.01"} 0"#,
+            r#"ftp_request_duration_seconds_bucket{account="abc123",status="error",le="1"} 1"#,
+            r#"ftp_request_duration_seconds_bucket{account="abc123",status="error",le="10"} 1"#,
+            r#"ftp_request_duration_seconds_bucket{account="abc123",status="error",le="+Inf"} 1"#,
+            r#"ftp_request_duration_seconds_sum{account="abc123",status="error"} 0.203"#,
+            r#"ftp_request_duration_seconds_count{account="abc123",status="error"} 1"#,
+            r#"ftp_request_duration_seconds_bucket{account="abc123",status="ok",le="0.01"} 0"#,
+            r#"ftp_request_duration_seconds_bucket{account="abc123",status="ok",le="1"} 1"#,
+            r#"ftp_request_duration_seconds_bucket{account="abc123",status="ok",le="10"} 1"#,
+            r#"ftp_request_duration_seconds_bucket{account="abc123",status="ok",le="+Inf"} 1"#,
+            r#"ftp_request_duration_seconds_sum{account="abc123",status="ok"} 0.1"#,
+            r#"ftp_request_duration_seconds_count{account="abc123",status="ok"} 1"#,
+            r#"ftp_request_duration_seconds_bucket{account="other",status="client_error",le="0.01"} 0"#,
+            r#"ftp_request_duration_seconds_bucket{account="other",status="client_error",le="1"} 1"#,
+            r#"ftp_request_duration_seconds_bucket{account="other",status="client_error",le="10"} 1"#,
+            r#"ftp_request_duration_seconds_bucket{account="other",status="client_error",le="+Inf"} 1"#,
+            r#"ftp_request_duration_seconds_sum{account="other",status="client_error"} 0.2"#,
+            r#"ftp_request_duration_seconds_count{account="other",status="client_error"} 1"#,
+            r#"# HELP ftp_requests_total accumulated total requests"#,
+            r#"# TYPE ftp_requests_total counter"#,
+            r#"ftp_requests_total{account="abc123",status="error"} 1"#,
+            r#"ftp_requests_total{account="abc123",status="ok"} 1"#,
+            r#"ftp_requests_total{account="other",status="client_error"} 1"#,
+        ];
+        let metrics_response = String::from_utf8(reg.metrics_as_text()).unwrap();
+        for line in should_contain_lines {
+            assert!(
+                metrics_response.contains(line),
+                "line: {}\nshould be contained in: {}",
+                line,
+                &metrics_response,
+            );
+        }
     }
 
     #[test]
