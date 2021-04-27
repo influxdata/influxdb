@@ -11,6 +11,7 @@ use arrow_deps::{
     arrow::{
         self,
         array::{make_array, ArrayRef, MutableArrayData},
+        datatypes::{DataType, Field, Schema},
         error::ArrowError,
         record_batch::RecordBatch,
     },
@@ -26,6 +27,7 @@ use server::{ConnectionManager, Server};
 use std::fmt::Debug;
 
 use super::super::planner::Planner;
+use arrow_deps::arrow::datatypes::SchemaRef;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -59,11 +61,15 @@ pub enum Error {
     #[snafu(display("Invalid RecordBatch: {}", source))]
     InvalidRecordBatch { source: ArrowError },
 
+    #[snafu(display("Failed to hydrate dictionary: {}", source))]
+    DictionaryError { source: ArrowError },
+
     #[snafu(display("Error while planning query: {}", source))]
     Planning {
         source: super::super::planner::Error,
     },
 }
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 impl From<Error> for tonic::Status {
     /// Converts a result from the business logic into the appropriate tonic
@@ -87,6 +93,7 @@ impl Error {
             Self::InvalidDatabaseName { .. } => Status::invalid_argument(self.to_string()),
             Self::InvalidRecordBatch { .. } => Status::internal(self.to_string()),
             Self::Planning { .. } => Status::invalid_argument(self.to_string()),
+            Self::DictionaryError { .. } => Status::internal(self.to_string()),
         }
     }
 }
@@ -172,33 +179,23 @@ where
             })?;
 
         let options = arrow::ipc::writer::IpcWriteOptions::default();
-        let schema = physical_plan.schema();
+        let schema = Arc::new(optimize_schema(&physical_plan.schema()));
         let schema_flight_data =
-            arrow_flight::utils::flight_data_from_arrow_schema(schema.as_ref(), &options);
+            arrow_flight::utils::flight_data_from_arrow_schema(&schema, &options);
 
-        let mut flights: Vec<Result<FlightData, tonic::Status>> = vec![Ok(schema_flight_data)];
+        let mut flights = vec![schema_flight_data];
 
-        let mut batches: Vec<Result<FlightData, tonic::Status>> = results
-            .iter()
-            .map(optimize_record_batch)
-            .collect::<Result<Vec<_>, Error>>()?
-            .iter()
-            .flat_map(|batch| {
-                let (flight_dictionaries, flight_batch) =
-                    arrow_flight::utils::flight_data_from_arrow_batch(&batch, &options);
+        for batch in results {
+            let batch = optimize_record_batch(&batch, Arc::clone(&schema))?;
 
-                flight_dictionaries
-                    .into_iter()
-                    .chain(std::iter::once(flight_batch))
-                    .map(Ok)
-            })
-            .collect();
+            let (flight_dictionaries, flight_batch) =
+                arrow_flight::utils::flight_data_from_arrow_batch(&batch, &options);
 
-        // append batch vector to schema vector, so that the first message sent is the
-        // schema
-        flights.append(&mut batches);
+            flights.extend(flight_dictionaries);
+            flights.push(flight_batch);
+        }
 
-        let output = futures::stream::iter(flights);
+        let output = futures::stream::iter(flights.into_iter().map(Ok));
 
         Ok(Response::new(Box::pin(output) as Self::DoGetStream))
     }
@@ -253,28 +250,28 @@ where
     }
 }
 
-// Some batches are small slices of the underlying arrays.
-// At this stage we only know the number of rows in the record batch
-// and the sizes in bytes of the backing buffers of the column arrays.
-// There is no straight-forward relationship between these two quantities,
-// since some columns can host variable length data such as strings.
-//
-// However we can apply a quick&dirty heuristic:
-// if the backing buffer is two orders of magnitudes bigger
-// than the number of rows in the result set, we assume
-// that deep-copying the record batch is cheaper than the and transfer costs.
-//
-// Possible improvements: take the type of the columns into consideration
-// and perhaps sample a few element sizes (taking care of not doing more work
-// than to always copying the results in the first place).
-//
-// Or we just fix this upstream in
-// arrow_flight::utils::flight_data_from_arrow_batch and re-encode the array
-// into a smaller buffer while we have to copy stuff around anyway.
-//
-// See rationale and discussions about future improvements on
-// https://github.com/influxdata/influxdb_iox/issues/1133
-fn optimize_record_batch(batch: &RecordBatch) -> Result<RecordBatch, Error> {
+/// Some batches are small slices of the underlying arrays.
+/// At this stage we only know the number of rows in the record batch
+/// and the sizes in bytes of the backing buffers of the column arrays.
+/// There is no straight-forward relationship between these two quantities,
+/// since some columns can host variable length data such as strings.
+///
+/// However we can apply a quick&dirty heuristic:
+/// if the backing buffer is two orders of magnitudes bigger
+/// than the number of rows in the result set, we assume
+/// that deep-copying the record batch is cheaper than the and transfer costs.
+///
+/// Possible improvements: take the type of the columns into consideration
+/// and perhaps sample a few element sizes (taking care of not doing more work
+/// than to always copying the results in the first place).
+///
+/// Or we just fix this upstream in
+/// arrow_flight::utils::flight_data_from_arrow_batch and re-encode the array
+/// into a smaller buffer while we have to copy stuff around anyway.
+///
+/// See rationale and discussions about future improvements on
+/// https://github.com/influxdata/influxdb_iox/issues/1133
+fn optimize_record_batch(batch: &RecordBatch, schema: SchemaRef) -> Result<RecordBatch, Error> {
     let max_buf_len = batch
         .columns()
         .iter()
@@ -282,14 +279,21 @@ fn optimize_record_batch(batch: &RecordBatch) -> Result<RecordBatch, Error> {
         .max()
         .unwrap_or_default();
 
-    if max_buf_len > batch.num_rows() * 100 {
-        let limited_columns: Vec<ArrayRef> = (0..batch.num_columns())
-            .map(|i| deep_clone_array(batch.column(i)))
-            .collect();
+    let columns: Result<Vec<_>, _> = batch
+        .columns()
+        .iter()
+        .map(|column| {
+            if matches!(column.data_type(), DataType::Dictionary(_, _)) {
+                hydrate_dictionary(column)
+            } else if max_buf_len > batch.num_rows() * 100 {
+                Ok(deep_clone_array(column))
+            } else {
+                Ok(Arc::clone(column))
+            }
+        })
+        .collect();
 
-        return RecordBatch::try_new(batch.schema(), limited_columns).context(InvalidRecordBatch);
-    }
-    Ok(batch.clone())
+    RecordBatch::try_new(schema, columns?).context(InvalidRecordBatch)
 }
 
 fn deep_clone_array(array: &ArrayRef) -> ArrayRef {
@@ -299,13 +303,55 @@ fn deep_clone_array(array: &ArrayRef) -> ArrayRef {
     make_array(mutable.freeze())
 }
 
+/// Convert dictionary types to underlying types
+/// See hydrate_dictionary for more information
+fn optimize_schema(schema: &Schema) -> Schema {
+    let fields = schema
+        .fields()
+        .iter()
+        .map(|field| match field.data_type() {
+            DataType::Dictionary(_, value_type) => Field::new(
+                field.name(),
+                value_type.as_ref().clone(),
+                field.is_nullable(),
+            ),
+            _ => field.clone(),
+        })
+        .collect();
+
+    Schema::new(fields)
+}
+
+/// Hydrates a dictionary to its underlying type
+///
+/// An IPC response, streaming or otherwise, defines its schema up front
+/// which defines the mapping from dictionary IDs. It then sends these
+/// dictionaries over the wire.
+///
+/// This requires identifying the different dictionaries in use, assigning
+/// them IDs, and sending new dictionaries, delta or otherwise, when needed
+///
+/// This is tracked by #1318
+///
+/// For now we just hydrate the dictionaries to their underlying type
+fn hydrate_dictionary(array: &ArrayRef) -> Result<ArrayRef, Error> {
+    match array.data_type() {
+        DataType::Dictionary(_, value) => {
+            arrow::compute::cast(array, &value).context(DictionaryError)
+        }
+        _ => unreachable!("not a dictionary"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow_deps::arrow::array::StringArray;
     use arrow_deps::arrow::{
-        array::UInt32Array,
-        datatypes::{DataType, Field, Schema},
+        array::{DictionaryArray, UInt32Array},
+        datatypes::{DataType, Field, Int32Type, Schema},
     };
+    use arrow_deps::arrow_flight::utils::flight_data_to_arrow_batch;
     use arrow_deps::datafusion::physical_plan::limit::truncate_batch;
     use std::sync::Arc;
 
@@ -326,20 +372,18 @@ mod tests {
     #[test]
     fn test_encode_flight_data() {
         let options = arrow::ipc::writer::IpcWriteOptions::default();
+        let c1 = UInt32Array::from(vec![1, 2, 3, 4, 5, 6]);
 
-        let mut builder = UInt32Array::builder(1000);
-        builder.append_slice(&[1, 2, 3, 4, 5, 6]).unwrap();
-        let column: ArrayRef = Arc::new(builder.finish());
-
-        let schema = Schema::new(vec![Field::new("a", DataType::UInt32, false)]);
-        let batch = RecordBatch::try_new(Arc::new(schema), vec![column])
+        let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::UInt32, false)]));
+        let batch = RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(c1)])
             .expect("cannot create record batch");
 
         let (_, baseline_flight_batch) =
             arrow_flight::utils::flight_data_from_arrow_batch(&batch, &options);
 
         let big_batch = truncate_batch(&batch, batch.num_rows() - 1);
-        let optimized_big_batch = optimize_record_batch(&big_batch).expect("failed to optimize");
+        let optimized_big_batch =
+            optimize_record_batch(&big_batch, Arc::clone(&schema)).expect("failed to optimize");
         let (_, optimized_big_flight_batch) =
             arrow_flight::utils::flight_data_from_arrow_batch(&optimized_big_batch, &options);
 
@@ -350,12 +394,68 @@ mod tests {
 
         let small_batch = truncate_batch(&batch, 1);
         let optimized_small_batch =
-            optimize_record_batch(&small_batch).expect("failed to optimize");
+            optimize_record_batch(&small_batch, Arc::clone(&schema)).expect("failed to optimize");
         let (_, optimized_small_flight_batch) =
             arrow_flight::utils::flight_data_from_arrow_batch(&optimized_small_batch, &options);
 
         assert!(
             baseline_flight_batch.data_body.len() > optimized_small_flight_batch.data_body.len()
         );
+    }
+
+    #[test]
+    fn test_encode_flight_data_dictionary() {
+        let options = arrow::ipc::writer::IpcWriteOptions::default();
+
+        let c1 = UInt32Array::from(vec![1, 2, 3, 4, 5, 6]);
+        let c2: DictionaryArray<Int32Type> = vec![
+            Some("foo"),
+            Some("bar"),
+            None,
+            Some("fiz"),
+            None,
+            Some("foo"),
+        ]
+        .into_iter()
+        .collect();
+
+        let original_schema = Schema::new(vec![
+            Field::new("a", DataType::UInt32, false),
+            Field::new(
+                "b",
+                DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
+                true,
+            ),
+        ]);
+        let optimized_schema = Arc::new(optimize_schema(&original_schema));
+        let batch =
+            RecordBatch::try_new(Arc::new(original_schema), vec![Arc::new(c1), Arc::new(c2)])
+                .expect("cannot create record batch");
+        let optimized_batch = optimize_record_batch(&batch, Arc::clone(&optimized_schema)).unwrap();
+
+        let (_, flight_data) =
+            arrow_flight::utils::flight_data_from_arrow_batch(&optimized_batch, &options);
+
+        let batch =
+            flight_data_to_arrow_batch(&flight_data, Arc::clone(&optimized_schema), &[None, None])
+                .unwrap();
+
+        // Should hydrate string dictionary for transport
+        assert_eq!(optimized_schema.field(1).data_type(), &DataType::Utf8);
+        let array = batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+
+        let expected = StringArray::from(vec![
+            Some("foo"),
+            Some("bar"),
+            None,
+            Some("fiz"),
+            None,
+            Some("foo"),
+        ]);
+        assert_eq!(array, &expected)
     }
 }

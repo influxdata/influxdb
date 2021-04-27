@@ -592,11 +592,19 @@ pub enum InfluxColumnType {
 impl InfluxColumnType {
     /// returns true if `arrow_type` can validly store this column type
     pub fn valid_arrow_type(&self, data_type: &ArrowDataType) -> bool {
-        // Note this function is forward looking and imagines the day
-        // when types like `Tag` can be stored as Utf8 or various
-        // StringDictionary types.
-        let default_type: ArrowDataType = self.into();
-        data_type == &default_type
+        match self {
+            Self::Tag => match data_type {
+                ArrowDataType::Utf8 => true,
+                ArrowDataType::Dictionary(key, value) => {
+                    key.as_ref() == &ArrowDataType::Int32 && value.as_ref() == &ArrowDataType::Utf8
+                }
+                _ => false,
+            },
+            Self::Field(_) | Self::Timestamp => {
+                let default_type: ArrowDataType = self.into();
+                data_type == &default_type
+            }
+        }
     }
 }
 
@@ -646,7 +654,7 @@ impl From<&InfluxColumnType> for ArrowDataType {
     /// What arrow type is used for this column type?
     fn from(t: &InfluxColumnType) -> Self {
         match t {
-            InfluxColumnType::Tag => Self::Utf8,
+            InfluxColumnType::Tag => Self::Dictionary(Box::new(Self::Int32), Box::new(Self::Utf8)),
             InfluxColumnType::Field(influxdb_field_type) => (*influxdb_field_type).into(),
             InfluxColumnType::Timestamp => TIME_DATA_TYPE(),
         }

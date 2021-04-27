@@ -21,9 +21,13 @@
 
 use std::sync::Arc;
 
-use arrow::{array::StringArray, datatypes::DataType, record_batch::RecordBatch};
 use arrow_deps::{
-    arrow::{self},
+    arrow::{
+        self,
+        array::{DictionaryArray, StringArray},
+        datatypes::DataType,
+        record_batch::RecordBatch,
+    },
     datafusion::physical_plan::SendableRecordBatchStream,
 };
 use snafu::{ResultExt, Snafu};
@@ -33,6 +37,8 @@ use tokio_stream::StreamExt;
 use croaring::bitmap::Bitmap;
 
 use super::field::{FieldColumns, FieldIndexes};
+use arrow_deps::arrow::array::Array;
+use arrow_deps::arrow::datatypes::Int32Type;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -273,6 +279,9 @@ impl SeriesSetConverter {
     /// returns a bitset with all row indexes where the value of the
     /// batch[col_idx] changes.  Does not include row 0, always includes
     /// the last row, `batch.num_rows() - 1`
+    ///
+    /// Note: This may return false positives in the presence of dictionaries
+    /// containing duplicates
     fn compute_transitions(batch: &RecordBatch, col_idx: usize) -> Bitmap {
         let num_rows = batch.num_rows();
 
@@ -292,6 +301,30 @@ impl SeriesSetConverter {
                 let mut current_val = col.value(0);
                 for row in 1..num_rows {
                     let next_val = col.value(row);
+                    if next_val != current_val {
+                        bitmap.add(row as u32);
+                        current_val = next_val;
+                    }
+                }
+            }
+            DataType::Dictionary(key, value)
+                if key.as_ref() == &DataType::Int32 && value.as_ref() == &DataType::Utf8 =>
+            {
+                let col = col
+                    .as_any()
+                    .downcast_ref::<DictionaryArray<Int32Type>>()
+                    .expect("Casting column");
+                let keys = col.keys();
+                let get_key = |idx| {
+                    if col.is_valid(idx) {
+                        return Some(keys.value(idx));
+                    }
+                    None
+                };
+
+                let mut current_val = get_key(0);
+                for row in 1..num_rows {
+                    let next_val = get_key(row);
                     if next_val != current_val {
                         bitmap.add(row as u32);
                         current_val = next_val;
@@ -326,13 +359,41 @@ impl SeriesSetConverter {
             .iter()
             .zip(tag_indexes)
             .map(|(column_name, column_index)| {
-                let tag_value: String = batch
-                    .column(*column_index)
-                    .as_any()
-                    .downcast_ref::<StringArray>()
-                    .expect("Tag column was a String")
-                    .value(row)
-                    .into();
+                let col = batch.column(*column_index);
+                let tag_value = match col.data_type() {
+                    DataType::Utf8 => col
+                        .as_any()
+                        .downcast_ref::<StringArray>()
+                        .unwrap()
+                        .value(row)
+                        .to_string(),
+                    DataType::Dictionary(key, value)
+                        if key.as_ref() == &DataType::Int32
+                            && value.as_ref() == &DataType::Utf8 =>
+                    {
+                        let col = col
+                            .as_any()
+                            .downcast_ref::<DictionaryArray<Int32Type>>()
+                            .expect("Casting column");
+
+                        if col.is_valid(row) {
+                            let key = col.keys().value(row);
+                            col.values()
+                                .as_any()
+                                .downcast_ref::<StringArray>()
+                                .unwrap()
+                                .value(key as _)
+                                .to_string()
+                        } else {
+                            String::new()
+                        }
+                    }
+                    _ => unimplemented!(
+                        "Series get_tag_keys not supported for type {:?} in column {:?}",
+                        col.data_type(),
+                        batch.schema().fields()[*column_index]
+                    ),
+                };
                 (Arc::clone(&column_name), Arc::new(tag_value))
             })
             .collect()

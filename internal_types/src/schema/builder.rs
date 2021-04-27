@@ -65,23 +65,19 @@ impl SchemaBuilder {
     /// potentially nullable as they are not guaranteed to be present
     /// for all rows
     pub fn tag(self, column_name: &str) -> Self {
-        self.add_column(
-            column_name,
-            true,
-            Some(InfluxColumnType::Tag),
-            ArrowDataType::Utf8,
-        )
+        let influxdb_column_type = InfluxColumnType::Tag;
+        let arrow_type = (&influxdb_column_type).into();
+
+        self.add_column(column_name, true, Some(influxdb_column_type), arrow_type)
     }
 
     /// Add a new tag column to this schema that is known (somehow) to
     /// have no nulls for all rows
     pub fn non_null_tag(self, column_name: &str) -> Self {
-        self.add_column(
-            column_name,
-            false,
-            Some(InfluxColumnType::Tag),
-            ArrowDataType::Utf8,
-        )
+        let influxdb_column_type = InfluxColumnType::Tag;
+        let arrow_type = (&influxdb_column_type).into();
+
+        self.add_column(column_name, false, Some(influxdb_column_type), arrow_type)
     }
 
     /// Add a new field column with the specified InfluxDB data model type
@@ -403,13 +399,25 @@ mod test {
 
         let (influxdb_column_type, field) = s.field(0);
         assert_eq!(field.name(), "the_tag");
-        assert_eq!(field.data_type(), &ArrowDataType::Utf8);
+        assert_eq!(
+            field.data_type(),
+            &ArrowDataType::Dictionary(
+                Box::new(ArrowDataType::Int32),
+                Box::new(ArrowDataType::Utf8)
+            )
+        );
         assert_eq!(field.is_nullable(), true);
         assert_eq!(influxdb_column_type, Some(Tag));
 
         let (influxdb_column_type, field) = s.field(1);
         assert_eq!(field.name(), "the_non_null_tag");
-        assert_eq!(field.data_type(), &ArrowDataType::Utf8);
+        assert_eq!(
+            field.data_type(),
+            &ArrowDataType::Dictionary(
+                Box::new(ArrowDataType::Int32),
+                Box::new(ArrowDataType::Utf8)
+            )
+        );
         assert_eq!(field.is_nullable(), false);
         assert_eq!(influxdb_column_type, Some(Tag));
 

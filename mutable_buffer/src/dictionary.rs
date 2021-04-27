@@ -33,6 +33,10 @@ impl DID {
     pub const fn invalid() -> Self {
         Self(-1)
     }
+
+    pub fn as_i32(&self) -> i32 {
+        self.0
+    }
 }
 
 impl std::fmt::Display for DID {
