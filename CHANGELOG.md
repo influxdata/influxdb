@@ -44,6 +44,7 @@ v1.9.0 [unreleased]
 -	[#17685](https://github.com/influxdata/influxdb/pull/17685): fix(tsm1): Fix temp directory search bug
 -	[#17495](https://github.com/influxdata/influxdb/pull/17495): fix(snapshotter): properly read payload
 -	[#21139](https://github.com/influxdata/influxdb/pull/21139): fix(tsdb): exclude stop time from array cursors
+-	[#21036](https://github.com/influxdata/influxdb/pull/21306): fix(models): grow tag index buffer if needed
 
 v1.8.5 [unreleased]
 -------------------
