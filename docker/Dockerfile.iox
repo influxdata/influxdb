@@ -16,7 +16,6 @@ RUN mkdir ~/.influxdb_iox
 RUN ls -la ~/.influxdb_iox
 
 COPY target/release/influxdb_iox /usr/bin/influxdb_iox
-RUN echo "The binary just added has sha256 sum $(sha256sum /usr/bin/influxdb_iox)"
 
 EXPOSE 8080 8082
 
