@@ -250,7 +250,7 @@ impl Chunk {
 
         let rows = row_group.rows();
         let rg_size = row_group.size();
-        let compression = format!("{:.2}%", (rg_size as f64 / rb_size as f64) * 100.0);
+        let compression = format!("{:.2}%", (1.0 - (rg_size as f64 / rb_size as f64)) * 100.0);
         let chunk_id = self.id();
         info!(%rows, rb_size, rg_size, %compression, ?table_name, %chunk_id, "row group added");
 
