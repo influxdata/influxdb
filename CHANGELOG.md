@@ -47,6 +47,7 @@ v1.9.0 [unreleased]
 -	[#21168](https://github.com/influxdata/influxdb/pull/21168): fix(storage): Detect need for descending cursor in WindowAggregate
 -	[#21285](https://github.com/influxdata/influxdb/pull/21285): fix(storage): Detect need for descending cursor in GroupAggregate
 -	[#21308](https://github.com/influxdata/influxdb/pull/21308): fix(models): grow tag index buffer if needed
+-	[#21310](https://github.com/influxdata/influxdb/pull/21310): fix: Anti-Entropy loops endlessly with empty shard
 
 v1.8.5 [unreleased]
 -------------------
