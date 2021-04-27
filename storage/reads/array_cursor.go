@@ -22,10 +22,10 @@ func newAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, curs
 	case datatypes.AggregateTypeFirst, datatypes.AggregateTypeLast:
 		return newLimitArrayCursor(cursor), nil
 	}
-	return newWindowAggregateArrayCursor(ctx, agg, interval.Window{}, cursor)
+	return NewWindowAggregateArrayCursor(ctx, agg, interval.Window{}, cursor)
 }
 
-func newWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, window interval.Window, cursor cursors.Cursor) (cursors.Cursor, error) {
+func NewWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, window interval.Window, cursor cursors.Cursor) (cursors.Cursor, error) {
 	if cursor == nil {
 		return nil, nil
 	}
