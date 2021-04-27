@@ -369,7 +369,7 @@ Possible values (case insensitive):
     pub google_service_account: Option<String>,
 
     /// When using Microsoft Azure as the object store, set this to the
-    /// name you see when going to All Services > Storage accounts > [name].
+    /// name you see when going to All Services > Storage accounts > `[name]`.
     ///
     /// Must also set `--object-store=azure`, `--bucket`, and
     /// `--azure-storage-access-key`.

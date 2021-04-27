@@ -14,7 +14,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Converts a [`query::Predicate`] into [`read_buffer::Predicate`],
+/// Converts a [`query::predicate::Predicate`] into [`read_buffer::Predicate`],
 /// suitable for evaluating on the ReadBuffer.
 pub fn to_read_buffer_predicate(predicate: &Predicate) -> Result<read_buffer::Predicate> {
     // Try to convert non-time column expressions into binary expressions

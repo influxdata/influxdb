@@ -1,5 +1,10 @@
 //! An InfluxDB IOx API client.
-#![deny(rust_2018_idioms, missing_debug_implementations, unreachable_pub)]
+#![deny(
+    broken_intra_doc_links,
+    rust_2018_idioms,
+    missing_debug_implementations,
+    unreachable_pub
+)]
 #![warn(
     missing_docs,
     clippy::todo,

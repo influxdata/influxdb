@@ -162,7 +162,7 @@ impl PredicateBuilder {
         }
     }
 
-    /// Set the table restriction to [table]
+    /// Set the table restriction to `table`
     pub fn table(self, table: impl Into<String>) -> Self {
         self.tables(vec![table.into()])
     }

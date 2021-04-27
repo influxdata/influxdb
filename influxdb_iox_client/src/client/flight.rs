@@ -112,7 +112,7 @@ struct ReadInfo {
 
 /// A struct that manages the stream of Arrow `RecordBatch` results from an
 /// Arrow Flight query. Created by calling the `perform_query` method on a
-/// [`FlightClient`].
+/// Flight [`Client`].
 #[derive(Debug)]
 pub struct PerformQuery {
     schema: Arc<Schema>,

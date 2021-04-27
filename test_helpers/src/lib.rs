@@ -1,4 +1,4 @@
-#![deny(rust_2018_idioms)]
+#![deny(broken_intra_doc_links, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,
@@ -73,8 +73,8 @@ pub fn str_pair_vec_to_vec(str_vec: &[(&str, &str)]) -> Vec<(Arc<String>, Arc<St
 }
 
 /// Converts bytes representing tag_keys values to Rust strings,
-/// handling the special case _m (0x00) and _f (0xff) values. Other
-/// than [0xff] panics on any non-utf8 string.
+/// handling the special case `_m(0x00)` and `_f(0xff)` values. Other
+/// than `0xff` panics on any non-utf8 string.
 pub fn tag_key_bytes_to_strings(bytes: Vec<u8>) -> String {
     match bytes.as_slice() {
         [0] => "_m(0x00)".into(),

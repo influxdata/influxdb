@@ -1,4 +1,4 @@
-#![deny(rust_2018_idioms)]
+#![deny(broken_intra_doc_links, rust_2018_idioms)]
 #![allow(clippy::type_complexity)]
 pub mod adapter;
 pub mod column;
