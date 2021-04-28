@@ -5,7 +5,12 @@ use arrow_deps::{
         datatypes::{Schema, SchemaRef},
         error::Result as ArrowResult,
         record_batch::RecordBatch,
-    }, datafusion::{physical_plan::{RecordBatchStream, SendableRecordBatchStream, common::SizedRecordBatchStream, parquet::RowGroupPredicateBuilder}}, parquet::{
+    },
+    datafusion::physical_plan::{
+        common::SizedRecordBatchStream, parquet::RowGroupPredicateBuilder, RecordBatchStream,
+        SendableRecordBatchStream,
+    },
+    parquet::{
         self,
         arrow::{arrow_reader::ParquetFileArrowReader, ArrowReader, ArrowWriter},
         file::{reader::FileReader, serialized_reader::SerializedFileReader, writer::TryClone},

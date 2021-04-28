@@ -68,7 +68,7 @@ impl DbSetup for NoData {
                 .id(),
             0
         );
-        assert_eq!(count_mutable_buffer_chunks(&db), 1); // 
+        assert_eq!(count_mutable_buffer_chunks(&db), 1); //
         assert_eq!(count_read_buffer_chunks(&db), 0); // nothing yet
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
