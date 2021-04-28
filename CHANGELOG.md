@@ -5,6 +5,8 @@
 1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
 1. [21218](https://github.com/influxdata/influxdb/pull/21218): Add the properties of a static legend for line graphs and band plots.
 
+## v2.0.5 [2021-04-27]
+
 ### Windows Support
 
 This release includes our initial Windows preview build.
