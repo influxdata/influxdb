@@ -49,11 +49,6 @@ pub enum Error {
     #[snafu(display("segment id must be between [1, 1,000,000,000)"))]
     SegmentIdOutOfBounds,
 
-    #[snafu(display("Server ID must not be 0: {}", source))]
-    ServerIdInvalid {
-        source: data_types::server_id::Error,
-    },
-
     #[snafu(display("unable to compress segment id {}: {}", segment_id, source))]
     UnableToCompressData {
         segment_id: u64,
@@ -74,6 +69,11 @@ pub enum Error {
     #[snafu(display("the flatbuffers Segment is invalid: {}", source))]
     InvalidFlatbuffersSegment {
         source: flatbuffers::InvalidFlatbuffer,
+    },
+
+    #[snafu(display("Invalid ReplicatedWrite: {}", source))]
+    InvalidReplicatedWrite {
+        source: internal_types::data::ReplicatedWriteError,
     },
 
     #[snafu(display("the flatbuffers size is too small; only found {} bytes", bytes))]
@@ -520,14 +520,12 @@ impl Segment {
             .writes()
             .context(FlatbuffersMissingField { field: "writes" })?;
         let mut segment = Self::new_with_capacity(fb_segment.id(), writes.len());
-        let server_id = ServerId::try_from(fb_segment.server_id()).context(ServerIdInvalid)?;
         for w in writes {
             let data = w
                 .payload()
                 .context(FlatbuffersMissingField { field: "payload" })?
                 .to_vec();
-            let rw =
-                ReplicatedWrite::try_from((data, server_id)).context(InvalidFlatbuffersSegment)?;
+            let rw = ReplicatedWrite::try_from(data).context(InvalidReplicatedWrite)?;
 
             segment.append(Arc::new(rw))?;
         }
