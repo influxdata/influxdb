@@ -10,7 +10,7 @@ pub mod seriesset;
 pub mod stringset;
 mod task;
 pub use context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
-use futures::Future;
+use futures::{future, Future};
 
 use std::sync::Arc;
 
@@ -26,7 +26,7 @@ use schema_pivot::SchemaPivotNode;
 use fieldlist::{FieldList, IntoFieldList};
 use seriesset::{Error as SeriesSetError, SeriesSetConverter, SeriesSetItem};
 use stringset::{IntoStringSet, StringSetRef};
-use tokio::sync::mpsc::{self, error::SendError};
+use tokio::sync::mpsc::error::SendError;
 
 use snafu::{ResultExt, Snafu};
 
@@ -125,31 +125,22 @@ impl Executor {
         }
     }
 
-    /// Executes the embedded plans, each as separate tasks, sending
-    /// the resulting `SeriesSet`s one by one to the `tx` channel.
+    /// Executes the embedded plans, each as separate tasks combining the results
+    /// into the returned collection of items.
     ///
-    /// The SeriesSets are guaranteed to come back ordered by table_name
-    ///
-    /// Note that the returned future resolves (e.g. "returns") once
-    /// all plans have been sent to `tx`. This means that the future
-    /// will not resolve if there is nothing hooked up receiving
-    /// results from the other end of the channel and the channel
-    /// can't hold all the resulting series.
+    /// The SeriesSets are guaranteed to come back ordered by table_name.
     pub async fn to_series_set(
         &self,
         series_set_plans: SeriesSetPlans,
-        tx: mpsc::Sender<Result<SeriesSetItem, SeriesSetError>>,
-    ) -> Result<()> {
+    ) -> Result<Vec<SeriesSetItem>, Error> {
         let SeriesSetPlans { mut plans } = series_set_plans;
 
         if plans.is_empty() {
-            return Ok(());
+            return Ok(vec![]);
         }
 
-        // sort by table name and send the results to separate
-        // channels
+        // sort plans by table name
         plans.sort_by(|a, b| a.table_name.cmp(&b.table_name));
-        let mut rx_channels = Vec::new(); // sorted by table names
 
         // Run the plans in parallel
         let handles = plans
@@ -157,8 +148,6 @@ impl Executor {
             .map(|plan| {
                 // TODO run these on some executor other than the main tokio pool (maybe?)
                 let ctx = self.new_context();
-                let (plan_tx, plan_rx) = mpsc::channel(1);
-                rx_channels.push(plan_rx);
 
                 self.exec.spawn(async move {
                     let SeriesSetPlan {
@@ -180,7 +169,7 @@ impl Executor {
                         .await
                         .context(SeriesSetExecution)?;
 
-                    SeriesSetConverter::new(plan_tx)
+                    SeriesSetConverter::default()
                         .convert(
                             table_name,
                             tag_columns,
@@ -189,30 +178,22 @@ impl Executor {
                             it,
                         )
                         .await
-                        .context(SeriesSetConversion)?;
-
-                    Ok(())
+                        .context(SeriesSetConversion)
                 })
             })
             .collect::<Vec<_>>();
 
-        // transfer data from the rx streams in order
-        for mut rx in rx_channels {
-            while let Some(r) = rx.recv().await {
-                tx.send(r)
-                    .await
-                    .map_err(|e| Error::SendingDuringConversion {
-                        source: Box::new(e),
-                    })?
-            }
+        // join_all ensures that the results are consumed in the same order they
+        // were spawned maintaining the guarantee to return results ordered
+        // by the plan sort order.
+        // let handles = future::join_all(handles).await;
+        let handles = future::try_join_all(handles).await.context(TaskJoinError)?;
+        let mut results = vec![];
+        for handle in handles {
+            results.extend(handle?.into_iter());
         }
 
-        // now, wait for all the values to resolve so we can report
-        // any errors
-        for join_handle in handles {
-            join_handle.await.context(TaskJoinError)??;
-        }
-        Ok(())
+        Ok(results)
     }
 
     /// Executes `plan` and return the resulting FieldList

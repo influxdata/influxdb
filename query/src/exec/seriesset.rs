@@ -31,7 +31,7 @@ use arrow_deps::{
     datafusion::physical_plan::SendableRecordBatchStream,
 };
 use snafu::{ResultExt, Snafu};
-use tokio::sync::mpsc::{self, error::SendError};
+use tokio::sync::mpsc::error::SendError;
 use tokio_stream::StreamExt;
 
 use croaring::bitmap::Bitmap;
@@ -117,20 +117,13 @@ pub enum SeriesSetItem {
     Data(SeriesSet),
 }
 
-// Handles converting record batches into SeriesSets, and sending them
-// to tx
-#[derive(Debug)]
-pub struct SeriesSetConverter {
-    tx: mpsc::Sender<Result<SeriesSetItem>>,
-}
+// Handles converting record batches into SeriesSets
+#[derive(Debug, Default)]
+pub struct SeriesSetConverter {}
 
 impl SeriesSetConverter {
-    pub fn new(tx: mpsc::Sender<Result<SeriesSetItem>>) -> Self {
-        Self { tx }
-    }
-
     /// Convert the results from running a DataFusion plan into the
-    /// appropriate SeriesSetItems, sending them self.tx
+    /// appropriate SeriesSetItems.
     ///
     /// The results must be in the logical format described in this
     /// module's documentation (i.e. ordered by tag keys)
@@ -151,39 +144,10 @@ impl SeriesSetConverter {
         tag_columns: Arc<Vec<Arc<String>>>,
         field_columns: FieldColumns,
         num_prefix_tag_group_columns: Option<usize>,
-        it: SendableRecordBatchStream,
-    ) -> Result<()> {
-        // Make sure that any error that results from processing is sent along
-        if let Err(e) = self
-            .convert_impl(
-                table_name,
-                tag_columns,
-                field_columns,
-                num_prefix_tag_group_columns,
-                it,
-            )
-            .await
-        {
-            self.tx
-                .send(Err(e))
-                .await
-                .map_err(|e| Error::SendingDuringConversion {
-                    source: Box::new(e),
-                })?
-        }
-        Ok(())
-    }
-
-    /// Does the actual conversion, returning any error in processing
-    pub async fn convert_impl(
-        &mut self,
-        table_name: Arc<String>,
-        tag_columns: Arc<Vec<Arc<String>>>,
-        field_columns: FieldColumns,
-        num_prefix_tag_group_columns: Option<usize>,
         mut it: SendableRecordBatchStream,
-    ) -> Result<()> {
+    ) -> Result<Vec<SeriesSetItem>, Error> {
         let mut group_generator = GroupGenerator::new(num_prefix_tag_group_columns);
+        let mut results = vec![];
 
         // for now, only handle a single record batch
         if let Some(batch) = it.next().await {
@@ -255,25 +219,15 @@ impl SeriesSetConverter {
                 })
                 .collect::<Vec<_>>();
 
+            results.reserve(series_sets.len());
             for series_set in series_sets {
                 if let Some(group_desc) = group_generator.next_series(&series_set) {
-                    self.tx
-                        .send(Ok(SeriesSetItem::GroupStart(group_desc)))
-                        .await
-                        .map_err(|e| Error::SendingDuringGroupedConversion {
-                            source: Box::new(e),
-                        })?;
+                    results.push(SeriesSetItem::GroupStart(group_desc));
                 }
-
-                self.tx
-                    .send(Ok(SeriesSetItem::Data(series_set)))
-                    .await
-                    .map_err(|e| Error::SendingDuringConversion {
-                        source: Box::new(e),
-                    })?;
+                results.push(SeriesSetItem::Data(series_set));
             }
         }
-        Ok(())
+        Ok(results)
     }
 
     /// returns a bitset with all row indexes where the value of the
@@ -494,7 +448,7 @@ mod tests {
         let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
         assert_eq!(results.len(), 1);
-        let series_set = results[0].as_ref().expect("Correctly converted");
+        let series_set = &results[0];
 
         assert_eq!(*series_set.table_name, "foo");
         assert!(series_set.tags.is_empty());
@@ -548,7 +502,7 @@ mod tests {
         let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
         assert_eq!(results.len(), 1);
-        let series_set = results[0].as_ref().expect("Correctly converted");
+        let series_set = &results[0];
 
         assert_eq!(*series_set.table_name, "foo");
         assert!(series_set.tags.is_empty());
@@ -602,7 +556,7 @@ mod tests {
         let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
         assert_eq!(results.len(), 1);
-        let series_set = results[0].as_ref().expect("Correctly converted");
+        let series_set = &results[0];
 
         assert_eq!(*series_set.table_name, "bar");
         assert_eq!(series_set.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
@@ -639,7 +593,7 @@ mod tests {
         let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
         assert_eq!(results.len(), 2);
-        let series_set1 = results[0].as_ref().expect("Correctly converted");
+        let series_set1 = &results[0];
 
         assert_eq!(*series_set1.table_name, "foo");
         assert_eq!(series_set1.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
@@ -650,7 +604,7 @@ mod tests {
         assert_eq!(series_set1.start_row, 0);
         assert_eq!(series_set1.num_rows, 3);
 
-        let series_set2 = results[1].as_ref().expect("Correctly converted");
+        let series_set2 = &results[1];
 
         assert_eq!(*series_set2.table_name, "foo");
         assert_eq!(series_set2.tags, str_pair_vec_to_vec(&[("tag_a", "two")]));
@@ -688,7 +642,7 @@ mod tests {
         let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
         assert_eq!(results.len(), 3);
-        let series_set1 = results[0].as_ref().expect("Correctly converted");
+        let series_set1 = &results[0];
 
         assert_eq!(*series_set1.table_name, "foo");
         assert_eq!(
@@ -698,7 +652,7 @@ mod tests {
         assert_eq!(series_set1.start_row, 0);
         assert_eq!(series_set1.num_rows, 2);
 
-        let series_set2 = results[1].as_ref().expect("Correctly converted");
+        let series_set2 = &results[1];
 
         assert_eq!(*series_set2.table_name, "foo");
         assert_eq!(
@@ -708,7 +662,7 @@ mod tests {
         assert_eq!(series_set2.start_row, 2);
         assert_eq!(series_set2.num_rows, 1);
 
-        let series_set3 = results[2].as_ref().expect("Correctly converted");
+        let series_set3 = &results[2];
 
         assert_eq!(*series_set3.table_name, "foo");
         assert_eq!(
@@ -757,11 +711,11 @@ mod tests {
 
         assert_eq!(results.len(), 5, "results were\n{:#?}", results); // 3 series, two groups (one and two)
 
-        let group_1 = extract_group(results[0].as_ref().expect("correctly made group"));
-        let series_set1 = extract_series_set(results[1].as_ref().expect("Correctly converted"));
-        let series_set2 = extract_series_set(results[2].as_ref().expect("Correctly converted"));
-        let group_2 = extract_group(results[3].as_ref().expect("correctly made group"));
-        let series_set3 = extract_series_set(results[4].as_ref().expect("Correctly converted"));
+        let group_1 = extract_group(&results[0]);
+        let series_set1 = extract_series_set(&results[1]);
+        let series_set2 = extract_series_set(&results[2]);
+        let group_2 = extract_group(&results[3]);
+        let series_set3 = extract_series_set(&results[4]);
 
         assert_eq!(group_1.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
 
@@ -820,9 +774,9 @@ mod tests {
 
         assert_eq!(results.len(), 3, "results were\n{:#?}", results); // 3 series, two groups (one and two)
 
-        let group_1 = extract_group(results[0].as_ref().expect("correctly made group"));
-        let series_set1 = extract_series_set(results[1].as_ref().expect("Correctly converted"));
-        let series_set2 = extract_series_set(results[2].as_ref().expect("Correctly converted"));
+        let group_1 = extract_group(&results[0]);
+        let series_set1 = extract_series_set(&results[1]);
+        let series_set2 = extract_series_set(&results[2]);
 
         assert_eq!(group_1.tags, &[]);
 
@@ -863,34 +817,38 @@ mod tests {
         tag_columns: &'a [&'a str],
         field_columns: &'a [&'a str],
         it: SendableRecordBatchStream,
-    ) -> Vec<Result<SeriesSet>> {
-        let (tx, mut rx) = mpsc::channel(1);
-        let mut converter = SeriesSetConverter::new(tx);
+    ) -> Vec<SeriesSet> {
+        let mut converter = SeriesSetConverter::default();
 
         let table_name = Arc::new(table_name.into());
         let tag_columns = str_vec_to_arc_vec(tag_columns);
         let field_columns = FieldColumns::from(field_columns);
 
-        tokio::task::spawn(async move {
-            converter
-                .convert(table_name, tag_columns, field_columns, None, it)
-                .await
-                .expect("Conversion happened without error")
-        });
-
-        let mut results = Vec::new();
-        while let Some(r) = rx.recv().await {
-            results.push(r.map(|item| {
+        converter
+            .convert(table_name, tag_columns, field_columns, None, it)
+            .await
+            .expect("Conversion happened without error").into_iter().map(|item|{
                 if let SeriesSetItem::Data(series_set) = item {
                     series_set
                 }
-                else {
+                    else {
                     panic!("Unexpected result from converting. Expected SeriesSetItem::Data, got: {:?}", item)
                 }
-            })
-            );
-        }
-        results
+            }).collect::<Vec<_>>()
+
+        // let mut results = Vec::new();
+        // while let Some(r) = rx.recv().await {
+        //     results.push(r.map(|item| {
+        //         if let SeriesSetItem::Data(series_set) = item {
+        //             series_set
+        //         }
+        //         else {
+        //             panic!("Unexpected result from converting. Expected SeriesSetItem::Data, got: {:?}", item)
+        //         }
+        //     })
+        //     );
+        // }
+        // results
     }
 
     /// Test helper: run conversion to groups and return a Vec
@@ -900,32 +858,40 @@ mod tests {
         num_prefix_tag_group_columns: usize,
         field_columns: &'a [&'a str],
         it: SendableRecordBatchStream,
-    ) -> Vec<Result<SeriesSetItem>> {
-        let (tx, mut rx) = mpsc::channel(1);
-        let mut converter = SeriesSetConverter::new(tx);
+    ) -> Vec<SeriesSetItem> {
+        let mut converter = SeriesSetConverter::default();
 
         let table_name = Arc::new(table_name.into());
         let tag_columns = str_vec_to_arc_vec(tag_columns);
         let field_columns = FieldColumns::from(field_columns);
 
-        tokio::task::spawn(async move {
-            converter
-                .convert(
-                    table_name,
-                    tag_columns,
-                    field_columns,
-                    Some(num_prefix_tag_group_columns),
-                    it,
-                )
-                .await
-                .expect("Conversion happened without error")
-        });
+        converter
+            .convert(
+                table_name,
+                tag_columns,
+                field_columns,
+                Some(num_prefix_tag_group_columns),
+                it,
+            )
+            .await
+            .expect("Conversion happened without error")
 
-        let mut results = Vec::new();
-        while let Some(r) = rx.recv().await {
-            results.push(r)
-        }
-        results
+        // converter
+        //     .convert(
+        //         table_name,
+        //         tag_columns,
+        //         field_columns,
+        //         Some(num_prefix_tag_group_columns),
+        //         it,
+        //     )
+        //     .await
+        //     .expect("Conversion happened without error")
+
+        // let mut results = Vec::new();
+        // while let Some(r) = rx.recv().await {
+        //     results.push(r)
+        // }
+        // results
     }
 
     /// Test helper: parses the csv content into a single record batch arrow

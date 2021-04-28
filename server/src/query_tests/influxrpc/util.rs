@@ -50,29 +50,29 @@ pub fn dump_series_set(s: SeriesSet) -> Vec<String> {
 }
 
 /// Run a series set plan to completion and produce a Vec<String> representation
+///
+/// # Panics
+///
+/// Panics if there is an error executing a plan, or if unexpected series set
+/// items are returned.
+#[cfg(test)]
 pub async fn run_series_set_plan(executor: Arc<Executor>, plans: SeriesSetPlans) -> Vec<String> {
-    // Use a channel sufficiently large to buffer the series
-    let (tx, mut rx) = mpsc::channel(100);
-    executor
-        .to_series_set(plans, tx)
-        .await
-        .expect("Running series set plan");
+    let results = executor.to_series_set(plans).await;
 
-    // gather up the sets and compare them
-    let mut results = vec![];
-    while let Some(r) = rx.recv().await {
-        let item = r.expect("unexpected error in execution");
-        let item = if let SeriesSetItem::Data(series_set) = item {
-            series_set
-        } else {
-            panic!(
-                "Unexpected result from converting. Expected SeriesSetItem::Data, got: {:?}",
-                item
-            )
-        };
-
-        results.push(item);
-    }
+    let mut results = results
+        .unwrap()
+        .into_iter()
+        .map(|item| {
+            if let SeriesSetItem::Data(series_set) = item {
+                series_set
+            } else {
+                panic!(
+                    "Unexpected result from converting. Expected SeriesSetItem::Data, got: {:?}",
+                    item
+                )
+            }
+        })
+        .collect::<Vec<_>>();
 
     // sort the results so that we can reliably compare
     results.sort_by(|r1, r2| {
