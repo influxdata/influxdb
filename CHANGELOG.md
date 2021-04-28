@@ -1,5 +1,12 @@
 ## unreleased
 
+### Features
+
+1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
+1. [21218](https://github.com/influxdata/influxdb/pull/21218): Add the properties of a static legend for line graphs and band plots.
+
+## v2.0.5 [2021-04-27]
+
 ### Windows Support
 
 This release includes our initial Windows preview build.
@@ -30,7 +37,6 @@ The prefix used for Prometheus metrics from the query controller has changed fro
 
 ### Features
 
-1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
 1. [20621](https://github.com/influxdata/influxdb/pull/20621): Add Swift client library to the data loading section of the UI.
 1. [20307](https://github.com/influxdata/influxdb/pull/20307): Add `influx task retry-failed` command to rerun failed runs.
 1. [20759](https://github.com/influxdata/influxdb/pull/20759): Add additional properties for Mosaic Graph.
@@ -52,7 +58,7 @@ The prefix used for Prometheus metrics from the query controller has changed fro
 1. [21127](https://github.com/influxdata/influxdb/pull/21127): Allow for disabling concurrency-limits in Flux controller.
 1. [21158](https://github.com/influxdata/influxdb/pull/21158): Replace unique resource IDs (UI assets, backup shards) with slugs to reduce cardinality of telemetry data.
 1. [21235](https://github.com/influxdata/influxdb/pull/21235): HTTP server errors output logs following the standard format.
-1. [21218](https://github.com/influxdata/influxdb/pull/21218): Add the properties of a static legend for line graphs and band plots.
+1. [21255](https://github.com/influxdata/influxdb/pull/21255): Upgrade Flux to v0.113.0.
 
 ### Bug Fixes
 
@@ -76,6 +82,8 @@ The prefix used for Prometheus metrics from the query controller has changed fro
 1. [21042](https://github.com/influxdata/influxdb/pull/21042): Prevent concurrent access panic when gathering bolt metrics.
 1. [21127](https://github.com/influxdata/influxdb/pull/21127): Fix race condition in Flux controller shutdown.
 1. [21228](https://github.com/influxdata/influxdb/pull/21228): Reduce lock contention when adding new fields and measurements.
+1. [21232](https://github.com/influxdata/influxdb/pull/21232): Escape dots in community templates hostname regex.
+1. [21140](https://github.com/influxdata/influxdb/pull/21140): Use descending cursor when needed in pushed-down aggregate Flux queries.
 
 ## v2.0.4 [2021-02-08]
 
