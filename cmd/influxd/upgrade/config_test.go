@@ -40,6 +40,11 @@ func TestConfigUpgrade(t *testing.T) {
 			config1x: testConfigV1obsoleteArrays,
 			config2x: testConfigV2obsoleteArrays,
 		},
+		{
+			name:     "query concurrency",
+			config1x: testConfigV1QueryConcurrency,
+			config2x: testConfigV2QueryConcurrency,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -398,6 +403,11 @@ reporting-disabled = true
 var testConfigV1empty = `
 `
 
+var testConfigV1QueryConcurrency = `
+[coordinator]
+  max-concurrent-queries = 128
+`
+
 // 2.x test configs
 
 var testConfigV2minimal = `reporting-disabled = false
@@ -422,7 +432,7 @@ influxql-max-select-buckets = 0
 influxql-max-select-point = 0
 influxql-max-select-series = 0
 log-level = "info"
-query-concurrency = 10
+query-concurrency = 0
 storage-cache-max-memory-size = 1073741824
 storage-cache-snapshot-memory-size = 26214400
 storage-cache-snapshot-write-cold-duration = "10m0s"
@@ -452,4 +462,11 @@ http-bind-address = ":8086"
 var testConfigV2empty = `
 bolt-path = "/db/.influxdbv2/influxd.bolt"
 engine-path = "/db/.influxdbv2/engine"
+`
+
+var testConfigV2QueryConcurrency = `
+bolt-path = "/db/.influxdbv2/influxd.bolt"
+engine-path = "/db/.influxdbv2/engine"
+query-concurrency = 128
+query-queue-size = 128
 `

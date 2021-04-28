@@ -117,7 +117,7 @@ func (tl *TestLauncher) RunOrFail(tb testing.TB, ctx context.Context, setters ..
 // Run executes the program with additional arguments to set paths and ports.
 // Passed arguments will overwrite/add to the default ones.
 func (tl *TestLauncher) Run(tb zaptest.TestingT, ctx context.Context, setters ...OptSetter) error {
-	opts := newOpts(viper.New())
+	opts := NewOpts(viper.New())
 	if !tl.realServer {
 		opts.StoreType = "memory"
 		opts.Testing = true

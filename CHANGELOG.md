@@ -1,6 +1,10 @@
 ## v2.0.6 [unreleased]
 ----------------------
 
+### Bug Fixes
+
+1. [21321](https://github.com/influxdata/influxdb/pull/21321): Ensure query config written by influxd upgrade is valid.
+
 ## v2.0.5 [2021-04-27]
 ----------------------
 
