@@ -159,13 +159,23 @@ impl TaskStatus {
         }
     }
 
-    /// If the job has competed, returns the total amount of CPU time
+    /// If the job is running or competed, returns the total amount of CPU time
     /// spent executing futures
     pub fn cpu_nanos(&self) -> Option<usize> {
         match self {
             Self::Creating => None,
             Self::Running { cpu_nanos, .. } => Some(*cpu_nanos),
             Self::Complete { cpu_nanos, .. } => Some(*cpu_nanos),
+        }
+    }
+
+    /// If the job has competed, returns the total amount of wall clock time
+    /// spent executing futures
+    pub fn wall_nanos(&self) -> Option<usize> {
+        match self {
+            Self::Creating => None,
+            Self::Running { .. } => None,
+            Self::Complete { wall_nanos, .. } => Some(*wall_nanos),
         }
     }
 }
