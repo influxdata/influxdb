@@ -41,7 +41,7 @@ func TestConfigUpgrade(t *testing.T) {
 			config2x: testConfigV2obsoleteArrays,
 		},
 		{
-			name: "query concurrency",
+			name:     "query concurrency",
 			config1x: testConfigV1QueryConcurrency,
 			config2x: testConfigV2QueryConcurrency,
 		},
