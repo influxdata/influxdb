@@ -7,6 +7,7 @@ use internal_types::{schema::builder::SchemaBuilder, selection::Selection};
 use query::{Database, PartitionChunk};
 
 use super::scenarios::*;
+use query::predicate::{Predicate, PredicateBuilder};
 
 /// Creates and loads several database scenarios using the db_setup
 /// function.
@@ -32,29 +33,27 @@ macro_rules! run_table_schema_test_case {
 
             // Make sure at least one table has data
             let mut chunks_with_table = 0;
+            let predicate = PredicateBuilder::new().table(table_name).build();
 
-            for partition_key in db.partition_keys().unwrap() {
-                for chunk in db.chunks(&partition_key) {
-                    if chunk.has_table(table_name) {
-                        chunks_with_table += 1;
-                        let actual_schema =
-                            chunk.table_schema(table_name, selection.clone()).unwrap();
+            for chunk in db.chunks(&predicate) {
+                if chunk.has_table(table_name) {
+                    chunks_with_table += 1;
+                    let actual_schema = chunk.table_schema(table_name, selection.clone()).unwrap();
 
-                        assert_eq!(
-                            expected_schema,
-                            actual_schema,
-                            "Mismatch in chunk {}\nExpected:\n{:#?}\nActual:\n{:#?}\n",
-                            chunk.id(),
-                            expected_schema,
-                            actual_schema
-                        );
-                    }
+                    assert_eq!(
+                        expected_schema,
+                        actual_schema,
+                        "Mismatch in chunk {}\nExpected:\n{:#?}\nActual:\n{:#?}\n",
+                        chunk.id(),
+                        expected_schema,
+                        actual_schema
+                    );
                 }
-                assert!(
-                    chunks_with_table > 0,
-                    "Expected at least one chunk to have data, but none did"
-                );
             }
+            assert!(
+                chunks_with_table > 0,
+                "Expected at least one chunk to have data, but none did"
+            );
         }
     };
 }

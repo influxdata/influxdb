@@ -201,7 +201,7 @@ impl InfluxRpcPlanner {
     {
         let mut builder = StringSetPlanBuilder::new();
 
-        for chunk in self.filtered_chunks(database, &predicate)? {
+        for chunk in database.chunks(&predicate) {
             let new_table_names = chunk
                 .table_names(&predicate, builder.known_strings())
                 .map_err(|e| Box::new(e) as _)
@@ -246,7 +246,7 @@ impl InfluxRpcPlanner {
         let mut need_full_plans = BTreeMap::new();
 
         let mut known_columns = BTreeSet::new();
-        for chunk in self.filtered_chunks(database, &predicate)? {
+        for chunk in database.chunks(&predicate) {
             // try and get the table names that have rows that match the predicate
             let table_names = self.chunk_table_names(chunk.as_ref(), &predicate)?;
 
@@ -351,7 +351,7 @@ impl InfluxRpcPlanner {
         let mut need_full_plans = BTreeMap::new();
 
         let mut known_values = BTreeSet::new();
-        for chunk in self.filtered_chunks(database, &predicate)? {
+        for chunk in database.chunks(&predicate) {
             let table_names = self.chunk_table_names(chunk.as_ref(), &predicate)?;
 
             for table_name in table_names {
@@ -484,7 +484,7 @@ impl InfluxRpcPlanner {
         // values and stops the plan executing once it has them
 
         // map table -> Vec<Arc<Chunk>>
-        let chunks = self.filtered_chunks(database, &predicate)?;
+        let chunks = database.chunks(&predicate);
         let table_chunks = self.group_chunks_by_table(&predicate, chunks)?;
 
         let mut field_list_plan = FieldListPlan::new();
@@ -523,7 +523,7 @@ impl InfluxRpcPlanner {
 
         // group tables by chunk, pruning if possible
         // key is table name, values are chunks
-        let chunks = self.filtered_chunks(database, &predicate)?;
+        let chunks = database.chunks(&predicate);
         let table_chunks = self.group_chunks_by_table(&predicate, chunks)?;
 
         // now, build up plans for each table
@@ -558,7 +558,7 @@ impl InfluxRpcPlanner {
         debug!(predicate=?predicate, agg=?agg, "planning read_group");
 
         // group tables by chunk, pruning if possible
-        let chunks = self.filtered_chunks(database, &predicate)?;
+        let chunks = database.chunks(&predicate);
         let table_chunks = self.group_chunks_by_table(&predicate, chunks)?;
         let num_prefix_tag_group_columns = group_columns.len();
 
@@ -598,7 +598,7 @@ impl InfluxRpcPlanner {
         debug!(predicate=?predicate, "planning read_window_aggregate");
 
         // group tables by chunk, pruning if possible
-        let chunks = self.filtered_chunks(database, &predicate)?;
+        let chunks = database.chunks(&predicate);
         let table_chunks = self.group_chunks_by_table(&predicate, chunks)?;
 
         // now, build up plans for each table
@@ -1167,51 +1167,6 @@ impl InfluxRpcPlanner {
             plan_builder,
             schema,
         }))
-    }
-
-    /// Returns a list of chunks across all partitions which may
-    /// contain data that pass the predicate
-    fn filtered_chunks<D>(
-        &self,
-        database: &D,
-        predicate: &Predicate,
-    ) -> Result<Vec<Arc<<D as Database>::Chunk>>>
-    where
-        D: Database,
-    {
-        let mut db_chunks = Vec::new();
-
-        // TODO write the following in a functional style (need to get
-        // rid of `await` on `Database::chunks`)
-
-        let partition_keys = database
-            .partition_keys()
-            .map_err(|e| Box::new(e) as _)
-            .context(ListingPartitions)?;
-
-        debug!(partition_keys=?partition_keys, "Considering partition keys");
-
-        for key in partition_keys {
-            // TODO prune partitions somehow
-            let partition_chunks = database.chunks(&key);
-            for chunk in partition_chunks {
-                let could_pass_predicate = chunk
-                    .could_pass_predicate(predicate)
-                    .map_err(|e| Box::new(e) as _)
-                    .context(CheckingChunkPredicate {
-                        chunk_id: chunk.id(),
-                    })?;
-
-                debug!(
-                    chunk_id = chunk.id(),
-                    could_pass_predicate, "Considering chunk"
-                );
-                if could_pass_predicate {
-                    db_chunks.push(chunk)
-                }
-            }
-        }
-        Ok(db_chunks)
     }
 }
 

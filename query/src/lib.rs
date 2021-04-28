@@ -42,10 +42,10 @@ pub trait Database: Debug + Send + Sync {
     /// Return the partition keys for data in this DB
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;
 
-    /// Returns a covering set of chunks in the specified partition. A
-    /// covering set means that together the chunks make up a single
-    /// complete copy of the data being queried.
-    fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>>;
+    /// Returns a set of chunks within the partition with data that may match
+    /// the provided predicate. If possible, chunks which have no rows that can
+    /// possibly match the predicate are omitted.
+    fn chunks(&self, predicate: &Predicate) -> Vec<Arc<Self::Chunk>>;
 
     /// Return a summary of all chunks in this database, in all partitions
     fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>, Self::Error>;
@@ -58,16 +58,6 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// returns the Id of this chunk. Ids are unique within a
     /// particular partition.
     fn id(&self) -> u32;
-
-    /// Returns true if this chunk *might* have data that passes the
-    /// predicate. If false is returned, this chunk can be
-    /// skipped entirely. If true is returned, there still may not be
-    /// rows that match.
-    ///
-    /// This is used during query planning to skip including entire chunks
-    fn could_pass_predicate(&self, _predicate: &Predicate) -> Result<bool, Self::Error> {
-        Ok(true)
-    }
 
     /// Returns true if this chunk contains data for the specified table
     fn has_table(&self, table_name: &str) -> bool;

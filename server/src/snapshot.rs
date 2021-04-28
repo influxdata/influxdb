@@ -280,7 +280,7 @@ mod tests {
     use futures::TryStreamExt;
     use mutable_buffer::chunk::Chunk as ChunkWB;
     use object_store::memory::InMemory;
-    use query::{exec::Executor, Database};
+    use query::{exec::Executor, predicate::Predicate, Database};
     use tracker::MemRegistry;
 
     #[tokio::test]
@@ -302,7 +302,7 @@ cpu,host=B,region=east user=10.0,system=74.1 1
         let mut data_path = store.new_path();
         data_path.push_dir("data");
 
-        let chunk = Arc::clone(&db.chunks("1970-01-01T00")[0]);
+        let chunk = Arc::clone(&db.chunks(&Predicate::default())[0]);
         let table_summary = db
             .table_summary("1970-01-01T00", "cpu", chunk.id())
             .unwrap();

@@ -103,13 +103,13 @@ impl Database for TestDatabase {
         Ok(keys)
     }
 
-    fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>> {
+    fn chunks(&self, _predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
         let partitions = self.partitions.lock();
-        if let Some(chunks) = partitions.get(partition_key) {
-            chunks.values().cloned().collect()
-        } else {
-            vec![]
-        }
+        partitions
+            .values()
+            .flat_map(|x| x.values())
+            .cloned()
+            .collect()
     }
 
     fn chunk_summaries(&self) -> Result<Vec<data_types::chunk::ChunkSummary>, Self::Error> {
