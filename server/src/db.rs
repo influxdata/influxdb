@@ -684,7 +684,13 @@ impl Db {
                 .try_into()
                 .context(SchemaConversion)?;
             let table_time_range = time_range.map(|(start, end)| TimestampRange::new(start, end));
-            parquet_chunk.add_table(stats, path, Arc::clone(&self.store), schema, table_time_range);
+            parquet_chunk.add_table(
+                stats,
+                path,
+                Arc::clone(&self.store),
+                schema,
+                table_time_range,
+            );
         }
 
         // Relock the chunk again (nothing else should have been able
@@ -703,6 +709,7 @@ impl Db {
         self.metrics.update_chunk_state(chunk.state());
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked MOVED. Persisting to object store complete");
 
+        // We know this chunk is ParquetFile type
         Ok(DbChunk::parquet_file_snapshot(&chunk))
     }
 
@@ -1841,7 +1848,7 @@ mod tests {
                 to_arc("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
-                1213 + 675, // size of RB and OB chunks
+                1213 + 675, // size of RB and OS chunks
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-01T00"),
@@ -1874,7 +1881,7 @@ mod tests {
 
         assert_eq!(db.memory_registries.mutable_buffer.bytes(), 100 + 129 + 131);
         assert_eq!(db.memory_registries.read_buffer.bytes(), 1213);
-        assert_eq!(db.memory_registries.parquet.bytes(), 89);  // TODO: This 89 must be replaced with 675. Ticket #1311
+        assert_eq!(db.memory_registries.parquet.bytes(), 89); // TODO: This 89 must be replaced with 675. Ticket #1311
     }
 
     #[tokio::test]
