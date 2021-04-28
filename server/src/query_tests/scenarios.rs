@@ -7,7 +7,9 @@ use async_trait::async_trait;
 
 use crate::{db::test_helpers::write_lp, Db};
 
-use super::utils::{count_mutable_buffer_chunks, count_read_buffer_chunks, count_object_store_chunks, make_db};
+use super::utils::{
+    count_mutable_buffer_chunks, count_object_store_chunks, count_read_buffer_chunks, make_db,
+};
 
 /// Holds a database and a description of how its data was configured
 #[derive(Debug)]
@@ -46,7 +48,7 @@ impl DbSetup for NoData {
         let db = make_db().db;
         assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 0);
-        assert_eq!(count_object_store_chunks(&db), 0); 
+        assert_eq!(count_object_store_chunks(&db), 0);
         let scenario2 = DbScenario {
             scenario_name: "New, Empty Database after partitions are listed".into(),
             db,
@@ -80,7 +82,7 @@ impl DbSetup for NoData {
         // drop chunk 0
         db.drop_chunk(partition_key, table_name, 0).unwrap();
 
-        assert_eq!(count_mutable_buffer_chunks(&db), 1);  // open chunk only
+        assert_eq!(count_mutable_buffer_chunks(&db), 1); // open chunk only
         assert_eq!(count_read_buffer_chunks(&db), 0); // nothing after dropping chunk 0
         assert_eq!(count_object_store_chunks(&db), 0); // still nothing
 
@@ -119,7 +121,7 @@ impl DbSetup for NoData {
             .await
             .unwrap();
         // it should be the same chunk!
-        assert_eq!(count_mutable_buffer_chunks(&db), 1);  // open chunk only
+        assert_eq!(count_mutable_buffer_chunks(&db), 1); // open chunk only
         assert_eq!(count_read_buffer_chunks(&db), 1); // closed chunk only
         assert_eq!(count_object_store_chunks(&db), 1); // close chunk only
 
@@ -128,7 +130,7 @@ impl DbSetup for NoData {
 
         assert_eq!(count_mutable_buffer_chunks(&db), 1);
         assert_eq!(count_read_buffer_chunks(&db), 0);
-        assert_eq!(count_object_store_chunks(&db), 0); 
+        assert_eq!(count_object_store_chunks(&db), 0);
 
         let scenario4 = DbScenario {
             scenario_name: "Empty Database after drop chunk".into(),
@@ -375,6 +377,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     };
 
     // TODO: Add scenario 5 where data is in object store only
+    // go with #1342
 
     vec![scenario1, scenario2, scenario3, scenario4]
 }
@@ -494,12 +497,15 @@ pub async fn make_two_chunk_scenarios(
     vec![scenario1, scenario2, scenario3, scenario4, scenario5]
 }
 
-/// Rollover the mutable buffer and load chunk 0 to the read bufer
+/// Rollover the mutable buffer and load chunk 0 to the read buffer and object store
 pub async fn rollover_and_load(db: &Db, partition_key: &str, table_name: &str) {
     db.rollover_partition(partition_key, table_name)
         .await
         .unwrap();
     db.load_chunk_to_read_buffer(partition_key, table_name, 0)
+        .await
+        .unwrap();
+    db.write_chunk_to_object_store(partition_key, table_name, 0)
         .await
         .unwrap();
 }

@@ -111,10 +111,10 @@ impl DbChunk {
                 chunk: Arc::clone(chunk),
                 partition_key,
                 // Since data exists in both read buffer and object store, we should
-                // return chunk of read buffer
+                // snapshot the chunk of read buffer
             },
-            // Todo: When we have a state for parquet_file chunk only,
-            // ChunkState::InObjectStoreOnly(chunk) => {  
+            // Todo: Turn this on When we have this state
+            // ChunkState::ObjectStoreOnly(chunk) => {
             //     let chunk = Arc::clone(chunk);
             //     Self::ParquetFile { chunk }
             // }
@@ -122,6 +122,11 @@ impl DbChunk {
         Arc::new(db_chunk)
     }
 
+    /// Return the snapshot of the chunk with type ParquetFile
+    /// This function should be only invoked when you know your chunk
+    /// is ParquetFile type whose state is  WrittenToObjectStore. The
+    /// reason we have this function is because the above snapshot
+    /// function always returns the read buffer one for the same state
     pub fn parquet_file_snapshot(chunk: &super::catalog::chunk::Chunk) -> Arc<Self> {
         use super::catalog::chunk::ChunkState;
 
@@ -129,9 +134,9 @@ impl DbChunk {
             ChunkState::WrittenToObjectStore(_, chunk) => {
                 let chunk = Arc::clone(chunk);
                 Self::ParquetFile { chunk }
-            },
+            }
             _ => {
-                panic!("This is not state of a parquet_fil chunk");
+                panic!("Internal error: This chunk's state is not WrittenToObjectStore");
             }
         };
         Arc::new(db_chunk)

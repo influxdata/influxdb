@@ -5,7 +5,7 @@ use crate::storage::{self, Storage};
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use data_types::{partition_metadata::TableSummary, timestamp::TimestampRange};
 use internal_types::{schema::Schema, selection::Selection};
-use object_store::{ObjectStore, path::Path};
+use object_store::{path::Path, ObjectStore};
 use query::predicate::Predicate;
 
 #[derive(Debug, Snafu)]
@@ -32,8 +32,7 @@ pub struct Table {
     /// id>/<tablename>.parquet
     object_store_path: Path,
 
-    /// Object store of the above relative path to get
-    /// full path
+    /// Object store of the above relative path to open and read the file
     object_store: Arc<ObjectStore>,
 
     /// Schema that goes with this table's parquet file
@@ -132,26 +131,13 @@ impl Table {
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream> {
-
-        let data: Result<SendableRecordBatchStream> = Storage::read_filter(
+        Storage::read_filter(
             predicate,
             selection,
             Arc::clone(&self.table_schema.as_arrow()),
             self.object_store_path.clone(),
             Arc::clone(&self.object_store),
-        ) 
-        .context(ReadParquet);
-
-        // let reader: SendableRecordBatchStream = data.unwrap();
-
-        // let mut batches = Vec::new();
-        // while let Some(record_batch) = reader.next().await
-        // .next().transpose().expect("reading next batch")
-        // {
-        //     batches.push(record_batch)
-        // }
-        // println!("Record Batches in parquet: {:#?}", batches);
-
-        data
+        )
+        .context(ReadParquet)
     }
 }

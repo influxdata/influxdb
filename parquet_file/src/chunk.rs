@@ -5,7 +5,7 @@ use crate::table::Table;
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use data_types::{partition_metadata::TableSummary, timestamp::TimestampRange};
 use internal_types::{schema::Schema, selection::Selection};
-use object_store::{ObjectStore, path::Path};
+use object_store::{path::Path, ObjectStore};
 use query::predicate::Predicate;
 use tracker::{MemRegistry, MemTracker};
 
@@ -98,8 +98,13 @@ impl Chunk {
         schema: Schema,
         range: Option<TimestampRange>,
     ) {
-        self.tables
-            .push(Table::new(table_summary, file_location, store, schema, range));
+        self.tables.push(Table::new(
+            table_summary,
+            file_location,
+            store,
+            schema,
+            range,
+        ));
     }
 
     /// Return true if this chunk includes the given table
