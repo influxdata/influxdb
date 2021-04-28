@@ -2721,6 +2721,7 @@ dependencies = [
  "influxdb_line_protocol",
  "internal_types",
  "libc",
+ "metrics",
  "observability_deps",
  "parking_lot",
  "snafu",

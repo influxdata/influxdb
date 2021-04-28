@@ -2583,9 +2583,10 @@ mod tests {
 
             let router = tonic::transport::Server::builder()
                 .add_service(crate::influxdb_ioxd::rpc::testing::make_server())
-                .add_service(crate::influxdb_ioxd::rpc::storage::make_server(Arc::clone(
-                    &test_storage,
-                )));
+                .add_service(crate::influxdb_ioxd::rpc::storage::make_server(
+                    Arc::clone(&test_storage),
+                    test_storage.metrics_registry.registry(),
+                ));
 
             let server = async move {
                 let stream = TcpListenerStream::new(socket);

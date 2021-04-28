@@ -46,7 +46,10 @@ where
     tonic::transport::Server::builder()
         .add_service(health_service)
         .add_service(testing::make_server())
-        .add_service(storage::make_server(Arc::clone(&server)))
+        .add_service(storage::make_server(
+            Arc::clone(&server),
+            Arc::clone(&server.registry),
+        ))
         .add_service(flight::make_server(Arc::clone(&server)))
         .add_service(write::make_server(Arc::clone(&server)))
         .add_service(management::make_server(Arc::clone(&server)))

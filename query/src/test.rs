@@ -409,6 +409,7 @@ impl PartitionChunk for TestChunk {
 pub struct TestDatabaseStore {
     databases: Mutex<BTreeMap<String, Arc<TestDatabase>>>,
     executor: Arc<Executor>,
+    pub metrics_registry: metrics::TestMetricRegistry,
 }
 
 impl TestDatabaseStore {
@@ -422,6 +423,7 @@ impl Default for TestDatabaseStore {
         Self {
             databases: Mutex::new(BTreeMap::new()),
             executor: Arc::new(Executor::new(1)),
+            metrics_registry: metrics::TestMetricRegistry::default(),
         }
     }
 }

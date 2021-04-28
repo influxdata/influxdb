@@ -22,8 +22,15 @@ use std::sync::Arc;
 #[derive(Debug)]
 struct StorageService<T: DatabaseStore> {
     pub db_store: Arc<T>,
+    pub metrics_registry: Arc<metrics::MetricRegistry>,
 }
 
-pub fn make_server<T: DatabaseStore + 'static>(db_store: Arc<T>) -> StorageServer<impl Storage> {
-    StorageServer::new(StorageService { db_store })
+pub fn make_server<T: DatabaseStore + 'static>(
+    db_store: Arc<T>,
+    metrics_registry: Arc<metrics::MetricRegistry>,
+) -> StorageServer<impl Storage> {
+    StorageServer::new(StorageService {
+        db_store,
+        metrics_registry,
+    })
 }
