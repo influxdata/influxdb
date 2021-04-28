@@ -205,11 +205,11 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 
 		NoTasks: false,
 
-		ConcurrencyQuota:                0,
+		ConcurrencyQuota:                1024,
 		InitialMemoryBytesQuotaPerQuery: 0,
 		MemoryBytesQuotaPerQuery:        MaxInt,
 		MaxMemoryBytes:                  0,
-		QueueSize:                       0,
+		QueueSize:                       1024,
 
 		Testing:                 false,
 		TestingAlwaysAllowSetup: false,
