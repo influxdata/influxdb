@@ -59,7 +59,7 @@ pub fn encode(src: &[u64], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
             }
 
             let max_val = 1u64 << (bit_n & 0x3f) as u64;
-            let mut val = ((idx + 2) << S8B_BIT_SIZE) as u64;
+            let mut val = ((idx as u64) + 2) << S8B_BIT_SIZE;
             for (k, in_v) in src[i..].iter().enumerate() {
                 if k < int_n {
                     if *in_v >= max_val {
