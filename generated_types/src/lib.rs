@@ -75,10 +75,6 @@ pub mod grpc {
     }
 }
 
-/// Generated Flatbuffers code for working with the Write Buffer
-pub mod write_buffer_generated;
-pub use write_buffer_generated::wb;
-
 /// Generated Flatbuffers code for replicating and writing data between IOx
 /// servers
 pub mod entry_generated;

@@ -137,7 +137,10 @@ impl Config {
             return;
         }
 
-        let write_buffer = rules.write_buffer_config.as_ref().map(Into::into);
+        let write_buffer = rules
+            .write_buffer_config
+            .as_ref()
+            .map(|config| crate::buffer::Buffer::new_from_config(config, server_id));
         let db = Arc::new(Db::new(
             rules,
             server_id,
