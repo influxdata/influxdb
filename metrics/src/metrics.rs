@@ -5,7 +5,7 @@ use std::{
 };
 
 use observability_deps::opentelemetry::metrics::{
-    Counter as OTCounter, ValueRecorder as OTHistorgram,
+    Counter as OTCounter, ValueRecorder as OTHistogram,
 };
 
 pub use observability_deps::opentelemetry::KeyValue;
@@ -70,13 +70,13 @@ impl Display for RedRequestStatus {
 pub struct RedMetric {
     default_labels: Vec<KeyValue>,
     requests: OTCounter<u64>,
-    duration: OTHistorgram<f64>,
+    duration: OTHistogram<f64>,
 }
 
 impl RedMetric {
     pub(crate) fn new(
         requests: OTCounter<u64>,
-        duration: OTHistorgram<f64>,
+        duration: OTHistogram<f64>,
         mut default_labels: Vec<KeyValue>,
     ) -> Self {
         // TODO(edd): decide what to do if `labels` contains
@@ -271,5 +271,75 @@ impl Counter {
     /// labels.
     pub fn inc_with_labels(&self, labels: &[KeyValue]) {
         self.add_with_labels(1, labels)
+    }
+}
+
+#[derive(Debug)]
+/// A Histogram is a metric exposing a distribution of observations.
+pub struct Histogram {
+    default_labels: Vec<KeyValue>,
+    histogram: OTHistogram<f64>,
+}
+
+impl Histogram {
+    pub(crate) fn new(histogram: OTHistogram<f64>, default_labels: Vec<KeyValue>) -> Self {
+        Self {
+            histogram,
+            default_labels,
+        }
+    }
+
+    /// Add a new observation to the histogram including the provided labels.
+    pub fn observe_with_labels(&self, observation: f64, labels: &[KeyValue]) {
+        // merge labels
+        let labels = if labels.is_empty() {
+            // If there are no labels specified just borrow defaults
+            Cow::Borrowed(&self.default_labels)
+        } else {
+            // Otherwise merge the provided labels and the defaults.
+            // Note: provided labels need to go last so that they overwrite
+            // any default labels.
+            //
+            // PERF(edd): this seems expensive to me.
+            let mut new_labels: Vec<KeyValue> = self.default_labels.clone();
+            new_labels.extend_from_slice(labels);
+            Cow::Owned(new_labels)
+        };
+
+        self.histogram.record(observation, &labels);
+    }
+
+    /// Add a new observation to the histogram
+    pub fn observe(&self, observation: f64) {
+        self.observe_with_labels(observation, &[]);
+    }
+
+    /// A helper method for observing latencies. Returns a new timing instrument
+    /// which will handle submitting an observation containing a duration.
+    pub fn timer(&self) -> HistogramTimer<'_> {
+        HistogramTimer::new(&self)
+    }
+}
+#[derive(Debug)]
+pub struct HistogramTimer<'a> {
+    start: Instant,
+    histogram: &'a Histogram,
+}
+
+impl<'a> HistogramTimer<'a> {
+    pub fn new(histogram: &'a Histogram) -> Self {
+        Self {
+            start: Instant::now(),
+            histogram,
+        }
+    }
+
+    pub fn record(self) {
+        self.record_with_labels(&[]);
+    }
+
+    pub fn record_with_labels(self, labels: &[KeyValue]) {
+        self.histogram
+            .observe_with_labels(self.start.elapsed().as_secs_f64(), labels);
     }
 }
