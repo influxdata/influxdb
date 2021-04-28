@@ -269,12 +269,11 @@ impl SchemaProvider for Catalog {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU32;
-
     use super::*;
     use data_types::server_id::ServerId;
     use internal_types::entry::{test_helpers::lp_to_entry, ClockValue};
     use query::predicate::PredicateBuilder;
+    use std::convert::TryFrom;
     use tracker::MemRegistry;
 
     fn create_open_chunk(partition: &Arc<RwLock<Partition>>, table: &str, registry: &MemRegistry) {
@@ -285,8 +284,8 @@ mod tests {
         partition
             .create_open_chunk(
                 batch,
-                ClockValue::new(0),
-                ServerId::new(NonZeroU32::new(1).unwrap()),
+                ClockValue::try_from(5).unwrap(),
+                ServerId::try_from(1).unwrap(),
                 registry,
             )
             .unwrap();

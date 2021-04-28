@@ -37,13 +37,19 @@ const OPERATIONS: &str = "operations";
 
 #[derive(Debug)]
 pub struct SystemSchemaProvider {
+    db_name: String,
     catalog: Arc<Catalog>,
     jobs: Arc<JobRegistry>,
 }
 
 impl SystemSchemaProvider {
-    pub fn new(catalog: Arc<Catalog>, jobs: Arc<JobRegistry>) -> Self {
-        Self { catalog, jobs }
+    pub fn new(db_name: impl Into<String>, catalog: Arc<Catalog>, jobs: Arc<JobRegistry>) -> Self {
+        let db_name = db_name.into();
+        Self {
+            db_name,
+            catalog,
+            jobs,
+        }
     }
 }
 
@@ -69,7 +75,7 @@ impl SchemaProvider for SystemSchemaProvider {
             COLUMNS => from_partition_summaries(self.catalog.partition_summaries())
                 .log_if_error("chunks table")
                 .ok()?,
-            OPERATIONS => from_task_trackers(self.jobs.tracked())
+            OPERATIONS => from_task_trackers(&self.db_name, self.jobs.tracked())
                 .log_if_error("operations table")
                 .ok()?,
             _ => return None,
@@ -185,14 +191,22 @@ fn from_partition_summaries(partitions: Vec<PartitionSummary>) -> Result<RecordB
     )
 }
 
-fn from_task_trackers(jobs: Vec<TaskTracker<Job>>) -> Result<RecordBatch> {
+fn from_task_trackers(db_name: &str, jobs: Vec<TaskTracker<Job>>) -> Result<RecordBatch> {
+    let jobs = jobs
+        .into_iter()
+        .filter(|job| job.metadata().db_name() == Some(db_name))
+        .collect::<Vec<_>>();
+
     let ids = StringArray::from_iter(jobs.iter().map(|job| Some(job.id().to_string())));
     let statuses = StringArray::from_iter(jobs.iter().map(|job| Some(job.get_status().name())));
     let cpu_time_used = Time64NanosecondArray::from_iter(
         jobs.iter()
             .map(|job| job.get_status().cpu_nanos().map(|n| n as i64)),
     );
-    let db_names = StringArray::from_iter(jobs.iter().map(|job| job.metadata().db_name()));
+    let wall_time_used = Time64NanosecondArray::from_iter(
+        jobs.iter()
+            .map(|job| job.get_status().wall_nanos().map(|n| n as i64)),
+    );
     let partition_keys =
         StringArray::from_iter(jobs.iter().map(|job| job.metadata().partition_key()));
     let chunk_ids = UInt32Array::from_iter(jobs.iter().map(|job| job.metadata().chunk_id()));
@@ -203,7 +217,7 @@ fn from_task_trackers(jobs: Vec<TaskTracker<Job>>) -> Result<RecordBatch> {
         Field::new("id", ids.data_type().clone(), false),
         Field::new("status", statuses.data_type().clone(), false),
         Field::new("cpu_time_used", cpu_time_used.data_type().clone(), true),
-        Field::new("db_name", db_names.data_type().clone(), true),
+        Field::new("wall_time_used", wall_time_used.data_type().clone(), true),
         Field::new("partition_key", partition_keys.data_type().clone(), true),
         Field::new("chunk_id", chunk_ids.data_type().clone(), true),
         Field::new("description", descriptions.data_type().clone(), true),
@@ -215,7 +229,7 @@ fn from_task_trackers(jobs: Vec<TaskTracker<Job>>) -> Result<RecordBatch> {
             Arc::new(ids),
             Arc::new(statuses),
             Arc::new(cpu_time_used),
-            Arc::new(db_names),
+            Arc::new(wall_time_used),
             Arc::new(partition_keys),
             Arc::new(chunk_ids),
             Arc::new(descriptions),

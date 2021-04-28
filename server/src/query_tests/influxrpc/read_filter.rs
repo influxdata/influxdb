@@ -1,5 +1,7 @@
 //! Tests for the Influx gRPC queries
+#[cfg(test)]
 use super::util::run_series_set_plan;
+
 use crate::query_tests::scenarios::*;
 use arrow_deps::datafusion::logical_plan::{col, lit};
 use async_trait::async_trait;

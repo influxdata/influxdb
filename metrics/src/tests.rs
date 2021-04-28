@@ -20,6 +20,13 @@ pub enum Error {
         metrics: String,
     },
 
+    #[snafu(display("bucket {:?} is not in metric family: {}\n{}", bound, name, metrics))]
+    HistogramBucketNotFoundError {
+        bound: f64,
+        name: String,
+        metrics: String,
+    },
+
     #[snafu(display("metric '{}' failed assertion: '{}'\n{}", name, msg, metrics))]
     FailedMetricAssertionError {
         name: String,
@@ -253,56 +260,56 @@ impl<'a> Counter<'a> {
     pub fn gte(self, v: f64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        if v < c.get_value() {
-            return FailedMetricAssertionError {
+        ensure!(
+            c.get_value() >= v,
+            FailedMetricAssertionError {
                 name: self.family_name,
                 msg: format!("{:?} >= {:?} failed", c.get_value(), v),
                 metrics: self.metric_dump,
             }
-            .fail();
-        }
+        );
         Ok(())
     }
 
     pub fn gt(self, v: f64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        if v <= c.get_value() {
-            return FailedMetricAssertionError {
+        ensure!(
+            c.get_value() > v,
+            FailedMetricAssertionError {
                 name: self.family_name,
                 msg: format!("{:?} > {:?} failed", c.get_value(), v),
                 metrics: self.metric_dump,
             }
-            .fail();
-        }
+        );
         Ok(())
     }
 
     pub fn lte(self, v: f64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        if v > c.get_value() {
-            return FailedMetricAssertionError {
+        ensure!(
+            c.get_value() <= v,
+            FailedMetricAssertionError {
                 name: self.family_name,
                 msg: format!("{:?} <= {:?} failed", c.get_value(), v),
                 metrics: self.metric_dump,
             }
-            .fail();
-        }
+        );
         Ok(())
     }
 
     pub fn lt(self, v: f64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        if v >= c.get_value() {
-            return FailedMetricAssertionError {
+        ensure!(
+            c.get_value() < v,
+            FailedMetricAssertionError {
                 name: self.family_name,
                 msg: format!("{:?} < {:?} failed", c.get_value(), v),
                 metrics: self.metric_dump,
             }
-            .fail();
-        }
+        );
         Ok(())
     }
 }
@@ -318,143 +325,168 @@ pub struct Histogram<'a> {
 }
 
 impl<'a> Histogram<'a> {
+    pub fn bucket_cumulative_count_eq(self, bound: f64, count: u64) -> Result<(), Error> {
+        let c = self.c?; // return previous errors
+
+        let bucket = c
+            .get_bucket()
+            .iter()
+            .find(|bucket| bucket.get_upper_bound() == bound)
+            .context(HistogramBucketNotFoundError {
+                bound,
+                name: &self.family_name,
+                metrics: &self.metric_dump,
+            })?;
+
+        ensure!(
+            count == bucket.get_cumulative_count(),
+            FailedMetricAssertionError {
+                name: &self.family_name,
+                msg: format!("{:?} == {:?} failed", bucket.get_cumulative_count(), count),
+                metrics: self.metric_dump,
+            }
+        );
+
+        Ok(())
+    }
+
     pub fn sample_sum_eq(self, v: f64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        if v != c.get_sample_sum() {
-            return FailedMetricAssertionError {
+        ensure!(
+            v == c.get_sample_sum(),
+            FailedMetricAssertionError {
                 name: self.family_name,
                 msg: format!("{:?} == {:?} failed", c.get_sample_sum(), v),
                 metrics: self.metric_dump,
             }
-            .fail();
-        }
+        );
         Ok(())
     }
 
     pub fn sample_sum_gte(self, v: f64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        if v < c.get_sample_sum() {
-            return FailedMetricAssertionError {
+        ensure!(
+            c.get_sample_sum() >= v,
+            FailedMetricAssertionError {
                 name: self.family_name,
                 msg: format!("{:?} >= {:?} failed", c.get_sample_sum(), v),
                 metrics: self.metric_dump,
             }
-            .fail();
-        }
+        );
         Ok(())
     }
 
     pub fn sample_sum_gt(self, v: f64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        if v <= c.get_sample_sum() {
-            return FailedMetricAssertionError {
+        ensure!(
+            c.get_sample_sum() > v,
+            FailedMetricAssertionError {
                 name: self.family_name,
                 msg: format!("{:?} > {:?} failed", c.get_sample_sum(), v),
                 metrics: self.metric_dump,
             }
-            .fail();
-        }
+        );
         Ok(())
     }
 
     pub fn sample_sum_lte(self, v: f64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        if v > c.get_sample_sum() {
-            return FailedMetricAssertionError {
+        ensure!(
+            c.get_sample_sum() <= v,
+            FailedMetricAssertionError {
                 name: self.family_name,
                 msg: format!("{:?} <= {:?} failed", c.get_sample_sum(), v),
                 metrics: self.metric_dump,
             }
-            .fail();
-        }
+        );
         Ok(())
     }
 
     pub fn sample_sum_lt(self, v: f64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        if v >= c.get_sample_sum() {
-            return FailedMetricAssertionError {
+        ensure!(
+            c.get_sample_sum() < v,
+            FailedMetricAssertionError {
                 name: self.family_name,
                 msg: format!("{:?} < {:?} failed", c.get_sample_sum(), v),
                 metrics: self.metric_dump,
             }
-            .fail();
-        }
+        );
         Ok(())
     }
 
     pub fn sample_count_eq(self, v: u64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        if v != c.get_sample_count() {
-            return FailedMetricAssertionError {
+        ensure!(
+            c.get_sample_count() == v,
+            FailedMetricAssertionError {
                 name: self.family_name,
                 msg: format!("{:?} == {:?} failed", c.get_sample_count(), v),
                 metrics: self.metric_dump,
             }
-            .fail();
-        }
+        );
         Ok(())
     }
 
     pub fn sample_count_gte(self, v: u64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        if v < c.get_sample_count() {
-            return FailedMetricAssertionError {
+        ensure!(
+            c.get_sample_count() >= v,
+            FailedMetricAssertionError {
                 name: self.family_name,
                 msg: format!("{:?} >= {:?} failed", c.get_sample_count(), v),
                 metrics: self.metric_dump,
             }
-            .fail();
-        }
+        );
         Ok(())
     }
 
     pub fn sample_count_gt(self, v: u64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        if v <= c.get_sample_count() {
-            return FailedMetricAssertionError {
+        ensure!(
+            c.get_sample_count() > v,
+            FailedMetricAssertionError {
                 name: self.family_name,
                 msg: format!("{:?} > {:?} failed", c.get_sample_count(), v),
                 metrics: self.metric_dump,
             }
-            .fail();
-        }
+        );
         Ok(())
     }
 
     pub fn sample_count_lte(self, v: u64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        if v > c.get_sample_count() {
-            return FailedMetricAssertionError {
+        ensure!(
+            c.get_sample_count() <= v,
+            FailedMetricAssertionError {
                 name: self.family_name,
                 msg: format!("{:?} <= {:?} failed", c.get_sample_count(), v),
                 metrics: self.metric_dump,
             }
-            .fail();
-        }
+        );
         Ok(())
     }
 
     pub fn sample_count_lt(self, v: u64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        if v >= c.get_sample_count() {
-            return FailedMetricAssertionError {
+        ensure!(
+            c.get_sample_count() < v,
+            FailedMetricAssertionError {
                 name: self.family_name,
                 msg: format!("{:?} < {:?} failed", c.get_sample_count(), v),
                 metrics: self.metric_dump,
             }
-            .fail();
-        }
+        );
         Ok(())
     }
 }

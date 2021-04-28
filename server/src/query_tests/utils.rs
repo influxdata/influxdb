@@ -39,6 +39,7 @@ pub fn make_db() -> TestDb {
     }
 }
 
+/// Used for testing: create a Database with a local store and a specified name
 pub fn make_database(server_id: ServerId, object_store: Arc<ObjectStore>, db_name: &str) -> Db {
     let exec = Arc::new(Executor::new(1));
     let metrics_registry = Arc::new(metrics::MetricRegistry::new());

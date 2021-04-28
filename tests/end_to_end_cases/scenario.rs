@@ -2,6 +2,7 @@ use std::{sync::Arc, time::SystemTime};
 
 use generated_types::google::protobuf::Empty;
 use generated_types::influxdata::iox::management::v1::*;
+use influxdb_iox_client::flight::PerformQuery;
 use rand::{
     distributions::{Alphanumeric, Standard},
     thread_rng, Rng,
@@ -364,4 +365,13 @@ pub async fn create_two_partition_database(
         .write(&db_name, lp_lines.join("\n"))
         .await
         .expect("write succeded");
+}
+
+/// Collect the results of a query into a vector of record batches
+pub async fn collect_query(mut query_results: PerformQuery) -> Vec<RecordBatch> {
+    let mut batches = vec![];
+    while let Some(data) = query_results.next().await.unwrap() {
+        batches.push(data);
+    }
+    batches
 }

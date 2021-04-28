@@ -25,10 +25,8 @@ use generated_types::{
 };
 use observability_deps::tracing::{error, info};
 use query::{
-    exec::fieldlist::FieldList,
-    exec::seriesset::{Error as SeriesSetError, SeriesSetItem},
-    predicate::PredicateBuilder,
-    DatabaseStore,
+    exec::fieldlist::FieldList, exec::seriesset::Error as SeriesSetError,
+    predicate::PredicateBuilder, DatabaseStore,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{collections::HashMap, sync::Arc};
@@ -210,14 +208,12 @@ impl<T> Storage for StorageService<T>
 where
     T: DatabaseStore + 'static,
 {
-    type ReadFilterStream = ReceiverStream<Result<ReadResponse, Status>>;
+    type ReadFilterStream = futures::stream::Iter<std::vec::IntoIter<Result<ReadResponse, Status>>>;
 
     async fn read_filter(
         &self,
         req: tonic::Request<ReadFilterRequest>,
     ) -> Result<tonic::Response<Self::ReadFilterStream>, Status> {
-        let (tx, rx) = mpsc::channel(4);
-
         let read_filter_request = req.into_inner();
 
         let db_name = get_database_name(&read_filter_request)?;
@@ -230,27 +226,22 @@ where
 
         info!(%db_name, ?range, predicate=%predicate.loggable(),"read filter");
 
-        read_filter_impl(
-            tx.clone(),
-            Arc::clone(&self.db_store),
-            db_name,
-            range,
-            predicate,
-        )
-        .await
-        .map_err(|e| e.to_status())?;
+        let results = read_filter_impl(Arc::clone(&self.db_store), db_name, range, predicate)
+            .await
+            .map_err(|e| e.to_status())?
+            .into_iter()
+            .map(Ok)
+            .collect::<Vec<_>>();
 
-        Ok(tonic::Response::new(ReceiverStream::new(rx)))
+        Ok(tonic::Response::new(futures::stream::iter(results)))
     }
 
-    type ReadGroupStream = ReceiverStream<Result<ReadResponse, Status>>;
+    type ReadGroupStream = futures::stream::Iter<std::vec::IntoIter<Result<ReadResponse, Status>>>;
 
     async fn read_group(
         &self,
         req: tonic::Request<ReadGroupRequest>,
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
-        let (tx, rx) = mpsc::channel(4);
-
         let read_group_request = req.into_inner();
 
         let db_name = get_database_name(&read_group_request)?;
@@ -283,8 +274,7 @@ where
         let gby_agg = expr::make_read_group_aggregate(aggregate, group, group_keys)
             .context(ConvertingReadGroupAggregate { aggregate_string })?;
 
-        query_group_impl(
-            tx.clone(),
+        let results = query_group_impl(
             Arc::clone(&self.db_store),
             db_name,
             range,
@@ -292,19 +282,21 @@ where
             gby_agg,
         )
         .await
-        .map_err(|e| e.to_status())?;
+        .map_err(|e| e.to_status())?
+        .into_iter()
+        .map(Ok)
+        .collect::<Vec<_>>();
 
-        Ok(tonic::Response::new(ReceiverStream::new(rx)))
+        Ok(tonic::Response::new(futures::stream::iter(results)))
     }
 
-    type ReadWindowAggregateStream = ReceiverStream<Result<ReadResponse, Status>>;
+    type ReadWindowAggregateStream =
+        futures::stream::Iter<std::vec::IntoIter<Result<ReadResponse, Status>>>;
 
     async fn read_window_aggregate(
         &self,
         req: tonic::Request<ReadWindowAggregateRequest>,
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
-        let (tx, rx) = mpsc::channel(4);
-
         let read_window_aggregate_request = req.into_inner();
 
         let db_name = get_database_name(&read_window_aggregate_request)?;
@@ -329,8 +321,7 @@ where
         let gby_agg = expr::make_read_window_aggregate(aggregate, window_every, offset, window)
             .context(ConvertingWindowAggregate { aggregate_string })?;
 
-        query_group_impl(
-            tx.clone(),
+        let results = query_group_impl(
             Arc::clone(&self.db_store),
             db_name,
             range,
@@ -338,9 +329,12 @@ where
             gby_agg,
         )
         .await
-        .map_err(|e| e.to_status())?;
+        .map_err(|e| e.to_status())?
+        .into_iter()
+        .map(Ok)
+        .collect::<Vec<_>>();
 
-        Ok(tonic::Response::new(ReceiverStream::new(rx)))
+        Ok(tonic::Response::new(futures::stream::iter(results)))
     }
 
     type TagKeysStream = ReceiverStream<Result<StringValuesResponse, Status>>;
@@ -843,14 +837,13 @@ where
     Ok(StringValuesResponse { values })
 }
 
-/// Launch async tasks that send the result of executing read_filter to `tx`
+/// Launch async tasks that materialises the result of executing read_filter.
 async fn read_filter_impl<'a, T>(
-    tx: mpsc::Sender<Result<ReadResponse, Status>>,
     db_store: Arc<T>,
     db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
-) -> Result<()>
+) -> Result<Vec<ReadResponse>, Error>
 where
     T: DatabaseStore + 'static,
 {
@@ -872,68 +865,42 @@ where
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
     let executor = db_store.executor();
 
+    // PERF - This used to send responses to the client before execution had
+    // completed, but now it doesn't. We may need to revisit this in the future
+    // if big queries are causing a significant latency in TTFB.
+
+    // Build the plans
     let series_plan = Planner::new(Arc::clone(&executor))
         .read_filter(db, predicate)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(PlanningFilteringSeries { db_name })?;
 
-    // Spawn task to convert between series sets and the gRPC results
-    // and to run the actual plans (so we can return a result to the
-    // client before we start sending result)
-    let (tx_series, rx_series) = mpsc::channel(4);
-    tokio::spawn(async move {
-        convert_series_set(rx_series, tx)
-            .await
-            .log_if_error("Converting series set")
-    });
+    // Execute the plans.
+    let ss_items = executor
+        .to_series_set(series_plan)
+        .await
+        .map_err(|e| Box::new(e) as _)
+        .context(FilteringSeries {
+            db_name: owned_db_name.as_str(),
+        })
+        .log_if_error("Running series set plan")?;
 
-    // fire up the plans and start the pipeline flowing
-    tokio::spawn(async move {
-        executor
-            .to_series_set(series_plan, tx_series)
-            .await
-            .map_err(|e| Box::new(e) as _)
-            .context(FilteringSeries {
-                db_name: owned_db_name.as_str(),
-            })
-            .log_if_error("Running series set plan")
-    });
-
-    Ok(())
-}
-
-/// Receives SeriesSets from rx, converts them to ReadResponse and
-/// and sends them to tx
-async fn convert_series_set(
-    mut rx: mpsc::Receiver<Result<SeriesSetItem, SeriesSetError>>,
-    tx: mpsc::Sender<Result<ReadResponse, Status>>,
-) -> Result<()> {
-    while let Some(series_set) = rx.recv().await {
-        let response = series_set
-            .context(ComputingSeriesSet)
-            .and_then(|series_set| {
-                series_set_item_to_read_response(series_set).context(ConvertingSeriesSet)
-            })
-            .map_err(|e| Status::internal(e.to_string()));
-
-        tx.send(response)
-            .await
-            .map_err(|e| Box::new(e) as _)
-            .context(SendingResults)?
-    }
-    Ok(())
+    // Convert results into API responses
+    ss_items
+        .into_iter()
+        .map(|series_set| series_set_item_to_read_response(series_set).context(ConvertingSeriesSet))
+        .collect::<Result<Vec<ReadResponse>, Error>>()
 }
 
 /// Launch async tasks that send the result of executing read_group to `tx`
 async fn query_group_impl<T>(
-    tx: mpsc::Sender<Result<ReadResponse, Status>>,
     db_store: Arc<T>,
     db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
     gby_agg: GroupByAndAggregate,
-) -> Result<()>
+) -> Result<Vec<ReadResponse>, Error>
 where
     T: DatabaseStore + 'static,
 {
@@ -972,29 +939,25 @@ where
         .map_err(|e| Box::new(e) as _)
         .context(PlanningGroupSeries { db_name })?;
 
-    // Spawn task to convert between series sets and the gRPC results
-    // and to run the actual plans (so we can return a result to the
-    // client before we start sending result)
-    let (tx_series, rx_series) = mpsc::channel(4);
-    tokio::spawn(async move {
-        convert_series_set(rx_series, tx)
-            .await
-            .log_if_error("Converting grouped series set")
-    });
+    // PERF - This used to send responses to the client before execution had
+    // completed, but now it doesn't. We may need to revisit this in the future
+    // if big queries are causing a significant latency in TTFB.
 
-    // fire up the plans and start the pipeline flowing
-    tokio::spawn(async move {
-        executor
-            .to_series_set(grouped_series_set_plan, tx_series)
-            .await
-            .map_err(|e| Box::new(e) as _)
-            .context(GroupingSeries {
-                db_name: owned_db_name.as_str(),
-            })
-            .log_if_error("Running Grouped SeriesSet Plan")
-    });
+    // Execute the plans
+    let ss_items = executor
+        .to_series_set(grouped_series_set_plan)
+        .await
+        .map_err(|e| Box::new(e) as _)
+        .context(GroupingSeries {
+            db_name: owned_db_name.as_str(),
+        })
+        .log_if_error("Running Grouped SeriesSet Plan")?;
 
-    Ok(())
+    // Convert plans to API responses
+    ss_items
+        .into_iter()
+        .map(|series_set| series_set_item_to_read_response(series_set).context(ConvertingSeriesSet))
+        .collect::<Result<Vec<ReadResponse>, Error>>()
 }
 
 /// Return field names, restricted via optional measurement, timestamp and

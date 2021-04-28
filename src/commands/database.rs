@@ -180,6 +180,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                     drop_non_persisted: command.drop_non_persisted,
                     persist: command.persist,
                     immutable: command.immutable,
+                    background_worker_period_millis: Default::default(),
                 }),
 
                 // Default to hourly partitions

@@ -424,13 +424,14 @@ mod tests {
         let mut dictionary = Dictionary::new();
         let mut table = Table::new(dictionary.lookup_value_or_insert("foo"));
         let server_id = ServerId::try_from(1).unwrap();
+        let clock_value = ClockValue::try_from(5).unwrap();
 
         let lp = "foo,t1=asdf iv=1i,uv=1u,fv=1.0,bv=true,sv=\"hi\" 1";
         let entry = lp_to_entry(&lp);
         table
             .write_columns(
                 &mut dictionary,
-                ClockValue::new(0),
+                clock_value,
                 server_id,
                 entry
                     .partition_writes()
@@ -449,7 +450,7 @@ mod tests {
         let response = table
             .write_columns(
                 &mut dictionary,
-                ClockValue::new(0),
+                clock_value,
                 server_id,
                 entry
                     .partition_writes()
@@ -483,7 +484,7 @@ mod tests {
         let response = table
             .write_columns(
                 &mut dictionary,
-                ClockValue::new(0),
+                clock_value,
                 server_id,
                 entry
                     .partition_writes()
@@ -517,7 +518,7 @@ mod tests {
         let response = table
             .write_columns(
                 &mut dictionary,
-                ClockValue::new(0),
+                clock_value,
                 server_id,
                 entry
                     .partition_writes()
@@ -551,7 +552,7 @@ mod tests {
         let response = table
             .write_columns(
                 &mut dictionary,
-                ClockValue::new(0),
+                clock_value,
                 server_id,
                 entry
                     .partition_writes()
@@ -585,7 +586,7 @@ mod tests {
         let response = table
             .write_columns(
                 &mut dictionary,
-                ClockValue::new(0),
+                clock_value,
                 server_id,
                 entry
                     .partition_writes()
@@ -619,7 +620,7 @@ mod tests {
         let response = table
             .write_columns(
                 &mut dictionary,
-                ClockValue::new(0),
+                clock_value,
                 server_id,
                 entry
                     .partition_writes()
@@ -664,7 +665,7 @@ mod tests {
             table
                 .write_columns(
                     dictionary,
-                    ClockValue::new(0),
+                    ClockValue::try_from(5).unwrap(),
                     ServerId::try_from(1).unwrap(),
                     batch.columns(),
                 )

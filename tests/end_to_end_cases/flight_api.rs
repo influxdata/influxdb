@@ -1,4 +1,4 @@
-use super::scenario::{create_readable_database, rand_name, Scenario};
+use super::scenario::{collect_query, create_readable_database, rand_name, Scenario};
 use crate::common::server_fixture::ServerFixture;
 use arrow_deps::assert_table_eq;
 
@@ -17,16 +17,12 @@ pub async fn test() {
 
     let mut client = server_fixture.flight_client();
 
-    let mut query_results = client
+    let query_results = client
         .perform_query(scenario.database_name(), sql_query)
         .await
         .unwrap();
 
-    let mut batches = vec![];
-
-    while let Some(data) = query_results.next().await.unwrap() {
-        batches.push(data);
-    }
+    let batches = collect_query(query_results).await;
 
     assert_table_eq!(expected_read_data, &batches);
 }

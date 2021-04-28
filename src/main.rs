@@ -30,6 +30,7 @@ mod commands {
     pub mod run;
     pub mod server;
     pub mod server_remote;
+    pub mod sql;
     pub mod stats;
     pub mod tracing;
 }
@@ -52,6 +53,9 @@ enum ReturnCode {
 Examples:
     # Run the InfluxDB IOx server:
     influxdb_iox
+
+    # Run the interactive SQL prompt
+    influxdb_iox sql
 
     # Display all server settings
     influxdb_iox run --help
@@ -147,6 +151,7 @@ enum Command {
     Stats(commands::stats::Config),
     Server(commands::server::Config),
     Operation(commands::operations::Config),
+    Sql(commands::sql::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -232,6 +237,13 @@ fn main() -> Result<(), std::io::Error> {
                     handle_init_logs(init_logs_and_tracing(log_verbose_count, &config));
                 if let Err(e) = commands::run::command(*config).await {
                     eprintln!("Server command failed: {}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Command::Sql(config) => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                if let Err(e) = commands::sql::command(host, config).await {
+                    eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }

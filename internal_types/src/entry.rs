@@ -9,13 +9,17 @@ use data_types::{
 use generated_types::entry as entry_fb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 
-use std::{collections::BTreeMap, convert::TryFrom};
+use std::{
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+    fmt::Formatter,
+    num::NonZeroU64,
+};
 
 use chrono::{DateTime, Utc};
 use flatbuffers::{FlatBufferBuilder, Follow, ForwardsUOffset, Vector, VectorIter, WIPOffset};
 use ouroboros::self_referencing;
-use snafu::{ResultExt, Snafu};
-use std::fmt::Formatter;
+use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -1161,16 +1165,40 @@ enum ColumnRaw<'a> {
 }
 
 #[derive(Debug, PartialOrd, PartialEq, Copy, Clone)]
-pub struct ClockValue(u64);
+pub struct ClockValue(NonZeroU64);
 
 impl ClockValue {
-    pub fn get(&self) -> u64 {
+    pub fn new(v: NonZeroU64) -> Self {
+        Self(v)
+    }
+
+    pub fn get(&self) -> NonZeroU64 {
         self.0
     }
 
-    pub fn new(v: u64) -> Self {
-        Self { 0: v }
+    pub fn get_u64(&self) -> u64 {
+        self.0.get()
     }
+}
+
+impl TryFrom<u64> for ClockValue {
+    type Error = ClockValueError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        NonZeroU64::new(value)
+            .map(Self)
+            .context(ValueMayNotBeZero)
+            .map_err(Into::into)
+    }
+}
+
+#[derive(Debug, Snafu)]
+pub struct ClockValueError(InnerClockValueError);
+
+#[derive(Debug, Snafu)]
+enum InnerClockValueError {
+    #[snafu(display("Clock values must not be zero"))]
+    ValueMayNotBeZero,
 }
 
 #[self_referencing]
@@ -1183,7 +1211,6 @@ pub struct SequencedEntry {
     #[borrows(data)]
     #[covariant]
     entry: Option<entry_fb::Entry<'this>>,
-    server_id: ServerId,
 }
 
 impl SequencedEntry {
@@ -1205,7 +1232,7 @@ impl SequencedEntry {
         let sequenced_entry = entry_fb::SequencedEntry::create(
             &mut fbb,
             &entry_fb::SequencedEntryArgs {
-                clock_value: clock_value.get(),
+                clock_value: clock_value.get_u64(),
                 server_id: server_id.get_u32(),
                 entry_bytes: Some(entry_bytes),
             },
@@ -1214,7 +1241,7 @@ impl SequencedEntry {
         fbb.finish(sequenced_entry, None);
 
         let (mut data, idx) = fbb.collapse();
-        let sequenced_entry = Self::try_from((data.split_off(idx), server_id))
+        let sequenced_entry = Self::try_from(data.split_off(idx))
             .expect("Flatbuffer data just constructed should be valid");
 
         Ok(sequenced_entry)
@@ -1239,28 +1266,62 @@ impl SequencedEntry {
     }
 
     pub fn clock_value(&self) -> ClockValue {
-        ClockValue::new(self.fb().clock_value())
+        self.fb()
+            .clock_value()
+            .try_into()
+            .expect("ClockValue should have been validated when this was built from flatbuffers")
     }
 
     pub fn server_id(&self) -> ServerId {
-        *self.borrow_server_id()
+        self.fb()
+            .server_id()
+            .try_into()
+            .expect("ServerId should have been validated when this was built from flatbuffers")
     }
 }
 
-impl TryFrom<(Vec<u8>, ServerId)> for SequencedEntry {
-    type Error = flatbuffers::InvalidFlatbuffer;
+#[derive(Debug, Snafu)]
+pub enum SequencedEntryError {
+    #[snafu(display("{}", source))]
+    InvalidFlatbuffer {
+        source: flatbuffers::InvalidFlatbuffer,
+    },
+    #[snafu(display("{}", source))]
+    InvalidServerId {
+        source: data_types::server_id::Error,
+    },
+    #[snafu(display("{}", source))]
+    InvalidClockValue { source: ClockValueError },
+}
 
-    fn try_from(data: (Vec<u8>, ServerId)) -> Result<Self, Self::Error> {
+impl TryFrom<Vec<u8>> for SequencedEntry {
+    type Error = SequencedEntryError;
+
+    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
         SequencedEntryTryBuilder {
-            server_id: data.1,
-            data: data.0,
-            fb_builder: |data| flatbuffers::root::<entry_fb::SequencedEntry<'_>>(data),
-            entry_builder: |data| match flatbuffers::root::<entry_fb::SequencedEntry<'_>>(data)?
+            data,
+            fb_builder: |data| {
+                let fb = flatbuffers::root::<entry_fb::SequencedEntry<'_>>(data)
+                    .context(InvalidFlatbuffer)?;
+
+                // Raise an error now if the server ID is invalid so that `SequencedEntry`'s
+                // `server_id` method can assume it has a valid `ServerId`
+                TryInto::<ServerId>::try_into(fb.server_id()).context(InvalidServerId)?;
+
+                // Raise an error now if the clock value is invalid so that `SequencedEntry`'s
+                // `clock_value` method can assume it has a valid `ClockValue`
+                TryInto::<ClockValue>::try_into(fb.clock_value()).context(InvalidClockValue)?;
+
+                Ok(fb)
+            },
+            entry_builder: |data| match flatbuffers::root::<entry_fb::SequencedEntry<'_>>(data)
+                .context(InvalidFlatbuffer)?
                 .entry_bytes()
             {
-                Some(entry_bytes) => Ok(Some(flatbuffers::root::<entry_fb::Entry<'_>>(
-                    &entry_bytes,
-                )?)),
+                Some(entry_bytes) => Ok(Some(
+                    flatbuffers::root::<entry_fb::Entry<'_>>(&entry_bytes)
+                        .context(InvalidFlatbuffer)?,
+                )),
                 None => Ok(None),
             },
         }
@@ -1888,7 +1949,7 @@ mod tests {
             lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(1)).unwrap();
 
         let entry_bytes = sharded_entries.first().unwrap().entry.data();
-        let clock_value = ClockValue::new(23);
+        let clock_value = ClockValue::try_from(23).unwrap();
         let server_id = ServerId::try_from(2).unwrap();
         let sequenced_entry =
             SequencedEntry::new_from_entry_bytes(clock_value, server_id, entry_bytes).unwrap();
@@ -1957,5 +2018,86 @@ mod tests {
         assert_eq!(col.logical_type(), entry_fb::LogicalColumnType::Field);
         let values = col.values().f64_values().unwrap();
         assert_eq!(&values, &[None, Some(23.2), None]);
+    }
+
+    #[test]
+    fn validate_sequenced_entry_server_id() {
+        let lp = vec![
+            "a,host=a val=23i 983",
+            "a,host=a,region=west val2=23.2 2343",
+            "a val=21i,bool=true,string=\"hello\" 222",
+        ]
+        .join("\n");
+        let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
+
+        let sharded_entries =
+            lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(1)).unwrap();
+
+        let entry_bytes = sharded_entries.first().unwrap().entry.data();
+
+        const OVERHEAD: usize = 4 * std::mem::size_of::<u64>();
+        let mut fbb = FlatBufferBuilder::new_with_capacity(entry_bytes.len() + OVERHEAD);
+
+        let entry_bytes = fbb.create_vector_direct(entry_bytes);
+        let sequenced_entry = entry_fb::SequencedEntry::create(
+            &mut fbb,
+            &entry_fb::SequencedEntryArgs {
+                clock_value: 3,
+                server_id: 0, // <----- IMPORTANT PART this is invalid and should error
+                entry_bytes: Some(entry_bytes),
+            },
+        );
+
+        fbb.finish(sequenced_entry, None);
+
+        let (mut data, idx) = fbb.collapse();
+        let result = SequencedEntry::try_from(data.split_off(idx));
+
+        assert!(
+            matches!(result, Err(SequencedEntryError::InvalidServerId { .. })),
+            "result was {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn validate_sequenced_entry_clock_value() {
+        let lp = vec![
+            "a,host=a val=23i 983",
+            "a,host=a,region=west val2=23.2 2343",
+            "a val=21i,bool=true,string=\"hello\" 222",
+        ]
+        .join("\n");
+        let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
+
+        let sharded_entries =
+            lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(1)).unwrap();
+
+        let entry_bytes = sharded_entries.first().unwrap().entry.data();
+
+        const OVERHEAD: usize = 4 * std::mem::size_of::<u64>();
+        let mut fbb = FlatBufferBuilder::new_with_capacity(entry_bytes.len() + OVERHEAD);
+
+        let entry_bytes = fbb.create_vector_direct(entry_bytes);
+
+        let sequenced_entry = entry_fb::SequencedEntry::create(
+            &mut fbb,
+            &entry_fb::SequencedEntryArgs {
+                clock_value: 0, // <----- IMPORTANT PART this is invalid and should error
+                server_id: 5,
+                entry_bytes: Some(entry_bytes),
+            },
+        );
+
+        fbb.finish(sequenced_entry, None);
+
+        let (mut data, idx) = fbb.collapse();
+        let result = SequencedEntry::try_from(data.split_off(idx));
+
+        assert!(
+            matches!(result, Err(SequencedEntryError::InvalidClockValue { .. })),
+            "result was {:?}",
+            result
+        );
     }
 }

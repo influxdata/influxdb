@@ -15,6 +15,7 @@ use catalog::{
     Catalog,
 };
 pub(crate) use chunk::DbChunk;
+use core::num::NonZeroU64;
 use data_types::{
     chunk::ChunkSummary,
     database_rules::DatabaseRules,
@@ -25,7 +26,7 @@ use data_types::{
 };
 use internal_types::{
     arrow::sort::sort_record_batch,
-    entry::{self, ClockValue, Entry, SequencedEntry},
+    entry::{self, ClockValue, ClockValueError, Entry, SequencedEntry},
     selection::Selection,
 };
 use lifecycle::LifecycleManager;
@@ -40,7 +41,7 @@ use read_buffer::Chunk as ReadBufferChunk;
 use snafu::{ensure, ResultExt, Snafu};
 use std::{
     any::Any,
-    convert::TryInto,
+    convert::{TryFrom, TryInto},
     num::NonZeroUsize,
     sync::{
         atomic::{AtomicU64, AtomicUsize, Ordering},
@@ -192,10 +193,14 @@ pub enum Error {
     SchemaConversion {
         source: internal_types::schema::Error,
     },
+
+    #[snafu(display("Invalid Clock Value: {}", source))]
+    InvalidClockValue { source: ClockValueError },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 const STARTING_SEQUENCE: u64 = 1;
+const DEFAULT_BACKGROUND_WORKER_PERIOD_MILLIS: u64 = 1000;
 
 /// This is the main IOx Database object. It is the root object of any
 /// specific InfluxDB IOx instance
@@ -353,7 +358,8 @@ impl Db {
         let store = Arc::clone(&object_store);
         let write_buffer = write_buffer.map(Mutex::new);
         let catalog = Arc::new(Catalog::new());
-        let system_tables = SystemSchemaProvider::new(Arc::clone(&catalog), Arc::clone(&jobs));
+        let system_tables =
+            SystemSchemaProvider::new(&db_name, Arc::clone(&catalog), Arc::clone(&jobs));
         let system_tables = Arc::new(system_tables);
 
         let domain = metrics.register_domain("catalog");
@@ -830,7 +836,20 @@ impl Db {
     ) {
         info!("started background worker");
 
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+        fn make_interval(millis: Option<NonZeroU64>) -> tokio::time::Interval {
+            tokio::time::interval(tokio::time::Duration::from_millis(
+                millis.map_or(DEFAULT_BACKGROUND_WORKER_PERIOD_MILLIS, NonZeroU64::get),
+            ))
+        }
+
+        let mut period_millis = {
+            self.rules
+                .read()
+                .lifecycle_rules
+                .background_worker_period_millis
+        };
+
+        let mut interval = make_interval(period_millis);
         let mut lifecycle_manager = LifecycleManager::new(Arc::clone(&self));
 
         while !shutdown.is_cancelled() {
@@ -838,6 +857,16 @@ impl Db {
 
             lifecycle_manager.check_for_work();
 
+            let possibly_updated_period_millis = {
+                self.rules
+                    .read()
+                    .lifecycle_rules
+                    .background_worker_period_millis
+            };
+            if period_millis != possibly_updated_period_millis {
+                period_millis = possibly_updated_period_millis;
+                interval = make_interval(period_millis);
+            }
             tokio::select! {
                 _ = interval.tick() => {},
                 _ = shutdown.cancelled() => break
@@ -856,7 +885,7 @@ impl Db {
     pub fn store_entry(&self, entry: Entry) -> Result<()> {
         // TODO: build this based on either this or on the write buffer, if configured
         let sequenced_entry = SequencedEntry::new_from_entry_bytes(
-            ClockValue::new(self.next_sequence()),
+            ClockValue::try_from(self.next_sequence()).context(InvalidClockValue)?,
             self.server_id,
             entry.data(),
         )

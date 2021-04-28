@@ -11,7 +11,7 @@ mod tests;
 use observability_deps::{
     opentelemetry::metrics::Meter as OTMeter,
     opentelemetry::{
-        metrics::{registry::RegistryMeterProvider, MeterProvider},
+        metrics::{registry::RegistryMeterProvider, MeterProvider, ValueRecorderBuilder},
         sdk::{
             export::metrics::ExportKindSelector,
             metrics::{controllers, selectors::simple::Selector},
@@ -236,6 +236,85 @@ impl Domain {
 
         metrics::Counter::new(counter, default_labels)
     }
+
+    /// Registers a new histogram metric.
+    ///
+    /// `name` in the common case should be a noun describing the thing being
+    /// observed. For example: "request", "migration", "conversion".
+    ///
+    /// `attribute` should be the attribute that is being observed. Good examples
+    /// of attributes are: "duration" or "usage".
+    ///
+    /// `unit` is required and will appear at the end of the metric name.
+    /// Consider reviewing
+    /// https://prometheus.io/docs/practices/naming/#base-units for appropriate
+    /// units. Examples include "bytes", "seconds", "celsius"
+    ///
+    pub fn register_histogram_metric(
+        &self,
+        name: &str,
+        attribute: &str,
+        unit: &str,
+        description: impl Into<String>,
+    ) -> HistogramBuilder<'_> {
+        let histogram = self
+            .meter
+            .f64_value_recorder(format!(
+                "{}.{}",
+                self.build_metric_prefix(attribute, Some(name)),
+                unit
+            ))
+            .with_description(description);
+
+        HistogramBuilder::new(histogram)
+    }
+}
+
+#[derive(Debug)]
+pub struct HistogramBuilder<'a> {
+    histogram: ValueRecorderBuilder<'a, f64>,
+    labels: Option<Vec<KeyValue>>,
+    boundaries: Option<Vec<f64>>,
+}
+
+impl<'a> HistogramBuilder<'a> {
+    fn new(histogram: ValueRecorderBuilder<'a, f64>) -> Self {
+        Self {
+            histogram,
+            labels: None,
+            boundaries: None,
+        }
+    }
+
+    /// Set some default labels on the Histogram metric.
+    pub fn with_labels(self, labels: Vec<KeyValue>) -> Self {
+        Self {
+            histogram: self.histogram,
+            labels: Some(labels),
+            boundaries: None,
+        }
+    }
+
+    /// Set some bucket boundaries on the Histogram metric.
+    pub fn with_bucket_boundaries(self, boundaries: Vec<f64>) -> Self {
+        Self {
+            histogram: self.histogram,
+            labels: self.labels,
+            boundaries: Some(boundaries),
+        }
+    }
+
+    /// Initialise the Histogram metric ready for observations.
+    pub fn init(self) -> metrics::Histogram {
+        let labels = self.labels.unwrap_or_default();
+        let boundaries = self.boundaries.unwrap_or_default();
+
+        if !boundaries.is_empty() {
+            todo!("histogram boundaries not yet configurable.");
+        }
+
+        metrics::Histogram::new(self.histogram.init(), labels)
+    }
 }
 
 #[cfg(test)]
@@ -339,8 +418,8 @@ mod test {
 
     #[test]
     fn red_metric_labels() {
-        let reg = MetricRegistry::new();
-        let domain = reg.register_domain("ftp");
+        let reg = TestMetricRegistry::default();
+        let domain = reg.registry().register_domain("ftp");
 
         // create a RED metrics
         let metric = domain.register_red_metric(None);
@@ -396,7 +475,7 @@ mod test {
             r#"ftp_requests_total{account="abc123",status="ok"} 1"#,
             r#"ftp_requests_total{account="other",status="client_error"} 1"#,
         ];
-        let metrics_response = String::from_utf8(reg.metrics_as_text()).unwrap();
+        let metrics_response = String::from_utf8(reg.registry().metrics_as_text()).unwrap();
         for line in should_contain_lines {
             assert!(
                 metrics_response.contains(line),
@@ -435,5 +514,71 @@ mod test {
             .counter()
             .eq(1.0)
             .unwrap();
+    }
+
+    #[test]
+    fn histogram_metric() {
+        let reg = TestMetricRegistry::default();
+        let domain = reg.registry().register_domain("chunker");
+
+        // create a histogram metric using the builder
+        let metric = domain
+            .register_histogram_metric(
+                "conversion",
+                "duration",
+                "seconds",
+                "The distribution of chunk conversion latencies",
+            )
+            .with_labels(vec![KeyValue::new("db", "mydb")]) // Optional
+            // .with_bucket_boundaries(vec![1,2,3]) <- this is a future TODO
+            .init();
+
+        // Get an observation to start measuring something.
+        metric.observe(22.32); // manual observation
+
+        // There is also a timer that will handle durations for you.
+        let ob = metric.timer();
+        std::thread::sleep(Duration::from_millis(20));
+
+        // will record a duration >= 20ms
+        ob.record_with_labels(&[KeyValue::new("stage", "beta")]);
+
+        reg.has_metric_family("chunker_conversion_duration_seconds")
+            .with_labels(&[("db", "mydb")])
+            .histogram()
+            .sample_count_eq(1)
+            .unwrap();
+
+        reg.has_metric_family("chunker_conversion_duration_seconds")
+            .with_labels(&[("db", "mydb")])
+            .histogram()
+            .sample_sum_eq(22.32)
+            .unwrap();
+
+        reg.has_metric_family("chunker_conversion_duration_seconds")
+            .with_labels(&[("db", "mydb"), ("stage", "beta")])
+            .histogram()
+            .sample_count_eq(1)
+            .unwrap();
+
+        reg.has_metric_family("chunker_conversion_duration_seconds")
+            .with_labels(&[("db", "mydb"), ("stage", "beta")])
+            .histogram()
+            .sample_sum_gte(0.02) // 20ms
+            .unwrap();
+
+        // TODO(edd): need to figure out how to set custom buckets then
+        // these assertions can be tested.
+        // reg.has_metric_family("chunker_conversion_duration_seconds")
+        //     .with_labels(&[("db", "mydb"), ("stage", "beta")])
+        //     .histogram()
+        //     .bucket_cumulative_count_eq(11.2, 1)
+        //     .unwrap();
+
+        // reg.has_metric_family("chunker_conversion_duration_seconds")
+        //     .with_labels(&[("db", "mydb"), ("stage", "beta")])
+        //     .histogram()
+        //     .bucket_cumulative_count_eq(0.12, 0)
+        //     .unwrap();
     }
 }

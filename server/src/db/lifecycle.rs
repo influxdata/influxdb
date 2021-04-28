@@ -275,7 +275,10 @@ mod tests {
     use super::*;
     use data_types::server_id::ServerId;
     use internal_types::entry::{test_helpers::lp_to_entry, ClockValue};
-    use std::num::{NonZeroU32, NonZeroUsize};
+    use std::{
+        convert::TryFrom,
+        num::{NonZeroU32, NonZeroUsize},
+    };
     use tracker::MemRegistry;
 
     fn from_secs(secs: i64) -> DateTime<Utc> {
@@ -294,8 +297,8 @@ mod tests {
             batch,
             "",
             id,
-            ClockValue::new(0),
-            ServerId::new(NonZeroU32::new(1).unwrap()),
+            ClockValue::try_from(5).unwrap(),
+            ServerId::try_from(1).unwrap(),
             &MemRegistry::new(),
         )
         .unwrap();

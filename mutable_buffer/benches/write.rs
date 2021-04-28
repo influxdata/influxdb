@@ -16,7 +16,7 @@ fn write_chunk(count: usize, entries: &[Entry]) {
             for write in entry.partition_writes().iter().flatten() {
                 chunk
                     .write_table_batches(
-                        ClockValue::new(0),
+                        ClockValue::try_from(5).unwrap(),
                         ServerId::try_from(1).unwrap(),
                         write.table_batches().as_slice(),
                     )
