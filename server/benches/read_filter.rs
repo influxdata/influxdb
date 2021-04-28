@@ -6,11 +6,10 @@ use criterion::{BenchmarkId, Criterion};
 // current-thread executor
 use flate2::read::GzDecoder;
 use tokio::runtime::Runtime;
-use tokio::sync::mpsc;
 
 use query::frontend::influxrpc::InfluxRpcPlanner;
 use query::predicate::PredicateBuilder;
-use query::{exec::seriesset::SeriesSetItem, exec::Executor, predicate::Predicate};
+use query::{exec::Executor, predicate::Predicate};
 use server::{benchmarks::scenarios::DbScenario, db::Db};
 
 // Uses the `query_tests` module to generate some chunk scenarios, specifically
@@ -116,29 +115,10 @@ async fn build_and_execute_plan(
         .read_filter(db, predicate)
         .expect("built plan successfully");
 
-    // TODO(edd): If the buffer is smaller it blocks the execution. I'm not sure
-    // why though because there is only one or two series set plans.
-    let (tx, mut rx) = mpsc::channel(25000);
-
-    executor
-        .to_series_set(plan, tx)
+    let results = executor
+        .to_series_set(plan)
         .await
         .expect("Running series set plan");
 
-    let mut results = vec![];
-    while let Some(r) = rx.recv().await {
-        let item = r.expect("unexpected error in execution");
-        let item = if let SeriesSetItem::Data(series_set) = item {
-            series_set
-        } else {
-            panic!(
-                "Unexpected result from converting. Expected SeriesSetItem::Data, got: {:?}",
-                item
-            )
-        };
-
-        results.push(item);
-    }
-
-    assert_eq!(results.len(), exp_items);
+    assert_eq!(results.len(), exp_data_frames);
 }

@@ -6,7 +6,6 @@ use criterion::{BenchmarkId, Criterion};
 // current-thread executor
 use flate2::read::GzDecoder;
 use tokio::runtime::Runtime;
-use tokio::sync::mpsc;
 
 use query::predicate::PredicateBuilder;
 use query::{exec::Executor, predicate::Predicate};
@@ -120,25 +119,14 @@ async fn build_and_execute_plan(
     group: &[&str],
     exp_frames: usize,
 ) {
-    // TODO(edd): If the buffer is smaller it blocks the execution. I'm not sure
-    // why though because there is only one or two series set plans.
-    let (tx, mut rx) = mpsc::channel(20000);
-
     let plan = planner
         .read_group(db, predicate, agg, group)
         .expect("built plan successfully");
 
-    executor
-        .to_series_set(plan, tx)
+    let results = executor
+        .to_series_set(plan)
         .await
         .expect("Running series set plan");
-
-    let mut results = vec![];
-    while let Some(r) = rx.recv().await {
-        let item = r.expect("unexpected error in execution");
-
-        results.push(item);
-    }
 
     assert_eq!(results.len(), exp_frames);
 }
