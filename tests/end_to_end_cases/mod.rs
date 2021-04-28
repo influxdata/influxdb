@@ -7,6 +7,7 @@ pub mod operations_cli;
 pub mod read_api;
 pub mod read_cli;
 pub mod scenario;
+mod sql_cli;
 pub mod storage_api;
 pub mod write_api;
 pub mod write_cli;
