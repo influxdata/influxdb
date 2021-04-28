@@ -23,6 +23,7 @@ use generated_types::{
     ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest, TagValuesRequest,
     TimestampRange,
 };
+use metrics::KeyValue;
 use observability_deps::tracing::{error, info};
 use query::{
     exec::fieldlist::FieldList, exec::seriesset::Error as SeriesSetError,
@@ -200,6 +201,10 @@ impl Error {
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
         }
     }
+
+    fn is_internal(&self) -> bool {
+        matches!(self.to_status().code(), tonic::Code::Internal)
+    }
 }
 
 /// Implementes the protobuf defined Storage service for a DatabaseStore
@@ -226,13 +231,27 @@ where
 
         info!(%db_name, ?range, predicate=%predicate.loggable(),"read filter");
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "read_filter"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         let results = read_filter_impl(Arc::clone(&self.db_store), db_name, range, predicate)
             .await
-            .map_err(|e| e.to_status())?
+            .map_err(|e| {
+                if e.is_internal() {
+                    ob.error_with_labels(labels);
+                } else {
+                    ob.client_error_with_labels(labels);
+                }
+                e.to_status()
+            })?
             .into_iter()
             .map(Ok)
             .collect::<Vec<_>>();
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
 
@@ -1758,6 +1777,19 @@ mod tests {
             actual_frames, expected_frames,
             "unexpected frames returned by query_series",
         );
+
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "read_filter"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "ok"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1796,6 +1828,19 @@ mod tests {
         // Note we don't set the response on the test database, so we expect an error
         let response = fixture.storage_client.read_filter(request).await;
         assert_contains!(response.unwrap_err().to_string(), "Sugar we are going down");
+
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "read_filter"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "client_error"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 
     #[tokio::test]
