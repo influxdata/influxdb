@@ -6,12 +6,17 @@ use data_types::{database_rules::Partitioner, server_id::ServerId};
 use generated_types::wb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 
-use std::{collections::BTreeMap, convert::TryFrom, fmt};
+use std::{
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+    fmt,
+};
 
 use chrono::Utc;
 use crc32fast::Hasher;
 use flatbuffers::FlatBufferBuilder;
 use ouroboros::self_referencing;
+use snafu::{ResultExt, Snafu};
 
 pub fn type_description(value: wb::ColumnValue) -> &'static str {
     match value {
@@ -37,7 +42,6 @@ pub struct ReplicatedWrite {
     #[borrows(data)]
     #[covariant]
     write_buffer_batch: Option<wb::WriteBufferBatch<'this>>,
-    server_id: ServerId,
 }
 
 impl ReplicatedWrite {
@@ -63,7 +67,10 @@ impl ReplicatedWrite {
     }
 
     pub fn server_id(&self) -> ServerId {
-        *self.borrow_server_id()
+        self.fb()
+            .server_id()
+            .try_into()
+            .expect("ServerId should have been validated when this was built from flatbuffers")
     }
 
     /// Returns the serialized bytes for the write
@@ -78,24 +85,46 @@ impl ReplicatedWrite {
     }
 }
 
-impl TryFrom<(Vec<u8>, ServerId)> for ReplicatedWrite {
-    type Error = flatbuffers::InvalidFlatbuffer;
+#[derive(Debug, Snafu)]
+pub enum ReplicatedWriteError {
+    #[snafu(display("{}", source))]
+    InvalidFlatbuffer {
+        source: flatbuffers::InvalidFlatbuffer,
+    },
+    #[snafu(display("{}", source))]
+    InvalidServerId {
+        source: data_types::server_id::Error,
+    },
+}
 
-    fn try_from(data: (Vec<u8>, ServerId)) -> Result<Self, Self::Error> {
+impl TryFrom<Vec<u8>> for ReplicatedWrite {
+    type Error = ReplicatedWriteError;
+
+    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
         ReplicatedWriteTryBuilder {
-            data: data.0,
-            fb_builder: |data| flatbuffers::root::<wb::ReplicatedWrite<'_>>(data),
+            data,
+            fb_builder: |data| {
+                let fb = flatbuffers::root::<wb::ReplicatedWrite<'_>>(data)
+                    .context(InvalidFlatbuffer)?;
+
+                // Raise an error now if the server ID is invalid so that `SequencedEntry`'s
+                // `server_id` method can assume it has a valid `ServerId`
+                TryInto::<ServerId>::try_into(fb.server_id()).context(InvalidServerId)?;
+
+                Ok(fb)
+            },
             write_buffer_batch_builder: |data| match flatbuffers::root::<wb::ReplicatedWrite<'_>>(
                 data,
-            )?
+            )
+            .context(InvalidFlatbuffer)?
             .payload()
             {
-                Some(payload) => Ok(Some(flatbuffers::root::<wb::WriteBufferBatch<'_>>(
-                    &payload,
-                )?)),
+                Some(payload) => Ok(Some(
+                    flatbuffers::root::<wb::WriteBufferBatch<'_>>(&payload)
+                        .context(InvalidFlatbuffer)?,
+                )),
                 None => Ok(None),
             },
-            server_id: data.1,
         }
         .try_build()
     }
@@ -210,7 +239,7 @@ pub fn lines_to_replicated_write(
     fbb.finish(write, None);
 
     let (mut data, idx) = fbb.collapse();
-    ReplicatedWrite::try_from((data.split_off(idx), server_id))
+    ReplicatedWrite::try_from(data.split_off(idx))
         .expect("Flatbuffer data just constructed should be valid")
 }
 
