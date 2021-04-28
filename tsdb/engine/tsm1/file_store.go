@@ -576,6 +576,7 @@ func (f *FileStore) Open() error {
 	}
 
 	var lm int64
+	isEmpty := true
 	for range files {
 		res := <-readerC
 		if res.err != nil {
@@ -595,9 +596,18 @@ func (f *FileStore) Open() error {
 		if res.r.LastModified() > lm {
 			lm = res.r.LastModified()
 		}
-
+		isEmpty = false
 	}
-	f.lastModified = time.Unix(0, lm).UTC()
+	if isEmpty {
+		if fi, err := os.Stat(f.dir); err == nil {
+			f.lastModified = fi.ModTime().UTC()
+		} else {
+			close(readerC)
+			return err
+		}
+	} else {
+		f.lastModified = time.Unix(0, lm).UTC()
+	}
 	close(readerC)
 
 	sort.Sort(tsmReaders(f.files))
