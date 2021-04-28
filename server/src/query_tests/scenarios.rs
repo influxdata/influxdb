@@ -68,7 +68,7 @@ impl DbSetup for NoData {
                 .id(),
             0
         );
-        assert_eq!(count_mutable_buffer_chunks(&db), 2); // 2 chunks open and closed
+        assert_eq!(count_mutable_buffer_chunks(&db), 1); // 
         assert_eq!(count_read_buffer_chunks(&db), 0); // nothing yet
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
@@ -76,14 +76,14 @@ impl DbSetup for NoData {
         db.load_chunk_to_read_buffer(partition_key, table_name, 0)
             .await
             .unwrap();
-        assert_eq!(count_mutable_buffer_chunks(&db), 1); // open chunk only
+        assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
         assert_eq!(count_read_buffer_chunks(&db), 1); // close chunk only
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
         // drop chunk 0
         db.drop_chunk(partition_key, table_name, 0).unwrap();
 
-        assert_eq!(count_mutable_buffer_chunks(&db), 1); // open chunk only
+        assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
         assert_eq!(count_read_buffer_chunks(&db), 0); // nothing after dropping chunk 0
         assert_eq!(count_object_store_chunks(&db), 0); // still nothing
 
@@ -106,7 +106,7 @@ impl DbSetup for NoData {
                 .id(),
             0
         );
-        assert_eq!(count_mutable_buffer_chunks(&db), 2); // 2 chunks open and closed
+        assert_eq!(count_mutable_buffer_chunks(&db), 1); // 1 open chunk
         assert_eq!(count_read_buffer_chunks(&db), 0); // nothing yet
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
@@ -114,7 +114,7 @@ impl DbSetup for NoData {
         db.load_chunk_to_read_buffer(partition_key, table_name, 0)
             .await
             .unwrap();
-        assert_eq!(count_mutable_buffer_chunks(&db), 1); // open chunk only
+        assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
         assert_eq!(count_read_buffer_chunks(&db), 1); // close chunk only
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
@@ -123,7 +123,7 @@ impl DbSetup for NoData {
             .await
             .unwrap();
         // it should be the same chunk!
-        assert_eq!(count_mutable_buffer_chunks(&db), 1); // open chunk only
+        assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
         assert_eq!(count_read_buffer_chunks(&db), 1); // closed chunk only
         assert_eq!(count_object_store_chunks(&db), 1); // close chunk only
 
@@ -522,7 +522,7 @@ pub async fn make_two_chunk_scenarios(
             .await
             .unwrap();
     }
-    write_lp(&db, data2);
+    let table_names = write_lp(&db, data2);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)
             .await
