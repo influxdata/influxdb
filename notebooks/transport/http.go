@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -15,6 +16,12 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	prefixNotebooks = "/api/v2private/flows"
+	errMissingParam = "url missing %s"
+	errInvalidParam = "url %s is invalid"
+)
+
 // NotebookHandler is the handler for the notebook service
 type NotebookHandler struct {
 	chi.Router
@@ -22,10 +29,6 @@ type NotebookHandler struct {
 	api *kithttp.API
 	log *zap.Logger
 }
-
-const (
-	prefixNotebooks = "/api/v2private/flows"
-)
 
 func NewNotebookHandler(log *zap.Logger) *NotebookHandler {
 	h := &NotebookHandler{
@@ -183,13 +186,16 @@ func getIDfromReq(r *http.Request, param string) (*platform.ID, error) {
 	if id == "" {
 		return nil, &errors.Error{
 			Code: errors.EInvalid,
-			Msg:  "url missing id",
+			Msg:  fmt.Sprintf(errMissingParam, param),
 		}
 	}
 
 	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
-		return nil, err
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  fmt.Sprintf(errInvalidParam, param),
+		}
 	}
 
 	return &i, nil
