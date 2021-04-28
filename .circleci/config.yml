@@ -277,23 +277,23 @@ workflows:
       - fmt:
           filters:
             branches:
-              only: /.*\/perf$/
+              only: main
       - lint:
           filters:
             branches:
-              only: /.*\/perf$/
+              only: main
       - test:
           filters:
             branches:
-              only: /.*\/perf$/
+              only: main
       - build:
           filters:
             branches:
-              only: /.*\/perf$/
+              only: main
       - perf_image:
           filters:
             branches:
-              only: /.*\/perf$/
+              only: main
           requires: # Only do a release build if all tests have passed
             - fmt
             - lint
