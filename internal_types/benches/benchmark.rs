@@ -29,7 +29,7 @@ fn sequenced_entry(c: &mut Criterion) {
         554
     );
 
-    let clock_value = ClockValue::new(23);
+    let clock_value = ClockValue::try_from(23).unwrap();
     let server_id = ServerId::try_from(2).unwrap();
 
     group.bench_function("new_from_entry_bytes", |b| {

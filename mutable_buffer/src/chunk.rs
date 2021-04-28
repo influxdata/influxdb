@@ -247,7 +247,7 @@ pub mod test_helpers {
 
         for w in entry.partition_writes().unwrap() {
             chunk.write_table_batches(
-                ClockValue::new(0),
+                ClockValue::try_from(5).unwrap(),
                 ServerId::try_from(1).unwrap(),
                 &w.table_batches(),
             )?;

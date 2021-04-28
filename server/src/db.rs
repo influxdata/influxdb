@@ -26,7 +26,7 @@ use data_types::{
 };
 use internal_types::{
     arrow::sort::sort_record_batch,
-    entry::{self, ClockValue, Entry, SequencedEntry},
+    entry::{self, ClockValue, ClockValueError, Entry, SequencedEntry},
     selection::Selection,
 };
 use lifecycle::LifecycleManager;
@@ -41,7 +41,7 @@ use read_buffer::Chunk as ReadBufferChunk;
 use snafu::{ensure, ResultExt, Snafu};
 use std::{
     any::Any,
-    convert::TryInto,
+    convert::{TryFrom, TryInto},
     num::NonZeroUsize,
     sync::{
         atomic::{AtomicU64, AtomicUsize, Ordering},
@@ -193,6 +193,9 @@ pub enum Error {
     SchemaConversion {
         source: internal_types::schema::Error,
     },
+
+    #[snafu(display("Invalid Clock Value: {}", source))]
+    InvalidClockValue { source: ClockValueError },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -881,7 +884,7 @@ impl Db {
     pub fn store_entry(&self, entry: Entry) -> Result<()> {
         // TODO: build this based on either this or on the write buffer, if configured
         let sequenced_entry = SequencedEntry::new_from_entry_bytes(
-            ClockValue::new(self.next_sequence()),
+            ClockValue::try_from(self.next_sequence()).context(InvalidClockValue)?,
             self.server_id,
             entry.data(),
         )
