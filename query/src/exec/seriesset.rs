@@ -835,20 +835,6 @@ mod tests {
                     panic!("Unexpected result from converting. Expected SeriesSetItem::Data, got: {:?}", item)
                 }
             }).collect::<Vec<_>>()
-
-        // let mut results = Vec::new();
-        // while let Some(r) = rx.recv().await {
-        //     results.push(r.map(|item| {
-        //         if let SeriesSetItem::Data(series_set) = item {
-        //             series_set
-        //         }
-        //         else {
-        //             panic!("Unexpected result from converting. Expected SeriesSetItem::Data, got: {:?}", item)
-        //         }
-        //     })
-        //     );
-        // }
-        // results
     }
 
     /// Test helper: run conversion to groups and return a Vec
@@ -875,23 +861,6 @@ mod tests {
             )
             .await
             .expect("Conversion happened without error")
-
-        // converter
-        //     .convert(
-        //         table_name,
-        //         tag_columns,
-        //         field_columns,
-        //         Some(num_prefix_tag_group_columns),
-        //         it,
-        //     )
-        //     .await
-        //     .expect("Conversion happened without error")
-
-        // let mut results = Vec::new();
-        // while let Some(r) = rx.recv().await {
-        //     results.push(r)
-        // }
-        // results
     }
 
     /// Test helper: parses the csv content into a single record batch arrow

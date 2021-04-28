@@ -186,7 +186,6 @@ impl Executor {
         // join_all ensures that the results are consumed in the same order they
         // were spawned maintaining the guarantee to return results ordered
         // by the plan sort order.
-        // let handles = future::join_all(handles).await;
         let handles = future::try_join_all(handles).await.context(TaskJoinError)?;
         let mut results = vec![];
         for handle in handles {
