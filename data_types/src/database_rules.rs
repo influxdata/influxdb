@@ -784,14 +784,15 @@ pub trait Sharder {
 /// This makes it possible to horizontally scale out writes.
 #[derive(Debug, Eq, PartialEq, Clone, Default)]
 pub struct ShardConfig {
-    /// An optional matcher. If there is a match, the route will be evaluated to
-    /// the given targets, otherwise the hash ring will be evaluated. This is
-    /// useful for overriding the hashring function on some hot spot. For
+    /// Each matcher, if any, is evaluated in order.
+    /// If there is a match, the route will be evaluated to
+    /// the given targets, otherwise the hash ring will be evaluated.
+    /// This is useful for overriding the hashring function on some hot spot. For
     /// example, if you use the table name as the input to the hash function
     /// and your ring has 4 slots. If two tables that are very hot get
     /// assigned to the same slot you can override that by putting in a
     /// specific matcher to pull that table over to a different node.
-    pub specific_targets: Option<MatcherToShard>,
+    pub specific_targets: Vec<MatcherToShard>,
     /// An optional default hasher which will route to one in a collection of
     /// nodes.
     pub hash_ring: Option<HashRing>,
@@ -827,9 +828,9 @@ impl<'a, 'b, 'c> Hash for LineHasher<'a, 'b, 'c> {
 
 impl Sharder for ShardConfig {
     fn shard(&self, line: &ParsedLine<'_>) -> Result<ShardId, Error> {
-        if let Some(specific_targets) = &self.specific_targets {
-            if specific_targets.matcher.match_line(line) {
-                return Ok(specific_targets.shard);
+        for i in &self.specific_targets {
+            if i.matcher.match_line(line) {
+                return Ok(i.shard);
             }
         }
         if let Some(hash_ring) = &self.hash_ring {
@@ -910,7 +911,11 @@ impl Matcher {
 impl From<ShardConfig> for management::ShardConfig {
     fn from(shard_config: ShardConfig) -> Self {
         Self {
-            specific_targets: shard_config.specific_targets.map(|i| i.into()),
+            specific_targets: shard_config
+                .specific_targets
+                .into_iter()
+                .map(|i| i.into())
+                .collect(),
             hash_ring: shard_config.hash_ring.map(|i| i.into()),
             ignore_errors: shard_config.ignore_errors,
             shards: shard_config
@@ -929,8 +934,9 @@ impl TryFrom<management::ShardConfig> for ShardConfig {
         Ok(Self {
             specific_targets: proto
                 .specific_targets
+                .into_iter()
                 .map(|i| i.try_into())
-                .map_or(Ok(None), |r| r.map(Some))?,
+                .collect::<Result<Vec<MatcherToShard>, _>>()?,
             hash_ring: proto
                 .hash_ring
                 .map(|i| i.try_into())
@@ -1628,7 +1634,7 @@ mod tests {
         let shard_config: ShardConfig = protobuf.clone().try_into().unwrap();
         let back: management::ShardConfig = shard_config.clone().into();
 
-        assert!(shard_config.specific_targets.is_none());
+        assert!(shard_config.specific_targets.is_empty());
         assert_eq!(protobuf.specific_targets, back.specific_targets);
 
         assert!(shard_config.hash_ring.is_none());
@@ -1693,13 +1699,13 @@ mod tests {
     #[test]
     fn test_sharder() {
         let protobuf = management::ShardConfig {
-            specific_targets: Some(management::MatcherToShard {
+            specific_targets: vec![management::MatcherToShard {
                 matcher: Some(management::Matcher {
                     table_name_regex: "pu$".to_string(),
                     ..Default::default()
                 }),
                 shard: 1,
-            }),
+            }],
             hash_ring: Some(management::HashRing {
                 table_name: true,
                 columns: vec!["t1", "t2", "f1", "f2"]
