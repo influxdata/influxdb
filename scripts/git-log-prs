@@ -1,0 +1,76 @@
+#!/bin/bash
+
+# This script will filter the git history for a given revision range
+# and report which PRs got landed in that range.
+#
+# It knows about our good and bad habits and deals with both merge
+# commits, and stash/rebase merges.
+#
+# Example usage:
+#
+# ./scripts/git-log-prs HEAD~10..main
+# ./scripts/git-log-prs 8376983..main --titles
+
+set -eu -o pipefail
+
+usage() {
+  echo "$0 [ --titles ] <rev_range>"
+  exit 1
+}
+
+ensure_command_gh() {
+  type -P "gh" &> /dev/null || {
+    echo "Command 'gh' not found"
+    echo
+    echo "Macos:"
+    echo "  brew install gh"
+    echo
+    echo "Other OS:"
+    echo "  see https://github.com/cli/cli"
+    exit 1
+  }
+}
+
+main() {
+  local positionals=()
+  local titles=""
+
+  while [[ $# -gt 0 ]]; do
+    local key="$1"
+
+    case "${key}" in
+        --titles)
+        titles=true
+        shift
+        ;;
+        *)
+        positionals+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  if [ ${#positionals[@]} -lt 1 ]; then
+    usage
+  fi
+
+  local rev_range="${positionals[0]}"
+
+  git log \
+      --committer='GitHub <noreply@github.com>' \
+      --pretty=format:'%s' \
+      "${rev_range}" \
+    | sed 's/Merge pull request #\([0-9]*\).*/\1/' \
+    | sed 's/.*(#\([0-9]*\))$/\1/' \
+    | grep -E '^[0-9]*$' \
+    | while read -r pr; do
+    local title=""
+    if [ -n "${titles}" ]; then
+      ensure_command_gh
+      title=$(gh pr view "${pr}" --json title --jq '.title')
+    fi
+    echo "${pr} ${title}"
+  done
+}
+
+main "$@"
