@@ -155,6 +155,13 @@ message LifecycleRules {
 
   // Do not allow writing new data to this database
   bool immutable = 8;
+
+  /// The background worker will evaluate whether there is work to do
+  /// at every `period` milliseconds.
+  ///
+  /// If 0, the default period is used
+  // (See data_types::database_rules::LifecycleRules::DEFAULT_BACKGROUND_WORKER_PERIOD_MILLIS)
+  uint64 background_worker_period_millis = 10;
 }
 
 message DatabaseRules {
