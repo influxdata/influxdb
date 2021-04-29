@@ -75,15 +75,16 @@ pub struct Chunk {
     pub(crate) chunk_data: RwLock<TableData>,
 }
 
-// Tie data and meta-data together so that they can be wrapped in RWLock.
+/// Tie data and meta-data together so that they can be wrapped in RWLock.
 pub(crate) struct TableData {
-    rows: u64, // Total number of rows across all tables
+    /// Total number of rows across all tables
+    rows: u64,
 
-    // Total number of row groups across all tables in the chunk.
+    /// Total number of row groups across all tables in the chunk.
     row_groups: usize,
 
-    // The set of tables within this chunk. Each table is identified by a
-    // measurement name.
+    /// The set of tables within this chunk. Each table is identified by a
+    /// measurement name.
     data: BTreeMap<TableName, Table>,
 
     /// keep track of memory used by table data in chunk
@@ -170,7 +171,7 @@ impl Chunk {
     }
 
     /// The total number of rows in all row groups in all tables in this chunk.
-    pub(crate) fn rows(&self) -> u64 {
+    pub fn rows(&self) -> u64 {
         self.chunk_data.read().rows
     }
 

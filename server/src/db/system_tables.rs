@@ -8,8 +8,8 @@ use chrono::{DateTime, Utc};
 use arrow_deps::{
     arrow::{
         array::{
-            Array, StringArray, StringBuilder, Time64NanosecondArray, TimestampNanosecondArray,
-            UInt32Array, UInt64Array, UInt64Builder,
+            Array, ArrayRef, StringArray, StringBuilder, Time64NanosecondArray,
+            TimestampNanosecondArray, UInt32Array, UInt64Array, UInt64Builder,
         },
         datatypes::{Field, Schema},
         error::Result,
@@ -102,6 +102,7 @@ fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
     let storage = StringArray::from_iter(chunks.iter().map(|c| Some(c.storage.as_str())));
     let estimated_bytes =
         UInt64Array::from_iter(chunks.iter().map(|c| Some(c.estimated_bytes as u64)));
+    let row_counts = UInt64Array::from_iter(chunks.iter().map(|c| Some(c.row_count as u64)));
     let time_of_first_write = TimestampNanosecondArray::from_iter(
         chunks.iter().map(|c| c.time_of_first_write).map(time_to_ts),
     );
@@ -111,38 +112,17 @@ fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
     let time_closing =
         TimestampNanosecondArray::from_iter(chunks.iter().map(|c| c.time_closing).map(time_to_ts));
 
-    let schema = Schema::new(vec![
-        Field::new("id", id.data_type().clone(), false),
-        Field::new("partition_key", partition_key.data_type().clone(), false),
-        Field::new("table_name", table_name.data_type().clone(), false),
-        Field::new("storage", storage.data_type().clone(), false),
-        Field::new("estimated_bytes", estimated_bytes.data_type().clone(), true),
-        Field::new(
-            "time_of_first_write",
-            time_of_first_write.data_type().clone(),
-            true,
-        ),
-        Field::new(
-            "time_of_last_write",
-            time_of_last_write.data_type().clone(),
-            true,
-        ),
-        Field::new("time_closing", time_closing.data_type().clone(), true),
-    ]);
-
-    RecordBatch::try_new(
-        Arc::new(schema),
-        vec![
-            Arc::new(id),
-            Arc::new(partition_key),
-            Arc::new(table_name),
-            Arc::new(storage),
-            Arc::new(estimated_bytes),
-            Arc::new(time_of_first_write),
-            Arc::new(time_of_last_write),
-            Arc::new(time_closing),
-        ],
-    )
+    RecordBatch::try_from_iter(vec![
+        ("id", Arc::new(id) as ArrayRef),
+        ("partition_key", Arc::new(partition_key)),
+        ("table_name", Arc::new(table_name)),
+        ("storage", Arc::new(storage)),
+        ("estimated_bytes", Arc::new(estimated_bytes)),
+        ("row_count", Arc::new(row_counts)),
+        ("time_of_first_write", Arc::new(time_of_first_write)),
+        ("time_of_last_write", Arc::new(time_of_last_write)),
+        ("time_closing", Arc::new(time_closing)),
+    ])
 }
 
 fn from_partition_summaries(partitions: Vec<PartitionSummary>) -> Result<RecordBatch> {
@@ -254,6 +234,7 @@ mod tests {
                 id: 0,
                 storage: ChunkStorage::OpenMutableBuffer,
                 estimated_bytes: 23754,
+                row_count: 11,
                 time_of_first_write: Some(DateTime::from_utc(
                     NaiveDateTime::from_timestamp(10, 0),
                     Utc,
@@ -267,6 +248,7 @@ mod tests {
                 id: 0,
                 storage: ChunkStorage::OpenMutableBuffer,
                 estimated_bytes: 23454,
+                row_count: 22,
                 time_of_first_write: None,
                 time_of_last_write: Some(DateTime::from_utc(
                     NaiveDateTime::from_timestamp(80, 0),
@@ -277,12 +259,12 @@ mod tests {
         ];
 
         let expected = vec![
-            "+----+---------------+------------+-------------------+-----------------+---------------------+---------------------+--------------+",
-            "| id | partition_key | table_name | storage           | estimated_bytes | time_of_first_write | time_of_last_write  | time_closing |",
-            "+----+---------------+------------+-------------------+-----------------+---------------------+---------------------+--------------+",
-            "| 0  | p1            | table1     | OpenMutableBuffer | 23754           | 1970-01-01 00:00:10 |                     |              |",
-            "| 0  | p1            | table1     | OpenMutableBuffer | 23454           |                     | 1970-01-01 00:01:20 |              |",
-            "+----+---------------+------------+-------------------+-----------------+---------------------+---------------------+--------------+",
+            "+----+---------------+------------+-------------------+-----------------+-----------+---------------------+---------------------+--------------+",
+            "| id | partition_key | table_name | storage           | estimated_bytes | row_count | time_of_first_write | time_of_last_write  | time_closing |",
+            "+----+---------------+------------+-------------------+-----------------+-----------+---------------------+---------------------+--------------+",
+            "| 0  | p1            | table1     | OpenMutableBuffer | 23754           | 11        | 1970-01-01 00:00:10 |                     |              |",
+            "| 0  | p1            | table1     | OpenMutableBuffer | 23454           | 22        |                     | 1970-01-01 00:01:20 |              |",
+            "+----+---------------+------------+-------------------+-----------------+-----------+---------------------+---------------------+--------------+",
         ];
 
         let batch = from_chunk_summaries(chunks).unwrap();

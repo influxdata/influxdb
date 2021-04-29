@@ -225,8 +225,13 @@ impl Chunk {
     /// Return the approximate memory size of the chunk, in bytes including the
     /// dictionary, tables, and their rows.
     pub fn size(&self) -> usize {
-        let data_size = self.tables.values().fold(0, |acc, val| acc + val.size());
+        let data_size: usize = self.tables.values().map(|t| t.size()).sum();
         data_size + self.dictionary.size()
+    }
+
+    /// Return the number of rows in this chunk
+    pub fn rows(&self) -> usize {
+        self.tables.values().map(|t| t.row_count()).sum()
     }
 
     /// Return true if this chunk has the specified table name

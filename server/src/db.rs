@@ -1664,6 +1664,7 @@ mod tests {
                     id,
                     storage,
                     estimated_bytes,
+                    row_count,
                     ..
                 } = summary;
                 ChunkSummary::new_without_timestamps(
@@ -1672,6 +1673,7 @@ mod tests {
                     id,
                     storage,
                     estimated_bytes,
+                    row_count,
                 )
             })
             .collect::<Vec<_>>();
@@ -1705,6 +1707,7 @@ mod tests {
             0,
             ChunkStorage::OpenMutableBuffer,
             106,
+            1,
         )];
 
         let size: usize = db
@@ -1810,6 +1813,7 @@ mod tests {
                 0,
                 ChunkStorage::ReadBuffer,
                 1213,
+                1,
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-01T00"),
@@ -1817,6 +1821,7 @@ mod tests {
                 1,
                 ChunkStorage::OpenMutableBuffer,
                 100,
+                1,
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-05T15"),
@@ -1824,6 +1829,7 @@ mod tests {
                 0,
                 ChunkStorage::ClosedMutableBuffer,
                 129,
+                1,
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-05T15"),
@@ -1831,6 +1837,7 @@ mod tests {
                 1,
                 ChunkStorage::OpenMutableBuffer,
                 131,
+                1,
             ),
         ];
 

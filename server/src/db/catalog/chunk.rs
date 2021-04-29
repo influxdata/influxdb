@@ -206,18 +206,36 @@ impl Chunk {
 
     /// Return ChunkSummary metadata for this chunk
     pub fn summary(&self) -> ChunkSummary {
-        let (estimated_bytes, storage) = match &self.state {
+        let (estimated_bytes, row_count, storage) = match &self.state {
             ChunkState::Invalid => panic!("invalid chunk state"),
-            ChunkState::Open(chunk) => (chunk.size(), ChunkStorage::OpenMutableBuffer),
-            ChunkState::Closing(chunk) => (chunk.size(), ChunkStorage::ClosedMutableBuffer),
-            ChunkState::Moving(chunk) => (chunk.size(), ChunkStorage::ClosedMutableBuffer),
-            ChunkState::Moved(chunk) => (chunk.size(), ChunkStorage::ReadBuffer),
-            ChunkState::WritingToObjectStore(chunk) => {
-                (chunk.size(), ChunkStorage::ReadBufferAndObjectStore)
+            ChunkState::Open(chunk) => {
+                (chunk.size(), chunk.rows(), ChunkStorage::OpenMutableBuffer)
             }
-            ChunkState::WrittenToObjectStore(chunk, _) => {
-                (chunk.size(), ChunkStorage::ReadBufferAndObjectStore)
-            }
+            ChunkState::Closing(chunk) => (
+                chunk.size(),
+                chunk.rows(),
+                ChunkStorage::ClosedMutableBuffer,
+            ),
+            ChunkState::Moving(chunk) => (
+                chunk.size(),
+                chunk.rows(),
+                ChunkStorage::ClosedMutableBuffer,
+            ),
+            ChunkState::Moved(chunk) => (
+                chunk.size(),
+                chunk.rows() as usize,
+                ChunkStorage::ReadBuffer,
+            ),
+            ChunkState::WritingToObjectStore(chunk) => (
+                chunk.size(),
+                chunk.rows() as usize,
+                ChunkStorage::ReadBufferAndObjectStore,
+            ),
+            ChunkState::WrittenToObjectStore(chunk, _) => (
+                chunk.size(),
+                chunk.rows() as usize,
+                ChunkStorage::ReadBufferAndObjectStore,
+            ),
         };
 
         ChunkSummary {
@@ -226,6 +244,7 @@ impl Chunk {
             id: self.id,
             storage,
             estimated_bytes,
+            row_count,
             time_of_first_write: self.time_of_first_write,
             time_of_last_write: self.time_of_last_write,
             time_closing: self.time_closing,

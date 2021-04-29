@@ -277,6 +277,7 @@ async fn test_chunk_get() {
             id: 0,
             storage: ChunkStorage::OpenMutableBuffer as i32,
             estimated_bytes: 132,
+            row_count: 2,
             time_of_first_write: None,
             time_of_last_write: None,
             time_closing: None,
@@ -287,6 +288,7 @@ async fn test_chunk_get() {
             id: 0,
             storage: ChunkStorage::OpenMutableBuffer as i32,
             estimated_bytes: 114,
+            row_count: 1,
             time_of_first_write: None,
             time_of_last_write: None,
             time_closing: None,
@@ -454,6 +456,7 @@ async fn test_list_partition_chunks() {
         id: 0,
         storage: ChunkStorage::OpenMutableBuffer as i32,
         estimated_bytes: 132,
+        row_count: 2,
         time_of_first_write: None,
         time_of_last_write: None,
         time_closing: None,
@@ -728,6 +731,7 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
                 id,
                 storage,
                 estimated_bytes,
+                row_count,
                 ..
             } = summary;
             Chunk {
@@ -736,6 +740,7 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
                 id,
                 storage,
                 estimated_bytes,
+                row_count,
                 time_of_first_write: None,
                 time_of_last_write: None,
                 time_closing: None,

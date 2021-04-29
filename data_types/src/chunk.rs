@@ -60,6 +60,9 @@ pub struct ChunkSummary {
     /// The total estimated size of this chunk, in bytes
     pub estimated_bytes: usize,
 
+    /// The total number of rows in this chunk
+    pub row_count: usize,
+
     /// Time at which the first data was written into this chunk. Note
     /// this is not the same as the timestamps on the data itself
     pub time_of_first_write: Option<DateTime<Utc>>,
@@ -82,6 +85,7 @@ impl ChunkSummary {
         id: u32,
         storage: ChunkStorage,
         estimated_bytes: usize,
+        row_count: usize,
     ) -> Self {
         Self {
             partition_key,
@@ -89,6 +93,7 @@ impl ChunkSummary {
             id,
             storage,
             estimated_bytes,
+            row_count,
             time_of_first_write: None,
             time_of_last_write: None,
             time_closing: None,
@@ -105,6 +110,7 @@ impl From<ChunkSummary> for management::Chunk {
             id,
             storage,
             estimated_bytes,
+            row_count,
             time_of_first_write,
             time_of_last_write,
             time_closing,
@@ -114,6 +120,7 @@ impl From<ChunkSummary> for management::Chunk {
         let storage = storage.into(); // convert to i32
 
         let estimated_bytes = estimated_bytes as u64;
+        let row_count = row_count as u64;
 
         let partition_key = match Arc::try_unwrap(partition_key) {
             // no one else has a reference so take the string
@@ -138,6 +145,7 @@ impl From<ChunkSummary> for management::Chunk {
             id,
             storage,
             estimated_bytes,
+            row_count,
             time_of_first_write,
             time_of_last_write,
             time_closing,
@@ -197,10 +205,12 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             table_name,
             id,
             estimated_bytes,
+            row_count,
             ..
         } = proto;
 
         let estimated_bytes = estimated_bytes as usize;
+        let row_count = row_count as usize;
         let partition_key = Arc::new(partition_key);
         let table_name = Arc::new(table_name);
 
@@ -210,6 +220,7 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             id,
             storage,
             estimated_bytes,
+            row_count,
             time_of_first_write,
             time_of_last_write,
             time_closing,
@@ -245,6 +256,7 @@ mod test {
             table_name: "bar".to_string(),
             id: 42,
             estimated_bytes: 1234,
+            row_count: 321,
             storage: management::ChunkStorage::ObjectStoreOnly.into(),
             time_of_first_write: None,
             time_of_last_write: None,
@@ -257,6 +269,7 @@ mod test {
             table_name: Arc::new("bar".to_string()),
             id: 42,
             estimated_bytes: 1234,
+            row_count: 321,
             storage: ChunkStorage::ObjectStoreOnly,
             time_of_first_write: None,
             time_of_last_write: None,
@@ -277,6 +290,7 @@ mod test {
             table_name: Arc::new("bar".to_string()),
             id: 42,
             estimated_bytes: 1234,
+            row_count: 321,
             storage: ChunkStorage::ObjectStoreOnly,
             time_of_first_write: None,
             time_of_last_write: None,
@@ -290,6 +304,7 @@ mod test {
             table_name: "bar".to_string(),
             id: 42,
             estimated_bytes: 1234,
+            row_count: 321,
             storage: management::ChunkStorage::ObjectStoreOnly.into(),
             time_of_first_write: None,
             time_of_last_write: None,
