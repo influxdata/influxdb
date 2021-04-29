@@ -5,8 +5,11 @@ use itertools::Itertools;
 /// A path stored as a collection of 0 or more directories and 0 or 1 file name
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
 pub struct DirsAndFileName {
-    pub(crate) directories: Vec<PathPart>,
-    pub(crate) file_name: Option<PathPart>,
+    /// Directory hierarchy.
+    pub directories: Vec<PathPart>,
+
+    /// Filename, if set.
+    pub file_name: Option<PathPart>,
 }
 
 impl ObjectStorePath for DirsAndFileName {
