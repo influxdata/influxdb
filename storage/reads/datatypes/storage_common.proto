@@ -139,6 +139,7 @@ message ReadResponse {
     UNSIGNED = 2 [(gogoproto.enumvalue_customname) = "DataTypeUnsigned"];
     BOOLEAN = 3 [(gogoproto.enumvalue_customname) = "DataTypeBoolean"];
     STRING = 4 [(gogoproto.enumvalue_customname) = "DataTypeString"];
+    MULTI = 5 [(gogoproto.enumvalue_customname) = "DataTypeMulti"];
   }
 
   message Frame {
@@ -150,6 +151,7 @@ message ReadResponse {
       UnsignedPointsFrame unsigned_points = 4 [(gogoproto.customname) = "UnsignedPoints"];
       BooleanPointsFrame boolean_points = 5 [(gogoproto.customname) = "BooleanPoints"];
       StringPointsFrame string_points = 6 [(gogoproto.customname) = "StringPoints"];
+      MultiPointsFrame float_array = 8 [(gogoproto.customname) = "MultiPoints"];
     }
   }
 
@@ -163,6 +165,36 @@ message ReadResponse {
   message SeriesFrame {
     repeated Tag tags = 1 [(gogoproto.nullable) = false];
     DataType data_type = 2;
+  }
+
+  message FloatValues {
+    repeated double values = 1;
+  }
+  message IntegerValues {
+    repeated int64 values = 1;
+  }
+  message UnsignedValues {
+    repeated uint64 values = 1;
+  }
+  message BooleanValues {
+    repeated bool values = 1;
+  }
+  message StringValues {
+    repeated string values = 1;
+  }
+  message AnyPoints {
+    oneof data {
+      FloatValues floats = 1;
+      IntegerValues integers = 2;
+      UnsignedValues unsigneds = 3;
+      BooleanValues booleans = 4;
+      StringValues strings = 5;
+    }
+  }
+
+  message MultiPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated AnyPoints value_arrays = 2 [(gogoproto.nullable) = false];
   }
 
   message FloatPointsFrame {

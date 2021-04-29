@@ -17,20 +17,20 @@ func (v *singleValue) Value(key string) (interface{}, bool) {
 	return v.v, true
 }
 
-func newAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) (cursors.Cursor, error) {
-	switch agg.Type {
+func newAggregateArrayCursor(ctx context.Context, agg []*datatypes.Aggregate, cursor cursors.Cursor) (cursors.Cursor, error) {
+	switch agg[0].Type {
 	case datatypes.AggregateTypeFirst, datatypes.AggregateTypeLast:
 		return newLimitArrayCursor(cursor), nil
 	}
 	return NewWindowAggregateArrayCursor(ctx, agg, interval.Window{}, cursor)
 }
 
-func NewWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, window interval.Window, cursor cursors.Cursor) (cursors.Cursor, error) {
+func NewWindowAggregateArrayCursor(ctx context.Context, agg []*datatypes.Aggregate, window interval.Window, cursor cursors.Cursor) (cursors.Cursor, error) {
 	if cursor == nil {
 		return nil, nil
 	}
 
-	switch agg.Type {
+	switch agg[0].Type {
 	case datatypes.AggregateTypeCount:
 		return newWindowCountArrayCursor(cursor, window), nil
 	case datatypes.AggregateTypeSum:
@@ -44,7 +44,11 @@ func NewWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate
 	case datatypes.AggregateTypeMax:
 		return newWindowMaxArrayCursor(cursor, window), nil
 	case datatypes.AggregateTypeMean:
+		if len(agg) == 2 && agg[1].Type == datatypes.AggregateTypeCount {
+			return newWindowMeanCountArrayCursor(cursor, window)
+		}
 		return newWindowMeanArrayCursor(cursor, window)
+
 	default:
 		// TODO(sgc): should be validated higher up
 		panic("invalid aggregate")

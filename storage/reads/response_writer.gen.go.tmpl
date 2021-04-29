@@ -1,0 +1,135 @@
+package reads
+
+import (
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/tsdb/cursors"
+)
+
+{{with $types := .}}
+{{range $k := $types}}
+
+func (w *ResponseWriter) get{{$k.Name}}PointsFrame() *datatypes.ReadResponse_Frame_{{$k.Name}}Points {
+	var res *datatypes.ReadResponse_Frame_{{$k.Name}}Points
+	if len(w.buffer.{{$k.Name}}) > 0 {
+		i := len(w.buffer.{{$k.Name}}) - 1
+		res = w.buffer.{{$k.Name}}[i]
+		w.buffer.{{$k.Name}}[i] = nil
+		w.buffer.{{$k.Name}} = w.buffer.{{$k.Name}}[:i]
+	} else {
+		res = &datatypes.ReadResponse_Frame_{{$k.Name}}Points{
+			{{$k.Name}}Points: &datatypes.ReadResponse_{{$k.Name}}PointsFrame{
+				Timestamps: make([]int64, 0, batchSize),
+				Values:     make([]{{$k.Type}}, 0, batchSize),
+			},
+		}
+	}
+	return res
+}
+
+func (w *ResponseWriter) put{{$k.Name}}PointsFrame(f *datatypes.ReadResponse_Frame_{{$k.Name}}Points) {
+	f.{{$k.Name}}Points.Timestamps = f.{{$k.Name}}Points.Timestamps[:0]
+	f.{{$k.Name}}Points.Values = f.{{$k.Name}}Points.Values[:0]
+	w.buffer.{{$k.Name}} = append(w.buffer.{{$k.Name}}, f)
+}
+
+func (w *ResponseWriter) get{{$k.Name}}Values() *datatypes.ReadResponse_AnyPoints_{{$k.Name}}s {
+	var res *datatypes.ReadResponse_AnyPoints_{{$k.Name}}s
+	if len(w.buffer.{{$k.Name}}Values) > 0 {
+		i := len(w.buffer.{{$k.Name}}Values) - 1
+		res = w.buffer.{{$k.Name}}Values[i]
+		w.buffer.{{$k.Name}}Values[i] = nil
+		w.buffer.{{$k.Name}}Values = w.buffer.{{$k.Name}}Values[:i]
+	} else {
+		res = &datatypes.ReadResponse_AnyPoints_{{$k.Name}}s{
+			{{$k.Name}}s: &datatypes.ReadResponse_{{$k.Name}}Values{
+				Values: make([]{{$k.Type}}, 0, batchSize),
+			},
+		}
+	}
+	return res
+}
+
+func (w *ResponseWriter) put{{$k.Name}}Values(f *datatypes.ReadResponse_AnyPoints_{{$k.Name}}s) {
+	f.{{$k.Name}}s.Values = f.{{$k.Name}}s.Values[:0]
+	w.buffer.{{$k.Name}}Values = append(w.buffer.{{$k.Name}}Values, f)
+}
+
+func (w *ResponseWriter) stream{{$k.Name}}ArraySeries(cur cursors.{{$k.Name}}ArrayCursor) {
+	w.sf.DataType = datatypes.DataType{{$k.Name}}
+	ss := len(w.res.Frames) - 1
+	a := cur.Next()
+	if len(a.Timestamps) == 0 {
+		w.sz -= w.sf.Size()
+		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
+		w.res.Frames = w.res.Frames[:ss]
+	} else if w.sz > writeSize {
+		w.Flush()
+	}
+}
+
+func (w *ResponseWriter) stream{{$k.Name}}ArrayPoints(cur cursors.{{$k.Name}}ArrayCursor) {
+	w.sf.DataType = datatypes.DataType{{$k.Name}}
+	ss := len(w.res.Frames) - 1
+
+	p := w.get{{$k.Name}}PointsFrame()
+	frame := p.{{$k.Name}}Points
+	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+
+	var seriesValueCount = 0
+	for {
+		// If the number of values produced by cur > 1000,
+		// cur.Next() will produce batches of values that are of
+		// length ≤ 1000.
+		// We attempt to limit the frame Timestamps / Values lengths
+		// the same to avoid allocations. These frames are recycled
+		// after flushing so that on repeated use there should be enough space
+		// to append values from a into frame without additional allocations.
+		a := cur.Next()
+
+		if len(a.Timestamps) == 0 {
+			break
+		}
+
+		seriesValueCount += a.Len()
+		// As specified in the struct definition, w.sz is an estimated
+		// size (in bytes) of the buffered data. It is therefore a
+		// deliberate choice to accumulate using the array Size, which is
+		// cheap to calculate. Calling frame.Size() can be expensive
+		// when using varint encoding for numbers.
+		w.sz += a.Size()
+
+		frame.Timestamps = append(frame.Timestamps, a.Timestamps...)
+		frame.Values = append(frame.Values, a.Values...)
+
+		// given the expectation of cur.Next, we attempt to limit
+		// the number of values appended to the frame to batchSize (1000)
+		needsFrame := len(frame.Timestamps) >= batchSize
+
+		if w.sz >= writeSize {
+			needsFrame = true
+			w.Flush()
+			if w.err != nil {
+				break
+			}
+		}
+
+		if needsFrame {
+			// new frames are returned with Timestamps and Values preallocated
+			// to a minimum of batchSize length to reduce further allocations.
+			p = w.get{{$k.Name}}PointsFrame()
+			frame = p.{{$k.Name}}Points
+			w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+		}
+	}
+
+	w.vc += seriesValueCount
+	if seriesValueCount == 0 {
+		w.sz -= w.sf.Size()
+		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
+		w.res.Frames = w.res.Frames[:ss]
+	} else if w.sz > writeSize {
+		w.Flush()
+	}
+}
+{{end}}
+{{end}}

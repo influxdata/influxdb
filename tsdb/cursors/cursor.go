@@ -39,6 +39,11 @@ type BooleanArrayCursor interface {
 	Next() *BooleanArray
 }
 
+type MeanCountArrayCursor interface {
+	Cursor
+	Next() *MeanCountArray
+}
+
 type CursorRequest struct {
 	Name      []byte
 	Tags      models.Tags
