@@ -46,5 +46,5 @@ name = "string"
 harness = false
 
 [[bench]]
-name = "row_group"
+name = "read_group"
 harness = false
