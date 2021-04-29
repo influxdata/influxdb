@@ -5,15 +5,13 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	feature "github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
-
 	notebooks "github.com/influxdata/influxdb/v2/notebooks/service"
-
-	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
 	"go.uber.org/zap"
 )
 
