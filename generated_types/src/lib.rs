@@ -31,6 +31,12 @@ pub mod influxdata {
     }
 
     pub mod iox {
+        pub mod catalog {
+            pub mod v1 {
+                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.catalog.v1.rs"));
+            }
+        }
+
         pub mod management {
             pub mod v1 {
                 /// Operation metadata type

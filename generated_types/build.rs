@@ -15,13 +15,17 @@ fn main() -> Result<()> {
 
 /// Schema used with IOx specific gRPC requests
 ///
-/// Creates
-/// - `influxdata.platform.storage.rs`
+/// Creates:
+///
 /// - `com.github.influxdata.idpe.storage.read.rs`
+/// - `influxdata.iox.catalog.v1.rs`
 /// - `influxdata.iox.management.v1.rs`
+/// - `influxdata.iox.write.v1.rs`
+/// - `influxdata.platform.storage.rs`
 fn generate_grpc_types(root: &Path) -> Result<()> {
     let storage_path = root.join("influxdata/platform/storage");
     let idpe_path = root.join("com/github/influxdata/idpe/storage/read");
+    let catalog_path = root.join("influxdata/iox/catalog/v1");
     let management_path = root.join("influxdata/iox/management/v1");
     let write_path = root.join("influxdata/iox/write/v1");
 
@@ -32,6 +36,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         storage_path.join("service.proto"),
         storage_path.join("storage_common_idpe.proto"),
         idpe_path.join("source.proto"),
+        catalog_path.join("catalog.proto"),
         management_path.join("base_types.proto"),
         management_path.join("database_rules.proto"),
         management_path.join("chunk.proto"),
