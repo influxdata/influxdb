@@ -8,10 +8,9 @@ use chrono::{DateTime, Utc};
 use arrow_deps::{
     arrow::{
         array::{
-            Array, StringArray, StringBuilder, Time64NanosecondArray, TimestampNanosecondArray,
+            ArrayRef, StringArray, StringBuilder, Time64NanosecondArray, TimestampNanosecondArray,
             UInt32Array, UInt64Array, UInt64Builder,
         },
-        datatypes::{Field, Schema},
         error::Result,
         record_batch::RecordBatch,
     },
@@ -37,13 +36,19 @@ const OPERATIONS: &str = "operations";
 
 #[derive(Debug)]
 pub struct SystemSchemaProvider {
+    db_name: String,
     catalog: Arc<Catalog>,
     jobs: Arc<JobRegistry>,
 }
 
 impl SystemSchemaProvider {
-    pub fn new(catalog: Arc<Catalog>, jobs: Arc<JobRegistry>) -> Self {
-        Self { catalog, jobs }
+    pub fn new(db_name: impl Into<String>, catalog: Arc<Catalog>, jobs: Arc<JobRegistry>) -> Self {
+        let db_name = db_name.into();
+        Self {
+            db_name,
+            catalog,
+            jobs,
+        }
     }
 }
 
@@ -69,7 +74,7 @@ impl SchemaProvider for SystemSchemaProvider {
             COLUMNS => from_partition_summaries(self.catalog.partition_summaries())
                 .log_if_error("chunks table")
                 .ok()?,
-            OPERATIONS => from_task_trackers(self.jobs.tracked())
+            OPERATIONS => from_task_trackers(&self.db_name, self.jobs.tracked())
                 .log_if_error("operations table")
                 .ok()?,
             _ => return None,
@@ -96,6 +101,7 @@ fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
     let storage = StringArray::from_iter(chunks.iter().map(|c| Some(c.storage.as_str())));
     let estimated_bytes =
         UInt64Array::from_iter(chunks.iter().map(|c| Some(c.estimated_bytes as u64)));
+    let row_counts = UInt64Array::from_iter(chunks.iter().map(|c| Some(c.row_count as u64)));
     let time_of_first_write = TimestampNanosecondArray::from_iter(
         chunks.iter().map(|c| c.time_of_first_write).map(time_to_ts),
     );
@@ -105,38 +111,17 @@ fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
     let time_closing =
         TimestampNanosecondArray::from_iter(chunks.iter().map(|c| c.time_closing).map(time_to_ts));
 
-    let schema = Schema::new(vec![
-        Field::new("id", id.data_type().clone(), false),
-        Field::new("partition_key", partition_key.data_type().clone(), false),
-        Field::new("table_name", table_name.data_type().clone(), false),
-        Field::new("storage", storage.data_type().clone(), false),
-        Field::new("estimated_bytes", estimated_bytes.data_type().clone(), true),
-        Field::new(
-            "time_of_first_write",
-            time_of_first_write.data_type().clone(),
-            true,
-        ),
-        Field::new(
-            "time_of_last_write",
-            time_of_last_write.data_type().clone(),
-            true,
-        ),
-        Field::new("time_closing", time_closing.data_type().clone(), true),
-    ]);
-
-    RecordBatch::try_new(
-        Arc::new(schema),
-        vec![
-            Arc::new(id),
-            Arc::new(partition_key),
-            Arc::new(table_name),
-            Arc::new(storage),
-            Arc::new(estimated_bytes),
-            Arc::new(time_of_first_write),
-            Arc::new(time_of_last_write),
-            Arc::new(time_closing),
-        ],
-    )
+    RecordBatch::try_from_iter(vec![
+        ("id", Arc::new(id) as ArrayRef),
+        ("partition_key", Arc::new(partition_key)),
+        ("table_name", Arc::new(table_name)),
+        ("storage", Arc::new(storage)),
+        ("estimated_bytes", Arc::new(estimated_bytes)),
+        ("row_count", Arc::new(row_counts)),
+        ("time_of_first_write", Arc::new(time_of_first_write)),
+        ("time_of_last_write", Arc::new(time_of_last_write)),
+        ("time_closing", Arc::new(time_closing)),
+    ])
 }
 
 fn from_partition_summaries(partitions: Vec<PartitionSummary>) -> Result<RecordBatch> {
@@ -167,60 +152,45 @@ fn from_partition_summaries(partitions: Vec<PartitionSummary>) -> Result<RecordB
     let column_name = column_name.finish();
     let count = count.finish();
 
-    let schema = Schema::new(vec![
-        Field::new("partition_key", partition_key.data_type().clone(), false),
-        Field::new("table_name", table_name.data_type().clone(), true),
-        Field::new("column_name", column_name.data_type().clone(), true),
-        Field::new("count", count.data_type().clone(), true),
-    ]);
-
-    RecordBatch::try_new(
-        Arc::new(schema),
-        vec![
-            Arc::new(partition_key),
-            Arc::new(table_name),
-            Arc::new(column_name),
-            Arc::new(count),
-        ],
-    )
+    RecordBatch::try_from_iter(vec![
+        ("partition_key", Arc::new(partition_key) as ArrayRef),
+        ("table_name", Arc::new(table_name)),
+        ("column_name", Arc::new(column_name)),
+        ("count", Arc::new(count)),
+    ])
 }
 
-fn from_task_trackers(jobs: Vec<TaskTracker<Job>>) -> Result<RecordBatch> {
+fn from_task_trackers(db_name: &str, jobs: Vec<TaskTracker<Job>>) -> Result<RecordBatch> {
+    let jobs = jobs
+        .into_iter()
+        .filter(|job| job.metadata().db_name() == Some(db_name))
+        .collect::<Vec<_>>();
+
     let ids = StringArray::from_iter(jobs.iter().map(|job| Some(job.id().to_string())));
     let statuses = StringArray::from_iter(jobs.iter().map(|job| Some(job.get_status().name())));
     let cpu_time_used = Time64NanosecondArray::from_iter(
         jobs.iter()
             .map(|job| job.get_status().cpu_nanos().map(|n| n as i64)),
     );
-    let db_names = StringArray::from_iter(jobs.iter().map(|job| job.metadata().db_name()));
+    let wall_time_used = Time64NanosecondArray::from_iter(
+        jobs.iter()
+            .map(|job| job.get_status().wall_nanos().map(|n| n as i64)),
+    );
     let partition_keys =
         StringArray::from_iter(jobs.iter().map(|job| job.metadata().partition_key()));
     let chunk_ids = UInt32Array::from_iter(jobs.iter().map(|job| job.metadata().chunk_id()));
     let descriptions =
         StringArray::from_iter(jobs.iter().map(|job| Some(job.metadata().description())));
 
-    let schema = Schema::new(vec![
-        Field::new("id", ids.data_type().clone(), false),
-        Field::new("status", statuses.data_type().clone(), false),
-        Field::new("cpu_time_used", cpu_time_used.data_type().clone(), true),
-        Field::new("db_name", db_names.data_type().clone(), true),
-        Field::new("partition_key", partition_keys.data_type().clone(), true),
-        Field::new("chunk_id", chunk_ids.data_type().clone(), true),
-        Field::new("description", descriptions.data_type().clone(), true),
-    ]);
-
-    RecordBatch::try_new(
-        Arc::new(schema),
-        vec![
-            Arc::new(ids),
-            Arc::new(statuses),
-            Arc::new(cpu_time_used),
-            Arc::new(db_names),
-            Arc::new(partition_keys),
-            Arc::new(chunk_ids),
-            Arc::new(descriptions),
-        ],
-    )
+    RecordBatch::try_from_iter(vec![
+        ("id", Arc::new(ids) as ArrayRef),
+        ("status", Arc::new(statuses)),
+        ("cpu_time_used", Arc::new(cpu_time_used)),
+        ("wall_time_used", Arc::new(wall_time_used)),
+        ("partition_key", Arc::new(partition_keys)),
+        ("chunk_id", Arc::new(chunk_ids)),
+        ("description", Arc::new(descriptions)),
+    ])
 }
 
 #[cfg(test)]
@@ -240,6 +210,7 @@ mod tests {
                 id: 0,
                 storage: ChunkStorage::OpenMutableBuffer,
                 estimated_bytes: 23754,
+                row_count: 11,
                 time_of_first_write: Some(DateTime::from_utc(
                     NaiveDateTime::from_timestamp(10, 0),
                     Utc,
@@ -253,6 +224,7 @@ mod tests {
                 id: 0,
                 storage: ChunkStorage::OpenMutableBuffer,
                 estimated_bytes: 23454,
+                row_count: 22,
                 time_of_first_write: None,
                 time_of_last_write: Some(DateTime::from_utc(
                     NaiveDateTime::from_timestamp(80, 0),
@@ -263,12 +235,12 @@ mod tests {
         ];
 
         let expected = vec![
-            "+----+---------------+------------+-------------------+-----------------+---------------------+---------------------+--------------+",
-            "| id | partition_key | table_name | storage           | estimated_bytes | time_of_first_write | time_of_last_write  | time_closing |",
-            "+----+---------------+------------+-------------------+-----------------+---------------------+---------------------+--------------+",
-            "| 0  | p1            | table1     | OpenMutableBuffer | 23754           | 1970-01-01 00:00:10 |                     |              |",
-            "| 0  | p1            | table1     | OpenMutableBuffer | 23454           |                     | 1970-01-01 00:01:20 |              |",
-            "+----+---------------+------------+-------------------+-----------------+---------------------+---------------------+--------------+",
+            "+----+---------------+------------+-------------------+-----------------+-----------+---------------------+---------------------+--------------+",
+            "| id | partition_key | table_name | storage           | estimated_bytes | row_count | time_of_first_write | time_of_last_write  | time_closing |",
+            "+----+---------------+------------+-------------------+-----------------+-----------+---------------------+---------------------+--------------+",
+            "| 0  | p1            | table1     | OpenMutableBuffer | 23754           | 11        | 1970-01-01 00:00:10 |                     |              |",
+            "| 0  | p1            | table1     | OpenMutableBuffer | 23454           | 22        |                     | 1970-01-01 00:01:20 |              |",
+            "+----+---------------+------------+-------------------+-----------------+-----------+---------------------+---------------------+--------------+",
         ];
 
         let batch = from_chunk_summaries(chunks).unwrap();

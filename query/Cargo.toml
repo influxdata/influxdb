@@ -22,6 +22,7 @@ data_types = { path = "../data_types" }
 futures = "0.3"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 internal_types = { path = "../internal_types" }
+metrics = { path = "../metrics" }
 parking_lot = "0.11.1"
 snafu = "0.6.2"
 sqlparser = "0.8.0"

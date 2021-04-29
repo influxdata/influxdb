@@ -126,12 +126,15 @@ async fn test_write_routed() {
 
     const TEST_TARGET_ID_1: u32 = 2;
     const TEST_TARGET_ID_2: u32 = 3;
+    const TEST_TARGET_ID_3: u32 = 4;
 
     const TEST_REMOTE_ID_1: u32 = 2;
     const TEST_REMOTE_ID_2: u32 = 3;
+    const TEST_REMOTE_ID_3: u32 = 4;
 
     const TEST_SHARD_ID_1: u32 = 42;
     const TEST_SHARD_ID_2: u32 = 43;
+    const TEST_SHARD_ID_3: u32 = 44;
 
     let router = ServerFixture::create_single_use().await;
     let mut router_mgmt = router.management_client();
@@ -164,10 +167,23 @@ async fn test_write_routed() {
         .await
         .expect("set remote failed");
 
+    let target_3 = ServerFixture::create_single_use().await;
+    let mut target_3_mgmt = target_3.management_client();
+    target_3_mgmt
+        .update_server_id(TEST_TARGET_ID_3)
+        .await
+        .expect("set ID failed");
+
+    router_mgmt
+        .update_remote(TEST_REMOTE_ID_3, target_3.grpc_base())
+        .await
+        .expect("set remote failed");
+
     let db_name = rand_name();
     create_readable_database(&db_name, router.grpc_channel()).await;
     create_readable_database(&db_name, target_1.grpc_channel()).await;
     create_readable_database(&db_name, target_2.grpc_channel()).await;
+    create_readable_database(&db_name, target_3.grpc_channel()).await;
 
     // Set sharding rules on the router:
     let mut router_db_rules = router_mgmt
@@ -175,13 +191,22 @@ async fn test_write_routed() {
         .await
         .expect("cannot get database on router");
     router_db_rules.shard_config = Some(ShardConfig {
-        specific_targets: Some(MatcherToShard {
-            matcher: Some(Matcher {
-                table_name_regex: "^cpu$".to_string(),
-                ..Default::default()
-            }),
-            shard: TEST_SHARD_ID_1,
-        }),
+        specific_targets: vec![
+            MatcherToShard {
+                matcher: Some(Matcher {
+                    table_name_regex: "^cpu$".to_string(),
+                    ..Default::default()
+                }),
+                shard: TEST_SHARD_ID_1,
+            },
+            MatcherToShard {
+                matcher: Some(Matcher {
+                    table_name_regex: "^mem$".to_string(),
+                    ..Default::default()
+                }),
+                shard: TEST_SHARD_ID_3,
+            },
+        ],
         hash_ring: Some(HashRing {
             table_name: true,
             shards: vec![TEST_SHARD_ID_2],
@@ -204,6 +229,14 @@ async fn test_write_routed() {
                     }],
                 },
             ),
+            (
+                TEST_SHARD_ID_3,
+                NodeGroup {
+                    nodes: vec![Node {
+                        id: TEST_REMOTE_ID_3,
+                    }],
+                },
+            ),
         ]
         .into_iter()
         .collect::<HashMap<_, _>>(),
@@ -217,14 +250,19 @@ async fn test_write_routed() {
     // Write some data
     let mut write_client = router.write_client();
 
-    let lp_lines = vec!["cpu bar=1 100", "cpu bar=2 200", "disk bar=3 300"];
+    let lp_lines = vec![
+        "cpu bar=1 100",
+        "cpu bar=2 200",
+        "disk bar=3 300",
+        "mem baz=4 400",
+    ];
 
     let num_lines_written = write_client
         .write(&db_name, lp_lines.join("\n"))
         .await
         .expect("cannot write");
 
-    assert_eq!(num_lines_written, 3);
+    assert_eq!(num_lines_written, 4);
 
     // The router will have split the write request by table name into two shards.
     // Target 1 will have received only the "cpu" table.
@@ -286,6 +324,28 @@ async fn test_write_routed() {
         .unwrap_err()
         .to_string()
         .contains("Table or CTE with name \\\'cpu\\\' not found\""));
+
+    ////
+
+    let mut query_results = target_3
+        .flight_client()
+        .perform_query(&db_name, "select * from mem")
+        .await
+        .expect("failed to query target 3");
+
+    let mut batches = Vec::new();
+    while let Some(data) = query_results.next().await.unwrap() {
+        batches.push(data);
+    }
+
+    let expected = vec![
+        "+-----+-------------------------------+",
+        "| baz | time                          |",
+        "+-----+-------------------------------+",
+        "| 4   | 1970-01-01 00:00:00.000000400 |",
+        "+-----+-------------------------------+",
+    ];
+    assert_batches_sorted_eq!(&expected, &batches);
 }
 
 #[tokio::test]
@@ -310,13 +370,13 @@ async fn test_write_routed_errors() {
         .await
         .expect("cannot get database on router");
     router_db_rules.shard_config = Some(ShardConfig {
-        specific_targets: Some(MatcherToShard {
+        specific_targets: vec![MatcherToShard {
             matcher: Some(Matcher {
                 table_name_regex: "^cpu$".to_string(),
                 ..Default::default()
             }),
             shard: TEST_SHARD_ID,
-        }),
+        }],
         shards: vec![(
             TEST_SHARD_ID,
             NodeGroup {

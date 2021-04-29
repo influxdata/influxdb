@@ -15,7 +15,6 @@ use catalog::{
     Catalog,
 };
 pub(crate) use chunk::DbChunk;
-use core::num::NonZeroU64;
 use data_types::{
     chunk::ChunkSummary,
     database_rules::DatabaseRules,
@@ -200,7 +199,6 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 const STARTING_SEQUENCE: u64 = 1;
-const DEFAULT_BACKGROUND_WORKER_PERIOD_MILLIS: u64 = 1000;
 
 /// This is the main IOx Database object. It is the root object of any
 /// specific InfluxDB IOx instance
@@ -263,7 +261,7 @@ pub struct Db {
 
     pub server_id: ServerId, // this is also the Query Server ID
 
-    /// Interface to use for peristence
+    /// Interface to use for persistence
     pub store: Arc<ObjectStore>,
 
     /// Executor for running queries
@@ -327,6 +325,11 @@ struct DbMetrics {
     // catalog data lifecycle.
     catalog_chunks: metrics::Counter,
 
+    // Tracks a distribution of sizes in bytes of chunks as they're moved into
+    // various immutable stages in IOx: closing/moving in the MUB, in the RB,
+    // and in Parquet.
+    catalog_immutable_chunk_bytes: metrics::Histogram,
+
     // Default labels for the metrics.
     // TODO(edd): you should be able to set these on the metrics when they're
     // created.
@@ -358,7 +361,8 @@ impl Db {
         let store = Arc::clone(&object_store);
         let write_buffer = write_buffer.map(Mutex::new);
         let catalog = Arc::new(Catalog::new());
-        let system_tables = SystemSchemaProvider::new(Arc::clone(&catalog), Arc::clone(&jobs));
+        let system_tables =
+            SystemSchemaProvider::new(&db_name, Arc::clone(&catalog), Arc::clone(&jobs));
         let system_tables = Arc::new(system_tables);
 
         let domain = metrics.register_domain("catalog");
@@ -368,6 +372,18 @@ impl Db {
                 None,
                 "In-memory chunks created in various life-cycle stages",
             ),
+            catalog_immutable_chunk_bytes: domain
+                .register_histogram_metric(
+                    "chunk_creation",
+                    "size",
+                    "bytes",
+                    "The new size of an immutable chunk",
+                )
+                .with_labels(vec![
+                    metrics::KeyValue::new("db_name", db_name.to_string()),
+                    metrics::KeyValue::new("svr_id", format!("{}", server_id)),
+                ])
+                .init(),
             default_labels: vec![
                 metrics::KeyValue::new("db_name", db_name.to_string()),
                 metrics::KeyValue::new("svr_id", format!("{}", server_id)),
@@ -537,6 +553,17 @@ impl Db {
             })?
         };
 
+        // Track the size of the newly immutable closed MUB chunk.
+        self.metrics
+            .catalog_immutable_chunk_bytes
+            .observe_with_labels(
+                mb_chunk.size() as f64,
+                &[metrics::KeyValue::new(
+                    "state",
+                    chunk.read().state().metric_label(),
+                )],
+            );
+
         self.metrics.update_chunk_state(chunk.read().state());
         info!(%partition_key, %table_name, %chunk_id, "chunk marked MOVING, loading tables into read buffer");
 
@@ -572,6 +599,17 @@ impl Db {
             table_name,
             chunk_id,
         })?;
+
+        // Track the size of the newly immutable closed MUB chunk.
+        self.metrics
+            .catalog_immutable_chunk_bytes
+            .observe_with_labels(
+                chunk.size() as f64,
+                &[metrics::KeyValue::new(
+                    "state",
+                    chunk.state().metric_label(),
+                )],
+            );
 
         self.metrics.update_chunk_state(chunk.state());
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked MOVED. loading complete");
@@ -705,6 +743,17 @@ impl Db {
                 table_name,
                 chunk_id,
             })?;
+
+        // Track the size of the newly written to OS chunk.
+        self.metrics
+            .catalog_immutable_chunk_bytes
+            .observe_with_labels(
+                chunk.size() as f64,
+                &[metrics::KeyValue::new(
+                    "state",
+                    chunk.state().metric_label(),
+                )],
+            );
 
         self.metrics.update_chunk_state(chunk.state());
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked MOVED. Persisting to object store complete");
@@ -842,39 +891,12 @@ impl Db {
     ) {
         info!("started background worker");
 
-        fn make_interval(millis: Option<NonZeroU64>) -> tokio::time::Interval {
-            tokio::time::interval(tokio::time::Duration::from_millis(
-                millis.map_or(DEFAULT_BACKGROUND_WORKER_PERIOD_MILLIS, NonZeroU64::get),
-            ))
-        }
-
-        let mut period_millis = {
-            self.rules
-                .read()
-                .lifecycle_rules
-                .background_worker_period_millis
-        };
-
-        let mut interval = make_interval(period_millis);
         let mut lifecycle_manager = LifecycleManager::new(Arc::clone(&self));
 
         while !shutdown.is_cancelled() {
             self.worker_iterations.fetch_add(1, Ordering::Relaxed);
-
-            lifecycle_manager.check_for_work();
-
-            let possibly_updated_period_millis = {
-                self.rules
-                    .read()
-                    .lifecycle_rules
-                    .background_worker_period_millis
-            };
-            if period_millis != possibly_updated_period_millis {
-                period_millis = possibly_updated_period_millis;
-                interval = make_interval(period_millis);
-            }
             tokio::select! {
-                _ = interval.tick() => {},
+                _ = lifecycle_manager.check_for_work() => {},
                 _ = shutdown.cancelled() => break
             }
         }
@@ -1367,7 +1389,9 @@ mod tests {
 
     #[tokio::test]
     async fn load_to_read_buffer_sorted() {
-        let db = Arc::new(make_db().db);
+        let test_db = make_db();
+        let db = Arc::new(test_db.db);
+
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10");
         write_lp(db.as_ref(), "cpu,tag1=asfd,tag2=foo bar=2 20");
         write_lp(db.as_ref(), "cpu,tag1=bingo,tag2=foo bar=2 10");
@@ -1387,6 +1411,32 @@ mod tests {
         let rb_chunk = db
             .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
             .await
+            .unwrap();
+
+        // MUB chunk size
+        test_db
+            .metric_registry
+            .has_metric_family("catalog_chunk_creation_size_bytes")
+            .with_labels(&[
+                ("db_name", "placeholder"),
+                ("state", "moving"),
+                ("svr_id", "1"),
+            ])
+            .histogram()
+            .sample_sum_eq(316.0)
+            .unwrap();
+
+        // RB chunk size
+        test_db
+            .metric_registry
+            .has_metric_family("catalog_chunk_creation_size_bytes")
+            .with_labels(&[
+                ("db_name", "placeholder"),
+                ("state", "moved"),
+                ("svr_id", "1"),
+            ])
+            .histogram()
+            .sample_sum_eq(4291.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk, "cpu").await;
@@ -1450,7 +1500,8 @@ mod tests {
         // Create a DB given a server id, an object store and a db name
         let server_id = ServerId::try_from(10).unwrap();
         let db_name = "parquet_test_db";
-        let db = Arc::new(make_database(server_id, Arc::clone(&object_store), db_name));
+        let test_db = make_database(server_id, Arc::clone(&object_store), db_name);
+        let db = Arc::new(test_db.db);
 
         // Write some line protocols in Mutable buffer of the DB
         write_lp(db.as_ref(), "cpu bar=1 10");
@@ -1472,6 +1523,19 @@ mod tests {
         let pq_chunk = db
             .write_chunk_to_object_store(partition_key, "cpu", mb_chunk.id())
             .await
+            .unwrap();
+
+        // Parquet chunk size
+        test_db
+            .metric_registry
+            .has_metric_family("catalog_chunk_creation_size_bytes")
+            .with_labels(&[
+                ("db_name", "parquet_test_db"),
+                ("state", "os"),
+                ("svr_id", "10"),
+            ])
+            .histogram()
+            .sample_sum_eq(1897.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1699,6 +1763,7 @@ mod tests {
                     id,
                     storage,
                     estimated_bytes,
+                    row_count,
                     ..
                 } = summary;
                 ChunkSummary::new_without_timestamps(
@@ -1707,6 +1772,7 @@ mod tests {
                     id,
                     storage,
                     estimated_bytes,
+                    row_count,
                 )
             })
             .collect::<Vec<_>>();
@@ -1740,6 +1806,7 @@ mod tests {
             0,
             ChunkStorage::OpenMutableBuffer,
             106,
+            1,
         )];
 
         let size: usize = db
@@ -1849,6 +1916,7 @@ mod tests {
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
                 1213 + 675, // size of RB and OS chunks
+                1,
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-01T00"),
@@ -1856,6 +1924,7 @@ mod tests {
                 1,
                 ChunkStorage::OpenMutableBuffer,
                 100,
+                1,
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-05T15"),
@@ -1863,6 +1932,7 @@ mod tests {
                 0,
                 ChunkStorage::ClosedMutableBuffer,
                 129,
+                1,
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-05T15"),
@@ -1870,6 +1940,7 @@ mod tests {
                 1,
                 ChunkStorage::OpenMutableBuffer,
                 131,
+                1,
             ),
         ];
 

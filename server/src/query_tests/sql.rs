@@ -265,16 +265,16 @@ async fn sql_select_from_system_chunks() {
     //  test timestamps, etc)
 
     let expected = vec![
-        "+----+---------------+------------+-------------------+-----------------+",
-        "| id | partition_key | table_name | storage           | estimated_bytes |",
-        "+----+---------------+------------+-------------------+-----------------+",
-        "| 0  | 1970-01-01T00 | h2o        | OpenMutableBuffer | 257             |",
-        "| 0  | 1970-01-01T00 | o2         | OpenMutableBuffer | 221             |",
-        "+----+---------------+------------+-------------------+-----------------+",
+        "+----+---------------+------------+-------------------+-----------------+-----------+",
+        "| id | partition_key | table_name | storage           | estimated_bytes | row_count |",
+        "+----+---------------+------------+-------------------+-----------------+-----------+",
+        "| 0  | 1970-01-01T00 | h2o        | OpenMutableBuffer | 257             | 3         |",
+        "| 0  | 1970-01-01T00 | o2         | OpenMutableBuffer | 221             | 2         |",
+        "+----+---------------+------------+-------------------+-----------------+-----------+",
     ];
     run_sql_test_case!(
         TwoMeasurementsManyFieldsOneChunk {},
-        "SELECT id, partition_key, table_name, storage, estimated_bytes from system.chunks",
+        "SELECT id, partition_key, table_name, storage, estimated_bytes, row_count from system.chunks",
         &expected
     );
 }
@@ -314,19 +314,19 @@ async fn sql_select_from_system_columns() {
 async fn sql_select_from_system_operations() {
     test_helpers::maybe_start_logging();
     let expected = vec![
-        "+----+----------+-----------+-------------+---------------+----------+---------------------------------+",
-        "| id | status   | took_time | db_name     | partition_key | chunk_id | description                     |",
-        "+----+----------+-----------+-------------+---------------+----------+---------------------------------+",
-        "| 0  | Complete | true      | placeholder | 1970-01-01T00 | 0        | Loading chunk to ReadBuffer     |",
-        "| 1  | Complete | true      | placeholder | 1970-01-01T00 | 0        | Writing chunk to Object Storage |",
-        "+----+----------+-----------+-------------+---------------+----------+---------------------------------+",
+        "+----+----------+---------------+----------------+---------------+----------+---------------------------------+",
+        "| id | status   | took_cpu_time | took_wall_time | partition_key | chunk_id | description                     |",
+        "+----+----------+---------------+----------------+---------------+----------+---------------------------------+",
+        "| 0  | Complete | true          | true           | 1970-01-01T00 | 0        | Loading chunk to ReadBuffer     |",
+        "| 1  | Complete | true          | true           | 1970-01-01T00 | 0        | Writing chunk to Object Storage |",
+        "+----+----------+---------------+----------------+---------------+----------+---------------------------------+",
     ];
 
     // Check that the cpu time used reported is greater than zero as it isn't
     // repeatable
     run_sql_test_case!(
         TwoMeasurementsManyFieldsLifecycle {},
-        "SELECT id, status, CAST(cpu_time_used AS BIGINT) > 0 as took_time, db_name, partition_key, chunk_id, description from system.operations",
+        "SELECT id, status, CAST(cpu_time_used AS BIGINT) > 0 as took_cpu_time, CAST(wall_time_used AS BIGINT) > 0 as took_wall_time, partition_key, chunk_id, description from system.operations",
         &expected
     );
 }

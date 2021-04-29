@@ -88,7 +88,7 @@ impl<F: Future> PinnedDrop for TrackedFuture<F> {
         // without it incrementing the pending_futures counter
         assert_ne!(previous, 0);
 
-        // Need to signal completion
+        // Need to signal potential completion
         if previous == 1 {
             // Perform an acquire load to establish ordering with respect
             // to all other decrements

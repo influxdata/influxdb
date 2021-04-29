@@ -42,6 +42,9 @@ message Chunk {
   // The total estimated size of this chunk, in bytes
   uint64 estimated_bytes = 4;
 
+  // The number of rows in this chunk
+  uint64 row_count = 9;
+
   // Time at which the first data was written into this chunk. Note
   // this is not the same as the timestamps on the data itself
   google.protobuf.Timestamp time_of_first_write = 5;
