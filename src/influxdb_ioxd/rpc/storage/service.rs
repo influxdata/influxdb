@@ -631,14 +631,28 @@ where
 
         info!(%db_name, ?range, predicate=%predicate.loggable(), "measurement_names");
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "measurement_names"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         let response = measurement_name_impl(Arc::clone(&self.db_store), db_name, range)
             .await
-            .map_err(|e| e.to_status());
+            .map_err(|e| {
+                if e.is_internal() {
+                    ob.error_with_labels(labels);
+                } else {
+                    ob.client_error_with_labels(labels);
+                }
+                e.to_status()
+            });
 
         tx.send(response)
             .await
             .expect("sending measurement names response to server");
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
@@ -1271,6 +1285,19 @@ mod tests {
             "\nActual: {:?}\nExpected: {:?}",
             actual_predicate, expected_predicate
         );
+
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "measurement_names"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "ok"),
+            ])
+            .counter()
+            .eq(2.0)
+            .unwrap();
     }
 
     /// test the plumbing of the RPC layer for tag_keys -- specifically that
