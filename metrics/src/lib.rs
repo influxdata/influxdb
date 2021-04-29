@@ -22,7 +22,7 @@ use observability_deps::{
     tracing::*,
 };
 
-pub use crate::metrics::{Counter, KeyValue, RedMetric};
+pub use crate::metrics::{Counter, Histogram, KeyValue, RedMetric};
 pub use crate::tests::*;
 
 /// A registry responsible for initialising IOx metrics and exposing their

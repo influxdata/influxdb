@@ -40,18 +40,21 @@ pub fn make_db() -> TestDb {
 }
 
 /// Used for testing: create a Database with a local store and a specified name
-pub fn make_database(server_id: ServerId, object_store: Arc<ObjectStore>, db_name: &str) -> Db {
+pub fn make_database(server_id: ServerId, object_store: Arc<ObjectStore>, db_name: &str) -> TestDb {
     let exec = Arc::new(Executor::new(1));
     let metrics_registry = Arc::new(metrics::MetricRegistry::new());
-    Db::new(
-        DatabaseRules::new(DatabaseName::new(db_name.to_string()).unwrap()),
-        server_id,
-        object_store,
-        exec,
-        None, // write buffer
-        Arc::new(JobRegistry::new()),
-        metrics_registry,
-    )
+    TestDb {
+        metric_registry: metrics::TestMetricRegistry::new(Arc::clone(&metrics_registry)),
+        db: Db::new(
+            DatabaseRules::new(DatabaseName::new(db_name.to_string()).unwrap()),
+            server_id,
+            object_store,
+            exec,
+            None, // write buffer
+            Arc::new(JobRegistry::new()),
+            metrics_registry,
+        ),
+    }
 }
 
 fn chunk_summary_iter(db: &Db) -> impl Iterator<Item = ChunkSummary> + '_ {
