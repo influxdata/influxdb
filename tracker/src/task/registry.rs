@@ -1,7 +1,6 @@
 use super::{TaskRegistration, TaskTracker};
 use hashbrown::HashMap;
 use std::str::FromStr;
-use std::sync::Arc;
 
 /// Every future registered with a `TaskRegistry` is assigned a unique
 /// `TaskId`
@@ -52,12 +51,7 @@ impl<T> TaskRegistry<T> {
         self.next_id += 1;
 
         let registration = TaskRegistration::new();
-
-        let tracker = TaskTracker {
-            id,
-            metadata: Arc::new(metadata),
-            state: Arc::clone(&registration.state),
-        };
+        let tracker = TaskTracker::new(id, &registration, metadata);
 
         self.tasks.insert(id, tracker.clone());
 
