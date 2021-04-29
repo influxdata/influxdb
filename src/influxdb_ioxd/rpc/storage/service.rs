@@ -463,6 +463,12 @@ where
 
         let db_name = get_database_name(&tag_values_request)?;
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "tag_values"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         let TagValuesRequest {
             tags_source: _tag_source,
             range,
@@ -478,19 +484,37 @@ where
             info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_values with tag_key=[x00] (measurement name)");
 
             if predicate.is_some() {
+                ob.client_error_with_labels(labels);
                 return Err(Error::NotYetImplemented {
                     operation: "tag_value for a measurement, with general predicate".to_string(),
                 }
                 .to_status());
             }
 
-            measurement_name_impl(Arc::clone(&self.db_store), db_name, range).await
+            measurement_name_impl(Arc::clone(&self.db_store), db_name, range)
+                .await
+                .map_err(|e| {
+                    if e.is_internal() {
+                        ob.error_with_labels(labels);
+                    } else {
+                        ob.client_error_with_labels(labels);
+                    }
+                    e
+                })
         } else if tag_key.is_field() {
             info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_values with tag_key=[xff] (field name)");
 
             let fieldlist =
                 field_names_impl(Arc::clone(&self.db_store), db_name, None, range, predicate)
-                    .await?;
+                    .await
+                    .map_err(|e| {
+                        if e.is_internal() {
+                            ob.error_with_labels(labels);
+                        } else {
+                            ob.client_error_with_labels(labels);
+                        }
+                        e
+                    })?;
 
             // Pick out the field names into a Vec<Vec<u8>>for return
             let values = fieldlist
@@ -501,7 +525,12 @@ where
 
             Ok(StringValuesResponse { values })
         } else {
-            let tag_key = String::from_utf8(tag_key).context(ConvertingTagKeyInTagValues)?;
+            let tag_key = String::from_utf8(tag_key)
+                .context(ConvertingTagKeyInTagValues)
+                .map_err(|e| {
+                    ob.client_error_with_labels(labels);
+                    e
+                })?;
 
             info!(%db_name, ?range, %tag_key, predicate=%predicate.loggable(), "tag_values",);
 
@@ -522,6 +551,7 @@ where
             .await
             .expect("sending tag_values response to server");
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
@@ -688,6 +718,12 @@ where
 
         info!(%db_name, ?range, %measurement, %tag_key, predicate=%predicate.loggable(), "measurement_tag_values");
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "measurement_tag_values"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         let measurement = Some(measurement);
 
         let response = tag_values_impl(
@@ -699,12 +735,20 @@ where
             predicate,
         )
         .await
-        .map_err(|e| e.to_status());
+        .map_err(|e| {
+            if e.is_internal() {
+                ob.error_with_labels(labels);
+            } else {
+                ob.client_error_with_labels(labels);
+            }
+            e.to_status()
+        });
 
         tx.send(response)
             .await
             .expect("sending measurement_tag_values response to server");
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
@@ -1545,6 +1589,19 @@ mod tests {
 
         let actual_tag_values = fixture.storage_client.tag_values(request).await.unwrap();
         assert_eq!(actual_tag_values, vec!["MA"]);
+
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "tag_values"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "ok"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 
     /// test the plumbing of the RPC layer for tag_values
@@ -1592,6 +1649,19 @@ mod tests {
             actual_tag_values, tag_values,
             "unexpected tag values while getting tag values for measurement names"
         );
+
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "tag_values"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "ok"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1639,6 +1709,19 @@ mod tests {
             actual_tag_values, expected_tag_values,
             "unexpected tag values while getting tag values for field names"
         );
+
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "tag_values"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "ok"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1705,6 +1788,19 @@ mod tests {
             response_string,
             "Error converting tag_key to UTF-8 in tag_values request"
         );
+
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "tag_values"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "client_error"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 
     /// test the plumbing of the RPC layer for measurement_tag_values
@@ -1754,6 +1850,19 @@ mod tests {
             vec!["MA"],
             "unexpected tag values while getting tag values",
         );
+
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "measurement_tag_values"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "ok"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1800,6 +1909,19 @@ mod tests {
             .to_string();
 
         assert_contains!(response_string, "Sugar we are going down");
+
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "measurement_tag_values"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "ok"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 
     #[tokio::test]
