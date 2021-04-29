@@ -262,15 +262,21 @@ impl<T> TaskTracker<T> {
     /// Blocks until all futures associated with the tracker have been
     /// dropped and no more can be created
     pub async fn join(&self) {
-        // Request notification before checking if complete
-        // to avoid a race condition
-        let notify = self.state.notify.notified();
+        // Notify is notified when pending_futures hits 0 AND when pending_registrations
+        // hits 0. In almost all cases join won't be called before pending_registrations
+        // has already hit 0, but in the extremely rare case this occurs the loop
+        // handles the spurious wakeup
+        loop {
+            // Request notification before checking if complete
+            // to avoid a race condition
+            let notify = self.state.notify.notified();
 
-        if self.is_complete() {
-            return;
+            if self.is_complete() {
+                return;
+            }
+
+            notify.await
         }
-
-        notify.await
     }
 }
 
@@ -326,6 +332,15 @@ impl Drop for TaskRegistration {
         // This implies a TrackerRegistration has been cloned without it incrementing
         // the pending_registration counter
         assert_ne!(previous, 0);
+
+        // Need to signal potential completion
+        if previous == 1 {
+            // Perform an acquire load to establish ordering with respect
+            // to all other decrements
+            self.state.pending_futures.load(Ordering::Acquire);
+
+            self.state.notify.notify_waiters();
+        }
     }
 }
 
@@ -659,6 +674,95 @@ mod tests {
 
         let reclaimed: Vec<_> = registry.reclaim().collect();
         assert_eq!(reclaimed.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_join() {
+        use std::future::Future;
+        use std::task::Poll;
+
+        let mut registry = TaskRegistry::new();
+        let (tracker, registration) = registry.register(());
+
+        let (s1, r1) = oneshot::channel();
+        let task1 = tokio::spawn(
+            async move {
+                r1.await.unwrap();
+            }
+            .track(registration.clone()),
+        );
+
+        let (s2, r2) = oneshot::channel();
+        let task2 = tokio::spawn(
+            async move {
+                r2.await.unwrap();
+            }
+            .track(registration.clone()),
+        );
+
+        // This executor goop is necessary to get a future into
+        // a state where it is waiting on the Notify resource
+
+        let waker = futures::task::noop_waker();
+        let mut cx = futures::task::Context::from_waker(&waker);
+        let fut_tracker = tracker.clone();
+        let fut = fut_tracker.join();
+        futures::pin_mut!(fut);
+
+        let poll = std::pin::Pin::new(&mut fut).poll(&mut cx);
+        assert_eq!(poll, Poll::Pending);
+
+        assert!(matches!(tracker.get_status(), TaskStatus::Creating));
+
+        s1.send(()).unwrap();
+        task1.await.unwrap().unwrap();
+
+        assert!(matches!(tracker.get_status(), TaskStatus::Creating));
+
+        let poll = std::pin::Pin::new(&mut fut).poll(&mut cx);
+        assert_eq!(poll, Poll::Pending);
+
+        s2.send(()).unwrap();
+        task2.await.unwrap().unwrap();
+
+        assert!(matches!(tracker.get_status(), TaskStatus::Creating));
+
+        let poll = std::pin::Pin::new(&mut fut).poll(&mut cx);
+        assert_eq!(poll, Poll::Pending);
+
+        std::mem::drop(registration);
+
+        assert!(matches!(tracker.get_status(), TaskStatus::Complete { .. }));
+
+        let poll = std::pin::Pin::new(&mut fut).poll(&mut cx);
+        assert_eq!(poll, Poll::Ready(()));
+    }
+
+    #[tokio::test]
+    async fn test_join_no_registration() {
+        use std::future::Future;
+        use std::task::Poll;
+
+        let mut registry = TaskRegistry::new();
+        let (tracker, registration) = registry.register(());
+
+        // This executor goop is necessary to get a future into
+        // a state where it is waiting on the Notify resource
+
+        let waker = futures::task::noop_waker();
+        let mut cx = futures::task::Context::from_waker(&waker);
+        let fut = tracker.join();
+        futures::pin_mut!(fut);
+
+        let poll = std::pin::Pin::new(&mut fut).poll(&mut cx);
+
+        assert_eq!(poll, Poll::Pending);
+
+        std::mem::drop(registration);
+
+        let poll = std::pin::Pin::new(&mut fut).poll(&mut cx);
+
+        assert_eq!(poll, Poll::Ready(()));
     }
 
     fn sorted(mut input: Vec<TaskTracker<i32>>) -> Vec<TaskTracker<i32>> {
