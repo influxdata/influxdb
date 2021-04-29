@@ -137,6 +137,25 @@ func newWindowMeanArrayCursor(cur cursors.Cursor, window interval.Window) (curso
 		}
 	}
 }
+
+func newWindowMeanCountArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
+	switch cur := cur.(type) {
+{{range .}}
+{{$Type := .Name}}
+{{range .Aggs}}
+{{if eq .Name "MeanCount"}}
+	case cursors.{{$Type}}ArrayCursor:
+		return new{{$Type}}WindowMeanCountArrayCursor(cur, window), nil
+{{end}}
+{{end}}{{/* for each supported agg fn */}}
+{{end}}{{/* for each field type */}}
+	default:
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg: fmt.Sprintf("unsupported input type for meancount aggregate: %s", arrayCursorType(cur)),
+		}
+	}
+}
 {{range .}}
 {{$arrayType := print "*cursors." .Name "Array"}}
 {{$type := print .name "ArrayFilterCursor"}}
@@ -479,7 +498,12 @@ func (c *{{$name}}Window{{$aggName}}ArrayCursor) Stats() cursors.CursorStats {
 func (c *{{$name}}Window{{$aggName}}ArrayCursor) Next() *cursors.{{.OutputTypeName}}Array {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+	{{if eq .OutputTypeName "MeanCount" }}
+	c.res.Values0 = c.res.Values0[:cap(c.res.Values0)]
+	c.res.Values1 = c.res.Values1[:cap(c.res.Values1)]
+	{{else}}
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
+	{{end}}
 
 	var a *cursors.{{$Name}}Array
 	if c.tmp.Len() > 0 {
@@ -540,7 +564,6 @@ WINDOWS:
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-
 		// get the next chunk
 		a = c.{{$Name}}ArrayCursor.Next()
 		if a.Len() == 0 {
@@ -556,7 +579,12 @@ WINDOWS:
 	}
 
 	c.res.Timestamps = c.res.Timestamps[:pos]
+	{{if eq .OutputTypeName "MeanCount" }}
+	c.res.Values0 = c.res.Values0[:pos]
+	c.res.Values1 = c.res.Values1[:pos]
+	{{else}}
 	c.res.Values = c.res.Values[:pos]
+	{{end}}
 
 	return c.res
 }

@@ -304,7 +304,7 @@ func (c *groupNoneCursor) Next() bool {
 func (c *groupNoneCursor) createCursor(seriesRow SeriesRow) (cur cursors.Cursor, err error) {
 	cur = c.arrayCursors.createCursor(c.row)
 	if c.agg != nil {
-		cur, err = newAggregateArrayCursor(c.ctx, c.agg, cur)
+		cur, err = newAggregateArrayCursor(c.ctx, []*datatypes.Aggregate{c.agg}, cur)
 	}
 	return cur, err
 }
@@ -352,7 +352,7 @@ func (c *groupByCursor) Next() bool {
 func (c *groupByCursor) createCursor(seriesRow SeriesRow) (cur cursors.Cursor, err error) {
 	cur = c.arrayCursors.createCursor(seriesRow)
 	if c.agg != nil {
-		cur, err = newAggregateArrayCursor(c.ctx, c.agg, cur)
+		cur, err = newAggregateArrayCursor(c.ctx, []*datatypes.Aggregate{c.agg}, cur)
 	}
 	return cur, err
 }

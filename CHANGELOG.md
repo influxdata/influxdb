@@ -17,6 +17,7 @@ v1.9.0 [unreleased]
 -	[#21108](https://github.com/influxdata/influxdb/pull/21108): feat: make flux controller limits configurable
 -	[#21168](https://github.com/influxdata/influxdb/pull/21168): feat: implement rewrite rules for window and bare aggregates
 -	[#21285](https://github.com/influxdata/influxdb/pull/21285): feat: upgrade to flux v0.113.0
+-	[#21340](https://github.com/influxdata/influxdb/pull/21340): feat: meancount aggregation for WindowAggregate pushdown in enterprise
 
 ### Bugfixes
 
