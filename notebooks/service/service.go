@@ -17,8 +17,8 @@ type Notebook struct {
 	UpdatedAt time.Time    `json:"updatedAt"`
 }
 
-// Spec is a specification which is just a blob of content provided by the client.
-type NotebookSpec interface{}
+// NotebookSpec is an abitrary JSON object provided by the client.
+type NotebookSpec map[string]interface{}
 
 // NotebookService is the service contract for Notebooks.
 type NotebookService interface {

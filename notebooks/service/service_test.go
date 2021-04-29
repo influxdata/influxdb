@@ -113,14 +113,14 @@ func TestValidateUpdate(t *testing.T) {
 			name: "ok",
 			update: NotebookUpdate{
 				Name: "Example",
-				Spec: "{}",
+				Spec: map[string]interface{}{},
 			},
 			expectError: nil,
 		},
 		{
 			name: "missing name",
 			update: NotebookUpdate{
-				Spec: "{}",
+				Spec: map[string]interface{}{},
 			},
 			expectError: ErrNameRequired,
 		},
