@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput};
 use rand::distributions::Alphanumeric;
 use rand::prelude::*;
 use rand::Rng;
@@ -10,7 +10,7 @@ use read_buffer::{AggregateType, Predicate};
 
 const ONE_MS: i64 = 1_000_000;
 
-fn read_group(c: &mut Criterion) {
+pub fn read_group(c: &mut Criterion) {
     let mut rng = rand::thread_rng();
 
     let row_group = generate_row_group(500_000, &mut rng);
@@ -456,5 +456,5 @@ fn generate_trace_for_row_group(
     column_packers
 }
 
-criterion_group!(benches, read_group);
-criterion_main!(benches);
+// criterion_group!(benches, read_group);
+// criterion_main!(benches);
