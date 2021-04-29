@@ -15,7 +15,6 @@ use catalog::{
     Catalog,
 };
 pub(crate) use chunk::DbChunk;
-use core::num::NonZeroU64;
 use data_types::{
     chunk::ChunkSummary,
     database_rules::DatabaseRules,
@@ -200,7 +199,6 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 const STARTING_SEQUENCE: u64 = 1;
-const DEFAULT_BACKGROUND_WORKER_PERIOD_MILLIS: u64 = 1000;
 
 /// This is the main IOx Database object. It is the root object of any
 /// specific InfluxDB IOx instance
@@ -836,39 +834,12 @@ impl Db {
     ) {
         info!("started background worker");
 
-        fn make_interval(millis: Option<NonZeroU64>) -> tokio::time::Interval {
-            tokio::time::interval(tokio::time::Duration::from_millis(
-                millis.map_or(DEFAULT_BACKGROUND_WORKER_PERIOD_MILLIS, NonZeroU64::get),
-            ))
-        }
-
-        let mut period_millis = {
-            self.rules
-                .read()
-                .lifecycle_rules
-                .background_worker_period_millis
-        };
-
-        let mut interval = make_interval(period_millis);
         let mut lifecycle_manager = LifecycleManager::new(Arc::clone(&self));
 
         while !shutdown.is_cancelled() {
             self.worker_iterations.fetch_add(1, Ordering::Relaxed);
-
-            lifecycle_manager.check_for_work();
-
-            let possibly_updated_period_millis = {
-                self.rules
-                    .read()
-                    .lifecycle_rules
-                    .background_worker_period_millis
-            };
-            if period_millis != possibly_updated_period_millis {
-                period_millis = possibly_updated_period_millis;
-                interval = make_interval(period_millis);
-            }
             tokio::select! {
-                _ = interval.tick() => {},
+                _ = lifecycle_manager.check_for_work() => {},
                 _ = shutdown.cancelled() => break
             }
         }
