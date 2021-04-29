@@ -88,7 +88,7 @@ impl DbSetup for NoData {
         assert_eq!(count_object_store_chunks(&db), 0); // still nothing
 
         let scenario3 = DbScenario {
-            scenario_name: "Empty Database after drop chunk".into(),
+            scenario_name: "Empty Database after drop chunk that is in read buffer".into(),
             db,
         };
 
@@ -135,7 +135,9 @@ impl DbSetup for NoData {
         assert_eq!(count_object_store_chunks(&db), 0);
 
         let scenario4 = DbScenario {
-            scenario_name: "Empty Database after drop chunk".into(),
+            scenario_name:
+                "Empty Database after drop chunk that is in both read buffer and object store"
+                    .into(),
             db,
         };
 

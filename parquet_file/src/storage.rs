@@ -308,7 +308,7 @@ impl Storage {
             &mut batches,
             limit,
         ) {
-            println!("Parquet reader terminated due to error: {:?}", e);
+            return Err(e);
         }
 
         // TODO: removed when #1082 done
