@@ -7,6 +7,7 @@ use observability_deps::tracing::{debug, warn};
 pub enum ReplCommand {
     Help,
     ShowDatabases,
+    Observer,
     UseDatabase { db_name: String },
     SqlCommand { sql: String },
     Exit,
@@ -49,6 +50,8 @@ impl TryInto<ReplCommand> for String {
                 warn!(%extra_content, "ignoring tokens after 'help'");
             }
             Ok(ReplCommand::Help)
+        } else if commands.len() == 1 && commands[0] == "observer" {
+            Ok(ReplCommand::Observer)
         } else if commands.len() == 1 && commands[0] == "exit" {
             Ok(ReplCommand::Exit)
         } else if commands.len() == 1 && commands[0] == "quit" {
@@ -84,11 +87,13 @@ HELP (this one)
 
 SHOW DATABASES: List databases available on the server
 
-USE [DATABASE] <name>: Set the current database to name
+USE [DATABASE] <name>: Set the current remote database to name
+
+OBSERVER: Locally query unified queryable views of remote system tables
 
 [EXIT | QUIT]: Quit this session and exit the program
 
-# Examples:
+# Examples: use remote database foo
 SHOW DATABASES;
 USE DATABASE foo;
 
@@ -156,6 +161,21 @@ mod tests {
         assert_eq!("  Help;  ".try_into(), expected);
         assert_eq!("  help  ; ".try_into(), expected);
         assert_eq!("  help me;  ".try_into(), expected);
+    }
+
+    #[test]
+    fn observer() {
+        let expected = Ok(ReplCommand::Observer);
+        assert_eq!("observer;".try_into(), expected);
+        assert_eq!("observer".try_into(), expected);
+        assert_eq!("  observer".try_into(), expected);
+        assert_eq!("  observer  ".try_into(), expected);
+        assert_eq!("  OBSERVER  ".try_into(), expected);
+        assert_eq!("  Observer;  ".try_into(), expected);
+        assert_eq!("  observer  ; ".try_into(), expected);
+
+        let expected = sql_cmd("  observer me;  ");
+        assert_eq!("  observer me;  ".try_into(), expected);
     }
 
     #[test]

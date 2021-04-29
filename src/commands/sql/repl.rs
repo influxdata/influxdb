@@ -35,6 +35,9 @@ pub enum Error {
     RunningRemoteQuery {
         source: influxdb_iox_client::flight::Error,
     },
+
+    #[snafu(display("Error running observer query: {}", source))]
+    RunningObserverQuery { source: super::observer::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -58,6 +61,14 @@ impl RemoteState {
     }
 }
 
+enum QueryEngine {
+    /// Run queries against the named database on the remote server
+    Remote(String),
+
+    /// Run queries against a local `Observer` instance
+    Observer(super::observer::Observer),
+}
+
 /// Captures the state of the repl, gathers commands and executes them
 /// one by one
 pub struct Repl {
@@ -67,6 +78,9 @@ pub struct Repl {
     /// Current prompt
     prompt: String,
 
+    /// Connection to the server
+    connection: Connection,
+
     /// Client for interacting with IOx management API
     management_client: influxdb_iox_client::management::Client,
 
@@ -74,7 +88,7 @@ pub struct Repl {
     flight_client: influxdb_iox_client::flight::Client,
 
     /// database name against which SQL commands are run
-    current_database: Option<String>,
+    query_engine: Option<QueryEngine>,
 }
 
 impl Repl {
@@ -85,7 +99,7 @@ impl Repl {
     /// Create a new Repl instance, connected to the specified URL
     pub fn new(connection: Connection) -> Self {
         let management_client = influxdb_iox_client::management::Client::new(connection.clone());
-        let flight_client = influxdb_iox_client::flight::Client::new(connection);
+        let flight_client = influxdb_iox_client::flight::Client::new(connection.clone());
 
         let mut rl = Editor::<()>::new();
         let history_file = history_file();
@@ -99,9 +113,10 @@ impl Repl {
         Self {
             rl,
             prompt,
+            connection,
             management_client,
             flight_client,
-            current_database: None,
+            query_engine: None,
         }
     }
 
@@ -115,14 +130,23 @@ impl Repl {
                 ReplCommand::Help => {
                     self.print_help();
                 }
+                ReplCommand::Observer {} => {
+                    self.use_observer()
+                        .await
+                        .map_err(|e| println!("{}", e))
+                        .ok();
+                }
                 ReplCommand::ShowDatabases => {
-                    self.list_databases().await?;
+                    self.list_databases()
+                        .await
+                        .map_err(|e| println!("{}", e))
+                        .ok();
                 }
                 ReplCommand::UseDatabase { db_name } => {
                     self.use_database(db_name);
                 }
                 ReplCommand::SqlCommand { sql } => {
-                    self.run_sql(sql).await?;
+                    self.run_sql(sql).await.map_err(|e| println!("{}", e)).ok();
                 }
                 ReplCommand::Exit => {
                     info!("exiting at user request");
@@ -187,19 +211,28 @@ impl Repl {
 
     // Run a command against the currently selected remote database
     async fn run_sql(&mut self, sql: String) -> Result<()> {
-        let db_name = match &self.current_database {
+        let start = Instant::now();
+
+        let batches = match &mut self.query_engine {
             None => {
                 println!("Error: no database selected.");
                 println!("Hint: Run USE DATABASE <dbname> to select database");
                 return Ok(());
             }
-            Some(db_name) => db_name,
+            Some(QueryEngine::Remote(db_name)) => {
+                info!(%db_name, %sql, "Running sql on remote database");
+
+                scrape_query(&mut self.flight_client, &db_name, &sql).await?
+            }
+            Some(QueryEngine::Observer(observer)) => {
+                info!("Running sql on local observer");
+                observer
+                    .run_query(&sql)
+                    .await
+                    .context(RunningObserverQuery)?
+            }
         };
 
-        info!(%db_name, %sql, "Running sql on remote database");
-
-        let start = Instant::now();
-        let batches = scrape_query(&mut self.flight_client, &db_name, &sql).await?;
         let end = Instant::now();
         self.print_results(&batches)?;
 
@@ -209,8 +242,28 @@ impl Repl {
 
     fn use_database(&mut self, db_name: String) {
         info!(%db_name, "setting current database");
-        self.prompt = format!("{}> ", db_name);
-        self.current_database = Some(db_name);
+        println!("You are now in remote mode, querying database {}", db_name);
+        self.set_query_engine(QueryEngine::Remote(db_name));
+    }
+
+    async fn use_observer(&mut self) -> Result<()> {
+        println!("Preparing local views of remote system tables");
+        let observer = super::observer::Observer::try_new(self.connection.clone())
+            .await
+            .context(RunningObserverQuery)?;
+        println!("{}", observer.help());
+        self.set_query_engine(QueryEngine::Observer(observer));
+        Ok(())
+    }
+
+    fn set_query_engine(&mut self, query_engine: QueryEngine) {
+        self.prompt = match &query_engine {
+            QueryEngine::Remote(db_name) => {
+                format!("{}> ", db_name)
+            }
+            QueryEngine::Observer(_) => "OBSERVER> ".to_string(),
+        };
+        self.query_engine = Some(query_engine)
     }
 
     // TODO make a setting for changing if we cache remote state or not
