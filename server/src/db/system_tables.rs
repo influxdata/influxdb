@@ -8,10 +8,9 @@ use chrono::{DateTime, Utc};
 use arrow_deps::{
     arrow::{
         array::{
-            Array, ArrayRef, StringArray, StringBuilder, Time64NanosecondArray,
-            TimestampNanosecondArray, UInt32Array, UInt64Array, UInt64Builder,
+            ArrayRef, StringArray, StringBuilder, Time64NanosecondArray, TimestampNanosecondArray,
+            UInt32Array, UInt64Array, UInt64Builder,
         },
-        datatypes::{Field, Schema},
         error::Result,
         record_batch::RecordBatch,
     },
@@ -153,22 +152,12 @@ fn from_partition_summaries(partitions: Vec<PartitionSummary>) -> Result<RecordB
     let column_name = column_name.finish();
     let count = count.finish();
 
-    let schema = Schema::new(vec![
-        Field::new("partition_key", partition_key.data_type().clone(), false),
-        Field::new("table_name", table_name.data_type().clone(), true),
-        Field::new("column_name", column_name.data_type().clone(), true),
-        Field::new("count", count.data_type().clone(), true),
-    ]);
-
-    RecordBatch::try_new(
-        Arc::new(schema),
-        vec![
-            Arc::new(partition_key),
-            Arc::new(table_name),
-            Arc::new(column_name),
-            Arc::new(count),
-        ],
-    )
+    RecordBatch::try_from_iter(vec![
+        ("partition_key", Arc::new(partition_key) as ArrayRef),
+        ("table_name", Arc::new(table_name)),
+        ("column_name", Arc::new(column_name)),
+        ("count", Arc::new(count)),
+    ])
 }
 
 fn from_task_trackers(db_name: &str, jobs: Vec<TaskTracker<Job>>) -> Result<RecordBatch> {
@@ -193,28 +182,15 @@ fn from_task_trackers(db_name: &str, jobs: Vec<TaskTracker<Job>>) -> Result<Reco
     let descriptions =
         StringArray::from_iter(jobs.iter().map(|job| Some(job.metadata().description())));
 
-    let schema = Schema::new(vec![
-        Field::new("id", ids.data_type().clone(), false),
-        Field::new("status", statuses.data_type().clone(), false),
-        Field::new("cpu_time_used", cpu_time_used.data_type().clone(), true),
-        Field::new("wall_time_used", wall_time_used.data_type().clone(), true),
-        Field::new("partition_key", partition_keys.data_type().clone(), true),
-        Field::new("chunk_id", chunk_ids.data_type().clone(), true),
-        Field::new("description", descriptions.data_type().clone(), true),
-    ]);
-
-    RecordBatch::try_new(
-        Arc::new(schema),
-        vec![
-            Arc::new(ids),
-            Arc::new(statuses),
-            Arc::new(cpu_time_used),
-            Arc::new(wall_time_used),
-            Arc::new(partition_keys),
-            Arc::new(chunk_ids),
-            Arc::new(descriptions),
-        ],
-    )
+    RecordBatch::try_from_iter(vec![
+        ("id", Arc::new(ids) as ArrayRef),
+        ("status", Arc::new(statuses)),
+        ("cpu_time_used", Arc::new(cpu_time_used)),
+        ("wall_time_used", Arc::new(wall_time_used)),
+        ("partition_key", Arc::new(partition_keys)),
+        ("chunk_id", Arc::new(chunk_ids)),
+        ("description", Arc::new(descriptions)),
+    ])
 }
 
 #[cfg(test)]
