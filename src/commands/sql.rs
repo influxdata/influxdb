@@ -6,6 +6,7 @@ use structopt::StructOpt;
 
 use influxdb_iox_client::connection::{Builder, Connection};
 
+mod observer;
 mod repl;
 mod repl_command;
 
