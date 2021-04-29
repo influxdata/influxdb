@@ -184,6 +184,7 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
         let db = make_db().db;
         let data = lp_lines.join("\n");
         write_lp(&db, &data);
+        // roll over and load chunks into both RUB and OS
         rollover_and_load(&db, "2020-03-01T00", "h2o").await;
         rollover_and_load(&db, "2020-03-02T00", "h2o").await;
         rollover_and_load(&db, "2020-04-01T00", "h2o").await;
@@ -192,6 +193,8 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
             scenario_name: "Data in 4 partitions, 4 closed chunks in mutable buffer".into(),
             db,
         };
+
+        // TODO: Add a scenario for OS only in #1342
 
         vec![scenario1, scenario2, scenario3]
     }

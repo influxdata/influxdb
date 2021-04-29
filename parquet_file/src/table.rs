@@ -5,7 +5,7 @@ use crate::storage::{self, Storage};
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use data_types::{partition_metadata::TableSummary, timestamp::TimestampRange};
 use internal_types::{schema::Schema, selection::Selection};
-use object_store::path::Path;
+use object_store::{path::Path, ObjectStore};
 use query::predicate::Predicate;
 
 #[derive(Debug, Snafu)]
@@ -32,6 +32,9 @@ pub struct Table {
     /// id>/<tablename>.parquet
     object_store_path: Path,
 
+    /// Object store of the above relative path to open and read the file
+    object_store: Arc<ObjectStore>,
+
     /// Schema that goes with this table's parquet file
     table_schema: Schema,
 
@@ -43,12 +46,14 @@ impl Table {
     pub fn new(
         meta: TableSummary,
         path: Path,
+        store: Arc<ObjectStore>,
         schema: Schema,
         range: Option<TimestampRange>,
     ) -> Self {
         Self {
             table_summary: meta,
             object_store_path: path,
+            object_store: store,
             table_schema: schema,
             timestamp_range: range,
         }
@@ -130,7 +135,8 @@ impl Table {
             predicate,
             selection,
             Arc::clone(&self.table_schema.as_arrow()),
-            &self.object_store_path,
+            self.object_store_path.clone(),
+            Arc::clone(&self.object_store),
         )
         .context(ReadParquet)
     }
