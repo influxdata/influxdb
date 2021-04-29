@@ -47,6 +47,7 @@ v1.9.0 [unreleased]
 -	[#21139](https://github.com/influxdata/influxdb/pull/21139): fix(tsdb): exclude stop time from array cursors
 -	[#21036](https://github.com/influxdata/influxdb/pull/21306): fix(models): grow tag index buffer if needed
 -	[#21275](https://github.com/influxdata/influxdb/pull/21275): fix: Anti-Entropy loops endlessly with empty shard
+-	[#21334](https://github.com/influxdata/influxdb/pull/21334): fix: summation should be in native type for new meancount iterator
 
 v1.8.5 [unreleased]
 -------------------
