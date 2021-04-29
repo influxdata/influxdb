@@ -4,18 +4,19 @@ version = "0.1.0"
 authors = ["Edd Robinson <me@edd.io>"]
 edition = "2018"
 
-# This crate contains the application-specific abstraction of the metrics 
-# implementation for IOx. Any crate that wants to expose telemetry should use 
-# this crate. 
+# This crate contains the application-specific abstraction of the metrics
+# implementation for IOx. Any crate that wants to expose telemetry should use
+# this crate.
 #
-# The crate exposes a special type of metrics registry which allows users to 
-# isolate their metrics from the rest of the system so they can be tested 
+# The crate exposes a special type of metrics registry which allows users to
+# isolate their metrics from the rest of the system so they can be tested
 # in isolation.
 
 
 [dependencies] # In alphabetical order
 observability_deps = { path = "../observability_deps" }
 snafu = "0.6"
+dashmap = { version = "4.0.1" }
 
 [dev-dependencies] # In alphabetical order
 

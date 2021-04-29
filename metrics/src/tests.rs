@@ -3,7 +3,7 @@ use std::sync::Arc;
 use snafu::{ensure, OptionExt, Snafu};
 
 use observability_deps::prometheus::proto::{
-    Counter as PromCounter, Histogram as PromHistogram, MetricFamily,
+    Counter as PromCounter, Gauge as PromGauge, Histogram as PromHistogram, MetricFamily,
 };
 
 use crate::MetricRegistry;
@@ -173,6 +173,62 @@ impl<'a> AssertionBuilder<'a> {
         }
     }
 
+    /// Returns the gauge metric, allowing assertions to be applied.
+    pub fn gauge(&mut self) -> Gauge<'_> {
+        // sort the assertion's labels
+        self.labels.sort_by(|a, b| a.0.cmp(&b.0));
+
+        let metric = self.family.get_metric().iter().find(|metric| {
+            if metric.get_label().len() != self.labels.len() {
+                return false; // this metric can't match
+            }
+
+            // sort this metrics labels and compare to assertion labels
+            let mut metric_labels = metric.get_label().to_vec();
+            metric_labels.sort_by(|a, b| a.get_name().cmp(b.get_name()));
+
+            // metric only matches if all labels are identical.
+            metric_labels
+                .iter()
+                .zip(self.labels.iter())
+                .all(|(a, b)| a.get_name() == b.0 && a.get_value() == b.1)
+        });
+
+        // Can't find metric matching labels
+        if metric.is_none() {
+            return Gauge {
+                c: NoMatchingLabelsError {
+                    name: self.family.get_name().to_owned(),
+                    labels: self.labels.clone(),
+                    metrics: self.registry.metrics_as_str(),
+                }
+                .fail(),
+                family_name: "".to_string(),
+                metric_dump: "".to_string(),
+            };
+        }
+        let metric = metric.unwrap();
+
+        if !metric.has_gauge() {
+            return Gauge {
+                c: FailedMetricAssertionError {
+                    name: self.family.get_name().to_owned(),
+                    msg: "metric not a gauge".to_owned(),
+                    metrics: self.registry.metrics_as_str(),
+                }
+                .fail(),
+                family_name: "".to_string(),
+                metric_dump: "".to_string(),
+            };
+        }
+
+        Gauge {
+            c: Ok(metric.get_gauge()),
+            family_name: self.family.get_name().to_owned(),
+            metric_dump: self.registry.metrics_as_str(),
+        }
+    }
+
     /// Returns the histogram metric, allowing assertions to be applied.
     pub fn histogram(&mut self) -> Histogram<'_> {
         // sort the assertion's labels
@@ -243,6 +299,88 @@ pub struct Counter<'a> {
 }
 
 impl<'a> Counter<'a> {
+    pub fn eq(self, v: f64) -> Result<(), Error> {
+        let c = self.c?; // return previous errors
+
+        ensure!(
+            v == c.get_value(),
+            FailedMetricAssertionError {
+                name: self.family_name,
+                msg: format!("{:?} == {:?} failed", c.get_value(), v),
+                metrics: self.metric_dump,
+            }
+        );
+        Ok(())
+    }
+
+    pub fn gte(self, v: f64) -> Result<(), Error> {
+        let c = self.c?; // return previous errors
+
+        ensure!(
+            c.get_value() >= v,
+            FailedMetricAssertionError {
+                name: self.family_name,
+                msg: format!("{:?} >= {:?} failed", c.get_value(), v),
+                metrics: self.metric_dump,
+            }
+        );
+        Ok(())
+    }
+
+    pub fn gt(self, v: f64) -> Result<(), Error> {
+        let c = self.c?; // return previous errors
+
+        ensure!(
+            c.get_value() > v,
+            FailedMetricAssertionError {
+                name: self.family_name,
+                msg: format!("{:?} > {:?} failed", c.get_value(), v),
+                metrics: self.metric_dump,
+            }
+        );
+        Ok(())
+    }
+
+    pub fn lte(self, v: f64) -> Result<(), Error> {
+        let c = self.c?; // return previous errors
+
+        ensure!(
+            c.get_value() <= v,
+            FailedMetricAssertionError {
+                name: self.family_name,
+                msg: format!("{:?} <= {:?} failed", c.get_value(), v),
+                metrics: self.metric_dump,
+            }
+        );
+        Ok(())
+    }
+
+    pub fn lt(self, v: f64) -> Result<(), Error> {
+        let c = self.c?; // return previous errors
+
+        ensure!(
+            c.get_value() < v,
+            FailedMetricAssertionError {
+                name: self.family_name,
+                msg: format!("{:?} < {:?} failed", c.get_value(), v),
+                metrics: self.metric_dump,
+            }
+        );
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct Gauge<'a> {
+    // if there was a problem getting the gauge based on labels then the
+    // Error will contain details.
+    c: Result<&'a PromGauge, Error>,
+
+    family_name: String,
+    metric_dump: String,
+}
+
+impl<'a> Gauge<'a> {
     pub fn eq(self, v: f64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
