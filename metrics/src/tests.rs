@@ -40,7 +40,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// A metric registry with handy helpers for asserting conditions on metrics.
 ///
 /// You can either initialise a default `TestMetricRegistry` and use the
-/// `registry()` method to inject a `MetricsRegistry` wherever you need it.
+/// `registry()` method to inject a `MetricRegistry` wherever you need it.
 /// Alternatively you can provide an existing `MetricRegistry` via `new`.
 ///
 ///
