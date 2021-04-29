@@ -789,7 +789,7 @@ where
 
         let ob = self.metrics.requests.observation();
         let labels = &[
-            KeyValue::new("operation", "measurement_tag_values"),
+            KeyValue::new("operation", "measurement_fields"),
             KeyValue::new("db_name", db_name.to_string()),
         ];
 
@@ -1199,6 +1199,27 @@ mod tests {
         s.iter().map(|s| s.to_string()).collect()
     }
 
+    // Helper function to assert that metric tracking all gRPC requests has
+    // correctly updated.
+    fn grpc_request_metric_has_count(
+        fixture: &Fixture,
+        operation: &'static str,
+        status: &'static str,
+        count: usize,
+    ) -> Result<(), metrics::Error> {
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", operation),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", status),
+            ])
+            .counter()
+            .eq(count as f64)
+    }
+
     #[tokio::test]
     async fn test_storage_rpc_capabilities() {
         test_helpers::maybe_start_logging();
@@ -1300,18 +1321,7 @@ mod tests {
             actual_predicate, expected_predicate
         );
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "measurement_names"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "ok"),
-            ])
-            .counter()
-            .eq(2.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "measurement_names", "ok", 2).unwrap();
     }
 
     /// test the plumbing of the RPC layer for tag_keys -- specifically that
@@ -1380,18 +1390,7 @@ mod tests {
             actual_predicate, expected_predicate
         );
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "tag_keys"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "ok"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "tag_keys", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -1430,18 +1429,7 @@ mod tests {
         let response = fixture.storage_client.tag_keys(request).await;
         assert_contains!(response.unwrap_err().to_string(), "Sugar we are going down");
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "tag_keys"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "client_error"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "tag_keys", "client_error", 1).unwrap();
     }
 
     /// test the plumbing of the RPC layer for measurement_tag_keys--
@@ -1523,18 +1511,7 @@ mod tests {
             actual_predicate, expected_predicate
         );
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "measurement_tag_keys"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "ok"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "measurement_tag_keys", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -1576,18 +1553,7 @@ mod tests {
         let response = fixture.storage_client.measurement_tag_keys(request).await;
         assert_contains!(response.unwrap_err().to_string(), "This is an error");
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "measurement_tag_keys"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "client_error"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "measurement_tag_keys", "client_error", 1).unwrap();
     }
 
     /// test the plumbing of the RPC layer for tag_keys -- specifically that
@@ -1631,18 +1597,7 @@ mod tests {
         let actual_tag_values = fixture.storage_client.tag_values(request).await.unwrap();
         assert_eq!(actual_tag_values, vec!["MA"]);
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "tag_values"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "ok"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "tag_values", "ok", 1).unwrap();
     }
 
     /// test the plumbing of the RPC layer for tag_values
@@ -1691,18 +1646,7 @@ mod tests {
             "unexpected tag values while getting tag values for measurement names"
         );
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "tag_values"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "ok"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "tag_values", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -1751,18 +1695,7 @@ mod tests {
             "unexpected tag values while getting tag values for field names"
         );
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "tag_values"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "ok"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "tag_values", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -1830,18 +1763,7 @@ mod tests {
             "Error converting tag_key to UTF-8 in tag_values request"
         );
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "tag_values"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "client_error"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "tag_values", "client_error", 1).unwrap();
     }
 
     /// test the plumbing of the RPC layer for measurement_tag_values
@@ -1892,18 +1814,7 @@ mod tests {
             "unexpected tag values while getting tag values",
         );
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "measurement_tag_values"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "ok"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "measurement_tag_values", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -1951,18 +1862,7 @@ mod tests {
 
         assert_contains!(response_string, "Sugar we are going down");
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "measurement_tag_values"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "ok"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "measurement_tag_values", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -2063,18 +1963,7 @@ mod tests {
             "unexpected frames returned by query_series",
         );
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "read_filter"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "ok"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "read_filter", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -2114,18 +2003,7 @@ mod tests {
         let response = fixture.storage_client.read_filter(request).await;
         assert_contains!(response.unwrap_err().to_string(), "Sugar we are going down");
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "read_filter"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "client_error"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "read_filter", "client_error", 1).unwrap();
     }
 
     #[tokio::test]
@@ -2177,18 +2055,7 @@ mod tests {
             "unexpected frames returned by query_groups"
         );
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "read_group"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "ok"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "read_group", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -2243,18 +2110,7 @@ mod tests {
             "Unexpected hint value on read_group request. Expected 0, got 42"
         );
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "read_group"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "error"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "read_group", "error", 1).unwrap();
 
         // ---
         // test error returned in database processing
@@ -2280,18 +2136,7 @@ mod tests {
             .to_string();
         assert_contains!(response_string, "Sugar we are going down");
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "read_group"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "client_error"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "read_group", "client_error", 1).unwrap();
     }
 
     #[tokio::test]
@@ -2351,22 +2196,11 @@ mod tests {
             "unexpected frames returned by query_groups"
         );
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "read_window_aggregate"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "ok"),
-            ])
-            .counter()
-            .eq(1.0)
-            .unwrap();
+        grpc_request_metric_has_count(&fixture, "read_window_aggregate", "ok", 1).unwrap();
     }
 
     #[tokio::test]
-    async fn test_read_window_aggegate_every_offset() {
+    async fn test_read_window_aggregate_every_offset() {
         test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
@@ -2435,7 +2269,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_window_aggegate_error() {
+    async fn test_read_window_aggregate_error() {
         test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
@@ -2484,17 +2318,7 @@ mod tests {
 
         assert_contains!(response_string, "Sugar we are going down");
 
-        fixture
-            .test_storage
-            .metrics_registry
-            .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
-                ("operation", "read_window_aggregate"),
-                ("db_name", "000000000000007b_00000000000001c8"),
-                ("status", "client_error"),
-            ])
-            .counter()
-            .eq(1.0)
+        grpc_request_metric_has_count(&fixture, "read_window_aggregate", "client_error", 1)
             .unwrap();
     }
 
@@ -2546,6 +2370,8 @@ mod tests {
             actual_fields, expected_fields,
             "unexpected frames returned by measurement_fields"
         );
+
+        grpc_request_metric_has_count(&fixture, "measurement_fields", "ok", 1).unwrap();
     }
 
     #[tokio::test]
