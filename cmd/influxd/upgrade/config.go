@@ -16,8 +16,9 @@ import (
 	"golang.org/x/text/transform"
 )
 
-// configMapRules is a map of transformation rules
-var configMapRules = map[string]string{
+// passthroughConfigRules maps v1 config key-names to corresponding v2 config key-names.
+// The values of these configs will not be modified during the upgrade process.
+var passthroughConfigRules = map[string]string{
 	"reporting-disabled":                                   "reporting-disabled",
 	"data.dir":                                             "engine-path",
 	"data.wal-fsync-delay":                                 "storage-wal-fsync-delay",
@@ -43,31 +44,6 @@ var configMapRules = map[string]string{
 	"http.bind-address":                                    "http-bind-address",
 	"http.https-certificate":                               "tls-cert",
 	"http.https-private-key":                               "tls-key",
-	"http.pprof-enabled":                                   "pprof-disabled",
-}
-
-// configValueTransforms is a map from 2.x config keys to transformation functions
-// that should run on the 1.x values before they're written into the 2.x config.
-var configValueTransforms = map[string]func(interface{}) interface{}{
-	// Transform config values of 0 into 10 (the new default).
-	// query-concurrency used to accept 0 as a representation of infinity,
-	// but the 2.x controller now forces a positive value to be chosen
-	// for the parameter.
-	"query-concurrency": func(v interface{}) interface{} {
-		ret := v
-		if i, ok := v.(int64); ok && i == 0 {
-			ret = 10
-		}
-		return ret
-	},
-	// Flip the boolean (1.x tracked 'enabled', 2.x tracks 'disabled').
-	"pprof-disabled": func(v interface{}) interface{} {
-		ret := v
-		if b, ok := v.(bool); ok {
-			ret = !b
-		}
-		return ret
-	},
 }
 
 func loadV1Config(configFile string) (*configV1, *map[string]interface{}, error) {
@@ -120,9 +96,8 @@ func load(path string) ([]byte, error) {
 func upgradeConfig(v1Config map[string]interface{}, targetOptions optionsV2, log *zap.Logger) error {
 	// create and initialize helper
 	cu := &configUpgrader{
-		rules:           configMapRules,
-		valueTransforms: configValueTransforms,
-		log:             log,
+		rules: passthroughConfigRules,
+		log:   log,
 	}
 
 	// rewrite config options from V1 to V2 paths
@@ -137,9 +112,8 @@ func upgradeConfig(v1Config map[string]interface{}, targetOptions optionsV2, log
 
 // configUpgrader is a helper used by `upgrade-config` command.
 type configUpgrader struct {
-	rules           map[string]string
-	valueTransforms map[string]func(interface{}) interface{}
-	log             *zap.Logger
+	rules map[string]string
+	log   *zap.Logger
 }
 
 func (cu *configUpgrader) updateV2Config(config map[string]interface{}, targetOptions optionsV2) {
@@ -168,29 +142,63 @@ func (cu *configUpgrader) save(config map[string]interface{}, path string) error
 
 // Credits: @rogpeppe (Roger Peppe)
 
-func (cu *configUpgrader) transform(x map[string]interface{}) map[string]interface{} {
+func (cu *configUpgrader) transform(v1Config map[string]interface{}) map[string]interface{} {
 	res := make(map[string]interface{})
 	for old, new := range cu.rules {
-		val, ok := cu.lookup(x, old)
-		if ok {
-			if transform, ok := cu.valueTransforms[new]; ok {
-				val = transform(val)
-			}
+		if val, ok := cu.lookup(v1Config, old); ok {
 			res[new] = val
 		}
 	}
 
+	// Special case: flip the value for pprof.
+	if val, ok := cu.lookup(v1Config, "http.pprof-enabled"); ok {
+		if b, ok := val.(bool); ok {
+			res["pprof-disabled"] = !b
+		}
+	}
+
+	// Special case: ensure query settings are valid.
+	fixQueryLimits(res)
+
 	return res
 }
 
-func (cu *configUpgrader) lookup(x map[string]interface{}, path string) (interface{}, bool) {
+// fixQueryLimits ensures that all query-related config settings are compatible
+// with the upgraded value of the 'query-concurrency' setting.
+func fixQueryLimits(v2Config map[string]interface{}) {
+	concurrencyVal, ok := v2Config["query-concurrency"]
+	if !ok {
+		return
+	}
+	var concurrency int64
+	switch c := concurrencyVal.(type) {
+	case int:
+		concurrency = int64(c)
+	case int32:
+		concurrency = int64(c)
+	case int64:
+		concurrency = c
+	default:
+		concurrency = 0
+	}
+	if concurrency == 0 {
+		// The upgrade process doesn't generate a value for query-queue-size, so if
+		// query-concurrency is 0 / unset then it's safe to leave query-queue-size unset.
+		return
+	}
+
+	// When query-concurrency is > 0, query-queue-size must also be > 0.
+	v2Config["query-queue-size"] = concurrency
+}
+
+func (cu *configUpgrader) lookup(v1Config map[string]interface{}, path string) (interface{}, bool) {
 	for {
 		elem := path
 		rest := ""
 		if i := strings.Index(path, "."); i != -1 {
 			elem, rest = path[0:i], path[i+1:]
 		}
-		val, ok := x[elem]
+		val, ok := v1Config[elem]
 		if rest == "" {
 			return val, ok
 		}
@@ -198,6 +206,6 @@ func (cu *configUpgrader) lookup(x map[string]interface{}, path string) (interfa
 		if !ok {
 			return nil, false
 		}
-		path, x = rest, child
+		path, v1Config = rest, child
 	}
 }
