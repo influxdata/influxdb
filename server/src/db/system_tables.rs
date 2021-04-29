@@ -111,16 +111,16 @@ fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
     let time_closing =
         TimestampNanosecondArray::from_iter(chunks.iter().map(|c| c.time_closing).map(time_to_ts));
 
-    RecordBatch::try_from_iter(vec![
-        ("id", Arc::new(id) as ArrayRef),
-        ("partition_key", Arc::new(partition_key)),
-        ("table_name", Arc::new(table_name)),
-        ("storage", Arc::new(storage)),
-        ("estimated_bytes", Arc::new(estimated_bytes)),
-        ("row_count", Arc::new(row_counts)),
-        ("time_of_first_write", Arc::new(time_of_first_write)),
-        ("time_of_last_write", Arc::new(time_of_last_write)),
-        ("time_closing", Arc::new(time_closing)),
+    RecordBatch::try_from_iter_with_nullable(vec![
+        ("id", Arc::new(id) as ArrayRef, false),
+        ("partition_key", Arc::new(partition_key), false),
+        ("table_name", Arc::new(table_name), false),
+        ("storage", Arc::new(storage), false),
+        ("estimated_bytes", Arc::new(estimated_bytes), false),
+        ("row_count", Arc::new(row_counts), false),
+        ("time_of_first_write", Arc::new(time_of_first_write), true),
+        ("time_of_last_write", Arc::new(time_of_last_write), true),
+        ("time_closing", Arc::new(time_closing), true),
     ])
 }
 
@@ -182,14 +182,14 @@ fn from_task_trackers(db_name: &str, jobs: Vec<TaskTracker<Job>>) -> Result<Reco
     let descriptions =
         StringArray::from_iter(jobs.iter().map(|job| Some(job.metadata().description())));
 
-    RecordBatch::try_from_iter(vec![
-        ("id", Arc::new(ids) as ArrayRef),
-        ("status", Arc::new(statuses)),
-        ("cpu_time_used", Arc::new(cpu_time_used)),
-        ("wall_time_used", Arc::new(wall_time_used)),
-        ("partition_key", Arc::new(partition_keys)),
-        ("chunk_id", Arc::new(chunk_ids)),
-        ("description", Arc::new(descriptions)),
+    RecordBatch::try_from_iter_with_nullable(vec![
+        ("id", Arc::new(ids) as ArrayRef, false),
+        ("status", Arc::new(statuses), true),
+        ("cpu_time_used", Arc::new(cpu_time_used), true),
+        ("wall_time_used", Arc::new(wall_time_used), true),
+        ("partition_key", Arc::new(partition_keys), true),
+        ("chunk_id", Arc::new(chunk_ids), true),
+        ("description", Arc::new(descriptions), true),
     ])
 }
 
