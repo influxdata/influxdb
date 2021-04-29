@@ -69,7 +69,7 @@ Follow the instructions on the `rustup` site for your operating system.
 
 [`rustup`]: https://rustup.rs/
 
-By default, `rustup` will install the latest stable verison of Rust. InfluxDB IOx is currently
+By default, `rustup` will install the latest stable version of Rust. InfluxDB IOx is currently
 using a nightly version of Rust to get performance benefits from the unstable `simd` feature. The
 exact nightly version is specified in the `rust-toolchain` file. When you're in the directory
 containing this repository's code, `rustup` will look in the `rust-toolchain` file and
