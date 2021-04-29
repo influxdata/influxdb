@@ -41,6 +41,8 @@ pub enum ChunkState {
 
     // Chunk has been completely written into object store
     WrittenToObjectStore(Arc<ReadBufferChunk>, Arc<ParquetChunk>),
+    // Todo : There must be another state for chunk that only in object store
+    // ticket #1314
 }
 
 impl ChunkState {
@@ -231,8 +233,8 @@ impl Chunk {
                 chunk.rows() as usize,
                 ChunkStorage::ReadBufferAndObjectStore,
             ),
-            ChunkState::WrittenToObjectStore(chunk, _) => (
-                chunk.size(),
+            ChunkState::WrittenToObjectStore(chunk, parquet_chunk) => (
+                chunk.size() + parquet_chunk.size(),
                 chunk.rows() as usize,
                 ChunkStorage::ReadBufferAndObjectStore,
             ),

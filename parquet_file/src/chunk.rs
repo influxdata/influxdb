@@ -1,11 +1,11 @@
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc};
 
 use crate::table::Table;
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use data_types::{partition_metadata::TableSummary, timestamp::TimestampRange};
 use internal_types::{schema::Schema, selection::Selection};
-use object_store::path::Path;
+use object_store::{path::Path, ObjectStore};
 use query::predicate::Predicate;
 use tracker::{MemRegistry, MemTracker};
 
@@ -94,11 +94,17 @@ impl Chunk {
         &mut self,
         table_summary: TableSummary,
         file_location: Path,
+        store: Arc<ObjectStore>,
         schema: Schema,
         range: Option<TimestampRange>,
     ) {
-        self.tables
-            .push(Table::new(table_summary, file_location, schema, range));
+        self.tables.push(Table::new(
+            table_summary,
+            file_location,
+            store,
+            schema,
+            range,
+        ));
     }
 
     /// Return true if this chunk includes the given table

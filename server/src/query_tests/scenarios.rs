@@ -5,9 +5,11 @@ use query::PartitionChunk;
 
 use async_trait::async_trait;
 
-use crate::db::{test_helpers::write_lp, Db};
+use crate::{db::test_helpers::write_lp, Db};
 
-use super::utils::{count_mutable_buffer_chunks, count_read_buffer_chunks, make_db};
+use super::utils::{
+    count_mutable_buffer_chunks, count_object_store_chunks, count_read_buffer_chunks, make_db,
+};
 
 /// Holds a database and a description of how its data was configured
 #[derive(Debug)]
@@ -31,24 +33,29 @@ impl DbSetup for NoData {
     async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
         let table_name = "cpu";
+
+        // Scenario 1: No data in the DB yet
+        //
         let db = make_db().db;
         let scenario1 = DbScenario {
             scenario_name: "New, Empty Database".into(),
             db,
         };
 
-        // listing partitions (which may create an entry in a map)
+        // Scenario 2: listing partitions (which may create an entry in a map)
         // in an empty database
+        //
         let db = make_db().db;
         assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 0);
+        assert_eq!(count_object_store_chunks(&db), 0);
         let scenario2 = DbScenario {
             scenario_name: "New, Empty Database after partitions are listed".into(),
             db,
         };
 
-        // a scenario where the database has had data loaded and then deleted
-
+        // Scenario 3: the database has had data loaded into RB and then deleted
+        //
         let db = make_db().db;
         let data = "cpu,region=west user=23.2 100";
         write_lp(&db, data);
@@ -61,28 +68,80 @@ impl DbSetup for NoData {
                 .id(),
             0
         );
+        assert_eq!(count_mutable_buffer_chunks(&db), 1); //
+        assert_eq!(count_read_buffer_chunks(&db), 0); // nothing yet
+        assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
-        assert_eq!(count_mutable_buffer_chunks(&db), 1);
-        assert_eq!(count_read_buffer_chunks(&db), 0); // only open chunk
-
+        // Now load the closed chunk into the RB
         db.load_chunk_to_read_buffer(partition_key, table_name, 0)
             .await
             .unwrap();
+        assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
+        assert_eq!(count_read_buffer_chunks(&db), 1); // close chunk only
+        assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
-        assert_eq!(count_mutable_buffer_chunks(&db), 0);
-        assert_eq!(count_read_buffer_chunks(&db), 1); // only open chunk
+        // drop chunk 0
+        db.drop_chunk(partition_key, table_name, 0).unwrap();
 
+        assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
+        assert_eq!(count_read_buffer_chunks(&db), 0); // nothing after dropping chunk 0
+        assert_eq!(count_object_store_chunks(&db), 0); // still nothing
+
+        let scenario3 = DbScenario {
+            scenario_name: "Empty Database after drop chunk that is in read buffer".into(),
+            db,
+        };
+
+        // Scenario 4: the database has had data loaded into RB & Object Store and then deleted
+        //
+        let db = make_db().db;
+        let data = "cpu,region=west user=23.2 100";
+        write_lp(&db, data);
+        // move data out of open chunk
+        assert_eq!(
+            db.rollover_partition(partition_key, table_name)
+                .await
+                .unwrap()
+                .unwrap()
+                .id(),
+            0
+        );
+        assert_eq!(count_mutable_buffer_chunks(&db), 1); // 1 open chunk
+        assert_eq!(count_read_buffer_chunks(&db), 0); // nothing yet
+        assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
+
+        // Now load the closed chunk into the RB
+        db.load_chunk_to_read_buffer(partition_key, table_name, 0)
+            .await
+            .unwrap();
+        assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
+        assert_eq!(count_read_buffer_chunks(&db), 1); // close chunk only
+        assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
+
+        // Now write the data in RB to object store but keep it in RB
+        db.write_chunk_to_object_store(partition_key, "cpu", 0)
+            .await
+            .unwrap();
+        // it should be the same chunk!
+        assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
+        assert_eq!(count_read_buffer_chunks(&db), 1); // closed chunk only
+        assert_eq!(count_object_store_chunks(&db), 1); // close chunk only
+
+        // drop chunk 0
         db.drop_chunk(partition_key, table_name, 0).unwrap();
 
         assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 0);
+        assert_eq!(count_object_store_chunks(&db), 0);
 
-        let scenario3 = DbScenario {
-            scenario_name: "Empty Database after drop chunk".into(),
+        let scenario4 = DbScenario {
+            scenario_name:
+                "Empty Database after drop chunk that is in both read buffer and object store"
+                    .into(),
             db,
         };
 
-        vec![scenario1, scenario2, scenario3]
+        vec![scenario1, scenario2, scenario3, scenario4]
     }
 }
 
@@ -356,7 +415,28 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db,
     };
 
-    vec![scenario1, scenario2, scenario3]
+    let db = make_db().db;
+    let table_names = write_lp(&db, data);
+    for table_name in &table_names {
+        db.rollover_partition(partition_key, &table_name)
+            .await
+            .unwrap();
+        db.load_chunk_to_read_buffer(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+        db.write_chunk_to_object_store(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+    }
+    let scenario4 = DbScenario {
+        scenario_name: "Data in both read buffer and object store".into(),
+        db,
+    };
+
+    // TODO: Add scenario 5 where data is in object store only
+    // go with #1342
+
+    vec![scenario1, scenario2, scenario3, scenario4]
 }
 
 /// This function loads two chunks of lp data into 4 different scenarios
@@ -436,15 +516,53 @@ pub async fn make_two_chunk_scenarios(
         db,
     };
 
-    vec![scenario1, scenario2, scenario3, scenario4]
+    // in 2 read buffer chunks that also loaded into object store
+    let db = make_db().db;
+    let table_names = write_lp(&db, data1);
+    for table_name in &table_names {
+        db.rollover_partition(partition_key, &table_name)
+            .await
+            .unwrap();
+    }
+    let table_names = write_lp(&db, data2);
+    for table_name in &table_names {
+        db.rollover_partition(partition_key, &table_name)
+            .await
+            .unwrap();
+
+        db.load_chunk_to_read_buffer(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+
+        db.load_chunk_to_read_buffer(partition_key, &table_name, 1)
+            .await
+            .unwrap();
+
+        db.write_chunk_to_object_store(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+
+        db.write_chunk_to_object_store(partition_key, &table_name, 1)
+            .await
+            .unwrap();
+    }
+    let scenario5 = DbScenario {
+        scenario_name: "Data in two read buffer chunks and two parquet file chunks".into(),
+        db,
+    };
+
+    vec![scenario1, scenario2, scenario3, scenario4, scenario5]
 }
 
-/// Rollover the mutable buffer and load chunk 0 to the read bufer
+/// Rollover the mutable buffer and load chunk 0 to the read buffer and object store
 pub async fn rollover_and_load(db: &Db, partition_key: &str, table_name: &str) {
     db.rollover_partition(partition_key, table_name)
         .await
         .unwrap();
     db.load_chunk_to_read_buffer(partition_key, table_name, 0)
+        .await
+        .unwrap();
+    db.write_chunk_to_object_store(partition_key, table_name, 0)
         .await
         .unwrap();
 }

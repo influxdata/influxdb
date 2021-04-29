@@ -4,11 +4,12 @@ use data_types::{
     server_id::ServerId,
     DatabaseName,
 };
-use object_store::{memory::InMemory, ObjectStore};
+use object_store::{disk::File, ObjectStore};
 use query::{exec::Executor, Database};
 
 use crate::{db::Db, JobRegistry};
 use std::{convert::TryFrom, sync::Arc};
+use tempfile::TempDir;
 
 // A wrapper around a Db and a metrics registry allowing for isolated testing
 // of a Db and its metrics.
@@ -21,7 +22,13 @@ pub struct TestDb {
 /// Used for testing: create a Database with a local store
 pub fn make_db() -> TestDb {
     let server_id = ServerId::try_from(1).unwrap();
-    let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+    // TODO: When we support parquet file in memory, we will either turn this test back to memory
+    // or have both tests: local disk and memory
+    //let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+    //
+    // Create an object store with a specified location in a local disk
+    let root = TempDir::new().unwrap();
+    let object_store = Arc::new(ObjectStore::new_file(File::new(root.path())));
     let exec = Arc::new(Executor::new(1));
     let metrics_registry = Arc::new(metrics::MetricRegistry::new());
 
@@ -77,6 +84,19 @@ pub fn count_mutable_buffer_chunks(db: &Db) -> usize {
 /// Returns the number of read buffer chunks in the specified database
 pub fn count_read_buffer_chunks(db: &Db) -> usize {
     chunk_summary_iter(db)
-        .filter(|s| s.storage == ChunkStorage::ReadBuffer)
+        .filter(|s| {
+            s.storage == ChunkStorage::ReadBuffer
+                || s.storage == ChunkStorage::ReadBufferAndObjectStore
+        })
+        .count()
+}
+
+/// Returns the number of object store chunks in the specified database
+pub fn count_object_store_chunks(db: &Db) -> usize {
+    chunk_summary_iter(db)
+        .filter(|s| {
+            s.storage == ChunkStorage::ReadBufferAndObjectStore
+                || s.storage == ChunkStorage::ObjectStoreOnly
+        })
         .count()
 }
