@@ -787,6 +787,12 @@ where
 
         info!(%db_name, ?range, predicate=%predicate.loggable(), "measurement_fields");
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "measurement_tag_values"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         let measurement = Some(measurement);
 
         let response = field_names_impl(
@@ -802,12 +808,20 @@ where
                 .context(ConvertingFieldList)
                 .map_err(|e| e.to_status())
         })
-        .map_err(|e| e.to_status())?;
+        .map_err(|e| {
+            if e.is_internal() {
+                ob.error_with_labels(labels);
+            } else {
+                ob.client_error_with_labels(labels);
+            }
+            e.to_status()
+        })?;
 
         tx.send(response)
             .await
             .expect("sending measurement_fields response to server");
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 }
