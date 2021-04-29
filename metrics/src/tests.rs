@@ -58,8 +58,8 @@ impl TestMetricRegistry {
         Self { registry }
     }
 
-    pub fn registry(&self) -> &MetricRegistry {
-        &self.registry
+    pub fn registry(&self) -> Arc<MetricRegistry> {
+        Arc::clone(&self.registry)
     }
 
     /// Returns an assertion builder for the specified metric name or an error

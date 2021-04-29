@@ -23,6 +23,7 @@ use generated_types::{
     ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest, TagValuesRequest,
     TimestampRange,
 };
+use metrics::KeyValue;
 use observability_deps::tracing::{error, info};
 use query::{
     exec::fieldlist::FieldList, exec::seriesset::Error as SeriesSetError,
@@ -200,6 +201,10 @@ impl Error {
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
         }
     }
+
+    fn is_internal(&self) -> bool {
+        matches!(self.to_status().code(), tonic::Code::Internal)
+    }
 }
 
 /// Implementes the protobuf defined Storage service for a DatabaseStore
@@ -226,13 +231,27 @@ where
 
         info!(%db_name, ?range, predicate=%predicate.loggable(),"read filter");
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "read_filter"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         let results = read_filter_impl(Arc::clone(&self.db_store), db_name, range, predicate)
             .await
-            .map_err(|e| e.to_status())?
+            .map_err(|e| {
+                if e.is_internal() {
+                    ob.error_with_labels(labels);
+                } else {
+                    ob.client_error_with_labels(labels);
+                }
+                e.to_status()
+            })?
             .into_iter()
             .map(Ok)
             .collect::<Vec<_>>();
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
 
@@ -258,7 +277,14 @@ where
 
         info!(%db_name, ?range, ?group_keys, ?group, ?aggregate,predicate=%predicate.loggable(),"read_group");
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "read_group"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         if hints != 0 {
+            ob.error_with_labels(labels);
             InternalHintsFieldNotSupported { hints }.fail()?
         }
 
@@ -267,12 +293,21 @@ where
             aggregate, group, group_keys
         );
 
-        let group = expr::convert_group_type(group).context(ConvertingReadGroupType {
-            aggregate_string: &aggregate_string,
-        })?;
+        let group = expr::convert_group_type(group)
+            .context(ConvertingReadGroupType {
+                aggregate_string: &aggregate_string,
+            })
+            .map_err(|e| {
+                ob.client_error_with_labels(labels);
+                e
+            })?;
 
         let gby_agg = expr::make_read_group_aggregate(aggregate, group, group_keys)
-            .context(ConvertingReadGroupAggregate { aggregate_string })?;
+            .context(ConvertingReadGroupAggregate { aggregate_string })
+            .map_err(|e| {
+                ob.client_error_with_labels(labels);
+                e
+            })?;
 
         let results = query_group_impl(
             Arc::clone(&self.db_store),
@@ -282,11 +317,19 @@ where
             gby_agg,
         )
         .await
-        .map_err(|e| e.to_status())?
+        .map_err(|e| {
+            if e.is_internal() {
+                ob.error_with_labels(labels);
+            } else {
+                ob.client_error_with_labels(labels);
+            }
+            e.to_status()
+        })?
         .into_iter()
         .map(Ok)
         .collect::<Vec<_>>();
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
 
@@ -313,13 +356,23 @@ where
 
         info!(%db_name, ?range, ?window_every, ?offset, ?aggregate, ?window, predicate=%predicate.loggable(),"read_window_aggregate");
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "read_window_aggregate"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         let aggregate_string = format!(
             "aggregate: {:?}, window_every: {:?}, offset: {:?}, window: {:?}",
             aggregate, window_every, offset, window
         );
 
         let gby_agg = expr::make_read_window_aggregate(aggregate, window_every, offset, window)
-            .context(ConvertingWindowAggregate { aggregate_string })?;
+            .context(ConvertingWindowAggregate { aggregate_string })
+            .map_err(|e| {
+                ob.client_error_with_labels(labels);
+                e
+            })?;
 
         let results = query_group_impl(
             Arc::clone(&self.db_store),
@@ -329,11 +382,19 @@ where
             gby_agg,
         )
         .await
-        .map_err(|e| e.to_status())?
+        .map_err(|e| {
+            if e.is_internal() {
+                ob.error_with_labels(labels);
+            } else {
+                ob.client_error_with_labels(labels);
+            }
+            e.to_status()
+        })?
         .into_iter()
         .map(Ok)
         .collect::<Vec<_>>();
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
 
@@ -357,6 +418,12 @@ where
 
         info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_keys");
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "tag_keys"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         let measurement = None;
 
         let response = tag_keys_impl(
@@ -367,12 +434,20 @@ where
             predicate,
         )
         .await
-        .map_err(|e| e.to_status());
+        .map_err(|e| {
+            if e.is_internal() {
+                ob.error_with_labels(labels);
+            } else {
+                ob.client_error_with_labels(labels);
+            }
+            e.to_status()
+        });
 
         tx.send(response)
             .await
             .expect("sending tag_keys response to server");
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
@@ -387,6 +462,12 @@ where
         let tag_values_request = req.into_inner();
 
         let db_name = get_database_name(&tag_values_request)?;
+
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "tag_values"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
 
         let TagValuesRequest {
             tags_source: _tag_source,
@@ -403,19 +484,37 @@ where
             info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_values with tag_key=[x00] (measurement name)");
 
             if predicate.is_some() {
+                ob.client_error_with_labels(labels);
                 return Err(Error::NotYetImplemented {
                     operation: "tag_value for a measurement, with general predicate".to_string(),
                 }
                 .to_status());
             }
 
-            measurement_name_impl(Arc::clone(&self.db_store), db_name, range).await
+            measurement_name_impl(Arc::clone(&self.db_store), db_name, range)
+                .await
+                .map_err(|e| {
+                    if e.is_internal() {
+                        ob.error_with_labels(labels);
+                    } else {
+                        ob.client_error_with_labels(labels);
+                    }
+                    e
+                })
         } else if tag_key.is_field() {
             info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_values with tag_key=[xff] (field name)");
 
             let fieldlist =
                 field_names_impl(Arc::clone(&self.db_store), db_name, None, range, predicate)
-                    .await?;
+                    .await
+                    .map_err(|e| {
+                        if e.is_internal() {
+                            ob.error_with_labels(labels);
+                        } else {
+                            ob.client_error_with_labels(labels);
+                        }
+                        e
+                    })?;
 
             // Pick out the field names into a Vec<Vec<u8>>for return
             let values = fieldlist
@@ -426,7 +525,12 @@ where
 
             Ok(StringValuesResponse { values })
         } else {
-            let tag_key = String::from_utf8(tag_key).context(ConvertingTagKeyInTagValues)?;
+            let tag_key = String::from_utf8(tag_key)
+                .context(ConvertingTagKeyInTagValues)
+                .map_err(|e| {
+                    ob.client_error_with_labels(labels);
+                    e
+                })?;
 
             info!(%db_name, ?range, %tag_key, predicate=%predicate.loggable(), "tag_values",);
 
@@ -447,6 +551,7 @@ where
             .await
             .expect("sending tag_values response to server");
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
@@ -526,14 +631,28 @@ where
 
         info!(%db_name, ?range, predicate=%predicate.loggable(), "measurement_names");
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "measurement_names"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         let response = measurement_name_impl(Arc::clone(&self.db_store), db_name, range)
             .await
-            .map_err(|e| e.to_status());
+            .map_err(|e| {
+                if e.is_internal() {
+                    ob.error_with_labels(labels);
+                } else {
+                    ob.client_error_with_labels(labels);
+                }
+                e.to_status()
+            });
 
         tx.send(response)
             .await
             .expect("sending measurement names response to server");
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
@@ -558,6 +677,12 @@ where
 
         info!(%db_name, ?range, %measurement, predicate=%predicate.loggable(), "measurement_tag_keys");
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "measurement_tag_keys"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         let measurement = Some(measurement);
 
         let response = tag_keys_impl(
@@ -568,12 +693,20 @@ where
             predicate,
         )
         .await
-        .map_err(|e| e.to_status());
+        .map_err(|e| {
+            if e.is_internal() {
+                ob.error_with_labels(labels);
+            } else {
+                ob.client_error_with_labels(labels);
+            }
+            e.to_status()
+        });
 
         tx.send(response)
             .await
             .expect("sending measurement_tag_keys response to server");
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
@@ -599,6 +732,12 @@ where
 
         info!(%db_name, ?range, %measurement, %tag_key, predicate=%predicate.loggable(), "measurement_tag_values");
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "measurement_tag_values"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         let measurement = Some(measurement);
 
         let response = tag_values_impl(
@@ -610,12 +749,20 @@ where
             predicate,
         )
         .await
-        .map_err(|e| e.to_status());
+        .map_err(|e| {
+            if e.is_internal() {
+                ob.error_with_labels(labels);
+            } else {
+                ob.client_error_with_labels(labels);
+            }
+            e.to_status()
+        });
 
         tx.send(response)
             .await
             .expect("sending measurement_tag_values response to server");
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
@@ -640,6 +787,12 @@ where
 
         info!(%db_name, ?range, predicate=%predicate.loggable(), "measurement_fields");
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "measurement_fields"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         let measurement = Some(measurement);
 
         let response = field_names_impl(
@@ -655,12 +808,20 @@ where
                 .context(ConvertingFieldList)
                 .map_err(|e| e.to_status())
         })
-        .map_err(|e| e.to_status())?;
+        .map_err(|e| {
+            if e.is_internal() {
+                ob.error_with_labels(labels);
+            } else {
+                ob.client_error_with_labels(labels);
+            }
+            e.to_status()
+        })?;
 
         tx.send(response)
             .await
             .expect("sending measurement_fields response to server");
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 }
@@ -1038,6 +1199,27 @@ mod tests {
         s.iter().map(|s| s.to_string()).collect()
     }
 
+    // Helper function to assert that metric tracking all gRPC requests has
+    // correctly updated.
+    fn grpc_request_metric_has_count(
+        fixture: &Fixture,
+        operation: &'static str,
+        status: &'static str,
+        count: usize,
+    ) -> Result<(), metrics::Error> {
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", operation),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", status),
+            ])
+            .counter()
+            .eq(count as f64)
+    }
+
     #[tokio::test]
     async fn test_storage_rpc_capabilities() {
         test_helpers::maybe_start_logging();
@@ -1138,6 +1320,8 @@ mod tests {
             "\nActual: {:?}\nExpected: {:?}",
             actual_predicate, expected_predicate
         );
+
+        grpc_request_metric_has_count(&fixture, "measurement_names", "ok", 2).unwrap();
     }
 
     /// test the plumbing of the RPC layer for tag_keys -- specifically that
@@ -1205,6 +1389,8 @@ mod tests {
             "\nActual: {:?}\nExpected: {:?}",
             actual_predicate, expected_predicate
         );
+
+        grpc_request_metric_has_count(&fixture, "tag_keys", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -1242,6 +1428,8 @@ mod tests {
 
         let response = fixture.storage_client.tag_keys(request).await;
         assert_contains!(response.unwrap_err().to_string(), "Sugar we are going down");
+
+        grpc_request_metric_has_count(&fixture, "tag_keys", "client_error", 1).unwrap();
     }
 
     /// test the plumbing of the RPC layer for measurement_tag_keys--
@@ -1322,6 +1510,8 @@ mod tests {
             "\nActual: {:?}\nExpected: {:?}",
             actual_predicate, expected_predicate
         );
+
+        grpc_request_metric_has_count(&fixture, "measurement_tag_keys", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -1362,6 +1552,8 @@ mod tests {
 
         let response = fixture.storage_client.measurement_tag_keys(request).await;
         assert_contains!(response.unwrap_err().to_string(), "This is an error");
+
+        grpc_request_metric_has_count(&fixture, "measurement_tag_keys", "client_error", 1).unwrap();
     }
 
     /// test the plumbing of the RPC layer for tag_keys -- specifically that
@@ -1404,6 +1596,8 @@ mod tests {
 
         let actual_tag_values = fixture.storage_client.tag_values(request).await.unwrap();
         assert_eq!(actual_tag_values, vec!["MA"]);
+
+        grpc_request_metric_has_count(&fixture, "tag_values", "ok", 1).unwrap();
     }
 
     /// test the plumbing of the RPC layer for tag_values
@@ -1451,6 +1645,8 @@ mod tests {
             actual_tag_values, tag_values,
             "unexpected tag values while getting tag values for measurement names"
         );
+
+        grpc_request_metric_has_count(&fixture, "tag_values", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -1498,6 +1694,8 @@ mod tests {
             actual_tag_values, expected_tag_values,
             "unexpected tag values while getting tag values for field names"
         );
+
+        grpc_request_metric_has_count(&fixture, "tag_values", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -1564,6 +1762,8 @@ mod tests {
             response_string,
             "Error converting tag_key to UTF-8 in tag_values request"
         );
+
+        grpc_request_metric_has_count(&fixture, "tag_values", "client_error", 1).unwrap();
     }
 
     /// test the plumbing of the RPC layer for measurement_tag_values
@@ -1613,6 +1813,8 @@ mod tests {
             vec!["MA"],
             "unexpected tag values while getting tag values",
         );
+
+        grpc_request_metric_has_count(&fixture, "measurement_tag_values", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -1659,6 +1861,8 @@ mod tests {
             .to_string();
 
         assert_contains!(response_string, "Sugar we are going down");
+
+        grpc_request_metric_has_count(&fixture, "measurement_tag_values", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -1758,6 +1962,8 @@ mod tests {
             actual_frames, expected_frames,
             "unexpected frames returned by query_series",
         );
+
+        grpc_request_metric_has_count(&fixture, "read_filter", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -1796,6 +2002,8 @@ mod tests {
         // Note we don't set the response on the test database, so we expect an error
         let response = fixture.storage_client.read_filter(request).await;
         assert_contains!(response.unwrap_err().to_string(), "Sugar we are going down");
+
+        grpc_request_metric_has_count(&fixture, "read_filter", "client_error", 1).unwrap();
     }
 
     #[tokio::test]
@@ -1846,6 +2054,8 @@ mod tests {
             actual_frames, expected_frames,
             "unexpected frames returned by query_groups"
         );
+
+        grpc_request_metric_has_count(&fixture, "read_group", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -1900,6 +2110,8 @@ mod tests {
             "Unexpected hint value on read_group request. Expected 0, got 42"
         );
 
+        grpc_request_metric_has_count(&fixture, "read_group", "error", 1).unwrap();
+
         // ---
         // test error returned in database processing
         // ---
@@ -1923,10 +2135,12 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert_contains!(response_string, "Sugar we are going down");
+
+        grpc_request_metric_has_count(&fixture, "read_group", "client_error", 1).unwrap();
     }
 
     #[tokio::test]
-    async fn test_read_window_aggegate_window_every() {
+    async fn test_read_window_aggregate_window_every() {
         test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
@@ -1981,10 +2195,12 @@ mod tests {
             actual_frames, expected_frames,
             "unexpected frames returned by query_groups"
         );
+
+        grpc_request_metric_has_count(&fixture, "read_window_aggregate", "ok", 1).unwrap();
     }
 
     #[tokio::test]
-    async fn test_read_window_aggegate_every_offset() {
+    async fn test_read_window_aggregate_every_offset() {
         test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
@@ -2053,7 +2269,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_window_aggegate_error() {
+    async fn test_read_window_aggregate_error() {
         test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
@@ -2101,6 +2317,9 @@ mod tests {
             .to_string();
 
         assert_contains!(response_string, "Sugar we are going down");
+
+        grpc_request_metric_has_count(&fixture, "read_window_aggregate", "client_error", 1)
+            .unwrap();
     }
 
     #[tokio::test]
@@ -2151,6 +2370,8 @@ mod tests {
             actual_fields, expected_fields,
             "unexpected frames returned by measurement_fields"
         );
+
+        grpc_request_metric_has_count(&fixture, "measurement_fields", "ok", 1).unwrap();
     }
 
     #[tokio::test]
@@ -2583,9 +2804,10 @@ mod tests {
 
             let router = tonic::transport::Server::builder()
                 .add_service(crate::influxdb_ioxd::rpc::testing::make_server())
-                .add_service(crate::influxdb_ioxd::rpc::storage::make_server(Arc::clone(
-                    &test_storage,
-                )));
+                .add_service(crate::influxdb_ioxd::rpc::storage::make_server(
+                    Arc::clone(&test_storage),
+                    test_storage.metrics_registry.registry(),
+                ));
 
             let server = async move {
                 let stream = TcpListenerStream::new(socket);
