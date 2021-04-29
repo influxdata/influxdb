@@ -109,3 +109,15 @@ impl ObjectStorePath for Path {
         }
     }
 }
+
+impl From<Path> for DirsAndFileName {
+    fn from(path: Path) -> Self {
+        match path {
+            Path::AmazonS3(path) => path.into(),
+            Path::File(path) => path.into(),
+            Path::GoogleCloudStorage(path) => path.into(),
+            Path::InMemory(path) => path,
+            Path::MicrosoftAzure(path) => path.into(),
+        }
+    }
+}
