@@ -25,6 +25,15 @@ pub mod benchmarks {
         cmp::Operator, encoding::scalar::Fixed, encoding::scalar::FixedNull, encoding::string,
         Column, RowIDs,
     };
-
     pub use crate::row_group::{ColumnType, RowGroup};
+    use crate::Chunk;
+
+    // Allow external benchmarks to use this crate-only test method
+    pub fn upsert_table_with_row_group(
+        chunk: &mut Chunk,
+        table_name: impl Into<String>,
+        row_group: RowGroup,
+    ) {
+        chunk.upsert_table_with_row_group(table_name, row_group)
+    }
 }
