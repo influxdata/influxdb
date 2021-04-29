@@ -2135,7 +2135,7 @@ func (c *integerWindowMeanCountArrayCursor) Next() *cursors.MeanCountArray {
 	}
 
 	rowIdx := 0
-	var sum float64
+	var sum int64
 	var count int64
 
 	var windowEnd int64
@@ -2156,7 +2156,7 @@ WINDOWS:
 				// do not generate a point for empty windows
 				if windowHasPoints {
 					c.res.Timestamps[pos] = windowEnd
-					c.res.Values0[pos] = sum / float64(count)
+					c.res.Values0[pos] = float64(sum) / float64(count)
 					c.res.Values1[pos] = count
 					pos++
 					if pos >= MaxPointsPerBlock {
@@ -2177,7 +2177,7 @@ WINDOWS:
 
 				continue WINDOWS
 			} else {
-				sum += float64(a.Values[rowIdx])
+				sum += a.Values[rowIdx]
 				count++
 				windowHasPoints = true
 			}
@@ -2194,7 +2194,7 @@ WINDOWS:
 			// do not generate a point for empty windows
 			if windowHasPoints {
 				c.res.Timestamps[pos] = windowEnd
-				c.res.Values0[pos] = sum / float64(count)
+				c.res.Values0[pos] = float64(sum) / float64(count)
 				c.res.Values1[pos] = count
 				pos++
 			}
@@ -3138,7 +3138,7 @@ func (c *unsignedWindowMeanCountArrayCursor) Next() *cursors.MeanCountArray {
 	}
 
 	rowIdx := 0
-	var sum float64
+	var sum uint64
 	var count int64
 
 	var windowEnd int64
@@ -3159,7 +3159,7 @@ WINDOWS:
 				// do not generate a point for empty windows
 				if windowHasPoints {
 					c.res.Timestamps[pos] = windowEnd
-					c.res.Values0[pos] = sum / float64(count)
+					c.res.Values0[pos] = float64(sum) / float64(count)
 					c.res.Values1[pos] = count
 					pos++
 					if pos >= MaxPointsPerBlock {
@@ -3180,7 +3180,7 @@ WINDOWS:
 
 				continue WINDOWS
 			} else {
-				sum += float64(a.Values[rowIdx])
+				sum += a.Values[rowIdx]
 				count++
 				windowHasPoints = true
 			}
@@ -3197,7 +3197,7 @@ WINDOWS:
 			// do not generate a point for empty windows
 			if windowHasPoints {
 				c.res.Timestamps[pos] = windowEnd
-				c.res.Values0[pos] = sum / float64(count)
+				c.res.Values0[pos] = float64(sum) / float64(count)
 				c.res.Values1[pos] = count
 				pos++
 			}

@@ -49,6 +49,7 @@ v1.9.0 [unreleased]
 -	[#21285](https://github.com/influxdata/influxdb/pull/21285): fix(storage): Detect need for descending cursor in GroupAggregate
 -	[#21308](https://github.com/influxdata/influxdb/pull/21308): fix(models): grow tag index buffer if needed
 -	[#21310](https://github.com/influxdata/influxdb/pull/21310): fix: Anti-Entropy loops endlessly with empty shard
+-	[#21341](https://github.com/influxdata/influxdb/pull/21341): fix: summation should be in native type for new meancount iterator
 
 v1.8.5 [unreleased]
 -------------------
