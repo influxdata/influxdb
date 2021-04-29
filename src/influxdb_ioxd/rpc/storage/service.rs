@@ -277,7 +277,14 @@ where
 
         info!(%db_name, ?range, ?group_keys, ?group, ?aggregate,predicate=%predicate.loggable(),"read_group");
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "read_group"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         if hints != 0 {
+            ob.error_with_labels(labels);
             InternalHintsFieldNotSupported { hints }.fail()?
         }
 
@@ -286,12 +293,21 @@ where
             aggregate, group, group_keys
         );
 
-        let group = expr::convert_group_type(group).context(ConvertingReadGroupType {
-            aggregate_string: &aggregate_string,
-        })?;
+        let group = expr::convert_group_type(group)
+            .context(ConvertingReadGroupType {
+                aggregate_string: &aggregate_string,
+            })
+            .map_err(|e| {
+                ob.client_error_with_labels(labels);
+                e
+            })?;
 
         let gby_agg = expr::make_read_group_aggregate(aggregate, group, group_keys)
-            .context(ConvertingReadGroupAggregate { aggregate_string })?;
+            .context(ConvertingReadGroupAggregate { aggregate_string })
+            .map_err(|e| {
+                ob.client_error_with_labels(labels);
+                e
+            })?;
 
         let results = query_group_impl(
             Arc::clone(&self.db_store),
@@ -301,11 +317,19 @@ where
             gby_agg,
         )
         .await
-        .map_err(|e| e.to_status())?
+        .map_err(|e| {
+            if e.is_internal() {
+                ob.error_with_labels(labels);
+            } else {
+                ob.client_error_with_labels(labels);
+            }
+            e.to_status()
+        })?
         .into_iter()
         .map(Ok)
         .collect::<Vec<_>>();
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
 
@@ -1891,6 +1915,19 @@ mod tests {
             actual_frames, expected_frames,
             "unexpected frames returned by query_groups"
         );
+
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "read_group"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "ok"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1945,6 +1982,19 @@ mod tests {
             "Unexpected hint value on read_group request. Expected 0, got 42"
         );
 
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "read_group"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "error"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
+
         // ---
         // test error returned in database processing
         // ---
@@ -1968,6 +2018,19 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert_contains!(response_string, "Sugar we are going down");
+
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "read_group"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "client_error"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 
     #[tokio::test]
