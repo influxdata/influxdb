@@ -418,6 +418,12 @@ where
 
         info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_keys");
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "tag_keys"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         let measurement = None;
 
         let response = tag_keys_impl(
@@ -428,12 +434,20 @@ where
             predicate,
         )
         .await
-        .map_err(|e| e.to_status());
+        .map_err(|e| {
+            if e.is_internal() {
+                ob.error_with_labels(labels);
+            } else {
+                ob.client_error_with_labels(labels);
+            }
+            e.to_status()
+        });
 
         tx.send(response)
             .await
             .expect("sending tag_keys response to server");
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
@@ -619,6 +633,12 @@ where
 
         info!(%db_name, ?range, %measurement, predicate=%predicate.loggable(), "measurement_tag_keys");
 
+        let ob = self.metrics.requests.observation();
+        let labels = &[
+            KeyValue::new("operation", "measurement_tag_keys"),
+            KeyValue::new("db_name", db_name.to_string()),
+        ];
+
         let measurement = Some(measurement);
 
         let response = tag_keys_impl(
@@ -629,12 +649,20 @@ where
             predicate,
         )
         .await
-        .map_err(|e| e.to_status());
+        .map_err(|e| {
+            if e.is_internal() {
+                ob.error_with_labels(labels);
+            } else {
+                ob.client_error_with_labels(labels);
+            }
+            e.to_status()
+        });
 
         tx.send(response)
             .await
             .expect("sending measurement_tag_keys response to server");
 
+        ob.ok_with_labels(labels);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
@@ -1266,6 +1294,19 @@ mod tests {
             "\nActual: {:?}\nExpected: {:?}",
             actual_predicate, expected_predicate
         );
+
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "tag_keys"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "ok"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1303,6 +1344,19 @@ mod tests {
 
         let response = fixture.storage_client.tag_keys(request).await;
         assert_contains!(response.unwrap_err().to_string(), "Sugar we are going down");
+
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "tag_keys"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "client_error"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 
     /// test the plumbing of the RPC layer for measurement_tag_keys--
@@ -1383,6 +1437,19 @@ mod tests {
             "\nActual: {:?}\nExpected: {:?}",
             actual_predicate, expected_predicate
         );
+
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "measurement_tag_keys"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "ok"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1423,6 +1490,19 @@ mod tests {
 
         let response = fixture.storage_client.measurement_tag_keys(request).await;
         assert_contains!(response.unwrap_err().to_string(), "This is an error");
+
+        fixture
+            .test_storage
+            .metrics_registry
+            .has_metric_family("gRPC_requests_total")
+            .with_labels(&[
+                ("operation", "measurement_tag_keys"),
+                ("db_name", "000000000000007b_00000000000001c8"),
+                ("status", "client_error"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
     }
 
     /// test the plumbing of the RPC layer for tag_keys -- specifically that
