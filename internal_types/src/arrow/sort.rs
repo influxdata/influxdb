@@ -102,7 +102,7 @@ pub fn sort_record_batch(batch: RecordBatch) -> Result<RecordBatch> {
 mod tests {
     use arrow_deps::arrow::array::{Int32Array, TimestampNanosecondArray};
     use arrow_deps::arrow::datatypes::DataType;
-    use arrow_deps::assert_table_eq;
+    use arrow_deps::assert_batches_eq;
 
     use crate::schema::builder::SchemaBuilder;
 
@@ -154,7 +154,7 @@ mod tests {
         let sorted = sort_record_batch(batch).unwrap();
 
         // Expects to be sorted first by tag2, then tag1, then time
-        assert_table_eq!(
+        assert_batches_eq!(
             &[
                 "+----------+-------+-------------------------------+------+",
                 "| tag1     | tag2  | time                          | data |",

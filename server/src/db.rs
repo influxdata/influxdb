@@ -1101,7 +1101,7 @@ mod tests {
     use crate::query_tests::utils::{make_database, make_db};
     use ::test_helpers::assert_contains;
     use arrow_deps::{
-        arrow::record_batch::RecordBatch, assert_batches_sorted_eq, assert_table_eq,
+        arrow::record_batch::RecordBatch, assert_batches_eq, assert_batches_sorted_eq,
         datafusion::execution::context,
     };
     use chrono::Utc;
@@ -1156,7 +1156,7 @@ mod tests {
             "| 1   | 1970-01-01 00:00:00.000000010 |",
             "+-----+-------------------------------+",
         ];
-        assert_table_eq!(expected, &batches);
+        assert_batches_eq!(expected, &batches);
     }
 
     #[tokio::test]
@@ -1322,7 +1322,7 @@ mod tests {
             "+------+--------+-------------------------------+------+",
         ];
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
-        assert_table_eq!(expected, &batches);
+        assert_batches_eq!(expected, &batches);
     }
 
     #[tokio::test]
@@ -1360,7 +1360,7 @@ mod tests {
             "+-----+-------------------------------+",
         ];
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
-        assert_table_eq!(&expected, &batches);
+        assert_batches_eq!(&expected, &batches);
 
         // drop, the chunk from the read buffer
         db.drop_chunk(partition_key, "cpu", mb_chunk.id()).unwrap();
@@ -1373,7 +1373,7 @@ mod tests {
         // purge tables after data bas been dropped println!("running
         // query after all data dropped!"); let expected = vec![] as
         // Vec<&str>; let batches = run_query(&db, "select * from
-        // cpu").await; assert_table_eq!(expected, &batches);
+        // cpu").await; assert_batches_eq!(expected, &batches);
     }
 
     async fn collect_read_filter(chunk: &DbChunk, table_name: &str) -> Vec<RecordBatch> {
@@ -1443,7 +1443,7 @@ mod tests {
 
         // Test that data on load into the read buffer is sorted
 
-        assert_table_eq!(
+        assert_batches_eq!(
             &[
                 "+-----+----------+------+-------------------------------+",
                 "| bar | tag1     | tag2 | time                          |",
@@ -1459,7 +1459,7 @@ mod tests {
             &mb
         );
 
-        assert_table_eq!(
+        assert_batches_eq!(
             &[
                 "+-----+----------+------+-------------------------------+",
                 "| bar | tag1     | tag2 | time                          |",
@@ -1590,7 +1590,7 @@ mod tests {
             "| 2   | 1970-01-01 00:00:00.000000020 |",
             "+-----+-------------------------------+",
         ];
-        assert_table_eq!(expected, &content);
+        assert_batches_eq!(expected, &content);
     }
 
     #[tokio::test]

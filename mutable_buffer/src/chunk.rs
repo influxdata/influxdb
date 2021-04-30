@@ -266,7 +266,7 @@ pub mod test_helpers {
 mod tests {
     use super::test_helpers::write_lp_to_chunk;
     use super::*;
-    use arrow_deps::assert_table_eq;
+    use arrow_deps::assert_batches_eq;
 
     #[test]
     fn writes_table_batches() {
@@ -282,7 +282,7 @@ mod tests {
 
         write_lp_to_chunk(&lp, &mut chunk).unwrap();
 
-        assert_table_eq!(
+        assert_batches_eq!(
             vec![
                 "+------+-------------------------------+-----+",
                 "| host | time                          | val |",
@@ -294,7 +294,7 @@ mod tests {
             &chunk_to_batches(&chunk, "cpu")
         );
 
-        assert_table_eq!(
+        assert_batches_eq!(
             vec![
                 "+------+-------------------------------+-------+",
                 "| host | time                          | val   |",
@@ -329,7 +329,7 @@ mod tests {
 
         write_lp_to_chunk(&lp, &mut chunk).unwrap();
 
-        assert_table_eq!(
+        assert_batches_eq!(
             vec![
                 "+------+-------------------------------+-----+",
                 "| host | time                          | val |",
@@ -342,7 +342,7 @@ mod tests {
             &chunk_to_batches(&chunk, "cpu")
         );
 
-        assert_table_eq!(
+        assert_batches_eq!(
             vec![
                 "+-------------------------------+------+",
                 "| time                          | val  |",
@@ -353,7 +353,7 @@ mod tests {
             &chunk_to_batches(&chunk, "disk")
         );
 
-        assert_table_eq!(
+        assert_batches_eq!(
             vec![
                 "+------+------+-------------------------------+-------+",
                 "| host | sval | time                          | val   |",

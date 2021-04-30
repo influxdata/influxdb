@@ -1,6 +1,6 @@
 use arrow_deps::{
     arrow::datatypes::DataType,
-    assert_table_eq,
+    assert_batches_eq,
     datafusion::logical_plan::{col, lit},
 };
 use query::{
@@ -156,6 +156,6 @@ async fn test_field_name_plan() {
             "+--------+--------+--------+--------+-------------------------------+",
         ];
 
-        assert_table_eq!(expected, &results);
+        assert_batches_eq!(expected, &results);
     }
 }

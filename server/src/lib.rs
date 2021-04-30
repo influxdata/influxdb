@@ -946,7 +946,7 @@ mod tests {
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
 
-    use arrow_deps::assert_table_eq;
+    use arrow_deps::assert_batches_eq;
     use data_types::database_rules::{
         HashRing, PartitionTemplate, ShardConfig, TemplatePart, NO_SHARD_CONFIG,
     };
@@ -1141,7 +1141,7 @@ mod tests {
             "| 1   | 1970-01-01 00:00:00.000000010 |",
             "+-----+-------------------------------+",
         ];
-        assert_table_eq!(expected, &batches);
+        assert_batches_eq!(expected, &batches);
     }
 
     #[tokio::test]
@@ -1185,7 +1185,7 @@ mod tests {
             "| 1   | 1970-01-01 00:00:00.000000010 |",
             "+-----+-------------------------------+",
         ];
-        assert_table_eq!(expected, &batches);
+        assert_batches_eq!(expected, &batches);
 
         metric_registry
             .has_metric_family("ingest_entries_bytes_total")

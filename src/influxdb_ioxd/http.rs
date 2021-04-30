@@ -853,7 +853,7 @@ mod tests {
         num::NonZeroU32,
     };
 
-    use arrow_deps::{arrow::record_batch::RecordBatch, assert_table_eq};
+    use arrow_deps::{arrow::record_batch::RecordBatch, assert_batches_eq};
     use reqwest::{Client, Response};
 
     use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
@@ -932,7 +932,7 @@ mod tests {
             "| 50.4           | santa_monica | CA    | 65.2            | 2021-04-01 14:10:24 |",
             "+----------------+--------------+-------+-----------------+---------------------+",
         ];
-        assert_table_eq!(expected, &batches);
+        assert_batches_eq!(expected, &batches);
     }
 
     #[tokio::test]
@@ -1200,7 +1200,7 @@ mod tests {
             "| 50.4           | santa_monica | CA    | 65.2            | 2021-04-01 14:10:24 |",
             "+----------------+--------------+-------+-----------------+---------------------+",
         ];
-        assert_table_eq!(expected, &batches);
+        assert_batches_eq!(expected, &batches);
     }
 
     #[tokio::test]

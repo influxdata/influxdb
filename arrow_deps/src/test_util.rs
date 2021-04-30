@@ -10,9 +10,9 @@ use crate::arrow::compute::kernels::sort::{lexsort, SortColumn, SortOptions};
 /// into the test code as expected results.
 ///
 /// Expects to be called about like this:
-/// assert_table_eq(expected_lines: &[&str], chunks: &[RecordBatch])
+/// assert_batches_eq(expected_lines: &[&str], chunks: &[RecordBatch])
 #[macro_export]
-macro_rules! assert_table_eq {
+macro_rules! assert_batches_eq {
     ($EXPECTED_LINES: expr, $CHUNKS: expr) => {
         let expected_lines: Vec<String> =
             $EXPECTED_LINES.into_iter().map(|s| s.to_string()).collect();

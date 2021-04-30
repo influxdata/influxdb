@@ -1,6 +1,6 @@
 use super::scenario::{collect_query, create_readable_database, rand_name, Scenario};
 use crate::common::server_fixture::ServerFixture;
-use arrow_deps::assert_table_eq;
+use arrow_deps::assert_batches_eq;
 
 #[tokio::test]
 pub async fn test() {
@@ -24,7 +24,7 @@ pub async fn test() {
 
     let batches = collect_query(query_results).await;
 
-    assert_table_eq!(expected_read_data, &batches);
+    assert_batches_eq!(expected_read_data, &batches);
 }
 
 #[tokio::test]

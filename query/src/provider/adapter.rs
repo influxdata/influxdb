@@ -233,7 +233,7 @@ mod tests {
             datatypes::{Field, Schema},
             record_batch::RecordBatch,
         },
-        assert_table_eq,
+        assert_batches_eq,
         datafusion::physical_plan::common::{collect, SizedRecordBatchStream},
     };
     use test_helpers::assert_contains;
@@ -259,7 +259,7 @@ mod tests {
             "| 3 | 6 | baz |",
             "+---+---+-----+",
         ];
-        assert_table_eq!(&expected, &output);
+        assert_batches_eq!(&expected, &output);
     }
 
     #[tokio::test]
@@ -288,7 +288,7 @@ mod tests {
             "| 6 | baz | 3 |",
             "+---+-----+---+",
         ];
-        assert_table_eq!(&expected, &output);
+        assert_batches_eq!(&expected, &output);
     }
 
     #[tokio::test]
@@ -318,7 +318,7 @@ mod tests {
             "| baz |   | 6 |   | 3 |",
             "+-----+---+---+---+---+",
         ];
-        assert_table_eq!(&expected, &output);
+        assert_batches_eq!(&expected, &output);
     }
 
     #[tokio::test]

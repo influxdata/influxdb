@@ -1,5 +1,5 @@
 use crate::common::server_fixture::ServerFixture;
-use arrow_deps::assert_table_eq;
+use arrow_deps::assert_batches_eq;
 
 use super::scenario::{collect_query, create_readable_database, rand_name};
 
@@ -55,7 +55,7 @@ async fn test_operations() {
         "+----------+----------+-----------------------------+",
     ];
 
-    assert_table_eq!(expected_read_data, &batches);
+    assert_batches_eq!(expected_read_data, &batches);
 
     // Should not see jobs from db1 when querying db2
     let query_results = client.perform_query(&db_name2, sql_query).await.unwrap();
@@ -63,5 +63,5 @@ async fn test_operations() {
     let batches = collect_query(query_results).await;
     let expected_read_data = vec!["++", "||", "++", "++"];
 
-    assert_table_eq!(expected_read_data, &batches);
+    assert_batches_eq!(expected_read_data, &batches);
 }

@@ -196,7 +196,7 @@ fn from_task_trackers(db_name: &str, jobs: Vec<TaskTracker<Job>>) -> Result<Reco
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow_deps::assert_table_eq;
+    use arrow_deps::assert_batches_eq;
     use chrono::NaiveDateTime;
     use data_types::chunk::ChunkStorage;
     use data_types::partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary};
@@ -244,7 +244,7 @@ mod tests {
         ];
 
         let batch = from_chunk_summaries(chunks).unwrap();
-        assert_table_eq!(&expected, &[batch]);
+        assert_batches_eq!(&expected, &[batch]);
     }
 
     #[test]
@@ -289,6 +289,6 @@ mod tests {
         ];
 
         let batch = from_partition_summaries(partitions).unwrap();
-        assert_table_eq!(&expected, &[batch]);
+        assert_batches_eq!(&expected, &[batch]);
     }
 }
