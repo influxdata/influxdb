@@ -329,19 +329,13 @@ struct DbMetrics {
     // various immutable stages in IOx: closing/moving in the MUB, in the RB,
     // and in Parquet.
     catalog_immutable_chunk_bytes: metrics::Histogram,
-
-    // Default labels for the metrics.
-    // TODO(edd): you should be able to set these on the metrics when they're
-    // created.
-    default_labels: Vec<metrics::KeyValue>,
 }
 
 impl DbMetrics {
     // updates the catalog_chunks metric with a new chunk state
     fn update_chunk_state(&self, state: &ChunkState) {
-        let mut labels = self.default_labels.to_vec();
-        labels.push(metrics::KeyValue::new("state", state.metric_label()));
-        self.catalog_chunks.inc_with_labels(&labels);
+        self.catalog_chunks
+            .inc_with_labels(&[metrics::KeyValue::new("state", state.metric_label())]);
     }
 }
 
@@ -367,10 +361,14 @@ impl Db {
 
         let domain = metrics.register_domain("catalog");
         let db_metrics = DbMetrics {
-            catalog_chunks: domain.register_counter_metric(
+            catalog_chunks: domain.register_counter_metric_with_labels(
                 "chunks",
                 None,
                 "In-memory chunks created in various life-cycle stages",
+                vec![
+                    metrics::KeyValue::new("db_name", db_name.to_string()),
+                    metrics::KeyValue::new("svr_id", format!("{}", server_id)),
+                ],
             ),
             catalog_immutable_chunk_bytes: domain
                 .register_histogram_metric(
@@ -384,10 +382,6 @@ impl Db {
                     metrics::KeyValue::new("svr_id", format!("{}", server_id)),
                 ])
                 .init(),
-            default_labels: vec![
-                metrics::KeyValue::new("db_name", db_name.to_string()),
-                metrics::KeyValue::new("svr_id", format!("{}", server_id)),
-            ],
         };
         Self {
             rules,
