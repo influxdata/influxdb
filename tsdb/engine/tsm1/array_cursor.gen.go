@@ -135,9 +135,10 @@ func (c *floatArrayAscendingCursor) Next() *tsdb.FloatArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] >= c.end {
+	// Strip timestamps from after the end time.
+	if pos > 0 && c.res.Timestamps[pos-1] > c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] >= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] > c.end {
 			pos--
 		}
 		pos++
@@ -182,35 +183,22 @@ func newFloatArrayDescendingCursor() *floatArrayDescendingCursor {
 }
 
 func (c *floatArrayDescendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+	// Search for the time value greater than the seek time (not included)
+	// and then move our position back one which will include the values in
+	// our time range.
 	c.end = end
 	c.cache.values = cacheValues
-	if len(c.cache.values) > 0 {
-		c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-			return c.cache.values[i].UnixNano() >= seek
-		})
-		if c.cache.pos == len(c.cache.values) {
-			c.cache.pos--
-		} else if c.cache.values[c.cache.pos].UnixNano() != seek {
-			c.cache.pos--
-		}
-	} else {
-		c.cache.pos = -1
-	}
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() > seek
+	})
+	c.cache.pos--
 
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatArrayBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
-		return c.tsm.values.Timestamps[i] >= seek
+		return c.tsm.values.Timestamps[i] > seek
 	})
-	if c.tsm.values.Len() > 0 {
-		if c.tsm.pos == c.tsm.values.Len() {
-			c.tsm.pos--
-		} else if c.tsm.values.Timestamps[c.tsm.pos] != seek {
-			c.tsm.pos--
-		}
-	} else {
-		c.tsm.pos = -1
-	}
+	c.tsm.pos--
 }
 
 func (c *floatArrayDescendingCursor) Err() error { return nil }
@@ -286,9 +274,10 @@ func (c *floatArrayDescendingCursor) Next() *tsdb.FloatArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
+	// Strip timestamps from before the end time.
+	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] < c.end {
 			pos--
 		}
 		pos++
@@ -428,9 +417,10 @@ func (c *integerArrayAscendingCursor) Next() *tsdb.IntegerArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] >= c.end {
+	// Strip timestamps from after the end time.
+	if pos > 0 && c.res.Timestamps[pos-1] > c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] >= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] > c.end {
 			pos--
 		}
 		pos++
@@ -475,35 +465,22 @@ func newIntegerArrayDescendingCursor() *integerArrayDescendingCursor {
 }
 
 func (c *integerArrayDescendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+	// Search for the time value greater than the seek time (not included)
+	// and then move our position back one which will include the values in
+	// our time range.
 	c.end = end
 	c.cache.values = cacheValues
-	if len(c.cache.values) > 0 {
-		c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-			return c.cache.values[i].UnixNano() >= seek
-		})
-		if c.cache.pos == len(c.cache.values) {
-			c.cache.pos--
-		} else if c.cache.values[c.cache.pos].UnixNano() != seek {
-			c.cache.pos--
-		}
-	} else {
-		c.cache.pos = -1
-	}
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() > seek
+	})
+	c.cache.pos--
 
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerArrayBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
-		return c.tsm.values.Timestamps[i] >= seek
+		return c.tsm.values.Timestamps[i] > seek
 	})
-	if c.tsm.values.Len() > 0 {
-		if c.tsm.pos == c.tsm.values.Len() {
-			c.tsm.pos--
-		} else if c.tsm.values.Timestamps[c.tsm.pos] != seek {
-			c.tsm.pos--
-		}
-	} else {
-		c.tsm.pos = -1
-	}
+	c.tsm.pos--
 }
 
 func (c *integerArrayDescendingCursor) Err() error { return nil }
@@ -579,9 +556,10 @@ func (c *integerArrayDescendingCursor) Next() *tsdb.IntegerArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
+	// Strip timestamps from before the end time.
+	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] < c.end {
 			pos--
 		}
 		pos++
@@ -721,9 +699,10 @@ func (c *unsignedArrayAscendingCursor) Next() *tsdb.UnsignedArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] >= c.end {
+	// Strip timestamps from after the end time.
+	if pos > 0 && c.res.Timestamps[pos-1] > c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] >= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] > c.end {
 			pos--
 		}
 		pos++
@@ -768,35 +747,22 @@ func newUnsignedArrayDescendingCursor() *unsignedArrayDescendingCursor {
 }
 
 func (c *unsignedArrayDescendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+	// Search for the time value greater than the seek time (not included)
+	// and then move our position back one which will include the values in
+	// our time range.
 	c.end = end
 	c.cache.values = cacheValues
-	if len(c.cache.values) > 0 {
-		c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-			return c.cache.values[i].UnixNano() >= seek
-		})
-		if c.cache.pos == len(c.cache.values) {
-			c.cache.pos--
-		} else if c.cache.values[c.cache.pos].UnixNano() != seek {
-			c.cache.pos--
-		}
-	} else {
-		c.cache.pos = -1
-	}
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() > seek
+	})
+	c.cache.pos--
 
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.values, _ = c.tsm.keyCursor.ReadUnsignedArrayBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
-		return c.tsm.values.Timestamps[i] >= seek
+		return c.tsm.values.Timestamps[i] > seek
 	})
-	if c.tsm.values.Len() > 0 {
-		if c.tsm.pos == c.tsm.values.Len() {
-			c.tsm.pos--
-		} else if c.tsm.values.Timestamps[c.tsm.pos] != seek {
-			c.tsm.pos--
-		}
-	} else {
-		c.tsm.pos = -1
-	}
+	c.tsm.pos--
 }
 
 func (c *unsignedArrayDescendingCursor) Err() error { return nil }
@@ -872,9 +838,10 @@ func (c *unsignedArrayDescendingCursor) Next() *tsdb.UnsignedArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
+	// Strip timestamps from before the end time.
+	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] < c.end {
 			pos--
 		}
 		pos++
@@ -1014,9 +981,10 @@ func (c *stringArrayAscendingCursor) Next() *tsdb.StringArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] >= c.end {
+	// Strip timestamps from after the end time.
+	if pos > 0 && c.res.Timestamps[pos-1] > c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] >= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] > c.end {
 			pos--
 		}
 		pos++
@@ -1061,35 +1029,22 @@ func newStringArrayDescendingCursor() *stringArrayDescendingCursor {
 }
 
 func (c *stringArrayDescendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+	// Search for the time value greater than the seek time (not included)
+	// and then move our position back one which will include the values in
+	// our time range.
 	c.end = end
 	c.cache.values = cacheValues
-	if len(c.cache.values) > 0 {
-		c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-			return c.cache.values[i].UnixNano() >= seek
-		})
-		if c.cache.pos == len(c.cache.values) {
-			c.cache.pos--
-		} else if c.cache.values[c.cache.pos].UnixNano() != seek {
-			c.cache.pos--
-		}
-	} else {
-		c.cache.pos = -1
-	}
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() > seek
+	})
+	c.cache.pos--
 
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.values, _ = c.tsm.keyCursor.ReadStringArrayBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
-		return c.tsm.values.Timestamps[i] >= seek
+		return c.tsm.values.Timestamps[i] > seek
 	})
-	if c.tsm.values.Len() > 0 {
-		if c.tsm.pos == c.tsm.values.Len() {
-			c.tsm.pos--
-		} else if c.tsm.values.Timestamps[c.tsm.pos] != seek {
-			c.tsm.pos--
-		}
-	} else {
-		c.tsm.pos = -1
-	}
+	c.tsm.pos--
 }
 
 func (c *stringArrayDescendingCursor) Err() error { return nil }
@@ -1165,9 +1120,10 @@ func (c *stringArrayDescendingCursor) Next() *tsdb.StringArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
+	// Strip timestamps from before the end time.
+	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] < c.end {
 			pos--
 		}
 		pos++
@@ -1307,9 +1263,10 @@ func (c *booleanArrayAscendingCursor) Next() *tsdb.BooleanArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] >= c.end {
+	// Strip timestamps from after the end time.
+	if pos > 0 && c.res.Timestamps[pos-1] > c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] >= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] > c.end {
 			pos--
 		}
 		pos++
@@ -1354,35 +1311,22 @@ func newBooleanArrayDescendingCursor() *booleanArrayDescendingCursor {
 }
 
 func (c *booleanArrayDescendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+	// Search for the time value greater than the seek time (not included)
+	// and then move our position back one which will include the values in
+	// our time range.
 	c.end = end
 	c.cache.values = cacheValues
-	if len(c.cache.values) > 0 {
-		c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-			return c.cache.values[i].UnixNano() >= seek
-		})
-		if c.cache.pos == len(c.cache.values) {
-			c.cache.pos--
-		} else if c.cache.values[c.cache.pos].UnixNano() != seek {
-			c.cache.pos--
-		}
-	} else {
-		c.cache.pos = -1
-	}
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() > seek
+	})
+	c.cache.pos--
 
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanArrayBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
-		return c.tsm.values.Timestamps[i] >= seek
+		return c.tsm.values.Timestamps[i] > seek
 	})
-	if c.tsm.values.Len() > 0 {
-		if c.tsm.pos == c.tsm.values.Len() {
-			c.tsm.pos--
-		} else if c.tsm.values.Timestamps[c.tsm.pos] != seek {
-			c.tsm.pos--
-		}
-	} else {
-		c.tsm.pos = -1
-	}
+	c.tsm.pos--
 }
 
 func (c *booleanArrayDescendingCursor) Err() error { return nil }
@@ -1458,9 +1402,10 @@ func (c *booleanArrayDescendingCursor) Next() *tsdb.BooleanArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
+	// Strip timestamps from before the end time.
+	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] < c.end {
 			pos--
 		}
 		pos++
