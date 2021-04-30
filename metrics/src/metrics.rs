@@ -8,7 +8,10 @@ use std::{
 use dashmap::DashMap;
 use observability_deps::opentelemetry::{
     labels,
-    metrics::{Counter as OTCounter, ValueObserver as OTGauge, ValueRecorder as OTHistogram},
+    metrics::{
+        Counter as OTCounter, ObserverResult, ValueObserver as OTGauge,
+        ValueRecorder as OTHistogram,
+    },
 };
 
 pub use observability_deps::opentelemetry::KeyValue;
@@ -310,16 +313,7 @@ impl Gauge {
     /// Set the gauge's `value` and associate the observation with the
     /// provided labels.
     pub fn set_with_labels(&self, value: f64, labels: &[KeyValue]) {
-        // Note: provided labels need to go last so that they overwrite
-        // any default labels.
-
-        let mut labels_new = self.default_labels.clone();
-        labels_new.extend(labels.iter().cloned());
-
-        // this may seem inefficient but it's nothing compared to this and more that happens in the
-        // internals of opentelemetry. There's lots of room for improvement everywhere.
-        let label_set = labels::LabelSet::from_labels(labels_new.iter().cloned());
-        let encoded_labels = label_set.encoded(Some(&labels::DefaultLabelEncoder));
+        let (encoded_labels, labels_new) = Self::merge_labels(&self.default_labels, labels);
         self.values.insert(encoded_labels, (value, labels_new));
     }
 
@@ -331,16 +325,7 @@ impl Gauge {
     /// Increase the gauge's value by `value` and associate the observation with the
     /// provided labels.
     pub fn add_with_labels(&self, value: f64, labels: &[KeyValue]) {
-        // Note: provided labels need to go last so that they overwrite
-        // any default labels.
-
-        let mut labels_new = self.default_labels.clone();
-        labels_new.extend(labels.iter().cloned());
-
-        // this may seem inefficient but it's nothing compared to this and more that happens in the
-        // internals of opentelemetry. There's lots of room for improvement everywhere.
-        let label_set = labels::LabelSet::from_labels(labels_new.iter().cloned());
-        let encoded_labels = label_set.encoded(Some(&labels::DefaultLabelEncoder));
+        let (encoded_labels, labels_new) = Self::merge_labels(&self.default_labels, labels);
 
         // update value
         match self.values.entry(encoded_labels) {
@@ -363,6 +348,45 @@ impl Gauge {
     /// provided labels.
     pub fn sub_with_labels(&self, value: f64, labels: &[KeyValue]) {
         self.add_with_labels(-value, labels);
+    }
+
+    pub(crate) fn merge_labels(
+        default_labels: &[KeyValue],
+        labels: &[KeyValue],
+    ) -> (String, Vec<KeyValue>) {
+        // Note: provided labels need to go last so that they overwrite
+        // any default labels.
+
+        let mut labels_new = default_labels.to_vec();
+        labels_new.extend(labels.iter().cloned());
+
+        // this may seem inefficient but it's nothing compared to this and more that happens in the
+        // internals of opentelemetry. There's lots of room for improvement everywhere.
+        let label_set = labels::LabelSet::from_labels(labels_new.iter().cloned());
+        (
+            label_set.encoded(Some(&labels::DefaultLabelEncoder)),
+            labels_new,
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct GaugeObserverResult {
+    observer: ObserverResult<f64>,
+    default_labels: Vec<KeyValue>,
+}
+
+impl GaugeObserverResult {
+    pub(crate) fn new(observer: ObserverResult<f64>, default_labels: Vec<KeyValue>) -> Self {
+        Self {
+            observer,
+            default_labels,
+        }
+    }
+
+    pub fn observe(&self, value: f64, labels: &[KeyValue]) {
+        let (_, labels_new) = Gauge::merge_labels(&self.default_labels, labels);
+        self.observer.observe(value, &labels_new);
     }
 }
 

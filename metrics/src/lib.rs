@@ -300,6 +300,27 @@ impl Domain {
         description: impl Into<String>,
         default_labels: Vec<KeyValue>,
     ) -> metrics::Gauge {
+        self.register_gauge_metric_with_labels_and_callback(
+            name,
+            unit,
+            description,
+            default_labels,
+            |_| {},
+        )
+    }
+
+    /// Registers a new gauge metric with default labels and callback
+    pub fn register_gauge_metric_with_labels_and_callback<F>(
+        &self,
+        name: &str,
+        unit: Option<&str>,
+        description: impl Into<String>,
+        default_labels: Vec<KeyValue>,
+        callback: F,
+    ) -> metrics::Gauge
+    where
+        F: Fn(metrics::GaugeObserverResult) + Send + Sync + 'static,
+    {
         // A gauge is technically a ValueRecorder for which we only care about the last value.
         // Unfortunately, in opentelemetry it appears that such behavior is selected by crafting
         // a custom selector that will then apply a LastValueAggregator. This is all very
@@ -313,6 +334,7 @@ impl Domain {
 
         let values = Arc::new(DashMap::new());
         let values_captured = Arc::clone(&values);
+        let default_labels_captured = default_labels.clone();
         let gauge = self
             .meter
             .f64_value_observer(
@@ -322,13 +344,17 @@ impl Domain {
                     }
                     None => self.build_metric_prefix(name, None),
                 },
-                move |arg| {
+                move |observer| {
                     for i in values_captured.iter() {
                         // currently rust type inference cannot deduct the type of i.value()
                         let i: RefMulti<'_, _, (f64, Vec<KeyValue>), _> = i;
                         let &(value, ref labels) = i.value();
-                        arg.observe(value, labels);
+                        observer.observe(value, labels);
                     }
+                    callback(metrics::GaugeObserverResult::new(
+                        observer,
+                        default_labels_captured.clone(),
+                    ));
                 },
             )
             .with_description(description)
@@ -388,6 +414,7 @@ impl<'a> HistogramBuilder<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::sync::Mutex;
     use std::time::Duration;
 
     #[test]
@@ -722,6 +749,57 @@ mod test {
             .with_labels(&[("tier", "a")])
             .gauge()
             .eq(29.0)
+            .unwrap();
+    }
+
+    #[test]
+    fn gauge_metric_callback() {
+        let reg = TestMetricRegistry::default();
+        let domain = reg.registry().register_domain("http");
+
+        let value = Arc::new(Mutex::new(40.0));
+        let value_captured = Arc::clone(&value);
+
+        // create a gauge metric
+        domain.register_gauge_metric_with_labels_and_callback(
+            "mem",
+            Some("bytes"),
+            "currently used bytes",
+            vec![KeyValue::new("tier", "a")],
+            move |observer| {
+                observer.observe(*value_captured.lock().unwrap(), &[]);
+            },
+        );
+
+        domain.register_gauge_metric_with_labels_and_callback(
+            "disk",
+            Some("bytes"),
+            "currently used bytes",
+            vec![KeyValue::new("tier", "a")],
+            |observer| observer.observe(43.0, &[KeyValue::new("beer", "b")]),
+        );
+
+        reg.has_metric_family("http_mem_bytes")
+            .with_labels(&[("tier", "a")])
+            .gauge()
+            .eq(40.0)
+            .unwrap();
+
+        {
+            let mut value = value.lock().unwrap();
+            *value = 42.0;
+        }
+
+        reg.has_metric_family("http_mem_bytes")
+            .with_labels(&[("tier", "a")])
+            .gauge()
+            .eq(42.0)
+            .unwrap();
+
+        reg.has_metric_family("http_disk_bytes")
+            .with_labels(&[("beer", "b"), ("tier", "a")])
+            .gauge()
+            .eq(43.0)
             .unwrap();
     }
 }
