@@ -15,6 +15,7 @@ use super::{
 };
 use data_types::database_rules::SortOrder;
 use futures::future::BoxFuture;
+use std::collections::HashSet;
 use std::time::Duration;
 
 pub const DEFAULT_LIFECYCLE_BACKOFF: Duration = Duration::from_secs(1);
@@ -104,6 +105,8 @@ trait ChunkMover {
         let rules = self.rules();
         let chunks = self.chunks(&rules.sort_order);
 
+        let mut open_partitions: HashSet<String> = HashSet::new();
+
         let mut buffer_size = 0;
 
         // Only want to start a new move/write task if there isn't one already in-flight
@@ -132,18 +135,21 @@ trait ChunkMover {
             let would_write = write_tracker.is_none() && rules.persist;
 
             match chunk_guard.state() {
-                ChunkState::Open(_) if move_tracker.is_none() && would_move => {
-                    let mut chunk_guard = RwLockUpgradableReadGuard::upgrade(chunk_guard);
-                    chunk_guard.set_closing().expect("cannot close open chunk");
+                ChunkState::Open(_) => {
+                    open_partitions.insert(chunk_guard.key().to_string());
+                    if move_tracker.is_none() && would_move {
+                        let mut chunk_guard = RwLockUpgradableReadGuard::upgrade(chunk_guard);
+                        chunk_guard.set_closing().expect("cannot close open chunk");
 
-                    let partition_key = chunk_guard.key().to_string();
-                    let table_name = chunk_guard.table_name().to_string();
-                    let chunk_id = chunk_guard.id();
+                        let partition_key = chunk_guard.key().to_string();
+                        let table_name = chunk_guard.table_name().to_string();
+                        let chunk_id = chunk_guard.id();
 
-                    std::mem::drop(chunk_guard);
+                        std::mem::drop(chunk_guard);
 
-                    move_tracker =
-                        Some(self.move_to_read_buffer(partition_key, table_name, chunk_id));
+                        move_tracker =
+                            Some(self.move_to_read_buffer(partition_key, table_name, chunk_id));
+                    }
                 }
                 ChunkState::Closing(_) if move_tracker.is_none() => {
                     let partition_key = chunk_guard.key().to_string();
@@ -189,6 +195,11 @@ trait ChunkMover {
                                 buffer_size.saturating_sub(Self::chunk_size(&*chunk_guard));
 
                             std::mem::drop(chunk_guard);
+
+                            if open_partitions.contains(&partition_key) {
+                                warn!(db_name=self.db_name(), %partition_key, chunk_id, soft_limit, buffer_size,
+                                      "dropping chunk from partition containing open chunk. Consider increasing the soft buffer limit");
+                            }
 
                             self.drop_chunk(partition_key, table_name, chunk_id)
                         }
