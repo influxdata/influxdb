@@ -32,7 +32,7 @@ async fn test_operations() {
         .await
         .expect("new partition chunk");
 
-    let operation_id = operation.name.parse().expect("not an integer");
+    let operation_id = operation.id();
     operations_client
         .wait_operation(operation_id, Some(std::time::Duration::from_secs(1)))
         .await

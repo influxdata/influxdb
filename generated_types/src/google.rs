@@ -9,6 +9,17 @@ pub mod rpc {
 
 pub mod longrunning {
     include!(concat!(env!("OUT_DIR"), "/google.longrunning.rs"));
+
+    impl Operation {
+        /// Return the IOx operation `id`. This `id` can
+        /// be passed to the various APIs in the
+        /// operations client such as `influxdb_iox_client::operations::Client::wait_operation`;
+        pub fn id(&self) -> usize {
+            self.name
+                .parse()
+                .expect("Internal error: id returned from server was not an integer")
+        }
+    }
 }
 
 use self::protobuf::Any;

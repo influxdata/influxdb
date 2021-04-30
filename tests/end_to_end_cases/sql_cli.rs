@@ -267,12 +267,11 @@ async fn test_sql_observer_operations() {
         .expect("new partition chunk");
 
     println!("Operation response is {:?}", operation);
-    let operation_id = operation.name.parse().expect("not an integer");
 
     // wait for the job to be done
     fixture
         .operations_client()
-        .wait_operation(operation_id, Some(std::time::Duration::from_secs(1)))
+        .wait_operation(operation.id(), Some(std::time::Duration::from_secs(1)))
         .await
         .expect("failed to wait operation");
 

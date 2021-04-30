@@ -622,7 +622,7 @@ async fn test_close_partition_chunk() {
         .expect("new partition chunk");
 
     println!("Operation response is {:?}", operation);
-    let operation_id = operation.name.parse().expect("not an integer");
+    let operation_id = operation.id();
 
     let meta = operations::ClientOperation::try_new(operation)
         .unwrap()
