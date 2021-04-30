@@ -83,22 +83,19 @@ func convertNsecs(nsecs int64) values.Duration {
 	return values.MakeDuration(nsecs, 0, negative)
 }
 
-func (r *windowAggregateResultSet) createCursor(seriesRow SeriesRow) (cursors.Cursor, error) {
-	agg := r.req.Aggregate[0]
-	every := r.req.WindowEvery
-	offset := r.req.Offset
-	cursor := r.arrayCursors.createCursor(seriesRow)
-
+func GetWindow(req *datatypes.ReadWindowAggregateRequest) (interval.Window, error) {
 	var everyDur values.Duration
 	var offsetDur values.Duration
 	var periodDur values.Duration
 
-	if r.req.Window != nil {
+	every := req.WindowEvery
+	offset := req.Offset
+	if req.Window != nil {
 		// assume window was passed in and translate protobuf window to execute.Window
-		everyDur = values.MakeDuration(r.req.Window.Every.Nsecs, r.req.Window.Every.Months, r.req.Window.Every.Negative)
-		periodDur = values.MakeDuration(r.req.Window.Every.Nsecs, r.req.Window.Every.Months, r.req.Window.Every.Negative)
-		if r.req.Window.Offset != nil {
-			offsetDur = values.MakeDuration(r.req.Window.Offset.Nsecs, r.req.Window.Offset.Months, r.req.Window.Offset.Negative)
+		everyDur = values.MakeDuration(req.Window.Every.Nsecs, req.Window.Every.Months, req.Window.Every.Negative)
+		periodDur = values.MakeDuration(req.Window.Every.Nsecs, req.Window.Every.Months, req.Window.Every.Negative)
+		if req.Window.Offset != nil {
+			offsetDur = values.MakeDuration(req.Window.Offset.Nsecs, req.Window.Offset.Months, req.Window.Offset.Negative)
 		} else {
 			offsetDur = values.MakeDuration(0, 0, false)
 		}
@@ -109,16 +106,24 @@ func (r *windowAggregateResultSet) createCursor(seriesRow SeriesRow) (cursors.Cu
 		offsetDur = convertNsecs(offset)
 	}
 
-	window, err := interval.NewWindow(everyDur, periodDur, offsetDur)
+	return interval.NewWindow(everyDur, periodDur, offsetDur)
+}
+
+func (r *windowAggregateResultSet) createCursor(seriesRow SeriesRow) (cursors.Cursor, error) {
+	agg := r.req.Aggregate[0]
+
+	cursor := r.arrayCursors.createCursor(seriesRow)
+
+	window, err := GetWindow(r.req)
 	if err != nil {
 		return nil, err
 	}
 
-	if everyDur.Nanoseconds() == math.MaxInt64 {
+	if window.Every().Nanoseconds() == math.MaxInt64 {
 		// This means to aggregate over whole series for the query's time range
 		return newAggregateArrayCursor(r.ctx, agg, cursor)
 	} else {
-		return newWindowAggregateArrayCursor(r.ctx, agg, window, cursor)
+		return NewWindowAggregateArrayCursor(r.ctx, agg, window, cursor)
 	}
 }
 
