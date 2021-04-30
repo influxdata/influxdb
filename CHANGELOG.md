@@ -3,7 +3,7 @@
 
 ### Bug Fixes
 
-1. [21345](https://github.com/influxdata/influxdb/pull/21345): Deprecate the unsupported `PostSetupUser` API.
+1. [21350](https://github.com/influxdata/influxdb/pull/21350): Deprecate the unsupported `PostSetupUser` API.
 
 ## v2.0.6 [2021-04-29]
 ----------------------
