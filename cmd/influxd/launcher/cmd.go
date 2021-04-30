@@ -33,8 +33,8 @@ const (
 // NewInfluxdCommand constructs the root of the influxd CLI, along with a `run` subcommand.
 // The `run` subcommand is set as the default to execute.
 func NewInfluxdCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
-	o := newOpts(v)
-	cliOpts := o.bindCliOpts()
+	o := NewOpts(v)
+	cliOpts := o.BindCliOpts()
 
 	prog := cli.Program{
 		Name: "influxd",
@@ -168,8 +168,8 @@ type InfluxdOpts struct {
 	Viper *viper.Viper
 }
 
-// newOpts constructs options with default values.
-func newOpts(viper *viper.Viper) *InfluxdOpts {
+// NewOpts constructs options with default values.
+func NewOpts(viper *viper.Viper) *InfluxdOpts {
 	dir, err := fs.InfluxDir()
 	if err != nil {
 		panic(fmt.Errorf("failed to determine influx directory: %v", err))
@@ -205,20 +205,20 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 
 		NoTasks: false,
 
-		ConcurrencyQuota:                0,
+		ConcurrencyQuota:                1024,
 		InitialMemoryBytesQuotaPerQuery: 0,
 		MemoryBytesQuotaPerQuery:        MaxInt,
 		MaxMemoryBytes:                  0,
-		QueueSize:                       0,
+		QueueSize:                       1024,
 
 		Testing:                 false,
 		TestingAlwaysAllowSetup: false,
 	}
 }
 
-// bindCliOpts returns a list of options which can be added to a cobra command
+// BindCliOpts returns a list of options which can be added to a cobra command
 // in order to set options over the CLI.
-func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
+func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 	return []cli.Opt{
 		{
 			DestP:   &o.LogLevel,

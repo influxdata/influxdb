@@ -673,9 +673,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	onboardSvc = tenant.NewOnboardingLogger(onboardingLogger, onboardSvc)                 // with logging
 
 	var (
-		authorizerV1 platform.AuthorizerV1
-		passwordV1   platform.PasswordsService
-		authSvcV1    *authv1.Service
+		passwordV1 platform.PasswordsService
+		authSvcV1  *authv1.Service
 	)
 	{
 		authStore, err := authv1.NewStore(m.kvStore)
@@ -686,13 +685,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 		authSvcV1 = authv1.NewService(authStore, ts)
 		passwordV1 = authv1.NewCachingPasswordsService(authSvcV1)
-
-		authorizerV1 = &authv1.Authorizer{
-			AuthV1:   authSvcV1,
-			AuthV2:   authSvc,
-			Comparer: passwordV1,
-			User:     ts,
-		}
 	}
 
 	var (
@@ -736,12 +728,19 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			BucketFinder:  ts.BucketService,
 			LogBucketName: platform.MonitoringSystemBucketName,
 		},
-		DeleteService:        deleteService,
-		BackupService:        backupService,
-		RestoreService:       restoreService,
-		AuthorizationService: authSvc,
-		AuthorizerV1:         authorizerV1,
-		AlgoWProxy:           &http.NoopProxyHandler{},
+		DeleteService:          deleteService,
+		BackupService:          backupService,
+		RestoreService:         restoreService,
+		AuthorizationService:   authSvc,
+		AuthorizationV1Service: authSvcV1,
+		PasswordV1Service:      passwordV1,
+		AuthorizerV1: &authv1.Authorizer{
+			AuthV1:   authSvcV1,
+			AuthV2:   authSvc,
+			Comparer: passwordV1,
+			User:     ts,
+		},
+		AlgoWProxy: &http.NoopProxyHandler{},
 		// Wrap the BucketService in a storage backed one that will ensure deleted buckets are removed from the storage engine.
 		BucketService:                   ts.BucketService,
 		SessionService:                  sessionSvc,
@@ -1138,6 +1137,10 @@ func (m *Launcher) UserResourceMappingService() platform.UserResourceMappingServ
 // AuthorizationService returns the internal authorization service.
 func (m *Launcher) AuthorizationService() platform.AuthorizationService {
 	return m.apibackend.AuthorizationService
+}
+
+func (m *Launcher) AuthorizationV1Service() platform.AuthorizationService {
+	return m.apibackend.AuthorizationV1Service
 }
 
 // SecretService returns the internal secret service.

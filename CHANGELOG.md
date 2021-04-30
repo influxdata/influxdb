@@ -5,6 +5,14 @@
 1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
 1. [21218](https://github.com/influxdata/influxdb/pull/21218): Add the properties of a static legend for line graphs and band plots.
 
+## v2.0.6 [2021-04-29]
+
+### Bug Fixes
+
+1. [21321](https://github.com/influxdata/influxdb/pull/21321): Ensure query config written by influxd upgrade is valid.
+1. [21324](https://github.com/influxdata/influxdb/pull/21324): Revert to nonzero defaults for `query-concurrency` and `query-queue-size` to avoid validation failures for upgrading users.
+1. [21324](https://github.com/influxdata/influxdb/pull/21324): Don't fail validation when `query-concurrency` is 0 and `query-queue-size` is > 0.
+
 ## v2.0.5 [2021-04-27]
 
 ### Windows Support

@@ -5,14 +5,13 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	feature "github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
-
-	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
+	notebooks "github.com/influxdata/influxdb/v2/notebooks/service"
 	"go.uber.org/zap"
 )
 
@@ -90,7 +89,7 @@ func (h *NotebookHandler) handleGetNotebooks(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Demo data - for development purposes.
-	d := map[string][]influxdb.Notebook{}
+	d := map[string][]notebooks.Notebook{}
 	d["flows"] = demoNotebooks(3, *orgID)
 
 	h.api.Respond(w, r, http.StatusOK, d)
@@ -105,7 +104,7 @@ func (h *NotebookHandler) handleCreateNotebook(w http.ResponseWriter, r *http.Re
 	}
 
 	// Demo data - just return the body from the request with a generated ID
-	b := influxdb.Notebook{}
+	b := notebooks.Notebook{}
 	if err := h.api.DecodeJSON(r.Body, &b); err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -152,7 +151,7 @@ func (h *NotebookHandler) handlePatchNotebook(w http.ResponseWriter, r *http.Req
 	}
 
 	// Demo data - just return the body from the request with a generated ID
-	b := influxdb.Notebook{}
+	b := notebooks.Notebook{}
 	if err := h.api.DecodeJSON(r.Body, &b); err != nil {
 		h.api.Err(w, r, err)
 		return
