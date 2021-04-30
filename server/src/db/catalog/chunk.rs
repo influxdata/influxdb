@@ -26,8 +26,8 @@ pub enum ChunkState {
     /// Chunk can accept new writes
     Open(MBChunk),
 
-    /// Chunk can still accept new writes, but will likely be closed soon
-    Closing(MBChunk),
+    /// Chunk is closed for new writes
+    Closed(MBChunk),
 
     /// Chunk is closed for new writes, and is actively moving to the read
     /// buffer
@@ -50,7 +50,7 @@ impl ChunkState {
         match self {
             Self::Invalid => "Invalid",
             Self::Open(_) => "Open",
-            Self::Closing(_) => "Closing",
+            Self::Closed(_) => "Closed",
             Self::Moving(_) => "Moving",
             Self::Moved(_) => "Moved",
             Self::WritingToObjectStore(_) => "Writing to Object Store",
@@ -63,7 +63,7 @@ impl ChunkState {
         match self {
             Self::Invalid => "invalid",
             Self::Open(_) => "open",
-            Self::Closing(_) => "closing",
+            Self::Closed(_) => "closed",
             Self::Moving(_) => "moving",
             Self::Moved(_) => "moved",
             Self::WritingToObjectStore(_) => "writing_os",
@@ -98,9 +98,9 @@ pub struct Chunk {
     /// itself
     time_of_last_write: Option<DateTime<Utc>>,
 
-    /// Time at which this chunk was maked as closing. Note this is
+    /// Time at which this chunk was maked as closed. Note this is
     /// not the same as the timestamps on the data itself
-    time_closing: Option<DateTime<Utc>>,
+    time_closed: Option<DateTime<Utc>>,
 }
 
 macro_rules! unexpected_state {
@@ -152,7 +152,7 @@ impl Chunk {
             state,
             time_of_first_write: None,
             time_of_last_write: None,
-            time_closing: None,
+            time_closed: None,
         };
         chunk.record_write();
         Ok(chunk)
@@ -193,8 +193,8 @@ impl Chunk {
         self.time_of_last_write
     }
 
-    pub fn time_closing(&self) -> Option<DateTime<Utc>> {
-        self.time_closing
+    pub fn time_closed(&self) -> Option<DateTime<Utc>> {
+        self.time_closed
     }
 
     /// Update the write timestamps for this chunk
@@ -213,7 +213,7 @@ impl Chunk {
             ChunkState::Open(chunk) => {
                 (chunk.size(), chunk.rows(), ChunkStorage::OpenMutableBuffer)
             }
-            ChunkState::Closing(chunk) => (
+            ChunkState::Closed(chunk) => (
                 chunk.size(),
                 chunk.rows(),
                 ChunkStorage::ClosedMutableBuffer,
@@ -249,7 +249,7 @@ impl Chunk {
             row_count,
             time_of_first_write: self.time_of_first_write,
             time_of_last_write: self.time_of_last_write,
-            time_closing: self.time_closing,
+            time_closed: self.time_closed,
         }
     }
 
@@ -257,7 +257,7 @@ impl Chunk {
     pub fn table_summary(&self) -> TableSummary {
         match &self.state {
             ChunkState::Invalid => panic!("invalid chunk state"),
-            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => {
+            ChunkState::Open(chunk) | ChunkState::Closed(chunk) => {
                 let mut summaries = chunk.table_summaries();
                 assert_eq!(summaries.len(), 1);
                 summaries.remove(0)
@@ -290,7 +290,7 @@ impl Chunk {
     pub fn size(&self) -> usize {
         match &self.state {
             ChunkState::Invalid => 0,
-            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.size(),
+            ChunkState::Open(chunk) | ChunkState::Closed(chunk) => chunk.size(),
             ChunkState::Moving(chunk) => chunk.size(),
             ChunkState::Moved(chunk) => chunk.size() as usize,
             ChunkState::WritingToObjectStore(chunk) => chunk.size() as usize,
@@ -301,32 +301,32 @@ impl Chunk {
     }
 
     /// Returns a mutable reference to the mutable buffer storage for
-    /// chunks in the Open or Closing state
+    /// chunks in the Open or Closed state
     ///
-    /// Must be in open or closing state
+    /// Must be in open or closed state
     pub fn mutable_buffer(&mut self) -> Result<&mut MBChunk> {
         match &mut self.state {
             ChunkState::Open(chunk) => Ok(chunk),
-            ChunkState::Closing(chunk) => Ok(chunk),
-            state => unexpected_state!(self, "mutable buffer reference", "Open or Closing", state),
+            ChunkState::Closed(chunk) => Ok(chunk),
+            state => unexpected_state!(self, "mutable buffer reference", "Open or Closed", state),
         }
     }
 
-    /// Set the chunk to the Closing state
-    pub fn set_closing(&mut self) -> Result<()> {
+    /// Set the chunk to the Closed state
+    pub fn set_closed(&mut self) -> Result<()> {
         let mut s = ChunkState::Invalid;
         std::mem::swap(&mut s, &mut self.state);
 
         match s {
-            ChunkState::Open(s) | ChunkState::Closing(s) => {
-                assert!(self.time_closing.is_none());
-                self.time_closing = Some(Utc::now());
-                self.state = ChunkState::Closing(s);
+            ChunkState::Open(s) | ChunkState::Closed(s) => {
+                assert!(self.time_closed.is_none());
+                self.time_closed = Some(Utc::now());
+                self.state = ChunkState::Closed(s);
                 Ok(())
             }
             state => {
                 self.state = state;
-                unexpected_state!(self, "setting closing", "Open or Closing", &self.state)
+                unexpected_state!(self, "setting closed", "Open or Closed", &self.state)
             }
         }
     }
@@ -338,14 +338,14 @@ impl Chunk {
         std::mem::swap(&mut s, &mut self.state);
 
         match s {
-            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => {
+            ChunkState::Open(chunk) | ChunkState::Closed(chunk) => {
                 let chunk = Arc::new(chunk);
                 self.state = ChunkState::Moving(Arc::clone(&chunk));
                 Ok(chunk)
             }
             state => {
                 self.state = state;
-                unexpected_state!(self, "setting moving", "Open or Closing", &self.state)
+                unexpected_state!(self, "setting moving", "Open or Closed", &self.state)
             }
         }
     }

@@ -326,7 +326,7 @@ struct DbMetrics {
     catalog_chunks: metrics::Counter,
 
     // Tracks a distribution of sizes in bytes of chunks as they're moved into
-    // various immutable stages in IOx: closing/moving in the MUB, in the RB,
+    // various immutable stages in IOx: closed/moving in the MUB, in the RB,
     // and in Parquet.
     catalog_immutable_chunk_bytes: metrics::Histogram,
 }
@@ -428,7 +428,7 @@ impl Db {
             })?
         {
             let mut chunk = chunk.write();
-            chunk.set_closing().context(RollingOverPartition {
+            chunk.set_closed().context(RollingOverPartition {
                 partition_key,
                 table_name,
             })?;
@@ -499,7 +499,7 @@ impl Db {
             })
     }
 
-    /// Copies a chunk in the Closing state into the ReadBuffer from
+    /// Copies a chunk in the Closed state into the ReadBuffer from
     /// the mutable buffer and marks the chunk with `Moved` state
     ///
     /// This code does not do any checking of the read buffer against
@@ -783,7 +783,7 @@ impl Db {
                 return Err(e);
             }
 
-            debug!(%name, %partition_key, %table_name, %chunk_id, "background task completed closing chunk");
+            debug!(%name, %partition_key, %table_name, %chunk_id, "background task completed loading chunk to read buffer");
 
             Ok(())
         };
@@ -963,7 +963,7 @@ impl Db {
                                     chunk_id,
                                 })?;
 
-                            check_chunk_closing(chunk, mutable_size_threshold, &self.metrics);
+                            check_chunk_closed(chunk, mutable_size_threshold, &self.metrics);
                         }
                         None => {
                             let new_chunk = partition
@@ -976,7 +976,7 @@ impl Db {
                                 .context(OpenEntry { partition_key })?;
                             self.metrics.update_chunk_state(new_chunk.read().state()); // track new chunk
 
-                            check_chunk_closing(
+                            check_chunk_closed(
                                 new_chunk.write(),
                                 mutable_size_threshold,
                                 &self.metrics,
@@ -992,9 +992,7 @@ impl Db {
 }
 
 /// Check if the given chunk should be closed based on the the MutableBuffer size threshold.
-///
-/// If the chunk should be closed, it will be set to "closing",
-fn check_chunk_closing(
+fn check_chunk_closed(
     mut chunk: RwLockWriteGuard<'_, RawRwLock, CatalogChunk>,
     mutable_size_threshold: Option<NonZeroUsize>,
     metrics: &DbMetrics,
@@ -1004,7 +1002,7 @@ fn check_chunk_closing(
             let size = mb_chunk.size();
 
             if size > threshold.get() {
-                chunk.set_closing().expect("cannot close open chunk");
+                chunk.set_closed().expect("cannot close open chunk");
                 metrics.update_chunk_state(chunk.state());
             }
         }
@@ -1191,13 +1189,13 @@ mod tests {
 
         db.rollover_partition("1970-01-01T00", "cpu").await.unwrap();
 
-        // A chunk is now closing
+        // A chunk is now closed
         test_db
             .metric_registry
             .has_metric_family("catalog_chunks_total")
             .with_labels(&[
                 ("db_name", "placeholder"),
-                ("state", "closing"),
+                ("state", "closed"),
                 ("svr_id", "1"),
             ])
             .counter()
@@ -1214,7 +1212,7 @@ mod tests {
             .has_metric_family("catalog_chunks_total")
             .with_labels(&[
                 ("db_name", "placeholder"),
-                ("state", "closing"),
+                ("state", "closed"),
                 ("svr_id", "1"),
             ])
             .counter()
@@ -1648,8 +1646,8 @@ mod tests {
         assert!(start < chunk.time_of_first_write().unwrap());
         assert!(chunk.time_of_first_write().unwrap() < after_data_load);
         assert!(chunk.time_of_first_write().unwrap() == chunk.time_of_last_write().unwrap());
-        assert!(after_data_load < chunk.time_closing().unwrap());
-        assert!(chunk.time_closing().unwrap() < after_rollover);
+        assert!(after_data_load < chunk.time_closed().unwrap());
+        assert!(chunk.time_closed().unwrap() < after_rollover);
     }
 
     #[tokio::test]
@@ -1669,8 +1667,8 @@ mod tests {
 
         let chunks: Vec<_> = partition.chunks().collect();
         assert_eq!(chunks.len(), 2);
-        assert!(matches!(chunks[0].read().state(), ChunkState::Closing(_)));
-        assert!(matches!(chunks[1].read().state(), ChunkState::Closing(_)));
+        assert!(matches!(chunks[0].read().state(), ChunkState::Closed(_)));
+        assert!(matches!(chunks[1].read().state(), ChunkState::Closed(_)));
     }
 
     #[tokio::test]
@@ -1858,12 +1856,12 @@ mod tests {
         );
 
         assert!(
-            summary.time_closing.unwrap() > after_first_write,
+            summary.time_closed.unwrap() > after_first_write,
             "summary; {:#?}",
             summary
         );
         assert!(
-            summary.time_closing.unwrap() < after_close,
+            summary.time_closed.unwrap() < after_close,
             "summary; {:#?}",
             summary
         );

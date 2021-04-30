@@ -178,7 +178,7 @@ pub struct LifecycleRules {
     /// this many seconds will be frozen and compacted (moved to the read
     /// buffer) if the chunk is older than mutable_min_lifetime_seconds
     ///
-    /// Represents the chunk transition open -> moving and closing -> moving
+    /// Represents the chunk transition open -> moving and closed -> moving
     pub mutable_linger_seconds: Option<NonZeroU32>,
 
     /// A chunk of data within a partition is guaranteed to remain mutable
