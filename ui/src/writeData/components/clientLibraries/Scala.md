@@ -2,7 +2,7 @@ For more detailed and up to date information check out the [GitHub Repository](h
 
 ##### Add Dependency
 
-_The client is cross-built against Scala 2.12 and 2.13. The following example uses the Scala 2.13._
+_The client is cross-built against Scala 2.12 and 2.13. The following example uses the Scala 2.12._
 
 Build with sbt
 
