@@ -8,6 +8,7 @@
 mod metrics;
 mod tests;
 
+use dashmap::{mapref::multiple::RefMulti, DashMap};
 use observability_deps::{
     opentelemetry::metrics::Meter as OTMeter,
     opentelemetry::{
@@ -21,6 +22,7 @@ use observability_deps::{
     prometheus::{Encoder, Registry, TextEncoder},
     tracing::*,
 };
+use std::sync::Arc;
 
 pub use crate::metrics::{Counter, Histogram, KeyValue, RedMetric};
 pub use crate::tests::*;
@@ -267,6 +269,72 @@ impl Domain {
             .with_description(description);
 
         HistogramBuilder::new(histogram)
+    }
+
+    /// Registers a new gauge metric.
+    ///
+    /// A gauge is a metric that represents a single numerical value that can arbitrarily go up and down.
+    /// Gauges are typically used for measured values like temperatures or current memory usage, but also
+    /// "counts" that can go up and down, like the number of concurrent requests.
+    ///
+    /// `name` should be a noun that describes the thing being observed, e.g.,
+    /// threads, buffers, ...
+    ///
+    /// `unit` is optional and will appear in the metric name before a final
+    /// `total` suffix. Consider reviewing
+    /// https://prometheus.io/docs/practices/naming/#base-units for appropriate
+    pub fn register_gauge_metric(
+        &self,
+        name: &str,
+        unit: Option<&str>,
+        description: impl Into<String>,
+    ) -> metrics::Gauge {
+        self.register_gauge_metric_with_labels(name, unit, description, vec![])
+    }
+
+    /// Registers a new gauge metric with default labels.
+    pub fn register_gauge_metric_with_labels(
+        &self,
+        name: &str,
+        unit: Option<&str>,
+        description: impl Into<String>,
+        default_labels: Vec<KeyValue>,
+    ) -> metrics::Gauge {
+        // A gauge is technically a ValueRecorder for which we only care about the last value.
+        // Unfortunately, in opentelemetry it appears that such behavior is selected by crafting
+        // a custom selector that will then apply a LastValueAggregator. This is all very
+        // complicated and turned making gauges into such a wild yak shave, that I (mkm), opted for
+        // an alternative approach:
+        //
+        // A Gauge is backed by ValueObserver. A ValueObserver is an asynchronous instrument that invokes a
+        // callback at scrape time (i.e. when the prometheus exporter renders the metrics as text).
+        // The Gauge itself records the values in a map keyed by label sets and returns all the recorded
+        // values when the ValueObserver invokes the callback.
+
+        let values = Arc::new(DashMap::new());
+        let values_captured = Arc::clone(&values);
+        let gauge = self
+            .meter
+            .u64_value_observer(
+                match unit {
+                    Some(unit) => {
+                        format!("{}.{}", self.build_metric_prefix(name, None), unit)
+                    }
+                    None => self.build_metric_prefix(name, None),
+                },
+                move |arg| {
+                    for i in values_captured.iter() {
+                        // currently rust type inference cannot deduct the type of i.value()
+                        let i: RefMulti<'_, _, (u64, Vec<KeyValue>), _> = i;
+                        let &(value, ref labels) = i.value();
+                        arg.observe(value, labels);
+                    }
+                },
+            )
+            .with_description(description)
+            .init();
+
+        metrics::Gauge::new(gauge, default_labels, values)
     }
 }
 
@@ -580,5 +648,59 @@ mod test {
         //     .histogram()
         //     .bucket_cumulative_count_eq(0.12, 0)
         //     .unwrap();
+    }
+
+    #[test]
+    fn gauge_metric() {
+        let reg = TestMetricRegistry::default();
+        let domain = reg.registry().register_domain("http");
+
+        // create a gauge metric
+        let metric = domain.register_gauge_metric_with_labels(
+            "mem",
+            Some("bytes"),
+            "currently used bytes",
+            vec![KeyValue::new("tier", "a")],
+        );
+
+        metric.set(40);
+        metric.set_with_labels(41, &[KeyValue::new("tier", "b")]);
+        metric.set_with_labels(
+            42,
+            &[KeyValue::new("tier", "c"), KeyValue::new("tier", "b")],
+        );
+        metric.set_with_labels(43, &[KeyValue::new("beer", "c")]);
+
+        reg.has_metric_family("http_mem_bytes")
+            .with_labels(&[("tier", "a")])
+            .gauge()
+            .eq(40.0)
+            .unwrap();
+
+        reg.has_metric_family("http_mem_bytes")
+            .with_labels(&[("tier", "b")])
+            .gauge()
+            .eq(42.0)
+            .unwrap();
+
+        reg.has_metric_family("http_mem_bytes")
+            .with_labels(&[("tier", "a"), ("beer", "c")])
+            .gauge()
+            .eq(43.0)
+            .unwrap();
+
+        let rendered = reg.registry().metrics_as_str();
+        assert_eq!(
+            rendered,
+            vec![
+                r#"# HELP http_mem_bytes currently used bytes"#,
+                r#"# TYPE http_mem_bytes gauge"#,
+                r#"http_mem_bytes{tier="a"} 40"#,
+                r#"http_mem_bytes{tier="b"} 42"#,
+                r#"http_mem_bytes{beer="c",tier="a"} 43"#,
+                "",
+            ]
+            .join("\n")
+        );
     }
 }

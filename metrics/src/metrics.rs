@@ -1,11 +1,14 @@
+use std::sync::Arc;
 use std::{
     borrow::Cow,
     fmt::Display,
     time::{Duration, Instant},
 };
 
-use observability_deps::opentelemetry::metrics::{
-    Counter as OTCounter, ValueRecorder as OTHistogram,
+use dashmap::DashMap;
+use observability_deps::opentelemetry::{
+    labels,
+    metrics::{Counter as OTCounter, ValueObserver as OTGauge, ValueRecorder as OTHistogram},
 };
 
 pub use observability_deps::opentelemetry::KeyValue;
@@ -216,13 +219,14 @@ where
         self.observe(RedRequestStatus::Error, duration, labels);
     }
 }
-#[derive(Debug)]
+
 /// A Counter is a metric exposing a monotonically increasing counter.
 /// It is best used to track increases in something over time.
 ///
 /// If you want to track some notion of success, failure and latency consider
 /// using a `REDMetric` instead rather than expressing that with labels on a
 /// `Counter`.
+#[derive(Debug)]
 pub struct Counter {
     counter: OTCounter<u64>,
     default_labels: Vec<KeyValue>,
@@ -274,8 +278,54 @@ impl Counter {
     }
 }
 
+/// A Gauge is an asynchronous instrument that reports
+/// the last value set
+///
+/// (e.g. current memory usage)
 #[derive(Debug)]
+pub struct Gauge {
+    gauge: OTGauge<u64>,
+    default_labels: Vec<KeyValue>,
+    values: Arc<DashMap<String, (u64, Vec<KeyValue>)>>,
+}
+
+impl Gauge {
+    pub(crate) fn new(
+        gauge: OTGauge<u64>,
+        default_labels: Vec<KeyValue>,
+        values: Arc<DashMap<String, (u64, Vec<KeyValue>)>>,
+    ) -> Self {
+        Self {
+            gauge,
+            default_labels,
+            values,
+        }
+    }
+
+    // Set the gauge's `value`
+    pub fn set(&self, value: u64) {
+        self.set_with_labels(value, &[]);
+    }
+
+    /// Set the gauge's `value` and associate the observation with the
+    /// provided labels.
+    pub fn set_with_labels(&self, value: u64, labels: &[KeyValue]) {
+        // Note: provided labels need to go last so that they overwrite
+        // any default labels.
+
+        let mut labels_new = self.default_labels.clone();
+        labels_new.extend(labels.iter().cloned());
+
+        // this may seem inefficient but it's nothing compared to this and more that happens in the
+        // internals of opentelemetry. There's lots of room for improvement everywhere.
+        let label_set = labels::LabelSet::from_labels(labels_new.iter().cloned());
+        let encoded_labels = label_set.encoded(Some(&labels::DefaultLabelEncoder));
+        self.values.insert(encoded_labels, (value, labels_new));
+    }
+}
+
 /// A Histogram is a metric exposing a distribution of observations.
+#[derive(Debug)]
 pub struct Histogram {
     default_labels: Vec<KeyValue>,
     histogram: OTHistogram<f64>,
