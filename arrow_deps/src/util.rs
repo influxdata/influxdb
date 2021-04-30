@@ -1,15 +1,20 @@
 //! Utility functions for working with arrow
 
-use std::iter::FromIterator;
 use std::sync::Arc;
+use std::{
+    iter::FromIterator,
+    task::{Context, Poll},
+};
 
 use arrow::{
     array::{ArrayRef, StringArray},
-    error::ArrowError,
+    datatypes::SchemaRef,
+    error::{ArrowError, Result as ArrowResult},
     record_batch::RecordBatch,
 };
 use datafusion::{
     logical_plan::{binary_expr, col, lit, Expr, Operator},
+    physical_plan::RecordBatchStream,
     scalar::ScalarValue,
 };
 
@@ -115,6 +120,45 @@ impl AndExprBuilder {
     /// Creates the new filter expression, consuming Self
     pub fn build(self) -> Option<Expr> {
         self.cur_expr
+    }
+}
+
+/// A RecordBatchStream created from a single RecordBatch
+///
+/// Unfortunately datafusion's MemoryStream is crate-local
+#[derive(Debug)]
+pub struct MemoryStream {
+    schema: SchemaRef,
+    batch: Option<RecordBatch>,
+}
+
+impl MemoryStream {
+    pub fn new(batch: RecordBatch) -> Self {
+        Self {
+            schema: batch.schema(),
+            batch: Some(batch),
+        }
+    }
+}
+
+impl RecordBatchStream for MemoryStream {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&self.schema)
+    }
+}
+
+impl futures::Stream for MemoryStream {
+    type Item = ArrowResult<RecordBatch>;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        Poll::Ready(self.batch.take().map(Ok))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (1, Some(1))
     }
 }
 

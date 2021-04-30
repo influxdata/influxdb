@@ -156,6 +156,7 @@ dependencies = [
  "arrow",
  "arrow-flight",
  "datafusion",
+ "futures",
  "parquet",
 ]
 
