@@ -114,11 +114,15 @@ paths:
                 $ref: "#/components/schemas/Error"
   /setup/user:
     post:
+      deprecated: true
       operationId: PostSetupUser
       tags:
         - Setup
       summary: Set up a new user, org and bucket
-      description: Post an onboarding request to set up a new user, org and bucket.
+      description: >
+        Post an onboarding request to set up a new user, org and bucket.
+        NOTE: This API will be removed in InfluxDB 2.1.0. Please migrate to
+        using the dedicated APIs for users, orgs, and buckets.
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
       requestBody:
