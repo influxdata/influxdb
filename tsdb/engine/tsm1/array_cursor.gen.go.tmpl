@@ -134,9 +134,10 @@ func (c *{{$type}}) Next() {{$arrayType}} {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] >= c.end {
+	// Strip timestamps from after the end time.
+	if pos > 0 && c.res.Timestamps[pos-1] > c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] >= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] > c.end {
 			pos--
 		}
 		pos++
@@ -184,17 +185,20 @@ func new{{$Type}}() *{{$type}} {
 }
 
 func (c *{{$type}}) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+	// Search for the time value greater than the seek time (not included)
+	// and then move our position back one which will include the values in
+	// our time range.
 	c.end = end
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-		return c.cache.values[i].UnixNano() >= seek
+		return c.cache.values[i].UnixNano() > seek
 	})
 	c.cache.pos--
 
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}ArrayBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
-		return c.tsm.values.Timestamps[i] >= seek
+		return c.tsm.values.Timestamps[i] > seek
 	})
 	c.tsm.pos--
 }
@@ -272,6 +276,7 @@ func (c *{{$type}}) Next() {{$arrayType}} {
 		}
 	}
 
+	// Strip timestamps from before the end time.
 	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
 		pos -= 2
 		for pos >= 0 && c.res.Timestamps[pos] < c.end {
