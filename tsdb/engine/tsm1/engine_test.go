@@ -1944,7 +1944,7 @@ func TestEngine_CreateCursor_Ascending(t *testing.T) {
 				Field:     "value",
 				Ascending: true,
 				StartTime: 2,
-				EndTime:   12,
+				EndTime:   11,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -2004,7 +2004,7 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 				Field:     "value",
 				Ascending: false,
 				StartTime: 1,
-				EndTime:   11,
+				EndTime:   10,
 			})
 			if err != nil {
 				t.Fatal(err)
