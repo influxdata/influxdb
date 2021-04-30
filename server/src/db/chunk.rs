@@ -108,16 +108,15 @@ impl DbChunk {
                 partition_key,
             },
             ChunkState::WrittenToObjectStore(chunk, _) => Self::ReadBuffer {
-                chunk: Arc::clone(chunk),
-                partition_key,
                 // Since data exists in both read buffer and object store, we should
                 // snapshot the chunk of read buffer
+                chunk: Arc::clone(chunk),
+                partition_key,
             },
-            // Todo: Turn this on When we have this state
-            // ChunkState::ObjectStoreOnly(chunk) => {
-            //     let chunk = Arc::clone(chunk);
-            //     Self::ParquetFile { chunk }
-            // }
+            ChunkState::ObjectStoreOnly(chunk) => {
+                let chunk = Arc::clone(chunk);
+                Self::ParquetFile { chunk }
+            }
         };
         Arc::new(db_chunk)
     }

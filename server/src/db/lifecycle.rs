@@ -171,6 +171,17 @@ trait ChunkMover {
                     write_tracker =
                         Some(self.write_to_object_store(partition_key, table_name, chunk_id));
                 }
+                // todo: This will be needed when we hook unload_read_buffer into the life cycle
+                // ChunkState::WrittenToObjectStore(_,_) if would_unload => {
+                //     let partition_key = chunk_guard.key().to_string();
+                //     let table_name = chunk_guard.table_name().to_string();
+                //     let chunk_id = chunk_guard.id();
+
+                //     std::mem::drop(chunk_guard);
+
+                //     unload_tracker =
+                //         Some(self.unload_read_buffer(partition_key, table_name, chunk_id));
+                // }
                 _ => {}
             }
 

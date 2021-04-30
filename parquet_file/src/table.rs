@@ -140,4 +140,10 @@ impl Table {
         )
         .context(ReadParquet)
     }
+
+    /// The number of rows of this table
+    pub fn rows(&self) -> usize {
+        // All columns have the same rows, so return get row count of the first column
+        self.table_summary.columns[0].count() as usize
+    }
 }

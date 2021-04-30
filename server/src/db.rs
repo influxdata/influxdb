@@ -127,6 +127,13 @@ pub enum Error {
         source: catalog::Error,
     },
 
+    UnloadingChunkFromReadBuffer {
+        partition_key: String,
+        table_name: String,
+        chunk_id: u32,
+        source: catalog::Error,
+    },
+
     #[snafu(display("Read Buffer Error in chunk {}{} : {}", chunk_id, table_name, source))]
     ReadBufferChunkError {
         source: read_buffer::Error,
@@ -611,6 +618,9 @@ impl Db {
         Ok(DbChunk::snapshot(&chunk))
     }
 
+    /// Write given table of a given chunk to object store.
+    /// The writing only happen if that chunk already in read buffer
+
     pub async fn write_chunk_to_object_store(
         &self,
         partition_key: &str,
@@ -754,6 +764,62 @@ impl Db {
 
         // We know this chunk is ParquetFile type
         Ok(DbChunk::parquet_file_snapshot(&chunk))
+    }
+
+    /// Unload chunk from read buffer but keep it in object store
+    pub async fn unload_read_buffer(
+        &self,
+        partition_key: &str,
+        table_name: &str,
+        chunk_id: u32,
+    ) -> Result<Arc<DbChunk>> {
+        debug!(%partition_key, %table_name, %chunk_id, "unloading chunk from read buffer");
+
+        // Get the chunk from the catalog
+        let chunk = {
+            let partition = self.catalog.valid_partition(partition_key).context(
+                UnloadingChunkFromReadBuffer {
+                    partition_key,
+                    table_name,
+                    chunk_id,
+                },
+            )?;
+            let partition = partition.read();
+
+            partition
+                .chunk(table_name, chunk_id)
+                .context(UnloadingChunkFromReadBuffer {
+                    partition_key,
+                    table_name,
+                    chunk_id,
+                })?
+        };
+
+        // update the catalog to no longer use read buffer chunk if any
+        let mut chunk = chunk.write();
+
+        chunk
+            .set_unload_from_read_buffer()
+            .context(UnloadingChunkFromReadBuffer {
+                partition_key,
+                table_name,
+                chunk_id,
+            })?;
+
+        // Track the size of the newly immutable closed MUB chunk.
+        self.metrics
+            .catalog_immutable_chunk_bytes
+            .observe_with_labels(
+                chunk.size() as f64,
+                &[metrics::KeyValue::new(
+                    "state",
+                    chunk.state().metric_label(),
+                )],
+            );
+        self.metrics.update_chunk_state(chunk.state());
+        debug!(%partition_key, %table_name, %chunk_id, "chunk marked UNLOADED from read buffer");
+
+        Ok(DbChunk::snapshot(&chunk))
     }
 
     /// Spawns a task to perform
@@ -1223,7 +1289,24 @@ mod tests {
             .await
             .unwrap();
 
-        // A chunk is now in the object store
+        // A chunk is now in the object store and still in read buffer
+        test_db
+            .metric_registry
+            .has_metric_family("catalog_chunks_total")
+            .with_labels(&[
+                ("db_name", "placeholder"),
+                ("state", "rub_and_os"),
+                ("svr_id", "1"),
+            ])
+            .counter()
+            .eq(1.0)
+            .unwrap();
+
+        db.unload_read_buffer("1970-01-01T00", "cpu", 0)
+            .await
+            .unwrap();
+
+        // A chunk is now no longer in read buffer
         test_db
             .metric_registry
             .has_metric_family("catalog_chunks_total")
@@ -1517,13 +1600,13 @@ mod tests {
             .await
             .unwrap();
 
-        // Parquet chunk size
+        // Read buffer + Parquet chunk size
         test_db
             .metric_registry
             .has_metric_family("catalog_chunk_creation_size_bytes")
             .with_labels(&[
                 ("db_name", "parquet_test_db"),
-                ("state", "os"),
+                ("state", "rub_and_os"),
                 ("svr_id", "10"),
             ])
             .histogram()
@@ -1538,6 +1621,140 @@ mod tests {
         assert!(mutable_chunk_ids(&db, partition_key).is_empty());
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![0]);
         assert_eq!(read_parquet_file_chunk_ids(&db, partition_key), vec![0]);
+
+        // Verify data written to the parquet file in object store
+        // First, there must be one path of object store in the catalog
+        let paths = pq_chunk.object_store_paths();
+        assert_eq!(paths.len(), 1);
+
+        // Check that the path must exist in the object store
+        let path_list = flatten_list_stream(Arc::clone(&object_store), Some(&paths[0]))
+            .await
+            .unwrap();
+        println!("path_list: {:#?}", path_list);
+        assert_eq!(path_list.len(), 1);
+        assert_eq!(path_list, paths.clone());
+
+        // Get full string path
+        let root_path = format!("{:?}", root.path());
+        let root_path = root_path.trim_matches('"');
+        let path = format!("{}/{}", root_path, paths[0].display());
+        println!("path: {}", path);
+
+        // Create External table of this parquet file to get its content in a human
+        // readable form
+        // Note: We do not care about escaping quotes here because it is just a test
+        let sql = format!(
+            "CREATE EXTERNAL TABLE parquet_table STORED AS PARQUET LOCATION '{}'",
+            path
+        );
+
+        let mut ctx = context::ExecutionContext::new();
+        let df = ctx.sql(&sql).unwrap();
+        df.collect().await.unwrap();
+
+        // Select data from that table
+        let sql = "SELECT * FROM parquet_table";
+        let content = ctx.sql(&sql).unwrap().collect().await.unwrap();
+        println!("Content: {:?}", content);
+        let expected = vec![
+            "+-----+-------------------------------+",
+            "| bar | time                          |",
+            "+-----+-------------------------------+",
+            "| 1   | 1970-01-01 00:00:00.000000010 |",
+            "| 2   | 1970-01-01 00:00:00.000000020 |",
+            "+-----+-------------------------------+",
+        ];
+        assert_batches_eq!(expected, &content);
+    }
+
+    #[tokio::test]
+    async fn unload_chunk_from_read_buffer() {
+        // Test that data can be written into parquet files and then
+        // remove it from read buffer and make sure we are still
+        // be able to read data from object store
+
+        // Create an object store with a specified location in a local disk
+        let root = TempDir::new().unwrap();
+        let object_store = Arc::new(ObjectStore::new_file(File::new(root.path())));
+
+        // Create a DB given a server id, an object store and a db name
+        let server_id = ServerId::try_from(10).unwrap();
+        let db_name = "unload_read_buffer_test_db";
+        let test_db = make_database(server_id, Arc::clone(&object_store), db_name);
+        let db = Arc::new(test_db.db);
+
+        // Write some line protocols in Mutable buffer of the DB
+        write_lp(db.as_ref(), "cpu bar=1 10");
+        write_lp(db.as_ref(), "cpu bar=2 20");
+
+        // Now mark the MB chunk close
+        let partition_key = "1970-01-01T00";
+        let mb_chunk = db
+            .rollover_partition("1970-01-01T00", "cpu")
+            .await
+            .unwrap()
+            .unwrap();
+        // Move that MB chunk to RB chunk and drop it from MB
+        let rb_chunk = db
+            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
+            .await
+            .unwrap();
+        // Write the RB chunk to Object Store but keep it in RB
+        let pq_chunk = db
+            .write_chunk_to_object_store(partition_key, "cpu", mb_chunk.id())
+            .await
+            .unwrap();
+
+        // it should be the same chunk!
+        assert_eq!(mb_chunk.id(), rb_chunk.id());
+        assert_eq!(mb_chunk.id(), pq_chunk.id());
+
+        // we should have chunks in both the read buffer only
+        assert!(mutable_chunk_ids(&db, partition_key).is_empty());
+        assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![0]);
+        assert_eq!(read_parquet_file_chunk_ids(&db, partition_key), vec![0]);
+
+        // Read buffer + Parquet chunk size
+        test_db
+            .metric_registry
+            .has_metric_family("catalog_chunk_creation_size_bytes")
+            .with_labels(&[
+                ("db_name", "unload_read_buffer_test_db"),
+                ("state", "rub_and_os"),
+                ("svr_id", "10"),
+            ])
+            .histogram()
+            .sample_sum_eq(1897.0)
+            .unwrap();
+
+        // Unload RB chunk but keep it in OS
+        let pq_chunk = db
+            .unload_read_buffer(partition_key, "cpu", mb_chunk.id())
+            .await
+            .unwrap();
+
+        // still should be the same chunk!
+        assert_eq!(mb_chunk.id(), rb_chunk.id());
+        assert_eq!(mb_chunk.id(), pq_chunk.id());
+
+        // we should only have chunk in os
+        assert!(mutable_chunk_ids(&db, partition_key).is_empty());
+        assert!(read_buffer_chunk_ids(&db, partition_key).is_empty());
+        assert_eq!(read_parquet_file_chunk_ids(&db, partition_key), vec![0]);
+
+        // Parquet chunk size only
+        test_db
+            .metric_registry
+            .has_metric_family("catalog_chunk_creation_size_bytes")
+            .with_labels(&[
+                ("db_name", "unload_read_buffer_test_db"),
+                ("state", "os"),
+                ("svr_id", "10"),
+            ])
+            .histogram()
+            .sample_sum_eq(675.0)
+            .unwrap();
 
         // Verify data written to the parquet file in object store
         // First, there must be one path of object store in the catalog
