@@ -322,6 +322,68 @@ impl Gauge {
         let encoded_labels = label_set.encoded(Some(&labels::DefaultLabelEncoder));
         self.values.insert(encoded_labels, (value, labels_new));
     }
+
+    // Increase the gauge's value by `value`.
+    pub fn add(&self, value: u64) {
+        self.add_with_labels(value, &[]);
+    }
+
+    /// Increase the gauge's value by `value` and associate the observation with the
+    /// provided labels.
+    pub fn add_with_labels(&self, value: u64, labels: &[KeyValue]) {
+        // Note: provided labels need to go last so that they overwrite
+        // any default labels.
+
+        let mut labels_new = self.default_labels.clone();
+        labels_new.extend(labels.iter().cloned());
+
+        // this may seem inefficient but it's nothing compared to this and more that happens in the
+        // internals of opentelemetry. There's lots of room for improvement everywhere.
+        let label_set = labels::LabelSet::from_labels(labels_new.iter().cloned());
+        let encoded_labels = label_set.encoded(Some(&labels::DefaultLabelEncoder));
+
+        // update value
+        match self.values.entry(encoded_labels) {
+            dashmap::mapref::entry::Entry::Occupied(mut entry) => {
+                let (current_value, _) = entry.get_mut();
+                *current_value += value;
+            }
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                entry.insert((value, labels_new));
+            }
+        }
+    }
+
+    // Decrease the gauge's value by `value`.
+    pub fn sub(&self, value: u64) {
+        self.sub_with_labels(value, &[]);
+    }
+
+    /// Decrease the gauge's value by `value` and associate the observation with the
+    /// provided labels.
+    pub fn sub_with_labels(&self, value: u64, labels: &[KeyValue]) {
+        // Note: provided labels need to go last so that they overwrite
+        // any default labels.
+
+        let mut labels_new = self.default_labels.clone();
+        labels_new.extend(labels.iter().cloned());
+
+        // this may seem inefficient but it's nothing compared to this and more that happens in the
+        // internals of opentelemetry. There's lots of room for improvement everywhere.
+        let label_set = labels::LabelSet::from_labels(labels_new.iter().cloned());
+        let encoded_labels = label_set.encoded(Some(&labels::DefaultLabelEncoder));
+
+        // update value
+        match self.values.entry(encoded_labels) {
+            dashmap::mapref::entry::Entry::Occupied(mut entry) => {
+                let (current_value, _) = entry.get_mut();
+                *current_value -= value;
+            }
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                entry.insert((value, labels_new));
+            }
+        }
+    }
 }
 
 /// A Histogram is a metric exposing a distribution of observations.

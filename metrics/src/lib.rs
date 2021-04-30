@@ -24,7 +24,7 @@ use observability_deps::{
 };
 use std::sync::Arc;
 
-pub use crate::metrics::{Counter, Histogram, KeyValue, RedMetric};
+pub use crate::metrics::{Counter, Gauge, Histogram, KeyValue, RedMetric};
 pub use crate::tests::*;
 
 /// A registry responsible for initialising IOx metrics and exposing their
@@ -702,5 +702,26 @@ mod test {
             ]
             .join("\n")
         );
+
+        metric.add_with_labels(100, &[KeyValue::new("me", "new")]);
+        reg.has_metric_family("http_mem_bytes")
+            .with_labels(&[("tier", "a"), ("me", "new")])
+            .gauge()
+            .eq(100.0)
+            .unwrap();
+
+        metric.add_with_labels(11, &[KeyValue::new("me", "new")]);
+        reg.has_metric_family("http_mem_bytes")
+            .with_labels(&[("tier", "a"), ("me", "new")])
+            .gauge()
+            .eq(111.0)
+            .unwrap();
+
+        metric.sub(11);
+        reg.has_metric_family("http_mem_bytes")
+            .with_labels(&[("tier", "a")])
+            .gauge()
+            .eq(29.0)
+            .unwrap();
     }
 }
