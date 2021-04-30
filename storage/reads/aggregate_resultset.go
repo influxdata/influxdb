@@ -27,7 +27,8 @@ type windowAggregateResultSet struct {
 // conditions are met, it returns false, otherwise, it returns true.
 func IsAscendingWindowAggregate(req *datatypes.ReadWindowAggregateRequest) bool {
 	if len(req.Aggregate) != 1 {
-		return false
+		// Descending optimization for last only applies when it is the only aggregate.
+		return true
 	}
 
 	// The following is an optimization where in the case of a single window,
@@ -48,7 +49,13 @@ func IsAscendingWindowAggregate(req *datatypes.ReadWindowAggregateRequest) bool 
 
 func NewWindowAggregateResultSet(ctx context.Context, req *datatypes.ReadWindowAggregateRequest, cursor SeriesCursor) (ResultSet, error) {
 	if nAggs := len(req.Aggregate); nAggs != 1 {
-		return nil, errors.Errorf(errors.InternalError, "attempt to create a windowAggregateResultSet with %v aggregate functions", nAggs)
+		if nAggs == 2 {
+			if req.Aggregate[0].Type != datatypes.AggregateTypeMean || req.Aggregate[1].Type != datatypes.AggregateTypeCount {
+				return nil, errors.Errorf(errors.InternalError, "attempt to create a windowAggregateResultSet with %v, %v aggregates", req.Aggregate[0].Type, req.Aggregate[1].Type)
+			}
+		} else {
+			return nil, errors.Errorf(errors.InternalError, "attempt to create a windowAggregateResultSet with %v aggregate functions", nAggs)
+		}
 	}
 
 	ascending := IsAscendingWindowAggregate(req)
@@ -110,7 +117,6 @@ func GetWindow(req *datatypes.ReadWindowAggregateRequest) (interval.Window, erro
 }
 
 func (r *windowAggregateResultSet) createCursor(seriesRow SeriesRow) (cursors.Cursor, error) {
-	agg := r.req.Aggregate[0]
 
 	cursor := r.arrayCursors.createCursor(seriesRow)
 
@@ -121,9 +127,9 @@ func (r *windowAggregateResultSet) createCursor(seriesRow SeriesRow) (cursors.Cu
 
 	if window.Every().Nanoseconds() == math.MaxInt64 {
 		// This means to aggregate over whole series for the query's time range
-		return newAggregateArrayCursor(r.ctx, agg, cursor)
+		return newAggregateArrayCursor(r.ctx, r.req.Aggregate, cursor)
 	} else {
-		return NewWindowAggregateArrayCursor(r.ctx, agg, window, cursor)
+		return NewWindowAggregateArrayCursor(r.ctx, r.req.Aggregate, window, cursor)
 	}
 }
 
