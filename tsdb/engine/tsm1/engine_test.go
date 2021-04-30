@@ -2021,11 +2021,11 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 
 			fcur := cur.(tsdb.FloatArrayCursor)
 			a := fcur.Next()
-			if !cmp.Equal([]int64{11, 10, 3, 2}, a.Timestamps) {
-				t.Fatal("unexpect timestamps")
+			if !cmp.Equal([]int64{10, 3, 2, 1}, a.Timestamps) {
+				t.Fatalf("unexpect timestamps %v", a.Timestamps)
 			}
-			if !cmp.Equal([]float64{11.2, 10.1, 1.3, 1.2}, a.Values) {
-				t.Fatal("unexpect timestamps")
+			if !cmp.Equal([]float64{10.1, 1.3, 1.2, 1.1}, a.Values) {
+				t.Fatal("unexpect values")
 			}
 		})
 	}
