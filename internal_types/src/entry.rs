@@ -20,6 +20,7 @@ use chrono::{DateTime, Utc};
 use flatbuffers::{FlatBufferBuilder, Follow, ForwardsUOffset, Vector, VectorIter, WIPOffset};
 use ouroboros::self_referencing;
 use snafu::{OptionExt, ResultExt, Snafu};
+use std::sync::Arc;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -1201,9 +1202,31 @@ enum InnerClockValueError {
     ValueMayNotBeZero,
 }
 
+pub trait SequencedEntry {
+    fn partition_writes(&self) -> Option<Vec<PartitionWrite<'_>>>;
+
+    fn fb(&self) -> &entry_fb::SequencedEntry<'_>;
+
+    fn size(&self) -> usize;
+
+    fn clock_value(&self) -> ClockValue {
+        self.fb()
+            .clock_value()
+            .try_into()
+            .expect("ClockValue should have been validated when this was built from flatbuffers")
+    }
+
+    fn server_id(&self) -> ServerId {
+        self.fb()
+            .server_id()
+            .try_into()
+            .expect("ServerId should have been validated when this was built from flatbuffers")
+    }
+}
+
 #[self_referencing]
 #[derive(Debug)]
-pub struct SequencedEntry {
+pub struct OwnedSequencedEntry {
     data: Vec<u8>,
     #[borrows(data)]
     #[covariant]
@@ -1213,7 +1236,7 @@ pub struct SequencedEntry {
     entry: Option<entry_fb::Entry<'this>>,
 }
 
-impl SequencedEntry {
+impl OwnedSequencedEntry {
     pub fn new_from_entry_bytes(
         clock_value: ClockValue,
         server_id: ServerId,
@@ -1246,13 +1269,10 @@ impl SequencedEntry {
 
         Ok(sequenced_entry)
     }
+}
 
-    /// Returns the Flatbuffers struct for the SequencedEntry
-    pub fn fb(&self) -> &entry_fb::SequencedEntry<'_> {
-        self.borrow_fb()
-    }
-
-    pub fn partition_writes(&self) -> Option<Vec<PartitionWrite<'_>>> {
+impl SequencedEntry for OwnedSequencedEntry {
+    fn partition_writes(&self) -> Option<Vec<PartitionWrite<'_>>> {
         match self.borrow_entry().as_ref() {
             Some(e) => match e.operation_as_write().as_ref() {
                 Some(w) => w
@@ -1265,18 +1285,13 @@ impl SequencedEntry {
         }
     }
 
-    pub fn clock_value(&self) -> ClockValue {
-        self.fb()
-            .clock_value()
-            .try_into()
-            .expect("ClockValue should have been validated when this was built from flatbuffers")
+    /// Returns the Flatbuffers struct for the SequencedEntry
+    fn fb(&self) -> &entry_fb::SequencedEntry<'_> {
+        self.borrow_fb()
     }
 
-    pub fn server_id(&self) -> ServerId {
-        self.fb()
-            .server_id()
-            .try_into()
-            .expect("ServerId should have been validated when this was built from flatbuffers")
+    fn size(&self) -> usize {
+        self.borrow_data().len()
     }
 }
 
@@ -1292,13 +1307,15 @@ pub enum SequencedEntryError {
     },
     #[snafu(display("{}", source))]
     InvalidClockValue { source: ClockValueError },
+    #[snafu(display("entry bytes not present in sequenced entry"))]
+    EntryBytesMissing,
 }
 
-impl TryFrom<Vec<u8>> for SequencedEntry {
+impl TryFrom<Vec<u8>> for OwnedSequencedEntry {
     type Error = SequencedEntryError;
 
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        SequencedEntryTryBuilder {
+        OwnedSequencedEntryTryBuilder {
             data,
             fb_builder: |data| {
                 let fb = flatbuffers::root::<entry_fb::SequencedEntry<'_>>(data)
@@ -1323,6 +1340,171 @@ impl TryFrom<Vec<u8>> for SequencedEntry {
                         .context(InvalidFlatbuffer)?,
                 )),
                 None => Ok(None),
+            },
+        }
+        .try_build()
+    }
+}
+
+#[derive(Debug)]
+pub struct BorrowedSequencedEntry<'a> {
+    fb: entry_fb::SequencedEntry<'a>,
+    entry: Option<entry_fb::Entry<'a>>,
+}
+
+impl SequencedEntry for BorrowedSequencedEntry<'_> {
+    fn partition_writes(&self) -> Option<Vec<PartitionWrite<'_>>> {
+        match self.entry.as_ref() {
+            Some(e) => match e.operation_as_write().as_ref() {
+                Some(w) => w
+                    .partition_writes()
+                    .as_ref()
+                    .map(|w| w.iter().map(|fb| PartitionWrite { fb }).collect::<Vec<_>>()),
+                None => None,
+            },
+            None => None,
+        }
+    }
+
+    fn fb(&self) -> &entry_fb::SequencedEntry<'_> {
+        &self.fb
+    }
+
+    fn size(&self) -> usize {
+        self.fb._tab.buf.len()
+    }
+}
+
+#[self_referencing]
+#[derive(Debug)]
+pub struct Segment {
+    data: Vec<u8>,
+    #[borrows(data)]
+    #[covariant]
+    fb: entry_fb::Segment<'this>,
+    #[borrows(data)]
+    #[covariant]
+    sequenced_entries: Vec<BorrowedSequencedEntry<'this>>,
+}
+
+impl Segment {
+    pub fn new_from_entries(
+        segment_id: u64,
+        server_id: ServerId,
+        clock_value: Option<ClockValue>,
+        entries: &[Arc<OwnedSequencedEntry>],
+    ) -> Self {
+        let mut fbb = FlatBufferBuilder::new_with_capacity(1024);
+
+        let entries = entries
+            .iter()
+            .map(|e| {
+                let entry_bytes = fbb.create_vector_direct(
+                    e.fb()
+                        .entry_bytes()
+                        .expect("entry must be present in sequenced entry when initialized"),
+                );
+
+                entry_fb::SequencedEntry::create(
+                    &mut fbb,
+                    &entry_fb::SequencedEntryArgs {
+                        server_id: e.server_id().get_u32(),
+                        clock_value: e.clock_value().get_u64(),
+                        entry_bytes: Some(entry_bytes),
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let entries = fbb.create_vector(&entries);
+
+        let segment = entry_fb::Segment::create(
+            &mut fbb,
+            &entry_fb::SegmentArgs {
+                id: segment_id,
+                server_id: server_id.get_u32(),
+                consistency_high_water_clock: clock_value.map(|c| c.get_u64()).unwrap_or(0),
+                entries: Some(entries),
+            },
+        );
+
+        fbb.finish(segment, None);
+
+        let (mut data, idx) = fbb.collapse();
+
+        Self::try_from(data.split_off(idx))
+            .expect("Flatbuffer data for sequenced entry just constructed should be valid")
+    }
+
+    /// Returns the Flatbuffers struct for the Segment
+    pub fn fb(&self) -> &entry_fb::Segment<'_> {
+        self.borrow_fb()
+    }
+
+    /// Returns the serialized bytes for the Segment
+    pub fn data(&self) -> &[u8] {
+        self.borrow_data()
+    }
+
+    pub fn consistency_high_water_clock(&self) -> Option<ClockValue> {
+        self.fb().consistency_high_water_clock().try_into().ok()
+    }
+
+    pub fn server_id(&self) -> ServerId {
+        self.fb()
+            .server_id()
+            .try_into()
+            .expect("ServerId should have been validated when this was built from flatbuffers")
+    }
+}
+
+impl TryFrom<Vec<u8>> for Segment {
+    type Error = SequencedEntryError;
+
+    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
+        SegmentTryBuilder {
+            data,
+            fb_builder: |data| {
+                let fb =
+                    flatbuffers::root::<entry_fb::Segment<'_>>(data).context(InvalidFlatbuffer)?;
+
+                // Raise an error now if the server ID is invalid so that `SequencedEntry`'s
+                // `server_id` method can assume it has a valid `ServerId`
+                TryInto::<ServerId>::try_into(fb.server_id()).context(InvalidServerId)?;
+
+                Ok(fb)
+            },
+            sequenced_entries_builder: |data| match flatbuffers::root::<entry_fb::Segment<'_>>(data)
+                .context(InvalidFlatbuffer)?
+                .entries()
+            {
+                Some(entries) => {
+                    Ok(entries
+                        .iter()
+                        .map(|fb| {
+                            // Raise an error now if the server ID is invalid so that `SequencedEntry`'s
+                            // `server_id` method can assume it has a valid `ServerId`
+                            TryInto::<ServerId>::try_into(fb.server_id())
+                                .context(InvalidServerId)?;
+
+                            // Raise an error now if the clock value is invalid so that `SequencedEntry`'s
+                            // `clock_value` method can assume it has a valid `ClockValue`
+                            TryInto::<ClockValue>::try_into(fb.clock_value())
+                                .context(InvalidClockValue)?;
+
+                            Ok(BorrowedSequencedEntry {
+                                fb,
+                                entry: Some(
+                                    flatbuffers::root::<entry_fb::Entry<'_>>(
+                                        &fb.entry_bytes().context(EntryBytesMissing)?,
+                                    )
+                                    .context(InvalidFlatbuffer)?,
+                                ),
+                            })
+                        })
+                        .collect::<Result<Vec<_>, Self::Error>>()?)
+                }
+                None => Ok(vec![]),
             },
         }
         .try_build()
@@ -1367,6 +1549,20 @@ pub mod test_helpers {
                     .entry
             })
             .collect::<Vec<_>>()
+    }
+
+    /// Converts the line protocol to a `SequencedEntry` with the given server id
+    /// and clock value
+    pub fn lp_to_sequenced_entry(
+        lp: &str,
+        server_id: u32,
+        clock_value: u64,
+    ) -> OwnedSequencedEntry {
+        let entry = lp_to_entry(lp);
+        let server_id = ServerId::try_from(server_id).unwrap();
+        let clock_value = ClockValue::try_from(clock_value).unwrap();
+
+        OwnedSequencedEntry::new_from_entry_bytes(clock_value, server_id, entry.data()).unwrap()
     }
 
     /// Returns a test sharder that will assign shard ids from [0, count)
@@ -1952,7 +2148,7 @@ mod tests {
         let clock_value = ClockValue::try_from(23).unwrap();
         let server_id = ServerId::try_from(2).unwrap();
         let sequenced_entry =
-            SequencedEntry::new_from_entry_bytes(clock_value, server_id, entry_bytes).unwrap();
+            OwnedSequencedEntry::new_from_entry_bytes(clock_value, server_id, entry_bytes).unwrap();
         assert_eq!(sequenced_entry.clock_value(), clock_value);
         assert_eq!(sequenced_entry.server_id(), server_id);
 
@@ -2051,7 +2247,7 @@ mod tests {
         fbb.finish(sequenced_entry, None);
 
         let (mut data, idx) = fbb.collapse();
-        let result = SequencedEntry::try_from(data.split_off(idx));
+        let result = OwnedSequencedEntry::try_from(data.split_off(idx));
 
         assert!(
             matches!(result, Err(SequencedEntryError::InvalidServerId { .. })),
@@ -2092,7 +2288,7 @@ mod tests {
         fbb.finish(sequenced_entry, None);
 
         let (mut data, idx) = fbb.collapse();
-        let result = SequencedEntry::try_from(data.split_off(idx));
+        let result = OwnedSequencedEntry::try_from(data.split_off(idx));
 
         assert!(
             matches!(result, Err(SequencedEntryError::InvalidClockValue { .. })),

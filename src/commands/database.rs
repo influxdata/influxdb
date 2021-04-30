@@ -74,7 +74,7 @@ struct Create {
     /// this many seconds will be frozen and compacted (moved to the read
     /// buffer) if the chunk is older than mutable_min_lifetime_seconds
     ///
-    /// Represents the chunk transition open -> moving and closing -> moving
+    /// Represents the chunk transition open -> moving and closed -> moving
     #[structopt(long, default_value = "300")] // 5 minutes
     mutable_linger_seconds: u32,
 

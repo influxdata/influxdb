@@ -263,7 +263,7 @@ async fn test_chunk_get() {
     assert!(
         chunks[0].time_of_first_write.is_some()
             && chunks[0].time_of_last_write.is_some()
-            && chunks[0].time_closing.is_none(), // chunk is not yet closed
+            && chunks[0].time_closed.is_none(), // chunk is not yet closed
         "actual:{:#?}",
         chunks[0]
     );
@@ -280,7 +280,7 @@ async fn test_chunk_get() {
             row_count: 2,
             time_of_first_write: None,
             time_of_last_write: None,
-            time_closing: None,
+            time_closed: None,
         },
         Chunk {
             partition_key: "disk".into(),
@@ -291,7 +291,7 @@ async fn test_chunk_get() {
             row_count: 1,
             time_of_first_write: None,
             time_of_last_write: None,
-            time_closing: None,
+            time_closed: None,
         },
     ];
     assert_eq!(
@@ -459,7 +459,7 @@ async fn test_list_partition_chunks() {
         row_count: 2,
         time_of_first_write: None,
         time_of_last_write: None,
-        time_closing: None,
+        time_closed: None,
     }];
 
     assert_eq!(
@@ -743,7 +743,7 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
                 row_count,
                 time_of_first_write: None,
                 time_of_last_write: None,
-                time_closing: None,
+                time_closed: None,
             }
         })
         .collect::<Vec<_>>()

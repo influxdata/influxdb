@@ -72,9 +72,9 @@ pub struct ChunkSummary {
     /// itself
     pub time_of_last_write: Option<DateTime<Utc>>,
 
-    /// Time at which this chunk was marked as closing. Note this is
+    /// Time at which this chunk was marked as closed. Note this is
     /// not the same as the timestamps on the data itself
-    pub time_closing: Option<DateTime<Utc>>,
+    pub time_closed: Option<DateTime<Utc>>,
 }
 
 impl ChunkSummary {
@@ -96,7 +96,7 @@ impl ChunkSummary {
             row_count,
             time_of_first_write: None,
             time_of_last_write: None,
-            time_closing: None,
+            time_closed: None,
         }
     }
 }
@@ -113,7 +113,7 @@ impl From<ChunkSummary> for management::Chunk {
             row_count,
             time_of_first_write,
             time_of_last_write,
-            time_closing,
+            time_closed,
         } = summary;
 
         let storage: management::ChunkStorage = storage.into();
@@ -137,7 +137,7 @@ impl From<ChunkSummary> for management::Chunk {
 
         let time_of_first_write = time_of_first_write.map(|t| t.into());
         let time_of_last_write = time_of_last_write.map(|t| t.into());
-        let time_closing = time_closing.map(|t| t.into());
+        let time_closed = time_closed.map(|t| t.into());
 
         Self {
             partition_key,
@@ -148,7 +148,7 @@ impl From<ChunkSummary> for management::Chunk {
             row_count,
             time_of_first_write,
             time_of_last_write,
-            time_closing,
+            time_closed,
         }
     }
 }
@@ -191,12 +191,12 @@ impl TryFrom<management::Chunk> for ChunkSummary {
                 description: "Timestamp must be positive".to_string(),
             })?;
 
-        let time_closing = proto
-            .time_closing
+        let time_closed = proto
+            .time_closed
             .map(TryInto::try_into)
             .transpose()
             .map_err(|_| FieldViolation {
-                field: "time_closing".to_string(),
+                field: "time_closed".to_string(),
                 description: "Timestamp must be positive".to_string(),
             })?;
 
@@ -223,7 +223,7 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             row_count,
             time_of_first_write,
             time_of_last_write,
-            time_closing,
+            time_closed,
         })
     }
 }
@@ -260,7 +260,7 @@ mod test {
             storage: management::ChunkStorage::ObjectStoreOnly.into(),
             time_of_first_write: None,
             time_of_last_write: None,
-            time_closing: None,
+            time_closed: None,
         };
 
         let summary = ChunkSummary::try_from(proto).expect("conversion successful");
@@ -273,7 +273,7 @@ mod test {
             storage: ChunkStorage::ObjectStoreOnly,
             time_of_first_write: None,
             time_of_last_write: None,
-            time_closing: None,
+            time_closed: None,
         };
 
         assert_eq!(
@@ -294,7 +294,7 @@ mod test {
             storage: ChunkStorage::ObjectStoreOnly,
             time_of_first_write: None,
             time_of_last_write: None,
-            time_closing: None,
+            time_closed: None,
         };
 
         let proto = management::Chunk::try_from(summary).expect("conversion successful");
@@ -308,7 +308,7 @@ mod test {
             storage: management::ChunkStorage::ObjectStoreOnly.into(),
             time_of_first_write: None,
             time_of_last_write: None,
-            time_closing: None,
+            time_closed: None,
         };
 
         assert_eq!(

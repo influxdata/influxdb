@@ -13,7 +13,6 @@
 // Influx crates
 use super::planner::Planner;
 use data_types::{
-    http::WriteBufferMetadataQuery,
     names::{org_and_bucket_to_database, OrgBucketMappingError},
     DatabaseName,
 };
@@ -36,7 +35,6 @@ use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError, Router
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 
-use data_types::http::WriteBufferMetadataResponse;
 use hyper::server::conn::AddrIncoming;
 use std::{
     fmt::Debug,
@@ -340,10 +338,6 @@ where
         .get("/health", health::<M>)
         .get("/metrics", handle_metrics::<M>)
         .get("/iox/api/v1/databases/:name/query", query::<M>)
-        .get(
-            "/iox/api/v1/databases/:name/wb/meta",
-            get_write_buffer_meta::<M>,
-        )
         .get("/api/v1/partitions", list_partitions::<M>)
         .post("/api/v1/snapshot", snapshot_partition::<M>)
         // Specify the error handler to handle any errors caused by
@@ -598,71 +592,6 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     // successful query
     obs.ok_with_labels(&metric_kv);
 
-    Ok(response)
-}
-
-#[tracing::instrument(level = "debug")]
-async fn get_write_buffer_meta<M: ConnectionManager + Send + Sync + Debug + 'static>(
-    req: Request<Body>,
-) -> Result<Response<Body>, ApplicationError> {
-    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
-    let path = req.uri().path().to_string();
-    // TODO - catch error conditions
-    let obs = server.metrics.http_requests.observation();
-
-    let db_name_str = req
-        .param("name")
-        .expect("db name must have been set")
-        .clone();
-
-    let metric_kv = vec![
-        KeyValue::new("db_name", db_name_str.clone()),
-        KeyValue::new("path", path),
-    ];
-
-    let query: WriteBufferMetadataQuery = req
-        .uri()
-        .query()
-        .map(|query| {
-            serde_urlencoded::from_str(query).context(InvalidQueryString {
-                query_string: query,
-            })
-        })
-        .transpose()?
-        .unwrap_or_default();
-
-    let db_name = DatabaseName::new(&db_name_str).context(DatabaseNameError)?;
-
-    let db = server
-        .db(&db_name)
-        .context(DatabaseNotFound { name: &db_name_str })?;
-
-    let wb = db
-        .write_buffer
-        .as_ref()
-        .context(WriteBufferNotFound { name: &db_name_str })?;
-    let write_buffer = wb.lock();
-
-    let segments = write_buffer
-        .segments(query.offset)
-        .take(query.limit.unwrap_or(10))
-        .take_while(|x| {
-            query
-                .newer_than
-                .map(|newer_than| x.created_at > newer_than)
-                .unwrap_or(true)
-        })
-        .collect();
-
-    let response = Response::builder()
-        .status(StatusCode::OK)
-        .body(Body::from(
-            serde_json::to_string(&WriteBufferMetadataResponse { segments })
-                .expect("json encoding should not fail"),
-        ))
-        .expect("builder should be successful");
-
-    obs.ok_with_labels(&metric_kv);
     Ok(response)
 }
 

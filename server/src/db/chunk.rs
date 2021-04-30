@@ -93,7 +93,7 @@ impl DbChunk {
             ChunkState::Invalid => {
                 panic!("Invalid internal state");
             }
-            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => Self::MutableBuffer {
+            ChunkState::Open(chunk) | ChunkState::Closed(chunk) => Self::MutableBuffer {
                 chunk: chunk.snapshot(),
             },
             ChunkState::Moving(chunk) => Self::MutableBuffer {

@@ -54,8 +54,8 @@ message Chunk {
   // itself
   google.protobuf.Timestamp time_of_last_write = 6;
 
-  /// Time at which this chunk was marked as closing. Note this is not
+  /// Time at which this chunk was marked as closed. Note this is not
   /// the same as the timestamps on the data itself
-  google.protobuf.Timestamp time_closing = 7;
+  google.protobuf.Timestamp time_closed = 7;
 
 }
