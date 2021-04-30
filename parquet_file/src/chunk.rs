@@ -206,4 +206,9 @@ impl Chunk {
                 chunk_id: self.id(),
             })
     }
+
+    /// The total number of rows in all row groups in all tables in this chunk.
+    pub fn rows(&self) -> usize {
+        self.tables.iter().map(|t| t.rows()).sum()
+    }
 }

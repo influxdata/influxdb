@@ -41,8 +41,9 @@ pub enum ChunkState {
 
     // Chunk has been completely written into object store
     WrittenToObjectStore(Arc<ReadBufferChunk>, Arc<ParquetChunk>),
-    // Todo : There must be another state for chunk that only in object store
-    // ticket #1314
+
+    // Chunk only exists in object store
+    ObjectStoreOnly(Arc<ParquetChunk>),
 }
 
 impl ChunkState {
@@ -55,6 +56,7 @@ impl ChunkState {
             Self::Moved(_) => "Moved",
             Self::WritingToObjectStore(_) => "Writing to Object Store",
             Self::WrittenToObjectStore(_, _) => "Written to Object Store",
+            Self::ObjectStoreOnly(_) => "Object Store Only",
         }
     }
 
@@ -67,7 +69,8 @@ impl ChunkState {
             Self::Moving(_) => "moving",
             Self::Moved(_) => "moved",
             Self::WritingToObjectStore(_) => "writing_os",
-            Self::WrittenToObjectStore(_, _) => "os",
+            Self::WrittenToObjectStore(_, _) => "rub_and_os",
+            Self::ObjectStoreOnly(_) => "os",
         }
     }
 }
@@ -238,6 +241,11 @@ impl Chunk {
                 chunk.rows() as usize,
                 ChunkStorage::ReadBufferAndObjectStore,
             ),
+            ChunkState::ObjectStoreOnly(chunk) => (
+                chunk.size(),
+                chunk.rows() as usize,
+                ChunkStorage::ObjectStoreOnly,
+            ),
         };
 
         ChunkSummary {
@@ -282,6 +290,11 @@ impl Chunk {
                 assert_eq!(summaries.len(), 1);
                 summaries.remove(0)
             }
+            ChunkState::ObjectStoreOnly(chunk) => {
+                let mut summaries = chunk.table_summaries();
+                assert_eq!(summaries.len(), 1);
+                summaries.remove(0)
+            }
         }
     }
 
@@ -297,6 +310,7 @@ impl Chunk {
             ChunkState::WrittenToObjectStore(chunk, parquet_chunk) => {
                 parquet_chunk.size() + chunk.size() as usize
             }
+            ChunkState::ObjectStoreOnly(chunk) => chunk.size() as usize,
         }
     }
 
@@ -405,6 +419,22 @@ impl Chunk {
                     "MovingToObjectStore",
                     &self.state
                 )
+            }
+        }
+    }
+
+    pub fn set_unload_from_read_buffer(&mut self) -> Result<Arc<ReadBufferChunk>> {
+        let mut s = ChunkState::Invalid;
+        std::mem::swap(&mut s, &mut self.state);
+
+        match s {
+            ChunkState::WrittenToObjectStore(rub_chunk, parquet_chunk) => {
+                self.state = ChunkState::ObjectStoreOnly(Arc::clone(&parquet_chunk));
+                Ok(rub_chunk)
+            }
+            state => {
+                self.state = state;
+                unexpected_state!(self, "setting unload", "WrittenToObjectStore", &self.state)
             }
         }
     }
