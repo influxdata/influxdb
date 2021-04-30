@@ -498,12 +498,12 @@ pub struct WriteBufferConfig {
     /// this size, it will drop old segments to remain below this size, but
     /// still try to hold as much in memory as possible while remaining
     /// below this threshold
-    pub buffer_size: u64,
+    pub buffer_size: usize,
     /// Write Buffer segments become read-only after crossing over this size,
     /// which means that segments will always be >= this size. When old segments
     /// are dropped from of memory, at least this much space will be freed from
     /// the buffer.
-    pub segment_size: u64,
+    pub segment_size: usize,
     /// What should happen if a write comes in that would exceed the Write
     /// Buffer size and the oldest segment that could be dropped hasn't yet
     /// been persisted to object storage. If the oldest segment has been
@@ -530,8 +530,8 @@ impl From<WriteBufferConfig> for management::WriteBufferConfig {
             rollover.buffer_rollover.into();
 
         Self {
-            buffer_size: rollover.buffer_size,
-            segment_size: rollover.segment_size,
+            buffer_size: rollover.buffer_size as u64,
+            segment_size: rollover.segment_size as u64,
             buffer_rollover: buffer_rollover as _,
             persist_segments: rollover.store_segments,
             close_segment_after: rollover.close_segment_after.map(Into::into),
@@ -554,8 +554,8 @@ impl TryFrom<management::WriteBufferConfig> for WriteBufferConfig {
             })?;
 
         Ok(Self {
-            buffer_size: proto.buffer_size,
-            segment_size: proto.segment_size,
+            buffer_size: proto.buffer_size as usize,
+            segment_size: proto.segment_size as usize,
             buffer_rollover,
             store_segments: proto.persist_segments,
             close_segment_after,

@@ -31,7 +31,7 @@
 //!                                    ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 //!            ┌────────┐  ┌────────┐   Step 1:                 │
 //!            │Router 1│  │Router 2│  │  Parse LP
-//!            │        │  │        │     Create ReplicatedWrite│
+//!            │        │  │        │     Create SequencedEntry │
 //!            └───┬─┬──┘  └────────┘  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 //!                │ │
 //!                │ │                     ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
@@ -103,7 +103,7 @@ use crate::{
 };
 use data_types::database_rules::{NodeGroup, ShardId};
 use influxdb_iox_client::{connection::Builder, write};
-use internal_types::entry::SequencedEntry;
+use internal_types::entry::OwnedSequencedEntry;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
 
@@ -632,7 +632,7 @@ impl<M: ConnectionManager> Server<M> {
     pub async fn handle_sequenced_entry(
         &self,
         db: &Db,
-        sequenced_entry: SequencedEntry,
+        sequenced_entry: OwnedSequencedEntry,
     ) -> Result<()> {
         db.store_sequenced_entry(sequenced_entry)
             .map_err(|e| Error::UnknownDatabaseError {
@@ -860,7 +860,7 @@ pub trait RemoteServer {
     async fn write_sequenced_entry(
         &self,
         db: &str,
-        sequenced_entry: SequencedEntry,
+        sequenced_entry: OwnedSequencedEntry,
     ) -> Result<(), ConnectionManagerError>;
 }
 
@@ -913,7 +913,7 @@ impl RemoteServer for RemoteServerImpl {
     async fn write_sequenced_entry(
         &self,
         _db: &str,
-        _sequenced_entry: SequencedEntry,
+        _sequenced_entry: OwnedSequencedEntry,
     ) -> Result<(), ConnectionManagerError> {
         unimplemented!()
     }
@@ -1446,7 +1446,7 @@ mod tests {
         async fn write_sequenced_entry(
             &self,
             _db: &str,
-            _sequenced_entry: SequencedEntry,
+            _sequenced_entry: OwnedSequencedEntry,
         ) -> Result<(), ConnectionManagerError> {
             unimplemented!()
         }

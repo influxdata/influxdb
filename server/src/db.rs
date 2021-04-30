@@ -25,7 +25,7 @@ use data_types::{
 };
 use internal_types::{
     arrow::sort::sort_record_batch,
-    entry::{self, ClockValue, ClockValueError, Entry, SequencedEntry},
+    entry::{self, ClockValue, ClockValueError, Entry, OwnedSequencedEntry, SequencedEntry},
     selection::Selection,
 };
 use lifecycle::LifecycleManager;
@@ -278,7 +278,7 @@ pub struct Db {
     ///  - The Parquet Buffer where chunks are backed by Parquet file data.
     catalog: Arc<Catalog>,
 
-    /// The Write Buffer holds replicated writes in an append in-memory
+    /// The Write Buffer holds sequenced entries in an append in-memory
     /// buffer. This buffer is used for sending data to subscribers
     /// and to persist segments in object storage for recovery.
     pub write_buffer: Option<Mutex<Buffer>>,
@@ -906,7 +906,7 @@ impl Db {
     /// entry is then written into the mutable buffer.
     pub fn store_entry(&self, entry: Entry) -> Result<()> {
         // TODO: build this based on either this or on the write buffer, if configured
-        let sequenced_entry = SequencedEntry::new_from_entry_bytes(
+        let sequenced_entry = OwnedSequencedEntry::new_from_entry_bytes(
             ClockValue::try_from(self.next_sequence()).context(InvalidClockValue)?,
             self.server_id,
             entry.data(),
@@ -920,7 +920,7 @@ impl Db {
         self.store_sequenced_entry(sequenced_entry)
     }
 
-    pub fn store_sequenced_entry(&self, sequenced_entry: SequencedEntry) -> Result<()> {
+    pub fn store_sequenced_entry(&self, sequenced_entry: impl SequencedEntry) -> Result<()> {
         let rules = self.rules.read();
         let mutable_size_threshold = rules.lifecycle_rules.mutable_size_threshold;
         if rules.lifecycle_rules.immutable {
