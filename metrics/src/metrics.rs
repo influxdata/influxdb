@@ -284,16 +284,16 @@ impl Counter {
 /// (e.g. current memory usage)
 #[derive(Debug)]
 pub struct Gauge {
-    gauge: OTGauge<u64>,
+    gauge: OTGauge<f64>,
     default_labels: Vec<KeyValue>,
-    values: Arc<DashMap<String, (u64, Vec<KeyValue>)>>,
+    values: Arc<DashMap<String, (f64, Vec<KeyValue>)>>,
 }
 
 impl Gauge {
     pub(crate) fn new(
-        gauge: OTGauge<u64>,
+        gauge: OTGauge<f64>,
         default_labels: Vec<KeyValue>,
-        values: Arc<DashMap<String, (u64, Vec<KeyValue>)>>,
+        values: Arc<DashMap<String, (f64, Vec<KeyValue>)>>,
     ) -> Self {
         Self {
             gauge,
@@ -303,13 +303,13 @@ impl Gauge {
     }
 
     // Set the gauge's `value`
-    pub fn set(&self, value: u64) {
+    pub fn set(&self, value: f64) {
         self.set_with_labels(value, &[]);
     }
 
     /// Set the gauge's `value` and associate the observation with the
     /// provided labels.
-    pub fn set_with_labels(&self, value: u64, labels: &[KeyValue]) {
+    pub fn set_with_labels(&self, value: f64, labels: &[KeyValue]) {
         // Note: provided labels need to go last so that they overwrite
         // any default labels.
 
@@ -321,6 +321,48 @@ impl Gauge {
         let label_set = labels::LabelSet::from_labels(labels_new.iter().cloned());
         let encoded_labels = label_set.encoded(Some(&labels::DefaultLabelEncoder));
         self.values.insert(encoded_labels, (value, labels_new));
+    }
+
+    // Increase the gauge's value by `value`.
+    pub fn add(&self, value: f64) {
+        self.add_with_labels(value, &[]);
+    }
+
+    /// Increase the gauge's value by `value` and associate the observation with the
+    /// provided labels.
+    pub fn add_with_labels(&self, value: f64, labels: &[KeyValue]) {
+        // Note: provided labels need to go last so that they overwrite
+        // any default labels.
+
+        let mut labels_new = self.default_labels.clone();
+        labels_new.extend(labels.iter().cloned());
+
+        // this may seem inefficient but it's nothing compared to this and more that happens in the
+        // internals of opentelemetry. There's lots of room for improvement everywhere.
+        let label_set = labels::LabelSet::from_labels(labels_new.iter().cloned());
+        let encoded_labels = label_set.encoded(Some(&labels::DefaultLabelEncoder));
+
+        // update value
+        match self.values.entry(encoded_labels) {
+            dashmap::mapref::entry::Entry::Occupied(mut entry) => {
+                let (current_value, _) = entry.get_mut();
+                *current_value += value;
+            }
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                entry.insert((value, labels_new));
+            }
+        }
+    }
+
+    // Decrease the gauge's value by `value`.
+    pub fn sub(&self, value: f64) {
+        self.sub_with_labels(value, &[]);
+    }
+
+    /// Decrease the gauge's value by `value` and associate the observation with the
+    /// provided labels.
+    pub fn sub_with_labels(&self, value: f64, labels: &[KeyValue]) {
+        self.add_with_labels(-value, labels);
     }
 }
 

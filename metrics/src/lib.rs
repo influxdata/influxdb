@@ -24,7 +24,7 @@ use observability_deps::{
 };
 use std::sync::Arc;
 
-pub use crate::metrics::{Counter, Histogram, KeyValue, RedMetric};
+pub use crate::metrics::{Counter, Gauge, Histogram, KeyValue, RedMetric};
 pub use crate::tests::*;
 
 /// A registry responsible for initialising IOx metrics and exposing their
@@ -315,7 +315,7 @@ impl Domain {
         let values_captured = Arc::clone(&values);
         let gauge = self
             .meter
-            .u64_value_observer(
+            .f64_value_observer(
                 match unit {
                     Some(unit) => {
                         format!("{}.{}", self.build_metric_prefix(name, None), unit)
@@ -325,7 +325,7 @@ impl Domain {
                 move |arg| {
                     for i in values_captured.iter() {
                         // currently rust type inference cannot deduct the type of i.value()
-                        let i: RefMulti<'_, _, (u64, Vec<KeyValue>), _> = i;
+                        let i: RefMulti<'_, _, (f64, Vec<KeyValue>), _> = i;
                         let &(value, ref labels) = i.value();
                         arg.observe(value, labels);
                     }
@@ -663,13 +663,13 @@ mod test {
             vec![KeyValue::new("tier", "a")],
         );
 
-        metric.set(40);
-        metric.set_with_labels(41, &[KeyValue::new("tier", "b")]);
+        metric.set(40.0);
+        metric.set_with_labels(41.0, &[KeyValue::new("tier", "b")]);
         metric.set_with_labels(
-            42,
+            42.0,
             &[KeyValue::new("tier", "c"), KeyValue::new("tier", "b")],
         );
-        metric.set_with_labels(43, &[KeyValue::new("beer", "c")]);
+        metric.set_with_labels(43.0, &[KeyValue::new("beer", "c")]);
 
         reg.has_metric_family("http_mem_bytes")
             .with_labels(&[("tier", "a")])
@@ -702,5 +702,26 @@ mod test {
             ]
             .join("\n")
         );
+
+        metric.add_with_labels(100.0, &[KeyValue::new("me", "new")]);
+        reg.has_metric_family("http_mem_bytes")
+            .with_labels(&[("tier", "a"), ("me", "new")])
+            .gauge()
+            .eq(100.0)
+            .unwrap();
+
+        metric.add_with_labels(11.0, &[KeyValue::new("me", "new")]);
+        reg.has_metric_family("http_mem_bytes")
+            .with_labels(&[("tier", "a"), ("me", "new")])
+            .gauge()
+            .eq(111.0)
+            .unwrap();
+
+        metric.sub(11.0);
+        reg.has_metric_family("http_mem_bytes")
+            .with_labels(&[("tier", "a")])
+            .gauge()
+            .eq(29.0)
+            .unwrap();
     }
 }
