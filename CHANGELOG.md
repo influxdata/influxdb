@@ -1,6 +1,10 @@
 ## v2.0.7 [unreleased]
 ----------------------
 
+### Bug Fixes
+
+1. [21348](https://github.com/influxdata/influxdb/pull/21348): Fix off-by-one error in query range calculation over partially compacted data.
+
 ## v2.0.6 [2021-04-29]
 ----------------------
 

@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/data/gen"
 	"github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 func TestNewGroupResultSet_Sorting(t *testing.T) {
@@ -461,5 +461,43 @@ func BenchmarkNewGroupResultSet_GroupBy(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.GroupBy, GroupKeys: []string{"tag2"}, Hints: hints}, newCursor)
 		rs.Close()
+	}
+}
+
+func TestNewGroupResultSet_TimeRange(t *testing.T) {
+	newCursor := newMockReadCursor(
+		"clicks click=1 1",
+	)
+	for i := range newCursor.rows {
+		newCursor.rows[0].Query[i] = &mockCursorIterator{
+			newCursorFn: func(req *cursors.CursorRequest) cursors.Cursor {
+				if want, got := int64(0), req.StartTime; want != got {
+					t.Errorf("unexpected start time -want/+got:\n\t- %d\n\t+ %d", want, got)
+				}
+				if want, got := int64(29), req.EndTime; want != got {
+					t.Errorf("unexpected end time -want/+got:\n\t- %d\n\t+ %d", want, got)
+				}
+				return &mockIntegerArrayCursor{}
+			},
+		}
+	}
+
+	ctx := context.Background()
+	req := datatypes.ReadGroupRequest{
+		Range: datatypes.TimestampRange{
+			Start: 0,
+			End:   30,
+		},
+	}
+
+	resultSet := reads.NewGroupResultSet(ctx, &req, func() (reads.SeriesCursor, error) {
+		return &newCursor, nil
+	})
+	groupByCursor := resultSet.Next()
+	if groupByCursor == nil {
+		t.Fatal("unexpected: groupByCursor was nil")
+	}
+	if groupByCursor.Next() {
+		t.Fatal("unexpected: groupByCursor.Next should not have advanced")
 	}
 }
