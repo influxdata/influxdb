@@ -349,7 +349,7 @@ mod tests {
     use arrow_deps::arrow::array::StringArray;
     use arrow_deps::arrow::{
         array::{DictionaryArray, UInt32Array},
-        datatypes::{DataType, Field, Int32Type, Schema},
+        datatypes::{DataType, Int32Type},
     };
     use arrow_deps::arrow_flight::utils::flight_data_to_arrow_batch;
     use arrow_deps::datafusion::physical_plan::limit::truncate_batch;
@@ -374,9 +374,9 @@ mod tests {
         let options = arrow::ipc::writer::IpcWriteOptions::default();
         let c1 = UInt32Array::from(vec![1, 2, 3, 4, 5, 6]);
 
-        let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::UInt32, false)]));
-        let batch = RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(c1)])
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(c1) as ArrayRef)])
             .expect("cannot create record batch");
+        let schema = batch.schema();
 
         let (_, baseline_flight_batch) =
             arrow_flight::utils::flight_data_from_arrow_batch(&batch, &options);
@@ -419,18 +419,13 @@ mod tests {
         .into_iter()
         .collect();
 
-        let original_schema = Schema::new(vec![
-            Field::new("a", DataType::UInt32, false),
-            Field::new(
-                "b",
-                DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
-                true,
-            ),
-        ]);
-        let optimized_schema = Arc::new(optimize_schema(&original_schema));
         let batch =
-            RecordBatch::try_new(Arc::new(original_schema), vec![Arc::new(c1), Arc::new(c2)])
+            RecordBatch::try_from_iter(vec![("a", Arc::new(c1) as ArrayRef), ("b", Arc::new(c2))])
                 .expect("cannot create record batch");
+
+        let original_schema = batch.schema();
+        let optimized_schema = Arc::new(optimize_schema(&original_schema));
+
         let optimized_batch = optimize_record_batch(&batch, Arc::clone(&optimized_schema)).unwrap();
 
         let (_, flight_data) =

@@ -322,11 +322,8 @@ pub fn make_schema_pivot(input: LogicalPlan) -> LogicalPlan {
 mod tests {
     use arrow_deps::{
         arrow::{
-            array::Int64Array,
-            array::StringArray,
-            array::StringBuilder,
-            datatypes::DataType,
-            datatypes::{Field, Schema, SchemaRef},
+            array::{ArrayRef, Int64Array, StringBuilder},
+            datatypes::{DataType, Field, Schema, SchemaRef},
         },
         datafusion::logical_plan::LogicalPlanBuilder,
     };
@@ -360,11 +357,10 @@ mod tests {
     #[tokio::test]
     async fn executor_datafusion_string_set_single_plan_one_batch() {
         // Test with a single plan that produces one record batch
-        let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Utf8, true)]));
         let data = to_string_array(&["foo", "bar", "baz", "foo"]);
-        let batch = RecordBatch::try_new(Arc::clone(&schema), vec![data])
+        let batch = RecordBatch::try_from_iter_with_nullable(vec![("a", data, true)])
             .expect("created new record batch");
-        let scan = make_plan(schema, vec![batch]);
+        let scan = make_plan(batch.schema(), vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
         let executor = Executor::new(1);
@@ -448,11 +444,10 @@ mod tests {
     #[tokio::test]
     async fn executor_datafusion_string_set_bad_schema() {
         // Ensure that an incorect schema (an int) gives a reasonable error
-        let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int64, true)]));
-        let data = Arc::new(Int64Array::from(vec![1]));
-        let batch = RecordBatch::try_new(Arc::clone(&schema), vec![data])
-            .expect("created new record batch");
-        let scan = make_plan(schema, vec![batch]);
+        let data: ArrayRef = Arc::new(Int64Array::from(vec![1]));
+        let batch =
+            RecordBatch::try_from_iter(vec![("a", data)]).expect("created new record batch");
+        let scan = make_plan(batch.schema(), vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
         let executor = Executor::new(1);
@@ -476,20 +471,13 @@ mod tests {
     async fn make_schema_pivot_is_planned() {
         // Test that all the planning logic is wired up and that we
         // can make a plan using a SchemaPivot node
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("f1", DataType::Utf8, true),
-            Field::new("f2", DataType::Utf8, true),
-        ]));
-        let batch = RecordBatch::try_new(
-            Arc::clone(&schema),
-            vec![
-                to_string_array(&["foo", "bar"]),
-                to_string_array(&["baz", "bzz"]),
-            ],
-        )
+        let batch = RecordBatch::try_from_iter_with_nullable(vec![
+            ("f1", to_string_array(&["foo", "bar"]), true),
+            ("f2", to_string_array(&["baz", "bzz"]), true),
+        ])
         .expect("created new record batch");
 
-        let scan = make_plan(schema, vec![batch]);
+        let scan = make_plan(batch.schema(), vec![batch]);
         let pivot = make_schema_pivot(scan);
         let plan = vec![pivot].into();
 
@@ -504,7 +492,7 @@ mod tests {
         StringSetRef::new(strs.iter().map(|s| s.to_string()).collect::<StringSet>())
     }
 
-    fn to_string_array(strs: &[&str]) -> Arc<StringArray> {
+    fn to_string_array(strs: &[&str]) -> ArrayRef {
         let mut builder = StringBuilder::new(strs.len());
         for s in strs {
             builder.append_value(s).expect("appending string");

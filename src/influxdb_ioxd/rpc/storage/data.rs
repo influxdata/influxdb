@@ -330,11 +330,7 @@ fn datatype_to_measurement_field_enum(data_type: &ArrowDataType) -> Result<Field
 
 #[cfg(test)]
 mod tests {
-    use arrow_deps::arrow::{
-        datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema},
-        record_batch::RecordBatch,
-    };
-    use internal_types::schema::TIME_DATA_TYPE;
+    use arrow_deps::arrow::{datatypes::DataType as ArrowDataType, record_batch::RecordBatch};
     use query::exec::{field::FieldIndexes, fieldlist::Field};
 
     use super::*;
@@ -413,13 +409,6 @@ mod tests {
 
     #[test]
     fn test_series_set_conversion_different_time_columns() {
-        let schema = Arc::new(Schema::new(vec![
-            ArrowField::new("time1", TIME_DATA_TYPE(), true),
-            ArrowField::new("string_field1", ArrowDataType::Utf8, true),
-            ArrowField::new("time2", TIME_DATA_TYPE(), true),
-            ArrowField::new("string_field2", ArrowDataType::Utf8, true),
-        ]));
-
         let time1_array: ArrayRef =
             Arc::new(TimestampNanosecondArray::from_vec(vec![1, 2, 3], None));
         let string1_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz"]));
@@ -427,10 +416,12 @@ mod tests {
             Arc::new(TimestampNanosecondArray::from_vec(vec![3, 4, 5], None));
         let string2_array: ArrayRef = Arc::new(StringArray::from(vec!["boo", "far", "faz"]));
 
-        let batch = RecordBatch::try_new(
-            schema,
-            vec![time1_array, string1_array, time2_array, string2_array],
-        )
+        let batch = RecordBatch::try_from_iter(vec![
+            ("time1", time1_array as ArrayRef),
+            ("string_field1", string1_array),
+            ("time2", time2_array),
+            ("string_field2", string2_array),
+        ])
         .expect("created new record batch");
 
         let series_set = SeriesSet {
@@ -469,13 +460,6 @@ mod tests {
     #[test]
     fn test_series_set_conversion_with_null_field() {
         // single series
-        let schema = Arc::new(Schema::new(vec![
-            ArrowField::new("state", ArrowDataType::Utf8, true),
-            ArrowField::new("int_field", ArrowDataType::Int64, true),
-            ArrowField::new("float_field", ArrowDataType::Float64, true),
-            ArrowField::new("time", TIME_DATA_TYPE(), false),
-        ]));
-
         let tag_array: ArrayRef = Arc::new(StringArray::from(vec!["MA", "MA", "MA", "MA"]));
         let int_array: ArrayRef = Arc::new(Int64Array::from(vec![None, None, None, None]));
         let float_array: ArrayRef = Arc::new(Float64Array::from(vec![
@@ -490,10 +474,12 @@ mod tests {
             None,
         ));
 
-        let batch = RecordBatch::try_new(
-            schema,
-            vec![tag_array, int_array, float_array, timestamp_array],
-        )
+        let batch = RecordBatch::try_from_iter_with_nullable(vec![
+            ("state", tag_array, true),
+            ("int_field", int_array, true),
+            ("float_field", float_array, true),
+            ("time", timestamp_array, false),
+        ])
         .expect("created new record batch");
 
         let series_set = SeriesSet {
@@ -561,19 +547,17 @@ mod tests {
 
     #[test]
     fn test_group_series_conversion() {
-        let schema = Arc::new(Schema::new(vec![
-            ArrowField::new("float_field", ArrowDataType::Float64, true),
-            ArrowField::new("time", TIME_DATA_TYPE(), true),
-        ]));
-
         let float_array: ArrayRef = Arc::new(Float64Array::from(vec![10.1, 20.1, 30.1, 40.1]));
         let timestamp_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_vec(
             vec![1000, 2000, 3000, 4000],
             None,
         ));
 
-        let batch = RecordBatch::try_new(schema, vec![float_array, timestamp_array])
-            .expect("created new record batch");
+        let batch = RecordBatch::try_from_iter(vec![
+            ("float_field", float_array),
+            ("time", timestamp_array),
+        ])
+        .expect("created new record batch");
 
         let series_set = SeriesSet {
             table_name: Arc::new("the_table".into()),
@@ -775,14 +759,6 @@ mod tests {
     }
 
     fn make_record_batch() -> RecordBatch {
-        let schema = Arc::new(Schema::new(vec![
-            ArrowField::new("string_field", ArrowDataType::Utf8, true),
-            ArrowField::new("int_field", ArrowDataType::Int64, true),
-            ArrowField::new("float_field", ArrowDataType::Float64, true),
-            ArrowField::new("boolean_field", ArrowDataType::Boolean, true),
-            ArrowField::new("time", TIME_DATA_TYPE(), true),
-        ]));
-
         let string_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz", "foo"]));
         let int_array: ArrayRef = Arc::new(Int64Array::from(vec![1, 2, 3, 4]));
         let float_array: ArrayRef = Arc::new(Float64Array::from(vec![10.1, 20.1, 30.1, 40.1]));
@@ -793,16 +769,13 @@ mod tests {
             None,
         ));
 
-        RecordBatch::try_new(
-            schema,
-            vec![
-                string_array,
-                int_array,
-                float_array,
-                bool_array,
-                timestamp_array,
-            ],
-        )
+        RecordBatch::try_from_iter_with_nullable(vec![
+            ("string_field", string_array, true),
+            ("int_field", int_array, true),
+            ("float_field", float_array, true),
+            ("boolean_field", bool_array, true),
+            ("time", timestamp_array, true),
+        ])
         .expect("created new record batch")
     }
 }

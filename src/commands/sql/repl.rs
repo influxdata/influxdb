@@ -1,8 +1,7 @@
 use std::{convert::TryInto, path::PathBuf, sync::Arc, time::Instant};
 
 use arrow_deps::arrow::{
-    array::{Array, StringArray},
-    datatypes::{Field, Schema},
+    array::{ArrayRef, StringArray},
     record_batch::RecordBatch,
 };
 use observability_deps::tracing::{debug, info};
@@ -197,14 +196,9 @@ impl Repl {
         let state = self.remote_state().await?;
         let db_names = StringArray::from_iter_values(state.db_names.iter().map(|s| s.as_str()));
 
-        let schema = Schema::new(vec![Field::new(
-            "db_name",
-            db_names.data_type().clone(),
-            false,
-        )]);
-
-        let record_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(db_names)])
-            .expect("creating record batch successfully");
+        let record_batch =
+            RecordBatch::try_from_iter(vec![("db_name", Arc::new(db_names) as ArrayRef)])
+                .expect("creating record batch successfully");
 
         self.print_results(&[record_batch])
     }

@@ -229,7 +229,7 @@ mod tests {
     use super::*;
     use arrow_deps::{
         arrow::{
-            array::{Array, Int32Array, StringArray},
+            array::{ArrayRef, Int32Array, StringArray},
             datatypes::{Field, Schema},
             record_batch::RecordBatch,
         },
@@ -362,12 +362,7 @@ mod tests {
         let col_b = Arc::new(Int32Array::from(vec![4, 5, 6]));
         let col_c = Arc::new(StringArray::from(vec!["foo", "bar", "baz"]));
 
-        let schema = Schema::new(vec![
-            Field::new("a", col_a.data_type().clone(), false),
-            Field::new("b", col_b.data_type().clone(), false),
-            Field::new("c", col_c.data_type().clone(), false),
-        ]);
-
-        RecordBatch::try_new(Arc::new(schema), vec![col_a, col_b, col_c]).unwrap()
+        RecordBatch::try_from_iter(vec![("a", col_a as ArrayRef), ("b", col_b), ("c", col_c)])
+            .unwrap()
     }
 }

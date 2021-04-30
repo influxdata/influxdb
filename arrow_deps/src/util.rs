@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use arrow::{
     array::{ArrayRef, StringArray},
-    datatypes::{DataType, Field, Schema},
     error::ArrowError,
     record_batch::RecordBatch,
 };
@@ -22,15 +21,9 @@ where
     I: IntoIterator<Item = Option<Ptr>>,
     Ptr: AsRef<str>,
 {
-    let schema = Arc::new(Schema::new(vec![Field::new(
-        field_name,
-        DataType::Utf8,
-        false,
-    )]));
     let array = StringArray::from_iter(iter);
-    let columns: Vec<ArrayRef> = vec![Arc::new(array)];
 
-    RecordBatch::try_new(schema, columns)
+    RecordBatch::try_from_iter(vec![(field_name, Arc::new(array) as ArrayRef)])
 }
 
 /// Traits to help creating DataFusion expressions from strings

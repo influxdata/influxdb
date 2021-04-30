@@ -17,8 +17,7 @@ use data_types::{names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{influxdata::iox::management::v1::DatabaseRules, ReadSource, TimestampRange};
 
 use arrow_deps::arrow::{
-    array::{Array, ArrayRef, Float64Array, StringArray, TimestampNanosecondArray},
-    datatypes::{Field, Schema},
+    array::{ArrayRef, Float64Array, StringArray, TimestampNanosecondArray},
     record_batch::RecordBatch,
 };
 
@@ -206,21 +205,13 @@ impl Scenario {
         );
         let value_array = Float64Array::from(vec![0.64, 27.99, 3.89, 1234567.891011, 0.000003]);
 
-        let schema = Schema::new(vec![
-            Field::new("host", host_array.data_type().clone(), true),
-            Field::new("region", region_array.data_type().clone(), true),
-            Field::new("time", time_array.data_type().clone(), true),
-            Field::new("value", value_array.data_type().clone(), true),
-        ]);
-
-        let columns: Vec<ArrayRef> = vec![
-            Arc::new(host_array),
-            Arc::new(region_array),
-            Arc::new(time_array),
-            Arc::new(value_array),
-        ];
-
-        let batch = RecordBatch::try_new(Arc::new(schema), columns).unwrap();
+        let batch = RecordBatch::try_from_iter_with_nullable(vec![
+            ("host", Arc::new(host_array) as ArrayRef, true),
+            ("region", Arc::new(region_array), true),
+            ("time", Arc::new(time_array), true),
+            ("value", Arc::new(value_array), true),
+        ])
+        .unwrap();
 
         arrow_deps::arrow::util::pretty::pretty_format_batches(&[batch])
             .unwrap()
