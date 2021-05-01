@@ -168,6 +168,7 @@ func encodeCookieSession(w http.ResponseWriter, s *influxdb.Session) {
 	c := &http.Cookie{
 		Name:  cookieSessionName,
 		Value: s.Key,
+		Path:  "/api/",
 	}
 
 	http.SetCookie(w, c)

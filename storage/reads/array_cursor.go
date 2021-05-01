@@ -71,13 +71,19 @@ type multiShardArrayCursors struct {
 	}
 }
 
+// newMultiShardArrayCursors is a factory for creating cursors for each series key.
+// The range of the cursor is [start, end). The start time is the lower absolute time
+// and the end time is the higher absolute time regardless of ascending or descending order.
 func newMultiShardArrayCursors(ctx context.Context, start, end int64, asc bool) *multiShardArrayCursors {
+	// When we construct the CursorRequest, we translate the time range
+	// from [start, stop) to [start, stop]. The cursor readers from storage are
+	// inclusive on both ends and we perform that conversion here.
 	m := &multiShardArrayCursors{
 		ctx: ctx,
 		req: cursors.CursorRequest{
 			Ascending: asc,
 			StartTime: start,
-			EndTime:   end,
+			EndTime:   end - 1,
 		},
 	}
 
