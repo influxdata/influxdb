@@ -1287,7 +1287,7 @@ mod tests {
         test_helpers::{try_write_lp, write_lp},
         *,
     };
-    use crate::query_tests::utils::{make_database, make_db};
+    use crate::query_tests::utils::{make_db, TestDb};
     use ::test_helpers::assert_contains;
     use arrow_deps::{
         arrow::record_batch::RecordBatch, assert_batches_eq, assert_batches_sorted_eq,
@@ -1758,7 +1758,12 @@ mod tests {
         // Create a DB given a server id, an object store and a db name
         let server_id = ServerId::try_from(10).unwrap();
         let db_name = "parquet_test_db";
-        let test_db = make_database(server_id, Arc::clone(&object_store), db_name);
+        let test_db = TestDb::builder()
+            .server_id(server_id)
+            .object_store(Arc::clone(&object_store))
+            .db_name(db_name)
+            .build();
+
         let db = Arc::new(test_db.db);
 
         // Write some line protocols in Mutable buffer of the DB
@@ -1820,7 +1825,7 @@ mod tests {
 
         // Get full string path
         let root_path = format!("{:?}", root.path());
-        let root_path = root_path.trim_matches('"');
+        let root_path = root_path.trim_matches('"'); // end quote to fix syntax highlighting: "
         let path = format!("{}/{}", root_path, paths[0].display());
         println!("path: {}", path);
 
@@ -1864,7 +1869,12 @@ mod tests {
         // Create a DB given a server id, an object store and a db name
         let server_id = ServerId::try_from(10).unwrap();
         let db_name = "unload_read_buffer_test_db";
-        let test_db = make_database(server_id, Arc::clone(&object_store), db_name);
+        let test_db = TestDb::builder()
+            .server_id(server_id)
+            .object_store(Arc::clone(&object_store))
+            .db_name(db_name)
+            .build();
+
         let db = Arc::new(test_db.db);
 
         // Write some line protocols in Mutable buffer of the DB
@@ -1954,7 +1964,7 @@ mod tests {
 
         // Get full string path
         let root_path = format!("{:?}", root.path());
-        let root_path = root_path.trim_matches('"');
+        let root_path = root_path.trim_matches('"'); // end quote to fix syntax highlighting: "
         let path = format!("{}/{}", root_path, paths[0].display());
         println!("path: {}", path);
 
