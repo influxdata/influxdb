@@ -196,45 +196,62 @@ Cons:
 
 
 ### 3.2 Catalog Transactions _· rejected_
-Only preserve catalog changes between transactions. Changes could be encoded using the following messages:
+Only preserve catalog changes that form transactions. A `Transaction` message consistens of:
+
+- **revision counter:** Linear counter for transactions, starting at 0.
+- **UUID:** UUID of this transaction used for conflict detection.
+- **previous UUID:** UUID of previous transaction. Is `None` for the first transaction.
+- **actions:** Change actions.
+
+Change actions could be encoded using the following messages:
 
 - `Add`: Adds a new parquet file. Contains parquet file name, statistics and schema.
 - `Remove`: Removes a parquet file. Contains parquet file name.
 - `Tombstones`: Adds tombstones to catalog. Contains tombstones by key.
-- `Commit`: Close a transaction. Contains the ID of the current transaction and the ID of the previous transaction. For the first transaction, the previous ID is `None`.
 - `Upgrade`: Upgrades to a new format of the catalog.
 
 So a transaction stream might look like this:
 
 ```text
-Add(
-    "2815898179/my_db/year=2020/month=01/0/sensors.parquet",
-)
-Add(
-    "2815898179/my_db/year=2020/month=01/0/stocks.parquet",
-)
-Commit(
-    "1.bdb70c0a-883b-4d85-81f2-e4c3390428ab",
+Transaction(
+    0,
+    "bdb70c0a-883b-4d85-81f2-e4c3390428ab",
     None,
+    [
+        Add(
+            "2815898179/my_db/year=2020/month=01/0/sensors.parquet",
+        ),
+        Add(
+            "2815898179/my_db/year=2020/month=01/0/stocks.parquet",
+        ),
+    ],
 )
-Add(
-    "2815898179/my_db/year=2020/month=01/1/sensors.parquet",
+Transaction(
+    1,
+    "dfaafae6-9904-49e7-986e-8a7a883abfd4",
+    "bdb70c0a-883b-4d85-81f2-e4c3390428ab",
+    [
+        Add(
+            "2815898179/my_db/year=2020/month=01/1/sensors.parquet",
+        ),
+    ],
 )
-Commit(
-    "2.dfaafae6-9904-49e7-986e-8a7a883abfd4",
-    "1.bdb70c0a-883b-4d85-81f2-e4c3390428ab",
-)
-Delete(
-    "2815898179/my_db/year=2020/month=01/0/stocks.parquet",
-)
-Commit(
-    "3.b054881d-5421-41ba-82f2-e060ed87ca1e",
-    "2.dfaafae6-9904-49e7-986e-8a7a883abfd4",
+Transaction(
+    2,
+    "b054881d-5421-41ba-82f2-e060ed87ca1e",
+    "dfaafae6-9904-49e7-986e-8a7a883abfd4",
+    [
+        Remove(
+            "2815898179/my_db/year=2020/month=01/0/stocks.parquet",
+        ),
+    ],
 )
 ```
 
 
-Note that time travel is only allowed to `Commit` messages. States between two commits (= full transactions) are considered incomplete / invalid, since they do not allow for atomic changes of multiple files or combinations of operations (like `Delete` + `Add`).
+Note that time travel is only allowed to full `Transaction` messages. States between two transactions (i.e. a state
+within the actions list) are considered incomplete / invalid, since they do not allow for atomic changes of multiple files or
+combinations of operations (like `Remove` + `Add`).
 
 Pros:
 
@@ -243,13 +260,13 @@ Pros:
 
 Cons:
 
-- Increasing computation and access time for transactions over catalog, since transaction (= `Commit` message) access is `O(n)`
+- Increasing computation and access time for transactions over catalog, since transaction (= `Transaction` message) access is `O(n)`
 
 
 ### 3.3 Transaction & Checkpoint Hybrid_ · accepted_
 Based on the observations in _section 3.2_ that transactions accumulate over time and that reading them gets more and more expensive, this proposal also preserves checkpoints at some intervals. This allows easy state access for the preserved transaction and quick reconstruction of the transaction states that are not directly preserved, while avoiding full state preservations for every single transaction.
 
-For the encoding, the transaction messages from the previous proposal can be used with an additional message `Checkpoint` that contains the transaction ID and the full transaction state. Note that the `Checkpoint` does NOT replace the `Commit` message. Since checkpointing is a mere optimization, it is always optional and the writer might skip it due to load constraints. Also, checkpoints might be added later. A transaction counts as “preserved” when the `Commit` message is written.
+For the encoding, the transaction messages from the previous proposal can be used with an additional message `Checkpoint` that contains the transaction ID and the full transaction state. Note that the `Checkpoint` does NOT replace the `Transaction` message. Since checkpointing is a mere optimization, it is always optional and the writer might skip it due to load constraints. Also, checkpoints might be added later. A transaction counts as “preserved” when the `Transaction` message is written.
 
 Pros:
 
@@ -321,18 +338,18 @@ Cons:
 Instead of lumping all transactions and checkpoints into a single object preserve transactions for every transaction into its own file:
 
 ```text
-<writer_id>/<database>/transactions/<zero_padded(transaction_id)>.transaction
+<writer_id>/<database>/transactions/<zero_padded(transaction_id)>.txn
 ```
 
 Depending on the design option for the transaction encoding, this file will have one of the following contents:
 
 - **Catalog Checkpoints:** The checkpoints are written into the corresponding file.
-- **Transaction (w/ or w/o additional Checkpointing):** The messages starting right after the previous `Commit` message (or all messages for the first transaction) ending at the corresponding `Commit` message (inclusive end). So the last message within a file is always a `Commit` message.
+- **Transaction (w/ or w/o additional Checkpointing):** Contains a single `Transaction` message.
 
-If transactions with checkpoints are used additional object that contain only the `Checkpoint` message are created. The `Checkpoint` message will NOT be part of the `.transaction` file though:
+If transactions with checkpoints are used additional object that contain only the `Checkpoint` message are created. The `Checkpoint` message will NOT be part of the `.txn` file though:
 
 ```text
-<writer_id>/<database>/transactions/<zero_padded_and_trim(transaction_id)>.checkpoint
+<writer_id>/<database>/transactions/<zero_padded(transaction_id.revision)>/<transaction_id.uuid>.ckpt
 ```
 
 Note the zero padding for both schemas which will turn 1 into 00001 (padding size still to be decided) and `bdb70c0a-883b-4d85-81f2-e4c3390428ab` into `bdb70c0a`. This allows quick sorted listing of transactions. Furthermore the inclusion of the UUID-part into the file name allows readers and writers to detect the (hopefully unusual) case that identical serverIDs were used in parallel.
@@ -343,23 +360,23 @@ So an example file hierarchy for the variant with checkpoints could look like th
 2815898179/
            my_db/
                     transactions/
-                                 00001.bdb70c0a.transaction
-                                 00002.dfaafae6.transaction
-                                 00003.b054881d.transaction
-                                 00004.612a514c.transaction
-                                 00005.a50f2c92.transaction
-                                 00005.3611950b.checkpoint
-                                 00006.88a6fd49.transaction
-                                 00007.91391de5.transaction
-                                 00008.ca0ebb88.transaction
+                                 00001/bdb70c0a.txn
+                                 00002/dfaafae6.txn
+                                 00003/b054881d.txn
+                                 00004/612a514c.txn
+                                 00005/a50f2c92.txn
+                                 00005/3611950b.ckpt
+                                 00006/88a6fd49.txn
+                                 00007/91391de5.txn
+                                 00008/ca0ebb88.txn
            other_db/
                     transactions/
-                                 00001.35e47ad8.transaction
+                                 00001/35e47ad8.txn
 3837527170/
            my_db/
                     transactions/
-                                 00001.82c816fd.transaction
-                                 00002.08dbd199.transaction
+                                 00001/82c816fd.txn
+                                 00002/08dbd199.txn
 ```
 
 Transactions/Checkpoints are stored using one of the established serialization formats (e.g. Protobuf, Flatbuffer).
@@ -444,13 +461,13 @@ Cons:
 Instead of file names like
 
 ```text
-00001.bdb70c0a.transaction
+00001.bdb70c0a.txn
 ```
 
 Have
 
 ```text
-00001.transaction
+00001.txn
 ```
 
 After an initial `LIST` to discover the latest transaction a reader can use simple `GET` operations to walk the transaction history.
