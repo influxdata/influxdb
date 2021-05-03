@@ -51,6 +51,7 @@ v1.9.0 [unreleased]
 -	[#21310](https://github.com/influxdata/influxdb/pull/21310): fix: Anti-Entropy loops endlessly with empty shard
 -	[#21341](https://github.com/influxdata/influxdb/pull/21341): fix: summation should be in native type for new meancount iterator
 -	[#21348](https://github.com/influxdata/influxdb/pull/21348): fix(storage): cursor requests are [start, stop] instead of [start, stop)
+-	[#21359](https://github.com/influxdata/influxdb/pull/21359): fix: disable MergeFiltersRule until it is more stable
 
 v1.8.5 [unreleased]
 -------------------
