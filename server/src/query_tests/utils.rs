@@ -1,13 +1,13 @@
 use data_types::{
     chunk::{ChunkStorage, ChunkSummary},
-    database_rules::DatabaseRules,
+    database_rules::{DatabaseRules, WriteBufferRollover},
     server_id::ServerId,
     DatabaseName,
 };
 use object_store::{disk::File, ObjectStore};
 use query::{exec::Executor, Database};
 
-use crate::{db::Db, JobRegistry};
+use crate::{buffer::Buffer, db::Db, JobRegistry};
 use std::{borrow::Cow, convert::TryFrom, sync::Arc};
 use tempfile::TempDir;
 
@@ -30,6 +30,7 @@ pub struct TestDbBuilder {
     server_id: Option<ServerId>,
     object_store: Option<Arc<ObjectStore>>,
     db_name: Option<DatabaseName<'static>>,
+    write_buffer: bool,
 }
 
 impl TestDbBuilder {
@@ -59,6 +60,20 @@ impl TestDbBuilder {
         let exec = Arc::new(Executor::new(1));
         let metrics_registry = Arc::new(metrics::MetricRegistry::new());
 
+        let write_buffer = if self.write_buffer {
+            let max = 1 << 32;
+            let segment = 1 << 16;
+            Some(Buffer::new(
+                max,
+                segment,
+                WriteBufferRollover::ReturnError,
+                false,
+                server_id,
+            ))
+        } else {
+            None
+        };
+
         TestDb {
             metric_registry: metrics::TestMetricRegistry::new(Arc::clone(&metrics_registry)),
             db: Db::new(
@@ -66,7 +81,7 @@ impl TestDbBuilder {
                 server_id,
                 object_store,
                 exec,
-                None, // write buffer
+                write_buffer,
                 Arc::new(JobRegistry::new()),
                 metrics_registry,
             ),
@@ -85,6 +100,11 @@ impl TestDbBuilder {
 
     pub fn db_name<T: Into<Cow<'static, str>>>(mut self, db_name: T) -> Self {
         self.db_name = Some(DatabaseName::new(db_name).unwrap());
+        self
+    }
+
+    pub fn write_buffer(mut self, enabled: bool) -> Self {
+        self.write_buffer = enabled;
         self
     }
 }

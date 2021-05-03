@@ -1,7 +1,10 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
-use super::{buffer::Buffer, JobRegistry};
+use super::{
+    buffer::{self, Buffer},
+    JobRegistry,
+};
 use arrow_deps::{
     arrow::datatypes::SchemaRef as ArrowSchemaRef,
     datafusion::{
@@ -202,6 +205,9 @@ pub enum Error {
 
     #[snafu(display("Invalid Clock Value: {}", source))]
     InvalidClockValue { source: ClockValueError },
+
+    #[snafu(display("Error sending Sequenced Entry to Write Buffer: {}", source))]
+    WriteBufferError { source: buffer::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -1070,28 +1076,38 @@ impl Db {
     }
 
     /// Stores an entry based on the configuration. The Entry will first be
-    /// converted into a Sequenced Entry with the logical clock assigned
-    /// from the database. If the write buffer is configured, the sequenced
-    /// entry is written into the buffer and replicated based on the
-    /// configured rules. If the mutable buffer is configured, the sequenced
-    /// entry is then written into the mutable buffer.
+    /// converted into a `SequencedEntry` with the logical clock assigned
+    /// from the database, and then the `SequencedEntry` will be passed to
+    /// `store_sequenced_entry`.
     pub fn store_entry(&self, entry: Entry) -> Result<()> {
-        // TODO: build this based on either this or on the write buffer, if configured
-        let sequenced_entry = OwnedSequencedEntry::new_from_entry_bytes(
-            ClockValue::try_from(self.next_sequence()).context(InvalidClockValue)?,
-            self.server_id,
-            entry.data(),
-        )
-        .context(SequencedEntryError)?;
-
-        if self.rules.read().write_buffer_config.is_some() {
-            todo!("route to the Write Buffer. TODO: carols10cents #1157")
-        }
+        let sequenced_entry = Arc::new(
+            OwnedSequencedEntry::new_from_entry_bytes(
+                ClockValue::try_from(self.next_sequence()).context(InvalidClockValue)?,
+                self.server_id,
+                entry.data(),
+            )
+            .context(SequencedEntryError)?,
+        );
 
         self.store_sequenced_entry(sequenced_entry)
     }
 
-    pub fn store_sequenced_entry(&self, sequenced_entry: impl SequencedEntry) -> Result<()> {
+    /// Given a `SequencedEntry`:
+    ///
+    /// - If the write buffer is configured, write the `SequencedEntry` into the buffer, which
+    ///   will replicate the `SequencedEntry` based on the configured rules.
+    /// - If the mutable buffer is configured, the `SequencedEntry` is then written into the
+    ///   mutable buffer.
+    pub fn store_sequenced_entry(&self, sequenced_entry: Arc<dyn SequencedEntry>) -> Result<()> {
+        // Send to the write buffer, if configured
+        if let Some(wb) = &self.write_buffer {
+            wb.lock()
+                .append(Arc::clone(&sequenced_entry))
+                .context(WriteBufferError)?;
+        }
+
+        // Send to the mutable buffer
+
         let rules = self.rules.read();
         let mutable_size_threshold = rules.lifecycle_rules.mutable_size_threshold;
         if rules.lifecycle_rules.immutable {
@@ -2621,5 +2637,14 @@ mod tests {
             try_write_lp(db.as_ref(), "cpu bar=2 20"),
             Err(super::Error::HardLimitReached {})
         ));
+    }
+
+    #[tokio::test]
+    async fn write_goes_to_write_buffer_if_configured() {
+        let db = Arc::new(TestDb::builder().write_buffer(true).build().db);
+
+        assert_eq!(db.write_buffer.as_ref().unwrap().lock().size(), 0);
+        write_lp(db.as_ref(), "cpu bar=1 10");
+        assert_ne!(db.write_buffer.as_ref().unwrap().lock().size(), 0);
     }
 }
