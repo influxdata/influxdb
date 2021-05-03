@@ -1301,9 +1301,7 @@ mod tests {
     };
     use futures::{stream, StreamExt, TryStreamExt};
     use internal_types::entry::test_helpers::lp_to_entry;
-    use object_store::{
-        disk::File, path::ObjectStorePath, path::Path, ObjectStore, ObjectStoreApi,
-    };
+    use object_store::{disk::File, path::Path, ObjectStore, ObjectStoreApi};
     use query::{frontend::sql::SqlQueryPlanner, PartitionChunk};
     use std::{convert::TryFrom, iter::Iterator, num::NonZeroUsize, str};
     use tempfile::TempDir;
@@ -1824,17 +1822,21 @@ mod tests {
         assert_eq!(path_list, paths.clone());
 
         // Get full string path
-        let root_path = format!("{:?}", root.path());
-        let root_path = root_path.trim_matches('"'); // end quote to fix syntax highlighting: "
-        let path = format!("{}/{}", root_path, paths[0].display());
-        println!("path: {}", path);
+        let path0 = match &paths[0] {
+            Path::File(file_path) => file_path.to_raw(),
+            other => panic!("expected `Path::File`, got: {:?}", other),
+        };
+
+        let mut path = root.path().to_path_buf();
+        path.push(&path0);
+        println!("path: {}", path.display());
 
         // Create External table of this parquet file to get its content in a human
         // readable form
         // Note: We do not care about escaping quotes here because it is just a test
         let sql = format!(
             "CREATE EXTERNAL TABLE parquet_table STORED AS PARQUET LOCATION '{}'",
-            path
+            path.display()
         );
 
         let mut ctx = context::ExecutionContext::new();
@@ -1963,17 +1965,21 @@ mod tests {
         assert_eq!(path_list, paths.clone());
 
         // Get full string path
-        let root_path = format!("{:?}", root.path());
-        let root_path = root_path.trim_matches('"'); // end quote to fix syntax highlighting: "
-        let path = format!("{}/{}", root_path, paths[0].display());
-        println!("path: {}", path);
+        let path0 = match &paths[0] {
+            Path::File(file_path) => file_path.to_raw(),
+            other => panic!("expected `Path::File`, got: {:?}", other),
+        };
+
+        let mut path = root.path().to_path_buf();
+        path.push(&path0);
+        println!("path: {}", path.display());
 
         // Create External table of this parquet file to get its content in a human
         // readable form
         // Note: We do not care about escaping quotes here because it is just a test
         let sql = format!(
             "CREATE EXTERNAL TABLE parquet_table STORED AS PARQUET LOCATION '{}'",
-            path
+            path.display()
         );
 
         let mut ctx = context::ExecutionContext::new();
