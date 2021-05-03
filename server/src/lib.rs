@@ -88,7 +88,7 @@ use internal_types::{
     entry::{self, lines_to_sharded_entries, Entry, ShardedEntry},
     once::OnceNonZeroU32,
 };
-use metrics::MetricRegistry;
+use metrics::{KeyValue, MetricRegistry};
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, DatabaseStore};
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
@@ -261,6 +261,9 @@ pub struct ServerMetrics {
 
     /// The number of Entry bytes ingested
     pub ingest_entries_bytes_total: metrics::Counter,
+
+    /// Internal memory allocator stats
+    pub jemalloc_memstats: metrics::Gauge,
 }
 
 impl ServerMetrics {
@@ -268,6 +271,7 @@ impl ServerMetrics {
         // Server manages multiple domains.
         let http_domain = registry.register_domain("http");
         let ingest_domain = registry.register_domain("ingest");
+        let jemalloc_domain = registry.register_domain("jemalloc");
 
         Self {
             http_requests: http_domain.register_red_metric(None),
@@ -285,6 +289,34 @@ impl ServerMetrics {
                 "entries",
                 Some("bytes"),
                 "total Entry bytes ingested",
+            ),
+            jemalloc_memstats: jemalloc_domain.register_gauge_metric_with_labels_and_callback(
+                "memstats",
+                Some("bytes"),
+                "jemalloc memstats",
+                vec![],
+                |observer| {
+                    use tikv_jemalloc_ctl::{epoch, stats};
+                    epoch::advance().unwrap();
+
+                    let active = stats::allocated::read().unwrap();
+                    observer.observe(active as f64, &[KeyValue::new("stat", "active")]);
+
+                    let allocated = stats::allocated::read().unwrap();
+                    observer.observe(allocated as f64, &[KeyValue::new("stat", "alloc")]);
+
+                    let metadata = stats::metadata::read().unwrap();
+                    observer.observe(metadata as f64, &[KeyValue::new("stat", "metadata")]);
+
+                    let mapped = stats::mapped::read().unwrap();
+                    observer.observe(mapped as f64, &[KeyValue::new("stat", "mapped")]);
+
+                    let resident = stats::resident::read().unwrap();
+                    observer.observe(resident as f64, &[KeyValue::new("stat", "resident")]);
+
+                    let retained = stats::retained::read().unwrap();
+                    observer.observe(retained as f64, &[KeyValue::new("stat", "retained")]);
+                },
             ),
         }
     }
