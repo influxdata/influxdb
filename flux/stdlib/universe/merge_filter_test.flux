@@ -35,7 +35,8 @@ merge_filter_fn = () =>
     |> filter(fn: (r) => r["_field"] == "load4")
 
 testcase merge_filter {
-    expect.planner(rules: ["MergeFiltersRule": 1])
+    // TODO(lesam): re-enable planner expectation when we re-enable the MergeFiltersRule
+    // expect.planner(rules: ["MergeFiltersRule": 1])
 
     result = merge_filter_fn()
     testing.diff(got: result, want: testing.loadMem(csv: output))
