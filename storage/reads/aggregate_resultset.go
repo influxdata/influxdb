@@ -23,11 +23,12 @@ type windowAggregateResultSet struct {
 	err          error
 }
 
-// IsAscendingWindowAggregate checks two things: If the request passed in
+// IsLastDescendingAggregateOptimization checks two things: If the request passed in
 // is using the `last` aggregate type, and if it doesn't have a window. If both
 // conditions are met, it returns false, otherwise, it returns true.
-func IsAscendingWindowAggregate(req *datatypes.ReadWindowAggregateRequest) bool {
+func IsLastDescendingAggregateOptimization(req *datatypes.ReadWindowAggregateRequest) bool {
 	if len(req.Aggregate) != 1 {
+		// Descending optimization for last only applies when it is the only aggregate.
 		return false
 	}
 
@@ -38,13 +39,13 @@ func IsAscendingWindowAggregate(req *datatypes.ReadWindowAggregateRequest) bool 
 	if req.Aggregate[0].Type == datatypes.AggregateTypeLast {
 		if req.Window == nil {
 			if req.WindowEvery == 0 || req.WindowEvery == math.MaxInt64 {
-				return false
+				return true
 			}
 		} else if (req.Window.Every.Nsecs == 0 && req.Window.Every.Months == 0) || req.Window.Every.Nsecs == math.MaxInt64 {
-			return false
+			return true
 		}
 	}
-	return true
+	return false
 }
 
 func NewWindowAggregateResultSet(ctx context.Context, req *datatypes.ReadWindowAggregateRequest, cursor SeriesCursor) (ResultSet, error) {
@@ -60,7 +61,7 @@ func NewWindowAggregateResultSet(ctx context.Context, req *datatypes.ReadWindowA
 		return nil, errors.Errorf(errors.InternalError, "attempt to create a windowAggregateResultSet with %v aggregate functions", nAggs)
 	}
 
-	ascending := IsAscendingWindowAggregate(req)
+	ascending := !IsLastDescendingAggregateOptimization(req)
 	results := &windowAggregateResultSet{
 		ctx:          ctx,
 		req:          req,
