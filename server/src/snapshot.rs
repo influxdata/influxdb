@@ -267,20 +267,17 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
-
+    use super::*;
     use crate::{
-        db::{Db, DbChunk},
+        db::{test_helpers::write_lp, Db, DbChunk},
         JobRegistry,
     };
-
-    use super::*;
-    use crate::db::test_helpers::write_lp;
     use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
     use futures::TryStreamExt;
     use mutable_buffer::chunk::Chunk as ChunkWB;
     use object_store::memory::InMemory;
     use query::{exec::Executor, predicate::Predicate, Database};
+    use std::convert::TryFrom;
     use tracker::MemRegistry;
 
     #[tokio::test]

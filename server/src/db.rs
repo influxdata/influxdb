@@ -1283,6 +1283,10 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        test_helpers::{try_write_lp, write_lp},
+        *,
+    };
     use crate::query_tests::utils::{make_database, make_db};
     use ::test_helpers::assert_contains;
     use arrow_deps::{
@@ -1295,20 +1299,13 @@ mod tests {
         database_rules::{Order, Sort, SortOrder},
         partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
     };
+    use futures::{stream, StreamExt, TryStreamExt};
+    use internal_types::entry::test_helpers::lp_to_entry;
     use object_store::{
         disk::File, path::ObjectStorePath, path::Path, ObjectStore, ObjectStoreApi,
     };
     use query::{frontend::sql::SqlQueryPlanner, PartitionChunk};
-
-    use super::*;
-    use futures::stream;
-    use futures::{StreamExt, TryStreamExt};
-    use std::{convert::TryFrom, iter::Iterator};
-
-    use super::test_helpers::{try_write_lp, write_lp};
-    use internal_types::entry::test_helpers::lp_to_entry;
-    use std::num::NonZeroUsize;
-    use std::str;
+    use std::{convert::TryFrom, iter::Iterator, num::NonZeroUsize, str};
     use tempfile::TempDir;
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
