@@ -2,6 +2,7 @@ package influxdb_test
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -2948,6 +2949,116 @@ func TestMergeFilterRule(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			plantest.LogicalRuleTestHelper(t, &tc)
+		})
+	}
+}
+
+func TestMergeTimeSortRule(t *testing.T) {
+	readRange := influxdb.ReadRangePhysSpec{
+		Bucket: "my-bucket",
+		Bounds: flux.Bounds{
+			Start: fluxTime(5),
+			Stop:  fluxTime(10),
+		},
+	}
+
+	readGroup := influxdb.ReadGroupPhysSpec{
+		ReadRangePhysSpec: readRange,
+		GroupMode:         flux.GroupModeBy,
+		GroupKeys:         []string{"t0"},
+	}
+
+	readWindowAggregate := influxdb.ReadWindowAggregatePhysSpec{
+		ReadRangePhysSpec: readRange,
+		WindowEvery:       flux.ConvertDuration(5),
+		Aggregates: []plan.ProcedureKind{
+			universe.SumKind,
+		},
+	}
+
+	makePlannerTests := func(name string, spec plan.PhysicalProcedureSpec) []plantest.RuleTestCase {
+		return []plantest.RuleTestCase{
+			{
+				Name: name,
+				Rules: []plan.Rule{
+					influxdb.MergeTimeSortRule{},
+				},
+				Before: &plantest.PlanSpec{
+					Nodes: []plan.Node{
+						plan.CreateLogicalNode(plan.NodeID(name), spec),
+						plan.CreateLogicalNode("sort", &universe.SortProcedureSpec{
+							Columns: []string{execute.DefaultTimeColLabel},
+						}),
+					},
+					Edges: [][2]int{
+						{0, 1},
+					},
+				},
+				After: &plantest.PlanSpec{
+					Nodes: []plan.Node{
+						plan.CreatePhysicalNode(plan.NodeID(fmt.Sprintf("merged_%s_sort", name)), spec),
+					},
+				},
+			},
+			{
+				Name: fmt.Sprintf("%s non-time column", name),
+				Rules: []plan.Rule{
+					influxdb.MergeTimeSortRule{},
+				},
+				Before: &plantest.PlanSpec{
+					Nodes: []plan.Node{
+						plan.CreateLogicalNode(plan.NodeID(name), spec),
+						plan.CreateLogicalNode("sort", &universe.SortProcedureSpec{
+							Columns: []string{execute.DefaultValueColLabel},
+						}),
+					},
+					Edges: [][2]int{
+						{0, 1},
+					},
+				},
+				NoChange: true,
+			},
+			{
+				Name: fmt.Sprintf("%s desc", name),
+				Rules: []plan.Rule{
+					influxdb.MergeTimeSortRule{},
+				},
+				Before: &plantest.PlanSpec{
+					Nodes: []plan.Node{
+						plan.CreateLogicalNode(plan.NodeID(name), &readRange),
+						plan.CreateLogicalNode("sort", &universe.SortProcedureSpec{
+							Columns: []string{execute.DefaultTimeColLabel},
+							Desc:    true,
+						}),
+					},
+					Edges: [][2]int{
+						{0, 1},
+					},
+				},
+				NoChange: true,
+			},
+		}
+	}
+
+	mergePlannerTests := func(tests ...[]plantest.RuleTestCase) []plantest.RuleTestCase {
+		var merged []plantest.RuleTestCase
+		for _, t := range tests {
+			merged = append(merged, t...)
+		}
+		return merged
+	}
+
+	tests := mergePlannerTests(
+		makePlannerTests("ReadRange", &readRange),
+		makePlannerTests("ReadGroup", &readGroup),
+		makePlannerTests("ReadWindowAggregate", &readWindowAggregate),
+	)
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			plantest.PhysicalRuleTestHelper(t, &tc)
 		})
 	}
 }

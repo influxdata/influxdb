@@ -31,6 +31,7 @@ func init() {
 		PushDownBareAggregateRule{},
 		GroupWindowAggregateTransposeRule{},
 		PushDownGroupAggregateRule{},
+		MergeTimeSortRule{},
 	)
 	plan.RegisterLogicalRules(
 		MergeFiltersRule{},
@@ -1081,4 +1082,32 @@ func (MergeFiltersRule) Pattern() plan.Pattern {
 
 func (r MergeFiltersRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
 	return universe.MergeFiltersRule{}.Rewrite(ctx, pn)
+}
+
+// MergeTimeSortRule will remove a sort(columns: ["_time"], desc: false) that occurs directly
+// after a storage operation. Storage operations always return in sorted time order so this sort
+// isn't necessary, but the sort may be necessary without the pushdown.
+type MergeTimeSortRule struct{}
+
+func (MergeTimeSortRule) Name() string {
+	return "influxdata/influxdb.MergeTimeSortRule"
+}
+
+func (MergeTimeSortRule) Pattern() plan.Pattern {
+	return plan.Pat(universe.SortKind, plan.OneOf([]plan.ProcedureKind{ReadRangePhysKind, ReadGroupPhysKind, ReadWindowAggregatePhysKind}))
+}
+
+func (r MergeTimeSortRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	spec := pn.ProcedureSpec().(*universe.SortProcedureSpec)
+	if len(spec.Columns) != 1 || spec.Columns[0] != execute.DefaultTimeColLabel || spec.Desc {
+		// The sort is for something else so we can't eliminate it.
+		return pn, false, nil
+	}
+	fromNode := pn.Predecessors()[0]
+	fromSpec := fromNode.ProcedureSpec().(plan.PhysicalProcedureSpec)
+	newNode, err := plan.MergeToPhysicalNode(pn, fromNode, fromSpec)
+	if err != nil {
+		return pn, false, err
+	}
+	return newNode, true, nil
 }
