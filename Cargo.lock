@@ -251,7 +251,7 @@ dependencies = [
  "log",
  "md5",
  "oauth2",
- "paste",
+ "paste 1.0.5",
  "quick-error",
  "reqwest",
  "serde",
@@ -799,7 +799,7 @@ dependencies = [
  "num_cpus",
  "ordered-float 2.1.1",
  "parquet",
- "paste",
+ "paste 1.0.5",
  "pin-project-lite",
  "smallvec",
  "sqlparser 0.9.0",
@@ -1511,6 +1511,7 @@ dependencies = [
  "tempfile",
  "test_helpers",
  "thiserror",
+ "tikv-jemalloc-ctl",
  "tikv-jemallocator",
  "tokio",
  "tokio-stream",
@@ -2414,9 +2415,28 @@ dependencies = [
 
 [[package]]
 name = "paste"
+version = "0.1.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45ca20c77d80be666aef2b45486da86238fabe33e38306bd3118fe4af33fa880"
+dependencies = [
+ "paste-impl",
+ "proc-macro-hack",
+]
+
+[[package]]
+name = "paste"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf547ad0c65e31259204bd90935776d1c693cec2f4ff7abb7a1bbbd40dfe58"
+
+[[package]]
+name = "paste-impl"
+version = "0.1.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d95a7db200b97ef370c8e6de0088252f7e0dfff7d047a28528e47456c0fc98b6"
+dependencies = [
+ "proc-macro-hack",
+]
 
 [[package]]
 name = "peeking_take_while"
@@ -3400,6 +3420,7 @@ dependencies = [
  "snap",
  "tempfile",
  "test_helpers",
+ "tikv-jemalloc-ctl",
  "tokio",
  "tokio-util",
  "tracker",
@@ -3769,6 +3790,17 @@ dependencies = [
  "log",
  "ordered-float 1.1.1",
  "threadpool",
+]
+
+[[package]]
+name = "tikv-jemalloc-ctl"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f28c80e4338857639f443169a601fafe49866aed8d7a8d565c2f5bfb1a021adf"
+dependencies = [
+ "libc",
+ "paste 0.1.18",
+ "tikv-jemalloc-sys",
 ]
 
 [[package]]
