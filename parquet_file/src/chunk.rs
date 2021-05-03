@@ -146,6 +146,12 @@ impl Chunk {
         Ok(table.path())
     }
 
+    /// Return Schema for the specified table / columns
+    pub fn timestamp_range(&self, table_name: &str) -> Result<Option<TimestampRange>> {
+        let table = self.find_table(table_name)?;
+        Ok(table.timestamp_range())
+    }
+
     // Return all tables of this chunk whose timestamp overlaps with the give one
     pub fn table_names(
         &self,
