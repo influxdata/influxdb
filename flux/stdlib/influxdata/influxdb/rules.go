@@ -32,9 +32,11 @@ func init() {
 		PushDownBareAggregateRule{},
 		PushDownGroupAggregateRule{},
 	)
-	plan.RegisterLogicalRules(
-		universe.MergeFiltersRule{},
-	)
+	// TODO(lesam): re-enable MergeFilterRule once it works with complex use cases
+	// such as filter() |> geo.strictFilter(). See geo_merge_filter flux test.
+	//plan.RegisterLogicalRules(
+	//	universe.MergeFiltersRule{},
+	//)
 }
 
 type FromStorageRule struct{}
