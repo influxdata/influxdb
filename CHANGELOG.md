@@ -8,6 +8,7 @@
 ### Bug Fixes
 
 1. [21345](https://github.com/influxdata/influxdb/pull/21345): Deprecate the unsupported `PostSetupUser` API.
+2. [21356](https://github.com/influxdata/influxdb/pull/21356): disable MergeFiltersRule until it is more stable
 
 ## v2.0.6 [2021-04-29]
 

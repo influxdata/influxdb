@@ -32,9 +32,11 @@ func init() {
 		GroupWindowAggregateTransposeRule{},
 		PushDownGroupAggregateRule{},
 	)
-	plan.RegisterLogicalRules(
-		MergeFiltersRule{},
-	)
+	// TODO(lesam): re-enable MergeFilterRule once it works with complex use cases
+	// such as filter() |> geo.strictFilter(). See geo_merge_filter flux test.
+	//plan.RegisterLogicalRules(
+	//	MergeFiltersRule{},
+	//)
 }
 
 type FromStorageRule struct{}
