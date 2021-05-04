@@ -8,6 +8,7 @@
 ### Bug Fixes
 
 1. [21345](https://github.com/influxdata/influxdb/pull/21345): Deprecate the unsupported `PostSetupUser` API.
+1. [21369](https://github.com/influxdata/influxdb/pull/21369): Add limits to the `/api/v2/delete` endpoint for start and stop times with error messages.
 
 ## v2.0.6 [2021-04-29]
 
