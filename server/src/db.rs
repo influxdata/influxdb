@@ -656,7 +656,7 @@ impl Db {
             chunk_id,
         })?;
 
-        // Track the size of the newly immutable closed MUB chunk.
+        // Track the size of the newly immutable RB chunk.
         self.metrics
             .catalog_immutable_chunk_bytes
             .observe_with_labels(
@@ -707,11 +707,6 @@ impl Db {
                 })?
         };
 
-        let prev_chunk_state = {
-            let chunk = chunk.read();
-            (chunk.state().metric_label(), chunk.size())
-        };
-
         // update the catalog to say we are processing this chunk and
         // then drop the lock while we do the work
         let rb_chunk = {
@@ -726,13 +721,12 @@ impl Db {
                 })?
         };
 
-        // chunk transitioned from moved to "writing"
+        // chunk transitioned from moved to "writing", but the chunk remains in
+        // the read buffer so we don't want to decrease that metric.
         {
             let chunk = chunk.read();
-            self.metrics.update_chunk_state(
-                Some(prev_chunk_state),
-                Some((chunk.state().metric_label(), chunk.size())),
-            );
+            self.metrics
+                .update_chunk_state(None, Some((chunk.state().metric_label(), chunk.size())));
         }
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked WRITING , loading tables into object store");
 
@@ -832,11 +826,28 @@ impl Db {
                 )],
             );
 
-        // chunk transitioned from writing to written
-        self.metrics.update_chunk_state(
-            Some(prev_chunk_state),
-            Some((chunk.state().metric_label(), chunk.size())),
+        // TODO(edd): metric updates here are brittle. Come up with a better
+        // solution.
+        // Reduce size of "written" chunk bytes
+        self.metrics.catalog_chunk_bytes.sub_with_labels(
+            prev_chunk_state.1 as f64,
+            &[metrics::KeyValue::new("state", prev_chunk_state.0)],
         );
+
+        // Increase size of chunk in "os" state.
+        self.metrics.catalog_chunk_bytes.add_with_labels(
+            chunk.size() as f64,
+            &[metrics::KeyValue::new("state", "os")],
+        );
+
+        // Track a new chunk in "rub_and_os" state
+        self.metrics
+            .catalog_chunks
+            .inc_with_labels(&[metrics::KeyValue::new(
+                "state",
+                chunk.state().metric_label(),
+            )]);
+
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked WRITTEN. Persisting to object store complete");
 
         // We know this chunk is ParquetFile type
@@ -874,20 +885,43 @@ impl Db {
 
         // update the catalog to no longer use read buffer chunk if any
         let mut chunk = chunk.write();
-        let prev_chunk_state = (chunk.state().metric_label(), chunk.size());
 
-        chunk
-            .set_unload_from_read_buffer()
-            .context(UnloadingChunkFromReadBuffer {
-                partition_key,
-                table_name,
-                chunk_id,
-            })?;
+        let rb_chunk = {
+            chunk
+                .set_unload_from_read_buffer()
+                .context(UnloadingChunkFromReadBuffer {
+                    partition_key,
+                    table_name,
+                    chunk_id,
+                })?
+        };
 
-        // The chunk has not moved to a new state, just removed from an
-        // existing one.
+        // TODO(edd): metric updates here are brittle. Come up with a better
+        // solution.
+        // Reduce size of "moved" chunk bytes (in read buffer)
+        self.metrics.catalog_chunk_bytes.sub_with_labels(
+            rb_chunk.size() as f64,
+            &[metrics::KeyValue::new("state", "moved")],
+        );
+
+        // Track a new chunk in "os"-only state
         self.metrics
-            .update_chunk_state(Some(prev_chunk_state), None);
+            .catalog_chunks
+            .inc_with_labels(&[metrics::KeyValue::new(
+                "state",
+                chunk.state().metric_label(),
+            )]);
+
+        self.metrics
+            .catalog_immutable_chunk_bytes
+            .observe_with_labels(
+                chunk.size() as f64,
+                &[metrics::KeyValue::new(
+                    "state",
+                    chunk.state().metric_label(),
+                )],
+            );
+
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked UNLOADED from read buffer");
 
         Ok(DbChunk::snapshot(&chunk))
@@ -1382,9 +1416,9 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        // verify chunk size updated (chunk moved from open to closing)
+        // verify chunk size updated (chunk moved from open to closed)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "open", 0).unwrap();
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "closing", 88).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "closed", 88).unwrap();
 
         db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", 0)
             .await
@@ -1404,7 +1438,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated (chunk moved from closing to moving to moved)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "closing", 0).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "closed", 0).unwrap();
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moving", 0).unwrap();
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 1222).unwrap();
 
@@ -1425,11 +1459,14 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 1222).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "os", 1897).unwrap(); // now also in OS
+
         db.unload_read_buffer("1970-01-01T00", "cpu", 0)
             .await
             .unwrap();
 
-        // A chunk is now no longer in read buffer
+        // A chunk is now now in the "os-only" state.
         test_db
             .metric_registry
             .has_metric_family("catalog_chunks_total")
@@ -1438,10 +1475,10 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        // verify chunk size updated (chunk moved from moved to writing to written)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 0).unwrap();
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "writing_os", 0).unwrap();
+        // verify chunk size not increased for OS (it was in OS before unload)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "os", 1897).unwrap();
+        // verify chunk size for RB has decreased
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 0).unwrap();
     }
 
     #[tokio::test]
