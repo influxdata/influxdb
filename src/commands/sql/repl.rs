@@ -27,6 +27,12 @@ pub enum Error {
         source: influxdb_iox_client::format::Error,
     },
 
+    #[snafu(display("Error setting format to '{}': {}", requested_format, source))]
+    SettingFormat {
+        requested_format: String,
+        source: influxdb_iox_client::format::Error,
+    },
+
     #[snafu(display("Error parsing command: {}", message))]
     ParsingCommand { message: String },
 
@@ -88,6 +94,9 @@ pub struct Repl {
 
     /// database name against which SQL commands are run
     query_engine: Option<QueryEngine>,
+
+    /// Formatter to use to format query results
+    output_format: QueryOutputFormat,
 }
 
 impl Repl {
@@ -109,6 +118,8 @@ impl Repl {
 
         let prompt = "> ".to_string();
 
+        let output_format = QueryOutputFormat::Pretty;
+
         Self {
             rl,
             prompt,
@@ -116,6 +127,7 @@ impl Repl {
             management_client,
             flight_client,
             query_engine: None,
+            output_format,
         }
     }
 
@@ -150,6 +162,9 @@ impl Repl {
                 ReplCommand::Exit => {
                     info!("exiting at user request");
                     return Ok(());
+                }
+                ReplCommand::SetFormat { format } => {
+                    self.set_output_format(format)?;
                 }
             }
         }
@@ -276,6 +291,17 @@ impl Repl {
         self.query_engine = Some(query_engine)
     }
 
+    /// Sets the output format to the specified format
+    pub fn set_output_format<S: AsRef<str>>(&mut self, requested_format: S) -> Result<()> {
+        let requested_format = requested_format.as_ref();
+
+        self.output_format = requested_format
+            .parse()
+            .context(SettingFormat { requested_format })?;
+        println!("Set output format format to {}", self.output_format);
+        Ok(())
+    }
+
     // TODO make a setting for changing if we cache remote state or not
     async fn remote_state(&mut self) -> Result<RemoteState> {
         let state = RemoteState::try_new(&mut self.management_client).await?;
@@ -284,9 +310,10 @@ impl Repl {
 
     /// Prints to the specified output format
     fn print_results(&self, batches: &[RecordBatch]) -> Result<()> {
-        // TODO make query output format configurable
-        let output_format = QueryOutputFormat::Pretty;
-        let formatted_results = output_format.format(batches).context(FormattingResults)?;
+        let formatted_results = self
+            .output_format
+            .format(batches)
+            .context(FormattingResults)?;
         println!("{}", formatted_results);
         Ok(())
     }
