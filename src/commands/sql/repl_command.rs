@@ -8,6 +8,7 @@ pub enum ReplCommand {
     Help,
     ShowDatabases,
     Observer,
+    SetFormat { format: String },
     UseDatabase { db_name: String },
     SqlCommand { sql: String },
     Exit,
@@ -71,6 +72,10 @@ impl TryInto<ReplCommand> for String {
             })
         } else if commands.len() == 2 && commands[0] == "show" && commands[1] == "databases" {
             Ok(ReplCommand::ShowDatabases)
+        } else if commands.len() == 3 && commands[0] == "set" && commands[1] == "format" {
+            Ok(ReplCommand::SetFormat {
+                format: raw_commands[2].to_string(),
+            })
         } else {
             // Default is to treat the entire string like SQL
             Ok(ReplCommand::SqlCommand { sql: self })
@@ -88,6 +93,8 @@ HELP (this one)
 SHOW DATABASES: List databases available on the server
 
 USE [DATABASE] <name>: Set the current remote database to name
+
+SET FORMAT <format>: Set the output format to Pretty, csv or json
 
 OBSERVER: Locally query unified queryable views of remote system tables
 
@@ -219,6 +226,22 @@ mod tests {
 
         let expected = sql_cmd("use database foo BAR");
         assert_eq!("use database foo BAR".try_into(), expected);
+    }
+
+    #[test]
+    fn set_format() {
+        let expected = Ok(ReplCommand::SetFormat {
+            format: "csv".to_string(),
+        });
+        assert_eq!(" set format csv".try_into(), expected);
+        assert_eq!("SET format   csv;".try_into(), expected);
+        assert_eq!("set  format csv".try_into(), expected);
+        assert_eq!("set format csv;".try_into(), expected);
+
+        let expected = Ok(ReplCommand::SetFormat {
+            format: "Hmm".to_string(),
+        });
+        assert_eq!("set format Hmm".try_into(), expected);
     }
 
     #[test]
