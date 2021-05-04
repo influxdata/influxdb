@@ -92,6 +92,40 @@ func TestDelete(t *testing.T) {
 			},
 		},
 		{
+			name: "start time too soon",
+			args: args{
+				queryParams: map[string][]string{},
+				body:        []byte(`{"start":"1969-12-31T23:59:59Z"}`),
+				authorizer:  &influxdb.Authorization{UserID: user1ID},
+			},
+			fields: fields{},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body: `{
+					"code": "invalid",
+					"message": "invalid request; error parsing request json: invalid start time, start time must not be before 1970-01-01T00:00:00Z"
+				  }`,
+			},
+		},
+		{
+			name: "stop time too late",
+			args: args{
+				queryParams: map[string][]string{},
+				body:        []byte(`{"start":"2020-01-01T01:01:01Z", "stop":"2262-04-11T23:47:17Z"}`),
+				authorizer:  &influxdb.Authorization{UserID: user1ID},
+			},
+			fields: fields{},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body: `{
+					"code": "invalid",
+					"message": "invalid request; error parsing request json: invalid stop time, stop time must not be after 2262-04-11T23:47:16Z"
+				  }`,
+			},
+		},
+		{
 			name: "missing org",
 			args: args{
 				queryParams: map[string][]string{},
