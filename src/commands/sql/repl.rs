@@ -230,8 +230,24 @@ impl Repl {
         let end = Instant::now();
         self.print_results(&batches)?;
 
-        println!("Query execution complete in {:?}", end - start);
+        println!(
+            "Returned {} in {:?}",
+            Self::row_summary(&batches),
+            end - start
+        );
         Ok(())
+    }
+
+    fn row_summary<'a>(batches: impl IntoIterator<Item = &'a RecordBatch>) -> String {
+        let total_rows: usize = batches.into_iter().map(|b| b.num_rows()).sum();
+
+        if total_rows > 1 {
+            format!("{} rows", total_rows)
+        } else if total_rows == 0 {
+            "no rows".to_string()
+        } else {
+            "1 row".to_string()
+        }
     }
 
     fn use_database(&mut self, db_name: String) {
