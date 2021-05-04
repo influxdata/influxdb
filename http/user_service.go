@@ -388,7 +388,7 @@ func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, _, err := h.UserService.FindUsers(ctx, req.filter)
+	users, _, err := h.UserService.FindUsers(ctx, req.filter, req.opts)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -404,11 +404,19 @@ func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 
 type getUsersRequest struct {
 	filter influxdb.UserFilter
+	opts   influxdb.FindOptions
 }
 
 func decodeGetUsersRequest(ctx context.Context, r *http.Request) (*getUsersRequest, error) {
+	opts, err := influxdb.DecodeFindOptions(r)
+	if err != nil {
+		return nil, err
+	}
+
 	qp := r.URL.Query()
-	req := &getUsersRequest{}
+	req := &getUsersRequest{
+		opts: *opts,
+	}
 
 	if userID := qp.Get("id"); userID != "" {
 		id, err := platform.IDFromString(userID)
