@@ -68,7 +68,6 @@ export function defaultLineViewProperties() {
   return {
     queries: [defaultViewQuery()],
     colors: DEFAULT_LINE_COLORS as Color[],
-    legend: {},
     note: '',
     showNoteWhenEmpty: false,
     axes: {
@@ -96,7 +95,6 @@ export function defaultBandViewProperties() {
   return {
     queries: [defaultViewQuery()],
     colors: DEFAULT_LINE_COLORS as Color[],
-    legend: {},
     note: '',
     showNoteWhenEmpty: false,
     axes: {
@@ -222,7 +220,6 @@ const NEW_VIEW_CREATORS = {
       ...defaultSingleStatViewProperties(),
       type: 'single-stat',
       shape: 'chronograf-v2',
-      legend: {},
     },
   }),
   gauge: (): NewView<GaugeViewProperties> => ({
@@ -231,7 +228,6 @@ const NEW_VIEW_CREATORS = {
       ...defaultGaugeViewProperties(),
       type: 'gauge',
       shape: 'chronograf-v2',
-      legend: {},
     },
   }),
   'line-plus-single-stat': (): NewView<LinePlusSingleStatProperties> => ({
