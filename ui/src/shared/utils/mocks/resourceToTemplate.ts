@@ -78,7 +78,6 @@ export const myView: View = {
       },
     },
     type: 'xy',
-    legend: {},
     geom: 'line',
     colors: [],
     note: '',
