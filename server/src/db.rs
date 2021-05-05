@@ -693,6 +693,11 @@ impl Db {
                     table_name,
                     chunk_id,
                 })?;
+
+            // println!("___ FROM RUB BEFORE LOADING TO OS:");
+            // let record_batch = read_results.next().unwrap();
+            // println!("___ BATCH FROM RUB BEFORE LOADING TO OS: {:#?}", record_batch);
+
             let arrow_schema: ArrowSchemaRef = rb_chunk
                 .read_filter_table_schema(stats.name.as_str(), Selection::All)
                 .context(ReadBufferChunkSchemaError {
@@ -709,6 +714,12 @@ impl Db {
             let stream: SendableRecordBatchStream = Box::pin(
                 streams::ReadFilterResultsStream::new(read_results, Arc::clone(&arrow_schema)),
             );
+
+            // let mut batches = Vec::new();
+            // while let Some(record_batch) = stream.next().await.transpose().expect("reading next batch")
+            // {
+            //     batches.push(record_batch)
+            // }
 
             // Write this table data into the object store
             let path = storage
@@ -1757,6 +1768,7 @@ mod tests {
             .unwrap();
 
         // Verify data written to the parquet file in object store
+        // 
         // First, there must be one path of object store in the catalog
         let paths = pq_chunk.object_store_paths();
         assert_eq!(paths.len(), 1);
@@ -1775,6 +1787,9 @@ mod tests {
         let path = format!("{}/{}", root_path, paths[0].display());
         println!("path: {}", path);
 
+        // Read Metadata 
+
+        // Get data back using SQL
         // Create External table of this parquet file to get its content in a human
         // readable form
         // Note: We do not care about escaping quotes here because it is just a test

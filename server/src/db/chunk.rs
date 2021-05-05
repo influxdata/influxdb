@@ -1,4 +1,5 @@
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
+//use arrow_deps::datafusion::dataframe::DataFrame;
 use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::snapshot::ChunkSnapshot;
 use object_store::path::Path;
@@ -6,6 +7,10 @@ use observability_deps::tracing::debug;
 use parquet_file::chunk::Chunk as ParquetChunk;
 use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
 use read_buffer::Chunk as ReadBufferChunk;
+//use read_buffer::ReadFilterResults;
+
+//use futures::StreamExt;
+
 use snafu::{ResultExt, Snafu};
 
 use std::{
@@ -284,6 +289,9 @@ impl PartitionChunk for DbChunk {
                     .read_filter(table_name, selection)
                     .context(MutableBufferChunk)?;
 
+                // println!("--- READ FROM MUB:");
+                // println!("------- Record batch: {:#?}", batch);
+
                 Ok(Box::pin(MemoryStream::new(batch)))
             }
             Self::ReadBuffer { chunk, .. } => {
@@ -303,16 +311,36 @@ impl PartitionChunk for DbChunk {
                         chunk_id: chunk.id(),
                     })?;
 
+                // println!("--- READ FROM RUB:");
+                // let record_batch = copy.next().unwrap();
+                // println!("------- Results: {:#?}", record_batch);
+
                 Ok(Box::pin(ReadFilterResultsStream::new(
                     read_results,
                     schema.into(),
                 )))
             }
-            Self::ParquetFile { chunk, .. } => chunk
-                .read_filter(table_name, predicate, selection)
-                .context(ParquetFileChunkError {
-                    chunk_id: chunk.id(),
-                }),
+            Self::ParquetFile { chunk, .. } => {
+                chunk
+                    .read_filter(table_name, predicate, selection)
+                    .context(ParquetFileChunkError {
+                        chunk_id: chunk.id(),
+                    })
+
+                // let mut batches = Vec::new();
+                // // process the record batches one by one
+                // while let Some(record_batch) = results.next().await.transpose().expect("reading next batch")
+                // {
+                //     batches.push(record_batch)
+                // }
+
+                // let batches = results
+                //     .unwrap()
+                //     .collect::<Vec<_>>()
+                //     .
+                //     .map(Result::unwrap)
+                //     .collect();
+            }
         }
     }
 
