@@ -414,7 +414,7 @@ mod tests {
     use super::*;
     use internal_types::entry::{test_helpers::lp_to_sequenced_entry as lp_2_se, SequencedEntry};
     use object_store::memory::InMemory;
-    use std::convert::TryFrom;
+    use std::{convert::TryFrom, ops::Deref};
 
     #[test]
     fn append_increments_current_size_and_uses_existing_segment() {
@@ -615,7 +615,7 @@ mod tests {
     }
 
     fn equal_to_server_id_and_clock_value(
-        sequenced_entry: Arc<dyn SequencedEntry>,
+        sequenced_entry: &dyn SequencedEntry,
         expected_server_id: ServerId,
         expected_clock_value: u64,
     ) {
@@ -664,9 +664,9 @@ mod tests {
 
         let writes = buf.writes_since(ClockValue::try_from(1).unwrap());
         assert_eq!(3, writes.len());
-        equal_to_server_id_and_clock_value(Arc::clone(&writes[0]), server_id1, 2);
-        equal_to_server_id_and_clock_value(Arc::clone(&writes[1]), server_id1, 3);
-        equal_to_server_id_and_clock_value(Arc::clone(&writes[2]), server_id2, 2);
+        equal_to_server_id_and_clock_value(writes[0].deref(), server_id1, 2);
+        equal_to_server_id_and_clock_value(writes[1].deref(), server_id1, 3);
+        equal_to_server_id_and_clock_value(writes[2].deref(), server_id2, 2);
     }
 
     #[test]
