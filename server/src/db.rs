@@ -356,6 +356,12 @@ impl DbMetrics {
         prev_state_size: Option<(&'static str, usize)>,
         next_state_size: Option<(&'static str, usize)>,
     ) {
+        debug!(
+            ?prev_state_size,
+            ?next_state_size,
+            "updating chunk state metrics"
+        );
+
         // Reduce bytes tracked metric for previous state
         if let Some((state, size)) = prev_state_size {
             let labels = vec![metrics::KeyValue::new("state", state)];
