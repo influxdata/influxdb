@@ -353,7 +353,6 @@ export default {
               },
             },
             type: 'line-plus-single-stat',
-            legend: {},
             colors: [
               {
                 id: 'base',
@@ -910,7 +909,6 @@ export default {
               },
             },
             type: 'line-plus-single-stat',
-            legend: {},
             colors: [
               {
                 id: 'base',

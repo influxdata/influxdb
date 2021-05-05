@@ -187,7 +187,6 @@ export const mockAppState = {
                 value: 0,
               },
             ],
-            legend: {},
             note: '',
             showNoteWhenEmpty: false,
             axes: {

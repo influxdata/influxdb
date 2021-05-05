@@ -391,7 +391,6 @@ describe('resourceToTemplate', () => {
                     },
                   },
                   type: 'xy',
-                  legend: {},
                   geom: 'line',
                   colors: [],
                   note: '',
