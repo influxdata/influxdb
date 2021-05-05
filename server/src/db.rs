@@ -1378,8 +1378,8 @@ mod tests {
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
 
-    #[tokio::test]
-    async fn write_no_mutable_buffer() {
+    #[test]
+    fn write_no_mutable_buffer() {
         // Validate that writes are rejected if there is no mutable buffer
         let db = make_db().db;
         db.rules.write().lifecycle_rules.immutable = true;
@@ -2074,8 +2074,8 @@ mod tests {
         assert_batches_eq!(expected, &content);
     }
 
-    #[tokio::test]
-    async fn write_updates_last_write_at() {
+    #[test]
+    fn write_updates_last_write_at() {
         let db = Arc::new(make_db().db);
         let before_create = Utc::now();
 
@@ -2139,8 +2139,8 @@ mod tests {
         assert!(chunk.time_closed().unwrap() < after_rollover);
     }
 
-    #[tokio::test]
-    async fn test_chunk_closing() {
+    #[test]
+    fn test_chunk_closing() {
         let db = Arc::new(make_db().db);
         db.rules.write().lifecycle_rules.mutable_size_threshold =
             Some(NonZeroUsize::new(2).unwrap());
@@ -2160,8 +2160,8 @@ mod tests {
         assert!(matches!(chunks[1].read().state(), ChunkState::Closed(_)));
     }
 
-    #[tokio::test]
-    async fn chunks_sorted_by_times() {
+    #[test]
+    fn chunks_sorted_by_times() {
         let db = Arc::new(make_db().db);
         write_lp(&db, "cpu val=1 1");
         write_lp(&db, "mem val=2 400000000000001");
@@ -2682,8 +2682,8 @@ mod tests {
         assert_eq!(read_parquet_file_chunk_ids(&db, partition_key), vec![0]);
     }
 
-    #[tokio::test]
-    async fn write_hard_limit() {
+    #[test]
+    fn write_hard_limit() {
         let db = Arc::new(make_db().db);
         db.rules.write().lifecycle_rules.buffer_size_hard = Some(NonZeroUsize::new(10).unwrap());
 
@@ -2697,8 +2697,8 @@ mod tests {
         ));
     }
 
-    #[tokio::test]
-    async fn write_goes_to_write_buffer_if_configured() {
+    #[test]
+    fn write_goes_to_write_buffer_if_configured() {
         let db = Arc::new(TestDb::builder().write_buffer(true).build().db);
 
         assert_eq!(db.write_buffer.as_ref().unwrap().lock().size(), 0);
