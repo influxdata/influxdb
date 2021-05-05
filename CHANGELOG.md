@@ -14,6 +14,7 @@
 1. [21325](https://github.com/influxdata/influxdb/pull/21325): Ensure query config written by influxd upgrade is valid.
 1. [21325](https://github.com/influxdata/influxdb/pull/21325): Revert to nonzero defaults for `query-concurrency` and `query-queue-size` to avoid validation failures for upgrading users.
 1. [21325](https://github.com/influxdata/influxdb/pull/21325): Don't fail validation when `query-concurrency` is 0 and `query-queue-size` is > 0.
+1. [21361](https://github.com/influxdata/influxdb/pull/21361): Disable MergeFiltersRule until it is more stable.
 
 ## v2.0.5 [2021-04-27]
 ----------------------

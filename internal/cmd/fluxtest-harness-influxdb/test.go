@@ -129,18 +129,24 @@ func (t *testExecutor) executeWithOptions(bucketOpt, orgOpt *ast.OptionStatement
 	}
 	defer r.Release()
 
+	wasDiff := false
 	for r.More() {
 		v := r.Next()
 
 		if err := v.Tables().Do(func(tbl flux.Table) error {
+			wasDiff = true
 			// The data returned here is the result of `testing.diff`, so any result means that
 			// a comparison of two tables showed inequality. Capture that inequality as part of the error.
 			// XXX: rockstar (08 Dec 2020) - This could use some ergonomic work, as the diff testOutput
 			// is not exactly "human readable."
-			return fmt.Errorf("%s", table.Stringify(tbl))
+			fmt.Fprintln(os.Stderr, table.Stringify(tbl))
+			return nil
 		}); err != nil {
 			return err
 		}
+	}
+	if wasDiff {
+		return errors.New("test failed with diff tables, see logs for details")
 	}
 	r.Release()
 	return r.Err()
