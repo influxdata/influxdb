@@ -577,7 +577,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	natsOpts := nats.NewDefaultServerOptions()
 	natsOpts.Port = opts.NatsPort
 	natsOpts.MaxPayload = opts.NatsMaxPayloadBytes
-	m.natsServer = nats.NewServer(&natsOpts)
+	m.natsServer = nats.NewServer(&natsOpts, m.log.With(zap.String("service", "nats")))
 	if err := m.natsServer.Open(); err != nil {
 		m.log.Error("Failed to start nats streaming server", zap.Error(err))
 		return err
