@@ -45,40 +45,42 @@ impl TryInto<ReplCommand> for String {
 
         debug!(?raw_commands, ?commands, "processing tokens");
 
-        if !commands.is_empty() && commands[0] == "help" {
-            if commands.len() > 1 {
+        // Get something we can more easily pattern match on
+        let commands = commands.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+
+        match commands.as_slice() {
+            ["help"] => Ok(ReplCommand::Help),
+            ["help", ..] => {
                 let extra_content = commands[1..].join(" ");
                 warn!(%extra_content, "ignoring tokens after 'help'");
+                Ok(ReplCommand::Help)
             }
-            Ok(ReplCommand::Help)
-        } else if commands.len() == 1 && commands[0] == "observer" {
-            Ok(ReplCommand::Observer)
-        } else if commands.len() == 1 && commands[0] == "exit" {
-            Ok(ReplCommand::Exit)
-        } else if commands.len() == 1 && commands[0] == "quit" {
-            Ok(ReplCommand::Exit)
-        } else if commands.len() == 2 && commands[0] == "use" && commands[1] == "database" {
-            // USE DATABASE
-            Err("name not specified. Usage: USE DATABASE <name>".to_string())
-        } else if commands.len() == 3 && commands[0] == "use" && commands[1] == "database" {
-            // USE DATABASE <name>
-            Ok(ReplCommand::UseDatabase {
-                db_name: raw_commands[2].to_string(),
-            })
-        } else if commands.len() == 2 && commands[0] == "use" {
-            // USE <name>
-            Ok(ReplCommand::UseDatabase {
-                db_name: raw_commands[1].to_string(),
-            })
-        } else if commands.len() == 2 && commands[0] == "show" && commands[1] == "databases" {
-            Ok(ReplCommand::ShowDatabases)
-        } else if commands.len() == 3 && commands[0] == "set" && commands[1] == "format" {
-            Ok(ReplCommand::SetFormat {
+            ["observer"] => Ok(ReplCommand::Observer),
+            ["exit"] => Ok(ReplCommand::Exit),
+            ["quit"] => Ok(ReplCommand::Exit),
+            ["use", "database"] => {
+                Err("name not specified. Usage: USE DATABASE <name>".to_string())
+            } // USE DATABASE
+            ["use", "database", _name] => {
+                // USE DATABASE <name>
+                Ok(ReplCommand::UseDatabase {
+                    db_name: raw_commands[2].to_string(),
+                })
+            }
+            ["use", _command] => {
+                // USE <name>
+                Ok(ReplCommand::UseDatabase {
+                    db_name: raw_commands[1].to_string(),
+                })
+            }
+            ["show", "databases"] => Ok(ReplCommand::ShowDatabases),
+            ["set", "format", _format] => Ok(ReplCommand::SetFormat {
                 format: raw_commands[2].to_string(),
-            })
-        } else {
-            // Default is to treat the entire string like SQL
-            Ok(ReplCommand::SqlCommand { sql: self })
+            }),
+            _ => {
+                // By default, treat the entire string as SQL
+                Ok(ReplCommand::SqlCommand { sql: self })
+            }
         }
     }
 }
