@@ -1,7 +1,10 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
-use super::{buffer::Buffer, JobRegistry};
+use super::{
+    buffer::{self, Buffer},
+    JobRegistry,
+};
 use arrow_deps::{
     arrow::datatypes::SchemaRef as ArrowSchemaRef,
     datafusion::{
@@ -202,6 +205,9 @@ pub enum Error {
 
     #[snafu(display("Invalid Clock Value: {}", source))]
     InvalidClockValue { source: ClockValueError },
+
+    #[snafu(display("Error sending Sequenced Entry to Write Buffer: {}", source))]
+    WriteBufferError { source: buffer::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -350,6 +356,12 @@ impl DbMetrics {
         prev_state_size: Option<(&'static str, usize)>,
         next_state_size: Option<(&'static str, usize)>,
     ) {
+        debug!(
+            ?prev_state_size,
+            ?next_state_size,
+            "updating chunk state metrics"
+        );
+
         // Reduce bytes tracked metric for previous state
         if let Some((state, size)) = prev_state_size {
             let labels = vec![metrics::KeyValue::new("state", state)];
@@ -1070,28 +1082,42 @@ impl Db {
     }
 
     /// Stores an entry based on the configuration. The Entry will first be
-    /// converted into a Sequenced Entry with the logical clock assigned
-    /// from the database. If the write buffer is configured, the sequenced
-    /// entry is written into the buffer and replicated based on the
-    /// configured rules. If the mutable buffer is configured, the sequenced
-    /// entry is then written into the mutable buffer.
+    /// converted into a `SequencedEntry` with the logical clock assigned
+    /// from the database, and then the `SequencedEntry` will be passed to
+    /// `store_sequenced_entry`.
     pub fn store_entry(&self, entry: Entry) -> Result<()> {
-        // TODO: build this based on either this or on the write buffer, if configured
-        let sequenced_entry = OwnedSequencedEntry::new_from_entry_bytes(
-            ClockValue::try_from(self.next_sequence()).context(InvalidClockValue)?,
-            self.server_id,
-            entry.data(),
-        )
-        .context(SequencedEntryError)?;
-
-        if self.rules.read().write_buffer_config.is_some() {
-            todo!("route to the Write Buffer. TODO: carols10cents #1157")
-        }
+        let sequenced_entry = Arc::new(
+            OwnedSequencedEntry::new_from_entry_bytes(
+                ClockValue::try_from(self.next_sequence()).context(InvalidClockValue)?,
+                self.server_id,
+                entry.data(),
+            )
+            .context(SequencedEntryError)?,
+        );
 
         self.store_sequenced_entry(sequenced_entry)
     }
 
-    pub fn store_sequenced_entry(&self, sequenced_entry: impl SequencedEntry) -> Result<()> {
+    /// Given a `SequencedEntry`:
+    ///
+    /// - If the write buffer is configured, write the `SequencedEntry` into the buffer, which
+    ///   will replicate the `SequencedEntry` based on the configured rules.
+    /// - If the mutable buffer is configured, the `SequencedEntry` is then written into the
+    ///   mutable buffer.
+    ///
+    /// Note that if the write buffer is configured but there is an error storing the
+    /// `SequencedEntry` in the write buffer, the `SequencedEntry` will *not* reach the mutable
+    /// buffer.
+    pub fn store_sequenced_entry(&self, sequenced_entry: Arc<dyn SequencedEntry>) -> Result<()> {
+        // Send to the write buffer, if configured
+        if let Some(wb) = &self.write_buffer {
+            wb.lock()
+                .append(Arc::clone(&sequenced_entry))
+                .context(WriteBufferError)?;
+        }
+
+        // Send to the mutable buffer
+
         let rules = self.rules.read();
         let mutable_size_threshold = rules.lifecycle_rules.mutable_size_threshold;
         if rules.lifecycle_rules.immutable {
@@ -1283,7 +1309,11 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
-    use crate::query_tests::utils::{make_database, make_db};
+    use super::{
+        test_helpers::{try_write_lp, write_lp},
+        *,
+    };
+    use crate::query_tests::utils::{make_db, TestDb};
     use ::test_helpers::assert_contains;
     use arrow_deps::{
         arrow::record_batch::RecordBatch, assert_batches_eq, assert_batches_sorted_eq,
@@ -1295,20 +1325,11 @@ mod tests {
         database_rules::{Order, Sort, SortOrder},
         partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
     };
-    use object_store::{
-        disk::File, path::ObjectStorePath, path::Path, ObjectStore, ObjectStoreApi,
-    };
-    use query::{frontend::sql::SqlQueryPlanner, PartitionChunk};
-
-    use super::*;
-    use futures::stream;
-    use futures::{StreamExt, TryStreamExt};
-    use std::{convert::TryFrom, iter::Iterator};
-
-    use super::test_helpers::{try_write_lp, write_lp};
+    use futures::{stream, StreamExt, TryStreamExt};
     use internal_types::entry::test_helpers::lp_to_entry;
-    use std::num::NonZeroUsize;
-    use std::str;
+    use object_store::{disk::File, path::Path, ObjectStore, ObjectStoreApi};
+    use query::{frontend::sql::SqlQueryPlanner, PartitionChunk};
+    use std::{convert::TryFrom, iter::Iterator, num::NonZeroUsize, str};
     use tempfile::TempDir;
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -1761,7 +1782,12 @@ mod tests {
         // Create a DB given a server id, an object store and a db name
         let server_id = ServerId::try_from(10).unwrap();
         let db_name = "parquet_test_db";
-        let test_db = make_database(server_id, Arc::clone(&object_store), db_name);
+        let test_db = TestDb::builder()
+            .server_id(server_id)
+            .object_store(Arc::clone(&object_store))
+            .db_name(db_name)
+            .build();
+
         let db = Arc::new(test_db.db);
 
         // Write some line protocols in Mutable buffer of the DB
@@ -1822,17 +1848,21 @@ mod tests {
         assert_eq!(path_list, paths.clone());
 
         // Get full string path
-        let root_path = format!("{:?}", root.path());
-        let root_path = root_path.trim_matches('"');
-        let path = format!("{}/{}", root_path, paths[0].display());
-        println!("path: {}", path);
+        let path0 = match &paths[0] {
+            Path::File(file_path) => file_path.to_raw(),
+            other => panic!("expected `Path::File`, got: {:?}", other),
+        };
+
+        let mut path = root.path().to_path_buf();
+        path.push(&path0);
+        println!("path: {}", path.display());
 
         // Create External table of this parquet file to get its content in a human
         // readable form
         // Note: We do not care about escaping quotes here because it is just a test
         let sql = format!(
             "CREATE EXTERNAL TABLE parquet_table STORED AS PARQUET LOCATION '{}'",
-            path
+            path.display()
         );
 
         let mut ctx = context::ExecutionContext::new();
@@ -1867,7 +1897,12 @@ mod tests {
         // Create a DB given a server id, an object store and a db name
         let server_id = ServerId::try_from(10).unwrap();
         let db_name = "unload_read_buffer_test_db";
-        let test_db = make_database(server_id, Arc::clone(&object_store), db_name);
+        let test_db = TestDb::builder()
+            .server_id(server_id)
+            .object_store(Arc::clone(&object_store))
+            .db_name(db_name)
+            .build();
+
         let db = Arc::new(test_db.db);
 
         // Write some line protocols in Mutable buffer of the DB
@@ -1956,17 +1991,21 @@ mod tests {
         assert_eq!(path_list, paths.clone());
 
         // Get full string path
-        let root_path = format!("{:?}", root.path());
-        let root_path = root_path.trim_matches('"');
-        let path = format!("{}/{}", root_path, paths[0].display());
-        println!("path: {}", path);
+        let path0 = match &paths[0] {
+            Path::File(file_path) => file_path.to_raw(),
+            other => panic!("expected `Path::File`, got: {:?}", other),
+        };
+
+        let mut path = root.path().to_path_buf();
+        path.push(&path0);
+        println!("path: {}", path.display());
 
         // Create External table of this parquet file to get its content in a human
         // readable form
         // Note: We do not care about escaping quotes here because it is just a test
         let sql = format!(
             "CREATE EXTERNAL TABLE parquet_table STORED AS PARQUET LOCATION '{}'",
-            path
+            path.display()
         );
 
         let mut ctx = context::ExecutionContext::new();
@@ -2608,5 +2647,14 @@ mod tests {
             try_write_lp(db.as_ref(), "cpu bar=2 20"),
             Err(super::Error::HardLimitReached {})
         ));
+    }
+
+    #[tokio::test]
+    async fn write_goes_to_write_buffer_if_configured() {
+        let db = Arc::new(TestDb::builder().write_buffer(true).build().db);
+
+        assert_eq!(db.write_buffer.as_ref().unwrap().lock().size(), 0);
+        write_lp(db.as_ref(), "cpu bar=1 10");
+        assert_ne!(db.write_buffer.as_ref().unwrap().lock().size(), 0);
     }
 }
