@@ -1098,6 +1098,10 @@ impl Db {
     ///   will replicate the `SequencedEntry` based on the configured rules.
     /// - If the mutable buffer is configured, the `SequencedEntry` is then written into the
     ///   mutable buffer.
+    ///
+    /// Note that if the write buffer is configured but there is an error storing the
+    /// `SequencedEntry` in the write buffer, the `SequencedEntry` will *not* reach the mutable
+    /// buffer.
     pub fn store_sequenced_entry(&self, sequenced_entry: Arc<dyn SequencedEntry>) -> Result<()> {
         // Send to the write buffer, if configured
         if let Some(wb) = &self.write_buffer {
