@@ -9,5 +9,6 @@
 
 pub mod catalog;
 pub mod chunk;
+pub mod metadata;
 pub mod storage;
 pub mod table;

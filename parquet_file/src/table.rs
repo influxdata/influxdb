@@ -96,6 +96,11 @@ impl Table {
         })
     }
 
+    /// Return timestamp range of this table
+    pub fn timestamp_range(&self) -> Option<TimestampRange> {
+        self.timestamp_range
+    }
+
     // Check if 2 time ranges overlap
     pub fn matches_predicate(&self, timestamp_range: &Option<TimestampRange>) -> bool {
         match (self.timestamp_range, timestamp_range) {

@@ -129,6 +129,51 @@ async fn test_sql_use_database() {
 }
 
 #[tokio::test]
+async fn test_sql_format() {
+    let fixture = ServerFixture::create_shared().await;
+    let addr = fixture.grpc_base();
+
+    let db_name = rand_name();
+    create_two_partition_database(&db_name, fixture.grpc_channel()).await;
+
+    let expected_output = r#"
+host,running,sleeping,time,total
+foo,4,514,2020-06-23T06:38:30.000000000,519
+"#
+    .trim();
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("sql")
+        .arg("--host")
+        .arg(addr)
+        // add flag to
+        .arg("--format")
+        .arg("csv")
+        .write_stdin(format!("use {};\n\nselect * from cpu;", db_name))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(expected_output));
+
+    // Same command but use `set format` command rather than cli flag
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("sql")
+        .arg("--host")
+        .arg(addr)
+        .write_stdin(format!(
+            "use {};\n\nset format csv;\n\nselect * from cpu;",
+            db_name
+        ))
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains(expected_output)
+                .and(predicate::str::contains("Set output format format to csv")),
+        );
+}
+
+#[tokio::test]
 async fn test_sql_observer() {
     let fixture = ServerFixture::create_shared().await;
     let addr = fixture.grpc_base();

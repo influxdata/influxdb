@@ -156,7 +156,9 @@ dependencies = [
  "arrow",
  "arrow-flight",
  "datafusion",
+ "futures",
  "parquet",
+ "parquet-format",
 ]
 
 [[package]]
@@ -2412,6 +2414,7 @@ dependencies = [
  "prost-types",
  "query",
  "snafu",
+ "thrift",
  "tokio",
  "tokio-stream",
  "tracker",

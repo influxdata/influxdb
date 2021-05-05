@@ -18,6 +18,7 @@ prost = "0.7"
 prost-types = "0.7"
 query = { path = "../query" }
 snafu = "0.6"
+thrift = "0.13"
 tokio = { version = "1.0", features = ["macros", "rt", "rt-multi-thread", "sync"] }
 tokio-stream = "0.1"
 tracker = { path = "../tracker" }

@@ -11,6 +11,7 @@ pub use arrow;
 pub use arrow_flight;
 pub use datafusion;
 pub use parquet;
+pub use parquet_format;
 
 pub mod util;
 

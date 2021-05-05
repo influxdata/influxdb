@@ -267,20 +267,15 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
-
-    use crate::{
-        db::{Db, DbChunk},
-        JobRegistry,
-    };
-
     use super::*;
-    use crate::db::test_helpers::write_lp;
-    use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
+    use crate::{
+        db::{test_helpers::write_lp, DbChunk},
+        query_tests::utils::TestDb,
+    };
     use futures::TryStreamExt;
     use mutable_buffer::chunk::Chunk as ChunkWB;
     use object_store::memory::InMemory;
-    use query::{exec::Executor, predicate::Predicate, Database};
+    use query::{predicate::Predicate, Database};
     use tracker::MemRegistry;
 
     #[tokio::test]
@@ -291,7 +286,10 @@ cpu,host=A,region=west user=3.2,system=50.1 10
 cpu,host=B,region=east user=10.0,system=74.1 1
         "#;
 
-        let db = make_db();
+        let db = TestDb::builder()
+            .object_store(Arc::new(ObjectStore::new_in_memory(InMemory::new())))
+            .build()
+            .db;
         write_lp(&db, &lp);
 
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
@@ -387,23 +385,5 @@ cpu,host=B,region=east user=10.0,system=74.1 1
         snapshot.mark_table_finished(0);
         snapshot.mark_table_finished(2);
         assert!(snapshot.finished());
-    }
-
-    /// Create a Database with a local store
-    pub fn make_db() -> Db {
-        let metrics_registry = Arc::new(metrics::MetricRegistry::new());
-        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server_id = ServerId::try_from(1).unwrap();
-        let exec = Arc::new(Executor::new(1));
-
-        Db::new(
-            DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
-            server_id,
-            object_store,
-            exec,
-            None, // write buffer
-            Arc::new(JobRegistry::new()),
-            Arc::clone(&metrics_registry),
-        )
     }
 }

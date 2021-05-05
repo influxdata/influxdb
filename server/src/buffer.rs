@@ -1,9 +1,7 @@
 //! This module contains code for managing the Write Buffer
 
 use data_types::{database_rules::WriteBufferRollover, server_id::ServerId, DatabaseName};
-use internal_types::entry::{
-    ClockValue, OwnedSequencedEntry, Segment as EntrySegment, SequencedEntry,
-};
+use internal_types::entry::{ClockValue, Segment as EntrySegment, SequencedEntry};
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 
 use std::{convert::TryInto, mem, sync::Arc};
@@ -128,7 +126,7 @@ impl Buffer {
     /// has been closed out. If the max size of the buffer would be exceeded
     /// by accepting the write, the oldest (first) of the closed segments
     /// will be dropped, if it is persisted. Otherwise, an error is returned.
-    pub fn append(&mut self, write: Arc<OwnedSequencedEntry>) -> Result<Option<Arc<Segment>>> {
+    pub fn append(&mut self, write: Arc<dyn SequencedEntry>) -> Result<Option<Arc<Segment>>> {
         let write_size = write.size();
 
         while self.current_size + write_size > self.max_size {
@@ -193,7 +191,7 @@ impl Buffer {
     }
 
     /// Returns any writes after the passed in `ClockValue`
-    pub fn writes_since(&self, since: ClockValue) -> Vec<Arc<OwnedSequencedEntry>> {
+    pub fn writes_since(&self, since: ClockValue) -> Vec<Arc<dyn SequencedEntry>> {
         let mut writes = Vec::new();
 
         // start with the newest writes and go back. Hopefully they're asking for
@@ -203,7 +201,7 @@ impl Buffer {
                 writes.reverse();
                 return writes;
             }
-            writes.push(Arc::clone(&w));
+            writes.push(Arc::clone(w));
         }
 
         for s in self.closed_segments.iter().rev() {
@@ -212,7 +210,7 @@ impl Buffer {
                     writes.reverse();
                     return writes;
                 }
-                writes.push(Arc::clone(&w));
+                writes.push(Arc::clone(w));
             }
         }
 
@@ -234,7 +232,7 @@ impl Buffer {
 pub struct Segment {
     pub(crate) id: u64,
     size: usize,
-    pub writes: Vec<Arc<OwnedSequencedEntry>>,
+    pub writes: Vec<Arc<dyn SequencedEntry>>,
     // Time this segment was initialized
     created_at: DateTime<Utc>,
     // Persistence metadata if segment is persisted
@@ -257,7 +255,7 @@ impl Segment {
     }
 
     // appends the write to the segment
-    fn append(&mut self, write: Arc<OwnedSequencedEntry>) {
+    fn append(&mut self, write: Arc<dyn SequencedEntry>) {
         self.size += write.size();
         self.writes.push(write);
     }
@@ -416,7 +414,7 @@ mod tests {
     use super::*;
     use internal_types::entry::{test_helpers::lp_to_sequenced_entry as lp_2_se, SequencedEntry};
     use object_store::memory::InMemory;
-    use std::convert::TryFrom;
+    use std::{convert::TryFrom, ops::Deref};
 
     #[test]
     fn append_increments_current_size_and_uses_existing_segment() {
@@ -617,7 +615,7 @@ mod tests {
     }
 
     fn equal_to_server_id_and_clock_value(
-        sequenced_entry: &OwnedSequencedEntry,
+        sequenced_entry: &dyn SequencedEntry,
         expected_server_id: ServerId,
         expected_clock_value: u64,
     ) {
@@ -666,9 +664,9 @@ mod tests {
 
         let writes = buf.writes_since(ClockValue::try_from(1).unwrap());
         assert_eq!(3, writes.len());
-        equal_to_server_id_and_clock_value(&writes[0], server_id1, 2);
-        equal_to_server_id_and_clock_value(&writes[1], server_id1, 3);
-        equal_to_server_id_and_clock_value(&writes[2], server_id2, 2);
+        equal_to_server_id_and_clock_value(writes[0].deref(), server_id1, 2);
+        equal_to_server_id_and_clock_value(writes[1].deref(), server_id1, 3);
+        equal_to_server_id_and_clock_value(writes[2].deref(), server_id2, 2);
     }
 
     #[test]
@@ -745,7 +743,7 @@ mod tests {
         server_id: ServerId,
         clock_value: u64,
         line_protocol: &str,
-    ) -> Arc<OwnedSequencedEntry> {
+    ) -> Arc<dyn SequencedEntry> {
         Arc::new(lp_2_se(line_protocol, server_id.get_u32(), clock_value))
     }
 }
