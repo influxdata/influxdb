@@ -11,6 +11,7 @@ use catalog::{
     chunk::{Chunk as CatalogChunk, ChunkState},
     Catalog,
 };
+use chrono::Utc;
 pub(crate) use chunk::DbChunk;
 use data_types::{
     chunk::ChunkSummary,
@@ -24,7 +25,7 @@ use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     physical_plan::SendableRecordBatchStream,
 };
-use entry::{ClockValue, ClockValueError, Entry, OwnedSequencedEntry, SequencedEntry};
+use entry::{ClockValue, Entry, OwnedSequencedEntry, SequencedEntry};
 use internal_types::{arrow::sort::sort_record_batch, selection::Selection};
 use lifecycle::LifecycleManager;
 use metrics::{KeyValue, MetricObserver, MetricObserverBuilder, MetricRegistry};
@@ -38,10 +39,10 @@ use read_buffer::Chunk as ReadBufferChunk;
 use snafu::{ensure, ResultExt, Snafu};
 use std::{
     any::Any,
-    convert::{TryFrom, TryInto},
-    num::NonZeroUsize,
+    convert::TryInto,
+    num::{NonZeroU64, NonZeroUsize},
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicUsize, Ordering},
         Arc,
     },
 };
@@ -198,15 +199,10 @@ pub enum Error {
         source: internal_types::schema::Error,
     },
 
-    #[snafu(display("Invalid Clock Value: {}", source))]
-    InvalidClockValue { source: ClockValueError },
-
     #[snafu(display("Error sending Sequenced Entry to Write Buffer: {}", source))]
     WriteBufferError { source: buffer::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-const STARTING_SEQUENCE: u64 = 1;
 
 /// This is the main IOx Database object. It is the root object of any
 /// specific InfluxDB IOx instance
@@ -306,8 +302,8 @@ pub struct Db {
     /// The system schema provider
     system_tables: Arc<SystemSchemaProvider>,
 
-    /// Used to allocated sequence numbers for writes
-    sequence: AtomicU64,
+    /// Process clock used in establishing a partial ordering of operations via a Lamport Clock.
+    process_clock: Arc<Mutex<NonZeroU64>>,
 
     /// Number of iterations of the worker loop for this Db
     worker_iterations: AtomicUsize,
@@ -471,6 +467,10 @@ impl Db {
             SystemSchemaProvider::new(&db_name, Arc::clone(&catalog), Arc::clone(&jobs));
         let system_tables = Arc::new(system_tables);
 
+        let process_clock = Arc::new(Mutex::new(
+            NonZeroU64::new(now_nanos()).expect("current time should not be 0"),
+        ));
+
         Self {
             rules,
             server_id,
@@ -483,7 +483,7 @@ impl Db {
             metrics_registry: metrics,
             system_tables,
             memory_registries,
-            sequence: AtomicU64::new(STARTING_SEQUENCE),
+            process_clock,
             worker_iterations: AtomicUsize::new(0),
         }
     }
@@ -1057,9 +1057,19 @@ impl Db {
         tracker
     }
 
-    /// Returns the next write sequence number
-    pub fn next_sequence(&self) -> u64 {
-        self.sequence.fetch_add(1, Ordering::SeqCst)
+    /// Returns the next process clock value, which will be the maximum of the system time in
+    /// nanoseconds or the previous process clock value plus 1. Every operation that needs a
+    /// process clock value should be incrementing it as well, so there should never be a read of
+    /// the process clock without an accompanying increment of at least 1 nanosecond.
+    pub fn next_process_clock(&self) -> ClockValue {
+        let now = now_nanos();
+        let mut current_process_clock = self.process_clock.lock();
+        let next_candidate = current_process_clock.get() + 1;
+
+        let next = now.max(next_candidate);
+        let next = NonZeroU64::new(next).expect("next process clock must not be 0");
+        *current_process_clock = next;
+        ClockValue::new(next)
     }
 
     /// Return chunk summary information for all chunks in the specified
@@ -1132,7 +1142,7 @@ impl Db {
     pub fn store_entry(&self, entry: Entry) -> Result<()> {
         let sequenced_entry = Arc::new(
             OwnedSequencedEntry::new_from_entry_bytes(
-                ClockValue::try_from(self.next_sequence()).context(InvalidClockValue)?,
+                self.next_process_clock(),
                 self.server_id,
                 entry.data(),
             )
@@ -1314,6 +1324,15 @@ impl CatalogProvider for Db {
             _ => None,
         }
     }
+}
+
+// Convenience function for getting the current time in a `u64` represented as nanoseconds since
+// the epoch
+fn now_nanos() -> u64 {
+    Utc::now()
+        .timestamp_nanos()
+        .try_into()
+        .expect("current time since the epoch should be positive")
 }
 
 pub mod test_helpers {
@@ -2876,5 +2895,105 @@ mod tests {
             .counter()
             .gt(0.07)
             .unwrap();
+    }
+
+    #[test]
+    fn process_clock_defaults_to_current_time_in_ns() {
+        let before: u64 = Utc::now().timestamp_nanos().try_into().unwrap();
+
+        let db = Arc::new(TestDb::builder().build().db);
+        let db_process_clock = db.process_clock.lock();
+
+        let after: u64 = Utc::now().timestamp_nanos().try_into().unwrap();
+
+        assert!(
+            before < db_process_clock.get(),
+            "expected {} to be less than {}",
+            before,
+            db_process_clock
+        );
+        assert!(
+            db_process_clock.get() < after,
+            "expected {} to be less than {}",
+            db_process_clock,
+            after
+        );
+    }
+
+    #[test]
+    fn process_clock_incremented_and_set_on_sequenced_entry() {
+        let before: u64 = Utc::now().timestamp_nanos().try_into().unwrap();
+        let before = ClockValue::try_from(before).unwrap();
+
+        let db = Arc::new(TestDb::builder().write_buffer(true).build().db);
+
+        let entry = lp_to_entry("cpu bar=1 10");
+        db.store_entry(entry).unwrap();
+
+        let between: u64 = Utc::now().timestamp_nanos().try_into().unwrap();
+        let between = ClockValue::try_from(between).unwrap();
+
+        let entry = lp_to_entry("cpu foo=2 10");
+        db.store_entry(entry).unwrap();
+
+        let after: u64 = Utc::now().timestamp_nanos().try_into().unwrap();
+        let after = ClockValue::try_from(after).unwrap();
+
+        let sequenced_entries = db
+            .write_buffer
+            .as_ref()
+            .unwrap()
+            .lock()
+            .writes_since(before);
+        assert_eq!(sequenced_entries.len(), 2);
+
+        assert!(
+            sequenced_entries[0].clock_value() < between,
+            "expected {:?} to be before {:?}",
+            sequenced_entries[0].clock_value(),
+            between
+        );
+
+        assert!(
+            between < sequenced_entries[1].clock_value(),
+            "expected {:?} to be before {:?}",
+            between,
+            sequenced_entries[1].clock_value(),
+        );
+
+        assert!(
+            sequenced_entries[1].clock_value() < after,
+            "expected {:?} to be before {:?}",
+            sequenced_entries[1].clock_value(),
+            after
+        );
+    }
+
+    #[test]
+    fn next_process_clock_always_increments() {
+        // Process clock defaults to the current time
+        let db = Arc::new(TestDb::builder().write_buffer(true).build().db);
+
+        // Set the process clock value to a time in the future, so that when compared to the
+        // current time, the process clock value will be greater
+        let later: u64 = (Utc::now() + chrono::Duration::weeks(4))
+            .timestamp_nanos()
+            .try_into()
+            .unwrap();
+        {
+            let mut db_process_clock = db.process_clock.lock();
+            *db_process_clock = NonZeroU64::new(later).unwrap();
+        }
+
+        // Every call to next_process_clock should increment at least 1, even in this case
+        // where the system time will be less than the process clock
+        assert_eq!(
+            db.next_process_clock(),
+            ClockValue::try_from(later + 1).unwrap()
+        );
+        assert_eq!(
+            db.next_process_clock(),
+            ClockValue::try_from(later + 2).unwrap()
+        );
     }
 }
