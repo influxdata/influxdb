@@ -50,7 +50,7 @@ pub enum Error {
     ServingHttp { source: hyper::Error },
 
     #[snafu(display("Error serving RPC: {}", source))]
-    ServingRpc { source: tonic::transport::Error },
+    ServingRpc { source: rpc::Error },
 
     #[snafu(display(
         "Specified {} for the object store, required configuration missing for {}",

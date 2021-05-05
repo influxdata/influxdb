@@ -5,6 +5,7 @@ use tokio::net::TcpListener;
 use tokio_stream::wrappers::TcpListenerStream;
 
 use server::{ConnectionManager, Server};
+use snafu::{ResultExt, Snafu};
 use tokio_util::sync::CancellationToken;
 
 pub mod error;
@@ -15,6 +16,19 @@ mod storage;
 mod testing;
 mod write;
 
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("gRPC transport error: {}", source))]
+    TransportError { source: tonic::transport::Error },
+
+    #[snafu(display("gRPC reflection error: {}", source))]
+    ReflectionError {
+        source: tonic_reflection::server::Error,
+    },
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
 /// Instantiate a server listening on the specified address
 /// implementing the IOx, Storage, and Flight gRPC interfaces, the
 /// underlying hyper server instance. Resolves when the server has
@@ -23,13 +37,17 @@ pub async fn serve<M>(
     socket: TcpListener,
     server: Arc<Server<M>>,
     shutdown: CancellationToken,
-) -> Result<(), tonic::transport::Error>
+) -> Result<()>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
     let stream = TcpListenerStream::new(socket);
 
     let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+    let reflection_service = tonic_reflection::server::Builder::configure()
+        .register_encoded_file_descriptor_set(generated_types::FILE_DESCRIPTOR_SET)
+        .build()
+        .context(ReflectionError)?;
 
     let services = [
         generated_types::STORAGE_SERVICE,
@@ -45,6 +63,7 @@ where
 
     tonic::transport::Server::builder()
         .add_service(health_service)
+        .add_service(reflection_service)
         .add_service(testing::make_server())
         .add_service(storage::make_server(
             Arc::clone(&server),
@@ -56,4 +75,5 @@ where
         .add_service(operations::make_server(server))
         .serve_with_incoming_shutdown(stream, shutdown.cancelled())
         .await
+        .context(TransportError)
 }

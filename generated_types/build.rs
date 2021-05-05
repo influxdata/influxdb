@@ -1,5 +1,6 @@
 //! Compiles Protocol Buffers into native Rust types.
 
+use std::env;
 use std::path::{Path, PathBuf};
 
 type Error = Box<dyn std::error::Error>;
@@ -69,7 +70,11 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         )
         .extern_path(".google.protobuf", "::google_types::protobuf");
 
-    tonic_build::configure().compile_with_config(config, &proto_files, &[root.into()])?;
+    let descriptor_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("proto_descriptor.bin");
+    tonic_build::configure()
+        .file_descriptor_set_path(&descriptor_path)
+        .format(true)
+        .compile_with_config(config, &proto_files, &[root.into()])?;
 
     Ok(())
 }

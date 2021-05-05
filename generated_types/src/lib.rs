@@ -102,6 +102,11 @@ pub fn protobuf_type_url(protobuf_type: &str) -> String {
     format!("{}/{}", ANY_TYPE_PREFIX, protobuf_type)
 }
 
+/// Protobuf file descriptor containing all generated types.
+/// Useful in gRPC reflection.
+pub const FILE_DESCRIPTOR_SET: &'static [u8] =
+    tonic::include_file_descriptor_set!("proto_descriptor");
+
 /// Compares the protobuf type URL found within a google.protobuf.Any
 /// message to an expected Protobuf package and message name
 ///
