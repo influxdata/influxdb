@@ -2414,6 +2414,7 @@ dependencies = [
  "prost-types",
  "query",
  "snafu",
+ "thrift",
  "tokio",
  "tokio-stream",
  "tracker",
