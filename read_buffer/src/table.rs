@@ -8,7 +8,7 @@ use std::{
 use parking_lot::RwLock;
 use snafu::{ensure, Snafu};
 
-use arrow_deps::arrow::record_batch::RecordBatch;
+use arrow::record_batch::RecordBatch;
 use data_types::partition_metadata::TableSummary;
 use internal_types::selection::Selection;
 

@@ -9,8 +9,8 @@ use core::iter::Iterator;
 use std::iter;
 use std::slice::Chunks;
 
-use arrow_deps::parquet::data_type::ByteArray;
 use internal_types::schema::{InfluxColumnType, InfluxFieldType};
+use parquet::data_type::ByteArray;
 use std::default::Default;
 
 // NOTE: See https://blog.twitter.com/engineering/en_us/a/2013/dremel-made-simple-with-parquet.html

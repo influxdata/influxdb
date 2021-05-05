@@ -5,7 +5,7 @@ use data_types::partition_metadata::{StatValues, Statistics};
 use internal_types::entry::Column as EntryColumn;
 
 use crate::bitset::{iter_set_positions, BitSet};
-use arrow_deps::arrow::{
+use arrow::{
     array::{
         ArrayData, ArrayDataBuilder, ArrayRef, BooleanArray, DictionaryArray, Float64Array,
         Int64Array, StringArray, TimestampNanosecondArray, UInt64Array,

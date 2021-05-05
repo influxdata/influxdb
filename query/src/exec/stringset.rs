@@ -3,14 +3,12 @@
 
 use std::{collections::BTreeSet, sync::Arc};
 
-use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
-use arrow_deps::arrow::array::DictionaryArray;
-use arrow_deps::arrow::datatypes::Int32Type;
-use arrow_deps::{
-    arrow,
-    arrow::array::{Array, StringArray},
-    arrow::datatypes::DataType,
+use arrow::{
+    array::{Array, DictionaryArray, StringArray},
+    datatypes::{DataType, Int32Type, SchemaRef},
+    record_batch::RecordBatch,
 };
+
 use snafu::{ensure, Snafu};
 
 #[derive(Debug, Snafu)]

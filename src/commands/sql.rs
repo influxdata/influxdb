@@ -17,8 +17,14 @@ mod repl_command;
 #[derive(Debug, StructOpt)]
 pub struct Config {
     // TODO add an option to avoid saving history
-// TODO add an option to specify the default database (rather than having to set it via USE DATABASE)
-// TODO add an option to specify output formatting (now it is hard coded to use pretty printing)
+
+    // TODO add an option to specify the default database (rather than having to set it via USE DATABASE)
+    /// Format to use for output. Can be overridden using
+    /// `SET FORMAT` command
+    ///
+    /// Optional format ('pretty', 'json', or 'csv')
+    #[structopt(short, long, default_value = "pretty")]
+    format: String,
 }
 
 #[derive(Debug, Snafu)]
@@ -52,7 +58,11 @@ pub async fn command(url: String, config: Config) -> Result<()> {
     println!("Connected to IOx Server at {}", url);
     check_health(connection.clone()).await?;
 
-    repl::Repl::new(connection).run().await.context(Repl)
+    let mut repl = repl::Repl::new(connection);
+
+    repl.set_output_format(config.format).context(Repl)?;
+
+    repl.run().await.context(Repl)
 }
 
 async fn check_health(connection: Connection) -> Result<()> {

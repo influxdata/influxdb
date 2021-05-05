@@ -1,0 +1,11 @@
+[package]
+name = "arrow"
+version = "0.1.0"
+authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
+edition = "2018"
+description = "Re-exports arrow at a specific version"
+
+[dependencies]
+
+# Rename to workaround doctest bug
+upstream = { git = "https://github.com/apache/arrow-rs", rev = "ed00e4d4a160cd5182bfafb81fee2240ec005014", package="arrow" }

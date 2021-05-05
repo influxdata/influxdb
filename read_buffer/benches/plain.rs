@@ -3,7 +3,7 @@ use std::mem::size_of;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::prelude::*;
 
-use arrow_deps::arrow::datatypes::*;
+use arrow::datatypes::*;
 use read_buffer::benchmarks::Fixed;
 use read_buffer::benchmarks::FixedNull;
 

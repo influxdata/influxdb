@@ -5,12 +5,16 @@ authors = ["pauldix <paul@pauldix.net>"]
 edition = "2018"
 
 [dependencies] # In alphabetical order
-arrow_deps = { path = "../arrow_deps" }
+arrow = { path = "../arrow" }
+arrow_util = { path = "../arrow_util" }
+arrow_flight = { path = "../arrow_flight" }
 async-trait = "0.1"
 bytes = { version = "1.0" }
 chrono = "0.4"
 crc32fast = "1.2.0"
 data_types = { path = "../data_types" }
+datafusion = { path = "../datafusion" }
+datafusion_util = { path = "../datafusion_util" }
 # See docs/regenerating_flatbuffers.md about updating generated code when updating the
 # version of the flatbuffers crate
 flatbuffers = "0.8"
@@ -43,6 +47,7 @@ tracker = { path = "../tracker" }
 uuid = { version = "0.8", features = ["serde", "v4"] }
 
 [dev-dependencies] # In alphabetical order
+arrow_util = { path = "../arrow_util" }
 criterion = { version = "0.3.4", features = ["async_tokio"] }
 flate2 = "1.0.20"
 test_helpers = { path = "../test_helpers" }

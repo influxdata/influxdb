@@ -3,17 +3,14 @@ use std::{
     sync::Arc,
 };
 
-use arrow_deps::{
-    arrow::datatypes::{DataType, Field},
-    datafusion::{
-        error::{DataFusionError, Result as DatafusionResult},
-        logical_plan::{
-            Expr, ExpressionVisitor, LogicalPlan, LogicalPlanBuilder, Operator, Recursion,
-        },
-        prelude::col,
-    },
-    util::AsExpr,
+use arrow::datatypes::{DataType, Field};
+use datafusion::{
+    error::{DataFusionError, Result as DatafusionResult},
+    logical_plan::{Expr, ExpressionVisitor, LogicalPlan, LogicalPlanBuilder, Operator, Recursion},
+    prelude::col,
 };
+use datafusion_util::AsExpr;
+
 use internal_types::{
     schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME},
     selection::Selection,
@@ -100,7 +97,7 @@ pub enum Error {
 
     #[snafu(display("gRPC planner got error building plan: {}", source))]
     BuildingPlan {
-        source: arrow_deps::datafusion::error::DataFusionError,
+        source: datafusion::error::DataFusionError,
     },
 
     #[snafu(display(
@@ -168,7 +165,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// `ParsedLine`). The query methods on this trait such as
 /// `tag_keys` are specific to this data model.
 ///
-/// The IOx storage engine implements this trait to provide Timeseries
+/// The IOx storage engine implements this trait to provide time-series
 /// specific queries, but also provides more generic access to the
 /// same underlying data via other frontends (e.g. SQL).
 ///
@@ -583,7 +580,7 @@ impl InfluxRpcPlanner {
     }
 
     /// Creates a GroupedSeriesSet plan that produces an output table with rows
-    /// that are grouped by window defintions
+    /// that are grouped by window definitions
     pub fn read_window_aggregate<D>(
         &self,
         database: &D,
@@ -981,7 +978,7 @@ impl InfluxRpcPlanner {
     }
 
     /// Creates a GroupedSeriesSet plan that produces an output table with rows
-    /// that are grouped by window defintions
+    /// that are grouped by window definitions
     ///
     /// The order of the tag_columns
     ///
@@ -1105,7 +1102,7 @@ impl InfluxRpcPlanner {
         C: PartitionChunk + 'static,
     {
         // Scan all columns to begin with (datafusion projection
-        // pushdown optimization will prune out uneeded columns later)
+        // pushdown optimization will prune out unneeded columns later)
         let projection = None;
         let selection = Selection::All;
 
@@ -1114,7 +1111,7 @@ impl InfluxRpcPlanner {
         for chunk in chunks {
             let chunk_id = chunk.id();
 
-            // check that it is consitent with this table_name
+            // check that it is consistent with this table_name
             assert!(
                 chunk.has_table(table_name),
                 "Chunk {} did not have table {}, while trying to make a plan for it",

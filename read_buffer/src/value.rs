@@ -1,8 +1,6 @@
 use std::{convert::TryFrom, fmt::Formatter};
 use std::{mem::size_of, sync::Arc};
 
-use arrow_deps::arrow;
-
 use crate::{AggregateType, LogicalDataType};
 
 #[derive(Clone, PartialEq, Debug)]

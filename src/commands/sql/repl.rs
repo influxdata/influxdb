@@ -1,6 +1,6 @@
 use std::{convert::TryInto, path::PathBuf, sync::Arc, time::Instant};
 
-use arrow_deps::arrow::{
+use arrow::{
     array::{ArrayRef, StringArray},
     record_batch::RecordBatch,
 };
@@ -24,6 +24,12 @@ pub enum Error {
 
     #[snafu(display("Error formatting results: {}", source))]
     FormattingResults {
+        source: influxdb_iox_client::format::Error,
+    },
+
+    #[snafu(display("Error setting format to '{}': {}", requested_format, source))]
+    SettingFormat {
+        requested_format: String,
         source: influxdb_iox_client::format::Error,
     },
 
@@ -88,6 +94,9 @@ pub struct Repl {
 
     /// database name against which SQL commands are run
     query_engine: Option<QueryEngine>,
+
+    /// Formatter to use to format query results
+    output_format: QueryOutputFormat,
 }
 
 impl Repl {
@@ -109,6 +118,8 @@ impl Repl {
 
         let prompt = "> ".to_string();
 
+        let output_format = QueryOutputFormat::Pretty;
+
         Self {
             rl,
             prompt,
@@ -116,6 +127,7 @@ impl Repl {
             management_client,
             flight_client,
             query_engine: None,
+            output_format,
         }
     }
 
@@ -150,6 +162,9 @@ impl Repl {
                 ReplCommand::Exit => {
                     info!("exiting at user request");
                     return Ok(());
+                }
+                ReplCommand::SetFormat { format } => {
+                    self.set_output_format(format)?;
                 }
             }
         }
@@ -230,8 +245,24 @@ impl Repl {
         let end = Instant::now();
         self.print_results(&batches)?;
 
-        println!("Query execution complete in {:?}", end - start);
+        println!(
+            "Returned {} in {:?}",
+            Self::row_summary(&batches),
+            end - start
+        );
         Ok(())
+    }
+
+    fn row_summary<'a>(batches: impl IntoIterator<Item = &'a RecordBatch>) -> String {
+        let total_rows: usize = batches.into_iter().map(|b| b.num_rows()).sum();
+
+        if total_rows > 1 {
+            format!("{} rows", total_rows)
+        } else if total_rows == 0 {
+            "no rows".to_string()
+        } else {
+            "1 row".to_string()
+        }
     }
 
     fn use_database(&mut self, db_name: String) {
@@ -260,6 +291,17 @@ impl Repl {
         self.query_engine = Some(query_engine)
     }
 
+    /// Sets the output format to the specified format
+    pub fn set_output_format<S: AsRef<str>>(&mut self, requested_format: S) -> Result<()> {
+        let requested_format = requested_format.as_ref();
+
+        self.output_format = requested_format
+            .parse()
+            .context(SettingFormat { requested_format })?;
+        println!("Set output format format to {}", self.output_format);
+        Ok(())
+    }
+
     // TODO make a setting for changing if we cache remote state or not
     async fn remote_state(&mut self) -> Result<RemoteState> {
         let state = RemoteState::try_new(&mut self.management_client).await?;
@@ -268,9 +310,10 @@ impl Repl {
 
     /// Prints to the specified output format
     fn print_results(&self, batches: &[RecordBatch]) -> Result<()> {
-        // TODO make query output format configurable
-        let output_format = QueryOutputFormat::Pretty;
-        let formatted_results = output_format.format(batches).context(FormattingResults)?;
+        let formatted_results = self
+            .output_format
+            .format(batches)
+            .context(FormattingResults)?;
         println!("{}", formatted_results);
         Ok(())
     }

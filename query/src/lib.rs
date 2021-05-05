@@ -6,9 +6,9 @@
     clippy::clone_on_ref_ptr
 )]
 
-use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use async_trait::async_trait;
 use data_types::chunk::ChunkSummary;
+use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, Executor};
 use internal_types::{schema::Schema, selection::Selection};
 

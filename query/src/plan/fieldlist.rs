@@ -1,4 +1,4 @@
-use arrow_deps::datafusion::logical_plan::LogicalPlan;
+use datafusion::logical_plan::LogicalPlan;
 
 /// A plan which produces a logical set of Fields (e.g. InfluxDB
 /// Fields with name, and data type, and last_timestamp).

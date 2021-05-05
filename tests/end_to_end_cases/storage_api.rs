@@ -77,7 +77,7 @@ async fn read_filter_endpoint(storage_client: &mut StorageClient<Channel>, scena
         .collect();
 
     let expected_frames = substitute_nanos(scenario.ns_since_epoch(), &[
-        "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,host=server01,region=, type: 0",
+        "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,host=server01, type: 0",
         "FloatPointsFrame, timestamps: [ns1], values: \"27.99\"",
         "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,host=server01,region=us-east, type: 0",
         "FloatPointsFrame, timestamps: [ns3], values: \"1234567.891011\"",

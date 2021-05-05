@@ -11,13 +11,13 @@ use datatypes::TimeUnit;
 use observability_deps::tracing::debug;
 use snafu::Snafu;
 
-use arrow_deps::arrow::record_batch::{RecordBatch, RecordBatchReader};
-use arrow_deps::arrow::{array, array::Array, datatypes, ipc};
-use arrow_deps::parquet::arrow::arrow_reader::ArrowReader;
+use arrow::record_batch::{RecordBatch, RecordBatchReader};
+use arrow::{array, array::Array, datatypes, ipc};
 use mem_qe::column;
 use mem_qe::column::{AggregateType, Column};
 use mem_qe::segment::{ColumnType, GroupingStrategy, Schema, Segment};
 use mem_qe::Store;
+use parquet::arrow::arrow_reader::ArrowReader;
 
 #[derive(Snafu, Debug, Clone, Copy, PartialEq)]
 pub enum Error {}
@@ -77,10 +77,9 @@ fn build_parquet_store(path: &str, store: &mut Store, sort_order: Vec<&str>) -> 
         path
     );
 
-    let parquet_reader = arrow_deps::parquet::file::reader::SerializedFileReader::new(r).unwrap();
-    let mut reader = arrow_deps::parquet::arrow::arrow_reader::ParquetFileArrowReader::new(
-        Arc::new(parquet_reader),
-    );
+    let parquet_reader = parquet::file::reader::SerializedFileReader::new(r).unwrap();
+    let mut reader =
+        parquet::arrow::arrow_reader::ParquetFileArrowReader::new(Arc::new(parquet_reader));
     let batch_size = 60000;
     let record_batch_reader = reader.get_record_reader(batch_size).unwrap();
     build_store(record_batch_reader, store, sort_order)

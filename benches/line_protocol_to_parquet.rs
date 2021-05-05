@@ -1,16 +1,14 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use influxdb_line_protocol::parse_lines;
 use ingest::{
-    parquet::{
-        writer::{CompressionLevel, IOxParquetTableWriter},
-        TryClone,
-    },
+    parquet::writer::{CompressionLevel, IOxParquetTableWriter},
     ConversionSettings, LineProtocolConverter,
 };
 use internal_types::schema::Schema;
 use packers::{Error as TableError, IOxTableWriter, IOxTableWriterSource};
 use std::time::Duration;
 
+use parquet::file::writer::TryClone;
 use std::io::{Seek, SeekFrom, Write};
 
 static LINES: &str = include_str!("../tests/fixtures/lineproto/metrics.lp");

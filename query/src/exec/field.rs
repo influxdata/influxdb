@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use arrow_deps::arrow::{self, datatypes::SchemaRef};
+use arrow::{self, datatypes::SchemaRef};
 use internal_types::schema::TIME_COLUMN_NAME;
 use snafu::{ResultExt, Snafu};
 

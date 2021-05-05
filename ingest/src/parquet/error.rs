@@ -1,6 +1,6 @@
 use snafu::Snafu;
 
-use arrow_deps::parquet::errors::ParquetError;
+use parquet::errors::ParquetError;
 
 #[derive(Debug, Snafu)]
 pub enum IOxParquetError {

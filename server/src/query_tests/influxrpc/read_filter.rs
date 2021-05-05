@@ -3,8 +3,8 @@
 use super::util::run_series_set_plan;
 
 use crate::query_tests::scenarios::*;
-use arrow_deps::datafusion::logical_plan::{col, lit};
 use async_trait::async_trait;
+use datafusion::logical_plan::{col, lit};
 use query::{
     frontend::influxrpc::InfluxRpcPlanner,
     predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
@@ -191,7 +191,6 @@ async fn test_read_filter_data_filter_fields() {
         "SeriesSet",
         "table_name: o2",
         "tags",
-        "  (city, )",
         "  (state, CA)",
         "field_indexes:",
         "start_row: 0",
@@ -339,7 +338,6 @@ async fn test_read_filter_data_plan_order() {
         "tags",
         "  (city, Boston)",
         "  (state, CA)",
-        "  (zz_tag, )",
         "field_indexes:",
         "  (value_index: 3, timestamp_index: 5)",
         "  (value_index: 4, timestamp_index: 5)",
@@ -360,7 +358,6 @@ async fn test_read_filter_data_plan_order() {
         "tags",
         "  (city, Boston)",
         "  (state, MA)",
-        "  (zz_tag, )",
         "field_indexes:",
         "  (value_index: 3, timestamp_index: 5)",
         "  (value_index: 4, timestamp_index: 5)",

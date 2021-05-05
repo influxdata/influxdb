@@ -2,8 +2,8 @@ use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, mem, sync::Arc};
 
 use crate::storage::{self, Storage};
-use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use data_types::{partition_metadata::TableSummary, timestamp::TimestampRange};
+use datafusion::physical_plan::SendableRecordBatchStream;
 use internal_types::{schema::Schema, selection::Selection};
 use object_store::{path::Path, ObjectStore};
 use query::predicate::Predicate;
@@ -94,6 +94,11 @@ impl Table {
                 self.table_schema.project(&columns)
             }
         })
+    }
+
+    /// Return timestamp range of this table
+    pub fn timestamp_range(&self) -> Option<TimestampRange> {
+        self.timestamp_range
     }
 
     // Check if 2 time ranges overlap

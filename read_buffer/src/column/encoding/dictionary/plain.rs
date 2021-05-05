@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 use std::convert::From;
 use std::mem::size_of;
 
-use arrow_deps::arrow::array::{Array, StringArray};
+use arrow::array::{Array, StringArray};
 
 use crate::column::dictionary::NULL_ID;
 use crate::column::{cmp, RowIDs};

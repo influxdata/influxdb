@@ -6,7 +6,7 @@ use std::{
 use parking_lot::RwLock;
 use snafu::{OptionExt, ResultExt, Snafu};
 
-use arrow_deps::arrow::record_batch::RecordBatch;
+use arrow::record_batch::RecordBatch;
 use data_types::partition_metadata::TableSummary;
 use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
 use observability_deps::tracing::info;
@@ -244,6 +244,7 @@ impl Chunk {
             .iter()
             .map(|c| c.get_buffer_memory_size())
             .sum::<usize>();
+        let columns = table_data.num_columns();
 
         // This call is expensive. Complete it before locking.
         let now = std::time::Instant::now();
@@ -255,7 +256,7 @@ impl Chunk {
         let rg_size = row_group.size();
         let compression = format!("{:.2}%", (1.0 - (rg_size as f64 / rb_size as f64)) * 100.0);
         let chunk_id = self.id();
-        info!(%rows, rb_size, rg_size, %compression, ?table_name, %chunk_id, ?compressing_took, "row group added");
+        info!(%rows, %columns, rb_size, rg_size, %compression, ?table_name, %chunk_id, ?compressing_took, "row group added");
 
         let mut chunk_data = self.chunk_data.write();
 
@@ -587,7 +588,7 @@ impl std::fmt::Debug for Chunk {
 mod test {
     use std::sync::Arc;
 
-    use arrow_deps::arrow::{
+    use arrow::{
         array::{
             ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray,
             TimestampNanosecondArray, UInt64Array,
@@ -603,8 +604,8 @@ mod test {
         row_group::{ColumnType, RowGroup},
         value::Values,
     };
-    use arrow_deps::arrow::array::DictionaryArray;
-    use arrow_deps::arrow::datatypes::Int32Type;
+    use arrow::array::DictionaryArray;
+    use arrow::datatypes::Int32Type;
 
     // helper to make the `add_remove_tables` test simpler to read.
     fn gen_recordbatch() -> RecordBatch {
@@ -638,7 +639,7 @@ mod test {
 
     // Helper function to assert the contents of a column on a record batch.
     fn assert_rb_column_equals(rb: &RecordBatch, col_name: &str, exp: &Values<'_>) {
-        use arrow_deps::arrow::datatypes::DataType;
+        use arrow::datatypes::DataType;
 
         let got_column = rb.column(rb.schema().index_of(col_name).unwrap());
 

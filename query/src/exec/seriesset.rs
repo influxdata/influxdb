@@ -19,26 +19,21 @@
 //! `service` as tags, the columns would be ordered `host`, `region`,
 //! and `service` as well.
 
-use std::sync::Arc;
-
-use arrow_deps::{
-    arrow::{
-        self,
-        array::{DictionaryArray, StringArray},
-        datatypes::DataType,
-        record_batch::RecordBatch,
-    },
-    datafusion::physical_plan::SendableRecordBatchStream,
+use arrow::{
+    self,
+    array::{Array, DictionaryArray, StringArray},
+    datatypes::{DataType, Int32Type},
+    record_batch::RecordBatch,
 };
+use datafusion::physical_plan::SendableRecordBatchStream;
 use snafu::{ResultExt, Snafu};
+use std::sync::Arc;
 use tokio::sync::mpsc::error::SendError;
 use tokio_stream::StreamExt;
 
 use croaring::bitmap::Bitmap;
 
 use super::field::{FieldColumns, FieldIndexes};
-use arrow_deps::arrow::array::Array;
-use arrow_deps::arrow::datatypes::Int32Type;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -312,15 +307,18 @@ impl SeriesSetConverter {
         tag_column_names
             .iter()
             .zip(tag_indexes)
-            .map(|(column_name, column_index)| {
+            .filter_map(|(column_name, column_index)| {
                 let col = batch.column(*column_index);
                 let tag_value = match col.data_type() {
-                    DataType::Utf8 => col
-                        .as_any()
-                        .downcast_ref::<StringArray>()
-                        .unwrap()
-                        .value(row)
-                        .to_string(),
+                    DataType::Utf8 => {
+                        let col = col.as_any().downcast_ref::<StringArray>().unwrap();
+
+                        if col.is_valid(row) {
+                            Some(col.value(row).to_string())
+                        } else {
+                            None
+                        }
+                    }
                     DataType::Dictionary(key, value)
                         if key.as_ref() == &DataType::Int32
                             && value.as_ref() == &DataType::Utf8 =>
@@ -332,14 +330,16 @@ impl SeriesSetConverter {
 
                         if col.is_valid(row) {
                             let key = col.keys().value(row);
-                            col.values()
+                            let value = col
+                                .values()
                                 .as_any()
                                 .downcast_ref::<StringArray>()
                                 .unwrap()
                                 .value(key as _)
-                                .to_string()
+                                .to_string();
+                            Some(value)
                         } else {
-                            String::new()
+                            None
                         }
                     }
                     _ => unimplemented!(
@@ -348,7 +348,11 @@ impl SeriesSetConverter {
                         batch.schema().fields()[*column_index]
                     ),
                 };
-                (Arc::clone(&column_name), Arc::new(tag_value))
+                if let Some(tag_value) = tag_value {
+                    Some((Arc::clone(&column_name), Arc::new(tag_value)))
+                } else {
+                    None
+                }
             })
             .collect()
     }
@@ -401,6 +405,7 @@ impl GroupGenerator {
 #[cfg(test)]
 mod tests {
     use arrow::{
+        array::{ArrayRef, Float64Array, Int64Array, TimestampNanosecondArray},
         csv,
         datatypes::DataType,
         datatypes::Field,
@@ -408,7 +413,7 @@ mod tests {
         record_batch::RecordBatch,
         util::pretty::pretty_format_batches,
     };
-    use arrow_deps::datafusion::physical_plan::common::SizedRecordBatchStream;
+    use datafusion::physical_plan::common::SizedRecordBatchStream;
     use test_helpers::{str_pair_vec_to_vec, str_vec_to_arc_vec};
 
     use super::*;
@@ -674,6 +679,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_convert_two_tag_with_null_multi_series() {
+        let tag_a = StringArray::from(vec!["one", "one", "one"]);
+        let tag_b = StringArray::from(vec![Some("ten"), Some("ten"), None]);
+        let float_field = Float64Array::from(vec![10.0, 10.1, 10.1]);
+        let int_field = Int64Array::from(vec![1, 2, 3]);
+        let time = TimestampNanosecondArray::from(vec![1000, 2000, 3000]);
+
+        let batch = RecordBatch::try_from_iter_with_nullable(vec![
+            ("tag_a", Arc::new(tag_a) as ArrayRef, true),
+            ("tag_b", Arc::new(tag_b), true),
+            ("float_field", Arc::new(float_field), true),
+            ("int_field", Arc::new(int_field), true),
+            ("time", Arc::new(time), false),
+        ])
+        .unwrap();
+
+        // Input has one row that has no value (NULL value) for tag_b, which is its own series
+        let input = batch_to_iterator(batch);
+
+        let table_name = "foo";
+        let tag_columns = ["tag_a", "tag_b"];
+        let field_columns = ["int_field"];
+        let results = convert(table_name, &tag_columns, &field_columns, input).await;
+
+        assert_eq!(results.len(), 2);
+        let series_set1 = &results[0];
+
+        assert_eq!(*series_set1.table_name, "foo");
+        assert_eq!(
+            series_set1.tags,
+            str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
+        );
+        assert_eq!(series_set1.start_row, 0);
+        assert_eq!(series_set1.num_rows, 2);
+
+        let series_set2 = &results[1];
+
+        assert_eq!(*series_set2.table_name, "foo");
+        assert_eq!(
+            series_set2.tags,
+            str_pair_vec_to_vec(&[("tag_a", "one")]) // note no value for tag_b, only one tag
+        );
+        assert_eq!(series_set2.start_row, 2);
+        assert_eq!(series_set2.num_rows, 1);
+    }
+
+    #[tokio::test]
     async fn test_convert_groups() {
         let schema = Arc::new(Schema::new(vec![
             Field::new("tag_a", DataType::Utf8, true),
@@ -892,11 +944,20 @@ mod tests {
             "Unexpected batch while parsing csv"
         );
 
+        println!("First batch: \n{:#?}", first_batch);
+
         first_batch.unwrap()
     }
 
     fn parse_to_iterator(schema: SchemaRef, data: &str) -> SendableRecordBatchStream {
-        let batch = parse_to_record_batch(Arc::clone(&schema), data);
-        Box::pin(SizedRecordBatchStream::new(schema, vec![Arc::new(batch)]))
+        let batch = parse_to_record_batch(schema, data);
+        batch_to_iterator(batch)
+    }
+
+    fn batch_to_iterator(batch: RecordBatch) -> SendableRecordBatchStream {
+        Box::pin(SizedRecordBatchStream::new(
+            batch.schema(),
+            vec![Arc::new(batch)],
+        ))
     }
 }

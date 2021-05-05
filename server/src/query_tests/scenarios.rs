@@ -374,11 +374,10 @@ impl DbSetup for EndToEndTest {
     }
 }
 
-/// This function loads one chunk of lp data into different scenarios that simulates 
+/// This function loads one chunk of lp data into different scenarios that simulates
 /// the data life cycle.
 ///
 pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) -> Vec<DbScenario> {
-
     // Scenario 1: One open chunk in MUB
     let db = make_db().db;
     write_lp(&db, data);
@@ -456,7 +455,6 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         scenario_name: "Data in object store only".into(),
         db,
     };
-
 
     // vec![scenario1, scenario2, scenario3, scenario4, scenario5]
     vec![scenario1, scenario2, scenario3, scenario4]

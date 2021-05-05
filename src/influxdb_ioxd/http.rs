@@ -782,7 +782,8 @@ mod tests {
         num::NonZeroU32,
     };
 
-    use arrow_deps::{arrow::record_batch::RecordBatch, assert_batches_eq};
+    use arrow::record_batch::RecordBatch;
+    use arrow_util::assert_batches_eq;
     use reqwest::{Client, Response};
 
     use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};

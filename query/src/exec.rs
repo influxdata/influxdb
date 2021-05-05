@@ -14,11 +14,9 @@ use futures::{future, Future};
 
 use std::sync::Arc;
 
-use arrow_deps::{
-    arrow::record_batch::RecordBatch,
-    datafusion::{self, logical_plan::LogicalPlan, physical_plan::ExecutionPlan},
-};
+use arrow::record_batch::RecordBatch;
 use counters::ExecutionCounters;
+use datafusion::{self, logical_plan::LogicalPlan, physical_plan::ExecutionPlan};
 
 use context::IOxExecutionContext;
 use schema_pivot::SchemaPivotNode;
@@ -320,13 +318,11 @@ pub fn make_schema_pivot(input: LogicalPlan) -> LogicalPlan {
 
 #[cfg(test)]
 mod tests {
-    use arrow_deps::{
-        arrow::{
-            array::{ArrayRef, Int64Array, StringBuilder},
-            datatypes::{DataType, Field, Schema, SchemaRef},
-        },
-        datafusion::logical_plan::LogicalPlanBuilder,
+    use arrow::{
+        array::{ArrayRef, Int64Array, StringBuilder},
+        datatypes::{DataType, Field, Schema, SchemaRef},
     };
+    use datafusion::logical_plan::LogicalPlanBuilder;
     use stringset::StringSet;
 
     use super::*;

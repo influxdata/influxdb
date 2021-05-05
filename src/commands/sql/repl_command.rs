@@ -8,6 +8,7 @@ pub enum ReplCommand {
     Help,
     ShowDatabases,
     Observer,
+    SetFormat { format: String },
     UseDatabase { db_name: String },
     SqlCommand { sql: String },
     Exit,
@@ -44,36 +45,42 @@ impl TryInto<ReplCommand> for String {
 
         debug!(?raw_commands, ?commands, "processing tokens");
 
-        if !commands.is_empty() && commands[0] == "help" {
-            if commands.len() > 1 {
+        // Get something we can more easily pattern match on
+        let commands = commands.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+
+        match commands.as_slice() {
+            ["help"] => Ok(ReplCommand::Help),
+            ["help", ..] => {
                 let extra_content = commands[1..].join(" ");
                 warn!(%extra_content, "ignoring tokens after 'help'");
+                Ok(ReplCommand::Help)
             }
-            Ok(ReplCommand::Help)
-        } else if commands.len() == 1 && commands[0] == "observer" {
-            Ok(ReplCommand::Observer)
-        } else if commands.len() == 1 && commands[0] == "exit" {
-            Ok(ReplCommand::Exit)
-        } else if commands.len() == 1 && commands[0] == "quit" {
-            Ok(ReplCommand::Exit)
-        } else if commands.len() == 2 && commands[0] == "use" && commands[1] == "database" {
-            // USE DATABASE
-            Err("name not specified. Usage: USE DATABASE <name>".to_string())
-        } else if commands.len() == 3 && commands[0] == "use" && commands[1] == "database" {
-            // USE DATABASE <name>
-            Ok(ReplCommand::UseDatabase {
-                db_name: raw_commands[2].to_string(),
-            })
-        } else if commands.len() == 2 && commands[0] == "use" {
-            // USE <name>
-            Ok(ReplCommand::UseDatabase {
-                db_name: raw_commands[1].to_string(),
-            })
-        } else if commands.len() == 2 && commands[0] == "show" && commands[1] == "databases" {
-            Ok(ReplCommand::ShowDatabases)
-        } else {
-            // Default is to treat the entire string like SQL
-            Ok(ReplCommand::SqlCommand { sql: self })
+            ["observer"] => Ok(ReplCommand::Observer),
+            ["exit"] => Ok(ReplCommand::Exit),
+            ["quit"] => Ok(ReplCommand::Exit),
+            ["use", "database"] => {
+                Err("name not specified. Usage: USE DATABASE <name>".to_string())
+            } // USE DATABASE
+            ["use", "database", _name] => {
+                // USE DATABASE <name>
+                Ok(ReplCommand::UseDatabase {
+                    db_name: raw_commands[2].to_string(),
+                })
+            }
+            ["use", _command] => {
+                // USE <name>
+                Ok(ReplCommand::UseDatabase {
+                    db_name: raw_commands[1].to_string(),
+                })
+            }
+            ["show", "databases"] => Ok(ReplCommand::ShowDatabases),
+            ["set", "format", _format] => Ok(ReplCommand::SetFormat {
+                format: raw_commands[2].to_string(),
+            }),
+            _ => {
+                // By default, treat the entire string as SQL
+                Ok(ReplCommand::SqlCommand { sql: self })
+            }
         }
     }
 }
@@ -88,6 +95,8 @@ HELP (this one)
 SHOW DATABASES: List databases available on the server
 
 USE [DATABASE] <name>: Set the current remote database to name
+
+SET FORMAT <format>: Set the output format to Pretty, csv or json
 
 OBSERVER: Locally query unified queryable views of remote system tables
 
@@ -219,6 +228,22 @@ mod tests {
 
         let expected = sql_cmd("use database foo BAR");
         assert_eq!("use database foo BAR".try_into(), expected);
+    }
+
+    #[test]
+    fn set_format() {
+        let expected = Ok(ReplCommand::SetFormat {
+            format: "csv".to_string(),
+        });
+        assert_eq!(" set format csv".try_into(), expected);
+        assert_eq!("SET format   csv;".try_into(), expected);
+        assert_eq!("set  format csv".try_into(), expected);
+        assert_eq!("set format csv;".try_into(), expected);
+
+        let expected = Ok(ReplCommand::SetFormat {
+            format: "Hmm".to_string(),
+        });
+        assert_eq!("set format Hmm".try_into(), expected);
     }
 
     #[test]

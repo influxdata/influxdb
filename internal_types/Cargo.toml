@@ -7,7 +7,7 @@ description = "InfluxDB IOx internal types, shared between IOx instances"
 readme = "README.md"
 
 [dependencies]
-arrow_deps = { path = "../arrow_deps" }
+arrow = { path = "../arrow" }
 crc32fast = "1.2.0"
 chrono = { version = "0.4", features = ["serde"] }
 data_types = { path = "../data_types" }
@@ -22,6 +22,7 @@ observability_deps = { path = "../observability_deps" }
 
 [dev-dependencies] # In alphabetical order
 criterion = "0.3"
+arrow_util = { path = "../arrow_util" }
 
 [[bench]]
 name = "benchmark"

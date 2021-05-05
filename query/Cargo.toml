@@ -14,11 +14,14 @@ description = "IOx Query Interface and Executor"
 # 2. Allow for query logic testing without bringing in all the storage systems.
 
 [dependencies] # In alphabetical order
-arrow_deps = { path = "../arrow_deps" }
+arrow = { path = "../arrow" }
+arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 chrono = "0.4"
 croaring = "0.4.5"
 data_types = { path = "../data_types" }
+datafusion = { path = "../datafusion" }
+datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 internal_types = { path = "../internal_types" }

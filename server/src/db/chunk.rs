@@ -1,5 +1,12 @@
-use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
-//use arrow_deps::datafusion::dataframe::DataFrame;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
+
+use snafu::{ResultExt, Snafu};
+
+use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion_util::MemoryStream;
 use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::snapshot::ChunkSnapshot;
 use object_store::path::Path;
@@ -11,17 +18,7 @@ use read_buffer::Chunk as ReadBufferChunk;
 
 //use futures::StreamExt;
 
-use snafu::{ResultExt, Snafu};
-
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
-
-use super::{
-    pred::to_read_buffer_predicate,
-    streams::{MemoryStream, ReadFilterResultsStream},
-};
+use super::{pred::to_read_buffer_predicate, streams::ReadFilterResultsStream};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -61,13 +58,11 @@ pub enum Error {
 
     #[snafu(display("internal error creating plan: {}", source))]
     InternalPlanCreation {
-        source: arrow_deps::datafusion::error::DataFusionError,
+        source: datafusion::error::DataFusionError,
     },
 
     #[snafu(display("arrow conversion error: {}", source))]
-    ArrowConversion {
-        source: arrow_deps::arrow::error::ArrowError,
-    },
+    ArrowConversion { source: arrow::error::ArrowError },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -289,10 +284,7 @@ impl PartitionChunk for DbChunk {
                     .read_filter(table_name, selection)
                     .context(MutableBufferChunk)?;
 
-                // println!("--- READ FROM MUB:");
-                // println!("------- Record batch: {:#?}", batch);
-
-                Ok(Box::pin(MemoryStream::new(batch)))
+                Ok(Box::pin(MemoryStream::new(vec![batch])))
             }
             Self::ReadBuffer { chunk, .. } => {
                 // Error converting to a rb_predicate needs to fail

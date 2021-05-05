@@ -2,12 +2,10 @@
 
 use std::sync::Arc;
 
-use arrow_deps::{
-    arrow::datatypes::SchemaRef,
-    datafusion::{
-        error::DataFusionError,
-        physical_plan::{ExecutionPlan, Partitioning, SendableRecordBatchStream},
-    },
+use arrow::datatypes::SchemaRef;
+use datafusion::{
+    error::DataFusionError,
+    physical_plan::{ExecutionPlan, Partitioning, SendableRecordBatchStream},
 };
 use internal_types::{schema::Schema, selection::Selection};
 
@@ -66,7 +64,7 @@ impl<C: PartitionChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
     fn with_new_children(
         &self,
         children: Vec<Arc<dyn ExecutionPlan>>,
-    ) -> arrow_deps::datafusion::error::Result<Arc<dyn ExecutionPlan>> {
+    ) -> datafusion::error::Result<Arc<dyn ExecutionPlan>> {
         assert!(children.is_empty(), "no children expected in iox plan");
 
         // For some reason when I used an automatically derived `Clone` implementation
@@ -84,7 +82,7 @@ impl<C: PartitionChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
     async fn execute(
         &self,
         partition: usize,
-    ) -> arrow_deps::datafusion::error::Result<SendableRecordBatchStream> {
+    ) -> datafusion::error::Result<SendableRecordBatchStream> {
         let fields = self.schema.fields();
         let selection_cols = fields.iter().map(|f| f.name() as &str).collect::<Vec<_>>();
 

@@ -5,7 +5,7 @@ use std::{
     convert::TryInto,
 };
 
-use arrow_deps::arrow::datatypes::{DataType as ArrowDataType, Field as ArrowField};
+use arrow::datatypes::{DataType as ArrowDataType, Field as ArrowField};
 
 use super::{InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME};
 

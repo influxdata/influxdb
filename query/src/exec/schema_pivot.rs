@@ -27,25 +27,21 @@ use std::{
 
 use async_trait::async_trait;
 
-use arrow_deps::{
-    arrow::{
-        array::StringBuilder,
-        datatypes::{DataType, Field, Schema, SchemaRef},
-        record_batch::RecordBatch,
-    },
-    datafusion::{
-        error::DataFusionError,
-        logical_plan::{self, DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
-        physical_plan::{
-            common::SizedRecordBatchStream, Distribution, ExecutionPlan, Partitioning,
-            SendableRecordBatchStream,
-        },
+use arrow::{
+    array::StringBuilder,
+    datatypes::{DataType, Field, Schema, SchemaRef},
+    record_batch::RecordBatch,
+};
+use datafusion::{
+    error::{DataFusionError as Error, Result},
+    logical_plan::{self, DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
+    physical_plan::{
+        common::SizedRecordBatchStream, Distribution, ExecutionPlan, Partitioning,
+        SendableRecordBatchStream,
     },
 };
 
 use tokio_stream::StreamExt;
-
-pub use arrow_deps::datafusion::error::{DataFusionError as Error, Result};
 
 /// Implementes the SchemaPivot operation described in make_schema_pivot,
 pub struct SchemaPivotNode {
@@ -195,7 +191,7 @@ impl ExecutionPlan for SchemaPivotExec {
                 input: Arc::clone(&children[0]),
                 schema: Arc::clone(&self.schema),
             })),
-            _ => Err(DataFusionError::Internal(
+            _ => Err(Error::Internal(
                 "SchemaPivotExec wrong number of children".to_string(),
             )),
         }
@@ -204,7 +200,7 @@ impl ExecutionPlan for SchemaPivotExec {
     /// Execute one partition and return an iterator over RecordBatch
     async fn execute(&self, partition: usize) -> Result<SendableRecordBatchStream> {
         if self.output_partitioning().partition_count() <= partition {
-            return Err(DataFusionError::Internal(format!(
+            return Err(Error::Internal(format!(
                 "SchemaPivotExec invalid partition {}",
                 partition
             )));
@@ -291,14 +287,11 @@ mod tests {
     use crate::exec::stringset::{IntoStringSet, StringSetRef};
 
     use super::*;
-    use arrow_deps::{
-        arrow::array::StringArray,
-        arrow::{
-            array::Int64Array,
-            datatypes::{Field, Schema, SchemaRef},
-        },
-        datafusion::physical_plan::memory::MemoryExec,
+    use arrow::{
+        array::{Int64Array, StringArray},
+        datatypes::{Field, Schema, SchemaRef},
     };
+    use datafusion::physical_plan::memory::MemoryExec;
 
     #[tokio::test]
     async fn schema_pivot_exec_all_null() {
