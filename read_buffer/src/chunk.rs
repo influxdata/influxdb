@@ -244,6 +244,7 @@ impl Chunk {
             .iter()
             .map(|c| c.get_buffer_memory_size())
             .sum::<usize>();
+        let columns = table_data.num_columns();
 
         // This call is expensive. Complete it before locking.
         let now = std::time::Instant::now();
@@ -255,7 +256,7 @@ impl Chunk {
         let rg_size = row_group.size();
         let compression = format!("{:.2}%", (1.0 - (rg_size as f64 / rb_size as f64)) * 100.0);
         let chunk_id = self.id();
-        info!(%rows, rb_size, rg_size, %compression, ?table_name, %chunk_id, ?compressing_took, "row group added");
+        info!(%rows, %columns, rb_size, rg_size, %compression, ?table_name, %chunk_id, ?compressing_took, "row group added");
 
         let mut chunk_data = self.chunk_data.write();
 
