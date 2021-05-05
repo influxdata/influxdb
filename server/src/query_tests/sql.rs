@@ -6,7 +6,8 @@
 #![allow(unused_imports, dead_code, unused_macros)]
 
 use super::scenarios::*;
-use arrow_deps::{arrow::record_batch::RecordBatch, assert_batches_sorted_eq};
+use arrow::record_batch::RecordBatch;
+use arrow_util::assert_batches_sorted_eq;
 use query::frontend::sql::SqlQueryPlanner;
 use std::sync::Arc;
 

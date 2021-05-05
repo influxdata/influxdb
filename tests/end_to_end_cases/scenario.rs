@@ -16,7 +16,7 @@ use prost::Message;
 use data_types::{names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{influxdata::iox::management::v1::DatabaseRules, ReadSource, TimestampRange};
 
-use arrow_deps::arrow::{
+use arrow::{
     array::{ArrayRef, Float64Array, StringArray, TimestampNanosecondArray},
     record_batch::RecordBatch,
 };
@@ -213,7 +213,7 @@ impl Scenario {
         ])
         .unwrap();
 
-        arrow_deps::arrow::util::pretty::pretty_format_batches(&[batch])
+        arrow::util::pretty::pretty_format_batches(&[batch])
             .unwrap()
             .trim()
             .split('\n')

@@ -1,8 +1,8 @@
 //! Contains a structure to map from strings to u32 symbols based on
 //! string interning.
-use arrow_deps::arrow::array::{ArrayDataBuilder, StringArray};
-use arrow_deps::arrow::buffer::Buffer;
-use arrow_deps::arrow::datatypes::DataType;
+use arrow::array::{ArrayDataBuilder, StringArray};
+use arrow::buffer::Buffer;
+use arrow::datatypes::DataType;
 use hashbrown::HashMap;
 use snafu::{OptionExt, Snafu};
 use std::convert::TryInto;

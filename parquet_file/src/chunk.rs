@@ -2,8 +2,8 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeSet, sync::Arc};
 
 use crate::table::Table;
-use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use data_types::{partition_metadata::TableSummary, timestamp::TimestampRange};
+use datafusion::physical_plan::SendableRecordBatchStream;
 use internal_types::{schema::Schema, selection::Selection};
 use object_store::{path::Path, ObjectStore};
 use query::predicate::Predicate;

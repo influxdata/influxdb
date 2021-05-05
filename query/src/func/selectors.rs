@@ -16,18 +16,16 @@
 //! should be removed when DataFusion / Arrow has proper support
 use std::{fmt::Debug, sync::Arc};
 
-use arrow_deps::{
-    arrow::{array::ArrayRef, datatypes::DataType},
-    datafusion::{
-        error::{DataFusionError, Result as DataFusionResult},
-        physical_plan::{
-            aggregates::{AccumulatorFunctionImplementation, StateTypeFunction},
-            functions::{ReturnTypeFunction, Signature},
-            udaf::AggregateUDF,
-            Accumulator,
-        },
-        scalar::ScalarValue,
+use arrow::{array::ArrayRef, datatypes::DataType};
+use datafusion::{
+    error::{DataFusionError, Result as DataFusionResult},
+    physical_plan::{
+        aggregates::{AccumulatorFunctionImplementation, StateTypeFunction},
+        functions::{ReturnTypeFunction, Signature},
+        udaf::AggregateUDF,
+        Accumulator,
     },
+    scalar::ScalarValue,
 };
 
 // Internal implementations of the selector functions
@@ -305,19 +303,13 @@ where
 
 #[cfg(test)]
 mod test {
-    use arrow_deps::{
-        arrow::array::Float64Array,
-        arrow::array::Int64Array,
-        arrow::array::StringArray,
-        arrow::datatypes::{Field, Schema},
-        arrow::record_batch::RecordBatch,
-        arrow::{
-            array::{BooleanArray, TimestampNanosecondArray},
-            util::pretty::pretty_format_batches,
-        },
-        datafusion::logical_plan::Expr,
-        datafusion::{datasource::MemTable, prelude::*},
+    use arrow::{
+        array::{BooleanArray, Float64Array, Int64Array, StringArray, TimestampNanosecondArray},
+        datatypes::{Field, Schema},
+        record_batch::RecordBatch,
+        util::pretty::pretty_format_batches,
     };
+    use datafusion::{datasource::MemTable, logical_plan::Expr, prelude::*};
     use internal_types::schema::TIME_DATA_TIMEZONE;
 
     use super::*;

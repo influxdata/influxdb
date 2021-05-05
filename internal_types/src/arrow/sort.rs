@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use snafu::{ResultExt, Snafu};
 
-use arrow_deps::arrow::{
+use arrow::{
     array::DictionaryArray,
     compute::{lexsort_to_indices, take, SortColumn},
     datatypes::Int32Type,
@@ -100,9 +100,11 @@ pub fn sort_record_batch(batch: RecordBatch) -> Result<RecordBatch> {
 
 #[cfg(test)]
 mod tests {
-    use arrow_deps::arrow::array::{Int32Array, TimestampNanosecondArray};
-    use arrow_deps::arrow::datatypes::DataType;
-    use arrow_deps::assert_batches_eq;
+    use arrow::{
+        array::{Int32Array, TimestampNanosecondArray},
+        datatypes::DataType,
+    };
+    use arrow_util::assert_batches_eq;
 
     use crate::schema::builder::SchemaBuilder;
 

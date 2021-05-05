@@ -3,17 +3,14 @@ use std::{
     sync::Arc,
 };
 
-use arrow_deps::{
-    arrow::datatypes::{DataType, Field},
-    datafusion::{
-        error::{DataFusionError, Result as DatafusionResult},
-        logical_plan::{
-            Expr, ExpressionVisitor, LogicalPlan, LogicalPlanBuilder, Operator, Recursion,
-        },
-        prelude::col,
-    },
-    util::AsExpr,
+use arrow::datatypes::{DataType, Field};
+use datafusion::{
+    error::{DataFusionError, Result as DatafusionResult},
+    logical_plan::{Expr, ExpressionVisitor, LogicalPlan, LogicalPlanBuilder, Operator, Recursion},
+    prelude::col,
 };
+use datafusion_util::AsExpr;
+
 use internal_types::{
     schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME},
     selection::Selection,
@@ -100,7 +97,7 @@ pub enum Error {
 
     #[snafu(display("gRPC planner got error building plan: {}", source))]
     BuildingPlan {
-        source: arrow_deps::datafusion::error::DataFusionError,
+        source: datafusion::error::DataFusionError,
     },
 
     #[snafu(display(

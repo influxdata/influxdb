@@ -2,17 +2,15 @@
 
 use std::sync::Arc;
 
-use arrow_deps::{
-    arrow::datatypes::SchemaRef as ArrowSchemaRef,
-    datafusion::{
-        datasource::{
-            datasource::{Statistics, TableProviderFilterPushDown},
-            TableProvider,
-        },
-        error::{DataFusionError, Result as DataFusionResult},
-        logical_plan::Expr,
-        physical_plan::ExecutionPlan,
+use arrow::datatypes::SchemaRef as ArrowSchemaRef;
+use datafusion::{
+    datasource::{
+        datasource::{Statistics, TableProviderFilterPushDown},
+        TableProvider,
     },
+    error::{DataFusionError, Result as DataFusionResult},
+    logical_plan::Expr,
+    physical_plan::ExecutionPlan,
 };
 use internal_types::schema::{builder::SchemaMerger, Schema};
 

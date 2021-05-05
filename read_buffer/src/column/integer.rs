@@ -1,4 +1,4 @@
-use arrow_deps::arrow::{self, array::Array};
+use arrow::{self, array::Array};
 
 use super::cmp;
 use super::encoding::{fixed::Fixed, fixed_null::FixedNull};

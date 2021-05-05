@@ -14,8 +14,8 @@ pub mod stats;
 use snafu::Snafu;
 
 pub use crate::packers::{Packer, Packers};
-pub use arrow_deps::parquet::data_type::ByteArray;
 use internal_types::schema::Schema;
+pub use parquet::data_type::ByteArray;
 
 use std::borrow::Cow;
 

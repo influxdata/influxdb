@@ -1,35 +1,15 @@
-//! Utility functions for working with arrow
+#![deny(broken_intra_doc_links, rust_2018_idioms)]
+#![allow(clippy::clone_on_ref_ptr)]
 
 use std::sync::Arc;
-use std::{
-    iter::FromIterator,
-    task::{Context, Poll},
-};
+use std::task::{Context, Poll};
 
-use arrow::{
-    array::{ArrayRef, StringArray},
-    datatypes::SchemaRef,
-    error::{ArrowError, Result as ArrowResult},
-    record_batch::RecordBatch,
-};
 use datafusion::{
+    arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::RecordBatch},
     logical_plan::{binary_expr, col, lit, Expr, Operator},
     physical_plan::RecordBatchStream,
     scalar::ScalarValue,
 };
-
-/// Returns a single column record batch of type Utf8 from the
-/// contents of something that can be turned into an iterator over
-/// `Option<&str>`
-pub fn str_iter_to_batch<Ptr, I>(field_name: &str, iter: I) -> Result<RecordBatch, ArrowError>
-where
-    I: IntoIterator<Item = Option<Ptr>>,
-    Ptr: AsRef<str>,
-{
-    let array = StringArray::from_iter(iter);
-
-    RecordBatch::try_from_iter(vec![(field_name, Arc::new(array) as ArrayRef)])
-}
 
 /// Traits to help creating DataFusion expressions from strings
 pub trait AsExpr {

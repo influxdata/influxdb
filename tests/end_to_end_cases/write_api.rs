@@ -4,7 +4,7 @@ use test_helpers::assert_contains;
 use crate::common::server_fixture::ServerFixture;
 
 use super::scenario::{create_readable_database, rand_name};
-use arrow_deps::assert_batches_sorted_eq;
+use arrow_util::assert_batches_sorted_eq;
 use generated_types::influxdata::iox::management::v1::{
     node_group::Node, HashRing, Matcher, MatcherToShard, NodeGroup, ShardConfig,
 };

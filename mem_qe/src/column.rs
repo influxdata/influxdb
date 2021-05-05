@@ -1,8 +1,6 @@
 use std::collections::BTreeSet;
 use std::convert::From;
 
-use arrow_deps::arrow;
-
 use super::encoding;
 
 use observability_deps::tracing::debug;
@@ -1686,7 +1684,7 @@ where
     }
 }
 
-use arrow_deps::arrow::array::Array;
+use arrow::array::Array;
 
 impl From<arrow::array::Float64Array> for NumericColumn<f64> {
     fn from(arr: arrow::array::Float64Array) -> Self {

@@ -1,9 +1,7 @@
 //! Adapter streams for different Chunk types that implement the interface
 //! needed by DataFusion
-use arrow_deps::{
-    arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::RecordBatch},
-    datafusion::physical_plan::RecordBatchStream,
-};
+use arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::RecordBatch};
+use datafusion::physical_plan::RecordBatchStream;
 use read_buffer::ReadFilterResults;
 
 use std::{

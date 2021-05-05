@@ -978,7 +978,7 @@ mod tests {
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
 
-    use arrow_deps::assert_batches_eq;
+    use arrow_util::assert_batches_eq;
     use data_types::database_rules::{
         HashRing, PartitionTemplate, ShardConfig, TemplatePart, NO_SHARD_CONFIG,
     };

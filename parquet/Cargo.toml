@@ -1,0 +1,11 @@
+[package]
+name = "parquet"
+version = "0.1.0"
+authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
+edition = "2018"
+description = "Re-exports the parquet crate at a specific version"
+
+[dependencies]
+
+# Rename to workaround doctest bug
+upstream = { git = "https://github.com/apache/arrow-rs", rev = "ed00e4d4a160cd5182bfafb81fee2240ec005014", default-features = false, features = ["arrow", "snap", "brotli", "flate2", "lz4", "zstd"], package = "parquet" }

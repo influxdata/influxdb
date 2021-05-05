@@ -5,11 +5,9 @@
 
 use std::collections::BTreeSet;
 
-use arrow_deps::{
-    datafusion::logical_plan::Expr,
-    util::{make_range_expr, AndExprBuilder},
-};
 use data_types::timestamp::TimestampRange;
+use datafusion::logical_plan::Expr;
+use datafusion_util::{make_range_expr, AndExprBuilder};
 use internal_types::schema::TIME_COLUMN_NAME;
 
 /// This `Predicate` represents the empty predicate (aka that

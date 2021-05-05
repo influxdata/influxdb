@@ -5,22 +5,20 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 
-use arrow_deps::{
-    arrow::{
-        array::{
-            ArrayRef, StringArray, StringBuilder, Time64NanosecondArray, TimestampNanosecondArray,
-            UInt32Array, UInt64Array, UInt64Builder,
-        },
-        error::Result,
-        record_batch::RecordBatch,
+use arrow::{
+    array::{
+        ArrayRef, StringArray, StringBuilder, Time64NanosecondArray, TimestampNanosecondArray,
+        UInt32Array, UInt64Array, UInt64Builder,
     },
-    datafusion::{
-        catalog::schema::SchemaProvider,
-        datasource::{MemTable, TableProvider},
-    },
+    error::Result,
+    record_batch::RecordBatch,
 };
 use data_types::{
     chunk::ChunkSummary, error::ErrorLogger, job::Job, partition_metadata::PartitionSummary,
+};
+use datafusion::{
+    catalog::schema::SchemaProvider,
+    datasource::{MemTable, TableProvider},
 };
 use tracker::TaskTracker;
 
@@ -196,7 +194,7 @@ fn from_task_trackers(db_name: &str, jobs: Vec<TaskTracker<Job>>) -> Result<Reco
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow_deps::assert_batches_eq;
+    use arrow_util::assert_batches_eq;
     use chrono::NaiveDateTime;
     use data_types::chunk::ChunkStorage;
     use data_types::partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary};

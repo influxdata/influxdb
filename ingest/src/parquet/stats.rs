@@ -1,12 +1,12 @@
 //! Provide storage statistics for parquet files
-use arrow_deps::parquet::{
-    basic::{Compression, Encoding},
-    file::reader::{FileReader, SerializedFileReader},
-};
 use observability_deps::tracing::debug;
 use packers::{
     stats::{ColumnStatsBuilder, FileStats, FileStatsBuilder},
     Name,
+};
+use parquet::{
+    basic::{Compression, Encoding},
+    file::reader::{ChunkReader, FileReader, SerializedFileReader},
 };
 use snafu::ResultExt;
 use std::{collections::BTreeMap, convert::TryInto};
@@ -14,7 +14,6 @@ use std::{collections::BTreeMap, convert::TryInto};
 use super::{
     error::{ParquetLibraryError, Result},
     metadata::data_type_from_parquet_type,
-    ChunkReader,
 };
 
 /// Calculate storage statistics for a particular parquet "file" that can

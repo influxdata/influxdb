@@ -5,15 +5,13 @@ use internal_types::schema::TIME_DATA_TYPE;
 
 use std::{iter::FromIterator, sync::Arc};
 
-use arrow_deps::{
-    arrow::array::{ArrayRef, TimestampNanosecondArray},
-    datafusion::{logical_plan::Expr, physical_plan::functions::make_scalar_function, prelude::*},
-};
+use arrow::array::{ArrayRef, TimestampNanosecondArray};
+use datafusion::{logical_plan::Expr, physical_plan::functions::make_scalar_function, prelude::*};
 
 use crate::group_by::WindowDuration;
 
 // Reuse DataFusion error and Result types for this module
-pub use arrow_deps::datafusion::error::{DataFusionError as Error, Result};
+pub use datafusion::error::{DataFusionError as Error, Result};
 
 /// This is the implementation of the `window_bounds` user defined
 /// function used in IOx to compute window boundaries when doing
@@ -90,7 +88,7 @@ pub fn make_window_bound_expr(
 
 #[cfg(test)]
 mod tests {
-    use arrow_deps::arrow::array::TimestampNanosecondArray;
+    use arrow::array::TimestampNanosecondArray;
     use internal_types::schema::TIME_DATA_TIMEZONE;
 
     use super::*;
