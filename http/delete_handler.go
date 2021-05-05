@@ -8,12 +8,11 @@ import (
 	http "net/http"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/models"
-
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/predicate"
 	"go.uber.org/zap"
 )
