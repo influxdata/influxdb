@@ -3,12 +3,12 @@ package upgrade
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -18,10 +18,13 @@ import (
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/internal/testutil"
+	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
-	"github.com/stretchr/testify/assert"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"github.com/tcnksm/go-input"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -55,14 +58,14 @@ func TestPathValidations(t *testing.T) {
 
 	err = sourceOpts.validatePaths()
 	require.NotNil(t, err, "Must fail")
-	assert.Contains(t, err.Error(), "1.x DB dir")
+	require.Contains(t, err.Error(), "1.x DB dir")
 
 	err = os.MkdirAll(filepath.Join(v1Dir, "meta"), 0777)
 	require.Nil(t, err)
 
 	err = sourceOpts.validatePaths()
 	require.NotNil(t, err, "Must fail")
-	assert.Contains(t, err.Error(), "1.x meta.db")
+	require.Contains(t, err.Error(), "1.x meta.db")
 
 	err = ioutil.WriteFile(filepath.Join(v1Dir, "meta", "meta.db"), []byte{1}, 0777)
 	require.Nil(t, err)
@@ -72,17 +75,17 @@ func TestPathValidations(t *testing.T) {
 
 	err = targetOpts.validatePaths()
 	require.NotNil(t, err, "Must fail")
-	assert.Contains(t, err.Error(), "2.x engine")
+	require.Contains(t, err.Error(), "2.x engine")
 
 	err = os.Remove(filepath.Join(enginePath, "db"))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	err = ioutil.WriteFile(configsPath, []byte{1}, 0777)
 	require.Nil(t, err)
 
 	err = targetOpts.validatePaths()
 	require.NotNil(t, err, "Must fail")
-	assert.Contains(t, err.Error(), "2.x CLI configs")
+	require.Contains(t, err.Error(), "2.x CLI configs")
 }
 
 func TestClearTargetPaths(t *testing.T) {
@@ -180,22 +183,40 @@ func TestUpgradeRealDB(t *testing.T) {
 	err = testutil.Unzip("testdata/v1db.zip", tmpdir)
 	require.NoError(t, err)
 
-	tl := launcher.NewTestLauncherServer()
-	defer tl.ShutdownOrFail(t, ctx)
+	v1ConfigPath := filepath.Join(tmpdir, "v1.conf")
+	v1Config, err := os.Create(v1ConfigPath)
+	require.NoError(t, err)
+	defer v1Config.Close()
 
+	_, err = v1Config.WriteString(fmt.Sprintf(`reporting-disabled = true
+[meta]
+  dir = "%[1]s/v1db/meta"
+
+[data]
+  dir = "%[1]s/v1db/data"
+  wal-dir = "%[1]s/v1db/wal"
+
+[coordinator]
+  max-concurrent-queries = 0
+`,
+		tmpdir))
+	require.NoError(t, err)
+	v1Config.Close()
+
+	tl := launcher.NewTestLauncherServer()
 	boltPath := filepath.Join(tl.Path, bolt.DefaultFilename)
 	enginePath := filepath.Join(tl.Path, "engine")
 	cqPath := filepath.Join(tl.Path, "cq.txt")
 	cliConfigPath := filepath.Join(tl.Path, "influx-configs")
+	configPath := filepath.Join(tl.Path, "config.toml")
 
-	v1opts := &optionsV1{dbDir: tmpdir + "/v1db"}
-	v1opts.populateDirs()
-
+	v1opts := &optionsV1{configFile: v1ConfigPath}
 	v2opts := &optionsV2{
 		boltPath:       boltPath,
 		enginePath:     enginePath,
 		cqPath:         cqPath,
 		cliConfigsPath: cliConfigPath,
+		configPath:     configPath,
 		userName:       "my-user",
 		password:       "my-password",
 		orgName:        "my-org",
@@ -207,125 +228,123 @@ func TestUpgradeRealDB(t *testing.T) {
 	opts := &options{source: *v1opts, target: *v2opts, force: true}
 	ui := &input.UI{Writer: &bytes.Buffer{}, Reader: &bytes.Buffer{}}
 
-	log := zaptest.NewLogger(t)
+	log := zaptest.NewLogger(t, zaptest.Level(zap.InfoLevel))
 	err = runUpgradeE(ctx, ui, opts, log)
 	require.NoError(t, err)
 
-	v2, err := newInfluxDBv2(ctx, v2opts, log)
-	require.NoError(t, err)
+	v := viper.New()
+	v.SetConfigFile(configPath)
+	require.NoError(t, v.ReadInConfig())
+	lOpts := launcher.NewOpts(v)
+	cliOpts := lOpts.BindCliOpts()
 
-	orgs, _, err := v2.ts.FindOrganizations(ctx, influxdb.OrganizationFilter{})
-	require.NoError(t, err)
-	require.NotNil(t, orgs)
-	require.Len(t, orgs, 1)
-	assert.Equal(t, "my-org", orgs[0].Name)
+	cmd := cobra.Command{
+		Use: "test",
+		Run: func(*cobra.Command, []string) {
+			tl.RunOrFail(t, ctx, func(o *launcher.InfluxdOpts) {
+				*o = *lOpts
+			})
+			defer tl.ShutdownOrFail(t, ctx)
 
-	tl.Org = orgs[0]
+			orgs, _, err := tl.OrganizationService().FindOrganizations(ctx, influxdb.OrganizationFilter{})
+			require.NoError(t, err)
+			require.NotNil(t, orgs)
+			require.Len(t, orgs, 1)
+			require.Equal(t, "my-org", orgs[0].Name)
 
-	users, _, err := v2.ts.FindUsers(ctx, influxdb.UserFilter{})
-	require.NoError(t, err)
-	require.NotNil(t, users)
-	require.Len(t, users, 1)
-	assert.Equal(t, "my-user", users[0].Name)
+			users, _, err := tl.UserService().FindUsers(ctx, influxdb.UserFilter{})
+			require.NoError(t, err)
+			require.NotNil(t, users)
+			require.Len(t, users, 1)
+			require.Equal(t, "my-user", users[0].Name)
 
-	tokenNames := []string{"reader", "writer", "readerwriter"}
-	compatTokens, _, err := v2.authSvc.FindAuthorizations(ctx, influxdb.AuthorizationFilter{})
-	require.NoError(t, err)
-	require.NotNil(t, compatTokens)
-	require.Len(t, compatTokens, len(tokenNames))
+			tokenNames := []string{"reader", "writer", "readerwriter"}
+			compatTokens, _, err := tl.Launcher.AuthorizationV1Service().FindAuthorizations(ctx, influxdb.AuthorizationFilter{})
+			require.NoError(t, err)
+			require.NotNil(t, compatTokens)
+			require.Len(t, compatTokens, len(tokenNames))
 
-	tl.User = users[0]
+			buckets, _, err := tl.Launcher.BucketService().FindBuckets(ctx, influxdb.BucketFilter{})
+			require.NoError(t, err)
 
-	buckets, _, err := v2.ts.FindBuckets(ctx, influxdb.BucketFilter{})
-	require.NoError(t, err)
+			bucketNames := []string{"my-bucket", "_tasks", "_monitoring", "mydb/autogen", "mydb/1week", "test/autogen", "empty/autogen"}
+			myDbAutogenBucketId := ""
+			myDb1weekBucketId := ""
+			testBucketId := ""
+			emptyBucketId := ""
 
-	bucketNames := []string{"my-bucket", "_tasks", "_monitoring", "mydb/autogen", "mydb/1week", "test/autogen", "empty/autogen"}
-	myDbAutogenBucketId := ""
-	myDb1weekBucketId := ""
-	testBucketId := ""
-	emptyBucketId := ""
+			require.NotNil(t, buckets)
+			require.Len(t, buckets, len(bucketNames))
 
-	require.NotNil(t, buckets)
-	require.Len(t, buckets, len(bucketNames))
+			for _, b := range buckets {
+				require.Contains(t, bucketNames, b.Name)
+				switch b.Name {
+				case bucketNames[0]:
+					tl.Bucket = b
+				case bucketNames[3]:
+					myDbAutogenBucketId = b.ID.String()
+				case bucketNames[4]:
+					myDb1weekBucketId = b.ID.String()
+				case bucketNames[5]:
+					testBucketId = b.ID.String()
+				case bucketNames[6]:
+					emptyBucketId = b.ID.String()
+				}
+			}
+			require.NoDirExists(t, filepath.Join(enginePath, "data", "_internal"))
 
-	for _, b := range buckets {
-		assert.Contains(t, bucketNames, b.Name)
-		switch b.Name {
-		case bucketNames[0]:
-			tl.Bucket = b
-		case bucketNames[3]:
-			myDbAutogenBucketId = b.ID.String()
-		case bucketNames[4]:
-			myDb1weekBucketId = b.ID.String()
-		case bucketNames[5]:
-			testBucketId = b.ID.String()
-		case bucketNames[6]:
-			emptyBucketId = b.ID.String()
-		}
+			// Ensure retention policy from the setup request passed through to the bucket.
+			require.Equal(t, humanize.Week, tl.Bucket.RetentionPeriod)
+
+			dbChecks := []struct {
+				dbname    string
+				shardsNum int
+			}{
+				{myDbAutogenBucketId, 3},
+				{testBucketId, 5},
+				{myDb1weekBucketId, 1},
+				{emptyBucketId, 0},
+			}
+
+			for _, check := range dbChecks {
+				db := tl.Launcher.Engine().MetaClient().Database(check.dbname)
+				require.NotNil(t, db)
+				require.Len(t, db.ShardInfos(), check.shardsNum)
+				if check.shardsNum > 0 {
+					require.DirExists(t, filepath.Join(enginePath, "data", check.dbname, meta.DefaultRetentionPolicyName))
+				}
+			}
+
+			auths, _, err := tl.Launcher.AuthorizationService().FindAuthorizations(ctx, influxdb.AuthorizationFilter{})
+			require.NoError(t, err)
+			require.Len(t, auths, 1)
+
+			respBody := mustRunQuery(t, tl, "test", "select count(avg) from stat", auths[0].Token)
+			require.Contains(t, respBody, `["1970-01-01T00:00:00Z",5776]`)
+
+			respBody = mustRunQuery(t, tl, "mydb", "select count(avg) from testv1", auths[0].Token)
+			require.Contains(t, respBody, `["1970-01-01T00:00:00Z",2882]`)
+
+			respBody = mustRunQuery(t, tl, "mydb", "select count(i) from testv1", auths[0].Token)
+			require.Contains(t, respBody, `["1970-01-01T00:00:00Z",21]`)
+
+			respBody = mustRunQuery(t, tl, "mydb", `select count(line) from mydb."1week".log`, auths[0].Token)
+			require.Contains(t, respBody, `["1970-01-01T00:00:00Z",1]`)
+
+			cqBytes, err := ioutil.ReadFile(cqPath)
+			require.NoError(t, err)
+			cqs := string(cqBytes)
+
+			require.Contains(t, cqs, "CREATE CONTINUOUS QUERY other_cq ON test BEGIN SELECT mean(foo) INTO test.autogen.foo FROM empty.autogen.foo GROUP BY time(1h) END")
+			require.Contains(t, cqs, "CREATE CONTINUOUS QUERY cq_3 ON test BEGIN SELECT mean(bar) INTO test.autogen.bar FROM test.autogen.foo GROUP BY time(1m) END")
+			require.Contains(t, cqs, "CREATE CONTINUOUS QUERY cq ON empty BEGIN SELECT mean(example) INTO empty.autogen.mean FROM empty.autogen.raw GROUP BY time(1h) END")
+		},
 	}
-	assert.NoDirExists(t, filepath.Join(enginePath, "data", "_internal"))
-
-	// Ensure retention policy from the setup request passed through to the bucket.
-	require.Equal(t, humanize.Week, tl.Bucket.RetentionPeriod)
-
-	dbChecks := []struct {
-		dbname    string
-		shardsNum int
-	}{
-		{myDbAutogenBucketId, 3},
-		{testBucketId, 5},
-		{myDb1weekBucketId, 1},
-		{emptyBucketId, 0},
-	}
-
-	for _, check := range dbChecks {
-		db := v2.meta.Database(check.dbname)
-		require.NotNil(t, db)
-		assert.Len(t, db.ShardInfos(), check.shardsNum)
-		if check.shardsNum > 0 {
-			assert.DirExists(t, filepath.Join(enginePath, "data", check.dbname, meta.DefaultRetentionPolicyName))
-		}
-		assert.NoDirExists(t, filepath.Join(enginePath, "data", check.dbname, "_series"))
-		for _, si := range db.ShardInfos() {
-			assert.NoDirExists(t, filepath.Join(enginePath, "data", check.dbname, strconv.FormatUint(si.ID, 10), "index"))
-		}
-	}
-
-	auths, _, err := v2.authSvcV2.FindAuthorizations(ctx, influxdb.AuthorizationFilter{})
-	require.NoError(t, err)
-	require.Len(t, auths, 1)
-
-	tl.Auth = auths[0]
-
-	err = v2.close()
-	require.NoError(t, err)
-
-	// start server
-	err = tl.Run(t, ctx)
-	require.NoError(t, err)
-
-	respBody := mustRunQuery(t, tl, "test", "select count(avg) from stat")
-	assert.Contains(t, respBody, `["1970-01-01T00:00:00Z",5776]`)
-
-	respBody = mustRunQuery(t, tl, "mydb", "select count(avg) from testv1")
-	assert.Contains(t, respBody, `["1970-01-01T00:00:00Z",2882]`)
-
-	respBody = mustRunQuery(t, tl, "mydb", "select count(i) from testv1")
-	assert.Contains(t, respBody, `["1970-01-01T00:00:00Z",21]`)
-
-	respBody = mustRunQuery(t, tl, "mydb", `select count(line) from mydb."1week".log`)
-	assert.Contains(t, respBody, `["1970-01-01T00:00:00Z",1]`)
-
-	cqBytes, err := ioutil.ReadFile(cqPath)
-	require.NoError(t, err)
-	cqs := string(cqBytes)
-
-	assert.Contains(t, cqs, "CREATE CONTINUOUS QUERY other_cq ON test BEGIN SELECT mean(foo) INTO test.autogen.foo FROM empty.autogen.foo GROUP BY time(1h) END")
-	assert.Contains(t, cqs, "CREATE CONTINUOUS QUERY cq_3 ON test BEGIN SELECT mean(bar) INTO test.autogen.bar FROM test.autogen.foo GROUP BY time(1m) END")
-	assert.Contains(t, cqs, "CREATE CONTINUOUS QUERY cq ON empty BEGIN SELECT mean(example) INTO empty.autogen.mean FROM empty.autogen.raw GROUP BY time(1h) END")
+	require.NoError(t, cli.BindOptions(v, &cmd, cliOpts))
+	require.NoError(t, cmd.Execute())
 }
 
-func mustRunQuery(t *testing.T, tl *launcher.TestLauncher, db, rawQ string) string {
+func mustRunQuery(t *testing.T, tl *launcher.TestLauncher, db, rawQ, token string) string {
 	queryUrl, err := url.Parse(tl.URL() + "/query")
 	require.Nil(t, err)
 
@@ -337,7 +356,7 @@ func mustRunQuery(t *testing.T, tl *launcher.TestLauncher, db, rawQ string) stri
 	req, err := http.NewRequest(http.MethodGet, queryUrl.String(), nil)
 	require.Nil(t, err)
 
-	req.Header.Set("Authorization", "Token "+tl.Auth.Token)
+	req.Header.Set("Authorization", "Token "+token)
 	resp, err := http.DefaultClient.Do(req)
 	require.Nil(t, err)
 

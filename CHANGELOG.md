@@ -1,5 +1,27 @@
 ## unreleased
 
+### Features
+
+1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
+1. [21218](https://github.com/influxdata/influxdb/pull/21218): Add the properties of a static legend for line graphs and band plots.
+
+### Bug Fixes
+
+1. [21345](https://github.com/influxdata/influxdb/pull/21345): Deprecate the unsupported `PostSetupUser` API.
+1. [21356](https://github.com/influxdata/influxdb/pull/21356): Disable MergeFiltersRule until it is more stable.
+1. [21369](https://github.com/influxdata/influxdb/pull/21369): Add limits to the `/api/v2/delete` endpoint for start and stop times with error messages.
+1. [21375](https://github.com/influxdata/influxdb/pull/21375): Add logging to NATS streaming server to help debug startup failures.
+
+## v2.0.6 [2021-04-29]
+
+### Bug Fixes
+
+1. [21321](https://github.com/influxdata/influxdb/pull/21321): Ensure query config written by influxd upgrade is valid.
+1. [21324](https://github.com/influxdata/influxdb/pull/21324): Revert to nonzero defaults for `query-concurrency` and `query-queue-size` to avoid validation failures for upgrading users.
+1. [21324](https://github.com/influxdata/influxdb/pull/21324): Don't fail validation when `query-concurrency` is 0 and `query-queue-size` is > 0.
+
+## v2.0.5 [2021-04-27]
+
 ### Windows Support
 
 This release includes our initial Windows preview build.
@@ -30,7 +52,6 @@ The prefix used for Prometheus metrics from the query controller has changed fro
 
 ### Features
 
-1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
 1. [20621](https://github.com/influxdata/influxdb/pull/20621): Add Swift client library to the data loading section of the UI.
 1. [20307](https://github.com/influxdata/influxdb/pull/20307): Add `influx task retry-failed` command to rerun failed runs.
 1. [20759](https://github.com/influxdata/influxdb/pull/20759): Add additional properties for Mosaic Graph.
@@ -52,7 +73,8 @@ The prefix used for Prometheus metrics from the query controller has changed fro
 1. [21127](https://github.com/influxdata/influxdb/pull/21127): Allow for disabling concurrency-limits in Flux controller.
 1. [21158](https://github.com/influxdata/influxdb/pull/21158): Replace unique resource IDs (UI assets, backup shards) with slugs to reduce cardinality of telemetry data.
 1. [21235](https://github.com/influxdata/influxdb/pull/21235): HTTP server errors output logs following the standard format.
-1. [21218](https://github.com/influxdata/influxdb/pull/21218): Add the properties of a static legend for line graphs and band plots.
+1. [21255](https://github.com/influxdata/influxdb/pull/21255): Upgrade Flux to v0.113.0.
+1. [21364](https://github.com/influxdata/influxdb/pull/21364): Update Static Legend properties to allow disabling without nulling
 
 ### Bug Fixes
 
@@ -76,6 +98,8 @@ The prefix used for Prometheus metrics from the query controller has changed fro
 1. [21042](https://github.com/influxdata/influxdb/pull/21042): Prevent concurrent access panic when gathering bolt metrics.
 1. [21127](https://github.com/influxdata/influxdb/pull/21127): Fix race condition in Flux controller shutdown.
 1. [21228](https://github.com/influxdata/influxdb/pull/21228): Reduce lock contention when adding new fields and measurements.
+1. [21232](https://github.com/influxdata/influxdb/pull/21232): Escape dots in community templates hostname regex.
+1. [21140](https://github.com/influxdata/influxdb/pull/21140): Use descending cursor when needed in pushed-down aggregate Flux queries.
 
 ## v2.0.4 [2021-02-08]
 

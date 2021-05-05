@@ -13,7 +13,6 @@ register({
     properties: {
       type: 'xy',
       position: 'overlaid',
-      legend: {},
       note: '',
       showNoteWhenEmpty: false,
       axes: {

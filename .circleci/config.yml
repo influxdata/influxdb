@@ -5,7 +5,6 @@ workflows:
   build:
     jobs:
       - godeps
-      - jsdeps
       - gotest:
           requires:
             - godeps
@@ -27,11 +26,9 @@ workflows:
       - build:
           requires:
             - godeps
-            - jsdeps
       - cross_build:
           requires:
             - godeps
-            - jsdeps
       - e2e:
           requires:
             - build
@@ -47,6 +44,13 @@ workflows:
           filters:
             branches:
               only: master
+      - share-testing-image:
+          filters:
+            branches:
+              only:
+                - master
+          requires:
+            - e2e
 
   nightly:
     triggers:
@@ -58,7 +62,6 @@ workflows:
                 - master
     jobs:
       - godeps
-      - jsdeps
       - gotest:
           requires:
             - godeps
@@ -276,35 +279,6 @@ commands:
                 command: goreleaser --debug release -p 1 --rm-dist --skip-validate
 
 jobs:
-  ####################
-  ### UI-only jobs ###
-  ####################
-
-  jsdeps:
-    docker:
-      - image: cimg/go:1.15.6-node
-    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
-    steps:
-      - checkout
-      - restore_cache:
-          name: Restore Yarn Cache
-          keys:
-            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
-            - yarn-deps-lock-
-      - run:
-          name: Install Dependencies
-          command: |
-            set +e
-            cd ui
-            yarn install --immutable
-      - save_cache:
-          name: Save Yarn Cache
-          key: yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
-          paths:
-            - /home/circleci/go/src/github.com/influxdata/influxdb/ui/node_modules
-            - ~/.cache/yarn
-            - ~/.cache/Cypress
-
   #########################
   ### Backend-only jobs ###
   #########################
@@ -502,7 +476,7 @@ jobs:
 
   build:
     docker:
-      - image: cimg/go:1.15.6-node
+      - image: cimg/go:1.15.6
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
@@ -518,10 +492,6 @@ jobs:
           keys:
             - influxdb-build-{{ .Branch }}-{{ .Revision }}
             - influxdb-build-{{ .Branch }}-
-      - restore_cache:
-          name: Restore Yarn Cache
-          keys:
-            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - install_core_deps
       - run: make build
       - save_cache:
@@ -531,6 +501,15 @@ jobs:
             - /tmp/go-cache
       - store_artifacts:
           path: bin/linux
+      - setup_remote_docker:
+          version: 19.03.13
+          docker_layer_caching: true
+      - run:
+          name: Build the candidate docker image
+          command: |
+            cp ./bin/linux/{influx,influxd} .
+            docker build -f docker/influxd/Dockerfile -t quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} .
+            docker save -o docker-image.tar quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
       - persist_to_workspace:
           root: .
           paths:
@@ -539,6 +518,7 @@ jobs:
             - bin/linux/influx
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
+            - docker-image.tar
 
   cross_build:
     machine:
@@ -557,10 +537,6 @@ jobs:
           keys:
             - influxdb-cross-build-{{ .Branch }}-{{ .Revision }}
             - influxdb-cross-build-{{ .Branch }}-
-      - restore_cache:
-          name: Restore Yarn Cache
-          keys:
-            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - install_core_deps
       - run_goreleaser:
           publish_release: false
@@ -597,10 +573,6 @@ jobs:
           keys:
             - influxdb-nightly-{{ .Branch }}-{{ .Revision }}
             - influxdb-nightly-{{ .Branch }}-
-      - restore_cache:
-          name: Restore Yarn Cache
-          keys:
-            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - install_core_deps
       - run_goreleaser:
           publish_release: true
@@ -620,8 +592,8 @@ jobs:
   #################################
 
   e2e:
-    docker:
-      - image: cimg/go:1.15.6-browsers
+    machine:
+      image: ubuntu-2004:202010-01
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
@@ -637,7 +609,26 @@ jobs:
             - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - run: sudo apt-get update && sudo apt-get install netcat-openbsd
       - run:
-          command: ./bin/linux/influxd --store=memory --e2e-testing=true
+          name: Install Dependencies
+          command: |
+            set +e
+            cd ui
+            yarn install --immutable
+      - save_cache:
+          name: Save Yarn Cache
+          key: yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
+          paths:
+            - /home/circleci/go/src/github.com/influxdata/influxdb/ui/node_modules
+            - ~/.cache/yarn
+            - ~/.cache/Cypress
+      - run:
+          name: Start the OSS docker image
+          command: |
+            docker load < docker-image.tar
+            docker run -p 8086:8086 \
+              -e INFLUXD_STORE=memory \
+              -e INFLUXD_E2E_TESTING=true \
+              quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
           background: true
       - run: make e2e
       - store_test_results:
@@ -736,3 +727,21 @@ jobs:
           path: ~/project/results
       - store_test_results:
           path: ~/project/results
+
+  share-testing-image:
+    machine:
+      image: ubuntu-2004:202010-01
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
+    steps:
+      - attach_workspace:
+          at: /home/circleci/go/src/github.com/influxdata/influxdb
+      - run:
+          name: Log into Quay
+          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+      - run:
+          name: Push the image to Quay
+          command: |
+            docker load < docker-image.tar
+            docker tag quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} quay.io/influxdb/oss-acceptance:latest
+            docker push quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
+            docker push quay.io/influxdb/oss-acceptance:latest

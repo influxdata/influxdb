@@ -43,6 +43,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/label"
 	"github.com/influxdata/influxdb/v2/nats"
+	notebookTransport "github.com/influxdata/influxdb/v2/notebooks/transport"
 	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	ruleservice "github.com/influxdata/influxdb/v2/notification/rule/service"
 	"github.com/influxdata/influxdb/v2/pkger"
@@ -583,7 +584,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	natsOpts := nats.NewDefaultServerOptions()
 	natsOpts.Port = opts.NatsPort
 	natsOpts.MaxPayload = opts.NatsMaxPayloadBytes
-	m.natsServer = nats.NewServer(&natsOpts)
+	m.natsServer = nats.NewServer(&natsOpts, m.log.With(zap.String("service", "nats")))
 	if err := m.natsServer.Open(); err != nil {
 		m.log.Error("Failed to start nats streaming server", zap.Error(err))
 		return err
@@ -672,9 +673,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	onboardSvc = tenant.NewOnboardingLogger(onboardingLogger, onboardSvc)                 // with logging
 
 	var (
-		authorizerV1 platform.AuthorizerV1
-		passwordV1   platform.PasswordsService
-		authSvcV1    *authv1.Service
+		passwordV1 platform.PasswordsService
+		authSvcV1  *authv1.Service
 	)
 	{
 		authStore, err := authv1.NewStore(m.kvStore)
@@ -685,13 +685,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 		authSvcV1 = authv1.NewService(authStore, ts)
 		passwordV1 = authv1.NewCachingPasswordsService(authSvcV1)
-
-		authorizerV1 = &authv1.Authorizer{
-			AuthV1:   authSvcV1,
-			AuthV2:   authSvc,
-			Comparer: passwordV1,
-			User:     ts,
-		}
 	}
 
 	var (
@@ -735,12 +728,19 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			BucketFinder:  ts.BucketService,
 			LogBucketName: platform.MonitoringSystemBucketName,
 		},
-		DeleteService:        deleteService,
-		BackupService:        backupService,
-		RestoreService:       restoreService,
-		AuthorizationService: authSvc,
-		AuthorizerV1:         authorizerV1,
-		AlgoWProxy:           &http.NoopProxyHandler{},
+		DeleteService:          deleteService,
+		BackupService:          backupService,
+		RestoreService:         restoreService,
+		AuthorizationService:   authSvc,
+		AuthorizationV1Service: authSvcV1,
+		PasswordV1Service:      passwordV1,
+		AuthorizerV1: &authv1.Authorizer{
+			AuthV1:   authSvcV1,
+			AuthV2:   authSvc,
+			Comparer: passwordV1,
+			User:     ts,
+		},
+		AlgoWProxy: &http.NoopProxyHandler{},
 		// Wrap the BucketService in a storage backed one that will ensure deleted buckets are removed from the storage engine.
 		BucketService:                   ts.BucketService,
 		SessionService:                  sessionSvc,
@@ -897,6 +897,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		)
 	}
 
+	notebookServer := notebookTransport.NewNotebookHandler(m.log.With(zap.String("handler", "notebooks")))
+
 	platformHandler := http.NewPlatformHandler(
 		m.apibackend,
 		http.WithResourceHandler(stacksHTTPServer),
@@ -912,6 +914,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		http.WithResourceHandler(bucketHTTPServer),
 		http.WithResourceHandler(v1AuthHTTPServer),
 		http.WithResourceHandler(dashboardServer),
+		http.WithResourceHandler(notebookServer),
 	)
 
 	httpLogger := m.log.With(zap.String("service", "http"))
@@ -1134,6 +1137,10 @@ func (m *Launcher) UserResourceMappingService() platform.UserResourceMappingServ
 // AuthorizationService returns the internal authorization service.
 func (m *Launcher) AuthorizationService() platform.AuthorizationService {
 	return m.apibackend.AuthorizationService
+}
+
+func (m *Launcher) AuthorizationV1Service() platform.AuthorizationService {
+	return m.apibackend.AuthorizationV1Service
 }
 
 // SecretService returns the internal secret service.

@@ -119,19 +119,23 @@ type Config struct {
 
 // complete will fill in the defaults, validate the configuration, and
 // return the new Config.
-func (c *Config) complete() (Config, error) {
+func (c *Config) complete(log *zap.Logger) (Config, error) {
 	config := *c
 	if config.InitialMemoryBytesQuotaPerQuery == 0 {
 		config.InitialMemoryBytesQuotaPerQuery = config.MemoryBytesQuotaPerQuery
 	}
+	if config.ConcurrencyQuota == 0 && config.QueueSize > 0 {
+		log.Warn("Ignoring query QueueSize > 0 when ConcurrencyQuota is 0")
+		config.QueueSize = 0
+	}
 
-	if err := config.validate(true); err != nil {
+	if err := config.validate(); err != nil {
 		return Config{}, err
 	}
 	return config, nil
 }
 
-func (c *Config) validate(isComplete bool) error {
+func (c *Config) validate() error {
 	if c.ConcurrencyQuota < 0 {
 		return errors.New("ConcurrencyQuota must not be negative")
 	} else if c.ConcurrencyQuota == 0 {
@@ -148,10 +152,10 @@ func (c *Config) validate(isComplete bool) error {
 			return errors.New("QueueSize must be positive when ConcurrencyQuota is limited")
 		}
 	}
-	if c.MemoryBytesQuotaPerQuery < 0 || (isComplete && c.MemoryBytesQuotaPerQuery == 0) {
+	if c.MemoryBytesQuotaPerQuery < 0 {
 		return errors.New("MemoryBytesQuotaPerQuery must be positive")
 	}
-	if c.InitialMemoryBytesQuotaPerQuery < 0 || (isComplete && c.InitialMemoryBytesQuotaPerQuery == 0) {
+	if c.InitialMemoryBytesQuotaPerQuery < 0 {
 		return errors.New("InitialMemoryBytesQuotaPerQuery must be positive")
 	}
 	if c.MaxMemoryBytes < 0 {
@@ -165,15 +169,10 @@ func (c *Config) validate(isComplete bool) error {
 	return nil
 }
 
-// Validate will validate that the controller configuration is valid.
-func (c *Config) Validate() error {
-	return c.validate(false)
-}
-
 type QueryID uint64
 
 func New(config Config, logger *zap.Logger) (*Controller, error) {
-	c, err := config.complete()
+	c, err := config.complete(logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid controller config")
 	}

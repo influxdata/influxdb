@@ -438,7 +438,7 @@ describe('DataExplorer', () => {
       })
     })
 
-    it('shows flux signatures', () => {
+    it.skip('shows flux signatures', () => {
       cy.getByTestID('time-machine--bottom').then(() => {
         cy.getByTestID('flux-editor').within(() => {
           cy.get('textarea').type('from(', {force: true})
