@@ -1,4 +1,4 @@
-use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
+use arrow_deps::{datafusion::physical_plan::SendableRecordBatchStream, util::MemoryStream};
 use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::snapshot::ChunkSnapshot;
 use object_store::path::Path;
@@ -13,10 +13,7 @@ use std::{
     sync::Arc,
 };
 
-use super::{
-    pred::to_read_buffer_predicate,
-    streams::{MemoryStream, ReadFilterResultsStream},
-};
+use super::{pred::to_read_buffer_predicate, streams::ReadFilterResultsStream};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -284,7 +281,7 @@ impl PartitionChunk for DbChunk {
                     .read_filter(table_name, selection)
                     .context(MutableBufferChunk)?;
 
-                Ok(Box::pin(MemoryStream::new(batch)))
+                Ok(Box::pin(MemoryStream::new(vec![batch])))
             }
             Self::ReadBuffer { chunk, .. } => {
                 // Error converting to a rb_predicate needs to fail

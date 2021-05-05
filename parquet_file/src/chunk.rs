@@ -133,18 +133,23 @@ impl Chunk {
 
     /// Return Schema for the specified table / columns
     pub fn table_schema(&self, table_name: &str, selection: Selection<'_>) -> Result<Schema> {
-        let table = self
-            .tables
-            .iter()
-            .find(|t| t.has_table(table_name))
-            .context(NamedTableNotFoundInChunk {
-                table_name,
-                chunk_id: self.id(),
-            })?;
+        let table = self.find_table(table_name)?;
 
         table
             .schema(selection)
             .context(NamedTableError { table_name })
+    }
+
+    /// Return object store path for specified table
+    pub fn table_path(&self, table_name: &str) -> Result<Path> {
+        let table = self.find_table(table_name)?;
+        Ok(table.path())
+    }
+
+    /// Return Schema for the specified table / columns
+    pub fn timestamp_range(&self, table_name: &str) -> Result<Option<TimestampRange>> {
+        let table = self.find_table(table_name)?;
+        Ok(table.timestamp_range())
     }
 
     // Return all tables of this chunk whose timestamp overlaps with the give one
@@ -168,14 +173,7 @@ impl Chunk {
         table_name: &str,
         selection: Selection<'_>,
     ) -> Option<BTreeSet<String>> {
-        let table = self
-            .tables
-            .iter()
-            .find(|t| t.has_table(table_name))
-            .context(NamedTableNotFoundInChunk {
-                table_name,
-                chunk_id: self.id(),
-            });
+        let table = self.find_table(table_name);
 
         match table {
             Ok(table) => table.column_names(selection),
@@ -190,14 +188,7 @@ impl Chunk {
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream> {
-        let table = self
-            .tables
-            .iter()
-            .find(|t| t.has_table(table_name))
-            .context(NamedTableNotFoundInChunk {
-                table_name,
-                chunk_id: self.id(),
-            })?;
+        let table = self.find_table(table_name)?;
 
         table
             .read_filter(predicate, selection)
@@ -210,5 +201,15 @@ impl Chunk {
     /// The total number of rows in all row groups in all tables in this chunk.
     pub fn rows(&self) -> usize {
         self.tables.iter().map(|t| t.rows()).sum()
+    }
+
+    fn find_table(&self, table_name: &str) -> Result<&Table> {
+        self.tables
+            .iter()
+            .find(|t| t.has_table(table_name))
+            .context(NamedTableNotFoundInChunk {
+                table_name,
+                chunk_id: self.id(),
+            })
     }
 }

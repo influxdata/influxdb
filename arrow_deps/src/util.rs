@@ -1,15 +1,20 @@
 //! Utility functions for working with arrow
 
-use std::iter::FromIterator;
 use std::sync::Arc;
+use std::{
+    iter::FromIterator,
+    task::{Context, Poll},
+};
 
 use arrow::{
     array::{ArrayRef, StringArray},
-    error::ArrowError,
+    datatypes::SchemaRef,
+    error::{ArrowError, Result as ArrowResult},
     record_batch::RecordBatch,
 };
 use datafusion::{
     logical_plan::{binary_expr, col, lit, Expr, Operator},
+    physical_plan::RecordBatchStream,
     scalar::ScalarValue,
 };
 
@@ -115,6 +120,56 @@ impl AndExprBuilder {
     /// Creates the new filter expression, consuming Self
     pub fn build(self) -> Option<Expr> {
         self.cur_expr
+    }
+}
+
+/// A RecordBatchStream created from in-memory RecordBatches.
+#[derive(Debug)]
+pub struct MemoryStream {
+    schema: SchemaRef,
+    batches: Vec<RecordBatch>,
+}
+
+impl MemoryStream {
+    /// Create new stream.
+    ///
+    /// Must at least pass one record batch!
+    pub fn new(batches: Vec<RecordBatch>) -> Self {
+        assert!(!batches.is_empty(), "must at least pass one record batch");
+        Self {
+            schema: batches[0].schema(),
+            batches,
+        }
+    }
+
+    /// Create new stream with provided schema.
+    pub fn new_with_schema(batches: Vec<RecordBatch>, schema: SchemaRef) -> Self {
+        Self { schema, batches }
+    }
+}
+
+impl RecordBatchStream for MemoryStream {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&self.schema)
+    }
+}
+
+impl futures::Stream for MemoryStream {
+    type Item = ArrowResult<RecordBatch>;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        if self.batches.is_empty() {
+            Poll::Ready(None)
+        } else {
+            Poll::Ready(Some(Ok(self.batches.remove(0))))
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.batches.len(), Some(self.batches.len()))
     }
 }
 
