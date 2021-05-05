@@ -18,15 +18,12 @@ use crate::schema::{AggregateType, LogicalDataType, ResultSchema};
 use crate::value::{
     AggregateVec, EncodedValues, OwnedValue, Scalar, Value, Values, ValuesIterator,
 };
-use arrow_deps::arrow::{
+use arrow::{
     array::ArrayRef,
     datatypes::{DataType, TimeUnit},
     record_batch::RecordBatch,
 };
-use arrow_deps::{
-    arrow, datafusion::logical_plan::Expr as DfExpr,
-    datafusion::scalar::ScalarValue as DFScalarValue,
-};
+use datafusion::{logical_plan::Expr as DfExpr, scalar::ScalarValue as DFScalarValue};
 use internal_types::schema::{InfluxColumnType, Schema};
 use internal_types::selection::Selection;
 
@@ -36,9 +33,7 @@ pub const TIME_COLUMN_NAME: &str = internal_types::schema::TIME_COLUMN_NAME;
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("arrow conversion error: {}", source))]
-    ArrowError {
-        source: arrow_deps::arrow::error::ArrowError,
-    },
+    ArrowError { source: arrow::error::ArrowError },
 
     #[snafu(display("schema conversion error: {}", source))]
     SchemaError {
@@ -1690,7 +1685,7 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let arrow_schema: arrow_deps::arrow::datatypes::SchemaRef = schema.into();
+        let arrow_schema: arrow::datatypes::SchemaRef = schema.into();
 
         // try_new only returns an error if the schema is invalid or the number
         // of rows on columns differ. We have full control over both so there
@@ -2127,7 +2122,7 @@ impl TryFrom<ReadAggregateResult<'_>> for RecordBatch {
     fn try_from(mut result: ReadAggregateResult<'_>) -> Result<Self, Self::Error> {
         let schema = internal_types::schema::Schema::try_from(result.schema())
             .map_err(|source| Error::SchemaError { source })?;
-        let arrow_schema: arrow_deps::arrow::datatypes::SchemaRef = schema.into();
+        let arrow_schema: arrow::datatypes::SchemaRef = schema.into();
 
         // Add the group columns to the set of column data for the record batch.
         let mut columns: Vec<Arc<dyn arrow::array::Array>> =

@@ -1,0 +1,11 @@
+[package]
+name = "arrow_util"
+version = "0.1.0"
+authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
+edition = "2018"
+description = "Apache Arrow utilities"
+
+[dependencies]
+
+arrow = { path = "../arrow" }
+futures = "0.3"

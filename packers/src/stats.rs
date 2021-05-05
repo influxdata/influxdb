@@ -2,7 +2,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use arrow_deps::arrow::datatypes::DataType;
+use arrow::datatypes::DataType;
 
 fn format_size(sz: u64) -> String {
     human_format::Formatter::new().format(sz as f64)
@@ -69,7 +69,7 @@ impl fmt::Display for ColumnStats {
 ///
 /// # Example:
 /// ```
-/// use arrow_deps::arrow::datatypes::DataType;
+/// use arrow::datatypes::DataType;
 /// use packers::stats::ColumnStatsBuilder;
 ///
 /// let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float64)

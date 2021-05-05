@@ -5,16 +5,14 @@ use snafu::{ResultExt, Snafu};
 
 use std::{collections::HashMap, sync::Arc, time::Instant};
 
-use arrow_deps::{
-    arrow::{
-        array::{Array, ArrayRef, StringArray},
-        datatypes::{Field, Schema},
-        record_batch::RecordBatch,
-    },
-    datafusion::{
-        datasource::MemTable,
-        prelude::{ExecutionConfig, ExecutionContext},
-    },
+use arrow::{
+    array::{Array, ArrayRef, StringArray},
+    datatypes::{Field, Schema},
+    record_batch::RecordBatch,
+};
+use datafusion::{
+    datasource::MemTable,
+    prelude::{ExecutionConfig, ExecutionContext},
 };
 
 use observability_deps::tracing::{debug, info};
@@ -36,7 +34,7 @@ pub enum Error {
 
     #[snafu(display("Error running observer query: {}", source))]
     Query {
-        source: arrow_deps::datafusion::error::DataFusionError,
+        source: datafusion::error::DataFusionError,
     },
 }
 

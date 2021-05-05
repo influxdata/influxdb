@@ -1,4 +1,4 @@
-use arrow_deps::datafusion::logical_plan::{col, lit};
+use datafusion::logical_plan::{col, lit};
 use query::{
     exec::stringset::{IntoStringSet, StringSetRef},
     frontend::influxrpc::InfluxRpcPlanner,

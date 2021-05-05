@@ -10,7 +10,7 @@ use std::{collections::BTreeSet, mem::size_of};
 use croaring::Bitmap;
 use either::Either;
 
-use arrow_deps::{arrow, arrow::array::Array};
+use arrow::array::Array;
 
 use crate::schema::LogicalDataType;
 use crate::value::{EncodedValues, OwnedValue, Scalar, Value, Values};
@@ -1307,7 +1307,7 @@ impl Iterator for RowIDsIterator<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use arrow_deps::arrow::array::{Int64Array, StringArray};
+    use arrow::array::{Int64Array, StringArray};
 
     #[test]
     fn row_ids_intersect() {

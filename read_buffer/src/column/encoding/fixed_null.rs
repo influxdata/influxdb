@@ -15,9 +15,10 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
 
-use arrow_deps::arrow;
-use arrow_deps::arrow::array::{Array, PrimitiveArray};
-use arrow_deps::arrow::datatypes::ArrowNumericType;
+use arrow::{
+    array::{Array, PrimitiveArray},
+    datatypes::ArrowNumericType,
+};
 
 use crate::column::{cmp, RowIDs};
 
@@ -491,7 +492,7 @@ where
 //
 // Here is an example implementation:
 //
-//  impl From<&[i64]> for FixedNull<arrow_deps::arrow::datatypes::Int64Type> {
+//  impl From<&[i64]> for FixedNull<arrow::datatypes::Int64Type> {
 //      fn from(v: &[i64]) -> Self {
 //          Self{
 //              arr: PrimitiveArray::from(v.to_vec()),
@@ -500,7 +501,7 @@ where
 //  }
 //
 //  impl From<&[Option<i64>]> for
-// FixedNull<arrow_deps::arrow::datatypes::Int64Type> {      fn from(v: &[i64])
+// FixedNull<arrow::datatypes::Int64Type> {      fn from(v: &[i64])
 // -> Self {          Self{
 //              arr: PrimitiveArray::from(v.to_vec()),
 //          }
@@ -534,33 +535,33 @@ macro_rules! fixed_from_slice_impls {
 //
 // Need to look at possibility of initialising smaller datatypes...
 fixed_from_slice_impls! {
-    (i64, arrow_deps::arrow::datatypes::Int64Type),
-    //  (i64, arrow_deps::arrow::datatypes::Int32Type),
-    //  (i64, arrow_deps::arrow::datatypes::Int16Type),
-    //  (i64, arrow_deps::arrow::datatypes::Int8Type),
-    //  (i64, arrow_deps::arrow::datatypes::UInt32Type),
-    //  (i64, arrow_deps::arrow::datatypes::UInt16Type),
-    //  (i64, arrow_deps::arrow::datatypes::UInt8Type),
-     (i32, arrow_deps::arrow::datatypes::Int32Type),
-    //  (i32, arrow_deps::arrow::datatypes::Int16Type),
-    //  (i32, arrow_deps::arrow::datatypes::Int8Type),
-    //  (i32, arrow_deps::arrow::datatypes::UInt16Type),
-    //  (i32, arrow_deps::arrow::datatypes::UInt8Type),
-     (i16, arrow_deps::arrow::datatypes::Int16Type),
-    //  (i16, arrow_deps::arrow::datatypes::Int8Type),
-    //  (i16, arrow_deps::arrow::datatypes::UInt8Type),
-     (i8, arrow_deps::arrow::datatypes::Int8Type),
-     (u64, arrow_deps::arrow::datatypes::UInt64Type),
-    //  (u64, arrow_deps::arrow::datatypes::UInt32Type),
-    //  (u64, arrow_deps::arrow::datatypes::UInt16Type),
-    //  (u64, arrow_deps::arrow::datatypes::UInt8Type),
-     (u32, arrow_deps::arrow::datatypes::UInt32Type),
-    //  (u32, arrow_deps::arrow::datatypes::UInt16Type),
-    //  (u32, arrow_deps::arrow::datatypes::UInt8Type),
-     (u16, arrow_deps::arrow::datatypes::UInt16Type),
-    //  (u16, arrow_deps::arrow::datatypes::UInt8Type),
-     (u8, arrow_deps::arrow::datatypes::UInt8Type),
-     (f64, arrow_deps::arrow::datatypes::Float64Type),
+    (i64, arrow::datatypes::Int64Type),
+    //  (i64, arrow::datatypes::Int32Type),
+    //  (i64, arrow::datatypes::Int16Type),
+    //  (i64, arrow::datatypes::Int8Type),
+    //  (i64, arrow::datatypes::UInt32Type),
+    //  (i64, arrow::datatypes::UInt16Type),
+    //  (i64, arrow::datatypes::UInt8Type),
+     (i32, arrow::datatypes::Int32Type),
+    //  (i32, arrow::datatypes::Int16Type),
+    //  (i32, arrow::datatypes::Int8Type),
+    //  (i32, arrow::datatypes::UInt16Type),
+    //  (i32, arrow::datatypes::UInt8Type),
+     (i16, arrow::datatypes::Int16Type),
+    //  (i16, arrow::datatypes::Int8Type),
+    //  (i16, arrow::datatypes::UInt8Type),
+     (i8, arrow::datatypes::Int8Type),
+     (u64, arrow::datatypes::UInt64Type),
+    //  (u64, arrow::datatypes::UInt32Type),
+    //  (u64, arrow::datatypes::UInt16Type),
+    //  (u64, arrow::datatypes::UInt8Type),
+     (u32, arrow::datatypes::UInt32Type),
+    //  (u32, arrow::datatypes::UInt16Type),
+    //  (u32, arrow::datatypes::UInt8Type),
+     (u16, arrow::datatypes::UInt16Type),
+    //  (u16, arrow::datatypes::UInt8Type),
+     (u8, arrow::datatypes::UInt8Type),
+     (f64, arrow::datatypes::Float64Type),
 }
 
 macro_rules! fixed_from_arrow_impls {
@@ -579,9 +580,9 @@ macro_rules! fixed_from_arrow_impls {
 //
 // Need to look at possibility of initialising smaller datatypes...
 fixed_from_arrow_impls! {
-    (arrow::array::Int64Array, arrow_deps::arrow::datatypes::Int64Type),
-    (arrow::array::UInt64Array, arrow_deps::arrow::datatypes::UInt64Type),
-    (arrow::array::Float64Array, arrow_deps::arrow::datatypes::Float64Type),
+    (arrow::array::Int64Array, arrow::datatypes::Int64Type),
+    (arrow::array::UInt64Array, arrow::datatypes::UInt64Type),
+    (arrow::array::Float64Array, arrow::datatypes::Float64Type),
 
     // TODO(edd): add more datatypes
 }
@@ -590,7 +591,7 @@ fixed_from_arrow_impls! {
 mod test {
     use super::cmp::Operator;
     use super::*;
-    use arrow_deps::arrow::datatypes::*;
+    use arrow::datatypes::*;
 
     fn some_vec<T: Copy>(v: Vec<T>) -> Vec<Option<T>> {
         v.iter().map(|x| Some(*x)).collect()

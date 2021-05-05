@@ -1,7 +1,8 @@
 //! A collection of testing functions for arrow based code
-use arrow::record_batch::RecordBatch;
-
-use crate::arrow::compute::kernels::sort::{lexsort, SortColumn, SortOptions};
+use arrow::{
+    compute::kernels::sort::{lexsort, SortColumn, SortOptions},
+    record_batch::RecordBatch,
+};
 
 /// Compares the formatted output with the pretty formatted results of
 /// record batches. This is a macro so errors appear on the correct line
@@ -17,7 +18,7 @@ macro_rules! assert_batches_eq {
         let expected_lines: Vec<String> =
             $EXPECTED_LINES.into_iter().map(|s| s.to_string()).collect();
 
-        let formatted = arrow_deps::arrow::util::pretty::pretty_format_batches($CHUNKS).unwrap();
+        let formatted = arrow::util::pretty::pretty_format_batches($CHUNKS).unwrap();
 
         let actual_lines = formatted.trim().split('\n').collect::<Vec<_>>();
 
@@ -50,7 +51,7 @@ macro_rules! assert_batches_sorted_eq {
             expected_lines.as_mut_slice()[2..num_lines - 1].sort_unstable()
         }
 
-        let formatted = arrow_deps::arrow::util::pretty::pretty_format_batches($CHUNKS).unwrap();
+        let formatted = arrow::util::pretty::pretty_format_batches($CHUNKS).unwrap();
         // fix for windows: \r\n -->
 
         let mut actual_lines: Vec<&str> = formatted.trim().lines().collect();

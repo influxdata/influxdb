@@ -1,4 +1,12 @@
-use arrow_deps::{datafusion::physical_plan::SendableRecordBatchStream, util::MemoryStream};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
+
+use snafu::{ResultExt, Snafu};
+
+use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion_util::MemoryStream;
 use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::snapshot::ChunkSnapshot;
 use object_store::path::Path;
@@ -6,12 +14,6 @@ use observability_deps::tracing::debug;
 use parquet_file::chunk::Chunk as ParquetChunk;
 use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
 use read_buffer::Chunk as ReadBufferChunk;
-use snafu::{ResultExt, Snafu};
-
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
 
 use super::{pred::to_read_buffer_predicate, streams::ReadFilterResultsStream};
 
@@ -53,13 +55,11 @@ pub enum Error {
 
     #[snafu(display("internal error creating plan: {}", source))]
     InternalPlanCreation {
-        source: arrow_deps::datafusion::error::DataFusionError,
+        source: datafusion::error::DataFusionError,
     },
 
     #[snafu(display("arrow conversion error: {}", source))]
-    ArrowConversion {
-        source: arrow_deps::arrow::error::ArrowError,
-    },
+    ArrowConversion { source: arrow::error::ArrowError },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 

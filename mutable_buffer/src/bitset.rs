@@ -1,4 +1,4 @@
-use arrow_deps::arrow::buffer::Buffer;
+use arrow::buffer::Buffer;
 
 /// An arrow-compatible mutable bitset implementation
 ///
@@ -124,7 +124,7 @@ pub fn iter_set_positions(bytes: &[u8]) -> impl Iterator<Item = usize> + '_ {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow_deps::arrow::array::BooleanBufferBuilder;
+    use arrow::array::BooleanBufferBuilder;
     use rand::RngCore;
 
     /// Computes a compacted representation of a given bool array

@@ -7,7 +7,7 @@
 //! Aggregates / windows --> query::GroupByAndAggregate
 use std::{convert::TryFrom, fmt};
 
-use arrow_deps::datafusion::{
+use datafusion::{
     logical_plan::{binary_expr, Expr, Operator},
     prelude::*,
 };

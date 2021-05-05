@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
 };
 
-use arrow_deps::arrow::datatypes::{
+use arrow::datatypes::{
     DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema,
     SchemaRef as ArrowSchemaRef, TimeUnit,
 };
@@ -107,9 +107,7 @@ pub enum Error {
     },
 
     #[snafu(display("Schema Merge: Error merging underlying schema: {}", source))]
-    MergingSchemas {
-        source: arrow_deps::arrow::error::ArrowError,
-    },
+    MergingSchemas { source: arrow::error::ArrowError },
 
     #[snafu(display("Column not found '{}'", column_name))]
     ColumnNotFound { column_name: String },

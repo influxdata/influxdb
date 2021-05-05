@@ -8,12 +8,12 @@ use std::{
 use parking_lot::RwLock;
 use snafu::{OptionExt, Snafu};
 
-use arrow_deps::datafusion::{catalog::schema::SchemaProvider, datasource::TableProvider};
 use chunk::Chunk;
 use data_types::chunk::ChunkSummary;
 use data_types::database_rules::{Order, Sort, SortOrder};
 use data_types::error::ErrorLogger;
 use data_types::partition_metadata::PartitionSummary;
+use datafusion::{catalog::schema::SchemaProvider, datasource::TableProvider};
 use internal_types::selection::Selection;
 use partition::Partition;
 use query::{

@@ -7,27 +7,22 @@ use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tonic::{Request, Response, Streaming};
 
-use arrow_deps::{
-    arrow::{
-        self,
-        array::{make_array, ArrayRef, MutableArrayData},
-        datatypes::{DataType, Field, Schema},
-        error::ArrowError,
-        record_batch::RecordBatch,
-    },
-    arrow_flight::{
-        self,
-        flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
-        Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
-        HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
-    },
+use arrow::{
+    array::{make_array, ArrayRef, MutableArrayData},
+    datatypes::{DataType, Field, Schema, SchemaRef},
+    error::ArrowError,
+    record_batch::RecordBatch,
+};
+use arrow_flight::{
+    flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
+    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
+    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
 };
 use data_types::{DatabaseName, DatabaseNameError};
 use server::{ConnectionManager, Server};
 use std::fmt::Debug;
 
 use super::super::planner::Planner;
-use arrow_deps::arrow::datatypes::SchemaRef;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -346,13 +341,13 @@ fn hydrate_dictionary(array: &ArrayRef) -> Result<ArrayRef, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow_deps::arrow::array::StringArray;
-    use arrow_deps::arrow::{
+    use arrow::array::StringArray;
+    use arrow::{
         array::{DictionaryArray, UInt32Array},
         datatypes::{DataType, Int32Type},
     };
-    use arrow_deps::arrow_flight::utils::flight_data_to_arrow_batch;
-    use arrow_deps::datafusion::physical_plan::limit::truncate_batch;
+    use arrow_flight::utils::flight_data_to_arrow_batch;
+    use datafusion::physical_plan::limit::truncate_batch;
     use std::sync::Arc;
 
     #[test]

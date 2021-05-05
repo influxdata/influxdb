@@ -5,17 +5,15 @@ use serde::Serialize;
 use thiserror::Error;
 use tonic::Streaming;
 
-use arrow_deps::{
-    arrow::{
-        array::Array,
-        datatypes::Schema,
-        ipc::{self, reader},
-        record_batch::RecordBatch,
-    },
-    arrow_flight::{
-        flight_service_client::FlightServiceClient, utils::flight_data_to_arrow_batch, FlightData,
-        Ticket,
-    },
+use arrow::{
+    array::Array,
+    datatypes::Schema,
+    ipc::{self, reader},
+    record_batch::RecordBatch,
+};
+use arrow_flight::{
+    flight_service_client::FlightServiceClient, utils::flight_data_to_arrow_batch, FlightData,
+    Ticket,
 };
 
 use crate::connection::Connection;
@@ -35,7 +33,7 @@ pub enum Error {
 
     /// An error involving an Arrow operation occurred.
     #[error(transparent)]
-    ArrowError(#[from] arrow_deps::arrow::error::ArrowError),
+    ArrowError(#[from] arrow::error::ArrowError),
 
     /// The data contained invalid Flatbuffers.
     #[error("Invalid Flatbuffer: `{0}`")]

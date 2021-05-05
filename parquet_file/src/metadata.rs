@@ -88,7 +88,12 @@
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
 use std::{convert::TryInto, sync::Arc};
 
-use arrow_deps::parquet::{
+use data_types::{
+    partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
+    timestamp::TimestampRange,
+};
+use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
+use parquet::{
     arrow::parquet_to_arrow_schema,
     file::{
         metadata::{
@@ -101,11 +106,6 @@ use arrow_deps::parquet::{
     },
     schema::types::SchemaDescriptor as ParquetSchemaDescriptor,
 };
-use data_types::{
-    partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
-    timestamp::TimestampRange,
-};
-use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
 use snafu::{OptionExt, ResultExt, Snafu};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
 
@@ -113,12 +113,12 @@ use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputPro
 pub enum Error {
     #[snafu(display("Cannot read parquet metadata from bytes: {}", source))]
     ParquetMetaDataRead {
-        source: arrow_deps::parquet::errors::ParquetError,
+        source: parquet::errors::ParquetError,
     },
 
     #[snafu(display("Cannot read arrow schema from parquet: {}", source))]
     ArrowFromParquetFailure {
-        source: arrow_deps::parquet::errors::ParquetError,
+        source: parquet::errors::ParquetError,
     },
 
     #[snafu(display("Cannot read IOx schema from arrow: {}", source))]
@@ -134,17 +134,17 @@ pub enum Error {
 
     #[snafu(display("Cannot convert parquet schema to thrift: {}", source))]
     ParquetSchemaToThrift {
-        source: arrow_deps::parquet::errors::ParquetError,
+        source: parquet::errors::ParquetError,
     },
 
     #[snafu(display("Cannot convert thrift to parquet schema: {}", source))]
     ParquetSchemaFromThrift {
-        source: arrow_deps::parquet::errors::ParquetError,
+        source: parquet::errors::ParquetError,
     },
 
     #[snafu(display("Cannot convert thrift to parquet row group: {}", source))]
     ParquetRowGroupFromThrift {
-        source: arrow_deps::parquet::errors::ParquetError,
+        source: parquet::errors::ParquetError,
     },
 
     #[snafu(display("No row group found, cannot recover statistics"))]
@@ -187,7 +187,7 @@ pub enum Error {
     StatisticsUtf8Error {
         row_group: usize,
         column: String,
-        source: arrow_deps::parquet::errors::ParquetError,
+        source: parquet::errors::ParquetError,
     },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -405,7 +405,7 @@ fn extract_iox_statistics(
 /// [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
 pub fn parquet_metadata_to_thrift(parquet_md: &ParquetMetaData) -> Result<Vec<u8>> {
     // step 1: assemble a thrift-compatible struct
-    use arrow_deps::parquet::schema::types::to_thrift as schema_to_thrift;
+    use parquet::schema::types::to_thrift as schema_to_thrift;
 
     let file_metadata = parquet_md.file_metadata();
     let thrift_schema =
@@ -416,7 +416,7 @@ pub fn parquet_metadata_to_thrift(parquet_md: &ParquetMetaData) -> Result<Vec<u8
         .map(|rg| rg.to_thrift())
         .collect();
 
-    let thrift_file_metadata = arrow_deps::parquet_format::FileMetaData {
+    let thrift_file_metadata = parquet_format::FileMetaData {
         version: file_metadata.version(),
         schema: thrift_schema,
 
@@ -453,12 +453,12 @@ pub fn thrift_to_parquet_metadata(data: &[u8]) -> Result<ParquetMetaData> {
     // step 1: load thrift data from byte stream
     let thrift_file_metadata = {
         let mut protocol = TCompactInputProtocol::new(data);
-        arrow_deps::parquet_format::FileMetaData::read_from_in_protocol(&mut protocol)
+        parquet_format::FileMetaData::read_from_in_protocol(&mut protocol)
             .context(ThriftReadFailure {})?
     };
 
     // step 2: convert thrift to in-mem structs
-    use arrow_deps::parquet::schema::types::from_thrift as schema_from_thrift;
+    use parquet::schema::types::from_thrift as schema_from_thrift;
 
     let schema =
         schema_from_thrift(&thrift_file_metadata.schema).context(ParquetSchemaFromThrift {})?;

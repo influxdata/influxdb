@@ -38,7 +38,7 @@ pub enum Error {
     #[snafu(display("Error reading batches while writing to '{}': {}", file_name, source))]
     ReadingBatches {
         file_name: String,
-        source: arrow_deps::arrow::error::ArrowError,
+        source: arrow::error::ArrowError,
     },
 
     #[snafu(display("Stopped early"))]

@@ -14,7 +14,7 @@ use internal_types::{
 
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
-use arrow_deps::{arrow, arrow::array::Array, arrow::record_batch::RecordBatch};
+use arrow::{array::Array, record_batch::RecordBatch};
 
 #[derive(Debug, Snafu)]
 pub enum Error {

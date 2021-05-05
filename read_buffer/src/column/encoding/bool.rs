@@ -2,7 +2,7 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
 
-use arrow_deps::arrow::array::{Array, BooleanArray};
+use arrow::array::{Array, BooleanArray};
 use cmp::Operator;
 
 use crate::column::{cmp, RowIDs};

@@ -4,15 +4,13 @@ use std::sync::Arc;
 use snafu::Snafu;
 use std::task::{Context, Poll};
 
-use arrow_deps::{
-    arrow::{
-        array::new_null_array,
-        datatypes::{DataType, SchemaRef},
-        error::Result as ArrowResult,
-        record_batch::RecordBatch,
-    },
-    datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream},
+use arrow::{
+    array::new_null_array,
+    datatypes::{DataType, SchemaRef},
+    error::Result as ArrowResult,
+    record_batch::RecordBatch,
 };
+use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use futures::Stream;
 
 /// Database schema creation / validation errors.
@@ -227,15 +225,13 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use arrow_deps::{
-        arrow::{
-            array::{ArrayRef, Int32Array, StringArray},
-            datatypes::{Field, Schema},
-            record_batch::RecordBatch,
-        },
-        assert_batches_eq,
-        datafusion::physical_plan::common::{collect, SizedRecordBatchStream},
+    use arrow::{
+        array::{ArrayRef, Int32Array, StringArray},
+        datatypes::{Field, Schema},
+        record_batch::RecordBatch,
     };
+    use arrow_util::assert_batches_eq;
+    use datafusion::physical_plan::common::{collect, SizedRecordBatchStream};
     use test_helpers::assert_contains;
 
     #[tokio::test]

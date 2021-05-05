@@ -4,7 +4,7 @@ use std::{fmt::Display, str::FromStr};
 
 use thiserror::Error;
 
-use arrow_deps::arrow::{
+use arrow::{
     self, csv::WriterBuilder, error::ArrowError, json::ArrayWriter, record_batch::RecordBatch,
 };
 

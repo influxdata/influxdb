@@ -1,7 +1,7 @@
 use std::io::Read;
 
-use arrow_deps::datafusion::{logical_plan::Expr, scalar::ScalarValue};
 use criterion::{BenchmarkId, Criterion};
+use datafusion::{logical_plan::Expr, scalar::ScalarValue};
 // This is a struct that tells Criterion.rs to use the "futures" crate's
 // current-thread executor
 use flate2::read::GzDecoder;

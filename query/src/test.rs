@@ -3,14 +3,12 @@
 //!
 //! AKA it is a Mock
 
-use arrow_deps::{
-    arrow::{
-        array::{ArrayRef, Int64Array, StringArray, TimestampNanosecondArray},
-        datatypes::{DataType, TimeUnit},
-        record_batch::RecordBatch,
-    },
-    datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream},
+use arrow::{
+    array::{ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray},
+    datatypes::{DataType, Int32Type, TimeUnit},
+    record_batch::RecordBatch,
 };
+use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
 
 use crate::exec::Executor;
 use crate::{
@@ -26,8 +24,6 @@ use internal_types::{
     selection::Selection,
 };
 
-use arrow_deps::arrow::array::DictionaryArray;
-use arrow_deps::arrow::datatypes::Int32Type;
 use async_trait::async_trait;
 use parking_lot::Mutex;
 use snafu::{OptionExt, Snafu};

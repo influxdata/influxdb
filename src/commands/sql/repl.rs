@@ -1,6 +1,6 @@
 use std::{convert::TryInto, path::PathBuf, sync::Arc, time::Instant};
 
-use arrow_deps::arrow::{
+use arrow::{
     array::{ArrayRef, StringArray},
     record_batch::RecordBatch,
 };

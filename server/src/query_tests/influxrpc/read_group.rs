@@ -1,8 +1,9 @@
 //! Tests for the Influx gRPC queries
 use crate::query_tests::scenarios::*;
 
-use arrow_deps::{arrow::util::pretty::pretty_format_batches, datafusion::prelude::*};
+use arrow::util::pretty::pretty_format_batches;
 use async_trait::async_trait;
+use datafusion::prelude::*;
 use query::{
     frontend::influxrpc::InfluxRpcPlanner,
     group_by::Aggregate,

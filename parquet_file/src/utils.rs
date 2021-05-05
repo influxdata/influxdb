@@ -1,22 +1,21 @@
 use std::{num::NonZeroU32, sync::Arc};
 
-use arrow_deps::{
-    arrow::{
-        array::{
-            Array, ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray,
-            TimestampNanosecondArray, UInt64Array,
-        },
-        datatypes::Int32Type,
-        record_batch::RecordBatch,
+use arrow::{
+    array::{
+        Array, ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray,
+        TimestampNanosecondArray, UInt64Array,
     },
-    datafusion::physical_plan::SendableRecordBatchStream,
-    util::MemoryStream,
+    datatypes::Int32Type,
+    record_batch::RecordBatch,
 };
+use datafusion::physical_plan::SendableRecordBatchStream;
+
 use data_types::{
     partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
     server_id::ServerId,
     timestamp::TimestampRange,
 };
+use datafusion_util::MemoryStream;
 use futures::TryStreamExt;
 use internal_types::schema::{builder::SchemaBuilder, Schema};
 use object_store::{memory::InMemory, ObjectStore, ObjectStoreApi};
