@@ -1,5 +1,8 @@
 //! This module contains the code to write table data to parquet
-use arrow_deps::parquet::{
+use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
+use observability_deps::tracing::{debug, log::warn};
+use parquet::file::writer::ParquetWriter;
+use parquet::{
     self,
     basic::{
         Compression, Encoding, IntType, LogicalType, Repetition, TimeUnit, TimestampType,
@@ -12,9 +15,6 @@ use arrow_deps::parquet::{
     },
     schema::types::{ColumnPath, Type},
 };
-use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
-use observability_deps::tracing::{debug, log::warn};
-use parquet::file::writer::ParquetWriter;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     fmt,
@@ -104,7 +104,7 @@ where
     /// # use packers::IOxTableWriter;
     /// # use packers::{Packer, Packers};
     /// # use ingest::parquet::writer::{IOxParquetTableWriter, CompressionLevel};
-    /// # use arrow_deps::parquet::data_type::ByteArray;
+    /// # use parquet::data_type::ByteArray;
     ///
     /// let schema = SchemaBuilder::new()
     ///      .measurement("measurement_name")

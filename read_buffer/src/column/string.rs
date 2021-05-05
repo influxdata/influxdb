@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use arrow_deps::arrow::{self, array::Array};
+use arrow::{self, array::Array};
 use either::Either;
 
 use super::cmp;

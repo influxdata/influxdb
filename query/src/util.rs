@@ -2,14 +2,15 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use arrow_deps::{
-    arrow::datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef},
-    arrow::record_batch::RecordBatch,
-    datafusion::{
-        error::DataFusionError,
-        logical_plan::{Expr, LogicalPlan, LogicalPlanBuilder},
-        optimizer::utils::expr_to_column_names,
-    },
+use arrow::{
+    datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef},
+    record_batch::RecordBatch,
+};
+
+use datafusion::{
+    error::DataFusionError,
+    logical_plan::{Expr, LogicalPlan, LogicalPlanBuilder},
+    optimizer::utils::expr_to_column_names,
 };
 use internal_types::schema::Schema;
 
@@ -56,7 +57,7 @@ pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use arrow_deps::datafusion::prelude::*;
+    use datafusion::prelude::*;
     use internal_types::schema::builder::SchemaBuilder;
 
     use super::*;

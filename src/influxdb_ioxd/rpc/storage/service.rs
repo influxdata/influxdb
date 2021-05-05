@@ -1168,7 +1168,7 @@ mod tests {
     use super::super::id::Id;
 
     use super::*;
-    use arrow_deps::datafusion::logical_plan::{col, lit, Expr};
+    use datafusion::logical_plan::{col, lit, Expr};
     use panic_logging::SendPanicsToTracing;
     use query::{test::TestChunk, test::TestDatabaseStore};
     use std::{

@@ -1,7 +1,7 @@
 //! Query planner wrapper for use in IOx services
 use std::sync::Arc;
 
-use arrow_deps::datafusion::{catalog::catalog::CatalogProvider, physical_plan::ExecutionPlan};
+use datafusion::{catalog::catalog::CatalogProvider, physical_plan::ExecutionPlan};
 use query::{
     exec::Executor,
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},

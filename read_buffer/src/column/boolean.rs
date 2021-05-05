@@ -1,5 +1,3 @@
-use arrow_deps::arrow;
-
 use super::cmp;
 use super::encoding::bool::Bool;
 use crate::column::{RowIDs, Value, Values};

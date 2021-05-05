@@ -8,7 +8,7 @@ use std::{
 
 use snafu::{OptionExt, ResultExt, Snafu};
 
-use arrow_deps::arrow::record_batch::RecordBatch;
+use arrow::record_batch::RecordBatch;
 use data_types::{partition_metadata::TableSummary, server_id::ServerId};
 use internal_types::{
     entry::{ClockValue, TableBatch},
@@ -266,7 +266,7 @@ pub mod test_helpers {
 mod tests {
     use super::test_helpers::write_lp_to_chunk;
     use super::*;
-    use arrow_deps::assert_batches_eq;
+    use arrow_util::assert_batches_eq;
 
     #[test]
     fn writes_table_batches() {

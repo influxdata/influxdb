@@ -3,8 +3,8 @@
 use super::util::run_series_set_plan;
 
 use crate::query_tests::scenarios::*;
-use arrow_deps::datafusion::logical_plan::{col, lit};
 use async_trait::async_trait;
+use datafusion::logical_plan::{col, lit};
 use query::{
     frontend::influxrpc::InfluxRpcPlanner,
     predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},

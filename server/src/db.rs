@@ -5,13 +5,7 @@ use super::{
     buffer::{self, Buffer},
     JobRegistry,
 };
-use arrow_deps::{
-    arrow::datatypes::SchemaRef as ArrowSchemaRef,
-    datafusion::{
-        catalog::{catalog::CatalogProvider, schema::SchemaProvider},
-        physical_plan::SendableRecordBatchStream,
-    },
-};
+use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use async_trait::async_trait;
 use catalog::{
     chunk::{Chunk as CatalogChunk, ChunkState},
@@ -25,6 +19,10 @@ use data_types::{
     partition_metadata::{PartitionSummary, TableSummary},
     server_id::ServerId,
     timestamp::TimestampRange,
+};
+use datafusion::{
+    catalog::{catalog::CatalogProvider, schema::SchemaProvider},
+    physical_plan::SendableRecordBatchStream,
 };
 use internal_types::{
     arrow::sort::sort_record_batch,
@@ -1315,16 +1313,15 @@ mod tests {
     };
     use crate::query_tests::utils::{make_db, TestDb};
     use ::test_helpers::assert_contains;
-    use arrow_deps::{
-        arrow::record_batch::RecordBatch, assert_batches_eq, assert_batches_sorted_eq,
-        datafusion::execution::context,
-    };
+    use arrow::record_batch::RecordBatch;
+    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use chrono::Utc;
     use data_types::{
         chunk::ChunkStorage,
         database_rules::{Order, Sort, SortOrder},
         partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
     };
+    use datafusion::execution::context;
     use futures::{stream, StreamExt, TryStreamExt};
     use internal_types::entry::test_helpers::lp_to_entry;
     use object_store::{disk::File, path::Path, ObjectStore, ObjectStoreApi};

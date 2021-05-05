@@ -19,26 +19,21 @@
 //! `service` as tags, the columns would be ordered `host`, `region`,
 //! and `service` as well.
 
-use std::sync::Arc;
-
-use arrow_deps::{
-    arrow::{
-        self,
-        array::{DictionaryArray, StringArray},
-        datatypes::DataType,
-        record_batch::RecordBatch,
-    },
-    datafusion::physical_plan::SendableRecordBatchStream,
+use arrow::{
+    self,
+    array::{Array, DictionaryArray, StringArray},
+    datatypes::{DataType, Int32Type},
+    record_batch::RecordBatch,
 };
+use datafusion::physical_plan::SendableRecordBatchStream;
 use snafu::{ResultExt, Snafu};
+use std::sync::Arc;
 use tokio::sync::mpsc::error::SendError;
 use tokio_stream::StreamExt;
 
 use croaring::bitmap::Bitmap;
 
 use super::field::{FieldColumns, FieldIndexes};
-use arrow_deps::arrow::array::Array;
-use arrow_deps::arrow::datatypes::Int32Type;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -418,7 +413,7 @@ mod tests {
         record_batch::RecordBatch,
         util::pretty::pretty_format_batches,
     };
-    use arrow_deps::datafusion::physical_plan::common::SizedRecordBatchStream;
+    use datafusion::physical_plan::common::SizedRecordBatchStream;
     use test_helpers::{str_pair_vec_to_vec, str_vec_to_arc_vec};
 
     use super::*;

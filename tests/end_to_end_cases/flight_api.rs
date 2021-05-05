@@ -1,6 +1,6 @@
 use super::scenario::{collect_query, create_readable_database, rand_name, Scenario};
 use crate::common::server_fixture::ServerFixture;
-use arrow_deps::assert_batches_eq;
+use arrow_util::assert_batches_eq;
 
 #[tokio::test]
 pub async fn test() {

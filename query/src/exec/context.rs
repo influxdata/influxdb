@@ -3,19 +3,17 @@
 
 use std::{fmt, sync::Arc};
 
-use arrow_deps::{
-    arrow::record_batch::RecordBatch,
-    datafusion::{
-        execution::context::{ExecutionContextState, QueryPlanner},
-        logical_plan::{LogicalPlan, UserDefinedLogicalNode},
-        physical_plan::{
-            collect,
-            merge::MergeExec,
-            planner::{DefaultPhysicalPlanner, ExtensionPlanner},
-            ExecutionPlan, PhysicalPlanner, SendableRecordBatchStream,
-        },
-        prelude::*,
+use arrow::record_batch::RecordBatch;
+use datafusion::{
+    execution::context::{ExecutionContextState, QueryPlanner},
+    logical_plan::{LogicalPlan, UserDefinedLogicalNode},
+    physical_plan::{
+        collect,
+        merge::MergeExec,
+        planner::{DefaultPhysicalPlanner, ExtensionPlanner},
+        ExecutionPlan, PhysicalPlanner, SendableRecordBatchStream,
     },
+    prelude::*,
 };
 
 use crate::exec::schema_pivot::{SchemaPivotExec, SchemaPivotNode};
@@ -23,7 +21,7 @@ use crate::exec::schema_pivot::{SchemaPivotExec, SchemaPivotNode};
 use observability_deps::tracing::debug;
 
 // Reuse DataFusion error and Result types for this module
-pub use arrow_deps::datafusion::error::{DataFusionError as Error, Result};
+pub use datafusion::error::{DataFusionError as Error, Result};
 
 use super::{counters::ExecutionCounters, task::DedicatedExecutor};
 

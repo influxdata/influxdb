@@ -12,3 +12,6 @@ pub mod chunk;
 pub mod metadata;
 pub mod storage;
 pub mod table;
+
+#[cfg(test)]
+pub mod utils;

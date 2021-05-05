@@ -88,7 +88,12 @@
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
 use std::{convert::TryInto, sync::Arc};
 
-use arrow_deps::parquet::{
+use data_types::{
+    partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
+    timestamp::TimestampRange,
+};
+use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
+use parquet::{
     arrow::parquet_to_arrow_schema,
     file::{
         metadata::{
@@ -101,11 +106,6 @@ use arrow_deps::parquet::{
     },
     schema::types::SchemaDescriptor as ParquetSchemaDescriptor,
 };
-use data_types::{
-    partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
-    timestamp::TimestampRange,
-};
-use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
 use snafu::{OptionExt, ResultExt, Snafu};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
 
@@ -113,12 +113,12 @@ use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputPro
 pub enum Error {
     #[snafu(display("Cannot read parquet metadata from bytes: {}", source))]
     ParquetMetaDataRead {
-        source: arrow_deps::parquet::errors::ParquetError,
+        source: parquet::errors::ParquetError,
     },
 
     #[snafu(display("Cannot read arrow schema from parquet: {}", source))]
     ArrowFromParquetFailure {
-        source: arrow_deps::parquet::errors::ParquetError,
+        source: parquet::errors::ParquetError,
     },
 
     #[snafu(display("Cannot read IOx schema from arrow: {}", source))]
@@ -134,17 +134,17 @@ pub enum Error {
 
     #[snafu(display("Cannot convert parquet schema to thrift: {}", source))]
     ParquetSchemaToThrift {
-        source: arrow_deps::parquet::errors::ParquetError,
+        source: parquet::errors::ParquetError,
     },
 
     #[snafu(display("Cannot convert thrift to parquet schema: {}", source))]
     ParquetSchemaFromThrift {
-        source: arrow_deps::parquet::errors::ParquetError,
+        source: parquet::errors::ParquetError,
     },
 
     #[snafu(display("Cannot convert thrift to parquet row group: {}", source))]
     ParquetRowGroupFromThrift {
-        source: arrow_deps::parquet::errors::ParquetError,
+        source: parquet::errors::ParquetError,
     },
 
     #[snafu(display("No row group found, cannot recover statistics"))]
@@ -187,7 +187,7 @@ pub enum Error {
     StatisticsUtf8Error {
         row_group: usize,
         column: String,
-        source: arrow_deps::parquet::errors::ParquetError,
+        source: parquet::errors::ParquetError,
     },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -405,7 +405,7 @@ fn extract_iox_statistics(
 /// [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
 pub fn parquet_metadata_to_thrift(parquet_md: &ParquetMetaData) -> Result<Vec<u8>> {
     // step 1: assemble a thrift-compatible struct
-    use arrow_deps::parquet::schema::types::to_thrift as schema_to_thrift;
+    use parquet::schema::types::to_thrift as schema_to_thrift;
 
     let file_metadata = parquet_md.file_metadata();
     let thrift_schema =
@@ -416,7 +416,7 @@ pub fn parquet_metadata_to_thrift(parquet_md: &ParquetMetaData) -> Result<Vec<u8
         .map(|rg| rg.to_thrift())
         .collect();
 
-    let thrift_file_metadata = arrow_deps::parquet_format::FileMetaData {
+    let thrift_file_metadata = parquet_format::FileMetaData {
         version: file_metadata.version(),
         schema: thrift_schema,
 
@@ -453,12 +453,12 @@ pub fn thrift_to_parquet_metadata(data: &[u8]) -> Result<ParquetMetaData> {
     // step 1: load thrift data from byte stream
     let thrift_file_metadata = {
         let mut protocol = TCompactInputProtocol::new(data);
-        arrow_deps::parquet_format::FileMetaData::read_from_in_protocol(&mut protocol)
+        parquet_format::FileMetaData::read_from_in_protocol(&mut protocol)
             .context(ThriftReadFailure {})?
     };
 
     // step 2: convert thrift to in-mem structs
-    use arrow_deps::parquet::schema::types::from_thrift as schema_from_thrift;
+    use parquet::schema::types::from_thrift as schema_from_thrift;
 
     let schema =
         schema_from_thrift(&thrift_file_metadata.schema).context(ParquetSchemaFromThrift {})?;
@@ -486,31 +486,14 @@ pub fn thrift_to_parquet_metadata(data: &[u8]) -> Result<ParquetMetaData> {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU32;
-
     use super::*;
-    use crate::{chunk::Chunk, storage::Storage};
-    use arrow_deps::{
-        arrow::{
-            array::{
-                Array, ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array,
-                StringArray, TimestampNanosecondArray, UInt64Array,
-            },
-            datatypes::Int32Type,
-            record_batch::RecordBatch,
-        },
-        datafusion::physical_plan::SendableRecordBatchStream,
-        util::MemoryStream,
+
+    use internal_types::selection::Selection;
+
+    use crate::{
+        metadata::read_schema_from_parquet_metadata,
+        utils::{load_parquet_from_store, make_chunk, make_chunk_no_row_group, make_object_store},
     };
-    use data_types::{
-        partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
-        server_id::ServerId,
-        timestamp::TimestampRange,
-    };
-    use futures::TryStreamExt;
-    use internal_types::{schema::builder::SchemaBuilder, selection::Selection};
-    use object_store::{memory::InMemory, ObjectStore, ObjectStoreApi};
-    use tracker::MemRegistry;
 
     #[tokio::test]
     async fn test_restore_from_file() {
@@ -662,429 +645,5 @@ mod tests {
                 .schema_descr()
                 .num_columns()
         );
-    }
-
-    /// Load parquet from store and return table name and parquet bytes.
-    async fn load_parquet_from_store(chunk: &Chunk, store: Arc<ObjectStore>) -> (String, Vec<u8>) {
-        let table = chunk.table_names(None).next().unwrap();
-        let path = chunk.table_path(&table).unwrap();
-        let parquet_data = store
-            .get(&path)
-            .await
-            .unwrap()
-            .map_ok(|bytes| bytes.to_vec())
-            .try_concat()
-            .await
-            .unwrap();
-        (table, parquet_data)
-    }
-
-    /// Create a test chunk by writing data to object store.
-    ///
-    /// See [`make_record_batch`] for the data content.
-    async fn make_chunk(store: Arc<ObjectStore>) -> Chunk {
-        let (record_batches, schema, column_summaries, time_range) = make_record_batch();
-        make_chunk_common(store, record_batches, schema, column_summaries, time_range).await
-    }
-
-    /// Same as [`make_chunk`] but parquet file does not contain any row group.
-    async fn make_chunk_no_row_group(store: Arc<ObjectStore>) -> Chunk {
-        let (_, schema, column_summaries, time_range) = make_record_batch();
-        make_chunk_common(store, vec![], schema, column_summaries, time_range).await
-    }
-
-    /// Common code for all [`make_chunk`] and [`make_chunk_no_row_group`].
-    async fn make_chunk_common(
-        store: Arc<ObjectStore>,
-        record_batches: Vec<RecordBatch>,
-        schema: Schema,
-        column_summaries: Vec<ColumnSummary>,
-        time_range: TimestampRange,
-    ) -> Chunk {
-        let memory_registry = MemRegistry::new();
-        let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
-        let db_name = "db1";
-        let part_key = "part1";
-        let table_name = "table1";
-        let chunk_id = 1;
-        let mut chunk = Chunk::new(part_key.to_string(), chunk_id, &memory_registry);
-
-        let storage = Storage::new(Arc::clone(&store), server_id, db_name.to_string());
-
-        let mut table_summary = TableSummary::new(table_name.to_string());
-        table_summary.columns = column_summaries;
-        let stream: SendableRecordBatchStream = if record_batches.is_empty() {
-            Box::pin(MemoryStream::new_with_schema(
-                record_batches,
-                Arc::clone(schema.inner()),
-            ))
-        } else {
-            Box::pin(MemoryStream::new(record_batches))
-        };
-        let path = storage
-            .write_to_object_store(
-                part_key.to_string(),
-                chunk_id,
-                table_name.to_string(),
-                stream,
-            )
-            .await
-            .unwrap();
-        chunk.add_table(
-            table_summary,
-            path,
-            Arc::clone(&store),
-            schema,
-            Some(time_range),
-        );
-
-        chunk
-    }
-
-    fn create_column_tag(
-        name: &str,
-        data: Vec<Vec<&str>>,
-        arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
-        summaries: &mut Vec<ColumnSummary>,
-        schema_builder: SchemaBuilder,
-    ) -> SchemaBuilder {
-        assert_eq!(data.len(), arrow_cols.len());
-
-        for (arrow_cols_sub, data_sub) in arrow_cols.iter_mut().zip(data.iter()) {
-            let array: DictionaryArray<Int32Type> = data_sub.iter().cloned().collect();
-            let array: Arc<dyn Array> = Arc::new(array);
-            arrow_cols_sub.push((name.to_string(), Arc::clone(&array), true));
-        }
-
-        summaries.push(ColumnSummary {
-            name: name.to_string(),
-            stats: Statistics::String(StatValues {
-                min: data.iter().flatten().min().unwrap().to_string(),
-                max: data.iter().flatten().max().unwrap().to_string(),
-                count: data.iter().map(Vec::len).sum::<usize>() as u64,
-            }),
-        });
-
-        schema_builder.tag(name)
-    }
-
-    fn create_column_field_string(
-        name: &str,
-        data: Vec<Vec<&str>>,
-        arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
-        summaries: &mut Vec<ColumnSummary>,
-        schema_builder: SchemaBuilder,
-    ) -> SchemaBuilder {
-        create_column_field_generic::<StringArray, _, _>(
-            name,
-            data,
-            arrow_cols,
-            summaries,
-            schema_builder,
-            |StatValues { min, max, count }| {
-                Statistics::String(StatValues {
-                    min: min.to_string(),
-                    max: max.to_string(),
-                    count,
-                })
-            },
-        )
-    }
-
-    fn create_column_field_i64(
-        name: &str,
-        data: Vec<Vec<i64>>,
-        arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
-        summaries: &mut Vec<ColumnSummary>,
-        schema_builder: SchemaBuilder,
-    ) -> SchemaBuilder {
-        create_column_field_generic::<Int64Array, _, _>(
-            name,
-            data,
-            arrow_cols,
-            summaries,
-            schema_builder,
-            Statistics::I64,
-        )
-    }
-
-    fn create_column_field_u64(
-        name: &str,
-        data: Vec<Vec<u64>>,
-        arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
-        summaries: &mut Vec<ColumnSummary>,
-        schema_builder: SchemaBuilder,
-    ) -> SchemaBuilder {
-        create_column_field_generic::<UInt64Array, _, _>(
-            name,
-            data,
-            arrow_cols,
-            summaries,
-            schema_builder,
-            Statistics::U64,
-        )
-    }
-
-    fn create_column_field_f64(
-        name: &str,
-        data: Vec<Vec<f64>>,
-        arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
-        summaries: &mut Vec<ColumnSummary>,
-        schema_builder: SchemaBuilder,
-    ) -> SchemaBuilder {
-        assert_eq!(data.len(), arrow_cols.len());
-
-        let mut array_data_type = None;
-        for (arrow_cols_sub, data_sub) in arrow_cols.iter_mut().zip(data.iter()) {
-            let array: Arc<dyn Array> = Arc::new(Float64Array::from(data_sub.clone()));
-            arrow_cols_sub.push((name.to_string(), Arc::clone(&array), true));
-            array_data_type = Some(array.data_type().clone());
-        }
-
-        summaries.push(ColumnSummary {
-            name: name.to_string(),
-            stats: Statistics::F64(StatValues {
-                min: *data
-                    .iter()
-                    .flatten()
-                    .filter(|x| !x.is_nan())
-                    .min_by(|a, b| a.partial_cmp(b).unwrap())
-                    .unwrap(),
-                max: *data
-                    .iter()
-                    .flatten()
-                    .filter(|x| !x.is_nan())
-                    .max_by(|a, b| a.partial_cmp(b).unwrap())
-                    .unwrap(),
-                count: data.iter().map(Vec::len).sum::<usize>() as u64,
-            }),
-        });
-
-        schema_builder.field(name, array_data_type.unwrap())
-    }
-
-    fn create_column_field_bool(
-        name: &str,
-        data: Vec<Vec<bool>>,
-        arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
-        summaries: &mut Vec<ColumnSummary>,
-        schema_builder: SchemaBuilder,
-    ) -> SchemaBuilder {
-        create_column_field_generic::<BooleanArray, _, _>(
-            name,
-            data,
-            arrow_cols,
-            summaries,
-            schema_builder,
-            Statistics::Bool,
-        )
-    }
-
-    fn create_column_field_generic<A, T, F>(
-        name: &str,
-        data: Vec<Vec<T>>,
-        arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
-        summaries: &mut Vec<ColumnSummary>,
-        schema_builder: SchemaBuilder,
-        f: F,
-    ) -> SchemaBuilder
-    where
-        A: 'static + Array,
-        A: From<Vec<T>>,
-        T: Clone + Ord,
-        F: Fn(StatValues<T>) -> Statistics,
-    {
-        assert_eq!(data.len(), arrow_cols.len());
-
-        let mut array_data_type = None;
-        for (arrow_cols_sub, data_sub) in arrow_cols.iter_mut().zip(data.iter()) {
-            let array: Arc<dyn Array> = Arc::new(A::from(data_sub.clone()));
-            arrow_cols_sub.push((name.to_string(), Arc::clone(&array), true));
-            array_data_type = Some(array.data_type().clone());
-        }
-
-        summaries.push(ColumnSummary {
-            name: name.to_string(),
-            stats: f(StatValues {
-                min: data.iter().flatten().min().unwrap().clone(),
-                max: data.iter().flatten().max().unwrap().clone(),
-                count: data.iter().map(Vec::len).sum::<usize>() as u64,
-            }),
-        });
-
-        schema_builder.field(name, array_data_type.unwrap())
-    }
-
-    fn create_column_timestamp(
-        name: &str,
-        data: Vec<Vec<i64>>,
-        arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
-        schema_builder: SchemaBuilder,
-    ) -> (SchemaBuilder, TimestampRange) {
-        assert_eq!(data.len(), arrow_cols.len());
-
-        for (arrow_cols_sub, data_sub) in arrow_cols.iter_mut().zip(data.iter()) {
-            let array: Arc<dyn Array> =
-                Arc::new(TimestampNanosecondArray::from_vec(data_sub.clone(), None));
-            arrow_cols_sub.push((name.to_string(), Arc::clone(&array), true));
-        }
-
-        let timestamp_range = TimestampRange::new(
-            *data.iter().flatten().min().unwrap(),
-            *data.iter().flatten().max().unwrap(),
-        );
-
-        let schema_builder = schema_builder.timestamp();
-        (schema_builder, timestamp_range)
-    }
-
-    /// Creates an Arrow RecordBatches with schema and IOx statistics.
-    ///
-    /// RecordBatches, schema and IOx statistics will be generated in separate ways to emulate what the normal data
-    /// ingestion would do. This also ensures that the Parquet data that will later be created out of the RecordBatch is
-    /// indeed self-contained and can act as a source to recorder schema and statistics.
-    fn make_record_batch() -> (Vec<RecordBatch>, Schema, Vec<ColumnSummary>, TimestampRange) {
-        // (name, array, nullable)
-        let mut arrow_cols: Vec<Vec<(String, ArrayRef, bool)>> = vec![vec![], vec![], vec![]];
-        let mut summaries = vec![];
-        let mut schema_builder = SchemaBuilder::new();
-
-        // tag
-        schema_builder = create_column_tag(
-            "tag_nonempty",
-            vec![vec!["foo"], vec!["bar"], vec!["baz", "foo"]],
-            &mut arrow_cols,
-            &mut summaries,
-            schema_builder,
-        );
-        schema_builder = create_column_tag(
-            "tag_empty",
-            vec![vec![""], vec![""], vec!["", ""]],
-            &mut arrow_cols,
-            &mut summaries,
-            schema_builder,
-        );
-
-        // field: string
-        schema_builder = create_column_field_string(
-            "field_string_nonempty",
-            vec![vec!["foo"], vec!["bar"], vec!["baz", "foo"]],
-            &mut arrow_cols,
-            &mut summaries,
-            schema_builder,
-        );
-        schema_builder = create_column_field_string(
-            "field_string_empty",
-            vec![vec![""], vec![""], vec!["", ""]],
-            &mut arrow_cols,
-            &mut summaries,
-            schema_builder,
-        );
-
-        // field: i64
-        schema_builder = create_column_field_i64(
-            "field_i64_normal",
-            vec![vec![-1], vec![2], vec![3, 4]],
-            &mut arrow_cols,
-            &mut summaries,
-            schema_builder,
-        );
-        schema_builder = create_column_field_i64(
-            "field_i64_range",
-            vec![vec![i64::MIN], vec![i64::MAX], vec![i64::MIN, i64::MAX]],
-            &mut arrow_cols,
-            &mut summaries,
-            schema_builder,
-        );
-
-        // field: u64
-        schema_builder = create_column_field_u64(
-            "field_u64_normal",
-            vec![vec![1u64], vec![2], vec![3, 4]],
-            &mut arrow_cols,
-            &mut summaries,
-            schema_builder,
-        );
-        // TODO: broken due to https://github.com/apache/arrow-rs/issues/254
-        // schema_builder = create_column_field_u64(
-        //     "field_u64_range",
-        //     vec![vec![u64::MIN, u64::MAX], vec![u64::MIN], vec![u64::MAX]],
-        //     &mut arrow_cols,
-        //     &mut summaries,
-        //     schema_builder,
-        // );
-
-        // field: f64
-        schema_builder = create_column_field_f64(
-            "field_f64_normal",
-            vec![vec![10.1], vec![20.1], vec![30.1, 40.1]],
-            &mut arrow_cols,
-            &mut summaries,
-            schema_builder,
-        );
-        schema_builder = create_column_field_f64(
-            "field_f64_inf",
-            vec![vec![0.0], vec![f64::INFINITY], vec![f64::NEG_INFINITY, 1.0]],
-            &mut arrow_cols,
-            &mut summaries,
-            schema_builder,
-        );
-        schema_builder = create_column_field_f64(
-            "field_f64_zero",
-            vec![vec![0.0], vec![-0.0], vec![0.0, -0.0]],
-            &mut arrow_cols,
-            &mut summaries,
-            schema_builder,
-        );
-
-        // TODO: NaNs are broken until https://github.com/apache/arrow-rs/issues/255 is fixed
-        // let nan1 = f64::from_bits(0x7ff8000000000001);
-        // let nan2 = f64::from_bits(0x7ff8000000000002);
-        // assert!(nan1.is_nan());
-        // assert!(nan2.is_nan());
-        // schema_builder = create_column_field_f64(
-        //     "field_f64_nan",
-        //     vec![vec![nan1], vec![2.0], vec![1.0, nan2]],
-        //     &mut arrow_cols,
-        //     &mut summaries,
-        //     schema_builder,
-        // );
-
-        // field: bool
-        schema_builder = create_column_field_bool(
-            "field_bool",
-            vec![vec![true], vec![false], vec![true, false]],
-            &mut arrow_cols,
-            &mut summaries,
-            schema_builder,
-        );
-
-        // time
-        let (schema_builder, timestamp_range) = create_column_timestamp(
-            "time",
-            vec![vec![1000], vec![2000], vec![3000, 4000]],
-            &mut arrow_cols,
-            schema_builder,
-        );
-
-        // build record batches
-        let schema = schema_builder.build().expect("schema building");
-        let mut record_batches = vec![];
-        for arrow_cols_sub in arrow_cols {
-            let record_batch = RecordBatch::try_from_iter_with_nullable(arrow_cols_sub)
-                .expect("created new record batch");
-            // The builder-generated schema contains some extra metadata that we need in our recordbatch
-            let record_batch =
-                RecordBatch::try_new(Arc::clone(schema.inner()), record_batch.columns().to_vec())
-                    .expect("record-batch re-creation");
-            record_batches.push(record_batch);
-        }
-
-        (record_batches, schema, summaries, timestamp_range)
-    }
-
-    /// Creates new in-memory object store for testing.
-    fn make_object_store() -> Arc<ObjectStore> {
-        Arc::new(ObjectStore::new_in_memory(InMemory::new()))
     }
 }
