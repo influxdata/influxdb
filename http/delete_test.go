@@ -3,13 +3,16 @@ package http
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/models"
 
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
@@ -89,6 +92,40 @@ func TestDelete(t *testing.T) {
 					"code": "invalid",
 					"message": "invalid request; error parsing request json: invalid RFC3339Nano for field stop, please format your time with RFC3339Nano format, example: 2009-01-01T23:00:00Z"
 				  }`,
+			},
+		},
+		{
+			name: "start time too soon",
+			args: args{
+				queryParams: map[string][]string{},
+				body:        []byte(fmt.Sprintf(`{"start":"%s"}`, time.Unix(0, models.MinNanoTime-1).UTC().Format(time.RFC3339Nano))),
+				authorizer:  &influxdb.Authorization{UserID: user1ID},
+			},
+			fields: fields{},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body: fmt.Sprintf(`{
+					"code": "invalid",
+					"message": "invalid request; error parsing request json: %s"
+				  }`, msgStartTooSoon),
+			},
+		},
+		{
+			name: "stop time too late",
+			args: args{
+				queryParams: map[string][]string{},
+				body:        []byte(fmt.Sprintf(`{"start":"2020-01-01T01:01:01Z", "stop":"%s"}`, time.Unix(0, models.MaxNanoTime+1).UTC().Format(time.RFC3339Nano))),
+				authorizer:  &influxdb.Authorization{UserID: user1ID},
+			},
+			fields: fields{},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body: fmt.Sprintf(`{
+					"code": "invalid",
+					"message": "invalid request; error parsing request json: %s"
+				  }`, msgStopTooLate),
 			},
 		},
 		{
