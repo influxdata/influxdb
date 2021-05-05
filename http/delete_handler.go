@@ -5,11 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	http "net/http"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/models"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
@@ -56,6 +56,11 @@ type DeleteHandler struct {
 
 const (
 	prefixDelete = "/api/v2/delete"
+)
+
+var (
+	msgStartTooSoon = fmt.Sprintf("invalid start time, start time must not be before %s", time.Unix(0, models.MinNanoTime).UTC().Format(time.RFC3339Nano))
+	msgStopTooLate  = fmt.Sprintf("invalid stop time, stop time must not be after %s", time.Unix(0, models.MaxNanoTime).UTC().Format(time.RFC3339Nano))
 )
 
 // NewDeleteHandler creates a new handler at /api/v2/delete to receive delete requests.
@@ -198,8 +203,12 @@ func (dr *deleteRequest) UnmarshalJSON(b []byte) error {
 			Msg:  "invalid RFC3339Nano for field start, please format your time with RFC3339Nano format, example: 2009-01-02T23:00:00Z",
 		}
 	}
-	if err = timeInRange(start); err != nil {
-		return err
+	if err = models.CheckTime(start); err != nil {
+		return &errors.Error{
+			Code: errors.EInvalid,
+			Op:   "http/Delete",
+			Msg:  msgStartTooSoon,
+		}
 	}
 	dr.Start = start.UnixNano()
 
@@ -211,8 +220,12 @@ func (dr *deleteRequest) UnmarshalJSON(b []byte) error {
 			Msg:  "invalid RFC3339Nano for field stop, please format your time with RFC3339Nano format, example: 2009-01-01T23:00:00Z",
 		}
 	}
-	if err = timeInRange(stop); err != nil {
-		return err
+	if err = models.CheckTime(stop); err != nil {
+		return &errors.Error{
+			Code: errors.EInvalid,
+			Op:   "http/Delete",
+			Msg:  msgStopTooLate,
+		}
 	}
 	dr.Stop = stop.UnixNano()
 	node, err := predicate.Parse(drd.Predicate)
@@ -221,29 +234,6 @@ func (dr *deleteRequest) UnmarshalJSON(b []byte) error {
 	}
 	dr.Predicate, err = predicate.New(node)
 	return err
-}
-
-func timeInRange(t time.Time) error {
-	s := time.Unix(0, 0)
-	e := time.Unix(0, math.MaxInt64)
-
-	if t.Before(s) {
-		return &errors.Error{
-			Code: errors.EInvalid,
-			Op:   "http/Delete",
-			Msg:  "invalid start time, start time must not be before 1970-01-01T00:00:00Z",
-		}
-	}
-
-	if t.After(e) {
-		return &errors.Error{
-			Code: errors.EInvalid,
-			Op:   "http/Delete",
-			Msg:  "invalid stop time, stop time must not be after 2262-04-11T23:47:16Z",
-		}
-	}
-
-	return nil
 }
 
 // DeleteService sends data over HTTP to delete points.
