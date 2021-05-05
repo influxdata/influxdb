@@ -666,7 +666,7 @@ impl<M: ConnectionManager> Server<M> {
         db: &Db,
         sequenced_entry: OwnedSequencedEntry,
     ) -> Result<()> {
-        db.store_sequenced_entry(sequenced_entry)
+        db.store_sequenced_entry(Arc::new(sequenced_entry))
             .map_err(|e| Error::UnknownDatabaseError {
                 source: Box::new(e),
             })?;

@@ -1202,7 +1202,7 @@ enum InnerClockValueError {
     ValueMayNotBeZero,
 }
 
-pub trait SequencedEntry {
+pub trait SequencedEntry: Send + Sync + std::fmt::Debug {
     fn partition_writes(&self) -> Option<Vec<PartitionWrite<'_>>>;
 
     fn fb(&self) -> &entry_fb::SequencedEntry<'_>;
@@ -1392,7 +1392,7 @@ impl Segment {
         segment_id: u64,
         server_id: ServerId,
         clock_value: Option<ClockValue>,
-        entries: &[Arc<OwnedSequencedEntry>],
+        entries: &[Arc<dyn SequencedEntry>],
     ) -> Self {
         let mut fbb = FlatBufferBuilder::new_with_capacity(1024);
 
