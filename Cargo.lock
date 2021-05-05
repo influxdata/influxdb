@@ -33,12 +33,6 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "ahash"
-version = "0.4.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "739f4a8db6605981345c5654f3a85b056ce52f37a39d34da03f25bf2151ea16e"
-
-[[package]]
-name = "ahash"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f200cbb1e856866d9eade941cf3aa0c5d7dd36f74311c4273b494f4ef036957"
@@ -805,7 +799,7 @@ name = "datafusion"
 version = "4.0.0-SNAPSHOT"
 source = "git+https://github.com/apache/arrow-datafusion.git?rev=f43dc444eb510f0ff170adecb5a23afb39c489a8#f43dc444eb510f0ff170adecb5a23afb39c489a8"
 dependencies = [
- "ahash 0.7.2",
+ "ahash",
  "arrow 4.0.0-SNAPSHOT",
  "async-trait",
  "chrono",
@@ -1294,9 +1288,6 @@ name = "hashbrown"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
-dependencies = [
- "ahash 0.4.7",
-]
 
 [[package]]
 name = "hashbrown"
@@ -1304,7 +1295,7 @@ version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
 dependencies = [
- "ahash 0.7.2",
+ "ahash",
 ]
 
 [[package]]
@@ -1951,7 +1942,7 @@ dependencies = [
 name = "mutable_buffer"
 version = "0.1.0"
 dependencies = [
- "ahash 0.7.2",
+ "ahash",
  "arrow 0.1.0",
  "arrow_util",
  "async-trait",
@@ -1960,7 +1951,7 @@ dependencies = [
  "flatbuffers",
  "flate2",
  "generated_types",
- "hashbrown 0.9.1",
+ "hashbrown 0.11.2",
  "influxdb_line_protocol",
  "internal_types",
  "observability_deps",
@@ -2960,7 +2951,7 @@ dependencies = [
  "data_types",
  "datafusion 0.1.0",
  "either",
- "hashbrown 0.9.1",
+ "hashbrown 0.11.2",
  "internal_types",
  "itertools 0.9.0",
  "observability_deps",
@@ -4231,7 +4222,7 @@ name = "tracker"
 version = "0.1.0"
 dependencies = [
  "futures",
- "hashbrown 0.9.1",
+ "hashbrown 0.11.2",
  "observability_deps",
  "pin-project 1.0.7",
  "tokio",
