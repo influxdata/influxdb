@@ -281,7 +281,7 @@ impl PartitionChunk for DbChunk {
                     .read_filter(table_name, selection)
                     .context(MutableBufferChunk)?;
 
-                Ok(Box::pin(MemoryStream::new(batch)))
+                Ok(Box::pin(MemoryStream::new(vec![batch])))
             }
             Self::ReadBuffer { chunk, .. } => {
                 // Error converting to a rb_predicate needs to fail

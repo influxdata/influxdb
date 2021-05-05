@@ -123,21 +123,28 @@ impl AndExprBuilder {
     }
 }
 
-/// A RecordBatchStream created from a single RecordBatch
-///
-/// Unfortunately datafusion's MemoryStream is crate-local
+/// A RecordBatchStream created from in-memory RecordBatches.
 #[derive(Debug)]
 pub struct MemoryStream {
     schema: SchemaRef,
-    batch: Option<RecordBatch>,
+    batches: Vec<RecordBatch>,
 }
 
 impl MemoryStream {
-    pub fn new(batch: RecordBatch) -> Self {
+    /// Create new stream.
+    ///
+    /// Must at least pass one record batch!
+    pub fn new(batches: Vec<RecordBatch>) -> Self {
+        assert!(!batches.is_empty(), "must at least pass one record batch");
         Self {
-            schema: batch.schema(),
-            batch: Some(batch),
+            schema: batches[0].schema(),
+            batches,
         }
+    }
+
+    /// Create new stream with provided schema.
+    pub fn new_with_schema(batches: Vec<RecordBatch>, schema: SchemaRef) -> Self {
+        Self { schema, batches }
     }
 }
 
@@ -154,11 +161,15 @@ impl futures::Stream for MemoryStream {
         mut self: std::pin::Pin<&mut Self>,
         _: &mut Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        Poll::Ready(self.batch.take().map(Ok))
+        if self.batches.is_empty() {
+            Poll::Ready(None)
+        } else {
+            Poll::Ready(Some(Ok(self.batches.remove(0))))
+        }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (1, Some(1))
+        (self.batches.len(), Some(self.batches.len()))
     }
 }
 
