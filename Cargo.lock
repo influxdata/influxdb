@@ -112,7 +112,7 @@ dependencies = [
 [[package]]
 name = "arrow"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow-rs?rev=ed00e4d4a160cd5182bfafb81fee2240ec005014#ed00e4d4a160cd5182bfafb81fee2240ec005014"
+source = "git+https://github.com/apache/arrow-rs?rev=508f25c10032857da34ea88cc8166f0741616a32#508f25c10032857da34ea88cc8166f0741616a32"
 dependencies = [
  "cfg_aliases",
  "chrono",
@@ -135,7 +135,7 @@ dependencies = [
 [[package]]
 name = "arrow-flight"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow-rs?rev=ed00e4d4a160cd5182bfafb81fee2240ec005014#ed00e4d4a160cd5182bfafb81fee2240ec005014"
+source = "git+https://github.com/apache/arrow-rs?rev=508f25c10032857da34ea88cc8166f0741616a32#508f25c10032857da34ea88cc8166f0741616a32"
 dependencies = [
  "arrow 4.0.0-SNAPSHOT",
  "bytes",
@@ -575,10 +575,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea221b5284a47e40033bf9b66f35f984ec0ea2931eb03505246cd27a963f981b"
 
 [[package]]
-name = "cpuid-bool"
-version = "0.1.2"
+name = "cpufeatures"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8aebca1129a03dc6dc2b127edd729435bbc4a37e1d5f4d7513165089ceb02634"
+checksum = "5cd5a7748210e7ec1a9696610b1015e6e31fbf58f77a160801f124bd1c36592a"
 
 [[package]]
 name = "crc32fast"
@@ -797,13 +797,12 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=f43dc444eb510f0ff170adecb5a23afb39c489a8#f43dc444eb510f0ff170adecb5a23afb39c489a8"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=ea451c9b809aed832ac41947424a595856d87af5#ea451c9b809aed832ac41947424a595856d87af5"
 dependencies = [
  "ahash",
  "arrow 4.0.0-SNAPSHOT",
  "async-trait",
  "chrono",
- "clap",
  "futures",
  "hashbrown 0.11.2",
  "log",
@@ -2404,7 +2403,7 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow-rs?rev=ed00e4d4a160cd5182bfafb81fee2240ec005014#ed00e4d4a160cd5182bfafb81fee2240ec005014"
+source = "git+https://github.com/apache/arrow-rs?rev=508f25c10032857da34ea88cc8166f0741616a32#508f25c10032857da34ea88cc8166f0741616a32"
 dependencies = [
  "arrow 4.0.0-SNAPSHOT",
  "base64 0.12.3",
@@ -3488,13 +3487,13 @@ checksum = "2579985fda508104f7587689507983eadd6a6e84dd35d6d115361f530916fa0d"
 
 [[package]]
 name = "sha2"
-version = "0.9.3"
+version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa827a14b29ab7f44778d14a88d3cb76e949c45083f7dbfa507d0cb699dc12de"
+checksum = "d8f6b75b17576b792bef0db1bcc4b8b8bcdf9506744cf34b974195487af6cff2"
 dependencies = [
  "block-buffer",
  "cfg-if",
- "cpuid-bool",
+ "cpufeatures",
  "digest",
  "opaque-debug",
 ]
