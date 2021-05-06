@@ -774,17 +774,14 @@ name = "data_types"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "generated_types",
  "influxdb_line_protocol",
  "observability_deps",
  "percent-encoding",
- "prost",
  "regex",
  "serde",
  "serde_regex",
  "snafu",
  "test_helpers",
- "tonic",
 ]
 
 [[package]]
@@ -1202,6 +1199,7 @@ name = "generated_types"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "data_types",
  "flatbuffers",
  "futures",
  "google_types",
@@ -1209,8 +1207,10 @@ dependencies = [
  "prost",
  "prost-build",
  "prost-types",
+ "regex",
  "serde",
  "serde_json",
+ "thiserror",
  "tonic",
  "tonic-build",
 ]

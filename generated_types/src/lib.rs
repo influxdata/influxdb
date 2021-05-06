@@ -2,13 +2,6 @@
 // crates because of all the generated code it contains that we don't have much
 // control over.
 #![deny(broken_intra_doc_links)]
-#![allow(
-    unused_imports,
-    clippy::redundant_static_lifetimes,
-    clippy::redundant_closure,
-    clippy::redundant_field_names,
-    clippy::clone_on_ref_ptr
-)]
 
 /// This module imports the generated protobuf code into a Rust module
 /// hierarchy that matches the namespace hierarchy of the protobuf
@@ -99,8 +92,7 @@ pub fn protobuf_type_url(protobuf_type: &str) -> String {
 
 /// Protobuf file descriptor containing all generated types.
 /// Useful in gRPC reflection.
-pub const FILE_DESCRIPTOR_SET: &'static [u8] =
-    tonic::include_file_descriptor_set!("proto_descriptor");
+pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("proto_descriptor");
 
 /// Compares the protobuf type URL found within a google.protobuf.Any
 /// message to an expected Protobuf package and message name
@@ -124,7 +116,10 @@ pub fn protobuf_type_url_eq(url: &str, protobuf_type: &str) -> bool {
 pub use com::github::influxdata::idpe::storage::read::*;
 pub use influxdata::platform::storage::*;
 
+pub mod chunk;
+pub mod database_rules;
 pub mod google;
+pub mod job;
 
 #[cfg(test)]
 mod tests {

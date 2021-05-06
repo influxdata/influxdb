@@ -100,6 +100,7 @@ use crate::{
     db::Db,
 };
 use data_types::database_rules::{NodeGroup, ShardId};
+use generated_types::database_rules::{decode_database_rules, encode_database_rules};
 use influxdb_iox_client::{connection::Builder, write};
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
@@ -145,7 +146,7 @@ pub enum Error {
     IdNotSet,
     #[snafu(display("error serializing configuration {}", source))]
     ErrorSerializing {
-        source: data_types::database_rules::Error,
+        source: generated_types::database_rules::EncodeError,
     },
     #[snafu(display("error deserializing configuration {}", source))]
     ErrorDeserializing { source: serde_json::Error },
@@ -420,7 +421,7 @@ impl<M: ConnectionManager> Server<M> {
         let location = object_store_path_for_database_config(&self.root_path()?, &rules.name);
 
         let mut data = BytesMut::new();
-        rules.encode(&mut data).context(ErrorSerializing)?;
+        encode_database_rules(rules, &mut data).context(ErrorSerializing)?;
 
         let len = data.len();
 
@@ -486,7 +487,7 @@ impl<M: ConnectionManager> Server<M> {
 
                     let res = res.unwrap().freeze();
 
-                    match DatabaseRules::decode(res) {
+                    match decode_database_rules(res) {
                         Err(e) => {
                             error!("error parsing database config {:?} from store: {}", path, e)
                         }
@@ -1058,7 +1059,7 @@ mod tests {
             .unwrap()
             .freeze();
 
-        let read_rules = DatabaseRules::decode(read_data).unwrap();
+        let read_rules = decode_database_rules(read_data).unwrap();
 
         assert_eq!(rules, read_rules);
 
