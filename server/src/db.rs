@@ -30,7 +30,7 @@ use lifecycle::LifecycleManager;
 use metrics::{KeyValue, MetricObserver, MetricObserverBuilder, MetricRegistry};
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, info};
-use parking_lot::{lock_api::RwLockWriteGuard, Mutex, RawRwLock, RwLock};
+use parking_lot::{Mutex, RwLock};
 use parquet_file::{chunk::Chunk, storage::Storage};
 use query::predicate::{Predicate, PredicateBuilder};
 use query::{exec::Executor, Database, DEFAULT_SCHEMA};
@@ -1204,7 +1204,7 @@ impl Db {
                                 )],
                             );
 
-                            check_chunk_closed(chunk, mutable_size_threshold, &self.metrics);
+                            check_chunk_closed(&mut *chunk, mutable_size_threshold, &self.metrics);
                         }
                         None => {
                             let new_chunk = partition
@@ -1226,7 +1226,7 @@ impl Db {
                             }
 
                             check_chunk_closed(
-                                new_chunk.write(),
+                                &mut *new_chunk.write(),
                                 mutable_size_threshold,
                                 &self.metrics,
                             );
@@ -1242,7 +1242,7 @@ impl Db {
 
 /// Check if the given chunk should be closed based on the the MutableBuffer size threshold.
 fn check_chunk_closed(
-    mut chunk: RwLockWriteGuard<'_, RawRwLock, CatalogChunk>,
+    chunk: &mut CatalogChunk,
     mutable_size_threshold: Option<NonZeroUsize>,
     metrics: &DbMetrics,
 ) {

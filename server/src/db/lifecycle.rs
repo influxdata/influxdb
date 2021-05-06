@@ -3,11 +3,10 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use observability_deps::tracing::{info, warn};
-use parking_lot::{RwLock, RwLockUpgradableReadGuard};
 
 use data_types::{database_rules::LifecycleRules, error::ErrorLogger, job::Job};
 
-use tracker::TaskTracker;
+use tracker::{RwLock, TaskTracker};
 
 use super::{
     catalog::chunk::{Chunk, ChunkState},
@@ -127,7 +126,7 @@ trait ChunkMover {
         // - any chunks to move
 
         for chunk in &chunks {
-            let chunk_guard = chunk.upgradable_read();
+            let chunk_guard = chunk.read();
 
             buffer_size += Self::chunk_size(&*chunk_guard);
 
@@ -138,9 +137,6 @@ trait ChunkMover {
                 ChunkState::Open(_) => {
                     open_partitions.insert(chunk_guard.key().to_string());
                     if move_tracker.is_none() && would_move {
-                        let mut chunk_guard = RwLockUpgradableReadGuard::upgrade(chunk_guard);
-                        chunk_guard.set_closed().expect("cannot close open chunk");
-
                         let partition_key = chunk_guard.key().to_string();
                         let table_name = chunk_guard.table_name().to_string();
                         let chunk_id = chunk_guard.id();
