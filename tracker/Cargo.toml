@@ -9,7 +9,9 @@ description = "Utilities for tracking resource utilisation within IOx"
 
 futures = "0.3"
 hashbrown = "0.11"
+lock_api = "0.4.4"
 observability_deps = { path = "../observability_deps" }
+parking_lot = "0.11.1"
 pin-project = "1.0"
 tokio = { version = "1.0", features = ["macros", "time"] }
 tokio-util = { version = "0.6.3" }

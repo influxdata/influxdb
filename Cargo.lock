@@ -4222,7 +4222,9 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "hashbrown 0.11.2",
+ "lock_api",
  "observability_deps",
+ "parking_lot",
  "pin-project 1.0.7",
  "tokio",
  "tokio-util",
