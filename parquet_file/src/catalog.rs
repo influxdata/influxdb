@@ -14,7 +14,7 @@ use data_types::server_id::ServerId;
 use futures::TryStreamExt;
 use generated_types::influxdata::iox::catalog::v1 as proto;
 use object_store::{
-    path::{parsed::DirsAndFileName, ObjectStorePath, Path},
+    path::{parsed::DirsAndFileName, parts::PathPart, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
 use observability_deps::tracing::{info, warn};
@@ -88,6 +88,9 @@ pub enum Error {
     #[snafu(display("UUID required but not provided"))]
     UuidRequired {},
 
+    #[snafu(display("Path required but not provided"))]
+    PathRequired {},
+
     #[snafu(display("Fork detected. Revision {} has two UUIDs {} and {}. Maybe two writer instances with the same server ID were running in parallel?", revision_counter, uuid1, uuid2))]
     Fork {
         revision_counter: u64,
@@ -110,11 +113,11 @@ pub enum Error {
     #[snafu(display("Upgrade path not implemented/supported: {}", format))]
     UnsupportedUpgrade { format: String },
 
-    #[snafu(display("Parquet already exists in catalog: {}", path))]
-    ParquetFileAlreadyExists { path: String },
+    #[snafu(display("Parquet already exists in catalog: {:?}", path))]
+    ParquetFileAlreadyExists { path: DirsAndFileName },
 
-    #[snafu(display("Parquet already does not exists in catalog: {}", path))]
-    ParquetFileDoesNotExists { path: String },
+    #[snafu(display("Parquet already does not exists in catalog: {:?}", path))]
+    ParquetFileDoesNotExists { path: DirsAndFileName },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -377,6 +380,36 @@ fn parse_uuid_required(s: &str) -> Result<Uuid> {
     parse_uuid(s)?.context(UuidRequired {})
 }
 
+/// Parse [`DirsAndFilename`] from protobuf.
+fn parse_dirs_and_filename(proto: &Option<proto::Path>) -> Result<DirsAndFileName> {
+    match proto {
+        Some(proto) => Ok(DirsAndFileName {
+            directories: proto
+                .directories
+                .iter()
+                .map(|s| PathPart::from(&s[..]))
+                .collect(),
+            file_name: Some(PathPart::from(&proto.file_name[..])),
+        }),
+        None => Err(Error::PathRequired {}),
+    }
+}
+
+/// Store [`DirsAndFilename`] as protobuf.
+fn unparse_dirs_and_filename(path: &DirsAndFileName) -> proto::Path {
+    proto::Path {
+        directories: path
+            .directories
+            .iter()
+            .map(|part| part.encoded().to_string())
+            .collect(),
+        file_name: path
+            .file_name
+            .as_ref()
+            .map_or_else(|| "".to_string(), |part| part.encoded().to_string()),
+    }
+}
+
 /// Key to address transactions.
 #[derive(Clone, Debug)]
 struct TransactionKey {
@@ -393,7 +426,7 @@ impl Display for TransactionKey {
 /// In-memory catalog state, for testing.
 #[derive(Clone, Debug)]
 pub struct CatalogState {
-    pub parquet_files: HashSet<String>,
+    pub parquet_files: HashSet<DirsAndFileName>,
 }
 
 impl CatalogState {
@@ -449,19 +482,15 @@ impl OpenTransaction {
                 .fail()?;
             }
             proto::transaction::action::Action::AddParquet(a) => {
-                if !state.parquet_files.insert(a.path.clone()) {
-                    ParquetFileAlreadyExists {
-                        path: a.path.clone(),
-                    }
-                    .fail()?;
+                let path = parse_dirs_and_filename(&a.path)?;
+                if !state.parquet_files.insert(path.clone()) {
+                    ParquetFileAlreadyExists { path }.fail()?;
                 }
             }
             proto::transaction::action::Action::RemoveParquet(a) => {
-                if !state.parquet_files.remove(&a.path) {
-                    ParquetFileDoesNotExists {
-                        path: a.path.clone(),
-                    }
-                    .fail()?;
+                let path = parse_dirs_and_filename(&a.path)?;
+                if !state.parquet_files.remove(&path) {
+                    ParquetFileDoesNotExists { path }.fail()?;
                 }
             }
         };
@@ -605,13 +634,13 @@ impl<'c> TransactionHandle<'c> {
     /// Add a new parquet file to the catalog.
     ///
     /// If a file with the same path already exists an error will be returned.
-    pub fn add_parquet(&mut self, path: &str) -> Result<()> {
+    pub fn add_parquet(&mut self, path: &DirsAndFileName) -> Result<()> {
         self.transaction
             .as_mut()
             .expect("transaction handle w/o transaction?!")
             .handle_action_and_record(proto::transaction::action::Action::AddParquet(
                 proto::AddParquet {
-                    path: path.to_string(),
+                    path: Some(unparse_dirs_and_filename(path)),
                 },
             ))
     }
@@ -619,13 +648,13 @@ impl<'c> TransactionHandle<'c> {
     /// Remove a parquet file from the catalog.
     ///
     /// Removing files that do not exist or were already removed will result in an error.
-    pub fn remove_parquet(&mut self, path: &str) -> Result<()> {
+    pub fn remove_parquet(&mut self, path: &DirsAndFileName) -> Result<()> {
         self.transaction
             .as_mut()
             .expect("transaction handle w/o transaction?!")
             .handle_action_and_record(proto::transaction::action::Action::RemoveParquet(
                 proto::RemoveParquet {
-                    path: path.to_string(),
+                    path: Some(unparse_dirs_and_filename(path)),
                 },
             ))
     }
@@ -652,7 +681,7 @@ impl<'c> Drop for TransactionHandle<'c> {
 mod tests {
     use std::num::NonZeroU32;
 
-    use object_store::memory::InMemory;
+    use object_store::{memory::InMemory, parsed_path};
 
     use super::*;
 
@@ -1046,7 +1075,11 @@ mod tests {
 
     /// Get sorted list of catalog files from state
     fn get_catalog_parquet_files(state: &CatalogState) -> Vec<String> {
-        let mut files: Vec<String> = state.parquet_files.iter().cloned().collect();
+        let mut files: Vec<String> = state
+            .parquet_files
+            .iter()
+            .map(DirsAndFileName::display)
+            .collect();
         files.sort();
         files
     }
@@ -1135,9 +1168,9 @@ mod tests {
         {
             let mut t = catalog.open_transaction();
 
-            t.add_parquet("test1").unwrap();
-            t.add_parquet("test2").unwrap();
-            t.add_parquet("test3").unwrap();
+            t.add_parquet(&parsed_path!("test1")).unwrap();
+            t.add_parquet(&parsed_path!("test2")).unwrap();
+            t.add_parquet(&parsed_path!("test3")).unwrap();
 
             t.commit().await.unwrap();
         }
@@ -1157,15 +1190,15 @@ mod tests {
             let mut t = catalog.open_transaction();
 
             // "real" modifications
-            t.add_parquet("test4").unwrap();
-            t.remove_parquet("test1").unwrap();
+            t.add_parquet(&parsed_path!("test4")).unwrap();
+            t.remove_parquet(&parsed_path!("test1")).unwrap();
 
             // wrong modifications
-            t.add_parquet("test2")
+            t.add_parquet(&parsed_path!("test2"))
                 .expect_err("add file twice should error");
-            t.remove_parquet("does_not_exist")
+            t.remove_parquet(&parsed_path!("does_not_exist"))
                 .expect_err("removing unknown file should error");
-            t.remove_parquet("test1")
+            t.remove_parquet(&parsed_path!("test1"))
                 .expect_err("removing twice should error");
 
             t.commit().await.unwrap();
@@ -1185,8 +1218,8 @@ mod tests {
         {
             let mut t = catalog.open_transaction();
 
-            t.add_parquet("test5").unwrap();
-            t.remove_parquet("test2").unwrap();
+            t.add_parquet(&parsed_path!("test5")).unwrap();
+            t.remove_parquet(&parsed_path!("test2")).unwrap();
 
             // NO commit here!
         }

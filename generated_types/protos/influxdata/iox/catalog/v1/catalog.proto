@@ -1,6 +1,15 @@
 syntax = "proto3";
 package influxdata.iox.catalog.v1;
 
+// Path for object store interaction.
+message Path {
+    // Directory hierarchy.
+    repeated string directories = 1;
+
+    // File name.
+    string file_name = 2;
+}
+
 // Upgrades the catalog to a new version.
 message Upgrade {
     // Format string describing the next catalog version.
@@ -12,7 +21,7 @@ message Upgrade {
 // [Parquet]: https://parquet.apache.org/
 message AddParquet {
     // Path of the file within the object store.
-    string path = 1;
+    Path path = 1;
 }
 
 // Removes a [Parquet] file from the catalog.
@@ -20,7 +29,7 @@ message AddParquet {
 // [Parquet]: https://parquet.apache.org/
 message RemoveParquet {
     // Path of the file within the object store.
-    string path = 1;
+    Path path = 1;
 }
 
 // Single, self-contained transaction.
