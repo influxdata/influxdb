@@ -89,7 +89,7 @@
 use std::{convert::TryInto, sync::Arc};
 
 use data_types::{
-    partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
+    partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     timestamp::TimestampRange,
 };
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
@@ -287,6 +287,11 @@ fn read_statistics_from_parquet_row_group(
             )? {
                 ExtractedStatistics::Statistics(stats) => column_summaries.push(ColumnSummary {
                     name: field.name().clone(),
+                    influxdb_type: Some(match iox_type {
+                        InfluxColumnType::Tag => InfluxDbType::Tag,
+                        InfluxColumnType::Field(_) => InfluxDbType::Field,
+                        InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
+                    }),
                     stats,
                 }),
                 ExtractedStatistics::TimestampRange(range) => {

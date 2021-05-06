@@ -595,7 +595,7 @@ mod test {
         },
         datatypes::DataType::{Boolean, Float64, Int64, UInt64, Utf8},
     };
-    use data_types::partition_metadata::{ColumnSummary, StatValues, Statistics};
+    use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
     use internal_types::schema::builder::SchemaBuilder;
 
     use super::*;
@@ -917,6 +917,7 @@ mod test {
             columns: vec![
                 ColumnSummary {
                     name: "active".into(),
+                    influxdb_type: Some(InfluxDbType::Field),
                     stats: Statistics::Bool(StatValues {
                         min: false,
                         max: true,
@@ -925,6 +926,7 @@ mod test {
                 },
                 ColumnSummary {
                     name: "counter".into(),
+                    influxdb_type: Some(InfluxDbType::Field),
                     stats: Statistics::U64(StatValues {
                         min: 1000,
                         max: 5000,
@@ -933,6 +935,7 @@ mod test {
                 },
                 ColumnSummary {
                     name: "env".into(),
+                    influxdb_type: Some(InfluxDbType::Tag),
                     stats: Statistics::String(StatValues {
                         min: "dev".into(),
                         max: "prod".into(),
@@ -941,6 +944,7 @@ mod test {
                 },
                 ColumnSummary {
                     name: "icounter".into(),
+                    influxdb_type: Some(InfluxDbType::Field),
                     stats: Statistics::I64(StatValues {
                         min: -1000,
                         max: 4000,
@@ -949,6 +953,7 @@ mod test {
                 },
                 ColumnSummary {
                     name: "msg".into(),
+                    influxdb_type: Some(InfluxDbType::Field),
                     stats: Statistics::String(StatValues {
                         min: "msg a".into(),
                         max: "msg b".into(),
@@ -957,6 +962,7 @@ mod test {
                 },
                 ColumnSummary {
                     name: "temp".into(),
+                    influxdb_type: Some(InfluxDbType::Field),
                     stats: Statistics::F64(StatValues {
                         min: 10.0,
                         max: 30000.0,
@@ -965,6 +971,7 @@ mod test {
                 },
                 ColumnSummary {
                     name: "time".into(),
+                    influxdb_type: Some(InfluxDbType::Timestamp),
                     stats: Statistics::I64(StatValues {
                         min: 3333,
                         max: 11111111,

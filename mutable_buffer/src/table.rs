@@ -5,10 +5,13 @@ use crate::{
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError, DID},
 };
-use data_types::{partition_metadata::ColumnSummary, server_id::ServerId};
+use data_types::{
+    partition_metadata::{ColumnSummary, InfluxDbType},
+    server_id::ServerId,
+};
 use entry::{self, ClockValue};
 use internal_types::{
-    schema::{builder::SchemaBuilder, Schema},
+    schema::{builder::SchemaBuilder, InfluxColumnType, Schema},
     selection::Selection,
 };
 
@@ -306,6 +309,11 @@ impl Table {
                 ColumnSummary {
                     name: column_name.to_string(),
                     stats: c.stats(),
+                    influxdb_type: Some(match c.influx_type() {
+                        InfluxColumnType::Tag => InfluxDbType::Tag,
+                        InfluxColumnType::Field(_) => InfluxDbType::Field,
+                        InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
+                    }),
                 }
             })
             .collect()

@@ -95,6 +95,8 @@ OBSERVER>
 
 ```
 
+
+
 # Query Cookbook
 
 This section contains some common and useful queries against IOx system tables
@@ -212,3 +214,26 @@ GROUP BY database_name, partition_key, table_name
 ORDER BY total_rows DESC
 LIMIT 20;
 ```
+
+
+# SQL Reference
+
+Since IOx uses Apache Arrow's
+[DataFusion](https://github.com/apache/arrow-datafusion) query engine, IOx SQL is mostly the same as DataFusion.
+
+In this section, IOx specific SQL tables, commands, and extensions are documented.
+
+
+## System Tables
+
+In addition to the SQL standard `information_schema`, IOx contains several *system tables* that provide access to IOx specific information. The information in each system table is scoped to that particular database. Cross database queries are not possible due to the design of IOx's security model. Another process, such as the `observer` mode in the IOx SQL client, must be used for queries on information that spans databases.
+
+### `system.chunks`
+`system.chunks` contains information about each IOx storage chunk (which holds part of the data for a table).
+
+TODO: document each column, once they have stabilized.
+
+### `system.columns`
+`system.columns` contains IOx specific schema information about each column in each table, such as which columns were loaded as tags, fields, and timestamps in the InfluxDB data model.
+
+TODO: document each column, once they have stabilized.

@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use arrow::{
     array::{
         ArrayRef, StringArray, StringBuilder, Time64NanosecondArray, TimestampNanosecondArray,
-        UInt32Array, UInt64Array, UInt64Builder,
+        UInt32Array, UInt64Array,
     },
     error::Result,
     record_batch::RecordBatch,
@@ -129,7 +129,8 @@ fn from_partition_summaries(partitions: Vec<PartitionSummary>) -> Result<RecordB
     let mut partition_key = StringBuilder::new(row_estimate);
     let mut table_name = StringBuilder::new(row_estimate);
     let mut column_name = StringBuilder::new(row_estimate);
-    let mut count = UInt64Builder::new(row_estimate);
+    let mut column_type = StringBuilder::new(row_estimate);
+    let mut influxdb_type = StringBuilder::new(row_estimate);
 
     // Note no rows are produced for partitions with no tabes, or
     // tables with no columns: There are other tables to list tables
@@ -140,7 +141,12 @@ fn from_partition_summaries(partitions: Vec<PartitionSummary>) -> Result<RecordB
                 partition_key.append_value(&partition.key)?;
                 table_name.append_value(&table.name)?;
                 column_name.append_value(&column.name)?;
-                count.append_value(column.count())?;
+                column_type.append_value(column.type_name())?;
+                if let Some(t) = &column.influxdb_type {
+                    influxdb_type.append_value(t.as_str())?;
+                } else {
+                    influxdb_type.append_null()?;
+                }
             }
         }
     }
@@ -148,13 +154,15 @@ fn from_partition_summaries(partitions: Vec<PartitionSummary>) -> Result<RecordB
     let partition_key = partition_key.finish();
     let table_name = table_name.finish();
     let column_name = column_name.finish();
-    let count = count.finish();
+    let column_type = column_type.finish();
+    let influxdb_type = influxdb_type.finish();
 
-    RecordBatch::try_from_iter(vec![
-        ("partition_key", Arc::new(partition_key) as ArrayRef),
-        ("table_name", Arc::new(table_name)),
-        ("column_name", Arc::new(column_name)),
-        ("count", Arc::new(count)),
+    RecordBatch::try_from_iter_with_nullable(vec![
+        ("partition_key", Arc::new(partition_key) as ArrayRef, false),
+        ("table_name", Arc::new(table_name), false),
+        ("column_name", Arc::new(column_name), false),
+        ("column_type", Arc::new(column_type), false),
+        ("influxdb_type", Arc::new(influxdb_type), true),
     ])
 }
 
@@ -197,7 +205,9 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use chrono::NaiveDateTime;
     use data_types::chunk::ChunkStorage;
-    use data_types::partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary};
+    use data_types::partition_metadata::{
+        ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
+    };
 
     #[test]
     fn test_from_chunk_summaries() {
@@ -255,10 +265,24 @@ mod tests {
                     columns: vec![
                         ColumnSummary {
                             name: "c1".to_string(),
+                            influxdb_type: Some(InfluxDbType::Tag),
                             stats: Statistics::I64(StatValues::new_with_value(23)),
                         },
                         ColumnSummary {
                             name: "c2".to_string(),
+                            influxdb_type: Some(InfluxDbType::Field),
+                            stats: Statistics::I64(StatValues::new_with_value(43)),
+                        },
+                        ColumnSummary {
+                            name: "c3".to_string(),
+                            influxdb_type: None,
+                            stats: Statistics::String(StatValues::new_with_value(
+                                "foo".to_string(),
+                            )),
+                        },
+                        ColumnSummary {
+                            name: "time".to_string(),
+                            influxdb_type: Some(InfluxDbType::Timestamp),
                             stats: Statistics::I64(StatValues::new_with_value(43)),
                         },
                     ],
@@ -278,12 +302,14 @@ mod tests {
         ];
 
         let expected = vec![
-            "+---------------+------------+-------------+-------+",
-            "| partition_key | table_name | column_name | count |",
-            "+---------------+------------+-------------+-------+",
-            "| p1            | t1         | c1          | 1     |",
-            "| p1            | t1         | c2          | 1     |",
-            "+---------------+------------+-------------+-------+",
+            "+---------------+------------+-------------+-------------+---------------+",
+            "| partition_key | table_name | column_name | column_type | influxdb_type |",
+            "+---------------+------------+-------------+-------------+---------------+",
+            "| p1            | t1         | c1          | I64         | Tag           |",
+            "| p1            | t1         | c2          | I64         | Field         |",
+            "| p1            | t1         | c3          | String      |               |",
+            "| p1            | t1         | time        | I64         | Timestamp     |",
+            "+---------------+------------+-------------+-------------+---------------+",
         ];
 
         let batch = from_partition_summaries(partitions).unwrap();

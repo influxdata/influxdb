@@ -681,6 +681,7 @@ impl MetaData {
                 ColumnSummary {
                     name: name.to_string(),
                     stats,
+                    influxdb_type: column_meta.typ.as_influxdb_type(),
                 }
             })
             .collect();

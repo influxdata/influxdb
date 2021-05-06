@@ -245,6 +245,16 @@ impl ColumnType {
             Self::Other(name) => name.as_str(),
         }
     }
+
+    pub fn as_influxdb_type(&self) -> Option<data_types::partition_metadata::InfluxDbType> {
+        use data_types::partition_metadata::InfluxDbType;
+        match self {
+            Self::Tag(_) => Some(InfluxDbType::Tag),
+            Self::Field(_) => Some(InfluxDbType::Field),
+            Self::Timestamp(_) => Some(InfluxDbType::Timestamp),
+            Self::Other(_) => None,
+        }
+    }
 }
 
 impl Display for ColumnType {

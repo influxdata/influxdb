@@ -25,4 +25,4 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 * [Regenerating Flatbuffers code](regenerating_flatbuffers.md) when updating the version of the `flatbuffers` crate
 * Protobuf tips and tricks: [Protobuf](protobuf.md).
 * Catalog Persistence: [`catalog_persistence.md`](catalog_persistence.md).
-* SQL Repl tips and tricks: [SQL](sql.md).
+* SQL command line tips and tricks: [SQL](sql.md).
