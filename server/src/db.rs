@@ -158,9 +158,9 @@ pub enum Error {
         source
     ))]
     ReadBufferChunkTimestampError {
-        chunk_id: u32,
-        table_name: String,
         source: read_buffer::Error,
+        table_name: String,
+        chunk_id: u32,
     },
 
     #[snafu(display("Error writing to object store: {}", source))]

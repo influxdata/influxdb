@@ -348,11 +348,8 @@ impl SeriesSetConverter {
                         batch.schema().fields()[*column_index]
                     ),
                 };
-                if let Some(tag_value) = tag_value {
-                    Some((Arc::clone(&column_name), Arc::from(tag_value.as_str())))
-                } else {
-                    None
-                }
+
+                tag_value.map(|tag_value| (Arc::clone(&column_name), Arc::from(tag_value.as_str())))
             })
             .collect()
     }

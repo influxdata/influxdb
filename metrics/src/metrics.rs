@@ -71,9 +71,9 @@ impl Display for RedRequestStatus {
 /// Using a `REDMetric` makes following this methodology easy because it handles
 /// updating the three components for you.
 pub struct RedMetric {
-    default_labels: Vec<KeyValue>,
     requests: OTCounter<u64>,
     duration: OTHistogram<f64>,
+    default_labels: Vec<KeyValue>,
 }
 
 impl RedMetric {
@@ -370,8 +370,8 @@ impl Gauge {
 /// A Histogram is a metric exposing a distribution of observations.
 #[derive(Debug)]
 pub struct Histogram {
-    default_labels: Vec<KeyValue>,
     histogram: OTHistogram<f64>,
+    default_labels: Vec<KeyValue>,
 }
 
 impl Histogram {

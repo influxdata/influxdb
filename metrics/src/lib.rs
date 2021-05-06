@@ -162,11 +162,9 @@ impl Domain {
         suffix: Option<&str>,
     ) -> String {
         let mut ret = self.name.to_string();
-        for s in &[subname, Some(metric_name), unit, suffix] {
-            if let Some(s) = s {
-                ret.push('.');
-                ret.push_str(s)
-            }
+        for s in [subname, Some(metric_name), unit, suffix].iter().flatten() {
+            ret.push('.');
+            ret.push_str(s);
         }
         ret
     }
