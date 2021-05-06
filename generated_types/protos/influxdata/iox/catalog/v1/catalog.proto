@@ -37,7 +37,9 @@ message Transaction {
     // Transaction format version.
     uint32 version = 1;
 
+    // Action as part of the transaction, wraps an enum.
     message Action {
+        // Inner enum.
         oneof action {
             Upgrade upgrade = 1;
 
@@ -46,6 +48,7 @@ message Transaction {
         }
     }
 
+    // Ordered list of actions that are part of this transaction.
     repeated Action actions = 2;
 
     // Revision counter, must by "previous revision" + 1 or 0 for the first transaction.
