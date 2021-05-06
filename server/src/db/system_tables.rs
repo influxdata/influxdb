@@ -213,8 +213,8 @@ mod tests {
     fn test_from_chunk_summaries() {
         let chunks = vec![
             ChunkSummary {
-                partition_key: Arc::new("p1".to_string()),
-                table_name: Arc::new("table1".to_string()),
+                partition_key: Arc::from("p1"),
+                table_name: Arc::from("table1"),
                 id: 0,
                 storage: ChunkStorage::OpenMutableBuffer,
                 estimated_bytes: 23754,
@@ -227,8 +227,8 @@ mod tests {
                 time_closed: None,
             },
             ChunkSummary {
-                partition_key: Arc::new("p1".to_string()),
-                table_name: Arc::new("table1".to_string()),
+                partition_key: Arc::from("p1"),
+                table_name: Arc::from("table1"),
                 id: 0,
                 storage: ChunkStorage::OpenMutableBuffer,
                 estimated_bytes: 23454,

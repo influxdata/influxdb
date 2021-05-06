@@ -41,10 +41,10 @@ impl ChunkStorage {
 /// A chunk can contain one or more tables.
 pub struct ChunkSummary {
     /// The partition key of this chunk
-    pub partition_key: Arc<String>,
+    pub partition_key: Arc<str>,
 
     /// The table of this chunk
-    pub table_name: Arc<String>,
+    pub table_name: Arc<str>,
 
     /// The id of this chunk
     pub id: u32,
@@ -75,8 +75,8 @@ pub struct ChunkSummary {
 impl ChunkSummary {
     /// Construct a ChunkSummary that has None for all timestamps
     pub fn new_without_timestamps(
-        partition_key: Arc<String>,
-        table_name: Arc<String>,
+        partition_key: Arc<str>,
+        table_name: Arc<str>,
         id: u32,
         storage: ChunkStorage,
         estimated_bytes: usize,

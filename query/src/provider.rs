@@ -50,7 +50,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// consistent.
 #[derive(Debug)]
 pub struct ProviderBuilder<C: PartitionChunk + 'static> {
-    table_name: Arc<String>,
+    table_name: Arc<str>,
     schema_merger: SchemaMerger,
     chunk_and_infos: Vec<ChunkInfo<C>>,
 }
@@ -84,9 +84,9 @@ where
 }
 
 impl<C: PartitionChunk> ProviderBuilder<C> {
-    pub fn new(table_name: impl Into<String>) -> Self {
+    pub fn new(table_name: impl AsRef<str>) -> Self {
         Self {
-            table_name: Arc::new(table_name.into()),
+            table_name: Arc::from(table_name.as_ref()),
             schema_merger: SchemaMerger::new(),
             chunk_and_infos: Vec::new(),
         }
@@ -157,7 +157,7 @@ impl<C: PartitionChunk> ProviderBuilder<C> {
 /// push predicates and selections down to chunks
 #[derive(Debug)]
 pub struct ChunkTableProvider<C: PartitionChunk + 'static> {
-    table_name: Arc<String>,
+    table_name: Arc<str>,
     /// The IOx schema (wrapper around Arrow Schemaref) for this table
     iox_schema: Schema,
     // The chunks and their corresponding schema

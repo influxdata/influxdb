@@ -26,7 +26,7 @@ pub fn dump_field_indexes(f: FieldIndexes) -> Vec<String> {
 }
 
 /// Format a the vec of Arc strings paris into strings
-pub fn dump_arc_vec(v: Vec<(Arc<String>, Arc<String>)>) -> Vec<String> {
+pub fn dump_arc_vec(v: Vec<(Arc<str>, Arc<str>)>) -> Vec<String> {
     v.into_iter()
         .map(|(k, v)| format!("  ({}, {})", k, v))
         .collect()

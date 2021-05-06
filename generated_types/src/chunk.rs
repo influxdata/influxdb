@@ -25,18 +25,8 @@ impl From<ChunkSummary> for management::Chunk {
         let estimated_bytes = estimated_bytes as u64;
         let row_count = row_count as u64;
 
-        let partition_key = match Arc::try_unwrap(partition_key) {
-            // no one else has a reference so take the string
-            Ok(partition_key) => partition_key,
-            // some other reference exists to this string, so clone it
-            Err(partition_key) => partition_key.as_ref().clone(),
-        };
-        let table_name = match Arc::try_unwrap(table_name) {
-            // no one else has a reference so take the string
-            Ok(table_name) => table_name,
-            // some other reference exists to this string, so clone it
-            Err(table_name) => table_name.as_ref().clone(),
-        };
+        let partition_key = partition_key.to_string();
+        let table_name = table_name.to_string();
 
         let time_of_first_write = time_of_first_write.map(|t| t.into());
         let time_of_last_write = time_of_last_write.map(|t| t.into());
@@ -114,8 +104,8 @@ impl TryFrom<management::Chunk> for ChunkSummary {
 
         let estimated_bytes = estimated_bytes as usize;
         let row_count = row_count as usize;
-        let partition_key = Arc::new(partition_key);
-        let table_name = Arc::new(table_name);
+        let partition_key = Arc::from(partition_key.as_str());
+        let table_name = Arc::from(table_name.as_str());
 
         Ok(Self {
             partition_key,
@@ -168,8 +158,8 @@ mod test {
 
         let summary = ChunkSummary::try_from(proto).expect("conversion successful");
         let expected = ChunkSummary {
-            partition_key: Arc::new("foo".to_string()),
-            table_name: Arc::new("bar".to_string()),
+            partition_key: Arc::from("foo"),
+            table_name: Arc::from("bar"),
             id: 42,
             estimated_bytes: 1234,
             row_count: 321,
@@ -189,8 +179,8 @@ mod test {
     #[test]
     fn valid_summary_to_proto() {
         let summary = ChunkSummary {
-            partition_key: Arc::new("foo".to_string()),
-            table_name: Arc::new("bar".to_string()),
+            partition_key: Arc::from("foo"),
+            table_name: Arc::from("bar"),
             id: 42,
             estimated_bytes: 1234,
             row_count: 321,

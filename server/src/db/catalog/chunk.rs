@@ -81,10 +81,10 @@ impl ChunkState {
 #[derive(Debug)]
 pub struct Chunk {
     /// What partition does the chunk belong to?
-    partition_key: Arc<String>,
+    partition_key: Arc<str>,
 
     /// What table does the chunk belong to?
-    table_name: Arc<String>,
+    table_name: Arc<str>,
 
     /// The ID of the chunk
     id: u32,
@@ -109,8 +109,8 @@ pub struct Chunk {
 macro_rules! unexpected_state {
     ($SELF: expr, $OP: expr, $EXPECTED: expr, $STATE: expr) => {
         InternalChunkState {
-            partition_key: $SELF.partition_key.as_str(),
-            table_name: $SELF.table_name.as_str(),
+            partition_key: $SELF.partition_key.as_ref(),
+            table_name: $SELF.table_name.as_ref(),
             chunk_id: $SELF.id,
             operation: $OP,
             expected: $EXPECTED,
@@ -131,26 +131,25 @@ impl Chunk {
     /// 4. a write is recorded (see [`record_write`](Self::record_write))
     pub(crate) fn new_open(
         batch: TableBatch<'_>,
-        partition_key: impl Into<String>,
+        partition_key: impl AsRef<str>,
         id: u32,
         clock_value: ClockValue,
         server_id: ServerId,
         memory_registry: &MemRegistry,
     ) -> Result<Self> {
-        let table_name = batch.name().to_string();
-        let partition_key: String = partition_key.into();
+        let table_name = Arc::from(batch.name());
 
         let mut mb = mutable_buffer::chunk::Chunk::new(id, memory_registry);
         mb.write_table_batches(clock_value, server_id, &[batch])
             .context(OpenChunk {
-                partition_key: partition_key.clone(),
+                partition_key: partition_key.as_ref(),
                 chunk_id: id,
             })?;
 
         let state = ChunkState::Open(mb);
         let mut chunk = Self {
-            partition_key: Arc::new(partition_key),
-            table_name: Arc::new(table_name),
+            partition_key: Arc::from(partition_key.as_ref()),
+            table_name,
             id,
             state,
             time_of_first_write: None,

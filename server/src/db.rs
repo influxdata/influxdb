@@ -2261,16 +2261,12 @@ mod tests {
 
         print!("Partitions: {:?}", db.partition_keys().unwrap());
 
-        fn to_arc(s: &str) -> Arc<String> {
-            Arc::new(s.to_string())
-        }
-
         let chunk_summaries = db.partition_chunk_summaries("1970-01-05T15");
         let chunk_summaries = normalize_summaries(chunk_summaries);
 
         let expected = vec![ChunkSummary::new_without_timestamps(
-            to_arc("1970-01-05T15"),
-            to_arc("cpu"),
+            Arc::from("1970-01-05T15"),
+            Arc::from("cpu"),
             0,
             ChunkStorage::OpenMutableBuffer,
             106,
@@ -2370,41 +2366,37 @@ mod tests {
         db.rollover_partition("1970-01-05T15", "cpu").await.unwrap();
         write_lp(&db, "cpu bar=1,baz=3,blargh=3 400000000000000");
 
-        fn to_arc(s: &str) -> Arc<String> {
-            Arc::new(s.to_string())
-        }
-
         let chunk_summaries = db.chunk_summaries().expect("expected summary to return");
         let chunk_summaries = normalize_summaries(chunk_summaries);
 
         let expected = vec![
             ChunkSummary::new_without_timestamps(
-                to_arc("1970-01-01T00"),
-                to_arc("cpu"),
+                Arc::from("1970-01-01T00"),
+                Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
                 1904, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
-                to_arc("1970-01-01T00"),
-                to_arc("cpu"),
+                Arc::from("1970-01-01T00"),
+                Arc::from("cpu"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
                 100,
                 1,
             ),
             ChunkSummary::new_without_timestamps(
-                to_arc("1970-01-05T15"),
-                to_arc("cpu"),
+                Arc::from("1970-01-05T15"),
+                Arc::from("cpu"),
                 0,
                 ChunkStorage::ClosedMutableBuffer,
                 129,
                 1,
             ),
             ChunkSummary::new_without_timestamps(
-                to_arc("1970-01-05T15"),
-                to_arc("cpu"),
+                Arc::from("1970-01-05T15"),
+                Arc::from("cpu"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
                 131,
