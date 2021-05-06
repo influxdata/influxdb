@@ -27,7 +27,8 @@ influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 internal_types = { path = "../internal_types" }
 metrics = { path = "../metrics" }
 parking_lot = "0.11.1"
-snafu = "0.6.2"
+regex = "1"
+snafu = "0.4.3"
 sqlparser = "0.8.0"
 tokio = { version = "1.0", features = ["macros"] }
 tokio-stream = "0.1.2"
