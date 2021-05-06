@@ -20,6 +20,18 @@ const (
 	prefixNotebooks = "/api/v2/notebooks"
 )
 
+var (
+	errNoOrg = &errors.Error{
+		Code: errors.EInvalid,
+		Msg:  "could not find an org",
+	}
+
+	errBadId = &errors.Error{
+		Code: errors.EInvalid,
+		Msg:  "notebook id is invalid",
+	}
+)
+
 // NotebookHandler is the handler for the notebook service
 type NotebookHandler struct {
 	chi.Router
@@ -85,7 +97,7 @@ func (h *NotebookHandler) handleGetNotebooks(w http.ResponseWriter, r *http.Requ
 	// Demo data - respond with a list of notebooks for the requesting org
 	orgID, err := orgIDFromReq(r)
 	if err != nil {
-		h.api.Err(w, r, err)
+		h.api.Err(w, r, errNoOrg)
 		return
 	}
 	d := map[string][]notebooks.Notebook{}
@@ -112,7 +124,7 @@ func (h *NotebookHandler) handleCreateNotebook(w http.ResponseWriter, r *http.Re
 func (h *NotebookHandler) handleGetNotebook(w http.ResponseWriter, r *http.Request) {
 	orgID, err := orgIDFromReq(r)
 	if err != nil {
-		h.api.Err(w, r, err)
+		h.api.Err(w, r, errNoOrg)
 		return
 	}
 
@@ -132,7 +144,7 @@ func (h *NotebookHandler) handleGetNotebook(w http.ResponseWriter, r *http.Reque
 func (h *NotebookHandler) handleUpdateNotebook(w http.ResponseWriter, r *http.Request) {
 	id, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
-		h.api.Err(w, r, err)
+		h.api.Err(w, r, errBadId)
 		return
 	}
 
@@ -153,7 +165,7 @@ func (h *NotebookHandler) handleUpdateNotebook(w http.ResponseWriter, r *http.Re
 func (h *NotebookHandler) handleDeleteNotebook(w http.ResponseWriter, r *http.Request) {
 	// for now, just respond with 200 unless there is a problem with the notebook ID
 	if _, err := platform.IDFromString(chi.URLParam(r, "id")); err != nil {
-		h.api.Err(w, r, err)
+		h.api.Err(w, r, errBadId)
 		return
 	}
 
