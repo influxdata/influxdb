@@ -886,53 +886,35 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	return nil
 }
 
-func (e *Engine) IsIdle(isLogged bool) bool {
-	return e.loggedIsIdle(isLogged)
-}
-
-const logMsg = "IsIdle false because nonzero"
-
-// loggedIsIdle returns true if the cache is empty, there are no running compactions and the
-// shard is fully compacted.  If trace logging is enabled, it logs the reasons why an engine
-// is busy
-func (e *Engine) loggedIsIdle(isLogged bool) bool {
-	const cacheCompactions = "Cache Compactions: "
-	const levelZeroCompactions = "Level Zero Compactions: "
-	const levelOneCompactions = "Level One Compactions: "
-	const levelTwoCompactions = "Level Two Compactions: "
-	const fullCompactions = "Full Compactions: "
-	const optimizeCompactions = "TSM Optimization Compactions: "
-	var log *zap.Logger
-
-	if isLogged {
-		log = e.traceLogger.With(zap.Uint64("ShardId", e.id), zap.String("path", e.path))
+// IsIdle returns true if the cache is empty, there are no running compactions and the
+// shard is fully compacted.
+func (e *Engine) IsIdle() (state bool, reason string) {
+	c := []struct {
+		ActiveCompactions *int64
+		LogMessage        string
+	}{
+		{&e.stats.CacheCompactionsActive, "not idle because of active Cache compactions"},
+		{&e.stats.TSMCompactionsActive[0], "not idle because of active Level Zero compactions"},
+		{&e.stats.TSMCompactionsActive[1], "not idle because of active Level One compactions"},
+		{&e.stats.TSMCompactionsActive[2], "not idle because of active Level Two compactions"},
+		{&e.stats.TSMFullCompactionsActive, "not idle because of active Full compactions"},
+		{&e.stats.TSMOptimizeCompactionsActive, "not idle because of active TSM Optimization compactions"},
 	}
 
-	cacheEmpty := e.Cache.Size() == 0
-	if !cacheEmpty && log != nil {
-		log.Info(logMsg, zap.Uint64("Cache size", e.Cache.Size()))
+	for _, compactionState := range c {
+		count := atomic.LoadInt64(compactionState.ActiveCompactions)
+		if count > 0 {
+			return false, compactionState.LogMessage
+		}
 	}
 
-	runningCompactions := logCheckForCompactions(log, &e.stats.CacheCompactionsActive, cacheCompactions)
-	runningCompactions += logCheckForCompactions(log, &e.stats.TSMCompactionsActive[0], levelZeroCompactions)
-	runningCompactions += logCheckForCompactions(log, &e.stats.TSMCompactionsActive[1], levelOneCompactions)
-	runningCompactions += logCheckForCompactions(log, &e.stats.TSMCompactionsActive[2], levelTwoCompactions)
-	runningCompactions += logCheckForCompactions(log, &e.stats.TSMFullCompactionsActive, fullCompactions)
-	runningCompactions += logCheckForCompactions(log, &e.stats.TSMOptimizeCompactionsActive, optimizeCompactions)
-	fullyCompacted := e.CompactionPlan.FullyCompacted()
-	if !fullyCompacted && log != nil {
-		log.Info("IsIdle false because", zap.Bool("FullyCompacted", fullyCompacted))
+	if cacheSize := e.Cache.Size(); cacheSize > 0 {
+		return false, "not idle because cache size is nonzero"
+	} else if !e.CompactionPlan.FullyCompacted() {
+		return false, "not idle because shard is not fully compacted"
+	} else {
+		return true, ""
 	}
-
-	return cacheEmpty && runningCompactions == 0 && fullyCompacted
-}
-
-func logCheckForCompactions(log *zap.Logger, counter *int64, fieldName string) int64 {
-	count := atomic.LoadInt64(counter)
-	if count > 0 && log != nil {
-		log.Info(logMsg, zap.Int64(fieldName, count))
-	}
-	return count
 }
 
 // Free releases any resources held by the engine to free up memory or CPU.
