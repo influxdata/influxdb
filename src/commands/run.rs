@@ -361,6 +361,17 @@ Possible values (case insensitive):
     )]
     pub aws_default_region: String,
 
+    /// When using Amazon s3 compatibility storage service, set this to the
+    /// endpoint.
+    ///
+    /// Must also set `--object-store=s3`, `--bucket`. Can also set `--aws-default-region`
+    /// if not using the fallback region.
+    ///
+    /// Prefer the environment variable over the command line flag in shared
+    /// environments.
+    #[structopt(long = "--aws-endpoint", env = "AWS_ENDPOINT")]
+    pub aws_endpoint: Option<String>,
+
     /// When using Google Cloud Storage as the object store, set this to the
     /// path to the JSON file that contains the Google credentials.
     ///
