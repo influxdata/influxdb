@@ -17,7 +17,7 @@ use data_types::{
 };
 use datafusion_util::MemoryStream;
 use futures::TryStreamExt;
-use internal_types::schema::{builder::SchemaBuilder, Schema};
+use internal_types::schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME};
 use object_store::{memory::InMemory, ObjectStore, ObjectStoreApi};
 use tracker::MemRegistry;
 
@@ -41,14 +41,14 @@ pub async fn load_parquet_from_store(chunk: &Chunk, store: Arc<ObjectStore>) -> 
 /// Create a test chunk by writing data to object store.
 ///
 /// See [`make_record_batch`] for the data content.
-pub async fn make_chunk(store: Arc<ObjectStore>) -> Chunk {
-    let (record_batches, schema, column_summaries, time_range) = make_record_batch();
+pub async fn make_chunk(store: Arc<ObjectStore>, column_prefix: &str) -> Chunk {
+    let (record_batches, schema, column_summaries, time_range) = make_record_batch(column_prefix);
     make_chunk_common(store, record_batches, schema, column_summaries, time_range).await
 }
 
 /// Same as [`make_chunk`] but parquet file does not contain any row group.
-pub async fn make_chunk_no_row_group(store: Arc<ObjectStore>) -> Chunk {
-    let (_, schema, column_summaries, time_range) = make_record_batch();
+pub async fn make_chunk_no_row_group(store: Arc<ObjectStore>, column_prefix: &str) -> Chunk {
+    let (_, schema, column_summaries, time_range) = make_record_batch(column_prefix);
     make_chunk_common(store, vec![], schema, column_summaries, time_range).await
 }
 
@@ -278,7 +278,6 @@ where
 }
 
 fn create_column_timestamp(
-    name: &str,
     data: Vec<Vec<i64>>,
     arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
     schema_builder: SchemaBuilder,
@@ -288,7 +287,7 @@ fn create_column_timestamp(
     for (arrow_cols_sub, data_sub) in arrow_cols.iter_mut().zip(data.iter()) {
         let array: Arc<dyn Array> =
             Arc::new(TimestampNanosecondArray::from_vec(data_sub.clone(), None));
-        arrow_cols_sub.push((name.to_string(), Arc::clone(&array), true));
+        arrow_cols_sub.push((TIME_COLUMN_NAME.to_string(), Arc::clone(&array), true));
     }
 
     let timestamp_range = TimestampRange::new(
@@ -302,10 +301,14 @@ fn create_column_timestamp(
 
 /// Creates an Arrow RecordBatches with schema and IOx statistics.
 ///
+/// Generated columns are prefixes using `column_prefix`.
+///
 /// RecordBatches, schema and IOx statistics will be generated in separate ways to emulate what the normal data
 /// ingestion would do. This also ensures that the Parquet data that will later be created out of the RecordBatch is
 /// indeed self-contained and can act as a source to recorder schema and statistics.
-fn make_record_batch() -> (Vec<RecordBatch>, Schema, Vec<ColumnSummary>, TimestampRange) {
+fn make_record_batch(
+    column_prefix: &str,
+) -> (Vec<RecordBatch>, Schema, Vec<ColumnSummary>, TimestampRange) {
     // (name, array, nullable)
     let mut arrow_cols: Vec<Vec<(String, ArrayRef, bool)>> = vec![vec![], vec![], vec![]];
     let mut summaries = vec![];
@@ -313,14 +316,14 @@ fn make_record_batch() -> (Vec<RecordBatch>, Schema, Vec<ColumnSummary>, Timesta
 
     // tag
     schema_builder = create_column_tag(
-        "tag_nonempty",
+        &format!("{}_tag_nonempty", column_prefix),
         vec![vec!["foo"], vec!["bar"], vec!["baz", "foo"]],
         &mut arrow_cols,
         &mut summaries,
         schema_builder,
     );
     schema_builder = create_column_tag(
-        "tag_empty",
+        &format!("{}_tag_empty", column_prefix),
         vec![vec![""], vec![""], vec!["", ""]],
         &mut arrow_cols,
         &mut summaries,
@@ -329,14 +332,14 @@ fn make_record_batch() -> (Vec<RecordBatch>, Schema, Vec<ColumnSummary>, Timesta
 
     // field: string
     schema_builder = create_column_field_string(
-        "field_string_nonempty",
+        &format!("{}_field_string_nonempty", column_prefix),
         vec![vec!["foo"], vec!["bar"], vec!["baz", "foo"]],
         &mut arrow_cols,
         &mut summaries,
         schema_builder,
     );
     schema_builder = create_column_field_string(
-        "field_string_empty",
+        &format!("{}_field_string_empty", column_prefix),
         vec![vec![""], vec![""], vec!["", ""]],
         &mut arrow_cols,
         &mut summaries,
@@ -345,14 +348,14 @@ fn make_record_batch() -> (Vec<RecordBatch>, Schema, Vec<ColumnSummary>, Timesta
 
     // field: i64
     schema_builder = create_column_field_i64(
-        "field_i64_normal",
+        &format!("{}_field_i64_normal", column_prefix),
         vec![vec![-1], vec![2], vec![3, 4]],
         &mut arrow_cols,
         &mut summaries,
         schema_builder,
     );
     schema_builder = create_column_field_i64(
-        "field_i64_range",
+        &format!("{}_field_i64_range", column_prefix),
         vec![vec![i64::MIN], vec![i64::MAX], vec![i64::MIN, i64::MAX]],
         &mut arrow_cols,
         &mut summaries,
@@ -361,7 +364,7 @@ fn make_record_batch() -> (Vec<RecordBatch>, Schema, Vec<ColumnSummary>, Timesta
 
     // field: u64
     schema_builder = create_column_field_u64(
-        "field_u64_normal",
+        &format!("{}_field_u64_normal", column_prefix),
         vec![vec![1u64], vec![2], vec![3, 4]],
         &mut arrow_cols,
         &mut summaries,
@@ -378,21 +381,21 @@ fn make_record_batch() -> (Vec<RecordBatch>, Schema, Vec<ColumnSummary>, Timesta
 
     // field: f64
     schema_builder = create_column_field_f64(
-        "field_f64_normal",
+        &format!("{}_field_f64_normal", column_prefix),
         vec![vec![10.1], vec![20.1], vec![30.1, 40.1]],
         &mut arrow_cols,
         &mut summaries,
         schema_builder,
     );
     schema_builder = create_column_field_f64(
-        "field_f64_inf",
+        &format!("{}_field_f64_inf", column_prefix),
         vec![vec![0.0], vec![f64::INFINITY], vec![f64::NEG_INFINITY, 1.0]],
         &mut arrow_cols,
         &mut summaries,
         schema_builder,
     );
     schema_builder = create_column_field_f64(
-        "field_f64_zero",
+        &format!("{}_field_f64_zero", column_prefix),
         vec![vec![0.0], vec![-0.0], vec![0.0, -0.0]],
         &mut arrow_cols,
         &mut summaries,
@@ -414,7 +417,7 @@ fn make_record_batch() -> (Vec<RecordBatch>, Schema, Vec<ColumnSummary>, Timesta
 
     // field: bool
     schema_builder = create_column_field_bool(
-        "field_bool",
+        &format!("{}_field_bool", column_prefix),
         vec![vec![true], vec![false], vec![true, false]],
         &mut arrow_cols,
         &mut summaries,
@@ -423,7 +426,6 @@ fn make_record_batch() -> (Vec<RecordBatch>, Schema, Vec<ColumnSummary>, Timesta
 
     // time
     let (schema_builder, timestamp_range) = create_column_timestamp(
-        "time",
         vec![vec![1000], vec![2000], vec![3000, 4000]],
         &mut arrow_cols,
         schema_builder,
