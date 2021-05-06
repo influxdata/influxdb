@@ -114,6 +114,20 @@ func MosaicGraphType() BoolFlag {
 	return mosaicGraphType
 }
 
+var gaugeMini = MakeBoolFlag(
+	"Gauge Mini Graph Type",
+	"gaugeMini",
+	"Bonitoo-io",
+	false,
+	Temporary,
+	true,
+)
+
+// GaugeMiniGraphType - Enables the creation of a Gauge Mini graph in Dashboards
+func GaugeMiniGraphType() BoolFlag {
+	return gaugeMini
+}
+
 var notebooks = MakeBoolFlag(
 	"Notebooks",
 	"notebooks",
@@ -291,6 +305,7 @@ var all = []Flag{
 	queryTracing,
 	bandPlotType,
 	mosaicGraphType,
+	gaugeMini,
 	notebooks,
 	injectLatestSuccessTime,
 	enforceOrgDashboardLimits,
@@ -314,6 +329,7 @@ var byKey = map[string]Flag{
 	"queryTracing":                  queryTracing,
 	"bandPlotType":                  bandPlotType,
 	"mosaicGraphType":               mosaicGraphType,
+	"gaugeMini":                     gaugeMini,
 	"notebooks":                     notebooks,
 	"injectLatestSuccessTime":       injectLatestSuccessTime,
 	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,

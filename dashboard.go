@@ -375,6 +375,7 @@ type ViewContents struct {
 const (
 	ViewPropertyTypeCheck              = "check"
 	ViewPropertyTypeGauge              = "gauge"
+	ViewPropertyTypeGaugeMini          = "gauge-mini"
 	ViewPropertyTypeHeatMap            = "heatmap"
 	ViewPropertyTypeHistogram          = "histogram"
 	ViewPropertyTypeLogViewer          = "log-viewer"
@@ -460,6 +461,12 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 				return nil, err
 			}
 			vis = gvw
+		case ViewPropertyTypeGaugeMini:
+			var gvm GaugeMiniViewProperties
+			if err := json.Unmarshal(v.B, &gvm); err != nil {
+				return nil, err
+			}
+			vis = gvm
 		case ViewPropertyTypeTable:
 			var tv TableViewProperties
 			if err := json.Unmarshal(v.B, &tv); err != nil {
@@ -566,6 +573,15 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 		}{
 			Shape:             "chronograf-v2",
 			GeoViewProperties: vis,
+		}
+	case GaugeMiniViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			GaugeMiniViewProperties
+		}{
+			Shape: "chronograf-v2",
+
+			GaugeMiniViewProperties: vis,
 		}
 	case XYViewProperties:
 		s = struct {
@@ -1014,6 +1030,53 @@ type GeoViewProperties struct {
 	ShowNoteWhenEmpty      bool             `json:"showNoteWhenEmpty"`
 }
 
+type FormatStatValueOptions struct {
+	DecimalPlaces DecimalPlaces `json:"decimalPlaces"`
+	Prefix        string        `json:"prefix"`
+	Suffix        string        `json:"suffix"`
+}
+
+// GaugeMiniViewProperties represents options for gauge view in Chronograf
+type GaugeMiniViewProperties struct {
+	Type              string           `json:"type"`
+	Queries           []DashboardQuery `json:"queries"`
+	ViewColors        []ViewColor      `json:"colors"`
+	Note              string           `json:"note"`
+	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
+
+	Mode            string                   `json:"mode"`
+	TextMode        string                   `json:"textMode"`
+
+	ValueHeight     float64 `json:"valueHeight"`
+	GaugeHeight     float64 `json:"gaugeHeight"`
+	ValueRounding   float64 `json:"valueRounding"`
+	GaugeRounding   float64 `json:"gaugeRounding"`
+	BarPaddings     float64 `json:"barPaddings"`
+	SidePaddings    float64 `json:"sidePaddings"`
+	OveflowFraction float64 `json:"oveflowFraction"`
+
+	ColorSecondary string `json:"colorSecondary"`
+
+	LabelMain          string  `json:"labelMain"`
+	LabelMainFontSize  float64 `json:"labelMainFontSize"`
+	LabelMainFontColor string  `json:"labelMainFontColor"`
+
+	LabelBarsEnabled   bool    `json:"labelBarsEnabled"`
+	LabelBarsFontSize  float64 `json:"labelBarsFontSize"`
+	LabelBarsFontColor string  `json:"labelBarsFontColor"`
+
+	ValuePadding          float64                `json:"valuePadding"`
+	ValueFontSize         float64                `json:"valueFontSize"`
+	ValueFontColorInside  string                 `json:"valueFontColorInside"`
+	ValueFontColorOutside string                 `json:"valueFontColorOutside"`
+	ValueFormater         FormatStatValueOptions `json:"valueFormater"`
+
+	AxesSteps     json.RawMessage        `json:"axesSteps"`
+	AxesFontSize  float64                `json:"axesFontSize"`
+	AxesFontColor string                 `json:"axesFontColor"`
+	AxesFormater  FormatStatValueOptions `json:"axesFormater"`
+}
+
 // TableViewProperties represents options for table view in Chronograf
 type TableViewProperties struct {
 	Type              string           `json:"type"`
@@ -1062,6 +1125,7 @@ func (ScatterViewProperties) viewProperties()        {}
 func (MosaicViewProperties) viewProperties()         {}
 func (GaugeViewProperties) viewProperties()          {}
 func (GeoViewProperties) viewProperties()            {}
+func (GaugeMiniViewProperties) viewProperties()      {}
 func (TableViewProperties) viewProperties()          {}
 func (MarkdownViewProperties) viewProperties()       {}
 func (LogViewProperties) viewProperties()            {}
@@ -1077,6 +1141,7 @@ func (v ScatterViewProperties) GetType() string        { return v.Type }
 func (v MosaicViewProperties) GetType() string         { return v.Type }
 func (v GaugeViewProperties) GetType() string          { return v.Type }
 func (v GeoViewProperties) GetType() string            { return v.Type }
+func (v GaugeMiniViewProperties) GetType() string      { return v.Type }
 func (v TableViewProperties) GetType() string          { return v.Type }
 func (v MarkdownViewProperties) GetType() string       { return v.Type }
 func (v LogViewProperties) GetType() string            { return v.Type }
