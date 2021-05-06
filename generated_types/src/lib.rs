@@ -81,11 +81,6 @@ pub mod grpc {
     }
 }
 
-/// Generated Flatbuffers code for replicating and writing data between IOx
-/// servers
-pub mod entry_generated;
-pub use entry_generated::influxdata::iox::write::v_1 as entry;
-
 /// gRPC Storage Service
 pub const STORAGE_SERVICE: &str = "influxdata.platform.storage.Storage";
 /// gRPC Testing Service

@@ -1,8 +1,8 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use data_types::{database_rules::ShardConfig, server_id::ServerId};
-use internal_types::entry::test_helpers::partitioner;
-use internal_types::entry::{
-    lines_to_sharded_entries, ClockValue, OwnedSequencedEntry, SequencedEntry,
+use entry::{
+    lines_to_sharded_entries, test_helpers::partitioner, ClockValue, OwnedSequencedEntry,
+    SequencedEntry,
 };
 use std::convert::TryFrom;
 

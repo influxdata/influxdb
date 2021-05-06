@@ -24,11 +24,8 @@ use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     physical_plan::SendableRecordBatchStream,
 };
-use internal_types::{
-    arrow::sort::sort_record_batch,
-    entry::{self, ClockValue, ClockValueError, Entry, OwnedSequencedEntry, SequencedEntry},
-    selection::Selection,
-};
+use entry::{ClockValue, ClockValueError, Entry, OwnedSequencedEntry, SequencedEntry};
+use internal_types::{arrow::sort::sort_record_batch, selection::Selection};
 use lifecycle::LifecycleManager;
 use metrics::MetricRegistry;
 use object_store::ObjectStore;
@@ -1272,7 +1269,7 @@ impl CatalogProvider for Db {
 
 pub mod test_helpers {
     use super::*;
-    use internal_types::entry::test_helpers::lp_to_entries;
+    use entry::test_helpers::lp_to_entries;
     use std::collections::HashSet;
 
     /// Try to write lineprotocol data and return all tables that where written.
@@ -1322,8 +1319,8 @@ mod tests {
         partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
     };
     use datafusion::execution::context;
+    use entry::test_helpers::lp_to_entry;
     use futures::{stream, StreamExt, TryStreamExt};
-    use internal_types::entry::test_helpers::lp_to_entry;
     use object_store::{disk::File, path::Path, ObjectStore, ObjectStoreApi};
     use query::{frontend::sql::SqlQueryPlanner, PartitionChunk};
     use std::{convert::TryFrom, iter::Iterator, num::NonZeroUsize, str};

@@ -7,7 +7,6 @@
 )]
 
 pub mod arrow;
-pub mod entry;
 pub mod once;
 pub mod schema;
 pub mod selection;

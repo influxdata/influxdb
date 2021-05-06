@@ -9,7 +9,7 @@ use super::{
 use chrono::{DateTime, Utc};
 use data_types::partition_metadata::PartitionSummary;
 use data_types::{chunk::ChunkSummary, server_id::ServerId};
-use internal_types::entry::{ClockValue, TableBatch};
+use entry::{ClockValue, TableBatch};
 use parking_lot::RwLock;
 use query::predicate::Predicate;
 use snafu::OptionExt;

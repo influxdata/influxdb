@@ -189,7 +189,7 @@ jobs:
       - rust_components # Regenerating flatbuffers uses rustfmt
       - run:
           name: Check Flatbuffers
-          command: INFLUXDB_IOX_INTEGRATION_LOCAL=1 ./generated_types/check-flatbuffers.sh
+          command: INFLUXDB_IOX_INTEGRATION_LOCAL=1 ./entry/check-flatbuffers.sh
 
   # Compile a cargo "release" profile binary for branches that end in `/perf`
   #

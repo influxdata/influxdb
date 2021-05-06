@@ -1,0 +1,24 @@
+[package]
+name = "entry"
+version = "0.1.0"
+authors = ["Paul Dix <paul@pauldix.net>"]
+edition = "2018"
+description = "The entry format used by the write buffer"
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+data_types = { path = "../data_types" }
+# See docs/regenerating_flatbuffers.md about updating generated code when updating the
+# version of the flatbuffers crate
+flatbuffers = "0.8"
+snafu = "0.6"
+influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+ouroboros = "0.8.3"
+internal_types = { path = "../internal_types" }
+
+[dev-dependencies] # In alphabetical order
+criterion = "0.3"
+
+[[bench]]
+name = "benchmark"
+harness = false

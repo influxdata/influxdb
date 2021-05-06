@@ -6,7 +6,7 @@ use data_types::{
     partition_metadata::TableSummary,
     server_id::ServerId,
 };
-use internal_types::entry::{ClockValue, TableBatch};
+use entry::{ClockValue, TableBatch};
 use mutable_buffer::chunk::Chunk as MBChunk;
 use parquet_file::chunk::Chunk as ParquetChunk;
 use read_buffer::Chunk as ReadBufferChunk;

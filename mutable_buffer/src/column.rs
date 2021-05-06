@@ -2,7 +2,7 @@ use snafu::{ensure, Snafu};
 
 use crate::dictionary::{Dictionary, DID};
 use data_types::partition_metadata::{StatValues, Statistics};
-use internal_types::entry::Column as EntryColumn;
+use entry::Column as EntryColumn;
 
 use crate::bitset::{iter_set_positions, BitSet};
 use arrow::{

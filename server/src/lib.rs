@@ -83,11 +83,9 @@ use data_types::{
     server_id::ServerId,
     {DatabaseName, DatabaseNameError},
 };
+use entry::{lines_to_sharded_entries, Entry, OwnedSequencedEntry, ShardedEntry};
 use influxdb_line_protocol::ParsedLine;
-use internal_types::{
-    entry::{self, lines_to_sharded_entries, Entry, ShardedEntry},
-    once::OnceNonZeroU32,
-};
+use internal_types::once::OnceNonZeroU32;
 use metrics::{KeyValue, MetricRegistry};
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, DatabaseStore};
@@ -103,7 +101,6 @@ use crate::{
 };
 use data_types::database_rules::{NodeGroup, ShardId};
 use influxdb_iox_client::{connection::Builder, write};
-use internal_types::entry::OwnedSequencedEntry;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
 

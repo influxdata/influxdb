@@ -365,7 +365,7 @@ fn can_move(rules: &LifecycleRules, chunk: &Chunk, now: DateTime<Utc>) -> bool {
 mod tests {
     use super::*;
     use data_types::server_id::ServerId;
-    use internal_types::entry::{test_helpers::lp_to_entry, ClockValue};
+    use entry::{test_helpers::lp_to_entry, ClockValue};
     use std::{
         convert::TryFrom,
         num::{NonZeroU32, NonZeroUsize},

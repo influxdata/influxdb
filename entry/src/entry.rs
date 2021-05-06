@@ -1,14 +1,7 @@
 //! This module contains helper code for building `Entry` and `SequencedEntry`
 //! from line protocol and the `DatabaseRules` configuration.
 
-use crate::schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
-use data_types::{
-    database_rules::{Error as DataError, Partitioner, ShardId, Sharder},
-    server_id::ServerId,
-};
-use generated_types::entry as entry_fb;
-use influxdb_line_protocol::{FieldValue, ParsedLine};
-
+use std::sync::Arc;
 use std::{
     collections::BTreeMap,
     convert::{TryFrom, TryInto},
@@ -20,7 +13,15 @@ use chrono::{DateTime, Utc};
 use flatbuffers::{FlatBufferBuilder, Follow, ForwardsUOffset, Vector, VectorIter, WIPOffset};
 use ouroboros::self_referencing;
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::sync::Arc;
+
+use data_types::{
+    database_rules::{Error as DataError, Partitioner, ShardId, Sharder},
+    server_id::ServerId,
+};
+use influxdb_line_protocol::{FieldValue, ParsedLine};
+use internal_types::schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
+
+use crate::entry_fb;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -1512,9 +1513,11 @@ impl TryFrom<Vec<u8>> for Segment {
 }
 
 pub mod test_helpers {
-    use super::*;
     use chrono::TimeZone;
+
     use influxdb_line_protocol::parse_lines;
+
+    use super::*;
 
     // An appropriate maximum size for batches of LP to be written into IOx. Using
     // test fixtures containing more than this many lines of LP will result in them
@@ -1649,10 +1652,11 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
-    use super::test_helpers::*;
-    use super::*;
     use data_types::database_rules::NO_SHARD_CONFIG;
     use influxdb_line_protocol::parse_lines;
+
+    use super::test_helpers::*;
+    use super::*;
 
     #[test]
     fn shards_lines() {

@@ -10,10 +10,8 @@ use snafu::{OptionExt, ResultExt, Snafu};
 
 use arrow::record_batch::RecordBatch;
 use data_types::{partition_metadata::TableSummary, server_id::ServerId};
-use internal_types::{
-    entry::{ClockValue, TableBatch},
-    selection::Selection,
-};
+use entry::{ClockValue, TableBatch};
+use internal_types::selection::Selection;
 use tracker::{MemRegistry, MemTracker};
 
 use crate::chunk::snapshot::ChunkSnapshot;
@@ -242,7 +240,7 @@ impl Chunk {
 
 pub mod test_helpers {
     use super::*;
-    use internal_types::entry::test_helpers::lp_to_entry;
+    use entry::test_helpers::lp_to_entry;
 
     /// A helper that will write line protocol string to the passed in Chunk.
     /// All data will be under a single partition with a clock value and

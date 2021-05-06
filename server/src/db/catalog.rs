@@ -271,7 +271,7 @@ impl SchemaProvider for Catalog {
 mod tests {
     use super::*;
     use data_types::server_id::ServerId;
-    use internal_types::entry::{test_helpers::lp_to_entry, ClockValue};
+    use entry::{test_helpers::lp_to_entry, ClockValue};
     use query::predicate::PredicateBuilder;
     use std::convert::TryFrom;
     use tracker::MemRegistry;

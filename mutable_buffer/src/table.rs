@@ -6,8 +6,8 @@ use crate::{
     dictionary::{Dictionary, Error as DictionaryError, DID},
 };
 use data_types::{partition_metadata::ColumnSummary, server_id::ServerId};
+use entry::{self, ClockValue};
 use internal_types::{
-    entry::{self, ClockValue},
     schema::{builder::SchemaBuilder, Schema},
     selection::Selection,
 };
@@ -335,10 +335,8 @@ impl<'a> TableColSelection<'a> {
 mod tests {
     use super::*;
     use arrow::datatypes::DataType as ArrowDataType;
-    use internal_types::{
-        entry::test_helpers::lp_to_entry,
-        schema::{InfluxColumnType, InfluxFieldType},
-    };
+    use entry::test_helpers::lp_to_entry;
+    use internal_types::schema::{InfluxColumnType, InfluxFieldType};
     use std::convert::TryFrom;
 
     #[test]
