@@ -362,6 +362,7 @@ impl DbMetrics {
             let labels = vec![metrics::KeyValue::new("state", state)];
             self.catalog_chunk_bytes
                 .sub_with_labels(size as f64, labels.as_slice());
+            debug!(?size, ?labels, "called catalog_chunk_bytes.sub_with_labels");
         }
 
         // Increase next metric for next chunk state
@@ -369,9 +370,11 @@ impl DbMetrics {
             let labels = vec![metrics::KeyValue::new("state", state)];
             self.catalog_chunk_bytes
                 .add_with_labels(size as f64, labels.as_slice());
+            debug!(size, ?labels, "called catalog_chunk_bytes.add_with_labels");
 
             // New chunk in new state
             self.catalog_chunks.inc_with_labels(labels.as_slice());
+            debug!(?labels, "called catalog_chunks.inc_with_labels");
         }
     }
 }
