@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/influxdata/influxdb/v2/context"
 	feature "github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -16,9 +17,7 @@ import (
 )
 
 const (
-	prefixNotebooks = "/api/v2private/flows"
-	errMissingParam = "url missing %s"
-	errInvalidParam = "url %s is invalid"
+	prefixNotebooks = "/api/v2/notebooks"
 )
 
 // NotebookHandler is the handler for the notebook service
@@ -43,14 +42,15 @@ func NewNotebookHandler(log *zap.Logger) *NotebookHandler {
 		h.notebookFlag, // temporary, remove when feature flag for notebooks is removed
 	)
 
-	r.Route("/orgs/{orgID}/flows", func(r chi.Router) {
+	r.Route("/", func(r chi.Router) {
 		r.Get("/", h.handleGetNotebooks)
 		r.Post("/", h.handleCreateNotebook)
 
 		r.Route("/{id}", func(r chi.Router) {
 			r.Get("/", h.handleGetNotebook)
-			r.Patch("/", h.handlePatchNotebook)
 			r.Delete("/", h.handleDeleteNotebook)
+			r.Put("/", h.handleUpdateNotebook)
+			r.Patch("/", h.handleUpdateNotebook)
 		})
 	})
 
@@ -69,7 +69,7 @@ func (h *NotebookHandler) notebookFlag(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		flags := feature.FlagsFromContext(r.Context())
 
-		if !flags["notebooks"].(bool) {
+		if !flags["notebooks"].(bool) || !flags["notebooksApi"].(bool) {
 			h.api.Respond(w, r, http.StatusNoContent, nil)
 			return
 		}
@@ -82,13 +82,12 @@ func (h *NotebookHandler) notebookFlag(next http.Handler) http.Handler {
 
 // get a list of all notebooks for an org
 func (h *NotebookHandler) handleGetNotebooks(w http.ResponseWriter, r *http.Request) {
-	orgID, err := getIDfromReq(r, "orgID")
+	// Demo data - respond with a list of notebooks for the requesting org
+	orgID, err := orgIDFromReq(r)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
-
-	// Demo data - for development purposes.
 	d := map[string][]notebooks.Notebook{}
 	d["flows"] = demoNotebooks(3, *orgID)
 
@@ -97,19 +96,12 @@ func (h *NotebookHandler) handleGetNotebooks(w http.ResponseWriter, r *http.Requ
 
 // create a single notebook
 func (h *NotebookHandler) handleCreateNotebook(w http.ResponseWriter, r *http.Request) {
-	orgID, err := getIDfromReq(r, "orgID")
-	if err != nil {
-		h.api.Err(w, r, err)
-		return
-	}
-
 	// Demo data - just return the body from the request with a generated ID
 	b := notebooks.Notebook{}
 	if err := h.api.DecodeJSON(r.Body, &b); err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
-	b.OrgID = *orgID                                                   // this isn't necessary with the demo data, but keeping it here for future
 	id, _ := platform.IDFromString(strconv.Itoa(1000000000000000 + 1)) // give it an ID from the getNotebooks list so that the UI doesn't break
 	b.ID = *id
 
@@ -118,61 +110,49 @@ func (h *NotebookHandler) handleCreateNotebook(w http.ResponseWriter, r *http.Re
 
 // get a single notebook
 func (h *NotebookHandler) handleGetNotebook(w http.ResponseWriter, r *http.Request) {
-	orgID, err := getIDfromReq(r, "orgID")
+	orgID, err := orgIDFromReq(r)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
-	notebookID, err := getIDfromReq(r, "id")
+	notebookID, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
-	// Demo data - for development purposes.
+	// Demo data - return a notebook for the request org and id
 	d := demoNotebook(*orgID, *notebookID)
 
 	h.api.Respond(w, r, http.StatusOK, d)
 }
 
 // update a single notebook
-func (h *NotebookHandler) handlePatchNotebook(w http.ResponseWriter, r *http.Request) {
-	orgID, err := getIDfromReq(r, "orgID")
+func (h *NotebookHandler) handleUpdateNotebook(w http.ResponseWriter, r *http.Request) {
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
-	id, err := getIDfromReq(r, "id")
-	if err != nil {
-		h.api.Err(w, r, err)
-		return
-	}
-
-	// Demo data - just return the body from the request with a generated ID
+	// Demo data - just return the body from the request with the id
 	b := notebooks.Notebook{}
 	if err := h.api.DecodeJSON(r.Body, &b); err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
-	b.OrgID = *orgID // this isn't necessary with the demo data, but keeping it here for future
-	b.ID = *id       // ditto
+	b.ID = *id
+
+	fmt.Printf("\n%#v\n", b)
 
 	h.api.Respond(w, r, http.StatusOK, b)
 }
 
 // delete a single notebook
-// for now, just respond with 200 unless there is a problem with the orgID or notebook ID
 func (h *NotebookHandler) handleDeleteNotebook(w http.ResponseWriter, r *http.Request) {
-	_, err := getIDfromReq(r, "orgID")
-	if err != nil {
-		h.api.Err(w, r, err)
-		return
-	}
-
-	_, err = getIDfromReq(r, "id")
-	if err != nil {
+	// for now, just respond with 200 unless there is a problem with the notebook ID
+	if _, err := platform.IDFromString(chi.URLParam(r, "id")); err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
@@ -180,22 +160,28 @@ func (h *NotebookHandler) handleDeleteNotebook(w http.ResponseWriter, r *http.Re
 	h.api.Respond(w, r, http.StatusOK, nil)
 }
 
-func getIDfromReq(r *http.Request, param string) (*platform.ID, error) {
-	id := chi.URLParam(r, param)
-	if id == "" {
-		return nil, &errors.Error{
-			Code: errors.EInvalid,
-			Msg:  fmt.Sprintf(errMissingParam, param),
+// this is a placeholder for more complex authorization behavior to come.
+// for now, it just returns the first orgID from the user's permission set.
+func orgIDFromReq(r *http.Request) (*platform.ID, error) {
+	ctx := r.Context()
+	a, err := context.GetAuthorizer(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	p, err := a.PermissionSet()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, pp := range p {
+		if pp.Resource.OrgID != nil {
+			return pp.Resource.OrgID, nil
 		}
 	}
 
-	var i platform.ID
-	if err := i.DecodeFromString(id); err != nil {
-		return nil, &errors.Error{
-			Code: errors.EInvalid,
-			Msg:  fmt.Sprintf(errInvalidParam, param),
-		}
+	return nil, &errors.Error{
+		Code: errors.EInvalid,
+		Msg:  "could not find an org",
 	}
-
-	return &i, nil
 }
