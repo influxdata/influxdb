@@ -1214,7 +1214,9 @@ impl ExpressionVisitor for SupportVisitor {
                 }
             }
             Expr::ScalarUDF { fun, .. } => {
-                if fun.name.as_str() == crate::func::regex::REGEX_MATCH_UDF_NAME {
+                if fun.name.as_str() == crate::func::regex::REGEX_MATCH_UDF_NAME
+                    || fun.name.as_str() == crate::func::regex::REGEX_NOT_MATCH_UDF_NAME
+                {
                     Ok(Recursion::Continue(self))
                 } else {
                     Err(DataFusionError::NotImplemented(format!(
