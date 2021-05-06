@@ -3,7 +3,7 @@ use super::{ObjectStorePath, PathPart, DELIMITER};
 use itertools::Itertools;
 
 /// A path stored as a collection of 0 or more directories and 0 or 1 file name
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default, Hash)]
 pub struct DirsAndFileName {
     /// Directory hierarchy.
     pub directories: Vec<PathPart>,

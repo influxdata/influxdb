@@ -16,7 +16,7 @@ const EMPTY: &str = "%";
 ///
 /// A PathPart instance is guaranteed to be non-empty and to contain no `/`
 /// characters as it can only be constructed by going through the `from` impl.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default, Hash)]
 pub struct PathPart(pub(super) String);
 
 /// Characters we want to encode.
