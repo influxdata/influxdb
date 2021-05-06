@@ -1568,7 +1568,6 @@ dependencies = [
 name = "influxdb_line_protocol"
 version = "0.1.0"
 dependencies = [
- "influxdb2_client",
  "nom",
  "observability_deps",
  "smallvec",
