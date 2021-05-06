@@ -1,15 +1,13 @@
 use std::sync::Arc;
 
-use arrow_deps::{
-    arrow::{
-        array::{ArrayRef, BooleanArray, StringArray},
-        datatypes::DataType,
-    },
-    datafusion::{
-        error::DataFusionError,
-        logical_plan::{create_udf, Expr},
-        physical_plan::functions::make_scalar_function,
-    },
+use arrow::{
+    array::{ArrayRef, BooleanArray, StringArray},
+    datatypes::DataType,
+};
+use datafusion::{
+    error::DataFusionError,
+    logical_plan::{create_udf, Expr},
+    physical_plan::functions::make_scalar_function,
 };
 
 /// The name of the regex_match UDF given to DataFusion.
@@ -28,11 +26,7 @@ pub const REGEX_NOT_MATCH_UDF_NAME: &str = "RegexMatch";
 /// This UDF is designed to support the regex operator that can be pushed down
 /// via the InfluxRPC API.
 ///
-pub(crate) fn regex_match_expr(
-    input: Expr,
-    pattern: String,
-    matches: bool,
-) -> arrow_deps::datafusion::logical_plan::Expr {
+pub(crate) fn regex_match_expr(input: Expr, pattern: String, matches: bool) -> Expr {
     // N.B., this function does not utilise the Arrow regexp compute kernel because
     // in order to act as a filter it needs to return a boolean array of comparison
     // results, not an array of strings as the regex compute kernel does.
@@ -83,19 +77,17 @@ pub(crate) fn regex_match_expr(
 
 #[cfg(test)]
 mod test {
-    use arrow_deps::{
-        arrow::{
-            array::{StringArray, UInt64Array},
-            datatypes::{DataType, Field, Schema},
-            record_batch::RecordBatch,
-            util::pretty::pretty_format_batches,
-        },
-        datafusion::{
-            datasource::MemTable,
-            error::DataFusionError,
-            logical_plan::{col, Expr},
-            prelude::ExecutionContext,
-        },
+    use arrow::{
+        array::{StringArray, UInt64Array},
+        datatypes::{DataType, Field, Schema},
+        record_batch::RecordBatch,
+        util::pretty::pretty_format_batches,
+    };
+    use datafusion::{
+        datasource::MemTable,
+        error::DataFusionError,
+        logical_plan::{col, Expr},
+        prelude::ExecutionContext,
     };
     use std::iter::FromIterator;
     use std::sync::Arc;

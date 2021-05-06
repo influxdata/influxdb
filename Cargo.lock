@@ -951,7 +951,7 @@ dependencies = [
  "influxdb_line_protocol",
  "internal_types",
  "ouroboros",
- "snafu",
+ "snafu 0.6.10",
 ]
 
 [[package]]
@@ -1617,7 +1617,7 @@ dependencies = [
  "packers",
  "parking_lot",
  "parquet 0.1.0",
- "snafu",
+ "snafu 0.6.10",
  "test_helpers",
 ]
 
@@ -1643,7 +1643,7 @@ dependencies = [
  "arrow 0.1.0",
  "arrow_util",
  "observability_deps",
- "snafu",
+ "snafu 0.6.10",
 ]
 
 [[package]]
@@ -1838,7 +1838,7 @@ dependencies = [
  "observability_deps",
  "packers",
  "parquet 0.1.0",
- "snafu",
+ "snafu 0.6.10",
 ]
 
 [[package]]
@@ -1864,7 +1864,7 @@ dependencies = [
  "observability_deps",
  "opentelemetry-prometheus",
  "prometheus",
- "snafu",
+ "snafu 0.6.10",
 ]
 
 [[package]]
@@ -2712,7 +2712,7 @@ version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e0704ee1a7e00d7bb417d0770ea303c1bccbabf0ef1667dae92b5967f5f8a71"
 dependencies = [
- "unicode-xid 0.2.1",
+ "unicode-xid 0.2.2",
 ]
 
 [[package]]
@@ -3783,7 +3783,7 @@ checksum = "6498a9efc342871f91cc2d0d694c674368b4ceb40f62b65a7a08c3792935e702"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.9",
- "unicode-xid 0.2.1",
+ "unicode-xid 0.2.2",
 ]
 
 [[package]]
@@ -3795,7 +3795,7 @@ dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.9",
  "syn 1.0.67",
- "unicode-xid 0.2.1",
+ "unicode-xid 0.2.2",
 ]
 
 [[package]]
@@ -4335,6 +4335,12 @@ name = "unicode-width"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9337591893a19b88d8d87f2cec1e73fad5cdfd10e5a6f349f498ad6ea2ffb1e3"
+
+[[package]]
+name = "unicode-xid"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc72304796d0818e357ead4e000d19c9c174ab23dc11093ac919054d20a6a7fc"
 
 [[package]]
 name = "unicode-xid"

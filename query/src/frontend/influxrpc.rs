@@ -1001,8 +1001,8 @@ impl InfluxRpcPlanner {
     ///
     /// The created plan looks like:
     ///
-    ///  OrderBy(gby: tag columns, window_function; agg: aggregate(field)
-    ///      GroupBy(gby: tag columns, window_function; agg: aggregate(field)
+    ///  OrderBy(gby: tag columns, window_function; agg: aggregate(field))
+    ///      GroupBy(gby: tag columns, window_function; agg: aggregate(field))
     ///        Filter(predicate)
     ///          Scan
     fn read_window_aggregate_plan<C>(
@@ -1101,8 +1101,8 @@ impl InfluxRpcPlanner {
     where
         C: PartitionChunk + 'static,
     {
-        // Scan all columns to begin with (datafusion projection
-        // pushdown optimization will prune out unneeded columns later)
+        // Scan all columns to begin with (DataFusion projection
+        // push-down optimization will prune out unneeded columns later)
         let projection = None;
         let selection = Selection::All;
 
@@ -1211,6 +1211,16 @@ impl ExpressionVisitor for SupportVisitor {
                             op, expr
                         )))
                     }
+                }
+            }
+            Expr::ScalarUDF { fun, .. } => {
+                if fun.name.as_str() == crate::func::regex::REGEX_MATCH_UDF_NAME {
+                    Ok(Recursion::Continue(self))
+                } else {
+                    Err(DataFusionError::NotImplemented(format!(
+                        "Unsupported expression in gRPC: {:?}",
+                        expr
+                    )))
                 }
             }
             _ => Err(DataFusionError::NotImplemented(format!(
