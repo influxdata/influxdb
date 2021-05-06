@@ -19,28 +19,28 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, PartialEq)]
 pub enum FieldColumns {
     /// All field columns share a timestamp column, named TIME_COLUMN_NAME
-    SharedTimestamp(Vec<Arc<String>>),
+    SharedTimestamp(Vec<Arc<str>>),
 
     /// Each field has a potentially different timestamp column
     // (value_name, timestamp_name)
-    DifferentTimestamp(Vec<(Arc<String>, Arc<String>)>),
+    DifferentTimestamp(Vec<(Arc<str>, Arc<str>)>),
 }
 
-impl From<Vec<Arc<String>>> for FieldColumns {
-    fn from(v: Vec<Arc<String>>) -> Self {
+impl From<Vec<Arc<str>>> for FieldColumns {
+    fn from(v: Vec<Arc<str>>) -> Self {
         Self::SharedTimestamp(v)
     }
 }
 
-impl From<Vec<(Arc<String>, Arc<String>)>> for FieldColumns {
-    fn from(v: Vec<(Arc<String>, Arc<String>)>) -> Self {
+impl From<Vec<(Arc<str>, Arc<str>)>> for FieldColumns {
+    fn from(v: Vec<(Arc<str>, Arc<str>)>) -> Self {
         Self::DifferentTimestamp(v)
     }
 }
 
 impl From<Vec<&str>> for FieldColumns {
     fn from(v: Vec<&str>) -> Self {
-        let v = v.into_iter().map(|v| Arc::new(v.to_string())).collect();
+        let v = v.into_iter().map(Arc::from).collect();
 
         Self::SharedTimestamp(v)
     }
@@ -48,7 +48,7 @@ impl From<Vec<&str>> for FieldColumns {
 
 impl From<&[&str]> for FieldColumns {
     fn from(v: &[&str]) -> Self {
-        let v = v.iter().map(|v| Arc::new(v.to_string())).collect();
+        let v = v.iter().map(|v| Arc::from(*v)).collect();
 
         Self::SharedTimestamp(v)
     }
@@ -114,10 +114,7 @@ impl From<Vec<FieldIndex>> for FieldIndexes {
 
 impl FieldIndexes {
     // look up which column index correponds to each column name
-    pub fn names_to_indexes(
-        schema: &SchemaRef,
-        column_names: &[Arc<String>],
-    ) -> Result<Vec<usize>> {
+    pub fn names_to_indexes(schema: &SchemaRef, column_names: &[Arc<str>]) -> Result<Vec<usize>> {
         column_names
             .iter()
             .map(|column_name| {

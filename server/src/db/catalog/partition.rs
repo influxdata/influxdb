@@ -10,10 +10,9 @@ use chrono::{DateTime, Utc};
 use data_types::partition_metadata::PartitionSummary;
 use data_types::{chunk::ChunkSummary, server_id::ServerId};
 use entry::{ClockValue, TableBatch};
-use parking_lot::RwLock;
 use query::predicate::Predicate;
 use snafu::OptionExt;
-use tracker::MemRegistry;
+use tracker::{LockTracker, MemRegistry, RwLock};
 
 /// IOx Catalog Partition
 ///
@@ -32,6 +31,9 @@ pub struct Partition {
     /// the last time at which write was made to this
     /// partition. Partition::new initializes this to now.
     last_write_at: DateTime<Utc>,
+
+    /// Lock Tracker for chunk-level locks
+    lock_tracker: LockTracker,
 }
 
 impl Partition {
@@ -56,6 +58,7 @@ impl Partition {
             tables: BTreeMap::new(),
             created_at: now,
             last_write_at: now,
+            lock_tracker: Default::default(),
         }
     }
 
@@ -94,7 +97,7 @@ impl Partition {
         let chunk_id = table.next_chunk_id;
         table.next_chunk_id += 1;
 
-        let chunk = Arc::new(RwLock::new(Chunk::new_open(
+        let chunk = Arc::new(self.lock_tracker.new_lock(Chunk::new_open(
             batch,
             &self.key,
             chunk_id,

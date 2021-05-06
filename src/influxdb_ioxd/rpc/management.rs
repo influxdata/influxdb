@@ -2,12 +2,9 @@ use std::convert::{TryFrom, TryInto};
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use data_types::{
-    database_rules::DatabaseRules, field_validation::FromFieldOpt, server_id::ServerId,
-    DatabaseName,
-};
+use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
 use generated_types::google::{
-    AlreadyExists, FieldViolation, FieldViolationExt, InternalError, NotFound,
+    AlreadyExists, FieldViolation, FieldViolationExt, FromFieldOpt, InternalError, NotFound,
 };
 use generated_types::influxdata::iox::management::v1::*;
 use observability_deps::tracing::info;

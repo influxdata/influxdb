@@ -5,7 +5,6 @@ use std::{
     sync::Arc,
 };
 
-use parking_lot::RwLock;
 use snafu::{OptionExt, Snafu};
 
 use chunk::Chunk;
@@ -22,6 +21,7 @@ use query::{
     provider::{self, ProviderBuilder},
     PartitionChunk,
 };
+use tracker::{LockTracker, RwLock};
 
 pub mod chunk;
 pub mod partition;
@@ -82,6 +82,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct Catalog {
     /// key is partition_key
     partitions: RwLock<BTreeMap<String, Arc<RwLock<Partition>>>>,
+
+    /// Lock tracker for partition-level locks
+    lock_tracker: LockTracker,
 }
 
 impl Catalog {
@@ -123,7 +126,7 @@ impl Catalog {
         match entry {
             Entry::Vacant(entry) => {
                 let partition = Partition::new(entry.key());
-                let partition = Arc::new(RwLock::new(partition));
+                let partition = Arc::new(self.lock_tracker.new_lock(partition));
                 entry.insert(Arc::clone(&partition));
                 partition
             }

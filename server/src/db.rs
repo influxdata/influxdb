@@ -27,10 +27,10 @@ use datafusion::{
 use entry::{ClockValue, ClockValueError, Entry, OwnedSequencedEntry, SequencedEntry};
 use internal_types::{arrow::sort::sort_record_batch, selection::Selection};
 use lifecycle::LifecycleManager;
-use metrics::MetricRegistry;
+use metrics::{KeyValue, MetricObserver, MetricObserverBuilder, MetricRegistry};
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, info};
-use parking_lot::{lock_api::RwLockWriteGuard, Mutex, RawRwLock, RwLock};
+use parking_lot::{Mutex, RwLock};
 use parquet_file::{chunk::Chunk, storage::Storage};
 use query::predicate::{Predicate, PredicateBuilder};
 use query::{exec::Executor, Database, DEFAULT_SCHEMA};
@@ -313,9 +313,7 @@ pub struct Db {
 #[derive(Debug, Default)]
 struct MemoryRegistries {
     mutable_buffer: Arc<MemRegistry>,
-
     read_buffer: Arc<MemRegistry>,
-
     parquet: Arc<MemRegistry>,
 }
 
@@ -323,6 +321,34 @@ impl MemoryRegistries {
     /// Total bytes over all registries.
     pub fn bytes(&self) -> usize {
         self.mutable_buffer.bytes() + self.read_buffer.bytes() + self.parquet.bytes()
+    }
+}
+
+impl MetricObserver for &MemoryRegistries {
+    fn register(self, builder: MetricObserverBuilder<'_>) {
+        let mutable_buffer = Arc::clone(&self.mutable_buffer);
+        let read_buffer = Arc::clone(&self.read_buffer);
+        let parquet = Arc::clone(&self.parquet);
+
+        builder.register_gauge_u64(
+            "chunks_mem_usage",
+            Some("bytes"),
+            "Memory usage by catalog chunks",
+            move |x| {
+                x.observe(
+                    mutable_buffer.bytes() as u64,
+                    &[KeyValue::new("source", "mutable_buffer")],
+                );
+                x.observe(
+                    read_buffer.bytes() as u64,
+                    &[KeyValue::new("source", "read_buffer")],
+                );
+                x.observe(
+                    parquet.bytes() as u64,
+                    &[KeyValue::new("source", "parquet")],
+                );
+            },
+        );
     }
 }
 
@@ -428,6 +454,17 @@ impl Db {
                 default_labels,
             ),
         };
+
+        let memory_registries = Default::default();
+        domain.register_observer(
+            None,
+            &[
+                metrics::KeyValue::new("db_name", db_name.to_string()),
+                metrics::KeyValue::new("svr_id", format!("{}", server_id)),
+            ],
+            &memory_registries,
+        );
+
         Self {
             rules,
             server_id,
@@ -438,7 +475,7 @@ impl Db {
             jobs,
             metrics: db_metrics,
             system_tables,
-            memory_registries: Default::default(),
+            memory_registries,
             sequence: AtomicU64::new(STARTING_SEQUENCE),
             worker_iterations: AtomicUsize::new(0),
         }
@@ -1167,7 +1204,7 @@ impl Db {
                                 )],
                             );
 
-                            check_chunk_closed(chunk, mutable_size_threshold, &self.metrics);
+                            check_chunk_closed(&mut *chunk, mutable_size_threshold, &self.metrics);
                         }
                         None => {
                             let new_chunk = partition
@@ -1189,7 +1226,7 @@ impl Db {
                             }
 
                             check_chunk_closed(
-                                new_chunk.write(),
+                                &mut *new_chunk.write(),
                                 mutable_size_threshold,
                                 &self.metrics,
                             );
@@ -1205,7 +1242,7 @@ impl Db {
 
 /// Check if the given chunk should be closed based on the the MutableBuffer size threshold.
 fn check_chunk_closed(
-    mut chunk: RwLockWriteGuard<'_, RawRwLock, CatalogChunk>,
+    chunk: &mut CatalogChunk,
     mutable_size_threshold: Option<NonZeroUsize>,
     metrics: &DbMetrics,
 ) {
@@ -2224,16 +2261,12 @@ mod tests {
 
         print!("Partitions: {:?}", db.partition_keys().unwrap());
 
-        fn to_arc(s: &str) -> Arc<String> {
-            Arc::new(s.to_string())
-        }
-
         let chunk_summaries = db.partition_chunk_summaries("1970-01-05T15");
         let chunk_summaries = normalize_summaries(chunk_summaries);
 
         let expected = vec![ChunkSummary::new_without_timestamps(
-            to_arc("1970-01-05T15"),
-            to_arc("cpu"),
+            Arc::from("1970-01-05T15"),
+            Arc::from("cpu"),
             0,
             ChunkStorage::OpenMutableBuffer,
             106,
@@ -2333,41 +2366,37 @@ mod tests {
         db.rollover_partition("1970-01-05T15", "cpu").await.unwrap();
         write_lp(&db, "cpu bar=1,baz=3,blargh=3 400000000000000");
 
-        fn to_arc(s: &str) -> Arc<String> {
-            Arc::new(s.to_string())
-        }
-
         let chunk_summaries = db.chunk_summaries().expect("expected summary to return");
         let chunk_summaries = normalize_summaries(chunk_summaries);
 
         let expected = vec![
             ChunkSummary::new_without_timestamps(
-                to_arc("1970-01-01T00"),
-                to_arc("cpu"),
+                Arc::from("1970-01-01T00"),
+                Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
                 1904, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
-                to_arc("1970-01-01T00"),
-                to_arc("cpu"),
+                Arc::from("1970-01-01T00"),
+                Arc::from("cpu"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
                 100,
                 1,
             ),
             ChunkSummary::new_without_timestamps(
-                to_arc("1970-01-05T15"),
-                to_arc("cpu"),
+                Arc::from("1970-01-05T15"),
+                Arc::from("cpu"),
                 0,
                 ChunkStorage::ClosedMutableBuffer,
                 129,
                 1,
             ),
             ChunkSummary::new_without_timestamps(
-                to_arc("1970-01-05T15"),
-                to_arc("cpu"),
+                Arc::from("1970-01-05T15"),
+                Arc::from("cpu"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
                 131,

@@ -6,17 +6,20 @@ edition = "2018"
 
 [dependencies] # In alphabetical order
 bytes = { version = "1.0", features = ["serde"] }
+data_types = { path = "../data_types" }
 # See docs/regenerating_flatbuffers.md about updating generated code when updating the
 # version of the flatbuffers crate
 flatbuffers = "0.8"
 futures = "0.3"
+google_types = { path = "../google_types" }
+observability_deps = { path = "../observability_deps" }
 prost = "0.7"
 prost-types = "0.7"
-tonic = "0.4"
-observability_deps = { path = "../observability_deps" }
-google_types = { path = "../google_types" }
+regex = "1.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
+thiserror = "1.0.23"
+tonic = "0.4"
 
 [build-dependencies] # In alphabetical order
 tonic-build = "0.4"

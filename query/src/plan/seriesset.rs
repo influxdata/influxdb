@@ -14,7 +14,7 @@ use crate::exec::field::FieldColumns;
 #[derive(Debug)]
 pub struct SeriesSetPlan {
     /// The table name this came from
-    pub table_name: Arc<String>,
+    pub table_name: Arc<str>,
 
     /// Datafusion plan to execute. The plan must produce
     /// RecordBatches that have:
@@ -29,7 +29,7 @@ pub struct SeriesSetPlan {
     /// Note these are `Arc` strings because they are duplicated for
     /// *each* resulting `SeriesSet` that is produced when this type
     /// of plan is executed.
-    pub tag_columns: Vec<Arc<String>>,
+    pub tag_columns: Vec<Arc<str>>,
 
     /// The names of the columns which are "fields"
     pub field_columns: FieldColumns,
@@ -42,19 +42,19 @@ pub struct SeriesSetPlan {
 impl SeriesSetPlan {
     /// Create a SeriesSetPlan that will not produce any Group items
     pub fn new_from_shared_timestamp(
-        table_name: Arc<String>,
+        table_name: Arc<str>,
         plan: LogicalPlan,
-        tag_columns: Vec<Arc<String>>,
-        field_columns: Vec<Arc<String>>,
+        tag_columns: Vec<Arc<str>>,
+        field_columns: Vec<Arc<str>>,
     ) -> Self {
         Self::new(table_name, plan, tag_columns, field_columns.into())
     }
 
     /// Create a SeriesSetPlan that will not produce any Group items
     pub fn new(
-        table_name: Arc<String>,
+        table_name: Arc<str>,
         plan: LogicalPlan,
-        tag_columns: Vec<Arc<String>>,
+        tag_columns: Vec<Arc<str>>,
         field_columns: FieldColumns,
     ) -> Self {
         let num_prefix_tag_group_columns = None;
