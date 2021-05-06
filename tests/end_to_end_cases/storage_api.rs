@@ -295,6 +295,47 @@ async fn measurement_fields_endpoint(
 }
 
 #[tokio::test]
+pub async fn regex_operator_test() {
+    let fixture = ServerFixture::create_shared().await;
+    let mut management = fixture.management_client();
+    let mut storage_client = StorageClient::new(fixture.grpc_channel());
+    let influxdb2 = fixture.influxdb2_client();
+
+    let scenario = Scenario::new();
+    scenario.create_database(&mut management).await;
+
+    load_read_group_data(&influxdb2, &scenario).await;
+
+    let read_source = scenario.read_source();
+
+    // read_group(group_keys: region, agg: None)
+    let read_filter_request = ReadFilterRequest {
+        read_source: read_source.clone(),
+        range: Some(TimestampRange {
+            start: 0,
+            end: 2001, // include all data
+        }),
+        predicate: Some(make_regex_match_predicate("host", "^b.+")),
+    };
+
+    let expected_frames = vec![
+        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
+        "FloatPointsFrame, timestamps: [1000, 2000], values: \"20,21\"",
+        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
+        "FloatPointsFrame, timestamps: [1000, 2000], values: \"81,82\"",
+        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
+        "FloatPointsFrame, timestamps: [1000, 2000], values: \"40,41\"",
+        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
+        "FloatPointsFrame, timestamps: [1000, 2000], values: \"51,52\"",
+    ];
+
+    assert_eq!(
+        do_read_filter_request(&mut storage_client, read_filter_request).await,
+        expected_frames,
+    );
+}
+
+#[tokio::test]
 pub async fn read_group_test() {
     let fixture = ServerFixture::create_shared().await;
     let mut management = fixture.management_client();
@@ -654,6 +695,41 @@ fn make_tag_predicate(tag_name: impl Into<String>, tag_value: impl Into<String>)
     }
 }
 
+// Create a predicate representing tag_name ~= /pattern/
+//
+// The constitution of this request was formed by looking at a real request
+// made to storage, which looked like this:
+//
+// root:<
+//         node_type:COMPARISON_EXPRESSION
+//         children:<node_type:TAG_REF tag_ref_value:"tag_key_name" >
+//         children:<node_type:LITERAL regex_value:"pattern" >
+//         comparison:REGEX
+// >
+fn make_regex_match_predicate(
+    tag_key_name: impl Into<String>,
+    pattern: impl Into<String>,
+) -> Predicate {
+    Predicate {
+        root: Some(Node {
+            node_type: NodeType::ComparisonExpression as i32,
+            children: vec![
+                Node {
+                    node_type: NodeType::TagRef as i32,
+                    children: vec![],
+                    value: Some(Value::TagRefValue(tag_key_name.into().into())),
+                },
+                Node {
+                    node_type: NodeType::Literal as i32,
+                    children: vec![],
+                    value: Some(Value::RegexValue(pattern.into())),
+                },
+            ],
+            value: Some(Value::Comparison(Comparison::Regex as _)),
+        }),
+    }
+}
+
 /// Create a predicate representing _f=field_name in the horrible gRPC structs
 fn make_field_predicate(field_name: impl Into<String>) -> Predicate {
     Predicate {
@@ -674,6 +750,33 @@ fn make_field_predicate(field_name: impl Into<String>) -> Predicate {
             value: Some(Value::Comparison(Comparison::Equal as _)),
         }),
     }
+}
+
+/// Make a read_group request and returns the results in a comparable format
+async fn do_read_filter_request(
+    storage_client: &mut StorageClient<tonic::transport::Channel>,
+    request: ReadFilterRequest,
+) -> Vec<String> {
+    let request = tonic::Request::new(request);
+
+    let read_filter_response = storage_client
+        .read_filter(request)
+        .await
+        .expect("successful read_filter call");
+
+    let responses: Vec<_> = read_filter_response
+        .into_inner()
+        .try_collect()
+        .await
+        .unwrap();
+
+    let frames: Vec<_> = responses
+        .into_iter()
+        .flat_map(|r| r.frames)
+        .flat_map(|f| f.data)
+        .collect();
+
+    dump_data_frames(&frames)
 }
 
 /// Make a read_group request and returns the results in a comparable format

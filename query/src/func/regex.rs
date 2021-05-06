@@ -26,7 +26,7 @@ pub const REGEX_NOT_MATCH_UDF_NAME: &str = "RegexMatch";
 /// This UDF is designed to support the regex operator that can be pushed down
 /// via the InfluxRPC API.
 ///
-pub(crate) fn regex_match_expr(input: Expr, pattern: String, matches: bool) -> Expr {
+pub fn regex_match_expr(input: Expr, pattern: String, matches: bool) -> Expr {
     // N.B., this function does not utilise the Arrow regexp compute kernel because
     // in order to act as a filter it needs to return a boolean array of comparison
     // results, not an array of strings as the regex compute kernel does.
