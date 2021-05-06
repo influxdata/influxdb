@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use snafu::{ensure, OptionExt, Snafu};
 
-use observability_deps::prometheus::proto::{
+use prometheus::proto::{
     Counter as PromCounter, Gauge as PromGauge, Histogram as PromHistogram, MetricFamily,
 };
 

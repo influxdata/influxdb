@@ -18,10 +18,11 @@ use observability_deps::{
             metrics::{controllers, selectors::simple::Selector},
         },
     },
-    opentelemetry_prometheus::PrometheusExporter,
-    prometheus::{Encoder, Registry, TextEncoder},
     tracing::*,
 };
+use opentelemetry_prometheus::PrometheusExporter;
+use prometheus::{Encoder, Registry, TextEncoder};
+
 use std::sync::Arc;
 
 pub use crate::metrics::{Counter, Gauge, Histogram, KeyValue, RedMetric};

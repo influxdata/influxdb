@@ -84,6 +84,8 @@ futures = "0.3"
 http = "0.2.0"
 hyper = "0.14"
 once_cell = { version = "1.4.0", features = ["parking_lot"] }
+opentelemetry-jaeger = { version = "0.12", features = ["tokio"] }
+opentelemetry-otlp = "0.6"
 parking_lot = "0.11.1"
 itertools = "0.9.0"
 # used by arrow/datafusion anyway
@@ -106,6 +108,7 @@ tokio-util = { version = "0.6.3" }
 tonic = "0.4.0"
 tonic-health = "0.3.0"
 tonic-reflection = "0.1.0"
+tracing-opentelemetry = { version = "0.12", default-features = false }
 
 [dev-dependencies]
 # Workspace dependencies, in alphabetical order

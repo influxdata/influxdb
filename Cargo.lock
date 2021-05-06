@@ -1508,6 +1508,8 @@ dependencies = [
  "object_store",
  "observability_deps",
  "once_cell",
+ "opentelemetry-jaeger",
+ "opentelemetry-otlp",
  "packers",
  "panic_logging",
  "parking_lot",
@@ -1538,6 +1540,7 @@ dependencies = [
  "tonic",
  "tonic-health",
  "tonic-reflection",
+ "tracing-opentelemetry",
  "tracker",
  "write_buffer",
 ]
@@ -1824,6 +1827,7 @@ dependencies = [
  "criterion",
  "croaring",
  "crossbeam",
+ "env_logger",
  "human_format",
  "observability_deps",
  "packers",
@@ -1852,6 +1856,8 @@ version = "0.1.0"
 dependencies = [
  "dashmap",
  "observability_deps",
+ "opentelemetry-prometheus",
+ "prometheus",
  "snafu",
 ]
 
@@ -2179,14 +2185,8 @@ dependencies = [
 name = "observability_deps"
 version = "0.1.0"
 dependencies = [
- "env_logger",
  "opentelemetry",
- "opentelemetry-jaeger",
- "opentelemetry-otlp",
- "opentelemetry-prometheus",
- "prometheus",
  "tracing",
- "tracing-opentelemetry",
  "tracing-subscriber",
 ]
 
