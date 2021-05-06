@@ -666,7 +666,7 @@ impl<M: ConnectionManager> Server<M> {
         db: &Db,
         sequenced_entry: OwnedSequencedEntry,
     ) -> Result<()> {
-        db.store_sequenced_entry(sequenced_entry)
+        db.store_sequenced_entry(Arc::new(sequenced_entry))
             .map_err(|e| Error::UnknownDatabaseError {
                 source: Box::new(e),
             })?;
@@ -978,7 +978,7 @@ mod tests {
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
 
-    use arrow_deps::assert_batches_eq;
+    use arrow_util::assert_batches_eq;
     use data_types::database_rules::{
         HashRing, PartitionTemplate, ShardConfig, TemplatePart, NO_SHARD_CONFIG,
     };

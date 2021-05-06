@@ -1,8 +1,6 @@
-use arrow_deps::{
-    arrow::datatypes::DataType,
-    assert_batches_eq,
-    datafusion::logical_plan::{col, lit},
-};
+use arrow::datatypes::DataType;
+use arrow_util::assert_batches_eq;
+use datafusion::logical_plan::{col, lit};
 use query::{
     exec::fieldlist::{Field, FieldList},
     frontend::influxrpc::InfluxRpcPlanner,

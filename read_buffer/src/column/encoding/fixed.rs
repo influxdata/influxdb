@@ -17,8 +17,7 @@ use std::fmt::{Debug, Display};
 use std::mem::size_of;
 use std::ops::AddAssign;
 
-use arrow_deps::arrow;
-use arrow_deps::arrow::array::Array;
+use arrow::array::Array;
 
 use crate::column::{cmp, RowIDs};
 

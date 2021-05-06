@@ -500,21 +500,21 @@ pub struct WriteBufferConfig {
     /// below this threshold
     pub buffer_size: usize,
     /// Write Buffer segments become read-only after crossing over this size,
-    /// which means that segments will always be >= this size. When old segments
+    /// which means that segments will always be <= this size. When old segments
     /// are dropped from of memory, at least this much space will be freed from
     /// the buffer.
     pub segment_size: usize,
     /// What should happen if a write comes in that would exceed the Write
-    /// Buffer size and the oldest segment that could be dropped hasn't yet
-    /// been persisted to object storage. If the oldest segment has been
-    /// persisted, then it will be dropped from the buffer so that new writes
-    /// can be accepted. This option is only for defining the behavior of what
-    /// happens if that segment hasn't been persisted. If set to return an
-    /// error, new writes will be rejected until the oldest segment has been
-    /// persisted so that it can be cleared from memory. Alternatively, this
-    /// can be set so that old segments are dropped even if they haven't been
-    /// persisted. This setting is also useful for cases where persistence
-    /// isn't being used and this is only for in-memory buffering.
+    /// Buffer size and the oldest segment that could be dropped hasn't yet been
+    /// persisted to object storage. If the oldest segment has been persisted,
+    /// then it will be dropped from the buffer so that new writes can be
+    /// accepted. This option is only for defining the behaviour of what happens
+    /// if that segment hasn't been persisted. If set to return an error, new
+    /// writes will be rejected until the oldest segment has been persisted so
+    /// that it can be cleared from memory. Alternatively, this can be set so
+    /// that old segments are dropped even if they haven't been persisted. This
+    /// setting is also useful for cases where persistence isn't being used and
+    /// this is only for in-memory buffering.
     pub buffer_rollover: WriteBufferRollover,
     /// If set to true, buffer segments will be written to object storage.
     pub store_segments: bool,

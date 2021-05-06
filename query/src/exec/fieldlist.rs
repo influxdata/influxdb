@@ -3,7 +3,7 @@
 //! pull them from RecordBatches
 use std::{collections::BTreeMap, sync::Arc};
 
-use arrow_deps::arrow::{
+use arrow::{
     self,
     array::TimestampNanosecondArray,
     datatypes::{DataType, SchemaRef},
@@ -187,7 +187,7 @@ mod tests {
     use std::sync::Arc;
 
     use arrow::array::ArrayRef;
-    use arrow_deps::arrow::{
+    use arrow::{
         array::{Int64Array, StringArray},
         datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema},
     };

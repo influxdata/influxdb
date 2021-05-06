@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
-use arrow_deps::arrow::record_batch::RecordBatch;
+use arrow::record_batch::RecordBatch;
 use data_types::timestamp::TimestampRange;
 use internal_types::schema::{Schema, TIME_COLUMN_NAME};
 use internal_types::selection::Selection;

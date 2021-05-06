@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use arrow_deps::datafusion::logical_plan::LogicalPlan;
+use datafusion::logical_plan::LogicalPlan;
 
 use crate::exec::field::FieldColumns;
 

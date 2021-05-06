@@ -8,14 +8,18 @@ readme = "README.md"
 
 [workspace] # In alphabetical order
 members = [
-    "arrow_deps",
+    "arrow",
+    "arrow_flight",
+    "arrow_util",
     "data_types",
+    "datafusion",
+    "datafusion_util",
     "generated_types",
     "google_types",
+    "influxdb2_client",
     "influxdb_iox_client",
     "influxdb_line_protocol",
     "influxdb_tsm",
-    "influxdb2_client",
     "ingest",
     "internal_types",
     "logfmt",
@@ -25,6 +29,7 @@ members = [
     "observability_deps",
     "packers",
     "panic_logging",
+    "parquet",
     "query",
     "read_buffer",
     "server",
@@ -41,7 +46,9 @@ debug = true
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
-arrow_deps = { path = "arrow_deps" }
+arrow = { path = "arrow" }
+arrow_flight = { path = "arrow_flight" }
+datafusion = { path = "datafusion" }
 data_types = { path = "data_types" }
 generated_types = { path = "generated_types" }
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["format"] }
@@ -57,6 +64,7 @@ object_store = { path = "object_store" }
 observability_deps = { path = "observability_deps" }
 packers = { path = "packers" }
 panic_logging = { path = "panic_logging" }
+parquet = { path = "parquet" }
 query = { path = "query" }
 read_buffer = { path = "read_buffer" }
 server = { path = "server" }
@@ -97,9 +105,11 @@ tokio-stream = { version = "0.1.2", features = ["net"] }
 tokio-util = { version = "0.6.3" }
 tonic = "0.4.0"
 tonic-health = "0.3.0"
+tonic-reflection = "0.1.0"
 
 [dev-dependencies]
 # Workspace dependencies, in alphabetical order
+arrow_util = { path = "arrow_util" }
 influxdb2_client = { path = "influxdb2_client" }
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["flight"] }
 test_helpers = { path = "test_helpers" }

@@ -45,8 +45,8 @@ pub fn to_read_buffer_predicate(predicate: &Predicate) -> Result<read_buffer::Pr
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use arrow_deps::datafusion::logical_plan::Expr;
-    use arrow_deps::datafusion::scalar::ScalarValue;
+    use datafusion::logical_plan::Expr;
+    use datafusion::scalar::ScalarValue;
 
     use query::predicate::PredicateBuilder;
     use read_buffer::BinaryExpr as RBBinaryExpr;

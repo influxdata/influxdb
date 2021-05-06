@@ -1,13 +1,13 @@
 //! Code for interfacing and running queries in DataFusion
 
 // use crate::Store;
-// use arrow_deps::arrow::{
+// use arrow::{
 //     datatypes::{Schema, SchemaRef},
 //     record_batch::{RecordBatch, RecordBatchReader},
 //     util::pretty,
 // };
-// use arrow_deps::datafusion::prelude::*;
-// use arrow_deps::datafusion::{
+// use datafusion::prelude::*;
+// use datafusion::{
 //     datasource::TableProvider,
 //     execution::{
 //         context::ExecutionContextState,
@@ -48,7 +48,7 @@
 //         &self,
 //         _projection: &Option<Vec<usize>>,
 //         _batch_size: usize,
-//     ) -> arrow_deps::datafusion::error::Result<Vec<Arc<dyn Partition>>> {
+//     ) -> datafusion::error::Result<Vec<Arc<dyn Partition>>> {
 //         unimplemented!("scan not yet implemented");
 //     }
 // }
@@ -220,7 +220,7 @@
 //         &self,
 //         input_physical_plans: Vec<Arc<dyn ExecutionPlan>>,
 //         _ctx_state: Arc<Mutex<ExecutionContextState>>,
-//     ) -> arrow_deps::datafusion::error::Result<Arc<dyn ExecutionPlan>> {
+//     ) -> datafusion::error::Result<Arc<dyn ExecutionPlan>> {
 //         assert_eq!(input_physical_plans.len(), 0, "Can not have inputs");
 
 //         // If this were real code, we would now progrmatically
@@ -278,7 +278,7 @@
 //         self.store.schema()
 //     }
 
-//     fn partitions(&self) -> arrow_deps::datafusion::error::Result<Vec<Arc<dyn
+//     fn partitions(&self) -> datafusion::error::Result<Vec<Arc<dyn
 // Partitioning>>> {         let store = self.store.clone();
 //         Ok(vec![Arc::new(SegmentPartition {
 //             store,
@@ -298,7 +298,7 @@
 // impl Partition for SegmentPartition {
 //     fn execute(
 //         &self,
-//     ) -> arrow_deps::datafusion::error::Result<Arc<Mutex<dyn
+//     ) -> datafusion::error::Result<Arc<Mutex<dyn
 // RecordBatchReader + Send + Sync>>>     {
 //         let combined_results: Vec<Arc<RecordBatch>> = vec![];
 

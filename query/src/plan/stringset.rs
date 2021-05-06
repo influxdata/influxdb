@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use arrow_deps::{datafusion::logical_plan::LogicalPlan, util::str_iter_to_batch};
+use arrow_util::util::str_iter_to_batch;
+use datafusion::logical_plan::LogicalPlan;
 
 /// The name of the column containing table names returned by a call to
 /// `table_names`.
@@ -16,13 +17,11 @@ use snafu::{ResultExt, Snafu};
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Internal error converting to arrow: {}", source))]
-    InternalConvertingToArrow {
-        source: arrow_deps::arrow::error::ArrowError,
-    },
+    InternalConvertingToArrow { source: arrow::error::ArrowError },
 
     #[snafu(display("Internal error creating a plan for stringset: {}", source))]
     InternalPlanningStringSet {
-        source: arrow_deps::datafusion::error::DataFusionError,
+        source: datafusion::error::DataFusionError,
     },
 }
 

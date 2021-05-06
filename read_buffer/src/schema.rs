@@ -1,6 +1,5 @@
 use std::{convert::TryFrom, fmt::Display};
 
-use arrow_deps::arrow;
 use internal_types::schema::InfluxFieldType;
 
 /// A schema that is used to track the names and semantics of columns returned

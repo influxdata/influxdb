@@ -3,7 +3,7 @@
 
 use std::{collections::BTreeSet, sync::Arc};
 
-use arrow_deps::arrow::{
+use arrow::{
     array::{
         ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray, TimestampNanosecondArray,
     },
@@ -330,7 +330,7 @@ fn datatype_to_measurement_field_enum(data_type: &ArrowDataType) -> Result<Field
 
 #[cfg(test)]
 mod tests {
-    use arrow_deps::arrow::{datatypes::DataType as ArrowDataType, record_batch::RecordBatch};
+    use arrow::{datatypes::DataType as ArrowDataType, record_batch::RecordBatch};
     use query::exec::{field::FieldIndexes, fieldlist::Field};
 
     use super::*;

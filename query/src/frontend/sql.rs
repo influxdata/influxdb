@@ -3,7 +3,7 @@ use std::sync::Arc;
 use snafu::{ResultExt, Snafu};
 
 use crate::exec::{context::DEFAULT_CATALOG, Executor};
-use arrow_deps::datafusion::{
+use datafusion::{
     catalog::catalog::CatalogProvider, error::DataFusionError, physical_plan::ExecutionPlan,
 };
 

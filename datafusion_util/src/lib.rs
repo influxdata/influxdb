@@ -1,30 +1,15 @@
-//! Utility functions for working with arrow
+#![deny(broken_intra_doc_links, rust_2018_idioms)]
+#![allow(clippy::clone_on_ref_ptr)]
 
-use std::iter::FromIterator;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
-use arrow::{
-    array::{ArrayRef, StringArray},
-    error::ArrowError,
-    record_batch::RecordBatch,
-};
 use datafusion::{
+    arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::RecordBatch},
     logical_plan::{binary_expr, col, lit, Expr, Operator},
+    physical_plan::RecordBatchStream,
     scalar::ScalarValue,
 };
-
-/// Returns a single column record batch of type Utf8 from the
-/// contents of something that can be turned into an iterator over
-/// `Option<&str>`
-pub fn str_iter_to_batch<Ptr, I>(field_name: &str, iter: I) -> Result<RecordBatch, ArrowError>
-where
-    I: IntoIterator<Item = Option<Ptr>>,
-    Ptr: AsRef<str>,
-{
-    let array = StringArray::from_iter(iter);
-
-    RecordBatch::try_from_iter(vec![(field_name, Arc::new(array) as ArrayRef)])
-}
 
 /// Traits to help creating DataFusion expressions from strings
 pub trait AsExpr {
@@ -115,6 +100,56 @@ impl AndExprBuilder {
     /// Creates the new filter expression, consuming Self
     pub fn build(self) -> Option<Expr> {
         self.cur_expr
+    }
+}
+
+/// A RecordBatchStream created from in-memory RecordBatches.
+#[derive(Debug)]
+pub struct MemoryStream {
+    schema: SchemaRef,
+    batches: Vec<RecordBatch>,
+}
+
+impl MemoryStream {
+    /// Create new stream.
+    ///
+    /// Must at least pass one record batch!
+    pub fn new(batches: Vec<RecordBatch>) -> Self {
+        assert!(!batches.is_empty(), "must at least pass one record batch");
+        Self {
+            schema: batches[0].schema(),
+            batches,
+        }
+    }
+
+    /// Create new stream with provided schema.
+    pub fn new_with_schema(batches: Vec<RecordBatch>, schema: SchemaRef) -> Self {
+        Self { schema, batches }
+    }
+}
+
+impl RecordBatchStream for MemoryStream {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&self.schema)
+    }
+}
+
+impl futures::Stream for MemoryStream {
+    type Item = ArrowResult<RecordBatch>;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        if self.batches.is_empty() {
+            Poll::Ready(None)
+        } else {
+            Poll::Ready(Some(Ok(self.batches.remove(0))))
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.batches.len(), Some(self.batches.len()))
     }
 }
 

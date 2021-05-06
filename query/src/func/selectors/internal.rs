@@ -8,20 +8,18 @@
 
 use std::fmt::Debug;
 
-use arrow_deps::{
-    arrow::compute::kernels::aggregate::{
+use arrow::{
+    array::{
+        Array, ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray,
+        TimestampNanosecondArray,
+    },
+    compute::kernels::aggregate::{
         max as array_max, max_boolean as array_max_boolean, max_string as array_max_string,
         min as array_min, min_boolean as array_min_boolean, min_string as array_min_string,
     },
-    arrow::{
-        array::{
-            Array, ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray,
-            TimestampNanosecondArray,
-        },
-        datatypes::DataType,
-    },
-    datafusion::{error::Result as DataFusionResult, scalar::ScalarValue},
+    datatypes::DataType,
 };
+use datafusion::{error::Result as DataFusionResult, scalar::ScalarValue};
 
 use super::{Selector, SelectorOutput};
 

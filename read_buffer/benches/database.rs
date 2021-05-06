@@ -2,7 +2,7 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 
-use arrow_deps::arrow::{
+use arrow::{
     array::{ArrayRef, Int64Array, StringArray},
     record_batch::RecordBatch,
 };

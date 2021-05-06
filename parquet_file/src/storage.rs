@@ -1,25 +1,23 @@
 /// This module responsible to write given data to specify object store and
 /// read them back
-use arrow_deps::{
-    arrow::{
-        datatypes::{Schema, SchemaRef},
-        error::Result as ArrowResult,
-        record_batch::RecordBatch,
-    },
-    datafusion::physical_plan::{
-        common::SizedRecordBatchStream, parquet::RowGroupPredicateBuilder, RecordBatchStream,
-        SendableRecordBatchStream,
-    },
-    parquet::{
-        self,
-        arrow::{arrow_reader::ParquetFileArrowReader, ArrowReader, ArrowWriter},
-        file::{reader::FileReader, serialized_reader::SerializedFileReader, writer::TryClone},
-    },
+use arrow::{
+    datatypes::{Schema, SchemaRef},
+    error::Result as ArrowResult,
+    record_batch::RecordBatch,
+};
+use datafusion::physical_plan::{
+    common::SizedRecordBatchStream, parquet::RowGroupPredicateBuilder, RecordBatchStream,
+    SendableRecordBatchStream,
 };
 use internal_types::selection::Selection;
 use object_store::{
     path::{ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi, ObjectStoreIntegration,
+};
+use parquet::{
+    self,
+    arrow::{arrow_reader::ParquetFileArrowReader, ArrowReader, ArrowWriter},
+    file::{reader::FileReader, serialized_reader::SerializedFileReader, writer::TryClone},
 };
 use query::predicate::Predicate;
 
@@ -44,9 +42,7 @@ pub enum Error {
     },
 
     #[snafu(display("Error reading stream while creating snapshot: {}", source))]
-    ReadingStream {
-        source: arrow_deps::arrow::error::ArrowError,
-    },
+    ReadingStream { source: arrow::error::ArrowError },
 
     #[snafu(display("Error writing Parquet to memory: {}", source))]
     WritingParquetToMemory {
@@ -72,22 +68,20 @@ pub enum Error {
 
     #[snafu(display("Error at serialized file reader: {}", source))]
     SerializedFileReaderError {
-        source: arrow_deps::parquet::errors::ParquetError,
+        source: parquet::errors::ParquetError,
     },
 
     #[snafu(display("Error at parquet arrow reader: {}", source))]
     ParquetArrowReaderError {
-        source: arrow_deps::parquet::errors::ParquetError,
+        source: parquet::errors::ParquetError,
     },
 
     #[snafu(display("Error reading data from parquet file: {}", source))]
-    ReadingFile {
-        source: arrow_deps::arrow::error::ArrowError,
-    },
+    ReadingFile { source: arrow::error::ArrowError },
 
     #[snafu(display("Error sending results: {}", source))]
     SendResult {
-        source: arrow_deps::datafusion::error::DataFusionError,
+        source: datafusion::error::DataFusionError,
     },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;

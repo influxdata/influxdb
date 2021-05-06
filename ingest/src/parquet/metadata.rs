@@ -1,18 +1,11 @@
 //! Provide storage statistics for parquet files
-use arrow_deps::{
-    arrow::datatypes::DataType,
-    parquet::{
-        self,
-        file::reader::{FileReader, SerializedFileReader},
-        schema,
-    },
+use super::error::{ParquetLibraryError, Result};
+use arrow::datatypes::DataType;
+use parquet::{
+    file::reader::{ChunkReader, FileReader, SerializedFileReader},
+    schema,
 };
 use snafu::ResultExt;
-
-use super::{
-    error::{ParquetLibraryError, Result},
-    ChunkReader,
-};
 
 pub fn parquet_schema_as_string(parquet_schema: &schema::types::Type) -> String {
     let mut parquet_schema_string = Vec::new();
