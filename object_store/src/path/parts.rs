@@ -78,6 +78,7 @@ impl std::fmt::Display for PathPart {
 }
 
 impl PathPart {
+    /// Encode as string.
     pub fn encoded(&self) -> &str {
         &self.0
     }
