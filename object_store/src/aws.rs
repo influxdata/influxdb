@@ -295,9 +295,16 @@ impl AmazonS3 {
         secret_access_key: Option<impl Into<String>>,
         region: impl Into<String>,
         bucket_name: impl Into<String>,
+        endpoint: Option<impl Into<String>>,
     ) -> Result<Self> {
         let region = region.into();
-        let region: rusoto_core::Region = region.parse().context(InvalidRegion { region })?;
+        let region: rusoto_core::Region = match endpoint {
+            None => region.parse().context(InvalidRegion { region })?,
+            Some(endpoint) => rusoto_core::Region::Custom {
+                name: region,
+                endpoint: endpoint.into(),
+            },
+        };
 
         let http_client = rusoto_core::request::HttpClient::new()
             .expect("Current implementation of rusoto_core has no way for this to fail");
@@ -523,6 +530,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 config.bucket,
+                Option::<String>::None,
             )
             .expect("Valid S3 config"),
         );
@@ -543,6 +551,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
+                Option::<String>::None,
             )
             .expect("Valid S3 config"),
         );
@@ -573,6 +582,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
+                Option::<String>::None,
             )
             .expect("Valid S3 config"),
         );
@@ -614,6 +624,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
+                Option::<String>::None,
             )
             .expect("Valid S3 config"),
         );
@@ -650,6 +661,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
+                Option::<String>::None,
             )
             .expect("Valid S3 config"),
         );
@@ -696,6 +708,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
+                Option::<String>::None,
             )
             .expect("Valid S3 config"),
         );
@@ -740,6 +753,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 config.bucket,
+                Option::<String>::None,
             )
             .expect("Valid S3 config"),
         );
@@ -764,6 +778,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
+                Option::<String>::None,
             )
             .expect("Valid S3 config"),
         );
@@ -800,6 +815,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
+                Option::<String>::None,
             )
             .expect("Valid S3 config"),
         );
