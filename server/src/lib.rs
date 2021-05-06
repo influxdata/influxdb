@@ -86,7 +86,7 @@ use data_types::{
 use entry::{lines_to_sharded_entries, Entry, OwnedSequencedEntry, ShardedEntry};
 use influxdb_line_protocol::ParsedLine;
 use internal_types::once::OnceNonZeroU32;
-use metrics::{KeyValue, MetricRegistry};
+use metrics::{KeyValue, MetricObserverBuilder, MetricRegistry};
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, DatabaseStore};
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
@@ -259,9 +259,6 @@ pub struct ServerMetrics {
 
     /// The number of Entry bytes ingested
     pub ingest_entries_bytes_total: metrics::Counter,
-
-    /// Internal memory allocator stats
-    pub jemalloc_memstats: metrics::Gauge,
 }
 
 impl ServerMetrics {
@@ -270,6 +267,37 @@ impl ServerMetrics {
         let http_domain = registry.register_domain("http");
         let ingest_domain = registry.register_domain("ingest");
         let jemalloc_domain = registry.register_domain("jemalloc");
+
+        // This isn't really a property of the server, perhaps it should be somewhere else?
+        jemalloc_domain.register_observer(None, &[], |observer: MetricObserverBuilder<'_>| {
+            observer.register_gauge_u64(
+                "memstats",
+                Some("bytes"),
+                "jemalloc memstats",
+                |observer| {
+                    use tikv_jemalloc_ctl::{epoch, stats};
+                    epoch::advance().unwrap();
+
+                    let active = stats::allocated::read().unwrap();
+                    observer.observe(active as u64, &[KeyValue::new("stat", "active")]);
+
+                    let allocated = stats::allocated::read().unwrap();
+                    observer.observe(allocated as u64, &[KeyValue::new("stat", "alloc")]);
+
+                    let metadata = stats::metadata::read().unwrap();
+                    observer.observe(metadata as u64, &[KeyValue::new("stat", "metadata")]);
+
+                    let mapped = stats::mapped::read().unwrap();
+                    observer.observe(mapped as u64, &[KeyValue::new("stat", "mapped")]);
+
+                    let resident = stats::resident::read().unwrap();
+                    observer.observe(resident as u64, &[KeyValue::new("stat", "resident")]);
+
+                    let retained = stats::retained::read().unwrap();
+                    observer.observe(retained as u64, &[KeyValue::new("stat", "retained")]);
+                },
+            )
+        });
 
         Self {
             http_requests: http_domain.register_red_metric(None),
@@ -287,34 +315,6 @@ impl ServerMetrics {
                 "entries",
                 Some("bytes"),
                 "total Entry bytes ingested",
-            ),
-            jemalloc_memstats: jemalloc_domain.register_gauge_metric_with_labels_and_callback(
-                "memstats",
-                Some("bytes"),
-                "jemalloc memstats",
-                vec![],
-                |observer| {
-                    use tikv_jemalloc_ctl::{epoch, stats};
-                    epoch::advance().unwrap();
-
-                    let active = stats::allocated::read().unwrap();
-                    observer.observe(active as f64, &[KeyValue::new("stat", "active")]);
-
-                    let allocated = stats::allocated::read().unwrap();
-                    observer.observe(allocated as f64, &[KeyValue::new("stat", "alloc")]);
-
-                    let metadata = stats::metadata::read().unwrap();
-                    observer.observe(metadata as f64, &[KeyValue::new("stat", "metadata")]);
-
-                    let mapped = stats::mapped::read().unwrap();
-                    observer.observe(mapped as f64, &[KeyValue::new("stat", "mapped")]);
-
-                    let resident = stats::resident::read().unwrap();
-                    observer.observe(resident as f64, &[KeyValue::new("stat", "resident")]);
-
-                    let retained = stats::retained::read().unwrap();
-                    observer.observe(retained as f64, &[KeyValue::new("stat", "retained")]);
-                },
             ),
         }
     }

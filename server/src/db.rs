@@ -27,7 +27,7 @@ use datafusion::{
 use entry::{ClockValue, ClockValueError, Entry, OwnedSequencedEntry, SequencedEntry};
 use internal_types::{arrow::sort::sort_record_batch, selection::Selection};
 use lifecycle::LifecycleManager;
-use metrics::MetricRegistry;
+use metrics::{KeyValue, MetricObserver, MetricObserverBuilder, MetricRegistry};
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, info};
 use parking_lot::{lock_api::RwLockWriteGuard, Mutex, RawRwLock, RwLock};
@@ -313,9 +313,7 @@ pub struct Db {
 #[derive(Debug, Default)]
 struct MemoryRegistries {
     mutable_buffer: Arc<MemRegistry>,
-
     read_buffer: Arc<MemRegistry>,
-
     parquet: Arc<MemRegistry>,
 }
 
@@ -323,6 +321,34 @@ impl MemoryRegistries {
     /// Total bytes over all registries.
     pub fn bytes(&self) -> usize {
         self.mutable_buffer.bytes() + self.read_buffer.bytes() + self.parquet.bytes()
+    }
+}
+
+impl MetricObserver for &MemoryRegistries {
+    fn register(self, builder: MetricObserverBuilder<'_>) {
+        let mutable_buffer = Arc::clone(&self.mutable_buffer);
+        let read_buffer = Arc::clone(&self.read_buffer);
+        let parquet = Arc::clone(&self.parquet);
+
+        builder.register_gauge_u64(
+            "chunks_mem_usage",
+            Some("bytes"),
+            "Memory usage by catalog chunks",
+            move |x| {
+                x.observe(
+                    mutable_buffer.bytes() as u64,
+                    &[KeyValue::new("source", "mutable_buffer")],
+                );
+                x.observe(
+                    read_buffer.bytes() as u64,
+                    &[KeyValue::new("source", "read_buffer")],
+                );
+                x.observe(
+                    parquet.bytes() as u64,
+                    &[KeyValue::new("source", "parquet")],
+                );
+            },
+        );
     }
 }
 
@@ -428,6 +454,17 @@ impl Db {
                 default_labels,
             ),
         };
+
+        let memory_registries = Default::default();
+        domain.register_observer(
+            None,
+            &[
+                metrics::KeyValue::new("db_name", db_name.to_string()),
+                metrics::KeyValue::new("svr_id", format!("{}", server_id)),
+            ],
+            &memory_registries,
+        );
+
         Self {
             rules,
             server_id,
@@ -438,7 +475,7 @@ impl Db {
             jobs,
             metrics: db_metrics,
             system_tables,
-            memory_registries: Default::default(),
+            memory_registries,
             sequence: AtomicU64::new(STARTING_SEQUENCE),
             worker_iterations: AtomicUsize::new(0),
         }

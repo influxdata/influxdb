@@ -8,10 +8,7 @@ use std::{
 use dashmap::DashMap;
 use observability_deps::opentelemetry::{
     labels,
-    metrics::{
-        Counter as OTCounter, ObserverResult, ValueObserver as OTGauge,
-        ValueRecorder as OTHistogram,
-    },
+    metrics::{Counter as OTCounter, ValueObserver as OTGauge, ValueRecorder as OTHistogram},
 };
 
 pub use observability_deps::opentelemetry::KeyValue;
@@ -367,26 +364,6 @@ impl Gauge {
             label_set.encoded(Some(&labels::DefaultLabelEncoder)),
             labels_new,
         )
-    }
-}
-
-#[derive(Debug)]
-pub struct GaugeObserverResult {
-    observer: ObserverResult<f64>,
-    default_labels: Vec<KeyValue>,
-}
-
-impl GaugeObserverResult {
-    pub(crate) fn new(observer: ObserverResult<f64>, default_labels: Vec<KeyValue>) -> Self {
-        Self {
-            observer,
-            default_labels,
-        }
-    }
-
-    pub fn observe(&self, value: f64, labels: &[KeyValue]) {
-        let (_, labels_new) = Gauge::merge_labels(&self.default_labels, labels);
-        self.observer.observe(value, &labels_new);
     }
 }
 

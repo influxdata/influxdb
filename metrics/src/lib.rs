@@ -12,7 +12,9 @@ use dashmap::{mapref::multiple::RefMulti, DashMap};
 use observability_deps::{
     opentelemetry::metrics::Meter as OTMeter,
     opentelemetry::{
-        metrics::{registry::RegistryMeterProvider, MeterProvider, ValueRecorderBuilder},
+        metrics::{
+            registry::RegistryMeterProvider, MeterProvider, ObserverResult, ValueRecorderBuilder,
+        },
         sdk::{
             export::metrics::ExportKindSelector,
             metrics::{controllers, selectors::simple::Selector},
@@ -150,13 +152,23 @@ impl Domain {
         Self { name, meter }
     }
 
-    // Creates an appropriate metric name based on the Domain's name and an
-    // optional subsystem name.
-    fn build_metric_prefix(&self, metric_name: &str, subname: Option<&str>) -> String {
-        match subname {
-            Some(subname) => format!("{}.{}.{}", self.name, subname, metric_name),
-            None => format!("{}.{}", self.name, metric_name),
+    // Creates an appropriate metric name based on the Domain's name, and
+    // an optional subsystem name, unit and suffix
+    fn build_metric_name(
+        &self,
+        metric_name: &str,
+        subname: Option<&str>,
+        unit: Option<&str>,
+        suffix: Option<&str>,
+    ) -> String {
+        let mut ret = self.name.to_string();
+        for s in &[subname, Some(metric_name), unit, suffix] {
+            if let Some(s) = s {
+                ret.push('.');
+                ret.push_str(s)
+            }
         }
+        ret
     }
 
     /// Registers a new metric following the RED methodology.
@@ -189,13 +201,18 @@ impl Domain {
     ) -> metrics::RedMetric {
         let requests = self
             .meter
-            .u64_counter(self.build_metric_prefix("requests.total", name))
+            .u64_counter(self.build_metric_name("requests", name, None, Some("total")))
             .with_description("accumulated total requests")
             .init();
 
         let duration = self
             .meter
-            .f64_value_recorder(self.build_metric_prefix("request.duration.seconds", name))
+            .f64_value_recorder(self.build_metric_name(
+                "request.duration",
+                name,
+                Some("seconds"),
+                None,
+            ))
             .with_description("distribution of request latencies")
             .init();
 
@@ -230,10 +247,7 @@ impl Domain {
     ) -> metrics::Counter {
         let counter = self
             .meter
-            .u64_counter(match unit {
-                Some(unit) => format!("{}.{}.total", self.build_metric_prefix(name, None), unit),
-                None => format!("{}.total", self.build_metric_prefix(name, None)),
-            })
+            .u64_counter(self.build_metric_name(name, None, unit, Some("total")))
             .with_description(description)
             .init();
 
@@ -262,11 +276,7 @@ impl Domain {
     ) -> HistogramBuilder<'_> {
         let histogram = self
             .meter
-            .f64_value_recorder(format!(
-                "{}.{}",
-                self.build_metric_prefix(attribute, Some(name)),
-                unit
-            ))
+            .f64_value_recorder(self.build_metric_name(attribute, Some(name), Some(unit), None))
             .with_description(description);
 
         HistogramBuilder::new(histogram)
@@ -301,27 +311,6 @@ impl Domain {
         description: impl Into<String>,
         default_labels: Vec<KeyValue>,
     ) -> metrics::Gauge {
-        self.register_gauge_metric_with_labels_and_callback(
-            name,
-            unit,
-            description,
-            default_labels,
-            |_| {},
-        )
-    }
-
-    /// Registers a new gauge metric with default labels and callback
-    pub fn register_gauge_metric_with_labels_and_callback<F>(
-        &self,
-        name: &str,
-        unit: Option<&str>,
-        description: impl Into<String>,
-        default_labels: Vec<KeyValue>,
-        callback: F,
-    ) -> metrics::Gauge
-    where
-        F: Fn(metrics::GaugeObserverResult) + Send + Sync + 'static,
-    {
         // A gauge is technically a ValueRecorder for which we only care about the last value.
         // Unfortunately, in opentelemetry it appears that such behavior is selected by crafting
         // a custom selector that will then apply a LastValueAggregator. This is all very
@@ -335,33 +324,130 @@ impl Domain {
 
         let values = Arc::new(DashMap::new());
         let values_captured = Arc::clone(&values);
-        let default_labels_captured = default_labels.clone();
         let gauge = self
             .meter
-            .f64_value_observer(
-                match unit {
-                    Some(unit) => {
-                        format!("{}.{}", self.build_metric_prefix(name, None), unit)
-                    }
-                    None => self.build_metric_prefix(name, None),
-                },
-                move |observer| {
-                    for i in values_captured.iter() {
-                        // currently rust type inference cannot deduct the type of i.value()
-                        let i: RefMulti<'_, _, (f64, Vec<KeyValue>), _> = i;
-                        let &(value, ref labels) = i.value();
-                        observer.observe(value, labels);
-                    }
-                    callback(metrics::GaugeObserverResult::new(
-                        observer,
-                        default_labels_captured.clone(),
-                    ));
-                },
-            )
+            .f64_value_observer(self.build_metric_name(name, None, unit, None), move |arg| {
+                for i in values_captured.iter() {
+                    // currently rust type inference cannot deduct the type of i.value()
+                    let i: RefMulti<'_, _, (f64, Vec<KeyValue>), _> = i;
+                    let &(value, ref labels) = i.value();
+                    arg.observe(value, labels);
+                }
+            })
             .with_description(description)
             .init();
 
         metrics::Gauge::new(gauge, default_labels, values)
+    }
+
+    pub fn register_observer(
+        &self,
+        subname: Option<&str>,
+        labels: &[KeyValue],
+        observer: impl MetricObserver,
+    ) {
+        observer.register(MetricObserverBuilder {
+            domain: self,
+            subname,
+            labels,
+        });
+    }
+}
+
+/// A trait that can be implemented by an object that wishes to expose
+/// its internal counters as OpenTelemetry metrics
+///
+/// A default implementation is provided for a closure
+pub trait MetricObserver {
+    fn register(self, builder: MetricObserverBuilder<'_>);
+}
+
+impl<T: FnOnce(MetricObserverBuilder<'_>)> MetricObserver for T {
+    fn register(self, builder: MetricObserverBuilder<'_>) {
+        self(builder)
+    }
+}
+
+#[derive(Debug)]
+pub struct MetricObserverBuilder<'a> {
+    domain: &'a Domain,
+    subname: Option<&'a str>,
+    labels: &'a [KeyValue],
+}
+
+impl<'a> MetricObserverBuilder<'a> {
+    /// Register a u64 gauge
+    pub fn register_gauge_u64<F>(
+        &self,
+        name: &str,
+        unit: Option<&str>,
+        description: impl Into<String>,
+        callback: F,
+    ) where
+        F: Fn(TaggedObserverResult<'_, u64>) + Send + Sync + 'static,
+    {
+        self.domain
+            .meter
+            .u64_value_observer(
+                self.domain
+                    .build_metric_name(name, self.subname, unit, None),
+                TaggedObserverResult::with_callback(self.labels.to_owned(), callback),
+            )
+            .with_description(description)
+            .init();
+    }
+
+    /// Register a u64 counter
+    pub fn register_counter_u64<F>(
+        &self,
+        name: &str,
+        unit: Option<&str>,
+        description: impl Into<String>,
+        callback: F,
+    ) where
+        F: Fn(TaggedObserverResult<'_, u64>) + Send + Sync + 'static,
+    {
+        self.domain
+            .meter
+            .u64_sum_observer(
+                self.domain
+                    .build_metric_name(name, self.subname, unit, Some("total")),
+                TaggedObserverResult::with_callback(self.labels.to_owned(), callback),
+            )
+            .with_description(description)
+            .init();
+    }
+}
+
+#[derive(Debug)]
+pub struct TaggedObserverResult<'a, T> {
+    observer: ObserverResult<T>,
+    labels: &'a [KeyValue],
+}
+
+impl<'a, T> TaggedObserverResult<'a, T>
+where
+    T: Into<observability_deps::opentelemetry::metrics::Number>,
+{
+    fn with_callback<F>(
+        labels: Vec<KeyValue>,
+        callback: F,
+    ) -> impl Fn(ObserverResult<T>) + Send + Sync + 'static
+    where
+        F: Fn(TaggedObserverResult<'_, T>) + Send + Sync + 'static,
+    {
+        move |observer| {
+            callback(TaggedObserverResult {
+                observer,
+                labels: labels.as_slice(),
+            })
+        }
+    }
+
+    pub fn observe(&self, value: T, labels: &[KeyValue]) {
+        // This does not handle duplicates, it is unclear that it should
+        let labels: Vec<_> = self.labels.iter().chain(labels).cloned().collect();
+        self.observer.observe(value, &labels)
     }
 }
 
@@ -754,30 +840,38 @@ mod test {
     }
 
     #[test]
-    fn gauge_metric_callback() {
+    fn metric_observer() {
         let reg = TestMetricRegistry::default();
         let domain = reg.registry().register_domain("http");
 
-        let value = Arc::new(Mutex::new(40.0));
-        let value_captured = Arc::clone(&value);
+        let value = Arc::new(Mutex::new(40_u64));
 
         // create a gauge metric
-        domain.register_gauge_metric_with_labels_and_callback(
-            "mem",
-            Some("bytes"),
-            "currently used bytes",
-            vec![KeyValue::new("tier", "a")],
-            move |observer| {
-                observer.observe(*value_captured.lock().unwrap(), &[]);
+        domain.register_observer(
+            None,
+            &[KeyValue::new("tier", "a")],
+            |observer: MetricObserverBuilder<'_>| {
+                let value_captured = Arc::clone(&value);
+                observer.register_gauge_u64(
+                    "mem",
+                    Some("bytes"),
+                    "currently used bytes",
+                    move |observer| observer.observe(*value_captured.lock().unwrap(), &[]),
+                )
             },
         );
 
-        domain.register_gauge_metric_with_labels_and_callback(
-            "disk",
-            Some("bytes"),
-            "currently used bytes",
-            vec![KeyValue::new("tier", "a")],
-            |observer| observer.observe(43.0, &[KeyValue::new("beer", "b")]),
+        domain.register_observer(
+            None,
+            &[KeyValue::new("tier", "a")],
+            |observer: MetricObserverBuilder<'_>| {
+                observer.register_gauge_u64(
+                    "disk",
+                    Some("bytes"),
+                    "currently used bytes",
+                    move |observer| observer.observe(43, &[KeyValue::new("beer", "b")]),
+                )
+            },
         );
 
         reg.has_metric_family("http_mem_bytes")
@@ -788,7 +882,7 @@ mod test {
 
         {
             let mut value = value.lock().unwrap();
-            *value = 42.0;
+            *value = 42;
         }
 
         reg.has_metric_family("http_mem_bytes")
