@@ -46,6 +46,19 @@ impl Bool {
         std::mem::size_of::<BooleanArray>() + self.arr.get_array_memory_size()
     }
 
+    /// The estimated total size in bytes of the underlying bool values in the
+    /// column if they were stored contiguously and uncompressed. `include_nulls`
+    /// will effectively size each NULL value as 1b if `true`.
+    pub fn size_raw(&self, include_nulls: bool) -> usize {
+        let base_size = std::mem::size_of::<Vec<bool>>();
+
+        if !self.contains_null() || include_nulls {
+            return base_size + self.num_rows() as usize;
+        }
+
+        base_size + self.num_rows() as usize - self.arr.null_count()
+    }
+
     //
     //
     // ---- Methods for getting row ids from values.
@@ -348,6 +361,14 @@ mod test {
     fn size() {
         let v = Bool::from(vec![None, None, Some(true), Some(false)].as_slice());
         assert_eq!(v.size(), 464);
+    }
+
+    #[test]
+    fn size_raw() {
+        let v = Bool::from(vec![None, None, Some(true), Some(false)].as_slice());
+        // 4 * 1b + 24b
+        assert_eq!(v.size_raw(true), 28);
+        assert_eq!(v.size_raw(false), 26);
     }
 
     #[test]
