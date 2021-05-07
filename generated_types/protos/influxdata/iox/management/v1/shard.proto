@@ -33,7 +33,7 @@ message ShardConfig {
 
   /// Mapping between shard IDs and node groups. Other sharding rules use
   /// ShardId as targets.
-  map<uint32, NodeGroup> shards = 4;
+  map<uint32, Shard> shards = 4;
 }
 
 // Maps a matcher with specific shard. If the line/row matches
@@ -50,6 +50,13 @@ message Matcher {
   string table_name_regex = 1;
   // paul: what should we use for predicate matching here against a single row/line?
   string predicate = 2;
+}
+
+// Configuration for a specific shard
+message Shard {
+  oneof sink {
+    NodeGroup iox = 1;
+  }
 }
 
 // A collection of IOx nodes

@@ -99,7 +99,7 @@ use crate::{
     },
     db::Db,
 };
-use data_types::database_rules::{NodeGroup, ShardId};
+use data_types::database_rules::{NodeGroup, Shard, ShardId};
 use generated_types::database_rules::{decode_database_rules, encode_database_rules};
 use influxdb_iox_client::{connection::Builder, write};
 use rand::seq::SliceRandom;
@@ -565,14 +565,18 @@ impl<M: ConnectionManager> Server<M> {
         &self,
         db_name: &str,
         db: &Db,
-        shards: Arc<HashMap<u32, NodeGroup>>,
+        shards: Arc<HashMap<u32, Shard>>,
         sharded_entry: ShardedEntry,
     ) -> Result<()> {
         match sharded_entry.shard_id {
             Some(shard_id) => {
-                let node_group = shards.get(&shard_id).context(ShardNotFound { shard_id })?;
-                self.write_entry_downstream(db_name, node_group, sharded_entry.entry)
-                    .await?
+                let shard = shards.get(&shard_id).context(ShardNotFound { shard_id })?;
+                match shard {
+                    Shard::Iox(node_group) => {
+                        self.write_entry_downstream(db_name, node_group, sharded_entry.entry)
+                            .await?
+                    }
+                }
             }
             None => {
                 self.write_entry_local(&db_name, db, sharded_entry.entry)
@@ -1281,7 +1285,7 @@ mod tests {
                     ..Default::default()
                 }),
                 shards: Arc::new(
-                    vec![(TEST_SHARD_ID, remote_ids.clone())]
+                    vec![(TEST_SHARD_ID, Shard::Iox(remote_ids.clone()))]
                         .into_iter()
                         .collect(),
                 ),

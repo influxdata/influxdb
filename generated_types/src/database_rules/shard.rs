@@ -1,13 +1,14 @@
-use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
 
 use regex::Regex;
 
-use data_types::database_rules::{HashRing, Matcher, MatcherToShard, NodeGroup, ShardConfig};
+use data_types::database_rules::{
+    HashRing, Matcher, MatcherToShard, NodeGroup, Shard, ShardConfig,
+};
 use data_types::server_id::ServerId;
 
-use crate::google::FieldViolation;
+use crate::google::{FieldViolation, FieldViolationExt, FromField};
 use crate::influxdata::iox::management::v1 as management;
 
 impl From<ShardConfig> for management::ShardConfig {
@@ -23,7 +24,7 @@ impl From<ShardConfig> for management::ShardConfig {
             shards: shard_config
                 .shards
                 .iter()
-                .map(|(k, v)| (*k, from_node_group_for_management_node_group(v.clone())))
+                .map(|(k, v)| (*k, v.clone().into()))
                 .collect(),
         }
     }
@@ -38,20 +39,21 @@ impl TryFrom<management::ShardConfig> for ShardConfig {
                 .specific_targets
                 .into_iter()
                 .map(|i| i.try_into())
-                .collect::<Result<Vec<MatcherToShard>, _>>()?,
+                .collect::<Result<_, FieldViolation>>()
+                .field("specific_targets")?,
             hash_ring: proto
                 .hash_ring
                 .map(|i| i.try_into())
-                .map_or(Ok(None), |r| r.map(Some))?,
+                .map_or(Ok(None), |r| r.map(Some))
+                .field("hash_ring")?,
             ignore_errors: proto.ignore_errors,
             shards: Arc::new(
                 proto
                     .shards
                     .into_iter()
-                    .map(|(k, v)| {
-                        try_from_management_node_group_for_node_group(v).map(|ng| (k, ng))
-                    })
-                    .collect::<Result<HashMap<u32, NodeGroup>, FieldViolation>>()?,
+                    .map(|(k, v)| Ok((k, v.try_into()?)))
+                    .collect::<Result<_, FieldViolation>>()
+                    .field("shards")?,
             ),
         })
     }
@@ -80,7 +82,7 @@ impl TryFrom<management::MatcherToShard> for MatcherToShard {
 
     fn try_from(proto: management::MatcherToShard) -> Result<Self, Self::Error> {
         Ok(Self {
-            matcher: proto.matcher.unwrap_or_default().try_into()?,
+            matcher: proto.matcher.unwrap_or_default().scope("matcher")?,
             shard: proto.shard,
         })
     }
@@ -108,29 +110,52 @@ impl TryFrom<management::HashRing> for HashRing {
     }
 }
 
-// cannot (and/or don't know how to) add impl From inside prost generated code
-fn from_node_group_for_management_node_group(node_group: NodeGroup) -> management::NodeGroup {
-    management::NodeGroup {
-        nodes: node_group
-            .into_iter()
-            .map(|id| management::node_group::Node { id: id.get_u32() })
-            .collect(),
+impl From<Shard> for management::Shard {
+    fn from(shard: Shard) -> Self {
+        let sink = match shard {
+            Shard::Iox(node_group) => management::shard::Sink::Iox(node_group.into()),
+        };
+        management::Shard { sink: Some(sink) }
     }
 }
 
-fn try_from_management_node_group_for_node_group(
-    proto: management::NodeGroup,
-) -> Result<NodeGroup, FieldViolation> {
-    proto
-        .nodes
-        .into_iter()
-        .map(|i| {
-            ServerId::try_from(i.id).map_err(|_| FieldViolation {
-                field: "id".to_string(),
-                description: "Node ID must be nonzero".to_string(),
-            })
+impl TryFrom<management::Shard> for Shard {
+    type Error = FieldViolation;
+
+    fn try_from(proto: management::Shard) -> Result<Self, Self::Error> {
+        let sink = proto.sink.ok_or_else(|| FieldViolation::required(""))?;
+        Ok(match sink {
+            management::shard::Sink::Iox(node_group) => Shard::Iox(node_group.scope("node_group")?),
         })
-        .collect()
+    }
+}
+
+impl From<NodeGroup> for management::NodeGroup {
+    fn from(node_group: NodeGroup) -> Self {
+        Self {
+            nodes: node_group
+                .into_iter()
+                .map(|id| management::node_group::Node { id: id.get_u32() })
+                .collect(),
+        }
+    }
+}
+
+impl TryFrom<management::NodeGroup> for NodeGroup {
+    type Error = FieldViolation;
+
+    fn try_from(proto: management::NodeGroup) -> Result<Self, Self::Error> {
+        proto
+            .nodes
+            .into_iter()
+            .map(|i| {
+                ServerId::try_from(i.id).map_err(|_| FieldViolation {
+                    field: "id".to_string(),
+                    description: "Node ID must be nonzero".to_string(),
+                })
+            })
+            .collect()
+    }
 }
 
 impl From<Matcher> for management::Matcher {
@@ -312,18 +337,22 @@ mod tests {
             shards: vec![
                 (
                     1,
-                    management::NodeGroup {
-                        nodes: vec![
-                            management::node_group::Node { id: 10 },
-                            management::node_group::Node { id: 11 },
-                            management::node_group::Node { id: 12 },
-                        ],
+                    management::Shard {
+                        sink: Some(management::shard::Sink::Iox(management::NodeGroup {
+                            nodes: vec![
+                                management::node_group::Node { id: 10 },
+                                management::node_group::Node { id: 11 },
+                                management::node_group::Node { id: 12 },
+                            ],
+                        })),
                     },
                 ),
                 (
                     2,
-                    management::NodeGroup {
-                        nodes: vec![management::node_group::Node { id: 20 }],
+                    management::Shard {
+                        sink: Some(management::shard::Sink::Iox(management::NodeGroup {
+                            nodes: vec![management::node_group::Node { id: 20 }],
+                        })),
                     },
                 ),
             ]
@@ -335,8 +364,12 @@ mod tests {
         let shard_config: ShardConfig = protobuf.try_into().unwrap();
 
         assert_eq!(shard_config.shards.len(), 2);
-        assert_eq!(shard_config.shards[&1].len(), 3);
-        assert_eq!(shard_config.shards[&2].len(), 1);
+        assert!(
+            matches!(&shard_config.shards[&1], Shard::Iox(node_group) if node_group.len() == 3)
+        );
+        assert!(
+            matches!(&shard_config.shards[&2], Shard::Iox(node_group) if node_group.len() == 1)
+        );
     }
 
     #[test]

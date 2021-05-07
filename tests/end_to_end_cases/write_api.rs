@@ -10,7 +10,7 @@ use entry::{
     test_helpers::{partitioner, sharder},
 };
 use generated_types::influxdata::iox::management::v1::{
-    node_group::Node, HashRing, Matcher, MatcherToShard, NodeGroup, ShardConfig,
+    node_group::Node, shard, HashRing, Matcher, MatcherToShard, NodeGroup, Shard, ShardConfig,
 };
 use influxdb_line_protocol::parse_lines;
 use std::collections::HashMap;
@@ -217,26 +217,32 @@ async fn test_write_routed() {
         shards: vec![
             (
                 TEST_SHARD_ID_1,
-                NodeGroup {
-                    nodes: vec![Node {
-                        id: TEST_REMOTE_ID_1,
-                    }],
+                Shard {
+                    sink: Some(shard::Sink::Iox(NodeGroup {
+                        nodes: vec![Node {
+                            id: TEST_REMOTE_ID_1,
+                        }],
+                    })),
                 },
             ),
             (
                 TEST_SHARD_ID_2,
-                NodeGroup {
-                    nodes: vec![Node {
-                        id: TEST_REMOTE_ID_2,
-                    }],
+                Shard {
+                    sink: Some(shard::Sink::Iox(NodeGroup {
+                        nodes: vec![Node {
+                            id: TEST_REMOTE_ID_2,
+                        }],
+                    })),
                 },
             ),
             (
                 TEST_SHARD_ID_3,
-                NodeGroup {
-                    nodes: vec![Node {
-                        id: TEST_REMOTE_ID_3,
-                    }],
+                Shard {
+                    sink: Some(shard::Sink::Iox(NodeGroup {
+                        nodes: vec![Node {
+                            id: TEST_REMOTE_ID_3,
+                        }],
+                    })),
                 },
             ),
         ]
@@ -381,8 +387,10 @@ async fn test_write_routed_errors() {
         }],
         shards: vec![(
             TEST_SHARD_ID,
-            NodeGroup {
-                nodes: vec![Node { id: TEST_REMOTE_ID }],
+            Shard {
+                sink: Some(shard::Sink::Iox(NodeGroup {
+                    nodes: vec![Node { id: TEST_REMOTE_ID }],
+                })),
             },
         )]
         .into_iter()
