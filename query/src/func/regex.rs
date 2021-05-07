@@ -67,7 +67,6 @@ pub fn regex_match_expr(input: Expr, pattern: String, matches: bool) -> Expr {
     let udf = create_udf(
         udf_name,
         vec![DataType::Utf8],
-        // Arc::new(DataType::Utf8),
         Arc::new(DataType::Boolean),
         func,
     );
