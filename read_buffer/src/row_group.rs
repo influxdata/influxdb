@@ -79,7 +79,7 @@ impl RowGroup {
                         c.size(),
                         schema::ColumnType::Tag(name.clone()),
                         c.logical_datatype(),
-                        c.column_range().unwrap(),
+                        c.column_range(),
                     );
 
                     all_columns_by_name.insert(name.clone(), all_columns.len());
@@ -93,7 +93,7 @@ impl RowGroup {
                         c.size(),
                         schema::ColumnType::Field(name.clone()),
                         c.logical_datatype(),
-                        c.column_range().unwrap(),
+                        c.column_range(),
                     );
                     all_columns_by_name.insert(name.clone(), all_columns.len());
                     all_columns.push(c);
@@ -106,7 +106,7 @@ impl RowGroup {
                         c.size(),
                         schema::ColumnType::Timestamp(name.clone()),
                         c.logical_datatype(),
-                        c.column_range().unwrap(),
+                        c.column_range(),
                     );
 
                     all_columns_by_name.insert(name.clone(), all_columns.len());
@@ -136,6 +136,15 @@ impl RowGroup {
                 .map(|key| key.len() + std::mem::size_of::<usize>())
                 .sum::<usize>();
         base_size + self.meta.size()
+    }
+
+    /// Returns an iterator of (column_name, estimated_size) for all
+    /// columns in this row_group
+    pub fn column_sizes(&self) -> impl Iterator<Item = (&str, usize)> + '_ {
+        self.all_columns_by_name.iter().map(move |(name, idx)| {
+            let column = &self.columns[*idx];
+            (name.as_str(), column.size())
+        })
     }
 
     /// The number of rows in the `RowGroup` (all columns have the same number

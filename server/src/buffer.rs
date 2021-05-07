@@ -1,7 +1,7 @@
 //! This module contains code for managing the Write Buffer
 
 use data_types::{database_rules::WriteBufferRollover, server_id::ServerId, DatabaseName};
-use internal_types::entry::{ClockValue, Segment as EntrySegment, SequencedEntry};
+use entry::{ClockValue, Segment as EntrySegment, SequencedEntry};
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 
 use std::{convert::TryInto, mem, sync::Arc};
@@ -69,9 +69,7 @@ pub enum Error {
     FlatbuffersSegmentTooSmall { bytes: usize },
 
     #[snafu(display("flatbuffers for segment invalid: {}", source))]
-    FlatbuffersInvalid {
-        source: internal_types::entry::SequencedEntryError,
-    },
+    FlatbuffersInvalid { source: entry::SequencedEntryError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -412,7 +410,7 @@ fn database_object_store_path(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use internal_types::entry::{test_helpers::lp_to_sequenced_entry as lp_2_se, SequencedEntry};
+    use entry::{test_helpers::lp_to_sequenced_entry as lp_2_se, SequencedEntry};
     use object_store::memory::InMemory;
     use std::{convert::TryFrom, ops::Deref};
 

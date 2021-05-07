@@ -33,12 +33,6 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "ahash"
-version = "0.4.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "739f4a8db6605981345c5654f3a85b056ce52f37a39d34da03f25bf2151ea16e"
-
-[[package]]
-name = "ahash"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f200cbb1e856866d9eade941cf3aa0c5d7dd36f74311c4273b494f4ef036957"
@@ -118,7 +112,7 @@ dependencies = [
 [[package]]
 name = "arrow"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow-rs?rev=ed00e4d4a160cd5182bfafb81fee2240ec005014#ed00e4d4a160cd5182bfafb81fee2240ec005014"
+source = "git+https://github.com/apache/arrow-rs?rev=508f25c10032857da34ea88cc8166f0741616a32#508f25c10032857da34ea88cc8166f0741616a32"
 dependencies = [
  "cfg_aliases",
  "chrono",
@@ -141,7 +135,7 @@ dependencies = [
 [[package]]
 name = "arrow-flight"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow-rs?rev=ed00e4d4a160cd5182bfafb81fee2240ec005014#ed00e4d4a160cd5182bfafb81fee2240ec005014"
+source = "git+https://github.com/apache/arrow-rs?rev=508f25c10032857da34ea88cc8166f0741616a32#508f25c10032857da34ea88cc8166f0741616a32"
 dependencies = [
  "arrow 4.0.0-SNAPSHOT",
  "bytes",
@@ -581,10 +575,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea221b5284a47e40033bf9b66f35f984ec0ea2931eb03505246cd27a963f981b"
 
 [[package]]
-name = "cpuid-bool"
-version = "0.1.2"
+name = "cpufeatures"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8aebca1129a03dc6dc2b127edd729435bbc4a37e1d5f4d7513165089ceb02634"
+checksum = "5cd5a7748210e7ec1a9696610b1015e6e31fbf58f77a160801f124bd1c36592a"
 
 [[package]]
 name = "crc32fast"
@@ -780,17 +774,14 @@ name = "data_types"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "generated_types",
  "influxdb_line_protocol",
  "observability_deps",
  "percent-encoding",
- "prost",
  "regex",
  "serde",
  "serde_regex",
  "snafu",
  "test_helpers",
- "tonic",
 ]
 
 [[package]]
@@ -803,13 +794,12 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=f43dc444eb510f0ff170adecb5a23afb39c489a8#f43dc444eb510f0ff170adecb5a23afb39c489a8"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=ea451c9b809aed832ac41947424a595856d87af5#ea451c9b809aed832ac41947424a595856d87af5"
 dependencies = [
- "ahash 0.7.2",
+ "ahash",
  "arrow 4.0.0-SNAPSHOT",
  "async-trait",
  "chrono",
- "clap",
  "futures",
  "hashbrown 0.11.2",
  "log",
@@ -949,6 +939,20 @@ name = "endian-type"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c34f04666d835ff5d62e058c3995147c06f42fe86ff053337632bca83e42702d"
+
+[[package]]
+name = "entry"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "criterion",
+ "data_types",
+ "flatbuffers",
+ "influxdb_line_protocol",
+ "internal_types",
+ "ouroboros",
+ "snafu",
+]
 
 [[package]]
 name = "env_logger"
@@ -1195,6 +1199,7 @@ name = "generated_types"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "data_types",
  "flatbuffers",
  "futures",
  "google_types",
@@ -1202,8 +1207,10 @@ dependencies = [
  "prost",
  "prost-build",
  "prost-types",
+ "regex",
  "serde",
  "serde_json",
+ "thiserror",
  "tonic",
  "tonic-build",
 ]
@@ -1294,9 +1301,6 @@ name = "hashbrown"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
-dependencies = [
- "ahash 0.4.7",
-]
 
 [[package]]
 name = "hashbrown"
@@ -1304,7 +1308,7 @@ version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
 dependencies = [
- "ahash 0.7.2",
+ "ahash",
 ]
 
 [[package]]
@@ -1498,6 +1502,7 @@ dependencies = [
  "datafusion 0.1.0",
  "dirs 3.0.2",
  "dotenv",
+ "entry",
  "flate2",
  "futures",
  "generated_types",
@@ -1518,6 +1523,8 @@ dependencies = [
  "object_store",
  "observability_deps",
  "once_cell",
+ "opentelemetry-jaeger",
+ "opentelemetry-otlp",
  "packers",
  "panic_logging",
  "parking_lot",
@@ -1547,6 +1554,8 @@ dependencies = [
  "tokio-util",
  "tonic",
  "tonic-health",
+ "tonic-reflection",
+ "tracing-opentelemetry",
  "tracker",
  "write_buffer",
 ]
@@ -1574,7 +1583,6 @@ dependencies = [
 name = "influxdb_line_protocol"
 version = "0.1.0"
 dependencies = [
- "influxdb2_client",
  "nom",
  "observability_deps",
  "smallvec",
@@ -1634,15 +1642,7 @@ version = "0.1.0"
 dependencies = [
  "arrow 0.1.0",
  "arrow_util",
- "chrono",
- "crc32fast",
- "criterion",
- "data_types",
- "flatbuffers",
- "generated_types",
- "influxdb_line_protocol",
  "observability_deps",
- "ouroboros",
  "snafu",
 ]
 
@@ -1833,6 +1833,7 @@ dependencies = [
  "criterion",
  "croaring",
  "crossbeam",
+ "env_logger",
  "human_format",
  "observability_deps",
  "packers",
@@ -1861,6 +1862,9 @@ version = "0.1.0"
 dependencies = [
  "dashmap",
  "observability_deps",
+ "opentelemetry-prometheus",
+ "parking_lot",
+ "prometheus",
  "snafu",
 ]
 
@@ -1950,16 +1954,15 @@ dependencies = [
 name = "mutable_buffer"
 version = "0.1.0"
 dependencies = [
- "ahash 0.7.2",
+ "ahash",
  "arrow 0.1.0",
  "arrow_util",
  "async-trait",
  "criterion",
  "data_types",
- "flatbuffers",
+ "entry",
  "flate2",
- "generated_types",
- "hashbrown 0.9.1",
+ "hashbrown 0.11.2",
  "influxdb_line_protocol",
  "internal_types",
  "observability_deps",
@@ -2188,14 +2191,8 @@ dependencies = [
 name = "observability_deps"
 version = "0.1.0"
 dependencies = [
- "env_logger",
  "opentelemetry",
- "opentelemetry-jaeger",
- "opentelemetry-otlp",
- "opentelemetry-prometheus",
- "prometheus",
  "tracing",
- "tracing-opentelemetry",
  "tracing-subscriber",
 ]
 
@@ -2412,7 +2409,7 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow-rs?rev=ed00e4d4a160cd5182bfafb81fee2240ec005014#ed00e4d4a160cd5182bfafb81fee2240ec005014"
+source = "git+https://github.com/apache/arrow-rs?rev=508f25c10032857da34ea88cc8166f0741616a32#508f25c10032857da34ea88cc8166f0741616a32"
 dependencies = [
  "arrow 4.0.0-SNAPSHOT",
  "base64 0.12.3",
@@ -2801,6 +2798,7 @@ dependencies = [
  "metrics",
  "observability_deps",
  "parking_lot",
+ "regex",
  "snafu",
  "sqlparser 0.8.0",
  "test_helpers",
@@ -2959,7 +2957,7 @@ dependencies = [
  "data_types",
  "datafusion 0.1.0",
  "either",
- "hashbrown 0.9.1",
+ "hashbrown 0.11.2",
  "internal_types",
  "itertools 0.9.0",
  "observability_deps",
@@ -3456,6 +3454,7 @@ dependencies = [
  "data_types",
  "datafusion 0.1.0",
  "datafusion_util",
+ "entry",
  "flatbuffers",
  "flate2",
  "futures",
@@ -3496,13 +3495,13 @@ checksum = "2579985fda508104f7587689507983eadd6a6e84dd35d6d115361f530916fa0d"
 
 [[package]]
 name = "sha2"
-version = "0.9.3"
+version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa827a14b29ab7f44778d14a88d3cb76e949c45083f7dbfa507d0cb699dc12de"
+checksum = "d8f6b75b17576b792bef0db1bcc4b8b8bcdf9506744cf34b974195487af6cff2"
 dependencies = [
  "block-buffer",
  "cfg-if",
- "cpuid-bool",
+ "cpufeatures",
  "digest",
  "opaque-debug",
 ]
@@ -4092,6 +4091,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "tonic-reflection"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56498d20188550337ea6c48ecf59d11646382dbfcd61051fb98c1093cfae3c21"
+dependencies = [
+ "bytes",
+ "prost",
+ "prost-types",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-build",
+]
+
+[[package]]
 name = "tower"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4215,8 +4229,10 @@ name = "tracker"
 version = "0.1.0"
 dependencies = [
  "futures",
- "hashbrown 0.9.1",
+ "hashbrown 0.11.2",
+ "lock_api",
  "observability_deps",
+ "parking_lot",
  "pin-project 1.0.7",
  "tokio",
  "tokio-util",

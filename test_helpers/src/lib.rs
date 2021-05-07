@@ -60,15 +60,15 @@ pub fn make_temp_file<C: AsRef<[u8]>>(contents: C) -> tempfile::NamedTempFile {
 }
 
 /// convert form that is easier to type in tests to what some code needs
-pub fn str_vec_to_arc_vec(str_vec: &[&str]) -> Arc<Vec<Arc<String>>> {
-    Arc::new(str_vec.iter().map(|s| Arc::new(String::from(*s))).collect())
+pub fn str_vec_to_arc_vec(str_vec: &[&str]) -> Arc<Vec<Arc<str>>> {
+    Arc::new(str_vec.iter().map(|s| Arc::from(*s)).collect())
 }
 
 /// convert form that is easier to type in tests to what some code needs
-pub fn str_pair_vec_to_vec(str_vec: &[(&str, &str)]) -> Vec<(Arc<String>, Arc<String>)> {
+pub fn str_pair_vec_to_vec(str_vec: &[(&str, &str)]) -> Vec<(Arc<str>, Arc<str>)> {
     str_vec
         .iter()
-        .map(|(s1, s2)| (Arc::new(String::from(*s1)), Arc::new(String::from(*s2))))
+        .map(|(s1, s2)| (Arc::from(*s1), Arc::from(*s2)))
         .collect()
 }
 

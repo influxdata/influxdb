@@ -10,10 +10,8 @@ use snafu::{OptionExt, ResultExt, Snafu};
 
 use arrow::record_batch::RecordBatch;
 use data_types::{partition_metadata::TableSummary, server_id::ServerId};
-use internal_types::{
-    entry::{ClockValue, TableBatch},
-    selection::Selection,
-};
+use entry::{ClockValue, TableBatch};
+use internal_types::selection::Selection;
 use tracker::{MemRegistry, MemTracker};
 
 use crate::chunk::snapshot::ChunkSnapshot;
@@ -229,6 +227,25 @@ impl Chunk {
         data_size + self.dictionary.size()
     }
 
+    /// Returns an iterator over (column_name, estimated_size) for all
+    /// columns in this chunk.
+    ///
+    /// NOTE: also returns a special "__dictionary" column with the size of
+    /// the dictionary that is shared across all columns in this chunk
+    pub fn column_sizes(&self) -> impl Iterator<Item = (&str, usize)> + '_ {
+        self.tables
+            .values()
+            .flat_map(|t| t.column_sizes())
+            .map(move |(did, sz)| {
+                let column_name = self
+                    .dictionary
+                    .lookup_id(*did)
+                    .expect("column name in dictionary");
+                (column_name, sz)
+            })
+            .chain(std::iter::once(("__dictionary", self.dictionary.size())))
+    }
+
     /// Return the number of rows in this chunk
     pub fn rows(&self) -> usize {
         self.tables.values().map(|t| t.row_count()).sum()
@@ -242,7 +259,7 @@ impl Chunk {
 
 pub mod test_helpers {
     use super::*;
-    use internal_types::entry::test_helpers::lp_to_entry;
+    use entry::test_helpers::lp_to_entry;
 
     /// A helper that will write line protocol string to the passed in Chunk.
     /// All data will be under a single partition with a clock value and

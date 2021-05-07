@@ -115,35 +115,40 @@ impl Column {
     }
 
     /// Returns the (min, max)  values stored in this column
-    pub fn column_range(&self) -> Option<(OwnedValue, OwnedValue)> {
+    pub fn column_range(&self) -> (OwnedValue, OwnedValue) {
         match &self {
-            Self::String(meta, _) => meta.range.as_ref().map(|range| {
-                (
-                    OwnedValue::String(range.0.clone()),
-                    OwnedValue::String(range.1.clone()),
-                )
-            }),
-            Self::Float(meta, _) => meta.range.map(|range| {
-                (
-                    OwnedValue::Scalar(Scalar::F64(range.0)),
-                    OwnedValue::Scalar(Scalar::F64(range.1)),
-                )
-            }),
-            Self::Integer(meta, _) => meta.range.map(|range| {
-                (
-                    OwnedValue::Scalar(Scalar::I64(range.0)),
-                    OwnedValue::Scalar(Scalar::I64(range.1)),
-                )
-            }),
-            Self::Unsigned(meta, _) => meta.range.map(|range| {
-                (
-                    OwnedValue::Scalar(Scalar::U64(range.0)),
-                    OwnedValue::Scalar(Scalar::U64(range.1)),
-                )
-            }),
-            Self::Bool(meta, _) => meta
-                .range
-                .map(|range| (OwnedValue::Boolean(range.0), OwnedValue::Boolean(range.1))),
+            Self::String(meta, _) => match &meta.range {
+                Some((min, max)) => (
+                    OwnedValue::String(min.clone()),
+                    OwnedValue::String(max.clone()),
+                ),
+                None => (OwnedValue::Null, OwnedValue::Null),
+            },
+            Self::Float(meta, _) => match meta.range {
+                Some((min, max)) => (
+                    OwnedValue::Scalar(Scalar::F64(min)),
+                    OwnedValue::Scalar(Scalar::F64(max)),
+                ),
+                None => (OwnedValue::Null, OwnedValue::Null),
+            },
+            Self::Integer(meta, _) => match meta.range {
+                Some((min, max)) => (
+                    OwnedValue::Scalar(Scalar::I64(min)),
+                    OwnedValue::Scalar(Scalar::I64(max)),
+                ),
+                None => (OwnedValue::Null, OwnedValue::Null),
+            },
+            Self::Unsigned(meta, _) => match meta.range {
+                Some((min, max)) => (
+                    OwnedValue::Scalar(Scalar::U64(min)),
+                    OwnedValue::Scalar(Scalar::U64(max)),
+                ),
+                None => (OwnedValue::Null, OwnedValue::Null),
+            },
+            Self::Bool(meta, _) => match meta.range {
+                Some((min, max)) => (OwnedValue::Boolean(min), OwnedValue::Boolean(max)),
+                None => (OwnedValue::Null, OwnedValue::Null),
+            },
             Self::ByteArray(_, _) => todo!(),
         }
     }
@@ -1319,6 +1324,64 @@ mod test {
 
         row_ids.intersect(&other);
         assert_eq!(row_ids.to_vec(), vec![2, 3, 4]);
+    }
+
+    #[test]
+    fn from_arrow_string_array_column_meta() {
+        let cases = vec![
+            (
+                StringArray::from(vec![None, Some("world"), None, Some("hello")]),
+                (
+                    OwnedValue::String("hello".to_owned()),
+                    OwnedValue::String("world".to_owned()),
+                ),
+            ),
+            (
+                StringArray::from(vec![None, Some("world"), None]),
+                (
+                    OwnedValue::String("world".to_owned()),
+                    OwnedValue::String("world".to_owned()),
+                ),
+            ),
+            (
+                StringArray::from(vec![None, None]),
+                (OwnedValue::Null, OwnedValue::Null),
+            ),
+        ];
+
+        for (arr, range) in cases {
+            let col = Column::from(arr);
+            assert_eq!(col.column_range(), range);
+        }
+    }
+
+    #[test]
+    fn from_arrow_int_array_column_meta() {
+        let cases = vec![
+            (
+                Int64Array::from(vec![None, Some(22), None, Some(18)]),
+                (
+                    OwnedValue::Scalar(Scalar::I64(18)),
+                    OwnedValue::Scalar(Scalar::I64(22)),
+                ),
+            ),
+            (
+                Int64Array::from(vec![None, Some(22), None]),
+                (
+                    OwnedValue::Scalar(Scalar::I64(22)),
+                    OwnedValue::Scalar(Scalar::I64(22)),
+                ),
+            ),
+            (
+                Int64Array::from(vec![None, None]),
+                (OwnedValue::Null, OwnedValue::Null),
+            ),
+        ];
+
+        for (arr, range) in cases {
+            let col = Column::from(arr);
+            assert_eq!(col.column_range(), range);
+        }
     }
 
     #[test]

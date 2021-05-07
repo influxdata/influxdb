@@ -20,7 +20,8 @@ mod tests {
         ////////////////////
         // Create test data which is also the expected data
         let table = "table1";
-        let (record_batches, schema, column_summaries, time_range, num_rows) = make_record_batch();
+        let (record_batches, schema, column_summaries, time_range, num_rows) =
+            make_record_batch("foo");
         let mut table_summary = TableSummary::new(table);
         table_summary.columns = column_summaries.clone();
         let record_batch = record_batches[0].clone(); // Get the first one to compare key-value meta data that would be the same for all batches
@@ -83,14 +84,14 @@ mod tests {
         // Now verify return results. This assert_batches_eq still works correctly without the metadata
         // We might modify it to make it include checking metadata or add a new comparison checking macro that prints out the metadata too
         let expected = vec![
-            "+--------------+-----------+-----------------------+--------------------+------------------+----------------------+------------------+------------------+---------------+----------------+------------+----------------------------+",
-            "| tag_nonempty | tag_empty | field_string_nonempty | field_string_empty | field_i64_normal | field_i64_range      | field_u64_normal | field_f64_normal | field_f64_inf | field_f64_zero | field_bool | time                       |",
-            "+--------------+-----------+-----------------------+--------------------+------------------+----------------------+------------------+------------------+---------------+----------------+------------+----------------------------+",
-            "| foo          |           | foo                   |                    | -1               | -9223372036854775808 | 1                | 10.1             | 0             | 0              | true       | 1970-01-01 00:00:00.000001 |",
-            "| bar          |           | bar                   |                    | 2                | 9223372036854775807  | 2                | 20.1             | inf           | 0              | false      | 1970-01-01 00:00:00.000002 |",
-            "| baz          |           | baz                   |                    | 3                | -9223372036854775808 | 3                | 30.1             | -inf          | 0              | true       | 1970-01-01 00:00:00.000003 |",
-            "| foo          |           | foo                   |                    | 4                | 9223372036854775807  | 4                | 40.1             | 1             | 0              | false      | 1970-01-01 00:00:00.000004 |",
-            "+--------------+-----------+-----------------------+--------------------+------------------+----------------------+------------------+------------------+---------------+----------------+------------+----------------------------+",
+            "+------------------+---------------+---------------------------+------------------------+----------------------+----------------------+----------------------+----------------------+-------------------+--------------------+----------------+----------------------------+",
+            "| foo_tag_nonempty | foo_tag_empty | foo_field_string_nonempty | foo_field_string_empty | foo_field_i64_normal | foo_field_i64_range  | foo_field_u64_normal | foo_field_f64_normal | foo_field_f64_inf | foo_field_f64_zero | foo_field_bool | time                       |",
+            "+------------------+---------------+---------------------------+------------------------+----------------------+----------------------+----------------------+----------------------+-------------------+--------------------+----------------+----------------------------+",
+            "| foo              |               | foo                       |                        | -1                   | -9223372036854775808 | 1                    | 10.1                 | 0                 | 0                  | true           | 1970-01-01 00:00:00.000001 |",
+            "| bar              |               | bar                       |                        | 2                    | 9223372036854775807  | 2                    | 20.1                 | inf               | 0                  | false          | 1970-01-01 00:00:00.000002 |",
+            "| baz              |               | baz                       |                        | 3                    | -9223372036854775808 | 3                    | 30.1                 | -inf              | 0                  | true           | 1970-01-01 00:00:00.000003 |",
+            "| foo              |               | foo                       |                        | 4                    | 9223372036854775807  | 4                    | 40.1                 | 1                 | 0                  | false          | 1970-01-01 00:00:00.000004 |",
+            "+------------------+---------------+---------------------------+------------------------+----------------------+----------------------+----------------------+----------------------+-------------------+--------------------+----------------+----------------------------+",
         ];
         assert_eq!(num_rows, actual_num_rows);
         assert_batches_eq!(expected.clone(), &record_batches);

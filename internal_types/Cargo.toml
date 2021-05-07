@@ -8,22 +8,8 @@ readme = "README.md"
 
 [dependencies]
 arrow = { path = "../arrow" }
-crc32fast = "1.2.0"
-chrono = { version = "0.4", features = ["serde"] }
-data_types = { path = "../data_types" }
-# See docs/regenerating_flatbuffers.md about updating generated code when updating the
-# version of the flatbuffers crate
-flatbuffers = "0.8"
-generated_types = { path = "../generated_types" }
-influxdb_line_protocol = { path = "../influxdb_line_protocol" }
-ouroboros = "0.8.3"
 snafu = "0.6"
 observability_deps = { path = "../observability_deps" }
 
-[dev-dependencies] # In alphabetical order
-criterion = "0.3"
+[dev-dependencies]
 arrow_util = { path = "../arrow_util" }
-
-[[bench]]
-name = "benchmark"
-harness = false

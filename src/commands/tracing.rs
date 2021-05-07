@@ -6,7 +6,7 @@ use observability_deps::{
     opentelemetry::sdk::trace,
     opentelemetry::sdk::Resource,
     opentelemetry::KeyValue,
-    opentelemetry_jaeger, opentelemetry_otlp, tracing, tracing_opentelemetry,
+    tracing,
     tracing_subscriber::{self, fmt, layer::SubscriberExt, EnvFilter},
 };
 

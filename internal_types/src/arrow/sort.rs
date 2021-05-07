@@ -36,7 +36,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 pub fn estimate_cardinality(array: &DictionaryArray<Int32Type>) -> usize {
     let keys = array.keys();
-    let group: HashSet<_> = keys.iter().filter_map(|x| x).collect();
+    let group: HashSet<_> = keys.iter().flatten().collect();
     group.len()
 }
 

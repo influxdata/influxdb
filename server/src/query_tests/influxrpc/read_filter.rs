@@ -273,6 +273,80 @@ async fn test_read_filter_data_pred_refers_to_good_and_non_existent_columns() {
 }
 
 #[tokio::test]
+async fn test_read_filter_data_pred_using_regex_match() {
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(200, 300)
+        // will match CA state
+        .build_regex_match_expr("state", "C.*")
+        .build();
+
+    let expected_results = vec![
+        "SeriesSet",
+        "table_name: h2o",
+        "tags",
+        "  (city, LA)",
+        "  (state, CA)",
+        "field_indexes:",
+        "  (value_index: 2, timestamp_index: 3)",
+        "start_row: 0",
+        "num_rows: 1",
+        "Batches:",
+        "+------+-------+------+-------------------------------+",
+        "| city | state | temp | time                          |",
+        "+------+-------+------+-------------------------------+",
+        "| LA   | CA    | 90   | 1970-01-01 00:00:00.000000200 |",
+        "+------+-------+------+-------------------------------+",
+    ];
+
+    run_read_filter_test_case!(TwoMeasurementsMultiSeries {}, predicate, expected_results);
+}
+
+#[tokio::test]
+async fn test_read_filter_data_pred_using_regex_not_match() {
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(200, 300)
+        // will filter out any rows with a state that matches "CA"
+        .build_regex_not_match_expr("state", "C.*")
+        .build();
+
+    let expected_results = vec![
+        "SeriesSet",
+        "table_name: h2o",
+        "tags",
+        "  (city, Boston)",
+        "  (state, MA)",
+        "field_indexes:",
+        "  (value_index: 2, timestamp_index: 3)",
+        "start_row: 0",
+        "num_rows: 1",
+        "Batches:",
+        "+--------+-------+------+-------------------------------+",
+        "| city   | state | temp | time                          |",
+        "+--------+-------+------+-------------------------------+",
+        "| Boston | MA    | 72.4 | 1970-01-01 00:00:00.000000250 |",
+        "+--------+-------+------+-------------------------------+",
+        "SeriesSet",
+        "table_name: o2",
+        "tags",
+        "  (city, Boston)",
+        "  (state, MA)",
+        "field_indexes:",
+        "  (value_index: 2, timestamp_index: 4)",
+        "  (value_index: 3, timestamp_index: 4)",
+        "start_row: 0",
+        "num_rows: 1",
+        "Batches:",
+        "+--------+-------+---------+------+-------------------------------+",
+        "| city   | state | reading | temp | time                          |",
+        "+--------+-------+---------+------+-------------------------------+",
+        "| Boston | MA    | 51      | 53.4 | 1970-01-01 00:00:00.000000250 |",
+        "+--------+-------+---------+------+-------------------------------+",
+    ];
+
+    run_read_filter_test_case!(TwoMeasurementsMultiSeries {}, predicate, expected_results);
+}
+
+#[tokio::test]
 async fn test_read_filter_data_pred_unsupported_in_scan() {
     test_helpers::maybe_start_logging();
 

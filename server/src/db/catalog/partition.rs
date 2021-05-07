@@ -7,13 +7,14 @@ use super::{
     Result, UnknownChunk, UnknownTable,
 };
 use chrono::{DateTime, Utc};
-use data_types::partition_metadata::PartitionSummary;
+use data_types::partition_metadata::{
+    PartitionSummary, UnaggregatedPartitionSummary, UnaggregatedTableSummary,
+};
 use data_types::{chunk::ChunkSummary, server_id::ServerId};
-use internal_types::entry::{ClockValue, TableBatch};
-use parking_lot::RwLock;
+use entry::{ClockValue, TableBatch};
 use query::predicate::Predicate;
 use snafu::OptionExt;
-use tracker::MemRegistry;
+use tracker::{LockTracker, MemRegistry, RwLock};
 
 /// IOx Catalog Partition
 ///
@@ -32,6 +33,9 @@ pub struct Partition {
     /// the last time at which write was made to this
     /// partition. Partition::new initializes this to now.
     last_write_at: DateTime<Utc>,
+
+    /// Lock Tracker for chunk-level locks
+    lock_tracker: LockTracker,
 }
 
 impl Partition {
@@ -56,6 +60,7 @@ impl Partition {
             tables: BTreeMap::new(),
             created_at: now,
             last_write_at: now,
+            lock_tracker: Default::default(),
         }
     }
 
@@ -94,7 +99,7 @@ impl Partition {
         let chunk_id = table.next_chunk_id;
         table.next_chunk_id += 1;
 
-        let chunk = Arc::new(RwLock::new(Chunk::new_open(
+        let chunk = Arc::new(self.lock_tracker.new_lock(Chunk::new_open(
             batch,
             &self.key,
             chunk_id,
@@ -193,17 +198,33 @@ impl Partition {
             .flat_map(|(_, table)| table.chunks.values())
     }
 
-    /// Return a PartitionSummary for this partition
-    pub fn summary(&self) -> PartitionSummary {
-        let table_summaries = self
+    /// Return the unaggregated chunk summary information for tables
+    /// in this partition
+    pub fn unaggregated_summary(&self) -> UnaggregatedPartitionSummary {
+        let tables = self
             .chunks()
             .map(|chunk| {
                 let chunk = chunk.read();
-                chunk.table_summary()
+                UnaggregatedTableSummary {
+                    chunk_id: chunk.id(),
+                    table: chunk.table_summary(),
+                }
             })
             .collect();
 
-        PartitionSummary::from_table_summaries(&self.key, table_summaries)
+        UnaggregatedPartitionSummary {
+            key: self.key.to_string(),
+            tables,
+        }
+    }
+
+    /// Return a PartitionSummary for this partition
+    pub fn summary(&self) -> PartitionSummary {
+        let UnaggregatedPartitionSummary { key, tables } = self.unaggregated_summary();
+
+        let table_summaries = tables.into_iter().map(|t| t.table);
+
+        PartitionSummary::from_table_summaries(key, table_summaries)
     }
 
     /// Return chunk summaries for all chunks in this partition

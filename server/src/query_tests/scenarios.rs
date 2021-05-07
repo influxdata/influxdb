@@ -272,6 +272,40 @@ impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
 }
 
 #[derive(Debug)]
+/// This has two chunks for queries that check the state of the system
+pub struct TwoMeasurementsManyFieldsTwoChunks {}
+#[async_trait]
+impl DbSetup for TwoMeasurementsManyFieldsTwoChunks {
+    async fn make(&self) -> Vec<DbScenario> {
+        let db = make_db().db;
+
+        let partition_key = "1970-01-01T00";
+
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.4 50",
+            "h2o,state=MA,city=Boston other_temp=70.4 250",
+        ];
+        write_lp(&db, &lp_lines.join("\n"));
+        db.rollover_partition(partition_key, "h2o").await.unwrap();
+        db.load_chunk_to_read_buffer(partition_key, "h2o", 0)
+            .await
+            .unwrap();
+
+        let lp_lines = vec![
+            "h2o,state=CA,city=Boston other_temp=72.4 350",
+            "o2,state=MA,city=Boston temp=53.4,reading=51 50",
+            "o2,state=CA temp=79.0 300",
+        ];
+        write_lp(&db, &lp_lines.join("\n"));
+
+        vec![DbScenario {
+            scenario_name: "Data in open chunk of mutable buffer and read buffer".into(),
+            db,
+        }]
+    }
+}
+
+#[derive(Debug)]
 /// This has a single scenario with all the life cycle operations to
 /// test queries that depend on that
 pub struct TwoMeasurementsManyFieldsLifecycle {}

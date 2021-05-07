@@ -10,6 +10,7 @@ use std::{convert::TryFrom, fmt};
 use datafusion::{
     logical_plan::{binary_expr, Expr, Operator},
     prelude::*,
+    scalar::ScalarValue,
 };
 use generated_types::{
     aggregate::AggregateType as RPCAggregateType, node::Comparison as RPCComparison,
@@ -20,9 +21,10 @@ use generated_types::{
 
 use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 use observability_deps::tracing::warn;
+use query::func::regex;
 use query::group_by::{Aggregate as QueryAggregate, WindowDuration};
 use query::predicate::PredicateBuilder;
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -66,19 +68,14 @@ pub enum Error {
     #[snafu(display("Internal error: found field tag reference in unexpected location"))]
     InternalInvalidFieldReference {},
 
-    #[snafu(display(
-        "Error creating predicate: Regular expression predicates are not supported: {}",
-        regexp
-    ))]
-    RegExpLiteralNotSupported { regexp: String },
+    #[snafu(display("Invalid regex pattern"))]
+    RegExpPatternInvalid {},
 
-    #[snafu(display("Error creating predicate: Regular expression predicates are not supported"))]
-    RegExpNotSupported {},
+    #[snafu(display("Internal error: regex expression input not expected"))]
+    InternalInvalidRegexExprReference {},
 
-    #[snafu(display(
-        "Error creating predicate: Not Regular expression predicates are not supported"
-    ))]
-    NotRegExpNotSupported {},
+    #[snafu(display("Internal error: incorrect number of nodes: {:?}", num_children))]
+    InternalInvalidRegexExprChildren { num_children: usize },
 
     #[snafu(display("Error creating predicate: StartsWith comparisons not supported"))]
     StartsWithNotSupported {},
@@ -452,7 +449,7 @@ fn build_node(value: RPCValue, inputs: Vec<Expr>) -> Result<Expr> {
         RPCValue::IntValue(v) => Ok(lit(v)),
         RPCValue::UintValue(v) => Ok(lit(v)),
         RPCValue::FloatValue(f) => Ok(lit(f)),
-        RPCValue::RegexValue(regexp) => RegExpLiteralNotSupported { regexp }.fail(),
+        RPCValue::RegexValue(pattern) => Ok(lit(pattern)),
         RPCValue::TagRefValue(tag_name) => Ok(col(&make_tag_name(tag_name)?)),
         RPCValue::FieldRefValue(field_name) => Ok(col(&field_name)),
         RPCValue::Logical(logical) => build_logical_node(logical, inputs),
@@ -471,7 +468,7 @@ fn build_logical_node(logical: i32, inputs: Vec<Expr>) -> Result<Expr> {
     }
 }
 
-/// Creates an expr from a "Comparsion" Node
+/// Creates an expr from a "Comparison" Node
 fn build_comparison_node(comparison: i32, inputs: Vec<Expr>) -> Result<Expr> {
     let comparison_enum = RPCComparison::from_i32(comparison);
 
@@ -479,8 +476,8 @@ fn build_comparison_node(comparison: i32, inputs: Vec<Expr>) -> Result<Expr> {
         Some(RPCComparison::Equal) => build_binary_expr(Operator::Eq, inputs),
         Some(RPCComparison::NotEqual) => build_binary_expr(Operator::NotEq, inputs),
         Some(RPCComparison::StartsWith) => StartsWithNotSupported {}.fail(),
-        Some(RPCComparison::Regex) => RegExpNotSupported {}.fail(),
-        Some(RPCComparison::NotRegex) => NotRegExpNotSupported {}.fail(),
+        Some(RPCComparison::Regex) => build_regex_match_expr(true, inputs),
+        Some(RPCComparison::NotRegex) => build_regex_match_expr(false, inputs),
         Some(RPCComparison::Lt) => build_binary_expr(Operator::Lt, inputs),
         Some(RPCComparison::Lte) => build_binary_expr(Operator::LtEq, inputs),
         Some(RPCComparison::Gt) => build_binary_expr(Operator::Gt, inputs),
@@ -502,6 +499,24 @@ fn build_binary_expr(op: Operator, inputs: Vec<Expr>) -> Result<Expr> {
             inputs[1].take().unwrap(),
         )),
         _ => UnsupportedNumberOfChildren { op, num_children }.fail(),
+    }
+}
+
+// Creates a DataFusion ScalarUDF expression that performs a regex matching
+// operation.
+fn build_regex_match_expr(matches: bool, mut inputs: Vec<Expr>) -> Result<Expr> {
+    let num_children = inputs.len();
+    match num_children {
+        2 => {
+            let pattern = if let Expr::Literal(ScalarValue::Utf8(pattern)) = inputs.remove(1) {
+                pattern.context(RegExpPatternInvalid)?
+            } else {
+                return InternalInvalidRegexExprReference.fail();
+            };
+
+            Ok(regex::regex_match_expr(inputs.remove(0), pattern, matches))
+        }
+        _ => InternalInvalidRegexExprChildren { num_children }.fail(),
     }
 }
 

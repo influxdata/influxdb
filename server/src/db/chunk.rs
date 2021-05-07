@@ -72,7 +72,7 @@ pub enum DbChunk {
     },
     ReadBuffer {
         chunk: Arc<ReadBufferChunk>,
-        partition_key: Arc<String>,
+        partition_key: Arc<str>,
     },
     ParquetFile {
         chunk: Arc<ParquetChunk>,
@@ -82,7 +82,7 @@ pub enum DbChunk {
 impl DbChunk {
     /// Create a DBChunk snapshot of the catalog chunk
     pub fn snapshot(chunk: &super::catalog::chunk::Chunk) -> Arc<Self> {
-        let partition_key = Arc::new(chunk.key().to_string());
+        let partition_key = Arc::from(chunk.key());
 
         use super::catalog::chunk::ChunkState;
 

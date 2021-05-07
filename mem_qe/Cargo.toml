@@ -9,6 +9,7 @@ arrow = { path = "../arrow" }
 chrono = "0.4"
 croaring = "0.4.5"
 crossbeam = "0.8"
+env_logger = "0.8"
 human_format = "1.0.3"
 packers = { path = "../packers" }
 snafu = "0.6.8"

@@ -26,7 +26,7 @@ pub trait AsExpr {
     }
 }
 
-impl AsExpr for Arc<String> {
+impl AsExpr for Arc<str> {
     fn as_expr(&self) -> Expr {
         col(self.as_ref())
     }

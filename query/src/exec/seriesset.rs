@@ -73,10 +73,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// table name.
 pub struct SeriesSet {
     /// The table name this series came from
-    pub table_name: Arc<String>,
+    pub table_name: Arc<str>,
 
     /// key = value pairs that define this series
-    pub tags: Vec<(Arc<String>, Arc<String>)>,
+    pub tags: Vec<(Arc<str>, Arc<str>)>,
 
     /// the column index of each "field" of the time series. For
     /// example, if there are two field indexes then this series set
@@ -103,7 +103,7 @@ pub struct SeriesSet {
 #[derive(Debug)]
 pub struct GroupDescription {
     /// key = value  pairs that define the group
-    pub tags: Vec<(Arc<String>, Arc<String>)>,
+    pub tags: Vec<(Arc<str>, Arc<str>)>,
 }
 
 #[derive(Debug)]
@@ -135,8 +135,8 @@ impl SeriesSetConverter {
     /// it: record batch iterator that produces data in the desired order
     pub async fn convert(
         &mut self,
-        table_name: Arc<String>,
-        tag_columns: Arc<Vec<Arc<String>>>,
+        table_name: Arc<str>,
+        tag_columns: Arc<Vec<Arc<str>>>,
         field_columns: FieldColumns,
         num_prefix_tag_group_columns: Option<usize>,
         mut it: SendableRecordBatchStream,
@@ -299,9 +299,9 @@ impl SeriesSetConverter {
     fn get_tag_keys(
         batch: &RecordBatch,
         row: usize,
-        tag_column_names: &[Arc<String>],
+        tag_column_names: &[Arc<str>],
         tag_indexes: &[usize],
-    ) -> Vec<(Arc<String>, Arc<String>)> {
+    ) -> Vec<(Arc<str>, Arc<str>)> {
         assert_eq!(tag_column_names.len(), tag_indexes.len());
 
         tag_column_names
@@ -348,11 +348,8 @@ impl SeriesSetConverter {
                         batch.schema().fields()[*column_index]
                     ),
                 };
-                if let Some(tag_value) = tag_value {
-                    Some((Arc::clone(&column_name), Arc::new(tag_value)))
-                } else {
-                    None
-                }
+
+                tag_value.map(|tag_value| (Arc::clone(&column_name), Arc::from(tag_value.as_str())))
             })
             .collect()
     }
@@ -363,7 +360,7 @@ struct GroupGenerator {
     num_prefix_tag_group_columns: Option<usize>,
 
     // vec of num_prefix_tag_group_columns, if any
-    last_group_tags: Option<Vec<(Arc<String>, Arc<String>)>>,
+    last_group_tags: Option<Vec<(Arc<str>, Arc<str>)>>,
 }
 
 impl GroupGenerator {
@@ -455,7 +452,7 @@ mod tests {
         assert_eq!(results.len(), 1);
         let series_set = &results[0];
 
-        assert_eq!(*series_set.table_name, "foo");
+        assert_eq!(series_set.table_name.as_ref(), "foo");
         assert!(series_set.tags.is_empty());
         assert_eq!(
             series_set.field_indexes,
@@ -509,7 +506,7 @@ mod tests {
         assert_eq!(results.len(), 1);
         let series_set = &results[0];
 
-        assert_eq!(*series_set.table_name, "foo");
+        assert_eq!(series_set.table_name.as_ref(), "foo");
         assert!(series_set.tags.is_empty());
         assert_eq!(
             series_set.field_indexes,
@@ -563,7 +560,7 @@ mod tests {
         assert_eq!(results.len(), 1);
         let series_set = &results[0];
 
-        assert_eq!(*series_set.table_name, "bar");
+        assert_eq!(series_set.table_name.as_ref(), "bar");
         assert_eq!(series_set.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
         assert_eq!(
             series_set.field_indexes,
@@ -600,7 +597,7 @@ mod tests {
         assert_eq!(results.len(), 2);
         let series_set1 = &results[0];
 
-        assert_eq!(*series_set1.table_name, "foo");
+        assert_eq!(series_set1.table_name.as_ref(), "foo");
         assert_eq!(series_set1.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
         assert_eq!(
             series_set1.field_indexes,
@@ -611,7 +608,7 @@ mod tests {
 
         let series_set2 = &results[1];
 
-        assert_eq!(*series_set2.table_name, "foo");
+        assert_eq!(series_set2.table_name.as_ref(), "foo");
         assert_eq!(series_set2.tags, str_pair_vec_to_vec(&[("tag_a", "two")]));
         assert_eq!(
             series_set2.field_indexes,
@@ -649,7 +646,7 @@ mod tests {
         assert_eq!(results.len(), 3);
         let series_set1 = &results[0];
 
-        assert_eq!(*series_set1.table_name, "foo");
+        assert_eq!(series_set1.table_name.as_ref(), "foo");
         assert_eq!(
             series_set1.tags,
             str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
@@ -659,7 +656,7 @@ mod tests {
 
         let series_set2 = &results[1];
 
-        assert_eq!(*series_set2.table_name, "foo");
+        assert_eq!(series_set2.table_name.as_ref(), "foo");
         assert_eq!(
             series_set2.tags,
             str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "eleven")])
@@ -669,7 +666,7 @@ mod tests {
 
         let series_set3 = &results[2];
 
-        assert_eq!(*series_set3.table_name, "foo");
+        assert_eq!(series_set3.table_name.as_ref(), "foo");
         assert_eq!(
             series_set3.tags,
             str_pair_vec_to_vec(&[("tag_a", "two"), ("tag_b", "eleven")])
@@ -706,7 +703,7 @@ mod tests {
         assert_eq!(results.len(), 2);
         let series_set1 = &results[0];
 
-        assert_eq!(*series_set1.table_name, "foo");
+        assert_eq!(series_set1.table_name.as_ref(), "foo");
         assert_eq!(
             series_set1.tags,
             str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
@@ -716,7 +713,7 @@ mod tests {
 
         let series_set2 = &results[1];
 
-        assert_eq!(*series_set2.table_name, "foo");
+        assert_eq!(series_set2.table_name.as_ref(), "foo");
         assert_eq!(
             series_set2.tags,
             str_pair_vec_to_vec(&[("tag_a", "one")]) // note no value for tag_b, only one tag
@@ -771,7 +768,7 @@ mod tests {
 
         assert_eq!(group_1.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
 
-        assert_eq!(*series_set1.table_name, "foo");
+        assert_eq!(series_set1.table_name.as_ref(), "foo");
         assert_eq!(
             series_set1.tags,
             str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
@@ -779,7 +776,7 @@ mod tests {
         assert_eq!(series_set1.start_row, 0);
         assert_eq!(series_set1.num_rows, 1);
 
-        assert_eq!(*series_set2.table_name, "foo");
+        assert_eq!(series_set2.table_name.as_ref(), "foo");
         assert_eq!(
             series_set2.tags,
             str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "eleven")])
@@ -789,7 +786,7 @@ mod tests {
 
         assert_eq!(group_2.tags, str_pair_vec_to_vec(&[("tag_a", "two")]));
 
-        assert_eq!(*series_set3.table_name, "foo");
+        assert_eq!(series_set3.table_name.as_ref(), "foo");
         assert_eq!(
             series_set3.tags,
             str_pair_vec_to_vec(&[("tag_a", "two"), ("tag_b", "eleven")])
@@ -832,7 +829,7 @@ mod tests {
 
         assert_eq!(group_1.tags, &[]);
 
-        assert_eq!(*series_set1.table_name, "foo");
+        assert_eq!(series_set1.table_name.as_ref(), "foo");
         assert_eq!(
             series_set1.tags,
             str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
@@ -840,7 +837,7 @@ mod tests {
         assert_eq!(series_set1.start_row, 0);
         assert_eq!(series_set1.num_rows, 1);
 
-        assert_eq!(*series_set2.table_name, "foo");
+        assert_eq!(series_set2.table_name.as_ref(), "foo");
         assert_eq!(
             series_set2.tags,
             str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "eleven")])
@@ -872,7 +869,7 @@ mod tests {
     ) -> Vec<SeriesSet> {
         let mut converter = SeriesSetConverter::default();
 
-        let table_name = Arc::new(table_name.into());
+        let table_name = Arc::from(table_name);
         let tag_columns = str_vec_to_arc_vec(tag_columns);
         let field_columns = FieldColumns::from(field_columns);
 
@@ -899,7 +896,7 @@ mod tests {
     ) -> Vec<SeriesSetItem> {
         let mut converter = SeriesSetConverter::default();
 
-        let table_name = Arc::new(table_name.into());
+        let table_name = Arc::from(table_name);
         let tag_columns = str_vec_to_arc_vec(tag_columns);
         let field_columns = FieldColumns::from(field_columns);
 

@@ -224,11 +224,7 @@ fn field_to_data(
 
 // Convert the tag=value pairs from the series set to the correct gRPC
 // format, and add the _f and _m tags for the field name and measurement
-fn convert_tags(
-    table_name: &str,
-    field_name: &str,
-    tags: &[(Arc<String>, Arc<String>)],
-) -> Vec<Tag> {
+fn convert_tags(table_name: &str, field_name: &str, tags: &[(Arc<str>, Arc<str>)]) -> Vec<Tag> {
     // Special case "measurement" name which is modeled as a tag of
     // "_measurement" and "field" which is modeled as a tag of "_field"
     let mut converted_tags = vec![
@@ -370,8 +366,8 @@ mod tests {
     #[test]
     fn test_series_set_conversion() {
         let series_set = SeriesSet {
-            table_name: Arc::new("the_table".into()),
-            tags: vec![(Arc::new("tag1".into()), Arc::new("val1".into()))],
+            table_name: Arc::from("the_table"),
+            tags: vec![(Arc::from("tag1"), Arc::from("val1"))],
             field_indexes: FieldIndexes::from_timestamp_and_value_indexes(4, &[0, 1, 2, 3]),
             start_row: 1,
             num_rows: 2,
@@ -425,8 +421,8 @@ mod tests {
         .expect("created new record batch");
 
         let series_set = SeriesSet {
-            table_name: Arc::new("the_table".into()),
-            tags: vec![(Arc::new("tag1".into()), Arc::new("val1".into()))],
+            table_name: Arc::from("the_table"),
+            tags: vec![(Arc::from("tag1"), Arc::from("val1"))],
             // field indexes are (value, time)
             field_indexes: FieldIndexes::from_slice(&[(3, 2), (1, 0)]),
             start_row: 1,
@@ -483,8 +479,8 @@ mod tests {
         .expect("created new record batch");
 
         let series_set = SeriesSet {
-            table_name: Arc::new("the_table".into()),
-            tags: vec![(Arc::new("state".into()), Arc::new("MA".into()))],
+            table_name: Arc::from("the_table"),
+            tags: vec![(Arc::from("state"), Arc::from("MA"))],
             field_indexes: FieldIndexes::from_timestamp_and_value_indexes(3, &[1, 2]),
             start_row: 0,
             num_rows: batch.num_rows(),
@@ -519,8 +515,8 @@ mod tests {
     fn test_group_group_conversion() {
         let group_description = GroupDescription {
             tags: vec![
-                (Arc::new("tag1".into()), Arc::new("val1".into())),
-                (Arc::new("tag2".into()), Arc::new("val2".into())),
+                (Arc::from("tag1"), Arc::from("val1")),
+                (Arc::from("tag2"), Arc::from("val2")),
             ],
         };
 
@@ -560,8 +556,8 @@ mod tests {
         .expect("created new record batch");
 
         let series_set = SeriesSet {
-            table_name: Arc::new("the_table".into()),
-            tags: vec![(Arc::new("tag1".into()), Arc::new("val1".into()))],
+            table_name: Arc::from("the_table"),
+            tags: vec![(Arc::from("tag1"), Arc::from("val1"))],
             field_indexes: FieldIndexes::from_timestamp_and_value_indexes(1, &[0]),
             start_row: 1,
             num_rows: 2,

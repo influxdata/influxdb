@@ -24,16 +24,13 @@ use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     physical_plan::SendableRecordBatchStream,
 };
-use internal_types::{
-    arrow::sort::sort_record_batch,
-    entry::{self, ClockValue, ClockValueError, Entry, OwnedSequencedEntry, SequencedEntry},
-    selection::Selection,
-};
+use entry::{ClockValue, ClockValueError, Entry, OwnedSequencedEntry, SequencedEntry};
+use internal_types::{arrow::sort::sort_record_batch, selection::Selection};
 use lifecycle::LifecycleManager;
-use metrics::MetricRegistry;
+use metrics::{KeyValue, MetricObserver, MetricObserverBuilder, MetricRegistry};
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, info};
-use parking_lot::{lock_api::RwLockWriteGuard, Mutex, RawRwLock, RwLock};
+use parking_lot::{Mutex, RwLock};
 use parquet_file::{chunk::Chunk, storage::Storage};
 use query::predicate::{Predicate, PredicateBuilder};
 use query::{exec::Executor, Database, DEFAULT_SCHEMA};
@@ -161,9 +158,9 @@ pub enum Error {
         source
     ))]
     ReadBufferChunkTimestampError {
-        chunk_id: u32,
-        table_name: String,
         source: read_buffer::Error,
+        table_name: String,
+        chunk_id: u32,
     },
 
     #[snafu(display("Error writing to object store: {}", source))]
@@ -316,9 +313,7 @@ pub struct Db {
 #[derive(Debug, Default)]
 struct MemoryRegistries {
     mutable_buffer: Arc<MemRegistry>,
-
     read_buffer: Arc<MemRegistry>,
-
     parquet: Arc<MemRegistry>,
 }
 
@@ -326,6 +321,34 @@ impl MemoryRegistries {
     /// Total bytes over all registries.
     pub fn bytes(&self) -> usize {
         self.mutable_buffer.bytes() + self.read_buffer.bytes() + self.parquet.bytes()
+    }
+}
+
+impl MetricObserver for &MemoryRegistries {
+    fn register(self, builder: MetricObserverBuilder<'_>) {
+        let mutable_buffer = Arc::clone(&self.mutable_buffer);
+        let read_buffer = Arc::clone(&self.read_buffer);
+        let parquet = Arc::clone(&self.parquet);
+
+        builder.register_gauge_u64(
+            "chunks_mem_usage",
+            Some("bytes"),
+            "Memory usage by catalog chunks",
+            move |x| {
+                x.observe(
+                    mutable_buffer.bytes() as u64,
+                    &[KeyValue::new("source", "mutable_buffer")],
+                );
+                x.observe(
+                    read_buffer.bytes() as u64,
+                    &[KeyValue::new("source", "read_buffer")],
+                );
+                x.observe(
+                    parquet.bytes() as u64,
+                    &[KeyValue::new("source", "parquet")],
+                );
+            },
+        );
     }
 }
 
@@ -365,6 +388,7 @@ impl DbMetrics {
             let labels = vec![metrics::KeyValue::new("state", state)];
             self.catalog_chunk_bytes
                 .sub_with_labels(size as f64, labels.as_slice());
+            debug!(?size, ?labels, "called catalog_chunk_bytes.sub_with_labels");
         }
 
         // Increase next metric for next chunk state
@@ -372,9 +396,11 @@ impl DbMetrics {
             let labels = vec![metrics::KeyValue::new("state", state)];
             self.catalog_chunk_bytes
                 .add_with_labels(size as f64, labels.as_slice());
+            debug!(size, ?labels, "called catalog_chunk_bytes.add_with_labels");
 
             // New chunk in new state
             self.catalog_chunks.inc_with_labels(labels.as_slice());
+            debug!(?labels, "called catalog_chunks.inc_with_labels");
         }
     }
 }
@@ -428,6 +454,17 @@ impl Db {
                 default_labels,
             ),
         };
+
+        let memory_registries = Default::default();
+        domain.register_observer(
+            None,
+            &[
+                metrics::KeyValue::new("db_name", db_name.to_string()),
+                metrics::KeyValue::new("svr_id", format!("{}", server_id)),
+            ],
+            &memory_registries,
+        );
+
         Self {
             rules,
             server_id,
@@ -438,7 +475,7 @@ impl Db {
             jobs,
             metrics: db_metrics,
             system_tables,
-            memory_registries: Default::default(),
+            memory_registries,
             sequence: AtomicU64::new(STARTING_SEQUENCE),
             worker_iterations: AtomicUsize::new(0),
         }
@@ -1168,7 +1205,7 @@ impl Db {
                                 )],
                             );
 
-                            check_chunk_closed(chunk, mutable_size_threshold, &self.metrics);
+                            check_chunk_closed(&mut *chunk, mutable_size_threshold, &self.metrics);
                         }
                         None => {
                             let new_chunk = partition
@@ -1190,7 +1227,7 @@ impl Db {
                             }
 
                             check_chunk_closed(
-                                new_chunk.write(),
+                                &mut *new_chunk.write(),
                                 mutable_size_threshold,
                                 &self.metrics,
                             );
@@ -1206,7 +1243,7 @@ impl Db {
 
 /// Check if the given chunk should be closed based on the the MutableBuffer size threshold.
 fn check_chunk_closed(
-    mut chunk: RwLockWriteGuard<'_, RawRwLock, CatalogChunk>,
+    chunk: &mut CatalogChunk,
     mutable_size_threshold: Option<NonZeroUsize>,
     metrics: &DbMetrics,
 ) {
@@ -1273,7 +1310,7 @@ impl CatalogProvider for Db {
 
 pub mod test_helpers {
     use super::*;
-    use internal_types::entry::test_helpers::lp_to_entries;
+    use entry::test_helpers::lp_to_entries;
     use std::collections::HashSet;
 
     /// Try to write lineprotocol data and return all tables that where written.
@@ -1320,11 +1357,11 @@ mod tests {
     use data_types::{
         chunk::ChunkStorage,
         database_rules::{Order, Sort, SortOrder},
-        partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
+        partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     };
     use datafusion::execution::context;
+    use entry::test_helpers::lp_to_entry;
     use futures::{stream, StreamExt, TryStreamExt};
-    use internal_types::entry::test_helpers::lp_to_entry;
     use object_store::{disk::File, path::Path, ObjectStore, ObjectStoreApi};
     use query::{frontend::sql::SqlQueryPlanner, PartitionChunk};
     use std::{convert::TryFrom, iter::Iterator, num::NonZeroUsize, str};
@@ -1479,7 +1516,7 @@ mod tests {
             .unwrap();
 
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 1222).unwrap();
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "os", 1897).unwrap(); // now also in OS
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "os", 1913).unwrap(); // now also in OS
 
         db.unload_read_buffer("1970-01-01T00", "cpu", 0)
             .await
@@ -1495,7 +1532,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size not increased for OS (it was in OS before unload)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "os", 1897).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "os", 1913).unwrap();
         // verify chunk size for RB has decreased
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 0).unwrap();
     }
@@ -1820,7 +1857,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(1897.0)
+            .sample_sum_eq(1913.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1944,7 +1981,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(1897.0)
+            .sample_sum_eq(1913.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -1972,7 +2009,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(675.0)
+            .sample_sum_eq(691.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -2229,16 +2266,12 @@ mod tests {
 
         print!("Partitions: {:?}", db.partition_keys().unwrap());
 
-        fn to_arc(s: &str) -> Arc<String> {
-            Arc::new(s.to_string())
-        }
-
         let chunk_summaries = db.partition_chunk_summaries("1970-01-05T15");
         let chunk_summaries = normalize_summaries(chunk_summaries);
 
         let expected = vec![ChunkSummary::new_without_timestamps(
-            to_arc("1970-01-05T15"),
-            to_arc("cpu"),
+            Arc::from("1970-01-05T15"),
+            Arc::from("cpu"),
             0,
             ChunkStorage::OpenMutableBuffer,
             106,
@@ -2338,41 +2371,37 @@ mod tests {
         db.rollover_partition("1970-01-05T15", "cpu").await.unwrap();
         write_lp(&db, "cpu bar=1,baz=3,blargh=3 400000000000000");
 
-        fn to_arc(s: &str) -> Arc<String> {
-            Arc::new(s.to_string())
-        }
-
         let chunk_summaries = db.chunk_summaries().expect("expected summary to return");
         let chunk_summaries = normalize_summaries(chunk_summaries);
 
         let expected = vec![
             ChunkSummary::new_without_timestamps(
-                to_arc("1970-01-01T00"),
-                to_arc("cpu"),
+                Arc::from("1970-01-01T00"),
+                Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
-                1213 + 675, // size of RB and OS chunks
+                1904, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
-                to_arc("1970-01-01T00"),
-                to_arc("cpu"),
+                Arc::from("1970-01-01T00"),
+                Arc::from("cpu"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
                 100,
                 1,
             ),
             ChunkSummary::new_without_timestamps(
-                to_arc("1970-01-05T15"),
-                to_arc("cpu"),
+                Arc::from("1970-01-05T15"),
+                Arc::from("cpu"),
                 0,
                 ChunkStorage::ClosedMutableBuffer,
                 129,
                 1,
             ),
             ChunkSummary::new_without_timestamps(
-                to_arc("1970-01-05T15"),
-                to_arc("cpu"),
+                Arc::from("1970-01-05T15"),
+                Arc::from("cpu"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
                 131,
@@ -2436,6 +2465,7 @@ mod tests {
                         columns: vec![
                             ColumnSummary {
                                 name: "bar".into(),
+                                influxdb_type: Some(InfluxDbType::Field),
                                 stats: Statistics::F64(StatValues {
                                     min: 1.0,
                                     max: 2.0,
@@ -2444,6 +2474,7 @@ mod tests {
                             },
                             ColumnSummary {
                                 name: "time".into(),
+                                influxdb_type: Some(InfluxDbType::Timestamp),
                                 stats: Statistics::I64(StatValues {
                                     min: 1,
                                     max: 2,
@@ -2452,6 +2483,7 @@ mod tests {
                             },
                             ColumnSummary {
                                 name: "baz".into(),
+                                influxdb_type: Some(InfluxDbType::Field),
                                 stats: Statistics::F64(StatValues {
                                     min: 3.0,
                                     max: 3.0,
@@ -2465,6 +2497,7 @@ mod tests {
                         columns: vec![
                             ColumnSummary {
                                 name: "foo".into(),
+                                influxdb_type: Some(InfluxDbType::Field),
                                 stats: Statistics::F64(StatValues {
                                     min: 1.0,
                                     max: 1.0,
@@ -2473,6 +2506,7 @@ mod tests {
                             },
                             ColumnSummary {
                                 name: "time".into(),
+                                influxdb_type: Some(InfluxDbType::Timestamp),
                                 stats: Statistics::I64(StatValues {
                                     min: 1,
                                     max: 1,
@@ -2491,6 +2525,7 @@ mod tests {
                         columns: vec![
                             ColumnSummary {
                                 name: "bar".into(),
+                                influxdb_type: Some(InfluxDbType::Field),
                                 stats: Statistics::F64(StatValues {
                                     min: 1.0,
                                     max: 1.0,
@@ -2499,6 +2534,7 @@ mod tests {
                             },
                             ColumnSummary {
                                 name: "time".into(),
+                                influxdb_type: Some(InfluxDbType::Timestamp),
                                 stats: Statistics::I64(StatValues {
                                     min: 400000000000000,
                                     max: 400000000000000,
@@ -2512,6 +2548,7 @@ mod tests {
                         columns: vec![
                             ColumnSummary {
                                 name: "frob".into(),
+                                influxdb_type: Some(InfluxDbType::Field),
                                 stats: Statistics::F64(StatValues {
                                     min: 3.0,
                                     max: 3.0,
@@ -2520,6 +2557,7 @@ mod tests {
                             },
                             ColumnSummary {
                                 name: "time".into(),
+                                influxdb_type: Some(InfluxDbType::Timestamp),
                                 stats: Statistics::I64(StatValues {
                                     min: 400000000000001,
                                     max: 400000000000001,

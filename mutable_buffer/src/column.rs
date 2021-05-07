@@ -2,7 +2,7 @@ use snafu::{ensure, Snafu};
 
 use crate::dictionary::{Dictionary, DID};
 use data_types::partition_metadata::{StatValues, Statistics};
-use internal_types::entry::Column as EntryColumn;
+use entry::Column as EntryColumn;
 
 use crate::bitset::{iter_set_positions, BitSet};
 use arrow::{
@@ -66,22 +66,22 @@ impl Column {
             InfluxColumnType::Field(InfluxFieldType::Boolean) => {
                 let mut data = BitSet::new();
                 data.append_unset(row_count);
-                ColumnData::Bool(data, StatValues::new())
+                ColumnData::Bool(data, StatValues::default())
             }
             InfluxColumnType::Field(InfluxFieldType::UInteger) => {
-                ColumnData::U64(vec![0; row_count], StatValues::new())
+                ColumnData::U64(vec![0; row_count], StatValues::default())
             }
             InfluxColumnType::Field(InfluxFieldType::Float) => {
-                ColumnData::F64(vec![0.0; row_count], StatValues::new())
+                ColumnData::F64(vec![0.0; row_count], StatValues::default())
             }
             InfluxColumnType::Field(InfluxFieldType::Integer) | InfluxColumnType::Timestamp => {
-                ColumnData::I64(vec![0; row_count], StatValues::new())
+                ColumnData::I64(vec![0; row_count], StatValues::default())
             }
             InfluxColumnType::Field(InfluxFieldType::String) => {
-                ColumnData::String(vec![String::new(); row_count], StatValues::new())
+                ColumnData::String(vec![String::new(); row_count], StatValues::default())
             }
             InfluxColumnType::Tag => {
-                ColumnData::Tag(vec![DID::invalid(); row_count], StatValues::new())
+                ColumnData::Tag(vec![DID::invalid(); row_count], StatValues::default())
             }
         };
 

@@ -18,7 +18,7 @@ use super::{adapter::SchemaAdapterStream, ChunkInfo};
 /// Implements the DataFusion physical plan interface
 #[derive(Debug)]
 pub(crate) struct IOxReadFilterNode<C: PartitionChunk + 'static> {
-    table_name: Arc<String>,
+    table_name: Arc<str>,
     /// The desired output schema (includes selection_
     /// note that the chunk may not have all these columns.
     schema: SchemaRef,
@@ -28,7 +28,7 @@ pub(crate) struct IOxReadFilterNode<C: PartitionChunk + 'static> {
 
 impl<C: PartitionChunk + 'static> IOxReadFilterNode<C> {
     pub fn new(
-        table_name: Arc<String>,
+        table_name: Arc<str>,
         schema: SchemaRef,
         chunk_and_infos: Vec<ChunkInfo<C>>,
         predicate: Predicate,

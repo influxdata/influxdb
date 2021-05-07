@@ -6,12 +6,6 @@ edition = "2018"
 description = "Observability ecosystem dependencies for InfluxDB IOx, to ensure consistent versions and unified updates"
 
 [dependencies] # In alphabetical order
-env_logger = "0.8"
 opentelemetry = { version = "0.13", default-features = false, features = ["trace", "metrics", "rt-tokio"] }
-opentelemetry-jaeger = { version = "0.12", features = ["tokio"] }
-opentelemetry-otlp = "0.6"
-opentelemetry-prometheus = "0.6"
-prometheus = "0.12"
 tracing = { version = "0.1", features = ["max_level_trace", "release_max_level_debug"] }
-tracing-opentelemetry = { version = "0.12", default-features = false }
 tracing-subscriber = { version = "0.2", default-features = false, features = ["env-filter", "smallvec", "chrono", "parking_lot", "registry", "fmt", "ansi", "json"] }

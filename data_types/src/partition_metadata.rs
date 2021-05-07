@@ -1,18 +1,19 @@
 //! This module contains structs that describe the metadata for a partition
 //! including schema, summary statistics, and file locations in storage.
 
-use std::mem;
+use std::{borrow::Cow, mem};
 
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 
-/// Describes the schema, summary statistics for each column in each table and
-/// the location of the partition in storage.
+/// Describes the aggregated (across all chunks) summary
+/// statistics for each column in each table in a partition
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct PartitionSummary {
     /// The identifier for the partition, the partition key computed from
     /// PartitionRules
     pub key: String,
+
     /// The tables in this partition
     pub tables: Vec<TableSummary>,
 }
@@ -22,7 +23,11 @@ impl PartitionSummary {
     /// summaries can come from many chunks so a table can appear multiple
     /// times in the collection. They will be combined together for a single
     /// summary. Field type conflicts will be ignored.
-    pub fn from_table_summaries(key: impl Into<String>, mut summaries: Vec<TableSummary>) -> Self {
+    pub fn from_table_summaries(
+        key: impl Into<String>,
+        summaries: impl IntoIterator<Item = TableSummary>,
+    ) -> Self {
+        let mut summaries: Vec<_> = summaries.into_iter().collect();
         summaries.sort_by(|a, b| a.name.cmp(&b.name));
 
         let mut tables = Vec::with_capacity(summaries.len());
@@ -54,10 +59,33 @@ impl PartitionSummary {
     }
 }
 
-/// Metadata and statistics information for a table.
+/// Describes the (unaggregated) summary statistics for
+/// each column in each table in each chunk of a Partition.
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub struct UnaggregatedPartitionSummary {
+    /// The identifier for the partition, the partition key computed from
+    /// PartitionRules
+    pub key: String,
+
+    /// The chunks of the tables in this partition
+    pub tables: Vec<UnaggregatedTableSummary>,
+}
+
+/// Metadata and statistics for a Chunk *within* a partition
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub struct UnaggregatedTableSummary {
+    pub chunk_id: u32,
+    pub table: TableSummary,
+}
+
+/// Metadata and statistics information for a table, aggregated across
+/// chunks.
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct TableSummary {
+    /// Table name
     pub name: String,
+
+    /// Per column statistics
     pub columns: Vec<ColumnSummary>,
 }
 
@@ -107,10 +135,34 @@ impl TableSummary {
     }
 }
 
+// Replicate this enum here as it can't be derived from the existing statistics
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub enum InfluxDbType {
+    Tag,
+    Field,
+    Timestamp,
+}
+
+impl InfluxDbType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Tag => "Tag",
+            Self::Field => "Field",
+            Self::Timestamp => "Timestamp",
+        }
+    }
+}
+
 /// Column name, statistics which encode type information
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct ColumnSummary {
+    /// Column name
     pub name: String,
+
+    /// Column's Influx data model type (if any)
+    pub influxdb_type: Option<InfluxDbType>,
+
+    /// Per column statistics
     pub stats: Statistics,
 }
 
@@ -120,7 +172,13 @@ impl ColumnSummary {
         self.stats.count()
     }
 
-    /// Return size in bytes of this Column
+    /// Return a human interprertable string for this column's IOx
+    /// data type
+    pub fn type_name(&self) -> &'static str {
+        self.stats.type_name()
+    }
+
+    /// Return size in bytes of this Column metadata (not the underlying column)
     pub fn size(&self) -> usize {
         mem::size_of::<Self>() + self.name.len() + mem::size_of_val(&self.stats)
     }
@@ -219,6 +277,39 @@ impl Statistics {
             Self::String(s) => s.count,
         }
     }
+
+    /// Return a human interpretable description of this type
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            Self::I64(_) => "I64",
+            Self::U64(_) => "U64",
+            Self::F64(_) => "F64",
+            Self::Bool(_) => "Bool",
+            Self::String(_) => "String",
+        }
+    }
+
+    /// Return the minimum value, if any, formatted as a string
+    pub fn min_as_str(&self) -> Option<Cow<'_, str>> {
+        match self {
+            Self::I64(v) => Some(Cow::Owned(v.min.to_string())),
+            Self::U64(v) => Some(Cow::Owned(v.min.to_string())),
+            Self::F64(v) => Some(Cow::Owned(v.min.to_string())),
+            Self::Bool(v) => Some(Cow::Owned(v.min.to_string())),
+            Self::String(v) => Some(Cow::Borrowed(&v.min)),
+        }
+    }
+
+    /// Return the maximum value, if any, formatted as a string
+    pub fn max_as_str(&self) -> Option<Cow<'_, str>> {
+        match self {
+            Self::I64(v) => Some(Cow::Owned(v.max.to_string())),
+            Self::U64(v) => Some(Cow::Owned(v.max.to_string())),
+            Self::F64(v) => Some(Cow::Owned(v.max.to_string())),
+            Self::Bool(v) => Some(Cow::Owned(v.max.to_string())),
+            Self::String(v) => Some(Cow::Borrowed(&v.max)),
+        }
+    }
 }
 
 /// Summary statistics for a column.
@@ -234,16 +325,16 @@ impl<T> StatValues<T>
 where
     T: Default + Clone,
 {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn new_with_value(starting_value: T) -> Self {
         Self {
             min: starting_value.clone(),
             max: starting_value,
             count: 1,
         }
+    }
+
+    pub fn new(min: T, max: T, count: u64) -> Self {
+        Self { min, max, count }
     }
 }
 
@@ -297,7 +388,7 @@ mod tests {
 
     #[test]
     fn statistics_default() {
-        let mut stat = StatValues::new();
+        let mut stat = StatValues::default();
         assert_eq!(stat.min, 0);
         assert_eq!(stat.max, 0);
         assert_eq!(stat.count, 0);
@@ -307,7 +398,7 @@ mod tests {
         assert_eq!(stat.max, 55);
         assert_eq!(stat.count, 1);
 
-        let mut stat = StatValues::new();
+        let mut stat = StatValues::default();
         assert_eq!(&stat.min, "");
         assert_eq!(&stat.max, "");
         assert_eq!(stat.count, 0);
@@ -347,11 +438,47 @@ mod tests {
     }
 
     #[test]
+    fn stats_as_str_i64() {
+        let stat = Statistics::I64(StatValues::new(-1, 100, 1));
+        assert_eq!(stat.min_as_str(), Some("-1".into()));
+        assert_eq!(stat.max_as_str(), Some("100".into()));
+    }
+
+    #[test]
+    fn stats_as_str_u64() {
+        let stat = Statistics::U64(StatValues::new(1, 100, 1));
+        assert_eq!(stat.min_as_str(), Some("1".into()));
+        assert_eq!(stat.max_as_str(), Some("100".into()));
+    }
+
+    #[test]
+    fn stats_as_str_f64() {
+        let stat = Statistics::F64(StatValues::new(99.0, 101.0, 1));
+        assert_eq!(stat.min_as_str(), Some("99".into()));
+        assert_eq!(stat.max_as_str(), Some("101".into()));
+    }
+
+    #[test]
+    fn stats_as_str_bool() {
+        let stat = Statistics::Bool(StatValues::new(false, true, 1));
+        assert_eq!(stat.min_as_str(), Some("false".into()));
+        assert_eq!(stat.max_as_str(), Some("true".into()));
+    }
+
+    #[test]
+    fn stats_as_str_str() {
+        let stat = Statistics::String(StatValues::new("a".to_string(), "zz".to_string(), 1));
+        assert_eq!(stat.min_as_str(), Some("a".into()));
+        assert_eq!(stat.max_as_str(), Some("zz".into()));
+    }
+
+    #[test]
     fn table_update_from() {
         let mut string_stats = StatValues::new_with_value("foo".to_string());
         string_stats.update("bar");
         let string_col = ColumnSummary {
             name: "string".to_string(),
+            influxdb_type: None,
             stats: Statistics::String(string_stats),
         };
 
@@ -359,6 +486,7 @@ mod tests {
         int_stats.update(&5);
         let int_col = ColumnSummary {
             name: "int".to_string(),
+            influxdb_type: None,
             stats: Statistics::I64(int_stats),
         };
 
@@ -366,6 +494,7 @@ mod tests {
         float_stats.update(&1.3);
         let float_col = ColumnSummary {
             name: "float".to_string(),
+            influxdb_type: None,
             stats: Statistics::F64(float_stats),
         };
 
@@ -378,6 +507,7 @@ mod tests {
         string_stats.update("zzz");
         let string_col = ColumnSummary {
             name: "string".to_string(),
+            influxdb_type: None,
             stats: Statistics::String(string_stats),
         };
 
@@ -385,6 +515,7 @@ mod tests {
         int_stats.update(&9);
         let int_col = ColumnSummary {
             name: "int".to_string(),
+            influxdb_type: None,
             stats: Statistics::I64(int_stats),
         };
 
@@ -465,6 +596,7 @@ mod tests {
         string_stats.update("bar");
         let string_col = ColumnSummary {
             name: "string".to_string(),
+            influxdb_type: None,
             stats: Statistics::String(string_stats),
         };
 
@@ -472,6 +604,7 @@ mod tests {
         int_stats.update(&5);
         let int_col = ColumnSummary {
             name: "int".to_string(),
+            influxdb_type: None,
             stats: Statistics::I64(int_stats),
         };
 
@@ -482,6 +615,7 @@ mod tests {
 
         let int_col = ColumnSummary {
             name: "int".to_string(),
+            influxdb_type: None,
             stats: Statistics::I64(StatValues::new_with_value(10)),
         };
         let table_b = TableSummary {
@@ -496,6 +630,7 @@ mod tests {
 
         let int_col = ColumnSummary {
             name: "int".to_string(),
+            influxdb_type: None,
             stats: Statistics::I64(StatValues::new_with_value(203)),
         };
         let table_b_2 = TableSummary {
@@ -542,6 +677,7 @@ mod tests {
     fn column_update_from_boolean() {
         let bool_false = ColumnSummary {
             name: "b".to_string(),
+            influxdb_type: None,
             stats: Statistics::Bool(StatValues {
                 min: false,
                 max: false,
@@ -550,6 +686,7 @@ mod tests {
         };
         let bool_true = ColumnSummary {
             name: "b".to_string(),
+            influxdb_type: None,
             stats: Statistics::Bool(StatValues {
                 min: true,
                 max: true,
@@ -576,6 +713,7 @@ mod tests {
     fn column_update_from_u64() {
         let mut min = ColumnSummary {
             name: "foo".to_string(),
+            influxdb_type: None,
             stats: Statistics::U64(StatValues {
                 min: 5,
                 max: 23,
@@ -585,6 +723,7 @@ mod tests {
 
         let max = ColumnSummary {
             name: "foo".to_string(),
+            influxdb_type: None,
             stats: Statistics::U64(StatValues {
                 min: 6,
                 max: 506,

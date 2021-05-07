@@ -474,8 +474,8 @@ impl Client {
         self.inner
             .new_partition_chunk(NewPartitionChunkRequest {
                 db_name,
-                table_name,
                 partition_key,
+                table_name,
             })
             .await
             .map_err(|status| match status.code() {

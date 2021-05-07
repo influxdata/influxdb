@@ -15,6 +15,7 @@ crc32fast = "1.2.0"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
+entry = { path = "../entry" }
 # See docs/regenerating_flatbuffers.md about updating generated code when updating the
 # version of the flatbuffers crate
 flatbuffers = "0.8"

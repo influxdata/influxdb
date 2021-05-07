@@ -13,7 +13,8 @@ use file::FilePath;
 pub mod parsed;
 use parsed::DirsAndFileName;
 
-mod parts;
+/// Parts for parsed paths.
+pub mod parts;
 use parts::PathPart;
 
 /// The delimiter to separate object namespaces, creating a directory structure.

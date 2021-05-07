@@ -27,7 +27,7 @@ fn format_size(sz: usize) -> String {
 }
 
 fn main() {
-    observability_deps::env_logger::init();
+    env_logger::init();
     let args: Vec<String> = env::args().collect();
 
     let path = &args[1];

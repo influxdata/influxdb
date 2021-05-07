@@ -8,10 +8,7 @@ use std::{
 use dashmap::DashMap;
 use observability_deps::opentelemetry::{
     labels,
-    metrics::{
-        Counter as OTCounter, ObserverResult, ValueObserver as OTGauge,
-        ValueRecorder as OTHistogram,
-    },
+    metrics::{Counter as OTCounter, ValueRecorder as OTHistogram},
 };
 
 pub use observability_deps::opentelemetry::KeyValue;
@@ -74,9 +71,9 @@ impl Display for RedRequestStatus {
 /// Using a `REDMetric` makes following this methodology easy because it handles
 /// updating the three components for you.
 pub struct RedMetric {
-    default_labels: Vec<KeyValue>,
     requests: OTCounter<u64>,
     duration: OTHistogram<f64>,
+    default_labels: Vec<KeyValue>,
 }
 
 impl RedMetric {
@@ -287,19 +284,16 @@ impl Counter {
 /// (e.g. current memory usage)
 #[derive(Debug)]
 pub struct Gauge {
-    gauge: OTGauge<f64>,
     default_labels: Vec<KeyValue>,
     values: Arc<DashMap<String, (f64, Vec<KeyValue>)>>,
 }
 
 impl Gauge {
     pub(crate) fn new(
-        gauge: OTGauge<f64>,
         default_labels: Vec<KeyValue>,
         values: Arc<DashMap<String, (f64, Vec<KeyValue>)>>,
     ) -> Self {
         Self {
-            gauge,
             default_labels,
             values,
         }
@@ -370,31 +364,11 @@ impl Gauge {
     }
 }
 
-#[derive(Debug)]
-pub struct GaugeObserverResult {
-    observer: ObserverResult<f64>,
-    default_labels: Vec<KeyValue>,
-}
-
-impl GaugeObserverResult {
-    pub(crate) fn new(observer: ObserverResult<f64>, default_labels: Vec<KeyValue>) -> Self {
-        Self {
-            observer,
-            default_labels,
-        }
-    }
-
-    pub fn observe(&self, value: f64, labels: &[KeyValue]) {
-        let (_, labels_new) = Gauge::merge_labels(&self.default_labels, labels);
-        self.observer.observe(value, &labels_new);
-    }
-}
-
 /// A Histogram is a metric exposing a distribution of observations.
 #[derive(Debug)]
 pub struct Histogram {
-    default_labels: Vec<KeyValue>,
     histogram: OTHistogram<f64>,
+    default_labels: Vec<KeyValue>,
 }
 
 impl Histogram {

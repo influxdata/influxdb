@@ -363,17 +363,17 @@ impl Storage {
     //     limit: Option<usize>,
     // ) -> Result<()> {
 
-    //     // TODO: support non local file object store
-    //     let (file_root, file_path) = match (&store.0, path) {
-    //         (ObjectStoreIntegration::File(file), Path::File(location)) => (file, location),
+    //     // TODO: support non local file object store. Ticket #1342
+    //     let full_path = match (&store.0, path) {
+    //         (ObjectStoreIntegration::File(file_root), Path::File(location)) => {
+    //             file_root.path(&location)
+    //         }
     //         (_, _) => {
     //             panic!("Non local file object store not supported")
     //         }
     //     };
-    //     // Get full string path
-    //     let full_path = format!("{:?}", file_root.path(&file_path));
-    //     let full_path = full_path.trim_matches('"');
-    //     println!("Full path filename: {}", full_path);
+    //
+    //     println!("Full path filename: {}", full_path);  // TOTO: to be removed after both #1082 and #1342 done
 
     //     let mut total_rows = 0;
 
@@ -433,16 +433,14 @@ impl Storage {
         limit: Option<usize>,
     ) -> Result<()> {
         // TODO: support non local file object store. Ticket #1342
-        let (file_root, file_path) = match (&store.0, path) {
-            (ObjectStoreIntegration::File(file), Path::File(location)) => (file, location),
+        let full_path = match (&store.0, path) {
+            (ObjectStoreIntegration::File(file_root), Path::File(location)) => {
+                file_root.path(&location)
+            }
             (_, _) => {
                 panic!("Non local file object store not supported")
             }
         };
-        // Get full string path
-        let full_path = format!("{:?}", file_root.path(&file_path));
-        let full_path = full_path.trim_matches('"');
-        //println!("Full path filename: {}", full_path);  // TOTO: to be removed after #1342 done
 
         let mut total_rows = 0;
 
@@ -452,7 +450,6 @@ impl Storage {
         // TODO: remove these line after https://github.com/apache/arrow-rs/issues/252 is done
         // Get file level metadata to set it to the record batch's metadata below
         let metadata = file_reader.metadata();
-        // println!("___ META DATA: {:#?}", metadata);
         let schema = read_schema_from_parquet_metadata(metadata)?;
 
         if let Some(predicate_builder) = predicate_builder {

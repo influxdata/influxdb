@@ -5,14 +5,16 @@ use std::{
     sync::Arc,
 };
 
-use parking_lot::RwLock;
 use snafu::{OptionExt, Snafu};
 
 use chunk::Chunk;
-use data_types::chunk::ChunkSummary;
-use data_types::database_rules::{Order, Sort, SortOrder};
 use data_types::error::ErrorLogger;
 use data_types::partition_metadata::PartitionSummary;
+use data_types::{chunk::ChunkSummary, partition_metadata::UnaggregatedPartitionSummary};
+use data_types::{
+    chunk::DetailedChunkSummary,
+    database_rules::{Order, Sort, SortOrder},
+};
 use datafusion::{catalog::schema::SchemaProvider, datasource::TableProvider};
 use internal_types::selection::Selection;
 use partition::Partition;
@@ -22,6 +24,7 @@ use query::{
     provider::{self, ProviderBuilder},
     PartitionChunk,
 };
+use tracker::{LockTracker, RwLock};
 
 pub mod chunk;
 pub mod partition;
@@ -82,6 +85,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct Catalog {
     /// key is partition_key
     partitions: RwLock<BTreeMap<String, Arc<RwLock<Partition>>>>,
+
+    /// Lock tracker for partition-level locks
+    lock_tracker: LockTracker,
 }
 
 impl Catalog {
@@ -123,7 +129,7 @@ impl Catalog {
         match entry {
             Entry::Vacant(entry) => {
                 let partition = Partition::new(entry.key());
-                let partition = Arc::new(RwLock::new(partition));
+                let partition = Arc::new(self.lock_tracker.new_lock(partition));
                 entry.insert(Arc::clone(&partition));
                 partition
             }
@@ -141,7 +147,7 @@ impl Catalog {
             .context(UnknownPartition { partition_key })
     }
 
-    /// Returns a list of partition summaries
+    /// Returns a list of summaries for each partition.
     pub fn partition_summaries(&self) -> Vec<PartitionSummary> {
         self.partitions
             .read()
@@ -150,8 +156,21 @@ impl Catalog {
             .collect()
     }
 
+    /// Returns a list of unaggregated summaries for each partition.
+    pub fn unaggregated_partition_summaries(&self) -> Vec<UnaggregatedPartitionSummary> {
+        self.partitions
+            .read()
+            .values()
+            .map(|partition| partition.read().unaggregated_summary())
+            .collect()
+    }
+
     pub fn chunk_summaries(&self) -> Vec<ChunkSummary> {
         self.filtered_chunks(&Predicate::default(), Chunk::summary)
+    }
+
+    pub fn detailed_chunk_summaries(&self) -> Vec<DetailedChunkSummary> {
+        self.filtered_chunks(&Predicate::default(), Chunk::detailed_summary)
     }
 
     /// Returns all chunks within the catalog in an arbitrary order
@@ -271,7 +290,7 @@ impl SchemaProvider for Catalog {
 mod tests {
     use super::*;
     use data_types::server_id::ServerId;
-    use internal_types::entry::{test_helpers::lp_to_entry, ClockValue};
+    use entry::{test_helpers::lp_to_entry, ClockValue};
     use query::predicate::PredicateBuilder;
     use std::convert::TryFrom;
     use tracker::MemRegistry;

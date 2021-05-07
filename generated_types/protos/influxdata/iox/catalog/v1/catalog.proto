@@ -1,6 +1,15 @@
 syntax = "proto3";
 package influxdata.iox.catalog.v1;
 
+// Path for object store interaction.
+message Path {
+    // Directory hierarchy.
+    repeated string directories = 1;
+
+    // File name.
+    string file_name = 2;
+}
+
 // Upgrades the catalog to a new version.
 message Upgrade {
     // Format string describing the next catalog version.
@@ -12,7 +21,16 @@ message Upgrade {
 // [Parquet]: https://parquet.apache.org/
 message AddParquet {
     // Path of the file within the object store.
-    string path = 1;
+    Path path = 1;
+
+    // [Apache Parquet] metadata encoded using [Apache Thrift].
+    //
+    // The metadata is encoded using the [Thrift Compact Protocol].
+    //
+    // [Apache Parquet]: https://parquet.apache.org/
+    // [Apache Thrift]: https://thrift.apache.org/
+    // [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
+    bytes metadata = 2;
 }
 
 // Removes a [Parquet] file from the catalog.
@@ -20,7 +38,7 @@ message AddParquet {
 // [Parquet]: https://parquet.apache.org/
 message RemoveParquet {
     // Path of the file within the object store.
-    string path = 1;
+    Path path = 1;
 }
 
 // Single, self-contained transaction.
@@ -28,7 +46,9 @@ message Transaction {
     // Transaction format version.
     uint32 version = 1;
 
+    // Action as part of the transaction, wraps an enum.
     message Action {
+        // Inner enum.
         oneof action {
             Upgrade upgrade = 1;
 
@@ -37,6 +57,7 @@ message Transaction {
         }
     }
 
+    // Ordered list of actions that are part of this transaction.
     repeated Action actions = 2;
 
     // Revision counter, must by "previous revision" + 1 or 0 for the first transaction.

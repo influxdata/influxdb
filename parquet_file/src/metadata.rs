@@ -89,7 +89,7 @@
 use std::sync::Arc;
 
 use data_types::{
-    partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
+    partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     timestamp::TimestampRange,
 };
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
@@ -261,6 +261,11 @@ fn read_statistics_from_parquet_row_group(
             )? {
                 ExtractedStatistics::Statistics(stats) => column_summaries.push(ColumnSummary {
                     name: field.name().clone(),
+                    influxdb_type: Some(match iox_type {
+                        InfluxColumnType::Tag => InfluxDbType::Tag,
+                        InfluxColumnType::Field(_) => InfluxDbType::Field,
+                        InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
+                    }),
                     stats,
                 }),
                 ExtractedStatistics::TimestampRange(range) => {
@@ -462,7 +467,7 @@ pub fn thrift_to_parquet_metadata(data: &[u8]) -> Result<ParquetMetaData> {
 mod tests {
     use super::*;
 
-    use internal_types::selection::Selection;
+    use internal_types::{schema::TIME_COLUMN_NAME, selection::Selection};
 
     use crate::{
         storage::read_schema_from_parquet_metadata,
@@ -473,7 +478,7 @@ mod tests {
     async fn test_restore_from_file() {
         // setup: preserve chunk to object store
         let store = make_object_store();
-        let chunk = make_chunk(Arc::clone(&store)).await;
+        let chunk = make_chunk(Arc::clone(&store), "foo").await;
         let (table, parquet_data) = load_parquet_from_store(&chunk, store).await;
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
 
@@ -496,7 +501,7 @@ mod tests {
     async fn test_restore_from_thrift() {
         // setup: write chunk to object store and only keep thrift-encoded metadata
         let store = make_object_store();
-        let chunk = make_chunk(Arc::clone(&store)).await;
+        let chunk = make_chunk(Arc::clone(&store), "foo").await;
         let (table, parquet_data) = load_parquet_from_store(&chunk, store).await;
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
         let data = parquet_metadata_to_thrift(&parquet_metadata).unwrap();
@@ -521,7 +526,7 @@ mod tests {
     async fn test_restore_from_file_no_row_group() {
         // setup: preserve chunk to object store
         let store = make_object_store();
-        let chunk = make_chunk_no_row_group(Arc::clone(&store)).await;
+        let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo").await;
         let (table, parquet_data) = load_parquet_from_store(&chunk, store).await;
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
 
@@ -542,7 +547,7 @@ mod tests {
     async fn test_restore_from_thrift_no_row_group() {
         // setup: write chunk to object store and only keep thrift-encoded metadata
         let store = make_object_store();
-        let chunk = make_chunk_no_row_group(Arc::clone(&store)).await;
+        let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo").await;
         let (table, parquet_data) = load_parquet_from_store(&chunk, store).await;
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
         let data = parquet_metadata_to_thrift(&parquet_metadata).unwrap();
@@ -564,7 +569,7 @@ mod tests {
     #[tokio::test]
     async fn test_make_chunk() {
         let store = make_object_store();
-        let chunk = make_chunk(Arc::clone(&store)).await;
+        let chunk = make_chunk(Arc::clone(&store), "foo").await;
         let (_, parquet_data) = load_parquet_from_store(&chunk, store).await;
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
 
@@ -592,12 +597,17 @@ mod tests {
         for summary in &chunk.table_summaries().first().unwrap().columns {
             assert_eq!(summary.count(), n_rows);
         }
+
+        // check column names
+        for column in parquet_metadata.file_metadata().schema_descr().columns() {
+            assert!((column.name() == TIME_COLUMN_NAME) || column.name().starts_with("foo_"));
+        }
     }
 
     #[tokio::test]
     async fn test_make_chunk_no_row_group() {
         let store = make_object_store();
-        let chunk = make_chunk_no_row_group(Arc::clone(&store)).await;
+        let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo").await;
         let (_, parquet_data) = load_parquet_from_store(&chunk, store).await;
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
 
@@ -619,5 +629,10 @@ mod tests {
                 .schema_descr()
                 .num_columns()
         );
+
+        // check column names
+        for column in parquet_metadata.file_metadata().schema_descr().columns() {
+            assert!((column.name() == TIME_COLUMN_NAME) || column.name().starts_with("foo_"));
+        }
     }
 }

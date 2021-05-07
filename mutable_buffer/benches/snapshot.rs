@@ -2,8 +2,8 @@ use std::{convert::TryFrom, io::Read};
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use data_types::server_id::ServerId;
+use entry::{test_helpers::lp_to_entries, ClockValue};
 use flate2::read::GzDecoder;
-use internal_types::entry::{test_helpers::lp_to_entries, ClockValue};
 use mutable_buffer::chunk::Chunk;
 use tracker::MemRegistry;
 

@@ -797,7 +797,7 @@ impl InfluxRpcPlanner {
     ///          Scan
     fn read_filter_plan<C>(
         &self,
-        table_name: impl Into<String>,
+        table_name: impl AsRef<str>,
         prefix_columns: Option<&[impl AsRef<str>]>,
         predicate: &Predicate,
         chunks: Vec<Arc<C>>,
@@ -805,8 +805,8 @@ impl InfluxRpcPlanner {
     where
         C: PartitionChunk + 'static,
     {
-        let table_name = table_name.into();
-        let scan_and_filter = self.scan_and_filter(&table_name, predicate, chunks)?;
+        let table_name = table_name.as_ref();
+        let scan_and_filter = self.scan_and_filter(table_name, predicate, chunks)?;
 
         let TableScanAndFilter {
             plan_builder,
@@ -855,17 +855,17 @@ impl InfluxRpcPlanner {
 
         let tag_columns = schema
             .tags_iter()
-            .map(|field| Arc::new(field.name().to_string()))
+            .map(|field| Arc::from(field.name().as_str()))
             .collect();
 
         let field_columns = filtered_fields_iter(&schema, predicate)
-            .map(|field| Arc::new(field.name().to_string()))
+            .map(|field| Arc::from(field.name().as_str()))
             .collect();
 
         // TODO: remove the use of tag_columns and field_column names
         // and instead use the schema directly)
         let ss_plan = SeriesSetPlan::new_from_shared_timestamp(
-            Arc::new(table_name),
+            Arc::from(table_name),
             plan,
             tag_columns,
             field_columns,
@@ -942,9 +942,9 @@ impl InfluxRpcPlanner {
         // order in the same order)
         let tag_columns: Vec<_> = schema.tags_iter().map(|f| f.name() as &str).collect();
 
-        let tag_columns: Vec<_> = reorder_prefix(group_columns, tag_columns)?
+        let tag_columns: Vec<Arc<str>> = reorder_prefix(group_columns, tag_columns)?
             .into_iter()
-            .map(|name| Arc::new(name.to_string()))
+            .map(Arc::from)
             .collect();
 
         // Group by all tag columns
@@ -972,7 +972,7 @@ impl InfluxRpcPlanner {
         // and finally create the plan
         let plan = plan_builder.build().context(BuildingPlan)?;
 
-        let ss_plan = SeriesSetPlan::new(Arc::new(table_name), plan, tag_columns, field_columns);
+        let ss_plan = SeriesSetPlan::new(Arc::from(table_name), plan, tag_columns, field_columns);
 
         Ok(Some(ss_plan))
     }
@@ -1001,8 +1001,8 @@ impl InfluxRpcPlanner {
     ///
     /// The created plan looks like:
     ///
-    ///  OrderBy(gby: tag columns, window_function; agg: aggregate(field)
-    ///      GroupBy(gby: tag columns, window_function; agg: aggregate(field)
+    ///  OrderBy(gby: tag columns, window_function; agg: aggregate(field))
+    ///      GroupBy(gby: tag columns, window_function; agg: aggregate(field))
     ///        Filter(predicate)
     ///          Scan
     fn read_window_aggregate_plan<C>(
@@ -1060,18 +1060,18 @@ impl InfluxRpcPlanner {
 
         let tag_columns = schema
             .tags_iter()
-            .map(|field| Arc::new(field.name().to_string()))
+            .map(|field| Arc::from(field.name().as_str()))
             .collect();
 
         let field_columns = filtered_fields_iter(&schema, predicate)
-            .map(|field| Arc::new(field.name().to_string()))
+            .map(|field| Arc::from(field.name().as_str()))
             .collect();
 
         // TODO: remove the use of tag_columns and field_column names
         // and instead use the schema directly)
 
         let ss_plan = SeriesSetPlan::new_from_shared_timestamp(
-            Arc::new(table_name),
+            Arc::from(table_name),
             plan,
             tag_columns,
             field_columns,
@@ -1101,8 +1101,8 @@ impl InfluxRpcPlanner {
     where
         C: PartitionChunk + 'static,
     {
-        // Scan all columns to begin with (datafusion projection
-        // pushdown optimization will prune out unneeded columns later)
+        // Scan all columns to begin with (DataFusion projection
+        // push-down optimization will prune out unneeded columns later)
         let projection = None;
         let selection = Selection::All;
 
@@ -1213,6 +1213,18 @@ impl ExpressionVisitor for SupportVisitor {
                     }
                 }
             }
+            Expr::ScalarUDF { fun, .. } => {
+                if fun.name.as_str() == crate::func::regex::REGEX_MATCH_UDF_NAME
+                    || fun.name.as_str() == crate::func::regex::REGEX_NOT_MATCH_UDF_NAME
+                {
+                    Ok(Recursion::Continue(self))
+                } else {
+                    Err(DataFusionError::NotImplemented(format!(
+                        "Unsupported expression in gRPC: {:?}",
+                        expr
+                    )))
+                }
+            }
             _ => Err(DataFusionError::NotImplemented(format!(
                 "Unsupported expression in gRPC: {:?}",
                 expr
@@ -1316,7 +1328,7 @@ impl AggExprs {
                     .collect::<Result<Vec<_>>>()?;
 
                 let field_columns = filtered_fields_iter(schema, predicate)
-                    .map(|field| Arc::new(field.name().to_string()))
+                    .map(|field| Arc::from(field.name().as_str()))
                     .collect::<Vec<_>>()
                     .into();
 
@@ -1356,8 +1368,8 @@ impl AggExprs {
                     )?);
 
                     field_list.push((
-                        Arc::new(field.name().to_string()), // value name
-                        Arc::new(time_column_name),
+                        Arc::from(field.name().as_str()), // value name
+                        Arc::from(time_column_name.as_str()),
                     ));
                 }
 

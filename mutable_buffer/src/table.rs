@@ -5,10 +5,13 @@ use crate::{
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError, DID},
 };
-use data_types::{partition_metadata::ColumnSummary, server_id::ServerId};
+use data_types::{
+    partition_metadata::{ColumnSummary, InfluxDbType},
+    server_id::ServerId,
+};
+use entry::{self, ClockValue};
 use internal_types::{
-    entry::{self, ClockValue},
-    schema::{builder::SchemaBuilder, Schema},
+    schema::{builder::SchemaBuilder, InfluxColumnType, Schema},
     selection::Selection,
 };
 
@@ -114,7 +117,12 @@ impl Table {
     /// that the space taken for the tag string values is represented in the
     /// dictionary size in the chunk that holds the table.
     pub fn size(&self) -> usize {
-        self.columns.values().fold(0, |acc, v| acc + v.size())
+        self.columns.values().map(|v| v.size()).sum()
+    }
+
+    /// Returns an iterator over (column_name, estimated_size) for each column
+    pub fn column_sizes(&self) -> impl Iterator<Item = (&DID, usize)> + '_ {
+        self.columns.iter().map(|(did, c)| (did, c.size()))
     }
 
     /// Returns a reference to the specified column
@@ -306,6 +314,11 @@ impl Table {
                 ColumnSummary {
                     name: column_name.to_string(),
                     stats: c.stats(),
+                    influxdb_type: Some(match c.influx_type() {
+                        InfluxColumnType::Tag => InfluxDbType::Tag,
+                        InfluxColumnType::Field(_) => InfluxDbType::Field,
+                        InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
+                    }),
                 }
             })
             .collect()
@@ -335,10 +348,8 @@ impl<'a> TableColSelection<'a> {
 mod tests {
     use super::*;
     use arrow::datatypes::DataType as ArrowDataType;
-    use internal_types::{
-        entry::test_helpers::lp_to_entry,
-        schema::{InfluxColumnType, InfluxFieldType},
-    };
+    use entry::test_helpers::lp_to_entry;
+    use internal_types::schema::{InfluxColumnType, InfluxFieldType};
     use std::convert::TryFrom;
 
     #[test]

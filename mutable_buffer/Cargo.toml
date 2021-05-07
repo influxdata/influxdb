@@ -18,11 +18,8 @@ arrow = { path = "../arrow" }
 ahash = "0.7.2"
 async-trait = "0.1"
 data_types = { path = "../data_types" }
-# See docs/regenerating_flatbuffers.md about updating generated code when updating the
-# version of the flatbuffers crate
-flatbuffers = "0.8"
-generated_types = { path = "../generated_types" }
-hashbrown = "0.9.1"
+entry = { path = "../entry" }
+hashbrown = "0.11"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 internal_types = { path = "../internal_types" }
 observability_deps = { path = "../observability_deps" }

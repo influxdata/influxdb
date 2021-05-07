@@ -83,12 +83,10 @@ use data_types::{
     server_id::ServerId,
     {DatabaseName, DatabaseNameError},
 };
+use entry::{lines_to_sharded_entries, Entry, OwnedSequencedEntry, ShardedEntry};
 use influxdb_line_protocol::ParsedLine;
-use internal_types::{
-    entry::{self, lines_to_sharded_entries, Entry, ShardedEntry},
-    once::OnceNonZeroU32,
-};
-use metrics::{KeyValue, MetricRegistry};
+use internal_types::once::OnceNonZeroU32;
+use metrics::{KeyValue, MetricObserverBuilder, MetricRegistry};
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, DatabaseStore};
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
@@ -101,9 +99,9 @@ use crate::{
     },
     db::Db,
 };
-use data_types::database_rules::{NodeGroup, ShardId};
+use data_types::database_rules::{NodeGroup, Shard, ShardId};
+use generated_types::database_rules::{decode_database_rules, encode_database_rules};
 use influxdb_iox_client::{connection::Builder, write};
-use internal_types::entry::OwnedSequencedEntry;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
 
@@ -148,7 +146,7 @@ pub enum Error {
     IdNotSet,
     #[snafu(display("error serializing configuration {}", source))]
     ErrorSerializing {
-        source: data_types::database_rules::Error,
+        source: generated_types::database_rules::EncodeError,
     },
     #[snafu(display("error deserializing configuration {}", source))]
     ErrorDeserializing { source: serde_json::Error },
@@ -261,9 +259,6 @@ pub struct ServerMetrics {
 
     /// The number of Entry bytes ingested
     pub ingest_entries_bytes_total: metrics::Counter,
-
-    /// Internal memory allocator stats
-    pub jemalloc_memstats: metrics::Gauge,
 }
 
 impl ServerMetrics {
@@ -272,6 +267,37 @@ impl ServerMetrics {
         let http_domain = registry.register_domain("http");
         let ingest_domain = registry.register_domain("ingest");
         let jemalloc_domain = registry.register_domain("jemalloc");
+
+        // This isn't really a property of the server, perhaps it should be somewhere else?
+        jemalloc_domain.register_observer(None, &[], |observer: MetricObserverBuilder<'_>| {
+            observer.register_gauge_u64(
+                "memstats",
+                Some("bytes"),
+                "jemalloc memstats",
+                |observer| {
+                    use tikv_jemalloc_ctl::{epoch, stats};
+                    epoch::advance().unwrap();
+
+                    let active = stats::allocated::read().unwrap();
+                    observer.observe(active as u64, &[KeyValue::new("stat", "active")]);
+
+                    let allocated = stats::allocated::read().unwrap();
+                    observer.observe(allocated as u64, &[KeyValue::new("stat", "alloc")]);
+
+                    let metadata = stats::metadata::read().unwrap();
+                    observer.observe(metadata as u64, &[KeyValue::new("stat", "metadata")]);
+
+                    let mapped = stats::mapped::read().unwrap();
+                    observer.observe(mapped as u64, &[KeyValue::new("stat", "mapped")]);
+
+                    let resident = stats::resident::read().unwrap();
+                    observer.observe(resident as u64, &[KeyValue::new("stat", "resident")]);
+
+                    let retained = stats::retained::read().unwrap();
+                    observer.observe(retained as u64, &[KeyValue::new("stat", "retained")]);
+                },
+            )
+        });
 
         Self {
             http_requests: http_domain.register_red_metric(None),
@@ -289,34 +315,6 @@ impl ServerMetrics {
                 "entries",
                 Some("bytes"),
                 "total Entry bytes ingested",
-            ),
-            jemalloc_memstats: jemalloc_domain.register_gauge_metric_with_labels_and_callback(
-                "memstats",
-                Some("bytes"),
-                "jemalloc memstats",
-                vec![],
-                |observer| {
-                    use tikv_jemalloc_ctl::{epoch, stats};
-                    epoch::advance().unwrap();
-
-                    let active = stats::allocated::read().unwrap();
-                    observer.observe(active as f64, &[KeyValue::new("stat", "active")]);
-
-                    let allocated = stats::allocated::read().unwrap();
-                    observer.observe(allocated as f64, &[KeyValue::new("stat", "alloc")]);
-
-                    let metadata = stats::metadata::read().unwrap();
-                    observer.observe(metadata as f64, &[KeyValue::new("stat", "metadata")]);
-
-                    let mapped = stats::mapped::read().unwrap();
-                    observer.observe(mapped as f64, &[KeyValue::new("stat", "mapped")]);
-
-                    let resident = stats::resident::read().unwrap();
-                    observer.observe(resident as f64, &[KeyValue::new("stat", "resident")]);
-
-                    let retained = stats::retained::read().unwrap();
-                    observer.observe(retained as f64, &[KeyValue::new("stat", "retained")]);
-                },
             ),
         }
     }
@@ -423,7 +421,7 @@ impl<M: ConnectionManager> Server<M> {
         let location = object_store_path_for_database_config(&self.root_path()?, &rules.name);
 
         let mut data = BytesMut::new();
-        rules.encode(&mut data).context(ErrorSerializing)?;
+        encode_database_rules(rules, &mut data).context(ErrorSerializing)?;
 
         let len = data.len();
 
@@ -489,7 +487,7 @@ impl<M: ConnectionManager> Server<M> {
 
                     let res = res.unwrap().freeze();
 
-                    match DatabaseRules::decode(res) {
+                    match decode_database_rules(res) {
                         Err(e) => {
                             error!("error parsing database config {:?} from store: {}", path, e)
                         }
@@ -567,14 +565,18 @@ impl<M: ConnectionManager> Server<M> {
         &self,
         db_name: &str,
         db: &Db,
-        shards: Arc<HashMap<u32, NodeGroup>>,
+        shards: Arc<HashMap<u32, Shard>>,
         sharded_entry: ShardedEntry,
     ) -> Result<()> {
         match sharded_entry.shard_id {
             Some(shard_id) => {
-                let node_group = shards.get(&shard_id).context(ShardNotFound { shard_id })?;
-                self.write_entry_downstream(db_name, node_group, sharded_entry.entry)
-                    .await?
+                let shard = shards.get(&shard_id).context(ShardNotFound { shard_id })?;
+                match shard {
+                    Shard::Iox(node_group) => {
+                        self.write_entry_downstream(db_name, node_group, sharded_entry.entry)
+                            .await?
+                    }
+                }
             }
             None => {
                 self.write_entry_local(&db_name, db, sharded_entry.entry)
@@ -1061,7 +1063,7 @@ mod tests {
             .unwrap()
             .freeze();
 
-        let read_rules = DatabaseRules::decode(read_data).unwrap();
+        let read_rules = decode_database_rules(read_data).unwrap();
 
         assert_eq!(rules, read_rules);
 
@@ -1283,7 +1285,7 @@ mod tests {
                     ..Default::default()
                 }),
                 shards: Arc::new(
-                    vec![(TEST_SHARD_ID, remote_ids.clone())]
+                    vec![(TEST_SHARD_ID, Shard::Iox(remote_ids.clone()))]
                         .into_iter()
                         .collect(),
                 ),

@@ -186,17 +186,18 @@ async fn sql_select_from_information_schema_tables() {
     // validate we have access to information schema for listing table
     // names
     let expected = vec![
-        "+---------------+--------------------+------------+------------+",
-        "| table_catalog | table_schema       | table_name | table_type |",
-        "+---------------+--------------------+------------+------------+",
-        "| public        | information_schema | columns    | VIEW       |",
-        "| public        | information_schema | tables     | VIEW       |",
-        "| public        | iox                | h2o        | BASE TABLE |",
-        "| public        | iox                | o2         | BASE TABLE |",
-        "| public        | system             | chunks     | BASE TABLE |",
-        "| public        | system             | columns    | BASE TABLE |",
-        "| public        | system             | operations | BASE TABLE |",
-        "+---------------+--------------------+------------+------------+",
+        "+---------------+--------------------+---------------+------------+",
+        "| table_catalog | table_schema       | table_name    | table_type |",
+        "+---------------+--------------------+---------------+------------+",
+        "| public        | information_schema | columns       | VIEW       |",
+        "| public        | information_schema | tables        | VIEW       |",
+        "| public        | iox                | h2o           | BASE TABLE |",
+        "| public        | iox                | o2            | BASE TABLE |",
+        "| public        | system             | chunk_columns | BASE TABLE |",
+        "| public        | system             | chunks        | BASE TABLE |",
+        "| public        | system             | columns       | BASE TABLE |",
+        "| public        | system             | operations    | BASE TABLE |",
+        "+---------------+--------------------+---------------+------------+",
     ];
     run_sql_test_case!(
         TwoMeasurementsManyFields {},
@@ -289,24 +290,58 @@ async fn sql_select_from_system_columns() {
     //  test timestamps, etc)
 
     let expected = vec![
-        "+---------------+------------+-------------+-------+",
-        "| partition_key | table_name | column_name | count |",
-        "+---------------+------------+-------------+-------+",
-        "| 1970-01-01T00 | h2o        | city        | 3     |",
-        "| 1970-01-01T00 | h2o        | other_temp  | 2     |",
-        "| 1970-01-01T00 | h2o        | state       | 3     |",
-        "| 1970-01-01T00 | h2o        | temp        | 1     |",
-        "| 1970-01-01T00 | h2o        | time        | 3     |",
-        "| 1970-01-01T00 | o2         | city        | 1     |",
-        "| 1970-01-01T00 | o2         | state       | 2     |",
-        "| 1970-01-01T00 | o2         | temp        | 2     |",
-        "| 1970-01-01T00 | o2         | time        | 2     |",
-        "| 1970-01-01T00 | o2         | reading     | 1     |",
-        "+---------------+------------+-------------+-------+",
+        "+---------------+------------+-------------+-------------+---------------+",
+        "| partition_key | table_name | column_name | column_type | influxdb_type |",
+        "+---------------+------------+-------------+-------------+---------------+",
+        "| 1970-01-01T00 | h2o        | city        | String      | Tag           |",
+        "| 1970-01-01T00 | h2o        | other_temp  | F64         | Field         |",
+        "| 1970-01-01T00 | h2o        | state       | String      | Tag           |",
+        "| 1970-01-01T00 | h2o        | temp        | F64         | Field         |",
+        "| 1970-01-01T00 | h2o        | time        | I64         | Timestamp     |",
+        "| 1970-01-01T00 | o2         | city        | String      | Tag           |",
+        "| 1970-01-01T00 | o2         | reading     | F64         | Field         |",
+        "| 1970-01-01T00 | o2         | state       | String      | Tag           |",
+        "| 1970-01-01T00 | o2         | temp        | F64         | Field         |",
+        "| 1970-01-01T00 | o2         | time        | I64         | Timestamp     |",
+        "+---------------+------------+-------------+-------------+---------------+",
     ];
     run_sql_test_case!(
         TwoMeasurementsManyFieldsOneChunk {},
         "SELECT * from system.columns",
+        &expected
+    );
+}
+
+#[tokio::test]
+async fn sql_select_from_system_chunk_columns() {
+    // system tables reflect the state of chunks, so don't run them
+    // with different chunk configurations.
+
+    let expected = vec![
+    "+---------------+----------+------------+--------------+-------------------+-------+-----------+-----------+-----------------+",
+    "| partition_key | chunk_id | table_name | column_name  | storage           | count | min_value | max_value | estimated_bytes |",
+    "+---------------+----------+------------+--------------+-------------------+-------+-----------+-----------+-----------------+",
+    "| 1970-01-01T00 | 0        | h2o        | city         | ReadBuffer        | 2     | Boston    | time      | 871             |",
+    "| 1970-01-01T00 | 0        | h2o        | other_temp   | ReadBuffer        | 2     | 70.4      | 70.4      | 369             |",
+    "| 1970-01-01T00 | 0        | h2o        | state        | ReadBuffer        | 2     | Boston    | time      | 871             |",
+    "| 1970-01-01T00 | 0        | h2o        | temp         | ReadBuffer        | 2     | 70.4      | 70.4      | 369             |",
+    "| 1970-01-01T00 | 0        | h2o        | time         | ReadBuffer        | 2     | 50        | 250       | 51              |",
+    "| 1970-01-01T00 | 0        | o2         | __dictionary | OpenMutableBuffer |       |           |           | 112             |",
+    "| 1970-01-01T00 | 0        | o2         | city         | OpenMutableBuffer | 1     | Boston    | Boston    | 17              |",
+    "| 1970-01-01T00 | 0        | o2         | reading      | OpenMutableBuffer | 1     | 51        | 51        | 25              |",
+    "| 1970-01-01T00 | 0        | o2         | state        | OpenMutableBuffer | 2     | CA        | MA        | 17              |",
+    "| 1970-01-01T00 | 0        | o2         | temp         | OpenMutableBuffer | 2     | 53.4      | 79        | 25              |",
+    "| 1970-01-01T00 | 0        | o2         | time         | OpenMutableBuffer | 2     | 50        | 300       | 25              |",
+    "| 1970-01-01T00 | 1        | h2o        | __dictionary | OpenMutableBuffer |       |           |           | 94              |",
+    "| 1970-01-01T00 | 1        | h2o        | city         | OpenMutableBuffer | 1     | Boston    | Boston    | 13              |",
+    "| 1970-01-01T00 | 1        | h2o        | other_temp   | OpenMutableBuffer | 1     | 72.4      | 72.4      | 17              |",
+    "| 1970-01-01T00 | 1        | h2o        | state        | OpenMutableBuffer | 1     | CA        | CA        | 13              |",
+    "| 1970-01-01T00 | 1        | h2o        | time         | OpenMutableBuffer | 1     | 350       | 350       | 17              |",
+    "+---------------+----------+------------+--------------+-------------------+-------+-----------+-----------+-----------------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsManyFieldsTwoChunks {},
+        "SELECT * from system.chunk_columns",
         &expected
     );
 }

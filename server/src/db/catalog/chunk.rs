@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use data_types::{
-    chunk::{ChunkStorage, ChunkSummary},
+    chunk::{ChunkColumnSummary, ChunkStorage, ChunkSummary, DetailedChunkSummary},
     partition_metadata::TableSummary,
     server_id::ServerId,
 };
-use internal_types::entry::{ClockValue, TableBatch};
+use entry::{ClockValue, TableBatch};
 use mutable_buffer::chunk::Chunk as MBChunk;
 use parquet_file::chunk::Chunk as ParquetChunk;
 use read_buffer::Chunk as ReadBufferChunk;
@@ -81,10 +81,10 @@ impl ChunkState {
 #[derive(Debug)]
 pub struct Chunk {
     /// What partition does the chunk belong to?
-    partition_key: Arc<String>,
+    partition_key: Arc<str>,
 
     /// What table does the chunk belong to?
-    table_name: Arc<String>,
+    table_name: Arc<str>,
 
     /// The ID of the chunk
     id: u32,
@@ -109,8 +109,8 @@ pub struct Chunk {
 macro_rules! unexpected_state {
     ($SELF: expr, $OP: expr, $EXPECTED: expr, $STATE: expr) => {
         InternalChunkState {
-            partition_key: $SELF.partition_key.as_str(),
-            table_name: $SELF.table_name.as_str(),
+            partition_key: $SELF.partition_key.as_ref(),
+            table_name: $SELF.table_name.as_ref(),
             chunk_id: $SELF.id,
             operation: $OP,
             expected: $EXPECTED,
@@ -131,26 +131,25 @@ impl Chunk {
     /// 4. a write is recorded (see [`record_write`](Self::record_write))
     pub(crate) fn new_open(
         batch: TableBatch<'_>,
-        partition_key: impl Into<String>,
+        partition_key: impl AsRef<str>,
         id: u32,
         clock_value: ClockValue,
         server_id: ServerId,
         memory_registry: &MemRegistry,
     ) -> Result<Self> {
-        let table_name = batch.name().to_string();
-        let partition_key: String = partition_key.into();
+        let table_name = Arc::from(batch.name());
 
         let mut mb = mutable_buffer::chunk::Chunk::new(id, memory_registry);
         mb.write_table_batches(clock_value, server_id, &[batch])
             .context(OpenChunk {
-                partition_key: partition_key.clone(),
+                partition_key: partition_key.as_ref(),
                 chunk_id: id,
             })?;
 
         let state = ChunkState::Open(mb);
         let mut chunk = Self {
-            partition_key: Arc::new(partition_key),
-            table_name: Arc::new(table_name),
+            partition_key: Arc::from(partition_key.as_ref()),
+            table_name,
             id,
             state,
             time_of_first_write: None,
@@ -261,7 +260,34 @@ impl Chunk {
         }
     }
 
-    /// Return TableSummary metadata.
+    /// Return information about the storage in this Chunk
+    pub fn detailed_summary(&self) -> DetailedChunkSummary {
+        let inner = self.summary();
+
+        fn to_summary(v: (&str, usize)) -> ChunkColumnSummary {
+            ChunkColumnSummary {
+                name: v.0.into(),
+                estimated_bytes: v.1,
+            }
+        }
+
+        let columns: Vec<ChunkColumnSummary> = match &self.state {
+            ChunkState::Invalid => panic!("invalid chunk state"),
+            ChunkState::Open(chunk) => chunk.column_sizes().map(to_summary).collect(),
+            ChunkState::Closed(chunk) => chunk.column_sizes().map(to_summary).collect(),
+            ChunkState::Moving(chunk) => chunk.column_sizes().map(to_summary).collect(),
+            ChunkState::Moved(chunk) => chunk.column_sizes(&self.table_name),
+            ChunkState::WritingToObjectStore(chunk) => chunk.column_sizes(&self.table_name),
+            ChunkState::WrittenToObjectStore(chunk, _parquet_chunk) => {
+                chunk.column_sizes(&self.table_name)
+            }
+            ChunkState::ObjectStoreOnly(_parquet_chunk) => vec![], // TODO parquet statistics
+        };
+
+        DetailedChunkSummary { inner, columns }
+    }
+
+    /// Return the summary information about the table stored in this Chunk
     pub fn table_summary(&self) -> TableSummary {
         match &self.state {
             ChunkState::Invalid => panic!("invalid chunk state"),

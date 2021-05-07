@@ -3,7 +3,7 @@ use super::{ObjectStorePath, PathPart, DELIMITER};
 use itertools::Itertools;
 
 /// A path stored as a collection of 0 or more directories and 0 or 1 file name
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default, Hash)]
 pub struct DirsAndFileName {
     /// Directory hierarchy.
     pub directories: Vec<PathPart>,
@@ -130,6 +130,46 @@ impl DirsAndFileName {
     pub(crate) fn unset_file_name(&mut self) {
         self.file_name = None;
     }
+}
+
+/// Short-cut macro to create [`DirsAndFileName`] instances.
+///
+/// # Example
+/// ```
+/// use object_store::parsed_path;
+///
+/// // empty path
+/// parsed_path!();
+///
+/// // filename only
+/// parsed_path!("test.txt");
+///
+/// // directories only
+/// parsed_path!(["path", "to"]);
+///
+/// // filename + directories
+/// parsed_path!(["path", "to"], "test.txt");
+/// ```
+#[macro_export]
+macro_rules! parsed_path {
+    ([$($dir:expr),*], $file:expr) => {
+        $crate::path::parsed::DirsAndFileName {
+            directories: vec![$($crate::path::parts::PathPart::from($dir)),*],
+            file_name: Some($crate::path::parts::PathPart::from($file)),
+        }
+    };
+    ([$($dir:expr),*]) => {
+        $crate::path::parsed::DirsAndFileName {
+            directories: vec![$($crate::path::parts::PathPart::from($dir)),*],
+            file_name: None,
+        }
+    };
+    ($file:expr) => {
+        parsed_path!([], $file)
+    };
+    () => {
+        parsed_path!([])
+    };
 }
 
 #[cfg(test)]
@@ -294,5 +334,50 @@ mod tests {
             haystack,
             needle
         );
+    }
+
+    #[test]
+    fn test_macro() {
+        let actual = parsed_path!(["foo", "bar"], "baz");
+        let expected = DirsAndFileName {
+            directories: vec![PathPart::from("foo"), PathPart::from("bar")],
+            file_name: Some(PathPart::from("baz")),
+        };
+        assert_eq!(actual, expected);
+
+        let actual = parsed_path!([], "foo");
+        let expected = DirsAndFileName {
+            directories: vec![],
+            file_name: Some(PathPart::from("foo")),
+        };
+        assert_eq!(actual, expected);
+
+        let actual = parsed_path!("foo");
+        let expected = DirsAndFileName {
+            directories: vec![],
+            file_name: Some(PathPart::from("foo")),
+        };
+        assert_eq!(actual, expected);
+
+        let actual = parsed_path!(["foo", "bar"]);
+        let expected = DirsAndFileName {
+            directories: vec![PathPart::from("foo"), PathPart::from("bar")],
+            file_name: None,
+        };
+        assert_eq!(actual, expected);
+
+        let actual = parsed_path!([]);
+        let expected = DirsAndFileName {
+            directories: vec![],
+            file_name: None,
+        };
+        assert_eq!(actual, expected);
+
+        let actual = parsed_path!();
+        let expected = DirsAndFileName {
+            directories: vec![],
+            file_name: None,
+        };
+        assert_eq!(actual, expected);
     }
 }

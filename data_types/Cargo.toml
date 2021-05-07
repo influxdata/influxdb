@@ -8,15 +8,12 @@ readme = "README.md"
 
 [dependencies] # In alphabetical order
 chrono = { version = "0.4", features = ["serde"] }
-generated_types = { path = "../generated_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 percent-encoding = "2.1.0"
-prost = "0.7"
 regex = "1.4"
-serde = { version = "1.0", features = ["rc"] }
+serde = { version = "1.0", features = ["rc", "derive"] }
 serde_regex = "1.1"
 snafu = "0.6"
-tonic = { version = "0.4.0" }
 observability_deps = { path = "../observability_deps" }
 
 [dev-dependencies] # In alphabetical order

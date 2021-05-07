@@ -5,7 +5,6 @@ authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2018"
 
 [dependencies] # In alphabetical order
-influxdb2_client = { path = "../influxdb2_client" }
 nom = "5.1.1"
 smallvec = "1.2.0"
 snafu = "0.6.2"
