@@ -447,10 +447,10 @@ func (s *Shard) SeriesFile() (*SeriesFile, error) {
 }
 
 // IsIdle return true if the shard is not receiving writes and is fully compacted.
-func (s *Shard) IsIdle() bool {
+func (s *Shard) IsIdle() (state bool, reason string) {
 	engine, err := s.Engine()
 	if err != nil {
-		return true
+		return true, ""
 	}
 	return engine.IsIdle()
 }
@@ -1200,19 +1200,20 @@ func (s *Shard) TagKeyCardinality(name, key []byte) int {
 }
 
 // Digest returns a digest of the shard.
-func (s *Shard) Digest() (io.ReadCloser, int64, error) {
+func (s *Shard) Digest() (io.ReadCloser, int64, error, string) {
 	engine, err := s.Engine()
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, err, ""
 	}
 
 	// Make sure the shard is idle/cold. (No use creating a digest of a
 	// hot shard that is rapidly changing.)
-	if !engine.IsIdle() {
-		return nil, 0, ErrShardNotIdle
+	if isIdle, reason := engine.IsIdle(); !isIdle {
+		return nil, 0, ErrShardNotIdle, reason
 	}
 
-	return engine.Digest()
+	readCloser, size, err := engine.Digest()
+	return readCloser, size, err, ""
 }
 
 // engine safely (under an RLock) returns a reference to the shard's Engine, or

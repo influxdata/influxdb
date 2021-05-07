@@ -3,6 +3,7 @@ package control_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/memory"
@@ -23,6 +24,9 @@ func TestController_Query(t *testing.T) {
 		compiler := &mock.Compiler{
 			Type: "mock",
 			CompileFn: func(ctx context.Context) (flux.Program, error) {
+				// On fast machines, compilation can be faster than clock granularity
+				// causing the compile duration test below to fail
+				time.Sleep(time.Second)
 				return &mock.Program{
 					StartFn: func(ctx context.Context, alloc *memory.Allocator) (*mock.Query, error) {
 						ch := make(chan flux.Result)
