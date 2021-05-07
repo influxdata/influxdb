@@ -508,13 +508,13 @@ pub fn read_data_from_parquet_data(schema: SchemaRef, parquet_data: Vec<u8>) -> 
     // Indices of columns in the schema needed to read
     let projection: Vec<usize> = Storage::column_indices(Selection::All, Arc::clone(&schema));
     let mut batch_reader = arrow_reader
-        .get_record_reader_by_columns(projection, 1024) //batch_size)
+        .get_record_reader_by_columns(projection, 1024)
         .unwrap();
     loop {
         match batch_reader.next() {
             Some(Ok(batch)) => {
-                //println!("Record batch: {:#?}", batch); // The metadata of batch's schema is missing
                 // TODO: remove this when arow-rs' ticket https://github.com/apache/arrow-rs/issues/252#252 is done
+                //println!("Record batch: {:#?}", batch); // The metadata of batch's schema is missing
                 let columns = batch.columns().to_vec();
                 let new_batch = RecordBatch::try_new(Arc::clone(&schema), columns).unwrap();
                 // println!("Record batch: {:#?}", new_batch); // Should have the metadata now

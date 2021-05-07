@@ -303,36 +303,16 @@ impl PartitionChunk for DbChunk {
                         chunk_id: chunk.id(),
                     })?;
 
-                // println!("--- READ FROM RUB:");
-                // let record_batch = copy.next().unwrap();
-                // println!("------- Results: {:#?}", record_batch);
-
                 Ok(Box::pin(ReadFilterResultsStream::new(
                     read_results,
                     schema.into(),
                 )))
             }
-            Self::ParquetFile { chunk, .. } => {
-                chunk
-                    .read_filter(table_name, predicate, selection)
-                    .context(ParquetFileChunkError {
-                        chunk_id: chunk.id(),
-                    })
-
-                // let mut batches = Vec::new();
-                // // process the record batches one by one
-                // while let Some(record_batch) = results.next().await.transpose().expect("reading next batch")
-                // {
-                //     batches.push(record_batch)
-                // }
-
-                // let batches = results
-                //     .unwrap()
-                //     .collect::<Vec<_>>()
-                //     .
-                //     .map(Result::unwrap)
-                //     .collect();
-            }
+            Self::ParquetFile { chunk, .. } => chunk
+                .read_filter(table_name, predicate, selection)
+                .context(ParquetFileChunkError {
+                    chunk_id: chunk.id(),
+                }),
         }
     }
 

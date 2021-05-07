@@ -154,8 +154,6 @@ async fn test_field_name_plan() {
             "+--------+--------+--------+--------+-------------------------------+",
         ];
 
-        println!("Batches in test_field_name_plan: {:#?}", results);
-
         assert_batches_eq!(expected, &results);
     }
 }

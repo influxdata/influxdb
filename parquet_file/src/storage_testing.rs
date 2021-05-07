@@ -18,6 +18,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_read() {
+        ////////////////////
         // Create test data which is also the expected data
         let table: &str = "table1";
         let (record_batches, schema, column_summaries, time_range, num_rows) = make_record_batch();
@@ -26,10 +27,12 @@ mod tests {
         let record_batch = record_batches[0].clone(); // Get the first one to compare key-value meta data that would be the same for all batches
         let key_value_metadata = record_batch.schema().metadata().clone();
 
+        ////////////////////
         // Make an OS in memory
         let store = make_object_store();
 
-        // Store the data as a Create a chunk and write it to in the object store
+        ////////////////////
+        // Store the data as a chunk and write it to in the object store
         // This test Storage::write_to_object_store
         let chunk = make_chunk_given_record_batch(
             Arc::clone(&store),
@@ -41,11 +44,13 @@ mod tests {
         )
         .await;
 
+        ////////////////////
         // Now let read it back
+        //
         let (_read_table, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(&store)).await;
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
         //
-        // 1. Check metadata
+        // 1. Check metadata at file level: Everything is correct
         let schema_actual = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
         //let schema_expected = chunk.table_schema(&table, Selection::All).unwrap();
 
@@ -68,20 +73,25 @@ mod tests {
         // 3. Check data
         // Read the parquet data from object store
         let (_read_table, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(&store)).await;
+        // Note that the read_data_from_parquet_data function fixes the row-group/batches' level metadata bug in arrow
         let actual_record_batches =
             read_data_from_parquet_data(Arc::clone(&schema.as_arrow()), parquet_data);
         let mut actual_num_rows = 0;
         for batch in actual_record_batches.clone() {
             actual_num_rows += batch.num_rows();
+
+            // Check if record batch has meta data
             // println!("Record batch: {:#?}", batch);
             let batch_key_value_metadata = batch.schema().metadata().clone();
-            println!("Batch key value meta data: {:#?}", batch_key_value_metadata); // should have value
+            // println!("Batch key value meta data: {:#?}", batch_key_value_metadata); // should have value
             assert_eq!(
                 schema.as_arrow().metadata().clone(),
                 batch_key_value_metadata
             );
         }
 
+        // Now verify return results. This assert_batches_eq still works correctly without the metadata
+        // We might modify it to make it include checking metadata
         let expected = vec![
             "+--------------+-----------+-----------------------+--------------------+------------------+----------------------+------------------+------------------+---------------+----------------+------------+----------------------------+",
             "| tag_nonempty | tag_empty | field_string_nonempty | field_string_empty | field_i64_normal | field_i64_range      | field_u64_normal | field_f64_normal | field_f64_inf | field_f64_zero | field_bool | time                       |",
