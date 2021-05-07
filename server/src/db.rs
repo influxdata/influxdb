@@ -2901,12 +2901,12 @@ mod tests {
 
     #[test]
     fn process_clock_defaults_to_current_time_in_ns() {
-        let before: u64 = Utc::now().timestamp_nanos().try_into().unwrap();
+        let before = now_nanos();
 
         let db = Arc::new(TestDb::builder().build().db);
         let db_process_clock = db.process_clock.lock();
 
-        let after: u64 = Utc::now().timestamp_nanos().try_into().unwrap();
+        let after = now_nanos();
 
         assert!(
             before < db_process_clock.get(),
@@ -2924,7 +2924,7 @@ mod tests {
 
     #[test]
     fn process_clock_incremented_and_set_on_sequenced_entry() {
-        let before: u64 = Utc::now().timestamp_nanos().try_into().unwrap();
+        let before = now_nanos();
         let before = ClockValue::try_from(before).unwrap();
 
         let db = Arc::new(TestDb::builder().write_buffer(true).build().db);
@@ -2932,13 +2932,13 @@ mod tests {
         let entry = lp_to_entry("cpu bar=1 10");
         db.store_entry(entry).unwrap();
 
-        let between: u64 = Utc::now().timestamp_nanos().try_into().unwrap();
+        let between = now_nanos();
         let between = ClockValue::try_from(between).unwrap();
 
         let entry = lp_to_entry("cpu foo=2 10");
         db.store_entry(entry).unwrap();
 
-        let after: u64 = Utc::now().timestamp_nanos().try_into().unwrap();
+        let after = now_nanos();
         let after = ClockValue::try_from(after).unwrap();
 
         let sequenced_entries = db
