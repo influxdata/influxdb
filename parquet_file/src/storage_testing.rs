@@ -47,7 +47,7 @@ mod tests {
         // Now let read it back
         //
         let (_read_table, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(&store)).await;
-        let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
+        let parquet_metadata = read_parquet_metadata_from_file(parquet_data.clone()).unwrap();
         //
         // 1. Check metadata at file level: Everything is correct
         let schema_actual = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
@@ -65,8 +65,6 @@ mod tests {
         assert_eq!(timestamp_range_actual, Some(time_range));
 
         // 3. Check data
-        // Read the parquet data from object store
-        let (_read_table, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(&store)).await;
         // Note that the read_data_from_parquet_data function fixes the row-group/batches' level metadata bug in arrow
         let actual_record_batches =
             read_data_from_parquet_data(Arc::clone(&schema.as_arrow()), parquet_data);
