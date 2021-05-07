@@ -39,10 +39,10 @@ use read_buffer::Chunk as ReadBufferChunk;
 use snafu::{ensure, ResultExt, Snafu};
 use std::{
     any::Any,
-    convert::TryInto,
-    num::{NonZeroU64, NonZeroUsize},
+    convert::{TryFrom, TryInto},
+    num::NonZeroUsize,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc,
     },
 };
@@ -305,7 +305,7 @@ pub struct Db {
     /// Process clock used in establishing a partial ordering of operations via a Lamport Clock.
     ///
     /// Value is nanoseconds since the Unix Epoch.
-    process_clock: Arc<Mutex<NonZeroU64>>,
+    process_clock: AtomicU64,
 
     /// Number of iterations of the worker loop for this Db
     worker_iterations: AtomicUsize,
@@ -469,9 +469,7 @@ impl Db {
             SystemSchemaProvider::new(&db_name, Arc::clone(&catalog), Arc::clone(&jobs));
         let system_tables = Arc::new(system_tables);
 
-        let process_clock = Arc::new(Mutex::new(
-            NonZeroU64::new(now_nanos()).expect("current time should not be 0"),
-        ));
+        let process_clock = AtomicU64::new(now_nanos());
 
         Self {
             rules,
@@ -1064,14 +1062,30 @@ impl Db {
     /// process clock value should be incrementing it as well, so there should never be a read of
     /// the process clock without an accompanying increment of at least 1 nanosecond.
     pub fn next_process_clock(&self) -> ClockValue {
+        let next = loop {
+            if let Ok(next) = self.try_update_process_clock() {
+                break next;
+            }
+        };
+
+        ClockValue::try_from(next).expect("process clock should not be 0")
+    }
+
+    fn try_update_process_clock(&self) -> Result<u64, u64> {
         let now = now_nanos();
-        let mut current_process_clock = self.process_clock.lock();
-        let next_candidate = current_process_clock.get() + 1;
+        let current_process_clock = self.process_clock.load(Ordering::SeqCst);
+        let next_candidate = current_process_clock + 1;
 
         let next = now.max(next_candidate);
-        let next = NonZeroU64::new(next).expect("next process clock must not be 0");
-        *current_process_clock = next;
-        ClockValue::new(next)
+
+        self.process_clock
+            .compare_exchange(
+                current_process_clock,
+                next,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            )
+            .map(|_| next)
     }
 
     /// Return chunk summary information for all chunks in the specified
@@ -2904,18 +2918,18 @@ mod tests {
         let before = now_nanos();
 
         let db = Arc::new(TestDb::builder().build().db);
-        let db_process_clock = db.process_clock.lock();
+        let db_process_clock = db.process_clock.load(Ordering::SeqCst);
 
         let after = now_nanos();
 
         assert!(
-            before < db_process_clock.get(),
+            before < db_process_clock,
             "expected {} to be less than {}",
             before,
             db_process_clock
         );
         assert!(
-            db_process_clock.get() < after,
+            db_process_clock < after,
             "expected {} to be less than {}",
             db_process_clock,
             after
@@ -2982,10 +2996,8 @@ mod tests {
             .timestamp_nanos()
             .try_into()
             .unwrap();
-        {
-            let mut db_process_clock = db.process_clock.lock();
-            *db_process_clock = NonZeroU64::new(later).unwrap();
-        }
+
+        db.process_clock.store(later, Ordering::SeqCst);
 
         // Every call to next_process_clock should increment at least 1, even in this case
         // where the system time will be less than the process clock
