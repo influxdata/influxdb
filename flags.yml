@@ -79,6 +79,14 @@
   lifetime: temporary
   expose: true
 
+- name: Notebooks Service API
+  description: Enable the Equivalent notebooksd Service API
+  key: notebooksApi
+  default: false
+  contact: Edge Team
+  lifetime: temporary
+  expose: true
+
 - name: Inject Latest Success Time
   description: Inject the latest successful task run timestamp into a Task query extern when executing.
   key: injectLatestSuccessTime
