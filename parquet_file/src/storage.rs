@@ -1,7 +1,7 @@
 /// This module responsible to write given data to specify object store and
 /// read them back
 use arrow::{
-    datatypes::{Schema, SchemaRef},
+    datatypes::{Schema as ArrowSchema, SchemaRef},
     error::Result as ArrowResult,
     record_batch::RecordBatch,
 };
@@ -9,24 +9,30 @@ use datafusion::physical_plan::{
     common::SizedRecordBatchStream, parquet::RowGroupPredicateBuilder, RecordBatchStream,
     SendableRecordBatchStream,
 };
-use internal_types::selection::Selection;
+use internal_types::{schema::Schema, selection::Selection};
 use object_store::{
     path::{ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi, ObjectStoreIntegration,
 };
 use parquet::{
     self,
-    arrow::{arrow_reader::ParquetFileArrowReader, ArrowReader, ArrowWriter},
-    file::{reader::FileReader, serialized_reader::SerializedFileReader, writer::TryClone},
+    arrow::{
+        arrow_reader::ParquetFileArrowReader, parquet_to_arrow_schema, ArrowReader, ArrowWriter,
+    },
+    file::{
+        metadata::ParquetMetaData, reader::FileReader, serialized_reader::SerializedFileReader,
+        writer::TryClone,
+    },
 };
 use query::predicate::Predicate;
 
 use bytes::Bytes;
 use data_types::server_id::ServerId;
-use futures::{Stream, StreamExt};
+use futures::{Stream, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
+    convert::TryInto,
     fs::File,
     io::{Cursor, Seek, SeekFrom, Write},
     sync::Arc,
@@ -79,9 +85,22 @@ pub enum Error {
     #[snafu(display("Error reading data from parquet file: {}", source))]
     ReadingFile { source: arrow::error::ArrowError },
 
+    #[snafu(display("Error reading data from object store: {}", source))]
+    ReadingObjectStore { source: object_store::Error },
+
     #[snafu(display("Error sending results: {}", source))]
     SendResult {
         source: datafusion::error::DataFusionError,
+    },
+
+    #[snafu(display("Cannot read arrow schema from parquet: {}", source))]
+    ArrowFromParquetFailure {
+        source: parquet::errors::ParquetError,
+    },
+
+    #[snafu(display("Cannot read IOx schema from arrow: {}", source))]
+    IoxFromArrowFailure {
+        source: internal_types::schema::Error,
     },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -211,7 +230,7 @@ impl Storage {
     /// Make a datafusion predicate builder for the given predicate and schema
     pub fn predicate_builder(
         predicate: &Predicate,
-        schema: Schema,
+        schema: ArrowSchema,
     ) -> Option<RowGroupPredicateBuilder> {
         if predicate.exprs.is_empty() {
             None
@@ -261,7 +280,7 @@ impl Storage {
         let projection: Vec<usize> = Self::column_indices(selection, Arc::clone(&schema));
 
         // Filter needed predicates
-        let builder_schema = Schema::new(schema.fields().clone());
+        let builder_schema = ArrowSchema::new(schema.fields().clone());
         let predicate_builder = Self::predicate_builder(predicate, builder_schema);
 
         // Size of each batch
@@ -305,10 +324,15 @@ impl Storage {
             return Err(e);
         }
 
-        // TODO: removed when #1082 done
-        // println!("Record batches from read_file: {:#?}", batches);
+        // Schema of all record batches must be the same, Get the first one
+        // to build record batch stream
+        let batch_schema = if batches.is_empty() {
+            schema
+        } else {
+            batches[0].schema()
+        };
 
-        Ok(Box::pin(SizedRecordBatchStream::new(schema, batches)))
+        Ok(Box::pin(SizedRecordBatchStream::new(batch_schema, batches)))
     }
 
     // TODO notes: implemented this for #1082 but i turns out might not be able to use
@@ -355,6 +379,7 @@ impl Storage {
 
     //     let file = File::open(&full_path).context(OpenFile)?;
     //     let mut file_reader = SerializedFileReader::new(file).context(SerializedFileReaderError)?;
+
     //     if let Some(predicate_builder) = predicate_builder {
     //         let row_group_predicate =
     //             predicate_builder.build_row_group_predicate(file_reader.metadata().row_groups());
@@ -396,8 +421,8 @@ impl Storage {
     //     Ok(())
     // }
 
-    /// Read the given path of the parquet file and return record batches satisfied
-    /// the given predicate_builder
+    // Read the given path of the parquet file and return record batches satisfied
+    // the given predicate_builder
     fn read_file(
         path: Path,
         store: Arc<ObjectStore>,
@@ -417,12 +442,16 @@ impl Storage {
             }
         };
 
-        //println!("Full path filename: {}", full_path);  // TOTO: to be removed after both #1082 and #1342 done
-
         let mut total_rows = 0;
 
         let file = File::open(&full_path).context(OpenFile)?;
         let mut file_reader = SerializedFileReader::new(file).context(SerializedFileReaderError)?;
+
+        // TODO: remove these line after https://github.com/apache/arrow-rs/issues/252 is done
+        // Get file level metadata to set it to the record batch's metadata below
+        let metadata = file_reader.metadata();
+        let schema = read_schema_from_parquet_metadata(metadata)?;
+
         if let Some(predicate_builder) = predicate_builder {
             let row_group_predicate =
                 predicate_builder.build_row_group_predicate(file_reader.metadata().row_groups());
@@ -437,10 +466,21 @@ impl Storage {
         loop {
             match batch_reader.next() {
                 Some(Ok(batch)) => {
-                    //println!("ParquetExec got new batch from {}", filename);  TODO: remove when #1082  done
-                    //println!("Batch value: {:#?}", batch);
                     total_rows += batch.num_rows();
-                    batches.push(Arc::new(batch));
+
+                    // TODO: remove these lines when arow-rs' ticket https://github.com/apache/arrow-rs/issues/252 is done
+                    // Since arrow's parquet reading does not return the row group level's metadata, the
+                    // work around here is to get it from the file level which is the same
+                    let columns = batch.columns().to_vec();
+                    let fields = batch.schema().fields().clone();
+                    let arrow_column_schema = ArrowSchema::new_with_metadata(
+                        fields,
+                        schema.as_arrow().metadata().clone(),
+                    );
+                    let new_batch = RecordBatch::try_new(Arc::new(arrow_column_schema), columns)
+                        .context(ReadingFile)?;
+
+                    batches.push(Arc::new(new_batch));
                     if limit.map(|l| total_rows >= l).unwrap_or(false) {
                         break;
                     }
@@ -455,6 +495,20 @@ impl Storage {
         }
 
         Ok(())
+    }
+
+    pub async fn load_parquet_data_from_object_store(
+        path: Path,
+        store: Arc<ObjectStore>,
+    ) -> Result<Vec<u8>> {
+        store
+            .get(&path)
+            .await
+            .context(ReadingObjectStore)?
+            .map_ok(|bytes| bytes.to_vec())
+            .try_concat()
+            .await
+            .context(ReadingObjectStore)
     }
 }
 
@@ -499,3 +553,24 @@ impl TryClone for MemWriter {
         })
     }
 }
+
+/// Read IOx schema from parquet metadata.
+pub fn read_schema_from_parquet_metadata(parquet_md: &ParquetMetaData) -> Result<Schema> {
+    let file_metadata = parquet_md.file_metadata();
+
+    let arrow_schema = parquet_to_arrow_schema(
+        file_metadata.schema_descr(),
+        file_metadata.key_value_metadata(),
+    )
+    .context(ArrowFromParquetFailure {})?;
+
+    let arrow_schema_ref = Arc::new(arrow_schema);
+
+    let schema: Schema = arrow_schema_ref
+        .try_into()
+        .context(IoxFromArrowFailure {})?;
+    Ok(schema)
+}
+
+#[cfg(test)]
+mod tests {}

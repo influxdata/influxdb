@@ -805,6 +805,7 @@ impl Db {
                     table_name,
                     chunk_id,
                 })?;
+
             let arrow_schema: ArrowSchemaRef = rb_chunk
                 .read_filter_table_schema(stats.name.as_str(), Selection::All)
                 .context(ReadBufferChunkSchemaError {
@@ -2012,6 +2013,7 @@ mod tests {
             .unwrap();
 
         // Verify data written to the parquet file in object store
+        //
         // First, there must be one path of object store in the catalog
         let paths = pq_chunk.object_store_paths();
         assert_eq!(paths.len(), 1);
@@ -2034,6 +2036,9 @@ mod tests {
         path.push(&path0);
         println!("path: {}", path.display());
 
+        // Read Metadata
+
+        // Get data back using SQL
         // Create External table of this parquet file to get its content in a human
         // readable form
         // Note: We do not care about escaping quotes here because it is just a test

@@ -5,7 +5,7 @@ use arrow::{
         Array, ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray,
         TimestampNanosecondArray, UInt64Array,
     },
-    datatypes::Int32Type,
+    datatypes::{Int32Type, SchemaRef},
     record_batch::RecordBatch,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -17,8 +17,15 @@ use data_types::{
 };
 use datafusion_util::MemoryStream;
 use futures::TryStreamExt;
-use internal_types::schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME};
+use internal_types::{
+    schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME},
+    selection::Selection,
+};
 use object_store::{memory::InMemory, ObjectStore, ObjectStoreApi};
+use parquet::{
+    arrow::{ArrowReader, ParquetFileArrowReader},
+    file::serialized_reader::{SerializedFileReader, SliceableCursor},
+};
 use tracker::MemRegistry;
 
 use crate::{chunk::Chunk, storage::Storage};
@@ -41,15 +48,52 @@ pub async fn load_parquet_from_store(chunk: &Chunk, store: Arc<ObjectStore>) -> 
 /// Create a test chunk by writing data to object store.
 ///
 /// See [`make_record_batch`] for the data content.
+pub async fn make_chunk_given_record_batch(
+    store: Arc<ObjectStore>,
+    record_batches: Vec<RecordBatch>,
+    schema: Schema,
+    table: &str,
+    column_summaries: Vec<ColumnSummary>,
+    time_range: TimestampRange,
+) -> Chunk {
+    make_chunk_common(
+        store,
+        record_batches,
+        schema,
+        table,
+        column_summaries,
+        time_range,
+    )
+    .await
+}
+
+/// Same as [`make_chunk`] but parquet file does not contain any row group.
 pub async fn make_chunk(store: Arc<ObjectStore>, column_prefix: &str) -> Chunk {
-    let (record_batches, schema, column_summaries, time_range) = make_record_batch(column_prefix);
-    make_chunk_common(store, record_batches, schema, column_summaries, time_range).await
+    let (record_batches, schema, column_summaries, time_range, _num_rows) =
+        make_record_batch(column_prefix);
+    make_chunk_common(
+        store,
+        record_batches,
+        schema,
+        "table1",
+        column_summaries,
+        time_range,
+    )
+    .await
 }
 
 /// Same as [`make_chunk`] but parquet file does not contain any row group.
 pub async fn make_chunk_no_row_group(store: Arc<ObjectStore>, column_prefix: &str) -> Chunk {
-    let (_, schema, column_summaries, time_range) = make_record_batch(column_prefix);
-    make_chunk_common(store, vec![], schema, column_summaries, time_range).await
+    let (_, schema, column_summaries, time_range, _num_rows) = make_record_batch(column_prefix);
+    make_chunk_common(
+        store,
+        vec![],
+        schema,
+        "table1",
+        column_summaries,
+        time_range,
+    )
+    .await
 }
 
 /// Common code for all [`make_chunk`] and [`make_chunk_no_row_group`].
@@ -57,6 +101,7 @@ async fn make_chunk_common(
     store: Arc<ObjectStore>,
     record_batches: Vec<RecordBatch>,
     schema: Schema,
+    table: &str,
     column_summaries: Vec<ColumnSummary>,
     time_range: TimestampRange,
 ) -> Chunk {
@@ -64,7 +109,7 @@ async fn make_chunk_common(
     let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
     let db_name = "db1";
     let part_key = "part1";
-    let table_name = "table1";
+    let table_name = table;
     let chunk_id = 1;
     let mut chunk = Chunk::new(part_key.to_string(), chunk_id, &memory_registry);
 
@@ -306,9 +351,15 @@ fn create_column_timestamp(
 /// RecordBatches, schema and IOx statistics will be generated in separate ways to emulate what the normal data
 /// ingestion would do. This also ensures that the Parquet data that will later be created out of the RecordBatch is
 /// indeed self-contained and can act as a source to recorder schema and statistics.
-fn make_record_batch(
+pub fn make_record_batch(
     column_prefix: &str,
-) -> (Vec<RecordBatch>, Schema, Vec<ColumnSummary>, TimestampRange) {
+) -> (
+    Vec<RecordBatch>,
+    Schema,
+    Vec<ColumnSummary>,
+    TimestampRange,
+    usize,
+) {
     // (name, array, nullable)
     let mut arrow_cols: Vec<Vec<(String, ArrayRef, bool)>> = vec![vec![], vec![], vec![]];
     let mut summaries = vec![];
@@ -432,6 +483,7 @@ fn make_record_batch(
     );
 
     // build record batches
+    let mut num_rows = 0;
     let schema = schema_builder.build().expect("schema building");
     let mut record_batches = vec![];
     for arrow_cols_sub in arrow_cols {
@@ -441,13 +493,46 @@ fn make_record_batch(
         let record_batch =
             RecordBatch::try_new(Arc::clone(schema.inner()), record_batch.columns().to_vec())
                 .expect("record-batch re-creation");
+        num_rows += record_batch.num_rows();
         record_batches.push(record_batch);
     }
 
-    (record_batches, schema, summaries, timestamp_range)
+    (record_batches, schema, summaries, timestamp_range, num_rows)
 }
 
 /// Creates new in-memory object store for testing.
 pub fn make_object_store() -> Arc<ObjectStore> {
     Arc::new(ObjectStore::new_in_memory(InMemory::new()))
+}
+
+pub fn read_data_from_parquet_data(schema: SchemaRef, parquet_data: Vec<u8>) -> Vec<RecordBatch> {
+    let mut record_batches = vec![];
+
+    let cursor = SliceableCursor::new(parquet_data);
+    let reader = SerializedFileReader::new(cursor).unwrap();
+    let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(reader));
+
+    // Indices of columns in the schema needed to read
+    let projection: Vec<usize> = Storage::column_indices(Selection::All, Arc::clone(&schema));
+    let mut batch_reader = arrow_reader
+        .get_record_reader_by_columns(projection, 1024)
+        .unwrap();
+    loop {
+        match batch_reader.next() {
+            Some(Ok(batch)) => {
+                // TODO: remove this when arow-rs' ticket https://github.com/apache/arrow-rs/issues/252#252 is done
+                let columns = batch.columns().to_vec();
+                let new_batch = RecordBatch::try_new(Arc::clone(&schema), columns).unwrap();
+                record_batches.push(new_batch);
+            }
+            None => {
+                break;
+            }
+            Some(Err(e)) => {
+                println!("Error reading batch: {}", e.to_string());
+            }
+        }
+    }
+
+    record_batches
 }

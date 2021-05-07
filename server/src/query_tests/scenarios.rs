@@ -408,13 +408,11 @@ impl DbSetup for EndToEndTest {
     }
 }
 
-/// This function loads two chunks of lp data into 4 different scenarios
+/// This function loads one chunk of lp data into different scenarios that simulates
+/// the data life cycle.
 ///
-/// Data in single open mutable buffer chunk
-/// Data in single closed mutable buffer chunk, one closed mutable chunk
-/// Data in both read buffer and mutable buffer chunk
-/// Data in one only read buffer chunk
 pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) -> Vec<DbScenario> {
+    // Scenario 1: One open chunk in MUB
     let db = make_db().db;
     write_lp(&db, data);
     let scenario1 = DbScenario {
@@ -422,6 +420,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db,
     };
 
+    // Scenario 2: One closed chunk in MUB
     let db = make_db().db;
     let table_names = write_lp(&db, data);
     for table_name in &table_names {
@@ -434,6 +433,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db,
     };
 
+    // Scenario 3: One closed chunk in RUB
     let db = make_db().db;
     let table_names = write_lp(&db, data);
     for table_name in &table_names {
@@ -449,6 +449,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db,
     };
 
+    // Scenario 4: One closed chunk in both RUb and OS
     let db = make_db().db;
     let table_names = write_lp(&db, data);
     for table_name in &table_names {
@@ -467,10 +468,29 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db,
     };
 
-    // TODO: Add scenario 5 where data is in object store only
-    // go with #1342
+    // Scenario 5: One closed chunk in OS only
+    let db = make_db().db;
+    let table_names = write_lp(&db, data);
+    for table_name in &table_names {
+        db.rollover_partition(partition_key, &table_name)
+            .await
+            .unwrap();
+        db.load_chunk_to_read_buffer(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+        db.write_chunk_to_object_store(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+        db.unload_read_buffer(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+    }
+    let scenario5 = DbScenario {
+        scenario_name: "Data in object store only".into(),
+        db,
+    };
 
-    vec![scenario1, scenario2, scenario3, scenario4]
+    vec![scenario1, scenario2, scenario3, scenario4, scenario5]
 }
 
 /// This function loads two chunks of lp data into 4 different scenarios
@@ -585,7 +605,50 @@ pub async fn make_two_chunk_scenarios(
         db,
     };
 
-    vec![scenario1, scenario2, scenario3, scenario4, scenario5]
+    // Scenario 6: Two closed chunk in OS only
+    let db = make_db().db;
+    let table_names = write_lp(&db, data1);
+    for table_name in &table_names {
+        db.rollover_partition(partition_key, &table_name)
+            .await
+            .unwrap();
+    }
+    let table_names = write_lp(&db, data2);
+    for table_name in &table_names {
+        db.rollover_partition(partition_key, &table_name)
+            .await
+            .unwrap();
+
+        db.load_chunk_to_read_buffer(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+
+        db.load_chunk_to_read_buffer(partition_key, &table_name, 1)
+            .await
+            .unwrap();
+
+        db.write_chunk_to_object_store(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+
+        db.write_chunk_to_object_store(partition_key, &table_name, 1)
+            .await
+            .unwrap();
+        db.unload_read_buffer(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+        db.unload_read_buffer(partition_key, &table_name, 1)
+            .await
+            .unwrap();
+    }
+    let scenario6 = DbScenario {
+        scenario_name: "Data in 2 parquet chunks in object store only".into(),
+        db,
+    };
+
+    vec![
+        scenario1, scenario2, scenario3, scenario4, scenario5, scenario6,
+    ]
 }
 
 /// Rollover the mutable buffer and load chunk 0 to the read buffer and object store
