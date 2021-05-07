@@ -14,9 +14,6 @@ use observability_deps::tracing::debug;
 use parquet_file::chunk::Chunk as ParquetChunk;
 use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
 use read_buffer::Chunk as ReadBufferChunk;
-//use read_buffer::ReadFilterResults;
-
-//use futures::StreamExt;
 
 use super::{pred::to_read_buffer_predicate, streams::ReadFilterResultsStream};
 

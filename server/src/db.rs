@@ -769,10 +769,6 @@ impl Db {
                     chunk_id,
                 })?;
 
-            // println!("___ FROM RUB BEFORE LOADING TO OS:");
-            // let record_batch = read_results.next().unwrap();
-            // println!("___ BATCH FROM RUB BEFORE LOADING TO OS: {:#?}", record_batch);
-
             let arrow_schema: ArrowSchemaRef = rb_chunk
                 .read_filter_table_schema(stats.name.as_str(), Selection::All)
                 .context(ReadBufferChunkSchemaError {
@@ -789,12 +785,6 @@ impl Db {
             let stream: SendableRecordBatchStream = Box::pin(
                 streams::ReadFilterResultsStream::new(read_results, Arc::clone(&arrow_schema)),
             );
-
-            // let mut batches = Vec::new();
-            // while let Some(record_batch) = stream.next().await.transpose().expect("reading next batch")
-            // {
-            //     batches.push(record_batch)
-            // }
 
             // Write this table data into the object store
             let path = storage

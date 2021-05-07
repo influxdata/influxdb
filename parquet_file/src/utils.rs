@@ -107,7 +107,7 @@ async fn make_chunk_common(
     let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
     let db_name = "db1";
     let part_key = "part1";
-    let table_name = table; //"table1";
+    let table_name = table;
     let chunk_id = 1;
     let mut chunk = Chunk::new(part_key.to_string(), chunk_id, &memory_registry);
 
@@ -514,10 +514,8 @@ pub fn read_data_from_parquet_data(schema: SchemaRef, parquet_data: Vec<u8>) -> 
         match batch_reader.next() {
             Some(Ok(batch)) => {
                 // TODO: remove this when arow-rs' ticket https://github.com/apache/arrow-rs/issues/252#252 is done
-                //println!("Record batch: {:#?}", batch); // The metadata of batch's schema is missing
                 let columns = batch.columns().to_vec();
                 let new_batch = RecordBatch::try_new(Arc::clone(&schema), columns).unwrap();
-                // println!("Record batch: {:#?}", new_batch); // Should have the metadata now
                 record_batches.push(new_batch);
             }
             None => {

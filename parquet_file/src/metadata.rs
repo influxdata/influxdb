@@ -115,16 +115,6 @@ pub enum Error {
         source: parquet::errors::ParquetError,
     },
 
-    #[snafu(display("Cannot read arrow schema from parquet: {}", source))]
-    ArrowFromParquetFailure {
-        source: parquet::errors::ParquetError,
-    },
-
-    #[snafu(display("Cannot read IOx schema from arrow: {}", source))]
-    IoxFromArrowFailure {
-        source: internal_types::schema::Error,
-    },
-
     #[snafu(display("Cannot read thrift message: {}", source))]
     ThriftReadFailure { source: thrift::Error },
 

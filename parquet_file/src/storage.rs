@@ -37,9 +37,7 @@ use std::{
     io::{Cursor, Seek, SeekFrom, Write},
     sync::Arc,
     task::{Context, Poll},
-}; // ops::Deref,
-   // use tokio::sync::mpsc::{channel, Receiver, Sender};
-   // use tokio::task;
+};
 use tokio_stream::wrappers::ReceiverStream;
 
 #[derive(Debug, Snafu)]
@@ -104,9 +102,6 @@ pub enum Error {
     IoxFromArrowFailure {
         source: internal_types::schema::Error,
     },
-
-    #[snafu(display("Cannot read schema from object store"))]
-    ObjectStoreSchema {},
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -204,7 +199,6 @@ impl Storage {
                 .context(OpeningParquetWriter)?;
             while let Some(batch) = stream.next().await {
                 let batch = batch.context(ReadingStream)?;
-                //println!("___ BATCH LOADED TO OS: {:#?}", batch);
                 writer.write(&batch).context(WritingParquetToMemory)?;
             }
             writer.close().context(ClosingParquetWriter)?;
@@ -478,9 +472,8 @@ impl Storage {
                     total_rows += batch.num_rows();
 
                     // TODO: remove these lines when arow-rs' ticket https://github.com/apache/arrow-rs/issues/252 is done
-                    // println!("Batch value: {:#?}", batch);
                     // Since arrow's parquet reading does not return the row group level's metadata, the
-                    // work around here is to get it from the file level whish is the same
+                    // work around here is to get it from the file level which is the same
                     let columns = batch.columns().to_vec();
                     let fields = batch.schema().fields().clone();
                     let arrow_column_schema = ArrowSchema::new_with_metadata(
@@ -489,7 +482,6 @@ impl Storage {
                     );
                     let new_batch = RecordBatch::try_new(Arc::new(arrow_column_schema), columns)
                         .context(ReadingFile)?;
-                    // println!("-------- New Record batch: {:#?}", new_batch);
 
                     batches.push(Arc::new(new_batch));
                     if limit.map(|l| total_rows >= l).unwrap_or(false) {
@@ -515,7 +507,7 @@ impl Storage {
         store
             .get(&path)
             .await
-            .unwrap()
+            .context(ReadingObjectStore)?
             .map_ok(|bytes| bytes.to_vec())
             .try_concat()
             .await

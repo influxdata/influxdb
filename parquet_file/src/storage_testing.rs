@@ -5,7 +5,6 @@
 mod tests {
     use std::sync::Arc;
 
-    //use arrow::ipc::RecordBatch;
     use arrow_util::assert_batches_eq;
 
     use data_types::partition_metadata::TableSummary;
@@ -20,7 +19,7 @@ mod tests {
     async fn test_write_read() {
         ////////////////////
         // Create test data which is also the expected data
-        let table: &str = "table1";
+        let table = "table1";
         let (record_batches, schema, column_summaries, time_range, num_rows) = make_record_batch();
         let mut table_summary = TableSummary::new(table);
         table_summary.columns = column_summaries.clone();
@@ -52,10 +51,6 @@ mod tests {
         //
         // 1. Check metadata at file level: Everything is correct
         let schema_actual = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
-        //let schema_expected = chunk.table_schema(&table, Selection::All).unwrap();
-
-        // println!("---- Actual file level key value metadata: {:#?}", schema_actual.as_arrow().metadata().clone());
-        // println!("---- Actual schema: {:#?}", schema_actual);
         assert_eq!(schema.clone(), schema_actual);
         assert_eq!(
             key_value_metadata.clone(),
@@ -66,7 +61,6 @@ mod tests {
         let (table_summary_actual, timestamp_range_actual) =
             read_statistics_from_parquet_metadata(&parquet_metadata, &schema_actual, &table)
                 .unwrap();
-        // println!("Table Summary: {:#?}", table_summary_actual);
         assert_eq!(table_summary_actual, table_summary);
         assert_eq!(timestamp_range_actual, Some(time_range));
 
@@ -81,9 +75,7 @@ mod tests {
             actual_num_rows += batch.num_rows();
 
             // Check if record batch has meta data
-            // println!("Record batch: {:#?}", batch);
             let batch_key_value_metadata = batch.schema().metadata().clone();
-            // println!("Batch key value meta data: {:#?}", batch_key_value_metadata); // should have value
             assert_eq!(
                 schema.as_arrow().metadata().clone(),
                 batch_key_value_metadata
@@ -91,7 +83,7 @@ mod tests {
         }
 
         // Now verify return results. This assert_batches_eq still works correctly without the metadata
-        // We might modify it to make it include checking metadata
+        // We might modify it to make it include checking metadata or add a new comparison checking macro that prints out the metadata too
         let expected = vec![
             "+--------------+-----------+-----------------------+--------------------+------------------+----------------------+------------------+------------------+---------------+----------------+------------+----------------------------+",
             "| tag_nonempty | tag_empty | field_string_nonempty | field_string_empty | field_i64_normal | field_i64_range      | field_u64_normal | field_f64_normal | field_f64_inf | field_f64_zero | field_bool | time                       |",
