@@ -8,10 +8,13 @@ use std::{
 use snafu::{OptionExt, Snafu};
 
 use chunk::Chunk;
-use data_types::chunk::ChunkSummary;
-use data_types::database_rules::{Order, Sort, SortOrder};
 use data_types::error::ErrorLogger;
 use data_types::partition_metadata::PartitionSummary;
+use data_types::{chunk::ChunkSummary, partition_metadata::UnaggregatedPartitionSummary};
+use data_types::{
+    chunk::DetailedChunkSummary,
+    database_rules::{Order, Sort, SortOrder},
+};
 use datafusion::{catalog::schema::SchemaProvider, datasource::TableProvider};
 use internal_types::selection::Selection;
 use partition::Partition;
@@ -144,7 +147,7 @@ impl Catalog {
             .context(UnknownPartition { partition_key })
     }
 
-    /// Returns a list of partition summaries
+    /// Returns a list of summaries for each partition.
     pub fn partition_summaries(&self) -> Vec<PartitionSummary> {
         self.partitions
             .read()
@@ -153,8 +156,21 @@ impl Catalog {
             .collect()
     }
 
+    /// Returns a list of unaggregated summaries for each partition.
+    pub fn unaggregated_partition_summaries(&self) -> Vec<UnaggregatedPartitionSummary> {
+        self.partitions
+            .read()
+            .values()
+            .map(|partition| partition.read().unaggregated_summary())
+            .collect()
+    }
+
     pub fn chunk_summaries(&self) -> Vec<ChunkSummary> {
         self.filtered_chunks(&Predicate::default(), Chunk::summary)
+    }
+
+    pub fn detailed_chunk_summaries(&self) -> Vec<DetailedChunkSummary> {
+        self.filtered_chunks(&Predicate::default(), Chunk::detailed_summary)
     }
 
     /// Returns all chunks within the catalog in an arbitrary order

@@ -227,6 +227,25 @@ impl Chunk {
         data_size + self.dictionary.size()
     }
 
+    /// Returns an iterator over (column_name, estimated_size) for all
+    /// columns in this chunk.
+    ///
+    /// NOTE: also returns a special "__dictionary" column with the size of
+    /// the dictionary that is shared across all columns in this chunk
+    pub fn column_sizes(&self) -> impl Iterator<Item = (&str, usize)> + '_ {
+        self.tables
+            .values()
+            .flat_map(|t| t.column_sizes())
+            .map(move |(did, sz)| {
+                let column_name = self
+                    .dictionary
+                    .lookup_id(*did)
+                    .expect("column name in dictionary");
+                (column_name, sz)
+            })
+            .chain(std::iter::once(("__dictionary", self.dictionary.size())))
+    }
+
     /// Return the number of rows in this chunk
     pub fn rows(&self) -> usize {
         self.tables.values().map(|t| t.row_count()).sum()

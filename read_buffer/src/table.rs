@@ -9,7 +9,7 @@ use parking_lot::RwLock;
 use snafu::{ensure, Snafu};
 
 use arrow::record_batch::RecordBatch;
-use data_types::partition_metadata::TableSummary;
+use data_types::{chunk::ChunkColumnSummary, partition_metadata::TableSummary};
 use internal_types::selection::Selection;
 
 use crate::row_group::{self, ColumnName, Predicate, RowGroup};
@@ -139,6 +139,28 @@ impl Table {
         let base_size = std::mem::size_of::<Self>() + self.name.len();
         // meta.size accounts for all the row group data.
         base_size + self.table_data.read().meta.size()
+    }
+
+    /// The estimated size for each column in this table.
+    pub fn column_sizes(&self) -> Vec<ChunkColumnSummary> {
+        self.table_data
+            .read()
+            .data
+            .iter()
+            .flat_map(|rg| rg.column_sizes())
+            // combine statistics for columns across row groups
+            .fold(BTreeMap::new(), |mut map, (name, estimated_bytes)| {
+                let entry = map.entry(name).or_insert(0);
+                *entry += estimated_bytes;
+                map
+            })
+            // Now turn into Vec<ChunkColumnSummary>
+            .into_iter()
+            .map(|(name, estimated_bytes)| ChunkColumnSummary {
+                name: name.into(),
+                estimated_bytes,
+            })
+            .collect()
     }
 
     // Returns the total number of row groups in this table.
@@ -1024,6 +1046,35 @@ mod test {
         table
             .drop_row_group(0)
             .expect_err("drop_row_group should have returned an error");
+    }
+
+    #[test]
+    fn column_sizes() {
+        let tc = ColumnType::Time(Column::from(&[10_i64, 20, 30][..]));
+        let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
+        let columns = vec![("time".to_string(), tc), ("count".to_string(), fc)];
+        let row_group = RowGroup::new(3, columns);
+        let mut table = Table::new("cpu".to_owned(), row_group);
+
+        // add another row group
+        let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
+        let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
+        let columns = vec![("time".to_string(), tc), ("count".to_string(), fc)];
+        let rg = RowGroup::new(6, columns);
+        table.add_row_group(rg);
+
+        // expect only a single entry for each column, in name order
+        let expected = vec![
+            ChunkColumnSummary {
+                name: "count".into(),
+                estimated_bytes: 110,
+            },
+            ChunkColumnSummary {
+                name: "time".into(),
+                estimated_bytes: 107,
+            },
+        ];
+        assert_eq!(table.column_sizes(), expected);
     }
 
     #[test]

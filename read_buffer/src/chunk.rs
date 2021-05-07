@@ -7,7 +7,7 @@ use parking_lot::RwLock;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use arrow::record_batch::RecordBatch;
-use data_types::partition_metadata::TableSummary;
+use data_types::{chunk::ChunkColumnSummary, partition_metadata::TableSummary};
 use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
 use observability_deps::tracing::info;
 use tracker::{MemRegistry, MemTracker};
@@ -168,6 +168,19 @@ impl Chunk {
     pub fn size(&self) -> usize {
         let table_data = self.chunk_data.read();
         Self::base_size() + table_data.size()
+    }
+
+    /// Return the estimated size for each column in the specific table.
+    /// Note there may be multiple entries for each column.
+    ///
+    /// If no such table exists in this chunk, an empty Vec is returned.
+    pub fn column_sizes(&self, table_name: &str) -> Vec<ChunkColumnSummary> {
+        let chunk_data = self.chunk_data.read();
+        chunk_data
+            .data
+            .get(table_name)
+            .map(|table| table.column_sizes())
+            .unwrap_or_default()
     }
 
     /// The total number of rows in all row groups in all tables in this chunk.

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use data_types::{
-    chunk::{ChunkStorage, ChunkSummary},
+    chunk::{ChunkColumnSummary, ChunkStorage, ChunkSummary, DetailedChunkSummary},
     partition_metadata::TableSummary,
     server_id::ServerId,
 };
@@ -260,7 +260,34 @@ impl Chunk {
         }
     }
 
-    /// Return TableSummary metadata.
+    /// Return information about the storage in this Chunk
+    pub fn detailed_summary(&self) -> DetailedChunkSummary {
+        let inner = self.summary();
+
+        fn to_summary(v: (&str, usize)) -> ChunkColumnSummary {
+            ChunkColumnSummary {
+                name: v.0.into(),
+                estimated_bytes: v.1,
+            }
+        }
+
+        let columns: Vec<ChunkColumnSummary> = match &self.state {
+            ChunkState::Invalid => panic!("invalid chunk state"),
+            ChunkState::Open(chunk) => chunk.column_sizes().map(to_summary).collect(),
+            ChunkState::Closed(chunk) => chunk.column_sizes().map(to_summary).collect(),
+            ChunkState::Moving(chunk) => chunk.column_sizes().map(to_summary).collect(),
+            ChunkState::Moved(chunk) => chunk.column_sizes(&self.table_name),
+            ChunkState::WritingToObjectStore(chunk) => chunk.column_sizes(&self.table_name),
+            ChunkState::WrittenToObjectStore(chunk, _parquet_chunk) => {
+                chunk.column_sizes(&self.table_name)
+            }
+            ChunkState::ObjectStoreOnly(_parquet_chunk) => vec![], // TODO parquet statistics
+        };
+
+        DetailedChunkSummary { inner, columns }
+    }
+
+    /// Return the summary information about the table stored in this Chunk
     pub fn table_summary(&self) -> TableSummary {
         match &self.state {
             ChunkState::Invalid => panic!("invalid chunk state"),

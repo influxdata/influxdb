@@ -117,7 +117,12 @@ impl Table {
     /// that the space taken for the tag string values is represented in the
     /// dictionary size in the chunk that holds the table.
     pub fn size(&self) -> usize {
-        self.columns.values().fold(0, |acc, v| acc + v.size())
+        self.columns.values().map(|v| v.size()).sum()
+    }
+
+    /// Returns an iterator over (column_name, estimated_size) for each column
+    pub fn column_sizes(&self) -> impl Iterator<Item = (&DID, usize)> + '_ {
+        self.columns.iter().map(|(did, c)| (did, c.size()))
     }
 
     /// Returns a reference to the specified column

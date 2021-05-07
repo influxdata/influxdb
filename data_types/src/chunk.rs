@@ -36,9 +36,9 @@ impl ChunkStorage {
     }
 }
 
+/// Represents metadata about the physical storage of a chunk in a
+/// database.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
-/// Represents metadata about a chunk in a database.
-/// A chunk can contain one or more tables.
 pub struct ChunkSummary {
     /// The partition key of this chunk
     pub partition_key: Arc<str>,
@@ -70,6 +70,26 @@ pub struct ChunkSummary {
     /// Time at which this chunk was marked as closed. Note this is
     /// not the same as the timestamps on the data itself
     pub time_closed: Option<DateTime<Utc>>,
+}
+
+/// Represents metadata about the physical storage of a column in a chunk
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct ChunkColumnSummary {
+    /// Column name
+    pub name: Arc<str>,
+
+    /// Estimated size, in bytes, consumed by this column.
+    pub estimated_bytes: usize,
+}
+
+/// Contains additional per-column details about physical storage of a chunk
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct DetailedChunkSummary {
+    /// Overall chunk statistic
+    pub inner: ChunkSummary,
+
+    /// Per column breakdown
+    pub columns: Vec<ChunkColumnSummary>,
 }
 
 impl ChunkSummary {

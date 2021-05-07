@@ -1,13 +1,13 @@
 //! This module contains structs that describe the metadata for a partition
 //! including schema, summary statistics, and file locations in storage.
 
-use std::mem;
+use std::{borrow::Cow, mem};
 
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 
-/// Describes the schema, summary statistics for each column in each table and
-/// the location of the partition in storage.
+/// Describes the aggregated (across all chunks) summary
+/// statistics for each column in each table in a partition
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct PartitionSummary {
     /// The identifier for the partition, the partition key computed from
@@ -23,7 +23,11 @@ impl PartitionSummary {
     /// summaries can come from many chunks so a table can appear multiple
     /// times in the collection. They will be combined together for a single
     /// summary. Field type conflicts will be ignored.
-    pub fn from_table_summaries(key: impl Into<String>, mut summaries: Vec<TableSummary>) -> Self {
+    pub fn from_table_summaries(
+        key: impl Into<String>,
+        summaries: impl IntoIterator<Item = TableSummary>,
+    ) -> Self {
+        let mut summaries: Vec<_> = summaries.into_iter().collect();
         summaries.sort_by(|a, b| a.name.cmp(&b.name));
 
         let mut tables = Vec::with_capacity(summaries.len());
@@ -55,7 +59,27 @@ impl PartitionSummary {
     }
 }
 
-/// Metadata and statistics information for a table.
+/// Describes the (unaggregated) summary statistics for
+/// each column in each table in each chunk of a Partition.
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub struct UnaggregatedPartitionSummary {
+    /// The identifier for the partition, the partition key computed from
+    /// PartitionRules
+    pub key: String,
+
+    /// The chunks of the tables in this partition
+    pub tables: Vec<UnaggregatedTableSummary>,
+}
+
+/// Metadata and statistics for a Chunk *within* a partition
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub struct UnaggregatedTableSummary {
+    pub chunk_id: u32,
+    pub table: TableSummary,
+}
+
+/// Metadata and statistics information for a table, aggregated across
+/// chunks.
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct TableSummary {
     /// Table name
@@ -264,6 +288,28 @@ impl Statistics {
             Self::String(_) => "String",
         }
     }
+
+    /// Return the minimum value, if any, formatted as a string
+    pub fn min_as_str(&self) -> Option<Cow<'_, str>> {
+        match self {
+            Self::I64(v) => Some(Cow::Owned(v.min.to_string())),
+            Self::U64(v) => Some(Cow::Owned(v.min.to_string())),
+            Self::F64(v) => Some(Cow::Owned(v.min.to_string())),
+            Self::Bool(v) => Some(Cow::Owned(v.min.to_string())),
+            Self::String(v) => Some(Cow::Borrowed(&v.min)),
+        }
+    }
+
+    /// Return the maximum value, if any, formatted as a string
+    pub fn max_as_str(&self) -> Option<Cow<'_, str>> {
+        match self {
+            Self::I64(v) => Some(Cow::Owned(v.max.to_string())),
+            Self::U64(v) => Some(Cow::Owned(v.max.to_string())),
+            Self::F64(v) => Some(Cow::Owned(v.max.to_string())),
+            Self::Bool(v) => Some(Cow::Owned(v.max.to_string())),
+            Self::String(v) => Some(Cow::Borrowed(&v.max)),
+        }
+    }
 }
 
 /// Summary statistics for a column.
@@ -279,16 +325,16 @@ impl<T> StatValues<T>
 where
     T: Default + Clone,
 {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn new_with_value(starting_value: T) -> Self {
         Self {
             min: starting_value.clone(),
             max: starting_value,
             count: 1,
         }
+    }
+
+    pub fn new(min: T, max: T, count: u64) -> Self {
+        Self { min, max, count }
     }
 }
 
@@ -342,7 +388,7 @@ mod tests {
 
     #[test]
     fn statistics_default() {
-        let mut stat = StatValues::new();
+        let mut stat = StatValues::default();
         assert_eq!(stat.min, 0);
         assert_eq!(stat.max, 0);
         assert_eq!(stat.count, 0);
@@ -352,7 +398,7 @@ mod tests {
         assert_eq!(stat.max, 55);
         assert_eq!(stat.count, 1);
 
-        let mut stat = StatValues::new();
+        let mut stat = StatValues::default();
         assert_eq!(&stat.min, "");
         assert_eq!(&stat.max, "");
         assert_eq!(stat.count, 0);
@@ -389,6 +435,41 @@ mod tests {
         assert_eq!(stat.min, "aaa".to_string());
         assert_eq!(stat.max, "z".to_string());
         assert_eq!(stat.count, 4);
+    }
+
+    #[test]
+    fn stats_as_str_i64() {
+        let stat = Statistics::I64(StatValues::new(-1, 100, 1));
+        assert_eq!(stat.min_as_str(), Some("-1".into()));
+        assert_eq!(stat.max_as_str(), Some("100".into()));
+    }
+
+    #[test]
+    fn stats_as_str_u64() {
+        let stat = Statistics::U64(StatValues::new(1, 100, 1));
+        assert_eq!(stat.min_as_str(), Some("1".into()));
+        assert_eq!(stat.max_as_str(), Some("100".into()));
+    }
+
+    #[test]
+    fn stats_as_str_f64() {
+        let stat = Statistics::F64(StatValues::new(99.0, 101.0, 1));
+        assert_eq!(stat.min_as_str(), Some("99".into()));
+        assert_eq!(stat.max_as_str(), Some("101".into()));
+    }
+
+    #[test]
+    fn stats_as_str_bool() {
+        let stat = Statistics::Bool(StatValues::new(false, true, 1));
+        assert_eq!(stat.min_as_str(), Some("false".into()));
+        assert_eq!(stat.max_as_str(), Some("true".into()));
+    }
+
+    #[test]
+    fn stats_as_str_str() {
+        let stat = Statistics::String(StatValues::new("a".to_string(), "zz".to_string(), 1));
+        assert_eq!(stat.min_as_str(), Some("a".into()));
+        assert_eq!(stat.max_as_str(), Some("zz".into()));
     }
 
     #[test]

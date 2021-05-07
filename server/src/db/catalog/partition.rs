@@ -7,7 +7,9 @@ use super::{
     Result, UnknownChunk, UnknownTable,
 };
 use chrono::{DateTime, Utc};
-use data_types::partition_metadata::PartitionSummary;
+use data_types::partition_metadata::{
+    PartitionSummary, UnaggregatedPartitionSummary, UnaggregatedTableSummary,
+};
 use data_types::{chunk::ChunkSummary, server_id::ServerId};
 use entry::{ClockValue, TableBatch};
 use query::predicate::Predicate;
@@ -196,17 +198,33 @@ impl Partition {
             .flat_map(|(_, table)| table.chunks.values())
     }
 
-    /// Return a PartitionSummary for this partition
-    pub fn summary(&self) -> PartitionSummary {
-        let table_summaries = self
+    /// Return the unaggregated chunk summary information for tables
+    /// in this partition
+    pub fn unaggregated_summary(&self) -> UnaggregatedPartitionSummary {
+        let tables = self
             .chunks()
             .map(|chunk| {
                 let chunk = chunk.read();
-                chunk.table_summary()
+                UnaggregatedTableSummary {
+                    chunk_id: chunk.id(),
+                    table: chunk.table_summary(),
+                }
             })
             .collect();
 
-        PartitionSummary::from_table_summaries(&self.key, table_summaries)
+        UnaggregatedPartitionSummary {
+            key: self.key.to_string(),
+            tables,
+        }
+    }
+
+    /// Return a PartitionSummary for this partition
+    pub fn summary(&self) -> PartitionSummary {
+        let UnaggregatedPartitionSummary { key, tables } = self.unaggregated_summary();
+
+        let table_summaries = tables.into_iter().map(|t| t.table);
+
+        PartitionSummary::from_table_summaries(key, table_summaries)
     }
 
     /// Return chunk summaries for all chunks in this partition
