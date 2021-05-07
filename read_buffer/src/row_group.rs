@@ -79,7 +79,7 @@ impl RowGroup {
                         c.size(),
                         schema::ColumnType::Tag(name.clone()),
                         c.logical_datatype(),
-                        c.column_range().unwrap(),
+                        c.column_range(),
                     );
 
                     all_columns_by_name.insert(name.clone(), all_columns.len());
@@ -93,7 +93,7 @@ impl RowGroup {
                         c.size(),
                         schema::ColumnType::Field(name.clone()),
                         c.logical_datatype(),
-                        c.column_range().unwrap(),
+                        c.column_range(),
                     );
                     all_columns_by_name.insert(name.clone(), all_columns.len());
                     all_columns.push(c);
@@ -106,7 +106,7 @@ impl RowGroup {
                         c.size(),
                         schema::ColumnType::Timestamp(name.clone()),
                         c.logical_datatype(),
-                        c.column_range().unwrap(),
+                        c.column_range(),
                     );
 
                     all_columns_by_name.insert(name.clone(), all_columns.len());
