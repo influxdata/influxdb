@@ -12,7 +12,7 @@ use datafusion::{
 
 /// The name of the regex_match UDF given to DataFusion.
 pub const REGEX_MATCH_UDF_NAME: &str = "RegexMatch";
-pub const REGEX_NOT_MATCH_UDF_NAME: &str = "RegexMatch";
+pub const REGEX_NOT_MATCH_UDF_NAME: &str = "RegexNotMatch";
 
 /// Given a column containing string values and a single regex pattern,
 /// `regex_match_expr` determines which values satisfy the pattern and which do
