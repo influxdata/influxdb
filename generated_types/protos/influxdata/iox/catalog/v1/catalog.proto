@@ -22,6 +22,15 @@ message Upgrade {
 message AddParquet {
     // Path of the file within the object store.
     Path path = 1;
+
+    // [Apache Parquet] metadata encoded using [Apache Thrift].
+    //
+    // The metadata is encoded using the [Thrift Compact Protocol].
+    //
+    // [Apache Parquet]: https://parquet.apache.org/
+    // [Apache Thrift]: https://thrift.apache.org/
+    // [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
+    bytes metadata = 2;
 }
 
 // Removes a [Parquet] file from the catalog.
