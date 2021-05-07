@@ -358,7 +358,7 @@ impl Storage {
     //     Ok(())
     // }
 
-    //TODO: see the notes for send_result above
+    // TODO: see the notes for send_result above
     // fn read_file(
     //     path: Path,
     //     store: Arc<ObjectStore>,
@@ -368,6 +368,7 @@ impl Storage {
     //     response_tx: Sender<ArrowResult<RecordBatch>>,
     //     limit: Option<usize>,
     // ) -> Result<()> {
+
     //     // TODO: support non local file object store
     //     let (file_root, file_path) = match (&store.0, path) {
     //         (ObjectStoreIntegration::File(file), Path::File(location)) => (file, location),
@@ -384,9 +385,6 @@ impl Storage {
 
     //     let file = File::open(&full_path).context(OpenFile)?;
     //     let mut file_reader = SerializedFileReader::new(file).context(SerializedFileReaderError)?;
-    //     let metadata = file_reader.metadata();
-    //     // println!("___ META DATA: {:#?}", metadata);
-    //     let iox_schema = read_schema_from_parquet_metadata(metadata)?;
 
     //     if let Some(predicate_builder) = predicate_builder {
     //         let row_group_predicate =
@@ -414,6 +412,7 @@ impl Storage {
     //             }
     //             Some(Err(e)) => {
     //                 let err_msg =
+    //                     //format!("Error reading batch from {}: {}", filename, e.to_string());
     //                     format!("Error reading batch: {}", e.to_string());
     //                 // send error to operator
     //                 Self::send_result(&response_tx, Err(ArrowError::ParquetError(err_msg)))?;
