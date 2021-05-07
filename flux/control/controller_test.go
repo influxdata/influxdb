@@ -24,12 +24,7 @@ func TestController_Query(t *testing.T) {
 		compiler := &mock.Compiler{
 			Type: "mock",
 			CompileFn: func(ctx context.Context) (flux.Program, error) {
-				const pd = "1s"
-				d, err := time.ParseDuration(pd)
-				if err != nil {
-					return nil, err
-				}
-				time.Sleep(d)
+				time.Sleep(time.Second)
 				return &mock.Program{
 					StartFn: func(ctx context.Context, alloc *memory.Allocator) (*mock.Query, error) {
 						ch := make(chan flux.Result)
