@@ -631,7 +631,7 @@ mod test {
         assert_eq!(v.size_raw(false), 40);
 
         let v = FixedNull::<Int64Type>::from(vec![None, None].as_slice());
-        assert_eq!(v.size_raw(true), 32);
+        assert_eq!(v.size_raw(true), 40);
         assert_eq!(v.size_raw(false), 24);
 
         let v = FixedNull::<Float64Type>::from(vec![None, None, Some(22.3)].as_slice());

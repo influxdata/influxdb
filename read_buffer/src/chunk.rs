@@ -108,12 +108,23 @@ impl Default for TableData {
 }
 
 impl TableData {
-    // Returns the total size of the contents of the tables stored under
-    // `TableData`.
+    // Returns an estimation of the total size of the contents of the tables
+    // stored under `TableData` in memory.
     fn size(&self) -> usize {
         self.data
             .iter()
             .map(|(k, table)| k.len() + table.size() as usize)
+            .sum::<usize>()
+    }
+
+    // Returns an estimation of the total size of the contents of the tables for
+    // the chunk if all data was uncompressed and stored contiguously.
+    // `include_nulls` determines if NULL values should be ignored or included
+    // in the calculation.
+    fn size_raw(&self, include_nulls: bool) -> usize {
+        self.data
+            .iter()
+            .map(|(_, table)| table.size_raw(include_nulls))
             .sum::<usize>()
     }
 }
@@ -193,6 +204,15 @@ impl Chunk {
             .get(table_name)
             .map(|table| table.column_sizes())
             .unwrap_or_default()
+    }
+
+    /// The total estimated size in bytes of this `Chunk` and all contained
+    /// data if the data was not compressed but was stored contiguously in
+    /// vectors. `include_nulls` allows the caller to factor in NULL values or
+    /// to ignore them.
+    pub fn size_raw(&self, include_nulls: bool) -> usize {
+        let table_data = self.chunk_data.read();
+        table_data.size_raw(include_nulls)
     }
 
     /// The total number of rows in all row groups in all tables in this chunk.
