@@ -1208,7 +1208,7 @@ func (s *Shard) Digest() (io.ReadCloser, int64, error, string) {
 
 	// Make sure the shard is idle/cold. (No use creating a digest of a
 	// hot shard that is rapidly changing.)
-	if state, reason := engine.IsIdle(); !state {
+	if isIdle, reason := engine.IsIdle(); !isIdle {
 		return nil, 0, ErrShardNotIdle, reason
 	}
 
