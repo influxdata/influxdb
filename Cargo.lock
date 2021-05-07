@@ -1863,6 +1863,7 @@ dependencies = [
  "dashmap",
  "observability_deps",
  "opentelemetry-prometheus",
+ "parking_lot",
  "prometheus",
  "snafu",
 ]

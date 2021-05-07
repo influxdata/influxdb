@@ -8,7 +8,7 @@ use std::{
 use dashmap::DashMap;
 use observability_deps::opentelemetry::{
     labels,
-    metrics::{Counter as OTCounter, ValueObserver as OTGauge, ValueRecorder as OTHistogram},
+    metrics::{Counter as OTCounter, ValueRecorder as OTHistogram},
 };
 
 pub use observability_deps::opentelemetry::KeyValue;
@@ -284,19 +284,16 @@ impl Counter {
 /// (e.g. current memory usage)
 #[derive(Debug)]
 pub struct Gauge {
-    gauge: OTGauge<f64>,
     default_labels: Vec<KeyValue>,
     values: Arc<DashMap<String, (f64, Vec<KeyValue>)>>,
 }
 
 impl Gauge {
     pub(crate) fn new(
-        gauge: OTGauge<f64>,
         default_labels: Vec<KeyValue>,
         values: Arc<DashMap<String, (f64, Vec<KeyValue>)>>,
     ) -> Self {
         Self {
-            gauge,
             default_labels,
             values,
         }
