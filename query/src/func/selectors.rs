@@ -222,7 +222,7 @@ where
     )
 }
 
-/// Structure that implements the Accumultator trait for DataFusion
+/// Structure that implements the Accumulator trait for DataFusion
 /// and processes (value, timestamp) pair and computes values
 #[derive(Debug)]
 struct SelectorAccumulator<SELECTOR>

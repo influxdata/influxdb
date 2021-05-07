@@ -6,7 +6,7 @@
 use std::collections::BTreeSet;
 
 use data_types::timestamp::TimestampRange;
-use datafusion::logical_plan::Expr;
+use datafusion::logical_plan::{col, Expr};
 use datafusion_util::{make_range_expr, AndExprBuilder};
 use internal_types::schema::TIME_COLUMN_NAME;
 
@@ -38,7 +38,7 @@ pub struct Predicate {
     pub field_columns: Option<BTreeSet<String>>,
 
     /// Optional arbitrary predicates, represented as list of
-    /// DataFusion expressions applied a logical conjuction (aka they
+    /// DataFusion expressions applied a logical conjunction (aka they
     /// are 'AND'ed together). Only rows that evaluate to TRUE for all
     /// these expressions should be returned. Other rows are excluded
     /// from the results.
@@ -147,6 +147,24 @@ impl PredicateBuilder {
 
     /// Adds an expression to the list of general purpose predicates
     pub fn add_expr(mut self, expr: Expr) -> Self {
+        self.inner.exprs.push(expr);
+        self
+    }
+
+    /// Builds a regex matching expression from the provided column name and
+    /// pattern. Values not matching the regex will be filtered out.
+    pub fn build_regex_match_expr(self, column: &str, pattern: impl Into<String>) -> Self {
+        self.regex_match_expr(column, pattern, true)
+    }
+
+    /// Builds a regex "not matching" expression from the provided column name
+    /// and pattern. Values *matching* the regex will be filtered out.
+    pub fn build_regex_not_match_expr(self, column: &str, pattern: impl Into<String>) -> Self {
+        self.regex_match_expr(column, pattern, false)
+    }
+
+    fn regex_match_expr(mut self, column: &str, pattern: impl Into<String>, matches: bool) -> Self {
+        let expr = crate::func::regex::regex_match_expr(col(column), pattern.into(), matches);
         self.inner.exprs.push(expr);
         self
     }

@@ -2797,6 +2797,7 @@ dependencies = [
  "metrics",
  "observability_deps",
  "parking_lot",
+ "regex",
  "snafu",
  "sqlparser 0.8.0",
  "test_helpers",
