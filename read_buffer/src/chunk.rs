@@ -284,7 +284,7 @@ impl Chunk {
     /// will be created.
     pub fn upsert_table(&self, table_name: impl Into<String>, table_data: RecordBatch) {
         // Approximate heap size of record batch.
-        let rb_size = table_data
+        let mub_rb_size = table_data
             .columns()
             .iter()
             .map(|c| c.get_buffer_memory_size())
@@ -299,9 +299,20 @@ impl Chunk {
 
         let rows = row_group.rows();
         let rg_size = row_group.size();
-        let compression = format!("{:.2}%", (1.0 - (rg_size as f64 / rb_size as f64)) * 100.0);
+        let mub_rb_comp = format!(
+            "{:.2}%",
+            (1.0 - (rg_size as f64 / mub_rb_size as f64)) * 100.0
+        );
+
+        let raw_size_null = row_group.size_raw(true);
+        let raw_size_no_null = row_group.size_raw(false);
+        let raw_rb_comp = format!(
+            "{:.2}%",
+            (1.0 - (rg_size as f64 / raw_size_null as f64)) * 100.0
+        );
+
         let chunk_id = self.id();
-        info!(%rows, %columns, rb_size, rg_size, %compression, ?table_name, %chunk_id, ?compressing_took, "row group added");
+        info!(%rows, %columns, rg_size, mub_rb_size, %mub_rb_comp, raw_size_null, raw_size_no_null, %raw_rb_comp, ?table_name, %chunk_id, ?compressing_took, "row group added");
 
         let mut chunk_data = self.chunk_data.write();
 
