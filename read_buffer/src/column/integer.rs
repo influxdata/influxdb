@@ -1,3 +1,5 @@
+use std::mem::size_of;
+
 use arrow::{self, array::Array};
 
 use super::encoding::{scalar::Fixed, scalar::FixedNull};
@@ -40,6 +42,33 @@ impl IntegerEncoding {
             Self::U64U8(enc) => enc.size(),
             Self::I64I64N(enc) => enc.size(),
             Self::U64U64N(enc) => enc.size(),
+        }
+    }
+
+    /// The estimated total size in bytes of the underlying integer values in
+    /// the column if they were stored contiguously and uncompressed (natively
+    /// as i64/u64). `include_nulls` will effectively size each NULL value as 8b if
+    /// `true`.
+    pub fn size_raw(&self, include_nulls: bool) -> usize {
+        match &self {
+            Self::I64I64(_)
+            | Self::I64I32(_)
+            | Self::I64U32(_)
+            | Self::I64I16(_)
+            | Self::I64U16(_)
+            | Self::I64I8(_)
+            | Self::I64U8(_)
+            | Self::U64U64(_)
+            | Self::U64U32(_)
+            | Self::U64U16(_)
+            | Self::U64U8(_) => {
+                // really one should do the correct i64/u64 in each arm but this
+                // is terser and still correct.
+                size_of::<Vec<i64>>() + (size_of::<i64>() * self.num_rows() as usize)
+            }
+
+            Self::I64I64N(enc) => enc.size_raw(include_nulls),
+            Self::U64U64N(enc) => enc.size_raw(include_nulls),
         }
     }
 
@@ -585,6 +614,8 @@ impl From<arrow::array::UInt64Array> for IntegerEncoding {
 
 #[cfg(test)]
 mod test {
+    use arrow::datatypes::Int64Type;
+
     use super::*;
 
     #[test]
@@ -613,5 +644,30 @@ mod test {
             // TODO - add debug
             //assert_eq!(IntegerEncoding::from(&case), exp);
         }
+    }
+
+    #[test]
+    fn size_raw() {
+        let enc = IntegerEncoding::I64U8(Fixed::<u8>::from(&[2, 22, 12, 31][..]));
+        // (4 * 8) + 24
+        assert_eq!(enc.size_raw(true), 56);
+        assert_eq!(enc.size_raw(false), 56);
+
+        let enc = IntegerEncoding::U64U64(Fixed::<u64>::from(&[2, 22, 12, 31][..]));
+        // (4 * 8) + 24
+        assert_eq!(enc.size_raw(true), 56);
+        assert_eq!(enc.size_raw(false), 56);
+
+        let enc = IntegerEncoding::I64I64N(FixedNull::<Int64Type>::from(&[2, 22, 12, 31][..]));
+        // (4 * 8) + 24
+        assert_eq!(enc.size_raw(true), 56);
+        assert_eq!(enc.size_raw(false), 56);
+
+        let enc = IntegerEncoding::I64I64N(FixedNull::<Int64Type>::from(
+            &[Some(2), Some(22), Some(12), None, None, Some(31)][..],
+        ));
+        // (6 * 8) + 24
+        assert_eq!(enc.size_raw(true), 72);
+        assert_eq!(enc.size_raw(false), 56);
     }
 }
