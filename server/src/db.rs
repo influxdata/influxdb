@@ -303,6 +303,8 @@ pub struct Db {
     system_tables: Arc<SystemSchemaProvider>,
 
     /// Process clock used in establishing a partial ordering of operations via a Lamport Clock.
+    ///
+    /// Value is nanoseconds since the Unix Epoch.
     process_clock: Arc<Mutex<NonZeroU64>>,
 
     /// Number of iterations of the worker loop for this Db
