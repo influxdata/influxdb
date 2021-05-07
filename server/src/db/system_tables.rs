@@ -10,6 +10,7 @@ use arrow::{
         ArrayRef, StringArray, StringBuilder, Time64NanosecondArray, TimestampNanosecondArray,
         UInt32Array, UInt64Array,
     },
+    datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit},
     error::Result,
     record_batch::RecordBatch,
 };
@@ -18,7 +19,9 @@ use data_types::{
 };
 use datafusion::{
     catalog::schema::SchemaProvider,
-    datasource::{MemTable, TableProvider},
+    datasource::{datasource::Statistics, MemTable, TableProvider},
+    error::{DataFusionError, Result as DataFusionResult},
+    physical_plan::{memory::MemoryExec, ExecutionPlan},
 };
 use tracker::TaskTracker;
 
@@ -37,15 +40,19 @@ pub struct SystemSchemaProvider {
     db_name: String,
     catalog: Arc<Catalog>,
     jobs: Arc<JobRegistry>,
+
+    chunks: Arc<ChunksProvider>,
 }
 
 impl SystemSchemaProvider {
     pub fn new(db_name: impl Into<String>, catalog: Arc<Catalog>, jobs: Arc<JobRegistry>) -> Self {
         let db_name = db_name.into();
+        let chunks = Arc::new(ChunksProvider::new(Arc::clone(&catalog)));
         Self {
             db_name,
             catalog,
             jobs,
+            chunks,
         }
     }
 }
@@ -65,10 +72,11 @@ impl SchemaProvider for SystemSchemaProvider {
 
     fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
         // TODO: Use of a MemTable potentially results in materializing redundant data
+        if name == CHUNKS {
+            return Some(Arc::clone(&self.chunks) as Arc<dyn TableProvider>);
+        }
+
         let batch = match name {
-            CHUNKS => from_chunk_summaries(self.catalog.chunk_summaries())
-                .log_if_error("chunks table")
-                .ok()?,
             COLUMNS => from_partition_summaries(self.catalog.partition_summaries())
                 .log_if_error("chunks table")
                 .ok()?,
@@ -91,7 +99,43 @@ fn time_to_ts(time: Option<DateTime<Utc>>) -> Option<i64> {
     time.map(|ts| ts.timestamp_nanos())
 }
 
-fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
+/// Implementation of system.chunks table
+#[derive(Debug)]
+struct ChunksProvider {
+    schema: SchemaRef,
+    catalog: Arc<Catalog>,
+}
+
+impl ChunksProvider {
+    fn new(catalog: Arc<Catalog>) -> Self {
+        Self {
+            schema: chunk_summaries_schema(),
+            catalog,
+        }
+    }
+
+    fn chunk_summaries(&self) -> Result<RecordBatch> {
+        let chunks = self.catalog.chunk_summaries();
+        from_chunk_summaries(self.schema(), chunks)
+    }
+}
+
+fn chunk_summaries_schema() -> SchemaRef {
+    let ts = DataType::Timestamp(TimeUnit::Nanosecond, None);
+    Arc::new(Schema::new(vec![
+        Field::new("id", DataType::UInt32, false),
+        Field::new("partition_key", DataType::Utf8, false),
+        Field::new("table_name", DataType::Utf8, false),
+        Field::new("storage", DataType::Utf8, false),
+        Field::new("estimated_bytes", DataType::UInt64, false),
+        Field::new("row_count", DataType::UInt64, false),
+        Field::new("time_of_first_write", ts.clone(), true),
+        Field::new("time_of_last_write", ts.clone(), true),
+        Field::new("time_closed", ts, true),
+    ]))
+}
+
+fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
     let id = UInt32Array::from_iter(chunks.iter().map(|c| Some(c.id)));
     let partition_key =
         StringArray::from_iter(chunks.iter().map(|c| Some(c.partition_key.as_ref())));
@@ -109,17 +153,46 @@ fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
     let time_closed =
         TimestampNanosecondArray::from_iter(chunks.iter().map(|c| c.time_closed).map(time_to_ts));
 
-    RecordBatch::try_from_iter_with_nullable(vec![
-        ("id", Arc::new(id) as ArrayRef, false),
-        ("partition_key", Arc::new(partition_key), false),
-        ("table_name", Arc::new(table_name), false),
-        ("storage", Arc::new(storage), false),
-        ("estimated_bytes", Arc::new(estimated_bytes), false),
-        ("row_count", Arc::new(row_counts), false),
-        ("time_of_first_write", Arc::new(time_of_first_write), true),
-        ("time_of_last_write", Arc::new(time_of_last_write), true),
-        ("time_closed", Arc::new(time_closed), true),
-    ])
+    RecordBatch::try_new(
+        schema,
+        vec![
+            Arc::new(id), // as ArrayRef,
+            Arc::new(partition_key),
+            Arc::new(table_name),
+            Arc::new(storage),
+            Arc::new(estimated_bytes),
+            Arc::new(row_counts),
+            Arc::new(time_of_first_write),
+            Arc::new(time_of_last_write),
+            Arc::new(time_closed),
+        ],
+    )
+}
+
+impl TableProvider for ChunksProvider {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> arrow::datatypes::SchemaRef {
+        Arc::clone(&self.schema)
+    }
+
+    fn scan(
+        &self,
+        projection: &Option<Vec<usize>>,
+        _batch_size: usize,
+        // It would be cool to push projection and limit down
+        _filters: &[datafusion::logical_plan::Expr],
+        _limit: Option<usize>,
+    ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
+        let batch = self.chunk_summaries().log_if_error("chunks table")?;
+        scan_batch(batch, self.schema(), projection.as_ref())
+    }
+
+    fn statistics(&self) -> Statistics {
+        Statistics::default()
+    }
 }
 
 fn from_partition_summaries(partitions: Vec<PartitionSummary>) -> Result<RecordBatch> {
@@ -199,6 +272,46 @@ fn from_task_trackers(db_name: &str, jobs: Vec<TaskTracker<Job>>) -> Result<Reco
     ])
 }
 
+/// Creates a DataFusion ExecutionPlan node that scans a single batch
+/// of records.
+fn scan_batch(
+    batch: RecordBatch,
+    schema: SchemaRef,
+    projection: Option<&Vec<usize>>,
+) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
+    // apply projection, if any
+    let (schema, batch) = match projection {
+        None => (schema, batch),
+        Some(projection) => {
+            let projected_columns: DataFusionResult<Vec<Field>> = projection
+                .iter()
+                .map(|i| {
+                    if *i < schema.fields().len() {
+                        Ok(schema.field(*i).clone())
+                    } else {
+                        Err(DataFusionError::Internal(format!(
+                            "Projection index out of range in ChunksProvider: {}",
+                            i
+                        )))
+                    }
+                })
+                .collect();
+
+            let projected_schema = Arc::new(Schema::new(projected_columns?));
+
+            let columns = projection
+                .iter()
+                .map(|i| Arc::clone(batch.column(*i)))
+                .collect::<Vec<_>>();
+
+            let projected_batch = RecordBatch::try_new(Arc::clone(&projected_schema), columns)?;
+            (projected_schema, projected_batch)
+        }
+    };
+
+    Ok(Arc::new(MemoryExec::try_new(&[vec![batch]], schema, None)?))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,7 +364,8 @@ mod tests {
             "+----+---------------+------------+-------------------+-----------------+-----------+---------------------+---------------------+-------------+",
         ];
 
-        let batch = from_chunk_summaries(chunks).unwrap();
+        let schema = chunk_summaries_schema();
+        let batch = from_chunk_summaries(schema, chunks).unwrap();
         assert_batches_eq!(&expected, &[batch]);
     }
 
@@ -314,5 +428,85 @@ mod tests {
 
         let batch = from_partition_summaries(partitions).unwrap();
         assert_batches_eq!(&expected, &[batch]);
+    }
+
+    fn seq_array(start: u64, end: u64) -> ArrayRef {
+        Arc::new(UInt64Array::from_iter_values(start..end))
+    }
+
+    #[tokio::test]
+    async fn test_scan_batch_no_projection() {
+        let batch = RecordBatch::try_from_iter(vec![
+            ("col1", seq_array(0, 3)),
+            ("col2", seq_array(1, 4)),
+            ("col3", seq_array(2, 5)),
+            ("col4", seq_array(3, 6)),
+        ])
+        .unwrap();
+
+        let projection = None;
+        let scan = scan_batch(batch.clone(), batch.schema(), projection).unwrap();
+        let collected = datafusion::physical_plan::collect(scan).await.unwrap();
+
+        let expected = vec![
+            "+------+------+------+------+",
+            "| col1 | col2 | col3 | col4 |",
+            "+------+------+------+------+",
+            "| 0    | 1    | 2    | 3    |",
+            "| 1    | 2    | 3    | 4    |",
+            "| 2    | 3    | 4    | 5    |",
+            "+------+------+------+------+",
+        ];
+
+        assert_batches_eq!(&expected, &collected);
+    }
+
+    #[tokio::test]
+    async fn test_scan_batch_good_projection() {
+        let batch = RecordBatch::try_from_iter(vec![
+            ("col1", seq_array(0, 3)),
+            ("col2", seq_array(1, 4)),
+            ("col3", seq_array(2, 5)),
+            ("col4", seq_array(3, 6)),
+        ])
+        .unwrap();
+
+        let projection = Some(vec![3, 1]);
+        let scan = scan_batch(batch.clone(), batch.schema(), projection.as_ref()).unwrap();
+        let collected = datafusion::physical_plan::collect(scan).await.unwrap();
+
+        let expected = vec![
+            "+------+------+",
+            "| col4 | col2 |",
+            "+------+------+",
+            "| 3    | 1    |",
+            "| 4    | 2    |",
+            "| 5    | 3    |",
+            "+------+------+",
+        ];
+
+        assert_batches_eq!(&expected, &collected);
+    }
+
+    #[tokio::test]
+    async fn test_scan_batch_bad_projection() {
+        let batch = RecordBatch::try_from_iter(vec![
+            ("col1", seq_array(0, 3)),
+            ("col2", seq_array(1, 4)),
+            ("col3", seq_array(2, 5)),
+            ("col4", seq_array(3, 6)),
+        ])
+        .unwrap();
+
+        // no column idex 5
+        let projection = Some(vec![3, 1, 5]);
+        let result = scan_batch(batch.clone(), batch.schema(), projection.as_ref());
+        let err_string = result.unwrap_err().to_string();
+        assert!(
+            err_string
+                .contains("Internal error: Projection index out of range in ChunksProvider: 5"),
+            "Actual error: {}",
+            err_string
+        );
     }
 }
