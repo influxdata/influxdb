@@ -39,6 +39,7 @@ spec:
       staticLegend:
         colorizeRows: true
         heightRatio: 0.2
+        hide: false
         opacity: 1.0
         orientationThreshold: 5
         valueAxis: "y"
