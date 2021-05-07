@@ -101,7 +101,7 @@ async fn load_remote_system_tables(
     connection: Connection,
 ) -> Result<()> {
     // all prefixed with "system."
-    let table_names = vec!["chunks", "columns", "operations"];
+    let table_names = vec!["chunks", "chunk_columns", "columns", "operations"];
 
     let start = Instant::now();
 
