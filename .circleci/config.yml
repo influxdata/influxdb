@@ -616,7 +616,7 @@ jobs:
 
   e2e-monitor-ci:
     docker:
-      - image: cimg/base:2021.04
+      - image: cimg/stable-20.04
     steps:
       # if we are running from a fork, exit with a fail status.
       - bail_if_forked
