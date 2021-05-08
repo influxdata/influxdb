@@ -29,7 +29,7 @@ workflows:
       - cross_build:
           requires:
             - godeps
-      - e2e:
+      - e2e-monitor-ci:
           requires:
             - build
       - grace_daily:
@@ -50,7 +50,7 @@ workflows:
               only:
                 - master
           requires:
-            - e2e
+            - e2e-monitor-ci
 
   nightly:
     triggers:
@@ -98,10 +98,6 @@ workflows:
           requires:
             - deploy_nightly
 
-orbs:
-  # Needed to install chrome for e2e testing.
-  browser-tools: circleci/browser-tools@1.1
-
 commands:
   # Install system dependencies needed to run a native build of influxd
   install_core_deps:
@@ -143,9 +139,7 @@ commands:
                 command: |
                   echo -e "$GPG_PRIVATE_KEY" > private.key
                   gpg --batch --import private.key
-            - run:
-                name: Log into Quay
-                command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+            - quay_login
       - run:
           name: Set GOPATH
           # Machine executors use a different GOPATH from the cimg/go Docker executors.
@@ -277,6 +271,25 @@ commands:
             - run:
                 name: Publish release
                 command: goreleaser --debug release -p 1 --rm-dist --skip-validate
+  quay_login:
+    steps:
+      - run:
+          name: Log in to Quay
+          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+
+  bail_if_forked:
+    parameters:
+      exit_code:
+        type: integer
+        default: 1
+    steps:
+      - run:
+          name: Exit if running from a fork
+          command: |
+            if [ -n "$CIRCLE_PR_NUMBER" ]; then
+              echo 'Error: Running from a fork, exiting!'
+              exit << parameters.exit_code >>
+            fi
 
 jobs:
   #########################
@@ -501,6 +514,17 @@ jobs:
             - /tmp/go-cache
       - store_artifacts:
           path: bin/linux
+      - persist_to_workspace:
+          root: .
+          paths:
+            - project
+            - bin/linux/influxd
+            - bin/linux/influx
+            - etc/litmus_success_notify.sh
+            - etc/litmus_fail_notify.sh
+      # if we are running on a fork, exit with success now instead of building & pushing a docker image.
+      - bail_if_forked:
+          exit_code: 0
       - setup_remote_docker:
           version: 19.03.13
           docker_layer_caching: true
@@ -513,12 +537,11 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - project
-            - bin/linux/influxd
-            - bin/linux/influx
-            - etc/litmus_success_notify.sh
-            - etc/litmus_fail_notify.sh
             - docker-image.tar
+      - quay_login
+      - run:
+          name: Push the candidate image to quay
+          command: docker push quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
 
   cross_build:
     machine:
@@ -591,54 +614,25 @@ jobs:
   ### e2e/integration test jobs ###
   #################################
 
-  e2e:
-    machine:
-      image: ubuntu-2004:202010-01
-    resource_class: large
-    environment:
-      GOCACHE: /tmp/go-cache
-    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
+  e2e-monitor-ci:
+    docker:
+      - image: cimg/go:1.15.6
     steps:
-      - browser-tools/install-browser-tools
+      # if we are running from a fork, exit with a fail status.
+      - bail_if_forked
       - checkout
-      - attach_workspace:
-          at: /home/circleci/go/src/github.com/influxdata/influxdb
-      - restore_cache:
-          name: Restore Yarn Cache
-          keys:
-            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
-      - run: sudo apt-get update && sudo apt-get install netcat-openbsd
       - run:
-          name: Install Dependencies
-          command: |
-            set +e
-            cd ui
-            yarn install --immutable
-      - save_cache:
-          name: Save Yarn Cache
-          key: yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
-          paths:
-            - /home/circleci/go/src/github.com/influxdata/influxdb/ui/node_modules
-            - ~/.cache/yarn
-            - ~/.cache/Cypress
-      - run:
-          name: Start the OSS docker image
-          command: |
-            docker load < docker-image.tar
-            docker run -p 8086:8086 \
-              -e INFLUXD_STORE=memory \
-              -e INFLUXD_E2E_TESTING=true \
-              quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
-          background: true
-      - run: make e2e
-      - store_test_results:
-          path: ui/junit-results
+          name: Run the tests
+          command: API_KEY=${MONITOR_CI_API_KEY} MONITOR_CI_BRANCH="master" OSS_SHA=${CIRCLE_SHA1} ./scripts/ci/run-monitor-ci-tests.bash
       - store_artifacts:
-          path: ui/cypress/videos
-          destination: videos
+          path: monitor-ci/test-artifacts/results/build-oss-image
+          destination: test_artifacts/results/build-oss-image
       - store_artifacts:
-          path: ui/cypress/screenshots
-          destination: screenshots
+          path: monitor-ci/test-artifacts/results/oss-e2e
+          destination: test_artifacts/results/oss-e2e
+      - store_artifacts:
+          path: monitor-ci/test-artifacts/results/shared
+          destination: test_artifacts/results/shared
 
   litmus_daily:
     machine: true
@@ -735,13 +729,10 @@ jobs:
     steps:
       - attach_workspace:
           at: /home/circleci/go/src/github.com/influxdata/influxdb
-      - run:
-          name: Log into Quay
-          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+      - quay_login
       - run:
           name: Push the image to Quay
           command: |
             docker load < docker-image.tar
             docker tag quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} quay.io/influxdb/oss-acceptance:latest
-            docker push quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
             docker push quay.io/influxdb/oss-acceptance:latest
