@@ -2963,6 +2963,7 @@ dependencies = [
  "hashbrown 0.11.2",
  "internal_types",
  "itertools 0.9.0",
+ "metrics",
  "observability_deps",
  "packers",
  "parking_lot",

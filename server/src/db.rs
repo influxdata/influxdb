@@ -297,6 +297,9 @@ pub struct Db {
     /// All of the metrics for this Db.
     metrics: DbMetrics,
 
+    // The metrics registry to inject into created components in the Db.
+    metrics_registry: Arc<metrics::MetricRegistry>,
+
     /// Memory registries used for tracking memory usage by this Db
     memory_registries: MemoryRegistries,
 
@@ -474,6 +477,7 @@ impl Db {
             write_buffer,
             jobs,
             metrics: db_metrics,
+            metrics_registry: metrics,
             system_tables,
             memory_registries,
             sequence: AtomicU64::new(STARTING_SEQUENCE),
@@ -672,8 +676,11 @@ impl Db {
         let table_stats = mb_chunk.table_summaries();
 
         // create a new read buffer chunk with memory tracking
-        let rb_chunk =
-            ReadBufferChunk::new_with_memory_tracker(chunk_id, &self.memory_registries.read_buffer);
+        let rb_chunk = ReadBufferChunk::new_with_registries(
+            chunk_id,
+            &self.memory_registries.read_buffer,
+            &self.metrics_registry,
+        );
 
         // load tables into the new chunk one by one.
         for stats in table_stats {
@@ -1496,7 +1503,7 @@ mod tests {
         // verify chunk size updated (chunk moved from closing to moving to moved)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "closed", 0).unwrap();
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moving", 0).unwrap();
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 1222).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 1318).unwrap();
 
         db.write_chunk_to_object_store("1970-01-01T00", "cpu", 0)
             .await
@@ -1515,8 +1522,8 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 1222).unwrap();
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "os", 1913).unwrap(); // now also in OS
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 1318).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "os", 2009).unwrap(); // now also in OS
 
         db.unload_read_buffer("1970-01-01T00", "cpu", 0)
             .await
@@ -1532,7 +1539,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size not increased for OS (it was in OS before unload)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "os", 1913).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "os", 2009).unwrap();
         // verify chunk size for RB has decreased
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 0).unwrap();
     }
@@ -1674,7 +1681,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated (chunk moved from moved to writing to written)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 1222).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 1318).unwrap();
 
         // drop, the chunk from the read buffer
         db.drop_chunk(partition_key, "cpu", mb_chunk.id()).unwrap();
@@ -1753,7 +1760,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(4291.0)
+            .sample_sum_eq(4387.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk, "cpu").await;
@@ -1857,7 +1864,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(1913.0)
+            .sample_sum_eq(2009.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1981,7 +1988,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(1913.0)
+            .sample_sum_eq(2009.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -2380,7 +2387,7 @@ mod tests {
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
-                1904, // size of RB and OS chunks
+                2000, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2416,7 +2423,7 @@ mod tests {
         );
 
         assert_eq!(db.memory_registries.mutable_buffer.bytes(), 100 + 129 + 131);
-        assert_eq!(db.memory_registries.read_buffer.bytes(), 1213);
+        assert_eq!(db.memory_registries.read_buffer.bytes(), 1309);
         assert_eq!(db.memory_registries.parquet.bytes(), 89); // TODO: This 89 must be replaced with 675. Ticket #1311
     }
 

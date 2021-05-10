@@ -3,6 +3,7 @@ use std::{
     convert::TryFrom,
 };
 
+use metrics::MetricRegistry;
 use parking_lot::RwLock;
 use snafu::{OptionExt, ResultExt, Snafu};
 
@@ -48,6 +49,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct Chunk {
     // The unique identifier for this chunk.
     id: u32,
+
+    // All metrics for the chunk.
+    metrics: ColumnMetrics,
 
     // A chunk's data is held in a collection of mutable tables and
     // mutable meta data (`TableData`).
@@ -115,22 +119,28 @@ impl TableData {
 
 impl Chunk {
     /// Initialises a new `Chunk` with the associated chunk ID.
-    pub fn new(id: u32) -> Self {
+    pub fn new(id: u32, metrics_registry: &MetricRegistry) -> Self {
         Self {
             id,
             chunk_data: RwLock::new(TableData::default()),
+            metrics: ColumnMetrics::new(metrics_registry),
         }
     }
 
     /// Initialises a new `Chunk` with the associated chunk ID. The returned
     /// `Chunk` will be tracked according to the provided memory tracker
+    /// registry and internal metrics will be registered on the provided metrics
     /// registry.
-    pub fn new_with_memory_tracker(id: u32, registry: &MemRegistry) -> Self {
-        let chunk = Self::new(id);
+    pub fn new_with_registries(
+        id: u32,
+        mem_registry: &MemRegistry,
+        metrics_registry: &MetricRegistry,
+    ) -> Self {
+        let chunk = Self::new(id, metrics_registry);
 
         {
             let mut chunk_data = chunk.chunk_data.write();
-            chunk_data.tracker = registry.register();
+            chunk_data.tracker = mem_registry.register();
             let size = Self::base_size() + chunk_data.size();
             chunk_data.tracker.set_bytes(size);
         }
@@ -150,6 +160,7 @@ impl Chunk {
                 data: vec![(table.name().to_owned(), table)].into_iter().collect(),
                 tracker: MemRegistry::new().register(),
             }),
+            metrics: ColumnMetrics::new(&metrics::MetricRegistry::new()),
         }
     }
 
@@ -597,6 +608,42 @@ impl std::fmt::Debug for Chunk {
     }
 }
 
+struct ColumnMetrics {
+    // This metric tracks the total number of columns in read buffer.
+    columns_total: metrics::Gauge,
+
+    // This metric tracks the total number of values stored in read buffer
+    // column encodings further segmented by nullness.
+    column_values_total: metrics::Gauge,
+
+    // This metric tracks the total number of bytes used by read buffer column
+    // encodings further segmented by nullness.
+    column_bytes_total: metrics::Gauge,
+}
+
+impl ColumnMetrics {
+    pub fn new(registry: &MetricRegistry) -> Self {
+        let domain = registry.register_domain("read_buffer");
+        Self {
+            columns_total: domain.register_gauge_metric(
+                "column",
+                Some("total"),
+                "The number of columns within the Read Buffer",
+            ),
+            column_values_total: domain.register_gauge_metric(
+                "column",
+                Some("values"),
+                "The number of values within columns in the Read Buffer",
+            ),
+            column_bytes_total: domain.register_gauge_metric(
+                "column",
+                Some("bytes"),
+                "The number of bytes used by all columns in the Read Buffer",
+            ),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::sync::Arc;
@@ -775,7 +822,7 @@ mod test {
 
     #[test]
     fn add_remove_tables() {
-        let chunk = Chunk::new(22);
+        let chunk = Chunk::new(22, &metrics::MetricRegistry::new());
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -835,7 +882,7 @@ mod test {
 
     #[test]
     fn read_filter_table_schema() {
-        let chunk = Chunk::new(22);
+        let chunk = Chunk::new(22, &metrics::MetricRegistry::new());
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -879,7 +926,7 @@ mod test {
 
     #[test]
     fn has_table() {
-        let chunk = Chunk::new(22);
+        let chunk = Chunk::new(22, &metrics::MetricRegistry::new());
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -889,7 +936,7 @@ mod test {
 
     #[test]
     fn table_summaries() {
-        let chunk = Chunk::new(22);
+        let chunk = Chunk::new(22, &metrics::MetricRegistry::new());
 
         let schema = SchemaBuilder::new()
             .non_null_tag("env")
@@ -1003,7 +1050,7 @@ mod test {
 
     #[test]
     fn read_filter() {
-        let chunk = Chunk::new(22);
+        let chunk = Chunk::new(22, &metrics::MetricRegistry::new());
 
         // Add a bunch of row groups to a single table in a single chunk
         for &i in &[100, 200, 300] {
@@ -1102,7 +1149,7 @@ mod test {
 
     #[test]
     fn could_pass_predicate() {
-        let chunk = Chunk::new(22);
+        let chunk = Chunk::new(22, &metrics::MetricRegistry::new());
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -1228,7 +1275,7 @@ mod test {
 
     #[test]
     fn column_names() {
-        let chunk = Chunk::new(22);
+        let chunk = Chunk::new(22, &metrics::MetricRegistry::new());
 
         let schema = SchemaBuilder::new()
             .non_null_tag("region")
@@ -1302,7 +1349,7 @@ mod test {
 
     #[test]
     fn column_values() {
-        let chunk = Chunk::new(22);
+        let chunk = Chunk::new(22, &metrics::MetricRegistry::new());
 
         let schema = SchemaBuilder::new()
             .non_null_tag("region")
