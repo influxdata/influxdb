@@ -244,7 +244,7 @@ var cursorAtEOF = MakeBoolFlag(
 	"Default Monaco Selection to EOF",
 	"cursorAtEOF",
 	"Monitoring Team",
-	false,
+	true,
 	Temporary,
 	true,
 )

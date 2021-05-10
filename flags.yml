@@ -141,7 +141,7 @@
 - name: Default Monaco Selection to EOF
   description: Positions the cursor at the end of the line(s) when using the monaco editor
   key: cursorAtEOF
-  default: false
+  default: true
   contact: Monitoring Team
   expose: true
   lifetime: temporary
