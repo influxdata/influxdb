@@ -152,6 +152,11 @@ pub enum Error {
     ErrorDeserializing { source: serde_json::Error },
     #[snafu(display("store error: {}", source))]
     StoreError { source: object_store::Error },
+    #[snafu(display(
+        "no database configuration present in directory that contains data: {:?}",
+        location
+    ))]
+    NoDatabaseConfigError { location: object_store::path::Path },
     #[snafu(display("database already exists"))]
     DatabaseAlreadyExists { db_name: String },
     #[snafu(display("error converting line protocol to flatbuffers: {}", source))]
@@ -472,8 +477,12 @@ impl<M: ConnectionManager> Server<M> {
                 path.set_file_name(DB_RULES_FILE_NAME);
 
                 tokio::task::spawn(async move {
-                    let mut res = get_store_bytes(&path, &store).await;
+                    let mut res = get_database_config_bytes(&path, &store).await;
                     while let Err(e) = &res {
+                        if let Error::NoDatabaseConfigError { location } = e {
+                            warn!(?location, "{}", e);
+                            return;
+                        }
                         error!(
                             "error getting database config {:?} from object store: {}",
                             path, e
@@ -482,10 +491,11 @@ impl<M: ConnectionManager> Server<M> {
                             STORE_ERROR_PAUSE_SECONDS,
                         ))
                         .await;
-                        res = get_store_bytes(&path, &store).await;
+                        res = get_database_config_bytes(&path, &store).await;
                     }
 
-                    let res = res.unwrap().freeze();
+                    let res = res.unwrap(); // it's not an error, otherwise we'd be still looping above
+                    let res = res.freeze();
 
                     match decode_database_rules(res) {
                         Err(e) => {
@@ -495,7 +505,7 @@ impl<M: ConnectionManager> Server<M> {
                             Err(e) => error!("error adding database to config: {}", e),
                             Ok(handle) => handle.commit(server_id, store, exec),
                         },
-                    }
+                    };
                 })
             })
             .collect();
@@ -970,6 +980,25 @@ async fn get_store_bytes(
     Ok(b)
 }
 
+// get the bytes for the database rule config file, if it exists,
+// otherwise it returns none.
+async fn get_database_config_bytes(
+    location: &object_store::path::Path,
+    store: &ObjectStore,
+) -> Result<bytes::BytesMut> {
+    let list_result = store
+        .list_with_delimiter(location)
+        .await
+        .context(StoreError)?;
+    if list_result.objects.is_empty() {
+        return NoDatabaseConfigError {
+            location: location.clone(),
+        }
+        .fail();
+    }
+    get_store_bytes(location, store).await
+}
+
 #[cfg(test)]
 mod tests {
     use std::{collections::BTreeMap, convert::TryFrom};
@@ -991,22 +1020,47 @@ mod tests {
 
     use super::*;
     use std::sync::atomic::{AtomicBool, Ordering};
+    use tempfile::TempDir;
 
-    fn config_with_metric_registry() -> (metrics::TestMetricRegistry, ServerConfig) {
+    // TODO: perhaps switch to a builder pattern.
+    fn config_with_metric_registry_and_store(
+        object_store: ObjectStore,
+    ) -> (metrics::TestMetricRegistry, ServerConfig) {
         let registry = Arc::new(metrics::MetricRegistry::new());
         let test_registry = metrics::TestMetricRegistry::new(Arc::clone(&registry));
         (
             test_registry,
             ServerConfig::new(
-                Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+                Arc::new(object_store),
                 registry, // new registry ensures test isolation of metrics
             )
             .with_num_worker_threads(1),
         )
     }
 
+    fn config_with_metric_registry() -> (metrics::TestMetricRegistry, ServerConfig) {
+        config_with_metric_registry_and_store(ObjectStore::new_in_memory(InMemory::new()))
+    }
+
     fn config() -> ServerConfig {
         config_with_metric_registry().1
+    }
+
+    fn config_with_store(object_store: ObjectStore) -> ServerConfig {
+        config_with_metric_registry_and_store(object_store).1
+    }
+
+    #[tokio::test]
+    async fn test_get_database_config_bytes() {
+        let object_store = ObjectStore::new_in_memory(InMemory::new());
+        let mut rules_path = object_store.new_path();
+        rules_path.push_all_dirs(&["1", "foo_bar"]);
+        rules_path.set_file_name("rules.pb");
+
+        let res = get_database_config_bytes(&rules_path, &object_store)
+            .await
+            .unwrap_err();
+        assert!(matches!(res, Error::NoDatabaseConfigError { .. }));
     }
 
     #[tokio::test]
@@ -1120,6 +1174,77 @@ mod tests {
         if !matches!(got, Error::DatabaseAlreadyExists { .. }) {
             panic!("expected already exists error");
         }
+    }
+
+    async fn create_simple_database<M>(server: &Server<M>, name: impl Into<String>)
+    where
+        M: ConnectionManager,
+    {
+        let name = DatabaseName::new(name.into()).unwrap();
+
+        let rules = DatabaseRules {
+            name,
+            partition_template: PartitionTemplate {
+                parts: vec![TemplatePart::TimeFormat("YYYY-MM".to_string())],
+            },
+            write_buffer_config: None,
+            lifecycle_rules: Default::default(),
+            shard_config: None,
+        };
+
+        // Create a database
+        server
+            .create_database(rules.clone(), server.require_id().unwrap())
+            .await
+            .expect("failed to create database");
+    }
+
+    #[tokio::test]
+    async fn load_databases() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let store = ObjectStore::new_file(object_store::disk::File::new(temp_dir.path()));
+        let manager = TestConnectionManager::new();
+        let config = config_with_store(store);
+        let server = Server::new(manager, config);
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+
+        create_simple_database(&server, "bananas").await;
+
+        let mut rules_path = server.store.new_path();
+        rules_path.push_all_dirs(&["1", "bananas"]);
+        rules_path.set_file_name("rules.pb");
+
+        std::mem::drop(server);
+
+        let store = ObjectStore::new_file(object_store::disk::File::new(temp_dir.path()));
+        let manager = TestConnectionManager::new();
+        let config = config_with_store(store);
+        let server = Server::new(manager, config);
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+
+        server.load_database_configs().await.expect("load config");
+
+        create_simple_database(&server, "apples").await;
+
+        assert_eq!(server.db_names_sorted(), vec!["apples", "bananas"]);
+
+        std::mem::drop(server);
+
+        let store = ObjectStore::new_file(object_store::disk::File::new(temp_dir.path()));
+        store
+            .delete(&rules_path)
+            .await
+            .expect("cannot delete rules file");
+
+        let manager = TestConnectionManager::new();
+        let config = config_with_store(store);
+        let server = Server::new(manager, config);
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+
+        server.load_database_configs().await.expect("load config");
+
+        assert_eq!(server.db_names_sorted(), vec!["apples"]);
     }
 
     #[tokio::test]
