@@ -164,8 +164,8 @@ fn create_column_tag(
         name: name.to_string(),
         influxdb_type: Some(InfluxDbType::Tag),
         stats: Statistics::String(StatValues {
-            min: data.iter().flatten().min().unwrap().to_string(),
-            max: data.iter().flatten().max().unwrap().to_string(),
+            min: Some(data.iter().flatten().min().unwrap().to_string()),
+            max: Some(data.iter().flatten().max().unwrap().to_string()),
             count: data.iter().map(Vec::len).sum::<usize>() as u64,
         }),
     });
@@ -188,8 +188,8 @@ fn create_column_field_string(
         schema_builder,
         |StatValues { min, max, count }| {
             Statistics::String(StatValues {
-                min: min.to_string(),
-                max: max.to_string(),
+                min: Some(min.unwrap().to_string()),
+                max: Some(max.unwrap().to_string()),
                 count,
             })
         },
@@ -250,18 +250,18 @@ fn create_column_field_f64(
         name: name.to_string(),
         influxdb_type: Some(InfluxDbType::Field),
         stats: Statistics::F64(StatValues {
-            min: *data
+            min: data
                 .iter()
                 .flatten()
                 .filter(|x| !x.is_nan())
                 .min_by(|a, b| a.partial_cmp(b).unwrap())
-                .unwrap(),
-            max: *data
+                .cloned(),
+            max: data
                 .iter()
                 .flatten()
                 .filter(|x| !x.is_nan())
                 .max_by(|a, b| a.partial_cmp(b).unwrap())
-                .unwrap(),
+                .cloned(),
             count: data.iter().map(Vec::len).sum::<usize>() as u64,
         }),
     });
@@ -313,8 +313,8 @@ where
         name: name.to_string(),
         influxdb_type: Some(InfluxDbType::Field),
         stats: f(StatValues {
-            min: data.iter().flatten().min().unwrap().clone(),
-            max: data.iter().flatten().max().unwrap().clone(),
+            min: data.iter().flatten().min().cloned(),
+            max: data.iter().flatten().max().cloned(),
             count: data.iter().map(Vec::len).sum::<usize>() as u64,
         }),
     });

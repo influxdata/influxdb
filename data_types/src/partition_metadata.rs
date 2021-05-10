@@ -187,57 +187,27 @@ impl ColumnSummary {
     pub fn update_from(&mut self, other: &Self) {
         match (&mut self.stats, &other.stats) {
             (Statistics::F64(s), Statistics::F64(o)) => {
-                s.count += o.count;
-                if o.min < s.min {
-                    s.min = o.min;
-                }
-                if o.max > s.max {
-                    s.max = o.max;
-                }
+                s.update_from(o);
             }
             (Statistics::I64(s), Statistics::I64(o)) => {
-                s.count += o.count;
-                if o.min < s.min {
-                    s.min = o.min;
-                }
-                if o.max > s.max {
-                    s.max = o.max;
-                }
+                s.update_from(o);
             }
             (Statistics::Bool(s), Statistics::Bool(o)) => {
-                s.count += o.count;
-                if s.min {
-                    s.min = o.min
-                }
-                if !s.max {
-                    s.max = o.max
-                }
+                s.update_from(o);
             }
             (Statistics::String(s), Statistics::String(o)) => {
-                s.count += o.count;
-                if o.min < s.min {
-                    s.min = o.min.clone();
-                }
-                if o.max > s.max {
-                    s.max = o.max.clone();
-                }
+                s.update_from(o);
             }
             (Statistics::U64(s), Statistics::U64(o)) => {
-                s.count += o.count;
-                if o.min < s.min {
-                    s.min = o.min;
-                }
-                if o.max > s.max {
-                    s.max = o.max;
-                }
+                s.update_from(o);
             }
             // do catch alls for the specific types, that way if a new type gets added, the compiler
             // will complain.
-            (Statistics::F64(_), _) => (),
-            (Statistics::I64(_), _) => (),
-            (Statistics::U64(_), _) => (),
-            (Statistics::Bool(_), _) => (),
-            (Statistics::String(_), _) => (),
+            (Statistics::F64(_), _) => unreachable!(),
+            (Statistics::I64(_), _) => unreachable!(),
+            (Statistics::U64(_), _) => unreachable!(),
+            (Statistics::Bool(_), _) => unreachable!(),
+            (Statistics::String(_), _) => unreachable!(),
         }
     }
 }
@@ -292,40 +262,60 @@ impl Statistics {
     /// Return the minimum value, if any, formatted as a string
     pub fn min_as_str(&self) -> Option<Cow<'_, str>> {
         match self {
-            Self::I64(v) => Some(Cow::Owned(v.min.to_string())),
-            Self::U64(v) => Some(Cow::Owned(v.min.to_string())),
-            Self::F64(v) => Some(Cow::Owned(v.min.to_string())),
-            Self::Bool(v) => Some(Cow::Owned(v.min.to_string())),
-            Self::String(v) => Some(Cow::Borrowed(&v.min)),
+            Self::I64(v) => v.min.map(|x| Cow::Owned(x.to_string())),
+            Self::U64(v) => v.min.map(|x| Cow::Owned(x.to_string())),
+            Self::F64(v) => v.min.map(|x| Cow::Owned(x.to_string())),
+            Self::Bool(v) => v.min.map(|x| Cow::Owned(x.to_string())),
+            Self::String(v) => v.min.as_deref().map(|x| Cow::Borrowed(x)),
         }
     }
 
     /// Return the maximum value, if any, formatted as a string
     pub fn max_as_str(&self) -> Option<Cow<'_, str>> {
         match self {
-            Self::I64(v) => Some(Cow::Owned(v.max.to_string())),
-            Self::U64(v) => Some(Cow::Owned(v.max.to_string())),
-            Self::F64(v) => Some(Cow::Owned(v.max.to_string())),
-            Self::Bool(v) => Some(Cow::Owned(v.max.to_string())),
-            Self::String(v) => Some(Cow::Borrowed(&v.max)),
+            Self::I64(v) => v.max.map(|x| Cow::Owned(x.to_string())),
+            Self::U64(v) => v.max.map(|x| Cow::Owned(x.to_string())),
+            Self::F64(v) => v.max.map(|x| Cow::Owned(x.to_string())),
+            Self::Bool(v) => v.max.map(|x| Cow::Owned(x.to_string())),
+            Self::String(v) => v.max.as_deref().map(|x| Cow::Borrowed(x)),
         }
     }
 }
 
 /// Summary statistics for a column.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct StatValues<T> {
-    pub min: T,
-    pub max: T,
+    /// minimum (non-NaN, non-NULL) value, if any
+    pub min: Option<T>,
+
+    /// maximum (non-NaN, non-NULL) value, if any
+    pub max: Option<T>,
+
     /// number of non-nil values in this column
     pub count: u64,
 }
 
+impl<T> Default for StatValues<T> {
+    fn default() -> Self {
+        Self {
+            min: None,
+            max: None,
+            count: 0,
+        }
+    }
+}
+
 impl<T> StatValues<T>
 where
-    T: Default + Clone,
+    T: Clone + PartialEq + PartialOrd + IsNan,
 {
     pub fn new_with_value(starting_value: T) -> Self {
+        let starting_value = if starting_value.is_nan() {
+            None
+        } else {
+            Some(starting_value)
+        };
+
         Self {
             min: starting_value.clone(),
             max: starting_value,
@@ -333,8 +323,42 @@ where
         }
     }
 
-    pub fn new(min: T, max: T, count: u64) -> Self {
+    pub fn new(min: Option<T>, max: Option<T>, count: u64) -> Self {
+        if let Some(min) = &min {
+            assert!(!min.is_nan());
+        }
+        if let Some(max) = &max {
+            assert!(!max.is_nan());
+        }
+        if let (Some(min), Some(max)) = (&min, &max) {
+            assert!(min <= max);
+        }
+
         Self { min, max, count }
+    }
+
+    pub fn update_from(&mut self, other: &Self) {
+        self.count += other.count;
+
+        match (&self.min, &other.min) {
+            (None, None) | (Some(_), None) => {}
+            (None, Some(o)) => self.min = Some(o.clone()),
+            (Some(s), Some(o)) => {
+                if s > o {
+                    self.min = Some(o.clone());
+                }
+            }
+        }
+
+        match (&self.max, &other.max) {
+            (None, None) | (Some(_), None) => {}
+            (None, Some(o)) => self.max = Some(o.clone()),
+            (Some(s), Some(o)) => {
+                if o > s {
+                    self.max = Some(o.clone());
+                }
+            }
+        };
     }
 }
 
@@ -345,17 +369,69 @@ impl<T> StatValues<T> {
     pub fn update<U: ?Sized>(&mut self, other: &U)
     where
         T: Borrow<U>,
-        U: ToOwned<Owned = T> + PartialOrd,
+        U: ToOwned<Owned = T> + PartialOrd + IsNan,
     {
         self.count += 1;
 
-        if self.count == 1 || self.min.borrow() > other {
-            self.min = other.to_owned();
-        }
+        if !other.is_nan() {
+            match &self.min {
+                None => self.min = Some(other.to_owned()),
+                Some(s) => {
+                    if s.borrow() > other {
+                        self.min = Some(other.to_owned());
+                    }
+                }
+            }
 
-        if self.count == 1 || self.max.borrow() < other {
-            self.max = other.to_owned();
+            match &self.max {
+                None => {
+                    self.max = Some(other.to_owned());
+                }
+                Some(s) => {
+                    if other > s.borrow() {
+                        self.max = Some(other.to_owned());
+                    }
+                }
+            }
         }
+    }
+}
+
+pub trait IsNan {
+    fn is_nan(&self) -> bool;
+}
+
+impl<T: IsNan> IsNan for &T {
+    fn is_nan(&self) -> bool {
+        (*self).is_nan()
+    }
+}
+
+macro_rules! impl_is_nan_false {
+    ($t:ty) => {
+        impl IsNan for $t {
+            fn is_nan(&self) -> bool {
+                false
+            }
+        }
+    };
+}
+
+impl_is_nan_false!(bool);
+impl_is_nan_false!(str);
+impl_is_nan_false!(String);
+impl_is_nan_false!(i8);
+impl_is_nan_false!(i16);
+impl_is_nan_false!(i32);
+impl_is_nan_false!(i64);
+impl_is_nan_false!(u8);
+impl_is_nan_false!(u16);
+impl_is_nan_false!(u32);
+impl_is_nan_false!(u64);
+
+impl IsNan for f64 {
+    fn is_nan(&self) -> bool {
+        Self::is_nan(*self)
     }
 }
 
@@ -366,110 +442,134 @@ mod tests {
     #[test]
     fn statistics_update() {
         let mut stat = StatValues::new_with_value(23);
-        assert_eq!(stat.min, 23);
-        assert_eq!(stat.max, 23);
+        assert_eq!(stat.min, Some(23));
+        assert_eq!(stat.max, Some(23));
         assert_eq!(stat.count, 1);
 
         stat.update(&55);
-        assert_eq!(stat.min, 23);
-        assert_eq!(stat.max, 55);
+        assert_eq!(stat.min, Some(23));
+        assert_eq!(stat.max, Some(55));
         assert_eq!(stat.count, 2);
 
         stat.update(&6);
-        assert_eq!(stat.min, 6);
-        assert_eq!(stat.max, 55);
+        assert_eq!(stat.min, Some(6));
+        assert_eq!(stat.max, Some(55));
         assert_eq!(stat.count, 3);
 
         stat.update(&30);
-        assert_eq!(stat.min, 6);
-        assert_eq!(stat.max, 55);
+        assert_eq!(stat.min, Some(6));
+        assert_eq!(stat.max, Some(55));
         assert_eq!(stat.count, 4);
     }
 
     #[test]
     fn statistics_default() {
         let mut stat = StatValues::default();
-        assert_eq!(stat.min, 0);
-        assert_eq!(stat.max, 0);
+        assert_eq!(stat.min, None);
+        assert_eq!(stat.max, None);
         assert_eq!(stat.count, 0);
 
         stat.update(&55);
-        assert_eq!(stat.min, 55);
-        assert_eq!(stat.max, 55);
+        assert_eq!(stat.min, Some(55));
+        assert_eq!(stat.max, Some(55));
         assert_eq!(stat.count, 1);
 
-        let mut stat = StatValues::default();
-        assert_eq!(&stat.min, "");
-        assert_eq!(&stat.max, "");
+        let mut stat = StatValues::<String>::default();
+        assert_eq!(stat.min, None);
+        assert_eq!(stat.max, None);
         assert_eq!(stat.count, 0);
 
         stat.update("cupcakes");
-        assert_eq!(&stat.min, "cupcakes");
-        assert_eq!(&stat.max, "cupcakes");
+        assert_eq!(stat.min, Some("cupcakes".to_string()));
+        assert_eq!(stat.max, Some("cupcakes".to_string()));
         assert_eq!(stat.count, 1);
 
         stat.update("woo");
-        assert_eq!(&stat.min, "cupcakes");
-        assert_eq!(&stat.max, "woo");
+        assert_eq!(stat.min, Some("cupcakes".to_string()));
+        assert_eq!(stat.max, Some("woo".to_string()));
         assert_eq!(stat.count, 2);
     }
 
     #[test]
     fn update_string() {
         let mut stat = StatValues::new_with_value("bbb".to_string());
-        assert_eq!(stat.min, "bbb".to_string());
-        assert_eq!(stat.max, "bbb".to_string());
+        assert_eq!(stat.min, Some("bbb".to_string()));
+        assert_eq!(stat.max, Some("bbb".to_string()));
         assert_eq!(stat.count, 1);
 
         stat.update("aaa");
-        assert_eq!(stat.min, "aaa".to_string());
-        assert_eq!(stat.max, "bbb".to_string());
+        assert_eq!(stat.min, Some("aaa".to_string()));
+        assert_eq!(stat.max, Some("bbb".to_string()));
         assert_eq!(stat.count, 2);
 
         stat.update("z");
-        assert_eq!(stat.min, "aaa".to_string());
-        assert_eq!(stat.max, "z".to_string());
+        assert_eq!(stat.min, Some("aaa".to_string()));
+        assert_eq!(stat.max, Some("z".to_string()));
         assert_eq!(stat.count, 3);
 
         stat.update("p");
-        assert_eq!(stat.min, "aaa".to_string());
-        assert_eq!(stat.max, "z".to_string());
+        assert_eq!(stat.min, Some("aaa".to_string()));
+        assert_eq!(stat.max, Some("z".to_string()));
         assert_eq!(stat.count, 4);
     }
 
     #[test]
     fn stats_as_str_i64() {
-        let stat = Statistics::I64(StatValues::new(-1, 100, 1));
+        let stat = Statistics::I64(StatValues::new(Some(-1), Some(100), 1));
         assert_eq!(stat.min_as_str(), Some("-1".into()));
         assert_eq!(stat.max_as_str(), Some("100".into()));
+
+        let stat = Statistics::I64(StatValues::new(None, None, 1));
+        assert_eq!(stat.min_as_str(), None);
+        assert_eq!(stat.max_as_str(), None);
     }
 
     #[test]
     fn stats_as_str_u64() {
-        let stat = Statistics::U64(StatValues::new(1, 100, 1));
+        let stat = Statistics::U64(StatValues::new(Some(1), Some(100), 1));
         assert_eq!(stat.min_as_str(), Some("1".into()));
         assert_eq!(stat.max_as_str(), Some("100".into()));
+
+        let stat = Statistics::U64(StatValues::new(None, None, 1));
+        assert_eq!(stat.min_as_str(), None);
+        assert_eq!(stat.max_as_str(), None);
     }
 
     #[test]
     fn stats_as_str_f64() {
-        let stat = Statistics::F64(StatValues::new(99.0, 101.0, 1));
+        let stat = Statistics::F64(StatValues::new(Some(99.0), Some(101.0), 1));
         assert_eq!(stat.min_as_str(), Some("99".into()));
         assert_eq!(stat.max_as_str(), Some("101".into()));
+
+        let stat = Statistics::F64(StatValues::new(None, None, 1));
+        assert_eq!(stat.min_as_str(), None);
+        assert_eq!(stat.max_as_str(), None);
     }
 
     #[test]
     fn stats_as_str_bool() {
-        let stat = Statistics::Bool(StatValues::new(false, true, 1));
+        let stat = Statistics::Bool(StatValues::new(Some(false), Some(true), 1));
         assert_eq!(stat.min_as_str(), Some("false".into()));
         assert_eq!(stat.max_as_str(), Some("true".into()));
+
+        let stat = Statistics::Bool(StatValues::new(None, None, 1));
+        assert_eq!(stat.min_as_str(), None);
+        assert_eq!(stat.max_as_str(), None);
     }
 
     #[test]
     fn stats_as_str_str() {
-        let stat = Statistics::String(StatValues::new("a".to_string(), "zz".to_string(), 1));
+        let stat = Statistics::String(StatValues::new(
+            Some("a".to_string()),
+            Some("zz".to_string()),
+            1,
+        ));
         assert_eq!(stat.min_as_str(), Some("a".into()));
         assert_eq!(stat.max_as_str(), Some("zz".into()));
+
+        let stat = Statistics::String(StatValues::new(None, None, 1));
+        assert_eq!(stat.min_as_str(), None);
+        assert_eq!(stat.max_as_str(), None);
     }
 
     #[test]
@@ -532,8 +632,8 @@ mod tests {
         assert_eq!(
             col.stats,
             Statistics::String(StatValues {
-                min: "aaa".to_string(),
-                max: "zzz".to_string(),
+                min: Some("aaa".to_string()),
+                max: Some("zzz".to_string()),
                 count: 4
             })
         );
@@ -542,8 +642,8 @@ mod tests {
         assert_eq!(
             col.stats,
             Statistics::I64(StatValues {
-                min: 1,
-                max: 9,
+                min: Some(1),
+                max: Some(9),
                 count: 4
             })
         );
@@ -552,8 +652,8 @@ mod tests {
         assert_eq!(
             col.stats,
             Statistics::F64(StatValues {
-                min: 1.3,
-                max: 9.1,
+                min: Some(1.3),
+                max: Some(9.1),
                 count: 2
             })
         );
@@ -563,8 +663,8 @@ mod tests {
         assert_eq!(
             col.stats,
             Statistics::String(StatValues {
-                min: "aaa".to_string(),
-                max: "zzz".to_string(),
+                min: Some("aaa".to_string()),
+                max: Some("zzz".to_string()),
                 count: 4
             })
         );
@@ -573,8 +673,8 @@ mod tests {
         assert_eq!(
             col.stats,
             Statistics::I64(StatValues {
-                min: 1,
-                max: 9,
+                min: Some(1),
+                max: Some(9),
                 count: 4
             })
         );
@@ -583,8 +683,8 @@ mod tests {
         assert_eq!(
             col.stats,
             Statistics::F64(StatValues {
-                min: 1.3,
-                max: 9.1,
+                min: Some(1.3),
+                max: Some(9.1),
                 count: 2
             })
         );
@@ -647,8 +747,8 @@ mod tests {
         assert_eq!(
             col.stats,
             Statistics::String(StatValues {
-                min: "bar".to_string(),
-                max: "foo".to_string(),
+                min: Some("bar".to_string()),
+                max: Some("foo".to_string()),
                 count: 2
             })
         );
@@ -656,8 +756,8 @@ mod tests {
         assert_eq!(
             col.stats,
             Statistics::I64(StatValues {
-                min: 1,
-                max: 10,
+                min: Some(1),
+                max: Some(10),
                 count: 3
             })
         );
@@ -666,8 +766,8 @@ mod tests {
         assert_eq!(
             col.stats,
             Statistics::I64(StatValues {
-                min: 10,
-                max: 203,
+                min: Some(10),
+                max: Some(203),
                 count: 2
             })
         );
@@ -679,8 +779,8 @@ mod tests {
             name: "b".to_string(),
             influxdb_type: None,
             stats: Statistics::Bool(StatValues {
-                min: false,
-                max: false,
+                min: Some(false),
+                max: Some(false),
                 count: 1,
             }),
         };
@@ -688,15 +788,15 @@ mod tests {
             name: "b".to_string(),
             influxdb_type: None,
             stats: Statistics::Bool(StatValues {
-                min: true,
-                max: true,
+                min: Some(true),
+                max: Some(true),
                 count: 1,
             }),
         };
 
         let expected_stats = Statistics::Bool(StatValues {
-            min: false,
-            max: true,
+            min: Some(false),
+            max: Some(true),
             count: 2,
         });
 
@@ -715,8 +815,8 @@ mod tests {
             name: "foo".to_string(),
             influxdb_type: None,
             stats: Statistics::U64(StatValues {
-                min: 5,
-                max: 23,
+                min: Some(5),
+                max: Some(23),
                 count: 1,
             }),
         };
@@ -725,8 +825,8 @@ mod tests {
             name: "foo".to_string(),
             influxdb_type: None,
             stats: Statistics::U64(StatValues {
-                min: 6,
-                max: 506,
+                min: Some(6),
+                max: Some(506),
                 count: 43,
             }),
         };
@@ -734,10 +834,79 @@ mod tests {
         min.update_from(&max);
 
         let expected = Statistics::U64(StatValues {
-            min: 5,
-            max: 506,
+            min: Some(5),
+            max: Some(506),
             count: 44,
         });
         assert_eq!(min.stats, expected);
+    }
+
+    #[test]
+    fn nans() {
+        let mut stat = StatValues::default();
+        assert_eq!(stat.min, None);
+        assert_eq!(stat.max, None);
+        assert_eq!(stat.count, 0);
+
+        stat.update(&f64::NAN);
+        assert_eq!(stat.min, None);
+        assert_eq!(stat.max, None);
+        assert_eq!(stat.count, 1);
+
+        stat.update(&1.0);
+        assert_eq!(stat.min, Some(1.0));
+        assert_eq!(stat.max, Some(1.0));
+        assert_eq!(stat.count, 2);
+
+        stat.update(&2.0);
+        assert_eq!(stat.min, Some(1.0));
+        assert_eq!(stat.max, Some(2.0));
+        assert_eq!(stat.count, 3);
+
+        stat.update(&f64::INFINITY);
+        assert_eq!(stat.min, Some(1.0));
+        assert_eq!(stat.max, Some(f64::INFINITY));
+        assert_eq!(stat.count, 4);
+
+        stat.update(&-1.0);
+        assert_eq!(stat.min, Some(-1.0));
+        assert_eq!(stat.max, Some(f64::INFINITY));
+        assert_eq!(stat.count, 5);
+
+        // ===========
+
+        let mut stat = StatValues::new_with_value(2.0);
+        stat.update(&f64::INFINITY);
+        assert_eq!(stat.min, Some(2.0));
+        assert_eq!(stat.max, Some(f64::INFINITY));
+        assert_eq!(stat.count, 2);
+
+        stat.update(&f64::NAN);
+        assert_eq!(stat.min, Some(2.0));
+        assert_eq!(stat.max, Some(f64::INFINITY));
+        assert_eq!(stat.count, 3);
+
+        // ===========
+
+        let mut stat2 = StatValues::new_with_value(1.0);
+        stat2.update_from(&stat);
+        assert_eq!(stat2.min, Some(1.0));
+        assert_eq!(stat.max, Some(f64::INFINITY));
+        assert_eq!(stat2.count, 4);
+
+        // ===========
+
+        let stat2 = StatValues::new_with_value(1.0);
+        stat.update_from(&stat2);
+        assert_eq!(stat.min, Some(1.0));
+        assert_eq!(stat.max, Some(f64::INFINITY));
+        assert_eq!(stat.count, 4);
+
+        // ===========
+
+        let stat = StatValues::new_with_value(f64::NAN);
+        assert_eq!(stat.min, None);
+        assert_eq!(stat.max, None);
+        assert_eq!(stat.count, 1);
     }
 }

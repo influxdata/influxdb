@@ -307,16 +307,16 @@ fn extract_iox_statistics(
         (ParquetStatistics::Boolean(stats), InfluxColumnType::Field(InfluxFieldType::Boolean)) => {
             Ok(ExtractedStatistics::Statistics(Statistics::Bool(
                 StatValues {
-                    min: *stats.min(),
-                    max: *stats.max(),
+                    min: Some(*stats.min()),
+                    max: Some(*stats.max()),
                     count,
                 },
             )))
         }
         (ParquetStatistics::Int64(stats), InfluxColumnType::Field(InfluxFieldType::Integer)) => Ok(
             ExtractedStatistics::Statistics(Statistics::I64(StatValues {
-                min: *stats.min(),
-                max: *stats.max(),
+                min: Some(*stats.min()),
+                max: Some(*stats.max()),
                 count,
             })),
         ),
@@ -324,16 +324,16 @@ fn extract_iox_statistics(
             // TODO: that's very likely wrong, but blocked by https://github.com/apache/arrow-rs/issues/254
             Ok(ExtractedStatistics::Statistics(Statistics::U64(
                 StatValues {
-                    min: *stats.min() as u64,
-                    max: *stats.max() as u64,
+                    min: Some(*stats.min() as u64),
+                    max: Some(*stats.max() as u64),
                     count,
                 },
             )))
         }
         (ParquetStatistics::Double(stats), InfluxColumnType::Field(InfluxFieldType::Float)) => Ok(
             ExtractedStatistics::Statistics(Statistics::F64(StatValues {
-                min: *stats.min(),
-                max: *stats.max(),
+                min: Some(*stats.min()),
+                max: Some(*stats.max()),
                 count,
             })),
         ),
@@ -344,22 +344,26 @@ fn extract_iox_statistics(
         | (ParquetStatistics::ByteArray(stats), InfluxColumnType::Field(InfluxFieldType::String)) => {
             Ok(ExtractedStatistics::Statistics(Statistics::String(
                 StatValues {
-                    min: stats
-                        .min()
-                        .as_utf8()
-                        .context(StatisticsUtf8Error {
-                            row_group: row_group_idx,
-                            column: column_name.to_string(),
-                        })?
-                        .to_string(),
-                    max: stats
-                        .max()
-                        .as_utf8()
-                        .context(StatisticsUtf8Error {
-                            row_group: row_group_idx,
-                            column: column_name.to_string(),
-                        })?
-                        .to_string(),
+                    min: Some(
+                        stats
+                            .min()
+                            .as_utf8()
+                            .context(StatisticsUtf8Error {
+                                row_group: row_group_idx,
+                                column: column_name.to_string(),
+                            })?
+                            .to_string(),
+                    ),
+                    max: Some(
+                        stats
+                            .max()
+                            .as_utf8()
+                            .context(StatisticsUtf8Error {
+                                row_group: row_group_idx,
+                                column: column_name.to_string(),
+                            })?
+                            .to_string(),
+                    ),
                     count,
                 },
             )))
