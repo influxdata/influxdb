@@ -16,6 +16,7 @@ use arrow::array::{Array, StringArray};
 use crate::column::dictionary::NULL_ID;
 use crate::column::{cmp, RowIDs};
 
+pub const ENCODING_NAME: &str = "DICT";
 pub struct Plain {
     // The sorted set of logical values that are contained within this column
     // encoding. Entries always contains None, which is used to reserve the
@@ -85,6 +86,16 @@ impl Plain {
         } else {
             self.entries.len() as u32 - 1
         }
+    }
+
+    /// The number of NULL values in this column.
+    ///
+    /// TODO(edd): this can be made O(1) by storing null_count on self.
+    pub fn null_count(&self) -> u32 {
+        self.encoded_data
+            .iter()
+            .filter(|&&id| id == NULL_ID)
+            .count() as u32
     }
 
     /// Adds the provided string value to the encoded data. It is the caller's
@@ -799,7 +810,8 @@ impl std::fmt::Display for Plain {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[Dictionary] size: {:?} rows: {:?} cardinality: {}",
+            "[{}] size: {:?} rows: {:?} cardinality: {}",
+            ENCODING_NAME,
             self.size(),
             self.num_rows(),
             self.cardinality(),
@@ -862,6 +874,23 @@ mod test {
             enc.encoded_data,
             vec![1, 1, 1, 2, 1, 1, 1, 1, 1, 3, 3, NULL_ID, NULL_ID, NULL_ID, NULL_ID]
         );
+    }
+
+    #[test]
+    fn null_count() {
+        let mut enc = Plain::default();
+        enc.push_additional(Some("east".to_string()), 3);
+        assert_eq!(enc.null_count(), 0);
+
+        enc.push_additional(Some("west".to_string()), 1);
+        assert_eq!(enc.null_count(), 0);
+
+        enc.push_none();
+        assert_eq!(enc.null_count(), 1);
+
+        enc.push_none();
+        enc.push_none();
+        assert_eq!(enc.null_count(), 3);
     }
 
     #[test]
