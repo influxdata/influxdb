@@ -15,7 +15,7 @@ use arrow::array::Array;
 use crate::schema::LogicalDataType;
 use crate::value::{EncodedValues, OwnedValue, Scalar, Value, Values};
 use boolean::BooleanEncoding;
-use encoding::{bool, fixed_null, string::NULL_ID};
+use encoding::{bool, scalar};
 use float::FloatEncoding;
 use integer::IntegerEncoding;
 use string::StringEncoding;
@@ -1068,7 +1068,7 @@ impl From<arrow::array::Float64Array> for Column {
             _ => unreachable!("min/max must both be Some or None"),
         };
 
-        let data = fixed_null::FixedNull::<arrow::datatypes::Float64Type>::from(arr);
+        let data = scalar::FixedNull::<arrow::datatypes::Float64Type>::from(arr);
         let meta = MetaData {
             range,
             ..MetaData::default()
@@ -1334,6 +1334,7 @@ pub(crate) struct Statistics {
 mod test {
     use super::*;
     use arrow::array::{Int64Array, StringArray};
+    use encoding::string::NULL_ID;
 
     #[test]
     fn row_ids_intersect() {

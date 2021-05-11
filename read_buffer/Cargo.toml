@@ -42,7 +42,7 @@ name = "sum_fixed"
 harness = false
 
 [[bench]]
-name = "dictionary"
+name = "string"
 harness = false
 
 [[bench]]
