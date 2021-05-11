@@ -9,7 +9,7 @@ mod table;
 mod value;
 
 // Identifiers that are exported as part of the public API.
-pub use chunk::{Chunk, Error};
+pub use chunk::{Chunk, ChunkMetrics, Error};
 pub use row_group::{BinaryExpr, Predicate};
 pub use schema::*;
 pub use table::ReadFilterResults;

@@ -4,6 +4,14 @@ use hashbrown::HashMap;
 
 use crate::string::PackedStringArray;
 use num_traits::{AsPrimitive, FromPrimitive, Zero};
+use snafu::Snafu;
+use std::convert::TryFrom;
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("duplicate key found {}", key))]
+    DuplicateKeyFound { key: String },
+}
 
 /// A String dictionary that builds on top of `PackedStringArray` adding O(1)
 /// index lookups for a given string
@@ -88,6 +96,10 @@ impl<K: AsPrimitive<usize> + FromPrimitive + Zero> StringDictionary<K> {
     pub fn values(&self) -> &PackedStringArray<K> {
         &self.storage
     }
+
+    pub fn into_inner(self) -> PackedStringArray<K> {
+        self.storage
+    }
 }
 
 fn hash_str(hasher: &ahash::RandomState, value: &str) -> u64 {
@@ -97,9 +109,54 @@ fn hash_str(hasher: &ahash::RandomState, value: &str) -> u64 {
     state.finish()
 }
 
+impl<K> TryFrom<PackedStringArray<K>> for StringDictionary<K>
+where
+    K: AsPrimitive<usize> + FromPrimitive + Zero,
+{
+    type Error = Error;
+
+    fn try_from(storage: PackedStringArray<K>) -> Result<Self, Error> {
+        use hashbrown::hash_map::RawEntryMut;
+
+        let hasher = ahash::RandomState::new();
+        let mut dedup: HashMap<K, (), ()> = HashMap::with_capacity_and_hasher(storage.len(), ());
+        for (idx, value) in storage.iter().enumerate() {
+            let hash = hash_str(&hasher, value);
+
+            let entry = dedup
+                .raw_entry_mut()
+                .from_hash(hash, |key| value == storage.get(key.as_()).unwrap());
+
+            match entry {
+                RawEntryMut::Occupied(_) => {
+                    return Err(Error::DuplicateKeyFound {
+                        key: value.to_string(),
+                    })
+                }
+                RawEntryMut::Vacant(entry) => {
+                    let key =
+                        K::from_usize(idx).expect("failed to fit string index into dictionary key");
+
+                    entry.insert_with_hasher(hash, key, (), |key| {
+                        let string = storage.get(key.as_()).unwrap();
+                        hash_str(&hasher, string)
+                    });
+                }
+            }
+        }
+
+        Ok(Self {
+            hash: hasher,
+            dedup,
+            storage,
+        })
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::convert::TryInto;
 
     #[test]
     fn test_dictionary() {
@@ -129,5 +186,35 @@ mod test {
         assert!(dictionary.lookup_value("foo").is_none());
         assert!(dictionary.lookup_id(-1).is_none());
         assert_eq!(arrow_expected, arrow_actual);
+    }
+
+    #[test]
+    fn from_string_array() {
+        let mut data = PackedStringArray::<u64>::new();
+        data.append("cupcakes");
+        data.append("foo");
+        data.append("bingo");
+
+        let dictionary: StringDictionary<_> = data.try_into().unwrap();
+
+        assert_eq!(dictionary.lookup_value("cupcakes"), Some(0));
+        assert_eq!(dictionary.lookup_value("foo"), Some(1));
+        assert_eq!(dictionary.lookup_value("bingo"), Some(2));
+
+        assert_eq!(dictionary.lookup_id(0), Some("cupcakes"));
+        assert_eq!(dictionary.lookup_id(1), Some("foo"));
+        assert_eq!(dictionary.lookup_id(2), Some("bingo"));
+    }
+
+    #[test]
+    fn from_string_array_duplicates() {
+        let mut data = PackedStringArray::<u64>::new();
+        data.append("cupcakes");
+        data.append("foo");
+        data.append("bingo");
+        data.append("cupcakes");
+
+        let err = TryInto::<StringDictionary<_>>::try_into(data).expect_err("expected failure");
+        assert!(matches!(err, Error::DuplicateKeyFound { key } if &key == "cupcakes"))
     }
 }
