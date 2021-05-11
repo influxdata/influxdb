@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::{
     column,
     column::Column,
-    dictionary::{Dictionary, Error as DictionaryError, DID},
+    dictionary::{Dictionary, DID},
 };
 use data_types::{
     partition_metadata::{ColumnSummary, InfluxDbType},
@@ -41,10 +41,7 @@ pub enum Error {
     ColumnNameNotFoundInDictionary { column_name: String },
 
     #[snafu(display("Internal: Column id '{}' not found in dictionary", column_id,))]
-    ColumnIdNotFoundInDictionary {
-        column_id: DID,
-        source: DictionaryError,
-    },
+    ColumnIdNotFoundInDictionary { column_id: DID },
 
     #[snafu(display("arrow conversion error: {}", source))]
     ArrowError { source: arrow::error::ArrowError },
@@ -231,7 +228,7 @@ impl Table {
             .iter()
             .map(|&column_name| {
                 let column_id = dictionary
-                    .id(column_name)
+                    .lookup_value(column_name)
                     .context(ColumnNameNotFoundInDictionary { column_name })?;
 
                 Ok(ColSelection {
@@ -285,7 +282,7 @@ impl Table {
         dictionary: &Dictionary,
         selection: &TableColSelection<'_>,
     ) -> Result<RecordBatch> {
-        let encoded_dictionary = dictionary.to_arrow();
+        let encoded_dictionary = dictionary.values().to_arrow();
         let columns = selection
             .cols
             .iter()

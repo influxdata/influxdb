@@ -8,4 +8,10 @@ description = "Apache Arrow utilities"
 [dependencies]
 
 arrow = { path = "../arrow" }
+ahash = "0.7.2"
+num-traits = "0.2"
 futures = "0.3"
+hashbrown = "0.11"
+
+[dev-dependencies]
+rand = "0.8.3"

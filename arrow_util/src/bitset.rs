@@ -4,7 +4,7 @@ use arrow::buffer::Buffer;
 ///
 /// Note: This currently operates on individual bytes at a time
 /// it could be optimised to instead operate on usize blocks
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BitSet {
     /// The underlying data
     ///
@@ -18,10 +18,7 @@ pub struct BitSet {
 impl BitSet {
     /// Creates a new BitSet
     pub fn new() -> Self {
-        Self {
-            buffer: Default::default(),
-            len: 0,
-        }
+        Self::default()
     }
 
     /// Appends `count` unset bits
@@ -98,6 +95,11 @@ impl BitSet {
     /// Returns the number of values stored in the bitset
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    /// Returns if this bitset is empty
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
     }
 
     /// Returns the number of bytes used by this bitset

@@ -15,11 +15,10 @@ edition = "2018"
 
 [dependencies] # In alphabetical order
 arrow = { path = "../arrow" }
-ahash = "0.7.2"
+arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 data_types = { path = "../data_types" }
 entry = { path = "../entry" }
-hashbrown = "0.11"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 internal_types = { path = "../internal_types" }
 observability_deps = { path = "../observability_deps" }
@@ -33,7 +32,6 @@ arrow_util = { path = "../arrow_util" }
 test_helpers = { path = "../test_helpers" }
 criterion = "0.3"
 flate2 = "1.0.20"
-rand = "0.8.3"
 
 [features]
 default = []

@@ -6,7 +6,8 @@ use std::{
     sync::Arc,
 };
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use parking_lot::Mutex;
+use snafu::{ResultExt, Snafu};
 
 use arrow::record_batch::RecordBatch;
 use data_types::{partition_metadata::TableSummary, server_id::ServerId};
@@ -15,11 +16,8 @@ use internal_types::selection::Selection;
 use tracker::{MemRegistry, MemTracker};
 
 use crate::chunk::snapshot::ChunkSnapshot;
-use crate::{
-    dictionary::{Dictionary, Error as DictionaryError, DID},
-    table::Table,
-};
-use parking_lot::Mutex;
+use crate::dictionary::{Dictionary, DID};
+use crate::table::Table;
 
 pub mod snapshot;
 
@@ -41,22 +39,14 @@ pub enum Error {
     TableNotFoundInChunk { table: DID, chunk: u64 },
 
     #[snafu(display("Column ID {} not found in dictionary of chunk {}", column_id, chunk))]
-    ColumnIdNotFoundInDictionary {
-        column_id: DID,
-        chunk: u64,
-        source: DictionaryError,
-    },
+    ColumnIdNotFoundInDictionary { column_id: DID, chunk: u64 },
 
     #[snafu(display(
         "Column name {} not found in dictionary of chunk {}",
         column_name,
         chunk_id
     ))]
-    ColumnNameNotFoundInDictionary {
-        column_name: String,
-        chunk_id: u64,
-        source: DictionaryError,
-    },
+    ColumnNameNotFoundInDictionary { column_name: String, chunk_id: u64 },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -69,7 +59,6 @@ pub struct Chunk {
     /// `dictionary` maps &str -> DID. The DIDs are used in place of String or
     /// str to avoid slow string operations. The same dictionary is used for
     /// table names, tag names, tag values, and column names.
-    // TODO: intern string field values too?
     dictionary: Dictionary,
 
     /// map of the dictionary ID for the table name to the table
@@ -178,7 +167,7 @@ impl Chunk {
         table_name: &str,
         selection: Selection<'_>,
     ) -> Result<()> {
-        if let Some(table) = self.table(table_name)? {
+        if let Some(table) = self.table(table_name) {
             dst.push(
                 table
                     .to_arrow(&self.dictionary, selection)
@@ -207,17 +196,10 @@ impl Chunk {
     }
 
     /// Returns the named table, or None if no such table exists in this chunk
-    fn table(&self, table_name: &str) -> Result<Option<&Table>> {
-        let table_id = self.dictionary.lookup_value(table_name);
-
-        let table = match table_id {
-            Ok(table_id) => Some(self.tables.get(&table_id).context(TableNotFoundInChunk {
-                table: table_id,
-                chunk: self.id,
-            })?),
-            Err(_) => None,
-        };
-        Ok(table)
+    fn table(&self, table_name: &str) -> Option<&Table> {
+        self.dictionary
+            .lookup_value(table_name)
+            .and_then(|value| self.tables.get(&value))
     }
 
     /// Return the approximate memory size of the chunk, in bytes including the
@@ -253,13 +235,14 @@ impl Chunk {
 
     /// Return true if this chunk has the specified table name
     pub fn has_table(&self, table_name: &str) -> bool {
-        matches!(self.table(table_name), Ok(Some(_)))
+        self.table(table_name).is_some()
     }
 }
 
 pub mod test_helpers {
-    use super::*;
     use entry::test_helpers::lp_to_entry;
+
+    use super::*;
 
     /// A helper that will write line protocol string to the passed in Chunk.
     /// All data will be under a single partition with a clock value and
@@ -281,9 +264,10 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
-    use super::test_helpers::write_lp_to_chunk;
     use super::*;
     use arrow_util::assert_batches_eq;
+
+    use super::test_helpers::write_lp_to_chunk;
 
     #[test]
     fn writes_table_batches() {

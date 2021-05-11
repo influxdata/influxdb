@@ -159,8 +159,12 @@ dependencies = [
 name = "arrow_util"
 version = "0.1.0"
 dependencies = [
+ "ahash",
  "arrow 0.1.0",
  "futures",
+ "hashbrown 0.11.2",
+ "num-traits",
+ "rand 0.8.3",
 ]
 
 [[package]]
@@ -1957,7 +1961,6 @@ dependencies = [
 name = "mutable_buffer"
 version = "0.1.0"
 dependencies = [
- "ahash",
  "arrow 0.1.0",
  "arrow_util",
  "async-trait",
@@ -1965,12 +1968,10 @@ dependencies = [
  "data_types",
  "entry",
  "flate2",
- "hashbrown 0.11.2",
  "influxdb_line_protocol",
  "internal_types",
  "observability_deps",
  "parking_lot",
- "rand 0.8.3",
  "snafu",
  "test_helpers",
  "tokio",
