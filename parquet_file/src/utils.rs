@@ -169,7 +169,7 @@ async fn make_chunk_common(
     } else {
         Box::pin(MemoryStream::new(record_batches))
     };
-    let path = storage
+    let (path, _metadata) = storage
         .write_to_object_store(
             part_key.to_string(),
             chunk_id,
