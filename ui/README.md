@@ -2,8 +2,9 @@
 
 UI assets for InfluxDB are automatically downloaded and embedded in the `influxd` binary
 when using the top-level `Makefile`. The UI assets are built and made available from
-the [`influxdata/ui` repository](https://github.com/influxdata/ui). Currently, this `ui`
-folder and its contents are being kept to preserve the ability to run end-to-end tests via Cypress in this repository against the built UI when changes are made to `influxdb`.
+the [`influxdata/ui` repository](https://github.com/influxdata/ui). All of the UI source code
+has been removed from this directory, and now lives in the [`influxdata/ui` repository](https://github.com/influxdata/ui).
+Please submit all PRs and issues related to the InfluxDB UI to the [`influxdata/ui` repository](https://github.com/influxdata/ui).
 
 ### Starting a Local Development Environment
 
@@ -39,17 +40,3 @@ if the `ui` folder containing built assets is at the same level as the `influxdb
 and the `influxd` binary is at `influxdb/bin/darwin/influxd`:
 
 `$ ./bin/darwin/influxd --assets-path=../ui/build`
-
-### Cypress Testing
-
-For the end to end tests to run properly, the server needs to be running in the e2e testing mode with the in-memory data store. From the `influxdb` directory:
-
-`$ ./bin/darwin/influxd --e2e-testing --store=memory`
-
-From the ui directory, install the packages necessary for testing:
-
-`$ yarn install`
-
- To run Cypress locally:
-
-`$ yarn cy`
