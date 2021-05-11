@@ -382,6 +382,7 @@ pub struct TableBatch<'a> {
 }
 
 impl<'a> TableBatch<'a> {
+    /// The name of the table stored in this table batch
     pub fn name(&self) -> &str {
         self.fb
             .name()

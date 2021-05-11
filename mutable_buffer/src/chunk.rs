@@ -1,10 +1,4 @@
-//! Represents a Chunk of data (a collection of tables and their data within
-//! some chunk) in the mutable store.
-use std::{
-    collections::{BTreeSet, HashMap},
-    convert::TryFrom,
-    sync::Arc,
-};
+use std::{collections::BTreeSet, convert::TryFrom, sync::Arc};
 
 use parking_lot::Mutex;
 use snafu::{ResultExt, Snafu};
@@ -51,6 +45,8 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Represents a Chunk of data (a horizontal subset of a table) in
+/// the mutable store.
 #[derive(Debug)]
 pub struct Chunk {
     /// The id for this chunk
@@ -61,8 +57,11 @@ pub struct Chunk {
     /// table names, tag names, tag values, and column names.
     dictionary: Dictionary,
 
-    /// map of the dictionary ID for the table name to the table
-    tables: HashMap<DID, Table>,
+    /// The name of this table
+    table_name: Arc<str>,
+
+    /// The table stored in this chunk
+    table: Table,
 
     /// keep track of memory used by chunk
     tracker: MemTracker,
@@ -75,11 +74,17 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub fn new(id: u32, memory_registry: &MemRegistry) -> Self {
+    pub fn new(id: u32, table_name: impl AsRef<str>, memory_registry: &MemRegistry) -> Self {
+        let table_name = table_name.as_ref();
+        let mut dictionary = Dictionary::new();
+        let table_id = dictionary.lookup_value_or_insert(table_name);
+        let table_name = Arc::from(table_name);
+
         let mut chunk = Self {
             id,
-            dictionary: Dictionary::new(),
-            tables: HashMap::new(),
+            dictionary,
+            table_name,
+            table: Table::new(table_id),
             tracker: memory_registry.register(),
             snapshot: Mutex::new(None),
         };
@@ -87,26 +92,26 @@ impl Chunk {
         chunk
     }
 
-    pub fn write_table_batches(
+    /// Write the contents of a [`TableBatch`] into this Chunk.
+    ///
+    /// Panics if the batch specifies a different name for the table in this Chunk
+    pub fn write_table_batch(
         &mut self,
         clock_value: ClockValue,
         server_id: ServerId,
-        batches: &[TableBatch<'_>],
+        batch: TableBatch<'_>,
     ) -> Result<()> {
-        for batch in batches {
-            let table_name = batch.name();
-            let table_id = self.dictionary.lookup_value_or_insert(table_name);
+        let table_name = batch.name();
+        assert_eq!(
+            table_name,
+            self.table_name.as_ref(),
+            "can only insert table batch for a single table to chunk"
+        );
 
-            let table = self
-                .tables
-                .entry(table_id)
-                .or_insert_with(|| Table::new(table_id));
-
-            let columns = batch.columns();
-            table
-                .write_columns(&mut self.dictionary, clock_value, server_id, columns)
-                .context(TableWrite { table_name })?;
-        }
+        let columns = batch.columns();
+        self.table
+            .write_columns(&mut self.dictionary, clock_value, server_id, columns)
+            .context(TableWrite { table_name })?;
 
         // Invalidate chunk snapshot
         *self
@@ -119,13 +124,10 @@ impl Chunk {
         Ok(())
     }
 
-    // Add all tables names in this chunk to `names` if they are not already present
+    // Add the table name in this chunk to `names` if it is not already present
     pub fn all_table_names(&self, names: &mut BTreeSet<String>) {
-        for &table_id in self.tables.keys() {
-            let table_name = self.dictionary.lookup_id(table_id).unwrap();
-            if !names.contains(table_name) {
-                names.insert(table_name.to_string());
-            }
+        if !names.contains(self.table_name.as_ref()) {
+            names.insert(self.table_name.to_string());
         }
     }
 
@@ -149,10 +151,10 @@ impl Chunk {
         Arc::new(ChunkSnapshot::new(self))
     }
 
-    /// returns true if there is no data in this chunk
-    pub fn is_empty(&self) -> bool {
-        self.tables.is_empty()
-    }
+    // /// returns true if there is no data in this chunk
+    // pub fn is_empty(&self) -> bool {
+    //     self.tables.is_empty()
+    // }
 
     /// return the ID of this chunk
     pub fn id(&self) -> u32 {
@@ -164,49 +166,30 @@ impl Chunk {
     pub fn table_to_arrow(
         &self,
         dst: &mut Vec<RecordBatch>,
-        table_name: &str,
         selection: Selection<'_>,
     ) -> Result<()> {
-        if let Some(table) = self.table(table_name) {
-            dst.push(
-                table
-                    .to_arrow(&self.dictionary, selection)
-                    .context(NamedTableError { table_name })?,
-            );
-        }
+        dst.push(
+            self.table
+                .to_arrow(&self.dictionary, selection)
+                .context(NamedTableError {
+                    table_name: self.table_name.as_ref(),
+                })?,
+        );
         Ok(())
     }
 
     /// Returns a vec of the summary statistics of the tables in this chunk
-    pub fn table_summaries(&self) -> Vec<TableSummary> {
-        self.tables
-            .iter()
-            .map(|(&table_id, table)| {
-                let name = self
-                    .dictionary
-                    .lookup_id(table_id)
-                    .expect("table name not found in dictionary");
-
-                TableSummary {
-                    name: name.to_string(),
-                    columns: table.stats(&self.dictionary),
-                }
-            })
-            .collect()
-    }
-
-    /// Returns the named table, or None if no such table exists in this chunk
-    fn table(&self, table_name: &str) -> Option<&Table> {
-        self.dictionary
-            .lookup_value(table_name)
-            .and_then(|value| self.tables.get(&value))
+    pub fn table_summary(&self) -> TableSummary {
+        TableSummary {
+            name: self.table_name.to_string(),
+            columns: self.table.stats(&self.dictionary),
+        }
     }
 
     /// Return the approximate memory size of the chunk, in bytes including the
     /// dictionary, tables, and their rows.
     pub fn size(&self) -> usize {
-        let data_size: usize = self.tables.values().map(|t| t.size()).sum();
-        data_size + self.dictionary.size()
+        self.table.size() + self.dictionary.size()
     }
 
     /// Returns an iterator over (column_name, estimated_size) for all
@@ -215,9 +198,8 @@ impl Chunk {
     /// NOTE: also returns a special "__dictionary" column with the size of
     /// the dictionary that is shared across all columns in this chunk
     pub fn column_sizes(&self) -> impl Iterator<Item = (&str, usize)> + '_ {
-        self.tables
-            .values()
-            .flat_map(|t| t.column_sizes())
+        self.table
+            .column_sizes()
             .map(move |(did, sz)| {
                 let column_name = self
                     .dictionary
@@ -230,12 +212,12 @@ impl Chunk {
 
     /// Return the number of rows in this chunk
     pub fn rows(&self) -> usize {
-        self.tables.values().map(|t| t.row_count()).sum()
+        self.table.row_count()
     }
 
     /// Return true if this chunk has the specified table name
     pub fn has_table(&self, table_name: &str) -> bool {
-        self.table(table_name).is_some()
+        table_name == self.table_name.as_ref()
     }
 }
 
@@ -251,11 +233,24 @@ pub mod test_helpers {
         let entry = lp_to_entry(lp);
 
         for w in entry.partition_writes().unwrap() {
-            chunk.write_table_batches(
-                ClockValue::try_from(5).unwrap(),
-                ServerId::try_from(1).unwrap(),
-                &w.table_batches(),
-            )?;
+            let table_batches = w.table_batches();
+            // ensure they are all to the same table
+            let table_names: BTreeSet<String> =
+                table_batches.iter().map(|b| b.name().to_string()).collect();
+
+            assert!(
+                table_names.len() <= 1,
+                "Can only write 0 or one tables to chunk. Found {:?}",
+                table_names
+            );
+
+            for batch in table_batches {
+                chunk.write_table_batch(
+                    ClockValue::try_from(5).unwrap(),
+                    ServerId::try_from(1).unwrap(),
+                    batch,
+                )?;
+            }
         }
 
         Ok(())
@@ -272,14 +267,9 @@ mod tests {
     #[test]
     fn writes_table_batches() {
         let mr = MemRegistry::new();
-        let mut chunk = Chunk::new(1, &mr);
+        let mut chunk = Chunk::new(1, "cpu", &mr);
 
-        let lp = vec![
-            "cpu,host=a val=23 1",
-            "cpu,host=b val=2 1",
-            "mem,host=a val=23432i 1",
-        ]
-        .join("\n");
+        let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
 
         write_lp_to_chunk(&lp, &mut chunk).unwrap();
 
@@ -292,41 +282,24 @@ mod tests {
                 "| b    | 1970-01-01 00:00:00.000000001 | 2   |",
                 "+------+-------------------------------+-----+",
             ],
-            &chunk_to_batches(&chunk, "cpu")
-        );
-
-        assert_batches_eq!(
-            vec![
-                "+------+-------------------------------+-------+",
-                "| host | time                          | val   |",
-                "+------+-------------------------------+-------+",
-                "| a    | 1970-01-01 00:00:00.000000001 | 23432 |",
-                "+------+-------------------------------+-------+",
-            ],
-            &chunk_to_batches(&chunk, "mem")
+            &chunk_to_batches(&chunk)
         );
     }
 
     #[test]
     fn writes_table_3_batches() {
         let mr = MemRegistry::new();
-        let mut chunk = Chunk::new(1, &mr);
+        let mut chunk = Chunk::new(1, "cpu", &mr);
 
-        let lp = vec![
-            "cpu,host=a val=23 1",
-            "cpu,host=b val=2 1",
-            "mem,host=a val=23432i 1",
-        ]
-        .join("\n");
+        let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
 
         write_lp_to_chunk(&lp, &mut chunk).unwrap();
 
-        let lp = vec![
-            "cpu,host=c val=11 1",
-            "mem sval=\"hi\" 2",
-            "disk val=true 1",
-        ]
-        .join("\n");
+        let lp = vec!["cpu,host=c val=11 1"].join("\n");
+
+        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+
+        let lp = vec!["cpu,host=a val=14 2"].join("\n");
 
         write_lp_to_chunk(&lp, &mut chunk).unwrap();
 
@@ -338,46 +311,19 @@ mod tests {
                 "| a    | 1970-01-01 00:00:00.000000001 | 23  |",
                 "| b    | 1970-01-01 00:00:00.000000001 | 2   |",
                 "| c    | 1970-01-01 00:00:00.000000001 | 11  |",
+                "| a    | 1970-01-01 00:00:00.000000002 | 14  |",
                 "+------+-------------------------------+-----+",
             ],
-            &chunk_to_batches(&chunk, "cpu")
-        );
-
-        assert_batches_eq!(
-            vec![
-                "+-------------------------------+------+",
-                "| time                          | val  |",
-                "+-------------------------------+------+",
-                "| 1970-01-01 00:00:00.000000001 | true |",
-                "+-------------------------------+------+",
-            ],
-            &chunk_to_batches(&chunk, "disk")
-        );
-
-        assert_batches_eq!(
-            vec![
-                "+------+------+-------------------------------+-------+",
-                "| host | sval | time                          | val   |",
-                "+------+------+-------------------------------+-------+",
-                "| a    |      | 1970-01-01 00:00:00.000000001 | 23432 |",
-                "|      | hi   | 1970-01-01 00:00:00.000000002 |       |",
-                "+------+------+-------------------------------+-------+",
-            ],
-            &chunk_to_batches(&chunk, "mem")
+            &chunk_to_batches(&chunk)
         );
     }
 
     #[test]
     fn test_snapshot() {
         let mr = MemRegistry::new();
-        let mut chunk = Chunk::new(1, &mr);
+        let mut chunk = Chunk::new(1, "cpu", &mr);
 
-        let lp = vec![
-            "cpu,host=a val=23 1",
-            "cpu,host=b val=2 1",
-            "mem,host=a val=23432i 1",
-        ]
-        .join("\n");
+        let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
 
         write_lp_to_chunk(&lp, &mut chunk).unwrap();
         let s1 = chunk.snapshot();
@@ -392,11 +338,9 @@ mod tests {
         assert_eq!(Arc::as_ptr(&s3), Arc::as_ptr(&s4));
     }
 
-    fn chunk_to_batches(chunk: &Chunk, table: &str) -> Vec<RecordBatch> {
+    fn chunk_to_batches(chunk: &Chunk) -> Vec<RecordBatch> {
         let mut batches = vec![];
-        chunk
-            .table_to_arrow(&mut batches, table, Selection::All)
-            .unwrap();
+        chunk.table_to_arrow(&mut batches, Selection::All).unwrap();
         batches
     }
 }

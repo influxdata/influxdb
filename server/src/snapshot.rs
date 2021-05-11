@@ -1,5 +1,3 @@
-//! This module contains code for snapshotting a database chunk to Parquet
-//! files in object storage.
 use data_types::partition_metadata::{PartitionSummary, TableSummary};
 use internal_types::selection::Selection;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
@@ -47,6 +45,8 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Code for snapshotting a database chunk to a Parquet
+/// file in object storage.
 #[derive(Debug)]
 pub struct Snapshot<T>
 where
@@ -71,20 +71,15 @@ where
         data_path: object_store::path::Path,
         store: Arc<ObjectStore>,
         partition: Arc<T>,
-        tables: Vec<TableSummary>,
+        table: TableSummary,
     ) -> Self {
-        let table_states = vec![TableState::NotStarted; tables.len()];
-
-        let status = Status {
-            table_states,
-            ..Default::default()
-        };
+        let status = Status::new(TableState::NotStarted);
 
         Self {
             id: Uuid::new_v4(),
             partition_summary: PartitionSummary {
                 key: partition_key.into(),
-                tables,
+                tables: vec![table],
             },
             metadata_path,
             data_path,
@@ -94,26 +89,16 @@ where
         }
     }
 
-    // returns the position of the next table
-    fn next_table(&self) -> Option<(usize, &str)> {
+    fn mark_table_running(&self) {
         let mut status = self.status.lock();
-
-        status
-            .table_states
-            .iter()
-            .position(|s| s == &TableState::NotStarted)
-            .map(|pos| {
-                status.table_states[pos] = TableState::Running;
-                (pos, &*self.partition_summary.tables[pos].name)
-            })
+        if status.table_state == TableState::NotStarted {
+            status.table_state = TableState::Running;
+        }
     }
 
-    fn mark_table_finished(&self, position: usize) {
+    fn mark_table_finished(&self) {
         let mut status = self.status.lock();
-
-        if status.table_states.len() > position {
-            status.table_states[position] = TableState::Finished;
-        }
+        status.table_state = TableState::Finished;
     }
 
     fn mark_meta_written(&self) {
@@ -124,10 +109,7 @@ where
     pub fn finished(&self) -> bool {
         let status = self.status.lock();
 
-        status
-            .table_states
-            .iter()
-            .all(|state| matches!(state, TableState::Finished))
+        matches!(status.table_state, TableState::Finished)
     }
 
     fn should_stop(&self) -> bool {
@@ -136,28 +118,30 @@ where
     }
 
     async fn run(&self, notify: Option<oneshot::Sender<()>>) -> Result<()> {
-        while let Some((pos, table_name)) = self.next_table() {
-            // get all the data in this chunk:
-            let stream = self
-                .chunk
-                .read_filter(table_name, &EMPTY_PREDICATE, Selection::All)
-                .map_err(|e| Box::new(e) as _)
-                .context(PartitionError)?;
+        self.mark_table_running();
 
-            let schema = stream.schema();
+        // get all the data in this chunk:
+        let table_name = self.partition_summary.tables[0].name.as_ref();
 
-            let mut location = self.data_path.clone();
-            let file_name = format!("{}.parquet", table_name);
-            location.set_file_name(&file_name);
-            let data = parquet_file::storage::Storage::parquet_stream_to_bytes(stream, schema)
-                .await
-                .context(ParquetStreamToByte)?;
-            self.write_to_object_store(data, &location).await?;
-            self.mark_table_finished(pos);
+        let stream = self
+            .chunk
+            .read_filter(table_name, &EMPTY_PREDICATE, Selection::All)
+            .map_err(|e| Box::new(e) as _)
+            .context(PartitionError)?;
 
-            if self.should_stop() {
-                return StoppedEarly.fail();
-            }
+        let schema = stream.schema();
+
+        let mut location = self.data_path.clone();
+        let file_name = format!("{}.parquet", table_name);
+        location.set_file_name(&file_name);
+        let data = parquet_file::storage::Storage::parquet_stream_to_bytes(stream, schema)
+            .await
+            .context(ParquetStreamToByte)?;
+        self.write_to_object_store(data, &location).await?;
+        self.mark_table_finished();
+
+        if self.should_stop() {
+            return StoppedEarly.fail();
         }
 
         let mut partition_meta_path = self.metadata_path.clone();
@@ -218,12 +202,23 @@ pub enum TableState {
     Finished,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Status {
-    table_states: Vec<TableState>,
+    table_state: TableState,
     meta_written: bool,
     stop_on_next_update: bool,
     error: Option<Error>,
+}
+
+impl Status {
+    fn new(table_state: TableState) -> Self {
+        Self {
+            table_state,
+            meta_written: false,
+            stop_on_next_update: false,
+            error: None,
+        }
+    }
 }
 
 pub fn snapshot_chunk<T>(
@@ -244,7 +239,7 @@ where
         data_path,
         store,
         chunk,
-        vec![table_stats],
+        table_stats,
     );
     let snapshot = Arc::new(snapshot);
 
@@ -268,15 +263,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        db::{test_helpers::write_lp, DbChunk},
-        query_tests::utils::TestDb,
-    };
+    use crate::{db::test_helpers::write_lp, query_tests::utils::TestDb};
     use futures::TryStreamExt;
-    use mutable_buffer::chunk::Chunk as ChunkWB;
     use object_store::memory::InMemory;
     use query::{predicate::Predicate, Database};
-    use tracker::MemRegistry;
 
     #[tokio::test]
     async fn snapshot() {
@@ -332,58 +322,6 @@ cpu,host=B,region=east user=10.0,system=74.1 1
 
         let meta: PartitionSummary = serde_json::from_slice(&*summary).unwrap();
         assert_eq!(meta, snapshot.partition_summary);
-    }
-
-    #[test]
-    fn snapshot_states() {
-        let tables = vec![
-            TableSummary {
-                name: "foo".to_string(),
-                columns: vec![],
-            },
-            TableSummary {
-                name: "bar".to_string(),
-                columns: vec![],
-            },
-            TableSummary {
-                name: "asdf".to_string(),
-                columns: vec![],
-            },
-        ];
-
-        let registry = MemRegistry::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let chunk = Arc::new(DbChunk::MutableBuffer {
-            chunk: ChunkWB::new(11, &registry).snapshot(),
-        });
-        let mut metadata_path = store.new_path();
-        metadata_path.push_dir("meta");
-
-        let mut data_path = store.new_path();
-        data_path.push_dir("data");
-
-        let snapshot = Snapshot::new("testaroo", metadata_path, data_path, store, chunk, tables);
-
-        let (pos, name) = snapshot.next_table().unwrap();
-        assert_eq!(0, pos);
-        assert_eq!("foo", name);
-
-        let (pos, name) = snapshot.next_table().unwrap();
-        assert_eq!(1, pos);
-        assert_eq!("bar", name);
-
-        snapshot.mark_table_finished(1);
-        assert!(!snapshot.finished());
-
-        let (pos, name) = snapshot.next_table().unwrap();
-        assert_eq!(2, pos);
-        assert_eq!("asdf", name);
-
-        assert!(snapshot.next_table().is_none());
-        assert!(!snapshot.finished());
-
-        snapshot.mark_table_finished(0);
-        snapshot.mark_table_finished(2);
         assert!(snapshot.finished());
     }
 }

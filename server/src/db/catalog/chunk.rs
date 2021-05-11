@@ -139,8 +139,8 @@ impl Chunk {
     ) -> Result<Self> {
         let table_name = Arc::from(batch.name());
 
-        let mut mb = mutable_buffer::chunk::Chunk::new(id, memory_registry);
-        mb.write_table_batches(clock_value, server_id, &[batch])
+        let mut mb = mutable_buffer::chunk::Chunk::new(id, batch.name(), memory_registry);
+        mb.write_table_batch(clock_value, server_id, batch)
             .context(OpenChunk {
                 partition_key: partition_key.as_ref(),
                 chunk_id: id,
@@ -291,16 +291,8 @@ impl Chunk {
     pub fn table_summary(&self) -> TableSummary {
         match &self.state {
             ChunkState::Invalid => panic!("invalid chunk state"),
-            ChunkState::Open(chunk) | ChunkState::Closed(chunk) => {
-                let mut summaries = chunk.table_summaries();
-                assert_eq!(summaries.len(), 1);
-                summaries.remove(0)
-            }
-            ChunkState::Moving(chunk) => {
-                let mut summaries = chunk.table_summaries();
-                assert_eq!(summaries.len(), 1);
-                summaries.remove(0)
-            }
+            ChunkState::Open(chunk) | ChunkState::Closed(chunk) => chunk.table_summary(),
+            ChunkState::Moving(chunk) => chunk.table_summary(),
             ChunkState::Moved(chunk) => {
                 let mut summaries = chunk.table_summaries();
                 assert_eq!(summaries.len(), 1);

@@ -673,7 +673,7 @@ impl Db {
         info!(%partition_key, %table_name, %chunk_id, "chunk marked MOVING, loading tables into read buffer");
 
         let mut batches = Vec::new();
-        let table_stats = mb_chunk.table_summaries();
+        let table_summary = mb_chunk.table_summary();
 
         // create a new read buffer chunk with memory tracking
         let rb_chunk = ReadBufferChunk::new_with_registries(
@@ -682,20 +682,18 @@ impl Db {
             &self.metrics_registry,
         );
 
-        // load tables into the new chunk one by one.
-        for stats in table_stats {
-            debug!(%partition_key, %table_name, %chunk_id, table=%stats.name, "loading table to read buffer");
-            mb_chunk
-                .table_to_arrow(&mut batches, &stats.name, Selection::All)
-                // It is probably reasonable to recover from this error
-                // (reset the chunk state to Open) but until that is
-                // implemented (and tested) just panic
-                .expect("Loading chunk to mutable buffer");
+        // load table into the new chunk one by one.
+        debug!(%partition_key, %table_name, %chunk_id, table=%table_summary.name, "loading table to read buffer");
+        mb_chunk
+            .table_to_arrow(&mut batches, Selection::All)
+            // It is probably reasonable to recover from this error
+            // (reset the chunk state to Open) but until that is
+            // implemented (and tested) just panic
+            .expect("Loading chunk to mutable buffer");
 
-            for batch in batches.drain(..) {
-                let sorted = sort_record_batch(batch).expect("failed to sort");
-                rb_chunk.upsert_table(&stats.name, sorted)
-            }
+        for batch in batches.drain(..) {
+            let sorted = sort_record_batch(batch).expect("failed to sort");
+            rb_chunk.upsert_table(&table_summary.name, sorted)
         }
 
         // Relock the chunk again (nothing else should have been able
@@ -1193,10 +1191,10 @@ impl Db {
                                 chunk.mutable_buffer().expect("cannot mutate open chunk");
 
                             mb_chunk
-                                .write_table_batches(
+                                .write_table_batch(
                                     sequenced_entry.clock_value(),
                                     sequenced_entry.server_id(),
-                                    &[table_batch],
+                                    table_batch,
                                 )
                                 .context(WriteEntry {
                                     partition_key,

@@ -13,7 +13,8 @@ fn snapshot_chunk(chunk: &Chunk) {
 }
 
 fn chunk(count: usize) -> Chunk {
-    let mut chunk = Chunk::new(0, &MemRegistry::new());
+    // m0 is hard coded into tag_values.lp.gz
+    let mut chunk = Chunk::new(0, "m0", &MemRegistry::new());
 
     let raw = include_bytes!("../../tests/fixtures/lineproto/tag_values.lp.gz");
     let mut gz = GzDecoder::new(&raw[..]);
@@ -23,13 +24,15 @@ fn chunk(count: usize) -> Chunk {
     for _ in 0..count {
         for entry in lp_to_entries(&lp) {
             for write in entry.partition_writes().iter().flatten() {
-                chunk
-                    .write_table_batches(
-                        ClockValue::try_from(5).unwrap(),
-                        ServerId::try_from(1).unwrap(),
-                        write.table_batches().as_slice(),
-                    )
-                    .unwrap();
+                for batch in write.table_batches() {
+                    chunk
+                        .write_table_batch(
+                            ClockValue::try_from(5).unwrap(),
+                            ServerId::try_from(1).unwrap(),
+                            batch,
+                        )
+                        .unwrap();
+                }
             }
         }
     }
