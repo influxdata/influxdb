@@ -1,6 +1,7 @@
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
     convert::TryFrom,
+    sync::Arc,
 };
 
 use metrics::{KeyValue, MetricRegistry};
@@ -51,7 +52,7 @@ pub struct Chunk {
     id: u32,
 
     // All metrics for the chunk.
-    metrics: ColumnMetrics,
+    metrics: Arc<ChunkMetrics>,
 
     // A chunk's data is held in a collection of mutable tables and
     // mutable meta data (`TableData`).
@@ -119,24 +120,24 @@ impl TableData {
 
 impl Chunk {
     /// Initialises a new `Chunk` with the associated chunk ID.
-    pub fn new(id: u32, metrics_registry: &MetricRegistry) -> Self {
+    pub fn new(id: u32, metrics: Arc<ChunkMetrics>) -> Self {
         Self {
             id,
             chunk_data: RwLock::new(TableData::default()),
-            metrics: ColumnMetrics::new(metrics_registry),
+            metrics,
         }
     }
 
     /// Initialises a new `Chunk` with the associated chunk ID. The returned
     /// `Chunk` will be tracked according to the provided memory tracker
-    /// registry and internal metrics will be registered on the provided metrics
-    /// registry.
+    /// registry. Rather than providing a registry for metrics, shared metrcis
+    /// should be pushed in ensuring that they are correctly updated.
     pub fn new_with_registries(
         id: u32,
         mem_registry: &MemRegistry,
-        metrics_registry: &MetricRegistry,
+        metrics: Arc<ChunkMetrics>,
     ) -> Self {
-        let chunk = Self::new(id, metrics_registry);
+        let chunk = Self::new(id, metrics);
 
         {
             let mut chunk_data = chunk.chunk_data.write();
@@ -151,7 +152,7 @@ impl Chunk {
     /// Initialises a new `Chunk` seeded with the provided `Table`.
     ///
     /// TODO(edd): potentially deprecate.
-    pub(crate) fn new_with_table(id: u32, table: Table) -> Self {
+    pub(crate) fn new_with_table(id: u32, table: Table, metrics: Arc<ChunkMetrics>) -> Self {
         Self {
             id,
             chunk_data: RwLock::new(TableData {
@@ -160,7 +161,7 @@ impl Chunk {
                 data: vec![(table.name().to_owned(), table)].into_iter().collect(),
                 tracker: MemRegistry::new().register(),
             }),
-            metrics: ColumnMetrics::new(&metrics::MetricRegistry::new()),
+            metrics,
         }
     }
 
@@ -660,7 +661,8 @@ impl std::fmt::Debug for Chunk {
     }
 }
 
-struct ColumnMetrics {
+#[derive(Debug)]
+pub struct ChunkMetrics {
     // This metric tracks the total number of columns in read buffer.
     columns_total: metrics::Gauge,
 
@@ -672,7 +674,7 @@ struct ColumnMetrics {
     column_bytes_total: metrics::Gauge,
 }
 
-impl ColumnMetrics {
+impl ChunkMetrics {
     pub fn new(registry: &MetricRegistry) -> Self {
         let domain = registry.register_domain("read_buffer");
         Self {
@@ -690,6 +692,30 @@ impl ColumnMetrics {
                 "column",
                 Some("bytes"),
                 "The number of bytes used by all columns in the Read Buffer",
+            ),
+        }
+    }
+
+    pub fn new_with_db(registry: &MetricRegistry, db: String) -> Self {
+        let domain = registry.register_domain("read_buffer");
+        Self {
+            columns_total: domain.register_gauge_metric_with_labels(
+                "column",
+                Some("total"),
+                "The number of columns within the Read Buffer",
+                vec![metrics::KeyValue::new("db", db.clone())],
+            ),
+            column_values_total: domain.register_gauge_metric_with_labels(
+                "column",
+                Some("values"),
+                "The number of values within columns in the Read Buffer",
+                vec![metrics::KeyValue::new("db", db.clone())],
+            ),
+            column_bytes_total: domain.register_gauge_metric_with_labels(
+                "column",
+                Some("bytes"),
+                "The number of bytes used by all columns in the Read Buffer",
+                vec![metrics::KeyValue::new("db", db)],
             ),
         }
     }
@@ -891,7 +917,8 @@ mod test {
     #[test]
     fn add_remove_tables() {
         let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
-        let chunk = Chunk::new(22, &reg.registry());
+        let metrics = ChunkMetrics::new(&reg.registry());
+        let chunk = Chunk::new(22, Arc::new(metrics));
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -1013,7 +1040,9 @@ mod test {
 
     #[test]
     fn read_filter_table_schema() {
-        let chunk = Chunk::new(22, &metrics::MetricRegistry::new());
+        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
+        let metrics = ChunkMetrics::new(&reg.registry());
+        let chunk = Chunk::new(22, Arc::new(metrics));
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -1057,7 +1086,9 @@ mod test {
 
     #[test]
     fn has_table() {
-        let chunk = Chunk::new(22, &metrics::MetricRegistry::new());
+        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
+        let metrics = ChunkMetrics::new(&reg.registry());
+        let chunk = Chunk::new(22, Arc::new(metrics));
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -1067,7 +1098,9 @@ mod test {
 
     #[test]
     fn table_summaries() {
-        let chunk = Chunk::new(22, &metrics::MetricRegistry::new());
+        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
+        let metrics = ChunkMetrics::new(&reg.registry());
+        let chunk = Chunk::new(22, Arc::new(metrics));
 
         let schema = SchemaBuilder::new()
             .non_null_tag("env")
@@ -1181,7 +1214,9 @@ mod test {
 
     #[test]
     fn read_filter() {
-        let chunk = Chunk::new(22, &metrics::MetricRegistry::new());
+        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
+        let metrics = ChunkMetrics::new(&reg.registry());
+        let chunk = Chunk::new(22, Arc::new(metrics));
 
         // Add a bunch of row groups to a single table in a single chunk
         for &i in &[100, 200, 300] {
@@ -1280,7 +1315,9 @@ mod test {
 
     #[test]
     fn could_pass_predicate() {
-        let chunk = Chunk::new(22, &metrics::MetricRegistry::new());
+        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
+        let metrics = ChunkMetrics::new(&reg.registry());
+        let chunk = Chunk::new(22, Arc::new(metrics));
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -1307,7 +1344,9 @@ mod test {
         let rg = RowGroup::new(6, columns);
         let table = Table::new("table_1", rg);
 
-        let chunk = Chunk::new_with_table(22, table);
+        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
+        let metrics = ChunkMetrics::new(&reg.registry());
+        let chunk = Chunk::new_with_table(22, table, Arc::new(metrics));
 
         // All table names returned when no predicate.
         let table_names = chunk.table_names(&Predicate::default(), &BTreeSet::new());
@@ -1406,7 +1445,9 @@ mod test {
 
     #[test]
     fn column_names() {
-        let chunk = Chunk::new(22, &metrics::MetricRegistry::new());
+        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
+        let metrics = ChunkMetrics::new(&reg.registry());
+        let chunk = Chunk::new(22, Arc::new(metrics));
 
         let schema = SchemaBuilder::new()
             .non_null_tag("region")
@@ -1480,7 +1521,9 @@ mod test {
 
     #[test]
     fn column_values() {
-        let chunk = Chunk::new(22, &metrics::MetricRegistry::new());
+        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
+        let metrics = ChunkMetrics::new(&reg.registry());
+        let chunk = Chunk::new(22, Arc::new(metrics));
 
         let schema = SchemaBuilder::new()
             .non_null_tag("region")
