@@ -127,13 +127,7 @@ commands:
       - when:
           condition: << parameters.publish_release >>
           steps:
-            - run:
-                name: Ensure not running from a fork
-                command: |
-                  if [ -n "$CIRCLE_PR_NUMBER" ]; then
-                    echo 'Error: release from fork detected, exiting!'
-                    exit 1
-                  fi
+            - bail_if_forked
             - run:
                 name: Import GPG key
                 command: |
@@ -278,17 +272,13 @@ commands:
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
 
   bail_if_forked:
-    parameters:
-      exit_code:
-        type: integer
-        default: 1
     steps:
       - run:
           name: Exit if running from a fork
           command: |
             if [ -n "$CIRCLE_PR_NUMBER" ]; then
               echo 'Error: Running from a fork, exiting!'
-              exit << parameters.exit_code >>
+              exit 1
             fi
 
 jobs:
@@ -522,9 +512,12 @@ jobs:
             - bin/linux/influx
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
-      # if we are running on a fork, exit with success now instead of building & pushing a docker image.
-      - bail_if_forked:
-          exit_code: 0
+      - run:
+          name: Exit the job with success if running on a fork
+          command: |
+            if [ -n "$CIRCLE_PR_NUMBER" ]; then
+                circleci-agent step halt
+            fi
       - setup_remote_docker:
           version: 19.03.13
           docker_layer_caching: true
