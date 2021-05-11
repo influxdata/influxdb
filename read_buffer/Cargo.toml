@@ -38,7 +38,7 @@ name = "database"
 harness = false
 
 [[bench]]
-name = "sum"
+name = "sum_fixed"
 harness = false
 
 [[bench]]
