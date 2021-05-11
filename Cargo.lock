@@ -165,6 +165,7 @@ dependencies = [
  "hashbrown 0.11.2",
  "num-traits",
  "rand 0.8.3",
+ "snafu",
 ]
 
 [[package]]
