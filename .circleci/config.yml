@@ -30,6 +30,9 @@ workflows:
           requires:
             - godeps
       - e2e-monitor-ci:
+          filters:
+            branches:
+              ignore: /pull\/[0-9]+/
           requires:
             - build
       - grace_daily:
@@ -611,8 +614,6 @@ jobs:
     docker:
       - image: cimg/go:1.15.6
     steps:
-      # if we are running from a fork, exit with a fail status.
-      - bail_if_forked
       - checkout
       - run:
           name: Run the tests
