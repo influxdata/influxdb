@@ -154,14 +154,6 @@
   expose: true
   lifetime: temporary
 
-- name: Type Ahead Dropdowns for Variables
-  description: Enables type ahead dropdowns for variables
-  key: typeAheadVariableDropdown
-  default: false
-  contact: Monitoring Team
-  expose: true
-  lifetime: temporary
-
 - name: Annotations UI
   description: Management, display, and manual addition of Annotations from the UI
   key: annotations

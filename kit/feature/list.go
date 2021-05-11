@@ -268,20 +268,6 @@ func RefreshSingleCell() BoolFlag {
 	return refreshSingleCell
 }
 
-var typeAheadVariableDropdown = MakeBoolFlag(
-	"Type Ahead Dropdowns for Variables",
-	"typeAheadVariableDropdown",
-	"Monitoring Team",
-	false,
-	Temporary,
-	true,
-)
-
-// TypeAheadDropdownsForVariables - Enables type ahead dropdowns for variables
-func TypeAheadDropdownsForVariables() BoolFlag {
-	return typeAheadVariableDropdown
-}
-
 var annotations = MakeBoolFlag(
 	"Annotations UI",
 	"annotations",
@@ -316,7 +302,6 @@ var all = []Flag{
 	legendOrientation,
 	cursorAtEOF,
 	refreshSingleCell,
-	typeAheadVariableDropdown,
 	annotations,
 }
 
@@ -340,6 +325,5 @@ var byKey = map[string]Flag{
 	"legendOrientation":             legendOrientation,
 	"cursorAtEOF":                   cursorAtEOF,
 	"refreshSingleCell":             refreshSingleCell,
-	"typeAheadVariableDropdown":     typeAheadVariableDropdown,
 	"annotations":                   annotations,
 }
