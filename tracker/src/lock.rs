@@ -1,6 +1,8 @@
 use lock_api::RawRwLock;
+use metrics::{KeyValue, MetricObserver, MetricObserverBuilder};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 /// An instrumented Read-Write Lock
 pub type RwLock<T> = lock_api::RwLock<InstrumentRawRwLock<parking_lot::RawRwLock>, T>;
@@ -37,6 +39,46 @@ impl LockTracker {
 
     pub fn shared_wait_nanos(&self) -> u64 {
         self.inner.shared_wait_nanos.load(Ordering::Relaxed)
+    }
+}
+
+impl MetricObserver for &LockTracker {
+    fn register(self, builder: MetricObserverBuilder<'_>) {
+        let inner = Arc::clone(&self.inner);
+        builder.register_counter_u64(
+            "lock",
+            None,
+            "number of times the tracked locks have been obtained",
+            move |observer| {
+                observer.observe(
+                    inner.exclusive_count.load(Ordering::Relaxed),
+                    &[KeyValue::new("access", "exclusive")],
+                );
+                observer.observe(
+                    inner.shared_count.load(Ordering::Relaxed),
+                    &[KeyValue::new("access", "shared")],
+                )
+            },
+        );
+
+        let inner = Arc::clone(&self.inner);
+        builder.register_counter_f64(
+            "lock_wait",
+            Some("seconds"),
+            "time spent waiting to acquire any of the tracked locks",
+            move |observer| {
+                observer.observe(
+                    Duration::from_nanos(inner.exclusive_wait_nanos.load(Ordering::Relaxed))
+                        .as_secs_f64(),
+                    &[KeyValue::new("access", "exclusive")],
+                );
+                observer.observe(
+                    Duration::from_nanos(inner.shared_wait_nanos.load(Ordering::Relaxed))
+                        .as_secs_f64(),
+                    &[KeyValue::new("access", "shared")],
+                );
+            },
+        );
     }
 }
 

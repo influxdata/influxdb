@@ -17,6 +17,7 @@ use data_types::{
 };
 use datafusion::{catalog::schema::SchemaProvider, datasource::TableProvider};
 use internal_types::selection::Selection;
+use metrics::KeyValue;
 use partition::Partition;
 use query::{
     exec::stringset::StringSet,
@@ -81,19 +82,38 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// The catalog is also responsible for (eventually) persisting this
 /// information
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct Catalog {
     /// key is partition_key
     partitions: RwLock<BTreeMap<String, Arc<RwLock<Partition>>>>,
+
+    /// Metrics domain
+    metrics_domain: metrics::Domain,
 
     /// Lock tracker for partition-level locks
     lock_tracker: LockTracker,
 }
 
 impl Catalog {
-    pub fn new() -> Self {
+    #[cfg(test)]
+    fn test() -> Self {
+        let registry = metrics::MetricRegistry::new();
+        let domain = registry.register_domain("catalog");
+        Self::new(domain)
+    }
+
+    pub fn new(metrics_domain: metrics::Domain) -> Self {
+        let lock_tracker = Default::default();
+        metrics_domain.register_observer(
+            None,
+            &[KeyValue::new("lock", "partition")],
+            &lock_tracker,
+        );
+
         Self {
-            ..Default::default()
+            partitions: Default::default(),
+            metrics_domain,
+            lock_tracker,
         }
     }
 
@@ -128,7 +148,22 @@ impl Catalog {
         let entry = partitions.entry(partition_key);
         match entry {
             Entry::Vacant(entry) => {
-                let partition = Partition::new(entry.key());
+                // Create a tracker for chunks within the partition
+                let lock_tracker = LockTracker::default();
+
+                // Note: this tracker could potentially outlive the partition there
+                // currently isn't a way to remove a partition from the catalog so it
+                // is unclear if this matters
+                self.metrics_domain.register_observer(
+                    None,
+                    &[
+                        KeyValue::new("lock", "chunk"),
+                        KeyValue::new("partition", entry.key().clone()),
+                    ],
+                    &lock_tracker,
+                );
+
+                let partition = Partition::new(entry.key(), lock_tracker);
                 let partition = Arc::new(self.lock_tracker.new_lock(partition));
                 entry.insert(Arc::clone(&partition));
                 partition
@@ -312,7 +347,7 @@ mod tests {
 
     #[test]
     fn partition_get() {
-        let catalog = Catalog::new();
+        let catalog = Catalog::test();
         catalog.get_or_create_partition("p1");
         catalog.get_or_create_partition("p2");
 
@@ -328,7 +363,7 @@ mod tests {
 
     #[test]
     fn partition_list() {
-        let catalog = Catalog::new();
+        let catalog = Catalog::test();
 
         assert_eq!(catalog.partitions().count(), 0);
 
@@ -348,7 +383,7 @@ mod tests {
     #[test]
     fn chunk_create() {
         let registry = MemRegistry::new();
-        let catalog = Catalog::new();
+        let catalog = Catalog::test();
         let p1 = catalog.get_or_create_partition("p1");
 
         create_open_chunk(&p1, "table1", &registry);
@@ -382,7 +417,7 @@ mod tests {
     #[test]
     fn chunk_list() {
         let registry = MemRegistry::new();
-        let catalog = Catalog::new();
+        let catalog = Catalog::test();
 
         let p1 = catalog.get_or_create_partition("p1");
         create_open_chunk(&p1, "table1", &registry);
@@ -454,7 +489,7 @@ mod tests {
     #[test]
     fn chunk_drop() {
         let registry = MemRegistry::new();
-        let catalog = Catalog::new();
+        let catalog = Catalog::test();
 
         let p1 = catalog.get_or_create_partition("p1");
         create_open_chunk(&p1, "table1", &registry);
@@ -491,7 +526,7 @@ mod tests {
     #[test]
     fn chunk_drop_non_existent_chunk() {
         let registry = MemRegistry::new();
-        let catalog = Catalog::new();
+        let catalog = Catalog::test();
         let p3 = catalog.get_or_create_partition("p3");
         create_open_chunk(&p3, "table1", &registry);
 
@@ -507,7 +542,7 @@ mod tests {
     #[test]
     fn chunk_recreate_dropped() {
         let registry = MemRegistry::new();
-        let catalog = Catalog::new();
+        let catalog = Catalog::test();
 
         let p1 = catalog.get_or_create_partition("p1");
         create_open_chunk(&p1, "table1", &registry);
@@ -534,7 +569,7 @@ mod tests {
     #[test]
     fn filtered_chunks() {
         let registry = MemRegistry::new();
-        let catalog = Catalog::new();
+        let catalog = Catalog::test();
 
         let p1 = catalog.get_or_create_partition("p1");
         let p2 = catalog.get_or_create_partition("p2");

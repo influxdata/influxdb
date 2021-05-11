@@ -311,7 +311,7 @@ impl Domain {
             .f64_value_recorder(self.build_metric_name(attribute, Some(name), Some(unit), None))
             .with_description(description);
 
-        HistogramBuilder::new(histogram)
+        HistogramBuilder::new(histogram).with_labels(self.default_labels.clone())
     }
 
     /// Registers a new gauge metric.
@@ -534,6 +534,11 @@ impl<'a> HistogramBuilder<'a> {
 
     /// Set some default labels on the Histogram metric.
     pub fn with_labels(self, labels: Vec<KeyValue>) -> Self {
+        let labels = match self.labels {
+            Some(existing_labels) => [&existing_labels[..], &labels[..]].concat(),
+            None => labels,
+        };
+
         Self {
             histogram: self.histogram,
             labels: Some(labels),

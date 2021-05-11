@@ -51,7 +51,7 @@ impl Partition {
     /// This function is not pub because `Partition`s should be
     /// created using the interfaces on [`Catalog`](crate::db::catalog::Catalog) and not
     /// instantiated directly.
-    pub(crate) fn new(key: impl Into<String>) -> Self {
+    pub(crate) fn new(key: impl Into<String>, lock_tracker: LockTracker) -> Self {
         let key = key.into();
 
         let now = Utc::now();
@@ -60,7 +60,7 @@ impl Partition {
             tables: BTreeMap::new(),
             created_at: now,
             last_write_at: now,
-            lock_tracker: Default::default(),
+            lock_tracker,
         }
     }
 

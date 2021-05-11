@@ -109,7 +109,7 @@ impl<'a> AssertionBuilder<'a> {
     }
 
     /// Assert that the metric has the following set of labels.
-    pub fn with_labels(mut self, labels: &[(&'static str, &'static str)]) -> Self {
+    pub fn with_labels(mut self, labels: &[(&str, &str)]) -> Self {
         for (key, value) in labels {
             self.labels.push((key.to_string(), value.to_string()));
         }
