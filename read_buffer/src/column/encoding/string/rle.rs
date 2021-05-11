@@ -7,7 +7,7 @@ use croaring::Bitmap;
 
 use arrow::array::{Array, StringArray};
 
-use crate::column::dictionary::NULL_ID;
+use super::NULL_ID;
 use crate::column::{cmp, RowIDs};
 
 pub const ENCODING_NAME: &str = "RLE";

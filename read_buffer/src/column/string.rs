@@ -4,8 +4,8 @@ use arrow::{self, array::Array};
 use either::Either;
 
 use super::cmp;
-use super::encoding::dictionary::{plain, rle};
-use super::encoding::dictionary::{Encoding, Plain, RLE};
+use super::encoding::string::{dictionary, rle};
+use super::encoding::string::{Dictionary, Encoding, RLE};
 use crate::column::{RowIDs, Statistics, Value, Values};
 
 // Edd's totally made up magic constant. This determines whether we would use
@@ -20,7 +20,7 @@ pub const TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT: usize = 100_000;
 
 pub enum StringEncoding {
     RleDictionary(RLE),
-    Dictionary(Plain),
+    Dictionary(Dictionary),
     // TODO - simple array encoding, e.g., via Arrow String array.
 }
 
@@ -64,7 +64,7 @@ impl StringEncoding {
         Statistics {
             enc_type: match self {
                 Self::RleDictionary(_) => rle::ENCODING_NAME,
-                Self::Dictionary(_) => plain::ENCODING_NAME,
+                Self::Dictionary(_) => dictionary::ENCODING_NAME,
             },
             log_data_type: "string",
             values: self.num_rows(),
@@ -287,7 +287,7 @@ impl From<arrow::array::StringArray> for StringEncoding {
         }
 
         let mut data: Encoding = if dictionary.len() > TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT {
-            Encoding::Plain(Plain::with_dictionary(dictionary))
+            Encoding::Plain(Dictionary::with_dictionary(dictionary))
         } else {
             Encoding::RLE(RLE::with_dictionary(dictionary))
         };
@@ -352,7 +352,7 @@ impl From<arrow::array::DictionaryArray<arrow::datatypes::Int32Type>> for String
         let dictionary: BTreeSet<_> = values.iter().flatten().map(Into::into).collect();
 
         let mut data: Encoding = if dictionary.len() > TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT {
-            Encoding::Plain(Plain::with_dictionary(dictionary))
+            Encoding::Plain(Dictionary::with_dictionary(dictionary))
         } else {
             Encoding::RLE(RLE::with_dictionary(dictionary))
         };
@@ -407,7 +407,7 @@ impl From<&[Option<&str>]> for StringEncoding {
         }
 
         let mut data: Encoding = if dictionary.len() > TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT {
-            Encoding::Plain(Plain::with_dictionary(dictionary))
+            Encoding::Plain(Dictionary::with_dictionary(dictionary))
         } else {
             Encoding::RLE(RLE::with_dictionary(dictionary))
         };
@@ -448,7 +448,7 @@ impl From<&[&str]> for StringEncoding {
         let dictionary = arr.iter().map(|x| x.to_string()).collect::<BTreeSet<_>>();
 
         let mut data: Encoding = if dictionary.len() > TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT {
-            Encoding::Plain(Plain::with_dictionary(dictionary))
+            Encoding::Plain(Dictionary::with_dictionary(dictionary))
         } else {
             Encoding::RLE(RLE::with_dictionary(dictionary))
         };

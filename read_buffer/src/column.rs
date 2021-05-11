@@ -15,7 +15,7 @@ use arrow::array::Array;
 use crate::schema::LogicalDataType;
 use crate::value::{EncodedValues, OwnedValue, Scalar, Value, Values};
 use boolean::BooleanEncoding;
-use encoding::{bool, dictionary, fixed_null};
+use encoding::{bool, fixed_null, string::NULL_ID};
 use float::FloatEncoding;
 use integer::IntegerEncoding;
 use string::StringEncoding;
@@ -1659,7 +1659,7 @@ mod test {
         let col = Column::from(&input[..]);
         assert_eq!(
             col.encoded_values(&[0, 1, 2, 3, 4], EncodedValues::U32(vec![])),
-            EncodedValues::U32(vec![1, dictionary::NULL_ID, 2, 1, 2])
+            EncodedValues::U32(vec![1, NULL_ID, 2, 1, 2])
         );
 
         let res = col.encoded_values(&[2, 3], EncodedValues::U32(Vec::with_capacity(100)));
@@ -1697,7 +1697,7 @@ mod test {
         let col = Column::from(&input[..]);
         assert_eq!(
             col.all_encoded_values(EncodedValues::U32(vec![])),
-            EncodedValues::U32(vec![1, dictionary::NULL_ID, 2, 1, 2])
+            EncodedValues::U32(vec![1, NULL_ID, 2, 1, 2])
         );
 
         // timestamp column
