@@ -1,7 +1,7 @@
 use arrow::{self, array::Array};
 
-use super::cmp;
 use super::encoding::{fixed::Fixed, fixed_null::FixedNull};
+use super::{cmp, Statistics};
 use crate::column::{EncodedValues, RowIDs, Scalar, Value, Values};
 
 pub enum IntegerEncoding {
@@ -62,12 +62,42 @@ impl IntegerEncoding {
         }
     }
 
+    // Returns statistics about the physical layout of columns
+    pub(crate) fn storage_stats(&self) -> Statistics {
+        Statistics {
+            enc_type: self.name(),
+            log_data_type: self.logical_datatype(),
+            values: self.num_rows(),
+            nulls: self.null_count(),
+            bytes: self.size(),
+        }
+    }
+
     /// Determines if the column contains a NULL value.
     pub fn contains_null(&self) -> bool {
         match self {
             Self::I64I64N(enc) => enc.contains_null(),
             Self::U64U64N(enc) => enc.contains_null(),
             _ => false,
+        }
+    }
+
+    /// The total number of rows in the column.
+    pub fn null_count(&self) -> u32 {
+        match self {
+            Self::I64I64(_) => 0,
+            Self::I64I32(_) => 0,
+            Self::I64U32(_) => 0,
+            Self::I64I16(_) => 0,
+            Self::I64U16(_) => 0,
+            Self::I64I8(_) => 0,
+            Self::I64U8(_) => 0,
+            Self::U64U64(_) => 0,
+            Self::U64U32(_) => 0,
+            Self::U64U16(_) => 0,
+            Self::U64U8(_) => 0,
+            Self::I64I64N(enc) => enc.null_count(),
+            Self::U64U64N(enc) => enc.null_count(),
         }
     }
 
@@ -382,24 +412,63 @@ impl IntegerEncoding {
             Self::U64U64N(c) => c.count(row_ids),
         }
     }
+
+    /// The name of this encoding.
+    pub fn name(&self) -> &'static str {
+        match &self {
+            Self::I64I64(_) => "None",
+            Self::I64I32(_) => "BT_I32",
+            Self::I64U32(_) => "BT_U32",
+            Self::I64I16(_) => "BT_I16",
+            Self::I64U16(_) => "BT_U16",
+            Self::I64I8(_) => "BT_I8",
+            Self::I64U8(_) => "BT_U8",
+            Self::U64U64(_) => "None",
+            Self::U64U32(_) => "BT_U32",
+            Self::U64U16(_) => "BT_U16",
+            Self::U64U8(_) => "BT_U8",
+            Self::I64I64N(_) => "None",
+            Self::U64U64N(_) => "None",
+        }
+    }
+
+    /// The logical datatype of this encoding.
+    pub fn logical_datatype(&self) -> &'static str {
+        match &self {
+            Self::I64I64(_) => "i64",
+            Self::I64I32(_) => "i64",
+            Self::I64U32(_) => "i64",
+            Self::I64I16(_) => "i64",
+            Self::I64U16(_) => "i64",
+            Self::I64I8(_) => "i64",
+            Self::I64U8(_) => "i64",
+            Self::U64U64(_) => "u64",
+            Self::U64U32(_) => "u64",
+            Self::U64U16(_) => "u64",
+            Self::U64U8(_) => "u64",
+            Self::I64I64N(_) => "i64",
+            Self::U64U64N(_) => "u64",
+        }
+    }
 }
 
 impl std::fmt::Display for IntegerEncoding {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = self.name();
         match self {
-            Self::I64I64(enc) => write!(f, "phys i64: {}", enc),
-            Self::I64I32(enc) => write!(f, "phys i32: {}", enc),
-            Self::I64U32(enc) => write!(f, "phys u32: {}", enc),
-            Self::I64I16(enc) => write!(f, "phys i16: {}", enc),
-            Self::I64U16(enc) => write!(f, "phys u16: {}", enc),
-            Self::I64I8(enc) => write!(f, "phys i8: {}", enc),
-            Self::I64U8(enc) => write!(f, "phys u8: {}", enc),
-            Self::U64U64(enc) => write!(f, "phys u64: {}", enc),
-            Self::U64U32(enc) => write!(f, "phys u32: {}", enc),
-            Self::U64U16(enc) => write!(f, "phys u16: {}", enc),
-            Self::U64U8(enc) => write!(f, "phys u8: {}", enc),
-            Self::I64I64N(enc) => write!(f, "phys i64: {}", enc),
-            Self::U64U64N(enc) => write!(f, "phys u64: {}", enc),
+            Self::I64I64(enc) => write!(f, "[{}]: {}", name, enc),
+            Self::I64I32(enc) => write!(f, "[{}]: {}", name, enc),
+            Self::I64U32(enc) => write!(f, "[{}]: {}", name, enc),
+            Self::I64I16(enc) => write!(f, "[{}]: {}", name, enc),
+            Self::I64U16(enc) => write!(f, "[{}]: {}", name, enc),
+            Self::I64I8(enc) => write!(f, "[{}]: {}", name, enc),
+            Self::I64U8(enc) => write!(f, "[{}]: {}", name, enc),
+            Self::U64U64(enc) => write!(f, "[{}]: {}", name, enc),
+            Self::U64U32(enc) => write!(f, "[{}]: {}", name, enc),
+            Self::U64U16(enc) => write!(f, "[{}]: {}", name, enc),
+            Self::U64U8(enc) => write!(f, "[{}]: {}", name, enc),
+            Self::I64I64N(enc) => write!(f, "[{}]: {}", name, enc),
+            Self::U64U64N(enc) => write!(f, "[{}]: {}", name, enc),
         }
     }
 }

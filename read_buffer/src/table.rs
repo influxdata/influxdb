@@ -12,9 +12,12 @@ use arrow::record_batch::RecordBatch;
 use data_types::{chunk::ChunkColumnSummary, partition_metadata::TableSummary};
 use internal_types::selection::Selection;
 
-use crate::row_group::{self, ColumnName, Predicate, RowGroup};
 use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};
 use crate::value::{OwnedValue, Scalar, Value};
+use crate::{
+    column,
+    row_group::{self, ColumnName, Predicate, RowGroup},
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -512,6 +515,16 @@ impl Table {
         row_groups
             .iter()
             .any(|row_group| row_group.satisfies_predicate(predicate))
+    }
+
+    pub(crate) fn column_storage_statistics(&self) -> Vec<column::Statistics> {
+        let table_data = self.table_data.read();
+        table_data
+            .data
+            .iter()
+            .map(|rg| rg.column_storage_statistics())
+            .flatten()
+            .collect()
     }
 }
 

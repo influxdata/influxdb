@@ -10,6 +10,8 @@ use arrow::array::{Array, StringArray};
 use crate::column::dictionary::NULL_ID;
 use crate::column::{cmp, RowIDs};
 
+pub const ENCODING_NAME: &str = "RLE";
+
 // `RLE` is a run-length encoding for dictionary columns, where all dictionary
 // entries are utf-8 valid strings.
 #[allow(clippy::upper_case_acronyms)] // this looks weird as `Rle`
@@ -114,6 +116,13 @@ impl RLE {
         } else {
             self.index_entries.len() as u32 - 1
         }
+    }
+
+    /// The number of NULL values in this column.
+    pub fn null_count(&self) -> u32 {
+        self.index_row_ids
+            .get(&NULL_ID)
+            .map_or(0, |rows| rows.len() as u32)
     }
 
     /// Adds the provided string value to the encoded data. It is the caller's
@@ -925,10 +934,12 @@ impl std::fmt::Display for RLE {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[RLE] size: {:?} rows: {:?} cardinality: {}, runs: {} ",
+            "[{}] size: {:?} rows: {:?} cardinality: {}, nulls: {} runs: {} ",
+            ENCODING_NAME,
             self.size(),
             self.num_rows,
             self.cardinality(),
+            self.null_count(),
             self.run_lengths.len()
         )
     }
@@ -994,6 +1005,23 @@ mod test {
         // TODO(edd): there some mystery bytes in the bitmap implementation.
         // need to figure out how to measure these
         assert_eq!(enc.size(), 473);
+    }
+
+    #[test]
+    fn null_count() {
+        let mut enc = RLE::default();
+        enc.push_additional(Some("east".to_string()), 3);
+        assert_eq!(enc.null_count(), 0);
+
+        enc.push_additional(Some("west".to_string()), 1);
+        assert_eq!(enc.null_count(), 0);
+
+        enc.push_none();
+        assert_eq!(enc.null_count(), 1);
+
+        enc.push_none();
+        enc.push_none();
+        assert_eq!(enc.null_count(), 3);
     }
 
     #[test]

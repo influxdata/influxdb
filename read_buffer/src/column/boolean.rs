@@ -1,5 +1,5 @@
-use super::cmp;
 use super::encoding::bool::Bool;
+use super::{cmp, Statistics};
 use crate::column::{RowIDs, Value, Values};
 
 /// Encodings for boolean values.
@@ -22,10 +22,28 @@ impl BooleanEncoding {
         }
     }
 
+    // Returns statistics about the physical layout of columns
+    pub(crate) fn storage_stats(&self) -> Statistics {
+        Statistics {
+            enc_type: self.name(),
+            log_data_type: "bool",
+            values: self.num_rows(),
+            nulls: self.null_count(),
+            bytes: self.size(),
+        }
+    }
+
     /// Determines if the column contains a NULL value.
     pub fn contains_null(&self) -> bool {
         match self {
             Self::BooleanNull(enc) => enc.contains_null(),
+        }
+    }
+
+    /// The total number of rows in the column.
+    pub fn null_count(&self) -> u32 {
+        match self {
+            Self::BooleanNull(enc) => enc.null_count(),
         }
     }
 
@@ -104,6 +122,13 @@ impl BooleanEncoding {
     pub fn count(&self, row_ids: &[u32]) -> u32 {
         match &self {
             Self::BooleanNull(c) => c.count(row_ids),
+        }
+    }
+
+    /// The name of this encoding.
+    pub fn name(&self) -> &'static str {
+        match &self {
+            Self::BooleanNull(_) => "None",
         }
     }
 }

@@ -153,6 +153,18 @@ impl Column {
         }
     }
 
+    // Returns statistics about the physical layout of columns
+    pub(crate) fn storage_stats(&self) -> Statistics {
+        match &self {
+            Self::String(_, data) => data.storage_stats(),
+            Self::Float(_, data) => data.storage_stats(),
+            Self::Integer(_, data) => data.storage_stats(),
+            Self::Unsigned(_, data) => data.storage_stats(),
+            Self::Bool(_, data) => data.storage_stats(),
+            Self::ByteArray(_, data) => data.storage_stats(),
+        }
+    }
+
     pub fn properties(&self) -> &ColumnProperties {
         match &self {
             Self::String(meta, _) => &meta.properties,
@@ -1307,6 +1319,15 @@ impl Iterator for RowIDsIterator<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         self.itr.next()
     }
+}
+
+// Statistics about the composition of a column
+pub(crate) struct Statistics {
+    pub enc_type: &'static str,
+    pub log_data_type: &'static str,
+    pub values: u32,
+    pub nulls: u32,
+    pub bytes: usize,
 }
 
 #[cfg(test)]

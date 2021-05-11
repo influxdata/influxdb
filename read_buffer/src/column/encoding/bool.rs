@@ -36,6 +36,10 @@ impl Bool {
         self.arr.null_count() > 0
     }
 
+    pub fn null_count(&self) -> u32 {
+        self.arr.null_count() as u32
+    }
+
     /// Returns an estimation of the total size in bytes used by this column
     /// encoding.
     pub fn size(&self) -> usize {

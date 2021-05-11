@@ -4,8 +4,9 @@ use arrow::{self, array::Array};
 use either::Either;
 
 use super::cmp;
+use super::encoding::dictionary::{plain, rle};
 use super::encoding::dictionary::{Encoding, Plain, RLE};
-use crate::column::{RowIDs, Value, Values};
+use crate::column::{RowIDs, Statistics, Value, Values};
 
 // Edd's totally made up magic constant. This determines whether we would use
 // a run-length encoded dictionary encoding or just a plain dictionary encoding.
@@ -58,11 +59,36 @@ impl StringEncoding {
         }
     }
 
+    // Returns statistics about the physical layout of columns
+    pub(crate) fn storage_stats(&self) -> Statistics {
+        Statistics {
+            enc_type: match self {
+                Self::RleDictionary(_) => rle::ENCODING_NAME,
+                Self::Dictionary(_) => plain::ENCODING_NAME,
+            },
+            log_data_type: "string",
+            values: self.num_rows(),
+            nulls: self.null_count(),
+            bytes: self.size(),
+        }
+    }
+
     /// Determines if the column contains a NULL value.
     pub fn contains_null(&self) -> bool {
         match self {
             Self::RleDictionary(enc) => enc.contains_null(),
             Self::Dictionary(enc) => enc.contains_null(),
+        }
+    }
+
+    /// Returns the number of null values in the column.
+    ///
+    /// TODO(edd): store this on encodings and then it's O(1) and `contain_null`
+    /// can be replaced.
+    pub fn null_count(&self) -> u32 {
+        match self {
+            Self::RleDictionary(enc) => enc.null_count(),
+            Self::Dictionary(enc) => enc.null_count(),
         }
     }
 
