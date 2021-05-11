@@ -14,7 +14,7 @@ const ONE_MS: i64 = 1_000_000;
 
 fn table_names(c: &mut Criterion) {
     let rb = generate_row_group(500_000);
-    let chunk = Chunk::new(0);
+    let chunk = Chunk::new(0, &metrics::MetricRegistry::new());
     chunk.upsert_table("table_a", rb);
 
     // no predicate - return all the tables
