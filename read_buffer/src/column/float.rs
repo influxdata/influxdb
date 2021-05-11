@@ -1,7 +1,7 @@
 use arrow::{self, array::Array};
 
-use super::cmp;
 use super::encoding::{fixed::Fixed, fixed_null::FixedNull};
+use super::{cmp, Statistics};
 use crate::column::{RowIDs, Scalar, Value, Values};
 
 pub enum FloatEncoding {
@@ -26,11 +26,30 @@ impl FloatEncoding {
         }
     }
 
+    // Returns statistics about the physical layout of columns
+    pub(crate) fn storage_stats(&self) -> Statistics {
+        Statistics {
+            enc_type: self.name(),
+            log_data_type: self.logical_datatype(),
+            values: self.num_rows(),
+            nulls: self.null_count(),
+            bytes: self.size(),
+        }
+    }
+
     /// Determines if the column contains a NULL value.
     pub fn contains_null(&self) -> bool {
         match self {
             Self::Fixed64(_) => false,
             Self::FixedNull64(enc) => enc.contains_null(),
+        }
+    }
+
+    /// The total number of rows in the column.
+    pub fn null_count(&self) -> u32 {
+        match self {
+            Self::Fixed64(_) => 0,
+            Self::FixedNull64(enc) => enc.null_count(),
         }
     }
 
@@ -149,13 +168,30 @@ impl FloatEncoding {
             Self::FixedNull64(c) => c.count(row_ids),
         }
     }
+
+    /// The name of this encoding.
+    pub fn name(&self) -> &'static str {
+        match &self {
+            Self::Fixed64(_) => "None",
+            Self::FixedNull64(_) => "None",
+        }
+    }
+
+    /// The logical datatype of this encoding.
+    pub fn logical_datatype(&self) -> &'static str {
+        match &self {
+            Self::Fixed64(_) => "f64",
+            Self::FixedNull64(_) => "f64",
+        }
+    }
 }
 
 impl std::fmt::Display for FloatEncoding {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = self.name();
         match self {
-            Self::Fixed64(enc) => enc.fmt(f),
-            Self::FixedNull64(enc) => enc.fmt(f),
+            Self::Fixed64(enc) => write!(f, "[{}]: {}", name, enc),
+            Self::FixedNull64(enc) => write!(f, "[{}]: {}", name, enc),
         }
     }
 }
