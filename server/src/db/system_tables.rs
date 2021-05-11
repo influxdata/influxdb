@@ -816,15 +816,15 @@ mod tests {
                                 name: "c1".to_string(),
                                 influxdb_type: Some(InfluxDbType::Field),
                                 stats: Statistics::String(StatValues::new(
-                                    "bar".to_string(),
-                                    "foo".to_string(),
+                                    Some("bar".to_string()),
+                                    Some("foo".to_string()),
                                     55,
                                 )),
                             },
                             ColumnSummary {
                                 name: "c2".to_string(),
                                 influxdb_type: Some(InfluxDbType::Field),
-                                stats: Statistics::F64(StatValues::new(11.0, 43.0, 66)),
+                                stats: Statistics::F64(StatValues::new(Some(11.0), Some(43.0), 66)),
                             },
                         ],
                     },
@@ -841,7 +841,11 @@ mod tests {
                             columns: vec![ColumnSummary {
                                 name: "c2".to_string(),
                                 influxdb_type: Some(InfluxDbType::Field),
-                                stats: Statistics::F64(StatValues::new(110.0, 430.0, 667)),
+                                stats: Statistics::F64(StatValues::new(
+                                    Some(110.0),
+                                    Some(430.0),
+                                    667,
+                                )),
                             }],
                         },
                     },
@@ -852,7 +856,7 @@ mod tests {
                             columns: vec![ColumnSummary {
                                 name: "c3".to_string(),
                                 influxdb_type: Some(InfluxDbType::Field),
-                                stats: Statistics::F64(StatValues::new(-1.0, 2.0, 4)),
+                                stats: Statistics::F64(StatValues::new(Some(-1.0), Some(2.0), 4)),
                             }],
                         },
                     },

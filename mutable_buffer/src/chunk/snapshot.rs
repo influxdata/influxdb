@@ -69,9 +69,10 @@ impl ChunkSnapshot {
                         .column(column_id)
                         .ok()
                         .and_then(|column| match column.stats() {
-                            Statistics::I64(stats) => {
-                                Some(TimestampRange::new(stats.min, stats.max + 1))
-                            }
+                            Statistics::I64(stats) => match (stats.min, stats.max) {
+                                (Some(min), Some(max)) => Some(TimestampRange::new(min, max)),
+                                _ => None,
+                            },
                             _ => None,
                         })
                 });

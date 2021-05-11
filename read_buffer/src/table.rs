@@ -661,32 +661,32 @@ impl MetaData {
                 let stats = match &column_meta.range {
                     (OwnedValue::String(min), OwnedValue::String(max)) => {
                         Statistics::String(StatValues {
-                            min: min.to_string(),
-                            max: max.to_string(),
+                            min: Some(min.to_string()),
+                            max: Some(max.to_string()),
                             count,
                         })
                     }
                     (OwnedValue::Boolean(min), OwnedValue::Boolean(max)) => {
                         Statistics::Bool(StatValues {
-                            min: *min,
-                            max: *max,
+                            min: Some(*min),
+                            max: Some(*max),
                             count,
                         })
                     }
                     (OwnedValue::Scalar(min), OwnedValue::Scalar(max)) => match (min, max) {
                         (Scalar::I64(min), Scalar::I64(max)) => Statistics::I64(StatValues {
-                            min: *min,
-                            max: *max,
+                            min: Some(*min),
+                            max: Some(*max),
                             count,
                         }),
                         (Scalar::U64(min), Scalar::U64(max)) => Statistics::U64(StatValues {
-                            min: *min,
-                            max: *max,
+                            min: Some(*min),
+                            max: Some(*max),
                             count,
                         }),
                         (Scalar::F64(min), Scalar::F64(max)) => Statistics::F64(StatValues {
-                            min: *min,
-                            max: *max,
+                            min: Some(*min),
+                            max: Some(*max),
                             count,
                         }),
                         _ => panic!(
