@@ -12,7 +12,7 @@ use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
 use snafu::{ResultExt, Snafu};
 
-use crate::column::{cmp::Operator, Column, RowIDs, RowIDsOption};
+use crate::column::{self, cmp::Operator, Column, RowIDs, RowIDsOption};
 use crate::schema;
 use crate::schema::{AggregateType, LogicalDataType, ResultSchema};
 use crate::value::{
@@ -1058,6 +1058,10 @@ impl RowGroup {
         }
 
         dst
+    }
+
+    pub(crate) fn column_storage_statistics(&self) -> Vec<column::Statistics> {
+        self.columns.iter().map(|c| c.storage_stats()).collect()
     }
 }
 
