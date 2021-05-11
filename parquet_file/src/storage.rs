@@ -11,7 +11,7 @@ use datafusion::physical_plan::{
 };
 use internal_types::{schema::Schema, selection::Selection};
 use object_store::{
-    path::{ObjectStorePath, Path},
+    path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
 use parquet::{
@@ -108,6 +108,9 @@ pub enum Error {
 
     #[snafu(display("Cannot extract Parquet metadata from byte array: {}", source))]
     ExtractingMetadataFailure { source: crate::metadata::Error },
+
+    #[snafu(display("Cannot parse location: {:?}", path))]
+    LocationParsingFailure { path: DirsAndFileName },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -151,7 +154,9 @@ impl Storage {
     }
 
     /// Return full path including filename in the object store to save a chunk
-    /// table file
+    /// table file.
+    ///
+    /// See [`parse_location`](Self::parse_location) for parsing.
     pub fn location(
         &self,
         partition_key: String,
@@ -172,6 +177,37 @@ impl Storage {
         path.set_file_name(file_name);
 
         path
+    }
+
+    /// Parse locations and return partition key, chunk ID and table name.
+    ///
+    /// See [`location`](Self::location) for path generation.
+    pub fn parse_location(
+        &self,
+        path: impl Into<DirsAndFileName>,
+    ) -> Result<(String, u32, String)> {
+        let path: DirsAndFileName = path.into();
+
+        let dirs: Vec<_> = path.directories.iter().map(|part| part.encoded()).collect();
+        match (dirs.as_slice(), &path.file_name) {
+            ([server_id, db_name, "data", partition_key, chunk_id], Some(filename))
+                if (server_id == &self.server_id.to_string()) && (db_name == &self.db_name) =>
+            {
+                let chunk_id: u32 = match chunk_id.parse() {
+                    Ok(x) => x,
+                    Err(_) => return Err(Error::LocationParsingFailure { path }),
+                };
+
+                let parts: Vec<_> = filename.encoded().split('.').collect();
+                let table_name = match parts[..] {
+                    [name, "parquet"] => name,
+                    _ => return Err(Error::LocationParsingFailure { path }),
+                };
+
+                Ok((partition_key.to_string(), chunk_id, table_name.to_string()))
+            }
+            _ => Err(Error::LocationParsingFailure { path }),
+        }
     }
 
     /// Write the given stream of data of a specified table of
@@ -462,4 +498,69 @@ pub fn read_schema_from_parquet_metadata(parquet_md: &ParquetMetaData) -> Result
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use std::num::NonZeroU32;
+
+    use super::*;
+    use crate::utils::make_object_store;
+    use object_store::parsed_path;
+
+    #[test]
+    fn test_location_to_from_path() {
+        let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
+        let store = Storage::new(make_object_store(), server_id, "my_db".to_string());
+
+        // happy roundtrip
+        let path = store.location("p1".to_string(), 42, "my_table".to_string());
+        assert_eq!(path.display(), "1/my_db/data/p1/42/my_table.parquet");
+        assert_eq!(
+            store.parse_location(path).unwrap(),
+            ("p1".to_string(), 42, "my_table".to_string())
+        );
+
+        // error cases
+        assert!(store.parse_location(parsed_path!()).is_err());
+        assert!(store
+            .parse_location(parsed_path!(["too", "short"], "my_table.parquet"))
+            .is_err());
+        assert!(store
+            .parse_location(parsed_path!(
+                ["this", "is", "way", "way", "too", "long"],
+                "my_table.parquet"
+            ))
+            .is_err());
+        assert!(store
+            .parse_location(parsed_path!(
+                ["1", "my_db", "data", "p1", "not_a_number"],
+                "my_table.parquet"
+            ))
+            .is_err());
+        assert!(store
+            .parse_location(parsed_path!(
+                ["1", "my_db", "not_data", "p1", "42"],
+                "my_table.parquet"
+            ))
+            .is_err());
+        assert!(store
+            .parse_location(parsed_path!(
+                ["1", "other_db", "data", "p1", "42"],
+                "my_table.parquet"
+            ))
+            .is_err());
+        assert!(store
+            .parse_location(parsed_path!(
+                ["2", "my_db", "data", "p1", "42"],
+                "my_table.parquet"
+            ))
+            .is_err());
+        assert!(store
+            .parse_location(parsed_path!(["1", "my_db", "data", "p1", "42"], "my_table"))
+            .is_err());
+        assert!(store
+            .parse_location(parsed_path!(
+                ["1", "my_db", "data", "p1", "42"],
+                "my_table.parquet.tmp"
+            ))
+            .is_err());
+    }
+}
