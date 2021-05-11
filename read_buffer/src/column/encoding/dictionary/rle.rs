@@ -16,14 +16,9 @@ pub const ENCODING_NAME: &str = "RLE";
 // entries are utf-8 valid strings.
 #[allow(clippy::upper_case_acronyms)] // this looks weird as `Rle`
 pub struct RLE {
-    // TODO(edd): revisit choice of storing owned string versus references.
-
-    // The mapping between non-null entries and their assigned ids. The id
-    // `NULL_ID` is reserved for the NULL entry.
-    entry_index: BTreeMap<String, u32>,
-
-    // The mapping between an id (as an index) and its entry. The entry at index
-    // `NULL_ID` is undefined because that id is reserved for the NULL value.
+    // The mapping between an id (as an index) and its entry.
+    // The first element is always "" representing NULL strings
+    // and the elements are sorted
     index_entries: Vec<String>,
 
     // The set of rows that belong to each distinct value in the dictionary.
@@ -46,8 +41,10 @@ pub struct RLE {
 // for the NULL value.
 impl Default for RLE {
     fn default() -> Self {
+        // for this to make sense NULL_ID must be `0`.
+        assert_eq!(NULL_ID, 0);
+
         let mut _self = Self {
-            entry_index: BTreeMap::new(),
             index_entries: vec!["".to_string()],
             index_row_ids: BTreeMap::new(),
             run_lengths: Vec::new(),
@@ -70,7 +67,6 @@ impl RLE {
         for entry in dictionary.into_iter() {
             let next_id = _self.next_encoded_id();
 
-            _self.entry_index.insert(entry.clone(), next_id);
             _self.index_entries.push(entry);
             _self.index_row_ids.insert(next_id, RowIDs::new_bitmap());
         }
@@ -81,11 +77,7 @@ impl RLE {
     /// A reasonable estimation of the on-heap size this encoding takes up.
     pub fn size(&self) -> usize {
         // the total size of all decoded values in the column.
-        let decoded_keys_size = self.entry_index.keys().map(|k| k.len()).sum::<usize>();
-
-        let entry_index_size = size_of::<BTreeMap<String, u32>>() // container size
-            + ((size_of::<String>() + size_of::<u32>()) * self.entry_index.len()) // key/value element size
-            + decoded_keys_size; // size of heap allocated strings.
+        let decoded_keys_size = self.index_entries.iter().map(|k| k.len()).sum::<usize>();
 
         let index_entry_size = size_of::<Vec<String>>() // container size
             + (size_of::<String>() * self.index_entries.len()) // elements size
@@ -106,7 +98,7 @@ impl RLE {
         let run_lengths_size = size_of::<Vec<(u32, u32)>>() + // container size
             (size_of::<(u32, u32)>() * self.run_lengths.len()); // each run-length size
 
-        entry_index_size + index_entry_size + index_row_ids_size + run_lengths_size + 1 + 4
+        index_entry_size + index_row_ids_size + run_lengths_size + 1 + 4
     }
 
     /// The number of distinct logical values in this column encoding.
@@ -147,23 +139,39 @@ impl RLE {
         }
     }
 
+    #[inline]
+    fn lookup_entry(&self, entry: &str) -> Option<u32> {
+        Some(
+            self.index_entries[1..]
+                .binary_search_by(|probe| probe.as_str().cmp(entry))
+                .ok()? as u32
+                + 1,
+        )
+    }
+
+    #[inline]
+    fn keys(&self) -> impl Iterator<Item = &String> + ExactSizeIterator + DoubleEndedIterator + '_ {
+        // Skip the first NULL value
+        self.index_entries.iter().skip(1)
+    }
+
     fn push_additional_some(&mut self, v: String, additional: u32) {
-        match self.entry_index.get(&v) {
+        match self.lookup_entry(&v) {
             // existing dictionary entry for value.
             Some(id) => {
                 match self.run_lengths.last_mut() {
                     Some((last_id, rl)) => {
-                        if last_id == id {
+                        if *last_id == id {
                             // update the existing run-length
                             *rl += additional;
                         } else {
                             // start a new run-length for an existing id
-                            self.run_lengths.push((*id, additional));
+                            self.run_lengths.push((id, additional));
                         }
                     }
                     // very first run-length in column...
                     None => {
-                        self.run_lengths.push((*id, additional));
+                        self.run_lengths.push((id, additional));
                     }
                 }
 
@@ -184,7 +192,6 @@ impl RLE {
                 }
                 self.index_entries.push(v.clone());
 
-                self.entry_index.insert(v, next_id);
                 self.index_row_ids.insert(next_id, RowIDs::new_bitmap());
 
                 // start a new run-length
@@ -268,10 +275,10 @@ impl RLE {
     fn row_ids_equal(&self, value: &str, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
         dst.clear();
 
-        if let Some(encoded_id) = self.entry_index.get(value) {
+        if let Some(encoded_id) = self.lookup_entry(value) {
             match op {
                 cmp::Operator::Equal => {
-                    let ids = self.index_row_ids.get(encoded_id).unwrap();
+                    let ids = self.index_row_ids.get(&encoded_id).unwrap();
                     dst.union(ids);
                     return dst;
                 }
@@ -284,7 +291,7 @@ impl RLE {
                         index += *other_rl;
                         if other_encoded_id == &NULL_ID {
                             continue; // skip NULL values
-                        } else if other_encoded_id != encoded_id {
+                        } else if *other_encoded_id != encoded_id {
                             // we found a row that doesn't match the value
                             dst.add_range(start, index)
                         }
@@ -313,7 +320,7 @@ impl RLE {
         dst.clear();
 
         // happy path - the value exists in the column
-        if let Some(encoded_id) = self.entry_index.get(value) {
+        if let Some(encoded_id) = self.lookup_entry(value) {
             let cmp = match op {
                 cmp::Operator::GT => PartialOrd::gt,
                 cmp::Operator::GTE => PartialOrd::ge,
@@ -329,7 +336,7 @@ impl RLE {
 
                 if other_encoded_id == &NULL_ID {
                     continue; // skip NULL values
-                } else if cmp(other_encoded_id, encoded_id) {
+                } else if cmp(other_encoded_id, &encoded_id) {
                     dst.add_range(start, index)
                 }
             }
@@ -339,7 +346,8 @@ impl RLE {
         match op {
             cmp::Operator::GT | cmp::Operator::GTE => {
                 // find the first decoded value that satisfies the predicate.
-                for other in self.entry_index.keys() {
+                // Skip the first "" representing NULL
+                for other in self.keys() {
                     if other.as_str() > value {
                         // change filter from either `x > value` or `x >= value` to `x >= other`
                         return self.row_ids_cmp(other, &cmp::Operator::GTE, dst);
@@ -348,8 +356,9 @@ impl RLE {
             }
             cmp::Operator::LT | cmp::Operator::LTE => {
                 // find the first decoded value that satisfies the predicate.
+                // Skip the "" at index 0 representing NULL
                 // Note iteration is in reverse
-                for other in self.entry_index.keys().rev() {
+                for other in self.keys().rev() {
                     if other.as_str() < value {
                         // change filter from either `x < value` or `x <= value` to `x <= other`
                         return self.row_ids_cmp(other, &cmp::Operator::LTE, dst);
@@ -495,10 +504,7 @@ impl RLE {
     /// value exists at any of the provided row ids.
     pub fn min<'a>(&'a self, row_ids: &[u32]) -> Option<&'a String> {
         // exit early if there is only NULL values in the column.
-        let col_min = match self.entry_index.keys().next() {
-            Some(entry) => entry,
-            None => return None,
-        };
+        let col_min = self.keys().next()?;
 
         let mut curr_logical_row_id = 0;
         let (mut curr_entry_id, mut curr_entry_rl) = self.run_lengths[0];
@@ -546,10 +552,7 @@ impl RLE {
     /// value exists at any of the provided row ids.
     pub fn max<'a>(&'a self, row_ids: &[u32]) -> Option<&'a String> {
         // exit early if there is only NULL values in the column.
-        let col_max = match self.entry_index.keys().rev().next() {
-            Some(entry) => entry,
-            None => return None,
-        };
+        let col_max = self.keys().rev().next()?;
 
         let mut curr_logical_row_id = 0;
         let (mut curr_entry_id, mut curr_entry_rl) = self.run_lengths[0];
@@ -801,7 +804,7 @@ impl RLE {
 
         // If any of the distinct values in this column are not present in
         // `values` then return `true`.
-        self.entry_index.keys().any(|entry| !values.contains(entry))
+        self.keys().any(|entry| !values.contains(entry))
     }
 
     /// Determines if the column contains at least one non-null value.
@@ -812,7 +815,7 @@ impl RLE {
 
         // If there are any non-null rows then there are entries in the
         // dictionary.
-        !self.entry_index.is_empty()
+        self.index_entries.len() > 1
     }
 
     /// Determines if the column contains at least one non-null value at
@@ -958,16 +961,7 @@ mod test {
         dictionary.insert("world".to_string());
 
         let drle = RLE::with_dictionary(dictionary);
-        assert_eq!(
-            drle.entry_index.keys().cloned().collect::<Vec<String>>(),
-            vec!["hello".to_string(), "world".to_string(),]
-        );
-
-        // The first id is `1` because `0` is reserved for the NULL entry.
-        assert_eq!(
-            drle.entry_index.values().cloned().collect::<Vec<u32>>(),
-            vec![1, 2],
-        );
+        assert_eq!(drle.index_entries.as_slice(), &["", "hello", "world"]);
 
         assert_eq!(
             drle.index_row_ids.keys().cloned().collect::<Vec<u32>>(),
@@ -987,8 +981,6 @@ mod test {
         enc.push_none();
         enc.push_none();
 
-        // `entry_index` is 24 + ((24+4) * 3) + 14 == 122
-        //
         // Note: there are 4 index entries to account for NULL entry.
         // `index_entry` is 24 + (24*4) + 14 == 134
         //
@@ -1000,11 +992,11 @@ mod test {
         // `contains_null` - 1 byte
         // `num_rows` - 4 bytes
         //
-        // 473
+        // 351
 
         // TODO(edd): there some mystery bytes in the bitmap implementation.
         // need to figure out how to measure these
-        assert_eq!(enc.size(), 473);
+        assert_eq!(enc.size(), 351);
     }
 
     #[test]

@@ -1760,7 +1760,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(4387.0)
+            .sample_sum_eq(3635.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk, "cpu").await;

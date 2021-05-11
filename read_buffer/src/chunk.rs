@@ -956,7 +956,7 @@ mod test {
                 r#"read_buffer_column_bytes{encoding="BT_U32",log_data_type="i64"} 108"#,
                 r#"read_buffer_column_bytes{encoding="None",log_data_type="bool"} 1152"#,
                 r#"read_buffer_column_bytes{encoding="None",log_data_type="f64"} 1176"#,
-                r#"read_buffer_column_bytes{encoding="RLE",log_data_type="string"} 1014"#,
+                r#"read_buffer_column_bytes{encoding="RLE",log_data_type="string"} 750"#,
                 r#"# HELP read_buffer_column_total The number of columns within the Read Buffer"#,
                 r#"# TYPE read_buffer_column_total gauge"#,
                 r#"read_buffer_column_total{encoding="BT_U32",log_data_type="i64"} 3"#,
