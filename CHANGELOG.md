@@ -4,6 +4,7 @@
 
 1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
 1. [21218](https://github.com/influxdata/influxdb/pull/21218): Add the properties of a static legend for line graphs and band plots.
+1. [21367](https://github.com/influxdata/influxdb/pull/21367): List users via the API now supports pagination
 
 ### Bug Fixes
 

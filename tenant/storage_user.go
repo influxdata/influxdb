@@ -119,7 +119,21 @@ func (s *Store) ListUsers(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOpt
 		return nil, err
 	}
 
-	cursor, err := b.ForwardCursor(nil)
+	var opts []kv.CursorOption
+	if o.Descending {
+		opts = append(opts, kv.WithCursorDirection(kv.CursorDescending))
+	}
+
+	var seek []byte
+	if o.After != nil {
+		after := (*o.After) + 1
+		seek, err = after.Encode()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	cursor, err := b.ForwardCursor(seek, opts...)
 	if err != nil {
 		return nil, err
 	}
