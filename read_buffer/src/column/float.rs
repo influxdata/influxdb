@@ -2,13 +2,18 @@ use std::mem::size_of;
 
 use arrow::{self, array::Array};
 
-use super::encoding::{scalar::Fixed, scalar::FixedNull};
+use super::encoding::{
+    scalar::Fixed,
+    scalar::{rle::RLE, FixedNull},
+};
 use super::{cmp, Statistics};
 use crate::column::{RowIDs, Scalar, Value, Values};
 
+#[allow(clippy::upper_case_acronyms)] // TODO(edd): these will be OK in 1.52
 pub enum FloatEncoding {
     Fixed64(Fixed<f64>),
     FixedNull64(FixedNull<arrow::datatypes::Float64Type>),
+    RLE64(RLE<f64>),
 }
 
 impl FloatEncoding {
@@ -17,6 +22,7 @@ impl FloatEncoding {
         match self {
             Self::Fixed64(enc) => enc.size(),
             Self::FixedNull64(enc) => enc.size(),
+            Self::RLE64(enc) => enc.size(),
         }
     }
 
@@ -38,6 +44,7 @@ impl FloatEncoding {
         match self {
             Self::Fixed64(enc) => enc.num_rows(),
             Self::FixedNull64(enc) => enc.num_rows(),
+            Self::RLE64(enc) => enc.num_rows(),
         }
     }
 
@@ -59,6 +66,7 @@ impl FloatEncoding {
         match self {
             Self::Fixed64(_) => false,
             Self::FixedNull64(enc) => enc.contains_null(),
+            Self::RLE64(enc) => enc.contains_null(),
         }
     }
 
@@ -67,6 +75,7 @@ impl FloatEncoding {
         match self {
             Self::Fixed64(_) => 0,
             Self::FixedNull64(enc) => enc.null_count(),
+            Self::RLE64(enc) => enc.null_count(),
         }
     }
 
@@ -75,6 +84,7 @@ impl FloatEncoding {
         match self {
             Self::Fixed64(_) => true,
             Self::FixedNull64(enc) => enc.has_any_non_null_value(),
+            Self::RLE64(enc) => enc.has_any_non_null_value(),
         }
     }
 
@@ -84,6 +94,7 @@ impl FloatEncoding {
         match self {
             Self::Fixed64(_) => !row_ids.is_empty(), // all rows will be non-null
             Self::FixedNull64(enc) => enc.has_non_null_value(row_ids),
+            Self::RLE64(enc) => enc.has_non_null_value(row_ids),
         }
     }
 
@@ -92,6 +103,10 @@ impl FloatEncoding {
         match &self {
             Self::Fixed64(c) => Value::Scalar(Scalar::F64(c.value(row_id))),
             Self::FixedNull64(c) => match c.value(row_id) {
+                Some(v) => Value::Scalar(Scalar::F64(v)),
+                None => Value::Null,
+            },
+            Self::RLE64(c) => match c.value(row_id) {
                 Some(v) => Value::Scalar(Scalar::F64(v)),
                 None => Value::Null,
             },
@@ -105,6 +120,7 @@ impl FloatEncoding {
         match &self {
             Self::Fixed64(c) => Values::F64(c.values::<f64>(row_ids, vec![])),
             Self::FixedNull64(c) => Values::F64N(c.values(row_ids, vec![])),
+            Self::RLE64(c) => Values::F64N(c.values(row_ids, vec![])),
         }
     }
 
@@ -115,6 +131,7 @@ impl FloatEncoding {
         match &self {
             Self::Fixed64(c) => Values::F64(c.all_values::<f64>(vec![])),
             Self::FixedNull64(c) => Values::F64N(c.all_values(vec![])),
+            Self::RLE64(c) => Values::F64N(c.all_values(vec![])),
         }
     }
 
@@ -127,6 +144,7 @@ impl FloatEncoding {
         match &self {
             Self::Fixed64(c) => c.row_ids_filter(value.as_f64(), op, dst),
             Self::FixedNull64(c) => c.row_ids_filter(value.as_f64(), op, dst),
+            Self::RLE64(c) => c.row_ids_filter(value.as_f64(), op, dst),
         }
     }
 
@@ -146,6 +164,9 @@ impl FloatEncoding {
                 c.row_ids_filter_range((low.1.as_f64(), &low.0), (high.1.as_f64(), &high.0), dst)
             }
             Self::FixedNull64(_) => todo!(),
+            Self::RLE64(c) => {
+                c.row_ids_filter_range((low.1.as_f64(), &low.0), (high.1.as_f64(), &high.0), dst)
+            }
         }
     }
 
@@ -153,6 +174,10 @@ impl FloatEncoding {
         match &self {
             Self::Fixed64(c) => Value::Scalar(Scalar::F64(c.min(row_ids))),
             Self::FixedNull64(c) => match c.min(row_ids) {
+                Some(v) => Value::Scalar(Scalar::F64(v)),
+                None => Value::Null,
+            },
+            Self::RLE64(c) => match c.min(row_ids) {
                 Some(v) => Value::Scalar(Scalar::F64(v)),
                 None => Value::Null,
             },
@@ -166,6 +191,10 @@ impl FloatEncoding {
                 Some(v) => Value::Scalar(Scalar::F64(v)),
                 None => Value::Null,
             },
+            Self::RLE64(c) => match c.max(row_ids) {
+                Some(v) => Value::Scalar(Scalar::F64(v)),
+                None => Value::Null,
+            },
         }
     }
 
@@ -176,6 +205,10 @@ impl FloatEncoding {
                 Some(v) => Scalar::F64(v),
                 None => Scalar::Null,
             },
+            Self::RLE64(c) => match c.sum(row_ids) {
+                Some(v) => Scalar::F64(v),
+                None => Scalar::Null,
+            },
         }
     }
 
@@ -183,6 +216,7 @@ impl FloatEncoding {
         match &self {
             Self::Fixed64(c) => c.count(row_ids),
             Self::FixedNull64(c) => c.count(row_ids),
+            Self::RLE64(c) => c.count(row_ids),
         }
     }
 
@@ -191,6 +225,7 @@ impl FloatEncoding {
         match &self {
             Self::Fixed64(_) => "None",
             Self::FixedNull64(_) => "None",
+            Self::RLE64(enc) => enc.name(),
         }
     }
 
@@ -199,6 +234,7 @@ impl FloatEncoding {
         match &self {
             Self::Fixed64(_) => "f64",
             Self::FixedNull64(_) => "f64",
+            Self::RLE64(_) => "f64",
         }
     }
 }
@@ -209,6 +245,7 @@ impl std::fmt::Display for FloatEncoding {
         match self {
             Self::Fixed64(enc) => write!(f, "[{}]: {}", name, enc),
             Self::FixedNull64(enc) => write!(f, "[{}]: {}", name, enc),
+            Self::RLE64(enc) => write!(f, "[{}]: {}", name, enc),
         }
     }
 }
