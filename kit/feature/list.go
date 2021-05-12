@@ -128,6 +128,20 @@ func Notebooks() BoolFlag {
 	return notebooks
 }
 
+var notebooksApi = MakeBoolFlag(
+	"Notebooks Service API",
+	"notebooksApi",
+	"Edge Team",
+	false,
+	Temporary,
+	true,
+)
+
+// NotebooksServiceApi - Enable the Equivalent notebooksd Service API
+func NotebooksServiceApi() BoolFlag {
+	return notebooksApi
+}
+
 var injectLatestSuccessTime = MakeBoolFlag(
 	"Inject Latest Success Time",
 	"injectLatestSuccessTime",
@@ -254,20 +268,6 @@ func RefreshSingleCell() BoolFlag {
 	return refreshSingleCell
 }
 
-var typeAheadVariableDropdown = MakeBoolFlag(
-	"Type Ahead Dropdowns for Variables",
-	"typeAheadVariableDropdown",
-	"Monitoring Team",
-	false,
-	Temporary,
-	true,
-)
-
-// TypeAheadDropdownsForVariables - Enables type ahead dropdowns for variables
-func TypeAheadDropdownsForVariables() BoolFlag {
-	return typeAheadVariableDropdown
-}
-
 var annotations = MakeBoolFlag(
 	"Annotations UI",
 	"annotations",
@@ -292,6 +292,7 @@ var all = []Flag{
 	bandPlotType,
 	mosaicGraphType,
 	notebooks,
+	notebooksApi,
 	injectLatestSuccessTime,
 	enforceOrgDashboardLimits,
 	timeFilterFlags,
@@ -301,7 +302,6 @@ var all = []Flag{
 	legendOrientation,
 	cursorAtEOF,
 	refreshSingleCell,
-	typeAheadVariableDropdown,
 	annotations,
 }
 
@@ -315,6 +315,7 @@ var byKey = map[string]Flag{
 	"bandPlotType":                  bandPlotType,
 	"mosaicGraphType":               mosaicGraphType,
 	"notebooks":                     notebooks,
+	"notebooksApi":                  notebooksApi,
 	"injectLatestSuccessTime":       injectLatestSuccessTime,
 	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,
 	"timeFilterFlags":               timeFilterFlags,
@@ -324,6 +325,5 @@ var byKey = map[string]Flag{
 	"legendOrientation":             legendOrientation,
 	"cursorAtEOF":                   cursorAtEOF,
 	"refreshSingleCell":             refreshSingleCell,
-	"typeAheadVariableDropdown":     typeAheadVariableDropdown,
 	"annotations":                   annotations,
 }

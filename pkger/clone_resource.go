@@ -742,6 +742,7 @@ func convertCellView(cell influxdb.Cell) chart {
 	setStaticLegend := func(sl influxdb.StaticLegend) {
 		ch.StaticLegend.ColorizeRows = sl.ColorizeRows
 		ch.StaticLegend.HeightRatio = sl.HeightRatio
+		ch.StaticLegend.Hide = sl.Hide
 		ch.StaticLegend.Opacity = sl.Opacity
 		ch.StaticLegend.OrientationThreshold = sl.OrientationThreshold
 		ch.StaticLegend.ValueAxis = sl.ValueAxis
@@ -1081,6 +1082,7 @@ func convertChartToResource(ch chart) Resource {
 		fieldChartShade:                     ch.Shade,
 		fieldChartLegendColorizeRows:        ch.LegendColorizeRows,
 		fieldChartStaticLegendColorizeRows:  ch.StaticLegend.ColorizeRows,
+		fieldChartStaticLegendHide:          ch.StaticLegend.Hide,
 		fieldChartGeoAllowPanAndZoom:        ch.AllowPanAndZoom,
 		fieldChartGeoDetectCoordinateFields: ch.DetectCoordinateFields,
 	})

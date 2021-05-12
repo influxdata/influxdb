@@ -8,6 +8,9 @@
 ### Bug Fixes
 
 1. [21345](https://github.com/influxdata/influxdb/pull/21345): Deprecate the unsupported `PostSetupUser` API.
+1. [21356](https://github.com/influxdata/influxdb/pull/21356): Disable MergeFiltersRule until it is more stable.
+1. [21369](https://github.com/influxdata/influxdb/pull/21369): Add limits to the `/api/v2/delete` endpoint for start and stop times with error messages.
+1. [21375](https://github.com/influxdata/influxdb/pull/21375): Add logging to NATS streaming server to help debug startup failures.
 
 ## v2.0.6 [2021-04-29]
 
@@ -71,6 +74,7 @@ The prefix used for Prometheus metrics from the query controller has changed fro
 1. [21158](https://github.com/influxdata/influxdb/pull/21158): Replace unique resource IDs (UI assets, backup shards) with slugs to reduce cardinality of telemetry data.
 1. [21235](https://github.com/influxdata/influxdb/pull/21235): HTTP server errors output logs following the standard format.
 1. [21255](https://github.com/influxdata/influxdb/pull/21255): Upgrade Flux to v0.113.0.
+1. [21364](https://github.com/influxdata/influxdb/pull/21364): Update Static Legend properties to allow disabling without nulling
 
 ### Bug Fixes
 
