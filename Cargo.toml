@@ -61,6 +61,7 @@ logfmt = { path = "logfmt" }
 mem_qe = { path = "mem_qe" }
 metrics = { path = "metrics" }
 mutable_buffer = { path = "mutable_buffer" }
+num_cpus = "1.13.0"
 object_store = { path = "object_store" }
 observability_deps = { path = "observability_deps" }
 packers = { path = "packers" }

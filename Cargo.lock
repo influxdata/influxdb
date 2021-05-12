@@ -1531,6 +1531,7 @@ dependencies = [
  "mem_qe",
  "metrics",
  "mutable_buffer",
+ "num_cpus",
  "object_store",
  "observability_deps",
  "once_cell",

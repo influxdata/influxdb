@@ -99,7 +99,8 @@ async fn wait_for_signal() {
 /// command line arguments, if any.
 pub async fn main(config: Config) -> Result<()> {
     let git_hash = option_env!("GIT_HASH").unwrap_or("UNKNOWN");
-    info!(git_hash, "InfluxDB IOx server starting");
+    let num_cpus = num_cpus::get();
+    info!(git_hash, num_cpus, "InfluxDB IOx server starting");
 
     // Install custom panic handler and forget about it.
     //
