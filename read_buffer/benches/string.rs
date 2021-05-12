@@ -3,7 +3,7 @@ use rand::distributions::Alphanumeric;
 use rand::prelude::*;
 use rand::Rng;
 
-use read_buffer::benchmarks::{dictionary, Operator, RowIDs};
+use read_buffer::benchmarks::{string, Operator, RowIDs};
 
 const ROWS: [usize; 3] = [100_000, 1_000_000, 10_000_000];
 const LOCATIONS: [Location; 3] = [Location::Start, Location::Middle, Location::End];
@@ -17,7 +17,7 @@ enum Location {
 }
 
 enum EncType {
-    RleDictionary,
+    Rle,
     Dictionary,
 }
 
@@ -25,8 +25,8 @@ fn select(c: &mut Criterion) {
     let mut rng = rand::thread_rng();
     benchmark_select(
         c,
-        "encoding_rle_select",
-        EncType::RleDictionary,
+        "select",
+        EncType::Rle,
         &ROWS,
         &LOCATIONS,
         &ROWS_MATCHING_VALUE,
@@ -35,7 +35,7 @@ fn select(c: &mut Criterion) {
 
     benchmark_select(
         c,
-        "encoding_dict_select",
+        "_select",
         EncType::Dictionary,
         &ROWS,
         &LOCATIONS,
@@ -82,22 +82,22 @@ fn benchmark_select(
                 };
 
                 group.throughput(Throughput::Elements(num_rows as u64));
-                let encoding: dictionary::Encoding = match enc_type {
-                    EncType::RleDictionary => {
-                        let mut encoding = dictionary::RLE::with_dictionary(col_dict);
+                let encoding: string::Encoding = match enc_type {
+                    EncType::Rle => {
+                        let mut encoding = string::RLE::with_dictionary(col_dict);
                         // Could be faster but it's just the bench setup...
                         for v in &col_data {
                             encoding.push(v.to_owned());
                         }
-                        dictionary::Encoding::RLE(encoding)
+                        string::Encoding::RLE(encoding)
                     }
                     EncType::Dictionary => {
-                        let mut encoding = dictionary::Plain::with_dictionary(col_dict);
+                        let mut encoding = string::Dictionary::with_dictionary(col_dict);
                         // Could be faster but it's just the bench setup...
                         for v in &col_data {
                             encoding.push(v.to_owned());
                         }
-                        dictionary::Encoding::Plain(encoding)
+                        string::Encoding::Plain(encoding)
                     }
                 };
 

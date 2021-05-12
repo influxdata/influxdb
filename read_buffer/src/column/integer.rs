@@ -1,6 +1,6 @@
 use arrow::{self, array::Array};
 
-use super::encoding::{fixed::Fixed, fixed_null::FixedNull};
+use super::encoding::{scalar::Fixed, scalar::FixedNull};
 use super::{cmp, Statistics};
 use crate::column::{EncodedValues, RowIDs, Scalar, Value, Values};
 

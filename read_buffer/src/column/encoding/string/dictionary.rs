@@ -13,11 +13,11 @@ use std::mem::size_of;
 
 use arrow::array::{Array, StringArray};
 
-use crate::column::dictionary::NULL_ID;
+use super::NULL_ID;
 use crate::column::{cmp, RowIDs};
 
 pub const ENCODING_NAME: &str = "DICT";
-pub struct Plain {
+pub struct Dictionary {
     // The sorted set of logical values that are contained within this column
     // encoding. Entries always contains None, which is used to reserve the
     // encoded id of `0` for NULL values.
@@ -32,9 +32,9 @@ pub struct Plain {
     contains_null: bool,
 }
 
-// The default initialisation of an Plain involves reserving the first id/index
-// `0`, which is the encoded representation of the NULL value.
-impl Default for Plain {
+// The default initialisation of this Dictionary involves reserving the first
+// id/index `0`, which is the encoded representation of the NULL value.
+impl Default for Dictionary {
     fn default() -> Self {
         // for this to make sense NULL_ID must be `0`.
         assert_eq!(NULL_ID, 0);
@@ -46,8 +46,8 @@ impl Default for Plain {
     }
 }
 
-impl Plain {
-    /// Initialises an Plain encoding with a set of logical values.
+impl Dictionary {
+    /// Initialises an Dictionar encoding with a set of logical values.
     /// Creating an encoding using `with_dictionary` ensures that the dictionary
     /// is in the correct order, and will allow values to be inserted with any
     /// value in the dictionary.
@@ -746,7 +746,7 @@ impl Plain {
     }
 }
 
-impl<'a> From<Vec<&str>> for Plain {
+impl<'a> From<Vec<&str>> for Dictionary {
     fn from(vec: Vec<&str>) -> Self {
         let mut enc = Self::default();
         for v in vec {
@@ -756,7 +756,7 @@ impl<'a> From<Vec<&str>> for Plain {
     }
 }
 
-impl<'a> From<Vec<String>> for Plain {
+impl<'a> From<Vec<String>> for Dictionary {
     fn from(vec: Vec<String>) -> Self {
         let mut enc = Self::default();
         for v in vec {
@@ -766,7 +766,7 @@ impl<'a> From<Vec<String>> for Plain {
     }
 }
 
-impl<'a> From<Vec<Option<&str>>> for Plain {
+impl<'a> From<Vec<Option<&str>>> for Dictionary {
     fn from(vec: Vec<Option<&str>>) -> Self {
         let mut drle = Self::default();
         for v in vec {
@@ -779,7 +779,7 @@ impl<'a> From<Vec<Option<&str>>> for Plain {
     }
 }
 
-impl<'a> From<Vec<Option<String>>> for Plain {
+impl<'a> From<Vec<Option<String>>> for Dictionary {
     fn from(vec: Vec<Option<String>>) -> Self {
         let mut drle = Self::default();
         for v in vec {
@@ -792,7 +792,7 @@ impl<'a> From<Vec<Option<String>>> for Plain {
     }
 }
 
-impl<'a> From<StringArray> for Plain {
+impl<'a> From<StringArray> for Dictionary {
     fn from(arr: StringArray) -> Self {
         let mut drle = Self::default();
         for i in 0..arr.len() {
@@ -806,7 +806,7 @@ impl<'a> From<StringArray> for Plain {
     }
 }
 
-impl std::fmt::Display for Plain {
+impl std::fmt::Display for Dictionary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -829,7 +829,7 @@ mod test {
         dictionary.insert("hello".to_string());
         dictionary.insert("world".to_string());
 
-        let enc = Plain::with_dictionary(dictionary);
+        let enc = Dictionary::with_dictionary(dictionary);
         assert_eq!(
             enc.entries,
             vec![None, Some("hello".to_string()), Some("world".to_string()),]
@@ -838,7 +838,7 @@ mod test {
 
     #[test]
     fn size() {
-        let mut enc = Plain::default();
+        let mut enc = Dictionary::default();
         enc.push_additional(Some("east".to_string()), 3);
         enc.push_additional(Some("north".to_string()), 1);
         enc.push_additional(Some("east".to_string()), 5);
@@ -878,7 +878,7 @@ mod test {
 
     #[test]
     fn null_count() {
-        let mut enc = Plain::default();
+        let mut enc = Dictionary::default();
         enc.push_additional(Some("east".to_string()), 3);
         assert_eq!(enc.null_count(), 0);
 
@@ -896,14 +896,14 @@ mod test {
     #[test]
     #[should_panic]
     fn push_wrong_order() {
-        let mut enc = Plain::default();
+        let mut enc = Dictionary::default();
         enc.push("b".to_string());
         enc.push("a".to_string());
     }
 
     #[test]
     fn has_non_null_value() {
-        let mut enc = Plain::default();
+        let mut enc = Dictionary::default();
         enc.push_none();
         enc.push_none();
 
@@ -917,7 +917,7 @@ mod test {
 
     #[test]
     fn has_any_non_null_value() {
-        let mut enc = Plain::default();
+        let mut enc = Dictionary::default();
         enc.push_none();
         enc.push_none();
 

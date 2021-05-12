@@ -1,4 +1,4 @@
-pub mod plain;
+pub mod dictionary;
 pub mod rle;
 
 use std::collections::BTreeSet;
@@ -6,8 +6,8 @@ use std::collections::BTreeSet;
 use either::Either;
 
 // This makes the encoding types available under the dictionary module.
-pub use self::plain::Plain;
-pub use self::rle::RLE;
+pub use dictionary::Dictionary;
+pub use rle::RLE;
 
 use crate::column::{cmp, RowIDs};
 
@@ -17,7 +17,7 @@ pub const NULL_ID: u32 = 0;
 #[allow(clippy::upper_case_acronyms)] // this looks weird as `Rle`
 pub enum Encoding {
     RLE(RLE),
-    Plain(Plain),
+    Plain(Dictionary),
 }
 
 impl Encoding {
@@ -311,7 +311,7 @@ mod test {
     fn push() {
         let encodings = vec![
             Encoding::RLE(RLE::from(vec!["hello", "hello", "hello", "hello"])),
-            Encoding::Plain(Plain::from(vec!["hello", "hello", "hello", "hello"])),
+            Encoding::Plain(Dictionary::from(vec!["hello", "hello", "hello", "hello"])),
         ];
 
         for enc in encodings {
@@ -375,7 +375,7 @@ mod test {
 
         let encodings = vec![
             Encoding::RLE(RLE::with_dictionary(dictionary.clone())),
-            Encoding::Plain(Plain::with_dictionary(dictionary)),
+            Encoding::Plain(Dictionary::with_dictionary(dictionary)),
         ];
 
         for enc in encodings {
@@ -414,7 +414,7 @@ mod test {
     fn row_ids_filter_equal() {
         let encodings = vec![
             Encoding::RLE(RLE::default()),
-            Encoding::Plain(Plain::default()),
+            Encoding::Plain(Dictionary::default()),
         ];
 
         for enc in encodings {
@@ -461,7 +461,7 @@ mod test {
     fn row_ids_filter_equal_no_null() {
         let encodings = vec![
             Encoding::RLE(RLE::default()),
-            Encoding::Plain(Plain::default()),
+            Encoding::Plain(Dictionary::default()),
         ];
 
         for enc in encodings {
@@ -482,7 +482,7 @@ mod test {
     fn row_ids_filter_cmp() {
         let encodings = vec![
             Encoding::RLE(RLE::default()),
-            Encoding::Plain(Plain::default()),
+            Encoding::Plain(Dictionary::default()),
         ];
 
         for enc in encodings {
@@ -620,7 +620,7 @@ mod test {
     fn row_ids_filter_cmp_single() {
         let mut encodings = vec![
             Encoding::RLE(RLE::default()),
-            Encoding::Plain(Plain::default()),
+            Encoding::Plain(Dictionary::default()),
         ];
 
         for enc in encodings.iter_mut() {
@@ -667,7 +667,7 @@ mod test {
 
         let mut encodings = vec![
             Encoding::RLE(RLE::with_dictionary(dictionary.clone())),
-            Encoding::Plain(Plain::with_dictionary(dictionary)),
+            Encoding::Plain(Dictionary::with_dictionary(dictionary)),
         ];
 
         for enc in encodings.iter_mut() {
@@ -713,7 +713,7 @@ mod test {
     fn row_ids_null() {
         let encodings = vec![
             Encoding::RLE(RLE::default()),
-            Encoding::Plain(Plain::default()),
+            Encoding::Plain(Dictionary::default()),
         ];
 
         for enc in encodings {
@@ -742,7 +742,7 @@ mod test {
     fn group_row_ids() {
         let encodings = vec![
             Encoding::RLE(RLE::default()),
-            Encoding::Plain(Plain::default()),
+            Encoding::Plain(Dictionary::default()),
         ];
 
         for enc in encodings {
@@ -792,7 +792,7 @@ mod test {
     fn dictionary() {
         let encodings = vec![
             Encoding::RLE(RLE::default()),
-            Encoding::Plain(Plain::default()),
+            Encoding::Plain(Dictionary::default()),
         ];
 
         for enc in encodings {
@@ -821,7 +821,7 @@ mod test {
     fn value() {
         let encodings = vec![
             Encoding::RLE(RLE::default()),
-            Encoding::Plain(Plain::default()),
+            Encoding::Plain(Dictionary::default()),
         ];
 
         for enc in encodings {
@@ -849,7 +849,7 @@ mod test {
         enc.push("b".to_string());
         enc.value(100);
 
-        let mut enc = Plain::default();
+        let mut enc = Dictionary::default();
         enc.push("b".to_string());
         enc.value(100);
     }
@@ -858,7 +858,7 @@ mod test {
     fn values() {
         let encodings = vec![
             Encoding::RLE(RLE::default()),
-            Encoding::Plain(Plain::default()),
+            Encoding::Plain(Dictionary::default()),
         ];
 
         for enc in encodings {
@@ -894,7 +894,7 @@ mod test {
     fn all_values() {
         let encodings = vec![
             Encoding::RLE(RLE::from(vec!["hello", "zoo"])),
-            Encoding::Plain(Plain::from(vec!["hello", "zoo"])),
+            Encoding::Plain(Dictionary::from(vec!["hello", "zoo"])),
         ];
 
         for enc in encodings {
@@ -919,7 +919,7 @@ mod test {
     fn encoded_values() {
         let encodings = vec![
             Encoding::RLE(RLE::default()),
-            Encoding::Plain(Plain::default()),
+            Encoding::Plain(Dictionary::default()),
         ];
 
         for enc in encodings {
@@ -950,7 +950,7 @@ mod test {
     fn all_encoded_values() {
         let encodings = vec![
             Encoding::RLE(RLE::default()),
-            Encoding::Plain(Plain::default()),
+            Encoding::Plain(Dictionary::default()),
         ];
 
         for enc in encodings {
@@ -975,7 +975,7 @@ mod test {
     fn min_max() {
         let encodings = vec![
             Encoding::RLE(RLE::default()),
-            Encoding::Plain(Plain::default()),
+            Encoding::Plain(Dictionary::default()),
         ];
 
         for enc in encodings {
@@ -1020,7 +1020,7 @@ mod test {
     fn distinct_values() {
         let encodings = vec![
             Encoding::RLE(RLE::default()),
-            Encoding::Plain(Plain::default()),
+            Encoding::Plain(Dictionary::default()),
         ];
 
         for enc in encodings {
@@ -1081,7 +1081,7 @@ mod test {
     fn has_other_non_null_values() {
         let encodings = vec![
             Encoding::RLE(RLE::default()),
-            Encoding::Plain(Plain::default()),
+            Encoding::Plain(Dictionary::default()),
         ];
 
         for enc in encodings {

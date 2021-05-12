@@ -27,7 +27,7 @@ enum Chunks {
 
 enum EncType {
     Fixed,
-    Arrow,
+    FixedNull,
 }
 
 enum PhysicalType {
@@ -37,25 +37,25 @@ enum PhysicalType {
 }
 
 fn encoding_sum(c: &mut Criterion) {
-    benchmark_plain_sum(
+    benchmark_none_sum(
         c,
-        "encoding_fixed_sum",
+        "encoding_none_sum",
         EncType::Fixed,
         &ROWS,
         &CHUNKS,
         &PHYSICAL_TYPES,
     );
-    benchmark_plain_sum(
+    benchmark_none_sum(
         c,
-        "encoding_arrow_sum",
-        EncType::Arrow,
+        "encoding_none_sum",
+        EncType::FixedNull,
         &ROWS,
         &CHUNKS,
         &PHYSICAL_TYPES,
     );
 }
 
-fn benchmark_plain_sum(
+fn benchmark_none_sum(
     c: &mut Criterion,
     benchmark_group_name: &str,
     enc_type: EncType,
@@ -102,7 +102,7 @@ fn benchmark_plain_sum(
                                     },
                                 );
                             }
-                            EncType::Arrow => {
+                            EncType::FixedNull => {
                                 let encoding = FixedNull::<Int64Type>::from(
                                     (0..num_rows as i64).collect::<Vec<i64>>().as_slice(),
                                 );
@@ -147,7 +147,7 @@ fn benchmark_plain_sum(
                                     },
                                 );
                             }
-                            EncType::Arrow => {
+                            EncType::FixedNull => {
                                 let encoding = FixedNull::<Int32Type>::from(
                                     (0..num_rows as i32).collect::<Vec<i32>>().as_slice(),
                                 );
@@ -192,7 +192,7 @@ fn benchmark_plain_sum(
                                     },
                                 );
                             }
-                            EncType::Arrow => {
+                            EncType::FixedNull => {
                                 let encoding = FixedNull::<Int16Type>::from(
                                     (0..num_rows as i16).collect::<Vec<i16>>().as_slice(),
                                 );

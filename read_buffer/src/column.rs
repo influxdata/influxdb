@@ -15,7 +15,7 @@ use arrow::array::Array;
 use crate::schema::LogicalDataType;
 use crate::value::{EncodedValues, OwnedValue, Scalar, Value, Values};
 use boolean::BooleanEncoding;
-use encoding::{bool, dictionary, fixed_null};
+use encoding::{bool, scalar};
 use float::FloatEncoding;
 use integer::IntegerEncoding;
 use string::StringEncoding;
@@ -1068,7 +1068,7 @@ impl From<arrow::array::Float64Array> for Column {
             _ => unreachable!("min/max must both be Some or None"),
         };
 
-        let data = fixed_null::FixedNull::<arrow::datatypes::Float64Type>::from(arr);
+        let data = scalar::FixedNull::<arrow::datatypes::Float64Type>::from(arr);
         let meta = MetaData {
             range,
             ..MetaData::default()
@@ -1334,6 +1334,7 @@ pub(crate) struct Statistics {
 mod test {
     use super::*;
     use arrow::array::{Int64Array, StringArray};
+    use encoding::string::NULL_ID;
 
     #[test]
     fn row_ids_intersect() {
@@ -1659,7 +1660,7 @@ mod test {
         let col = Column::from(&input[..]);
         assert_eq!(
             col.encoded_values(&[0, 1, 2, 3, 4], EncodedValues::U32(vec![])),
-            EncodedValues::U32(vec![1, dictionary::NULL_ID, 2, 1, 2])
+            EncodedValues::U32(vec![1, NULL_ID, 2, 1, 2])
         );
 
         let res = col.encoded_values(&[2, 3], EncodedValues::U32(Vec::with_capacity(100)));
@@ -1697,7 +1698,7 @@ mod test {
         let col = Column::from(&input[..]);
         assert_eq!(
             col.all_encoded_values(EncodedValues::U32(vec![])),
-            EncodedValues::U32(vec![1, dictionary::NULL_ID, 2, 1, 2])
+            EncodedValues::U32(vec![1, NULL_ID, 2, 1, 2])
         );
 
         // timestamp column
