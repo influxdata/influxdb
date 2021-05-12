@@ -24,6 +24,9 @@ impl ProcessClock {
     /// nanoseconds or the previous process clock value plus 1. Every operation that needs a
     /// process clock value should be incrementing it as well, so there should never be a read of
     /// the process clock without an accompanying increment of at least 1 nanosecond.
+    ///
+    /// We expect that updates to the process clock are not so frequent and the system is slow
+    /// enough that the returned value will be incremented by at least 1.
     pub fn next(&self) -> ClockValue {
         let next = loop {
             if let Ok(next) = self.try_update() {
@@ -54,6 +57,10 @@ impl ProcessClock {
 
 // Convenience function for getting the current time in a `u64` represented as nanoseconds since
 // the epoch
+//
+// While this might jump backwards, the logic above that takes the maximum of the current process
+// clock and the value returned from this function should ensure that the process clock is
+// strictly increasing.
 fn system_clock_now() -> u64 {
     Utc::now()
         .timestamp_nanos()
