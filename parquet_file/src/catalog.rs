@@ -1326,7 +1326,9 @@ mod tests {
         column_prefix: &str,
     ) -> ParquetMetaData {
         let chunk = make_chunk(Arc::clone(object_store), column_prefix).await;
-        let (_, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(object_store)).await;
+        let (_, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(object_store))
+            .await
+            .unwrap();
         read_parquet_metadata_from_file(parquet_data).unwrap()
     }
 }

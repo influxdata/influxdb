@@ -47,7 +47,9 @@ mod tests {
         ////////////////////
         // Now let read it back
         //
-        let (_read_table, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(&store)).await;
+        let (_read_table, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(&store))
+            .await
+            .unwrap();
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data.clone()).unwrap();
         //
         // 1. Check metadata at file level: Everything is correct
