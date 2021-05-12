@@ -482,19 +482,24 @@ pub fn make_record_batch(
         &mut summaries,
         &mut schema_builder,
     );
-
-    // TODO: NaNs are broken until https://github.com/apache/arrow-rs/issues/255 is fixed
-    // let nan1 = f64::from_bits(0x7ff8000000000001);
-    // let nan2 = f64::from_bits(0x7ff8000000000002);
-    // assert!(nan1.is_nan());
-    // assert!(nan2.is_nan());
-    // schema_builder = create_column_field_f64(
-    //     "field_f64_nan",
-    //     vec![vec![nan1], vec![2.0], vec![1.0, nan2]],
-    //     &mut arrow_cols,
-    //     &mut summaries,
-    //     schema_builder,
-    // );
+    let nan1 = f64::from_bits(0x7ff8000000000001);
+    let nan2 = f64::from_bits(0x7ff8000000000002);
+    assert!(nan1.is_nan());
+    assert!(nan2.is_nan());
+    create_column_field_f64(
+        &format!("{}_field_f64_nan_some", column_prefix),
+        vec![vec![nan1], vec![2.0], vec![1.0, nan2]],
+        &mut arrow_cols,
+        &mut summaries,
+        &mut schema_builder,
+    );
+    create_column_field_f64(
+        &format!("{}_field_f64_nan_all", column_prefix),
+        vec![vec![nan1], vec![nan2], vec![nan1, nan2]],
+        &mut arrow_cols,
+        &mut summaries,
+        &mut schema_builder,
+    );
 
     // field: bool
     create_column_field_bool(

@@ -156,11 +156,11 @@ pub enum Error {
     StatisticsMissing { row_group: usize, column: String },
 
     #[snafu(display(
-        "Statistics for column {} in row group {} do not set min/max values",
+        "Statistics for column {} in row group {} contain deprecated and potentially wrong min/max values",
         column,
         row_group
     ))]
-    StatisticsMinMaxMissing { row_group: usize, column: String },
+    StatisticsMinMaxDeprecated { row_group: usize, column: String },
 
     #[snafu(display(
         "Statistics for column {} in row group {} have wrong type: expected {:?} but got {}",
@@ -402,8 +402,9 @@ fn read_statistics_from_parquet_row_group(
                     column: field.name().clone(),
                 })?;
 
-            if !parquet_stats.has_min_max_set() || parquet_stats.is_min_max_deprecated() {
-                StatisticsMinMaxMissing {
+            let min_max_set = parquet_stats.has_min_max_set();
+            if min_max_set && parquet_stats.is_min_max_deprecated() {
+                StatisticsMinMaxDeprecated {
                     row_group: row_group_idx,
                     column: field.name().clone(),
                 }
@@ -415,6 +416,7 @@ fn read_statistics_from_parquet_row_group(
 
             let stats = extract_iox_statistics(
                 parquet_stats,
+                min_max_set,
                 iox_type,
                 count,
                 row_group_idx,
@@ -446,6 +448,7 @@ fn read_statistics_from_parquet_row_group(
 /// parquet statistics back to arrow or Rust native types.
 fn extract_iox_statistics(
     parquet_stats: &ParquetStatistics,
+    min_max_set: bool,
     iox_type: InfluxColumnType,
     count: u64,
     row_group_idx: usize,
@@ -484,8 +487,8 @@ fn extract_iox_statistics(
         }
         (ParquetStatistics::Double(stats), InfluxColumnType::Field(InfluxFieldType::Float)) => {
             Ok(Statistics::F64(StatValues {
-                min: Some(*stats.min()),
-                max: Some(*stats.max()),
+                min: min_max_set.then(|| *stats.min()),
+                max: min_max_set.then(|| *stats.max()),
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
