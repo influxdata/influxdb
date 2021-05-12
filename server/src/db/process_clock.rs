@@ -73,7 +73,7 @@ mod tests {
     use super::*;
     use crate::query_tests::utils::TestDb;
     use entry::test_helpers::lp_to_entry;
-    use std::sync::Arc;
+    use std::{sync::Arc, thread, time::Duration};
 
     #[test]
     fn process_clock_defaults_to_current_time_in_ns() {
@@ -171,5 +171,45 @@ mod tests {
             db.process_clock.next(),
             ClockValue::try_from(later + 2).unwrap()
         );
+    }
+
+    #[test]
+    fn process_clock_multithreaded_access_always_increments() {
+        let pc = Arc::new(ProcessClock::new());
+
+        let handles: Vec<_> = (0..10)
+            .map(|thread_num| {
+                let pc = Arc::clone(&pc);
+                thread::spawn(move || {
+                    let mut pc_val_before = pc.next();
+                    for iteration in 0..10 {
+                        let pc_val_after = pc.next();
+
+                        // This might be useful for debugging if this test fails
+                        println!(
+                            "thread {} in iteration {} testing {:?} < {:?}",
+                            thread_num, iteration, pc_val_before, pc_val_after
+                        );
+
+                        // Process clock should always increase
+                        assert!(
+                            pc_val_before < pc_val_after,
+                            "expected {:?} to be less than {:?}",
+                            pc_val_before,
+                            pc_val_after
+                        );
+
+                        pc_val_before = pc_val_after;
+
+                        // encourage yielding
+                        thread::sleep(Duration::from_millis(1));
+                    }
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().unwrap();
+        }
     }
 }
