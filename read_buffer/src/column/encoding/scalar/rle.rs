@@ -4,6 +4,7 @@ use std::{
     cmp::Ordering,
     fmt::{Debug, Display},
     iter,
+    mem::size_of,
 };
 
 pub const ENCODING_NAME: &str = "RLE";
@@ -70,6 +71,24 @@ impl<T: PartialOrd + Debug + Copy> RLE<T> {
     /// A reasonable estimation of the on-heap size this encoding takes up.
     pub fn size(&self) -> usize {
         todo!()
+    }
+
+    /// The estimated total size in bytes of the underlying values in the
+    /// column if they were stored contiguously and uncompressed. `include_nulls`
+    /// will effectively size each NULL value as size_of<T> if set to `true`.
+    pub fn size_raw(&self, include_nulls: bool) -> usize {
+        let base_size = size_of::<Self>();
+        if include_nulls {
+            return base_size + (self.num_rows() as usize * size_of::<T>());
+        }
+
+        // remove NULL values from calculation
+        base_size
+            + self
+                .run_lengths
+                .iter()
+                .filter_map(|(rl, v)| v.is_some().then(|| *rl as usize * size_of::<T>()))
+                .sum::<usize>()
     }
 
     /// The number of NULL values in this column.
@@ -448,16 +467,133 @@ impl<T: PartialOrd + Debug + Copy> RLE<T> {
 
 impl<T> From<&[T]> for RLE<T>
 where
-    T: PartialOrd + Debug,
+    T: PartialOrd + Debug + Default + Copy,
 {
-    fn from(_v: &[T]) -> Self {
-        todo!()
+    fn from(arr: &[T]) -> Self {
+        if arr.is_empty() {
+            return Self::default();
+        } else if arr.len() == 1 {
+            let mut enc = Self::default();
+            enc.push(arr[0]);
+            return enc;
+        }
+
+        let mut enc = Self::default();
+        let (mut rl, mut v) = (1, arr[0]);
+        for &next in arr.iter().skip(1) {
+            if next == v {
+                rl += 1;
+                continue;
+            }
+
+            enc.push_additional(Some(v), rl);
+            rl = 1;
+            v = next;
+        }
+
+        // push the final run length
+        enc.push_additional(Some(v), rl);
+        enc
+    }
+}
+
+impl<T> From<Vec<T>> for RLE<T>
+where
+    T: PartialOrd + Debug + Default + Copy,
+{
+    fn from(arr: Vec<T>) -> Self {
+        Self::from(arr.as_slice())
+    }
+}
+
+impl<T> From<&[Option<T>]> for RLE<T>
+where
+    T: PartialOrd + Debug + Default + Copy,
+{
+    fn from(arr: &[Option<T>]) -> Self {
+        if arr.is_empty() {
+            return Self::default();
+        } else if arr.len() == 1 {
+            let mut enc = Self::default();
+            enc.push_additional(arr[0], 1);
+            return enc;
+        }
+
+        let mut enc = Self::default();
+        let (mut rl, mut v) = (1, arr[0]);
+        for &next in arr.iter().skip(1) {
+            if next == v {
+                rl += 1;
+                continue;
+            }
+
+            enc.push_additional(v, rl);
+            rl = 1;
+            v = next;
+        }
+
+        // push the final run length
+        enc.push_additional(v, rl);
+        enc
+    }
+}
+
+impl<T> From<Vec<Option<T>>> for RLE<T>
+where
+    T: PartialOrd + Debug + Default + Copy,
+{
+    fn from(arr: Vec<Option<T>>) -> Self {
+        Self::from(arr.as_slice())
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn from_slice() {
+        let cases = vec![
+            (&[][..], vec![]),
+            (&[1][..], vec![(1, Some(1))]),
+            (&[100, 22][..], vec![(1, Some(100)), (1, Some(22))]),
+            (
+                &[100, 22, 100, 100][..],
+                vec![(1, Some(100)), (1, Some(22)), (2, Some(100))],
+            ),
+        ];
+
+        for (input, exp_rl) in cases {
+            let enc: RLE<u8> = RLE::from(input);
+            assert_eq!(enc.run_lengths, exp_rl);
+        }
+    }
+
+    #[test]
+    fn from_slice_opt() {
+        let cases = vec![
+            (&[][..], vec![]),
+            (&[Some(1)][..], vec![(1, Some(1))]),
+            (
+                &[Some(100), Some(22)][..],
+                vec![(1, Some(100)), (1, Some(22))],
+            ),
+            (
+                &[Some(100), Some(22), Some(100), Some(100)][..],
+                vec![(1, Some(100)), (1, Some(22)), (2, Some(100))],
+            ),
+            (&[None][..], vec![(1, None)]),
+            (
+                &[None, None, Some(1), None][..],
+                vec![(2, None), (1, Some(1)), (1, None)],
+            ),
+        ];
+
+        for (input, exp_rl) in cases {
+            let enc: RLE<u8> = RLE::from(input);
+            assert_eq!(enc.run_lengths, exp_rl);
+        }
+    }
 
     #[test]
     fn push() {

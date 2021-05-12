@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::mem::size_of;
 
 use arrow::{self, array::Array};
@@ -36,6 +37,7 @@ impl FloatEncoding {
                 size_of::<Vec<f64>>() + (enc.num_rows() as usize * size_of::<f64>())
             }
             Self::FixedNull64(enc) => enc.size_raw(include_nulls),
+            Self::RLE64(enc) => enc.size_raw(include_nulls),
         }
     }
 
@@ -250,19 +252,78 @@ impl std::fmt::Display for FloatEncoding {
     }
 }
 
+fn check_run_lengths_above(arr: &[f64], min_rl: usize) -> usize {
+    if min_rl < 1 || arr.len() < min_rl {
+        return 0;
+    }
+
+    let (mut rl, mut v) = (1, arr[0]);
+    let mut total_matching_rl = 0;
+    for next in arr.iter().skip(1) {
+        if let Some(Ordering::Equal) = v.partial_cmp(next) {
+            rl += 1;
+            continue;
+        }
+
+        // run length was big enough to be considered
+        if rl > min_rl {
+            total_matching_rl += 1;
+        }
+
+        rl = 1;
+        v = *next;
+    }
+
+    total_matching_rl
+}
+
 /// Converts a slice of `f64` values into a `FloatEncoding`.
+///
+/// TODO(edd): figure out what sensible heuristics look like.
+///
+/// There are two possible encodings for &[f64]:
+///    * "None": effectively store the slice in a vector;
+///    * "RLE": for slices that have a sufficiently low cardinality they may
+///             benefit from being run-length encoded.
+///
+/// The encoding is chosen based on the heuristics in the `From` implementation
 impl From<&[f64]> for FloatEncoding {
     fn from(arr: &[f64]) -> Self {
+        // The total number of run-lengths to find in order to decide to RLE
+        // this column is in the range `[10, 1/10th column size]`
+        // For example, if the columns is 1000 rows then we need to find 100
+        // run lengths to RLE encode it.
+        let total_rl_required = 10.max(arr.len() / 10);
+        if check_run_lengths_above(arr, 3) >= total_rl_required {
+            return Self::RLE64(RLE::from(arr));
+        }
+
+        // Don't apply a compression encoding to the column
         Self::Fixed64(Fixed::<f64>::from(arr))
     }
 }
 
-/// Converts an Arrow `Float64Array` into a `FloatEncoding`.
+/// Converts an Arrow Float array into a `FloatEncoding`.
+///
+/// TODO(edd): figure out what sensible heuristics look like.
+///
+/// There are two possible encodings for an Arrow array:
+///    * "None": effectively keep the data in its Arrow array;
+///    * "RLE": for arrays that have a sufficiently large number of NULL values
+///             they may benefit from being run-length encoded.
+///
+/// The encoding is chosen based on the heuristics in the `From` implementation
 impl From<arrow::array::Float64Array> for FloatEncoding {
     fn from(arr: arrow::array::Float64Array) -> Self {
         if arr.null_count() == 0 {
             return Self::from(arr.values());
         }
+
+        // TODO(edd) Right now let's just RLE encode the column if it is 50% NULL.
+        if arr.null_count() >= arr.len() / 2 {
+            return Self::RLE64(RLE::from(arr.values()));
+        }
+
         Self::FixedNull64(FixedNull::<arrow::datatypes::Float64Type>::from(arr))
     }
 }
