@@ -50,11 +50,10 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[{}] size: {:?} rows: {:?} cardinality: {}, nulls: {} runs: {} ",
+            "[{}] size: {:?} rows: {:?} nulls: {} runs: {} ",
             self.name(),
             self.size(),
             self.num_rows(),
-            self.cardinality(),
             self.null_count(),
             self.run_lengths.len()
         )
@@ -72,29 +71,26 @@ impl<T: PartialOrd + Debug + Copy> RLE<T> {
         todo!()
     }
 
-    /// The number of distinct logical values in this column encoding.
-    pub fn cardinality(&self) -> u32 {
-        todo!()
-    }
-
     /// The number of NULL values in this column.
     pub fn null_count(&self) -> u32 {
-        todo!()
+        self.null_count
     }
 
     /// The number of logical rows encoded in this column.
     pub fn num_rows(&self) -> u32 {
-        todo!()
+        self.num_rows
     }
 
     /// Determine if NULL is encoded in the column.
     pub fn contains_null(&self) -> bool {
-        todo!()
+        self.null_count() > 0
     }
 
     /// Determines if the column contains a non-null value.
+    ///
+    /// TODO: remove this and just use contains_null().
     pub fn has_any_non_null_value(&self) -> bool {
-        todo!()
+        !self.contains_null()
     }
 
     //
@@ -138,7 +134,6 @@ impl<T: PartialOrd + Debug + Copy> RLE<T> {
             self.run_lengths.push((additional, Some(v)));
         }
 
-        self.null_count += additional;
         self.num_rows += additional;
     }
 
@@ -392,10 +387,40 @@ mod test {
     }
 
     #[test]
-    fn size() {}
+    fn null_count() {
+        let mut enc = RLE::default();
+        enc.push_additional(Some(45), 3);
+        assert_eq!(enc.null_count(), 0);
+
+        enc.push_none();
+        assert_eq!(enc.null_count(), 1);
+
+        enc.push_none();
+        assert_eq!(enc.null_count(), 2);
+    }
 
     #[test]
-    fn null_count() {}
+    fn num_rows() {
+        let mut enc = RLE::default();
+        enc.push_additional(Some(45), 3);
+        assert_eq!(enc.num_rows(), 3);
+
+        enc.push_none();
+        assert_eq!(enc.num_rows(), 4);
+    }
+
+    #[test]
+    fn contains_null() {
+        let mut enc = RLE::default();
+        enc.push_additional(Some(45), 3);
+        assert!(!enc.contains_null());
+
+        enc.push_none();
+        assert!(enc.contains_null());
+    }
+
+    #[test]
+    fn size() {}
 
     #[test]
     fn value() {}
