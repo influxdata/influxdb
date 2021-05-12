@@ -112,7 +112,7 @@ dependencies = [
 [[package]]
 name = "arrow"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow-rs?rev=508f25c10032857da34ea88cc8166f0741616a32#508f25c10032857da34ea88cc8166f0741616a32"
+source = "git+https://github.com/apache/arrow-rs?rev=8226219fe7104f6c8a2740806f96f02c960d991c#8226219fe7104f6c8a2740806f96f02c960d991c"
 dependencies = [
  "cfg_aliases",
  "chrono",
@@ -135,7 +135,7 @@ dependencies = [
 [[package]]
 name = "arrow-flight"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow-rs?rev=508f25c10032857da34ea88cc8166f0741616a32#508f25c10032857da34ea88cc8166f0741616a32"
+source = "git+https://github.com/apache/arrow-rs?rev=8226219fe7104f6c8a2740806f96f02c960d991c#8226219fe7104f6c8a2740806f96f02c960d991c"
 dependencies = [
  "arrow 4.0.0-SNAPSHOT",
  "bytes",
@@ -802,7 +802,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=dcf6c110e7309e867e4b2fc1ac75cf9313095667#dcf6c110e7309e867e4b2fc1ac75cf9313095667"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=a1c6898f559020a4a56e301714cd16fd8229ca09#a1c6898f559020a4a56e301714cd16fd8229ca09"
 dependencies = [
  "ahash",
  "arrow 4.0.0-SNAPSHOT",
@@ -1096,9 +1096,9 @@ checksum = "2022715d62ab30faffd124d40b76f4134a550a87792276512b18d63272333394"
 
 [[package]]
 name = "futures"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9d5813545e459ad3ca1bff9915e9ad7f1a47dc6a91b627ce321d5863b7dd253"
+checksum = "0e7e43a803dae2fa37c1f6a8fe121e1f7bf9548b4dfc0522a42f34145dadfc27"
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -1111,9 +1111,9 @@ dependencies = [
 
 [[package]]
 name = "futures-channel"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce79c6a52a299137a6013061e0cf0e688fce5d7f1bc60125f520912fdb29ec25"
+checksum = "e682a68b29a882df0545c143dc3646daefe80ba479bcdede94d5a703de2871e2"
 dependencies = [
  "futures-core",
  "futures-sink",
@@ -1121,15 +1121,15 @@ dependencies = [
 
 [[package]]
 name = "futures-core"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "098cd1c6dda6ca01650f1a37a794245eb73181d0d4d4e955e2f3c37db7af1815"
+checksum = "0402f765d8a89a26043b889b26ce3c4679d268fa6bb22cd7c6aad98340e179d1"
 
 [[package]]
 name = "futures-executor"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10f6cb7042eda00f0049b1d2080aa4b93442997ee507eb3828e8bd7577f94c9d"
+checksum = "badaa6a909fac9e7236d0620a2f57f7664640c56575b71a7552fbd68deafab79"
 dependencies = [
  "futures-core",
  "futures-task",
@@ -1138,16 +1138,17 @@ dependencies = [
 
 [[package]]
 name = "futures-io"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "365a1a1fb30ea1c03a830fdb2158f5236833ac81fa0ad12fe35b29cddc35cb04"
+checksum = "acc499defb3b348f8d8f3f66415835a9131856ff7714bf10dadfc4ec4bdb29a1"
 
 [[package]]
 name = "futures-macro"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "668c6733a182cd7deb4f1de7ba3bf2120823835b3bcfbeacf7d2c4a773c1bb8b"
+checksum = "a4c40298486cdf52cc00cd6d6987892ba502c7656a16a4192a9992b1ccedd121"
 dependencies = [
+ "autocfg",
  "proc-macro-hack",
  "proc-macro2",
  "quote",
@@ -1156,25 +1157,26 @@ dependencies = [
 
 [[package]]
 name = "futures-sink"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c5629433c555de3d82861a7a4e3794a4c40040390907cfbfd7143a92a426c23"
+checksum = "a57bead0ceff0d6dde8f465ecd96c9338121bb7717d3e7b108059531870c4282"
 
 [[package]]
 name = "futures-task"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba7aa51095076f3ba6d9a1f702f74bd05ec65f555d70d2033d55ba8d69f581bc"
+checksum = "8a16bef9fc1a4dddb5bee51c989e3fbba26569cbb0e31f5b303c184e3dd33dae"
 
 [[package]]
 name = "futures-test"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e77baeade98824bc928c21b8ad39918b9d8a06745ebdb6e2c93fb7673fb7968d"
+checksum = "2e771858b95154d86bc76b412e4cea3bc104803a7838179e5a1315d9c8a4c2b6"
 dependencies = [
  "futures-core",
  "futures-executor",
  "futures-io",
+ "futures-macro",
  "futures-sink",
  "futures-task",
  "futures-util",
@@ -1184,10 +1186,11 @@ dependencies = [
 
 [[package]]
 name = "futures-util"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c144ad54d60f23927f0a6b6d816e4271278b64f005ad65e4e35291d2de9c025"
+checksum = "feb5c238d27e2bf94ffdfd27b2c29e3df4a68c4193bb6427384259e2bf191967"
 dependencies = [
+ "autocfg",
  "futures-channel",
  "futures-core",
  "futures-io",
@@ -2238,9 +2241,9 @@ dependencies = [
 
 [[package]]
 name = "openssl-probe"
-version = "0.1.2"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77af24da69f9d9341038eba93a073b1fdaaa1b788221b00a69bce9e762cb32de"
+checksum = "28988d872ab76095a6e6ac88d99b54fd267702734fd7ffe610ca27f533ddb95a"
 
 [[package]]
 name = "openssl-sys"
@@ -2414,7 +2417,7 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow-rs?rev=508f25c10032857da34ea88cc8166f0741616a32#508f25c10032857da34ea88cc8166f0741616a32"
+source = "git+https://github.com/apache/arrow-rs?rev=8226219fe7104f6c8a2740806f96f02c960d991c#8226219fe7104f6c8a2740806f96f02c960d991c"
 dependencies = [
  "arrow 4.0.0-SNAPSHOT",
  "base64 0.12.3",
@@ -3501,9 +3504,9 @@ checksum = "2579985fda508104f7587689507983eadd6a6e84dd35d6d115361f530916fa0d"
 
 [[package]]
 name = "sha2"
-version = "0.9.4"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8f6b75b17576b792bef0db1bcc4b8b8bcdf9506744cf34b974195487af6cff2"
+checksum = "b362ae5752fd2137731f9fa25fd4d9058af34666ca1966fb969119cc35719f12"
 dependencies = [
  "block-buffer",
  "cfg-if",

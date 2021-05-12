@@ -8,4 +8,4 @@ description = "Re-exports the parquet crate at a specific version"
 [dependencies]
 
 # Rename to workaround doctest bug
-upstream = { git = "https://github.com/apache/arrow-rs", rev = "508f25c10032857da34ea88cc8166f0741616a32", default-features = false, features = ["arrow", "snap", "brotli", "flate2", "lz4", "zstd"], package = "parquet" }
+upstream = { git = "https://github.com/apache/arrow-rs", rev = "8226219fe7104f6c8a2740806f96f02c960d991c", default-features = false, features = ["arrow", "snap", "brotli", "flate2", "lz4", "zstd"], package = "parquet" }
