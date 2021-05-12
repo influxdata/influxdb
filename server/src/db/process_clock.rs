@@ -16,7 +16,7 @@ impl ProcessClock {
     /// Create a new process clock value initialized to the current system time.
     pub fn new() -> Self {
         Self {
-            inner: AtomicU64::new(now_nanos()),
+            inner: AtomicU64::new(system_clock_now()),
         }
     }
 
@@ -35,7 +35,7 @@ impl ProcessClock {
     }
 
     fn try_update(&self) -> Result<u64, u64> {
-        let now = now_nanos();
+        let now = system_clock_now();
         let current_process_clock = self.inner.load(Ordering::SeqCst);
         let next_candidate = current_process_clock + 1;
 
@@ -54,7 +54,7 @@ impl ProcessClock {
 
 // Convenience function for getting the current time in a `u64` represented as nanoseconds since
 // the epoch
-fn now_nanos() -> u64 {
+fn system_clock_now() -> u64 {
     Utc::now()
         .timestamp_nanos()
         .try_into()
@@ -70,12 +70,12 @@ mod tests {
 
     #[test]
     fn process_clock_defaults_to_current_time_in_ns() {
-        let before = now_nanos();
+        let before = system_clock_now();
 
         let db = Arc::new(TestDb::builder().build().db);
         let db_process_clock = db.process_clock.inner.load(Ordering::SeqCst);
 
-        let after = now_nanos();
+        let after = system_clock_now();
 
         assert!(
             before < db_process_clock,
@@ -93,7 +93,7 @@ mod tests {
 
     #[test]
     fn process_clock_incremented_and_set_on_sequenced_entry() {
-        let before = now_nanos();
+        let before = system_clock_now();
         let before = ClockValue::try_from(before).unwrap();
 
         let db = Arc::new(TestDb::builder().write_buffer(true).build().db);
@@ -101,13 +101,13 @@ mod tests {
         let entry = lp_to_entry("cpu bar=1 10");
         db.store_entry(entry).unwrap();
 
-        let between = now_nanos();
+        let between = system_clock_now();
         let between = ClockValue::try_from(between).unwrap();
 
         let entry = lp_to_entry("cpu foo=2 10");
         db.store_entry(entry).unwrap();
 
-        let after = now_nanos();
+        let after = system_clock_now();
         let after = ClockValue::try_from(after).unwrap();
 
         let sequenced_entries = db
