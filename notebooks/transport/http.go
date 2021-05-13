@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	prefixNotebooks = "/api/v2/notebooks"
+	prefixNotebooks = "/api/v2private/notebooks"
 )
 
 var (
@@ -160,7 +160,7 @@ func (h *NotebookHandler) handleDeleteNotebook(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	h.api.Respond(w, r, http.StatusOK, nil)
+	h.api.Respond(w, r, http.StatusNoContent, nil)
 }
 
 // update a single notebook.
