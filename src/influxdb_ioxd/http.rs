@@ -471,13 +471,19 @@ where
     ];
 
     server.write_lines(&db_name, &lines).await.map_err(|e| {
-        server.metrics.ingest_points_total.add_with_labels(
-            lines.len() as u64,
-            &[
-                metrics::KeyValue::new("status", "error"),
-                metrics::KeyValue::new("db_name", db_name.to_string()),
-            ],
-        );
+        let num_fields: usize = lines.iter().map(|line| line.field_set.len()).sum();
+        let labels = &[
+            metrics::KeyValue::new("status", "error"),
+            metrics::KeyValue::new("db_name", db_name.to_string()),
+        ];
+        server
+            .metrics
+            .ingest_lines_total
+            .add_with_labels(lines.len() as u64, labels);
+        server
+            .metrics
+            .ingest_fields_total
+            .add_with_labels(num_fields as u64, labels);
         server.metrics.ingest_points_bytes_total.add_with_labels(
             body.len() as u64,
             &[
@@ -915,6 +921,14 @@ mod tests {
             .with_labels(&[("db_name", "MetricsOrg_MetricsBucket"), ("status", "ok")])
             .counter()
             .eq(1.0)
+            .unwrap();
+
+        // Which consists of two fields
+        metrics_registry
+            .has_metric_family("ingest_fields_total")
+            .with_labels(&[("db_name", "MetricsOrg_MetricsBucket"), ("status", "ok")])
+            .counter()
+            .eq(2.0)
             .unwrap();
 
         // Bytes of data were written

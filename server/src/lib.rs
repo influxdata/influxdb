@@ -256,8 +256,11 @@ pub struct ServerMetrics {
     /// This metric tracks all requests to the Server
     pub http_requests: metrics::RedMetric,
 
-    /// The number of LP points ingested
-    pub ingest_points_total: metrics::Counter,
+    /// The number of LP lines ingested
+    pub ingest_lines_total: metrics::Counter,
+
+    /// The number of LP fields ingested
+    pub ingest_fields_total: metrics::Counter,
 
     /// The number of LP bytes ingested
     pub ingest_points_bytes_total: metrics::Counter,
@@ -306,10 +309,15 @@ impl ServerMetrics {
 
         Self {
             http_requests: http_domain.register_red_metric(None),
-            ingest_points_total: ingest_domain.register_counter_metric(
+            ingest_lines_total: ingest_domain.register_counter_metric(
                 "points",
                 None,
                 "total LP points ingested",
+            ),
+            ingest_fields_total: ingest_domain.register_counter_metric(
+                "fields",
+                None,
+                "total LP field values ingested",
             ),
             ingest_points_bytes_total: ingest_domain.register_counter_metric(
                 "points",
@@ -560,13 +568,17 @@ impl<M: ConnectionManager> Server<M> {
         )
         .await?;
 
-        self.metrics.ingest_points_total.add_with_labels(
-            lines.len() as u64,
-            &[
-                metrics::KeyValue::new("status", "ok"),
-                metrics::KeyValue::new("db_name", db_name.to_string()),
-            ],
-        );
+        let num_fields: usize = lines.iter().map(|line| line.field_set.len()).sum();
+        let labels = &[
+            metrics::KeyValue::new("status", "ok"),
+            metrics::KeyValue::new("db_name", db_name.to_string()),
+        ];
+        self.metrics
+            .ingest_lines_total
+            .add_with_labels(lines.len() as u64, labels);
+        self.metrics
+            .ingest_fields_total
+            .add_with_labels(num_fields as u64, labels);
 
         Ok(())
     }
