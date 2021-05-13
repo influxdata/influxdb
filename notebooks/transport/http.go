@@ -5,6 +5,8 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	feature "github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/notebooks/service"
@@ -56,19 +58,14 @@ func NewNotebookHandler(
 	)
 
 	r.Route("/", func(r chi.Router) {
-		r.With(h.mwRequireOrgID).Get("/", h.handleGetNotebooks)
-		r.With(h.mwNotebookReqBody).Post("/", h.handleCreateNotebook)
+		r.Get("/", h.handleGetNotebooks)
+		r.Post("/", h.handleCreateNotebook)
 
-		r.Group(func(r chi.Router) {
-			r.Use(
-				h.mwRequireNotebookID,
-			)
-			r.Route("/{id}", func(r chi.Router) {
-				r.Get("/", h.handleGetNotebook)
-				r.Delete("/", h.handleDeleteNotebook)
-				r.With(h.mwNotebookReqBody).Put("/", h.handleUpdateNotebook)
-				r.With(h.mwNotebookReqBody).Patch("/", h.handleUpdateNotebook)
-			})
+		r.Route("/{id}", func(r chi.Router) {
+			r.Get("/", h.handleGetNotebook)
+			r.Delete("/", h.handleDeleteNotebook)
+			r.Put("/", h.handleUpdateNotebook)
+			r.Patch("/", h.handleUpdateNotebook)
 		})
 	})
 
@@ -81,12 +78,30 @@ func (h *NotebookHandler) Prefix() string {
 	return prefixNotebooks
 }
 
+func (h *NotebookHandler) mwNotebookFlag(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		flags := feature.FlagsFromContext(r.Context())
+
+		if !flags["notebooks"].(bool) || !flags["notebooksApi"].(bool) {
+			h.api.Respond(w, r, http.StatusNoContent, nil)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 // get a list of all notebooks for an org
 func (h *NotebookHandler) handleGetNotebooks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	orgID := orgIDFromContext(ctx)
+	orgID := r.URL.Query().Get("orgID")
+	o, err := platform.IDFromString(orgID)
+	if err != nil {
+		h.api.Err(w, r, errBadOrg)
+		return
+	}
 
-	d, err := h.notebookService.ListNotebooks(ctx, service.NotebookListFilter{OrgID: orgID})
+	d, err := h.notebookService.ListNotebooks(ctx, service.NotebookListFilter{OrgID: *o})
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -98,7 +113,11 @@ func (h *NotebookHandler) handleGetNotebooks(w http.ResponseWriter, r *http.Requ
 // create a single notebook.
 func (h *NotebookHandler) handleCreateNotebook(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	b := notebookReqBodyFromContext(ctx)
+	b, err := h.decodeNotebookReqBody(r)
+	if err != nil {
+		h.api.Err(w, r, err)
+		return
+	}
 
 	new, err := h.notebookService.CreateNotebook(ctx, b)
 	if err != nil {
@@ -112,9 +131,13 @@ func (h *NotebookHandler) handleCreateNotebook(w http.ResponseWriter, r *http.Re
 // get a single notebook.
 func (h *NotebookHandler) handleGetNotebook(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	id := notebookIDFromContext(ctx)
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
+	if err != nil {
+		h.api.Err(w, r, errBadId)
+		return
+	}
 
-	d, err := h.notebookService.GetNotebook(ctx, id)
+	d, err := h.notebookService.GetNotebook(ctx, *id)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -126,9 +149,13 @@ func (h *NotebookHandler) handleGetNotebook(w http.ResponseWriter, r *http.Reque
 // delete a single notebook.
 func (h *NotebookHandler) handleDeleteNotebook(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	id := notebookIDFromContext(ctx)
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
+	if err != nil {
+		h.api.Err(w, r, errBadId)
+		return
+	}
 
-	if err := h.notebookService.DeleteNotebook(ctx, id); err != nil {
+	if err := h.notebookService.DeleteNotebook(ctx, *id); err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
@@ -139,14 +166,36 @@ func (h *NotebookHandler) handleDeleteNotebook(w http.ResponseWriter, r *http.Re
 // update a single notebook.
 func (h *NotebookHandler) handleUpdateNotebook(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	id := notebookIDFromContext(ctx)
-	b := notebookReqBodyFromContext(ctx)
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
+	if err != nil {
+		h.api.Err(w, r, errBadId)
+		return
+	}
 
-	u, err := h.notebookService.UpdateNotebook(ctx, id, b)
+	b, err := h.decodeNotebookReqBody(r)
+	if err != nil {
+		h.api.Err(w, r, err)
+		return
+	}
+
+	u, err := h.notebookService.UpdateNotebook(ctx, *id, b)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
 	h.api.Respond(w, r, http.StatusOK, u)
+}
+
+func (h *NotebookHandler) decodeNotebookReqBody(r *http.Request) (*service.NotebookReqBody, error) {
+	b := &service.NotebookReqBody{}
+	if err := h.api.DecodeJSON(r.Body, b); err != nil {
+		return nil, err
+	}
+
+	if err := b.Validate(); err != nil {
+		return nil, err
+	}
+
+	return b, nil
 }
