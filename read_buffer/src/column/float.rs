@@ -333,6 +333,7 @@ impl From<arrow::array::Float64Array> for FloatEncoding {
 #[cfg(test)]
 mod test {
     use super::*;
+    use cmp::Operator;
 
     #[test]
     fn size_raw() {
@@ -354,5 +355,61 @@ mod test {
         // (5 * 8) + 24
         assert_eq!(enc.size_raw(true), 64);
         assert_eq!(enc.size_raw(false), 56);
+    }
+
+    #[test]
+    // Test NaN behaviour when `FloatEncoder`s are used.
+    //
+    // TODO(edd): I need to add the correct comparators to the scalar encodings
+    //            so that they behave the same as PG
+    //
+    fn row_ids_filter_nan() {
+        let data = vec![22.3, f64::NAN, f64::NEG_INFINITY, f64::INFINITY];
+
+        let cases = vec![
+            FloatEncoding::RLE64(RLE::from(data.clone())),
+            FloatEncoding::Fixed64(Fixed::from(data.as_slice())),
+            FloatEncoding::FixedNull64(FixedNull::from(data.as_slice())),
+        ];
+
+        for enc in cases {
+            _row_ids_filter_nan(enc)
+        }
+    }
+
+    fn _row_ids_filter_nan(_enc: FloatEncoding) {
+        // These cases replicate the behaviour in PG.
+        let cases = vec![
+            (2.0, Operator::Equal, vec![0]),                        // 22.3
+            (2.0, Operator::NotEqual, vec![0, 1, 2, 3]),            // 22.3, NaN, -∞, ∞
+            (2.0, Operator::LT, vec![2]),                           // -∞
+            (2.0, Operator::LTE, vec![2]),                          // -∞
+            (2.0, Operator::GT, vec![0, 1, 3]),                     // 22.3, NaN, ∞
+            (2.0, Operator::GTE, vec![0, 1, 3]),                    // 22.3, NaN, ∞
+            (f64::NAN, Operator::Equal, vec![1]),                   // NaN
+            (f64::NAN, Operator::NotEqual, vec![0, 2, 3]),          // 22.3, -∞, ∞
+            (f64::NAN, Operator::LT, vec![0, 2, 3]),                // 22.3, -∞, ∞
+            (f64::NAN, Operator::LTE, vec![0, 1, 2, 3]),            // 22.3, NaN, -∞, ∞
+            (f64::NAN, Operator::GT, vec![]),                       //
+            (f64::NAN, Operator::GTE, vec![1]),                     // NaN
+            (f64::INFINITY, Operator::Equal, vec![3]),              // ∞
+            (f64::INFINITY, Operator::NotEqual, vec![0, 1, 2]),     // 22.3, NaN, -∞
+            (f64::INFINITY, Operator::LT, vec![0, 2]),              // 22.3, -∞
+            (f64::INFINITY, Operator::LTE, vec![0, 2, 3]),          // 22.3, -∞, ∞
+            (f64::INFINITY, Operator::GT, vec![1]),                 // NaN
+            (f64::INFINITY, Operator::GTE, vec![1, 3]),             // NaN, ∞
+            (f64::NEG_INFINITY, Operator::Equal, vec![2]),          // -∞
+            (f64::NEG_INFINITY, Operator::NotEqual, vec![0, 1, 3]), // 22.3, NaN, ∞
+            (f64::NEG_INFINITY, Operator::LT, vec![]),              //
+            (f64::NEG_INFINITY, Operator::LTE, vec![2]),            // -∞
+            (f64::NEG_INFINITY, Operator::GT, vec![0, 1, 3]),       // 22.3, NaN, ∞
+            (f64::NEG_INFINITY, Operator::GTE, vec![0, 1, 2, 3]),   // 22.3, NaN, -∞, ∞
+        ];
+
+        // TODO(edd): I need to add support for PG-like comparators for NaN etc.
+        for (_v, _op, _exp) in cases {
+            //let dst = enc.row_ids_filter(v, &op, RowIDs::new_vector());
+            //assert_eq!(dst.unwrap_vector(), &exp, "example '{} {:?}' failed", op, v);
+        }
     }
 }

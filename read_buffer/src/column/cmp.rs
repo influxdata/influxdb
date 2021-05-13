@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::{convert::TryFrom, fmt::Display};
 
 /// Possible comparison operators
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -10,6 +10,23 @@ pub enum Operator {
     GTE,
     LT,
     LTE,
+}
+
+impl Display for Operator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Equal => "=",
+                Self::NotEqual => "!=",
+                Self::GT => ">",
+                Self::GTE => ">=",
+                Self::LT => "<",
+                Self::LTE => "<=",
+            }
+        )
+    }
 }
 
 impl TryFrom<&str> for Operator {
