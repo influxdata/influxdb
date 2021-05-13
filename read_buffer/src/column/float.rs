@@ -11,6 +11,7 @@ use super::{cmp, Statistics};
 use crate::column::{RowIDs, Scalar, Value, Values};
 
 #[allow(clippy::upper_case_acronyms)] // TODO(edd): these will be OK in 1.52
+#[derive(Debug)]
 pub enum FloatEncoding {
     Fixed64(Fixed<f64>),
     FixedNull64(FixedNull<arrow::datatypes::Float64Type>),
@@ -320,8 +321,9 @@ impl From<arrow::array::Float64Array> for FloatEncoding {
         }
 
         // TODO(edd) Right now let's just RLE encode the column if it is 50% NULL.
-        if arr.null_count() >= arr.len() / 2 {
-            return Self::RLE64(RLE::from(arr.values()));
+        // and has at least 100 values in it.
+        if arr.len() >= 100 && arr.null_count() >= arr.len() / 2 {
+            return Self::RLE64(RLE::from(arr));
         }
 
         Self::FixedNull64(FixedNull::<arrow::datatypes::Float64Type>::from(arr))
