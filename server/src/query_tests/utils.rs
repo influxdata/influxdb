@@ -4,12 +4,11 @@ use data_types::{
     server_id::ServerId,
     DatabaseName,
 };
-use object_store::{disk::File, ObjectStore};
+use object_store::{memory::InMemory, ObjectStore};
 use query::{exec::Executor, Database};
 
 use crate::{buffer::Buffer, db::Db, JobRegistry};
 use std::{borrow::Cow, convert::TryFrom, sync::Arc};
-use tempfile::TempDir;
 
 // A wrapper around a Db and a metrics registry allowing for isolated testing
 // of a Db and its metrics.
@@ -45,17 +44,9 @@ impl TestDbBuilder {
         let db_name = self
             .db_name
             .unwrap_or_else(|| DatabaseName::new("placeholder").unwrap());
-
-        // TODO: When we support parquet file in memory, we will either turn this test back to
-        // memory or have both tests: local disk and memory
-        //let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        //
-        // Unless otherwise specified, create an object store with a specified location in a local
-        // disk
-        let object_store = self.object_store.unwrap_or_else(|| {
-            let root = TempDir::new().unwrap();
-            Arc::new(ObjectStore::new_file(File::new(root.path())))
-        });
+        let object_store = self
+            .object_store
+            .unwrap_or_else(|| Arc::new(ObjectStore::new_in_memory(InMemory::new())));
 
         let exec = Arc::new(Executor::new(1));
         let metrics_registry = Arc::new(metrics::MetricRegistry::new());
