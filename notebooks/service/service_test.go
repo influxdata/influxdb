@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/snowflake"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,31 +60,44 @@ func TestValidatePage(t *testing.T) {
 	}
 }
 
-func TestValidateCreate(t *testing.T) {
+func TestValidateReqBody(t *testing.T) {
+	testID, _ := platform.IDFromString("1234123412341234")
+
 	tests := []struct {
 		name        string
-		create      NotebookCreate
+		body        NotebookReqBody
 		expectError error
 	}{
 		{
 			name: "ok",
-			create: NotebookCreate{
+			body: NotebookReqBody{
+				OrgID: *testID,
 				Name:  "Example",
-				OrgID: snowflake.NewIDGenerator().ID(),
+				Spec:  map[string]interface{}{},
 			},
 			expectError: nil,
 		},
 		{
 			name: "missing name",
-			create: NotebookCreate{
-				OrgID: snowflake.NewIDGenerator().ID(),
+			body: NotebookReqBody{
+				OrgID: *testID,
+				Spec:  map[string]interface{}{},
 			},
 			expectError: ErrNameRequired,
 		},
 		{
-			name: "missing org ID",
-			create: NotebookCreate{
+			name: "missing spec",
+			body: NotebookReqBody{
+				OrgID: *testID,
+				Name:  "Example",
+			},
+			expectError: ErrSpecRequired,
+		},
+		{
+			name: "missing orgID",
+			body: NotebookReqBody{
 				Name: "Example",
+				Spec: map[string]interface{}{},
 			},
 			expectError: ErrOrgIDRequired,
 		},
@@ -92,50 +105,7 @@ func TestValidateCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.create.Validate()
-			if tt.expectError == nil {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
-				require.Equal(t, tt.expectError, err)
-			}
-		})
-	}
-}
-
-func TestValidateUpdate(t *testing.T) {
-	tests := []struct {
-		name        string
-		update      NotebookUpdate
-		expectError error
-	}{
-		{
-			name: "ok",
-			update: NotebookUpdate{
-				Name: "Example",
-				Spec: map[string]interface{}{},
-			},
-			expectError: nil,
-		},
-		{
-			name: "missing name",
-			update: NotebookUpdate{
-				Spec: map[string]interface{}{},
-			},
-			expectError: ErrNameRequired,
-		},
-		{
-			name: "missing spec",
-			update: NotebookUpdate{
-				Name: "Example",
-			},
-			expectError: ErrSpecRequired,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.update.Validate()
+			err := tt.body.Validate()
 			if tt.expectError == nil {
 				require.NoError(t, err)
 			} else {

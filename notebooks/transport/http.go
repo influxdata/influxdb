@@ -1,18 +1,13 @@
 package transport
 
 import (
-	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"github.com/influxdata/influxdb/v2/context"
-	feature "github.com/influxdata/influxdb/v2/kit/feature"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
-	notebooks "github.com/influxdata/influxdb/v2/notebooks/service"
+	"github.com/influxdata/influxdb/v2/notebooks/service"
 	"go.uber.org/zap"
 )
 
@@ -21,9 +16,9 @@ const (
 )
 
 var (
-	errNoOrg = &errors.Error{
+	errBadOrg = &errors.Error{
 		Code: errors.EInvalid,
-		Msg:  "could not find an org",
+		Msg:  "invalid or missing org id",
 	}
 
 	errBadId = &errors.Error{
@@ -36,14 +31,20 @@ var (
 type NotebookHandler struct {
 	chi.Router
 
-	api *kithttp.API
 	log *zap.Logger
+	api *kithttp.API
+
+	notebookService service.NotebookService
 }
 
-func NewNotebookHandler(log *zap.Logger) *NotebookHandler {
+func NewNotebookHandler(
+	log *zap.Logger,
+	notebookService service.NotebookService,
+) *NotebookHandler {
 	h := &NotebookHandler{
-		log: log,
-		api: kithttp.NewAPI(kithttp.WithLog(log)),
+		log:             log,
+		api:             kithttp.NewAPI(kithttp.WithLog(log)),
+		notebookService: notebookService,
 	}
 
 	r := chi.NewRouter()
@@ -51,18 +52,23 @@ func NewNotebookHandler(log *zap.Logger) *NotebookHandler {
 		middleware.Recoverer,
 		middleware.RequestID,
 		middleware.RealIP,
-		h.notebookFlag, // temporary, remove when feature flag for notebooks is removed
+		h.mwNotebookFlag, // temporary, remove when feature flag for notebooks is removed
 	)
 
 	r.Route("/", func(r chi.Router) {
-		r.Get("/", h.handleGetNotebooks)
-		r.Post("/", h.handleCreateNotebook)
+		r.With(h.mwRequireOrgID).Get("/", h.handleGetNotebooks)
+		r.With(h.mwNotebookReqBody).Post("/", h.handleCreateNotebook)
 
-		r.Route("/{id}", func(r chi.Router) {
-			r.Get("/", h.handleGetNotebook)
-			r.Delete("/", h.handleDeleteNotebook)
-			r.Put("/", h.handleUpdateNotebook)
-			r.Patch("/", h.handleUpdateNotebook)
+		r.Group(func(r chi.Router) {
+			r.Use(
+				h.mwRequireNotebookID,
+			)
+			r.Route("/{id}", func(r chi.Router) {
+				r.Get("/", h.handleGetNotebook)
+				r.Delete("/", h.handleDeleteNotebook)
+				r.With(h.mwNotebookReqBody).Put("/", h.handleUpdateNotebook)
+				r.With(h.mwNotebookReqBody).Patch("/", h.handleUpdateNotebook)
+			})
 		})
 	})
 
@@ -75,125 +81,72 @@ func (h *NotebookHandler) Prefix() string {
 	return prefixNotebooks
 }
 
-// notebookFlag is middleware for returning no content if the notebooks feature
-// flag is set to false. remove this middleware when the feature flag is removed.
-func (h *NotebookHandler) notebookFlag(next http.Handler) http.Handler {
-	fn := func(w http.ResponseWriter, r *http.Request) {
-		flags := feature.FlagsFromContext(r.Context())
-
-		if !flags["notebooks"].(bool) || !flags["notebooksApi"].(bool) {
-			h.api.Respond(w, r, http.StatusNoContent, nil)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	}
-
-	return http.HandlerFunc(fn)
-}
-
 // get a list of all notebooks for an org
 func (h *NotebookHandler) handleGetNotebooks(w http.ResponseWriter, r *http.Request) {
-	// Demo data - respond with a list of notebooks for the requesting org
-	orgID, err := orgIDFromReq(r)
+	ctx := r.Context()
+	orgID := orgIDFromContext(ctx)
+
+	d, err := h.notebookService.ListNotebooks(ctx, service.NotebookListFilter{OrgID: orgID})
 	if err != nil {
-		h.api.Err(w, r, errNoOrg)
+		h.api.Err(w, r, err)
 		return
 	}
-	d := map[string][]notebooks.Notebook{}
-	d["flows"] = demoNotebooks(3, *orgID)
 
 	h.api.Respond(w, r, http.StatusOK, d)
 }
 
-// create a single notebook
+// create a single notebook.
 func (h *NotebookHandler) handleCreateNotebook(w http.ResponseWriter, r *http.Request) {
-	// Demo data - just return the body from the request with a generated ID
-	b := notebooks.Notebook{}
-	if err := h.api.DecodeJSON(r.Body, &b); err != nil {
+	ctx := r.Context()
+	b := notebookReqBodyFromContext(ctx)
+
+	new, err := h.notebookService.CreateNotebook(ctx, b)
+	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
-	id, _ := platform.IDFromString(strconv.Itoa(1000000000000000 + 1)) // give it an ID from the getNotebooks list so that the UI doesn't break
-	b.ID = *id
 
-	h.api.Respond(w, r, http.StatusOK, b)
+	h.api.Respond(w, r, http.StatusOK, new)
 }
 
-// get a single notebook
+// get a single notebook.
 func (h *NotebookHandler) handleGetNotebook(w http.ResponseWriter, r *http.Request) {
-	orgID, err := orgIDFromReq(r)
-	if err != nil {
-		h.api.Err(w, r, errNoOrg)
-		return
-	}
+	ctx := r.Context()
+	id := notebookIDFromContext(ctx)
 
-	notebookID, err := platform.IDFromString(chi.URLParam(r, "id"))
+	d, err := h.notebookService.GetNotebook(ctx, id)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
-
-	// Demo data - return a notebook for the request org and id
-	d := demoNotebook(*orgID, *notebookID)
 
 	h.api.Respond(w, r, http.StatusOK, d)
 }
 
-// update a single notebook
-func (h *NotebookHandler) handleUpdateNotebook(w http.ResponseWriter, r *http.Request) {
-	id, err := platform.IDFromString(chi.URLParam(r, "id"))
-	if err != nil {
-		h.api.Err(w, r, errBadId)
-		return
-	}
-
-	// Demo data - just return the body from the request with the id
-	b := notebooks.Notebook{}
-	if err := h.api.DecodeJSON(r.Body, &b); err != nil {
-		h.api.Err(w, r, err)
-		return
-	}
-	b.ID = *id
-
-	fmt.Printf("\n%#v\n", b)
-
-	h.api.Respond(w, r, http.StatusOK, b)
-}
-
-// delete a single notebook
+// delete a single notebook.
 func (h *NotebookHandler) handleDeleteNotebook(w http.ResponseWriter, r *http.Request) {
-	// for now, just respond with 200 unless there is a problem with the notebook ID
-	if _, err := platform.IDFromString(chi.URLParam(r, "id")); err != nil {
-		h.api.Err(w, r, errBadId)
+	ctx := r.Context()
+	id := notebookIDFromContext(ctx)
+
+	if err := h.notebookService.DeleteNotebook(ctx, id); err != nil {
+		h.api.Err(w, r, err)
 		return
 	}
 
 	h.api.Respond(w, r, http.StatusOK, nil)
 }
 
-// this is a placeholder for more complex authorization behavior to come.
-// for now, it just returns the first orgID from the user's permission set.
-func orgIDFromReq(r *http.Request) (*platform.ID, error) {
+// update a single notebook.
+func (h *NotebookHandler) handleUpdateNotebook(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	a, err := context.GetAuthorizer(ctx)
+	id := notebookIDFromContext(ctx)
+	b := notebookReqBodyFromContext(ctx)
+
+	u, err := h.notebookService.UpdateNotebook(ctx, id, b)
 	if err != nil {
-		return nil, err
+		h.api.Err(w, r, err)
+		return
 	}
 
-	p, err := a.PermissionSet()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, pp := range p {
-		if pp.Resource.OrgID != nil {
-			return pp.Resource.OrgID, nil
-		}
-	}
-
-	return nil, &errors.Error{
-		Code: errors.EInvalid,
-		Msg:  "could not find an org",
-	}
+	h.api.Respond(w, r, http.StatusOK, u)
 }

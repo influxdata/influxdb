@@ -1,3 +1,7 @@
+// This file is a placeholder for an actual notebooks service implementation.
+// For now it enables user experimentation with the UI in front of the notebooks
+// backend server.
+
 package service
 
 import (
@@ -8,18 +12,23 @@ import (
 	"github.com/influxdata/influxdb/v2/snowflake"
 )
 
+var _ NotebookService = (*DemoStore)(nil)
+
 type DemoStore struct {
 	list map[string][]*Notebook
 }
 
 func NewDemoStore() (*DemoStore, error) {
-	return &DemoStore{}, nil
+	return &DemoStore{
+		list: make(map[string][]*Notebook),
+	}, nil
 }
 
-func (s *DemoStore) GetNotebook(ctx context.Context, orgID platform.ID, id platform.ID) (*Notebook, error) {
-	ns, ok := s.list[orgID.String()]
-	if !ok {
-		return nil, nil
+func (s *DemoStore) GetNotebook(ctx context.Context, id platform.ID) (*Notebook, error) {
+	ns := []*Notebook{}
+
+	for _, nList := range s.list {
+		ns = append(ns, nList...)
 	}
 
 	for _, n := range ns {
@@ -28,21 +37,21 @@ func (s *DemoStore) GetNotebook(ctx context.Context, orgID platform.ID, id platf
 		}
 	}
 
-	return nil, nil
+	return nil, ErrNotebookNotFound
 }
 
-func (s *DemoStore) GetNotebooks(ctx context.Context, filter NotebookListFilter) ([]*Notebook, error) {
+func (s *DemoStore) ListNotebooks(ctx context.Context, filter NotebookListFilter) ([]*Notebook, error) {
 	o := filter.OrgID
 
 	ns, ok := s.list[o.String()]
 	if !ok {
-		return nil, nil
+		return []*Notebook{}, nil
 	}
 
 	return ns, nil
 }
 
-func (s *DemoStore) CreateNotebook(ctx context.Context, create NotebookCreate) (*Notebook, error) {
+func (s *DemoStore) CreateNotebook(ctx context.Context, create *NotebookReqBody) (*Notebook, error) {
 	n := &Notebook{
 		OrgID:     create.OrgID,
 		Name:      create.Name,
@@ -52,32 +61,45 @@ func (s *DemoStore) CreateNotebook(ctx context.Context, create NotebookCreate) (
 		UpdatedAt: time.Now(),
 	}
 
+	idStr := create.OrgID.String()
+	c := s.list[idStr]
+
+	ns := append(c, n)
+	s.list[idStr] = ns
+
 	return n, nil
 }
 
-func (s *DemoStore) DeleteNotebook(ctx context.Context, orgID platform.ID, id platform.ID, update NotebookUpdate) error {
-	ns, err := s.GetNotebooks(ctx, NotebookListFilter{OrgID: orgID})
-	if err != nil {
-		return err
+func (s *DemoStore) DeleteNotebook(ctx context.Context, id platform.ID) error {
+	var foundOrg string
+	for org, nList := range s.list {
+		for _, b := range nList {
+			if b.ID == id {
+				foundOrg = org
+			}
+		}
+	}
+
+	if foundOrg == "" {
+		return ErrNotebookNotFound
 	}
 
 	newNs := []*Notebook{}
 
-	for _, n := range ns {
-		if n.ID != id {
-			newNs = append(newNs, n)
+	for _, b := range s.list[foundOrg] {
+		if b.ID != id {
+			newNs = append(newNs, b)
 		}
 	}
 
-	s.list[orgID.String()] = newNs
-
+	s.list[foundOrg] = newNs
 	return nil
 }
 
-func (s *DemoStore) UpdateNotebook(ctx context.Context, orgID platform.ID, id platform.ID, update NotebookUpdate) (*Notebook, error) {
-	n, err := s.GetNotebook(ctx, orgID, id)
+func (s *DemoStore) UpdateNotebook(ctx context.Context, id platform.ID, update *NotebookReqBody) (*Notebook, error) {
+	n, err := s.GetNotebook(ctx, id)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
 	if update.Name != "" {
