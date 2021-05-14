@@ -13,9 +13,11 @@ func TestView_MarshalJSON(t *testing.T) {
 	type args struct {
 		view platform.View
 	}
+
 	type wants struct {
 		json string
 	}
+
 	tests := []struct {
 		name  string
 		args  args

@@ -164,6 +164,7 @@ func TestOwnerMappingToPermissions(t *testing.T) {
 				perms: influxdb.Permission{Action: "read", Resource: influxdb.Resource{Type: "buckets", ID: ResourceID}}},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			perms, err := tt.urm.ToPermissions()
