@@ -24,7 +24,7 @@ use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     physical_plan::SendableRecordBatchStream,
 };
-use entry::{ClockValue, ClockValueError, Entry, OwnedSequencedEntry, SequencedEntry};
+use entry::{Entry, OwnedSequencedEntry, SequencedEntry};
 use internal_types::{arrow::sort::sort_record_batch, selection::Selection};
 use lifecycle::LifecycleManager;
 use metrics::{KeyValue, MetricObserver, MetricObserverBuilder, MetricRegistry};
@@ -38,10 +38,10 @@ use read_buffer::Chunk as ReadBufferChunk;
 use snafu::{ensure, ResultExt, Snafu};
 use std::{
     any::Any,
-    convert::{TryFrom, TryInto},
+    convert::TryInto,
     num::NonZeroUsize,
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicUsize, Ordering},
         Arc,
     },
 };
@@ -52,6 +52,7 @@ pub mod catalog;
 mod chunk;
 mod lifecycle;
 pub mod pred;
+mod process_clock;
 mod streams;
 mod system_tables;
 
@@ -198,15 +199,10 @@ pub enum Error {
         source: internal_types::schema::Error,
     },
 
-    #[snafu(display("Invalid Clock Value: {}", source))]
-    InvalidClockValue { source: ClockValueError },
-
     #[snafu(display("Error sending Sequenced Entry to Write Buffer: {}", source))]
     WriteBufferError { source: buffer::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-const STARTING_SEQUENCE: u64 = 1;
 
 /// This is the main IOx Database object. It is the root object of any
 /// specific InfluxDB IOx instance
@@ -306,8 +302,10 @@ pub struct Db {
     /// The system schema provider
     system_tables: Arc<SystemSchemaProvider>,
 
-    /// Used to allocated sequence numbers for writes
-    sequence: AtomicU64,
+    /// Process clock used in establishing a partial ordering of operations via a Lamport Clock.
+    ///
+    /// Value is nanoseconds since the Unix Epoch.
+    process_clock: process_clock::ProcessClock,
 
     /// Number of iterations of the worker loop for this Db
     worker_iterations: AtomicUsize,
@@ -471,6 +469,8 @@ impl Db {
             SystemSchemaProvider::new(&db_name, Arc::clone(&catalog), Arc::clone(&jobs));
         let system_tables = Arc::new(system_tables);
 
+        let process_clock = process_clock::ProcessClock::new();
+
         Self {
             rules,
             server_id,
@@ -483,7 +483,7 @@ impl Db {
             metrics_registry: metrics,
             system_tables,
             memory_registries,
-            sequence: AtomicU64::new(STARTING_SEQUENCE),
+            process_clock,
             worker_iterations: AtomicUsize::new(0),
         }
     }
@@ -1057,11 +1057,6 @@ impl Db {
         tracker
     }
 
-    /// Returns the next write sequence number
-    pub fn next_sequence(&self) -> u64 {
-        self.sequence.fetch_add(1, Ordering::SeqCst)
-    }
-
     /// Return chunk summary information for all chunks in the specified
     /// partition across all storage systems
     pub fn partition_chunk_summaries(&self, partition_key: &str) -> Vec<ChunkSummary> {
@@ -1132,7 +1127,7 @@ impl Db {
     pub fn store_entry(&self, entry: Entry) -> Result<()> {
         let sequenced_entry = Arc::new(
             OwnedSequencedEntry::new_from_entry_bytes(
-                ClockValue::try_from(self.next_sequence()).context(InvalidClockValue)?,
+                self.process_clock.next(),
                 self.server_id,
                 entry.data(),
             )
@@ -1381,8 +1376,8 @@ mod tests {
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
 
-    #[tokio::test]
-    async fn write_no_mutable_buffer() {
+    #[test]
+    fn write_no_mutable_buffer() {
         // Validate that writes are rejected if there is no mutable buffer
         let db = make_db().db;
         db.rules.write().lifecycle_rules.immutable = true;
@@ -2040,8 +2035,8 @@ mod tests {
         assert_batches_eq!(expected, &record_batches);
     }
 
-    #[tokio::test]
-    async fn write_updates_last_write_at() {
+    #[test]
+    fn write_updates_last_write_at() {
         let db = Arc::new(make_db().db);
         let before_create = Utc::now();
 
@@ -2105,8 +2100,8 @@ mod tests {
         assert!(chunk.time_closed().unwrap() < after_rollover);
     }
 
-    #[tokio::test]
-    async fn test_chunk_closing() {
+    #[test]
+    fn test_chunk_closing() {
         let db = Arc::new(make_db().db);
         db.rules.write().lifecycle_rules.mutable_size_threshold =
             Some(NonZeroUsize::new(2).unwrap());
@@ -2126,8 +2121,8 @@ mod tests {
         assert!(matches!(chunks[1].read().state(), ChunkState::Closed(_)));
     }
 
-    #[tokio::test]
-    async fn chunks_sorted_by_times() {
+    #[test]
+    fn chunks_sorted_by_times() {
         let db = Arc::new(make_db().db);
         write_lp(&db, "cpu val=1 1");
         write_lp(&db, "mem val=2 400000000000001");
@@ -2648,8 +2643,8 @@ mod tests {
         assert_eq!(read_parquet_file_chunk_ids(&db, partition_key), vec![0]);
     }
 
-    #[tokio::test]
-    async fn write_hard_limit() {
+    #[test]
+    fn write_hard_limit() {
         let db = Arc::new(make_db().db);
         db.rules.write().lifecycle_rules.buffer_size_hard = Some(NonZeroUsize::new(10).unwrap());
 
@@ -2663,8 +2658,8 @@ mod tests {
         ));
     }
 
-    #[tokio::test]
-    async fn write_goes_to_write_buffer_if_configured() {
+    #[test]
+    fn write_goes_to_write_buffer_if_configured() {
         let db = Arc::new(TestDb::builder().write_buffer(true).build().db);
 
         assert_eq!(db.write_buffer.as_ref().unwrap().lock().size(), 0);
