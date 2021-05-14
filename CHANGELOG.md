@@ -12,6 +12,8 @@
 1. [21356](https://github.com/influxdata/influxdb/pull/21356): Disable MergeFiltersRule until it is more stable.
 1. [21369](https://github.com/influxdata/influxdb/pull/21369): Add limits to the `/api/v2/delete` endpoint for start and stop times with error messages.
 1. [21375](https://github.com/influxdata/influxdb/pull/21375): Add logging to NATS streaming server to help debug startup failures.
+1. [21477](https://github.com/influxdata/influxdb/pull/21477): Accept `--input` instead of a positional arg in `influx restore`.
+1. [21477](https://github.com/influxdata/influxdb/pull/21477): Avoid panic when `influx restore` is passed a nonexistent backup directory.
 
 ## v2.0.6 [2021-04-29]
 
