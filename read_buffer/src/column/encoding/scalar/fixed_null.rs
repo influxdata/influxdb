@@ -23,7 +23,7 @@ use arrow::{
 
 use crate::column::{cmp, RowIDs};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct FixedNull<T>
 where
     T: ArrowNumericType,

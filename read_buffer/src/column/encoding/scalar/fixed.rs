@@ -21,7 +21,7 @@ use arrow::array::Array;
 
 use crate::column::{cmp, RowIDs};
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, PartialOrd)]
 /// A Fixed encoding is one in which every value has a fixed width, and is
 /// stored contiguous in a backing vector. Fixed encodings do not support NULL
 /// values, so are suitable for columns known to not have NULL values that we

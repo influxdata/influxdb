@@ -25,6 +25,35 @@ pub enum IntegerEncoding {
     U64U64N(FixedNull<arrow::datatypes::UInt64Type>),
 }
 
+impl PartialEq for IntegerEncoding {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::I64I64(a), Self::I64I64(b)) => a == b,
+            (Self::I64I32(a), Self::I64I32(b)) => a == b,
+            (Self::I64U32(a), Self::I64U32(b)) => a == b,
+            (Self::I64I16(a), Self::I64I16(b)) => a == b,
+            (Self::I64U16(a), Self::I64U16(b)) => a == b,
+            (Self::I64I8(a), Self::I64I8(b)) => a == b,
+            (Self::I64U8(a), Self::I64U8(b)) => a == b,
+            (Self::U64U64(a), Self::U64U64(b)) => a == b,
+            (Self::U64U32(a), Self::U64U32(b)) => a == b,
+            (Self::U64U16(a), Self::U64U16(b)) => a == b,
+            (Self::U64U8(a), Self::U64U8(b)) => a == b,
+            (Self::I64I64N(a), Self::I64I64N(b)) => {
+                let a = a.all_values(vec![]);
+                let b = b.all_values(vec![]);
+                a == b
+            }
+            (Self::U64U64N(a), Self::U64U64N(b)) => {
+                let a = a.all_values(vec![]);
+                let b = b.all_values(vec![]);
+                a == b
+            }
+            (_, _) => false,
+        }
+    }
+}
+
 impl IntegerEncoding {
     /// The total size in bytes of the store columnar data.
     pub fn size(&self) -> usize {
@@ -504,6 +533,27 @@ impl std::fmt::Display for IntegerEncoding {
     }
 }
 
+impl std::fmt::Debug for IntegerEncoding {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = self.name();
+        match self {
+            Self::I64I64(enc) => enc.fmt(f),
+            Self::I64I32(enc) => write!(f, "[{}]: {:?}", name, enc),
+            Self::I64U32(enc) => write!(f, "[{}]: {:?}", name, enc),
+            Self::I64I16(enc) => write!(f, "[{}]: {:?}", name, enc),
+            Self::I64U16(enc) => write!(f, "[{}]: {:?}", name, enc),
+            Self::I64I8(enc) => write!(f, "[{}]: {:?}", name, enc),
+            Self::I64U8(enc) => write!(f, "[{}]: {:?}", name, enc),
+            Self::U64U64(enc) => write!(f, "[{}]: {:?}", name, enc),
+            Self::U64U32(enc) => write!(f, "[{}]: {:?}", name, enc),
+            Self::U64U16(enc) => write!(f, "[{}]: {:?}", name, enc),
+            Self::U64U8(enc) => write!(f, "[{}]: {:?}", name, enc),
+            Self::I64I64N(enc) => write!(f, "[{}]: {:?}", name, enc),
+            Self::U64U64N(enc) => write!(f, "[{}]: {:?}", name, enc),
+        }
+    }
+}
+
 /// Converts a slice of i64 values into an IntegerEncoding.
 ///
 /// The most compact physical type needed to store the columnar values is
@@ -628,7 +678,7 @@ mod test {
             vec![399_i64, 2, 2452, 3],
             vec![-399_i64, 2, 2452, 3],
             vec![u32::MAX as i64, 2, 245, 3],
-            vec![i32::MAX as i64, 2, 245, 3],
+            vec![i32::MIN as i64, 2, 245, 3],
             vec![0_i64, 2, 245, u32::MAX as i64 + 1],
         ];
 
@@ -642,9 +692,29 @@ mod test {
             IntegerEncoding::I64I64(Fixed::<i64>::from(cases[6].as_slice())),
         ];
 
-        for (_case, _exp) in cases.iter().zip(exp.iter()) {
-            // TODO - add debug
-            //assert_eq!(IntegerEncoding::from(&case), exp);
+        for (case, exp) in cases.into_iter().zip(exp.into_iter()) {
+            assert_eq!(IntegerEncoding::from(case.as_slice()), exp);
+        }
+    }
+
+    #[test]
+    fn from_slice_u64() {
+        let cases = vec![
+            vec![0_u64, 2, 245, 3],
+            vec![399_u64, 2, 2452, 3],
+            vec![u32::MAX as u64, 2, 245, 3],
+            vec![0_u64, 2, 245, u32::MAX as u64 + 1],
+        ];
+
+        let exp = vec![
+            IntegerEncoding::U64U8(Fixed::<u8>::from(cases[0].as_slice())),
+            IntegerEncoding::U64U16(Fixed::<u16>::from(cases[1].as_slice())),
+            IntegerEncoding::U64U32(Fixed::<u32>::from(cases[2].as_slice())),
+            IntegerEncoding::U64U64(Fixed::<u64>::from(cases[3].as_slice())),
+        ];
+
+        for (case, exp) in cases.into_iter().zip(exp.into_iter()) {
+            assert_eq!(IntegerEncoding::from(case.as_slice()), exp);
         }
     }
 
