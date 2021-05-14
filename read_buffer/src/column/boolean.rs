@@ -16,8 +16,10 @@ impl BooleanEncoding {
     }
 
     /// The estimated total size in bytes of the underlying bool values in the
-    /// column if they were stored contiguously and uncompressed. `include_nulls`
-    /// will effectively size each NULL value as 1b if `true`.
+    /// column if they were stored contiguously and uncompressed. If
+    /// `include_nulls` is false, NULL values will be excluded from the count;
+    /// otherwise NULL values will still occupy the space of a slot of the
+    /// underlying type, in bool's case 1b.
     pub fn size_raw(&self, include_nulls: bool) -> usize {
         match self {
             Self::BooleanNull(enc) => enc.size_raw(include_nulls),
