@@ -74,11 +74,6 @@ func RunRestore(ctx context.Context, req Request, svcs Services, log *zap.Logger
 	if err := runner.loadManifests(req.Path); err != nil {
 		return err
 	}
-	// Bail out early if no manifests were found.
-	// TODO: Should this be an error?
-	if runner.kvManifest == nil {
-		return nil
-	}
 
 	if req.Full {
 		return runner.fullRestore(ctx, req)
@@ -92,7 +87,7 @@ func (r *restoreRunner) loadManifests(path string) error {
 	if err != nil {
 		return fmt.Errorf("failed to find backup manifests at %q: %w", path, err)
 	} else if len(manifests) == 0 {
-		return nil
+		return fmt.Errorf("no backup manifests found at %q", path)
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(manifests)))
 
