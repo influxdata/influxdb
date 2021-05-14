@@ -1343,11 +1343,13 @@ impl Iterator for RowIDsIterator<'_> {
 
 // Statistics about the composition of a column
 pub(crate) struct Statistics {
-    pub enc_type: &'static str,
-    pub log_data_type: &'static str,
-    pub values: u32,
-    pub nulls: u32,
-    pub bytes: usize,
+    pub enc_type: &'static str,      // The encoding type
+    pub log_data_type: &'static str, // The logical data-type
+    pub values: u32,                 // Number of values present (NULL and non-NULL)
+    pub nulls: u32,                  // Number of NULL values present
+    pub bytes: usize,                // Total size of data
+    pub raw_bytes: usize,            // Estimated "uncompressed" size
+    pub raw_bytes_no_null: usize,    // Estimated "uncompressed" size ignoring NULL values
 }
 
 #[cfg(test)]

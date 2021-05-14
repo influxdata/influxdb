@@ -99,6 +99,8 @@ impl IntegerEncoding {
             values: self.num_rows(),
             nulls: self.null_count(),
             bytes: self.size(),
+            raw_bytes: self.size_raw(true),
+            raw_bytes_no_null: self.size_raw(false),
         }
     }
 
