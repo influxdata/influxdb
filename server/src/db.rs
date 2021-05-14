@@ -7,10 +7,7 @@ use super::{
 };
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use async_trait::async_trait;
-use catalog::{
-    chunk::{Chunk as CatalogChunk, ChunkState},
-    Catalog,
-};
+use catalog::{chunk::Chunk as CatalogChunk, Catalog};
 pub(crate) use chunk::DbChunk;
 use data_types::{
     chunk::ChunkSummary,
@@ -27,14 +24,20 @@ use datafusion::{
 use entry::{Entry, OwnedSequencedEntry, SequencedEntry};
 use internal_types::{arrow::sort::sort_record_batch, selection::Selection};
 use lifecycle::LifecycleManager;
-use metrics::{KeyValue, MetricObserver, MetricObserverBuilder, MetricRegistry};
+use metrics::{KeyValue, MetricRegistry};
+use mutable_buffer::chunk::{
+    Chunk as MutableBufferChunk, ChunkMetrics as MutableBufferChunkMetrics,
+};
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, info};
 use parking_lot::{Mutex, RwLock};
-use parquet_file::{chunk::Chunk, storage::Storage};
+use parquet_file::{
+    chunk::{Chunk as ParquetChunk, ChunkMetrics as ParquetChunkMetrics},
+    storage::Storage,
+};
 use query::predicate::{Predicate, PredicateBuilder};
 use query::{exec::Executor, Database, DEFAULT_SCHEMA};
-use read_buffer::Chunk as ReadBufferChunk;
+use read_buffer::{Chunk as ReadBufferChunk, ChunkMetrics as ReadBufferChunkMetrics};
 use snafu::{ensure, ResultExt, Snafu};
 use std::{
     any::Any,
@@ -46,7 +49,7 @@ use std::{
     },
 };
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
-use tracker::{MemRegistry, TaskTracker, TrackedFutureExt};
+use tracker::{TaskTracker, TrackedFutureExt};
 
 pub mod catalog;
 mod chunk;
@@ -185,6 +188,12 @@ pub enum Error {
         source: mutable_buffer::chunk::Error,
     },
 
+    #[snafu(display("Can not write entry to new MUB chunk {} : {}", partition_key, source))]
+    WriteEntryInitial {
+        partition_key: String,
+        source: mutable_buffer::chunk::Error,
+    },
+
     #[snafu(display("Can not create open entry {} : {}", partition_key, source))]
     OpenEntry {
         partition_key: String,
@@ -290,14 +299,8 @@ pub struct Db {
     /// A handle to the global jobs registry for long running tasks
     jobs: Arc<JobRegistry>,
 
-    /// All of the metrics for this Db.
-    metrics: DbMetrics,
-
     // The metrics registry to inject into created components in the Db.
     metrics_registry: Arc<metrics::MetricRegistry>,
-
-    /// Memory registries used for tracking memory usage by this Db
-    memory_registries: MemoryRegistries,
 
     /// The system schema provider
     system_tables: Arc<SystemSchemaProvider>,
@@ -309,106 +312,9 @@ pub struct Db {
 
     /// Number of iterations of the worker loop for this Db
     worker_iterations: AtomicUsize,
-}
 
-#[derive(Debug, Default)]
-struct MemoryRegistries {
-    mutable_buffer: Arc<MemRegistry>,
-    read_buffer: Arc<MemRegistry>,
-    parquet: Arc<MemRegistry>,
-}
-
-impl MemoryRegistries {
-    /// Total bytes over all registries.
-    pub fn bytes(&self) -> usize {
-        self.mutable_buffer.bytes() + self.read_buffer.bytes() + self.parquet.bytes()
-    }
-}
-
-impl MetricObserver for &MemoryRegistries {
-    fn register(self, builder: MetricObserverBuilder<'_>) {
-        let mutable_buffer = Arc::clone(&self.mutable_buffer);
-        let read_buffer = Arc::clone(&self.read_buffer);
-        let parquet = Arc::clone(&self.parquet);
-
-        builder.register_gauge_u64(
-            "chunks_mem_usage",
-            Some("bytes"),
-            "Memory usage by catalog chunks",
-            move |x| {
-                x.observe(
-                    mutable_buffer.bytes() as u64,
-                    &[KeyValue::new("source", "mutable_buffer")],
-                );
-                x.observe(
-                    read_buffer.bytes() as u64,
-                    &[KeyValue::new("source", "read_buffer")],
-                );
-                x.observe(
-                    parquet.bytes() as u64,
-                    &[KeyValue::new("source", "parquet")],
-                );
-            },
-        );
-    }
-}
-
-// The set of metrics for `Db`, exposed via our /metrics endpoint.
-#[derive(Debug)]
-struct DbMetrics {
-    // The total number of chunks created moved through various stages of the
-    // catalog data lifecycle.
-    catalog_chunks: metrics::Counter,
-
-    // Tracks a distribution of sizes in bytes of chunks as they're moved into
-    // various immutable stages in IOx: closed/moving in the MUB, in the RB,
-    // and in Parquet.
-    catalog_immutable_chunk_bytes: metrics::Histogram,
-
-    // Tracks the current total size in bytes of all chunks in the catalog.
-    // sizes are segmented by database and chunk location.
-    catalog_chunk_bytes: metrics::Gauge,
-
-    // Metrics associated with Read Buffer chunks. Due to the behaviour of the
-    // open telemetry observers, we allocate a single source of metrics and push
-    // them into each new read buffer chunk.
-    read_buffer_chunk_metrics: Arc<read_buffer::ChunkMetrics>,
-}
-
-impl DbMetrics {
-    // updates the catalog_chunks metric with a new chunk state and increases the
-    // size metric associated with the new state.
-    fn update_chunk_state(
-        &self,
-        prev_state_size: Option<(&'static str, usize)>,
-        next_state_size: Option<(&'static str, usize)>,
-    ) {
-        debug!(
-            ?prev_state_size,
-            ?next_state_size,
-            "updating chunk state metrics"
-        );
-
-        // Reduce bytes tracked metric for previous state
-        if let Some((state, size)) = prev_state_size {
-            let labels = vec![metrics::KeyValue::new("state", state)];
-            self.catalog_chunk_bytes
-                .sub_with_labels(size as f64, labels.as_slice());
-            debug!(?size, ?labels, "called catalog_chunk_bytes.sub_with_labels");
-        }
-
-        // Increase next metric for next chunk state
-        if let Some((state, size)) = next_state_size {
-            let labels = vec![metrics::KeyValue::new("state", state)];
-            self.catalog_chunk_bytes
-                .add_with_labels(size as f64, labels.as_slice());
-            debug!(size, ?labels, "called catalog_chunk_bytes.add_with_labels");
-
-            // New chunk in new state
-            self.catalog_chunks.inc_with_labels(labels.as_slice());
-            debug!(?labels, "called catalog_chunks.inc_with_labels");
-        }
-    }
+    /// Metric labels
+    metric_labels: Vec<KeyValue>,
 }
 
 impl Db {
@@ -419,52 +325,22 @@ impl Db {
         exec: Arc<Executor>,
         write_buffer: Option<Buffer>,
         jobs: Arc<JobRegistry>,
-        metrics: Arc<MetricRegistry>,
+        metrics_registry: Arc<MetricRegistry>,
     ) -> Self {
         let db_name = rules.name.clone();
-        let domain = metrics.register_domain_with_labels(
-            "catalog",
-            vec![
-                metrics::KeyValue::new("db_name", db_name.to_string()),
-                metrics::KeyValue::new("svr_id", format!("{}", server_id)),
-            ],
-        );
+        let metric_labels = vec![
+            KeyValue::new("db_name", db_name.to_string()),
+            KeyValue::new("svr_id", format!("{}", server_id)),
+        ];
 
-        let memory_registries = Default::default();
-        domain.register_observer(None, &[], &memory_registries);
-
-        let db_metrics = DbMetrics {
-            catalog_chunks: domain.register_counter_metric_with_labels(
-                "chunks",
-                None,
-                "In-memory chunks created in various life-cycle stages",
-                vec![],
-            ),
-            catalog_immutable_chunk_bytes: domain
-                .register_histogram_metric(
-                    "chunk_creation",
-                    "size",
-                    "bytes",
-                    "The new size of an immutable chunk",
-                )
-                .init(),
-            catalog_chunk_bytes: domain.register_gauge_metric_with_labels(
-                "chunk_size",
-                Some("bytes"),
-                "The size in bytes of all chunks",
-                vec![],
-            ),
-            read_buffer_chunk_metrics: Arc::new(read_buffer::ChunkMetrics::new_with_db(
-                &metrics,
-                db_name.to_string(),
-            )),
-        };
+        let metrics_domain =
+            metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
 
         let rules = RwLock::new(rules);
         let server_id = server_id;
         let store = Arc::clone(&object_store);
         let write_buffer = write_buffer.map(Mutex::new);
-        let catalog = Arc::new(Catalog::new(domain));
+        let catalog = Arc::new(Catalog::new(metrics_domain));
         let system_tables =
             SystemSchemaProvider::new(&db_name, Arc::clone(&catalog), Arc::clone(&jobs));
         let system_tables = Arc::new(system_tables);
@@ -479,12 +355,11 @@ impl Db {
             catalog,
             write_buffer,
             jobs,
-            metrics: db_metrics,
-            metrics_registry: metrics,
+            metrics_registry,
             system_tables,
-            memory_registries,
             process_clock,
             worker_iterations: AtomicUsize::new(0),
+            metric_labels,
         }
     }
 
@@ -517,17 +392,10 @@ impl Db {
             })?
         {
             let mut chunk = chunk.write();
-            let prev_chunk_state = Some((chunk.state().metric_label(), chunk.size()));
             chunk.set_closed().context(RollingOverPartition {
                 partition_key,
                 table_name,
             })?;
-
-            // update metrics reflecting chunk moved to new state
-            self.metrics.update_chunk_state(
-                prev_chunk_state,
-                Some((chunk.state().metric_label(), chunk.size())),
-            );
 
             Ok(Some(DbChunk::snapshot(&chunk)))
         } else {
@@ -552,9 +420,7 @@ impl Db {
         // with it while we drop the chunk
         let mut partition = partition.write();
 
-        let chunk_state;
-
-        let prev_chunk_state = {
+        {
             let chunk = partition
                 .chunk(table_name, chunk_id)
                 .context(DroppingChunk {
@@ -563,7 +429,7 @@ impl Db {
                     chunk_id,
                 })?;
             let chunk = chunk.read();
-            chunk_state = chunk.state().name();
+            let chunk_state = chunk.state().name();
 
             // prevent chunks that are actively being moved. TODO it
             // would be nicer to allow this to happen have the chunk
@@ -571,7 +437,7 @@ impl Db {
             // weren't prevented from dropping chunks due to
             // background tasks
             ensure!(
-                !matches!(chunk.state(), ChunkState::Moving(_)),
+                !matches!(chunk.state(), catalog::chunk::ChunkState::Moving(_)),
                 DropMovingChunk {
                     partition_key,
                     table_name,
@@ -580,11 +446,8 @@ impl Db {
                 }
             );
 
-            // track previous state before it's dropped
-            (chunk.state().metric_label(), chunk.size())
-        };
-
-        debug!(%partition_key, %table_name, %chunk_id, %chunk_state, "dropping chunk");
+            debug!(%partition_key, %table_name, %chunk_id, %chunk_state, "dropping chunk");
+        }
 
         partition
             .drop_chunk(table_name, chunk_id)
@@ -592,11 +455,6 @@ impl Db {
                 partition_key,
                 table_name,
                 chunk_id,
-            })
-            .map(|_| {
-                // update metrics reflecting chunk has been dropped
-                self.metrics
-                    .update_chunk_state(Some(prev_chunk_state), None);
             })
     }
 
@@ -636,11 +494,6 @@ impl Db {
                 })?
         };
 
-        let prev_chunk_state = {
-            let chunk = chunk.read();
-            (chunk.state().metric_label(), chunk.size())
-        };
-
         // update the catalog to say we are processing this chunk and
         // then drop the lock while we do the work
         let mb_chunk = {
@@ -652,26 +505,6 @@ impl Db {
                 chunk_id,
             })?
         };
-        //
-        // Track the size of the newly immutable closed MUB chunk.
-        self.metrics
-            .catalog_immutable_chunk_bytes
-            .observe_with_labels(
-                mb_chunk.size() as f64,
-                &[metrics::KeyValue::new(
-                    "state",
-                    chunk.read().state().metric_label(),
-                )],
-            );
-
-        // chunk transitioned from open/closing to moving
-        {
-            let chunk = chunk.read();
-            self.metrics.update_chunk_state(
-                Some(prev_chunk_state),
-                Some((chunk.state().metric_label(), chunk.size())),
-            );
-        }
 
         info!(%partition_key, %table_name, %chunk_id, "chunk marked MOVING, loading tables into read buffer");
 
@@ -679,10 +512,12 @@ impl Db {
         let table_summary = mb_chunk.table_summary();
 
         // create a new read buffer chunk with memory tracking
-        let rb_chunk = ReadBufferChunk::new_with_registries(
+        let metrics = self
+            .metrics_registry
+            .register_domain_with_labels("read_buffer", self.metric_labels.clone());
+        let mut rb_chunk = ReadBufferChunk::new(
             chunk_id,
-            &self.memory_registries.read_buffer,
-            Arc::clone(&self.metrics.read_buffer_chunk_metrics),
+            ReadBufferChunkMetrics::new(&metrics, self.catalog.metrics().memory().read_buffer()),
         );
 
         // load table into the new chunk one by one.
@@ -702,7 +537,6 @@ impl Db {
         // Relock the chunk again (nothing else should have been able
         // to modify the chunk state while we were moving it
         let mut chunk = chunk.write();
-        let prev_chunk_state = (chunk.state().metric_label(), chunk.size());
 
         // update the catalog to say we are done processing
         chunk.set_moved(Arc::new(rb_chunk)).context(LoadingChunk {
@@ -711,22 +545,6 @@ impl Db {
             chunk_id,
         })?;
 
-        // Track the size of the newly immutable RB chunk.
-        self.metrics
-            .catalog_immutable_chunk_bytes
-            .observe_with_labels(
-                chunk.size() as f64,
-                &[metrics::KeyValue::new(
-                    "state",
-                    chunk.state().metric_label(),
-                )],
-            );
-
-        // chunk transitioned from moving to moved
-        self.metrics.update_chunk_state(
-            Some(prev_chunk_state),
-            Some((chunk.state().metric_label(), chunk.size())),
-        );
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked MOVED. loading complete");
 
         Ok(DbChunk::snapshot(&chunk))
@@ -776,23 +594,19 @@ impl Db {
                 })?
         };
 
-        // chunk transitioned from moved to "writing", but the chunk remains in
-        // the read buffer so we don't want to decrease that metric.
-        {
-            let chunk = chunk.read();
-            self.metrics
-                .update_chunk_state(None, Some((chunk.state().metric_label(), chunk.size())));
-        }
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked WRITING , loading tables into object store");
 
         // Get all tables in this chunk
         let table_stats = rb_chunk.table_summaries();
 
         // Create a parquet chunk for this chunk
-        let mut parquet_chunk = Chunk::new(
+        let metrics = self
+            .metrics_registry
+            .register_domain_with_labels("parquet", self.metric_labels.clone());
+        let mut parquet_chunk = ParquetChunk::new(
             partition_key.to_string(),
             chunk_id,
-            self.memory_registries.parquet.as_ref(),
+            ParquetChunkMetrics::new(&metrics, self.catalog.metrics().memory().parquet()),
         );
         // Create a storage to save data of this chunk
         let storage = Storage::new(
@@ -859,7 +673,6 @@ impl Db {
         // Relock the chunk again (nothing else should have been able
         // to modify the chunk state while we were moving it
         let mut chunk = chunk.write();
-        let prev_chunk_state = (chunk.state().metric_label(), chunk.size());
 
         // update the catalog to say we are done processing
         let parquet_chunk = Arc::clone(&Arc::new(parquet_chunk));
@@ -870,39 +683,6 @@ impl Db {
                 table_name,
                 chunk_id,
             })?;
-
-        // Track the size of the newly written to OS chunk.
-        self.metrics
-            .catalog_immutable_chunk_bytes
-            .observe_with_labels(
-                chunk.size() as f64,
-                &[metrics::KeyValue::new(
-                    "state",
-                    chunk.state().metric_label(),
-                )],
-            );
-
-        // TODO(edd): metric updates here are brittle. Come up with a better
-        // solution.
-        // Reduce size of "written" chunk bytes
-        self.metrics.catalog_chunk_bytes.sub_with_labels(
-            prev_chunk_state.1 as f64,
-            &[metrics::KeyValue::new("state", prev_chunk_state.0)],
-        );
-
-        // Increase size of chunk in "os" state.
-        self.metrics.catalog_chunk_bytes.add_with_labels(
-            chunk.size() as f64,
-            &[metrics::KeyValue::new("state", "os")],
-        );
-
-        // Track a new chunk in "rub_and_os" state
-        self.metrics
-            .catalog_chunks
-            .inc_with_labels(&[metrics::KeyValue::new(
-                "state",
-                chunk.state().metric_label(),
-            )]);
 
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked WRITTEN. Persisting to object store complete");
 
@@ -942,41 +722,13 @@ impl Db {
         // update the catalog to no longer use read buffer chunk if any
         let mut chunk = chunk.write();
 
-        let rb_chunk = {
-            chunk
-                .set_unload_from_read_buffer()
-                .context(UnloadingChunkFromReadBuffer {
-                    partition_key,
-                    table_name,
-                    chunk_id,
-                })?
-        };
-
-        // TODO(edd): metric updates here are brittle. Come up with a better
-        // solution.
-        // Reduce size of "moved" chunk bytes (in read buffer)
-        self.metrics.catalog_chunk_bytes.sub_with_labels(
-            rb_chunk.size() as f64,
-            &[metrics::KeyValue::new("state", "moved")],
-        );
-
-        // Track a new chunk in "os"-only state
-        self.metrics
-            .catalog_chunks
-            .inc_with_labels(&[metrics::KeyValue::new(
-                "state",
-                chunk.state().metric_label(),
-            )]);
-
-        self.metrics
-            .catalog_immutable_chunk_bytes
-            .observe_with_labels(
-                chunk.size() as f64,
-                &[metrics::KeyValue::new(
-                    "state",
-                    chunk.state().metric_label(),
-                )],
-            );
+        chunk
+            .set_unload_from_read_buffer()
+            .context(UnloadingChunkFromReadBuffer {
+                partition_key,
+                table_name,
+                chunk_id,
+            })?;
 
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked UNLOADED from read buffer");
 
@@ -1163,7 +915,7 @@ impl Db {
             return DatabaseNotWriteable {}.fail();
         }
         if let Some(hard_limit) = rules.lifecycle_rules.buffer_size_hard {
-            if self.memory_registries.bytes() > hard_limit.get() {
+            if self.catalog.metrics().memory().total() > hard_limit.get() {
                 return HardLimitReached {}.fail();
             }
         }
@@ -1199,41 +951,35 @@ impl Db {
                                     chunk_id,
                                 })?;
 
-                            // set new size of chunk
-                            self.metrics.catalog_chunk_bytes.set_with_labels(
-                                chunk.size() as f64,
-                                &[metrics::KeyValue::new(
-                                    "state",
-                                    chunk.state().metric_label(),
-                                )],
-                            );
-
-                            check_chunk_closed(&mut *chunk, mutable_size_threshold, &self.metrics);
+                            check_chunk_closed(&mut *chunk, mutable_size_threshold);
                         }
                         None => {
-                            let new_chunk = partition
-                                .create_open_chunk(
-                                    table_batch,
+                            let metrics = self.metrics_registry.register_domain_with_labels(
+                                "mutable_buffer",
+                                self.metric_labels.clone(),
+                            );
+                            let mut mb_chunk = MutableBufferChunk::new(
+                                None, // ID will be set by the catalog
+                                table_batch.name(),
+                                MutableBufferChunkMetrics::new(
+                                    &metrics,
+                                    self.catalog.metrics().memory().mutable_buffer(),
+                                ),
+                            );
+
+                            mb_chunk
+                                .write_table_batch(
                                     sequenced_entry.clock_value(),
                                     sequenced_entry.server_id(),
-                                    self.memory_registries.mutable_buffer.as_ref(),
+                                    table_batch,
                                 )
+                                .context(WriteEntryInitial { partition_key })?;
+
+                            let new_chunk = partition
+                                .create_open_chunk(mb_chunk)
                                 .context(OpenEntry { partition_key })?;
 
-                            {
-                                // track new open chunk
-                                let chunk = new_chunk.read();
-                                self.metrics.update_chunk_state(
-                                    None,
-                                    Some((chunk.state().metric_label(), chunk.size())),
-                                );
-                            }
-
-                            check_chunk_closed(
-                                &mut *new_chunk.write(),
-                                mutable_size_threshold,
-                                &self.metrics,
-                            );
+                            check_chunk_closed(&mut *new_chunk.write(), mutable_size_threshold);
                         }
                     };
                 }
@@ -1245,23 +991,13 @@ impl Db {
 }
 
 /// Check if the given chunk should be closed based on the the MutableBuffer size threshold.
-fn check_chunk_closed(
-    chunk: &mut CatalogChunk,
-    mutable_size_threshold: Option<NonZeroUsize>,
-    metrics: &DbMetrics,
-) {
-    let prev_chunk_state = (chunk.state().metric_label(), chunk.size());
-
+fn check_chunk_closed(chunk: &mut CatalogChunk, mutable_size_threshold: Option<NonZeroUsize>) {
     if let Some(threshold) = mutable_size_threshold {
         if let Ok(mb_chunk) = chunk.mutable_buffer() {
             let size = mb_chunk.size();
 
             if size > threshold.get() {
                 chunk.set_closed().expect("cannot close open chunk");
-                metrics.update_chunk_state(
-                    Some(prev_chunk_state),
-                    Some((chunk.state().metric_label(), chunk.size())),
-                );
             }
         }
     }
@@ -1352,6 +1088,7 @@ mod tests {
         test_helpers::{try_write_lp, write_lp},
         *,
     };
+    use crate::db::catalog::chunk::ChunkState;
     use crate::query_tests::utils::{make_db, TestDb};
     use ::test_helpers::assert_contains;
     use arrow::record_batch::RecordBatch;
@@ -1408,13 +1145,13 @@ mod tests {
 
     fn catalog_chunk_size_bytes_metric_eq(
         reg: &metrics::TestMetricRegistry,
-        state: &'static str,
+        source: &'static str,
         v: u64,
     ) -> Result<(), metrics::Error> {
-        reg.has_metric_family("catalog_chunk_size_bytes")
+        reg.has_metric_family("catalog_chunks_mem_usage_bytes")
             .with_labels(&[
                 ("db_name", "placeholder"),
-                ("state", state),
+                ("source", source),
                 ("svr_id", "1"),
             ])
             .gauge()
@@ -1442,13 +1179,13 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "open", 72).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 72).unwrap();
 
         // write into same chunk again.
         write_lp(db.as_ref(), "cpu bar=2 10");
 
         // verify chunk size updated
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "open", 88).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 88).unwrap();
 
         // Still only one chunk open
         test_db
@@ -1478,9 +1215,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        // verify chunk size updated (chunk moved from open to closed)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "open", 0).unwrap();
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "closed", 88).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 88).unwrap();
 
         db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", 0)
             .await
@@ -1500,9 +1235,8 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated (chunk moved from closing to moving to moved)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "closed", 0).unwrap();
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moving", 0).unwrap();
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 1230).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1606).unwrap();
 
         db.write_chunk_to_object_store("1970-01-01T00", "cpu", 0)
             .await
@@ -1521,8 +1255,9 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 1230).unwrap();
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "os", 1921).unwrap(); // now also in OS
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1606).unwrap();
+        // now also in OS
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "parquet", 89).unwrap(); // TODO: #1311
 
         db.unload_read_buffer("1970-01-01T00", "cpu", 0)
             .await
@@ -1538,9 +1273,9 @@ mod tests {
             .unwrap();
 
         // verify chunk size not increased for OS (it was in OS before unload)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "os", 1921).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "parquet", 89).unwrap();
         // verify chunk size for RB has decreased
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 0).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 0).unwrap();
     }
 
     #[tokio::test]
@@ -1680,7 +1415,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated (chunk moved from moved to writing to written)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 1230).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1606).unwrap();
 
         // drop, the chunk from the read buffer
         db.drop_chunk(partition_key, "cpu", mb_chunk.id()).unwrap();
@@ -1689,8 +1424,12 @@ mod tests {
             vec![] as Vec<u32>
         );
 
+        // verify size is reported until chunk dropped
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1606).unwrap();
+        std::mem::drop(rb_chunk);
+
         // verify chunk size updated (chunk dropped from moved state)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "moved", 0).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 0).unwrap();
 
         // Currently this doesn't work (as we need to teach the stores how to
         // purge tables after data bas been dropped println!("running
@@ -1759,7 +1498,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3547.0)
+            .sample_sum_eq(3923.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk, "cpu").await;
@@ -1860,7 +1599,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(1921.0)
+            .sample_sum_eq(2297.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1968,7 +1707,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(1921.0)
+            .sample_sum_eq(2297.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -2254,7 +1993,10 @@ mod tests {
             .map(|x| x.estimated_bytes)
             .sum();
 
-        assert_eq!(db.memory_registries.mutable_buffer.bytes(), size);
+        assert_eq!(
+            db.catalog.metrics().memory().mutable_buffer().get_total(),
+            size
+        );
 
         assert_eq!(
             expected, chunk_summaries,
@@ -2349,7 +2091,7 @@ mod tests {
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
-                1912, // size of RB and OS chunks
+                2288, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2384,9 +2126,15 @@ mod tests {
             expected, chunk_summaries
         );
 
-        assert_eq!(db.memory_registries.mutable_buffer.bytes(), 100 + 129 + 131);
-        assert_eq!(db.memory_registries.read_buffer.bytes(), 1221);
-        assert_eq!(db.memory_registries.parquet.bytes(), 89); // TODO: This 89 must be replaced with 675. Ticket #1311
+        assert_eq!(
+            db.catalog.metrics().memory().mutable_buffer().get_total(),
+            100 + 129 + 131
+        );
+        assert_eq!(
+            db.catalog.metrics().memory().read_buffer().get_total(),
+            1597
+        );
+        assert_eq!(db.catalog.metrics().memory().parquet().get_total(), 89); // TODO: This 89 must be replaced with 691. Ticket #1311
     }
 
     #[tokio::test]
@@ -2815,7 +2563,7 @@ mod tests {
                 ("access", "shared"),
             ])
             .counter()
-            .eq(2.)
+            .eq(1.)
             .unwrap();
 
         test_db

@@ -7,9 +7,7 @@
 )]
 
 mod lock;
-mod mem;
 mod task;
 
 pub use lock::*;
-pub use mem::*;
 pub use task::*;

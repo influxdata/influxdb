@@ -360,13 +360,14 @@ fn can_move(rules: &LifecycleRules, chunk: &Chunk, now: DateTime<Utc>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::catalog::chunk::ChunkMetrics;
     use data_types::server_id::ServerId;
     use entry::{test_helpers::lp_to_entry, ClockValue};
     use std::{
         convert::TryFrom,
         num::{NonZeroU32, NonZeroUsize},
     };
-    use tracker::{MemRegistry, TaskRegistry};
+    use tracker::TaskRegistry;
 
     fn from_secs(secs: i64) -> DateTime<Utc> {
         DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(secs, 0), Utc)
@@ -380,15 +381,20 @@ mod tests {
         let entry = lp_to_entry("table1 bar=10 10");
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
-        let mut chunk = Chunk::new_open(
-            batch,
-            "",
-            id,
-            ClockValue::try_from(5).unwrap(),
-            ServerId::try_from(1).unwrap(),
-            &MemRegistry::new(),
-        )
-        .unwrap();
+        let mut mb_chunk = mutable_buffer::chunk::Chunk::new(
+            Some(id),
+            "table1",
+            mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
+        );
+        mb_chunk
+            .write_table_batch(
+                ClockValue::try_from(5).unwrap(),
+                ServerId::try_from(1).unwrap(),
+                batch,
+            )
+            .unwrap();
+
+        let mut chunk = Chunk::new_open("", mb_chunk, ChunkMetrics::new_unregistered()).unwrap();
         chunk.set_timestamps(
             time_of_first_write.map(from_secs),
             time_of_last_write.map(from_secs),
@@ -439,7 +445,7 @@ mod tests {
         parquet_file::chunk::Chunk::new(
             chunk.key().to_string(),
             chunk.id(),
-            &tracker::MemRegistry::new(),
+            parquet_file::chunk::ChunkMetrics::new_unregistered(),
         )
     }
 
@@ -740,11 +746,9 @@ mod tests {
             ..Default::default()
         };
 
-        let reg = metrics::MetricRegistry::new();
-        let rb = Arc::new(read_buffer::Chunk::new_with_registries(
+        let rb = Arc::new(read_buffer::Chunk::new(
             22,
-            &tracker::MemRegistry::new(),
-            Arc::new(read_buffer::ChunkMetrics::new(&reg)),
+            read_buffer::ChunkMetrics::new_unregistered(),
         ));
 
         let chunks = vec![new_chunk(0, Some(0), Some(0))];
@@ -786,11 +790,9 @@ mod tests {
             ..Default::default()
         };
 
-        let reg = metrics::MetricRegistry::new();
-        let rb = Arc::new(read_buffer::Chunk::new_with_registries(
+        let rb = Arc::new(read_buffer::Chunk::new(
             22,
-            &tracker::MemRegistry::new(),
-            Arc::new(read_buffer::ChunkMetrics::new(&reg)),
+            read_buffer::ChunkMetrics::new_unregistered(),
         ));
 
         let chunks = vec![new_chunk(0, Some(0), Some(0))];
@@ -842,11 +844,9 @@ mod tests {
             ..Default::default()
         };
 
-        let reg = metrics::MetricRegistry::new();
-        let rb = Arc::new(read_buffer::Chunk::new_with_registries(
+        let rb = Arc::new(read_buffer::Chunk::new(
             22,
-            &tracker::MemRegistry::new(),
-            Arc::new(read_buffer::ChunkMetrics::new(&reg)),
+            read_buffer::ChunkMetrics::new_unregistered(),
         ));
 
         let chunks = vec![

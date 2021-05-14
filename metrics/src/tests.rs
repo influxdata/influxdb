@@ -118,7 +118,7 @@ impl<'a> AssertionBuilder<'a> {
     }
 
     /// Returns the counter metric, allowing assertions to be applied.
-    pub fn counter(&mut self) -> Counter<'_> {
+    pub fn counter(&mut self) -> CounterAssertion<'_> {
         // sort the assertion's labels
         self.labels.sort_by(|a, b| a.0.cmp(&b.0));
 
@@ -140,7 +140,7 @@ impl<'a> AssertionBuilder<'a> {
 
         // Can't find metric matching labels
         if metric.is_none() {
-            return Counter {
+            return CounterAssertion {
                 c: NoMatchingLabelsError {
                     name: self.family.get_name().to_owned(),
                     labels: self.labels.clone(),
@@ -154,7 +154,7 @@ impl<'a> AssertionBuilder<'a> {
         let metric = metric.unwrap();
 
         if !metric.has_counter() {
-            return Counter {
+            return CounterAssertion {
                 c: FailedMetricAssertionError {
                     name: self.family.get_name().to_owned(),
                     msg: "metric not a counter".to_owned(),
@@ -166,7 +166,7 @@ impl<'a> AssertionBuilder<'a> {
             };
         }
 
-        Counter {
+        CounterAssertion {
             c: Ok(metric.get_counter()),
             family_name: self.family.get_name().to_owned(),
             metric_dump: self.registry.metrics_as_str(),
@@ -174,7 +174,7 @@ impl<'a> AssertionBuilder<'a> {
     }
 
     /// Returns the gauge metric, allowing assertions to be applied.
-    pub fn gauge(&mut self) -> Gauge<'_> {
+    pub fn gauge(&mut self) -> GaugeAssertion<'_> {
         // sort the assertion's labels
         self.labels.sort_by(|a, b| a.0.cmp(&b.0));
 
@@ -196,7 +196,7 @@ impl<'a> AssertionBuilder<'a> {
 
         // Can't find metric matching labels
         if metric.is_none() {
-            return Gauge {
+            return GaugeAssertion {
                 c: NoMatchingLabelsError {
                     name: self.family.get_name().to_owned(),
                     labels: self.labels.clone(),
@@ -210,7 +210,7 @@ impl<'a> AssertionBuilder<'a> {
         let metric = metric.unwrap();
 
         if !metric.has_gauge() {
-            return Gauge {
+            return GaugeAssertion {
                 c: FailedMetricAssertionError {
                     name: self.family.get_name().to_owned(),
                     msg: "metric not a gauge".to_owned(),
@@ -222,7 +222,7 @@ impl<'a> AssertionBuilder<'a> {
             };
         }
 
-        Gauge {
+        GaugeAssertion {
             c: Ok(metric.get_gauge()),
             family_name: self.family.get_name().to_owned(),
             metric_dump: self.registry.metrics_as_str(),
@@ -289,7 +289,7 @@ impl<'a> AssertionBuilder<'a> {
 }
 
 #[derive(Debug)]
-pub struct Counter<'a> {
+pub struct CounterAssertion<'a> {
     // if there was a problem getting the counter based on labels then the
     // Error will contain details.
     c: Result<&'a PromCounter, Error>,
@@ -298,7 +298,7 @@ pub struct Counter<'a> {
     metric_dump: String,
 }
 
-impl<'a> Counter<'a> {
+impl<'a> CounterAssertion<'a> {
     pub fn eq(self, v: f64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
@@ -371,7 +371,7 @@ impl<'a> Counter<'a> {
 }
 
 #[derive(Debug)]
-pub struct Gauge<'a> {
+pub struct GaugeAssertion<'a> {
     // if there was a problem getting the gauge based on labels then the
     // Error will contain details.
     c: Result<&'a PromGauge, Error>,
@@ -380,7 +380,7 @@ pub struct Gauge<'a> {
     metric_dump: String,
 }
 
-impl<'a> Gauge<'a> {
+impl<'a> GaugeAssertion<'a> {
     pub fn eq(self, v: f64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 

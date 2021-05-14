@@ -4,16 +4,14 @@ use chrono::{DateTime, Utc};
 use data_types::{
     chunk::{ChunkColumnSummary, ChunkStorage, ChunkSummary, DetailedChunkSummary},
     partition_metadata::TableSummary,
-    server_id::ServerId,
 };
-use entry::{ClockValue, TableBatch};
 use mutable_buffer::chunk::Chunk as MBChunk;
 use parquet_file::chunk::Chunk as ParquetChunk;
 use read_buffer::Chunk as ReadBufferChunk;
-use snafu::ResultExt;
 
-use super::{InternalChunkState, OpenChunk, Result};
-use tracker::MemRegistry;
+use super::{ChunkIsEmpty, InternalChunkState, Result};
+use metrics::{Counter, Histogram, KeyValue};
+use snafu::ensure;
 
 /// The state a Chunk is in and what its underlying backing storage is
 #[derive(Debug)]
@@ -59,20 +57,6 @@ impl ChunkState {
             Self::ObjectStoreOnly(_) => "Object Store Only",
         }
     }
-
-    /// A more concise version of `name`, more suited to metric labels.
-    pub fn metric_label(&self) -> &'static str {
-        match self {
-            Self::Invalid => "invalid",
-            Self::Open(_) => "open",
-            Self::Closed(_) => "closed",
-            Self::Moving(_) => "moving",
-            Self::Moved(_) => "moved",
-            Self::WritingToObjectStore(_) => "writing_os",
-            Self::WrittenToObjectStore(_, _) => "rub_and_os",
-            Self::ObjectStoreOnly(_) => "os",
-        }
-    }
 }
 
 /// The catalog representation of a Chunk in IOx. Note that a chunk
@@ -91,6 +75,9 @@ pub struct Chunk {
 
     /// The state of this chunk
     state: ChunkState,
+
+    /// The metrics for this chunk
+    metrics: ChunkMetrics,
 
     /// Time at which the first data was written into this chunk. Note
     /// this is not the same as the timestamps on the data itself
@@ -120,38 +107,59 @@ macro_rules! unexpected_state {
     };
 }
 
+#[derive(Debug)]
+pub struct ChunkMetrics {
+    pub(super) state: Counter,
+    pub(super) immutable_chunk_size: Histogram,
+}
+
+impl ChunkMetrics {
+    /// Creates an instance of ChunkMetrics that isn't registered with a central
+    /// metrics registry. Observations made to instruments on this ChunkMetrics instance
+    /// will therefore not be visible to other ChunkMetrics instances or metric instruments
+    /// created on a metrics domain, and vice versa
+    pub fn new_unregistered() -> Self {
+        Self {
+            state: Counter::new_unregistered(),
+            immutable_chunk_size: Histogram::new_unregistered(),
+        }
+    }
+}
+
 impl Chunk {
-    /// Creates a new open chunk from given table batch.
+    /// Creates a new open chunk from the provided MUB chunk
     ///
-    /// This consists of the following steps:
+    /// Returns an error if the provided chunk is empty
     ///
-    /// 1. [`MutableBuffer`](MBChunk) is created using this ID and the passed memory registry
-    /// 2. the passed table batch is written into the buffer using the provided clock value
-    /// 3. a new open chunk is created using the buffer
-    /// 4. a write is recorded (see [`record_write`](Self::record_write))
+    /// Otherwise creates a new open chunk and records a write at the current time
+    ///
     pub(crate) fn new_open(
-        batch: TableBatch<'_>,
         partition_key: impl AsRef<str>,
-        id: u32,
-        clock_value: ClockValue,
-        server_id: ServerId,
-        memory_registry: &MemRegistry,
+        chunk: mutable_buffer::chunk::Chunk,
+        metrics: ChunkMetrics,
     ) -> Result<Self> {
-        let table_name = Arc::from(batch.name());
-
-        let mut mb = mutable_buffer::chunk::Chunk::new(id, batch.name(), memory_registry);
-        mb.write_table_batch(clock_value, server_id, batch)
-            .context(OpenChunk {
+        ensure!(
+            chunk.rows() > 0,
+            ChunkIsEmpty {
                 partition_key: partition_key.as_ref(),
-                chunk_id: id,
-            })?;
+                chunk_id: chunk.id()
+            }
+        );
 
-        let state = ChunkState::Open(mb);
+        let id = chunk.id();
+        let table_name = Arc::clone(&chunk.table_name());
+
+        let state = ChunkState::Open(chunk);
+        metrics
+            .state
+            .inc_with_labels(&[KeyValue::new("state", "open")]);
+
         let mut chunk = Self {
             partition_key: Arc::from(partition_key.as_ref()),
             table_name,
             id,
             state,
+            metrics,
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
@@ -350,10 +358,13 @@ impl Chunk {
         std::mem::swap(&mut s, &mut self.state);
 
         match s {
-            ChunkState::Open(s) | ChunkState::Closed(s) => {
+            ChunkState::Open(s) => {
                 assert!(self.time_closed.is_none());
                 self.time_closed = Some(Utc::now());
                 self.state = ChunkState::Closed(s);
+                self.metrics
+                    .state
+                    .inc_with_labels(&[KeyValue::new("state", "closed")]);
                 Ok(())
             }
             state => {
@@ -366,13 +377,27 @@ impl Chunk {
     /// Set the chunk to the Moving state, returning a handle to the underlying
     /// storage
     pub fn set_moving(&mut self) -> Result<Arc<MBChunk>> {
+        // This ensures the closing logic is consistent but doesn't break code that
+        // assumes a chunk can be moved from open
+        if matches!(self.state, ChunkState::Open(_)) {
+            self.set_closed()?;
+        }
+
         let mut s = ChunkState::Invalid;
         std::mem::swap(&mut s, &mut self.state);
 
         match s {
-            ChunkState::Open(chunk) | ChunkState::Closed(chunk) => {
+            ChunkState::Closed(chunk) => {
                 let chunk = Arc::new(chunk);
                 self.state = ChunkState::Moving(Arc::clone(&chunk));
+                self.metrics
+                    .state
+                    .inc_with_labels(&[KeyValue::new("state", "moving")]);
+
+                self.metrics
+                    .immutable_chunk_size
+                    .observe_with_labels(chunk.size() as f64, &[KeyValue::new("state", "moving")]);
+
                 Ok(chunk)
             }
             state => {
@@ -391,6 +416,14 @@ impl Chunk {
 
         match s {
             ChunkState::Moving(_) => {
+                self.metrics
+                    .state
+                    .inc_with_labels(&[KeyValue::new("state", "moved")]);
+
+                self.metrics
+                    .immutable_chunk_size
+                    .observe_with_labels(chunk.size() as f64, &[KeyValue::new("state", "moved")]);
+
                 self.state = ChunkState::Moved(chunk);
                 Ok(())
             }
@@ -408,6 +441,9 @@ impl Chunk {
 
         match s {
             ChunkState::Moved(db) => {
+                self.metrics
+                    .state
+                    .inc_with_labels(&[KeyValue::new("state", "writing_os")]);
                 self.state = ChunkState::WritingToObjectStore(Arc::clone(&db));
                 Ok(db)
             }
@@ -426,6 +462,15 @@ impl Chunk {
 
         match s {
             ChunkState::WritingToObjectStore(db) => {
+                self.metrics
+                    .state
+                    .inc_with_labels(&[KeyValue::new("state", "rub_and_os")]);
+
+                self.metrics.immutable_chunk_size.observe_with_labels(
+                    (chunk.size() + db.size()) as f64,
+                    &[KeyValue::new("state", "rub_and_os")],
+                );
+
                 self.state = ChunkState::WrittenToObjectStore(db, chunk);
                 Ok(())
             }
@@ -447,6 +492,15 @@ impl Chunk {
 
         match s {
             ChunkState::WrittenToObjectStore(rub_chunk, parquet_chunk) => {
+                self.metrics
+                    .state
+                    .inc_with_labels(&[KeyValue::new("state", "os")]);
+
+                self.metrics.immutable_chunk_size.observe_with_labels(
+                    parquet_chunk.size() as f64,
+                    &[KeyValue::new("state", "os")],
+                );
+
                 self.state = ChunkState::ObjectStoreOnly(Arc::clone(&parquet_chunk));
                 Ok(rub_chunk)
             }

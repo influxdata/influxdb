@@ -7,8 +7,8 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use internal_types::{schema::Schema, selection::Selection};
 use object_store::{path::Path, ObjectStore};
 use query::predicate::Predicate;
-use tracker::{MemRegistry, MemTracker};
 
+use metrics::GaugeValue;
 use std::mem;
 
 #[derive(Debug, Snafu)]
@@ -43,6 +43,28 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
+pub struct ChunkMetrics {
+    /// keep track of memory used by chunk
+    memory_bytes: GaugeValue,
+}
+
+impl ChunkMetrics {
+    /// Creates an instance of ChunkMetrics that isn't registered with a central
+    /// metrics registry. Observations made to instruments on this ChunkMetrics instance
+    /// will therefore not be visible to other ChunkMetrics instances or metric instruments
+    /// created on a metrics domain, and vice versa
+    pub fn new_unregistered() -> Self {
+        Self {
+            memory_bytes: GaugeValue::new_unregistered(),
+        }
+    }
+
+    pub fn new(_metrics: &metrics::Domain, memory_bytes: GaugeValue) -> Self {
+        Self { memory_bytes }
+    }
+}
+
+#[derive(Debug)]
 pub struct Chunk {
     /// Partition this chunk belongs to
     partition_key: String,
@@ -53,19 +75,18 @@ pub struct Chunk {
     /// Tables of this chunk
     tables: Vec<Table>,
 
-    /// Track memory used by this chunk
-    memory_tracker: MemTracker,
+    metrics: ChunkMetrics,
 }
 
 impl Chunk {
-    pub fn new(part_key: String, chunk_id: u32, memory_registry: &MemRegistry) -> Self {
+    pub fn new(part_key: String, chunk_id: u32, metrics: ChunkMetrics) -> Self {
         let mut chunk = Self {
             partition_key: part_key,
             id: chunk_id,
             tables: Default::default(),
-            memory_tracker: memory_registry.register(),
+            metrics,
         };
-        chunk.memory_tracker.set_bytes(chunk.size());
+        chunk.metrics.memory_bytes.set(chunk.size());
         chunk
     }
 

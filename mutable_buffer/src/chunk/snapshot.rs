@@ -88,7 +88,7 @@ impl ChunkSnapshot {
         );
 
         Self {
-            chunk_id: chunk.id,
+            chunk_id: chunk.id.expect("cannot snapshot chunk without an ID"),
             records,
         }
     }

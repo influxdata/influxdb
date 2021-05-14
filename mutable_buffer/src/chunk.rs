@@ -7,11 +7,11 @@ use arrow::record_batch::RecordBatch;
 use data_types::{partition_metadata::TableSummary, server_id::ServerId};
 use entry::{ClockValue, TableBatch};
 use internal_types::selection::Selection;
-use tracker::{MemRegistry, MemTracker};
 
 use crate::chunk::snapshot::ChunkSnapshot;
 use crate::dictionary::{Dictionary, DID};
 use crate::table::Table;
+use metrics::GaugeValue;
 
 pub mod snapshot;
 
@@ -30,10 +30,10 @@ pub enum Error {
     },
 
     #[snafu(display("Table {} not found in chunk {}", table, chunk))]
-    TableNotFoundInChunk { table: DID, chunk: u64 },
+    TableNotFoundInChunk { table: DID, chunk: u32 },
 
     #[snafu(display("Column ID {} not found in dictionary of chunk {}", column_id, chunk))]
-    ColumnIdNotFoundInDictionary { column_id: DID, chunk: u64 },
+    ColumnIdNotFoundInDictionary { column_id: DID, chunk: u32 },
 
     #[snafu(display(
         "Column name {} not found in dictionary of chunk {}",
@@ -45,12 +45,34 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+#[derive(Debug)]
+pub struct ChunkMetrics {
+    /// keep track of memory used by chunk
+    memory_bytes: GaugeValue,
+}
+
+impl ChunkMetrics {
+    /// Creates an instance of ChunkMetrics that isn't registered with a central
+    /// metrics registry. Observations made to instruments on this ChunkMetrics instance
+    /// will therefore not be visible to other ChunkMetrics instances or metric instruments
+    /// created on a metrics domain, and vice versa
+    pub fn new_unregistered() -> Self {
+        Self {
+            memory_bytes: GaugeValue::new_unregistered(),
+        }
+    }
+
+    pub fn new(_metrics: &metrics::Domain, memory_bytes: GaugeValue) -> Self {
+        Self { memory_bytes }
+    }
+}
+
 /// Represents a Chunk of data (a horizontal subset of a table) in
 /// the mutable store.
 #[derive(Debug)]
 pub struct Chunk {
     /// The id for this chunk
-    id: u32,
+    id: Option<u32>,
 
     /// `dictionary` maps &str -> DID. The DIDs are used in place of String or
     /// str to avoid slow string operations. The same dictionary is used for
@@ -63,8 +85,8 @@ pub struct Chunk {
     /// The table stored in this chunk
     table: Table,
 
-    /// keep track of memory used by chunk
-    tracker: MemTracker,
+    /// Metrics tracked by this chunk
+    metrics: ChunkMetrics,
 
     /// Cached chunk snapshot
     ///
@@ -74,7 +96,7 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub fn new(id: u32, table_name: impl AsRef<str>, memory_registry: &MemRegistry) -> Self {
+    pub fn new(id: Option<u32>, table_name: impl AsRef<str>, metrics: ChunkMetrics) -> Self {
         let table_name = table_name.as_ref();
         let mut dictionary = Dictionary::new();
         let table_id = dictionary.lookup_value_or_insert(table_name);
@@ -85,10 +107,10 @@ impl Chunk {
             dictionary,
             table_name,
             table: Table::new(table_id),
-            tracker: memory_registry.register(),
+            metrics,
             snapshot: Mutex::new(None),
         };
-        chunk.tracker.set_bytes(chunk.size());
+        chunk.metrics.memory_bytes.set(chunk.size());
         chunk
     }
 
@@ -119,7 +141,7 @@ impl Chunk {
             .try_lock()
             .expect("concurrent readers/writers to MBChunk") = None;
 
-        self.tracker.set_bytes(self.size());
+        self.metrics.memory_bytes.set(self.size());
 
         Ok(())
     }
@@ -158,7 +180,17 @@ impl Chunk {
 
     /// return the ID of this chunk
     pub fn id(&self) -> u32 {
-        self.id
+        self.id.expect("expected id to be set")
+    }
+
+    pub fn set_id(&mut self, id: u32) {
+        assert_eq!(self.id, None, "cannot change ID once it has been set");
+        self.id = Some(id);
+    }
+
+    /// Return the name of the table in this chunk
+    pub fn table_name(&self) -> &Arc<str> {
+        &self.table_name
     }
 
     /// Convert the table specified in this chunk into some number of
@@ -266,8 +298,7 @@ mod tests {
 
     #[test]
     fn writes_table_batches() {
-        let mr = MemRegistry::new();
-        let mut chunk = Chunk::new(1, "cpu", &mr);
+        let mut chunk = Chunk::new(Some(1), "cpu", ChunkMetrics::new_unregistered());
 
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
 
@@ -288,8 +319,7 @@ mod tests {
 
     #[test]
     fn writes_table_3_batches() {
-        let mr = MemRegistry::new();
-        let mut chunk = Chunk::new(1, "cpu", &mr);
+        let mut chunk = Chunk::new(Some(1), "cpu", ChunkMetrics::new_unregistered());
 
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
 
@@ -321,8 +351,7 @@ mod tests {
     #[test]
     #[cfg(not(feature = "nocache"))]
     fn test_snapshot() {
-        let mr = MemRegistry::new();
-        let mut chunk = Chunk::new(1, "cpu", &mr);
+        let mut chunk = Chunk::new(Some(1), "cpu", ChunkMetrics::new_unregistered());
 
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
 

@@ -1,14 +1,11 @@
-use std::sync::Arc;
 use std::{
     borrow::Cow,
     fmt::Display,
     time::{Duration, Instant},
 };
 
-use dashmap::DashMap;
-use observability_deps::opentelemetry::{
-    labels,
-    metrics::{Counter as OTCounter, ValueRecorder as OTHistogram},
+use observability_deps::opentelemetry::metrics::{
+    Counter as OTCounter, ValueRecorder as OTHistogram,
 };
 
 pub use observability_deps::opentelemetry::KeyValue;
@@ -58,7 +55,6 @@ impl Display for RedRequestStatus {
     }
 }
 
-#[derive(Debug)]
 /// A REDMetric is a metric that tracks requests to some resource.
 ///
 /// The [RED methodology](https://www.weave.works/blog/the-red-method-key-metrics-for-microservices-architecture/)
@@ -74,6 +70,16 @@ pub struct RedMetric {
     requests: OTCounter<u64>,
     duration: OTHistogram<f64>,
     default_labels: Vec<KeyValue>,
+}
+
+/// Workaround self-recursive OT instruments
+/// https://github.com/open-telemetry/opentelemetry-rust/issues/550
+impl std::fmt::Debug for RedMetric {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RedMetric")
+            .field("default_labels", &self.default_labels)
+            .finish()
+    }
 }
 
 impl RedMetric {
@@ -226,16 +232,35 @@ where
 /// If you want to track some notion of success, failure and latency consider
 /// using a `REDMetric` instead rather than expressing that with labels on a
 /// `Counter`.
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct Counter {
-    counter: OTCounter<u64>,
+    counter: Option<OTCounter<u64>>,
     default_labels: Vec<KeyValue>,
 }
 
+/// Workaround self-recursive OT instruments
+/// https://github.com/open-telemetry/opentelemetry-rust/issues/550
+impl std::fmt::Debug for Counter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Counter")
+            .field("default_labels", &self.default_labels)
+            .finish()
+    }
+}
+
 impl Counter {
+    /// Creates a new Counter that isn't registered with and
+    /// consequently won't report to any metrics registry
+    pub fn new_unregistered() -> Self {
+        Self {
+            counter: None,
+            default_labels: vec![],
+        }
+    }
+
     pub(crate) fn new(counter: OTCounter<u64>, default_labels: Vec<KeyValue>) -> Self {
         Self {
-            counter,
+            counter: Some(counter),
             default_labels,
         }
     }
@@ -248,6 +273,11 @@ impl Counter {
     /// Increase the count by `value` and associate the observation with the
     /// provided labels.
     pub fn add_with_labels(&self, value: u64, labels: &[KeyValue]) {
+        let counter = match self.counter.as_ref() {
+            Some(counter) => counter,
+            None => return,
+        };
+
         let labels = match labels.is_empty() {
             // If there are no labels specified just borrow defaults
             true => Cow::Borrowed(&self.default_labels),
@@ -263,7 +293,7 @@ impl Counter {
             }
         };
 
-        self.counter.add(value, &labels);
+        counter.add(value, &labels);
     }
 
     // Increase the count by 1.
@@ -278,109 +308,47 @@ impl Counter {
     }
 }
 
-/// A Gauge is an asynchronous instrument that reports
-/// the last value set
-///
-/// (e.g. current memory usage)
-#[derive(Debug)]
-pub struct Gauge {
-    default_labels: Vec<KeyValue>,
-    values: Arc<DashMap<String, (f64, Vec<KeyValue>)>>,
-}
-
-impl Gauge {
-    pub(crate) fn new(
-        default_labels: Vec<KeyValue>,
-        values: Arc<DashMap<String, (f64, Vec<KeyValue>)>>,
-    ) -> Self {
-        Self {
-            default_labels,
-            values,
-        }
-    }
-
-    // Set the gauge's `value`
-    pub fn set(&self, value: f64) {
-        self.set_with_labels(value, &[]);
-    }
-
-    /// Set the gauge's `value` and associate the observation with the
-    /// provided labels.
-    pub fn set_with_labels(&self, value: f64, labels: &[KeyValue]) {
-        let (encoded_labels, labels_new) = Self::merge_labels(&self.default_labels, labels);
-        self.values.insert(encoded_labels, (value, labels_new));
-    }
-
-    // Increase the gauge's value by `value`.
-    pub fn add(&self, value: f64) {
-        self.add_with_labels(value, &[]);
-    }
-
-    /// Increase the gauge's value by `value` and associate the observation with the
-    /// provided labels.
-    pub fn add_with_labels(&self, value: f64, labels: &[KeyValue]) {
-        let (encoded_labels, labels_new) = Self::merge_labels(&self.default_labels, labels);
-
-        // update value
-        match self.values.entry(encoded_labels) {
-            dashmap::mapref::entry::Entry::Occupied(mut entry) => {
-                let (current_value, _) = entry.get_mut();
-                *current_value += value;
-            }
-            dashmap::mapref::entry::Entry::Vacant(entry) => {
-                entry.insert((value, labels_new));
-            }
-        }
-    }
-
-    // Decrease the gauge's value by `value`.
-    pub fn sub(&self, value: f64) {
-        self.sub_with_labels(value, &[]);
-    }
-
-    /// Decrease the gauge's value by `value` and associate the observation with the
-    /// provided labels.
-    pub fn sub_with_labels(&self, value: f64, labels: &[KeyValue]) {
-        self.add_with_labels(-value, labels);
-    }
-
-    pub(crate) fn merge_labels(
-        default_labels: &[KeyValue],
-        labels: &[KeyValue],
-    ) -> (String, Vec<KeyValue>) {
-        // Note: provided labels need to go last so that they overwrite
-        // any default labels.
-
-        let mut labels_new = default_labels.to_vec();
-        labels_new.extend(labels.iter().cloned());
-
-        // this may seem inefficient but it's nothing compared to this and more that happens in the
-        // internals of opentelemetry. There's lots of room for improvement everywhere.
-        let label_set = labels::LabelSet::from_labels(labels_new.iter().cloned());
-        (
-            label_set.encoded(Some(&labels::DefaultLabelEncoder)),
-            labels_new,
-        )
-    }
-}
-
 /// A Histogram is a metric exposing a distribution of observations.
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct Histogram {
-    histogram: OTHistogram<f64>,
+    histogram: Option<OTHistogram<f64>>,
     default_labels: Vec<KeyValue>,
+}
+
+/// Workaround self-recursive OT instruments
+/// https://github.com/open-telemetry/opentelemetry-rust/issues/550
+impl std::fmt::Debug for Histogram {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Histogram")
+            .field("default_labels", &self.default_labels)
+            .finish()
+    }
 }
 
 impl Histogram {
+    /// Creates a new Histogram that isn't registered with and
+    /// consequently won't report to any metrics registry
+    pub fn new_unregistered() -> Self {
+        Self {
+            histogram: None,
+            default_labels: vec![],
+        }
+    }
+
     pub(crate) fn new(histogram: OTHistogram<f64>, default_labels: Vec<KeyValue>) -> Self {
         Self {
-            histogram,
+            histogram: Some(histogram),
             default_labels,
         }
     }
 
     /// Add a new observation to the histogram including the provided labels.
     pub fn observe_with_labels(&self, observation: f64, labels: &[KeyValue]) {
+        let histogram = match self.histogram.as_ref() {
+            Some(histogram) => histogram,
+            None => return,
+        };
+
         // merge labels
         let labels = if labels.is_empty() {
             // If there are no labels specified just borrow defaults
@@ -396,7 +364,7 @@ impl Histogram {
             Cow::Owned(new_labels)
         };
 
-        self.histogram.record(observation, &labels);
+        histogram.record(observation, &labels);
     }
 
     /// Add a new observation to the histogram

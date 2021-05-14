@@ -1873,6 +1873,7 @@ name = "metrics"
 version = "0.1.0"
 dependencies = [
  "dashmap",
+ "hashbrown 0.11.2",
  "observability_deps",
  "opentelemetry-prometheus",
  "parking_lot",
@@ -1975,6 +1976,7 @@ dependencies = [
  "flate2",
  "influxdb_line_protocol",
  "internal_types",
+ "metrics",
  "observability_deps",
  "parking_lot",
  "snafu",
@@ -2456,6 +2458,7 @@ dependencies = [
  "futures",
  "generated_types",
  "internal_types",
+ "metrics",
  "object_store",
  "observability_deps",
  "parking_lot",

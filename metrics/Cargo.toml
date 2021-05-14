@@ -14,12 +14,13 @@ edition = "2018"
 
 
 [dependencies] # In alphabetical order
+dashmap = { version = "4.0.1" }
+hashbrown = "0.11"
 observability_deps = { path = "../observability_deps" }
+opentelemetry-prometheus = "0.6"
 parking_lot = "0.11.1"
 prometheus = "0.12"
-opentelemetry-prometheus = "0.6"
 snafu = "0.6"
-dashmap = { version = "4.0.1" }
 
 [dev-dependencies] # In alphabetical order
 

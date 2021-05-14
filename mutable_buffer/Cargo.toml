@@ -21,6 +21,7 @@ data_types = { path = "../data_types" }
 entry = { path = "../entry" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 internal_types = { path = "../internal_types" }
+metrics = { path = "../metrics" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.11.1"
 snafu = "0.6.2"

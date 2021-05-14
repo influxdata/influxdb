@@ -13,6 +13,7 @@ datafusion_util = { path = "../datafusion_util" }
 futures = "0.3.7"
 generated_types = { path = "../generated_types" }
 internal_types = {path = "../internal_types"}
+metrics = { path = "../metrics" }
 object_store = {path = "../object_store"}
 observability_deps = { path = "../observability_deps" }
 # Turn off the "arrow" feature; it currently has a bug that causes the crate to rebuild every time

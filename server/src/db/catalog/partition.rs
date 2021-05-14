@@ -2,19 +2,22 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
+use chrono::{DateTime, Utc};
+use snafu::OptionExt;
+
+use data_types::chunk::ChunkSummary;
+use data_types::partition_metadata::{
+    PartitionSummary, UnaggregatedPartitionSummary, UnaggregatedTableSummary,
+};
+use query::predicate::Predicate;
+use tracker::RwLock;
+
+use crate::db::catalog::metrics::PartitionMetrics;
+
 use super::{
     chunk::{Chunk, ChunkState},
     Result, UnknownChunk, UnknownTable,
 };
-use chrono::{DateTime, Utc};
-use data_types::partition_metadata::{
-    PartitionSummary, UnaggregatedPartitionSummary, UnaggregatedTableSummary,
-};
-use data_types::{chunk::ChunkSummary, server_id::ServerId};
-use entry::{ClockValue, TableBatch};
-use query::predicate::Predicate;
-use snafu::OptionExt;
-use tracker::{LockTracker, MemRegistry, RwLock};
 
 /// IOx Catalog Partition
 ///
@@ -34,8 +37,8 @@ pub struct Partition {
     /// partition. Partition::new initializes this to now.
     last_write_at: DateTime<Utc>,
 
-    /// Lock Tracker for chunk-level locks
-    lock_tracker: LockTracker,
+    /// Partition metrics
+    metrics: PartitionMetrics,
 }
 
 impl Partition {
@@ -51,7 +54,7 @@ impl Partition {
     /// This function is not pub because `Partition`s should be
     /// created using the interfaces on [`Catalog`](crate::db::catalog::Catalog) and not
     /// instantiated directly.
-    pub(crate) fn new(key: impl Into<String>, lock_tracker: LockTracker) -> Self {
+    pub(crate) fn new(key: impl Into<String>, metrics: PartitionMetrics) -> Self {
         let key = key.into();
 
         let now = Utc::now();
@@ -60,7 +63,7 @@ impl Partition {
             tables: BTreeMap::new(),
             created_at: now,
             last_write_at: now,
-            lock_tracker,
+            metrics,
         }
     }
 
@@ -81,31 +84,33 @@ impl Partition {
 
     /// Create a new Chunk in the open state.
     ///
-    /// This will draw a new chunk ID, call [`Chunk::new_open`](Chunk::new_open) using the provided parameters, and will
-    /// insert the chunk into this partition.
+    /// This will add a new chunk to the catalog
+    ///
+    /// Returns an error if the chunk is empty
     pub fn create_open_chunk(
         &mut self,
-        batch: TableBatch<'_>,
-        clock_value: ClockValue,
-        server_id: ServerId,
-        memory_registry: &MemRegistry,
+        mut chunk: mutable_buffer::chunk::Chunk,
     ) -> Result<Arc<RwLock<Chunk>>> {
-        let table_name: String = batch.name().into();
+        let table_name: String = chunk.table_name().to_string();
 
         let table = self
             .tables
             .entry(table_name)
             .or_insert_with(PartitionTable::new);
+
         let chunk_id = table.next_chunk_id;
+        chunk.set_id(chunk_id);
+
+        // Technically this only causes an issue on the next upsert but
+        // the MUB treats u32::MAX as a sentinel value
+        assert_ne!(table.next_chunk_id, u32::MAX, "Chunk ID Overflow");
+
         table.next_chunk_id += 1;
 
-        let chunk = Arc::new(self.lock_tracker.new_lock(Chunk::new_open(
-            batch,
+        let chunk = Arc::new(self.metrics.new_lock(Chunk::new_open(
             &self.key,
-            chunk_id,
-            clock_value,
-            server_id,
-            memory_registry,
+            chunk,
+            self.metrics.new_chunk_metrics(),
         )?));
 
         if table.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
@@ -230,6 +235,10 @@ impl Partition {
     /// Return chunk summaries for all chunks in this partition
     pub fn chunk_summaries(&self) -> impl Iterator<Item = ChunkSummary> + '_ {
         self.chunks().map(|x| x.read().summary())
+    }
+
+    pub fn metrics(&self) -> &PartitionMetrics {
+        &self.metrics
     }
 }
 

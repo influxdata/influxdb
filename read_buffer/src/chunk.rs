@@ -1,10 +1,9 @@
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
     convert::TryFrom,
-    sync::Arc,
 };
 
-use metrics::{KeyValue, MetricRegistry};
+use metrics::{Gauge, GaugeValue, KeyValue};
 use parking_lot::RwLock;
 use snafu::{OptionExt, ResultExt, Snafu};
 
@@ -12,7 +11,6 @@ use arrow::record_batch::RecordBatch;
 use data_types::{chunk::ChunkColumnSummary, partition_metadata::TableSummary};
 use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
 use observability_deps::tracing::info;
-use tracker::{MemRegistry, MemTracker};
 
 use crate::row_group::{ColumnName, Predicate};
 use crate::schema::{AggregateType, ResultSchema};
@@ -52,7 +50,7 @@ pub struct Chunk {
     id: u32,
 
     // All metrics for the chunk.
-    metrics: Arc<ChunkMetrics>,
+    metrics: ChunkMetrics,
 
     // A chunk's data is held in a collection of mutable tables and
     // mutable meta data (`TableData`).
@@ -91,9 +89,6 @@ pub(crate) struct TableData {
     /// The set of tables within this chunk. Each table is identified by a
     /// measurement name.
     data: BTreeMap<TableName, Table>,
-
-    /// keep track of memory used by table data in chunk
-    tracker: MemTracker,
 }
 
 impl Default for TableData {
@@ -102,7 +97,6 @@ impl Default for TableData {
             rows: 0,
             row_groups: 0,
             data: BTreeMap::new(),
-            tracker: MemRegistry::new().register(),
         }
     }
 }
@@ -131,7 +125,7 @@ impl TableData {
 
 impl Chunk {
     /// Initialises a new `Chunk` with the associated chunk ID.
-    pub fn new(id: u32, metrics: Arc<ChunkMetrics>) -> Self {
+    pub fn new(id: u32, metrics: ChunkMetrics) -> Self {
         Self {
             id,
             chunk_data: RwLock::new(TableData::default()),
@@ -139,38 +133,16 @@ impl Chunk {
         }
     }
 
-    /// Initialises a new `Chunk` with the associated chunk ID. The returned
-    /// `Chunk` will be tracked according to the provided memory tracker
-    /// registry. Rather than providing a registry for metrics, shared metrcis
-    /// should be pushed in ensuring that they are correctly updated.
-    pub fn new_with_registries(
-        id: u32,
-        mem_registry: &MemRegistry,
-        metrics: Arc<ChunkMetrics>,
-    ) -> Self {
-        let chunk = Self::new(id, metrics);
-
-        {
-            let mut chunk_data = chunk.chunk_data.write();
-            chunk_data.tracker = mem_registry.register();
-            let size = Self::base_size() + chunk_data.size();
-            chunk_data.tracker.set_bytes(size);
-        }
-
-        chunk
-    }
-
     /// Initialises a new `Chunk` seeded with the provided `Table`.
     ///
     /// TODO(edd): potentially deprecate.
-    pub(crate) fn new_with_table(id: u32, table: Table, metrics: Arc<ChunkMetrics>) -> Self {
+    pub(crate) fn new_with_table(id: u32, table: Table, metrics: ChunkMetrics) -> Self {
         Self {
             id,
             chunk_data: RwLock::new(TableData {
                 rows: table.rows(),
                 row_groups: table.row_groups(),
                 data: vec![(table.name().to_owned(), table)].into_iter().collect(),
-                tracker: MemRegistry::new().register(),
             }),
             metrics,
         }
@@ -246,7 +218,7 @@ impl Chunk {
     ///
     /// TODO(edd): to be deprecated.
     pub(crate) fn upsert_table_with_row_group(
-        &self,
+        &mut self,
         table_name: impl Into<String>,
         row_group: RowGroup,
     ) {
@@ -272,7 +244,7 @@ impl Chunk {
 
         // Get and set new size of chunk on memory tracker
         let size = Self::base_size() + chunk_data.size();
-        chunk_data.tracker.set_bytes(size);
+        self.metrics.memory_bytes.set(size)
     }
 
     /// Add a record batch of data to to a `Table` in the chunk.
@@ -282,7 +254,7 @@ impl Chunk {
     /// the update. If the `Table` already exists then a new `RowGroup` will be
     /// added to the `Table`. Otherwise a new `Table` with a single `RowGroup`
     /// will be created.
-    pub fn upsert_table(&self, table_name: impl Into<String>, table_data: RecordBatch) {
+    pub fn upsert_table(&mut self, table_name: impl Into<String>, table_data: RecordBatch) {
         // Approximate heap size of record batch.
         let mub_rb_size = table_data
             .columns()
@@ -338,11 +310,12 @@ impl Chunk {
 
         // Get and set new size of chunk on memory tracker
         let size = Self::base_size() + chunk_data.size();
-        chunk_data.tracker.set_bytes(size);
+        self.metrics.memory_bytes.set(size);
 
         // update column metrics associated with column storage
         std::mem::drop(chunk_data); // drop write lock
-        self.update_column_storage_statistics(&storage_statistics, false);
+        self.metrics
+            .update_column_storage_statistics(&storage_statistics);
     }
 
     /// Removes the table specified by `name` along with all of its contained
@@ -639,71 +612,6 @@ impl Chunk {
             .fail(),
         }
     }
-
-    // Updates column storage statistics for the Read Buffer.
-    // `drop` indicates whether to decrease the metrics (because the chunk is
-    // being dropped), or to increase the metrics because it's being created.
-    fn update_column_storage_statistics(&self, statistics: &[Statistics], drop: bool) {
-        // whether to increase/decrease the metrics
-        let sign = if drop { -1.0 } else { 1.0 };
-
-        for stat in statistics {
-            let labels = &[
-                KeyValue::new("encoding", stat.enc_type),
-                KeyValue::new("log_data_type", stat.log_data_type),
-            ];
-
-            // update number of columns
-            self.metrics
-                .columns_total
-                .add_with_labels(1.0 * sign, labels);
-
-            // update bytes associated with columns
-            self.metrics
-                .column_bytes_total
-                .add_with_labels(stat.bytes as f64 * sign, labels);
-
-            // update raw estimated bytes of NULL values
-            self.metrics.column_raw_bytes_total.add_with_labels(
-                (stat.raw_bytes as f64 - stat.raw_bytes_no_null as f64) * sign,
-                &[
-                    KeyValue::new("encoding", stat.enc_type),
-                    KeyValue::new("log_data_type", stat.log_data_type),
-                    KeyValue::new("null", "true"),
-                ],
-            );
-
-            // update raw estimated bytes of non-NULL values
-            self.metrics.column_raw_bytes_total.add_with_labels(
-                stat.raw_bytes_no_null as f64 * sign,
-                &[
-                    KeyValue::new("encoding", stat.enc_type),
-                    KeyValue::new("log_data_type", stat.log_data_type),
-                    KeyValue::new("null", "false"),
-                ],
-            );
-
-            // update number of NULL values
-            self.metrics.column_values_total.add_with_labels(
-                stat.nulls as f64 * sign,
-                &[
-                    KeyValue::new("encoding", stat.enc_type),
-                    KeyValue::new("log_data_type", stat.log_data_type),
-                    KeyValue::new("null", "true"),
-                ],
-            );
-
-            // update number of non-NULL values
-            self.metrics.column_values_total.add_with_labels(
-                (stat.values - stat.nulls) as f64 * sign,
-                &[
-                    KeyValue::new("encoding", stat.enc_type),
-                    KeyValue::new("log_data_type", stat.log_data_type),
-                    KeyValue::new("null", "false"),
-                ],
-            );
-        }
-    }
 }
 
 impl std::fmt::Debug for Chunk {
@@ -714,15 +622,18 @@ impl std::fmt::Debug for Chunk {
 
 #[derive(Debug)]
 pub struct ChunkMetrics {
+    /// keep track of memory used by table data in chunk
+    memory_bytes: GaugeValue,
+
     // This metric tracks the total number of columns in read buffer.
-    columns_total: metrics::Gauge,
+    columns_total: Gauge,
 
     // This metric tracks the total number of values stored in read buffer
     // column encodings further segmented by nullness.
-    column_values_total: metrics::Gauge,
+    column_values_total: Gauge,
 
     // This metric tracks the total number of bytes used by read buffer columns
-    column_bytes_total: metrics::Gauge,
+    column_bytes_total: Gauge,
 
     // This metric tracks an estimated uncompressed data size for read buffer
     // columns, further segmented by nullness. It is a building block for
@@ -731,55 +642,100 @@ pub struct ChunkMetrics {
 }
 
 impl ChunkMetrics {
-    pub fn new(registry: &MetricRegistry) -> Self {
-        Self::new_with_db(registry, String::new())
-    }
-
-    pub fn new_with_db(registry: &MetricRegistry, db: String) -> Self {
-        let domain = registry.register_domain("read_buffer");
+    pub fn new(domain: &metrics::Domain, memory_bytes: GaugeValue) -> Self {
         Self {
-            columns_total: domain.register_gauge_metric_with_labels(
+            memory_bytes,
+            columns_total: domain.register_gauge_metric(
                 "column",
                 Some("total"),
                 "The number of columns within the Read Buffer",
-                vec![metrics::KeyValue::new("db", db.clone())],
             ),
-            column_values_total: domain.register_gauge_metric_with_labels(
+            column_values_total: domain.register_gauge_metric(
                 "column",
                 Some("values"),
                 "The number of values within columns in the Read Buffer",
-                vec![metrics::KeyValue::new("db", db.clone())],
             ),
-            column_bytes_total: domain.register_gauge_metric_with_labels(
+            column_bytes_total: domain.register_gauge_metric(
                 "column",
                 Some("bytes"),
                 "The number of bytes used by all columns in the Read Buffer",
-                vec![metrics::KeyValue::new("db", db.clone())],
             ),
-            column_raw_bytes_total: domain.register_gauge_metric_with_labels(
+            column_raw_bytes_total: domain.register_gauge_metric(
                 "column_raw",
                 Some("bytes"),
                 "The number of bytes used by all columns if they were uncompressed in the Read Buffer",
-                vec![metrics::KeyValue::new("db", db)],
             ),
         }
     }
-}
 
-// When a chunk is dropped from the Read Buffer we need to adjust the metrics
-// associated with column storage.
-impl Drop for Chunk {
-    fn drop(&mut self) {
-        let storage_statistics = {
-            let chunk_data = self.chunk_data.read();
-            chunk_data
-                .data
-                .values()
-                .map(|table| table.column_storage_statistics())
-                .flatten()
-                .collect::<Vec<_>>()
-        };
-        self.update_column_storage_statistics(&storage_statistics, true);
+    /// Creates an instance of ChunkMetrics that isn't registered with a central
+    /// metrics registry. Observations made to instruments on this ChunkMetrics instance
+    /// will therefore not be visible to other ChunkMetrics instances or metric instruments
+    /// created on a metrics domain, and vice versa
+    pub fn new_unregistered() -> Self {
+        Self {
+            memory_bytes: GaugeValue::new_unregistered(),
+            columns_total: Gauge::new_unregistered(),
+            column_values_total: Gauge::new_unregistered(),
+            column_bytes_total: Gauge::new_unregistered(),
+            column_raw_bytes_total: Gauge::new_unregistered(),
+        }
+    }
+
+    // Updates column storage statistics for the Read Buffer.
+    fn update_column_storage_statistics(&mut self, statistics: &[Statistics]) {
+        for stat in statistics {
+            let labels = &[
+                KeyValue::new("encoding", stat.enc_type),
+                KeyValue::new("log_data_type", stat.log_data_type),
+            ];
+
+            // update number of columns
+            self.columns_total.inc(1, labels);
+
+            // update bytes associated with columns
+            self.column_bytes_total.inc(stat.bytes, labels);
+
+            // update raw estimated bytes of NULL values
+            self.column_raw_bytes_total.inc(
+                stat.raw_bytes - stat.raw_bytes_no_null,
+                &[
+                    KeyValue::new("encoding", stat.enc_type),
+                    KeyValue::new("log_data_type", stat.log_data_type),
+                    KeyValue::new("null", "true"),
+                ],
+            );
+
+            // update raw estimated bytes of non-NULL values
+            self.column_raw_bytes_total.inc(
+                stat.raw_bytes_no_null,
+                &[
+                    KeyValue::new("encoding", stat.enc_type),
+                    KeyValue::new("log_data_type", stat.log_data_type),
+                    KeyValue::new("null", "false"),
+                ],
+            );
+
+            // update number of NULL values
+            self.column_values_total.inc(
+                stat.nulls as usize,
+                &[
+                    KeyValue::new("encoding", stat.enc_type),
+                    KeyValue::new("log_data_type", stat.log_data_type),
+                    KeyValue::new("null", "true"),
+                ],
+            );
+
+            // update number of non-NULL values
+            self.column_values_total.inc(
+                (stat.values - stat.nulls) as usize,
+                &[
+                    KeyValue::new("encoding", stat.enc_type),
+                    KeyValue::new("log_data_type", stat.log_data_type),
+                    KeyValue::new("null", "false"),
+                ],
+            );
+        }
     }
 }
 
@@ -962,8 +918,14 @@ mod test {
     #[test]
     fn add_remove_tables() {
         let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
-        let metrics = ChunkMetrics::new_with_db(&reg.registry(), "mydb".to_string());
-        let chunk = Chunk::new(22, Arc::new(metrics));
+        let registry = reg.registry();
+        let domain =
+            registry.register_domain_with_labels("read_buffer", vec![KeyValue::new("db", "mydb")]);
+
+        let mut chunk = Chunk::new(
+            22,
+            ChunkMetrics::new(&domain, GaugeValue::new_unregistered()),
+        );
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -1023,39 +985,39 @@ mod test {
         assert_eq!(
             String::from_utf8(reg.registry().metrics_as_text()).unwrap(),
             vec![
-        "# HELP read_buffer_column_bytes The number of bytes used by all columns in the Read Buffer",
-        "# TYPE read_buffer_column_bytes gauge",
-        r#"read_buffer_column_bytes{db="mydb",encoding="BT_U32",log_data_type="i64"} 108"#,
-        r#"read_buffer_column_bytes{db="mydb",encoding="None",log_data_type="bool"} 1152"#,
-        r#"read_buffer_column_bytes{db="mydb",encoding="None",log_data_type="f64"} 1176"#,
-        r#"read_buffer_column_bytes{db="mydb",encoding="RLE",log_data_type="string"} 750"#,
-        r#"# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer"#,
-        r#"# TYPE read_buffer_column_raw_bytes gauge"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32",log_data_type="i64",null="false"} 144"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32",log_data_type="i64",null="true"} 0"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="bool",null="false"} 81"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="bool",null="true"} 0"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="f64",null="false"} 264"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="f64",null="true"} 24"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="false"} 324"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
-        r#"# HELP read_buffer_column_total The number of columns within the Read Buffer"#,
-        r#"# TYPE read_buffer_column_total gauge"#,
-        r#"read_buffer_column_total{db="mydb",encoding="BT_U32",log_data_type="i64"} 3"#,
-        r#"read_buffer_column_total{db="mydb",encoding="None",log_data_type="bool"} 3"#,
-        r#"read_buffer_column_total{db="mydb",encoding="None",log_data_type="f64"} 6"#,
-        r#"read_buffer_column_total{db="mydb",encoding="RLE",log_data_type="string"} 3"#,
-        r#"# HELP read_buffer_column_values The number of values within columns in the Read Buffer"#,
-        r#"# TYPE read_buffer_column_values gauge"#,
-        r#"read_buffer_column_values{db="mydb",encoding="BT_U32",log_data_type="i64",null="false"} 9"#,
-        r#"read_buffer_column_values{db="mydb",encoding="BT_U32",log_data_type="i64",null="true"} 0"#,
-        r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="bool",null="false"} 9"#,
-        r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="bool",null="true"} 0"#,
-        r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="f64",null="false"} 15"#,
-        r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="f64",null="true"} 3"#,
-        r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 9"#,
-        r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
-        "",
+            "# HELP read_buffer_column_bytes The number of bytes used by all columns in the Read Buffer",
+            "# TYPE read_buffer_column_bytes gauge",
+            r#"read_buffer_column_bytes{db="mydb",encoding="BT_U32",log_data_type="i64"} 108"#,
+            r#"read_buffer_column_bytes{db="mydb",encoding="None",log_data_type="bool"} 1152"#,
+            r#"read_buffer_column_bytes{db="mydb",encoding="None",log_data_type="f64"} 1176"#,
+            r#"read_buffer_column_bytes{db="mydb",encoding="RLE",log_data_type="string"} 750"#,
+            r#"# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer"#,
+            r#"# TYPE read_buffer_column_raw_bytes gauge"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32",log_data_type="i64",null="false"} 144"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32",log_data_type="i64",null="true"} 0"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="bool",null="false"} 81"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="bool",null="true"} 0"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="f64",null="false"} 264"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="f64",null="true"} 24"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="false"} 324"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
+            r#"# HELP read_buffer_column_total The number of columns within the Read Buffer"#,
+            r#"# TYPE read_buffer_column_total gauge"#,
+            r#"read_buffer_column_total{db="mydb",encoding="BT_U32",log_data_type="i64"} 3"#,
+            r#"read_buffer_column_total{db="mydb",encoding="None",log_data_type="bool"} 3"#,
+            r#"read_buffer_column_total{db="mydb",encoding="None",log_data_type="f64"} 6"#,
+            r#"read_buffer_column_total{db="mydb",encoding="RLE",log_data_type="string"} 3"#,
+            r#"# HELP read_buffer_column_values The number of values within columns in the Read Buffer"#,
+            r#"# TYPE read_buffer_column_values gauge"#,
+            r#"read_buffer_column_values{db="mydb",encoding="BT_U32",log_data_type="i64",null="false"} 9"#,
+            r#"read_buffer_column_values{db="mydb",encoding="BT_U32",log_data_type="i64",null="true"} 0"#,
+            r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="bool",null="false"} 9"#,
+            r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="bool",null="true"} 0"#,
+            r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="f64",null="false"} 15"#,
+            r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="f64",null="true"} 3"#,
+            r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 9"#,
+            r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
+            "",
             ]
             .join("\n")
         );
@@ -1065,39 +1027,39 @@ mod test {
         assert_eq!(
             String::from_utf8(reg.registry().metrics_as_text()).unwrap(),
             vec![
-            "# HELP read_buffer_column_bytes The number of bytes used by all columns in the Read Buffer",
-            "# TYPE read_buffer_column_bytes gauge",
-            r#"read_buffer_column_bytes{db="mydb",encoding="BT_U32",log_data_type="i64"} 0"#,
-            r#"read_buffer_column_bytes{db="mydb",encoding="None",log_data_type="bool"} 0"#,
-            r#"read_buffer_column_bytes{db="mydb",encoding="None",log_data_type="f64"} 0"#,
-            r#"read_buffer_column_bytes{db="mydb",encoding="RLE",log_data_type="string"} 0"#,
-            r#"# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer"#,
-            r#"# TYPE read_buffer_column_raw_bytes gauge"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32",log_data_type="i64",null="false"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32",log_data_type="i64",null="true"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="bool",null="false"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="bool",null="true"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="f64",null="false"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="f64",null="true"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="false"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
-            r#"# HELP read_buffer_column_total The number of columns within the Read Buffer"#,
-            r#"# TYPE read_buffer_column_total gauge"#,
-            r#"read_buffer_column_total{db="mydb",encoding="BT_U32",log_data_type="i64"} 0"#,
-            r#"read_buffer_column_total{db="mydb",encoding="None",log_data_type="bool"} 0"#,
-            r#"read_buffer_column_total{db="mydb",encoding="None",log_data_type="f64"} 0"#,
-            r#"read_buffer_column_total{db="mydb",encoding="RLE",log_data_type="string"} 0"#,
-            r#"# HELP read_buffer_column_values The number of values within columns in the Read Buffer"#,
-            r#"# TYPE read_buffer_column_values gauge"#,
-            r#"read_buffer_column_values{db="mydb",encoding="BT_U32",log_data_type="i64",null="false"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="BT_U32",log_data_type="i64",null="true"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="bool",null="false"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="bool",null="true"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="f64",null="false"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="f64",null="true"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
-            "",
+                "# HELP read_buffer_column_bytes The number of bytes used by all columns in the Read Buffer",
+                "# TYPE read_buffer_column_bytes gauge",
+                r#"read_buffer_column_bytes{db="mydb",encoding="BT_U32",log_data_type="i64"} 0"#,
+                r#"read_buffer_column_bytes{db="mydb",encoding="None",log_data_type="bool"} 0"#,
+                r#"read_buffer_column_bytes{db="mydb",encoding="None",log_data_type="f64"} 0"#,
+                r#"read_buffer_column_bytes{db="mydb",encoding="RLE",log_data_type="string"} 0"#,
+                r#"# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer"#,
+                r#"# TYPE read_buffer_column_raw_bytes gauge"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32",log_data_type="i64",null="false"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32",log_data_type="i64",null="true"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="bool",null="false"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="bool",null="true"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="f64",null="false"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="f64",null="true"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="false"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
+                r#"# HELP read_buffer_column_total The number of columns within the Read Buffer"#,
+                r#"# TYPE read_buffer_column_total gauge"#,
+                r#"read_buffer_column_total{db="mydb",encoding="BT_U32",log_data_type="i64"} 0"#,
+                r#"read_buffer_column_total{db="mydb",encoding="None",log_data_type="bool"} 0"#,
+                r#"read_buffer_column_total{db="mydb",encoding="None",log_data_type="f64"} 0"#,
+                r#"read_buffer_column_total{db="mydb",encoding="RLE",log_data_type="string"} 0"#,
+                r#"# HELP read_buffer_column_values The number of values within columns in the Read Buffer"#,
+                r#"# TYPE read_buffer_column_values gauge"#,
+                r#"read_buffer_column_values{db="mydb",encoding="BT_U32",log_data_type="i64",null="false"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="BT_U32",log_data_type="i64",null="true"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="bool",null="false"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="bool",null="true"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="f64",null="false"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="f64",null="true"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
+                "",
             ]
             .join("\n")
         );
@@ -1105,9 +1067,7 @@ mod test {
 
     #[test]
     fn read_filter_table_schema() {
-        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
-        let metrics = ChunkMetrics::new(&reg.registry());
-        let chunk = Chunk::new(22, Arc::new(metrics));
+        let mut chunk = Chunk::new(22, ChunkMetrics::new_unregistered());
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -1151,9 +1111,7 @@ mod test {
 
     #[test]
     fn has_table() {
-        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
-        let metrics = ChunkMetrics::new(&reg.registry());
-        let chunk = Chunk::new(22, Arc::new(metrics));
+        let mut chunk = Chunk::new(22, ChunkMetrics::new_unregistered());
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -1163,9 +1121,7 @@ mod test {
 
     #[test]
     fn table_summaries() {
-        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
-        let metrics = ChunkMetrics::new(&reg.registry());
-        let chunk = Chunk::new(22, Arc::new(metrics));
+        let mut chunk = Chunk::new(22, ChunkMetrics::new_unregistered());
 
         let schema = SchemaBuilder::new()
             .non_null_tag("env")
@@ -1279,9 +1235,7 @@ mod test {
 
     #[test]
     fn read_filter() {
-        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
-        let metrics = ChunkMetrics::new(&reg.registry());
-        let chunk = Chunk::new(22, Arc::new(metrics));
+        let mut chunk = Chunk::new(22, ChunkMetrics::new_unregistered());
 
         // Add a bunch of row groups to a single table in a single chunk
         for &i in &[100, 200, 300] {
@@ -1380,9 +1334,7 @@ mod test {
 
     #[test]
     fn could_pass_predicate() {
-        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
-        let metrics = ChunkMetrics::new(&reg.registry());
-        let chunk = Chunk::new(22, Arc::new(metrics));
+        let mut chunk = Chunk::new(22, ChunkMetrics::new_unregistered());
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -1409,9 +1361,7 @@ mod test {
         let rg = RowGroup::new(6, columns);
         let table = Table::new("table_1", rg);
 
-        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
-        let metrics = ChunkMetrics::new(&reg.registry());
-        let chunk = Chunk::new_with_table(22, table, Arc::new(metrics));
+        let mut chunk = Chunk::new_with_table(22, table, ChunkMetrics::new_unregistered());
 
         // All table names returned when no predicate.
         let table_names = chunk.table_names(&Predicate::default(), &BTreeSet::new());
@@ -1510,9 +1460,7 @@ mod test {
 
     #[test]
     fn column_names() {
-        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
-        let metrics = ChunkMetrics::new(&reg.registry());
-        let chunk = Chunk::new(22, Arc::new(metrics));
+        let mut chunk = Chunk::new(22, ChunkMetrics::new_unregistered());
 
         let schema = SchemaBuilder::new()
             .non_null_tag("region")
@@ -1586,9 +1534,7 @@ mod test {
 
     #[test]
     fn column_values() {
-        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
-        let metrics = ChunkMetrics::new(&reg.registry());
-        let chunk = Chunk::new(22, Arc::new(metrics));
+        let mut chunk = Chunk::new(22, ChunkMetrics::new_unregistered());
 
         let schema = SchemaBuilder::new()
             .non_null_tag("region")

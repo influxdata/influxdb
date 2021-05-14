@@ -5,11 +5,15 @@
     clippy::use_self,
     clippy::clone_on_ref_ptr
 )]
-mod metrics;
-mod observer;
-mod tests;
 
-use dashmap::{mapref::multiple::RefMulti, DashMap};
+use hashbrown::hash_map::Entry;
+use hashbrown::HashMap;
+use std::sync::Arc;
+
+use opentelemetry_prometheus::PrometheusExporter;
+use parking_lot::Mutex;
+use prometheus::{Encoder, Registry, TextEncoder};
+
 use observability_deps::{
     opentelemetry::metrics::Meter as OTMeter,
     opentelemetry::{
@@ -23,14 +27,16 @@ use observability_deps::{
     },
     tracing::*,
 };
-use opentelemetry_prometheus::PrometheusExporter;
-use prometheus::{Encoder, Registry, TextEncoder};
 
-use std::sync::Arc;
-
-pub use crate::metrics::{Counter, Gauge, Histogram, KeyValue, RedMetric};
+pub use crate::gauge::*;
+pub use crate::metrics::{Counter, Histogram, KeyValue, RedMetric};
 use crate::observer::ObserverCollection;
 pub use crate::tests::*;
+
+mod gauge;
+mod metrics;
+mod observer;
+mod tests;
 
 /// A registry responsible for initialising IOx metrics and exposing their
 /// current state in Prometheus exposition format.
@@ -51,6 +57,15 @@ pub struct MetricRegistry {
     provider: RegistryMeterProvider,
     exporter: PrometheusExporter,
     observers: Arc<ObserverCollection>,
+
+    /// Provides a mapping between metric name and Gauge
+    ///
+    /// These are registered on a single shared map to ensure if gauges with the
+    /// the same metric name are registered on different metrics domains they
+    /// both get the same underlying Gauge. If this didn't occur and both gauges
+    /// were used to publish to the same label set, they wouldn't be able to see
+    /// each other contributions, and only one would be reported to OT
+    gauges: Arc<Mutex<HashMap<String, Arc<GaugeState>>>>,
 }
 
 impl MetricRegistry {
@@ -103,14 +118,26 @@ impl MetricRegistry {
     /// sub-system, crate or similar.
     pub fn register_domain(&self, name: &'static str) -> Domain {
         let meter = self.provider.meter(name, None);
-        Domain::new(name, meter, Arc::clone(&self.observers), vec![])
+        Domain::new(
+            name,
+            meter,
+            Arc::clone(&self.observers),
+            vec![],
+            Arc::clone(&self.gauges),
+        )
     }
 
     /// This method should be used to register a new domain such as a
     /// sub-system, crate or similar.
     pub fn register_domain_with_labels(&self, name: &'static str, labels: Vec<KeyValue>) -> Domain {
         let meter = self.provider.meter(name, None);
-        Domain::new(name, meter, Arc::clone(&self.observers), labels)
+        Domain::new(
+            name,
+            meter,
+            Arc::clone(&self.observers),
+            labels,
+            Arc::clone(&self.gauges),
+        )
     }
 }
 
@@ -146,6 +173,7 @@ impl Default for MetricRegistry {
             provider,
             exporter,
             observers,
+            gauges: Default::default(),
         }
     }
 }
@@ -160,8 +188,13 @@ impl Default for MetricRegistry {
 pub struct Domain {
     name: &'static str,
     meter: OTMeter,
-    observers: Arc<ObserverCollection>,
     default_labels: Vec<KeyValue>,
+
+    /// A copy of the observer collection from the owning `MetricRegistry`
+    observers: Arc<ObserverCollection>,
+
+    /// A copy of the gauge map from the owning `MetricRegistry`
+    gauges: Arc<Mutex<HashMap<String, Arc<GaugeState>>>>,
 }
 
 impl Domain {
@@ -170,12 +203,14 @@ impl Domain {
         meter: OTMeter,
         observers: Arc<ObserverCollection>,
         default_labels: Vec<KeyValue>,
+        gauges: Arc<Mutex<HashMap<String, Arc<GaugeState>>>>,
     ) -> Self {
         Self {
             name,
             meter,
             observers,
             default_labels,
+            gauges,
         }
     }
 
@@ -331,8 +366,8 @@ impl Domain {
         name: &str,
         unit: Option<&str>,
         description: impl Into<String>,
-    ) -> metrics::Gauge {
-        self.register_gauge_metric_with_labels(name, unit, description, vec![])
+    ) -> Gauge {
+        self.register_gauge_metric_with_labels(name, unit, description, &[])
     }
 
     /// Registers a new gauge metric with default labels.
@@ -341,40 +376,32 @@ impl Domain {
         name: &str,
         unit: Option<&str>,
         description: impl Into<String>,
-        default_labels: Vec<KeyValue>,
-    ) -> metrics::Gauge {
-        // A gauge is technically a ValueRecorder for which we only care about the last value.
-        // Unfortunately, in opentelemetry it appears that such behavior is selected by crafting
-        // a custom selector that will then apply a LastValueAggregator. This is all very
-        // complicated and turned making gauges into such a wild yak shave, that I (mkm), opted for
-        // an alternative approach:
-        //
-        // A Gauge is backed by ValueObserver. A ValueObserver is an asynchronous instrument that invokes a
-        // callback at scrape time (i.e. when the prometheus exporter renders the metrics as text).
-        // The Gauge itself records the values in a map keyed by label sets and returns all the recorded
-        // values when the ValueObserver invokes the callback.
+        default_labels: &[KeyValue],
+    ) -> Gauge {
+        let name = self.build_metric_name(name, None, unit, None);
 
-        let values = Arc::new(DashMap::new());
-        let values_captured = Arc::clone(&values);
-        self.observers.f64_value_observer(
-            self.build_metric_name(name, None, unit, None),
-            description,
-            move |arg| {
-                for i in values_captured.iter() {
-                    // currently rust type inference cannot deduct the type of i.value()
-                    let i: RefMulti<'_, _, (f64, Vec<KeyValue>), _> = i;
-                    let &(value, ref labels) = i.value();
-                    arg.observe(value, labels);
-                }
-            },
-        );
+        let gauge = match self.gauges.lock().entry(name) {
+            Entry::Occupied(occupied) => Arc::clone(occupied.get()),
+            Entry::Vacant(vacant) => {
+                let key = vacant.key().clone();
+                let gauge = Arc::new(GaugeState::default());
+                let captured = Arc::clone(&gauge);
+                self.observers
+                    .u64_value_observer(key, description, move |observer| {
+                        captured.visit_values(|data, labels| observer.observe(data as u64, labels));
+                    });
 
-        metrics::Gauge::new(
-            [&self.default_labels[..], &default_labels[..]].concat(),
-            values,
-        )
+                Arc::clone(vacant.insert(gauge))
+            }
+        };
+        Gauge::new(gauge, [&self.default_labels[..], &default_labels].concat())
     }
 
+    /// An observer can be used to provide asynchronous fetching of values from an object
+    ///
+    /// NB: If you register multiple observers with the same measurement name, they MUST
+    /// publish to disjoint label sets. If two or more observers publish to the same
+    /// measurement name and label set only one will be reported
     pub fn register_observer(
         &self,
         subname: Option<&str>,
@@ -570,9 +597,10 @@ impl<'a> HistogramBuilder<'a> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use std::sync::Mutex;
     use std::time::Duration;
+
+    use super::*;
 
     #[test]
     fn red_metric() {
@@ -840,20 +868,20 @@ mod test {
         let domain = reg.registry().register_domain("http");
 
         // create a gauge metric
-        let metric = domain.register_gauge_metric_with_labels(
+        let mut metric = domain.register_gauge_metric_with_labels(
             "mem",
             Some("bytes"),
             "currently used bytes",
-            vec![KeyValue::new("tier", "a")],
+            &[KeyValue::new("tier", "a")],
         );
 
-        metric.set(40.0);
-        metric.set_with_labels(41.0, &[KeyValue::new("tier", "b")]);
-        metric.set_with_labels(
-            42.0,
+        metric.set(40, &[]);
+        metric.set(41, &[KeyValue::new("tier", "b")]);
+        metric.set(
+            42,
             &[KeyValue::new("tier", "c"), KeyValue::new("tier", "b")],
         );
-        metric.set_with_labels(43.0, &[KeyValue::new("beer", "c")]);
+        metric.set(43, &[KeyValue::new("beer", "c")]);
 
         reg.has_metric_family("http_mem_bytes")
             .with_labels(&[("tier", "a")])
@@ -887,21 +915,21 @@ mod test {
             .join("\n")
         );
 
-        metric.add_with_labels(100.0, &[KeyValue::new("me", "new")]);
+        metric.inc(100, &[KeyValue::new("me", "new")]);
         reg.has_metric_family("http_mem_bytes")
             .with_labels(&[("tier", "a"), ("me", "new")])
             .gauge()
             .eq(100.0)
             .unwrap();
 
-        metric.add_with_labels(11.0, &[KeyValue::new("me", "new")]);
+        metric.inc(11, &[KeyValue::new("me", "new")]);
         reg.has_metric_family("http_mem_bytes")
             .with_labels(&[("tier", "a"), ("me", "new")])
             .gauge()
             .eq(111.0)
             .unwrap();
 
-        metric.sub(11.0);
+        metric.decr(11, &[]);
         reg.has_metric_family("http_mem_bytes")
             .with_labels(&[("tier", "a")])
             .gauge()
@@ -1097,13 +1125,13 @@ mod test {
 
         // Test Gauge
 
-        let guage = domain.register_gauge_metric_with_labels(
+        let mut guage = domain.register_gauge_metric_with_labels(
             "mem",
             Some("bytes"),
             "currently used bytes",
-            vec![KeyValue::new("tier", "a")],
+            &[KeyValue::new("tier", "a")],
         );
-        guage.set(2.);
+        guage.set(2, &[]);
 
         reg.has_metric_family("test_mem_bytes")
             .with_labels(&[("foo", "bar"), ("tier", "a")])
@@ -1111,13 +1139,13 @@ mod test {
             .eq(2.)
             .unwrap();
 
-        let guage = domain.register_gauge_metric_with_labels(
+        let mut guage = domain.register_gauge_metric_with_labels(
             "override",
             Some("bytes"),
             "currently used bytes",
-            vec![KeyValue::new("foo", "ooh")],
+            &[KeyValue::new("foo", "ooh")],
         );
-        guage.set(2.);
+        guage.set(2, &[]);
 
         reg.has_metric_family("test_override_bytes")
             .with_labels(&[("foo", "ooh")])
@@ -1125,13 +1153,13 @@ mod test {
             .eq(2.)
             .unwrap();
 
-        let guage = domain.register_gauge_metric_with_labels(
+        let mut guage = domain.register_gauge_metric_with_labels(
             "override2",
             Some("bytes"),
             "currently used bytes",
-            vec![KeyValue::new("foo", "ooh")],
+            &[KeyValue::new("foo", "ooh")],
         );
-        guage.set_with_labels(2., &[KeyValue::new("foo", "heh")]);
+        guage.set(2, &[KeyValue::new("foo", "heh")]);
 
         reg.has_metric_family("test_override2_bytes")
             .with_labels(&[("foo", "heh")])
@@ -1275,6 +1303,120 @@ mod test {
             .with_labels(&[("foo", "woo"), ("inner", "foo"), ("bingo", "bongo")])
             .counter()
             .eq(6.)
+            .unwrap();
+    }
+
+    #[test]
+    fn test_gauge_value() {
+        let reg = TestMetricRegistry::default();
+        let registry = reg.registry();
+        let domain =
+            registry.register_domain_with_labels("catalog", vec![KeyValue::new("foo", "bar")]);
+
+        let gauge = domain.register_gauge_metric_with_labels(
+            "chunk_mem",
+            Some("bytes"),
+            "bytes tracker",
+            &[KeyValue::new("state", "mub")],
+        );
+
+        let mut a = gauge.gauge_value(&[KeyValue::new("state", "mub")]);
+        let mut b = gauge.gauge_value(&[KeyValue::new("state", "mub")]);
+
+        reg.has_metric_family("catalog_chunk_mem_bytes")
+            .with_labels(&[("foo", "bar"), ("state", "mub")])
+            .gauge()
+            .eq(0.)
+            .unwrap();
+
+        a.set(2);
+
+        reg.has_metric_family("catalog_chunk_mem_bytes")
+            .with_labels(&[("foo", "bar"), ("state", "mub")])
+            .gauge()
+            .eq(2.)
+            .unwrap();
+
+        b.inc(5);
+        a.inc(2);
+
+        reg.has_metric_family("catalog_chunk_mem_bytes")
+            .with_labels(&[("foo", "bar"), ("state", "mub")])
+            .gauge()
+            .eq(9.)
+            .unwrap();
+
+        std::mem::drop(b);
+
+        reg.has_metric_family("catalog_chunk_mem_bytes")
+            .with_labels(&[("foo", "bar"), ("state", "mub")])
+            .gauge()
+            .eq(4.)
+            .unwrap();
+
+        std::mem::drop(a);
+
+        reg.has_metric_family("catalog_chunk_mem_bytes")
+            .with_labels(&[("foo", "bar"), ("state", "mub")])
+            .gauge()
+            .eq(0.)
+            .unwrap();
+    }
+
+    #[test]
+    fn test_gauge_multiple() {
+        let reg = TestMetricRegistry::default();
+        let registry = reg.registry();
+        let domain =
+            registry.register_domain_with_labels("catalog", vec![KeyValue::new("foo", "bar")]);
+
+        let mut gauge1 = domain.register_gauge_metric("read_buffer", None, "testy");
+
+        let mut gauge2 = domain.register_gauge_metric("read_buffer", None, "testy");
+
+        gauge1.inc(5, &[KeyValue::new("enc", "foo")]);
+        reg.has_metric_family("catalog_read_buffer")
+            .with_labels(&[("foo", "bar"), ("enc", "foo")])
+            .gauge()
+            .eq(5.)
+            .unwrap();
+
+        gauge2.inc(7, &[KeyValue::new("enc", "foo")]);
+
+        reg.has_metric_family("catalog_read_buffer")
+            .with_labels(&[("foo", "bar"), ("enc", "foo")])
+            .gauge()
+            .eq(12.)
+            .unwrap();
+
+        gauge2.inc(7, &[KeyValue::new("enc", "bar")]);
+
+        reg.has_metric_family("catalog_read_buffer")
+            .with_labels(&[("foo", "bar"), ("enc", "bar")])
+            .gauge()
+            .eq(7.)
+            .unwrap();
+
+        std::mem::drop(gauge2);
+
+        reg.has_metric_family("catalog_read_buffer")
+            .with_labels(&[("foo", "bar"), ("enc", "bar")])
+            .gauge()
+            .eq(0.)
+            .unwrap();
+
+        reg.has_metric_family("catalog_read_buffer")
+            .with_labels(&[("foo", "bar"), ("enc", "foo")])
+            .gauge()
+            .eq(5.)
+            .unwrap();
+
+        std::mem::drop(gauge1);
+
+        reg.has_metric_family("catalog_read_buffer")
+            .with_labels(&[("foo", "bar"), ("enc", "foo")])
+            .gauge()
+            .eq(0.)
             .unwrap();
     }
 }
