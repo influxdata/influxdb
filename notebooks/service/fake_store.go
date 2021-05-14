@@ -12,19 +12,19 @@ import (
 	"github.com/influxdata/influxdb/v2/snowflake"
 )
 
-var _ NotebookService = (*DemoStore)(nil)
+var _ NotebookService = (*FakeStore)(nil)
 
-type DemoStore struct {
+type FakeStore struct {
 	list map[string][]*Notebook
 }
 
-func NewDemoStore() (*DemoStore, error) {
-	return &DemoStore{
+func NewFakeStore() (*FakeStore, error) {
+	return &FakeStore{
 		list: make(map[string][]*Notebook),
 	}, nil
 }
 
-func (s *DemoStore) GetNotebook(ctx context.Context, id platform.ID) (*Notebook, error) {
+func (s *FakeStore) GetNotebook(ctx context.Context, id platform.ID) (*Notebook, error) {
 	ns := []*Notebook{}
 
 	for _, nList := range s.list {
@@ -40,7 +40,7 @@ func (s *DemoStore) GetNotebook(ctx context.Context, id platform.ID) (*Notebook,
 	return nil, ErrNotebookNotFound
 }
 
-func (s *DemoStore) ListNotebooks(ctx context.Context, filter NotebookListFilter) ([]*Notebook, error) {
+func (s *FakeStore) ListNotebooks(ctx context.Context, filter NotebookListFilter) ([]*Notebook, error) {
 	o := filter.OrgID
 
 	ns, ok := s.list[o.String()]
@@ -51,7 +51,7 @@ func (s *DemoStore) ListNotebooks(ctx context.Context, filter NotebookListFilter
 	return ns, nil
 }
 
-func (s *DemoStore) CreateNotebook(ctx context.Context, create *NotebookReqBody) (*Notebook, error) {
+func (s *FakeStore) CreateNotebook(ctx context.Context, create *NotebookReqBody) (*Notebook, error) {
 	n := &Notebook{
 		OrgID:     create.OrgID,
 		Name:      create.Name,
@@ -70,7 +70,7 @@ func (s *DemoStore) CreateNotebook(ctx context.Context, create *NotebookReqBody)
 	return n, nil
 }
 
-func (s *DemoStore) DeleteNotebook(ctx context.Context, id platform.ID) error {
+func (s *FakeStore) DeleteNotebook(ctx context.Context, id platform.ID) error {
 	var foundOrg string
 	for org, nList := range s.list {
 		for _, b := range nList {
@@ -96,7 +96,7 @@ func (s *DemoStore) DeleteNotebook(ctx context.Context, id platform.ID) error {
 	return nil
 }
 
-func (s *DemoStore) UpdateNotebook(ctx context.Context, id platform.ID, update *NotebookReqBody) (*Notebook, error) {
+func (s *FakeStore) UpdateNotebook(ctx context.Context, id platform.ID, update *NotebookReqBody) (*Notebook, error) {
 	n, err := s.GetNotebook(ctx, id)
 	if err != nil {
 		return nil, err
