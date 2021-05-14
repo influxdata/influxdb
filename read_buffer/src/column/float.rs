@@ -1,6 +1,6 @@
-use std::{cmp::Ordering, mem::size_of};
-
 use arrow::{self, array::Array};
+use std::iter::FromIterator;
+use std::{cmp::Ordering, mem::size_of};
 
 use super::encoding::{
     scalar::Fixed,
@@ -262,7 +262,7 @@ fn rle_rows(arr: &[f64]) -> usize {
         - arr
             .iter()
             .zip(arr.iter().skip(1))
-            .filter(|(curr, next)| curr == next)
+            .filter(|(curr, next)| matches!(curr.partial_cmp(next), Some(Ordering::Equal)))
             .count()
 }
 
@@ -292,8 +292,6 @@ pub const MIN_RLE_SIZE_REDUCTION: f64 = 0.3; // 30%
 
 /// Converts a slice of `f64` values into a `FloatEncoding`.
 ///
-/// TODO(edd): figure out what sensible heuristics look like.
-///
 /// There are two possible encodings for &[f64]:
 ///    * "None": effectively store the slice in a vector;
 ///    * "RLE": for slices that have a sufficiently low cardinality they may
@@ -307,7 +305,7 @@ impl From<&[f64]> for FloatEncoding {
         let base_size = arr.len() * size_of::<f64>();
         let rle_size = rle_rows(arr) * size_of::<(u32, Option<f64>)>(); // size of a run length
         if (base_size as f64 - rle_size as f64) / base_size as f64 >= MIN_RLE_SIZE_REDUCTION {
-            return Self::RLE64(RLE::from(arr));
+            return Self::RLE64(RLE::from_iter(arr.to_vec()));
         }
 
         // Don't apply a compression encoding to the column
@@ -316,8 +314,6 @@ impl From<&[f64]> for FloatEncoding {
 }
 
 /// Converts an Arrow Float array into a `FloatEncoding`.
-///
-/// TODO(edd): figure out what sensible heuristics look like.
 ///
 /// There are two possible encodings for an Arrow array:
 ///    * "None": effectively keep the data in its Arrow array;
@@ -336,7 +332,7 @@ impl From<arrow::array::Float64Array> for FloatEncoding {
         let base_size = arr.len() * size_of::<f64>();
         let rle_size = rle_rows_opt(arr.iter()) * size_of::<(u32, Option<f64>)>(); // size of a run length
         if (base_size as f64 - rle_size as f64) / base_size as f64 >= MIN_RLE_SIZE_REDUCTION {
-            return Self::RLE64(RLE::from(arr));
+            return Self::RLE64(RLE::from_iter(&arr));
         }
 
         Self::FixedNull64(FixedNull::<arrow::datatypes::Float64Type>::from(arr))
@@ -437,7 +433,7 @@ mod test {
         let data = vec![22.3, f64::NAN, f64::NEG_INFINITY, f64::INFINITY];
 
         let cases = vec![
-            FloatEncoding::RLE64(RLE::from(data.clone())),
+            FloatEncoding::RLE64(RLE::from_iter(data.clone())),
             FloatEncoding::Fixed64(Fixed::from(data.as_slice())),
             FloatEncoding::FixedNull64(FixedNull::from(data.as_slice())),
         ];

@@ -1,8 +1,3 @@
-use arrow::{
-    array::{Array, PrimitiveArray},
-    datatypes::Float64Type,
-};
-
 use crate::column::cmp;
 use crate::column::RowIDs;
 use std::{
@@ -607,22 +602,19 @@ impl<T: PartialOrd + Debug + Copy> RLE<T> {
     }
 }
 
-impl<T> From<&[T]> for RLE<T>
+impl<T> iter::FromIterator<T> for RLE<T>
 where
     T: PartialOrd + Debug + Default + Copy,
 {
-    fn from(arr: &[T]) -> Self {
-        if arr.is_empty() {
-            return Self::default();
-        } else if arr.len() == 1 {
-            let mut enc = Self::default();
-            enc.push(arr[0]);
-            return enc;
-        }
-
+    fn from_iter<I: IntoIterator<Item = T>>(itr: I) -> Self {
+        let mut itr = itr.into_iter();
         let mut enc = Self::default();
-        let (mut rl, mut v) = (1, arr[0]);
-        for &next in arr.iter().skip(1) {
+        let first = match itr.next() {
+            Some(v) => v,
+            None => return enc,
+        };
+        let (mut rl, mut v) = (1, first);
+        for next in itr {
             if next == v {
                 rl += 1;
                 continue;
@@ -639,70 +631,20 @@ where
     }
 }
 
-impl<T> From<Vec<T>> for RLE<T>
+impl<T> iter::FromIterator<Option<T>> for RLE<T>
 where
     T: PartialOrd + Debug + Default + Copy,
 {
-    fn from(arr: Vec<T>) -> Self {
-        Self::from(arr.as_slice())
-    }
-}
-
-impl<T> From<&[Option<T>]> for RLE<T>
-where
-    T: PartialOrd + Debug + Default + Copy,
-{
-    fn from(arr: &[Option<T>]) -> Self {
-        if arr.is_empty() {
-            return Self::default();
-        } else if arr.len() == 1 {
-            let mut enc = Self::default();
-            enc.push_additional(arr[0], 1);
-            return enc;
-        }
-
+    fn from_iter<I: IntoIterator<Item = Option<T>>>(itr: I) -> Self {
+        let mut itr = itr.into_iter();
         let mut enc = Self::default();
-        let (mut rl, mut v) = (1, arr[0]);
-        for &next in arr.iter().skip(1) {
-            if next == v {
-                rl += 1;
-                continue;
-            }
+        let first = match itr.next() {
+            Some(v) => v,
+            None => return enc,
+        };
 
-            enc.push_additional(v, rl);
-            rl = 1;
-            v = next;
-        }
-
-        // push the final run length
-        enc.push_additional(v, rl);
-        enc
-    }
-}
-
-impl<T> From<Vec<Option<T>>> for RLE<T>
-where
-    T: PartialOrd + Debug + Default + Copy,
-{
-    fn from(arr: Vec<Option<T>>) -> Self {
-        Self::from(arr.as_slice())
-    }
-}
-
-// Build an RLE encoded column for a given Arrow Array.
-impl From<PrimitiveArray<Float64Type>> for RLE<f64> {
-    fn from(arr: PrimitiveArray<Float64Type>) -> Self {
-        if arr.is_empty() {
-            return Self::default();
-        } else if arr.len() == 1 {
-            let mut enc = Self::default();
-            enc.push_additional((!arr.is_null(0)).then(|| arr.value(0)), 1);
-            return enc;
-        }
-
-        let mut enc = Self::default();
-        let (mut rl, mut v) = (1, (!arr.is_null(0)).then(|| arr.value(0)));
-        for next in arr.iter().skip(1) {
+        let (mut rl, mut v) = (1, first);
+        for next in itr {
             if next == v {
                 rl += 1;
                 continue;
@@ -721,9 +663,10 @@ impl From<PrimitiveArray<Float64Type>> for RLE<f64> {
 
 #[cfg(test)]
 mod test {
-    use cmp::Operator;
-
     use super::*;
+    use arrow::array::Int8Array;
+    use cmp::Operator;
+    use std::iter::FromIterator;
 
     #[test]
     fn from_slice() {
@@ -738,7 +681,7 @@ mod test {
         ];
 
         for (input, exp_rl) in cases {
-            let enc: RLE<u8> = RLE::from(input);
+            let enc: RLE<i32> = RLE::from_iter(input.to_vec());
             assert_eq!(enc.run_lengths, exp_rl);
         }
     }
@@ -764,7 +707,34 @@ mod test {
         ];
 
         for (input, exp_rl) in cases {
-            let enc: RLE<u8> = RLE::from(input);
+            let enc: RLE<u8> = RLE::from_iter(input.to_vec());
+            assert_eq!(enc.run_lengths, exp_rl);
+        }
+    }
+
+    #[test]
+    fn from_arrow_array() {
+        let cases = vec![
+            (vec![], vec![]),
+            (vec![Some(1)], vec![(1, Some(1))]),
+            (
+                vec![Some(100), Some(22)],
+                vec![(1, Some(100)), (1, Some(22))],
+            ),
+            (
+                vec![Some(100), Some(22), Some(100), Some(100)],
+                vec![(1, Some(100)), (1, Some(22)), (2, Some(100))],
+            ),
+            (vec![None], vec![(1, None)]),
+            (
+                vec![None, None, Some(1), None],
+                vec![(2, None), (1, Some(1)), (1, None)],
+            ),
+        ];
+
+        for (input, exp_rl) in cases {
+            let arr = Int8Array::from(input);
+            let enc: RLE<i8> = RLE::from_iter(&arr);
             assert_eq!(enc.run_lengths, exp_rl);
         }
     }
@@ -831,15 +801,15 @@ mod test {
     fn size() {
         let mut enc: RLE<i64> = RLE::default();
 
-        // 24b container + (0 rl * 24) + 4 + 4 = 32
+        // 32b Self + (0 rl * 24) = 32
         assert_eq!(enc.size(), 32);
 
         enc.push_none();
-        // 24b container + (1 rl * 24) + 4 + 4 = 32
+        // 32b Self + (1 rl * 24) = 56
         assert_eq!(enc.size(), 56);
 
         enc.push_additional_some(1, 10);
-        // 24b container + (2 rl * 24) + 4 + 4 = 32
+        // 32b Self + (2 rl * 24) = 80
         assert_eq!(enc.size(), 80);
     }
 
@@ -1079,7 +1049,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_range() {
-        let v = RLE::from(vec![
+        let v = RLE::from_iter(vec![
             100, 100, 101, 101, 101, 200, 300, 2030, 3, 101, 4, 5, 21, 100,
         ]);
 
