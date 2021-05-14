@@ -101,6 +101,25 @@ impl RLE {
         index_entry_size + index_row_ids_size + run_lengths_size + 1 + 4
     }
 
+    /// A reasonable estimation of the on-heap size of the underlying string
+    /// values in this column if they were stored uncompressed contiguously.
+    /// `include_nulls` determines whether to assign a pointer size to the null
+    /// values or not.
+    ///
+    pub fn size_raw(&self, include_nulls: bool) -> usize {
+        let mut total_size = 0;
+        for (idx, rows) in &self.index_row_ids {
+            // the length of the string value x number of times it appears
+            // in the column.
+            total_size += self.index_entries[*idx as usize].len() * rows.len();
+
+            if include_nulls || idx != &NULL_ID {
+                total_size += size_of::<String>() * rows.len()
+            }
+        }
+        total_size + size_of::<Vec<String>>()
+    }
+
     /// The number of distinct logical values in this column encoding.
     pub fn cardinality(&self) -> u32 {
         if self.contains_null {
@@ -1014,6 +1033,31 @@ mod test {
         enc.push_none();
         enc.push_none();
         assert_eq!(enc.null_count(), 3);
+    }
+
+    #[test]
+    fn size_raw() {
+        let mut enc = RLE::default();
+        enc.push_additional(Some("a longer string".to_string()), 3);
+        enc.push_additional(Some("south".to_string()), 2);
+        enc.push_none();
+        enc.push_none();
+        enc.push_none();
+        enc.push_none();
+
+        // Vec<String>       =                    24b
+        // "a longer string" = (15b + 24b) * 3 = 117b
+        // "south"           = (5b  + 24b) * 2 =  58b
+        // NULL              = (0b  + 24b) * 4 =  96b
+        assert_eq!(enc.size_raw(true), 295);
+
+        // Vec<String>       =                    24b
+        // "a longer string" = (15b + 24b) * 3 = 117b
+        // "south"           = (5b  + 24b) * 2 =  58b
+        assert_eq!(enc.size_raw(false), 199);
+
+        let enc = RLE::default();
+        assert_eq!(enc.size_raw(true), 24);
     }
 
     #[test]

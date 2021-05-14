@@ -137,7 +137,7 @@ impl Table {
         self.table_data.read().data.len()
     }
 
-    /// The total size of the table in bytes.
+    /// An estimation of the total size of the table in bytes in memory
     pub fn size(&self) -> usize {
         let base_size = std::mem::size_of::<Self>() + self.name.len();
         // meta.size accounts for all the row group data.
@@ -164,6 +164,18 @@ impl Table {
                 estimated_bytes,
             })
             .collect()
+    }
+
+    /// An estimation of the total size of the table in bytes if all values were
+    /// stored contiguously and uncompressed. This size is useful to determine
+    /// a rough compression that the table is under.
+    pub fn size_raw(&self, include_nulls: bool) -> usize {
+        self.table_data
+            .read()
+            .data
+            .iter()
+            .map(|rg| rg.size_raw(include_nulls))
+            .sum::<usize>()
     }
 
     // Returns the total number of row groups in this table.

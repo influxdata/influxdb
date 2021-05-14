@@ -15,6 +15,17 @@ impl BooleanEncoding {
         }
     }
 
+    /// The estimated total size in bytes of the underlying bool values in the
+    /// column if they were stored contiguously and uncompressed. If
+    /// `include_nulls` is false, NULL values will be excluded from the count;
+    /// otherwise NULL values will still occupy the space of a slot of the
+    /// underlying type, in bool's case 1b.
+    pub fn size_raw(&self, include_nulls: bool) -> usize {
+        match self {
+            Self::BooleanNull(enc) => enc.size_raw(include_nulls),
+        }
+    }
+
     /// The total number of rows in the column.
     pub fn num_rows(&self) -> u32 {
         match self {
@@ -30,6 +41,8 @@ impl BooleanEncoding {
             values: self.num_rows(),
             nulls: self.null_count(),
             bytes: self.size(),
+            raw_bytes: self.size_raw(true),
+            raw_bytes_no_null: self.size_raw(false),
         }
     }
 

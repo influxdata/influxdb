@@ -127,7 +127,7 @@ impl RowGroup {
         }
     }
 
-    /// The total estimated size in bytes of the row group
+    /// The total estimated size in bytes of the row group in memory
     pub fn size(&self) -> usize {
         let base_size = std::mem::size_of::<Self>()
             + self
@@ -145,6 +145,17 @@ impl RowGroup {
             let column = &self.columns[*idx];
             (name.as_str(), column.size())
         })
+    }
+
+    /// The total estimated size in bytes of all columns in the row group if
+    /// the values within were stored contiguously with no compression.
+    /// `include_nulls` controls whether to size NULL values according to the
+    /// base size of the data-type or to ignore them from the calculation.
+    pub fn size_raw(&self, include_nulls: bool) -> usize {
+        self.columns
+            .iter()
+            .map(|c| c.size_raw(include_nulls))
+            .sum::<usize>()
     }
 
     /// The number of rows in the `RowGroup` (all columns have the same number

@@ -49,7 +49,7 @@ impl Column {
     //  Meta information about the column
     //
 
-    /// The estimated size in bytes of the column.
+    /// The estimated size in bytes of the column that is held in memory.
     pub fn size(&self) -> usize {
         // Since `MetaData` is generic each value in the range can have a
         // different size, so just do the calculations here where we know each
@@ -88,6 +88,26 @@ impl Column {
 
                 meta_size + data.size()
             }
+        }
+    }
+
+    /// The estimated size in bytes of the contents of the column if it was not
+    /// compressed, and was stored as a contiguous collection of elements. This
+    /// method can provide a good approximation for the size of the column at
+    /// the point of ingest in IOx.
+    ///
+    /// The `include_null` when set to true will result in any NULL values in
+    /// the column having a fixed size for fixed-width data types, or the size
+    /// of a pointer for heap-allocated data types such as strings. When set to
+    /// `false` all NULL values are ignored from calculations.
+    pub fn size_raw(&self, include_null: bool) -> usize {
+        match &self {
+            Self::String(_, data) => data.size_raw(include_null),
+            Self::Float(_, data) => data.size_raw(include_null),
+            Self::Integer(_, data) => data.size_raw(include_null),
+            Self::Unsigned(_, data) => data.size_raw(include_null),
+            Self::Bool(_, data) => data.size_raw(include_null),
+            Self::ByteArray(_, data) => data.size_raw(include_null),
         }
     }
 
@@ -1323,11 +1343,13 @@ impl Iterator for RowIDsIterator<'_> {
 
 // Statistics about the composition of a column
 pub(crate) struct Statistics {
-    pub enc_type: &'static str,
-    pub log_data_type: &'static str,
-    pub values: u32,
-    pub nulls: u32,
-    pub bytes: usize,
+    pub enc_type: &'static str,      // The encoding type
+    pub log_data_type: &'static str, // The logical data-type
+    pub values: u32,                 // Number of values present (NULL and non-NULL)
+    pub nulls: u32,                  // Number of NULL values present
+    pub bytes: usize,                // Total size of data
+    pub raw_bytes: usize,            // Estimated "uncompressed" size
+    pub raw_bytes_no_null: usize,    // Estimated "uncompressed" size ignoring NULL values
 }
 
 #[cfg(test)]

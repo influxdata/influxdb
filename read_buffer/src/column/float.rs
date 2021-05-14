@@ -1,3 +1,5 @@
+use std::mem::size_of;
+
 use arrow::{self, array::Array};
 
 use super::encoding::{scalar::Fixed, scalar::FixedNull};
@@ -10,11 +12,24 @@ pub enum FloatEncoding {
 }
 
 impl FloatEncoding {
-    /// The total size in bytes of the store columnar data.
+    /// The total size in bytes of to store columnar data in memory.
     pub fn size(&self) -> usize {
         match self {
             Self::Fixed64(enc) => enc.size(),
             Self::FixedNull64(enc) => enc.size(),
+        }
+    }
+
+    /// The estimated total size in bytes of the underlying float values in the
+    /// column if they were stored contiguously and uncompressed. `include_nulls`
+    /// will effectively size each NULL value as 8b if `true`.
+    pub fn size_raw(&self, include_nulls: bool) -> usize {
+        match self {
+            // this will be the size of a Vec<f64>
+            Self::Fixed64(enc) => {
+                size_of::<Vec<f64>>() + (enc.num_rows() as usize * size_of::<f64>())
+            }
+            Self::FixedNull64(enc) => enc.size_raw(include_nulls),
         }
     }
 
@@ -34,6 +49,8 @@ impl FloatEncoding {
             values: self.num_rows(),
             nulls: self.null_count(),
             bytes: self.size(),
+            raw_bytes: self.size_raw(true),
+            raw_bytes_no_null: self.size_raw(false),
         }
     }
 
@@ -210,5 +227,32 @@ impl From<arrow::array::Float64Array> for FloatEncoding {
             return Self::from(arr.values());
         }
         Self::FixedNull64(FixedNull::<arrow::datatypes::Float64Type>::from(arr))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn size_raw() {
+        let enc = FloatEncoding::from(&[2.2, 22.2, 12.2, 31.2][..]);
+        // (4 * 8) + 24
+        assert_eq!(enc.size_raw(true), 56);
+        assert_eq!(enc.size_raw(false), 56);
+
+        let enc = FloatEncoding::FixedNull64(FixedNull::<arrow::datatypes::Float64Type>::from(
+            &[2.0, 2.02, 1.02, 3.01][..],
+        ));
+        // (4 * 8) + 24
+        assert_eq!(enc.size_raw(true), 56);
+        assert_eq!(enc.size_raw(false), 56);
+
+        let enc = FloatEncoding::FixedNull64(FixedNull::<arrow::datatypes::Float64Type>::from(
+            &[Some(2.0), Some(2.02), None, Some(1.02), Some(3.01)][..],
+        ));
+        // (5 * 8) + 24
+        assert_eq!(enc.size_raw(true), 64);
+        assert_eq!(enc.size_raw(false), 56);
     }
 }
