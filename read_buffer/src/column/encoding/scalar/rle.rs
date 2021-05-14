@@ -82,9 +82,7 @@ impl<T: PartialOrd + Debug + Copy> RLE<T> {
 
     /// A reasonable estimation of the on-heap size this encoding takes up.
     pub fn size(&self) -> usize {
-        size_of::<Vec<(u32, Option<T>)>>() // run length container size
-            + (self.run_lengths.len() * size_of::<(u32, Option<T>)>()) // run lengths
-            + size_of::<u32>()+size_of::<u32>() // null count, num rows
+        std::mem::size_of::<Self>() + (self.run_lengths.len() * size_of::<(u32, Option<T>)>())
     }
 
     /// The estimated total size in bytes of the underlying values in the

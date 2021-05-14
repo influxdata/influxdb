@@ -258,18 +258,12 @@ impl std::fmt::Display for FloatEncoding {
 }
 
 fn rle_rows(arr: &[f64]) -> usize {
-    let mut v = arr[0];
-    let mut total_rows = 0;
-    for next in arr.iter().skip(1) {
-        if let Some(Ordering::Equal) = v.partial_cmp(next) {
-            continue;
-        }
-
-        total_rows += 1;
-        v = *next;
-    }
-
-    total_rows + 1 // account for original run
+    arr.len()
+        - arr
+            .iter()
+            .zip(arr.iter().skip(1))
+            .filter(|(curr, next)| curr == next)
+            .count()
 }
 
 fn rle_rows_opt(mut itr: impl Iterator<Item = Option<f64>>) -> usize {
