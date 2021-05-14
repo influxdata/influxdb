@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	feature "github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -101,13 +101,13 @@ func (h *NotebookHandler) handleGetNotebooks(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	d, err := h.notebookService.ListNotebooks(ctx, service.NotebookListFilter{OrgID: *o})
+	l, err := h.notebookService.ListNotebooks(ctx, service.NotebookListFilter{OrgID: *o})
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
-	h.api.Respond(w, r, http.StatusOK, d)
+	h.api.Respond(w, r, http.StatusOK, l)
 }
 
 // create a single notebook.
@@ -119,13 +119,13 @@ func (h *NotebookHandler) handleCreateNotebook(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	new, err := h.notebookService.CreateNotebook(ctx, b)
+	n, err := h.notebookService.CreateNotebook(ctx, b)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
-	h.api.Respond(w, r, http.StatusOK, new)
+	h.api.Respond(w, r, http.StatusOK, n)
 }
 
 // get a single notebook.
@@ -137,13 +137,13 @@ func (h *NotebookHandler) handleGetNotebook(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	d, err := h.notebookService.GetNotebook(ctx, *id)
+	b, err := h.notebookService.GetNotebook(ctx, *id)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
-	h.api.Respond(w, r, http.StatusOK, d)
+	h.api.Respond(w, r, http.StatusOK, b)
 }
 
 // delete a single notebook.
