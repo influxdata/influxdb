@@ -74,6 +74,11 @@ func RunRestore(ctx context.Context, req Request, svcs Services, log *zap.Logger
 	if err := runner.loadManifests(req.Path); err != nil {
 		return err
 	}
+	// Bail out early if no manifests were found.
+	// TODO: Should this be an error?
+	if runner.kvManifest == nil {
+		return nil
+	}
 
 	if req.Full {
 		return runner.fullRestore(ctx, req)
