@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -45,13 +46,22 @@ func (b *cmdRestoreBuilder) cmdRestore() *cobra.Command {
 	cmd.Flags().StringVarP(&b.bucketName, "bucket", "b", "", "The name of the bucket to restore")
 	cmd.Flags().StringVar(&b.newBucketName, "new-bucket", "", "The name of the bucket to restore to")
 	cmd.Flags().StringVar(&b.newOrgName, "new-org", "", "The name of the organization to restore to")
-	cmd.Flags().StringVar(&b.path, "input", "", "Local backup data path (required)")
+	cmd.Flags().StringVar(&b.path, "input", "", "Local backup data path")
+	cmd.Flags().MarkDeprecated("input", "pass backup data path as a positional argument instead")
 	cmd.Use = "restore [flags] path"
 	cmd.Args = func(cmd *cobra.Command, args []string) error {
+		// Legacy: path set by --input flag.
+		if b.path != "" {
+			if len(args) != 0 {
+				return errors.New("cannot specify backup directory using both --input and a positional argument")
+			}
+			return nil
+		}
+
 		if len(args) == 0 {
-			return fmt.Errorf("must specify path to backup directory")
+			return errors.New("must specify path to backup directory")
 		} else if len(args) > 1 {
-			return fmt.Errorf("too many args specified")
+			return errors.New("only one backup directory can be specified at a time")
 		}
 		b.path = args[0]
 		return nil
