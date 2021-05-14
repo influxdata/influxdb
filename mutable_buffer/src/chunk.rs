@@ -319,6 +319,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "nocache"))]
     fn test_snapshot() {
         let mr = MemRegistry::new();
         let mut chunk = Chunk::new(1, "cpu", &mr);
