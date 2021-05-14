@@ -288,7 +288,7 @@ fn rle_rows_opt(mut itr: impl Iterator<Item = Option<f64>>) -> usize {
 /// A lever to decide the minimum size in bytes that RLE the column needs to
 /// reduce the overall footprint by. 0.1 means that the size of the column must
 /// be reduced by 10%
-pub const MIN_RLE_SIZE_REDUCTION: f64 = 0.3; // 30%
+pub const MIN_RLE_SIZE_REDUCTION: f64 = 0.1; // 10%
 
 /// Converts a slice of `f64` values into a `FloatEncoding`.
 ///
