@@ -288,7 +288,7 @@ fn rle_rows_opt(mut itr: impl Iterator<Item = Option<f64>>) -> usize {
 /// A lever to decide the minimum size in bytes that RLE the column needs to
 /// reduce the overall footprint by. 0.1 means that the size of the column must
 /// be reduced by 10%
-pub const MIN_RLE_SIZE_REDUCTION: f64 = 0.3; // 30%
+pub const MIN_RLE_SIZE_REDUCTION: f64 = 0.1; // 10%
 
 /// Converts a slice of `f64` values into a `FloatEncoding`.
 ///
@@ -369,8 +369,10 @@ mod test {
         assert_eq!(enc.size_raw(false), 56);
     }
 
+    #[test]
     fn rle_rows() {
         let cases = vec![
+            (vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 0.0], 7),
             (vec![0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], 9),
             (vec![0.0, 0.0], 1),
             (vec![1.0, 2.0, 1.0], 3),
