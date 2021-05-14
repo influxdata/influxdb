@@ -21,28 +21,67 @@ use internal_types::{
     schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME},
     selection::Selection,
 };
-use object_store::{memory::InMemory, ObjectStore, ObjectStoreApi};
+use object_store::{memory::InMemory, path::Path, ObjectStore, ObjectStoreApi};
 use parquet::{
     arrow::{ArrowReader, ParquetFileArrowReader},
     file::serialized_reader::{SerializedFileReader, SliceableCursor},
 };
+use snafu::{OptionExt, ResultExt, Snafu};
 use tracker::MemRegistry;
 
-use crate::{chunk::Chunk, storage::Storage};
+use crate::{
+    chunk::{self, Chunk},
+    storage::Storage,
+};
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("Error getting data from object store: {}", source))]
+    GettingDataFromObjectStore { source: object_store::Error },
+
+    #[snafu(display("Error reading chunk dato from object store: {}", source))]
+    ReadingChunk { source: chunk::Error },
+
+    #[snafu(display("Error loading data from object store"))]
+    LoadingFromObjectStore {},
+}
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Load parquet from store and return table name and parquet bytes.
-pub async fn load_parquet_from_store(chunk: &Chunk, store: Arc<ObjectStore>) -> (String, Vec<u8>) {
-    let table = chunk.table_names(None).next().unwrap();
-    let path = chunk.table_path(&table).unwrap();
+// This function is for test only
+pub async fn load_parquet_from_store(
+    chunk: &Chunk,
+    store: Arc<ObjectStore>,
+) -> Result<(String, Vec<u8>)> {
+    load_parquet_from_store_for_chunk(chunk, store).await
+}
+
+pub async fn load_parquet_from_store_for_chunk(
+    chunk: &Chunk,
+    store: Arc<ObjectStore>,
+) -> Result<(String, Vec<u8>)> {
+    let table = chunk
+        .table_names(None)
+        .next()
+        .context(LoadingFromObjectStore)?;
+    let path = chunk.table_path(&table).context(ReadingChunk)?;
+    Ok((table, load_parquet_from_store_for_path(&path, store).await?))
+}
+
+pub async fn load_parquet_from_store_for_path(
+    path: &Path,
+    store: Arc<ObjectStore>,
+) -> Result<Vec<u8>> {
     let parquet_data = store
-        .get(&path)
+        .get(path)
         .await
-        .unwrap()
+        .context(GettingDataFromObjectStore)?
         .map_ok(|bytes| bytes.to_vec())
         .try_concat()
         .await
-        .unwrap();
-    (table, parquet_data)
+        .context(GettingDataFromObjectStore)?;
+
+    Ok(parquet_data)
 }
 
 /// Create a test chunk by writing data to object store.

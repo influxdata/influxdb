@@ -14,6 +14,7 @@
 //! consumer of these encodings.
 use std::cmp::Ordering;
 use std::fmt::Debug;
+use std::mem::size_of;
 
 use arrow::{
     array::{Array, PrimitiveArray},
@@ -74,7 +75,21 @@ where
     /// Returns an estimation of the total size in bytes used by this column
     /// encoding.
     pub fn size(&self) -> usize {
-        std::mem::size_of::<PrimitiveArray<T>>() + self.arr.get_array_memory_size()
+        size_of::<PrimitiveArray<T>>() + self.arr.get_array_memory_size()
+    }
+
+    /// The estimated total size in bytes of the underlying values in the
+    /// column if they were stored contiguously and uncompressed. `include_nulls`
+    /// will effectively size each NULL value as 8b if `true` because the logical
+    /// size of all types of `T` is 8b
+    pub fn size_raw(&self, include_nulls: bool) -> usize {
+        // hmmm whilst Vec<i64> is probably accurate it's not really correct if
+        // T is not i64.
+        let base_size = size_of::<Vec<i64>>();
+        if !self.contains_null() || include_nulls {
+            return base_size + (self.num_rows() as usize * 8);
+        }
+        base_size + ((self.num_rows() as usize - self.arr.null_count()) * 8)
     }
 
     //
@@ -605,6 +620,23 @@ mod test {
     fn size() {
         let v = FixedNull::<UInt64Type>::from(vec![None, None, Some(100), Some(2222)].as_slice());
         assert_eq!(v.size(), 344);
+    }
+
+    #[test]
+    fn size_raw() {
+        let v = FixedNull::<UInt64Type>::from(vec![None, None, Some(100), Some(2222)].as_slice());
+        // values   = 4 * 8 = 32b
+        // Vec<u64> = 24b
+        assert_eq!(v.size_raw(true), 56);
+        assert_eq!(v.size_raw(false), 40);
+
+        let v = FixedNull::<Int64Type>::from(vec![None, None].as_slice());
+        assert_eq!(v.size_raw(true), 40);
+        assert_eq!(v.size_raw(false), 24);
+
+        let v = FixedNull::<Float64Type>::from(vec![None, None, Some(22.3)].as_slice());
+        assert_eq!(v.size_raw(true), 48);
+        assert_eq!(v.size_raw(false), 32);
     }
 
     #[test]

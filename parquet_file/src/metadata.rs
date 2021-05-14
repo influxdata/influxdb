@@ -483,7 +483,7 @@ mod tests {
         // setup: preserve chunk to object store
         let store = make_object_store();
         let chunk = make_chunk(Arc::clone(&store), "foo").await;
-        let (table, parquet_data) = load_parquet_from_store(&chunk, store).await;
+        let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
 
         // step 1: read back schema
@@ -506,7 +506,7 @@ mod tests {
         // setup: write chunk to object store and only keep thrift-encoded metadata
         let store = make_object_store();
         let chunk = make_chunk(Arc::clone(&store), "foo").await;
-        let (table, parquet_data) = load_parquet_from_store(&chunk, store).await;
+        let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
         let data = parquet_metadata_to_thrift(&parquet_metadata).unwrap();
         let parquet_metadata = thrift_to_parquet_metadata(&data).unwrap();
@@ -531,7 +531,7 @@ mod tests {
         // setup: preserve chunk to object store
         let store = make_object_store();
         let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo").await;
-        let (table, parquet_data) = load_parquet_from_store(&chunk, store).await;
+        let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
 
         // step 1: read back schema
@@ -552,7 +552,7 @@ mod tests {
         // setup: write chunk to object store and only keep thrift-encoded metadata
         let store = make_object_store();
         let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo").await;
-        let (table, parquet_data) = load_parquet_from_store(&chunk, store).await;
+        let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
         let data = parquet_metadata_to_thrift(&parquet_metadata).unwrap();
         let parquet_metadata = thrift_to_parquet_metadata(&data).unwrap();
@@ -574,7 +574,7 @@ mod tests {
     async fn test_make_chunk() {
         let store = make_object_store();
         let chunk = make_chunk(Arc::clone(&store), "foo").await;
-        let (_, parquet_data) = load_parquet_from_store(&chunk, store).await;
+        let (_, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
 
         assert!(parquet_metadata.num_row_groups() > 1);
@@ -612,7 +612,7 @@ mod tests {
     async fn test_make_chunk_no_row_group() {
         let store = make_object_store();
         let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo").await;
-        let (_, parquet_data) = load_parquet_from_store(&chunk, store).await;
+        let (_, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
 
         assert_eq!(parquet_metadata.num_row_groups(), 0);

@@ -1362,13 +1362,16 @@ mod tests {
         database_rules::{Order, Sort, SortOrder},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     };
-    use datafusion::execution::context;
     use entry::test_helpers::lp_to_entry;
     use futures::{stream, StreamExt, TryStreamExt};
-    use object_store::{disk::File, path::Path, ObjectStore, ObjectStoreApi};
+    use object_store::{memory::InMemory, path::Path, ObjectStore, ObjectStoreApi};
+    use parquet_file::{
+        metadata::read_parquet_metadata_from_file,
+        storage::read_schema_from_parquet_metadata,
+        utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
+    };
     use query::{frontend::sql::SqlQueryPlanner, PartitionChunk};
     use std::{convert::TryFrom, iter::Iterator, num::NonZeroUsize, str};
-    use tempfile::TempDir;
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
@@ -1812,10 +1815,7 @@ mod tests {
     #[tokio::test]
     async fn write_one_chunk_to_parquet_file() {
         // Test that data can be written into parquet files
-
-        // Create an object store with a specified location in a local disk
-        let root = TempDir::new().unwrap();
-        let object_store = Arc::new(ObjectStore::new_file(File::new(root.path())));
+        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
 
         // Create a DB given a server id, an object store and a db name
         let server_id = ServerId::try_from(10).unwrap();
@@ -1873,6 +1873,7 @@ mod tests {
         assert_eq!(read_parquet_file_chunk_ids(&db, partition_key), vec![0]);
 
         // Verify data written to the parquet file in object store
+        //
         // First, there must be one path of object store in the catalog
         let paths = pq_chunk.object_store_paths();
         assert_eq!(paths.len(), 1);
@@ -1881,36 +1882,20 @@ mod tests {
         let path_list = flatten_list_stream(Arc::clone(&object_store), Some(&paths[0]))
             .await
             .unwrap();
-        println!("path_list: {:#?}", path_list);
         assert_eq!(path_list.len(), 1);
         assert_eq!(path_list, paths.clone());
 
-        // Get full string path
-        let path0 = match &paths[0] {
-            Path::File(file_path) => file_path.to_raw(),
-            other => panic!("expected `Path::File`, got: {:?}", other),
-        };
+        // Now read data from that path
+        let parquet_data = load_parquet_from_store_for_path(&path_list[0], object_store)
+            .await
+            .unwrap();
+        let parquet_metadata = read_parquet_metadata_from_file(parquet_data.clone()).unwrap();
+        // Read metadata at file level
+        let schema = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
+        // Read data
+        let record_batches =
+            read_data_from_parquet_data(Arc::clone(&schema.as_arrow()), parquet_data);
 
-        let mut path = root.path().to_path_buf();
-        path.push(&path0);
-        println!("path: {}", path.display());
-
-        // Create External table of this parquet file to get its content in a human
-        // readable form
-        // Note: We do not care about escaping quotes here because it is just a test
-        let sql = format!(
-            "CREATE EXTERNAL TABLE parquet_table STORED AS PARQUET LOCATION '{}'",
-            path.display()
-        );
-
-        let mut ctx = context::ExecutionContext::new();
-        let df = ctx.sql(&sql).unwrap();
-        df.collect().await.unwrap();
-
-        // Select data from that table
-        let sql = "SELECT * FROM parquet_table";
-        let content = ctx.sql(&sql).unwrap().collect().await.unwrap();
-        println!("Content: {:?}", content);
         let expected = vec![
             "+-----+-------------------------------+",
             "| bar | time                          |",
@@ -1919,7 +1904,7 @@ mod tests {
             "| 2   | 1970-01-01 00:00:00.000000020 |",
             "+-----+-------------------------------+",
         ];
-        assert_batches_eq!(expected, &content);
+        assert_batches_eq!(expected, &record_batches);
     }
 
     #[tokio::test]
@@ -1928,9 +1913,8 @@ mod tests {
         // remove it from read buffer and make sure we are still
         // be able to read data from object store
 
-        // Create an object store with a specified location in a local disk
-        let root = TempDir::new().unwrap();
-        let object_store = Arc::new(ObjectStore::new_file(File::new(root.path())));
+        // Create an object store in memory
+        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
 
         // Create a DB given a server id, an object store and a db name
         let server_id = ServerId::try_from(10).unwrap();
@@ -2029,35 +2013,17 @@ mod tests {
         assert_eq!(path_list.len(), 1);
         assert_eq!(path_list, paths.clone());
 
-        // Get full string path
-        let path0 = match &paths[0] {
-            Path::File(file_path) => file_path.to_raw(),
-            other => panic!("expected `Path::File`, got: {:?}", other),
-        };
+        // Now read data from that path
+        let parquet_data = load_parquet_from_store_for_path(&path_list[0], object_store)
+            .await
+            .unwrap();
+        let parquet_metadata = read_parquet_metadata_from_file(parquet_data.clone()).unwrap();
+        // Read metadata at file level
+        let schema = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
+        // Read data
+        let record_batches =
+            read_data_from_parquet_data(Arc::clone(&schema.as_arrow()), parquet_data);
 
-        let mut path = root.path().to_path_buf();
-        path.push(&path0);
-        println!("path: {}", path.display());
-
-        // Read Metadata
-
-        // Get data back using SQL
-        // Create External table of this parquet file to get its content in a human
-        // readable form
-        // Note: We do not care about escaping quotes here because it is just a test
-        let sql = format!(
-            "CREATE EXTERNAL TABLE parquet_table STORED AS PARQUET LOCATION '{}'",
-            path.display()
-        );
-
-        let mut ctx = context::ExecutionContext::new();
-        let df = ctx.sql(&sql).unwrap();
-        df.collect().await.unwrap();
-
-        // Select data from that table
-        let sql = "SELECT * FROM parquet_table";
-        let content = ctx.sql(&sql).unwrap().collect().await.unwrap();
-        println!("Content: {:?}", content);
         let expected = vec![
             "+-----+-------------------------------+",
             "| bar | time                          |",
@@ -2066,7 +2032,7 @@ mod tests {
             "| 2   | 1970-01-01 00:00:00.000000020 |",
             "+-----+-------------------------------+",
         ];
-        assert_batches_eq!(expected, &content);
+        assert_batches_eq!(expected, &record_batches);
     }
 
     #[test]
@@ -2703,13 +2669,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn lock_tracker_metrics() {
-        // Test that data can be written into parquet files and then
-        // remove it from read buffer and make sure we are still
-        // be able to read data from object store
-
-        // Create an object store with a specified location in a local disk
-        let root = TempDir::new().unwrap();
-        let object_store = Arc::new(ObjectStore::new_file(File::new(root.path())));
+        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
 
         // Create a DB given a server id, an object store and a db name
         let server_id = ServerId::try_from(10).unwrap();

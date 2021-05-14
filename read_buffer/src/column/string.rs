@@ -27,11 +27,21 @@ pub enum StringEncoding {
 /// This implementation is concerned with how to produce string columns with
 /// different encodings.
 impl StringEncoding {
-    /// The total size in bytes of the store columnar data.
+    /// The estimated total size in bytes of the in-memory columnar data.
     pub fn size(&self) -> usize {
         match self {
             Self::RleDictionary(enc) => enc.size(),
             Self::Dictionary(enc) => enc.size(),
+        }
+    }
+
+    /// The estimated total size in bytes of the underlying string values in the
+    /// column if they were stored contiguously and uncompressed. `include_nulls`
+    /// will effectively size each NULL value as a pointer if `true`.
+    pub fn size_raw(&self, include_nulls: bool) -> usize {
+        match self {
+            Self::RleDictionary(enc) => enc.size_raw(include_nulls),
+            Self::Dictionary(enc) => enc.size_raw(include_nulls),
         }
     }
 
@@ -70,6 +80,8 @@ impl StringEncoding {
             values: self.num_rows(),
             nulls: self.null_count(),
             bytes: self.size(),
+            raw_bytes: self.size_raw(true),
+            raw_bytes_no_null: self.size_raw(false),
         }
     }
 

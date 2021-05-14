@@ -1,4 +1,3 @@
-use std::iter::FromIterator;
 use std::mem;
 use std::sync::Arc;
 
@@ -7,11 +6,12 @@ use snafu::{ensure, Snafu};
 use arrow::{
     array::{
         ArrayData, ArrayDataBuilder, ArrayRef, BooleanArray, DictionaryArray, Float64Array,
-        Int64Array, StringArray, TimestampNanosecondArray, UInt64Array,
+        Int64Array, TimestampNanosecondArray, UInt64Array,
     },
     datatypes::{DataType, Int32Type},
 };
 use arrow_util::bitset::{iter_set_positions, BitSet};
+use arrow_util::string::PackedStringArray;
 use data_types::partition_metadata::{IsNan, StatValues, Statistics};
 use entry::Column as EntryColumn;
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, TIME_DATA_TYPE};
@@ -53,7 +53,7 @@ pub enum ColumnData {
     F64(Vec<f64>, StatValues<f64>),
     I64(Vec<i64>, StatValues<i64>),
     U64(Vec<u64>, StatValues<u64>),
-    String(Vec<String>, StatValues<String>),
+    String(PackedStringArray<i32>, StatValues<String>),
     Bool(BitSet, StatValues<bool>),
     Tag(Vec<DID>, StatValues<String>),
 }
@@ -78,9 +78,10 @@ impl Column {
             InfluxColumnType::Field(InfluxFieldType::Integer) | InfluxColumnType::Timestamp => {
                 ColumnData::I64(vec![0; row_count], StatValues::default())
             }
-            InfluxColumnType::Field(InfluxFieldType::String) => {
-                ColumnData::String(vec![String::new(); row_count], StatValues::default())
-            }
+            InfluxColumnType::Field(InfluxFieldType::String) => ColumnData::String(
+                PackedStringArray::new_empty(row_count),
+                StatValues::default(),
+            ),
             InfluxColumnType::Tag => {
                 ColumnData::Tag(vec![INVALID_DID; row_count], StatValues::default())
             }
@@ -186,11 +187,21 @@ impl Column {
                     .values_as_string_values()
                     .expect("invalid flatbuffer")
                     .values()
-                    .expect("invalid payload")
-                    .into_iter()
-                    .map(ToString::to_string);
+                    .expect("invalid payload");
 
-                handle_write(row_count, &mask, entry_data, col_data, stats);
+                let data_offset = col_data.len();
+                let initial_non_null_count = stats.count;
+                let to_add = entry_data.len();
+
+                for (str, idx) in entry_data.iter().zip(iter_set_positions(&mask)) {
+                    col_data.extend(data_offset + idx - col_data.len());
+                    stats.update(str);
+                    col_data.append(str);
+                }
+
+                col_data.extend(data_offset + row_count - col_data.len());
+
+                assert_eq!(stats.count - initial_non_null_count, to_add as u64);
             }
             ColumnData::Tag(col_data, stats) => {
                 let entry_data = entry
@@ -231,7 +242,7 @@ impl Column {
             ColumnData::F64(data, _) => data.resize(len, 0.),
             ColumnData::I64(data, _) => data.resize(len, 0),
             ColumnData::U64(data, _) => data.resize(len, 0),
-            ColumnData::String(data, _) => data.resize(len, String::new()),
+            ColumnData::String(data, _) => data.extend(delta),
             ColumnData::Bool(data, _) => data.append_unset(delta),
             ColumnData::Tag(data, _) => data.resize(len, INVALID_DID),
         }
@@ -312,16 +323,7 @@ impl Column {
                     .build();
                 Arc::new(UInt64Array::from(data))
             }
-            ColumnData::String(data, _) => {
-                // TODO: Store this closer to the arrow representation
-                let iter = data
-                    .iter()
-                    .enumerate()
-                    .map(|(idx, value)| self.valid.get(idx).then(|| value) as _);
-
-                let array = StringArray::from_iter(iter);
-                Arc::new(array)
-            }
+            ColumnData::String(data, _) => Arc::new(data.to_arrow()),
             ColumnData::Bool(data, _) => {
                 let data = ArrayDataBuilder::new(DataType::Boolean)
                     .len(data.len())
