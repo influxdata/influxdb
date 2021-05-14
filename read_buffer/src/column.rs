@@ -15,7 +15,7 @@ use arrow::array::Array;
 use crate::schema::LogicalDataType;
 use crate::value::{EncodedValues, OwnedValue, Scalar, Value, Values};
 use boolean::BooleanEncoding;
-use encoding::{bool, scalar};
+use encoding::bool;
 use float::FloatEncoding;
 use integer::IntegerEncoding;
 use string::StringEncoding;
@@ -1088,13 +1088,13 @@ impl From<arrow::array::Float64Array> for Column {
             _ => unreachable!("min/max must both be Some or None"),
         };
 
-        let data = scalar::FixedNull::<arrow::datatypes::Float64Type>::from(arr);
+        let data = FloatEncoding::from(arr);
         let meta = MetaData {
             range,
             ..MetaData::default()
         };
 
-        Self::Float(meta, FloatEncoding::FixedNull64(data))
+        Self::Float(meta, data)
     }
 }
 
@@ -1285,6 +1285,7 @@ impl RowIDs {
         }
     }
 
+    // Add all row IDs in the domain `[from, to)` to the collection.
     pub fn add_range(&mut self, from: u32, to: u32) {
         match self {
             Self::Bitmap(ids) => ids.add_range(from as u64..to as u64),
