@@ -1,5 +1,5 @@
 use data_types::{
-    chunk::{ChunkStorage, ChunkSummary},
+    chunk_metadata::{ChunkStorage, ChunkSummary},
     database_rules::{DatabaseRules, WriteBufferRollover},
     server_id::ServerId,
     DatabaseName,

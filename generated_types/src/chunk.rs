@@ -1,6 +1,6 @@
 use crate::google::{FieldViolation, FromField};
 use crate::influxdata::iox::management::v1 as management;
-use data_types::chunk::{ChunkStorage, ChunkSummary};
+use data_types::chunk_metadata::{ChunkStorage, ChunkSummary};
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
 

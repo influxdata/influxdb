@@ -9,7 +9,7 @@ use parking_lot::RwLock;
 use snafu::{ensure, Snafu};
 
 use arrow::record_batch::RecordBatch;
-use data_types::{chunk::ChunkColumnSummary, partition_metadata::TableSummary};
+use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
 use internal_types::selection::Selection;
 
 use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};

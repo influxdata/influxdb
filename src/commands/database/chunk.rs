@@ -1,5 +1,5 @@
 //! This module implements the `chunk` CLI command
-use data_types::chunk::ChunkSummary;
+use data_types::chunk_metadata::ChunkSummary;
 use generated_types::google::FieldViolation;
 use influxdb_iox_client::{
     connection::Builder,

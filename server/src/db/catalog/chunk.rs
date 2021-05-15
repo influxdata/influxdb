@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use data_types::{
-    chunk::{ChunkColumnSummary, ChunkStorage, ChunkSummary, DetailedChunkSummary},
+    chunk_metadata::{ChunkColumnSummary, ChunkStorage, ChunkSummary, DetailedChunkSummary},
     partition_metadata::TableSummary,
 };
 use mutable_buffer::chunk::Chunk as MBChunk;

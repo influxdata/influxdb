@@ -11,9 +11,9 @@ use crate::db::catalog::metrics::CatalogMetrics;
 use chunk::Chunk;
 use data_types::error::ErrorLogger;
 use data_types::partition_metadata::PartitionSummary;
-use data_types::{chunk::ChunkSummary, partition_metadata::UnaggregatedPartitionSummary};
+use data_types::{chunk_metadata::ChunkSummary, partition_metadata::UnaggregatedPartitionSummary};
 use data_types::{
-    chunk::DetailedChunkSummary,
+    chunk_metadata::DetailedChunkSummary,
     database_rules::{Order, Sort, SortOrder},
 };
 use datafusion::{catalog::schema::SchemaProvider, datasource::TableProvider};

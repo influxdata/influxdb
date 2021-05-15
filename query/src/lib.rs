@@ -7,7 +7,7 @@
 )]
 
 use async_trait::async_trait;
-use data_types::chunk::ChunkSummary;
+use data_types::chunk_metadata::ChunkSummary;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, Executor};
 use internal_types::{schema::Schema, selection::Selection};

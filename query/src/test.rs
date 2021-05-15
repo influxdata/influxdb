@@ -8,6 +8,7 @@ use arrow::{
     datatypes::{DataType, Int32Type, TimeUnit},
     record_batch::RecordBatch,
 };
+use data_types::chunk_metadata::ChunkSummary;
 use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
 
 use crate::exec::Executor;
@@ -108,7 +109,7 @@ impl Database for TestDatabase {
             .collect()
     }
 
-    fn chunk_summaries(&self) -> Result<Vec<data_types::chunk::ChunkSummary>, Self::Error> {
+    fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>, Self::Error> {
         unimplemented!("summaries not implemented TestDatabase")
     }
 }

@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use catalog::{chunk::Chunk as CatalogChunk, Catalog};
 pub(crate) use chunk::DbChunk;
 use data_types::{
-    chunk::ChunkSummary,
+    chunk_metadata::ChunkSummary,
     database_rules::DatabaseRules,
     job::Job,
     partition_metadata::{PartitionSummary, TableSummary},
@@ -1095,7 +1095,7 @@ mod tests {
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use chrono::Utc;
     use data_types::{
-        chunk::ChunkStorage,
+        chunk_metadata::ChunkStorage,
         database_rules::{Order, Sort, SortOrder},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     };

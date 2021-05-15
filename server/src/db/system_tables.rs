@@ -19,7 +19,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    chunk::{ChunkSummary, DetailedChunkSummary},
+    chunk_metadata::{ChunkSummary, DetailedChunkSummary},
     error::ErrorLogger,
     job::Job,
     partition_metadata::{PartitionSummary, UnaggregatedPartitionSummary},
@@ -607,7 +607,7 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use chrono::NaiveDateTime;
     use data_types::{
-        chunk::{ChunkColumnSummary, ChunkStorage},
+        chunk_metadata::{ChunkColumnSummary, ChunkStorage},
         partition_metadata::{
             ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
             UnaggregatedTableSummary,

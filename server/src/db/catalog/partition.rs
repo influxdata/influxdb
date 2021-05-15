@@ -5,7 +5,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use chrono::{DateTime, Utc};
 use snafu::OptionExt;
 
-use data_types::chunk::ChunkSummary;
+use data_types::chunk_metadata::ChunkSummary;
 use data_types::partition_metadata::{
     PartitionSummary, UnaggregatedPartitionSummary, UnaggregatedTableSummary,
 };
