@@ -4,8 +4,8 @@ use std::fmt::Debug;
 use observability_deps::tracing::error;
 
 /// Add ability for Results to log error messages via `error!` logs.
-/// This is useful when using async tasks that may not have a natural
-/// return error
+/// This is useful when using async tasks that may not have any code
+/// checking their return values.
 pub trait ErrorLogger {
     /// Log the contents of self with a string of context. The context
     /// should appear in a message such as
