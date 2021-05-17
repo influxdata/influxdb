@@ -91,8 +91,6 @@ use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, DatabaseStore};
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
 
-use futures::{pin_mut, FutureExt};
-
 use crate::{
     config::{
         object_store_path_for_database_config, Config, GRpcConnectionString, DB_RULES_FILE_NAME,
@@ -568,18 +566,6 @@ impl<M: ConnectionManager> Server<M> {
         )
         .await?;
 
-        let num_fields: usize = lines.iter().map(|line| line.field_set.len()).sum();
-        let labels = &[
-            metrics::KeyValue::new("status", "ok"),
-            metrics::KeyValue::new("db_name", db_name.to_string()),
-        ];
-        self.metrics
-            .ingest_lines_total
-            .add_with_labels(lines.len() as u64, labels);
-        self.metrics
-            .ingest_fields_total
-            .add_with_labels(num_fields as u64, labels);
-
         Ok(())
     }
 
@@ -801,21 +787,8 @@ impl<M: ConnectionManager> Server<M> {
             }
         }
 
-        info!("shutting down background worker");
-
-        let join = self.config.drain().fuse();
-        pin_mut!(join);
-
-        // Keep running reclaim whilst shutting down in case something
-        // is waiting on a tracker to complete
-        loop {
-            self.jobs.inner.lock().reclaim();
-
-            futures::select! {
-                _ = interval.tick().fuse() => {},
-                _ = join => break
-            }
-        }
+        info!("shutting down background workers");
+        self.config.drain().await;
 
         info!("draining tracker registry");
 
