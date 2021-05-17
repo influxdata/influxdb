@@ -582,6 +582,13 @@ where
         }
     }
 
+    /// Handle the given action and populate data to the catalog state.
+    ///
+    /// The deserializes the action state and passes it to the correct method in [`CatalogState`].
+    ///
+    /// Note that this method is primarily for replaying transactions and will NOT append the given action to the
+    /// current transaction. If you also want to store the given action (e.g. during an in-progress transaction), use
+    /// [`handle_action_and_record`](Self::handle_action_and_record).
     fn handle_action(
         state: &S,
         action: &proto::transaction::action::Action,
@@ -615,6 +622,8 @@ where
         Ok(())
     }
 
+    /// Similar to [`handle_action`](Self::handle_action) but this will also append the action to the current
+    /// transaction state.
     fn handle_action_and_record(
         &mut self,
         action: proto::transaction::action::Action,
