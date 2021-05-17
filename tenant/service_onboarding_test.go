@@ -160,6 +160,8 @@ func TestOnboardAuth(t *testing.T) {
 		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.ChecksResourceType}},
 		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DBRPResourceType}},
 		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DBRPResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.NotebooksResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.NotebooksResourceType}},
 		{Action: influxdb.ReadAction, Resource: influxdb.Resource{ID: &onboard.User.ID, Type: influxdb.UsersResourceType}},
 		{Action: influxdb.WriteAction, Resource: influxdb.Resource{ID: &onboard.User.ID, Type: influxdb.UsersResourceType}},
 	}
@@ -198,7 +200,7 @@ func TestOnboardService_RetentionPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.Equal(t, onboard.Bucket.RetentionPeriod, time.Duration(retention) * time.Second, "Retention policy should pass through")
+	assert.Equal(t, onboard.Bucket.RetentionPeriod, time.Duration(retention)*time.Second, "Retention policy should pass through")
 }
 
 func TestOnboardService_RetentionPolicyDeprecated(t *testing.T) {
