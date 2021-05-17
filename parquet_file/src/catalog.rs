@@ -254,7 +254,7 @@ where
     pub fn new_empty(
         object_store: Arc<ObjectStore>,
         server_id: ServerId,
-        db_name: String,
+        db_name: impl Into<String>,
         state_data: S::EmptyInput,
     ) -> Self {
         let inner = PreservedCatalogInner {
@@ -267,7 +267,7 @@ where
             transaction_semaphore: Semaphore::new(1),
             object_store,
             server_id,
-            db_name,
+            db_name: db_name.into(),
         }
     }
 
