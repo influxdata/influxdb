@@ -92,21 +92,30 @@ pub struct Catalog {
     partitions: RwLock<BTreeMap<String, Arc<RwLock<Partition>>>>,
 
     metrics: CatalogMetrics,
+
+    pub(crate) metrics_registry: Arc<::metrics::MetricRegistry>,
+    pub(crate) metric_labels: Vec<::metrics::KeyValue>,
 }
 
 impl Catalog {
     #[cfg(test)]
     fn test() -> Self {
-        let registry = ::metrics::MetricRegistry::new();
-        Self::new(registry.register_domain("catalog"))
+        let registry = Arc::new(::metrics::MetricRegistry::new());
+        Self::new(registry.register_domain("catalog"), registry, vec![])
     }
 
-    pub fn new(metrics_domain: ::metrics::Domain) -> Self {
+    pub fn new(
+        metrics_domain: ::metrics::Domain,
+        metrics_registry: Arc<::metrics::MetricRegistry>,
+        metric_labels: Vec<::metrics::KeyValue>,
+    ) -> Self {
         let metrics = CatalogMetrics::new(metrics_domain);
 
         Self {
             partitions: Default::default(),
             metrics,
+            metrics_registry,
+            metric_labels,
         }
     }
 

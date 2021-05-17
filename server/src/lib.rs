@@ -566,18 +566,6 @@ impl<M: ConnectionManager> Server<M> {
         )
         .await?;
 
-        let num_fields: usize = lines.iter().map(|line| line.field_set.len()).sum();
-        let labels = &[
-            metrics::KeyValue::new("status", "ok"),
-            metrics::KeyValue::new("db_name", db_name.to_string()),
-        ];
-        self.metrics
-            .ingest_lines_total
-            .add_with_labels(lines.len() as u64, labels);
-        self.metrics
-            .ingest_fields_total
-            .add_with_labels(num_fields as u64, labels);
-
         Ok(())
     }
 

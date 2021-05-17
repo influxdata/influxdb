@@ -30,7 +30,7 @@ use azure::MicrosoftAzure;
 use disk::File;
 use gcp::GoogleCloudStorage;
 use memory::InMemory;
-use path::ObjectStorePath;
+use path::{parsed::DirsAndFileName, ObjectStorePath};
 use throttle::ThrottledStore;
 
 use async_trait::async_trait;
@@ -119,6 +119,19 @@ impl ObjectStore {
     /// Configure a connection to Microsoft Azure Blob store.
     pub fn new_microsoft_azure(azure: MicrosoftAzure) -> Self {
         Self(ObjectStoreIntegration::MicrosoftAzure(Box::new(azure)))
+    }
+
+    /// Create implementation-specific path from parsed representation.
+    pub fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> path::Path {
+        use ObjectStoreIntegration::*;
+        match &self.0 {
+            AmazonS3(_) => path::Path::AmazonS3(path.into()),
+            GoogleCloudStorage(_) => path::Path::GoogleCloudStorage(path.into()),
+            InMemory(_) => path::Path::InMemory(path),
+            InMemoryThrottled(_) => path::Path::InMemory(path),
+            File(_) => path::Path::File(path.into()),
+            MicrosoftAzure(_) => path::Path::MicrosoftAzure(path.into()),
+        }
     }
 }
 
