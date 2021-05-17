@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/v2/notebooks/service/mocks"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 var (
@@ -41,25 +42,17 @@ var (
 func TestNotebookHandler(t *testing.T) {
 	t.Parallel()
 
-	var (
-		ctrlr = gomock.NewController(t)
-		store = mocks.NewMockNotebookService(ctrlr)
-		// server needs to have a middleware to annotate the request context with the
-		// appropriate feature flags while notebooks is still behind a feature flag
-		server = annotatedTestServer(NewNotebookHandler(zap.NewNop(), store))
-	)
-
-	ts := httptest.NewServer(server)
-	defer ts.Close()
-
 	t.Run("get notebooks happy path", func(t *testing.T) {
+		ts, svc := newTestServer(t)
+		defer ts.Close()
+
 		req := newTestRequest(t, "GET", ts.URL, nil)
 
 		q := req.URL.Query()
 		q.Add("orgID", orgStr)
 		req.URL.RawQuery = q.Encode()
 
-		store.EXPECT().
+		svc.EXPECT().
 			ListNotebooks(gomock.Any(), service.NotebookListFilter{OrgID: *orgID}).
 			Return([]*service.Notebook{testNotebook}, nil)
 
@@ -72,9 +65,12 @@ func TestNotebookHandler(t *testing.T) {
 	})
 
 	t.Run("create notebook happy path", func(t *testing.T) {
+		ts, svc := newTestServer(t)
+		defer ts.Close()
+
 		req := newTestRequest(t, "POST", ts.URL, testReqBody)
 
-		store.EXPECT().
+		svc.EXPECT().
 			CreateNotebook(gomock.Any(), testReqBody).
 			Return(testNotebook, nil)
 
@@ -87,9 +83,12 @@ func TestNotebookHandler(t *testing.T) {
 	})
 
 	t.Run("get notebook happy path", func(t *testing.T) {
+		ts, svc := newTestServer(t)
+		defer ts.Close()
+
 		req := newTestRequest(t, "GET", ts.URL+"/"+idStr, nil)
 
-		store.EXPECT().
+		svc.EXPECT().
 			GetNotebook(gomock.Any(), *id).
 			Return(testNotebook, nil)
 
@@ -102,9 +101,12 @@ func TestNotebookHandler(t *testing.T) {
 	})
 
 	t.Run("delete notebook happy path", func(t *testing.T) {
+		ts, svc := newTestServer(t)
+		defer ts.Close()
+
 		req := newTestRequest(t, "DELETE", ts.URL+"/"+idStr, nil)
 
-		store.EXPECT().
+		svc.EXPECT().
 			DeleteNotebook(gomock.Any(), *id).
 			Return(nil)
 
@@ -112,9 +114,12 @@ func TestNotebookHandler(t *testing.T) {
 	})
 
 	t.Run("update notebook happy path", func(t *testing.T) {
+		ts, svc := newTestServer(t)
+		defer ts.Close()
+
 		req := newTestRequest(t, "PUT", ts.URL+"/"+idStr, testReqBody)
 
-		store.EXPECT().
+		svc.EXPECT().
 			UpdateNotebook(gomock.Any(), *id, testReqBody).
 			Return(testNotebook, nil)
 
@@ -132,6 +137,9 @@ func TestNotebookHandler(t *testing.T) {
 
 		for _, m := range methodsWithBody {
 			t.Run(m+" /notebooks", func(t *testing.T) {
+				ts, _ := newTestServer(t)
+				defer ts.Close()
+
 				req := newTestRequest(t, m, ts.URL+"/badid", testReqBody)
 				doTestRequest(t, req, http.StatusBadRequest, false)
 			})
@@ -139,6 +147,9 @@ func TestNotebookHandler(t *testing.T) {
 
 		for _, m := range methodsNoBody {
 			t.Run(m+" /notebooks", func(t *testing.T) {
+				ts, _ := newTestServer(t)
+				defer ts.Close()
+
 				req := newTestRequest(t, m, ts.URL+"/badid", nil)
 				doTestRequest(t, req, http.StatusBadRequest, false)
 			})
@@ -146,6 +157,9 @@ func TestNotebookHandler(t *testing.T) {
 	})
 
 	t.Run("invalid org id to GET /notebooks returns 400", func(t *testing.T) {
+		ts, _ := newTestServer(t)
+		defer ts.Close()
+
 		req := newTestRequest(t, "GET", ts.URL, nil)
 
 		q := req.URL.Query()
@@ -163,16 +177,33 @@ func TestNotebookHandler(t *testing.T) {
 		methods := []string{"PUT", "PATCH"}
 		for _, m := range methods {
 			t.Run(m+"/notebooks/{id]", func(t *testing.T) {
+				ts, _ := newTestServer(t)
+				defer ts.Close()
+
 				req := newTestRequest(t, m, ts.URL+"/"+idStr, badBady)
 				doTestRequest(t, req, http.StatusBadRequest, false)
 			})
 		}
 
 		t.Run("POST /notebooks", func(t *testing.T) {
+			ts, _ := newTestServer(t)
+			defer ts.Close()
+
 			req := newTestRequest(t, "POST", ts.URL+"/", badBady)
 			doTestRequest(t, req, http.StatusBadRequest, false)
 		})
 	})
+}
+
+// The svc generated is returned so that the caller can specify the expected
+// use of the mock service.
+func newTestServer(t *testing.T) (*httptest.Server, *mocks.MockNotebookService) {
+	ctrlr := gomock.NewController(t)
+	svc := mocks.NewMockNotebookService(ctrlr)
+	// server needs to have a middleware to annotate the request context with the
+	// appropriate feature flags while notebooks is still behind a feature flag
+	server := annotatedTestServer(NewNotebookHandler(zaptest.NewLogger(t), svc))
+	return httptest.NewServer(server), svc
 }
 
 func newTestRequest(t *testing.T, method, path string, body interface{}) *http.Request {

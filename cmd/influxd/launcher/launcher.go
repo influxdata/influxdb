@@ -898,7 +898,11 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		)
 	}
 
-	notebookSvc, _ := notebookSvc.NewFakeStore()
+	notebookSvc, err := notebookSvc.NewService()
+	if err != nil {
+		m.log.Error("Failed to initialize notebook service", zap.Error(err))
+		return err
+	}
 	notebookServer := notebookTransport.NewNotebookHandler(m.log.With(zap.String("handler", "notebooks")), notebookSvc)
 
 	platformHandler := http.NewPlatformHandler(

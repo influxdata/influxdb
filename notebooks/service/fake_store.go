@@ -18,7 +18,7 @@ type FakeStore struct {
 	list map[string][]*Notebook
 }
 
-func NewFakeStore() (*FakeStore, error) {
+func NewService() (*FakeStore, error) {
 	return &FakeStore{
 		list: make(map[string][]*Notebook),
 	}, nil
