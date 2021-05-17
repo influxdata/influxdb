@@ -15,7 +15,6 @@ use data_types::{
     job::Job,
     partition_metadata::{PartitionSummary, TableSummary},
     server_id::ServerId,
-    timestamp::TimestampRange,
 };
 use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
@@ -28,12 +27,14 @@ use metrics::{KeyValue, MetricRegistry};
 use mutable_buffer::chunk::{
     Chunk as MutableBufferChunk, ChunkMetrics as MutableBufferChunkMetrics,
 };
-use object_store::ObjectStore;
+use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, info};
 use parking_lot::{Mutex, RwLock};
 use parquet_file::{
+    catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
     chunk::{Chunk as ParquetChunk, ChunkMetrics as ParquetChunkMetrics},
-    storage::Storage,
+    metadata::read_statistics_from_parquet_metadata,
+    storage::{read_schema_from_parquet_metadata, Storage},
 };
 use query::predicate::{Predicate, PredicateBuilder};
 use query::{exec::Executor, Database, DEFAULT_SCHEMA};
@@ -41,7 +42,6 @@ use read_buffer::{Chunk as ReadBufferChunk, ChunkMetrics as ReadBufferChunkMetri
 use snafu::{ensure, ResultExt, Snafu};
 use std::{
     any::Any,
-    convert::TryInto,
     num::NonZeroUsize,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -210,6 +210,11 @@ pub enum Error {
 
     #[snafu(display("Error sending Sequenced Entry to Write Buffer: {}", source))]
     WriteBufferError { source: buffer::Error },
+
+    #[snafu(display("Error while handling transaction on preserved catalog: {}", source))]
+    TransactionError {
+        source: parquet_file::catalog::Error,
+    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -289,7 +294,7 @@ pub struct Db {
     ///  - The Read Buffer where chunks are immutable and stored in an optimised
     ///    compressed form for small footprint and fast query execution; and
     ///  - The Parquet Buffer where chunks are backed by Parquet file data.
-    catalog: Arc<Catalog>,
+    catalog: PreservedCatalog<Catalog>,
 
     /// The Write Buffer holds sequenced entries in an append in-memory
     /// buffer. This buffer is used for sending data to subscribers
@@ -340,9 +345,17 @@ impl Db {
         let server_id = server_id;
         let store = Arc::clone(&object_store);
         let write_buffer = write_buffer.map(Mutex::new);
-        let catalog = Arc::new(Catalog::new(metrics_domain));
-        let system_tables =
-            SystemSchemaProvider::new(&db_name, Arc::clone(&catalog), Arc::clone(&jobs));
+        let catalog = PreservedCatalog::new_empty(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            CatalogEmptyInput {
+                domain: metrics_domain,
+                metrics_registry: Arc::clone(&metrics_registry),
+                metric_labels: metric_labels.clone(),
+            },
+        );
+        let system_tables = SystemSchemaProvider::new(&db_name, catalog.state(), Arc::clone(&jobs));
         let system_tables = Arc::new(system_tables);
 
         let process_clock = process_clock::ProcessClock::new();
@@ -375,13 +388,14 @@ impl Db {
         partition_key: &str,
         table_name: &str,
     ) -> Result<Option<Arc<DbChunk>>> {
-        let partition =
-            self.catalog
-                .valid_partition(partition_key)
-                .context(RollingOverPartition {
-                    partition_key,
-                    table_name,
-                })?;
+        let partition = self
+            .catalog
+            .state()
+            .valid_partition(partition_key)
+            .context(RollingOverPartition {
+                partition_key,
+                table_name,
+            })?;
 
         let partition = partition.write();
         if let Some(chunk) = partition
@@ -409,6 +423,7 @@ impl Db {
 
         let partition = self
             .catalog
+            .state()
             .valid_partition(partition_key)
             .context(DroppingChunk {
                 partition_key,
@@ -477,6 +492,7 @@ impl Db {
         let chunk = {
             let partition = self
                 .catalog
+                .state()
                 .valid_partition(partition_key)
                 .context(LoadingChunk {
                     partition_key,
@@ -517,7 +533,10 @@ impl Db {
             .register_domain_with_labels("read_buffer", self.metric_labels.clone());
         let mut rb_chunk = ReadBufferChunk::new(
             chunk_id,
-            ReadBufferChunkMetrics::new(&metrics, self.catalog.metrics().memory().read_buffer()),
+            ReadBufferChunkMetrics::new(
+                &metrics,
+                self.catalog.state().metrics().memory().read_buffer(),
+            ),
         );
 
         // load table into the new chunk one by one.
@@ -561,14 +580,15 @@ impl Db {
     ) -> Result<Arc<DbChunk>> {
         // Get the chunk from the catalog
         let chunk = {
-            let partition =
-                self.catalog
-                    .valid_partition(partition_key)
-                    .context(LoadingChunkToParquet {
-                        partition_key,
-                        table_name,
-                        chunk_id,
-                    })?;
+            let partition = self
+                .catalog
+                .state()
+                .valid_partition(partition_key)
+                .context(LoadingChunkToParquet {
+                    partition_key,
+                    table_name,
+                    chunk_id,
+                })?;
             let partition = partition.read();
 
             partition
@@ -599,15 +619,6 @@ impl Db {
         // Get all tables in this chunk
         let table_stats = rb_chunk.table_summaries();
 
-        // Create a parquet chunk for this chunk
-        let metrics = self
-            .metrics_registry
-            .register_domain_with_labels("parquet", self.metric_labels.clone());
-        let mut parquet_chunk = ParquetChunk::new(
-            partition_key.to_string(),
-            chunk_id,
-            ParquetChunkMetrics::new(&metrics, self.catalog.metrics().memory().parquet()),
-        );
         // Create a storage to save data of this chunk
         let storage = Storage::new(
             Arc::clone(&self.store),
@@ -615,78 +626,56 @@ impl Db {
             self.rules.read().name.to_string(),
         );
 
-        for stats in table_stats {
-            debug!(%partition_key, %table_name, %chunk_id, table=%stats.name, "loading table to object store");
+        // as of now, there should be exactly 1 table in the chunk (see https://github.com/influxdata/influxdb_iox/issues/1295)
+        assert_eq!(table_stats.len(), 1);
+        let stats = &table_stats[0];
 
-            let predicate = read_buffer::Predicate::default();
+        debug!(%partition_key, %table_name, %chunk_id, table=%stats.name, "loading table to object store");
 
-            // Get RecordBatchStream of data from the read buffer chunk
-            let read_results = rb_chunk
-                .read_filter(stats.name.as_str(), predicate, Selection::All)
-                .context(ReadBufferChunkError {
-                    table_name,
-                    chunk_id,
-                })?;
+        let predicate = read_buffer::Predicate::default();
 
-            let arrow_schema: ArrowSchemaRef = rb_chunk
-                .read_filter_table_schema(stats.name.as_str(), Selection::All)
-                .context(ReadBufferChunkSchemaError {
-                    table_name,
-                    chunk_id,
-                })?
-                .into();
-            let time_range = rb_chunk.table_time_range(stats.name.as_str()).context(
-                ReadBufferChunkTimestampError {
-                    table_name,
-                    chunk_id,
-                },
-            )?;
-            let stream: SendableRecordBatchStream = Box::pin(
-                streams::ReadFilterResultsStream::new(read_results, Arc::clone(&arrow_schema)),
-            );
-
-            // Write this table data into the object store
-            let path = storage
-                .write_to_object_store(
-                    partition_key.to_string(),
-                    chunk_id,
-                    stats.name.to_string(),
-                    stream,
-                )
-                .await
-                .context(WritingToObjectStore)?;
-
-            // Now add the saved info into the parquet_chunk
-            let schema = Arc::clone(&arrow_schema)
-                .try_into()
-                .context(SchemaConversion)?;
-            let table_time_range = time_range.map(|(start, end)| TimestampRange::new(start, end));
-            parquet_chunk.add_table(
-                stats,
-                path,
-                Arc::clone(&self.store),
-                schema,
-                table_time_range,
-            );
-        }
-
-        // Relock the chunk again (nothing else should have been able
-        // to modify the chunk state while we were moving it
-        let mut chunk = chunk.write();
-
-        // update the catalog to say we are done processing
-        let parquet_chunk = Arc::clone(&Arc::new(parquet_chunk));
-        chunk
-            .set_written_to_object_store(parquet_chunk)
-            .context(LoadingChunkToParquet {
-                partition_key,
+        // Get RecordBatchStream of data from the read buffer chunk
+        let read_results = rb_chunk
+            .read_filter(stats.name.as_str(), predicate, Selection::All)
+            .context(ReadBufferChunkError {
                 table_name,
                 chunk_id,
             })?;
 
-        debug!(%partition_key, %table_name, %chunk_id, "chunk marked WRITTEN. Persisting to object store complete");
+        let arrow_schema: ArrowSchemaRef = rb_chunk
+            .read_filter_table_schema(stats.name.as_str(), Selection::All)
+            .context(ReadBufferChunkSchemaError {
+                table_name,
+                chunk_id,
+            })?
+            .into();
+        let stream: SendableRecordBatchStream = Box::pin(streams::ReadFilterResultsStream::new(
+            read_results,
+            Arc::clone(&arrow_schema),
+        ));
+
+        // Write this table data into the object store
+        let (path, parquet_metadata) = storage
+            .write_to_object_store(
+                partition_key.to_string(),
+                chunk_id,
+                stats.name.to_string(),
+                stream,
+            )
+            .await
+            .context(WritingToObjectStore)?;
+
+        // catalog-level transaction for preseveration layer
+        {
+            let mut transaction = self.catalog.open_transaction().await;
+            transaction
+                .add_parquet(&path.into(), &parquet_metadata)
+                .context(TransactionError)?;
+            transaction.commit().await.context(TransactionError)?;
+        }
 
         // We know this chunk is ParquetFile type
+        let chunk = chunk.read();
         Ok(DbChunk::parquet_file_snapshot(&chunk))
     }
 
@@ -701,13 +690,15 @@ impl Db {
 
         // Get the chunk from the catalog
         let chunk = {
-            let partition = self.catalog.valid_partition(partition_key).context(
-                UnloadingChunkFromReadBuffer {
+            let partition = self
+                .catalog
+                .state()
+                .valid_partition(partition_key)
+                .context(UnloadingChunkFromReadBuffer {
                     partition_key,
                     table_name,
                     chunk_id,
-                },
-            )?;
+                })?;
             let partition = partition.read();
 
             partition
@@ -812,7 +803,7 @@ impl Db {
     /// Return chunk summary information for all chunks in the specified
     /// partition across all storage systems
     pub fn partition_chunk_summaries(&self, partition_key: &str) -> Vec<ChunkSummary> {
-        self.catalog.filtered_chunks(
+        self.catalog.state().filtered_chunks(
             &PredicateBuilder::new().partition_key(partition_key).build(),
             CatalogChunk::summary,
         )
@@ -822,6 +813,7 @@ impl Db {
     /// partition across all storage systems
     pub fn partition_summary(&self, partition_key: &str) -> PartitionSummary {
         self.catalog
+            .state()
             .partition(partition_key)
             .map(|partition| partition.read().summary())
             .unwrap_or_else(|| PartitionSummary {
@@ -838,7 +830,7 @@ impl Db {
         table_name: &str,
         chunk_id: u32,
     ) -> Option<TableSummary> {
-        if let Some(partition) = self.catalog.partition(partition_key) {
+        if let Some(partition) = self.catalog.state().partition(partition_key) {
             let partition = partition.read();
             if let Ok(chunk) = partition.chunk(table_name, chunk_id) {
                 return Some(chunk.read().table_summary());
@@ -915,7 +907,7 @@ impl Db {
             return DatabaseNotWriteable {}.fail();
         }
         if let Some(hard_limit) = rules.lifecycle_rules.buffer_size_hard {
-            if self.catalog.metrics().memory().total() > hard_limit.get() {
+            if self.catalog.state().metrics().memory().total() > hard_limit.get() {
                 return HardLimitReached {}.fail();
             }
         }
@@ -926,7 +918,7 @@ impl Db {
         if let Some(partitioned_writes) = sequenced_entry.partition_writes() {
             for write in partitioned_writes {
                 let partition_key = write.key();
-                let partition = self.catalog.get_or_create_partition(partition_key);
+                let partition = self.catalog.state().get_or_create_partition(partition_key);
                 let mut partition = partition.write();
                 partition.update_last_write_at();
 
@@ -963,7 +955,7 @@ impl Db {
                                 table_batch.name(),
                                 MutableBufferChunkMetrics::new(
                                     &metrics,
-                                    self.catalog.metrics().memory().mutable_buffer(),
+                                    self.catalog.state().metrics().memory().mutable_buffer(),
                                 ),
                             );
 
@@ -1013,15 +1005,17 @@ impl Database for Db {
     /// Note there could/should be an error here (if the partition
     /// doesn't exist... but the trait doesn't have an error)
     fn chunks(&self, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
-        self.catalog.filtered_chunks(predicate, DbChunk::snapshot)
+        self.catalog
+            .state()
+            .filtered_chunks(predicate, DbChunk::snapshot)
     }
 
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
-        Ok(self.catalog.partition_keys())
+        Ok(self.catalog.state().partition_keys())
     }
 
     fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>> {
-        Ok(self.catalog.chunk_summaries())
+        Ok(self.catalog.state().chunk_summaries())
     }
 }
 
@@ -1040,10 +1034,115 @@ impl CatalogProvider for Db {
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         info!(%name, "using schema");
         match name {
-            DEFAULT_SCHEMA => Some(Arc::<Catalog>::clone(&self.catalog)),
+            DEFAULT_SCHEMA => Some(self.catalog.state()),
             SYSTEM_SCHEMA => Some(Arc::<SystemSchemaProvider>::clone(&self.system_tables)),
             _ => None,
         }
+    }
+}
+
+/// All input required to create an empty [`Catalog`](crate::db::catalog::Catalog).
+#[derive(Debug)]
+pub struct CatalogEmptyInput {
+    domain: ::metrics::Domain,
+    metrics_registry: Arc<::metrics::MetricRegistry>,
+    metric_labels: Vec<KeyValue>,
+}
+
+impl CatalogState for Catalog {
+    type EmptyInput = CatalogEmptyInput;
+
+    fn new_empty(data: Self::EmptyInput) -> Self {
+        Self::new(data.domain, data.metrics_registry, data.metric_labels)
+    }
+
+    fn clone_or_keep(origin: &Arc<Self>) -> Arc<Self> {
+        // no copy semantics
+        Arc::clone(origin)
+    }
+
+    fn add(
+        &self,
+        object_store: Arc<ObjectStore>,
+        server_id: ServerId,
+        db_name: &str,
+        info: CatalogParquetInfo,
+    ) -> parquet_file::catalog::Result<()> {
+        use parquet_file::catalog::{
+            CatalogStateFailure, PathParseFailed, SchemaReadFailed, StatisticsReadFailed,
+        };
+
+        // extract all relevant bits for the in-memory catalog
+        let storage = Storage::new(Arc::clone(&object_store), server_id, db_name.to_string());
+        let (partition_key, chunk_id, table_name) = storage
+            .parse_location(info.path.clone())
+            .context(PathParseFailed {
+                path: info.path.clone(),
+            })?;
+        let schema =
+            read_schema_from_parquet_metadata(&info.metadata).context(SchemaReadFailed {
+                path: info.path.clone(),
+            })?;
+        let (table_summary, timestamp_range) =
+            read_statistics_from_parquet_metadata(&info.metadata, &schema, &table_name).context(
+                StatisticsReadFailed {
+                    path: info.path.clone(),
+                },
+            )?;
+
+        // Create a parquet chunk for this chunk
+        let metrics = self
+            .metrics_registry
+            .register_domain_with_labels("parquet", self.metric_labels.clone());
+        let mut parquet_chunk = ParquetChunk::new(
+            partition_key.to_string(),
+            chunk_id,
+            ParquetChunkMetrics::new(&metrics, self.metrics().memory().parquet()),
+        );
+        parquet_chunk.add_table(
+            table_summary,
+            object_store.path_from_dirs_and_filename(info.path.clone()),
+            object_store,
+            schema,
+            timestamp_range,
+        );
+
+        // Get the chunk from the catalog
+        let chunk = {
+            let partition = self
+                .valid_partition(&partition_key)
+                .map_err(|e| Box::new(e) as _)
+                .context(CatalogStateFailure {
+                    path: info.path.clone(),
+                })?;
+            let partition = partition.read();
+
+            partition
+                .chunk(table_name.clone(), chunk_id)
+                .map_err(|e| Box::new(e) as _)
+                .context(CatalogStateFailure {
+                    path: info.path.clone(),
+                })?
+        };
+
+        // Relock the chunk again (nothing else should have been able
+        // to modify the chunk state while we were moving it
+        let mut chunk = chunk.write();
+
+        // update the catalog to say we are done processing
+        let parquet_chunk = Arc::clone(&Arc::new(parquet_chunk));
+        chunk
+            .set_written_to_object_store(parquet_chunk)
+            .map_err(|e| Box::new(e) as _)
+            .context(CatalogStateFailure { path: info.path })?;
+
+        debug!(%partition_key, %table_name, %chunk_id, "chunk marked WRITTEN. Persisting to object store complete");
+
+        Ok(())
+    }
+
+    fn remove(&self, _path: DirsAndFileName) -> parquet_file::catalog::Result<()> {
+        unimplemented!("parquet files cannot be removed from the catalog for now")
     }
 }
 
@@ -1784,7 +1883,7 @@ mod tests {
         let after_write = Utc::now();
 
         let last_write_prev = {
-            let partition = db.catalog.valid_partition(partition_key).unwrap();
+            let partition = db.catalog.state().valid_partition(partition_key).unwrap();
             let partition = partition.read();
 
             assert_ne!(partition.created_at(), partition.last_write_at());
@@ -1795,7 +1894,7 @@ mod tests {
 
         write_lp(&db, "cpu bar=1 20");
         {
-            let partition = db.catalog.valid_partition(partition_key).unwrap();
+            let partition = db.catalog.state().valid_partition(partition_key).unwrap();
             let partition = partition.read();
             assert!(last_write_prev < partition.last_write_at());
         }
@@ -1820,7 +1919,7 @@ mod tests {
             .id();
         let after_rollover = Utc::now();
 
-        let partition = db.catalog.valid_partition(partition_key).unwrap();
+        let partition = db.catalog.state().valid_partition(partition_key).unwrap();
         let partition = partition.read();
         let chunk = partition.chunk("cpu", chunk_id).unwrap();
         let chunk = chunk.read();
@@ -1848,10 +1947,10 @@ mod tests {
         write_lp(&db, "cpu bar=1 10");
         write_lp(&db, "cpu bar=1 20");
 
-        let partitions = db.catalog.partition_keys();
+        let partitions = db.catalog.state().partition_keys();
         assert_eq!(partitions.len(), 1);
 
-        let partition = db.catalog.partition(&partitions[0]).unwrap();
+        let partition = db.catalog.state().partition(&partitions[0]).unwrap();
         let partition = partition.read();
 
         let chunks: Vec<_> = partition.chunks().collect();
@@ -1872,7 +1971,7 @@ mod tests {
             order: Order::Desc,
             sort: Sort::LastWriteTime,
         };
-        let chunks = db.catalog.chunks_sorted_by(&sort_rules);
+        let chunks = db.catalog.state().chunks_sorted_by(&sort_rules);
         let partitions: Vec<_> = chunks
             .into_iter()
             .map(|x| x.read().key().to_string())
@@ -1884,7 +1983,7 @@ mod tests {
             order: Order::Asc,
             sort: Sort::CreatedAtTime,
         };
-        let chunks = db.catalog.chunks_sorted_by(&sort_rules);
+        let chunks = db.catalog.state().chunks_sorted_by(&sort_rules);
         let partitions: Vec<_> = chunks
             .into_iter()
             .map(|x| x.read().key().to_string())
@@ -1994,7 +2093,12 @@ mod tests {
             .sum();
 
         assert_eq!(
-            db.catalog.metrics().memory().mutable_buffer().get_total(),
+            db.catalog
+                .state()
+                .metrics()
+                .memory()
+                .mutable_buffer()
+                .get_total(),
             size
         );
 
@@ -2127,14 +2231,27 @@ mod tests {
         );
 
         assert_eq!(
-            db.catalog.metrics().memory().mutable_buffer().get_total(),
+            db.catalog
+                .state()
+                .metrics()
+                .memory()
+                .mutable_buffer()
+                .get_total(),
             100 + 129 + 131
         );
         assert_eq!(
-            db.catalog.metrics().memory().read_buffer().get_total(),
+            db.catalog
+                .state()
+                .metrics()
+                .memory()
+                .read_buffer()
+                .get_total(),
             1597
         );
-        assert_eq!(db.catalog.metrics().memory().parquet().get_total(), 89); // TODO: This 89 must be replaced with 691. Ticket #1311
+        assert_eq!(
+            db.catalog.state().metrics().memory().parquet().get_total(),
+            89
+        ); // TODO: This 89 must be replaced with 691. Ticket #1311
     }
 
     #[tokio::test]
@@ -2487,6 +2604,7 @@ mod tests {
 
         let partition_key = db
             .catalog
+            .state()
             .partitions()
             .next()
             .unwrap()
@@ -2494,7 +2612,7 @@ mod tests {
             .key()
             .to_string();
 
-        let chunks = db.catalog.chunks();
+        let chunks = db.catalog.state().chunks();
         assert_eq!(chunks.len(), 1);
 
         let chunk_a = Arc::clone(&chunks[0]);

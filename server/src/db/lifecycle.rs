@@ -271,7 +271,7 @@ impl ChunkMover for LifecycleManager {
     }
 
     fn chunks(&self, sort_order: &SortOrder) -> Vec<Arc<RwLock<Chunk>>> {
-        self.db.catalog.chunks_sorted_by(sort_order)
+        self.db.catalog.state().chunks_sorted_by(sort_order)
     }
 
     fn move_tracker(&self) -> Option<&TaskTracker<Job>> {
