@@ -169,7 +169,7 @@ async fn make_chunk_common(
     } else {
         Box::pin(MemoryStream::new(record_batches))
     };
-    let path = storage
+    let (path, _metadata) = storage
         .write_to_object_store(
             part_key.to_string(),
             chunk_id,
@@ -369,6 +369,7 @@ where
 fn create_column_timestamp(
     data: Vec<Vec<i64>>,
     arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    summaries: &mut Vec<ColumnSummary>,
     schema_builder: SchemaBuilder,
 ) -> (SchemaBuilder, TimestampRange) {
     assert_eq!(data.len(), arrow_cols.len());
@@ -379,10 +380,20 @@ fn create_column_timestamp(
         arrow_cols_sub.push((TIME_COLUMN_NAME.to_string(), Arc::clone(&array), true));
     }
 
-    let timestamp_range = TimestampRange::new(
-        *data.iter().flatten().min().unwrap(),
-        *data.iter().flatten().max().unwrap(),
-    );
+    let min = data.iter().flatten().min().cloned();
+    let max = data.iter().flatten().max().cloned();
+
+    summaries.push(ColumnSummary {
+        name: TIME_COLUMN_NAME.to_string(),
+        influxdb_type: Some(InfluxDbType::Timestamp),
+        stats: Statistics::I64(StatValues {
+            min,
+            max,
+            count: data.iter().map(Vec::len).sum::<usize>() as u64,
+        }),
+    });
+
+    let timestamp_range = TimestampRange::new(min.unwrap(), max.unwrap());
 
     let schema_builder = schema_builder.timestamp();
     (schema_builder, timestamp_range)
@@ -523,6 +534,7 @@ pub fn make_record_batch(
     let (schema_builder, timestamp_range) = create_column_timestamp(
         vec![vec![1000], vec![2000], vec![3000, 4000]],
         &mut arrow_cols,
+        &mut summaries,
         schema_builder,
     );
 
