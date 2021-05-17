@@ -155,18 +155,6 @@ pub enum Error {
         chunk_id: u32,
     },
 
-    #[snafu(display(
-        "Read Buffer Timestamp Error in chunk {}:{} : {}",
-        chunk_id,
-        table_name,
-        source
-    ))]
-    ReadBufferChunkTimestampError {
-        source: read_buffer::Error,
-        table_name: String,
-        chunk_id: u32,
-    },
-
     #[snafu(display("Error writing to object store: {}", source))]
     WritingToObjectStore {
         source: parquet_file::storage::Error,
@@ -1130,7 +1118,7 @@ impl CatalogState for Catalog {
         let mut chunk = chunk.write();
 
         // update the catalog to say we are done processing
-        let parquet_chunk = Arc::clone(&Arc::new(parquet_chunk));
+        let parquet_chunk = Arc::new(parquet_chunk);
         chunk
             .set_written_to_object_store(parquet_chunk)
             .map_err(|e| Box::new(e) as _)
