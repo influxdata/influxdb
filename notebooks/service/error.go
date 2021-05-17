@@ -18,6 +18,10 @@ var (
 		Code: errors.EInvalid,
 		Msg:  "limit cannot be less-than or equal-to zero",
 	}
+	ErrNotebookNotFound = &errors.Error{
+		Code: errors.ENotFound,
+		Msg:  "notebook not found",
+	}
 )
 
 func fieldRequiredError(field string) error {
