@@ -14,6 +14,7 @@
 //! consumer of these encodings.
 use std::cmp::Ordering;
 use std::fmt::Debug;
+use std::iter::FromIterator;
 use std::mem::size_of;
 
 use arrow::{
@@ -116,26 +117,30 @@ where
     //
     //
 
-    /// Return the logical (decoded) value at the provided row ID. A NULL value
+    /// Return the logical (decoded) value at the provided row ID according to
+    /// the logical type of the column, which is specified by `U`. A NULL value
     /// is represented by None.
-    pub fn value(&self, row_id: u32) -> Option<T::Native> {
+    pub fn value<U>(&self, row_id: u32) -> Option<U>
+    where
+        U: From<T::Native>,
+    {
         if self.arr.is_null(row_id as usize) {
             return None;
         }
-        Some(self.arr.value(row_id as usize))
+        Some(U::from(self.arr.value(row_id as usize)))
     }
 
-    /// Returns the logical (decoded) values for the provided row IDs.
+    /// Returns the logical (decoded) values for the provided row IDs according
+    /// to the logical type of the column, which is specified by `U`.
     ///
     /// NULL values are represented by None.
     ///
     /// TODO(edd): Perf - we should return a vector of values and a vector of
     /// integers representing the null validity bitmap.
-    pub fn values(
-        &self,
-        row_ids: &[u32],
-        mut dst: Vec<Option<T::Native>>,
-    ) -> Vec<Option<T::Native>> {
+    pub fn values<U>(&self, row_ids: &[u32], mut dst: Vec<Option<U>>) -> Vec<Option<U>>
+    where
+        U: From<T::Native>,
+    {
         dst.clear();
         dst.reserve(row_ids.len());
 
@@ -143,20 +148,24 @@ where
             if self.arr.is_null(row_id as usize) {
                 dst.push(None)
             } else {
-                dst.push(Some(self.arr.value(row_id as usize)))
+                dst.push(Some(U::from(self.arr.value(row_id as usize))))
             }
         }
         assert_eq!(dst.len(), row_ids.len());
         dst
     }
 
-    /// Returns the logical (decoded) values for all the rows in the column.
+    /// Returns the logical (decoded) values for all the rows in the column
+    /// according to the logical type of the column, which is specified by `U`.
     ///
     /// NULL values are represented by None.
     ///
     /// TODO(edd): Perf - we should return a vector of values and a vector of
     /// integers representing the null validity bitmap.
-    pub fn all_values(&self, mut dst: Vec<Option<T::Native>>) -> Vec<Option<T::Native>> {
+    pub fn all_values<U>(&self, mut dst: Vec<Option<U>>) -> Vec<Option<U>>
+    where
+        U: From<T::Native>,
+    {
         dst.clear();
         dst.reserve(self.arr.len());
 
@@ -164,7 +173,7 @@ where
             if self.arr.is_null(i) {
                 dst.push(None)
             } else {
-                dst.push(Some(self.arr.value(i)))
+                dst.push(Some(U::from(self.arr.value(i))))
             }
         }
         assert_eq!(dst.len(), self.num_rows() as usize);
@@ -202,23 +211,23 @@ where
     /// this implementation (about 85% in the `sum` case). We will revisit
     /// them in the future as they do would the implementation of these
     /// aggregation functions.
-    pub fn sum(&self, row_ids: &[u32]) -> Option<T::Native>
+    pub fn sum<U>(&self, row_ids: &[u32]) -> Option<U>
     where
-        T::Native: std::ops::Add<Output = T::Native>,
+        U: Default + From<T::Native> + std::ops::Add<Output = U>,
     {
-        let mut result = T::Native::default();
+        let mut result = U::default();
 
         if self.arr.null_count() == 0 {
             for chunks in row_ids.chunks_exact(4) {
-                result = result + self.arr.value(chunks[3] as usize);
-                result = result + self.arr.value(chunks[2] as usize);
-                result = result + self.arr.value(chunks[1] as usize);
-                result = result + self.arr.value(chunks[0] as usize);
+                result = result + U::from(self.arr.value(chunks[3] as usize));
+                result = result + U::from(self.arr.value(chunks[2] as usize));
+                result = result + U::from(self.arr.value(chunks[1] as usize));
+                result = result + U::from(self.arr.value(chunks[0] as usize));
             }
 
             let rem = row_ids.len() % 4;
             for &i in &row_ids[row_ids.len() - rem..row_ids.len()] {
-                result = result + self.arr.value(i as usize);
+                result = result + U::from(self.arr.value(i as usize));
             }
 
             return Some(result);
@@ -230,7 +239,7 @@ where
                 continue;
             }
             is_none = false;
-            result = result + self.arr.value(i as usize);
+            result = result + U::from(self.arr.value(i as usize));
         }
 
         if is_none {
@@ -241,20 +250,29 @@ where
 
     /// Returns the first logical (decoded) value from the provided
     /// row IDs.
-    pub fn first(&self, row_ids: &[u32]) -> Option<T::Native> {
+    pub fn first<U>(&self, row_ids: &[u32]) -> Option<U>
+    where
+        U: From<T::Native>,
+    {
         self.value(row_ids[0])
     }
 
     /// Returns the last logical (decoded) value from the provided
     /// row IDs.
-    pub fn last(&self, row_ids: &[u32]) -> Option<T::Native> {
+    pub fn last<U>(&self, row_ids: &[u32]) -> Option<U>
+    where
+        U: From<T::Native>,
+    {
         self.value(row_ids[row_ids.len() - 1])
     }
 
     /// Returns the minimum logical (decoded) non-null value from the provided
     /// row IDs.
-    pub fn min(&self, row_ids: &[u32]) -> Option<T::Native> {
-        let mut min: Option<T::Native> = self.value(row_ids[0]);
+    pub fn min<U>(&self, row_ids: &[u32]) -> Option<U>
+    where
+        U: From<T::Native> + PartialOrd,
+    {
+        let mut min: Option<U> = self.value(row_ids[0]);
         for &v in row_ids.iter().skip(1) {
             if self.arr.is_null(v as usize) {
                 continue;
@@ -269,8 +287,11 @@ where
 
     /// Returns the maximum logical (decoded) non-null value from the provided
     /// row IDs.
-    pub fn max(&self, row_ids: &[u32]) -> Option<T::Native> {
-        let mut max: Option<T::Native> = self.value(row_ids[0]);
+    pub fn max<U>(&self, row_ids: &[u32]) -> Option<U>
+    where
+        U: From<T::Native> + PartialOrd,
+    {
+        let mut max: Option<U> = self.value(row_ids[0]);
         for &v in row_ids.iter().skip(1) {
             if self.arr.is_null(v as usize) {
                 continue;
@@ -414,11 +435,11 @@ where
     ///     `x {>, >=, <, <=} value1 AND x {>, >=, <, <=} value2`.
     pub fn row_ids_filter_range(
         &self,
-        left: (T::Native, cmp::Operator),
-        right: (T::Native, cmp::Operator),
+        left: (T::Native, &cmp::Operator),
+        right: (T::Native, &cmp::Operator),
         dst: RowIDs,
     ) -> RowIDs {
-        match (&left.1, &right.1) {
+        match (left.1, right.1) {
             (cmp::Operator::GT, cmp::Operator::LT)
             | (cmp::Operator::GT, cmp::Operator::LTE)
             | (cmp::Operator::GTE, cmp::Operator::LT)
@@ -509,81 +530,93 @@ where
 
 // This macro implements the From trait for slices of various logical types.
 //
-// Here is an example implementation:
+// Here are example implementations:
 //
-//  impl From<&[i64]> for FixedNull<arrow::datatypes::Int64Type> {
-//      fn from(v: &[i64]) -> Self {
+//  impl From<Vec<i64>> for FixedNull<Int64Type> {
+//      fn from(v: Vec<i64>) -> Self {
 //          Self{
-//              arr: PrimitiveArray::from(v.to_vec()),
+//              arr: PrimitiveArray::from(v),
 //          }
 //      }
 //  }
 //
-//  impl From<&[Option<i64>]> for
-// FixedNull<arrow::datatypes::Int64Type> {      fn from(v: &[i64])
-// -> Self {          Self{
-//              arr: PrimitiveArray::from(v.to_vec()),
+//  impl From<&[i64]> for FixedNull<Int64Type> {
+//      fn from(v: &[i64]) -> Self {
+//          Self::from(v.to_vec())
+//      }
+//  }
+//
+//  impl From<Vec<Option<i64>>> for FixedNull<Int64Type> {
+//      fn from(v: Vec<Option<i64>>) -> Self {
+//          Self{
+//              arr: PrimitiveArray::from(v),
 //          }
 //      }
 //  }
 //
-
-macro_rules! fixed_from_slice_impls {
+//  impl From<&[Option<i64>]> for FixedNull<Int64Type> {
+//      fn from(v: &[i64]) -> Self {
+//          Self::from(v.to_vec())
+//      }
+//  }
+//
+macro_rules! fixed_null_from_native_types {
     ($(($type_from:ty, $type_to:ty),)*) => {
         $(
+            impl From<Vec<$type_from>> for FixedNull<$type_to> {
+                fn from(v: Vec<$type_from>) -> Self {
+                    Self{
+                        arr: PrimitiveArray::from(v),
+                    }
+                }
+            }
+
             impl From<&[$type_from]> for FixedNull<$type_to> {
                 fn from(v: &[$type_from]) -> Self {
+                    Self::from(v.to_vec())
+                }
+            }
+
+            impl From<Vec<Option<$type_from>>> for FixedNull<$type_to> {
+                fn from(v: Vec<Option<$type_from>>) -> Self {
                     Self{
-                        arr: PrimitiveArray::from(v.to_vec()),
+                        arr: PrimitiveArray::from(v),
                     }
                 }
             }
 
             impl From<&[Option<$type_from>]> for FixedNull<$type_to> {
                 fn from(v: &[Option<$type_from>]) -> Self {
-                    Self{
-                        arr: PrimitiveArray::from(v.to_vec()),
-                    }
+                    Self::from(v.to_vec())
                 }
             }
         )*
     };
 }
 
-// Supported logical and physical datatypes for the FixedNull encoding.
-//
-// Need to look at possibility of initialising smaller datatypes...
-fixed_from_slice_impls! {
+fixed_null_from_native_types! {
     (i64, arrow::datatypes::Int64Type),
-    //  (i64, arrow::datatypes::Int32Type),
-    //  (i64, arrow::datatypes::Int16Type),
-    //  (i64, arrow::datatypes::Int8Type),
-    //  (i64, arrow::datatypes::UInt32Type),
-    //  (i64, arrow::datatypes::UInt16Type),
-    //  (i64, arrow::datatypes::UInt8Type),
-     (i32, arrow::datatypes::Int32Type),
-    //  (i32, arrow::datatypes::Int16Type),
-    //  (i32, arrow::datatypes::Int8Type),
-    //  (i32, arrow::datatypes::UInt16Type),
-    //  (i32, arrow::datatypes::UInt8Type),
-     (i16, arrow::datatypes::Int16Type),
-    //  (i16, arrow::datatypes::Int8Type),
-    //  (i16, arrow::datatypes::UInt8Type),
-     (i8, arrow::datatypes::Int8Type),
-     (u64, arrow::datatypes::UInt64Type),
-    //  (u64, arrow::datatypes::UInt32Type),
-    //  (u64, arrow::datatypes::UInt16Type),
-    //  (u64, arrow::datatypes::UInt8Type),
-     (u32, arrow::datatypes::UInt32Type),
-    //  (u32, arrow::datatypes::UInt16Type),
-    //  (u32, arrow::datatypes::UInt8Type),
-     (u16, arrow::datatypes::UInt16Type),
-    //  (u16, arrow::datatypes::UInt8Type),
-     (u8, arrow::datatypes::UInt8Type),
-     (f64, arrow::datatypes::Float64Type),
+    (i32, arrow::datatypes::Int32Type),
+    (i16, arrow::datatypes::Int16Type),
+    (i8, arrow::datatypes::Int8Type),
+    (u64, arrow::datatypes::UInt64Type),
+    (u32, arrow::datatypes::UInt32Type),
+    (u16, arrow::datatypes::UInt16Type),
+    (u8, arrow::datatypes::UInt8Type),
+    (f64, arrow::datatypes::Float64Type),
 }
 
-macro_rules! fixed_from_arrow_impls {
+// This macro implements the From trait for Arrow arrays
+//
+// Implementation:
+//
+//  impl From<Int64Array> for FixedNull<Int64Type> {
+//      fn from(arr: Int64Array) -> Self {
+//          Self{arr}
+//      }
+//  }
+//
+macro_rules! fixed_null_from_arrow_types {
     ($(($type_from:ty, $type_to:ty),)*) => {
         $(
             impl From<$type_from> for FixedNull<$type_to> {
@@ -595,25 +628,74 @@ macro_rules! fixed_from_arrow_impls {
     };
 }
 
-// Supported logical and physical datatypes for the Plain encoding.
-//
-// Need to look at possibility of initialising smaller datatypes...
-fixed_from_arrow_impls! {
+fixed_null_from_arrow_types! {
     (arrow::array::Int64Array, arrow::datatypes::Int64Type),
     (arrow::array::UInt64Array, arrow::datatypes::UInt64Type),
     (arrow::array::Float64Array, arrow::datatypes::Float64Type),
+}
 
-    // TODO(edd): add more datatypes
+// This macro implements the From trait for Arrow arrays where some down-casting
+// to a smaller physical type happens. It is the caller's responsibility to
+// ensure that this down-casting is safe.
+//
+// Example implementation:
+//
+//  impl From<Int64Array> for FixedNull<Int32Type> {
+//    fn from(arr: Int64Array) -> Self {
+//      let arr: PrimitiveArray<Int32Type> =
+//          PrimitiveArray::from_iter(arr.iter().map(|v| v.map(|v| v as i32)));
+//      Self { arr }
+//    }
+//  }
+//
+macro_rules! fixed_null_from_arrow_types_down_cast {
+    ($(($type_from:ty, $type_to:ty, $rust_type:ty),)*) => {
+        $(
+            impl From<$type_from> for FixedNull<$type_to> {
+                fn from(arr: $type_from) -> Self {
+                    let arr: PrimitiveArray<$type_to> =
+                        PrimitiveArray::from_iter(arr.iter().map(|v| v.map(|v| v as $rust_type)));
+                    Self { arr }
+                }
+            }
+        )*
+    };
+}
+
+fixed_null_from_arrow_types_down_cast! {
+    (arrow::array::Int64Array, arrow::datatypes::Int32Type, i32),
+    (arrow::array::Int64Array, arrow::datatypes::UInt32Type, u32),
+    (arrow::array::Int64Array, arrow::datatypes::Int16Type, i16),
+    (arrow::array::Int64Array, arrow::datatypes::UInt16Type, u16),
+    (arrow::array::Int64Array, arrow::datatypes::Int8Type, i8),
+    (arrow::array::Int64Array, arrow::datatypes::UInt8Type, u8),
+    (arrow::array::UInt64Array, arrow::datatypes::UInt32Type, u32),
+    (arrow::array::UInt64Array, arrow::datatypes::UInt16Type, u16),
+    (arrow::array::UInt64Array, arrow::datatypes::UInt8Type, u8),
 }
 
 #[cfg(test)]
 mod test {
     use super::cmp::Operator;
     use super::*;
+    use arrow::array::*;
     use arrow::datatypes::*;
 
     fn some_vec<T: Copy>(v: Vec<T>) -> Vec<Option<T>> {
         v.iter().map(|x| Some(*x)).collect()
+    }
+
+    #[test]
+    fn from_arrow_downcast() {
+        let arr = Int64Array::from(vec![100, u8::MAX as i64]);
+        let exp_values = arr.iter().collect::<Vec<Option<i64>>>();
+        let enc: FixedNull<UInt8Type> = FixedNull::from(arr);
+        assert_eq!(enc.all_values(vec![]), exp_values);
+
+        let arr = Int64Array::from(vec![100, i32::MAX as i64]);
+        let exp_values = arr.iter().collect::<Vec<Option<i64>>>();
+        let enc: FixedNull<UInt32Type> = FixedNull::from(arr);
+        assert_eq!(enc.all_values(vec![]), exp_values);
     }
 
     #[test]
@@ -879,36 +961,36 @@ mod test {
         );
 
         let row_ids = v.row_ids_filter_range(
-            (100, Operator::GTE),
-            (240, Operator::LT),
+            (100, &Operator::GTE),
+            (240, &Operator::LT),
             RowIDs::new_vector(),
         );
         assert_eq!(row_ids.to_vec(), vec![0, 1, 5, 6, 13, 17]);
 
         let row_ids = v.row_ids_filter_range(
-            (100, Operator::GT),
-            (240, Operator::LT),
+            (100, &Operator::GT),
+            (240, &Operator::LT),
             RowIDs::new_vector(),
         );
         assert_eq!(row_ids.to_vec(), vec![1, 6, 13]);
 
         let row_ids = v.row_ids_filter_range(
-            (10, Operator::LT),
-            (-100, Operator::GT),
+            (10, &Operator::LT),
+            (-100, &Operator::GT),
             RowIDs::new_vector(),
         );
         assert_eq!(row_ids.to_vec(), vec![11, 14, 15]);
 
         let row_ids = v.row_ids_filter_range(
-            (21, Operator::GTE),
-            (21, Operator::LTE),
+            (21, &Operator::GTE),
+            (21, &Operator::LTE),
             RowIDs::new_vector(),
         );
         assert_eq!(row_ids.to_vec(), vec![16]);
 
         let row_ids = v.row_ids_filter_range(
-            (10000, Operator::LTE),
-            (3999, Operator::GT),
+            (10000, &Operator::LTE),
+            (3999, &Operator::GT),
             RowIDs::new_vector(),
         );
         assert_eq!(row_ids.to_vec(), Vec::<u32>::new());
@@ -926,8 +1008,8 @@ mod test {
             .as_slice(),
         );
         let row_ids = v.row_ids_filter_range(
-            (200, Operator::GTE),
-            (300, Operator::LTE),
+            (200, &Operator::GTE),
+            (300, &Operator::LTE),
             RowIDs::new_vector(),
         );
         assert_eq!(row_ids.to_vec(), vec![1, 2, 4]);
