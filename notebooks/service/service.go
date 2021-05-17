@@ -22,10 +22,10 @@ type NotebookSpec map[string]interface{}
 
 // NotebookService is the service contract for Notebooks.
 type NotebookService interface {
-	GetNotebook(ctx context.Context, orgID platform.ID, id platform.ID) (*Notebook, error)
-	CreateNotebook(ctx context.Context, create NotebookCreate) (*Notebook, error)
-	UpdateNotebook(ctx context.Context, orgID platform.ID, id platform.ID, update NotebookUpdate) (*Notebook, error)
-	DeleteNotebook(ctx context.Context, orgID platform.ID, id platform.ID) error
+	GetNotebook(ctx context.Context, id platform.ID) (*Notebook, error)
+	CreateNotebook(ctx context.Context, create *NotebookReqBody) (*Notebook, error)
+	UpdateNotebook(ctx context.Context, id platform.ID, update *NotebookReqBody) (*Notebook, error)
+	DeleteNotebook(ctx context.Context, id platform.ID) error
 	ListNotebooks(ctx context.Context, filter NotebookListFilter) ([]*Notebook, error)
 }
 
@@ -52,32 +52,18 @@ func (p Page) Validate() error {
 	return nil
 }
 
-// NotebookCreate contains fields for creating notebooks.
-type NotebookCreate struct {
-	OrgID platform.ID
-	Name  string
-	Spec  NotebookSpec
+// NotebookReqBody contains fields for creating or updating notebooks.
+type NotebookReqBody struct {
+	OrgID platform.ID  `json:"orgID"`
+	Name  string       `json:"name"`
+	Spec  NotebookSpec `json:"spec"`
 }
 
 // Validate validates the creation object
-func (n NotebookCreate) Validate() error {
+func (n NotebookReqBody) Validate() error {
 	if !n.OrgID.Valid() {
 		return ErrOrgIDRequired
 	}
-	if n.Name == "" {
-		return ErrNameRequired
-	}
-	return nil
-}
-
-// NotebookUpdate represents an update request.
-type NotebookUpdate struct {
-	Name string
-	Spec NotebookSpec
-}
-
-// Validate validates the update object
-func (n NotebookUpdate) Validate() error {
 	if n.Name == "" {
 		return ErrNameRequired
 	}
