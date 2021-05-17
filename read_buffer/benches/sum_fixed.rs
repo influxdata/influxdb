@@ -116,7 +116,7 @@ fn benchmark_none_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum(&input);
+                                            let _ = encoding.sum::<i64>(&input);
                                         });
                                     },
                                 );
@@ -142,7 +142,7 @@ fn benchmark_none_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum::<i32>(&input);
+                                            let _ = encoding.sum::<i64>(&input);
                                         });
                                     },
                                 );
@@ -161,7 +161,7 @@ fn benchmark_none_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum(&input);
+                                            let _ = encoding.sum::<i64>(&input);
                                         });
                                     },
                                 );
@@ -187,7 +187,7 @@ fn benchmark_none_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum::<i16>(&input);
+                                            let _ = encoding.sum::<i64>(&input);
                                         });
                                     },
                                 );
@@ -206,7 +206,7 @@ fn benchmark_none_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum(&input);
+                                            let _ = encoding.sum::<i64>(&input);
                                         });
                                     },
                                 );

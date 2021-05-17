@@ -21,7 +21,7 @@ use arrow::array::Array;
 
 use crate::column::{cmp, RowIDs};
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, PartialOrd)]
 /// A Fixed encoding is one in which every value has a fixed width, and is
 /// stored contiguous in a backing vector. Fixed encodings do not support NULL
 /// values, so are suitable for columns known to not have NULL values that we
@@ -566,13 +566,6 @@ macro_rules! fixed_from_arrow_impls {
 }
 
 fixed_from_arrow_impls! {
-    (&arrow::array::Int64Array, i64),
-    (&arrow::array::Int64Array, i32),
-    (&arrow::array::Int64Array, i16),
-    (&arrow::array::Int64Array, i8),
-    (&arrow::array::Int64Array, u32),
-    (&arrow::array::Int64Array, u16),
-    (&arrow::array::Int64Array, u8),
     (arrow::array::Int64Array, i64),
     (arrow::array::Int64Array, i32),
     (arrow::array::Int64Array, i16),
@@ -581,10 +574,6 @@ fixed_from_arrow_impls! {
     (arrow::array::Int64Array, u16),
     (arrow::array::Int64Array, u8),
 
-    (&arrow::array::UInt64Array, u64),
-    (&arrow::array::UInt64Array, u32),
-    (&arrow::array::UInt64Array, u16),
-    (&arrow::array::UInt64Array, u8),
     (arrow::array::UInt64Array, u64),
     (arrow::array::UInt64Array, u32),
     (arrow::array::UInt64Array, u16),
