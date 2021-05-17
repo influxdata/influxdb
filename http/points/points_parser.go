@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"time"
@@ -15,8 +16,6 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/opentracing/opentracing-go"
-	"go.uber.org/zap"
-	"istio.io/pkg/log"
 )
 
 var (
@@ -84,7 +83,7 @@ func (pw *Parser) parsePoints(ctx context.Context, orgID, bucketID platform.ID, 
 	span.LogKV("values_total", len(points))
 	span.Finish()
 	if err != nil {
-		log.Error("Error parsing points", zap.Error(err))
+		tracing.LogError(span, fmt.Errorf("error parsing points: %v", err))
 
 		code := errors2.EInvalid
 		// TODO - backport these
