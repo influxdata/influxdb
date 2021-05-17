@@ -112,7 +112,6 @@ require (
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200121175148-a6ecf24a6d71
 	honnef.co/go/tools v0.0.1-2020.1.4
-	istio.io/pkg v0.0.0-20200606170016-70c5172b9cdf
 	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
