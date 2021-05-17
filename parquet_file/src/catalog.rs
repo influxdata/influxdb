@@ -877,27 +877,21 @@ where
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::{cell::RefCell, num::NonZeroU32, ops::Deref};
-
-    use crate::{
-        metadata::{read_parquet_metadata_from_file, read_statistics_from_parquet_metadata},
-        storage::read_schema_from_parquet_metadata,
-        utils::{load_parquet_from_store, make_chunk, make_object_store},
-    };
-    use object_store::parsed_path;
-
+pub mod test_helpers {
     use super::*;
+    use std::{cell::RefCell, ops::Deref};
 
+    /// Part that actually holds the data of [`TestCatalogState`].
     #[derive(Clone, Debug)]
-    struct TestCatalogStateInner {
+    pub struct TestCatalogStateInner {
+        /// Map of all parquet files that are currently registered.
         pub parquet_files: HashMap<DirsAndFileName, ParquetMetaData>,
     }
 
     /// In-memory catalog state, for testing.
     #[derive(Clone, Debug)]
-    struct TestCatalogState {
+    pub struct TestCatalogState {
+        /// Inner mutable state.
         pub inner: RefCell<TestCatalogStateInner>,
     }
 
@@ -950,6 +944,21 @@ mod tests {
             Ok(())
         }
     }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use std::{num::NonZeroU32, ops::Deref};
+
+    use crate::{
+        metadata::{read_parquet_metadata_from_file, read_statistics_from_parquet_metadata},
+        storage::read_schema_from_parquet_metadata,
+        utils::{load_parquet_from_store, make_chunk, make_object_store},
+    };
+    use object_store::parsed_path;
+
+    use super::test_helpers::TestCatalogState;
+    use super::*;
 
     #[tokio::test]
     async fn test_inmem_commit_semantics() {
