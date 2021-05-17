@@ -1062,6 +1062,7 @@ impl CatalogState for Catalog {
 
         // extract all relevant bits for the in-memory catalog
         let storage = Storage::new(Arc::clone(&object_store), server_id, db_name.to_string());
+        // this is temporary until https://github.com/influxdata/influxdb_iox/issues/1506 is fixed.
         let (partition_key, chunk_id, table_name) = storage
             .parse_location(info.path.clone())
             .context(PathParseFailed {
