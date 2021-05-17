@@ -220,8 +220,27 @@ pub struct PreservedCatalog<S>
 where
     S: CatalogState,
 {
+    // We need an RWLock AND a semaphore, so that readers are NOT blocked during an open transactions. Note that this
+    // requires a new transaction to:
+    //
+    // 1. acquire the semaphore
+    //
+    // 2. get an writer lock (reader-visible critical section start)
+    // 3. call `CatalogState::clone_or_keep` to get a new transaction-local state
+    // 4. release writer lock (reader-visible critical section ends)
+    //
+    // 5. perform all transaction edits (e.g. adding parquet files)
+    //
+    // 6. get an writer lock (reader-visible critical section start)
+    // 7. swap transaction-local state w/ global state
+    // 8. release writer lock (reader-visible critical section ends)
+    //
+    // 9. release semaphore
+    //
+    // Note that there can only be a single transaction that acquires the semaphore.
     inner: RwLock<PreservedCatalogInner<S>>,
     transaction_semaphore: Semaphore,
+
     object_store: Arc<ObjectStore>,
     server_id: ServerId,
     db_name: String,
@@ -349,6 +368,11 @@ where
     }
 
     /// Open a new transaction.
+    ///
+    /// Note that only a single transaction can be open at any time. This call will `await` until any outstanding
+    /// transaction handle is dropped. The newly created transaction will contain the state after `await` (esp.
+    /// post-blocking). This system is fair, which means that transactions are given out in the order they were
+    /// requested.
     pub async fn open_transaction(&self) -> TransactionHandle<'_, S> {
         TransactionHandle::new(self).await
     }
@@ -557,6 +581,7 @@ impl<S> OpenTransaction<S>
 where
     S: CatalogState,
 {
+    /// Private API to create new transaction, users should always use [`PreservedCatalog::open_transaction`].
     fn new(catalog_inner: &PreservedCatalogInner<S>) -> Self {
         let (revision_counter, previous_uuid) = match &catalog_inner.previous_tkey {
             Some(tkey) => (tkey.revision_counter + 1, tkey.uuid.to_string()),
