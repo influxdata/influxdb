@@ -14,6 +14,7 @@
 1. [21375](https://github.com/influxdata/influxdb/pull/21375): Add logging to NATS streaming server to help debug startup failures.
 1. [21477](https://github.com/influxdata/influxdb/pull/21477): Accept `--input` instead of a positional arg in `influx restore`.
 1. [21477](https://github.com/influxdata/influxdb/pull/21477): Print error instead of panicking when `influx restore` fails to find backup manifests.
+1. [21481](https://github.com/influxdata/influxdb/pull/21481): Set last-modified time of empty shard directory to the directory's mod time instead of Unix epoch.
 
 ## v2.0.6 [2021-04-29]
 
