@@ -672,7 +672,7 @@ mod tests {
         let n_rows = parquet_metadata.md.file_metadata().num_rows() as u64;
         assert!(n_rows >= parquet_metadata.md.num_row_groups() as u64);
         for summary in &chunk.table_summary().columns {
-            assert_eq!(summary.count(), n_rows);
+            assert!(summary.count() <= n_rows);
         }
 
         // check column names
