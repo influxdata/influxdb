@@ -6,10 +6,14 @@ use std::{
 use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
 use metrics::MetricRegistry;
 use object_store::{path::ObjectStorePath, ObjectStore};
+use parquet_file::catalog::PreservedCatalog;
 use query::exec::Executor;
 
 /// This module contains code for managing the configuration of the server.
-use crate::{db::Db, Error, JobRegistry, Result};
+use crate::{
+    db::{catalog::Catalog, Db},
+    Error, JobRegistry, Result,
+};
 use observability_deps::tracing::{self, error, info, warn, Instrument};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -125,6 +129,7 @@ impl Config {
         server_id: ServerId,
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
+        preserved_catalog: PreservedCatalog<Catalog>,
     ) {
         let mut state = self.state.write().expect("mutex poisoned");
         let name = state
@@ -148,7 +153,7 @@ impl Config {
             exec,
             write_buffer,
             Arc::clone(&self.jobs),
-            Arc::clone(&self.metric_registry),
+            preserved_catalog,
         ));
 
         let shutdown = self.shutdown.child_token();
@@ -202,6 +207,10 @@ impl Config {
         }
 
         info!("database background workers shutdown");
+    }
+
+    pub fn metrics_registry(&self) -> Arc<MetricRegistry> {
+        Arc::clone(&self.metric_registry)
     }
 }
 
@@ -274,9 +283,15 @@ impl<'a> CreateDatabaseHandle<'a> {
         server_id: ServerId,
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
+        preserved_catalog: PreservedCatalog<Catalog>,
     ) {
-        self.config
-            .commit(self.rules.take().unwrap(), server_id, object_store, exec)
+        self.config.commit(
+            self.rules.take().unwrap(),
+            server_id,
+            object_store,
+            exec,
+            preserved_catalog,
+        )
     }
 
     pub(crate) fn rules(&self) -> &DatabaseRules {
@@ -298,6 +313,8 @@ mod test {
 
     use object_store::{memory::InMemory, ObjectStore, ObjectStoreApi};
 
+    use crate::db::load_preserved_catalog;
+
     use super::*;
 
     #[tokio::test]
@@ -317,7 +334,15 @@ mod test {
         let server_id = ServerId::try_from(1).unwrap();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let exec = Arc::new(Executor::new(1));
-        db_reservation.commit(server_id, store, exec);
+        let preserved_catalog = load_preserved_catalog(
+            &name,
+            Arc::clone(&store),
+            server_id,
+            config.metrics_registry(),
+        )
+        .await
+        .unwrap();
+        db_reservation.commit(server_id, store, exec, preserved_catalog);
         assert!(config.db(&name).is_some());
         assert_eq!(config.db_names_sorted(), vec![name.clone()]);
 
@@ -345,7 +370,15 @@ mod test {
         let server_id = ServerId::try_from(1).unwrap();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let exec = Arc::new(Executor::new(1));
-        db_reservation.commit(server_id, store, exec);
+        let preserved_catalog = load_preserved_catalog(
+            &name,
+            Arc::clone(&store),
+            server_id,
+            config.metrics_registry(),
+        )
+        .await
+        .unwrap();
+        db_reservation.commit(server_id, store, exec, preserved_catalog);
 
         let token = config
             .state

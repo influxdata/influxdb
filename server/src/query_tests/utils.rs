@@ -7,7 +7,11 @@ use data_types::{
 use object_store::{memory::InMemory, ObjectStore};
 use query::{exec::Executor, Database};
 
-use crate::{buffer::Buffer, db::Db, JobRegistry};
+use crate::{
+    buffer::Buffer,
+    db::{load_preserved_catalog, Db},
+    JobRegistry,
+};
 use std::{borrow::Cow, convert::TryFrom, sync::Arc};
 
 // A wrapper around a Db and a metrics registry allowing for isolated testing
@@ -37,7 +41,7 @@ impl TestDbBuilder {
         Self::default()
     }
 
-    pub fn build(self) -> TestDb {
+    pub async fn build(self) -> TestDb {
         let server_id = self
             .server_id
             .unwrap_or_else(|| ServerId::try_from(1).unwrap());
@@ -64,9 +68,17 @@ impl TestDbBuilder {
         } else {
             None
         };
+        let preserved_catalog = load_preserved_catalog(
+            db_name.as_str(),
+            Arc::clone(&object_store),
+            server_id,
+            Arc::clone(&metrics_registry),
+        )
+        .await
+        .unwrap();
 
         TestDb {
-            metric_registry: metrics::TestMetricRegistry::new(Arc::clone(&metrics_registry)),
+            metric_registry: metrics::TestMetricRegistry::new(metrics_registry),
             db: Db::new(
                 DatabaseRules::new(db_name),
                 server_id,
@@ -74,7 +86,7 @@ impl TestDbBuilder {
                 exec,
                 write_buffer,
                 Arc::new(JobRegistry::new()),
-                metrics_registry,
+                preserved_catalog,
             ),
         }
     }
@@ -101,8 +113,8 @@ impl TestDbBuilder {
 }
 
 /// Used for testing: create a Database with a local store
-pub fn make_db() -> TestDb {
-    TestDb::builder().build()
+pub async fn make_db() -> TestDb {
+    TestDb::builder().build().await
 }
 
 fn chunk_summary_iter(db: &Db) -> impl Iterator<Item = ChunkSummary> + '_ {
