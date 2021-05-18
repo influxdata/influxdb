@@ -36,7 +36,7 @@ impl DbSetup for NoData {
 
         // Scenario 1: No data in the DB yet
         //
-        let db = make_db().db;
+        let db = make_db().await.db;
         let scenario1 = DbScenario {
             scenario_name: "New, Empty Database".into(),
             db,
@@ -45,7 +45,7 @@ impl DbSetup for NoData {
         // Scenario 2: listing partitions (which may create an entry in a map)
         // in an empty database
         //
-        let db = make_db().db;
+        let db = make_db().await.db;
         assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 0);
         assert_eq!(count_object_store_chunks(&db), 0);
@@ -56,7 +56,7 @@ impl DbSetup for NoData {
 
         // Scenario 3: the database has had data loaded into RB and then deleted
         //
-        let db = make_db().db;
+        let db = make_db().await.db;
         let data = "cpu,region=west user=23.2 100";
         write_lp(&db, data);
         // move data out of open chunk
@@ -94,7 +94,7 @@ impl DbSetup for NoData {
 
         // Scenario 4: the database has had data loaded into RB & Object Store and then deleted
         //
-        let db = make_db().db;
+        let db = make_db().await.db;
         let data = "cpu,region=west user=23.2 100";
         write_lp(&db, data);
         // move data out of open chunk
@@ -253,7 +253,7 @@ pub struct TwoMeasurementsManyFieldsOneChunk {}
 #[async_trait]
 impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
     async fn make(&self) -> Vec<DbScenario> {
-        let db = make_db().db;
+        let db = make_db().await.db;
 
         let lp_lines = vec![
             "h2o,state=MA,city=Boston temp=70.4 50",
@@ -277,7 +277,7 @@ pub struct TwoMeasurementsManyFieldsTwoChunks {}
 #[async_trait]
 impl DbSetup for TwoMeasurementsManyFieldsTwoChunks {
     async fn make(&self) -> Vec<DbScenario> {
-        let db = make_db().db;
+        let db = make_db().await.db;
 
         let partition_key = "1970-01-01T00";
 
@@ -314,7 +314,7 @@ impl DbSetup for TwoMeasurementsManyFieldsLifecycle {
     async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
-        let db = std::sync::Arc::new(make_db().db);
+        let db = std::sync::Arc::new(make_db().await.db);
 
         write_lp(
             &db,
@@ -397,7 +397,7 @@ impl DbSetup for EndToEndTest {
 
         let lp_data = lp_lines.join("\n");
 
-        let db = make_db().db;
+        let db = make_db().await.db;
         write_lp(&db, &lp_data);
 
         let scenario1 = DbScenario {
@@ -413,7 +413,7 @@ impl DbSetup for EndToEndTest {
 ///
 pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) -> Vec<DbScenario> {
     // Scenario 1: One open chunk in MUB
-    let db = make_db().db;
+    let db = make_db().await.db;
     write_lp(&db, data);
     let scenario1 = DbScenario {
         scenario_name: "Data in open chunk of mutable buffer".into(),
@@ -421,7 +421,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     };
 
     // Scenario 2: One closed chunk in MUB
-    let db = make_db().db;
+    let db = make_db().await.db;
     let table_names = write_lp(&db, data);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)
@@ -434,7 +434,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     };
 
     // Scenario 3: One closed chunk in RUB
-    let db = make_db().db;
+    let db = make_db().await.db;
     let table_names = write_lp(&db, data);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)
@@ -450,7 +450,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     };
 
     // Scenario 4: One closed chunk in both RUb and OS
-    let db = make_db().db;
+    let db = make_db().await.db;
     let table_names = write_lp(&db, data);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)
@@ -469,7 +469,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     };
 
     // Scenario 5: One closed chunk in OS only
-    let db = make_db().db;
+    let db = make_db().await.db;
     let table_names = write_lp(&db, data);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)
@@ -504,7 +504,7 @@ pub async fn make_two_chunk_scenarios(
     data1: &str,
     data2: &str,
 ) -> Vec<DbScenario> {
-    let db = make_db().db;
+    let db = make_db().await.db;
     write_lp(&db, data1);
     write_lp(&db, data2);
     let scenario1 = DbScenario {
@@ -513,7 +513,7 @@ pub async fn make_two_chunk_scenarios(
     };
 
     // spread across 2 mutable buffer chunks
-    let db = make_db().db;
+    let db = make_db().await.db;
     let table_names = write_lp(&db, data1);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)
@@ -527,7 +527,7 @@ pub async fn make_two_chunk_scenarios(
     };
 
     // spread across 1 mutable buffer, 1 read buffer chunks
-    let db = make_db().db;
+    let db = make_db().await.db;
     let table_names = write_lp(&db, data1);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)
@@ -544,7 +544,7 @@ pub async fn make_two_chunk_scenarios(
     };
 
     // in 2 read buffer chunks
-    let db = make_db().db;
+    let db = make_db().await.db;
     let table_names = write_lp(&db, data1);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)
@@ -571,7 +571,7 @@ pub async fn make_two_chunk_scenarios(
     };
 
     // in 2 read buffer chunks that also loaded into object store
-    let db = make_db().db;
+    let db = make_db().await.db;
     let table_names = write_lp(&db, data1);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)
@@ -606,7 +606,7 @@ pub async fn make_two_chunk_scenarios(
     };
 
     // Scenario 6: Two closed chunk in OS only
-    let db = make_db().db;
+    let db = make_db().await.db;
     let table_names = write_lp(&db, data1);
     for table_name in &table_names {
         db.rollover_partition(partition_key, &table_name)

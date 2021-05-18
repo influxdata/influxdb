@@ -279,6 +279,7 @@ cpu,host=B,region=east user=10.0,system=74.1 1
         let db = TestDb::builder()
             .object_store(Arc::new(ObjectStore::new_in_memory(InMemory::new())))
             .build()
+            .await
             .db;
         write_lp(&db, &lp);
 

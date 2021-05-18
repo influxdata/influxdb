@@ -310,6 +310,33 @@ pub struct Db {
     metric_labels: Vec<KeyValue>,
 }
 
+/// Load preserved catalog state from store.
+pub async fn load_preserved_catalog(
+    db_name: &str,
+    object_store: Arc<ObjectStore>,
+    server_id: ServerId,
+    metrics_registry: Arc<MetricRegistry>,
+) -> std::result::Result<PreservedCatalog<Catalog>, parquet_file::catalog::Error> {
+    let metric_labels = vec![
+        KeyValue::new("db_name", db_name.to_string()),
+        KeyValue::new("svr_id", format!("{}", server_id)),
+    ];
+    let metrics_domain =
+        metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
+
+    PreservedCatalog::new_empty(
+        Arc::clone(&object_store),
+        server_id,
+        db_name.to_string(),
+        CatalogEmptyInput {
+            domain: metrics_domain,
+            metrics_registry: Arc::clone(&metrics_registry),
+            metric_labels: metric_labels.clone(),
+        },
+    )
+    .await
+}
+
 impl Db {
     pub fn new(
         rules: DatabaseRules,
@@ -318,33 +345,19 @@ impl Db {
         exec: Arc<Executor>,
         write_buffer: Option<Buffer>,
         jobs: Arc<JobRegistry>,
-        metrics_registry: Arc<MetricRegistry>,
+        preserved_catalog: PreservedCatalog<Catalog>,
     ) -> Self {
         let db_name = rules.name.clone();
-        let metric_labels = vec![
-            KeyValue::new("db_name", db_name.to_string()),
-            KeyValue::new("svr_id", format!("{}", server_id)),
-        ];
-
-        let metrics_domain =
-            metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
 
         let rules = RwLock::new(rules);
         let server_id = server_id;
         let store = Arc::clone(&object_store);
         let write_buffer = write_buffer.map(Mutex::new);
-        let catalog = PreservedCatalog::new_empty(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            CatalogEmptyInput {
-                domain: metrics_domain,
-                metrics_registry: Arc::clone(&metrics_registry),
-                metric_labels: metric_labels.clone(),
-            },
-        );
-        let system_tables = SystemSchemaProvider::new(&db_name, catalog.state(), Arc::clone(&jobs));
+        let system_tables =
+            SystemSchemaProvider::new(&db_name, preserved_catalog.state(), Arc::clone(&jobs));
         let system_tables = Arc::new(system_tables);
+        let metrics_registry = Arc::clone(&preserved_catalog.state().metrics_registry);
+        let metric_labels = preserved_catalog.state().metric_labels.clone();
 
         let process_clock = process_clock::ProcessClock::new();
 
@@ -353,7 +366,7 @@ impl Db {
             server_id,
             store,
             exec,
-            catalog,
+            catalog: preserved_catalog,
             write_buffer,
             jobs,
             metrics_registry,
@@ -1205,10 +1218,10 @@ mod tests {
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
 
-    #[test]
-    fn write_no_mutable_buffer() {
+    #[tokio::test]
+    async fn write_no_mutable_buffer() {
         // Validate that writes are rejected if there is no mutable buffer
-        let db = make_db().db;
+        let db = make_db().await.db;
         db.rules.write().lifecycle_rules.immutable = true;
         let entry = lp_to_entry("cpu bar=1 10");
         let res = db.store_entry(entry);
@@ -1220,7 +1233,7 @@ mod tests {
 
     #[tokio::test]
     async fn read_write() {
-        let db = Arc::new(make_db().db);
+        let db = Arc::new(make_db().await.db);
         write_lp(&db, "cpu bar=1 10");
 
         let batches = run_query(db, "select * from cpu").await;
@@ -1252,7 +1265,7 @@ mod tests {
 
     #[tokio::test]
     async fn metrics_during_rollover() {
-        let test_db = make_db();
+        let test_db = make_db().await;
         let db = Arc::new(test_db.db);
 
         write_lp(db.as_ref(), "cpu bar=1 10");
@@ -1372,7 +1385,7 @@ mod tests {
 
     #[tokio::test]
     async fn write_with_rollover() {
-        let db = Arc::new(make_db().db);
+        let db = Arc::new(make_db().await.db);
         write_lp(db.as_ref(), "cpu bar=1 10");
         assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
 
@@ -1420,7 +1433,7 @@ mod tests {
 
     #[tokio::test]
     async fn write_with_missing_tags_are_null() {
-        let db = Arc::new(make_db().db);
+        let db = Arc::new(make_db().await.db);
         // Note the `region` tag is introduced in the second line, so
         // the values in prior rows for the region column are
         // null. Likewise the `core` tag is introduced in the third
@@ -1457,7 +1470,7 @@ mod tests {
     #[tokio::test]
     async fn read_from_read_buffer() {
         // Test that data can be loaded into the ReadBuffer
-        let test_db = make_db();
+        let test_db = make_db().await;
         let db = Arc::new(test_db.db);
 
         write_lp(db.as_ref(), "cpu bar=1 10");
@@ -1543,7 +1556,7 @@ mod tests {
 
     #[tokio::test]
     async fn load_to_read_buffer_sorted() {
-        let test_db = make_db();
+        let test_db = make_db().await;
         let db = Arc::new(test_db.db);
 
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10");
@@ -1655,7 +1668,8 @@ mod tests {
             .server_id(server_id)
             .object_store(Arc::clone(&object_store))
             .db_name(db_name)
-            .build();
+            .build()
+            .await;
 
         let db = Arc::new(test_db.db);
 
@@ -1754,7 +1768,8 @@ mod tests {
             .server_id(server_id)
             .object_store(Arc::clone(&object_store))
             .db_name(db_name)
-            .build();
+            .build()
+            .await;
 
         let db = Arc::new(test_db.db);
 
@@ -1866,9 +1881,9 @@ mod tests {
         assert_batches_eq!(expected, &record_batches);
     }
 
-    #[test]
-    fn write_updates_last_write_at() {
-        let db = Arc::new(make_db().db);
+    #[tokio::test]
+    async fn write_updates_last_write_at() {
+        let db = Arc::new(make_db().await.db);
         let before_create = Utc::now();
 
         let partition_key = "1970-01-01T00";
@@ -1896,7 +1911,7 @@ mod tests {
     #[tokio::test]
     async fn test_chunk_timestamps() {
         let start = Utc::now();
-        let db = Arc::new(make_db().db);
+        let db = Arc::new(make_db().await.db);
 
         // Given data loaded into two chunks
         write_lp(&db, "cpu bar=1 10");
@@ -1931,9 +1946,9 @@ mod tests {
         assert!(chunk.time_closed().unwrap() < after_rollover);
     }
 
-    #[test]
-    fn test_chunk_closing() {
-        let db = Arc::new(make_db().db);
+    #[tokio::test]
+    async fn test_chunk_closing() {
+        let db = Arc::new(make_db().await.db);
         db.rules.write().lifecycle_rules.mutable_size_threshold =
             Some(NonZeroUsize::new(2).unwrap());
 
@@ -1952,9 +1967,9 @@ mod tests {
         assert!(matches!(chunks[1].read().state(), ChunkState::Closed(_)));
     }
 
-    #[test]
-    fn chunks_sorted_by_times() {
-        let db = Arc::new(make_db().db);
+    #[tokio::test]
+    async fn chunks_sorted_by_times() {
+        let db = Arc::new(make_db().await.db);
         write_lp(&db, "cpu val=1 1");
         write_lp(&db, "mem val=2 400000000000001");
         write_lp(&db, "cpu val=1 2");
@@ -1987,7 +2002,7 @@ mod tests {
     #[tokio::test]
     async fn chunk_id_listing() {
         // Test that chunk id listing is hooked up
-        let db = Arc::new(make_db().db);
+        let db = Arc::new(make_db().await.db);
         let partition_key = "1970-01-01T00";
 
         write_lp(&db, "cpu bar=1 10");
@@ -2056,7 +2071,7 @@ mod tests {
     #[tokio::test]
     async fn partition_chunk_summaries() {
         // Test that chunk id listing is hooked up
-        let db = Arc::new(make_db().db);
+        let db = Arc::new(make_db().await.db);
 
         write_lp(&db, "cpu bar=1 1");
         db.rollover_partition("1970-01-01T00", "cpu").await.unwrap();
@@ -2104,7 +2119,7 @@ mod tests {
 
     #[tokio::test]
     async fn partition_chunk_summaries_timestamp() {
-        let db = Arc::new(make_db().db);
+        let db = Arc::new(make_db().await.db);
         let start = Utc::now();
         write_lp(&db, "cpu bar=1 1");
         let after_first_write = Utc::now();
@@ -2155,7 +2170,7 @@ mod tests {
     #[tokio::test]
     async fn chunk_summaries() {
         // Test that chunk id listing is hooked up
-        let db = Arc::new(make_db().db);
+        let db = Arc::new(make_db().await.db);
 
         // get three chunks: one open, one closed in mb and one close in rb
         write_lp(&db, "cpu bar=1 1");
@@ -2250,7 +2265,7 @@ mod tests {
     #[tokio::test]
     async fn partition_summaries() {
         // Test that chunk id listing is hooked up
-        let db = Arc::new(make_db().db);
+        let db = Arc::new(make_db().await.db);
 
         write_lp(&db, "cpu bar=1 1");
         let chunk_id = db
@@ -2460,7 +2475,7 @@ mod tests {
     #[tokio::test]
     async fn write_chunk_to_object_store_in_background() {
         // Test that data can be written to object store using a background task
-        let db = Arc::new(make_db().db);
+        let db = Arc::new(make_db().await.db);
 
         // create MB partition
         write_lp(db.as_ref(), "cpu bar=1 10");
@@ -2501,9 +2516,9 @@ mod tests {
         assert_eq!(read_parquet_file_chunk_ids(&db, partition_key), vec![0]);
     }
 
-    #[test]
-    fn write_hard_limit() {
-        let db = Arc::new(make_db().db);
+    #[tokio::test]
+    async fn write_hard_limit() {
+        let db = Arc::new(make_db().await.db);
         db.rules.write().lifecycle_rules.buffer_size_hard = Some(NonZeroUsize::new(10).unwrap());
 
         // inserting first line does not trigger hard buffer limit
@@ -2516,9 +2531,9 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn write_goes_to_write_buffer_if_configured() {
-        let db = Arc::new(TestDb::builder().write_buffer(true).build().db);
+    #[tokio::test]
+    async fn write_goes_to_write_buffer_if_configured() {
+        let db = Arc::new(TestDb::builder().write_buffer(true).build().await.db);
 
         assert_eq!(db.write_buffer.as_ref().unwrap().lock().size(), 0);
         write_lp(db.as_ref(), "cpu bar=1 10");
@@ -2536,7 +2551,8 @@ mod tests {
             .server_id(server_id)
             .object_store(Arc::clone(&object_store))
             .db_name(db_name)
-            .build();
+            .build()
+            .await;
 
         let db = Arc::new(test_db.db);
 
@@ -2704,8 +2720,21 @@ mod tests {
             .object_store(Arc::clone(&object_store))
             .server_id(server_id)
             .db_name(db_name)
-            .build();
+            .build()
+            .await;
         let db = Arc::new(test_db.db);
+
+        // at this point, an empty preserved catalog exists
+        let maybe_preserved_catalog =
+            PreservedCatalog::<parquet_file::catalog::test_helpers::TestCatalogState>::load(
+                Arc::clone(&object_store),
+                server_id,
+                db_name.to_string(),
+                (),
+            )
+            .await
+            .unwrap();
+        assert!(maybe_preserved_catalog.is_some());
 
         // Write some line protocols in Mutable buffer of the DB
         write_lp(db.as_ref(), "cpu bar=1 10");
@@ -2721,18 +2750,6 @@ mod tests {
         db.load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
             .await
             .unwrap();
-
-        // at this point, no preserved catalog exists
-        let maybe_preserved_catalog =
-            PreservedCatalog::<parquet_file::catalog::test_helpers::TestCatalogState>::load(
-                Arc::clone(&object_store),
-                server_id,
-                db_name.to_string(),
-                (),
-            )
-            .await
-            .unwrap();
-        assert!(maybe_preserved_catalog.is_none());
 
         // Write the RB chunk to Object Store but keep it in RB
         db.write_chunk_to_object_store(partition_key, "cpu", mb_chunk.id())

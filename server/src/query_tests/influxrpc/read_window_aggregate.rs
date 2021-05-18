@@ -162,7 +162,7 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
         // partition keys are: ["2020-03-02T00", "2020-03-01T00", "2020-04-01T00",
         // "2020-04-02T00"]
 
-        let db = make_db().db;
+        let db = make_db().await.db;
         let data = lp_lines.join("\n");
         write_lp(&db, &data);
         let scenario1 = DbScenario {
@@ -170,7 +170,7 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
             db,
         };
 
-        let db = make_db().db;
+        let db = make_db().await.db;
         let data = lp_lines.join("\n");
         write_lp(&db, &data);
         db.rollover_partition("2020-03-01T00", "h2o").await.unwrap();
@@ -182,7 +182,7 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
             db,
         };
 
-        let db = make_db().db;
+        let db = make_db().await.db;
         let data = lp_lines.join("\n");
         write_lp(&db, &data);
         // roll over and load chunks into both RUB and OS

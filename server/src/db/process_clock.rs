@@ -75,11 +75,11 @@ mod tests {
     use entry::test_helpers::lp_to_entry;
     use std::{sync::Arc, thread, time::Duration};
 
-    #[test]
-    fn process_clock_defaults_to_current_time_in_ns() {
+    #[tokio::test]
+    async fn process_clock_defaults_to_current_time_in_ns() {
         let before = system_clock_now();
 
-        let db = Arc::new(TestDb::builder().build().db);
+        let db = Arc::new(TestDb::builder().build().await.db);
         let db_process_clock = db.process_clock.inner.load(Ordering::SeqCst);
 
         let after = system_clock_now();
@@ -98,12 +98,12 @@ mod tests {
         );
     }
 
-    #[test]
-    fn process_clock_incremented_and_set_on_sequenced_entry() {
+    #[tokio::test]
+    async fn process_clock_incremented_and_set_on_sequenced_entry() {
         let before = system_clock_now();
         let before = ClockValue::try_from(before).unwrap();
 
-        let db = Arc::new(TestDb::builder().write_buffer(true).build().db);
+        let db = Arc::new(TestDb::builder().write_buffer(true).build().await.db);
 
         let entry = lp_to_entry("cpu bar=1 10");
         db.store_entry(entry).unwrap();
@@ -147,10 +147,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn next_process_clock_always_increments() {
+    #[tokio::test]
+    async fn next_process_clock_always_increments() {
         // Process clock defaults to the current time
-        let db = Arc::new(TestDb::builder().write_buffer(true).build().db);
+        let db = Arc::new(TestDb::builder().write_buffer(true).build().await.db);
 
         // Set the process clock value to a time in the future, so that when compared to the
         // current time, the process clock value will be greater
