@@ -1,11 +1,11 @@
 //! Implementation of a DataFusion PhysicalPlan node across partition chunks
 
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use arrow::datatypes::SchemaRef;
 use datafusion::{
     error::DataFusionError,
-    physical_plan::{ExecutionPlan, Partitioning, SendableRecordBatchStream},
+    physical_plan::{DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream},
 };
 use internal_types::{schema::Schema, selection::Selection};
 
@@ -115,6 +115,20 @@ impl<C: PartitionChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
             .map_err(|e| DataFusionError::Internal(e.to_string()))?;
 
         Ok(Box::pin(adapter))
+    }
+
+    fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match t {
+            DisplayFormatType::Default => {
+                // Note Predicate doesn't implement Display so punt on showing that now
+                write!(
+                    f,
+                    "IOxReadFilterNode: table_name={}, chunks={} predicate=TODO",
+                    self.table_name,
+                    self.chunk_and_infos.len()
+                )
+            }
+        }
     }
 }
 
