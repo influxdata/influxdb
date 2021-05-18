@@ -250,6 +250,17 @@ impl<S> PreservedCatalog<S>
 where
     S: CatalogState,
 {
+    /// Checks if a preserved catalog exists.
+    pub async fn exists(
+        object_store: &ObjectStore,
+        server_id: ServerId,
+        db_name: &str,
+    ) -> Result<bool> {
+        Ok(!list_transaction_files(object_store, server_id, db_name)
+            .await?
+            .is_empty())
+    }
+
     /// Create new catalog w/o any data.
     ///
     /// An empty transaction will be used to mark the catalog start so that concurrent open but still-empty catalogs can
@@ -288,45 +299,37 @@ where
         state_data: S::EmptyInput,
     ) -> Result<Option<Self>> {
         // parse all paths into revisions
-        let list_path = transactions_path(&object_store, server_id, &db_name);
-        let paths = object_store
-            .list(Some(&list_path))
-            .await
-            .context(Read {})?
-            .try_concat()
-            .await
-            .context(Read {})?;
         let mut transactions: HashMap<u64, Uuid> = HashMap::new();
         let mut max_revision = None;
-        for path in paths {
-            if let Some((revision_counter, uuid)) = parse_transaction_path(path) {
-                // keep track of the max
-                max_revision = Some(
-                    max_revision
-                        .map(|m: u64| m.max(revision_counter))
-                        .unwrap_or(revision_counter),
-                );
+        for (_path, revision_counter, uuid) in
+            list_transaction_files(&object_store, server_id, &db_name).await?
+        {
+            // keep track of the max
+            max_revision = Some(
+                max_revision
+                    .map(|m: u64| m.max(revision_counter))
+                    .unwrap_or(revision_counter),
+            );
 
-                // insert but check for duplicates
-                match transactions.entry(revision_counter) {
-                    Occupied(o) => {
-                        // sort for determinism
-                        let (uuid1, uuid2) = if *o.get() < uuid {
-                            (*o.get(), uuid)
-                        } else {
-                            (uuid, *o.get())
-                        };
+            // insert but check for duplicates
+            match transactions.entry(revision_counter) {
+                Occupied(o) => {
+                    // sort for determinism
+                    let (uuid1, uuid2) = if *o.get() < uuid {
+                        (*o.get(), uuid)
+                    } else {
+                        (uuid, *o.get())
+                    };
 
-                        Fork {
-                            revision_counter,
-                            uuid1,
-                            uuid2,
-                        }
-                        .fail()?;
+                    Fork {
+                        revision_counter,
+                        uuid1,
+                        uuid2,
                     }
-                    Vacant(v) => {
-                        v.insert(uuid);
-                    }
+                    .fail()?;
+                }
+                Vacant(v) => {
+                    v.insert(uuid);
                 }
             }
         }
@@ -476,6 +479,34 @@ fn parse_transaction_path(path: Path) -> Option<(u64, Uuid)> {
         (Ok(revision_counter), Ok(uuid)) => Some((revision_counter, uuid)),
         _ => None,
     }
+}
+
+/// Load a list of all transaction file from object store. Also parse revision counter and transaction UUID.
+///
+/// The files are in no particular order!
+async fn list_transaction_files(
+    object_store: &ObjectStore,
+    server_id: ServerId,
+    db_name: &str,
+) -> Result<Vec<(Path, u64, Uuid)>> {
+    let list_path = transactions_path(&object_store, server_id, &db_name);
+    let paths = object_store
+        .list(Some(&list_path))
+        .await
+        .context(Read {})?
+        .map_ok(|paths| {
+            paths
+                .into_iter()
+                .filter_map(|path| {
+                    parse_transaction_path(path.clone())
+                        .map(|(revision_counter, uuid)| (path, revision_counter, uuid))
+                })
+                .collect()
+        })
+        .try_concat()
+        .await
+        .context(Read {})?;
+    Ok(paths)
 }
 
 /// Serialize and store protobuf-encoded transaction.
@@ -974,6 +1005,11 @@ pub mod tests {
         let server_id = make_server_id();
         let db_name = "db1";
 
+        assert!(
+            !PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
+                .await
+                .unwrap()
+        );
         assert!(PreservedCatalog::<TestCatalogState>::load(
             Arc::clone(&object_store),
             server_id,
@@ -993,6 +1029,11 @@ pub mod tests {
         .await
         .unwrap();
 
+        assert!(
+            PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
+                .await
+                .unwrap()
+        );
         assert!(PreservedCatalog::<TestCatalogState>::load(
             Arc::clone(&object_store),
             server_id,
