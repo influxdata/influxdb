@@ -553,13 +553,13 @@ func (b *cmdOrgBuilder) memberList(ctx context.Context, urmSVC influxdb.UserReso
 		ursC = make(chan struct {
 			User  *influxdb.User
 			Index int
-		})
-		errC = make(chan error)
+		}, maxTCPConnections)
+		errC = make(chan error, maxTCPConnections)
 		sem  = make(chan struct{}, maxTCPConnections)
 	)
 	for k, v := range mappings {
-		sem <- struct{}{}
 		go func(k int, v *influxdb.UserResourceMapping) {
+			sem <- struct{}{}
 			defer func() { <-sem }()
 			usr, err := userSVC.FindUserByID(ctx, v.UserID)
 			if err != nil {
