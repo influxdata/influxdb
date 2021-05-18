@@ -388,6 +388,21 @@ where
         }))
     }
 
+    /// Deletes (potentially existing) catalog.
+    pub async fn wipe(
+        object_store: &ObjectStore,
+        server_id: ServerId,
+        db_name: &str,
+    ) -> Result<()> {
+        for (path, _revision_counter, _uuiud) in
+            list_transaction_files(object_store, server_id, db_name).await?
+        {
+            object_store.delete(&path).await.context(Write)?;
+        }
+
+        Ok(())
+    }
+
     /// Open a new transaction.
     ///
     /// Note that only a single transaction can be open at any time. This call will `await` until any outstanding
@@ -992,6 +1007,31 @@ pub mod test_helpers {
             Ok(())
         }
     }
+
+    /// Break preserved catalog by moving one of the transaction files into a weird unknown version.
+    pub async fn break_catalog_with_weird_version<S>(catalog: &PreservedCatalog<S>)
+    where
+        S: CatalogState,
+    {
+        let guard = catalog.inner.read();
+        let tkey = guard
+            .previous_tkey
+            .as_ref()
+            .expect("should have at least a single transaction");
+        let path = transaction_path(
+            &catalog.object_store,
+            catalog.server_id,
+            &catalog.db_name,
+            tkey,
+        );
+        let mut proto = load_transaction_proto(&catalog.object_store, &path)
+            .await
+            .unwrap();
+        proto.version = 42;
+        store_transaction_proto(&catalog.object_store, &path, &proto)
+            .await
+            .unwrap();
+    }
 }
 
 #[cfg(test)]
@@ -1005,7 +1045,7 @@ pub mod tests {
     };
     use object_store::parsed_path;
 
-    use super::test_helpers::TestCatalogState;
+    use super::test_helpers::{break_catalog_with_weird_version, TestCatalogState};
     use super::*;
 
     #[tokio::test]
@@ -1166,17 +1206,19 @@ pub mod tests {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
 
         // break transaction file
-        assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
-        proto.version = 42;
-        store_transaction_proto(&object_store, &path, &proto)
-            .await
-            .unwrap();
+        let catalog = PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        break_catalog_with_weird_version(&catalog).await;
 
         // loading catalog should fail now
         let res = PreservedCatalog::<TestCatalogState>::load(
@@ -1188,7 +1230,7 @@ pub mod tests {
         .await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Format version of transaction file for revision 0 is 42 but only [1] are supported"
+            "Format version of transaction file for revision 2 is 42 but only [1] are supported"
         );
     }
 
@@ -1731,6 +1773,145 @@ pub mod tests {
         )
         .await;
         assert_eq!(res.unwrap_err().to_string(), "Catalog already exists");
+    }
+
+    #[tokio::test]
+    async fn test_wipe_nothing() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+
+        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_wipe_normal() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+
+        // create a real catalog
+        assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
+
+        // wipe
+        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
+
+        // `exists` and `load` both report "no data"
+        assert!(
+            !PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
+                .await
+                .unwrap()
+        );
+        assert!(PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            ()
+        )
+        .await
+        .unwrap()
+        .is_none());
+
+        // can create new catalog
+        PreservedCatalog::<TestCatalogState>::new_empty(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_wipe_broken_catalog() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+
+        // create a real catalog
+        assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
+
+        // break
+        let catalog = PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        break_catalog_with_weird_version(&catalog).await;
+
+        // wipe
+        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
+
+        // `exists` and `load` both report "no data"
+        assert!(
+            !PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
+                .await
+                .unwrap()
+        );
+        assert!(PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            ()
+        )
+        .await
+        .unwrap()
+        .is_none());
+
+        // can create new catalog
+        PreservedCatalog::<TestCatalogState>::new_empty(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_wipe_ignores_unknown_files() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+
+        // create a real catalog
+        assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
+
+        // create junk
+        let mut path = transactions_path(&object_store, server_id, &db_name);
+        path.push_dir("0");
+        path.set_file_name(format!("{}.foo", Uuid::new_v4()));
+        create_empty_file(&object_store, &path).await;
+
+        // wipe
+        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
+
+        // check file is still there
+        let prefix = transactions_path(&object_store, server_id, &db_name);
+        let files = object_store
+            .list(Some(&prefix))
+            .await
+            .unwrap()
+            .try_concat()
+            .await
+            .unwrap();
+        let mut files: Vec<_> = files.iter().map(|path| path.display()).collect();
+        files.sort();
+        assert_eq!(files, vec![path.display()]);
     }
 
     async fn assert_catalog_roundtrip_works(
