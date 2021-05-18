@@ -26,7 +26,7 @@ import (
 
 const (
 	// ToKind is the kind for the `to` flux function
-	ToKind = influxdb.ToKind
+	ToKind = "influx2x/toKind"
 
 	// TODO(jlapacik) remove this once we have execute.DefaultFieldColLabel
 	defaultFieldColLabel       = "_field"
@@ -51,7 +51,7 @@ type ToOpSpec struct {
 }
 
 func init() {
-	toSignature := runtime.MustLookupBuiltinType("influxdata/influxdb", ToKind)
+	toSignature := runtime.MustLookupBuiltinType("influxdata/influxdb", influxdb.ToKind)
 	runtime.ReplacePackageValue("influxdata/influxdb", "to", flux.MustValue(flux.FunctionValueWithSideEffect(ToKind, createToOpSpec, toSignature)))
 	flux.RegisterOpSpec(ToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ToKind, newToProcedure, ToKind)
