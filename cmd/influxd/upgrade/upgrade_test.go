@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/internal/testutil"
 	"github.com/influxdata/influxdb/v2/kit/cli"
+	"github.com/influxdata/influxdb/v2/sqlite"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -236,6 +237,9 @@ func TestUpgradeRealDB(t *testing.T) {
 	v.SetConfigFile(configPath)
 	require.NoError(t, v.ReadInConfig())
 	lOpts := launcher.NewOpts(v)
+	// We need to specify the path to sqlite here to prevent errors from trying to write to the database
+	// concurrently by parallel tests.
+	lOpts.SqLitePath = filepath.Join(tl.Path, sqlite.DefaultFilename)
 	cliOpts := lOpts.BindCliOpts()
 
 	cmd := cobra.Command{
