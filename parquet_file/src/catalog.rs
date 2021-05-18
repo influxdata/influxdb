@@ -161,6 +161,9 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync>,
         path: DirsAndFileName,
     },
+
+    #[snafu(display("Catalog already exists"))]
+    AlreadyExists {},
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -271,6 +274,12 @@ where
         db_name: impl Into<String>,
         state_data: S::EmptyInput,
     ) -> Result<Self> {
+        let db_name = db_name.into();
+
+        if Self::exists(&object_store, server_id, &db_name).await? {
+            return Err(Error::AlreadyExists {});
+        }
+
         let inner = PreservedCatalogInner {
             previous_tkey: None,
             state: Arc::new(S::new_empty(state_data)),
@@ -281,7 +290,7 @@ where
             transaction_semaphore: Semaphore::new(1),
             object_store,
             server_id,
-            db_name: db_name.into(),
+            db_name,
         };
 
         // add empty transaction
@@ -1697,6 +1706,31 @@ pub mod tests {
         trace.record(&catalog);
 
         trace
+    }
+
+    #[tokio::test]
+    async fn test_create_twice() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+
+        PreservedCatalog::<TestCatalogState>::new_empty(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+
+        let res = PreservedCatalog::<TestCatalogState>::new_empty(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await;
+        assert_eq!(res.unwrap_err().to_string(), "Catalog already exists");
     }
 
     async fn assert_catalog_roundtrip_works(
