@@ -17,7 +17,6 @@ const (
 // TagSet is a fundamental concept within the query system. It represents a composite series,
 // composed of multiple individual series that share a set of tag attributes.
 type TagSet struct {
-	Tags       map[string]string
 	Filters    []influxql.Expr
 	SeriesKeys []string
 	Key        []byte

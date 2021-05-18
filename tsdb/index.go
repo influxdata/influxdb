@@ -2947,8 +2947,7 @@ func (is IndexSet) TagSets(sfile *SeriesFile, name []byte, opt query.IteratorOpt
 		if !ok {
 			// This TagSet is new, create a new entry for it.
 			tagSet = &query.TagSet{
-				Tags: nil,
-				Key:  tagsAsKey,
+				Key: tagsAsKey,
 			}
 		}
 
