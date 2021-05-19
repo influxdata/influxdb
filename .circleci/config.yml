@@ -121,6 +121,77 @@ commands:
             curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
             echo 'export PATH=${HOME}/.cargo/bin:${PATH}' >> $BASH_ENV
 
+  # Install dependencies for cross building binaries with goreleaser. Does not include Docker cross-builder.
+  install_cross_bin_deps:
+    steps:
+      - run:
+          name: Install cross-build system dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y \
+              cmake \
+              gnupg \
+              libssl-dev \
+              libxml2-dev \
+              llvm-dev \
+              lzma-dev \
+              mingw-w64 \
+              zlib1g-dev
+      - run:
+          name: Install cross-compilers
+          environment:
+            MUSL_VERSION: 1.1.24
+            MUSL_BUILD_TIME: 20210108172549
+            MUSL_CROSS_MAKE_VERSION: 0.9.9
+            MUSL_CROSS_ARM64_BUILD_TIME: 20210108174735
+            OSXCROSS_VERSION: c2ad5e859d12a295c3f686a15bd7181a165bfa82
+            OSXCROSS_BUILD_TIME: 20210108174800
+          command: |
+            MUSL_ARCHIVE=musl-${MUSL_VERSION}-${MUSL_BUILD_TIME}.tar.gz
+            curl https://dl.influxdata.com/influxdb-ci/musl/${MUSL_VERSION}/${MUSL_ARCHIVE} -O && \
+              sudo tar xzf ${MUSL_ARCHIVE} -C /usr/local && \
+              rm ${MUSL_ARCHIVE}
+            echo 'export PATH=/usr/local/musl/bin:${PATH}' >> $BASH_ENV
+
+            MUSL_CROSS_ARM64_ARCHIVE=musl-${MUSL_VERSION}-cross-aarch64-${MUSL_CROSS_MAKE_VERSION}-${MUSL_CROSS_ARM64_BUILD_TIME}.tar.gz
+            curl https://dl.influxdata.com/influxdb-ci/musl/${MUSL_VERSION}/musl-cross/${MUSL_CROSS_MAKE_VERSION}/${MUSL_CROSS_ARM64_ARCHIVE} -O && \
+              sudo tar xzf ${MUSL_CROSS_ARM64_ARCHIVE} -C /usr/local && \
+              rm ${MUSL_CROSS_ARM64_ARCHIVE}
+            echo 'export PATH=/usr/local/musl-cross/bin:${PATH}' >> $BASH_ENV
+
+            OSXCROSS_ARCHIVE=osxcross-${OSXCROSS_VERSION}-${OSXCROSS_BUILD_TIME}.tar.gz
+            curl https://dl.influxdata.com/influxdb-ci/osxcross/${OSXCROSS_VERSION}/${OSXCROSS_ARCHIVE} -O && \
+              sudo tar xzf ${OSXCROSS_ARCHIVE} -C /usr/local && \
+              rm ${OSXCROSS_ARCHIVE}
+            echo 'export PATH=/usr/local/osxcross/target/bin:${PATH}' >> $BASH_ENV
+
+            mkdir -p ${GOPATH}/bin
+            cp scripts/ci/xcc.sh ${GOPATH}/bin/xcc
+            chmod a+x ${GOPATH}/bin/xcc
+      - run:
+          name: Install Rust cross-targets
+          command: |
+            rustup target add \
+              x86_64-unknown-linux-musl \
+              aarch64-unknown-linux-musl \
+              x86_64-apple-darwin \
+              x86_64-pc-windows-gnu
+            echo 'export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/musl/bin/musl-gcc' >> $BASH_ENV
+            echo 'export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/musl-cross/bin/aarch64-unknown-linux-musl-gcc' >> $BASH_ENV
+            echo 'export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/usr/local/osxcross/target/bin/x86_64-apple-darwin15-clang' >> $BASH_ENV
+            echo 'export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=/usr/bin/x86_64-w64-mingw32-gcc' >> $BASH_ENV
+      - run:
+          name: Install goreleaser
+          environment:
+            GORELEASER_VERSION: 0.164.0
+          command: |
+            curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh && \
+              sh goreleaser-install -b ${GOPATH}/bin v${GORELEASER_VERSION} && \
+              rm goreleaser-install
+      - run:
+          name: Install pkg-config
+          command: make pkg-config
+
   # Run goreleaser to cross-build or cross-publish influxd
   run_goreleaser:
     parameters:
@@ -187,73 +258,7 @@ commands:
             # Build the 1st stage of our Docker(s) on our target platforms, to flush out
             # any problems in our emulator setup.
             docker buildx build --target dependency-base --platform linux/amd64,linux/arm64 docker/influxd
-      - run:
-          name: Install cross-build system dependencies
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y \
-              cmake \
-              gnupg \
-              libssl-dev \
-              libxml2-dev \
-              llvm-dev \
-              lzma-dev \
-              mingw-w64 \
-              zlib1g-dev
-      - run:
-          name: Install cross-compilers
-          environment:
-            MUSL_VERSION: 1.1.24
-            MUSL_BUILD_TIME: 20210108172549
-            MUSL_CROSS_MAKE_VERSION: 0.9.9
-            MUSL_CROSS_ARM64_BUILD_TIME: 20210108174735
-            OSXCROSS_VERSION: c2ad5e859d12a295c3f686a15bd7181a165bfa82
-            OSXCROSS_BUILD_TIME: 20210108174800
-          command: |
-            MUSL_ARCHIVE=musl-${MUSL_VERSION}-${MUSL_BUILD_TIME}.tar.gz
-            curl https://dl.influxdata.com/influxdb-ci/musl/${MUSL_VERSION}/${MUSL_ARCHIVE} -O && \
-              sudo tar xzf ${MUSL_ARCHIVE} -C /usr/local && \
-              rm ${MUSL_ARCHIVE}
-            echo 'export PATH=/usr/local/musl/bin:${PATH}' >> $BASH_ENV
-
-            MUSL_CROSS_ARM64_ARCHIVE=musl-${MUSL_VERSION}-cross-aarch64-${MUSL_CROSS_MAKE_VERSION}-${MUSL_CROSS_ARM64_BUILD_TIME}.tar.gz
-            curl https://dl.influxdata.com/influxdb-ci/musl/${MUSL_VERSION}/musl-cross/${MUSL_CROSS_MAKE_VERSION}/${MUSL_CROSS_ARM64_ARCHIVE} -O && \
-              sudo tar xzf ${MUSL_CROSS_ARM64_ARCHIVE} -C /usr/local && \
-              rm ${MUSL_CROSS_ARM64_ARCHIVE}
-            echo 'export PATH=/usr/local/musl-cross/bin:${PATH}' >> $BASH_ENV
-
-            OSXCROSS_ARCHIVE=osxcross-${OSXCROSS_VERSION}-${OSXCROSS_BUILD_TIME}.tar.gz
-            curl https://dl.influxdata.com/influxdb-ci/osxcross/${OSXCROSS_VERSION}/${OSXCROSS_ARCHIVE} -O && \
-              sudo tar xzf ${OSXCROSS_ARCHIVE} -C /usr/local && \
-              rm ${OSXCROSS_ARCHIVE}
-            echo 'export PATH=/usr/local/osxcross/target/bin:${PATH}' >> $BASH_ENV
-
-            mkdir -p ${GOPATH}/bin
-            cp scripts/ci/xcc.sh ${GOPATH}/bin/xcc
-            chmod a+x ${GOPATH}/bin/xcc
-      - run:
-          name: Install Rust cross-targets
-          command: |
-            rustup target add \
-              x86_64-unknown-linux-musl \
-              aarch64-unknown-linux-musl \
-              x86_64-apple-darwin \
-              x86_64-pc-windows-gnu
-            echo 'export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/musl/bin/musl-gcc' >> $BASH_ENV
-            echo 'export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/musl-cross/bin/aarch64-unknown-linux-musl-gcc' >> $BASH_ENV
-            echo 'export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/usr/local/osxcross/target/bin/x86_64-apple-darwin15-clang' >> $BASH_ENV
-            echo 'export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=/usr/bin/x86_64-w64-mingw32-gcc' >> $BASH_ENV
-      - run:
-          name: Install goreleaser
-          environment:
-            GORELEASER_VERSION: 0.152.0
-          command: |
-            curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh && \
-              sh goreleaser-install -b ${GOPATH}/bin v${GORELEASER_VERSION} && \
-              rm goreleaser-install
-      - run:
-          name: Install pkg-config
-          command: make pkg-config
+      - install_cross_bin_deps
       - unless:
           condition: << parameters.publish_release >>
           steps:
@@ -499,20 +504,22 @@ jobs:
             - influxdb-build-{{ .Branch }}-{{ .Revision }}
             - influxdb-build-{{ .Branch }}-
       - install_core_deps
-      - run: make build
+      - install_cross_bin_deps
+      # Build the static binary for linux
+      - run: goreleaser build --snapshot --single-target
       - save_cache:
           name: Save GOCACHE
           key: influxdb-build-{{ .Branch }}-{{ .Revision }}
           paths:
             - /tmp/go-cache
       - store_artifacts:
-          path: bin/linux
+          path: dist
       - persist_to_workspace:
           root: .
           paths:
             - project
-            - bin/linux/influxd
-            - bin/linux/influx
+            - dist/influx_linux_amd64/influx
+            - dist/influxd_linux_amd64/influxd
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
       - run:
@@ -527,7 +534,7 @@ jobs:
       - run:
           name: Build the candidate docker image
           command: |
-            cp ./bin/linux/{influx,influxd} .
+            cp dist/influx_linux_amd64/influx . && cp dist/influx_linux_amd64/influxd .
             docker build -f docker/influxd/Dockerfile -t quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} .
             docker save -o docker-image.tar quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
       - persist_to_workspace:
@@ -633,7 +640,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/project
-      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/smoke/test_smoke.py -e BINARYPATH=/Litmus/result/bin/linux/influxd -e BOLTPATH=/Litmus/result/influxd_test/influxd.bolt -e ENGINEPATH=/Litmus/result/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
+      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/smoke/test_smoke.py -e BINARYPATH=/Litmus/result/dist/influxd_linux_amd64/influxd -e BOLTPATH=/Litmus/result/influxd_test/influxd.bolt -e ENGINEPATH=/Litmus/result/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
       - run:
           name: Litmus Smoke Tests Success
           when: on_success
@@ -654,7 +661,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/project
-      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e INFLUXPATH=/Litmus/result/bin/linux/influx -e BINARYPATH=/Litmus/result/bin/linux/influxd -e BOLTPATH=/tmp/influxd_test/influxd.bolt -e ENGINEPATH=/tmp/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
+      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e INFLUXPATH=/Litmus/result/dist/influx_linux_amd64/influx -e BINARYPATH=/Litmus/result/dist/influxd_linux_amd64/influxd -e BOLTPATH=/tmp/influxd_test/influxd.bolt -e ENGINEPATH=/tmp/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
       - run:
           name: Litmus Integration Tests Success
           when: on_success
@@ -707,7 +714,7 @@ jobs:
       - attach_workspace:
           at: ~/project
       - run:
-          command: ./bin/linux/influxd --store=memory --log-level=debug
+          command: ./dist/influxd_linux_amd64/influxd --store=memory --log-level=debug
           background: true
       - run: mkdir -p ~/project/results
       - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project/results:/grace/test-results/grace-results quay.io/influxdb/grace:daily
