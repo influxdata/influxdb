@@ -943,6 +943,7 @@ mod tests {
             AppServerConfig::new(
                 Arc::new(ObjectStore::new_in_memory(InMemory::new())),
                 registry,
+                Option::None,
             )
             .with_num_worker_threads(1),
         )
