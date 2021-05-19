@@ -83,7 +83,7 @@ type Route struct {
 }
 
 type QueryAuthorizer interface {
-	AuthorizeQuery(u meta.User, query *influxql.Query, database string) error
+	AuthorizeQuery(u meta.User, query *influxql.Query, database string) (query.FineAuthorizer, error)
 	AuthorizeDatabase(u meta.User, priv influxql.Privilege, database string) error
 }
 
@@ -572,17 +572,23 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	}
 
 	// Check authorization.
+	var fineAuthorizer query.FineAuthorizer
 	if h.Config.AuthEnabled {
-		if err := h.QueryAuthorizer.AuthorizeQuery(user, q, db); err != nil {
-			if err, ok := err.(meta.ErrAuthorize); ok {
+		var err error
+		if fineAuthorizer, err = h.QueryAuthorizer.AuthorizeQuery(user, q, db); err != nil {
+			if authErr, ok := err.(meta.ErrAuthorize); ok {
 				h.Logger.Info("Unauthorized request",
-					zap.String("user", err.User),
-					zap.Stringer("query", err.Query),
-					logger.Database(err.Database))
+					zap.String("user", authErr.User),
+					zap.Stringer("query", authErr.Query),
+					logger.Database(authErr.Database))
+			} else {
+				h.Logger.Info("Error authorizing query", zap.Error(err))
 			}
 			h.httpError(rw, "error authorizing query: "+err.Error(), http.StatusForbidden)
 			return
 		}
+	} else {
+		fineAuthorizer = query.OpenAuthorizer
 	}
 
 	// Parse chunk size. Use default if not provided or unparsable.
@@ -603,8 +609,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 		ChunkSize:       chunkSize,
 		ReadOnly:        r.Method == "GET",
 		NodeID:          nodeID,
-		// Authorizer is for fine grained auth, not supported by oss.
-		Authorizer: query.OpenAuthorizer,
+		Authorizer:      fineAuthorizer,
 	}
 
 	if h.Config.AuthEnabled {

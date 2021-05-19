@@ -3,6 +3,7 @@ package meta
 import (
 	"fmt"
 
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 )
 
@@ -22,27 +23,27 @@ func NewQueryAuthorizer(c *Client) *QueryAuthorizer {
 // Database can be "" for queries that do not require a database.
 // If no user is provided it will return an error unless the query's first statement is to create
 // a root user.
-func (a *QueryAuthorizer) AuthorizeQuery(u User, query *influxql.Query, database string) error {
+func (a *QueryAuthorizer) AuthorizeQuery(u User, q *influxql.Query, database string) (query.FineAuthorizer, error) {
 	// Special case if no users exist.
 	if n := a.Client.UserCount(); n == 0 {
 		// Ensure there is at least one statement.
-		if len(query.Statements) > 0 {
+		if len(q.Statements) > 0 {
 			// First statement in the query must create a user with admin privilege.
-			cu, ok := query.Statements[0].(*influxql.CreateUserStatement)
+			cu, ok := q.Statements[0].(*influxql.CreateUserStatement)
 			if ok && cu.Admin {
-				return nil
+				return query.OpenAuthorizer, nil
 			}
 		}
-		return &ErrAuthorize{
-			Query:    query,
+		return nil, &ErrAuthorize{
+			Query:    q,
 			Database: database,
 			Message:  "create admin user first or disable authentication",
 		}
 	}
 
 	if u == nil {
-		return &ErrAuthorize{
-			Query:    query,
+		return nil, &ErrAuthorize{
+			Query:    q,
 			Database: database,
 			Message:  "no user provided",
 		}
@@ -55,15 +56,15 @@ func (a *QueryAuthorizer) AuthorizeQuery(u User, query *influxql.Query, database
 	case *UserInfo:
 		// Admin privilege allows the user to execute all statements.
 		if user.Admin {
-			return nil
+			return query.OpenAuthorizer, nil
 		}
 
 		// Check each statement in the query.
-		for _, stmt := range query.Statements {
+		for _, stmt := range q.Statements {
 			// Get the privileges required to execute the statement.
 			privs, err := stmt.RequiredPrivileges()
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			// Make sure the user has the privileges required to execute
@@ -72,8 +73,8 @@ func (a *QueryAuthorizer) AuthorizeQuery(u User, query *influxql.Query, database
 				if p.Admin {
 					// Admin privilege already checked so statement requiring admin
 					// privilege cannot be run.
-					return &ErrAuthorize{
-						Query:    query,
+					return nil, &ErrAuthorize{
+						Query:    q,
 						User:     user.Name,
 						Database: database,
 						Message:  fmt.Sprintf("statement '%s', requires admin privilege", stmt),
@@ -88,8 +89,8 @@ func (a *QueryAuthorizer) AuthorizeQuery(u User, query *influxql.Query, database
 					db = database
 				}
 				if !user.AuthorizeDatabase(p.Privilege, db) {
-					return &ErrAuthorize{
-						Query:    query,
+					return nil, &ErrAuthorize{
+						Query:    q,
 						User:     user.Name,
 						Database: database,
 						Message:  fmt.Sprintf("statement '%s', requires %s on %s", stmt, p.Privilege.String(), db),
@@ -97,11 +98,11 @@ func (a *QueryAuthorizer) AuthorizeQuery(u User, query *influxql.Query, database
 				}
 			}
 		}
-		return nil
+		return query.OpenAuthorizer, nil
 	default:
 	}
-	return &ErrAuthorize{
-		Query:    query,
+	return nil, &ErrAuthorize{
+		Query:    q,
 		User:     u.ID(),
 		Database: database,
 		Message:  fmt.Sprintf("Invalid OSS user type %T", u),
@@ -132,7 +133,6 @@ func (a *QueryAuthorizer) AuthorizeDatabase(u User, priv influxql.Privilege, dat
 		User:     u.ID(),
 		Message:  fmt.Sprintf("Internal error - incorrect oss user type %T", u),
 	}
-
 }
 
 // ErrAuthorize represents an authorization error.
