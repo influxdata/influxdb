@@ -123,9 +123,10 @@ impl<C: PartitionChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
                 // Note Predicate doesn't implement Display so punt on showing that now
                 write!(
                     f,
-                    "IOxReadFilterNode: table_name={}, chunks={} predicate=TODO",
+                    "IOxReadFilterNode: table_name={}, chunks={} predicate={}",
                     self.table_name,
-                    self.chunk_and_infos.len()
+                    self.chunk_and_infos.len(),
+                    self.predicate,
                 )
             }
         }
