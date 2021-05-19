@@ -72,6 +72,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
+use cached::proc_macro::cached;
+use db::load_preserved_catalog;
 use futures::stream::TryStreamExt;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
@@ -175,6 +177,8 @@ pub enum Error {
     },
     #[snafu(display("remote error: {}", source))]
     RemoteError { source: ConnectionManagerError },
+    #[snafu(display("cannot load catalog: {}", source))]
+    CatalogLoadError { source: DatabaseError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -418,12 +422,26 @@ impl<M: ConnectionManager> Server<M> {
     pub async fn create_database(&self, rules: DatabaseRules, server_id: ServerId) -> Result<()> {
         // Return an error if this server hasn't yet been setup with an id
         self.require_id()?;
-        let db_reservation = self.config.create_db(rules)?;
 
+        let preserved_catalog = load_preserved_catalog(
+            rules.db_name(),
+            Arc::clone(&self.store),
+            server_id,
+            self.config.metrics_registry(),
+        )
+        .await
+        .map_err(|e| Box::new(e) as _)
+        .context(CatalogLoadError)?;
+
+        let db_reservation = self.config.create_db(rules)?;
         self.persist_database_rules(db_reservation.rules().clone())
             .await?;
-
-        db_reservation.commit(server_id, Arc::clone(&self.store), Arc::clone(&self.exec));
+        db_reservation.commit(
+            server_id,
+            Arc::clone(&self.store),
+            Arc::clone(&self.exec),
+            preserved_catalog,
+        );
 
         Ok(())
     }
@@ -507,10 +525,24 @@ impl<M: ConnectionManager> Server<M> {
                         Err(e) => {
                             error!("error parsing database config {:?} from store: {}", path, e)
                         }
-                        Ok(rules) => match config.create_db(rules) {
-                            Err(e) => error!("error adding database to config: {}", e),
-                            Ok(handle) => handle.commit(server_id, store, exec),
-                        },
+                        Ok(rules) => {
+                            match load_preserved_catalog(
+                                rules.db_name(),
+                                Arc::clone(&store),
+                                server_id,
+                                config.metrics_registry(),
+                            )
+                            .await
+                            {
+                                Err(e) => error!("cannot load database: {}", e),
+                                Ok(preserved_catalog) => match config.create_db(rules) {
+                                    Err(e) => error!("error adding database to config: {}", e),
+                                    Ok(handle) => {
+                                        handle.commit(server_id, store, exec, preserved_catalog)
+                                    }
+                                },
+                            }
+                        }
                     };
                 })
             })
@@ -905,15 +937,23 @@ impl ConnectionManager for ConnectionManagerImpl {
         &self,
         connect: &str,
     ) -> Result<Arc<Self::RemoteServer>, ConnectionManagerError> {
-        // TODO(mkm): cache the connections
-        let connection = Builder::default()
-            .build(connect)
-            .await
-            .map_err(|e| Box::new(e) as _)
-            .context(RemoteServerConnectError)?;
-        let client = write::Client::new(connection);
-        Ok(Arc::new(RemoteServerImpl { client }))
+        cached_remote_server(connect.to_string()).await
     }
+}
+
+// cannot be an associated function
+// argument need to have static lifetime because they become caching keys
+#[cached(result = true)]
+async fn cached_remote_server(
+    connect: String,
+) -> Result<Arc<RemoteServerImpl>, ConnectionManagerError> {
+    let connection = Builder::default()
+        .build(&connect)
+        .await
+        .map_err(|e| Box::new(e) as _)
+        .context(RemoteServerConnectError)?;
+    let client = write::Client::new(connection);
+    Ok(Arc::new(RemoteServerImpl { client }))
 }
 
 /// An implementation for communicating with other IOx servers. This should

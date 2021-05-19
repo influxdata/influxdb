@@ -251,24 +251,33 @@ where
     S: CatalogState,
 {
     /// Create new catalog w/o any data.
-    pub fn new_empty(
+    ///
+    /// An empty transaction will be used to mark the catalog start so that concurrent open but still-empty catalogs can
+    /// easily be detected.
+    pub async fn new_empty(
         object_store: Arc<ObjectStore>,
         server_id: ServerId,
         db_name: impl Into<String>,
         state_data: S::EmptyInput,
-    ) -> Self {
+    ) -> Result<Self> {
         let inner = PreservedCatalogInner {
             previous_tkey: None,
             state: Arc::new(S::new_empty(state_data)),
         };
 
-        Self {
+        let catalog = Self {
             inner: RwLock::new(inner),
             transaction_semaphore: Semaphore::new(1),
             object_store,
             server_id,
             db_name: db_name.into(),
-        }
+        };
+
+        // add empty transaction
+        let transaction = catalog.open_transaction().await;
+        transaction.commit().await?;
+
+        Ok(catalog)
     }
 
     /// Load existing catalog from store, if it exists.
@@ -383,14 +392,13 @@ where
     }
 
     /// Get latest revision counter.
-    ///
-    /// This can be `None` for a newly created catalog.
-    pub fn revision_counter(&self) -> Option<u64> {
+    pub fn revision_counter(&self) -> u64 {
         self.inner
             .read()
             .previous_tkey
             .clone()
             .map(|tkey| tkey.revision_counter)
+            .expect("catalog should have at least an empty transaction")
     }
 }
 
@@ -961,6 +969,42 @@ pub mod tests {
     use super::*;
 
     #[tokio::test]
+    async fn test_create_empty() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+
+        assert!(PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            ()
+        )
+        .await
+        .unwrap()
+        .is_none());
+
+        PreservedCatalog::<TestCatalogState>::new_empty(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+
+        assert!(PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            ()
+        )
+        .await
+        .unwrap()
+        .is_some());
+    }
+
+    #[tokio::test]
     async fn test_inmem_commit_semantics() {
         let object_store = make_object_store();
         assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
@@ -1064,12 +1108,7 @@ pub mod tests {
             (),
         )
         .await;
-        assert!(matches!(
-            res,
-            Err(Error::MissingTransaction {
-                revision_counter: 0
-            })
-        ));
+        assert_eq!(res.unwrap_err().to_string(), "Missing transaction: 0",);
     }
 
     #[tokio::test]
@@ -1327,14 +1366,16 @@ pub mod tests {
             make_server_id(),
             "db1".to_string(),
             (),
-        );
+        )
+        .await
+        .unwrap();
         let mut t = catalog.open_transaction().await;
 
         // open transaction
         t.transaction.as_mut().unwrap().proto.uuid = Uuid::nil().to_string();
         assert_eq!(
             format!("{:?}", t),
-            "TransactionHandle(open, 0.00000000-0000-0000-0000-000000000000)"
+            "TransactionHandle(open, 1.00000000-0000-0000-0000-000000000000)"
         );
 
         // "closed" transaction
@@ -1521,7 +1562,9 @@ pub mod tests {
             server_id,
             db_name.to_string(),
             (),
-        );
+        )
+        .await
+        .unwrap();
 
         // get some test metadata
         let metadata1 = make_metadata(object_store, "foo").await;
@@ -1531,8 +1574,9 @@ pub mod tests {
         let mut trace = TestTrace::new();
 
         // empty catalog has no data
-        assert!(catalog.revision_counter().is_none());
+        assert_eq!(catalog.revision_counter(), 0);
         assert_catalog_parquet_files(&catalog, &[]);
+        trace.record(&catalog);
 
         // fill catalog with examples
         {
@@ -1548,7 +1592,7 @@ pub mod tests {
 
             t.commit().await.unwrap();
         }
-        assert_eq!(catalog.revision_counter().unwrap(), 0);
+        assert_eq!(catalog.revision_counter(), 1);
         assert_catalog_parquet_files(
             &catalog,
             &[
@@ -1578,7 +1622,7 @@ pub mod tests {
 
             t.commit().await.unwrap();
         }
-        assert_eq!(catalog.revision_counter().unwrap(), 1);
+        assert_eq!(catalog.revision_counter(), 2);
         assert_catalog_parquet_files(
             &catalog,
             &[
@@ -1599,7 +1643,7 @@ pub mod tests {
 
             // NO commit here!
         }
-        assert_eq!(catalog.revision_counter().unwrap(), 1);
+        assert_eq!(catalog.revision_counter(), 2);
         assert_catalog_parquet_files(
             &catalog,
             &[
@@ -1629,7 +1673,7 @@ pub mod tests {
                 .unwrap()
                 .unwrap();
         assert_eq!(
-            catalog.revision_counter().unwrap(),
+            catalog.revision_counter(),
             trace.tkeys.last().unwrap().revision_counter
         );
         assert_catalog_parquet_files(

@@ -11,6 +11,7 @@ arrow_flight = { path = "../arrow_flight" }
 async-trait = "0.1"
 bytes = { version = "1.0" }
 chrono = "0.4"
+cached = "0.23.0"
 crc32fast = "1.2.0"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }

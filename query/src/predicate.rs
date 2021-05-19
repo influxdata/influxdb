@@ -3,7 +3,7 @@
 //! mode as well as for arbitrary other predicates that are expressed
 //! by DataFusion's `Expr` type.
 
-use std::collections::{BTreeSet, HashSet};
+use std::{collections::{BTreeSet, HashSet}, fmt};
 
 use data_types::timestamp::TimestampRange;
 use datafusion::{
@@ -27,9 +27,9 @@ pub const EMPTY_PREDICATE: Predicate = Predicate {
 /// Represents a parsed predicate for evaluation by the
 /// TSDatabase InfluxDB IOx query engine.
 ///
-/// Note that the data model of TSDatabase (e.g. ParsedLine's)
+/// Note that the InfluxDB data model (e.g. ParsedLine's)
 /// distinguishes between some types of columns (tags and fields), and
-/// likewise the semantics of this structure has some types of
+/// likewise the semantics of this structure can express some types of
 /// restrictions that only apply to certain types of columns.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Predicate {
@@ -37,9 +37,16 @@ pub struct Predicate {
     /// to only tables whose names are in `table_names`
     pub table_names: Option<BTreeSet<String>>,
 
-    // Optional field restriction. If present, restricts the results to only
-    // tables which have *at least one* of the fields in field_columns.
+    /// Optional field restriction. If present, restricts the results to only
+    /// tables which have *at least one* of the fields in field_columns.
     pub field_columns: Option<BTreeSet<String>>,
+
+    /// Optional partition key filter
+    pub partition_key: Option<String>,
+
+    /// Optional timestamp range: only rows within this range are included in
+    /// results. Other rows are excluded
+    pub range: Option<TimestampRange>,
 
     /// Optional arbitrary predicates, represented as list of
     /// DataFusion expressions applied a logical conjunction (aka they
@@ -47,13 +54,6 @@ pub struct Predicate {
     /// these expressions should be returned. Other rows are excluded
     /// from the results.
     pub exprs: Vec<Expr>,
-
-    /// Optional timestamp range: only rows within this range are included in
-    /// results. Other rows are excluded
-    pub range: Option<TimestampRange>,
-
-    /// Optional partition key filter
-    pub partition_key: Option<String>,
 }
 
 impl Predicate {
@@ -108,8 +108,66 @@ impl Predicate {
     }
 }
 
+impl fmt::Display for Predicate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn iter_to_str<S>(s: impl IntoIterator<Item = S>) -> String
+        where
+            S: ToString,
+        {
+            s.into_iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        }
+
+        write!(f, "Predicate")?;
+
+        if let Some(table_names) = &self.table_names {
+            write!(f, " table_names: {{{}}}", iter_to_str(table_names))?;
+        }
+
+        if let Some(field_columns) = &self.field_columns {
+            write!(f, " field_columns: {{{}}}", iter_to_str(field_columns))?;
+        }
+
+        if let Some(partition_key) = &self.partition_key {
+            write!(f, " partition_key: '{}'", partition_key)?;
+        }
+
+        if let Some(range) = &self.range {
+            // TODO: could be nice to show this as actual timestamps (not just numbers)?
+            write!(f, " range: [{} - {}]", range.start, range.end)?;
+        }
+
+        if !self.exprs.is_empty() {
+            // Expr doesn't implement `Display` yet, so just the debug version
+            // See https://github.com/apache/arrow-datafusion/issues/347
+            let display_exprs = self.exprs.iter().map(|e| format!("{:?}", e));
+            write!(f, " exprs: [{}]", iter_to_str(display_exprs))?;
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Default)]
-/// Structure for building `Predicate`s
+/// Structure for building [`Predicate`]s
+///
+/// Example:
+/// ```
+/// use query::predicate::PredicateBuilder;
+/// use datafusion::logical_plan::{col, lit};
+///
+/// let p = PredicateBuilder::new()
+///    .timestamp_range(1, 100)
+///    .add_expr(col("foo").eq(lit(42)))
+///    .build();
+///
+/// assert_eq!(
+///   p.to_string(),
+///   "Predicate range: [1 - 100] exprs: [#foo Eq Int32(42)]"
+/// );
+/// ```
 pub struct PredicateBuilder {
     inner: Predicate,
 }
@@ -315,9 +373,8 @@ impl PredicateBuilder {
 
 #[cfg(test)]
 mod tests {
-    use datafusion::logical_plan::{col, lit};
-
     use super::*;
+    use datafusion::logical_plan::{col, lit};
 
     #[test]
     fn test_default_predicate_is_empty() {
@@ -391,5 +448,39 @@ mod tests {
         assert_eq!(predicate.exprs[4], col("f").lt_eq(lit(60)));
         assert_eq!(predicate.exprs[5], col("city").eq(lit("Boston")));
         assert_eq!(predicate.exprs[6], col("city").not_eq(lit("Braintree")));
+    }
+
+    #[test]
+    fn predicate_display_ts() {
+        // TODO make this a doc example?
+        let p = PredicateBuilder::new().timestamp_range(1, 100).build();
+
+        assert_eq!(p.to_string(), "Predicate range: [1 - 100]");
+    }
+
+    #[test]
+    fn predicate_display_ts_and_expr() {
+        let p = PredicateBuilder::new()
+            .timestamp_range(1, 100)
+            .add_expr(col("foo").eq(lit(42)).and(col("bar").lt(lit(11))))
+            .build();
+
+        assert_eq!(
+            p.to_string(),
+            "Predicate range: [1 - 100] exprs: [#foo Eq Int32(42) And #bar Lt Int32(11)]"
+        );
+    }
+
+    #[test]
+    fn predicate_display_full() {
+        let p = PredicateBuilder::new()
+            .timestamp_range(1, 100)
+            .add_expr(col("foo").eq(lit(42)))
+            .table("my_table")
+            .field_columns(vec!["f1", "f2"])
+            .partition_key("the_key")
+            .build();
+
+        assert_eq!(p.to_string(), "Predicate table_names: {my_table} field_columns: {f1, f2} partition_key: 'the_key' range: [1 - 100] exprs: [#foo Eq Int32(42)]");
     }
 }

@@ -8,7 +8,7 @@ use datafusion::{
     execution::context::{ExecutionContextState, QueryPlanner},
     logical_plan::{LogicalPlan, UserDefinedLogicalNode},
     physical_plan::{
-        collect,
+        collect, displayable,
         merge::MergeExec,
         planner::{DefaultPhysicalPlanner, ExtensionPlanner},
         ExecutionPlan, PhysicalPlanner, SendableRecordBatchStream,
@@ -151,21 +151,15 @@ impl IOxExecutionContext {
 
     /// Prepare (optimize + plan) a pre-created logical plan for execution
     pub fn prepare_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
-        debug!(
-            "Creating plan: Initial plan\n----\n{}\n{}\n----",
-            plan.display_indent_schema(),
-            plan.display_graphviz(),
-        );
+        debug!(text=%plan.display_indent_schema(), "initial plan");
 
         let plan = self.inner.optimize(&plan)?;
+        debug!(text=%plan.display_indent_schema(), graphviz=%plan.display_graphviz(), "optimized plan");
 
-        debug!(
-            "Creating plan: Optimized plan\n----\n{}\n{}\n----",
-            plan.display_indent_schema(),
-            plan.display_graphviz(),
-        );
+        let physical_plan = self.inner.create_physical_plan(&plan)?;
 
-        self.inner.create_physical_plan(&plan)
+        debug!(text=%displayable(physical_plan.as_ref()).indent(), "optimized physical plan");
+        Ok(physical_plan)
     }
 
     /// Executes the logical plan using DataFusion on a separate

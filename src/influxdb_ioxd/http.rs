@@ -26,21 +26,24 @@ use server::{ConnectionManager, Server as AppServer};
 use bytes::{Bytes, BytesMut};
 use futures::{self, StreamExt};
 use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
-use hyper::{Body, Method, Request, Response, StatusCode};
+use hyper::{http::HeaderValue, Body, Method, Request, Response, StatusCode};
 use observability_deps::{
     opentelemetry::KeyValue,
-    tracing::{self, debug, error},
+    tracing::{self, debug, error, info},
 };
 use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError, RouterService};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use hyper::server::conn::AddrIncoming;
+use pprof::protos::Message;
+use std::num::NonZeroI32;
 use std::{
     fmt::Debug,
     str::{self, FromStr},
     sync::Arc,
 };
+use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 /// Constants used in API error codes.
@@ -217,6 +220,15 @@ pub enum ApplicationError {
         partition: String,
         table_name: String,
     },
+
+    #[snafu(display("PProf error: {}", source))]
+    PProf { source: pprof::Error },
+
+    #[snafu(display("Protobuf error: {}", source))]
+    Prost { source: prost::EncodeError },
+
+    #[snafu(display("Empty flamegraph"))]
+    EmptyFlamegraph,
 }
 
 impl ApplicationError {
@@ -251,6 +263,9 @@ impl ApplicationError {
             Self::ParsingFormat { .. } => self.bad_request(),
             Self::Planning { .. } => self.bad_request(),
             Self::NoSnapshot { .. } => self.not_modified(),
+            Self::PProf { .. } => self.internal_error(),
+            Self::Prost { .. } => self.internal_error(),
+            Self::EmptyFlamegraph => self.no_content(),
         }
     }
 
@@ -278,6 +293,13 @@ impl ApplicationError {
     fn not_modified(&self) -> Response<Body> {
         Response::builder()
             .status(StatusCode::NOT_MODIFIED)
+            .body(self.body())
+            .unwrap()
+    }
+
+    fn no_content(&self) -> Response<Body> {
+        Response::builder()
+            .status(StatusCode::NO_CONTENT)
             .body(self.body())
             .unwrap()
     }
@@ -340,6 +362,8 @@ where
         .get("/iox/api/v1/databases/:name/query", query::<M>)
         .get("/api/v1/partitions", list_partitions::<M>)
         .post("/api/v1/snapshot", snapshot_partition::<M>)
+        .get("/debug/pprof", pprof_home::<M>)
+        .get("/debug/pprof/profile", pprof_profile::<M>)
         // Specify the error handler to handle any errors caused by
         // a route or any middleware.
         .err_handler_with_info(error_handler)
@@ -783,6 +807,97 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
             table_name: table_name.to_string(),
         })
     }
+}
+
+#[tracing::instrument(level = "debug")]
+async fn pprof_home<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    let default_host = HeaderValue::from_static("localhost");
+    let host = req
+        .headers()
+        .get("host")
+        .unwrap_or(&default_host)
+        .to_str()
+        .unwrap_or_default();
+    let cmd = format!(
+        "/debug/pprof/profile?seconds={}",
+        PProfArgs::default_seconds()
+    );
+    Ok(Response::new(Body::from(format!(
+        r#"<a href="{}">http://{}{}</a>"#,
+        cmd, host, cmd
+    ))))
+}
+
+async fn dump_rsprof(seconds: u64, frequency: i32) -> pprof::Result<pprof::Report> {
+    let guard = pprof::ProfilerGuard::new(frequency)?;
+    info!(
+        "start profiling {} seconds with frequency {} /s",
+        seconds, frequency
+    );
+
+    tokio::time::sleep(Duration::from_secs(seconds)).await;
+
+    info!(
+        "done profiling {} seconds with frequency {} /s",
+        seconds, frequency
+    );
+    guard.report().build()
+}
+
+#[derive(Debug, Deserialize)]
+struct PProfArgs {
+    #[serde(default = "PProfArgs::default_seconds")]
+    seconds: u64,
+    #[serde(default = "PProfArgs::default_frequency")]
+    frequency: NonZeroI32,
+}
+
+impl PProfArgs {
+    fn default_seconds() -> u64 {
+        30
+    }
+
+    // 99Hz to avoid coinciding with special periods
+    fn default_frequency() -> NonZeroI32 {
+        NonZeroI32::new(99).unwrap()
+    }
+}
+
+#[tracing::instrument(level = "debug")]
+async fn pprof_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    let query_string = req.uri().query().unwrap_or_default();
+    let query: PProfArgs =
+        serde_urlencoded::from_str(query_string).context(InvalidQueryString { query_string })?;
+
+    let report = dump_rsprof(query.seconds, query.frequency.get())
+        .await
+        .context(PProf)?;
+
+    let mut body: Vec<u8> = Vec::new();
+
+    // render flamegraph when opening in the browser
+    // otherwise render as protobuf; works great with: go tool pprof http://..../debug/pprof/profile
+    if req
+        .headers()
+        .get_all("Accept")
+        .iter()
+        .flat_map(|i| i.to_str().unwrap_or_default().split(','))
+        .any(|i| i == "text/html" || i == "image/svg+xml")
+    {
+        report.flamegraph(&mut body).context(PProf)?;
+        if body.is_empty() {
+            return EmptyFlamegraph.fail();
+        }
+    } else {
+        let profile = report.pprof().context(PProf)?;
+        profile.encode(&mut body).context(Prost)?;
+    }
+
+    Ok(Response::new(Body::from(body)))
 }
 
 pub async fn serve<M>(
