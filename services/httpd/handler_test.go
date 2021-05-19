@@ -2036,8 +2036,8 @@ type HandlerQueryAuthorizer struct {
 	AuthorizeQueryFn func(u meta.User, query *influxql.Query, database string) error
 }
 
-func (a *HandlerQueryAuthorizer) AuthorizeQuery(u meta.User, query *influxql.Query, database string) error {
-	return a.AuthorizeQueryFn(u, query, database)
+func (a *HandlerQueryAuthorizer) AuthorizeQuery(u meta.User, q *influxql.Query, database string) (query.FineAuthorizer, error) {
+	return query.OpenAuthorizer, a.AuthorizeQueryFn(u, q, database)
 }
 
 func (a *HandlerQueryAuthorizer) AuthorizeDatabase(u meta.User, priv influxql.Privilege, database string) error {
