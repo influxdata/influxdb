@@ -1,11 +1,11 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use arrow::{self, array::Array};
 use either::Either;
 
 use super::cmp;
 use super::encoding::string::{dictionary, rle};
-use super::encoding::string::{Dictionary, Encoding, RLE};
+use super::encoding::string::{Dictionary, Encoding, NULL_ID, RLE};
 use crate::column::{RowIDs, Statistics, Value, Values};
 
 // Edd's totally made up magic constant. This determines whether we would use
@@ -152,7 +152,7 @@ impl StringEncoding {
         }
     }
 
-    /// All values present at the provided logical row ids.
+    /// All values present at the provided logical row IDs.
     ///
     /// TODO(edd): perf - pooling of destination vectors.
     pub fn values(&self, row_ids: &[u32]) -> Values<'_> {
@@ -160,6 +160,67 @@ impl StringEncoding {
             Self::RleDictionary(c) => Values::String(c.values(row_ids, vec![])),
             Self::Dictionary(c) => Values::String(c.values(row_ids, vec![])),
         }
+    }
+
+    /// Returns all values present at the provided logical row IDs as a
+    /// dictionary encoded `Values` format.
+    pub fn values_as_dictionary(&self, row_ids: &[u32]) -> Values<'_> {
+        //
+        // Example:
+        //
+        // Suppose you have column encoded like this:
+        //
+        // values: NULL, "alpha", "beta", "gamma"
+        // encoded: 1, 1, 2, 0, 3 (alpha, alpha, beta, NULL, gamma)
+        //
+        // And only the rows: {0, 1, 3, 4} are required.
+        //
+        // The column encoding will return the following encoded values
+        //
+        // encoded: 1, 1, 0, 3 (alpha, alpha, NULL, gamma)
+        //
+        // Because the dictionary has likely changed, the encoded values need
+        // to be transformed into a new domain so that they are:
+        //
+        // keys: [1, 1, 0, 2]
+        // values: [None, Some("alpha"), Some("gamma")]
+        let mut keys = self.encoded_values(row_ids, vec![]);
+
+        // build a mapping from encoded value to new ordinal position.
+        let mut ordinal_mapping = BTreeMap::new();
+        for key in &keys {
+            // no hashbrown entry API for ordered set. `contains_key` is most
+            // performant way to build this mapping.
+            if ordinal_mapping.contains_key(key) {
+                continue;
+            }
+            ordinal_mapping.insert(*key, 0);
+        }
+
+        // create new ordinal offsets - the encoded values for the
+        // dictionary will be correctly ordered, but they need to be shifted
+        // into a new domain [0, keys.len()).
+        for (i, offset) in ordinal_mapping.values_mut().enumerate() {
+            *offset = i as u32;
+        }
+
+        // Rewrite all the encoded values into the new domain.
+        for id in keys.iter_mut() {
+            *id = *ordinal_mapping.get(id).unwrap();
+        }
+
+        let values = match &self {
+            Self::RleDictionary(c) => ordinal_mapping
+                .keys()
+                .map(|id| c.decode_id(*id))
+                .collect::<Vec<_>>(),
+            Self::Dictionary(c) => ordinal_mapping
+                .keys()
+                .map(|id| c.decode_id(*id))
+                .collect::<Vec<_>>(),
+        };
+
+        Values::Dictionary(keys, values)
     }
 
     /// All values in the column.
@@ -170,6 +231,48 @@ impl StringEncoding {
             Self::RleDictionary(c) => Values::String(c.all_values(vec![])),
             Self::Dictionary(c) => Values::String(c.all_values(vec![])),
         }
+    }
+
+    /// Returns all values as a dictionary encoded `Values` format.
+    pub fn all_values_as_dictionary(&self) -> Values<'_> {
+        let mut keys = self.all_encoded_values(vec![]);
+
+        let values = if self.contains_null() {
+            // The column's ordered set of values including None because that is a
+            // reserved encoded key (`0`).
+            let mut values = vec![None];
+            match &self {
+                Self::RleDictionary(c) => {
+                    values.extend(c.dictionary().into_iter().map(|s| Some(s.as_str())));
+                }
+                Self::Dictionary(c) => {
+                    values.extend(c.dictionary().into_iter().map(|s| Some(s.as_str())));
+                }
+            };
+            values
+        } else {
+            // since column doesn't contain null we need to shift all the encoded
+            // values down
+            assert_eq!(NULL_ID, 0);
+            for key in keys.iter_mut() {
+                *key -= 1;
+            }
+
+            match &self {
+                Self::RleDictionary(c) => c
+                    .dictionary()
+                    .into_iter()
+                    .map(|s| Some(s.as_str()))
+                    .collect::<Vec<_>>(),
+                Self::Dictionary(c) => c
+                    .dictionary()
+                    .into_iter()
+                    .map(|s| Some(s.as_str()))
+                    .collect::<Vec<_>>(),
+            }
+        };
+
+        Values::Dictionary(keys, values)
     }
 
     /// Returns the logical value for the specified encoded representation.
@@ -484,6 +587,157 @@ impl From<&[&str]> for StringEncoding {
         match data {
             Encoding::RLE(enc) => Self::RleDictionary(enc),
             Encoding::Plain(enc) => Self::Dictionary(enc),
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    // tests both `values_as_dictionary` and `all_values_as_dictionary`
+    fn values_as_dictionary() {
+        let set = vec!["apple", "beta", "orange", "pear"];
+        let data = vec![
+            Some("apple"),
+            Some("apple"),
+            Some("pear"),
+            None,
+            None,
+            Some("orange"),
+            Some("beta"),
+        ];
+
+        let mut rle = RLE::with_dictionary(
+            set.iter()
+                .cloned()
+                .map(String::from)
+                .collect::<BTreeSet<String>>(),
+        );
+        for v in data.iter().map(|x| x.map(String::from)) {
+            rle.push_additional(v, 1);
+        }
+
+        let mut dict = Dictionary::with_dictionary(
+            set.into_iter()
+                .map(String::from)
+                .collect::<BTreeSet<String>>(),
+        );
+        for v in data.iter().map(|x| x.map(String::from)) {
+            dict.push_additional(v, 1);
+        }
+
+        let encodings = vec![
+            StringEncoding::RleDictionary(rle),
+            StringEncoding::Dictionary(dict),
+        ];
+
+        for enc in encodings {
+            _values_as_dictionary(&enc);
+            _all_values_as_dictionary(&enc);
+        }
+
+        // example without NULL values
+        let data = vec![
+            Some("apple"),
+            Some("apple"),
+            Some("beta"),
+            Some("orange"),
+            Some("pear"),
+        ];
+
+        let encodings = vec![
+            StringEncoding::RleDictionary(RLE::from(data.clone())),
+            StringEncoding::Dictionary(Dictionary::from(data)),
+        ];
+
+        for enc in encodings {
+            let exp_keys = vec![0, 0, 1, 2, 3];
+            let exp_values = vec![Some("apple"), Some("beta"), Some("orange"), Some("pear")];
+
+            let values = enc.all_values_as_dictionary();
+            if let Values::Dictionary(got_keys, got_values) = values {
+                assert_eq!(got_keys, exp_keys, "key comparison for {} failed", enc);
+                assert_eq!(
+                    got_values, exp_values,
+                    "values comparison for {} failed",
+                    enc
+                );
+            } else {
+                panic!("invalid Values format returned, got {:?}", values);
+            }
+        }
+    }
+
+    fn _values_as_dictionary(enc: &StringEncoding) {
+        // column is: [apple, apple, pear, NULL, NULL, orange, beta]
+
+        let cases = vec![
+            (
+                &[0, 3, 4][..], // apple NULL, NULL
+                (vec![1, 0, 0], vec![None, Some("apple")]),
+            ),
+            (
+                &[6], // beta
+                (vec![0], vec![Some("beta")]),
+            ),
+            (
+                &[0, 3, 5][..], // apple NULL, orange
+                (vec![1, 0, 2], vec![None, Some("apple"), Some("orange")]),
+            ),
+            (
+                &[0, 1, 2, 3, 4, 5, 6], // apple, apple, pear, NULL, NULL, orange, beta
+                (
+                    vec![1, 1, 4, 0, 0, 3, 2],
+                    vec![
+                        None,
+                        Some("apple"),
+                        Some("beta"),
+                        Some("orange"),
+                        Some("pear"),
+                    ],
+                ),
+            ),
+        ];
+
+        for (row_ids, (exp_keys, exp_values)) in cases {
+            let values = enc.values_as_dictionary(row_ids);
+            if let Values::Dictionary(got_keys, got_values) = values {
+                assert_eq!(got_keys, exp_keys, "key comparison for {} failed", enc);
+                assert_eq!(
+                    got_values, exp_values,
+                    "values comparison for {} failed",
+                    enc
+                );
+            } else {
+                panic!("invalid Values format returned, got {:?}", values);
+            }
+        }
+    }
+
+    fn _all_values_as_dictionary(enc: &StringEncoding) {
+        // column is: [apple, apple, pear, NULL, NULL, orange, beta]
+
+        let exp_keys = vec![1, 1, 4, 0, 0, 3, 2];
+        let exp_values = vec![
+            None,
+            Some("apple"),
+            Some("beta"),
+            Some("orange"),
+            Some("pear"),
+        ];
+
+        let values = enc.all_values_as_dictionary();
+        if let Values::Dictionary(got_keys, got_values) = values {
+            assert_eq!(got_keys, exp_keys, "key comparison for {} failed", enc);
+            assert_eq!(
+                got_values, exp_values,
+                "values comparison for {} failed",
+                enc
+            );
+        } else {
+            panic!("invalid Values format returned, got {:?}", values);
         }
     }
 }
