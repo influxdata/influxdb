@@ -853,6 +853,24 @@ where
         }
     }
 
+    /// Get revision counter for this transaction.
+    pub fn revision_counter(&self) -> u64 {
+        self.transaction
+            .as_ref()
+            .expect("No transaction in progress?")
+            .tkey()
+            .revision_counter
+    }
+
+    /// Get UUID for this transaction
+    pub fn uuid(&self) -> Uuid {
+        self.transaction
+            .as_ref()
+            .expect("No transaction in progress?")
+            .tkey()
+            .uuid
+    }
+
     /// Write data to object store and commit transaction to underlying catalog.
     pub async fn commit(mut self) -> Result<()> {
         // write to object store
@@ -1914,6 +1932,39 @@ pub mod tests {
         let mut files: Vec<_> = files.iter().map(|path| path.display()).collect();
         files.sort();
         assert_eq!(files, vec![path.display()]);
+    }
+
+    #[tokio::test]
+    async fn test_transaction_handle_revision_counter() {
+        let object_store = make_object_store();
+        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+            object_store,
+            make_server_id(),
+            "db1".to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+        let t = catalog.open_transaction().await;
+
+        assert_eq!(t.revision_counter(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_transaction_handle_uuid() {
+        let object_store = make_object_store();
+        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+            object_store,
+            make_server_id(),
+            "db1".to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+        let mut t = catalog.open_transaction().await;
+
+        t.transaction.as_mut().unwrap().proto.uuid = Uuid::nil().to_string();
+        assert_eq!(t.uuid(), Uuid::nil());
     }
 
     async fn assert_catalog_roundtrip_works(
