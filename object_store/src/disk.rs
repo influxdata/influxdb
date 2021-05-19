@@ -161,7 +161,7 @@ impl ObjectStoreApi for File {
                     let relative_path = file.path().strip_prefix(&root_path).expect(
                         "Must start with root path because this came from walking the root",
                     );
-                    FilePath::raw(relative_path)
+                    FilePath::raw(relative_path, false)
                 })
                 .filter(|name| prefix.map_or(true, |p| name.prefix_matches(p)))
                 .map(|name| Ok(vec![name]))
@@ -198,7 +198,7 @@ impl ObjectStoreApi for File {
         let root_path = self.root.to_raw();
         for entry in walkdir {
             let entry = entry.context(UnableToProcessEntry)?;
-            let entry_location = FilePath::raw(entry.path());
+            let entry_location = FilePath::raw(entry.path(), false);
 
             if entry_location.prefix_matches(&resolved_prefix) {
                 let metadata = entry
@@ -218,7 +218,7 @@ impl ObjectStoreApi for File {
                         .path()
                         .strip_prefix(&root_path)
                         .expect("must have prefix because of the if prefix_matches condition");
-                    let location = FilePath::raw(path);
+                    let location = FilePath::raw(path, false);
 
                     let last_modified = metadata
                         .modified()
@@ -248,7 +248,7 @@ impl File {
     /// Create new filesystem storage.
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self {
-            root: FilePath::raw(root),
+            root: FilePath::raw(root, true),
         }
     }
 
