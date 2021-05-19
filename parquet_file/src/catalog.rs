@@ -389,6 +389,8 @@ where
     }
 
     /// Deletes (potentially existing) catalog.
+    ///
+    /// Note that wiping the catalog will NOT wipe any referenced parquet files.
     pub async fn wipe(
         object_store: &ObjectStore,
         server_id: ServerId,
