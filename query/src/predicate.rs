@@ -3,7 +3,10 @@
 //! mode as well as for arbitrary other predicates that are expressed
 //! by DataFusion's `Expr` type.
 
-use std::{collections::{BTreeSet, HashSet}, fmt};
+use std::{
+    collections::{BTreeSet, HashSet},
+    fmt,
+};
 
 use data_types::timestamp::TimestampRange;
 use datafusion::{
