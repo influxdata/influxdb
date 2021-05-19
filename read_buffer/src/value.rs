@@ -1349,6 +1349,10 @@ pub enum Values<'a> {
     // UTF-8 valid unicode strings
     String(Vec<Option<&'a str>>),
 
+    // A dictionary mapping between a vector of dictionary integer keys and the
+    // string values they refer to.
+    Dictionary(Vec<u32>, Vec<Option<&'a str>>),
+
     // Scalar types
     I64(Vec<i64>),
     U64(Vec<u64>),
@@ -1368,6 +1372,7 @@ impl<'a> Values<'a> {
     pub fn len(&self) -> usize {
         match &self {
             Self::String(c) => c.len(),
+            Self::Dictionary(c, _) => c.len(),
             Self::I64(c) => c.len(),
             Self::U64(c) => c.len(),
             Self::F64(c) => c.len(),
@@ -1386,6 +1391,7 @@ impl<'a> Values<'a> {
     pub fn is_null(&self, i: usize) -> bool {
         match &self {
             Self::String(c) => c[i].is_none(),
+            Self::Dictionary(keys, values) => values[keys[i] as usize].is_none(),
             Self::F64(_) => false,
             Self::I64(_) => false,
             Self::U64(_) => false,
@@ -1400,6 +1406,10 @@ impl<'a> Values<'a> {
     pub fn value(&self, i: usize) -> Value<'a> {
         match &self {
             Self::String(c) => match c[i] {
+                Some(v) => Value::String(v),
+                None => Value::Null,
+            },
+            Self::Dictionary(keys, values) => match values[keys[i] as usize] {
                 Some(v) => Value::String(v),
                 None => Value::Null,
             },
@@ -1460,6 +1470,7 @@ impl<'a> Values<'a> {
     fn value_str(&self, i: usize) -> &'a str {
         match &self {
             Values::String(c) => c[i].unwrap(),
+            Values::Dictionary(keys, values) => values[keys[i] as usize].unwrap(),
             _ => panic!("value cannot be returned as &str"),
         }
     }
@@ -1481,11 +1492,71 @@ impl<'a> Values<'a> {
     }
 }
 
+use arrow::{
+    array::{Array, ArrayDataBuilder, DictionaryArray},
+    buffer::Buffer,
+    datatypes::{DataType, Int32Type},
+};
+use arrow_util::bitset::BitSet;
+use std::iter::FromIterator;
+
 /// Moves ownership of Values into an arrow `ArrayRef`.
 impl From<Values<'_>> for arrow::array::ArrayRef {
     fn from(values: Values<'_>) -> Self {
         match values {
             Values::String(values) => Arc::new(arrow::array::StringArray::from(values)),
+            Values::Dictionary(mut keys, values) => {
+                // check for NULL values, setting null positions
+                // on the null bitmap if there is at least one NULL
+                // value.
+                let null_bitmap = if matches!(values.first(), Some(None)) {
+                    let mut bitset = BitSet::with_capacity(keys.len());
+                    for (i, v) in keys.iter_mut().enumerate() {
+                        if *v as usize != 0 {
+                            bitset.set(i); // valid value
+                        }
+
+                        // because Arrow Dictionary arrays do not maintain a
+                        // None/NULL entry in the string values array we need to
+                        // shift the encoded key down so it maps correctly to
+                        // the values array. The encoded key for NULL entries is
+                        // never used (it's undefined) so we can keep those
+                        // encoded keys set to 0.
+                        if *v > 0 {
+                            *v -= 1;
+                        }
+                    }
+                    Some(bitset)
+                } else {
+                    None
+                };
+
+                // If there is a null bitmap we need to remove the None entry
+                // from the string values array since Arrow doesn't maintain
+                // NULL entries in a dictionary's value array.
+                let values_arr = if null_bitmap.is_some() {
+                    // drop NULL value entry as this is not stored in Arrow's
+                    // dictionary values array.
+                    assert!(values[0].is_none());
+                    arrow::array::StringArray::from_iter(values.into_iter().skip(1))
+                } else {
+                    arrow::array::StringArray::from(values)
+                };
+
+                let mut builder = ArrayDataBuilder::new(DataType::Dictionary(
+                    Box::new(DataType::Int32),
+                    Box::new(DataType::Utf8),
+                ))
+                .len(keys.len())
+                .add_buffer(Buffer::from_iter(keys))
+                .add_child_data(values_arr.data().clone());
+
+                if let Some(bm) = null_bitmap {
+                    builder = builder.null_bit_buffer(bm.to_arrow());
+                }
+
+                Arc::new(DictionaryArray::<Int32Type>::from(builder.build()))
+            }
             Values::I64(values) => Arc::new(arrow::array::Int64Array::from(values)),
             Values::U64(values) => Arc::new(arrow::array::UInt64Array::from(values)),
             Values::F64(values) => Arc::new(arrow::array::Float64Array::from(values)),
@@ -1593,6 +1664,7 @@ impl EncodedValues {
 #[cfg(test)]
 mod test {
     use super::*;
+    use arrow::array::ArrayRef;
 
     #[test]
     fn aggregate_vec_update() {
@@ -1782,5 +1854,73 @@ mod test {
 
         let v1 = OwnedValue::ByteArray(vec![2, 44, 252]);
         assert_eq!(v1.size(), 35);
+    }
+
+    #[test]
+    fn from_dictionary_arrow() {
+        let values = Values::Dictionary(
+            vec![0, 1, 2, 0, 1, 2, 2],
+            vec![Some("bones"), Some("just"), Some("planet telex")],
+        );
+
+        let arr = ArrayRef::from(values);
+        // no null values in Arrow dictionary array
+        assert_eq!(arr.null_count(), 0);
+        assert!((0..7).into_iter().all(|i| !arr.is_null(i)));
+
+        // Should produce the same the array as when created from an iterator
+        // of strings.
+        let exp_dict_arr = vec![
+            Some("bones"),
+            Some("just"),
+            Some("planet telex"),
+            Some("bones"),
+            Some("just"),
+            Some("planet telex"),
+            Some("planet telex"),
+        ]
+        .into_iter()
+        .collect::<arrow::array::DictionaryArray<arrow::datatypes::Int32Type>>();
+
+        let as_dict_arr = arr
+            .as_any()
+            .downcast_ref::<arrow::array::DictionaryArray<arrow::datatypes::Int32Type>>()
+            .unwrap();
+        assert_eq!(as_dict_arr.keys(), exp_dict_arr.keys());
+
+        // Now let's try with some NULL entries.
+        let values = Values::Dictionary(
+            vec![0, 1, 2, 0, 1, 2, 2],
+            vec![None, Some("just"), Some("planet telex")],
+        );
+
+        let arr = ArrayRef::from(values);
+        assert_eq!(arr.null_count(), 2);
+        for (i, exp) in vec![true, false, false, true, false, false, false]
+            .iter()
+            .enumerate()
+        {
+            assert_eq!(arr.is_null(i), *exp);
+        }
+
+        // Should produce the same the array as when created from an iterator
+        // of strings.
+        let exp_dict_arr = vec![
+            None,
+            Some("just"),
+            Some("planet telex"),
+            None,
+            Some("just"),
+            Some("planet telex"),
+            Some("planet telex"),
+        ]
+        .into_iter()
+        .collect::<arrow::array::DictionaryArray<arrow::datatypes::Int32Type>>();
+
+        let as_dict_arr = arr
+            .as_any()
+            .downcast_ref::<arrow::array::DictionaryArray<arrow::datatypes::Int32Type>>()
+            .unwrap();
+        assert_eq!(as_dict_arr.keys(), exp_dict_arr.keys());
     }
 }

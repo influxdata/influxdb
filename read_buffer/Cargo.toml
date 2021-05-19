@@ -12,6 +12,7 @@ edition = "2018"
 
 [dependencies] # In alphabetical order
 arrow = { path = "../arrow" }
+arrow_util = { path = "../arrow_util" }
 croaring = "0.4.5"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
