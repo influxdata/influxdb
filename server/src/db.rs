@@ -33,8 +33,8 @@ use parking_lot::{Mutex, RwLock};
 use parquet_file::{
     catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
     chunk::{Chunk as ParquetChunk, ChunkMetrics as ParquetChunkMetrics},
-    metadata::read_statistics_from_parquet_metadata,
-    storage::{read_schema_from_parquet_metadata, Storage},
+    metadata::{read_schema_from_parquet_metadata, read_statistics_from_parquet_metadata},
+    storage::Storage,
 };
 use query::predicate::{Predicate, PredicateBuilder};
 use query::{exec::Executor, Database, DEFAULT_SCHEMA};
@@ -1267,8 +1267,7 @@ mod tests {
         ObjectStore, ObjectStoreApi,
     };
     use parquet_file::{
-        metadata::read_parquet_metadata_from_file,
-        storage::read_schema_from_parquet_metadata,
+        metadata::{read_parquet_metadata_from_file, read_schema_from_parquet_metadata},
         utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
     use query::{frontend::sql::SqlQueryPlanner, PartitionChunk};

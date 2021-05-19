@@ -140,7 +140,7 @@ pub enum Error {
         visibility(pub)
     )]
     SchemaReadFailed {
-        source: crate::storage::Error,
+        source: crate::metadata::Error,
         path: DirsAndFileName,
     },
 
@@ -1059,8 +1059,10 @@ pub mod tests {
     use std::{num::NonZeroU32, ops::Deref};
 
     use crate::{
-        metadata::{read_parquet_metadata_from_file, read_statistics_from_parquet_metadata},
-        storage::read_schema_from_parquet_metadata,
+        metadata::{
+            read_parquet_metadata_from_file, read_schema_from_parquet_metadata,
+            read_statistics_from_parquet_metadata,
+        },
         utils::{load_parquet_from_store, make_chunk, make_object_store},
     };
     use object_store::parsed_path;

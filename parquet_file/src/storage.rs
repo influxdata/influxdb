@@ -9,16 +9,14 @@ use datafusion::{
     physical_optimizer::pruning::PruningPredicateBuilder,
     physical_plan::{common::SizedRecordBatchStream, RecordBatchStream, SendableRecordBatchStream},
 };
-use internal_types::{schema::Schema, selection::Selection};
+use internal_types::selection::Selection;
 use object_store::{
     path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
 use parquet::{
     self,
-    arrow::{
-        arrow_reader::ParquetFileArrowReader, parquet_to_arrow_schema, ArrowReader, ArrowWriter,
-    },
+    arrow::{arrow_reader::ParquetFileArrowReader, ArrowReader, ArrowWriter},
     file::{
         metadata::{ParquetMetaData, RowGroupMetaData},
         reader::FileReader,
@@ -34,14 +32,13 @@ use futures::{Stream, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
-    convert::TryInto,
     io::{Cursor, Seek, SeekFrom, Write},
     sync::Arc,
     task::{Context, Poll},
 };
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::metadata::read_parquet_metadata_from_file;
+use crate::metadata::{read_parquet_metadata_from_file, read_schema_from_parquet_metadata};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -99,16 +96,6 @@ pub enum Error {
     #[snafu(display("Error sending results: {}", source))]
     SendResult {
         source: datafusion::error::DataFusionError,
-    },
-
-    #[snafu(display("Cannot read arrow schema from parquet: {}", source))]
-    ArrowFromParquetFailure {
-        source: parquet::errors::ParquetError,
-    },
-
-    #[snafu(display("Cannot read IOx schema from arrow: {}", source))]
-    IoxFromArrowFailure {
-        source: internal_types::schema::Error,
     },
 
     #[snafu(display("Cannot extract Parquet metadata from byte array: {}", source))]
@@ -377,7 +364,8 @@ impl Storage {
         // TODO: remove these line after https://github.com/apache/arrow-rs/issues/252 is done
         // Get file level metadata to set it to the record batch's metadata below
         let metadata = reader.metadata();
-        let schema = read_schema_from_parquet_metadata(metadata)?;
+        let schema =
+            read_schema_from_parquet_metadata(metadata).context(ExtractingMetadataFailure)?;
 
         if let Some(predicate_builder) = predicate_builder {
             let predicate_values = predicate_builder
@@ -487,24 +475,6 @@ impl TryClone for MemWriter {
             mem: Arc::clone(&self.mem),
         })
     }
-}
-
-/// Read IOx schema from parquet metadata.
-pub fn read_schema_from_parquet_metadata(parquet_md: &ParquetMetaData) -> Result<Schema> {
-    let file_metadata = parquet_md.file_metadata();
-
-    let arrow_schema = parquet_to_arrow_schema(
-        file_metadata.schema_descr(),
-        file_metadata.key_value_metadata(),
-    )
-    .context(ArrowFromParquetFailure {})?;
-
-    let arrow_schema_ref = Arc::new(arrow_schema);
-
-    let schema: Schema = arrow_schema_ref
-        .try_into()
-        .context(IoxFromArrowFailure {})?;
-    Ok(schema)
 }
 
 #[cfg(test)]
