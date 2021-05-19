@@ -72,6 +72,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
+use cached::proc_macro::cached;
 use db::load_preserved_catalog;
 use futures::stream::TryStreamExt;
 use observability_deps::tracing::{error, info, warn};
@@ -936,15 +937,23 @@ impl ConnectionManager for ConnectionManagerImpl {
         &self,
         connect: &str,
     ) -> Result<Arc<Self::RemoteServer>, ConnectionManagerError> {
-        // TODO(mkm): cache the connections
-        let connection = Builder::default()
-            .build(connect)
-            .await
-            .map_err(|e| Box::new(e) as _)
-            .context(RemoteServerConnectError)?;
-        let client = write::Client::new(connection);
-        Ok(Arc::new(RemoteServerImpl { client }))
+        cached_remote_server(connect.to_string()).await
     }
+}
+
+// cannot be an associated function
+// argument need to have static lifetime because they become caching keys
+#[cached(result = true)]
+async fn cached_remote_server(
+    connect: String,
+) -> Result<Arc<RemoteServerImpl>, ConnectionManagerError> {
+    let connection = Builder::default()
+        .build(&connect)
+        .await
+        .map_err(|e| Box::new(e) as _)
+        .context(RemoteServerConnectError)?;
+    let client = write::Client::new(connection);
+    Ok(Arc::new(RemoteServerImpl { client }))
 }
 
 /// An implementation for communicating with other IOx servers. This should
