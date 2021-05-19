@@ -135,10 +135,6 @@ func (a *QueryAuthorizer) AuthorizeDatabase(u User, priv influxql.Privilege, dat
 	}
 }
 
-func (a *QueryAuthorizer) FineAuthorizer(u User) (query.FineAuthorizer, error) {
-	return query.OpenAuthorizer, nil
-}
-
 // ErrAuthorize represents an authorization error.
 type ErrAuthorize struct {
 	Query    *influxql.Query

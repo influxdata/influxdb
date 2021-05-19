@@ -576,11 +576,13 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	if h.Config.AuthEnabled {
 		var err error
 		if fineAuthorizer, err = h.QueryAuthorizer.AuthorizeQuery(user, q, db); err != nil {
-			if err, ok := err.(meta.ErrAuthorize); ok {
+			if authErr, ok := err.(meta.ErrAuthorize); ok {
 				h.Logger.Info("Unauthorized request",
-					zap.String("user", err.User),
-					zap.Stringer("query", err.Query),
-					logger.Database(err.Database))
+					zap.String("user", authErr.User),
+					zap.Stringer("query", authErr.Query),
+					logger.Database(authErr.Database))
+			} else {
+				h.Logger.Info("Error authorizing query", zap.Error(err))
 			}
 			h.httpError(rw, "error authorizing query: "+err.Error(), http.StatusForbidden)
 			return
