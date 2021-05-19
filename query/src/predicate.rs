@@ -296,13 +296,13 @@ impl PredicateBuilder {
     }
 
     /// Return true if the given expression is in a primitive binary in the form: `column op constant`
-    // and op must be comparison one
+    // and op must be a comparison one
     pub fn primitive_binary_expr(expr: &Expr) -> bool {
         match expr {
             Expr::BinaryExpr { op, .. } => matches!(
                 op,
                 Operator::Eq
-                    | Operator::NotEq   // TODO: Need to see if this is supported in RUB yet
+                    | Operator::NotEq
                     | Operator::Lt
                     | Operator::LtEq
                     | Operator::Gt
@@ -344,15 +344,15 @@ mod tests {
         let expr2 = col("price").gt(lit(10));
         filters.push(expr2);
 
-        // a < 10 AND b >= 50
+        // a < 10 AND b >= 50  --> will be split to [a < 10, b >= 50]
         let expr3 = col("a").lt(lit(10)).and(col("b").gt_eq(lit(50)));
         filters.push(expr3);
 
-        // c != 3 OR d = 8
+        // c != 3 OR d = 8  --> won't be pushed down
         let expr4 = col("c").not_eq(lit(3)).or(col("d").eq(lit(8)));
         filters.push(expr4);
 
-        // e is null
+        // e is null --> won't be pushed down
         let expr5 = col("e").is_null();
         filters.push(expr5);
 
@@ -360,11 +360,11 @@ mod tests {
         let expr6 = col("f").lt_eq(lit(60));
         filters.push(expr6);
 
-        // g is not null
+        // g is not null --> won't be pushed down
         let expr7 = col("g").is_not_null();
         filters.push(expr7);
 
-        // h + i
+        // h + i  --> won't be pushed down
         let expr8 = col("h") + col("i");
         filters.push(expr8);
 
@@ -378,7 +378,7 @@ mod tests {
 
         //println!(" --------------- Filters: {:#?}", filters);
 
-        // Expected pushdown predicates: [state = CA, price > 10, a < 10, b >= 50, f <= 60, city = Boston, cit != Braintree]
+        // Expected pushdown predicates: [state = CA, price > 10, a < 10, b >= 50, f <= 60, city = Boston, city != Braintree]
         let predicate = PredicateBuilder::default()
             .pushdown_predicates(&filters)
             .unwrap();
