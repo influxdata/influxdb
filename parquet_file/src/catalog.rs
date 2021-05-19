@@ -668,7 +668,7 @@ where
     fn tkey(&self) -> TransactionKey {
         TransactionKey {
             revision_counter: self.proto.revision_counter,
-            uuid: Uuid::parse_str(&self.proto.uuid).unwrap(),
+            uuid: Uuid::parse_str(&self.proto.uuid).expect("UUID was checked before"),
         }
     }
 
@@ -858,7 +858,7 @@ where
         // write to object store
         self.transaction
             .as_mut()
-            .unwrap()
+            .expect("No transaction in progress?")
             .store(
                 &self.catalog.object_store,
                 self.catalog.server_id,
