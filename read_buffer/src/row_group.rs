@@ -2461,7 +2461,7 @@ west,4
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
         columns.push(("time".to_string(), tc));
 
-        // Tag column that will be dictionary encoded when materilised
+        // Tag column that will be dictionary encoded when materialised
         let rc = ColumnType::Tag(Column::from(
             &["west", "west", "east", "west", "south", "north"][..],
         ));

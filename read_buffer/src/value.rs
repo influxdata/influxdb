@@ -1351,6 +1351,7 @@ pub enum Values<'a> {
 
     // A dictionary mapping between a vector of dictionary integer keys and the
     // string values they refer to.
+    // NOTE the strings are always sorted
     Dictionary(Vec<u32>, Vec<Option<&'a str>>),
 
     // Scalar types

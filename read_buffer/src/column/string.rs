@@ -209,8 +209,8 @@ impl StringEncoding {
         }
 
         // Rewrite all the encoded values into the new domain.
-        for id in keys.iter_mut() {
-            *id = *ordinal_mapping.get(id).unwrap();
+        for key in keys.iter_mut() {
+            *key = *ordinal_mapping.get(id).unwrap();
         }
 
         // now generate the values vector, which will contain the sorted set of
