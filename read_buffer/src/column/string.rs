@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use arrow::{self, array::Array};
 use either::Either;
@@ -180,28 +180,32 @@ impl StringEncoding {
         // encoded: 1, 1, 0, 3 (alpha, alpha, NULL, gamma)
         //
         // Because the dictionary has likely changed, the encoded values need
-        // to be transformed into a new domain so that they are:
+        // to be transformed into a new domain `[0, encoded.len())` so that they
+        // become:
         //
         // keys: [1, 1, 0, 2]
         // values: [None, Some("alpha"), Some("gamma")]
         let mut keys = self.encoded_values(row_ids, vec![]);
 
         // build a mapping from encoded value to new ordinal position.
-        let mut ordinal_mapping = BTreeMap::new();
+        let mut ordinal_mapping = hashbrown::HashMap::new();
         for key in &keys {
-            // no hashbrown entry API for ordered set. `contains_key` is most
-            // performant way to build this mapping.
-            if ordinal_mapping.contains_key(key) {
-                continue;
-            }
-            ordinal_mapping.insert(*key, 0);
+            ordinal_mapping.insert(*key, u32::default()); // don't know final ordinal position yet
         }
 
-        // create new ordinal offsets - the encoded values for the
-        // dictionary will be correctly ordered, but they need to be shifted
+        // create new ordinal offsets - the encoded values need to be shifted
         // into a new domain [0, keys.len()).
-        for (i, offset) in ordinal_mapping.values_mut().enumerate() {
-            *offset = i as u32;
+        let mut ordinal_mapping_keys = ordinal_mapping
+            .keys()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        ordinal_mapping_keys.sort_unstable();
+
+        for (i, key) in ordinal_mapping_keys.into_iter().enumerate() {
+            // now we can insert the new ordinal position of the encoded in key
+            // in the final values vector.
+            ordinal_mapping.insert(key, i as u32);
         }
 
         // Rewrite all the encoded values into the new domain.
@@ -209,7 +213,9 @@ impl StringEncoding {
             *id = *ordinal_mapping.get(id).unwrap();
         }
 
-        let values = match &self {
+        // now generate the values vector, which will contain the sorted set of
+        // string values
+        let mut values = match &self {
             Self::RleDictionary(c) => ordinal_mapping
                 .keys()
                 .map(|id| c.decode_id(*id))
@@ -219,6 +225,7 @@ impl StringEncoding {
                 .map(|id| c.decode_id(*id))
                 .collect::<Vec<_>>(),
         };
+        values.sort_unstable();
 
         Values::Dictionary(keys, values)
     }

@@ -455,6 +455,3 @@ fn generate_trace_for_row_group(
 
     column_packers
 }
-
-// criterion_group!(benches, read_group);
-// criterion_main!(benches);
