@@ -534,7 +534,7 @@ jobs:
       - run:
           name: Build the candidate docker image
           command: |
-            cp dist/influx_linux_amd64/influx . && cp dist/influx_linux_amd64/influxd .
+            cp dist/influx_linux_amd64/influx . && cp dist/influxd_linux_amd64/influxd .
             docker build -f docker/influxd/Dockerfile -t quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} .
             docker save -o docker-image.tar quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
       - persist_to_workspace:
