@@ -88,7 +88,11 @@ type bucket struct {
 
 	Description    string
 	RetentionRules retentionRules
-	labels         sortedLabels
+
+	SchemaType         string
+	MeasurementSchemas measurementSchemas
+
+	labels sortedLabels
 }
 
 func (b *bucket) summarize() SummaryBucket {
@@ -98,10 +102,12 @@ func (b *bucket) summarize() SummaryBucket {
 			MetaName:      b.MetaName(),
 			EnvReferences: summarizeCommonReferences(b.identity, b.labels),
 		},
-		Name:              b.Name(),
-		Description:       b.Description,
-		RetentionPeriod:   b.RetentionRules.RP(),
-		LabelAssociations: toSummaryLabels(b.labels...),
+		Name:               b.Name(),
+		Description:        b.Description,
+		SchemaType:         b.SchemaType,
+		MeasurementSchemas: b.MeasurementSchemas.summarize(),
+		RetentionPeriod:    b.RetentionRules.RP(),
+		LabelAssociations:  toSummaryLabels(b.labels...),
 	}
 }
 
@@ -115,6 +121,7 @@ func (b *bucket) valid() []validationErr {
 		vErrs = append(vErrs, err)
 	}
 	vErrs = append(vErrs, b.RetentionRules.valid()...)
+	vErrs = append(vErrs, b.MeasurementSchemas.valid()...)
 	if len(vErrs) == 0 {
 		return nil
 	}

@@ -203,9 +203,11 @@ type (
 
 	// DiffBucketValues are the varying values for a bucket.
 	DiffBucketValues struct {
-		Name           string         `json:"name"`
-		Description    string         `json:"description"`
-		RetentionRules retentionRules `json:"retentionRules"`
+		Name               string             `json:"name"`
+		Description        string             `json:"description"`
+		RetentionRules     retentionRules     `json:"retentionRules"`
+		SchemaType         string             `json:"schemaType,omitempty"`
+		MeasurementSchemas measurementSchemas `json:"measurementSchemas,omitempty"`
 	}
 )
 
@@ -469,7 +471,21 @@ type SummaryBucket struct {
 	// TODO: return retention rules?
 	RetentionPeriod time.Duration `json:"retentionPeriod"`
 
+	SchemaType         string                     `json:"schemaType,omitempty"`
+	MeasurementSchemas []SummaryMeasurementSchema `json:"measurementSchemas,omitempty"`
+
 	LabelAssociations []SummaryLabel `json:"labelAssociations"`
+}
+
+type SummaryMeasurementSchema struct {
+	Name    string                           `json:"name"`
+	Columns []SummaryMeasurementSchemaColumn `json:"columns"`
+}
+
+type SummaryMeasurementSchemaColumn struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	DataType string `json:"dataType,omitempty"`
 }
 
 // SummaryCheck provides a summary of a pkg check.

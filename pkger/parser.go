@@ -813,6 +813,7 @@ func (p *Template) graphBuckets() *parseErr {
 		bkt := &bucket{
 			identity:    ident,
 			Description: o.Spec.stringShort(fieldDescription),
+			SchemaType:  o.Spec.stringShort(fieldBucketSchemaType),
 		}
 		if rules, ok := o.Spec[fieldBucketRetentionRules].(retentionRules); ok {
 			bkt.RetentionRules = rules
@@ -822,6 +823,21 @@ func (p *Template) graphBuckets() *parseErr {
 					Type:    r.stringShort(fieldType),
 					Seconds: r.intShort(fieldRetentionRulesEverySeconds),
 				})
+			}
+		}
+		if schemas, ok := o.Spec[fieldMeasurementSchemas].(measurementSchemas); ok {
+			bkt.MeasurementSchemas = schemas
+		} else {
+			for _, sr := range o.Spec.slcResource(fieldMeasurementSchemas) {
+				ms := measurementSchema{Name: sr.stringShort(fieldMeasurementSchemaName)}
+				for _, scr := range sr.slcResource(fieldMeasurementSchemaColumns) {
+					ms.Columns = append(ms.Columns, measurementColumn{
+						Name:     scr.stringShort(fieldMeasurementColumnName),
+						Type:     scr.stringShort(fieldMeasurementColumnType),
+						DataType: scr.stringShort(fieldMeasurementColumnDataType),
+					})
+				}
+				bkt.MeasurementSchemas = append(bkt.MeasurementSchemas, ms)
 			}
 		}
 		p.setRefs(bkt.name, bkt.displayName)

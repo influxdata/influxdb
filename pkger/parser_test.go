@@ -59,6 +59,35 @@ func TestParse(t *testing.T) {
 			})
 		})
 
+		t.Run("with valid bucket and schema should be valid", func(t *testing.T) {
+			template := validParsedTemplateFromFile(t, "testdata/bucket_schema.yml", EncodingYAML)
+			buckets := template.Summary().Buckets
+			require.Len(t, buckets, 1)
+
+			exp := SummaryBucket{
+				SummaryIdentifier: SummaryIdentifier{
+					Kind:          KindBucket,
+					MetaName:      "explicit-11",
+					EnvReferences: []SummaryReference{},
+				},
+				Name:              "my_explicit",
+				SchemaType:        "explicit",
+				LabelAssociations: []SummaryLabel{},
+				MeasurementSchemas: []SummaryMeasurementSchema{
+					{
+						Name: "cpu",
+						Columns: []SummaryMeasurementSchemaColumn{
+							{Name: "host", Type: "tag"},
+							{Name: "time", Type: "timestamp"},
+							{Name: "usage_user", Type: "field", DataType: "float"},
+						},
+					},
+				},
+			}
+
+			assert.Equal(t, exp, buckets[0])
+		})
+
 		t.Run("with env refs should be valid", func(t *testing.T) {
 			testfileRunner(t, "testdata/bucket_ref.yml", func(t *testing.T, template *Template) {
 				actual := template.Summary().Buckets
@@ -182,6 +211,70 @@ metadata:
   name:  invalid-name
 spec:
   name:  f
+`,
+				},
+				{
+					name:           "invalid measurement name",
+					resourceErrs:   1,
+					validationErrs: 1,
+					valFields:      []string{strings.Join([]string{fieldSpec, fieldMeasurementSchemas}, ".")},
+					templateStr: `apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name: foo-1
+spec:
+  name: foo
+  schemaType: explicit
+  measurementSchemas:
+    - name: _cpu
+      columns: 
+        - name: time
+          type: timestamp
+        - name: usage_user
+          type: field
+          dataType: float
+`,
+				},
+				{
+					name:           "invalid semantic type",
+					resourceErrs:   1,
+					validationErrs: 1,
+					valFields:      []string{strings.Join([]string{fieldSpec, fieldMeasurementSchemas, fieldMeasurementSchemaColumns}, ".")},
+					templateStr: `apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name: foo-1
+spec:
+  name: foo
+  schemaType: explicit
+  measurementSchemas:
+    - name: _cpu
+      columns: 
+        - name: time
+          type: field
+        - name: usage_user
+          type: field
+          dataType: float
+`,
+				},
+				{
+					name:           "missing time column",
+					resourceErrs:   1,
+					validationErrs: 1,
+					valFields:      []string{strings.Join([]string{fieldSpec, fieldMeasurementSchemas}, ".")},
+					templateStr: `apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name: foo-1
+spec:
+  name: foo
+  schemaType: explicit
+  measurementSchemas:
+    - name: cpu
+      columns: 
+        - name: usage_user
+          type: field
+          dataType: float
 `,
 				},
 			}
