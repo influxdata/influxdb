@@ -50,6 +50,7 @@ v1.9.0 [unreleased]
 -	[#21334](https://github.com/influxdata/influxdb/pull/21334): fix: summation should be in native type for new meancount iterator
 -	[#21347](https://github.com/influxdata/influxdb/pull/21347): fix(storage): cursor requests are [start, stop] instead of [start, stop)
 -	[#21358](https://github.com/influxdata/influxdb/pull/21358): fix: disable MergeFiltersRule until it is more stable
+-	[#21516](https://github.com/influxdata/influxdb/pull/21516): fix: FGA enablement
 
 v1.8.6 [unreleased]
 -------------------
