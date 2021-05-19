@@ -313,7 +313,7 @@ mod test {
 
     use object_store::{memory::InMemory, ObjectStore, ObjectStoreApi};
 
-    use crate::db::load_preserved_catalog;
+    use crate::db::load_or_create_preserved_catalog;
 
     use super::*;
 
@@ -334,7 +334,7 @@ mod test {
         let server_id = ServerId::try_from(1).unwrap();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let exec = Arc::new(Executor::new(1));
-        let preserved_catalog = load_preserved_catalog(
+        let preserved_catalog = load_or_create_preserved_catalog(
             &name,
             Arc::clone(&store),
             server_id,
@@ -370,7 +370,7 @@ mod test {
         let server_id = ServerId::try_from(1).unwrap();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let exec = Arc::new(Executor::new(1));
-        let preserved_catalog = load_preserved_catalog(
+        let preserved_catalog = load_or_create_preserved_catalog(
             &name,
             Arc::clone(&store),
             server_id,
