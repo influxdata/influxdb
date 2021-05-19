@@ -2,14 +2,14 @@
 
 IOx includes an embedded `pprof` exporter compatible with the [go pprof](https://golang.org/pkg/net/http/pprof/) tool.
 
-To use it, aim your favorite tool at your IOx host at the HTTP `debug/pprof/profile` endpoint.
+To use it, aim your favorite tool at your IOx host at the HTTP `/debug/pprof/profile` endpoint.
 
 # Use the Go `pprof` tool:
 
 Example
 
 ```shell
-; go tool pprof 'http://localhost:8080/debug/pprof/profile?seconds=5'
+go tool pprof 'http://localhost:8080/debug/pprof/profile?seconds=5'
 ```
 
 And you get output like:
