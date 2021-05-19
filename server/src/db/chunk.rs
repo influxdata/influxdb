@@ -271,12 +271,6 @@ impl PartitionChunk for DbChunk {
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         match self {
             Self::MutableBuffer { chunk, .. } => {
-                if !predicate.is_empty() {
-                    return InternalPredicateNotSupported {
-                        predicate: predicate.clone(),
-                    }
-                    .fail();
-                }
                 let batch = chunk
                     .read_filter(table_name, selection)
                     .context(MutableBufferChunk)?;
@@ -287,6 +281,9 @@ impl PartitionChunk for DbChunk {
                 // Error converting to a rb_predicate needs to fail
                 let rb_predicate =
                     to_read_buffer_predicate(&predicate).context(PredicateConversion)?;
+
+                // Still need this for further debugging. Will be removed when done
+                // println!("----------- Read buffer predicate: {:#?}", rb_predicate);
 
                 let read_results = chunk
                     .read_filter(table_name, rb_predicate, selection)
