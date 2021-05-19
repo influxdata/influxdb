@@ -2,6 +2,7 @@ package meta
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"sort"
@@ -9,8 +10,6 @@ import (
 	"sync"
 	"time"
 	"unicode"
-
-	"fmt"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb"

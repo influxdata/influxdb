@@ -3,6 +3,7 @@ v1.8.6 [unreleased]
 
 -	[#21290](https://github.com/influxdata/influxdb/pull/21290): fix: Anti-Entropy loops endlessly with empty shard
 -	[#21381](https://github.com/influxdata/influxdb/pull/21381): chore(ae): add more logging
+-	[#21518](https://github.com/influxdata/influxdb/pull/21518): fix: FGA enablement
 
 v1.8.5 [2021-04-19]
 -------------------
