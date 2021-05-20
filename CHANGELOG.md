@@ -1,4 +1,7 @@
-v1.8.6 [unreleased]
+v1.8.7 [unreleased]
+-------------------
+
+v1.8.6 [2021-05-20]
 -------------------
 
 -	[#21290](https://github.com/influxdata/influxdb/pull/21290): fix: Anti-Entropy loops endlessly with empty shard
