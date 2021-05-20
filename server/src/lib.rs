@@ -110,7 +110,6 @@ pub mod buffer;
 mod config;
 pub mod db;
 mod query_tests;
-pub mod snapshot;
 
 // This module exposes `query_tests` outside of the crate so that it may be used
 // in benchmarks. Do not import this module for non-benchmark purposes!
