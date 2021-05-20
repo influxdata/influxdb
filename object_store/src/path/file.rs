@@ -45,11 +45,17 @@ impl PartialOrd for FilePath {
 impl FilePath {
     /// Creates a file storage location from a `PathBuf` without parsing or
     /// allocating unless other methods are called on this instance that
-    /// need it
-    pub fn raw(path: impl Into<PathBuf>, is_directory: bool) -> Self {
+    /// need it.
+    ///
+    /// The "nature" of path (i.e. if it is a directory or file) will be guessed. So paths ending with a
+    /// separator (e.g. `/foo/bar/` on Linux) are treated as a directory. However for all other paths (like `/foo/bar`
+    /// on Linux) it is not clear if a directory or file is meant w/o inspecting the underlying store. To workaround
+    /// that there is the `assume_directory` flag which will treat ambiguous paths as directories. If set to `false`,
+    /// these cases will be treated as files.
+    pub fn raw(path: impl Into<PathBuf>, assume_directory: bool) -> Self {
         let path = path.into();
         Self {
-            inner: FilePathRepresentation::Raw(path, is_directory),
+            inner: FilePathRepresentation::Raw(path, assume_directory),
         }
     }
 
@@ -123,7 +129,7 @@ impl From<DirsAndFileName> for FilePath {
 
 #[derive(Debug, Clone, Eq)]
 enum FilePathRepresentation {
-    // raw: native path representation and also remember if it is a directory
+    // raw: native path representation and also remember if we always assume it is a directory
     Raw(PathBuf, bool),
     Parsed(DirsAndFileName),
 }
@@ -291,13 +297,13 @@ impl From<FilePathRepresentation> for DirsAndFileName {
         use FilePathRepresentation::*;
 
         match file_path_rep {
-            Raw(path, is_directory) => {
+            Raw(path, assume_directory) => {
                 let mut parts: Vec<PathPart> = path
                     .iter()
                     .flat_map(|s| s.to_os_string().into_string().map(PathPart))
                     .collect();
 
-                if !is_directory && !parts.is_empty() && !is_a_directory(&path) {
+                if !assume_directory && !parts.is_empty() && !is_a_directory(&path) {
                     let file_name = Some(parts.pop().expect("cannot be empty"));
                     Self {
                         directories: parts,
