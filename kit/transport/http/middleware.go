@@ -160,6 +160,9 @@ func normalizeAssetFile(f string) string {
 		".wasm",
 		".map",
 		".LICENSE",
+		".ttf",
+		".woff",
+		".eot",
 	}
 
 	for _, ext := range exts {
