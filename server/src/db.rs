@@ -33,7 +33,9 @@ use parking_lot::{Mutex, RwLock};
 use parquet_file::{
     catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
     chunk::{Chunk as ParquetChunk, ChunkMetrics as ParquetChunkMetrics},
-    metadata::{read_schema_from_parquet_metadata, read_statistics_from_parquet_metadata},
+    metadata::{
+        read_schema_from_parquet_metadata, read_statistics_from_parquet_metadata, IoxMetadata,
+    },
     storage::Storage,
 };
 use query::predicate::{Predicate, PredicateBuilder};
@@ -707,20 +709,26 @@ impl Db {
             Arc::clone(&arrow_schema),
         ));
 
-        // Write this table data into the object store
-        let (path, parquet_metadata) = storage
-            .write_to_object_store(
-                partition_key.to_string(),
-                chunk_id,
-                stats.name.to_string(),
-                stream,
-            )
-            .await
-            .context(WritingToObjectStore)?;
-
         // catalog-level transaction for preseveration layer
         {
             let mut transaction = self.catalog.open_transaction().await;
+
+            // Write this table data into the object store
+            let metadata = IoxMetadata {
+                transaction_revision_counter: transaction.revision_counter(),
+                transaction_uuid: transaction.uuid(),
+            };
+            let (path, parquet_metadata) = storage
+                .write_to_object_store(
+                    partition_key.to_string(),
+                    chunk_id,
+                    stats.name.to_string(),
+                    stream,
+                    metadata,
+                )
+                .await
+                .context(WritingToObjectStore)?;
+
             transaction
                 .add_parquet(&path.into(), &parquet_metadata)
                 .context(TransactionError)?;

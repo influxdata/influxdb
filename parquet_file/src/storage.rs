@@ -18,7 +18,8 @@ use parquet::{
     self,
     arrow::{arrow_reader::ParquetFileArrowReader, ArrowReader, ArrowWriter},
     file::{
-        metadata::{ParquetMetaData, RowGroupMetaData},
+        metadata::{KeyValue, ParquetMetaData, RowGroupMetaData},
+        properties::WriterProperties,
         reader::FileReader,
         serialized_reader::{SerializedFileReader, SliceableCursor},
         writer::TryClone,
@@ -38,7 +39,9 @@ use std::{
 };
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::metadata::{read_parquet_metadata_from_file, read_schema_from_parquet_metadata};
+use crate::metadata::{
+    read_parquet_metadata_from_file, read_schema_from_parquet_metadata, IoxMetadata, METADATA_KEY,
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -103,6 +106,9 @@ pub enum Error {
 
     #[snafu(display("Cannot parse location: {:?}", path))]
     LocationParsingFailure { path: DirsAndFileName },
+
+    #[snafu(display("Cannot encode metadata: {}", source))]
+    MetadataEncodeFailure { source: serde_json::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -203,19 +209,20 @@ impl Storage {
     }
 
     /// Write the given stream of data of a specified table of
-    // a specified partitioned chunk to a parquet file of this storage
+    /// a specified partitioned chunk to a parquet file of this storage
     pub async fn write_to_object_store(
         &self,
         partition_key: String,
         chunk_id: u32,
         table_name: String,
         stream: SendableRecordBatchStream,
+        metadata: IoxMetadata,
     ) -> Result<(Path, ParquetMetaData)> {
         // Create full path location of this file in object store
         let path = self.location(partition_key, chunk_id, table_name);
 
         let schema = stream.schema();
-        let data = Self::parquet_stream_to_bytes(stream, schema).await?;
+        let data = Self::parquet_stream_to_bytes(stream, schema, metadata).await?;
         // TODO: make this work w/o cloning the byte vector (https://github.com/influxdata/influxdb_iox/issues/1504)
         let md =
             read_parquet_metadata_from_file(data.clone()).context(ExtractingMetadataFailure)?;
@@ -225,14 +232,21 @@ impl Storage {
     }
 
     /// Convert the given stream of RecordBatches to bytes
-
     pub async fn parquet_stream_to_bytes(
         mut stream: SendableRecordBatchStream,
         schema: SchemaRef,
+        metadata: IoxMetadata,
     ) -> Result<Vec<u8>> {
+        let props = WriterProperties::builder()
+            .set_key_value_metadata(Some(vec![KeyValue {
+                key: METADATA_KEY.to_string(),
+                value: Some(serde_json::to_string(&metadata).context(MetadataEncodeFailure)?),
+            }]))
+            .build();
+
         let mem_writer = MemWriter::default();
         {
-            let mut writer = ArrowWriter::try_new(mem_writer.clone(), schema, None)
+            let mut writer = ArrowWriter::try_new(mem_writer.clone(), schema, Some(props))
                 .context(OpeningParquetWriter)?;
             while let Some(batch) = stream.next().await {
                 let batch = batch.context(ReadingStream)?;
@@ -482,8 +496,44 @@ mod tests {
     use std::num::NonZeroU32;
 
     use super::*;
-    use crate::utils::make_object_store;
+    use crate::utils::{make_object_store, make_record_batch};
+    use datafusion_util::MemoryStream;
     use object_store::parsed_path;
+    use uuid::Uuid;
+
+    #[tokio::test]
+    async fn test_parquet_contains_key_value_metadata() {
+        let metadata = IoxMetadata {
+            transaction_revision_counter: 42,
+            transaction_uuid: Uuid::new_v4(),
+        };
+
+        // create parquet file
+        let (_record_batches, schema, _column_summaries, _num_rows) = make_record_batch("foo");
+        let stream: SendableRecordBatchStream = Box::pin(MemoryStream::new_with_schema(
+            vec![],
+            Arc::clone(schema.inner()),
+        ));
+        let bytes =
+            Storage::parquet_stream_to_bytes(stream, Arc::clone(schema.inner()), metadata.clone())
+                .await
+                .unwrap();
+
+        // extract metadata
+        let md = read_parquet_metadata_from_file(bytes).unwrap();
+        let kv_vec = md.file_metadata().key_value_metadata().as_ref().unwrap();
+
+        // filter out relevant key
+        let kv = kv_vec
+            .iter()
+            .find(|kv| kv.key == METADATA_KEY)
+            .cloned()
+            .unwrap();
+
+        // compare with input
+        let metadata_roundtrip: IoxMetadata = serde_json::from_str(&kv.value.unwrap()).unwrap();
+        assert_eq!(metadata_roundtrip, metadata);
+    }
 
     #[test]
     fn test_location_to_from_path() {

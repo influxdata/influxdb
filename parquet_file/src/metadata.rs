@@ -105,8 +105,17 @@ use parquet::{
     },
     schema::types::SchemaDescriptor as ParquetSchemaDescriptor,
 };
+use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
+use uuid::Uuid;
+
+/// File-level metadata key to store the IOx-specific data.
+///
+/// This will contain [`IoxMetadata`] serialized as [JSON].
+///
+/// [JSON]: https://www.json.org/
+pub const METADATA_KEY: &str = "IOX:metadata";
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -190,6 +199,21 @@ pub enum Error {
     },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// IOx-specific metadata.
+///
+/// This will serialized as [JSON] into the file-level key-value Parquet metadata (under [`METADATA_KEY`]).
+///
+/// [JSON]: https://www.json.org/
+#[allow(missing_copy_implementations)] // we want to extend this type in the future
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+pub struct IoxMetadata {
+    /// Revision counter of the transaction during which the Parquet file was created.
+    pub transaction_revision_counter: u64,
+
+    /// UUID of the transaction during which the Parquet file was created.
+    pub transaction_uuid: Uuid,
+}
 
 /// Read parquet metadata from a parquet file.
 pub fn read_parquet_metadata_from_file(data: Vec<u8>) -> Result<ParquetMetaData> {
