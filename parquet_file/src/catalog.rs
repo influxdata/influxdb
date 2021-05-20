@@ -388,7 +388,11 @@ where
         }))
     }
 
-    /// Deletes (potentially existing) catalog.
+    /// Deletes catalog.
+    ///
+    /// **Always create a backup before wiping your data!**
+    ///
+    /// This also works for broken catalogs. Also succeeds if no catalog is present.
     ///
     /// Note that wiping the catalog will NOT wipe any referenced parquet files.
     pub async fn wipe(
