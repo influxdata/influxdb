@@ -12,6 +12,7 @@
 1. [21485](https://github.com/influxdata/influxdb/pull/21485): Set last-modified time of empty shard directory to the directory's mod time instead of Unix epoch.
 1. [21499](https://github.com/influxdata/influxdb/pull/21499): Remove erroneous dependency on istio.
 1. [21501](https://github.com/influxdata/influxdb/pull/21501): Don't deadlock in `influx org members list` when an org has > 10 members.
+1. [21524](https://github.com/influxdata/influxdb/pull/21524): Replace telemetry file name with slug for `ttf`, `woff`, and `eot` files.
 
 ## v2.0.6 [2021-04-29]
 ----------------------
