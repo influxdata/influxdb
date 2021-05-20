@@ -73,7 +73,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::BytesMut;
 use cached::proc_macro::cached;
-use db::load_preserved_catalog;
+use db::load_or_create_preserved_catalog;
 use futures::stream::TryStreamExt;
 use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::Mutex;
@@ -436,7 +436,7 @@ impl<M: ConnectionManager> Server<M> {
         // Return an error if this server hasn't yet been setup with an id
         self.require_id()?;
 
-        let preserved_catalog = load_preserved_catalog(
+        let preserved_catalog = load_or_create_preserved_catalog(
             rules.db_name(),
             Arc::clone(&self.store),
             server_id,
@@ -539,7 +539,7 @@ impl<M: ConnectionManager> Server<M> {
                             error!("error parsing database config {:?} from store: {}", path, e)
                         }
                         Ok(rules) => {
-                            match load_preserved_catalog(
+                            match load_or_create_preserved_catalog(
                                 rules.db_name(),
                                 Arc::clone(&store),
                                 server_id,

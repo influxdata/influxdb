@@ -9,7 +9,7 @@ use query::{exec::Executor, Database};
 
 use crate::{
     buffer::Buffer,
-    db::{load_preserved_catalog, Db},
+    db::{load_or_create_preserved_catalog, Db},
     JobRegistry,
 };
 use std::{borrow::Cow, convert::TryFrom, sync::Arc};
@@ -68,7 +68,7 @@ impl TestDbBuilder {
         } else {
             None
         };
-        let preserved_catalog = load_preserved_catalog(
+        let preserved_catalog = load_or_create_preserved_catalog(
             db_name.as_str(),
             Arc::clone(&object_store),
             server_id,

@@ -127,12 +127,12 @@ impl ChunkMetrics {
 }
 
 impl Chunk {
-    /// Creates a new open chunk from the provided MUB chunk
+    /// Creates a new open chunk from the provided MUB chunk.
     ///
-    /// Returns an error if the provided chunk is empty
+    /// Returns an error if the provided chunk is empty, otherwise creates a new open chunk and records a write at the
+    /// current time.
     ///
-    /// Otherwise creates a new open chunk and records a write at the current time
-    ///
+    /// Apart from [`new_object_store_only`](Self::new_object_store_only) this is the only way to create new chunks.
     pub(crate) fn new_open(
         chunk_id: u32,
         partition_key: impl AsRef<str>,
@@ -166,6 +166,37 @@ impl Chunk {
         };
         chunk.record_write();
         Ok(chunk)
+    }
+
+    /// Creates a new chunk that is only registered via an object store reference (= only exists in parquet).
+    ///
+    /// Apart from [`new_open`](Self::new_open) this is the only way to create new chunks.
+    pub(crate) fn new_object_store_only(
+        chunk_id: u32,
+        partition_key: impl AsRef<str>,
+        chunk: Arc<parquet_file::chunk::Chunk>,
+        metrics: ChunkMetrics,
+    ) -> Self {
+        // workaround until https://github.com/influxdata/influxdb_iox/issues/1295 is fixed
+        let table_name = Arc::from(
+            chunk
+                .table_names(None)
+                .next()
+                .expect("chunk must have exactly 1 table")
+                .as_ref(),
+        );
+        let state = ChunkState::ObjectStoreOnly(chunk);
+
+        Self {
+            partition_key: Arc::from(partition_key.as_ref()),
+            table_name,
+            id: chunk_id,
+            state,
+            metrics,
+            time_of_first_write: None,
+            time_of_last_write: None,
+            time_closed: None,
+        }
     }
 
     /// Used for testing

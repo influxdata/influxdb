@@ -28,7 +28,7 @@ use mutable_buffer::chunk::{
     Chunk as MutableBufferChunk, ChunkMetrics as MutableBufferChunkMetrics,
 };
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
-use observability_deps::tracing::{debug, info};
+use observability_deps::tracing::{debug, error, info};
 use parking_lot::{Mutex, RwLock};
 use parquet_file::{
     catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
@@ -311,7 +311,11 @@ pub struct Db {
 }
 
 /// Load preserved catalog state from store.
-pub async fn load_preserved_catalog(
+///
+/// If no catalog exists yet, a new one will be created.
+///
+/// **For now, if the catalog is broken, it will be wiped! (https://github.com/influxdata/influxdb_iox/issues/1522)**
+pub async fn load_or_create_preserved_catalog(
     db_name: &str,
     object_store: Arc<ObjectStore>,
     server_id: ServerId,
@@ -321,10 +325,12 @@ pub async fn load_preserved_catalog(
         KeyValue::new("db_name", db_name.to_string()),
         KeyValue::new("svr_id", format!("{}", server_id)),
     ];
+
+    // first try to load existing catalogs
     let metrics_domain =
         metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
 
-    PreservedCatalog::new_empty(
+    match PreservedCatalog::load(
         Arc::clone(&object_store),
         server_id,
         db_name.to_string(),
@@ -335,6 +341,55 @@ pub async fn load_preserved_catalog(
         },
     )
     .await
+    {
+        Ok(Some(catalog)) => {
+            // successfull load
+            info!("Found existing catalog for DB {}", db_name);
+            Ok(catalog)
+        }
+        Ok(None) => {
+            // no catalog yet => create one
+            info!(
+                "Found NO existing catalog for DB {}, creating new one",
+                db_name
+            );
+            let metrics_domain =
+                metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
+
+            PreservedCatalog::new_empty(
+                Arc::clone(&object_store),
+                server_id,
+                db_name.to_string(),
+                CatalogEmptyInput {
+                    domain: metrics_domain,
+                    metrics_registry: Arc::clone(&metrics_registry),
+                    metric_labels: metric_labels.clone(),
+                },
+            )
+            .await
+        }
+        Err(e) => {
+            // https://github.com/influxdata/influxdb_iox/issues/1522)
+            // broken => wipe for now (at least during early iterations)
+            error!("cannot load catalog, so wipe it: {}", e);
+            PreservedCatalog::<Catalog>::wipe(&object_store, server_id, db_name).await?;
+
+            let metrics_domain =
+                metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
+
+            PreservedCatalog::new_empty(
+                Arc::clone(&object_store),
+                server_id,
+                db_name.to_string(),
+                CatalogEmptyInput {
+                    domain: metrics_domain,
+                    metrics_registry: Arc::clone(&metrics_registry),
+                    metric_labels: metric_labels.clone(),
+                },
+            )
+            .await
+        }
+    }
 }
 
 impl Db {
@@ -1103,38 +1158,48 @@ impl CatalogState for Catalog {
             schema,
             timestamp_range,
         );
+        let parquet_chunk = Arc::new(parquet_chunk);
+
+        // Get partition from the catalog
+        // Note that the partition might not exist yet if the chunk is loaded from an existing preserved catalog.
+        let partition = self.get_or_create_partition(&partition_key);
+        let partition_guard = partition.read();
 
         // Get the chunk from the catalog
-        let chunk = {
-            let partition = self
-                .valid_partition(&partition_key)
-                .map_err(|e| Box::new(e) as _)
-                .context(CatalogStateFailure {
-                    path: info.path.clone(),
-                })?;
-            let partition = partition.read();
+        match partition_guard.chunk(table_name.clone(), chunk_id) {
+            Ok(chunk) => {
+                // Chunk exists => should be in frozen stage and will transition from there
 
-            partition
-                .chunk(table_name.clone(), chunk_id)
-                .map_err(|e| Box::new(e) as _)
-                .context(CatalogStateFailure {
-                    path: info.path.clone(),
-                })?
-        };
+                // Relock the chunk again (nothing else should have been able
+                // to modify the chunk state while we were moving it
+                let mut chunk = chunk.write();
 
-        // Relock the chunk again (nothing else should have been able
-        // to modify the chunk state while we were moving it
-        let mut chunk = chunk.write();
-
-        // update the catalog to say we are done processing
-        let parquet_chunk = Arc::new(parquet_chunk);
-        chunk
-            .set_written_to_object_store(parquet_chunk)
-            .map_err(|e| Box::new(e) as _)
-            .context(CatalogStateFailure { path: info.path })?;
+                // update the catalog to say we are done processing
+                chunk
+                    .set_written_to_object_store(parquet_chunk)
+                    .map_err(|e| Box::new(e) as _)
+                    .context(CatalogStateFailure { path: info.path })?;
+            }
+            Err(catalog::Error::UnknownTable { .. }) | Err(catalog::Error::UnknownChunk { .. }) => {
+                // table unknown => that's ok, create chunk in "object store only" stage which will also create the table
+                // table chunk, but table already known => that's ok, create chunk in "object store only" stage
+                drop(partition_guard);
+                let mut partition_guard = partition.write();
+                partition_guard
+                    .create_object_store_only_chunk(chunk_id, parquet_chunk)
+                    .map_err(|e| Box::new(e) as _)
+                    .context(CatalogStateFailure { path: info.path })?;
+            }
+            Err(e) => {
+                // Other unknown error => bail
+                return Err(parquet_file::catalog::Error::CatalogStateFailure {
+                    source: Box::new(e),
+                    path: info.path,
+                });
+            }
+        }
 
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked WRITTEN. Persisting to object store complete");
-
         Ok(())
     }
 
@@ -2704,12 +2769,39 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn write_one_chunk_to_preserved_catalog() {
-        // Test that parquet data is commited to preserved catalog
+    async fn load_or_create_preserved_catalog_recovers_from_error() {
         let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = "preserved_catalog_test";
 
+        let preserved_catalog =
+            PreservedCatalog::<parquet_file::catalog::test_helpers::TestCatalogState>::new_empty(
+                Arc::clone(&object_store),
+                server_id,
+                db_name.to_string(),
+                (),
+            )
+            .await
+            .unwrap();
+        parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
+            .await;
+
+        let metrics_registry = Arc::new(metrics::MetricRegistry::new());
+        load_or_create_preserved_catalog(db_name, object_store, server_id, metrics_registry)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn write_one_chunk_to_preserved_catalog() {
+        // Test that parquet data is commited to preserved catalog
+
+        // ==================== setup ====================
+        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let server_id = ServerId::try_from(1).unwrap();
+        let db_name = "preserved_catalog_test";
+
+        // ==================== do: create DB ====================
         // Create a DB given a server id, an object store and a db name
         let test_db = TestDb::builder()
             .object_store(Arc::clone(&object_store))
@@ -2719,6 +2811,7 @@ mod tests {
             .await;
         let db = Arc::new(test_db.db);
 
+        // ==================== check: empty catalog created ====================
         // at this point, an empty preserved catalog exists
         let maybe_preserved_catalog =
             PreservedCatalog::<parquet_file::catalog::test_helpers::TestCatalogState>::load(
@@ -2731,57 +2824,101 @@ mod tests {
             .unwrap();
         assert!(maybe_preserved_catalog.is_some());
 
-        // Write some line protocols in Mutable buffer of the DB
-        write_lp(db.as_ref(), "cpu bar=1 10");
-
-        //Now mark the MB chunk close
+        // ==================== do: write data to parquet ====================
+        // create two chunks within the same table (to better test "new chunk ID" and "new table" during transaction
+        // replay)
+        let mut chunk_ids = vec![];
         let partition_key = "1970-01-01T00";
-        let mb_chunk = db
-            .rollover_partition("1970-01-01T00", "cpu")
-            .await
-            .unwrap()
-            .unwrap();
-        // Move that MB chunk to RB chunk and drop it from MB
-        db.load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
-            .await
-            .unwrap();
+        for _ in 0..2 {
+            // Write some line protocols in Mutable buffer of the DB
+            write_lp(db.as_ref(), "cpu bar=1 10");
 
-        // Write the RB chunk to Object Store but keep it in RB
-        db.write_chunk_to_object_store(partition_key, "cpu", mb_chunk.id())
-            .await
-            .unwrap();
+            //Now mark the MB chunk close
+            let chunk_id = {
+                let mb_chunk = db
+                    .rollover_partition("1970-01-01T00", "cpu")
+                    .await
+                    .unwrap()
+                    .unwrap();
+                mb_chunk.id()
+            };
+            // Move that MB chunk to RB chunk and drop it from MB
+            db.load_chunk_to_read_buffer(partition_key, "cpu", chunk_id)
+                .await
+                .unwrap();
 
+            // Write the RB chunk to Object Store but keep it in RB
+            db.write_chunk_to_object_store(partition_key, "cpu", chunk_id)
+                .await
+                .unwrap();
+
+            chunk_ids.push(chunk_id);
+        }
+
+        // ==================== check: catalog state ====================
         // the preserved catalog should now register a single file
-        let chunk = {
-            let partition = db.catalog.state().valid_partition(&partition_key).unwrap();
-            let partition = partition.read();
+        let mut paths_expected = vec![];
+        for chunk_id in &chunk_ids {
+            let chunk = {
+                let partition = db.catalog.state().valid_partition(&partition_key).unwrap();
+                let partition = partition.read();
 
-            partition.chunk("cpu", mb_chunk.id()).unwrap()
-        };
-        let chunk = chunk.read();
-        if let ChunkState::WrittenToObjectStore(_, chunk) = chunk.state() {
-            let path = chunk.table_path("cpu").unwrap().display();
-
-            let preserved_catalog = PreservedCatalog::<
-                parquet_file::catalog::test_helpers::TestCatalogState,
-            >::load(
-                object_store, server_id, db_name.to_string(), ()
+                partition.chunk("cpu", *chunk_id).unwrap()
+            };
+            let chunk = chunk.read();
+            if let ChunkState::WrittenToObjectStore(_, chunk) = chunk.state() {
+                paths_expected.push(chunk.table_path("cpu").unwrap().display());
+            } else {
+                panic!("Wrong chunk state.");
+            }
+        }
+        paths_expected.sort();
+        let preserved_catalog =
+            PreservedCatalog::<parquet_file::catalog::test_helpers::TestCatalogState>::load(
+                Arc::clone(&object_store),
+                server_id,
+                db_name.to_string(),
+                (),
             )
             .await
             .unwrap()
             .unwrap();
-            let mut paths: Vec<String> = preserved_catalog
-                .state()
-                .inner
-                .borrow()
-                .parquet_files
-                .keys()
-                .map(|p| p.display())
-                .collect();
-            paths.sort();
-            assert_eq!(paths, vec![path]);
-        } else {
-            panic!("Wrong chunk state.");
+        let mut paths_actual: Vec<String> = preserved_catalog
+            .state()
+            .inner
+            .borrow()
+            .parquet_files
+            .keys()
+            .map(|p| p.display())
+            .collect();
+        paths_actual.sort();
+        assert_eq!(paths_actual, paths_expected);
+
+        // ==================== do: re-load DB ====================
+        // Re-create database with same store, serverID, and DB name
+        drop(db);
+        let test_db = TestDb::builder()
+            .object_store(Arc::clone(&object_store))
+            .server_id(server_id)
+            .db_name(db_name)
+            .build()
+            .await;
+        let db = Arc::new(test_db.db);
+
+        // ==================== check: DB state ====================
+        // Re-created DB should have an "object store only"-chunk
+        for chunk_id in &chunk_ids {
+            let chunk = {
+                let partition = db.catalog.state().valid_partition(&partition_key).unwrap();
+                let partition = partition.read();
+
+                partition.chunk("cpu", *chunk_id).unwrap()
+            };
+            let chunk = chunk.read();
+            assert!(matches!(chunk.state(), ChunkState::ObjectStoreOnly(_)));
         }
+
+        // ==================== check: DB still writable ====================
+        write_lp(db.as_ref(), "cpu bar=1 10");
     }
 }

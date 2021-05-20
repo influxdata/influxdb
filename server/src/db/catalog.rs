@@ -76,6 +76,18 @@ pub enum Error {
         partition_key: String,
         chunk_id: u32,
     },
+
+    #[snafu(display(
+        "Can not add already existing chunk to catalog {}:{}:{}",
+        partition_key,
+        table_name,
+        chunk_id
+    ))]
+    ChunkAlreadyExists {
+        partition_key: String,
+        table_name: String,
+        chunk_id: u32,
+    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
