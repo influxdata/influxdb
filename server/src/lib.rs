@@ -75,7 +75,7 @@ use bytes::BytesMut;
 use cached::proc_macro::cached;
 use db::load_preserved_catalog;
 use futures::stream::TryStreamExt;
-use observability_deps::tracing::{error, info, warn};
+use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 
@@ -99,6 +99,7 @@ use crate::{
     },
     db::Db,
 };
+use cached::Return;
 use data_types::database_rules::{NodeGroup, Shard, ShardId};
 use generated_types::database_rules::{decode_database_rules, encode_database_rules};
 use influxdb_iox_client::{connection::Builder, write};
@@ -937,23 +938,25 @@ impl ConnectionManager for ConnectionManagerImpl {
         &self,
         connect: &str,
     ) -> Result<Arc<Self::RemoteServer>, ConnectionManagerError> {
-        cached_remote_server(connect.to_string()).await
+        let ret = cached_remote_server(connect.to_string()).await?;
+        debug!(was_cached=%ret.was_cached, %connect, "getting remote connection");
+        Ok(ret.value)
     }
 }
 
 // cannot be an associated function
 // argument need to have static lifetime because they become caching keys
-#[cached(result = true)]
+#[cached(result = true, with_cached_flag = true)]
 async fn cached_remote_server(
     connect: String,
-) -> Result<Arc<RemoteServerImpl>, ConnectionManagerError> {
+) -> Result<Return<Arc<RemoteServerImpl>>, ConnectionManagerError> {
     let connection = Builder::default()
         .build(&connect)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(RemoteServerConnectError)?;
     let client = write::Client::new(connection);
-    Ok(Arc::new(RemoteServerImpl { client }))
+    Ok(Return::new(Arc::new(RemoteServerImpl { client })))
 }
 
 /// An implementation for communicating with other IOx servers. This should
