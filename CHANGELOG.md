@@ -16,6 +16,7 @@
 1. [21477](https://github.com/influxdata/influxdb/pull/21477): Print error instead of panicking when `influx restore` fails to find backup manifests.
 1. [21481](https://github.com/influxdata/influxdb/pull/21481): Set last-modified time of empty shard directory to the directory's mod time instead of Unix epoch.
 1. [21486](https://github.com/influxdata/influxdb/pull/21486): chore: remove erroneous dependency on istio
+1. [21522](https://github.com/influxdata/influxdb/pull/21522): Replace telemetry file name with slug `ttf`, `woff`, and `eot` files.
 
 ## v2.0.6 [2021-04-29]
 
