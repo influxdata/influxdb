@@ -269,8 +269,11 @@ impl PartitionChunk for DbChunk {
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
+        println!("---------- Predicate in read_filter: {:#?}", predicate);
+
         match self {
             Self::MutableBuffer { chunk, .. } => {
+                println!("-------- Execute MUB in read_filter");
                 let batch = chunk
                     .read_filter(table_name, selection)
                     .context(MutableBufferChunk)?;
@@ -278,12 +281,16 @@ impl PartitionChunk for DbChunk {
                 Ok(Box::pin(MemoryStream::new(vec![batch])))
             }
             Self::ReadBuffer { chunk, .. } => {
+                println!("-------- Execute RUB in read_filter");
                 // Error converting to a rb_predicate needs to fail
                 let rb_predicate =
                     to_read_buffer_predicate(&predicate).context(PredicateConversion)?;
 
                 // Still need this for further debugging. Will be removed when done
-                // println!("----------- Read buffer predicate: {:#?}", rb_predicate);
+                println!(
+                    "----------- Read buffer predicate in read_filter: {:#?}",
+                    rb_predicate
+                );
 
                 let read_results = chunk
                     .read_filter(table_name, rb_predicate, selection)
@@ -302,11 +309,14 @@ impl PartitionChunk for DbChunk {
                     schema.into(),
                 )))
             }
-            Self::ParquetFile { chunk, .. } => chunk
-                .read_filter(table_name, predicate, selection)
-                .context(ParquetFileChunkError {
-                    chunk_id: chunk.id(),
-                }),
+            Self::ParquetFile { chunk, .. } => {
+                println!("-------- Execute PQ in read_filter");
+                chunk
+                    .read_filter(table_name, predicate, selection)
+                    .context(ParquetFileChunkError {
+                        chunk_id: chunk.id(),
+                    })
+            }
         }
     }
 

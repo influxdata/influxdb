@@ -17,6 +17,11 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Converts a [`query::predicate::Predicate`] into [`read_buffer::Predicate`],
 /// suitable for evaluating on the ReadBuffer.
 pub fn to_read_buffer_predicate(predicate: &Predicate) -> Result<read_buffer::Predicate> {
+    println!(
+        " ------ Predicate in to_read_buffer_predicate: {:#?}",
+        predicate
+    );
+
     // Try to convert non-time column expressions into binary expressions
     // that are compatible with the read buffer.
     match predicate
@@ -26,13 +31,23 @@ pub fn to_read_buffer_predicate(predicate: &Predicate) -> Result<read_buffer::Pr
         .collect::<Result<Vec<_>, _>>()
     {
         Ok(exprs) => {
+            println!("----- iter into Ok(exprs) inside to_read_buffer_predicate");
             // Construct a `ReadBuffer` predicate with or without
             // InfluxDB-specific expressions on the time column.
             Ok(match predicate.range {
                 Some(range) => {
-                    read_buffer::Predicate::with_time_range(&exprs, range.start, range.end)
+                    println!("------ Time range found in to_read_buffer_predicate");
+                    let predicate =
+                        read_buffer::Predicate::with_time_range(&exprs, range.start, range.end);
+                    println!("------ predicate with time range: {:#?}", predicate);
+                    predicate
                 }
-                None => read_buffer::Predicate::new(exprs),
+                None => {
+                    println!("------ Time range NOT found in to_read_buffer_predicate");
+                    let predicate = read_buffer::Predicate::new(exprs);
+                    println!("------ predicate without time range: {:#?}", predicate);
+                    predicate
+                }
             })
         }
         Err(e) => Err(Error::ReadBufferPredicate {

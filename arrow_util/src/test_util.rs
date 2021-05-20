@@ -62,6 +62,9 @@ macro_rules! assert_batches_sorted_eq {
             actual_lines.as_mut_slice()[2..num_lines - 1].sort_unstable()
         }
 
+        // println!("\n\nexpected:\n\n{:#?}\nactual:\n\n{:#?}\n\n",
+        // expected_lines, actual_lines);
+
         assert_eq!(
             expected_lines, actual_lines,
             "\n\nexpected:\n\n{:#?}\nactual:\n\n{:#?}\n\n",

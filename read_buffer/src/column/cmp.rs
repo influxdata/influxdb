@@ -33,6 +33,7 @@ impl TryFrom<&str> for Operator {
     type Error = String;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
+        println!("--- Operator: {}", value);
         match value {
             "=" => Ok(Self::Equal),
             "!=" => Ok(Self::NotEqual),
@@ -49,6 +50,7 @@ impl TryFrom<&datafusion::logical_plan::Operator> for Operator {
     type Error = String;
 
     fn try_from(op: &datafusion::logical_plan::Operator) -> Result<Self, Self::Error> {
+        println!("--- Operator: {}", op);
         match op {
             datafusion::logical_plan::Operator::Eq => Ok(Self::Equal),
             datafusion::logical_plan::Operator::NotEq => Ok(Self::NotEqual),

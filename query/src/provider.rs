@@ -200,10 +200,17 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> std::result::Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        println!("------- filters in scan: {:#?}", filters);
+
         // Note that `filters` don't actually need to be evaluated in
         // the scan for the plans to be correct, they are an extra
         // optimization for providers which can offer them
         let predicate = PredicateBuilder::default().pushdown_predicates(filters)?;
+
+        println!(
+            "------- predicate built from filter in scan: {:#?}",
+            predicate
+        );
 
         // Figure out the schema of the requested output
         let scan_schema = project_schema(self.arrow_schema(), projection);
@@ -227,6 +234,6 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
         &self,
         _filter: &Expr,
     ) -> DataFusionResult<TableProviderFilterPushDown> {
-        Ok(TableProviderFilterPushDown::Unsupported)
+        Ok(TableProviderFilterPushDown::Inexact)
     }
 }

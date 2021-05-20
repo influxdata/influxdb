@@ -1299,7 +1299,10 @@ impl<'a> TryFrom<&DFScalarValue> for Literal {
                 Some(v) => Ok(Self::String(v.clone())),
                 None => Err("NULL literal not supported".to_owned()),
             },
-            _ => Err("scalar type not supported".to_owned()),
+            _ => {
+                println!("------- UNSUPPORTED SCALAR");
+                Err("scalar type not supported".to_owned())
+            }
         }
     }
 }
@@ -1388,22 +1391,95 @@ impl TryFrom<&DfExpr> for BinaryExpr {
     type Error = String;
 
     fn try_from(df_expr: &DfExpr) -> Result<Self, Self::Error> {
-        let (column_name, op, value) = match df_expr {
-            DfExpr::BinaryExpr { left, op, right } => (
+        println!(
+            "------- In read_buffer::BinaryExpr::try_from. Expr: {:#?}",
+            df_expr
+        );
+        match df_expr {
+            DfExpr::BinaryExpr { left, op, right } => {
+                // normalize the order of the expression to have left a column and right the value
+                let mut swapped = false;
+                let l;
+                let r;
                 match &**left {
-                    DfExpr::Column(name) => name,
-                    _ => return Err(format!("unsupported left expression {:?}", *left)),
-                },
-                Operator::try_from(op)?,
-                match &**right {
-                    DfExpr::Literal(scalar) => Literal::try_from(scalar)?,
-                    _ => return Err(format!("unsupported right expression {:?}", *right)),
-                },
-            ),
-            _ => return Err(format!("unsupported expression type {:?}", df_expr)),
-        };
+                    DfExpr::Column(_) => {
+                        l = left;
+                        r = right;
+                        println!("---- LEFT");
+                    }
+                    DfExpr::Literal(_) => {
+                        r = left;
+                        l = right;
+                        swapped = true;
+                        println!("---- RIGHT");
+                    }
+                    _ => {
+                        println!("---- ERROR");
+                        return Err(format!(
+                            "expression {:?} is nether a column nor a literal",
+                            *left
+                        ));
+                    }
+                }
 
-        Ok(Self::new(column_name, op, value))
+                let (column_name, op, value) = (
+                    match &**l {
+                        DfExpr::Column(name) => {
+                            println!("--- NAME: {}", name);
+                            name
+                        }
+                        _ => return Err(format!("unsupported column expression {:?}", *l)),
+                    },
+                    Operator::try_from(op)?,
+                    match &**r {
+                        DfExpr::Literal(scalar) => {
+                            println!("--- LITERAL");
+                            Literal::try_from(scalar)?
+                        } // BUG: The try_from will throw error if the scalar ia a timestamp
+                        _ => return Err(format!("unsupported literal expression {:?}", *r)),
+                    },
+                );
+
+                // Since we swapped left with right, we need to adjust the operator accordingly
+                // LT <-> GT
+                // LTE <-> GTE
+                let mut new_op = op;
+                if swapped {
+                    new_op = match op {
+                        Operator::GT => Operator::LT,
+                        Operator::GTE => Operator::LTE,
+                        Operator::LT => Operator::GT,
+                        Operator::LTE => Operator::GTE,
+                        _ => op,
+                    }
+                }
+
+                let s = Self::new(column_name, new_op, value);
+                println!("------- New binary: {:#?}", s);
+
+                Ok(s)
+            }
+            _ => return Err(format!("unsupported expression type {:?}", df_expr)),
+        }
+
+        // println!("------- In read_buffer::BinaryExpr::try_from. Expr: {:#?}", df_expr);
+        // let (column_name, op, value) = match df_expr {
+        //     DfExpr::BinaryExpr { left, op, right } => (
+        //         match &**left {
+        //             DfExpr::Column(name) => name,
+        //             _ => return Err(format!("unsupported left expression {:?}", *left)),
+        //         },
+        //         Operator::try_from(op)?,
+        //         match &**right {
+        //             DfExpr::Literal(scalar) => Literal::try_from(scalar)?,
+        //             _ => return Err(format!("unsupported right expression {:?}", *right)),
+        //         },
+        //     ),
+        //     _ => return Err(format!("unsupported expression type {:?}", df_expr)),
+        // };
+        // println!("------- In read_buffer::BinaryExpr::try_from. Expr parsed!");
+
+        // Ok(Self::new(column_name, op, value))
     }
 }
 
