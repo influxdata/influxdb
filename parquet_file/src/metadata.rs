@@ -197,6 +197,12 @@ pub enum Error {
     IoxFromArrowFailure {
         source: internal_types::schema::Error,
     },
+
+    #[snafu(display("Parquet metadata does not contain IOx metadata"))]
+    IoxMetadataMissing {},
+
+    #[snafu(display("Cannot parse IOx metadata from JSON: {}", source))]
+    IoxMetadataBroken { source: serde_json::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -220,6 +226,22 @@ pub fn read_parquet_metadata_from_file(data: Vec<u8>) -> Result<ParquetMetaData>
     let cursor = SliceableCursor::new(data);
     let reader = SerializedFileReader::new(cursor).context(ParquetMetaDataRead {})?;
     Ok(reader.metadata().clone())
+}
+
+/// Read IOx metadata from file-level key-value parquet metadata.
+pub fn read_iox_metadata_from_parquet_metadata(
+    parquet_md: &ParquetMetaData,
+) -> Result<IoxMetadata> {
+    let kv = parquet_md
+        .file_metadata()
+        .key_value_metadata()
+        .as_ref()
+        .context(IoxMetadataMissing)?
+        .iter()
+        .find(|kv| kv.key == METADATA_KEY)
+        .context(IoxMetadataMissing)?;
+    let json = kv.value.as_ref().context(IoxMetadataMissing)?;
+    serde_json::from_str(json).context(IoxMetadataBroken)
 }
 
 /// Read IOx schema from parquet metadata.
