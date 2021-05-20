@@ -382,7 +382,6 @@ mod tests {
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
         let mut mb_chunk = mutable_buffer::chunk::Chunk::new(
-            Some(id),
             "table1",
             mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
         );
@@ -394,7 +393,8 @@ mod tests {
             )
             .unwrap();
 
-        let mut chunk = Chunk::new_open("", mb_chunk, ChunkMetrics::new_unregistered()).unwrap();
+        let mut chunk =
+            Chunk::new_open(id, "", mb_chunk, ChunkMetrics::new_unregistered()).unwrap();
         chunk.set_timestamps(
             time_of_first_write.map(from_secs),
             time_of_last_write.map(from_secs),
@@ -444,7 +444,6 @@ mod tests {
     fn new_parquet_chunk(chunk: &Chunk) -> parquet_file::chunk::Chunk {
         parquet_file::chunk::Chunk::new(
             chunk.key().to_string(),
-            chunk.id(),
             parquet_file::chunk::ChunkMetrics::new_unregistered(),
         )
     }
@@ -747,7 +746,6 @@ mod tests {
         };
 
         let rb = Arc::new(read_buffer::Chunk::new(
-            22,
             read_buffer::ChunkMetrics::new_unregistered(),
         ));
 
@@ -791,7 +789,6 @@ mod tests {
         };
 
         let rb = Arc::new(read_buffer::Chunk::new(
-            22,
             read_buffer::ChunkMetrics::new_unregistered(),
         ));
 
@@ -845,7 +842,6 @@ mod tests {
         };
 
         let rb = Arc::new(read_buffer::Chunk::new(
-            22,
             read_buffer::ChunkMetrics::new_unregistered(),
         ));
 

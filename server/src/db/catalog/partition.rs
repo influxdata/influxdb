@@ -89,7 +89,7 @@ impl Partition {
     /// Returns an error if the chunk is empty
     pub fn create_open_chunk(
         &mut self,
-        mut chunk: mutable_buffer::chunk::Chunk,
+        chunk: mutable_buffer::chunk::Chunk,
     ) -> Result<Arc<RwLock<Chunk>>> {
         let table_name: String = chunk.table_name().to_string();
 
@@ -99,7 +99,6 @@ impl Partition {
             .or_insert_with(PartitionTable::new);
 
         let chunk_id = table.next_chunk_id;
-        chunk.set_id(chunk_id);
 
         // Technically this only causes an issue on the next upsert but
         // the MUB treats u32::MAX as a sentinel value
@@ -108,6 +107,7 @@ impl Partition {
         table.next_chunk_id += 1;
 
         let chunk = Arc::new(self.metrics.new_lock(Chunk::new_open(
+            chunk_id,
             &self.key,
             chunk,
             self.metrics.new_chunk_metrics(),

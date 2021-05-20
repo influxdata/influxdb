@@ -532,13 +532,10 @@ impl Db {
         let metrics = self
             .metrics_registry
             .register_domain_with_labels("read_buffer", self.metric_labels.clone());
-        let mut rb_chunk = ReadBufferChunk::new(
-            chunk_id,
-            ReadBufferChunkMetrics::new(
-                &metrics,
-                self.catalog.state().metrics().memory().read_buffer(),
-            ),
-        );
+        let mut rb_chunk = ReadBufferChunk::new(ReadBufferChunkMetrics::new(
+            &metrics,
+            self.catalog.state().metrics().memory().read_buffer(),
+        ));
 
         // load table into the new chunk one by one.
         debug!(%partition_key, %table_name, %chunk_id, table=%table_summary.name, "loading table to read buffer");
@@ -952,7 +949,6 @@ impl Db {
                                 self.metric_labels.clone(),
                             );
                             let mut mb_chunk = MutableBufferChunk::new(
-                                None, // ID will be set by the catalog
                                 table_batch.name(),
                                 MutableBufferChunkMetrics::new(
                                     &metrics,
@@ -1098,7 +1094,6 @@ impl CatalogState for Catalog {
             .register_domain_with_labels("parquet", self.metric_labels.clone());
         let mut parquet_chunk = ParquetChunk::new(
             partition_key.to_string(),
-            chunk_id,
             ParquetChunkMetrics::new(&metrics, self.metrics().memory().parquet()),
         );
         parquet_chunk.add_table(
@@ -1341,7 +1336,7 @@ mod tests {
 
         // verify chunk size updated (chunk moved from closing to moving to moved)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0).unwrap();
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1606).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1598).unwrap();
 
         db.write_chunk_to_object_store("1970-01-01T00", "cpu", 0)
             .await
@@ -1360,9 +1355,9 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1606).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1598).unwrap();
         // now also in OS
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "parquet", 89).unwrap(); // TODO: #1311
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "parquet", 81).unwrap(); // TODO: #1311
 
         db.unload_read_buffer("1970-01-01T00", "cpu", 0)
             .await
@@ -1378,7 +1373,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size not increased for OS (it was in OS before unload)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "parquet", 89).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "parquet", 81).unwrap();
         // verify chunk size for RB has decreased
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 0).unwrap();
     }
@@ -1520,7 +1515,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated (chunk moved from moved to writing to written)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1606).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1598).unwrap();
 
         // drop, the chunk from the read buffer
         db.drop_chunk(partition_key, "cpu", mb_chunk.id()).unwrap();
@@ -1530,7 +1525,7 @@ mod tests {
         );
 
         // verify size is reported until chunk dropped
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1606).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1598).unwrap();
         std::mem::drop(rb_chunk);
 
         // verify chunk size updated (chunk dropped from moved state)
@@ -1603,7 +1598,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3923.0)
+            .sample_sum_eq(3915.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk, "cpu").await;
@@ -1705,7 +1700,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2297.0)
+            .sample_sum_eq(2281.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1814,7 +1809,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2297.0)
+            .sample_sum_eq(2281.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -1842,7 +1837,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(691.0)
+            .sample_sum_eq(683.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -2203,7 +2198,7 @@ mod tests {
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
-                2288, // size of RB and OS chunks
+                2272, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2254,11 +2249,11 @@ mod tests {
                 .memory()
                 .read_buffer()
                 .get_total(),
-            1597
+            1589
         );
         assert_eq!(
             db.catalog.state().metrics().memory().parquet().get_total(),
-            89
+            81
         ); // TODO: This 89 must be replaced with 691. Ticket #1311
     }
 

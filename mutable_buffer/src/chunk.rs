@@ -71,9 +71,6 @@ impl ChunkMetrics {
 /// the mutable store.
 #[derive(Debug)]
 pub struct Chunk {
-    /// The id for this chunk
-    id: Option<u32>,
-
     /// `dictionary` maps &str -> DID. The DIDs are used in place of String or
     /// str to avoid slow string operations. The same dictionary is used for
     /// table names, tag names, tag values, and column names.
@@ -96,14 +93,13 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub fn new(id: Option<u32>, table_name: impl AsRef<str>, metrics: ChunkMetrics) -> Self {
+    pub fn new(table_name: impl AsRef<str>, metrics: ChunkMetrics) -> Self {
         let table_name = table_name.as_ref();
         let mut dictionary = Dictionary::new();
         let table_id = dictionary.lookup_value_or_insert(table_name);
         let table_name = Arc::from(table_name);
 
         let mut chunk = Self {
-            id,
             dictionary,
             table_name,
             table: Table::new(table_id),
@@ -171,21 +167,6 @@ impl Chunk {
     #[cfg(feature = "nocache")]
     pub fn snapshot(&self) -> Arc<ChunkSnapshot> {
         Arc::new(ChunkSnapshot::new(self))
-    }
-
-    // /// returns true if there is no data in this chunk
-    // pub fn is_empty(&self) -> bool {
-    //     self.tables.is_empty()
-    // }
-
-    /// return the ID of this chunk
-    pub fn id(&self) -> u32 {
-        self.id.expect("expected id to be set")
-    }
-
-    pub fn set_id(&mut self, id: u32) {
-        assert_eq!(self.id, None, "cannot change ID once it has been set");
-        self.id = Some(id);
     }
 
     /// Return the name of the table in this chunk
@@ -298,7 +279,7 @@ mod tests {
 
     #[test]
     fn writes_table_batches() {
-        let mut chunk = Chunk::new(Some(1), "cpu", ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new("cpu", ChunkMetrics::new_unregistered());
 
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
 
@@ -319,7 +300,7 @@ mod tests {
 
     #[test]
     fn writes_table_3_batches() {
-        let mut chunk = Chunk::new(Some(1), "cpu", ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new("cpu", ChunkMetrics::new_unregistered());
 
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
 
@@ -351,7 +332,7 @@ mod tests {
     #[test]
     #[cfg(not(feature = "nocache"))]
     fn test_snapshot() {
-        let mut chunk = Chunk::new(Some(1), "cpu", ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new("cpu", ChunkMetrics::new_unregistered());
 
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
 

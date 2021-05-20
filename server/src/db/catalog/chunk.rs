@@ -134,6 +134,7 @@ impl Chunk {
     /// Otherwise creates a new open chunk and records a write at the current time
     ///
     pub(crate) fn new_open(
+        chunk_id: u32,
         partition_key: impl AsRef<str>,
         chunk: mutable_buffer::chunk::Chunk,
         metrics: ChunkMetrics,
@@ -142,11 +143,10 @@ impl Chunk {
             chunk.rows() > 0,
             ChunkIsEmpty {
                 partition_key: partition_key.as_ref(),
-                chunk_id: chunk.id()
+                chunk_id,
             }
         );
 
-        let id = chunk.id();
         let table_name = Arc::clone(&chunk.table_name());
 
         let state = ChunkState::Open(chunk);
@@ -157,7 +157,7 @@ impl Chunk {
         let mut chunk = Self {
             partition_key: Arc::from(partition_key.as_ref()),
             table_name,
-            id,
+            id: chunk_id,
             state,
             metrics,
             time_of_first_write: None,
