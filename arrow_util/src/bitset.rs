@@ -22,7 +22,7 @@ impl BitSet {
     }
 
     /// Creates a new BitSet with `count` unset bits.
-    pub fn with_capacity(count: usize) -> Self {
+    pub fn with_size(count: usize) -> Self {
         let mut bitset = Self::default();
         bitset.append_unset(count);
         bitset

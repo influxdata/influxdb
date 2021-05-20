@@ -194,7 +194,8 @@ impl StringEncoding {
         }
 
         // create new ordinal offsets - the encoded values need to be shifted
-        // into a new domain [0, keys.len()).
+        // into a new domain `[0, ordinal_mapping.len())` which is the length
+        // of the new dictionary.
         let mut ordinal_mapping_keys = ordinal_mapping
             .keys()
             .into_iter()
@@ -202,26 +203,26 @@ impl StringEncoding {
             .collect::<Vec<_>>();
         ordinal_mapping_keys.sort_unstable();
 
-        for (i, key) in ordinal_mapping_keys.into_iter().enumerate() {
+        for (i, key) in ordinal_mapping_keys.iter().enumerate() {
             // now we can insert the new ordinal position of the encoded in key
             // in the final values vector.
-            ordinal_mapping.insert(key, i as u32);
+            ordinal_mapping.insert(*key, i as u32);
         }
 
         // Rewrite all the encoded values into the new domain.
         for key in keys.iter_mut() {
-            *key = *ordinal_mapping.get(id).unwrap();
+            *key = *ordinal_mapping.get(key).unwrap();
         }
 
         // now generate the values vector, which will contain the sorted set of
         // string values
         let mut values = match &self {
-            Self::RleDictionary(c) => ordinal_mapping
-                .keys()
+            Self::RleDictionary(c) => ordinal_mapping_keys
+                .iter()
                 .map(|id| c.decode_id(*id))
                 .collect::<Vec<_>>(),
-            Self::Dictionary(c) => ordinal_mapping
-                .keys()
+            Self::Dictionary(c) => ordinal_mapping_keys
+                .iter()
                 .map(|id| c.decode_id(*id))
                 .collect::<Vec<_>>(),
         };
@@ -680,6 +681,8 @@ mod test {
     fn _values_as_dictionary(enc: &StringEncoding) {
         // column is: [apple, apple, pear, NULL, NULL, orange, beta]
 
+        // Since the Read Buffer only accepts row IDs in order we only need to
+        // cover ascending rows in these tests.
         let cases = vec![
             (
                 &[0, 3, 4][..], // apple NULL, NULL

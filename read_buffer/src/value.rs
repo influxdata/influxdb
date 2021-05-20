@@ -1511,7 +1511,7 @@ impl From<Values<'_>> for arrow::array::ArrayRef {
                 // on the null bitmap if there is at least one NULL
                 // value.
                 let null_bitmap = if matches!(values.first(), Some(None)) {
-                    let mut bitset = BitSet::with_capacity(keys.len());
+                    let mut bitset = BitSet::with_size(keys.len());
                     for (i, v) in keys.iter_mut().enumerate() {
                         if *v as usize != 0 {
                             bitset.set(i); // valid value
