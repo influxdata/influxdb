@@ -18,8 +18,7 @@ use data_types::{
 };
 use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
-use object_store::ObjectStoreApi;
-use query::{Database, PartitionChunk};
+use query::Database;
 use server::{ConnectionManager, Server as AppServer};
 
 // External crates
@@ -361,7 +360,6 @@ where
         .get("/metrics", handle_metrics::<M>)
         .get("/iox/api/v1/databases/:name/query", query::<M>)
         .get("/api/v1/partitions", list_partitions::<M>)
-        .post("/api/v1/snapshot", snapshot_partition::<M>)
         .get("/debug/pprof", pprof_home::<M>)
         .get("/debug/pprof/profile", pprof_profile::<M>)
         // Specify the error handler to handle any errors caused by
@@ -738,78 +736,6 @@ struct SnapshotInfo {
 }
 
 #[tracing::instrument(level = "debug")]
-async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static>(
-    req: Request<Body>,
-) -> Result<Response<Body>, ApplicationError> {
-    use object_store::path::ObjectStorePath;
-
-    let path = req.uri().path().to_string();
-    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
-    // TODO - catch error conditions
-    let obs = server.metrics.http_requests.observation();
-    let query = req.uri().query().context(ExpectedQueryString {})?;
-
-    let snapshot: SnapshotInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
-        query_string: query,
-    })?;
-
-    let db_name =
-        org_and_bucket_to_database(&snapshot.org, &snapshot.bucket).context(BucketMappingError)?;
-
-    let metric_kv = vec![
-        KeyValue::new("db_name", db_name.to_string()),
-        KeyValue::new("path", path),
-    ];
-
-    // TODO: refactor the rest of this out of the http route and into the server
-    // crate.
-    let db = server.db(&db_name).context(BucketNotFound {
-        org: &snapshot.org,
-        bucket: &snapshot.bucket,
-    })?;
-
-    let store = Arc::clone(&server.store);
-
-    let mut metadata_path = store.new_path();
-    metadata_path.push_dir(&db_name.to_string());
-    let mut data_path = metadata_path.clone();
-    metadata_path.push_dir("meta");
-    data_path.push_all_dirs(&["data", &snapshot.partition]);
-
-    let partition_key = &snapshot.partition;
-    let table_name = &snapshot.table_name;
-    if let Some(chunk) = db
-        .rollover_partition(partition_key, table_name)
-        .await
-        .unwrap()
-    {
-        let table_stats = db
-            .table_summary(partition_key, table_name, chunk.id())
-            .unwrap();
-        let snapshot = server::snapshot::snapshot_chunk(
-            metadata_path,
-            data_path,
-            store,
-            partition_key,
-            chunk,
-            table_stats,
-            None,
-        )
-        .unwrap();
-
-        obs.ok_with_labels(&metric_kv);
-        let ret = format!("{}", snapshot.id);
-        Ok(Response::new(Body::from(ret)))
-    } else {
-        Err(ApplicationError::NoSnapshot {
-            db_name: db_name.to_string(),
-            partition: partition_key.to_string(),
-            table_name: table_name.to_string(),
-        })
-    }
-}
-
-#[tracing::instrument(level = "debug")]
 async fn pprof_home<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
@@ -923,7 +849,6 @@ mod tests {
     use std::{
         convert::TryFrom,
         net::{IpAddr, Ipv4Addr, SocketAddr},
-        num::NonZeroU32,
     };
 
     use arrow::record_batch::RecordBatch;
@@ -943,6 +868,7 @@ mod tests {
             AppServerConfig::new(
                 Arc::new(ObjectStore::new_in_memory(InMemory::new())),
                 registry,
+                None,
             )
             .with_num_worker_threads(1),
         )
@@ -1318,53 +1244,6 @@ mod tests {
             Some(""),
         )
         .await;
-    }
-
-    #[tokio::test]
-    async fn test_snapshot() {
-        let (_, config) = config();
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
-        app_server
-            .set_id(ServerId::new(NonZeroU32::new(1).unwrap()))
-            .unwrap();
-        app_server
-            .create_database(
-                DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
-                app_server.require_id().unwrap(),
-            )
-            .await
-            .unwrap();
-        let server_url = test_server(Arc::clone(&app_server));
-
-        let client = Client::new();
-
-        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1617286224000000000";
-
-        // send write data
-        let bucket_name = "MyBucket";
-        let org_name = "MyOrg";
-        let response = client
-            .post(&format!(
-                "{}/api/v2/write?bucket={}&org={}",
-                server_url, bucket_name, org_name
-            ))
-            .body(lp_data)
-            .send()
-            .await;
-
-        check_response("write", response, StatusCode::NO_CONTENT, Some("")).await;
-
-        // issue first snapshot => OK
-        let url = format!(
-            "{}/api/v1/snapshot?bucket={}&org={}&partition=&table_name=h2o_temperature",
-            server_url, bucket_name, org_name
-        );
-        let response = client.post(&url).body(lp_data).send().await;
-        check_response("snapshot", response, StatusCode::OK, None).await;
-
-        // second snapshot results in "not modified"
-        let response = client.post(&url).body(lp_data).send().await;
-        check_response("snapshot", response, StatusCode::NOT_MODIFIED, None).await;
     }
 
     fn get_content_type(response: &Result<Response, reqwest::Error>) -> String {

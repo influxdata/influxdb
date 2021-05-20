@@ -75,7 +75,7 @@ use bytes::BytesMut;
 use cached::proc_macro::cached;
 use db::load_or_create_preserved_catalog;
 use futures::stream::TryStreamExt;
-use observability_deps::tracing::{error, info, warn};
+use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 
@@ -93,12 +93,14 @@ use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, DatabaseStore};
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
 
+pub use crate::config::RemoteTemplate;
 use crate::{
     config::{
         object_store_path_for_database_config, Config, GRpcConnectionString, DB_RULES_FILE_NAME,
     },
     db::Db,
 };
+use cached::Return;
 use data_types::database_rules::{NodeGroup, Shard, ShardId};
 use generated_types::database_rules::{decode_database_rules, encode_database_rules};
 use influxdb_iox_client::{connection::Builder, write};
@@ -109,7 +111,6 @@ pub mod buffer;
 mod config;
 pub mod db;
 mod query_tests;
-pub mod snapshot;
 
 // This module exposes `query_tests` outside of the crate so that it may be used
 // in benchmarks. Do not import this module for non-benchmark purposes!
@@ -228,15 +229,22 @@ pub struct ServerConfig {
     object_store: Arc<ObjectStore>,
 
     metric_registry: Arc<MetricRegistry>,
+
+    remote_template: Option<RemoteTemplate>,
 }
 
 impl ServerConfig {
     /// Create a new config using the specified store.
-    pub fn new(object_store: Arc<ObjectStore>, metric_registry: Arc<MetricRegistry>) -> Self {
+    pub fn new(
+        object_store: Arc<ObjectStore>,
+        metric_registry: Arc<MetricRegistry>,
+        remote_template: Option<RemoteTemplate>,
+    ) -> Self {
         Self {
             num_worker_threads: None,
             object_store,
             metric_registry,
+            remote_template,
         }
     }
 
@@ -390,12 +398,17 @@ impl<M: ConnectionManager> Server<M> {
             object_store,
             // to test the metrics provide a different registry to the `ServerConfig`.
             metric_registry,
+            remote_template,
         } = config;
         let num_worker_threads = num_worker_threads.unwrap_or_else(num_cpus::get);
 
         Self {
             id: Default::default(),
-            config: Arc::new(Config::new(Arc::clone(&jobs), Arc::clone(&metric_registry))),
+            config: Arc::new(Config::new(
+                Arc::clone(&jobs),
+                Arc::clone(&metric_registry),
+                remote_template,
+            )),
             store: object_store,
             connection_manager: Arc::new(connection_manager),
             exec: Arc::new(Executor::new(num_worker_threads)),
@@ -937,23 +950,25 @@ impl ConnectionManager for ConnectionManagerImpl {
         &self,
         connect: &str,
     ) -> Result<Arc<Self::RemoteServer>, ConnectionManagerError> {
-        cached_remote_server(connect.to_string()).await
+        let ret = cached_remote_server(connect.to_string()).await?;
+        debug!(was_cached=%ret.was_cached, %connect, "getting remote connection");
+        Ok(ret.value)
     }
 }
 
 // cannot be an associated function
 // argument need to have static lifetime because they become caching keys
-#[cached(result = true)]
+#[cached(result = true, with_cached_flag = true)]
 async fn cached_remote_server(
     connect: String,
-) -> Result<Arc<RemoteServerImpl>, ConnectionManagerError> {
+) -> Result<Return<Arc<RemoteServerImpl>>, ConnectionManagerError> {
     let connection = Builder::default()
         .build(&connect)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(RemoteServerConnectError)?;
     let client = write::Client::new(connection);
-    Ok(Arc::new(RemoteServerImpl { client }))
+    Ok(Return::new(Arc::new(RemoteServerImpl { client })))
 }
 
 /// An implementation for communicating with other IOx servers. This should
@@ -1055,11 +1070,7 @@ mod tests {
         let test_registry = metrics::TestMetricRegistry::new(Arc::clone(&registry));
         (
             test_registry,
-            ServerConfig::new(
-                Arc::new(object_store),
-                registry, // new registry ensures test isolation of metrics
-            )
-            .with_num_worker_threads(1),
+            ServerConfig::new(Arc::new(object_store), registry, None).with_num_worker_threads(1),
         )
     }
 
@@ -1158,8 +1169,8 @@ mod tests {
         store.list_with_delimiter(&store.new_path()).await.unwrap();
 
         let manager = TestConnectionManager::new();
-        let config2 =
-            ServerConfig::new(store, Arc::new(MetricRegistry::new())).with_num_worker_threads(1);
+        let config2 = ServerConfig::new(store, Arc::new(MetricRegistry::new()), Option::None)
+            .with_num_worker_threads(1);
         let server2 = Server::new(manager, config2);
         server2.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server2.load_database_configs().await.unwrap();

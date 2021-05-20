@@ -48,10 +48,14 @@ impl<E> From<Error> for UpdateError<E> {
 }
 
 impl Config {
-    pub(crate) fn new(jobs: Arc<JobRegistry>, metric_registry: Arc<MetricRegistry>) -> Self {
+    pub(crate) fn new(
+        jobs: Arc<JobRegistry>,
+        metric_registry: Arc<MetricRegistry>,
+        remote_template: Option<RemoteTemplate>,
+    ) -> Self {
         Self {
             shutdown: Default::default(),
-            state: Default::default(),
+            state: RwLock::new(ConfigState::new(remote_template)),
             jobs,
             metric_registry,
         }
@@ -120,7 +124,11 @@ impl Config {
 
     pub(crate) fn resolve_remote(&self, id: ServerId) -> Option<GRpcConnectionString> {
         let state = self.state.read().expect("mutex poisoned");
-        state.remotes.get(&id).cloned()
+        state
+            .remotes
+            .get(&id)
+            .cloned()
+            .or_else(|| state.remote_template.as_ref().map(|t| t.get(&id)))
     }
 
     fn commit(
@@ -233,6 +241,36 @@ struct ConfigState {
     databases: BTreeMap<DatabaseName<'static>, DatabaseState>,
     /// Map between remote IOx server IDs and management API connection strings.
     remotes: BTreeMap<ServerId, GRpcConnectionString>,
+    /// Static map between remote server IDs and hostnames based on a template
+    remote_template: Option<RemoteTemplate>,
+}
+
+impl ConfigState {
+    fn new(remote_template: Option<RemoteTemplate>) -> Self {
+        Self {
+            remote_template,
+            ..Default::default()
+        }
+    }
+}
+
+/// A RemoteTemplate string is a remote connection template string.
+/// Occurrences of the substring "{id}" in the template will be replaced
+/// by the server ID.
+#[derive(Debug)]
+pub struct RemoteTemplate {
+    template: String,
+}
+
+impl RemoteTemplate {
+    pub fn new(template: impl Into<String>) -> Self {
+        let template = template.into();
+        Self { template }
+    }
+
+    fn get(&self, id: &ServerId) -> GRpcConnectionString {
+        self.template.replace("{id}", &format!("{}", id.get_u32()))
+    }
 }
 
 #[derive(Debug)]
@@ -316,12 +354,17 @@ mod test {
     use crate::db::load_or_create_preserved_catalog;
 
     use super::*;
+    use std::num::NonZeroU32;
 
     #[tokio::test]
     async fn create_db() {
         let name = DatabaseName::new("foo").unwrap();
         let metric_registry = Arc::new(metrics::MetricRegistry::new());
-        let config = Config::new(Arc::new(JobRegistry::new()), Arc::clone(&metric_registry));
+        let config = Config::new(
+            Arc::new(JobRegistry::new()),
+            Arc::clone(&metric_registry),
+            None,
+        );
         let rules = DatabaseRules::new(name.clone());
 
         {
@@ -363,7 +406,11 @@ mod test {
     async fn test_db_drop() {
         let name = DatabaseName::new("foo").unwrap();
         let metric_registry = Arc::new(metrics::MetricRegistry::new());
-        let config = Config::new(Arc::new(JobRegistry::new()), Arc::clone(&metric_registry));
+        let config = Config::new(
+            Arc::new(JobRegistry::new()),
+            Arc::clone(&metric_registry),
+            None,
+        );
         let rules = DatabaseRules::new(name.clone());
 
         let db_reservation = config.create_db(rules).unwrap();
@@ -411,5 +458,29 @@ mod test {
         expected_path.set_file_name("rules.pb");
 
         assert_eq!(rules_path, expected_path);
+    }
+
+    #[test]
+    fn resolve_remote() {
+        let metric_registry = Arc::new(metrics::MetricRegistry::new());
+        let config = Config::new(
+            Arc::new(JobRegistry::new()),
+            Arc::clone(&metric_registry),
+            Some(RemoteTemplate::new("http://iox-query-{id}:8082")),
+        );
+
+        let server_id = ServerId::new(NonZeroU32::new(42).unwrap());
+        let remote = config.resolve_remote(server_id);
+        assert_eq!(
+            remote,
+            Some(GRpcConnectionString::from("http://iox-query-42:8082"))
+        );
+
+        let server_id = ServerId::new(NonZeroU32::new(24).unwrap());
+        let remote = config.resolve_remote(server_id);
+        assert_eq!(
+            remote,
+            Some(GRpcConnectionString::from("http://iox-query-24:8082"))
+        );
     }
 }

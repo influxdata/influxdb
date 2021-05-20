@@ -3164,6 +3164,7 @@ name = "read_buffer"
 version = "0.1.0"
 dependencies = [
  "arrow 0.1.0",
+ "arrow_util",
  "criterion",
  "croaring",
  "data_types",

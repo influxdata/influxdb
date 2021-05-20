@@ -7,7 +7,6 @@ use std::{
     sync::Arc,
 };
 
-use arrow::array;
 use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
 use snafu::{ResultExt, Snafu};
@@ -19,6 +18,7 @@ use crate::value::{
     AggregateVec, EncodedValues, OwnedValue, Scalar, Value, Values, ValuesIterator,
 };
 use arrow::{
+    array,
     array::ArrayRef,
     datatypes::{DataType, TimeUnit},
     record_batch::RecordBatch,
@@ -256,37 +256,40 @@ impl RowGroup {
 
         // apply predicates to determine candidate rows.
         let row_ids = self.row_ids_from_predicate(predicates);
-        let col_data = self.materialise_rows(columns, row_ids);
+        let col_data = self.materialise_rows(&schema, row_ids);
         ReadFilterResult {
             schema,
             data: col_data,
         }
     }
 
-    fn materialise_rows(&self, names: &[ColumnName<'_>], row_ids: RowIDsOption) -> Vec<Values<'_>> {
-        let mut col_data = Vec::with_capacity(names.len());
+    fn materialise_rows(&self, schema: &ResultSchema, row_ids: RowIDsOption) -> Vec<Values<'_>> {
+        let mut col_data = Vec::with_capacity(schema.len());
         match row_ids {
             RowIDsOption::None(_) => col_data, // nothing to materialise
             RowIDsOption::Some(row_ids) => {
                 // TODO(edd): causes an allocation. Implement a way to pass a
                 // pooled buffer to the croaring Bitmap API.
                 let row_ids = row_ids.to_vec();
-                for &name in names {
-                    let (_, col) = self.column_name_and_column(name);
-                    col_data.push(col.values(row_ids.as_slice()));
+                for (ct, _) in &schema.select_columns {
+                    let (_, col) = self.column_name_and_column(ct.as_str());
+                    if let schema::ColumnType::Tag(_) = ct {
+                        col_data.push(col.values_as_dictionary(row_ids.as_slice()));
+                    } else {
+                        col_data.push(col.values(row_ids.as_slice()));
+                    }
                 }
                 col_data
             }
 
             RowIDsOption::All(_) => {
-                // TODO(edd): Perf - add specialised method to get all
-                // materialised values from a column without having to
-                // materialise a vector of row ids.......
-                let row_ids = (0..self.rows()).collect::<Vec<_>>();
-
-                for &name in names {
-                    let (_, col) = self.column_name_and_column(name);
-                    col_data.push(col.values(row_ids.as_slice()));
+                for (ct, _) in &schema.select_columns {
+                    let (_, col) = self.column_name_and_column(ct.as_str());
+                    if let schema::ColumnType::Tag(_) = ct {
+                        col_data.push(col.all_values_as_dictionary());
+                    } else {
+                        col_data.push(col.all_values());
+                    }
                 }
                 col_data
             }
@@ -1684,27 +1687,6 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
                     };
                 }
 
-                if let Some(InfluxColumnType::Tag) = schema.field(i).0 {
-                    return match values {
-                        Values::String(values) => {
-                            // TODO: Preserve dictionary encoding
-                            Ok(
-                                    Arc::new(
-                                        values
-                                            .into_iter()
-                                            .collect::<arrow::array::DictionaryArray<
-                                                arrow::datatypes::Int32Type,
-                                            >>(),
-                                    ) as _,
-                                )
-                        }
-                        t => UnsupportedOperation {
-                            msg: format!("cannot convert {:?} to DictionaryArray", t),
-                        }
-                        .fail(),
-                    };
-                }
-
                 Ok(arrow::array::ArrayRef::from(values))
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -2471,6 +2453,55 @@ west,4
             &Predicate::with_time_range(&[], -19, 1),
         );
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn read_filter_dictionaries() {
+        let mut columns = vec![];
+        let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
+        columns.push(("time".to_string(), tc));
+
+        // Tag column that will be dictionary encoded when materialised
+        let rc = ColumnType::Tag(Column::from(
+            &["west", "west", "east", "west", "south", "north"][..],
+        ));
+        columns.push(("region".to_string(), rc));
+
+        // Field column that will be stored as a string array when materialised
+        let mc = ColumnType::Field(Column::from(
+            &["GET", "POST", "POST", "POST", "PUT", "GET"][..],
+        ));
+        columns.push(("method".to_string(), mc));
+
+        let row_group = RowGroup::new(6, columns);
+
+        let cases = vec![
+            (
+                vec!["method", "region", "time"],
+                Predicate::default(),
+                "method,region,time
+GET,west,1
+POST,west,2
+POST,east,3
+POST,west,4
+PUT,south,5
+GET,north,6
+",
+            ),
+            (
+                vec!["method", "region", "time"],
+                Predicate::with_time_range(&[], -1, 3),
+                "method,region,time
+GET,west,1
+POST,west,2
+",
+            ),
+        ];
+
+        for (cols, predicates, expected) in cases {
+            let results = row_group.read_filter(&cols, &predicates);
+            assert_eq!(format!("{:?}", &results), expected);
+        }
     }
 
     #[test]

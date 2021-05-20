@@ -788,28 +788,35 @@ mod test {
         let got_column = rb.column(rb.schema().index_of(col_name).unwrap());
 
         match exp {
-            Values::String(exp_data) => match got_column.data_type() {
-                DataType::Utf8 => {
-                    let arr = got_column.as_any().downcast_ref::<StringArray>().unwrap();
-                    assert_eq!(&arr.iter().collect::<Vec<_>>(), exp_data);
-                }
+            Values::Dictionary(keys, values) => match got_column.data_type() {
                 DataType::Dictionary(key, value)
                     if key.as_ref() == &DataType::Int32 && value.as_ref() == &DataType::Utf8 =>
                 {
+                    // Record batch stores keys as i32
+                    let keys = keys
+                        .iter()
+                        .map(|&x| i32::try_from(x).unwrap())
+                        .collect::<Vec<_>>();
+
                     let dictionary = got_column
                         .as_any()
                         .downcast_ref::<DictionaryArray<Int32Type>>()
                         .unwrap();
-                    let values = dictionary.values();
-                    let values = values.as_any().downcast_ref::<StringArray>().unwrap();
+                    let rb_values = dictionary.values();
+                    let rb_values = rb_values.as_any().downcast_ref::<StringArray>().unwrap();
 
-                    let hydrated: Vec<_> = dictionary
-                        .keys()
-                        .iter()
-                        .map(|key| key.map(|key| values.value(key as _)))
-                        .collect();
+                    // Ensure string values are same
+                    assert!(rb_values.iter().zip(values.iter()).all(|(a, b)| &a == b));
 
-                    assert_eq!(&hydrated, exp_data)
+                    let rb_keys = dictionary.keys().values();
+                    assert_eq!(rb_keys, keys.as_slice());
+                }
+                d => panic!("Unexpected type {:?}", d),
+            },
+            Values::String(exp_data) => match got_column.data_type() {
+                DataType::Utf8 => {
+                    let arr = got_column.as_any().downcast_ref::<StringArray>().unwrap();
+                    assert_eq!(&arr.iter().collect::<Vec<_>>(), exp_data);
                 }
                 d => panic!("Unexpected type {:?}", d),
             },
@@ -1278,11 +1285,12 @@ mod test {
             .read_filter("Coolverine", predicate, Selection::All)
             .unwrap();
 
-        let exp_env_values = Values::String(vec![Some("us-west")]);
-        let exp_region_values = Values::String(vec![Some("west")]);
+        let exp_env_values = Values::Dictionary(vec![0], vec![Some("us-west")]);
+        let exp_region_values = Values::Dictionary(vec![0], vec![Some("west")]);
         let exp_counter_values = Values::F64(vec![1.2]);
         let exp_sketchy_sensor_values = Values::I64N(vec![None]);
         let exp_active_values = Values::Bool(vec![Some(true)]);
+        let exp_msg_values = Values::String(vec![Some("message a")]);
 
         let first_row_group = itr.next().unwrap();
         assert_rb_column_equals(&first_row_group, "env", &exp_env_values);
@@ -1294,11 +1302,7 @@ mod test {
             &exp_sketchy_sensor_values,
         );
         assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
-        assert_rb_column_equals(
-            &first_row_group,
-            "msg",
-            &Values::String(vec![Some("message a")]),
-        );
+        assert_rb_column_equals(&first_row_group, "msg", &exp_msg_values);
         assert_rb_column_equals(&first_row_group, "time", &Values::I64(vec![100])); // first row from first record batch
 
         let second_row_group = itr.next().unwrap();
