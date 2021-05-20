@@ -397,6 +397,15 @@ Possible values (case insensitive):
     /// environments.
     #[structopt(long = "--azure-storage-access-key", env = "AZURE_STORAGE_ACCESS_KEY")]
     pub azure_storage_access_key: Option<String>,
+
+    /// When IOx nodes need to talk to remote peers they consult an internal remote address
+    /// mapping. This mapping is populated via API calls. If the mapping doesn't produce
+    /// a result, this config entry allows to generate a hostname from at template:
+    /// occurrences of the "{id}" substring will be replaced with the remote Server ID.
+    ///
+    /// Example: http://node-{id}.ioxmydomain.com:8082
+    #[structopt(long = "--remote-template", env = "INFLUXDB_IOX_REMOTE_TEMPLATE")]
+    pub remote_template: Option<String>,
 }
 
 pub async fn command(config: Config) -> Result<()> {
