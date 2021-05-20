@@ -17,17 +17,19 @@ use std::fmt::Debug;
 use std::iter::FromIterator;
 use std::mem::size_of;
 
+use crate::column::{cmp, RowIDs};
 use arrow::{
     array::{Array, PrimitiveArray},
     datatypes::ArrowNumericType,
 };
 
-use crate::column::{cmp, RowIDs};
+pub const ENCODING_NAME: &str = "VECN";
 
 #[derive(Debug, PartialEq)]
 pub struct FixedNull<T>
 where
     T: ArrowNumericType,
+    T::Native: PartialEq + PartialOrd,
 {
     // backing data
     arr: PrimitiveArray<T>,
@@ -46,7 +48,8 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[Array] rows: {:?}, nulls: {:?}, size: {}",
+            "[{}] rows: {:?}, nulls: {:?}, size: {}",
+            self.name(),
             self.arr.len(),
             self.arr.null_count(),
             self.size()
@@ -57,6 +60,11 @@ impl<T> FixedNull<T>
 where
     T: ArrowNumericType,
 {
+    /// The name of this encoding.
+    pub fn name(&self) -> &'static str {
+        ENCODING_NAME
+    }
+
     pub fn num_rows(&self) -> u32 {
         self.arr.len() as u32
     }
@@ -631,6 +639,12 @@ macro_rules! fixed_null_from_arrow_types {
 fixed_null_from_arrow_types! {
     (arrow::array::Int64Array, arrow::datatypes::Int64Type),
     (arrow::array::UInt64Array, arrow::datatypes::UInt64Type),
+    (arrow::array::Int32Array, arrow::datatypes::Int32Type),
+    (arrow::array::UInt32Array, arrow::datatypes::UInt32Type),
+    (arrow::array::Int16Array, arrow::datatypes::Int16Type),
+    (arrow::array::UInt16Array, arrow::datatypes::UInt16Type),
+    (arrow::array::Int8Array, arrow::datatypes::Int8Type),
+    (arrow::array::UInt8Array, arrow::datatypes::UInt8Type),
     (arrow::array::Float64Array, arrow::datatypes::Float64Type),
 }
 
