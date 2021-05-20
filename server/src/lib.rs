@@ -1071,8 +1071,7 @@ mod tests {
         let test_registry = metrics::TestMetricRegistry::new(Arc::clone(&registry));
         (
             test_registry,
-            ServerConfig::new(Arc::new(object_store), registry, None)
-                .with_num_worker_threads(1),
+            ServerConfig::new(Arc::new(object_store), registry, None).with_num_worker_threads(1),
         )
     }
 
