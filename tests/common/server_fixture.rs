@@ -68,7 +68,7 @@ use tokio::sync::Mutex;
 /// testing.
 pub struct ServerFixture {
     server: Arc<TestServer>,
-    grpc_channel: std::sync::RwLock<tonic::transport::Channel>,
+    grpc_channel: tonic::transport::Channel,
 }
 
 /// Specifieds should we configure a server initially
@@ -133,12 +133,10 @@ impl ServerFixture {
     }
 
     async fn create_common(server: Arc<TestServer>) -> Self {
-        let grpc_channel = std::sync::RwLock::new(
-            server
-                .grpc_channel()
-                .await
-                .expect("The server should have been up"),
-        );
+        let grpc_channel = server
+            .grpc_channel()
+            .await
+            .expect("The server should have been up");
 
         ServerFixture {
             server,
@@ -149,8 +147,7 @@ impl ServerFixture {
     /// Return a channel connected to the gRPC API. Panics if the
     /// server is not yet up
     pub fn grpc_channel(&self) -> tonic::transport::Channel {
-        let guard = self.grpc_channel.read().expect("getting gRPC channel lock");
-        guard.clone()
+        self.grpc_channel.clone()
     }
 
     /// Return the url base of the grpc management API
@@ -201,19 +198,21 @@ impl ServerFixture {
     /// Restart test server.
     ///
     /// This will break all currently connected clients!
-    pub async fn restart_server(&self) {
+    pub async fn restart_server(self) -> Self {
         self.server.restart().await;
         self.server
             .wait_until_ready(InitialConfig::SetWriterId)
             .await;
-
-        let new_channel = self
+        let grpc_channel = self
             .server
             .grpc_channel()
             .await
             .expect("The server should have been up");
-        let mut guard = self.grpc_channel.write().expect("lock poisened");
-        *guard = new_channel;
+
+        Self {
+            server: self.server,
+            grpc_channel,
+        }
     }
 }
 

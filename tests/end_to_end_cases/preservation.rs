@@ -45,7 +45,7 @@ async fn test_query_chunk_after_restart() {
     assert_chunk_query_works(&fixture, &db_name).await;
 
     // restart server
-    fixture.restart_server().await;
+    let fixture = fixture.restart_server().await;
 
     // need to re-register the database
     create_readable_database(&db_name, fixture.grpc_channel()).await;
