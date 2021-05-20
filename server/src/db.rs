@@ -2917,5 +2917,8 @@ mod tests {
             let chunk = chunk.read();
             assert!(matches!(chunk.state(), ChunkState::ObjectStoreOnly(_)));
         }
+
+        // ==================== check: DB still writable ====================
+        write_lp(db.as_ref(), "cpu bar=1 10");
     }
 }

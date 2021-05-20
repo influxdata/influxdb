@@ -124,6 +124,9 @@ impl Partition {
 
     /// Create new chunk that is only in object store (= parquet file).
     ///
+    /// The table-specific chunk ID counter will be set to
+    /// `max(current, chunk_id + 1)`.
+    ///
     /// Fails if the chunk already exists.
     pub fn create_object_store_only_chunk(
         &mut self,
@@ -153,7 +156,12 @@ impl Partition {
                 table_name,
                 chunk_id,
             }),
-            None => Ok(chunk),
+            None => {
+                // bump chunk ID counter
+                table.next_chunk_id = table.next_chunk_id.max(chunk_id + 1);
+
+                Ok(chunk)
+            }
         }
     }
 
