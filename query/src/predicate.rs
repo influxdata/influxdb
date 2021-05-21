@@ -374,15 +374,6 @@ impl PredicateBuilder {
                         | Operator::GtEq
                 )
             }
-            // Expr::BinaryExpr { op, .. } => matches!(
-            //     op,
-            //     Operator::Eq
-            //         | Operator::NotEq
-            //         | Operator::Lt
-            //         | Operator::LtEq
-            //         | Operator::Gt
-            //         | Operator::GtEq
-            // ),
             _ => false,
         }
     }
