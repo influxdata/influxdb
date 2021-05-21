@@ -47,8 +47,6 @@ pub enum Error {
     InternalPushdownPredicate {
         source: datafusion::error::DataFusionError,
     },
-    // #[snafu(display("Internal error: Cannot verify the push-down predicate '{}'", source))]
-    // InternalPredicate {source: Box<crate::provider::Error>},
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -200,17 +198,12 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> std::result::Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        println!("------- filters in scan: {:#?}", filters);
-
         // Note that `filters` don't actually need to be evaluated in
         // the scan for the plans to be correct, they are an extra
         // optimization for providers which can offer them
-        let predicate = PredicateBuilder::default().pushdown_predicates(filters)?;
-
-        println!(
-            "------- predicate built from filter in scan: {:#?}",
-            predicate
-        );
+        let predicate = PredicateBuilder::default()
+            .add_pushdown_exprs(filters)
+            .build();
 
         // Figure out the schema of the requested output
         let scan_schema = project_schema(self.arrow_schema(), projection);

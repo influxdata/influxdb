@@ -273,17 +273,11 @@ impl PartitionChunk for DbChunk {
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
-        println!("---------- Predicate in read_filter: {:#?}", predicate);
+        // Predicate is not required to be applied for correctness. We only pushed it down
+        // when possible for performance gain
 
         match &self.state {
             State::MutableBuffer { chunk, .. } => {
-                println!("-------- Execute MUB in read_filter");
-                // if !predicate.is_empty() {
-                //     return InternalPredicateNotSupported {
-                //         predicate: predicate.clone(),
-                //     }
-                //     .fail();
-                // }
                 let batch = chunk
                     .read_filter(table_name, selection)
                     .context(MutableBufferChunk)?;
@@ -291,7 +285,6 @@ impl PartitionChunk for DbChunk {
                 Ok(Box::pin(MemoryStream::new(vec![batch])))
             }
             State::ReadBuffer { chunk, .. } => {
-                println!("-------- Execute RUB in read_filter");
                 // Error converting to a rb_predicate needs to fail
                 let rb_predicate =
                     match to_read_buffer_predicate(&predicate).context(PredicateConversion) {
@@ -300,11 +293,6 @@ impl PartitionChunk for DbChunk {
                     };
 
                 // Still need this for further debugging. Will be removed when done
-                println!(
-                    "----------- Read buffer predicate in read_filter: {:#?}",
-                    rb_predicate
-                );
-
                 let read_results = chunk
                     .read_filter(table_name, rb_predicate, selection)
                     .context(ReadBufferChunkError {
@@ -322,14 +310,11 @@ impl PartitionChunk for DbChunk {
                     schema.into(),
                 )))
             }
-            State::ParquetFile { chunk, .. } => {
-                println!("-------- Execute PQ in read_filter");
-                chunk
-                    .read_filter(table_name, predicate, selection)
-                    .context(ParquetFileChunkError {
-                        chunk_id: self.id(),
-                    })
-            }
+            State::ParquetFile { chunk, .. } => chunk
+                .read_filter(table_name, predicate, selection)
+                .context(ParquetFileChunkError {
+                    chunk_id: self.id(),
+                }),
         }
     }
 

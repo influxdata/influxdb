@@ -16,6 +16,7 @@ use datafusion::{
 };
 use datafusion_util::{make_range_expr, AndExprBuilder};
 use internal_types::schema::TIME_COLUMN_NAME;
+use observability_deps::tracing::debug;
 
 /// This `Predicate` represents the empty predicate (aka that
 /// evaluates to true for all rows).
@@ -216,12 +217,6 @@ impl PredicateBuilder {
         self
     }
 
-    /// Sets exprs for the predicate
-    pub fn exprs(mut self, exprs: Vec<Expr>) -> Self {
-        self.inner.exprs = exprs;
-        self
-    }
-
     /// Builds a regex matching expression from the provided column name and
     /// pattern. Values not matching the regex will be filtered out.
     pub fn build_regex_match_expr(self, column: &str, pattern: impl Into<String>) -> Self {
@@ -308,16 +303,11 @@ impl PredicateBuilder {
         self.inner
     }
 
-    /// Returns all the possible push-downed expressions of the given filters in the
-    /// form of a Predicate
-    /// Currently, we only push down primitive binary expression in
-    /// this form: `column op constant`
-    pub fn pushdown_predicates(
-        self,
-        filters: &[Expr],
-    ) -> std::result::Result<Predicate, DataFusionError> {
-        // For each expression of the filters, recursively split it it if it is is an AND conjunction
-        // For example, expression (x AND y) will be split into 2 expression [x, y]
+    /// Adds only the expressions from `filters` that can be pushed down to
+    /// execution engines.
+    pub fn add_pushdown_exprs(mut self, filters: &[Expr]) -> Self {
+        // For each expression of the filters, recursively split it, if it is is an AND conjunction
+        // For example, expression (x AND y) will be split into a vector of 2 expressions [x, y]
         let mut exprs = vec![];
         filters
             .iter()
@@ -325,34 +315,44 @@ impl PredicateBuilder {
 
         // Only keep single_column and primitive binary expressions
         let mut pushdown_exprs: Vec<Expr> = vec![];
-        exprs
+        let exprs_result = exprs
             .into_iter()
-            .try_for_each::<_, std::result::Result<_, DataFusionError>>(|expr| {
-                let mut columns: HashSet<String> = HashSet::new();
+            .try_for_each::<_, Result<_, DataFusionError>>(|expr| {
+                let mut columns = HashSet::new();
                 utils::expr_to_column_names(&expr, &mut columns)?;
 
                 if columns.len() == 1 && Self::primitive_binary_expr(&expr) {
-                    pushdown_exprs.push((*expr).clone());
+                    pushdown_exprs.push(expr);
                 }
                 Ok(())
-            })?;
+            });
 
-        Ok(self.exprs(pushdown_exprs).build())
+        match exprs_result {
+            Ok(()) => {
+                // Return the builder with only the pushdownable expressions on it.
+                self.inner.exprs.append(&mut pushdown_exprs);
+            }
+            Err(e) => {
+                debug!("Error, {}, building push-down predicates for filters: {:#?}. No predicates are pushed down", e, filters);
+            }
+        }
+
+        self
     }
 
     /// Recursively split all "AND" expressions into smaller one
     /// Example: "A AND B AND C" => [A, B, C]
-    pub fn split_members<'a>(predicate: &'a Expr, predicates: &mut Vec<&'a Expr>) {
+    pub fn split_members(predicate: &Expr, predicates: &mut Vec<Expr>) {
         match predicate {
             Expr::BinaryExpr {
                 right,
                 op: Operator::And,
                 left,
             } => {
-                Self::split_members(&left, predicates);
-                Self::split_members(&right, predicates);
+                Self::split_members(left, predicates);
+                Self::split_members(right, predicates);
             }
-            other => predicates.push(other),
+            other => predicates.push(other.clone()),
         }
     }
 
@@ -360,15 +360,29 @@ impl PredicateBuilder {
     // and op must be a comparison one
     pub fn primitive_binary_expr(expr: &Expr) -> bool {
         match expr {
-            Expr::BinaryExpr { op, .. } => matches!(
-                op,
-                Operator::Eq
-                    | Operator::NotEq
-                    | Operator::Lt
-                    | Operator::LtEq
-                    | Operator::Gt
-                    | Operator::GtEq
-            ),
+            Expr::BinaryExpr { left, op, right } => {
+                matches!(
+                    (&**left, &**right),
+                    (Expr::Column(_), Expr::Literal(_)) | (Expr::Literal(_), Expr::Column(_))
+                ) && matches!(
+                    op,
+                    Operator::Eq
+                        | Operator::NotEq
+                        | Operator::Lt
+                        | Operator::LtEq
+                        | Operator::Gt
+                        | Operator::GtEq
+                )
+            }
+            // Expr::BinaryExpr { op, .. } => matches!(
+            //     op,
+            //     Operator::Eq
+            //         | Operator::NotEq
+            //         | Operator::Lt
+            //         | Operator::LtEq
+            //         | Operator::Gt
+            //         | Operator::GtEq
+            // ),
             _ => false,
         }
     }
@@ -436,14 +450,43 @@ mod tests {
         let expr9 = col("city").not_eq(lit("Braintree"));
         filters.push(expr9);
 
-        //println!(" --------------- Filters: {:#?}", filters);
+        // city != state --> won't be pushed down
+        let expr10 = col("city").not_eq(col("state"));
+        filters.push(expr10);
 
-        // Expected pushdown predicates: [state = CA, price > 10, a < 10, b >= 50, f <= 60, city = Boston, city != Braintree]
+        // city = state --> won't be pushed down
+        let expr11 = col("city").eq(col("state"));
+        filters.push(expr11);
+
+        // city_state = city + state --> won't be pushed down
+        let expr12 = col("city_sate").eq(col("city") + col("state"));
+        filters.push(expr12);
+
+        // city = city + 5 --> won't be pushed down
+        let expr13 = col("city").eq(col("city") + lit(5));
+        filters.push(expr13);
+
+        // city = city --> won't be pushed down
+        let expr14 = col("city").eq(col("city"));
+        filters.push(expr14);
+
+        // city + 5 = city --> won't be pushed down
+        let expr15 = (col("city") + lit(5)).eq(col("city"));
+        filters.push(expr15);
+
+        // 5 = city
+        let expr16 = lit(5).eq(col("city"));
+        filters.push(expr16);
+
+        println!(" --------------- Filters: {:#?}", filters);
+
+        // Expected pushdown predicates: [state = CA, price > 10, a < 10, b >= 50, f <= 60, city = Boston, city != Braintree, 5 = city]
         let predicate = PredicateBuilder::default()
-            .pushdown_predicates(&filters)
-            .unwrap();
-        // println!(" ------------- Predicates: {:#?}", predicate);
-        assert_eq!(predicate.exprs.len(), 7);
+            .add_pushdown_exprs(&filters)
+            .build();
+
+        println!(" ------------- Predicates: {:#?}", predicate);
+        assert_eq!(predicate.exprs.len(), 8);
         assert_eq!(predicate.exprs[0], col("state").eq(lit("CA")));
         assert_eq!(predicate.exprs[1], col("price").gt(lit(10)));
         assert_eq!(predicate.exprs[2], col("a").lt(lit(10)));
@@ -451,6 +494,7 @@ mod tests {
         assert_eq!(predicate.exprs[4], col("f").lt_eq(lit(60)));
         assert_eq!(predicate.exprs[5], col("city").eq(lit("Boston")));
         assert_eq!(predicate.exprs[6], col("city").not_eq(lit("Braintree")));
+        assert_eq!(predicate.exprs[7], lit(5).eq(col("city")));
     }
 
     #[test]

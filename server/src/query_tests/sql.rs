@@ -434,7 +434,7 @@ async fn sql_predicate_pushdown() {
         &expected
     );
 
-    // TODO: Make push-down predicates shown in explain verbose
+    // TODO: Make push-down predicates shown in explain verbose. Ticket #1538
     // Check the plan
     // run_sql_test_case!(
     //     TwoMeasurementsPredicatePushDown {},
@@ -517,7 +517,7 @@ async fn sql_predicate_pushdown() {
         &expected
     );
 
-    // BUG: actual is nothing
+    // BUG: actual is nothing. Edd is actively working on this
     // Test 5: three push-down expression: count > 200 and town != 'tewsbury' and count < 40000
     //
     // Check correctness
@@ -558,7 +558,7 @@ async fn sql_predicate_pushdown() {
     // );
 
     // Test 7: two push-down expression on float: system > 4.0 and system < 7.0
-
+    //
     // Check correctness
     let expected = vec![
         "+-------+--------+-------------------------------+-----------+",
@@ -579,7 +579,7 @@ async fn sql_predicate_pushdown() {
     );
 
     // Test 8: two push-down expression on float: system > 5.0 and system < 7.0
-
+    //
     // Check correctness
     let expected = vec![
         "+-------+--------+-------------------------------+----------+",
@@ -593,6 +593,52 @@ async fn sql_predicate_pushdown() {
     run_sql_test_case!(
         TwoMeasurementsPredicatePushDown {},
         "SELECT * from restaurant where system > 5.0 and system < 7.0",
+        &expected
+    );
+
+    // Test 9: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0
+    //
+    // Check correctness
+    let expected = vec![
+        "+-------+--------+-------------------------------+----------+",
+        "| count | system | time                          | town     |",
+        "+-------+--------+-------------------------------+----------+",
+        "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading  |",
+        "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence |",
+        "+-------+--------+-------------------------------+----------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where system > 5.0 and town != 'tewsbury' and 7.0 > system",
+        &expected
+    );
+
+    // Test 10: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0
+    // even though there are more expressions,(count = 632 or town = 'reading'), in the filter
+    //
+    // Check correctness
+    let expected = vec![
+        "+-------+--------+-------------------------------+---------+",
+        "| count | system | time                          | town    |",
+        "+-------+--------+-------------------------------+---------+",
+        "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading |",
+        "+-------+--------+-------------------------------+---------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where system > 5.0 and 'tewsbury' != town and system < 7.0 and (count = 632 or town = 'reading')",
+        &expected
+    );
+
+    // Test 11: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0
+    // After DF ticket, https://github.com/apache/arrow-datafusion/issues/383 is done,
+    // there will be more pushed-down predicate time > to_timestamp('1970-01-01T00:00:00.000000120+00:00')
+    //
+    // Check correctness
+    let expected = vec!["++", "++"];
+    run_sql_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where 5.0 < system and town != 'tewsbury' and system < 7.0 and (count = 632 or town = 'reading') and time > to_timestamp('1970-01-01T00:00:00.000000130+00:00')",
         &expected
     );
 }
