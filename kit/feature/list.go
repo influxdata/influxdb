@@ -86,34 +86,6 @@ func QueryTracing() BoolFlag {
 	return queryTracing
 }
 
-var bandPlotType = MakeBoolFlag(
-	"Band Plot Type",
-	"bandPlotType",
-	"Monitoring Team",
-	true,
-	Temporary,
-	true,
-)
-
-// BandPlotType - Enables the creation of a band plot in Dashboards
-func BandPlotType() BoolFlag {
-	return bandPlotType
-}
-
-var mosaicGraphType = MakeBoolFlag(
-	"Mosaic Graph Type",
-	"mosaicGraphType",
-	"Monitoring Team",
-	true,
-	Temporary,
-	true,
-)
-
-// MosaicGraphType - Enables the creation of a mosaic graph in Dashboards
-func MosaicGraphType() BoolFlag {
-	return mosaicGraphType
-}
-
 var notebooks = MakeBoolFlag(
 	"Notebooks",
 	"notebooks",
@@ -184,20 +156,6 @@ func TimeFilterFlags() BoolFlag {
 	return timeFilterFlags
 }
 
-var axisTicksGenerator = MakeBoolFlag(
-	"Axis Tick Generator",
-	"axisTicksGenerator",
-	"Monitoring Team",
-	true,
-	Temporary,
-	true,
-)
-
-// AxisTickGenerator - Allows for controlling how many axis ticks there are on a graph
-func AxisTickGenerator() BoolFlag {
-	return axisTicksGenerator
-}
-
 var csvUploader = MakeBoolFlag(
 	"UI CSV Uploader",
 	"csvUploader",
@@ -224,20 +182,6 @@ var editTelegrafs = MakeBoolFlag(
 // EditableTelegrafConfigurations - Edit telegraf configurations from the UI
 func EditableTelegrafConfigurations() BoolFlag {
 	return editTelegrafs
-}
-
-var legendOrientation = MakeBoolFlag(
-	"Legend Orientation in the UI",
-	"legendOrientation",
-	"Monitoring Team",
-	true,
-	Temporary,
-	true,
-)
-
-// LegendOrientationInTheUi - Change the appearance of the legend
-func LegendOrientationInTheUi() BoolFlag {
-	return legendOrientation
 }
 
 var cursorAtEOF = MakeBoolFlag(
@@ -289,17 +233,13 @@ var all = []Flag{
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
 	queryTracing,
-	bandPlotType,
-	mosaicGraphType,
 	notebooks,
 	notebooksApi,
 	injectLatestSuccessTime,
 	enforceOrgDashboardLimits,
 	timeFilterFlags,
-	axisTicksGenerator,
 	csvUploader,
 	editTelegrafs,
-	legendOrientation,
 	cursorAtEOF,
 	refreshSingleCell,
 	annotations,
@@ -312,17 +252,13 @@ var byKey = map[string]Flag{
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"queryTracing":                  queryTracing,
-	"bandPlotType":                  bandPlotType,
-	"mosaicGraphType":               mosaicGraphType,
 	"notebooks":                     notebooks,
 	"notebooksApi":                  notebooksApi,
 	"injectLatestSuccessTime":       injectLatestSuccessTime,
 	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,
 	"timeFilterFlags":               timeFilterFlags,
-	"axisTicksGenerator":            axisTicksGenerator,
 	"csvUploader":                   csvUploader,
 	"editTelegrafs":                 editTelegrafs,
-	"legendOrientation":             legendOrientation,
 	"cursorAtEOF":                   cursorAtEOF,
 	"refreshSingleCell":             refreshSingleCell,
 	"annotations":                   annotations,
