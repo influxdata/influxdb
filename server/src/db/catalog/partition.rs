@@ -16,7 +16,7 @@ use crate::db::catalog::metrics::PartitionMetrics;
 
 use super::{
     chunk::{Chunk, ChunkState},
-    Result, UnknownChunk, UnknownTable,
+    Error, Result, UnknownChunk, UnknownTable,
 };
 
 /// IOx Catalog Partition
@@ -84,12 +84,13 @@ impl Partition {
 
     /// Create a new Chunk in the open state.
     ///
-    /// This will add a new chunk to the catalog
+    /// This will add a new chunk to the catalog and increases the chunk ID counter for that table-partition
+    /// combination.
     ///
-    /// Returns an error if the chunk is empty
+    /// Returns an error if the chunk is empty.
     pub fn create_open_chunk(
         &mut self,
-        mut chunk: mutable_buffer::chunk::Chunk,
+        chunk: mutable_buffer::chunk::Chunk,
     ) -> Result<Arc<RwLock<Chunk>>> {
         let table_name: String = chunk.table_name().to_string();
 
@@ -99,7 +100,6 @@ impl Partition {
             .or_insert_with(PartitionTable::new);
 
         let chunk_id = table.next_chunk_id;
-        chunk.set_id(chunk_id);
 
         // Technically this only causes an issue on the next upsert but
         // the MUB treats u32::MAX as a sentinel value
@@ -108,6 +108,7 @@ impl Partition {
         table.next_chunk_id += 1;
 
         let chunk = Arc::new(self.metrics.new_lock(Chunk::new_open(
+            chunk_id,
             &self.key,
             chunk,
             self.metrics.new_chunk_metrics(),
@@ -119,6 +120,49 @@ impl Partition {
         }
 
         Ok(chunk)
+    }
+
+    /// Create new chunk that is only in object store (= parquet file).
+    ///
+    /// The table-specific chunk ID counter will be set to
+    /// `max(current, chunk_id + 1)`.
+    ///
+    /// Fails if the chunk already exists.
+    pub fn create_object_store_only_chunk(
+        &mut self,
+        chunk_id: u32,
+        chunk: Arc<parquet_file::chunk::Chunk>,
+    ) -> Result<Arc<RwLock<Chunk>>> {
+        // workaround until https://github.com/influxdata/influxdb_iox/issues/1295 is fixed
+        let table_name = chunk
+            .table_names(None)
+            .next()
+            .expect("chunk must have exactly 1 table");
+
+        let chunk = Arc::new(self.metrics.new_lock(Chunk::new_object_store_only(
+            chunk_id,
+            &self.key,
+            chunk,
+            self.metrics.new_chunk_metrics(),
+        )));
+
+        let table = self
+            .tables
+            .entry(table_name.clone())
+            .or_insert_with(PartitionTable::new);
+        match table.chunks.insert(chunk_id, Arc::clone(&chunk)) {
+            Some(_) => Err(Error::ChunkAlreadyExists {
+                partition_key: self.key.clone(),
+                table_name,
+                chunk_id,
+            }),
+            None => {
+                // bump chunk ID counter
+                table.next_chunk_id = table.next_chunk_id.max(chunk_id + 1);
+
+                Ok(chunk)
+            }
+        }
     }
 
     /// Drop the specified chunk

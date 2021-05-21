@@ -46,9 +46,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// A `Chunk` comprises a collection of `Tables` where every table must have a
 /// unique identifier (name).
 pub struct Chunk {
-    // The unique identifier for this chunk.
-    id: u32,
-
     // All metrics for the chunk.
     metrics: ChunkMetrics,
 
@@ -125,9 +122,8 @@ impl TableData {
 
 impl Chunk {
     /// Initialises a new `Chunk` with the associated chunk ID.
-    pub fn new(id: u32, metrics: ChunkMetrics) -> Self {
+    pub fn new(metrics: ChunkMetrics) -> Self {
         Self {
-            id,
             chunk_data: RwLock::new(TableData::default()),
             metrics,
         }
@@ -136,9 +132,8 @@ impl Chunk {
     /// Initialises a new `Chunk` seeded with the provided `Table`.
     ///
     /// TODO(edd): potentially deprecate.
-    pub(crate) fn new_with_table(id: u32, table: Table, metrics: ChunkMetrics) -> Self {
+    pub(crate) fn new_with_table(table: Table, metrics: ChunkMetrics) -> Self {
         Self {
-            id,
             chunk_data: RwLock::new(TableData {
                 rows: table.rows(),
                 row_groups: table.row_groups(),
@@ -146,11 +141,6 @@ impl Chunk {
             }),
             metrics,
         }
-    }
-
-    /// The chunk's ID.
-    pub fn id(&self) -> u32 {
-        self.id
     }
 
     // The total size taken up by an empty instance of `Chunk`.
@@ -283,8 +273,7 @@ impl Chunk {
             (1.0 - (rg_size as f64 / raw_size_null as f64)) * 100.0
         );
 
-        let chunk_id = self.id();
-        info!(%rows, %columns, rg_size, mub_rb_size, %mub_rb_comp, raw_size_null, raw_size_no_null, %raw_rb_comp, ?table_name, %chunk_id, ?compressing_took, "row group added");
+        info!(%rows, %columns, rg_size, mub_rb_size, %mub_rb_comp, raw_size_null, raw_size_no_null, %raw_rb_comp, ?table_name, ?compressing_took, "row group added");
 
         let mut chunk_data = self.chunk_data.write();
 
@@ -616,7 +605,7 @@ impl Chunk {
 
 impl std::fmt::Debug for Chunk {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Chunk: id: {:?}, rows: {:?}", self.id(), self.rows())
+        writeln!(f, "Chunk: rows: {:?}", self.rows())
     }
 }
 
@@ -799,28 +788,35 @@ mod test {
         let got_column = rb.column(rb.schema().index_of(col_name).unwrap());
 
         match exp {
-            Values::String(exp_data) => match got_column.data_type() {
-                DataType::Utf8 => {
-                    let arr = got_column.as_any().downcast_ref::<StringArray>().unwrap();
-                    assert_eq!(&arr.iter().collect::<Vec<_>>(), exp_data);
-                }
+            Values::Dictionary(keys, values) => match got_column.data_type() {
                 DataType::Dictionary(key, value)
                     if key.as_ref() == &DataType::Int32 && value.as_ref() == &DataType::Utf8 =>
                 {
+                    // Record batch stores keys as i32
+                    let keys = keys
+                        .iter()
+                        .map(|&x| i32::try_from(x).unwrap())
+                        .collect::<Vec<_>>();
+
                     let dictionary = got_column
                         .as_any()
                         .downcast_ref::<DictionaryArray<Int32Type>>()
                         .unwrap();
-                    let values = dictionary.values();
-                    let values = values.as_any().downcast_ref::<StringArray>().unwrap();
+                    let rb_values = dictionary.values();
+                    let rb_values = rb_values.as_any().downcast_ref::<StringArray>().unwrap();
 
-                    let hydrated: Vec<_> = dictionary
-                        .keys()
-                        .iter()
-                        .map(|key| key.map(|key| values.value(key as _)))
-                        .collect();
+                    // Ensure string values are same
+                    assert!(rb_values.iter().zip(values.iter()).all(|(a, b)| &a == b));
 
-                    assert_eq!(&hydrated, exp_data)
+                    let rb_keys = dictionary.keys().values();
+                    assert_eq!(rb_keys, keys.as_slice());
+                }
+                d => panic!("Unexpected type {:?}", d),
+            },
+            Values::String(exp_data) => match got_column.data_type() {
+                DataType::Utf8 => {
+                    let arr = got_column.as_any().downcast_ref::<StringArray>().unwrap();
+                    assert_eq!(&arr.iter().collect::<Vec<_>>(), exp_data);
                 }
                 d => panic!("Unexpected type {:?}", d),
             },
@@ -922,15 +918,11 @@ mod test {
         let domain =
             registry.register_domain_with_labels("read_buffer", vec![KeyValue::new("db", "mydb")]);
 
-        let mut chunk = Chunk::new(
-            22,
-            ChunkMetrics::new(&domain, GaugeValue::new_unregistered()),
-        );
+        let mut chunk = Chunk::new(ChunkMetrics::new(&domain, GaugeValue::new_unregistered()));
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
 
-        assert_eq!(chunk.id(), 22);
         assert_eq!(chunk.rows(), 3);
         assert_eq!(chunk.tables(), 1);
         assert_eq!(chunk.row_groups(), 1);
@@ -1067,7 +1059,7 @@ mod test {
 
     #[test]
     fn read_filter_table_schema() {
-        let mut chunk = Chunk::new(22, ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new(ChunkMetrics::new_unregistered());
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -1111,7 +1103,7 @@ mod test {
 
     #[test]
     fn has_table() {
-        let mut chunk = Chunk::new(22, ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new(ChunkMetrics::new_unregistered());
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -1121,7 +1113,7 @@ mod test {
 
     #[test]
     fn table_summaries() {
-        let mut chunk = Chunk::new(22, ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new(ChunkMetrics::new_unregistered());
 
         let schema = SchemaBuilder::new()
             .non_null_tag("env")
@@ -1235,7 +1227,7 @@ mod test {
 
     #[test]
     fn read_filter() {
-        let mut chunk = Chunk::new(22, ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new(ChunkMetrics::new_unregistered());
 
         // Add a bunch of row groups to a single table in a single chunk
         for &i in &[100, 200, 300] {
@@ -1293,11 +1285,12 @@ mod test {
             .read_filter("Coolverine", predicate, Selection::All)
             .unwrap();
 
-        let exp_env_values = Values::String(vec![Some("us-west")]);
-        let exp_region_values = Values::String(vec![Some("west")]);
+        let exp_env_values = Values::Dictionary(vec![0], vec![Some("us-west")]);
+        let exp_region_values = Values::Dictionary(vec![0], vec![Some("west")]);
         let exp_counter_values = Values::F64(vec![1.2]);
         let exp_sketchy_sensor_values = Values::I64N(vec![None]);
         let exp_active_values = Values::Bool(vec![Some(true)]);
+        let exp_msg_values = Values::String(vec![Some("message a")]);
 
         let first_row_group = itr.next().unwrap();
         assert_rb_column_equals(&first_row_group, "env", &exp_env_values);
@@ -1309,11 +1302,7 @@ mod test {
             &exp_sketchy_sensor_values,
         );
         assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
-        assert_rb_column_equals(
-            &first_row_group,
-            "msg",
-            &Values::String(vec![Some("message a")]),
-        );
+        assert_rb_column_equals(&first_row_group, "msg", &exp_msg_values);
         assert_rb_column_equals(&first_row_group, "time", &Values::I64(vec![100])); // first row from first record batch
 
         let second_row_group = itr.next().unwrap();
@@ -1334,7 +1323,7 @@ mod test {
 
     #[test]
     fn could_pass_predicate() {
-        let mut chunk = Chunk::new(22, ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new(ChunkMetrics::new_unregistered());
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -1361,7 +1350,7 @@ mod test {
         let rg = RowGroup::new(6, columns);
         let table = Table::new("table_1", rg);
 
-        let mut chunk = Chunk::new_with_table(22, table, ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new_with_table(table, ChunkMetrics::new_unregistered());
 
         // All table names returned when no predicate.
         let table_names = chunk.table_names(&Predicate::default(), &BTreeSet::new());
@@ -1460,7 +1449,7 @@ mod test {
 
     #[test]
     fn column_names() {
-        let mut chunk = Chunk::new(22, ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new(ChunkMetrics::new_unregistered());
 
         let schema = SchemaBuilder::new()
             .non_null_tag("region")
@@ -1534,7 +1523,7 @@ mod test {
 
     #[test]
     fn column_values() {
-        let mut chunk = Chunk::new(22, ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new(ChunkMetrics::new_unregistered());
 
         let schema = SchemaBuilder::new()
             .non_null_tag("region")

@@ -1,6 +1,9 @@
 use super::{DirsAndFileName, ObjectStorePath, PathPart};
 
-use std::{mem, path::PathBuf};
+use std::{
+    mem,
+    path::{is_separator, PathBuf},
+};
 
 /// An object storage location suitable for passing to disk based object
 /// storage.
@@ -42,11 +45,17 @@ impl PartialOrd for FilePath {
 impl FilePath {
     /// Creates a file storage location from a `PathBuf` without parsing or
     /// allocating unless other methods are called on this instance that
-    /// need it
-    pub fn raw(path: impl Into<PathBuf>) -> Self {
+    /// need it.
+    ///
+    /// The "nature" of path (i.e. if it is a directory or file) will be guessed. So paths ending with a
+    /// separator (e.g. `/foo/bar/` on Linux) are treated as a directory. However for all other paths (like `/foo/bar`
+    /// on Linux) it is not clear if a directory or file is meant w/o inspecting the underlying store. To workaround
+    /// that there is the `assume_directory` flag which will treat ambiguous paths as directories. If set to `false`,
+    /// these cases will be treated as files.
+    pub fn raw(path: impl Into<PathBuf>, assume_directory: bool) -> Self {
         let path = path.into();
         Self {
-            inner: FilePathRepresentation::Raw(path),
+            inner: FilePathRepresentation::Raw(path, assume_directory),
         }
     }
 
@@ -57,7 +66,7 @@ impl FilePath {
         use FilePathRepresentation::*;
 
         match &self.inner {
-            Raw(path) => path.to_owned(),
+            Raw(path, _) => path.to_owned(),
             Parsed(dirs_and_file_name) => {
                 let mut path: PathBuf = dirs_and_file_name
                     .directories
@@ -120,7 +129,8 @@ impl From<DirsAndFileName> for FilePath {
 
 #[derive(Debug, Clone, Eq)]
 enum FilePathRepresentation {
-    Raw(PathBuf),
+    // raw: native path representation and also remember if we always assume it is a directory
+    Raw(PathBuf, bool),
     Parsed(DirsAndFileName),
 }
 
@@ -287,30 +297,23 @@ impl From<FilePathRepresentation> for DirsAndFileName {
         use FilePathRepresentation::*;
 
         match file_path_rep {
-            Raw(path) => {
+            Raw(path, assume_directory) => {
                 let mut parts: Vec<PathPart> = path
                     .iter()
                     .flat_map(|s| s.to_os_string().into_string().map(PathPart))
                     .collect();
 
-                let maybe_file_name = match parts.pop() {
-                    Some(file)
-                        if !file.encoded().starts_with('.')
-                            && (file.encoded().ends_with(".json")
-                                || file.encoded().ends_with(".parquet")
-                                || file.encoded().ends_with(".segment")) =>
-                    {
-                        Some(file)
+                if !assume_directory && !parts.is_empty() && !is_a_directory(&path) {
+                    let file_name = Some(parts.pop().expect("cannot be empty"));
+                    Self {
+                        directories: parts,
+                        file_name,
                     }
-                    Some(dir) => {
-                        parts.push(dir);
-                        None
+                } else {
+                    Self {
+                        directories: parts,
+                        file_name: None,
                     }
-                    None => None,
-                };
-                Self {
-                    directories: parts,
-                    file_name: maybe_file_name,
                 }
             }
             Parsed(dirs_and_file_name) => dirs_and_file_name,
@@ -318,100 +321,137 @@ impl From<FilePathRepresentation> for DirsAndFileName {
     }
 }
 
+/// Checks if the path is for sure an directory (i.e. ends with a separator).
+fn is_a_directory(path: &std::path::Path) -> bool {
+    if let Some(s) = path.to_str() {
+        if let Some(c) = s.chars().last() {
+            return is_separator(c);
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::parsed_path;
+
     use super::*;
 
     #[test]
     fn path_buf_to_dirs_and_file_name_conversion() {
         // Last section ending in `.json` is a file name
         let path_buf: PathBuf = "/one/two/blah.json".into();
-        let file_path = FilePath::raw(path_buf);
+        let file_path = FilePath::raw(path_buf, false);
         let parts: DirsAndFileName = file_path.into();
-        assert_eq!(parts.directories.len(), 3);
-        assert_eq!(parts.file_name.unwrap().0, "blah.json");
+        let mut expected_parts = parsed_path!(["/", "one", "two"], "blah.json");
+        expected_parts.directories[0] = PathPart("/".to_string()); // not escaped
+        assert_eq!(parts, expected_parts);
 
         // Last section ending in `.segment` is a file name
         let path_buf: PathBuf = "/one/two/blah.segment".into();
-        let file_path = FilePath::raw(path_buf);
+        let file_path = FilePath::raw(path_buf, false);
         let parts: DirsAndFileName = file_path.into();
-        assert_eq!(parts.directories.len(), 3);
-        assert_eq!(parts.file_name.unwrap().0, "blah.segment");
+        let mut expected_parts = parsed_path!(["/", "one", "two"], "blah.segment");
+        expected_parts.directories[0] = PathPart("/".to_string()); // not escaped
+        assert_eq!(parts, expected_parts);
 
         // Last section ending in `.parquet` is a file name
         let path_buf: PathBuf = "/one/two/blah.parquet".into();
-        let file_path = FilePath::raw(path_buf);
+        let file_path = FilePath::raw(path_buf, false);
         let parts: DirsAndFileName = file_path.into();
-        assert_eq!(parts.directories.len(), 3);
-        assert_eq!(parts.file_name.unwrap().0, "blah.parquet");
+        let mut expected_parts = parsed_path!(["/", "one", "two"], "blah.parquet");
+        expected_parts.directories[0] = PathPart("/".to_string()); // not escaped
+        assert_eq!(parts, expected_parts);
 
         // Last section ending in `.txt` is NOT a file name; we don't recognize that
         // extension
         let path_buf: PathBuf = "/one/two/blah.txt".into();
-        let file_path = FilePath::raw(path_buf);
+        let file_path = FilePath::raw(path_buf, false);
         let parts: DirsAndFileName = file_path.into();
-        assert_eq!(parts.directories.len(), 4);
-        assert!(parts.file_name.is_none());
+        let mut expected_parts = parsed_path!(["/", "one", "two"], "blah.txt");
+        expected_parts.directories[0] = PathPart("/".to_string()); // not escaped
+        assert_eq!(parts, expected_parts);
 
         // Last section containing a `.` isn't a file name
         let path_buf: PathBuf = "/one/two/blah.blah".into();
-        let file_path = FilePath::raw(path_buf);
+        let file_path = FilePath::raw(path_buf, false);
         let parts: DirsAndFileName = file_path.into();
-        assert_eq!(parts.directories.len(), 4);
-        assert!(parts.file_name.is_none());
+        let mut expected_parts = parsed_path!(["/", "one", "two"], "blah.blah");
+        expected_parts.directories[0] = PathPart("/".to_string()); // not escaped
+        assert_eq!(parts, expected_parts);
 
         // Last section starting with a `.` isn't a file name (macos temp dirs do this)
         let path_buf: PathBuf = "/one/two/.blah".into();
-        let file_path = FilePath::raw(path_buf);
+        let file_path = FilePath::raw(path_buf, false);
         let parts: DirsAndFileName = file_path.into();
-        assert_eq!(parts.directories.len(), 4);
-        assert!(parts.file_name.is_none());
+        let mut expected_parts = parsed_path!(["/", "one", "two"], ".blah");
+        expected_parts.directories[0] = PathPart("/".to_string()); // not escaped
+        assert_eq!(parts, expected_parts);
     }
 
     #[test]
     fn conversions() {
         // dir and file name
         let path_buf: PathBuf = "foo/bar/blah.json".into();
-        let file_path = FilePath::raw(path_buf);
+        let file_path = FilePath::raw(path_buf, false);
         let parts: DirsAndFileName = file_path.into();
 
-        let mut expected_parts = DirsAndFileName::default();
-        expected_parts.push_dir("foo");
-        expected_parts.push_dir("bar");
-        expected_parts.file_name = Some("blah.json".into());
-
+        let expected_parts = parsed_path!(["foo", "bar"], "blah.json");
         assert_eq!(parts, expected_parts);
 
         // dir, no file name
-        let path_buf: PathBuf = "foo/bar".into();
-        let file_path = FilePath::raw(path_buf);
+        let path_buf: PathBuf = "foo/bar/".into();
+        let file_path = FilePath::raw(path_buf, false);
         let parts: DirsAndFileName = file_path.into();
 
-        expected_parts.file_name = None;
+        let expected_parts = parsed_path!(["foo", "bar"]);
+        assert_eq!(parts, expected_parts);
 
+        // same but w/o the final marker
+        let path_buf: PathBuf = "foo/bar".into();
+        let file_path = FilePath::raw(path_buf, false);
+        let parts: DirsAndFileName = file_path.into();
+
+        let expected_parts = parsed_path!(["foo"], "bar");
+        assert_eq!(parts, expected_parts);
+
+        // same but w/o the final marker, but forced to be a directory
+        let path_buf: PathBuf = "foo/bar".into();
+        let file_path = FilePath::raw(path_buf, true);
+        let parts: DirsAndFileName = file_path.into();
+
+        let expected_parts = parsed_path!(["foo", "bar"]);
         assert_eq!(parts, expected_parts);
 
         // no dir, file name
         let path_buf: PathBuf = "blah.json".into();
-        let file_path = FilePath::raw(path_buf);
+        let file_path = FilePath::raw(path_buf, false);
         let parts: DirsAndFileName = file_path.into();
 
-        assert!(parts.directories.is_empty());
-        assert_eq!(parts.file_name.unwrap().encoded(), "blah.json");
+        let expected_parts = parsed_path!([], "blah.json");
+        assert_eq!(parts, expected_parts);
 
         // empty
         let path_buf: PathBuf = "".into();
-        let file_path = FilePath::raw(path_buf);
+        let file_path = FilePath::raw(path_buf, false);
         let parts: DirsAndFileName = file_path.into();
 
-        assert!(parts.directories.is_empty());
-        assert!(parts.file_name.is_none());
+        let expected_parts = parsed_path!();
+        assert_eq!(parts, expected_parts);
+
+        // weird file name
+        let path_buf: PathBuf = "blah.x".into();
+        let file_path = FilePath::raw(path_buf, false);
+        let parts: DirsAndFileName = file_path.into();
+
+        let expected_parts = parsed_path!("blah.x");
+        assert_eq!(parts, expected_parts);
     }
 
     #[test]
     fn equality() {
         let path_buf: PathBuf = "foo/bar/blah.json".into();
-        let file_path = FilePath::raw(path_buf);
+        let file_path = FilePath::raw(path_buf, false);
         let parts: DirsAndFileName = file_path.clone().into();
         let parsed: FilePath = parts.into();
 
@@ -421,12 +461,12 @@ mod tests {
     #[test]
     fn ordering() {
         let a_path_buf: PathBuf = "foo/bar/a.json".into();
-        let a_file_path = FilePath::raw(&a_path_buf);
+        let a_file_path = FilePath::raw(&a_path_buf, false);
         let a_parts: DirsAndFileName = a_file_path.into();
         let a_parsed: FilePath = a_parts.into();
 
         let b_path_buf: PathBuf = "foo/bar/b.json".into();
-        let b_file_path = FilePath::raw(&b_path_buf);
+        let b_file_path = FilePath::raw(&b_path_buf, false);
 
         assert!(a_path_buf < b_path_buf);
         assert!(
@@ -441,7 +481,7 @@ mod tests {
     fn path_display() {
         let a_path_buf: PathBuf = "foo/bar/a.json".into();
         let expected_display = a_path_buf.display().to_string();
-        let a_file_path = FilePath::raw(&a_path_buf);
+        let a_file_path = FilePath::raw(&a_path_buf, false);
 
         assert_eq!(a_file_path.display(), expected_display);
 

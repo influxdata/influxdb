@@ -25,17 +25,12 @@ pub enum Error {
         source: crate::table::Error,
     },
 
-    #[snafu(display("Table '{}' not found in chunk {}", table_name, chunk_id))]
-    NamedTableNotFoundInChunk { table_name: String, chunk_id: u64 },
+    #[snafu(display("Table '{}' not found in chunk", table_name))]
+    NamedTableNotFoundInChunk { table_name: String },
 
-    #[snafu(display(
-        "Error read parquet file for table '{}', chunk {}",
-        table_name,
-        chunk_id
-    ))]
+    #[snafu(display("Error read parquet file for table '{}'", table_name,))]
     ReadParquet {
         table_name: String,
-        chunk_id: u64,
         source: crate::table::Error,
     },
 }
@@ -69,9 +64,6 @@ pub struct Chunk {
     /// Partition this chunk belongs to
     partition_key: String,
 
-    /// The id for this chunk
-    id: u32,
-
     /// Tables of this chunk
     tables: Vec<Table>,
 
@@ -79,20 +71,14 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub fn new(part_key: String, chunk_id: u32, metrics: ChunkMetrics) -> Self {
+    pub fn new(part_key: String, metrics: ChunkMetrics) -> Self {
         let mut chunk = Self {
             partition_key: part_key,
-            id: chunk_id,
             tables: Default::default(),
             metrics,
         };
         chunk.metrics.memory_bytes.set(chunk.size());
         chunk
-    }
-
-    /// Return the chunk id
-    pub fn id(&self) -> u32 {
-        self.id
     }
 
     /// Return the chunk's partition key
@@ -213,10 +199,7 @@ impl Chunk {
 
         table
             .read_filter(predicate, selection)
-            .context(ReadParquet {
-                table_name,
-                chunk_id: self.id(),
-            })
+            .context(ReadParquet { table_name })
     }
 
     /// The total number of rows in all row groups in all tables in this chunk.
@@ -228,9 +211,6 @@ impl Chunk {
         self.tables
             .iter()
             .find(|t| t.has_table(table_name))
-            .context(NamedTableNotFoundInChunk {
-                table_name,
-                chunk_id: self.id(),
-            })
+            .context(NamedTableNotFoundInChunk { table_name })
     }
 }

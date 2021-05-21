@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use std::{
-    fs::File,
+    fs::OpenOptions,
     process::{Child, Command},
     str,
     sync::{
@@ -194,6 +194,26 @@ impl ServerFixture {
     pub fn flight_client(&self) -> influxdb_iox_client::flight::Client {
         influxdb_iox_client::flight::Client::new(self.grpc_channel())
     }
+
+    /// Restart test server.
+    ///
+    /// This will break all currently connected clients!
+    pub async fn restart_server(self) -> Self {
+        self.server.restart().await;
+        self.server
+            .wait_until_ready(InitialConfig::SetWriterId)
+            .await;
+        let grpc_channel = self
+            .server
+            .grpc_channel()
+            .await
+            .expect("The server should have been up");
+
+        Self {
+            server: self.server,
+            grpc_channel,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -209,7 +229,7 @@ struct TestServer {
     ready: Mutex<ServerState>,
 
     /// Handle to the server process being controlled
-    server_process: Child,
+    server_process: Mutex<Child>,
 
     /// Which ports this server should use
     addrs: BindAddresses,
@@ -225,6 +245,27 @@ impl TestServer {
         let ready = Mutex::new(ServerState::Started);
 
         let dir = test_helpers::tmp_dir().unwrap();
+
+        let server_process = Mutex::new(Self::create_server_process(&addrs, &dir));
+
+        Self {
+            ready,
+            server_process,
+            addrs,
+            dir,
+        }
+    }
+
+    async fn restart(&self) {
+        let mut ready_guard = self.ready.lock().await;
+        let mut server_process = self.server_process.lock().await;
+        server_process.kill().unwrap();
+        server_process.wait().unwrap();
+        *server_process = Self::create_server_process(&self.addrs, &self.dir);
+        *ready_guard = ServerState::Started;
+    }
+
+    fn create_server_process(addrs: &BindAddresses, dir: &TempDir) -> Child {
         // Make a log file in the temporary dir (don't auto delete it to help debugging
         // efforts)
         let mut log_path = std::env::temp_dir();
@@ -236,46 +277,31 @@ impl TestServer {
         println!("****************");
         println!("Server Logging to {:?}", log_path);
         println!("****************");
-        let log_file = File::create(log_path).expect("Opening log file");
+        let log_file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(log_path)
+            .expect("Opening log file");
 
         let stdout_log_file = log_file
             .try_clone()
             .expect("cloning file handle for stdout");
         let stderr_log_file = log_file;
 
-        let server_process = Command::cargo_bin("influxdb_iox")
+        Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("run")
             // Can enable for debugging
             //.arg("-vv")
+            .env("INFLUXDB_IOX_OBJECT_STORE", "file")
+            .env("INFLUXDB_IOX_DB_DIR", dir.path())
             .env("INFLUXDB_IOX_BIND_ADDR", &addrs.http_bind_addr)
             .env("INFLUXDB_IOX_GRPC_BIND_ADDR", &addrs.grpc_bind_addr)
             // redirect output to log file
             .stdout(stdout_log_file)
             .stderr(stderr_log_file)
             .spawn()
-            .unwrap();
-
-        Self {
-            ready,
-            server_process,
-            addrs,
-            dir,
-        }
-    }
-
-    #[allow(dead_code)]
-    fn restart(&mut self) {
-        self.server_process.kill().unwrap();
-        self.server_process.wait().unwrap();
-        self.server_process = Command::cargo_bin("influxdb_iox")
             .unwrap()
-            .arg("run")
-            // Can enable for debugging
-            //.arg("-vv")
-            .env("INFLUXDB_IOX_DB_DIR", self.dir.path())
-            .spawn()
-            .unwrap();
     }
 
     async fn wait_until_ready(&self, initial_config: InitialConfig) {
@@ -409,6 +435,8 @@ impl std::fmt::Display for TestServer {
 impl Drop for TestServer {
     fn drop(&mut self) {
         self.server_process
+            .try_lock()
+            .expect("should be able to get a server process lock")
             .kill()
             .expect("Should have been able to kill the test server");
     }

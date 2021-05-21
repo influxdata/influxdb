@@ -200,18 +200,6 @@ impl DbSetup for TwoMeasurementsPredicatePushDown {
             "school,town=andover count=25u,system=6.0 160",
         ];
 
-        // let lp_lines = vec![
-        //     "restaurant,town=andover count=40000u system=5.0 100",
-        //     "restaurant,town=reading count=632u system=5.0 120",
-        //     "restaurant,town=bedford count=189u system=7.0 110",
-        //     "restaurant,town=tewsbury count=471u system=6.0 110",
-        //     "restaurant,town=lexington count=372u system=5.0 100",
-        //     "restaurant,town=lawrence count=872u system=6.0 110",
-        //     "restaurant,town=reading count=632u system=5.0 120",
-        //     "school,town=reading count=17u system=6.0 150",
-        //     "school,town=andover count=25u system=6.0 160",
-        // ];
-
         make_one_rub_chunk_scenario(partition_key, &lp_lines.join("\n")).await
     }
 }

@@ -26,9 +26,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// A queryable snapshot of a mutable buffer chunk
 #[derive(Debug)]
 pub struct ChunkSnapshot {
-    /// The ID of the chunk this is a snapshot of
-    chunk_id: u32,
-
     /// Maps table name to `TableSnapshot`
     records: HashMap<String, TableSnapshot>,
     // TODO: Memory tracking
@@ -94,18 +91,7 @@ impl ChunkSnapshot {
             },
         );
 
-        let chunk_id = chunk
-            .id
-            .ok_or("cannot snapshot chunk without an ID")
-            .log_if_error("ChunkSnapshot determining chunk id")
-            .unwrap();
-
-        Self { chunk_id, records }
-    }
-
-    /// return the ID of the chunk this is a snapshot of
-    pub fn chunk_id(&self) -> u32 {
-        self.chunk_id
+        Self { records }
     }
 
     /// returns true if there is no data in this snapshot

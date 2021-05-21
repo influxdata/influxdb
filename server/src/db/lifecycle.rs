@@ -133,6 +133,10 @@ trait ChunkMover {
             let would_move = can_move(&rules, &*chunk_guard, now);
             let would_write = write_tracker.is_none() && rules.persist;
 
+            if chunk_guard.lifecycle_action().is_some() {
+                continue;
+            }
+
             match chunk_guard.state() {
                 ChunkState::Open(_) => {
                     open_partitions.insert(chunk_guard.key().to_string());
@@ -191,6 +195,11 @@ trait ChunkMover {
                 match chunks.next() {
                     Some(chunk) => {
                         let chunk_guard = chunk.read();
+                        if chunk_guard.lifecycle_action().is_some() {
+                            // Cannot drop chunk with in-progress lifecycle action
+                            continue;
+                        }
+
                         if (rules.drop_non_persisted
                             && matches!(chunk_guard.state(), ChunkState::Moved(_)))
                             || matches!(chunk_guard.state(), ChunkState::WrittenToObjectStore(_, _))
@@ -382,7 +391,6 @@ mod tests {
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
         let mut mb_chunk = mutable_buffer::chunk::Chunk::new(
-            Some(id),
             "table1",
             mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
         );
@@ -394,7 +402,8 @@ mod tests {
             )
             .unwrap();
 
-        let mut chunk = Chunk::new_open("", mb_chunk, ChunkMetrics::new_unregistered()).unwrap();
+        let mut chunk =
+            Chunk::new_open(id, "", mb_chunk, ChunkMetrics::new_unregistered()).unwrap();
         chunk.set_timestamps(
             time_of_first_write.map(from_secs),
             time_of_last_write.map(from_secs),
@@ -444,7 +453,6 @@ mod tests {
     fn new_parquet_chunk(chunk: &Chunk) -> parquet_file::chunk::Chunk {
         parquet_file::chunk::Chunk::new(
             chunk.key().to_string(),
-            chunk.id(),
             parquet_file::chunk::ChunkMetrics::new_unregistered(),
         )
     }
@@ -747,7 +755,6 @@ mod tests {
         };
 
         let rb = Arc::new(read_buffer::Chunk::new(
-            22,
             read_buffer::ChunkMetrics::new_unregistered(),
         ));
 
@@ -764,7 +771,7 @@ mod tests {
             new_chunk(1, Some(0), Some(0)),
             // "moved" chunk => can be dropped because `drop_non_persistent=true`
             transition_to_moved(new_chunk(2, Some(0), Some(0)), &rb),
-            // "writing" chunk => cannot be drop while write is in-progess
+            // "writing" chunk => cannot be drop while write is in-progress
             transition_to_writing_to_object_store(new_chunk(3, Some(0), Some(0)), &rb),
             // "written" chunk => can be dropped
             transition_to_written_to_object_store(new_chunk(4, Some(0), Some(0)), &rb),
@@ -791,7 +798,6 @@ mod tests {
         };
 
         let rb = Arc::new(read_buffer::Chunk::new(
-            22,
             read_buffer::ChunkMetrics::new_unregistered(),
         ));
 
@@ -845,7 +851,6 @@ mod tests {
         };
 
         let rb = Arc::new(read_buffer::Chunk::new(
-            22,
             read_buffer::ChunkMetrics::new_unregistered(),
         ));
 

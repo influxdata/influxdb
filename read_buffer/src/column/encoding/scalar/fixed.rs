@@ -12,14 +12,16 @@
 //! The encodings within this module do not concern themselves with choosing the
 //! appropriate physical type for a given logical type; that is the job of the
 //! consumer of these encodings.
-use std::cmp::Ordering;
 use std::fmt::{Debug, Display};
 use std::mem::size_of;
 use std::ops::AddAssign;
+use std::{cmp::Ordering, iter};
 
 use arrow::array::Array;
 
 use crate::column::{cmp, RowIDs};
+
+pub const ENCODING_NAME: &str = "FIXED";
 
 #[derive(Debug, Default, PartialEq, PartialOrd)]
 /// A Fixed encoding is one in which every value has a fixed width, and is
@@ -31,7 +33,7 @@ use crate::column::{cmp, RowIDs};
 /// a different datatype `T`, where `size_of::<T>() <= size_of::<U>()`.
 pub struct Fixed<T>
 where
-    T: PartialOrd + std::fmt::Debug,
+    T: PartialOrd + Debug,
 {
     // backing data
     values: Vec<T>,
@@ -48,7 +50,8 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[Array] rows: {:?}, size: {}",
+            "[{}] rows: {:?}, size: {}",
+            self.name(),
             self.num_rows(),
             self.size()
         )
@@ -59,6 +62,11 @@ impl<T> Fixed<T>
 where
     T: std::fmt::Debug + PartialOrd + Copy,
 {
+    /// The name of this encoding.
+    pub fn name(&self) -> &'static str {
+        ENCODING_NAME
+    }
+
     pub fn num_rows(&self) -> u32 {
         self.values.len() as u32
     }
@@ -476,6 +484,17 @@ where
     }
 }
 
+impl<T> iter::FromIterator<T> for Fixed<T>
+where
+    T: PartialOrd + Debug,
+{
+    fn from_iter<I: IntoIterator<Item = T>>(itr: I) -> Self {
+        Self {
+            values: itr.into_iter().collect(),
+        }
+    }
+}
+
 // This macro implements the From trait for slices of various logical types.
 //
 // Here is an example implementation:
@@ -684,7 +703,9 @@ mod test {
         assert_eq!(v.min::<i64>(&[0, 1, 2, 3, 4]), 1);
 
         // Test behaviour with non-real numbers - NaN is not the minimum
-        let v = Fixed::<f64>::from(vec![11.2, 3.32, std::f64::NAN, 34.9].as_slice());
+        let v = vec![11.2, 3.32, std::f64::NAN, 34.9]
+            .into_iter()
+            .collect::<Fixed<f64>>();
         assert!((v.min::<f64>(&[0, 1, 2, 3]) - 3.32).abs() < std::f64::EPSILON);
     }
 

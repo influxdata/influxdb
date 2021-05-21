@@ -21,6 +21,13 @@ impl BitSet {
         Self::default()
     }
 
+    /// Creates a new BitSet with `count` unset bits.
+    pub fn with_size(count: usize) -> Self {
+        let mut bitset = Self::default();
+        bitset.append_unset(count);
+        bitset
+    }
+
     /// Appends `count` unset bits
     pub fn append_unset(&mut self, count: usize) {
         self.len += count;

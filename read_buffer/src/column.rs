@@ -246,6 +246,26 @@ impl Column {
         }
     }
 
+    /// All values present at the provided logical row ids materialised in a
+    /// dictionary format.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called on a non-string columnar encoding.
+    pub fn values_as_dictionary(&self, row_ids: &[u32]) -> Values<'_> {
+        assert!(
+            row_ids.len() as u32 <= self.num_rows(),
+            "too many row ids {:?} provided for column with {:?} rows",
+            row_ids.len(),
+            self.num_rows()
+        );
+
+        if let Self::String(_, data) = &self {
+            return data.values_as_dictionary(row_ids);
+        }
+        panic!("unsupported encoding type {}", self)
+    }
+
     /// All logical values in the column.
     pub fn all_values(&self) -> Values<'_> {
         match &self {
@@ -256,6 +276,18 @@ impl Column {
             Self::Bool(_, data) => data.all_values(),
             Self::ByteArray(_, _) => todo!(),
         }
+    }
+
+    /// All logical values in the column returned in a dictionary encoded format.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called on a non-string columnar encoding.
+    pub fn all_values_as_dictionary(&self) -> Values<'_> {
+        if let Self::String(_, data) = &self {
+            return data.all_values_as_dictionary();
+        }
+        panic!("unsupported encoding type {}", self)
     }
 
     /// The value present at the provided logical row id.
@@ -1636,10 +1668,27 @@ mod test {
         let col = Column::from(&[0.0, 1.1, 20.2, 22.3, 100.1324][..]);
         assert_eq!(col.values(&[1, 3]), Values::F64(vec![1.1, 22.3]));
 
-        let col = Column::from(&[Some("a"), Some("b"), None, Some("c")][..]);
+        let col = Column::from(&[Some("a"), Some("b"), None, Some("c"), Some("b")][..]);
         assert_eq!(
-            col.values(&[1, 2, 3]),
-            Values::String(vec![Some("b"), None, Some("c")])
+            col.values(&[1, 2, 3, 4]),
+            Values::String(vec![Some("b"), None, Some("c"), Some("b")])
+        );
+    }
+
+    #[test]
+    fn values_as_dictionary() {
+        let col = Column::from(&[Some("a"), Some("b"), None, Some("c"), Some("b")][..]);
+        //
+        // Stored in dictionary like:
+        //
+        // dict: {NULL: 0, a: 1, b: 2, c: 3}
+        // values: [1, 2, 0, 3, 2]
+        assert_eq!(
+            col.values_as_dictionary(&[1, 2, 3, 4]),
+            Values::Dictionary(
+                vec![1, 0, 2, 1],                 // encoded IDs for [b, NULL, c, b]
+                vec![None, Some("b"), Some("c")]  // dictionary
+            )
         );
     }
 

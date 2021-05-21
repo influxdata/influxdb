@@ -7,7 +7,7 @@ use object_store::{
 use observability_deps::tracing::{self, error, info, warn, Instrument};
 use panic_logging::SendPanicsToTracing;
 use server::{
-    ConnectionManagerImpl as ConnectionManager, Server as AppServer,
+    ConnectionManagerImpl as ConnectionManager, RemoteTemplate, Server as AppServer,
     ServerConfig as AppServerConfig,
 };
 use snafu::{ResultExt, Snafu};
@@ -123,7 +123,8 @@ pub async fn main(config: Config) -> Result<()> {
     let object_store = ObjectStore::try_from(&config)?;
     let object_storage = Arc::new(object_store);
     let metric_registry = Arc::new(metrics::MetricRegistry::new());
-    let server_config = AppServerConfig::new(object_storage, metric_registry);
+    let remote_template = config.remote_template.map(RemoteTemplate::new);
+    let server_config = AppServerConfig::new(object_storage, metric_registry, remote_template);
 
     let server_config = if let Some(n) = config.num_worker_threads {
         info!(

@@ -151,11 +151,7 @@ async fn make_chunk_common(
     let part_key = "part1";
     let table_name = table;
     let chunk_id = 1;
-    let mut chunk = Chunk::new(
-        part_key.to_string(),
-        chunk_id,
-        ChunkMetrics::new_unregistered(),
-    );
+    let mut chunk = Chunk::new(part_key.to_string(), ChunkMetrics::new_unregistered());
 
     let storage = Storage::new(Arc::clone(&store), server_id, db_name.to_string());
 

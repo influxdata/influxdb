@@ -161,6 +161,9 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync>,
         path: DirsAndFileName,
     },
+
+    #[snafu(display("Catalog already exists"))]
+    AlreadyExists {},
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -250,6 +253,17 @@ impl<S> PreservedCatalog<S>
 where
     S: CatalogState,
 {
+    /// Checks if a preserved catalog exists.
+    pub async fn exists(
+        object_store: &ObjectStore,
+        server_id: ServerId,
+        db_name: &str,
+    ) -> Result<bool> {
+        Ok(!list_transaction_files(object_store, server_id, db_name)
+            .await?
+            .is_empty())
+    }
+
     /// Create new catalog w/o any data.
     ///
     /// An empty transaction will be used to mark the catalog start so that concurrent open but still-empty catalogs can
@@ -260,6 +274,12 @@ where
         db_name: impl Into<String>,
         state_data: S::EmptyInput,
     ) -> Result<Self> {
+        let db_name = db_name.into();
+
+        if Self::exists(&object_store, server_id, &db_name).await? {
+            return Err(Error::AlreadyExists {});
+        }
+
         let inner = PreservedCatalogInner {
             previous_tkey: None,
             state: Arc::new(S::new_empty(state_data)),
@@ -270,7 +290,7 @@ where
             transaction_semaphore: Semaphore::new(1),
             object_store,
             server_id,
-            db_name: db_name.into(),
+            db_name,
         };
 
         // add empty transaction
@@ -288,45 +308,37 @@ where
         state_data: S::EmptyInput,
     ) -> Result<Option<Self>> {
         // parse all paths into revisions
-        let list_path = transactions_path(&object_store, server_id, &db_name);
-        let paths = object_store
-            .list(Some(&list_path))
-            .await
-            .context(Read {})?
-            .try_concat()
-            .await
-            .context(Read {})?;
         let mut transactions: HashMap<u64, Uuid> = HashMap::new();
         let mut max_revision = None;
-        for path in paths {
-            if let Some((revision_counter, uuid)) = parse_transaction_path(path) {
-                // keep track of the max
-                max_revision = Some(
-                    max_revision
-                        .map(|m: u64| m.max(revision_counter))
-                        .unwrap_or(revision_counter),
-                );
+        for (_path, revision_counter, uuid) in
+            list_transaction_files(&object_store, server_id, &db_name).await?
+        {
+            // keep track of the max
+            max_revision = Some(
+                max_revision
+                    .map(|m: u64| m.max(revision_counter))
+                    .unwrap_or(revision_counter),
+            );
 
-                // insert but check for duplicates
-                match transactions.entry(revision_counter) {
-                    Occupied(o) => {
-                        // sort for determinism
-                        let (uuid1, uuid2) = if *o.get() < uuid {
-                            (*o.get(), uuid)
-                        } else {
-                            (uuid, *o.get())
-                        };
+            // insert but check for duplicates
+            match transactions.entry(revision_counter) {
+                Occupied(o) => {
+                    // sort for determinism
+                    let (uuid1, uuid2) = if *o.get() < uuid {
+                        (*o.get(), uuid)
+                    } else {
+                        (uuid, *o.get())
+                    };
 
-                        Fork {
-                            revision_counter,
-                            uuid1,
-                            uuid2,
-                        }
-                        .fail()?;
+                    Fork {
+                        revision_counter,
+                        uuid1,
+                        uuid2,
                     }
-                    Vacant(v) => {
-                        v.insert(uuid);
-                    }
+                    .fail()?;
+                }
+                Vacant(v) => {
+                    v.insert(uuid);
                 }
             }
         }
@@ -374,6 +386,23 @@ where
             server_id,
             db_name,
         }))
+    }
+
+    /// Deletes (potentially existing) catalog.
+    ///
+    /// Note that wiping the catalog will NOT wipe any referenced parquet files.
+    pub async fn wipe(
+        object_store: &ObjectStore,
+        server_id: ServerId,
+        db_name: &str,
+    ) -> Result<()> {
+        for (path, _revision_counter, _uuiud) in
+            list_transaction_files(object_store, server_id, db_name).await?
+        {
+            object_store.delete(&path).await.context(Write)?;
+        }
+
+        Ok(())
     }
 
     /// Open a new transaction.
@@ -476,6 +505,34 @@ fn parse_transaction_path(path: Path) -> Option<(u64, Uuid)> {
         (Ok(revision_counter), Ok(uuid)) => Some((revision_counter, uuid)),
         _ => None,
     }
+}
+
+/// Load a list of all transaction file from object store. Also parse revision counter and transaction UUID.
+///
+/// The files are in no particular order!
+async fn list_transaction_files(
+    object_store: &ObjectStore,
+    server_id: ServerId,
+    db_name: &str,
+) -> Result<Vec<(Path, u64, Uuid)>> {
+    let list_path = transactions_path(&object_store, server_id, &db_name);
+    let paths = object_store
+        .list(Some(&list_path))
+        .await
+        .context(Read {})?
+        .map_ok(|paths| {
+            paths
+                .into_iter()
+                .filter_map(|path| {
+                    parse_transaction_path(path.clone())
+                        .map(|(revision_counter, uuid)| (path, revision_counter, uuid))
+                })
+                .collect()
+        })
+        .try_concat()
+        .await
+        .context(Read {})?;
+    Ok(paths)
 }
 
 /// Serialize and store protobuf-encoded transaction.
@@ -952,6 +1009,31 @@ pub mod test_helpers {
             Ok(())
         }
     }
+
+    /// Break preserved catalog by moving one of the transaction files into a weird unknown version.
+    pub async fn break_catalog_with_weird_version<S>(catalog: &PreservedCatalog<S>)
+    where
+        S: CatalogState,
+    {
+        let guard = catalog.inner.read();
+        let tkey = guard
+            .previous_tkey
+            .as_ref()
+            .expect("should have at least a single transaction");
+        let path = transaction_path(
+            &catalog.object_store,
+            catalog.server_id,
+            &catalog.db_name,
+            tkey,
+        );
+        let mut proto = load_transaction_proto(&catalog.object_store, &path)
+            .await
+            .unwrap();
+        proto.version = 42;
+        store_transaction_proto(&catalog.object_store, &path, &proto)
+            .await
+            .unwrap();
+    }
 }
 
 #[cfg(test)]
@@ -965,7 +1047,7 @@ pub mod tests {
     };
     use object_store::parsed_path;
 
-    use super::test_helpers::TestCatalogState;
+    use super::test_helpers::{break_catalog_with_weird_version, TestCatalogState};
     use super::*;
 
     #[tokio::test]
@@ -974,6 +1056,11 @@ pub mod tests {
         let server_id = make_server_id();
         let db_name = "db1";
 
+        assert!(
+            !PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
+                .await
+                .unwrap()
+        );
         assert!(PreservedCatalog::<TestCatalogState>::load(
             Arc::clone(&object_store),
             server_id,
@@ -993,6 +1080,11 @@ pub mod tests {
         .await
         .unwrap();
 
+        assert!(
+            PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
+                .await
+                .unwrap()
+        );
         assert!(PreservedCatalog::<TestCatalogState>::load(
             Arc::clone(&object_store),
             server_id,
@@ -1116,17 +1208,19 @@ pub mod tests {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
 
         // break transaction file
-        assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
-        proto.version = 42;
-        store_transaction_proto(&object_store, &path, &proto)
-            .await
-            .unwrap();
+        let catalog = PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        break_catalog_with_weird_version(&catalog).await;
 
         // loading catalog should fail now
         let res = PreservedCatalog::<TestCatalogState>::load(
@@ -1138,7 +1232,7 @@ pub mod tests {
         .await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Format version of transaction file for revision 0 is 42 but only [1] are supported"
+            "Format version of transaction file for revision 2 is 42 but only [1] are supported"
         );
     }
 
@@ -1656,6 +1750,170 @@ pub mod tests {
         trace.record(&catalog);
 
         trace
+    }
+
+    #[tokio::test]
+    async fn test_create_twice() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+
+        PreservedCatalog::<TestCatalogState>::new_empty(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+
+        let res = PreservedCatalog::<TestCatalogState>::new_empty(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await;
+        assert_eq!(res.unwrap_err().to_string(), "Catalog already exists");
+    }
+
+    #[tokio::test]
+    async fn test_wipe_nothing() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+
+        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_wipe_normal() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+
+        // create a real catalog
+        assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
+
+        // wipe
+        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
+
+        // `exists` and `load` both report "no data"
+        assert!(
+            !PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
+                .await
+                .unwrap()
+        );
+        assert!(PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            ()
+        )
+        .await
+        .unwrap()
+        .is_none());
+
+        // can create new catalog
+        PreservedCatalog::<TestCatalogState>::new_empty(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_wipe_broken_catalog() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+
+        // create a real catalog
+        assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
+
+        // break
+        let catalog = PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        break_catalog_with_weird_version(&catalog).await;
+
+        // wipe
+        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
+
+        // `exists` and `load` both report "no data"
+        assert!(
+            !PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
+                .await
+                .unwrap()
+        );
+        assert!(PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            ()
+        )
+        .await
+        .unwrap()
+        .is_none());
+
+        // can create new catalog
+        PreservedCatalog::<TestCatalogState>::new_empty(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_wipe_ignores_unknown_files() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+
+        // create a real catalog
+        assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
+
+        // create junk
+        let mut path = transactions_path(&object_store, server_id, &db_name);
+        path.push_dir("0");
+        path.set_file_name(format!("{}.foo", Uuid::new_v4()));
+        create_empty_file(&object_store, &path).await;
+
+        // wipe
+        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
+
+        // check file is still there
+        let prefix = transactions_path(&object_store, server_id, &db_name);
+        let files = object_store
+            .list(Some(&prefix))
+            .await
+            .unwrap()
+            .try_concat()
+            .await
+            .unwrap();
+        let mut files: Vec<_> = files.iter().map(|path| path.display()).collect();
+        files.sort();
+        assert_eq!(files, vec![path.display()]);
     }
 
     async fn assert_catalog_roundtrip_works(

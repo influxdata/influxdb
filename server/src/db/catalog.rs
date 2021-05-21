@@ -50,7 +50,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Internal unexpected chunk state for {}:{}:{}  during {}. Expected {}, got {}",
+        "Internal Error: unexpected chunk state for {}:{}:{}  during {}. Expected {}, got {}",
         partition_key,
         table_name,
         chunk_id,
@@ -68,12 +68,54 @@ pub enum Error {
     },
 
     #[snafu(display(
+        "Internal Error: A lifecycle action '{}' is already in progress for  {}:{}:{}",
+        lifecycle_action,
+        partition_key,
+        table_name,
+        chunk_id,
+    ))]
+    LifecycleActionAlreadyInProgress {
+        partition_key: String,
+        table_name: String,
+        chunk_id: u32,
+        lifecycle_action: String,
+    },
+
+    #[snafu(display(
+        "Internal Error: Unexpected chunk state for {}:{}:{}. Expected {}, got {}",
+        partition_key,
+        table_name,
+        chunk_id,
+        expected,
+        actual
+    ))]
+    UnexpectedLifecycleAction {
+        partition_key: String,
+        table_name: String,
+        chunk_id: u32,
+        expected: String,
+        actual: String,
+    },
+
+    #[snafu(display(
         "Can not add an empty chunk to the catalog {}:{}",
         partition_key,
         chunk_id
     ))]
     ChunkIsEmpty {
         partition_key: String,
+        chunk_id: u32,
+    },
+
+    #[snafu(display(
+        "Can not add already existing chunk to catalog {}:{}:{}",
+        partition_key,
+        table_name,
+        chunk_id
+    ))]
+    ChunkAlreadyExists {
+        partition_key: String,
+        table_name: String,
         chunk_id: u32,
     },
 }
@@ -327,7 +369,6 @@ mod tests {
         let batch = write.table_batches().remove(0);
         let mut partition = partition.write();
         let mut mb_chunk = mutable_buffer::chunk::Chunk::new(
-            None,
             batch.name(),
             mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
         );

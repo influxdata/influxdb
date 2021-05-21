@@ -557,6 +557,45 @@ async fn sql_predicate_pushdown() {
     //     &expected
     // );
 
+    // Test 7: two push-down expression on float: system > 4.0 and system < 7.0
+    
+    // Check correctness
+    let expected = vec![
+        "+-------+--------+-------------------------------+-----------+",
+        "| count | system | time                          | town      |",
+        "+-------+--------+-------------------------------+-----------+",
+        "| 372   | 5      | 1970-01-01 00:00:00.000000100 | lexington |",
+        "| 40000 | 5      | 1970-01-01 00:00:00.000000100 | andover   |",
+        "| 471   | 6      | 1970-01-01 00:00:00.000000110 | tewsbury  |",
+        "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
+        "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading   |",
+        "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence  |",
+        "+-------+--------+-------------------------------+-----------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where system > 4.0 and system < 7.0",
+        &expected
+    );
+
+    // Test 8: two push-down expression on float: system > 5.0 and system < 7.0
+    
+    // Check correctness
+    let expected = vec![
+        "+-------+--------+-------------------------------+----------+",
+        "| count | system | time                          | town     |",
+        "+-------+--------+-------------------------------+----------+",
+        "| 471   | 6      | 1970-01-01 00:00:00.000000110 | tewsbury |",
+        "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading  |",
+        "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence |",
+        "+-------+--------+-------------------------------+----------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where system > 5.0 and system < 7.0",
+        &expected
+    );
+
 
     
     
