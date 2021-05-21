@@ -13,7 +13,7 @@ pub const ENCODING_NAME: &str = "RLE";
 /// An RLE encoding is one where identical "runs" of values in the column are
 /// stored as a tuple: `(run_length, value)`, where `run_length` indicates the
 /// number of times the value is to be repeated.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct RLE<T>
 where
     T: PartialOrd + Debug,
@@ -383,7 +383,10 @@ impl<T: PartialOrd + Debug + Copy> RLE<T> {
     ///
     /// TODO(edd): a sparse index on this can help with materialisation cost by
     /// providing starting indexes into the in the run length collection.
-    pub fn value(&self, row_id: u32) -> Option<T> {
+    pub fn value<U>(&self, row_id: u32) -> Option<U>
+    where
+        U: From<T>,
+    {
         assert!(
             row_id < self.num_rows(),
             "row_id {:?} out of bounds for {:?} rows",
@@ -395,7 +398,7 @@ impl<T: PartialOrd + Debug + Copy> RLE<T> {
         for (rl, v) in &self.run_lengths {
             if ordinal_offset + rl > row_id {
                 // this run-length overlaps desired row id
-                return *v;
+                return v.map(U::from);
             }
             ordinal_offset += rl;
         }
@@ -441,7 +444,10 @@ impl<T: PartialOrd + Debug + Copy> RLE<T> {
     /// Panics if a requested row ID is out of bounds of the ordinal offset of
     /// a logical value.
     ///
-    pub fn values(&self, row_ids: &[u32], mut dst: Vec<Option<T>>) -> Vec<Option<T>> {
+    pub fn values<U>(&self, row_ids: &[u32], mut dst: Vec<Option<U>>) -> Vec<Option<U>>
+    where
+        U: From<T>,
+    {
         assert!(!row_ids.is_empty(), "no row IDs provided");
         assert!(
             row_ids.len() <= self.num_rows() as usize,
@@ -479,7 +485,7 @@ impl<T: PartialOrd + Debug + Copy> RLE<T> {
             }
 
             // this encoded entry covers the row_id we want.
-            dst.push(curr_value);
+            dst.push(curr_value.map(U::from));
 
             curr_logical_row_id += 1; // move forwards a logical row
             curr_entry_rl -= 1;
@@ -493,12 +499,15 @@ impl<T: PartialOrd + Debug + Copy> RLE<T> {
     /// the column.
     ///
     /// NULL values are represented by None.
-    pub fn all_values(&self, mut dst: Vec<Option<T>>) -> Vec<Option<T>> {
+    pub fn all_values<U: Copy>(&self, mut dst: Vec<Option<U>>) -> Vec<Option<U>>
+    where
+        U: From<T>,
+    {
         dst.clear();
         dst.reserve(self.num_rows as usize);
 
         for (rl, v) in &self.run_lengths {
-            dst.extend(iter::repeat(v).take(*rl as usize));
+            dst.extend(iter::repeat(v.map(U::from)).take(*rl as usize));
         }
         dst
     }
@@ -573,7 +582,10 @@ impl<T: PartialOrd + Debug + Copy> RLE<T> {
 
     /// Returns the summation of the logical (decoded) values for the provided
     /// row IDs.
-    pub fn sum(&self, _row_ids: &[u32]) -> Option<T> {
+    pub fn sum<U>(&self, _row_ids: &[u32]) -> Option<U>
+    where
+        U: From<T>,
+    {
         todo!()
     }
 
@@ -591,13 +603,19 @@ impl<T: PartialOrd + Debug + Copy> RLE<T> {
 
     /// Returns the minimum logical (decoded) value from the provided
     /// row IDs.
-    pub fn min(&self, _row_ids: &[u32]) -> Option<T> {
+    pub fn min<U>(&self, _row_ids: &[u32]) -> Option<U>
+    where
+        U: From<T>,
+    {
         todo!()
     }
 
     /// Returns the maximum logical (decoded) value from the provided
     /// row IDs.
-    pub fn max(&self, _row_ids: &[u32]) -> Option<T> {
+    pub fn max<U>(&self, _row_ids: &[u32]) -> Option<U>
+    where
+        U: From<T>,
+    {
         todo!()
     }
 }
@@ -840,7 +858,7 @@ mod test {
         enc.push_additional(Some(90), 2);
         enc.push(21);
 
-        assert_eq!(enc.value(0), None);
+        assert_eq!(enc.value::<i32>(0), None);
         assert_eq!(enc.value(1), Some(45));
         assert_eq!(enc.value(3), Some(45));
         assert_eq!(enc.value(4), Some(90));
@@ -918,7 +936,7 @@ mod test {
 
         let mut enc: RLE<u8> = RLE::default();
         enc.push_none();
-        assert_eq!(enc.all_values(vec![]), vec![None]);
+        assert_eq!(enc.all_values::<i32>(vec![]), vec![None]);
     }
 
     #[test]
