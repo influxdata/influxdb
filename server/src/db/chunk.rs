@@ -275,7 +275,6 @@ impl PartitionChunk for DbChunk {
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         println!("---------- Predicate in read_filter: {:#?}", predicate);
 
-                
         match &self.state {
             State::MutableBuffer { chunk, .. } => {
                 println!("-------- Execute MUB in read_filter");
@@ -295,7 +294,10 @@ impl PartitionChunk for DbChunk {
                 println!("-------- Execute RUB in read_filter");
                 // Error converting to a rb_predicate needs to fail
                 let rb_predicate =
-                    to_read_buffer_predicate(&predicate).context(PredicateConversion)?;
+                    match to_read_buffer_predicate(&predicate).context(PredicateConversion) {
+                        Ok(predicate) => predicate,
+                        Err(_) => read_buffer::Predicate::default(),
+                    };
 
                 // Still need this for further debugging. Will be removed when done
                 println!(
@@ -320,7 +322,7 @@ impl PartitionChunk for DbChunk {
                     schema.into(),
                 )))
             }
-            State::ParquetFile { chunk, .. } =>  {
+            State::ParquetFile { chunk, .. } => {
                 println!("-------- Execute PQ in read_filter");
                 chunk
                     .read_filter(table_name, predicate, selection)

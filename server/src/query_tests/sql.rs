@@ -558,7 +558,7 @@ async fn sql_predicate_pushdown() {
     // );
 
     // Test 7: two push-down expression on float: system > 4.0 and system < 7.0
-    
+
     // Check correctness
     let expected = vec![
         "+-------+--------+-------------------------------+-----------+",
@@ -579,7 +579,7 @@ async fn sql_predicate_pushdown() {
     );
 
     // Test 8: two push-down expression on float: system > 5.0 and system < 7.0
-    
+
     // Check correctness
     let expected = vec![
         "+-------+--------+-------------------------------+----------+",
@@ -595,8 +595,4 @@ async fn sql_predicate_pushdown() {
         "SELECT * from restaurant where system > 5.0 and system < 7.0",
         &expected
     );
-
-
-    
-    
 }
