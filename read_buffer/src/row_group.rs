@@ -23,7 +23,10 @@ use arrow::{
     datatypes::{DataType, TimeUnit},
     record_batch::RecordBatch,
 };
-use datafusion::{logical_plan::Expr as DfExpr, scalar::ScalarValue as DFScalarValue};
+use datafusion::{
+    logical_plan::Expr as DfExpr, logical_plan::Operator as DFOperator,
+    scalar::ScalarValue as DFScalarValue,
+};
 use internal_types::schema::{InfluxColumnType, Schema};
 use internal_types::selection::Selection;
 
@@ -1302,6 +1305,10 @@ impl<'a> TryFrom<&DFScalarValue> for Literal {
                 Some(v) => Ok(Self::String(v.clone())),
                 None => Err("NULL literal not supported".to_owned()),
             },
+            DFScalarValue::TimestampNanosecond(v) => match v {
+                Some(v) => Ok(Self::Integer(*v)),
+                None => Err("NULL literal not supported".to_owned()),
+            },
             _ => Err("scalar type not supported".to_owned()),
         }
     }
@@ -1391,22 +1398,43 @@ impl TryFrom<&DfExpr> for BinaryExpr {
     type Error = String;
 
     fn try_from(df_expr: &DfExpr) -> Result<Self, Self::Error> {
-        let (column_name, op, value) = match df_expr {
-            DfExpr::BinaryExpr { left, op, right } => (
-                match &**left {
-                    DfExpr::Column(name) => name,
-                    _ => return Err(format!("unsupported left expression {:?}", *left)),
-                },
-                Operator::try_from(op)?,
-                match &**right {
-                    DfExpr::Literal(scalar) => Literal::try_from(scalar)?,
-                    _ => return Err(format!("unsupported right expression {:?}", *right)),
-                },
-            ),
+        match df_expr {
+            DfExpr::BinaryExpr { left, op, right } => {
+                match (&**left, &**right) {
+                    (DfExpr::Column(name), DfExpr::Literal(scalar)) => Ok(Self::new(
+                        name,
+                        Operator::try_from(op)?,
+                        Literal::try_from(scalar)?,
+                    )),
+                    (DfExpr::Literal(_), DfExpr::Column(_)) => {
+                        // In this case we may have been give (literal, op, column).
+                        // Swap left and right around and retry.
+                        Self::try_from(&DfExpr::BinaryExpr {
+                            left: right.clone(),
+                            // since relation has been swapped we need the
+                            // converse operator, e.g., `a < b` becomes `b > a`.
+                            op: match op {
+                                DFOperator::Eq => DFOperator::Eq,
+                                DFOperator::NotEq => DFOperator::NotEq,
+                                DFOperator::Lt => DFOperator::Gt,
+                                DFOperator::LtEq => DFOperator::GtEq,
+                                DFOperator::Gt => DFOperator::Lt,
+                                DFOperator::GtEq => DFOperator::LtEq,
+                                op => return Err(format!("unsupported DF operator {:?}", op)),
+                            },
+                            right: left.clone(),
+                        })
+                    }
+                    (_, _) => {
+                        return Err(format!(
+                            "unsupported expression {:?} {:?} {:?}",
+                            *left, op, *right
+                        ))
+                    }
+                }
+            }
             _ => return Err(format!("unsupported expression type {:?}", df_expr)),
-        };
-
-        Ok(Self::new(column_name, op, value))
+        }
     }
 }
 
@@ -3375,5 +3403,79 @@ west,host-c,pro,10,6
             BTreeMap::new(),
         );
         assert_eq!(result, to_map(vec![]));
+    }
+
+    use datafusion::logical_plan::*;
+    use datafusion::scalar::ScalarValue;
+    use std::convert::TryFrom;
+
+    #[test]
+    fn to_binary_expr() {
+        let cases = vec![
+            (
+                // a = 22
+                col("a").eq(Expr::Literal(ScalarValue::Int64(Some(22)))),
+                BinaryExpr::from(("a", "=", 22_i64)),
+            ),
+            (
+                // a > 10
+                col("a").gt(Expr::Literal(ScalarValue::Int64(Some(10)))),
+                BinaryExpr::from(("a", ">", 10_i64)),
+            ),
+            (
+                // 100 = c
+                Expr::Literal(ScalarValue::Int64(Some(100))).eq(col("c")),
+                BinaryExpr::from(("c", "=", 100_i64)),
+            ),
+            (
+                // 100 != c
+                Expr::Literal(ScalarValue::Int64(Some(100))).not_eq(col("c")),
+                BinaryExpr::from(("c", "!=", 100_i64)),
+            ),
+            (
+                // 100 < c
+                Expr::Literal(ScalarValue::Int64(Some(100))).lt(col("c")),
+                BinaryExpr::from(("c", ">", 100_i64)),
+            ),
+            (
+                // 100 <= c
+                Expr::Literal(ScalarValue::Int64(Some(100))).lt_eq(col("c")),
+                BinaryExpr::from(("c", ">=", 100_i64)),
+            ),
+            (
+                // 100 >= c
+                Expr::Literal(ScalarValue::Int64(Some(100))).gt_eq(col("c")),
+                BinaryExpr::from(("c", "<=", 100_i64)),
+            ),
+            (
+                // 100 > c
+                Expr::Literal(ScalarValue::Int64(Some(100))).gt(col("c")),
+                BinaryExpr::from(("c", "<", 100_i64)),
+            ),
+            (
+                // a = timestamp(100000)
+                col("a").eq(Expr::Literal(ScalarValue::TimestampNanosecond(Some(
+                    1000000,
+                )))),
+                BinaryExpr::from(("a", "=", 1000000_i64)),
+            ),
+        ];
+
+        for (input, exp) in cases {
+            assert_eq!(BinaryExpr::try_from(&input).unwrap(), exp);
+        }
+
+        // Error cases
+        let cases = vec![
+            // 33 = 33
+            Expr::Literal(ScalarValue::Int64(Some(33)))
+                .eq(Expr::Literal(ScalarValue::Int64(Some(33)))),
+            // a > b
+            col("a").gt(col("b")),
+        ];
+
+        for input in cases {
+            assert!(BinaryExpr::try_from(&input).is_err());
+        }
     }
 }

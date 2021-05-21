@@ -133,7 +133,7 @@ pub mod test {
                         ),
                     )
                     .build(),
-                "unsupported left expression Utf8(\"The Stove &\")",
+                "unsupported expression Utf8(\"The Stove &\") Eq Utf8(\"The Toaster\")",
             ),
             // unsupported operator LIKE
             (
@@ -149,7 +149,7 @@ pub mod test {
                 PredicateBuilder::default()
                     .add_expr(Expr::Column("Intermezzo 1".to_owned()).eq(Expr::Wildcard))
                     .build(),
-                "unsupported right expression *",
+                "unsupported expression #Intermezzo 1 Eq *",
             ),
             // binary expression like foo = NULL not supported
             (

@@ -409,3 +409,236 @@ async fn sql_select_with_schema_merge_subset() {
         &expected
     );
 }
+
+#[tokio::test]
+async fn sql_predicate_pushdown() {
+    // Test 1: Select everything
+    //
+    // Check correctness
+    let expected = vec![
+        "+-------+--------+-------------------------------+-----------+",
+        "| count | system | time                          | town      |",
+        "+-------+--------+-------------------------------+-----------+",
+        "| 189   | 7      | 1970-01-01 00:00:00.000000110 | bedford   |",
+        "| 372   | 5      | 1970-01-01 00:00:00.000000100 | lexington |",
+        "| 40000 | 5      | 1970-01-01 00:00:00.000000100 | andover   |",
+        "| 471   | 6      | 1970-01-01 00:00:00.000000110 | tewsbury  |",
+        "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
+        "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading   |",
+        "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence  |",
+        "+-------+--------+-------------------------------+-----------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant",
+        &expected
+    );
+
+    // TODO: Make push-down predicates shown in explain verbose. Ticket #1538
+    // Check the plan
+    // run_sql_test_case!(
+    //     TwoMeasurementsPredicatePushDown {},
+    //     "EXPLAIN VERBOSE SELECT * from restaurant",
+    //     &expected
+    // );
+
+    // Test 2: One push-down expression: count > 200
+    //
+    // Check correctness
+    let expected = vec![
+        "+-------+--------+-------------------------------+-----------+",
+        "| count | system | time                          | town      |",
+        "+-------+--------+-------------------------------+-----------+",
+        "| 372   | 5      | 1970-01-01 00:00:00.000000100 | lexington |",
+        "| 40000 | 5      | 1970-01-01 00:00:00.000000100 | andover   |",
+        "| 471   | 6      | 1970-01-01 00:00:00.000000110 | tewsbury  |",
+        "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
+        "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading   |",
+        "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence  |",
+        "+-------+--------+-------------------------------+-----------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where count > 200",
+        &expected
+    );
+
+    // Check the plan
+    // run_sql_test_case!(
+    //     TwoMeasurementsPredicatePushDown {},
+    //     "EXPLAIN VERBOSE SELECT * from restaurant where count > 200",
+    //     &expected
+    // );
+
+    // Test 3: Two push-down expression: count > 200 and town != 'tewsbury'
+    //
+    // Check correctness
+    let expected = vec![
+        "+-------+--------+-------------------------------+-----------+",
+        "| count | system | time                          | town      |",
+        "+-------+--------+-------------------------------+-----------+",
+        "| 372   | 5      | 1970-01-01 00:00:00.000000100 | lexington |",
+        "| 40000 | 5      | 1970-01-01 00:00:00.000000100 | andover   |",
+        "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
+        "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading   |",
+        "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence  |",
+        "+-------+--------+-------------------------------+-----------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where count > 200 and town != 'tewsbury'",
+        &expected
+    );
+
+    // Check the plan
+    // run_sql_test_case!(
+    //     TwoMeasurementsPredicatePushDown {},
+    //     "EXPLAIN VERBOSE SELECT * from restaurant where count > 200 and town != 'tewsbury'",
+    //     &expected
+    // );
+
+    // Test 4: Still two push-down expression: count > 200 and town != 'tewsbury'
+    // even though the results are different
+    //
+    // Check correctness
+    let expected = vec![
+        "+-------+--------+-------------------------------+-----------+",
+        "| count | system | time                          | town      |",
+        "+-------+--------+-------------------------------+-----------+",
+        "| 372   | 5      | 1970-01-01 00:00:00.000000100 | lexington |",
+        "| 40000 | 5      | 1970-01-01 00:00:00.000000100 | andover   |",
+        "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
+        "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence  |",
+        "+-------+--------+-------------------------------+-----------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence')",
+        &expected
+    );
+
+    // BUG: actual is nothing. Edd is actively working on this
+    // Test 5: three push-down expression: count > 200 and town != 'tewsbury' and count < 40000
+    //
+    // Check correctness
+    // let expected = vec![
+    //     "+-------+--------+-------------------------------+-----------+",
+    //     "| count | system | time                          | town      |",
+    //     "+-------+--------+-------------------------------+-----------+",
+    //     "| 372   | 5      | 1970-01-01 00:00:00.000000100 | lexington |",
+    //     "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
+    //     "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence  |",
+    //     "+-------+--------+-------------------------------+-----------+",
+    // ];
+    // run_sql_test_case!(
+    //     TwoMeasurementsPredicatePushDown {},
+    //     "SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence') and count < 40000",
+    //     &expected
+    // );
+
+    // BUG: actual is nothing
+    // Test 6: two push-down expression: count > 200 and count < 40000
+    //
+    // Check correctness
+    // let expected = vec![
+    //     "+-------+--------+-------------------------------+-----------+",
+    //     "| count | system | time                          | town      |",
+    //     "+-------+--------+-------------------------------+-----------+",
+    //     "| 372   | 5      | 1970-01-01 00:00:00.000000100 | lexington |",
+    //     "| 471   | 6      | 1970-01-01 00:00:00.000000110 | tewsbury  |",
+    //     "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
+    //     "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading   |",
+    //     "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence  |",
+    //     "+-------+--------+-------------------------------+-----------+",
+    // ];
+    // run_sql_test_case!(
+    //     TwoMeasurementsPredicatePushDown {},
+    //     "SELECT * from restaurant where count > 200  and count < 40000",
+    //     &expected
+    // );
+
+    // Test 7: two push-down expression on float: system > 4.0 and system < 7.0
+    //
+    // Check correctness
+    let expected = vec![
+        "+-------+--------+-------------------------------+-----------+",
+        "| count | system | time                          | town      |",
+        "+-------+--------+-------------------------------+-----------+",
+        "| 372   | 5      | 1970-01-01 00:00:00.000000100 | lexington |",
+        "| 40000 | 5      | 1970-01-01 00:00:00.000000100 | andover   |",
+        "| 471   | 6      | 1970-01-01 00:00:00.000000110 | tewsbury  |",
+        "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
+        "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading   |",
+        "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence  |",
+        "+-------+--------+-------------------------------+-----------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where system > 4.0 and system < 7.0",
+        &expected
+    );
+
+    // Test 8: two push-down expression on float: system > 5.0 and system < 7.0
+    //
+    // Check correctness
+    let expected = vec![
+        "+-------+--------+-------------------------------+----------+",
+        "| count | system | time                          | town     |",
+        "+-------+--------+-------------------------------+----------+",
+        "| 471   | 6      | 1970-01-01 00:00:00.000000110 | tewsbury |",
+        "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading  |",
+        "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence |",
+        "+-------+--------+-------------------------------+----------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where system > 5.0 and system < 7.0",
+        &expected
+    );
+
+    // Test 9: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0
+    //
+    // Check correctness
+    let expected = vec![
+        "+-------+--------+-------------------------------+----------+",
+        "| count | system | time                          | town     |",
+        "+-------+--------+-------------------------------+----------+",
+        "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading  |",
+        "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence |",
+        "+-------+--------+-------------------------------+----------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where system > 5.0 and town != 'tewsbury' and 7.0 > system",
+        &expected
+    );
+
+    // Test 10: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0
+    // even though there are more expressions,(count = 632 or town = 'reading'), in the filter
+    //
+    // Check correctness
+    let expected = vec![
+        "+-------+--------+-------------------------------+---------+",
+        "| count | system | time                          | town    |",
+        "+-------+--------+-------------------------------+---------+",
+        "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading |",
+        "+-------+--------+-------------------------------+---------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where system > 5.0 and 'tewsbury' != town and system < 7.0 and (count = 632 or town = 'reading')",
+        &expected
+    );
+
+    // Test 11: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0
+    // After DF ticket, https://github.com/apache/arrow-datafusion/issues/383 is done,
+    // there will be more pushed-down predicate time > to_timestamp('1970-01-01T00:00:00.000000120+00:00')
+    //
+    // Check correctness
+    let expected = vec!["++", "++"];
+    run_sql_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where 5.0 < system and town != 'tewsbury' and system < 7.0 and (count = 632 or town = 'reading') and time > to_timestamp('1970-01-01T00:00:00.000000130+00:00')",
+        &expected
+    );
+}

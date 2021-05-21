@@ -14,7 +14,7 @@ use datafusion::{
 };
 use internal_types::schema::{builder::SchemaMerger, Schema};
 
-use crate::{predicate::Predicate, util::project_schema, PartitionChunk};
+use crate::{predicate::PredicateBuilder, util::project_schema, PartitionChunk};
 
 use snafu::{ResultExt, Snafu};
 
@@ -42,6 +42,11 @@ pub enum Error {
 
     #[snafu(display("Internal error: No rows found in table '{}'", table_name))]
     InternalNoRowsInTable { table_name: String },
+
+    #[snafu(display("Internal error: Cannot verify the push-down predicate '{}'", source,))]
+    InternalPushdownPredicate {
+        source: datafusion::error::DataFusionError,
+    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -190,17 +195,15 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
         &self,
         projection: &Option<Vec<usize>>,
         _batch_size: usize,
-        _filters: &[Expr],
+        filters: &[Expr],
         _limit: Option<usize>,
     ) -> std::result::Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        // TODO Here is where predicate pushdown will happen.  To make
-        // predicate push down happen, the provider need need to
-        // create a Predicate from the Expr .
-        //
         // Note that `filters` don't actually need to be evaluated in
         // the scan for the plans to be correct, they are an extra
         // optimization for providers which can offer them
-        let predicate = Predicate::default();
+        let predicate = PredicateBuilder::default()
+            .add_pushdown_exprs(filters)
+            .build();
 
         // Figure out the schema of the requested output
         let scan_schema = project_schema(self.arrow_schema(), projection);
@@ -224,6 +227,6 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
         &self,
         _filter: &Expr,
     ) -> DataFusionResult<TableProviderFilterPushDown> {
-        Ok(TableProviderFilterPushDown::Unsupported)
+        Ok(TableProviderFilterPushDown::Inexact)
     }
 }

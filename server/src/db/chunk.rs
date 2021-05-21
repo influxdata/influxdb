@@ -273,14 +273,11 @@ impl PartitionChunk for DbChunk {
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
+        // Predicate is not required to be applied for correctness. We only pushed it down
+        // when possible for performance gain
+
         match &self.state {
             State::MutableBuffer { chunk, .. } => {
-                if !predicate.is_empty() {
-                    return InternalPredicateNotSupported {
-                        predicate: predicate.clone(),
-                    }
-                    .fail();
-                }
                 let batch = chunk
                     .read_filter(table_name, selection)
                     .context(MutableBufferChunk)?;
@@ -288,9 +285,12 @@ impl PartitionChunk for DbChunk {
                 Ok(Box::pin(MemoryStream::new(vec![batch])))
             }
             State::ReadBuffer { chunk, .. } => {
-                // Error converting to a rb_predicate needs to fail
+                // Only apply pushdownable predicates
                 let rb_predicate =
-                    to_read_buffer_predicate(&predicate).context(PredicateConversion)?;
+                    match to_read_buffer_predicate(&predicate).context(PredicateConversion) {
+                        Ok(predicate) => predicate,
+                        Err(_) => read_buffer::Predicate::default(),
+                    };
 
                 let read_results = chunk
                     .read_filter(table_name, rb_predicate, selection)

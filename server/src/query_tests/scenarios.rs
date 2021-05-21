@@ -181,6 +181,29 @@ impl DbSetup for TwoMeasurementsUnsignedType {
     }
 }
 
+#[derive(Debug)]
+pub struct TwoMeasurementsPredicatePushDown {}
+#[async_trait]
+impl DbSetup for TwoMeasurementsPredicatePushDown {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let lp_lines = vec![
+            "restaurant,town=andover count=40000u,system=5.0 100",
+            "restaurant,town=reading count=632u,system=5.0 120",
+            "restaurant,town=bedford count=189u,system=7.0 110",
+            "restaurant,town=tewsbury count=471u,system=6.0 110",
+            "restaurant,town=lexington count=372u,system=5.0 100",
+            "restaurant,town=lawrence count=872u,system=6.0 110",
+            "restaurant,town=reading count=632u,system=6.0 130",
+            "school,town=reading count=17u,system=6.0 150",
+            "school,town=andover count=25u,system=6.0 160",
+        ];
+
+        make_one_rub_chunk_scenario(partition_key, &lp_lines.join("\n")).await
+    }
+}
+
 /// Single measurement that has several different chunks with
 /// different (but compatible) schema
 #[derive(Debug)]
@@ -662,4 +685,28 @@ pub async fn rollover_and_load(db: &Db, partition_key: &str, table_name: &str) {
     db.write_chunk_to_object_store(partition_key, table_name, 0)
         .await
         .unwrap();
+}
+
+// This function loads one chunk of lp data into RUB for testing predicate pushdown
+pub(crate) async fn make_one_rub_chunk_scenario(
+    partition_key: &str,
+    data: &str,
+) -> Vec<DbScenario> {
+    // Scenario 1: One closed chunk in RUB
+    let db = make_db().await.db;
+    let table_names = write_lp(&db, data);
+    for table_name in &table_names {
+        db.rollover_partition(partition_key, &table_name)
+            .await
+            .unwrap();
+        db.load_chunk_to_read_buffer(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+    }
+    let scenario1 = DbScenario {
+        scenario_name: "Data in read buffer".into(),
+        db,
+    };
+
+    vec![scenario1]
 }
