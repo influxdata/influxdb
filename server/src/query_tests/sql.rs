@@ -424,7 +424,7 @@ async fn sql_predicate_pushdown() {
         "| 40000 | 5      | 1970-01-01 00:00:00.000000100 | andover   |",
         "| 471   | 6      | 1970-01-01 00:00:00.000000110 | tewsbury  |",
         "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
-        "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
+        "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading   |",
         "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence  |",
         "+-------+--------+-------------------------------+-----------+",
     ];
@@ -434,28 +434,15 @@ async fn sql_predicate_pushdown() {
         &expected
     );
 
+    // TODO: Make push-down predicates shown in explain verbose
     // Check the plan
-    let expected = vec![
-        "+-----------------------------------------+--------------------------------------------------------------------------+",
-        "| plan_type                               | plan                                                                     |",
-        "+-----------------------------------------+--------------------------------------------------------------------------+",
-        "|                                         |   IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate |",
-        "|                                         |   TableScan: restaurant projection=None                                  |",
-        "|                                         |   TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
-        "|                                         |   TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
-        "| logical_plan                            | Projection: #count, #system, #time, #town                                |",
-        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                |",
-        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                |",
-        "| physical_plan                           | ProjectionExec: expr=[count, system, time, town]                         |",
-        "+-----------------------------------------+--------------------------------------------------------------------------+",
-    ];
-    run_sql_test_case!(
-        TwoMeasurementsPredicatePushDown {},
-        "EXPLAIN VERBOSE SELECT * from restaurant",
-        &expected
-    );
+    // run_sql_test_case!(
+    //     TwoMeasurementsPredicatePushDown {},
+    //     "EXPLAIN VERBOSE SELECT * from restaurant",
+    //     &expected
+    // );
 
-    // Test 2: One push-down expression  where region = 'west'
+    // Test 2: One push-down expression: count > 200
     //
     // Check correctness
     let expected = vec![
@@ -466,7 +453,7 @@ async fn sql_predicate_pushdown() {
         "| 40000 | 5      | 1970-01-01 00:00:00.000000100 | andover   |",
         "| 471   | 6      | 1970-01-01 00:00:00.000000110 | tewsbury  |",
         "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
-        "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
+        "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading   |",
         "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence  |",
         "+-------+--------+-------------------------------+-----------+",
     ];
@@ -477,253 +464,100 @@ async fn sql_predicate_pushdown() {
     );
 
     // Check the plan
+    // run_sql_test_case!(
+    //     TwoMeasurementsPredicatePushDown {},
+    //     "EXPLAIN VERBOSE SELECT * from restaurant where count > 200",
+    //     &expected
+    // );
+
+    // Test 3: Two push-down expression: count > 200 and town != 'tewsbury'
+    //
+    // Check correctness
     let expected = vec![
-        "+-----------------------------------------+----------------------------------------------------------------------------+",
-        "| plan_type                               | plan                                                                       |",
-        "+-----------------------------------------+----------------------------------------------------------------------------+",
-        "|                                         |     IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate |",
-        "|                                         |     TableScan: restaurant projection=None                                  |",
-        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
-        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
-        "|                                         |   Filter: #count Gt Int64(200)                                             |",
-        "|                                         |   Filter: #count Gt Int64(200)                                             |",
-        "|                                         |   Filter: #count Gt Int64(200)                                             |",
-        "|                                         |   FilterExec: CAST(count AS Int64) > 200                                   |",
-        "| logical_plan                            | Projection: #count, #system, #time, #town                                  |",
-        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                  |",
-        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                  |",
-        "| physical_plan                           | ProjectionExec: expr=[count, system, time, town]                           |",
-        "+-----------------------------------------+----------------------------------------------------------------------------+",
+        "+-------+--------+-------------------------------+-----------+",
+        "| count | system | time                          | town      |",
+        "+-------+--------+-------------------------------+-----------+",
+        "| 372   | 5      | 1970-01-01 00:00:00.000000100 | lexington |",
+        "| 40000 | 5      | 1970-01-01 00:00:00.000000100 | andover   |",
+        "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
+        "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading   |",
+        "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence  |",
+        "+-------+--------+-------------------------------+-----------+",
     ];
     run_sql_test_case!(
         TwoMeasurementsPredicatePushDown {},
-        "EXPLAIN VERBOSE SELECT * from restaurant where count > 200",
+        "SELECT * from restaurant where count > 200 and town != 'tewsbury'",
         &expected
     );
 
-    //////////////////////////////
+    // Check the plan
+    // run_sql_test_case!(
+    //     TwoMeasurementsPredicatePushDown {},
+    //     "EXPLAIN VERBOSE SELECT * from restaurant where count > 200 and town != 'tewsbury'",
+    //     &expected
+    // );
 
-    // // Test 1: Select everything
-    // //
-    // // Check correctness
+    // Test 4: Still two push-down expression: count > 200 and town != 'tewsbury'
+    // even though the results are different
+    //
+    // Check correctness
+    let expected = vec![
+        "+-------+--------+-------------------------------+-----------+",
+        "| count | system | time                          | town      |",
+        "+-------+--------+-------------------------------+-----------+",
+        "| 372   | 5      | 1970-01-01 00:00:00.000000100 | lexington |",
+        "| 40000 | 5      | 1970-01-01 00:00:00.000000100 | andover   |",
+        "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
+        "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence  |",
+        "+-------+--------+-------------------------------+-----------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence')",
+        &expected
+    );
+
+    // BUG: actual is nothing
+    // Test 5: three push-down expression: count > 200 and town != 'tewsbury' and count < 40000
+    //
+    // Check correctness
     // let expected = vec![
-    //     "+---------------+----------+------------+--------------+-------------------+-------+-----------+-----------+-----------------+",
-    //     "| partition_key | chunk_id | table_name | column_name  | storage           | count | min_value | max_value | estimated_bytes |",
-    //     "+---------------+----------+------------+--------------+-------------------+-------+-----------+-----------+-----------------+",
-    //     "| 1970-01-01T00 | 0        | h2o        | city         | ReadBuffer        | 2     | Boston    | time      | 585             |",
-    //     "| 1970-01-01T00 | 0        | h2o        | other_temp   | ReadBuffer        | 2     | 70.4      | 70.4      | 369             |",
-    //     "| 1970-01-01T00 | 0        | h2o        | state        | ReadBuffer        | 2     | Boston    | time      | 585             |",
-    //     "| 1970-01-01T00 | 0        | h2o        | temp         | ReadBuffer        | 2     | 70.4      | 70.4      | 369             |",
-    //     "| 1970-01-01T00 | 0        | h2o        | time         | ReadBuffer        | 2     | 50        | 250       | 51              |",
-    //     "| 1970-01-01T00 | 0        | o2         | __dictionary | OpenMutableBuffer |       |           |           | 112             |",
-    //     "| 1970-01-01T00 | 0        | o2         | city         | OpenMutableBuffer | 1     | Boston    | Boston    | 17              |",
-    //     "| 1970-01-01T00 | 0        | o2         | reading      | OpenMutableBuffer | 1     | 51        | 51        | 25              |",
-    //     "| 1970-01-01T00 | 0        | o2         | state        | OpenMutableBuffer | 2     | CA        | MA        | 17              |",
-    //     "| 1970-01-01T00 | 0        | o2         | temp         | OpenMutableBuffer | 2     | 53.4      | 79        | 25              |",
-    //     "| 1970-01-01T00 | 0        | o2         | time         | OpenMutableBuffer | 2     | 50        | 300       | 25              |",
-    //     "| 1970-01-01T00 | 1        | h2o        | __dictionary | OpenMutableBuffer |       |           |           | 94              |",
-    //     "| 1970-01-01T00 | 1        | h2o        | city         | OpenMutableBuffer | 1     | Boston    | Boston    | 13              |",
-    //     "| 1970-01-01T00 | 1        | h2o        | other_temp   | OpenMutableBuffer | 1     | 72.4      | 72.4      | 17              |",
-    //     "| 1970-01-01T00 | 1        | h2o        | state        | OpenMutableBuffer | 1     | CA        | CA        | 13              |",
-    //     "| 1970-01-01T00 | 1        | h2o        | time         | OpenMutableBuffer | 1     | 350       | 350       | 17              |",
-    //     "+---------------+----------+------------+--------------+-------------------+-------+-----------+-----------+-----------------+",
+    //     "+-------+--------+-------------------------------+-----------+",
+    //     "| count | system | time                          | town      |",
+    //     "+-------+--------+-------------------------------+-----------+",
+    //     "| 372   | 5      | 1970-01-01 00:00:00.000000100 | lexington |",
+    //     "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
+    //     "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence  |",
+    //     "+-------+--------+-------------------------------+-----------+",
     // ];
     // run_sql_test_case!(
-    //     TwoMeasurementsManyFieldsTwoChunks {},
-    //     "SELECT * from system.chunk_columns",
+    //     TwoMeasurementsPredicatePushDown {},
+    //     "SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence') and count < 40000",
     //     &expected
     // );
 
-    // // Check if the predicate is pushed down in explain verbose
-    // // TODO: List full explain for now for reviewers to verify the pushdown. When we are happy with the outcome, I will
-    // // only check if the actual includes work we want to avoid recapture the tests when add more stuff into the explain
+    // BUG: actual is nothing
+    // Test 6: two push-down expression: count > 200 and count < 40000
+    //
+    // Check correctness
     // let expected = vec![
-    //     "+-----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+",
-    //     "| plan_type                               | plan                                                                                                                           |",
-    //     "+-----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+",
-    //     "|                                         |   MemoryExec: partitions=1, partition_sizes=[1]                                                                                |",
-    //     "|                                         |   TableScan: system.chunk_columns projection=None                                                                              |",
-    //     "|                                         |   TableScan: system.chunk_columns projection=Some([0, 1, 2, 3, 4, 5, 6, 7, 8])                                                 |",
-    //     "|                                         |   TableScan: system.chunk_columns projection=Some([0, 1, 2, 3, 4, 5, 6, 7, 8])                                                 |",
-    //     "| logical_plan                            | Projection: #partition_key, #chunk_id, #table_name, #column_name, #storage, #count, #min_value, #max_value, #estimated_bytes   |",
-    //     "| logical_plan after projection_push_down | Projection: #partition_key, #chunk_id, #table_name, #column_name, #storage, #count, #min_value, #max_value, #estimated_bytes   |",
-    //     "| logical_plan after projection_push_down | Projection: #partition_key, #chunk_id, #table_name, #column_name, #storage, #count, #min_value, #max_value, #estimated_bytes   |",
-    //     "| physical_plan                           | ProjectionExec: expr=[partition_key, chunk_id, table_name, column_name, storage, count, min_value, max_value, estimated_bytes] |",
-    //     "+-----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+",
+    //     "+-------+--------+-------------------------------+-----------+",
+    //     "| count | system | time                          | town      |",
+    //     "+-------+--------+-------------------------------+-----------+",
+    //     "| 372   | 5      | 1970-01-01 00:00:00.000000100 | lexington |",
+    //     "| 471   | 6      | 1970-01-01 00:00:00.000000110 | tewsbury  |",
+    //     "| 632   | 5      | 1970-01-01 00:00:00.000000120 | reading   |",
+    //     "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading   |",
+    //     "| 872   | 6      | 1970-01-01 00:00:00.000000110 | lawrence  |",
+    //     "+-------+--------+-------------------------------+-----------+",
     // ];
     // run_sql_test_case!(
-    //     TwoMeasurementsManyFieldsTwoChunks {},
-    //     "EXPLAIN VERBOSE SELECT * from system.chunk_columns",
+    //     TwoMeasurementsPredicatePushDown {},
+    //     "SELECT * from restaurant where count > 200  and count < 40000",
     //     &expected
     // );
 
-    // // Test 2: One push-down expression  estimated_bytes > 20
-    // //
-    // // Check correctness
-    // let expected = vec![
-    //     "+---------------+----------+------------+--------------+-------------------+-------+-----------+-----------+-----------------+",
-    //     "| partition_key | chunk_id | table_name | column_name  | storage           | count | min_value | max_value | estimated_bytes |",
-    //     "+---------------+----------+------------+--------------+-------------------+-------+-----------+-----------+-----------------+",
-    //     "| 1970-01-01T00 | 0        | h2o        | city         | ReadBuffer        | 2     | Boston    | time      | 585             |",
-    //     "| 1970-01-01T00 | 0        | h2o        | other_temp   | ReadBuffer        | 2     | 70.4      | 70.4      | 369             |",
-    //     "| 1970-01-01T00 | 0        | h2o        | state        | ReadBuffer        | 2     | Boston    | time      | 585             |",
-    //     "| 1970-01-01T00 | 0        | h2o        | temp         | ReadBuffer        | 2     | 70.4      | 70.4      | 369             |",
-    //     "| 1970-01-01T00 | 0        | h2o        | time         | ReadBuffer        | 2     | 50        | 250       | 51              |",
-    //     "| 1970-01-01T00 | 0        | o2         | __dictionary | OpenMutableBuffer |       |           |           | 112             |",
-    //     "| 1970-01-01T00 | 0        | o2         | reading      | OpenMutableBuffer | 1     | 51        | 51        | 25              |",
-    //     "| 1970-01-01T00 | 0        | o2         | temp         | OpenMutableBuffer | 2     | 53.4      | 79        | 25              |",
-    //     "| 1970-01-01T00 | 0        | o2         | time         | OpenMutableBuffer | 2     | 50        | 300       | 25              |",
-    //     "| 1970-01-01T00 | 1        | h2o        | __dictionary | OpenMutableBuffer |       |           |           | 94              |",
-    //     "+---------------+----------+------------+--------------+-------------------+-------+-----------+-----------+-----------------+",
-    // ];
-    // run_sql_test_case!(
-    //     TwoMeasurementsManyFieldsTwoChunks {},
-    //     "SELECT * from system.chunk_columns where estimated_bytes > 20",
-    //     &expected
-    // );
 
-    // // Check if the predicate is pushed down in explain verbose
-    // let expected = vec![
-    //     "+-----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+",
-    //     "| plan_type                               | plan                                                                                                                           |",
-    //     "+-----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+",
-    //     "|                                         |     MemoryExec: partitions=1, partition_sizes=[1]                                                                              |",
-    //     "|                                         |     TableScan: system.chunk_columns projection=None                                                                            |",
-    //     "|                                         |     TableScan: system.chunk_columns projection=Some([0, 1, 2, 3, 4, 5, 6, 7, 8])                                               |",
-    //     "|                                         |     TableScan: system.chunk_columns projection=Some([0, 1, 2, 3, 4, 5, 6, 7, 8])                                               |",
-    //     "|                                         |   Filter: #estimated_bytes Gt Int64(20)                                                                                        |",
-    //     "|                                         |   Filter: #estimated_bytes Gt Int64(20)                                                                                        |",
-    //     "|                                         |   Filter: #estimated_bytes Gt Int64(20)                                                                                        |",
-    //     "|                                         |   FilterExec: CAST(estimated_bytes AS Int64) > 20                                                                              |",
-    //     "| logical_plan                            | Projection: #partition_key, #chunk_id, #table_name, #column_name, #storage, #count, #min_value, #max_value, #estimated_bytes   |",
-    //     "| logical_plan after projection_push_down | Projection: #partition_key, #chunk_id, #table_name, #column_name, #storage, #count, #min_value, #max_value, #estimated_bytes   |",
-    //     "| logical_plan after projection_push_down | Projection: #partition_key, #chunk_id, #table_name, #column_name, #storage, #count, #min_value, #max_value, #estimated_bytes   |",
-    //     "| physical_plan                           | ProjectionExec: expr=[partition_key, chunk_id, table_name, column_name, storage, count, min_value, max_value, estimated_bytes] |",
-    //     "+-----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+",
-    // ];
-    // run_sql_test_case!(
-    //     TwoMeasurementsManyFieldsTwoChunks {},
-    //     "EXPLAIN VERBOSE SELECT * from system.chunk_columns where estimated_bytes > 20",
-    //     &expected
-    // );
-
-    // // Test 3: Two push-down expression  estimated_bytes > 20 AND table_name = 'o2'
-    // //
-    // // Check correctness
-    // let expected = vec![
-    //     "+---------------+----------+------------+--------------+-------------------+-------+-----------+-----------+-----------------+",
-    //     "| partition_key | chunk_id | table_name | column_name  | storage           | count | min_value | max_value | estimated_bytes |",
-    //     "+---------------+----------+------------+--------------+-------------------+-------+-----------+-----------+-----------------+",
-    //     "| 1970-01-01T00 | 0        | o2         | __dictionary | OpenMutableBuffer |       |           |           | 112             |",
-    //     "| 1970-01-01T00 | 0        | o2         | reading      | OpenMutableBuffer | 1     | 51        | 51        | 25              |",
-    //     "| 1970-01-01T00 | 0        | o2         | temp         | OpenMutableBuffer | 2     | 53.4      | 79        | 25              |",
-    //     "| 1970-01-01T00 | 0        | o2         | time         | OpenMutableBuffer | 2     | 50        | 300       | 25              |",
-    //     "+---------------+----------+------------+--------------+-------------------+-------+-----------+-----------+-----------------+",
-    // ];
-    // run_sql_test_case!(
-    //     TwoMeasurementsManyFieldsTwoChunks {},
-    //     "SELECT * from system.chunk_columns where estimated_bytes > 20 AND table_name = 'o2'",
-    //     &expected
-    // );
-
-    // // Check if the predicate is pushed down in explain verbose
-    // let expected = vec![
-    //     "+-----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+",
-    //     "| plan_type                               | plan                                                                                                                           |",
-    //     "+-----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+",
-    //     "|                                         |     MemoryExec: partitions=1, partition_sizes=[1]                                                                              |",
-    //     "|                                         |     TableScan: system.chunk_columns projection=None                                                                            |",
-    //     "|                                         |     TableScan: system.chunk_columns projection=Some([0, 1, 2, 3, 4, 5, 6, 7, 8])                                               |",
-    //     "|                                         |     TableScan: system.chunk_columns projection=Some([0, 1, 2, 3, 4, 5, 6, 7, 8])                                               |",
-    //     "|                                         |   Filter: #estimated_bytes Gt Int64(20) And #table_name Eq Utf8(\"o2\")                                                          |",
-    //     "|                                         |   Filter: #estimated_bytes Gt Int64(20) And #table_name Eq Utf8(\"o2\")                                                          |",
-    //     "|                                         |   Filter: #estimated_bytes Gt Int64(20) And #table_name Eq Utf8(\"o2\")                                                          |",
-    //     "|                                         |   FilterExec: CAST(estimated_bytes AS Int64) > 20 AND table_name = o2                                                          |",
-    //     "| logical_plan                            | Projection: #partition_key, #chunk_id, #table_name, #column_name, #storage, #count, #min_value, #max_value, #estimated_bytes   |",
-    //     "| logical_plan after projection_push_down | Projection: #partition_key, #chunk_id, #table_name, #column_name, #storage, #count, #min_value, #max_value, #estimated_bytes   |",
-    //     "| logical_plan after projection_push_down | Projection: #partition_key, #chunk_id, #table_name, #column_name, #storage, #count, #min_value, #max_value, #estimated_bytes   |",
-    //     "| physical_plan                           | ProjectionExec: expr=[partition_key, chunk_id, table_name, column_name, storage, count, min_value, max_value, estimated_bytes] |",
-    //     "+-----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+",
-    // ];
-    // run_sql_test_case!(
-    //     TwoMeasurementsManyFieldsTwoChunks {},
-    //     "EXPLAIN VERBOSE SELECT * from system.chunk_columns where estimated_bytes > 20 AND table_name = 'o2'",
-    //     &expected
-    // );
-
-    // // Test 4: Two push-down expression  estimated_bytes > 20 AND table_name = 'o2' even though there is an extra OR
-    // //
-    // // Check correctness
-    // let expected = vec![
-    //     "+---------------+----------+------------+-------------+-------------------+-------+-----------+-----------+-----------------+",
-    //     "| partition_key | chunk_id | table_name | column_name | storage           | count | min_value | max_value | estimated_bytes |",
-    //     "+---------------+----------+------------+-------------+-------------------+-------+-----------+-----------+-----------------+",
-    //     "| 1970-01-01T00 | 0        | o2         | reading     | OpenMutableBuffer | 1     | 51        | 51        | 25              |",
-    //     "+---------------+----------+------------+-------------+-------------------+-------+-----------+-----------+-----------------+",
-    // ];
-    // run_sql_test_case!(
-    //     TwoMeasurementsManyFieldsTwoChunks {},
-    //     "SELECT * from system.chunk_columns where estimated_bytes > 20 AND table_name = 'o2' AND (count = 1 OR count > 2)",
-    //     &expected
-    // );
-
-    // // Check if the predicate is pushed down in explain verbose
-    // let expected = vec![
-    //     "+-----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+",
-    //     "| plan_type                               | plan                                                                                                                           |",
-    //     "+-----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+",
-    //     "|                                         |     MemoryExec: partitions=1, partition_sizes=[1]                                                                              |",
-    //     "|                                         |     TableScan: system.chunk_columns projection=None                                                                            |",
-    //     "|                                         |     TableScan: system.chunk_columns projection=Some([0, 1, 2, 3, 4, 5, 6, 7, 8])                                               |",
-    //     "|                                         |     TableScan: system.chunk_columns projection=Some([0, 1, 2, 3, 4, 5, 6, 7, 8])                                               |",
-    //     "|                                         |   Filter: #estimated_bytes Gt Int64(20) And #table_name Eq Utf8(\"o2\") And #count Eq Int64(1) Or #count Gt Int64(2)             |",
-    //     "|                                         |   Filter: #estimated_bytes Gt Int64(20) And #table_name Eq Utf8(\"o2\") And #count Eq Int64(1) Or #count Gt Int64(2)             |",
-    //     "|                                         |   Filter: #estimated_bytes Gt Int64(20) And #table_name Eq Utf8(\"o2\") And #count Eq Int64(1) Or #count Gt Int64(2)             |",
-    //     "|                                         |   FilterExec: CAST(estimated_bytes AS Int64) > 20 AND table_name = o2 AND CAST(count AS Int64) = 1 OR CAST(count AS Int64) > 2 |",
-    //     "| logical_plan                            | Projection: #partition_key, #chunk_id, #table_name, #column_name, #storage, #count, #min_value, #max_value, #estimated_bytes   |",
-    //     "| logical_plan after projection_push_down | Projection: #partition_key, #chunk_id, #table_name, #column_name, #storage, #count, #min_value, #max_value, #estimated_bytes   |",
-    //     "| logical_plan after projection_push_down | Projection: #partition_key, #chunk_id, #table_name, #column_name, #storage, #count, #min_value, #max_value, #estimated_bytes   |",
-    //     "| physical_plan                           | ProjectionExec: expr=[partition_key, chunk_id, table_name, column_name, storage, count, min_value, max_value, estimated_bytes] |",
-    //     "+-----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+",
-    // ];
-    // run_sql_test_case!(
-    //     TwoMeasurementsManyFieldsTwoChunks {},
-    //     "EXPLAIN VERBOSE SELECT * from system.chunk_columns where estimated_bytes > 20 AND table_name = 'o2' AND (count = 1 OR count > 2)",
-    //     &expected
-    // );
-
-    // // Test 5: Three push-down expression  estimated_bytes > 20 AND table_name = 'o2' AND max_value != 51 even though there is an extra OR
-    // //
-    // // Check correctness
-    // let expected = vec!["++", "++"];
-    // run_sql_test_case!(
-    //     TwoMeasurementsManyFieldsTwoChunks {},
-    //     "SELECT * from system.chunk_columns where estimated_bytes > 20 AND table_name = 'o2' AND (count = 1 OR count > 2) and column_name != 'reading'",
-    //     &expected
-    // );
-
-    // // Check if the predicate is pushed down in explain verbose
-    // let expected = vec![
-    //     "+-----------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------+",
-    //     "| plan_type                               | plan                                                                                                                                                      |",
-    //     "+-----------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------+",
-    //     "|                                         |     MemoryExec: partitions=1, partition_sizes=[1]                                                                                                         |",
-    //     "|                                         |     TableScan: system.chunk_columns projection=None                                                                                                       |",
-    //     "|                                         |     TableScan: system.chunk_columns projection=Some([0, 1, 2, 3, 4, 5, 6, 7, 8])                                                                          |",
-    //     "|                                         |     TableScan: system.chunk_columns projection=Some([0, 1, 2, 3, 4, 5, 6, 7, 8])                                                                          |",
-    //     "|                                         |   Filter: #estimated_bytes Gt Int64(20) And #table_name Eq Utf8(\"o2\") And #count Eq Int64(1) Or #count Gt Int64(2) And #column_name NotEq Utf8(\"reading\") |",
-    //     "|                                         |   Filter: #estimated_bytes Gt Int64(20) And #table_name Eq Utf8(\"o2\") And #count Eq Int64(1) Or #count Gt Int64(2) And #column_name NotEq Utf8(\"reading\") |",
-    //     "|                                         |   Filter: #estimated_bytes Gt Int64(20) And #table_name Eq Utf8(\"o2\") And #count Eq Int64(1) Or #count Gt Int64(2) And #column_name NotEq Utf8(\"reading\") |",
-    //     "|                                         |   FilterExec: CAST(estimated_bytes AS Int64) > 20 AND table_name = o2 AND CAST(count AS Int64) = 1 OR CAST(count AS Int64) > 2 AND column_name != reading |",
-    //     "| logical_plan                            | Projection: #partition_key, #chunk_id, #table_name, #column_name, #storage, #count, #min_value, #max_value, #estimated_bytes                              |",
-    //     "| logical_plan after projection_push_down | Projection: #partition_key, #chunk_id, #table_name, #column_name, #storage, #count, #min_value, #max_value, #estimated_bytes                              |",
-    //     "| logical_plan after projection_push_down | Projection: #partition_key, #chunk_id, #table_name, #column_name, #storage, #count, #min_value, #max_value, #estimated_bytes                              |",
-    //     "| physical_plan                           | ProjectionExec: expr=[partition_key, chunk_id, table_name, column_name, storage, count, min_value, max_value, estimated_bytes]                            |",
-    //     "+-----------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------+",
-    // ];
-    // run_sql_test_case!(
-    //     TwoMeasurementsManyFieldsTwoChunks {},
-    //     "EXPLAIN VERBOSE SELECT * from system.chunk_columns where estimated_bytes > 20 AND table_name = 'o2' AND (count = 1 OR count > 2) and column_name != 'reading'",
-    //     &expected
-    // );
+    
+    
 }

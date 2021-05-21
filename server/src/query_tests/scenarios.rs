@@ -195,7 +195,7 @@ impl DbSetup for TwoMeasurementsPredicatePushDown {
             "restaurant,town=tewsbury count=471u,system=6.0 110",
             "restaurant,town=lexington count=372u,system=5.0 100",
             "restaurant,town=lawrence count=872u,system=6.0 110",
-            "restaurant,town=reading count=632u,system=5.0 120",
+            "restaurant,town=reading count=632u,system=6.0 130",
             "school,town=reading count=17u,system=6.0 150",
             "school,town=andover count=25u,system=6.0 160",
         ];
