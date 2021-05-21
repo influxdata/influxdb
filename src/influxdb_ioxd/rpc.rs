@@ -7,6 +7,7 @@ use tokio_stream::wrappers::TcpListenerStream;
 use server::{ConnectionManager, Server};
 use snafu::{ResultExt, Snafu};
 use tokio_util::sync::CancellationToken;
+use tonic::transport::NamedService;
 
 pub mod error;
 mod flight;
@@ -29,6 +30,23 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+fn service_name<S: NamedService>(_service: &S) -> &'static str {
+    S::NAME
+}
+
+macro_rules! add_service {
+    ($builder:ident, $health_reporter:ident, $status:expr, $($tail:tt)* ) => {{
+        add_service!(@internal $ builder, $health_reporter, $status, $($tail)* );
+        $builder
+    }};
+    (@internal $builder:ident, $health_reporter:ident, $status:expr, [ $($x:expr),* $(,)*] $(,)*) => {
+        $(
+          $health_reporter.set_service_status(service_name(&$x), $status).await;
+          let $builder = $builder.add_service($x);
+        )*
+    };
+}
+
 /// Instantiate a server listening on the specified address
 /// implementing the IOx, Storage, and Flight gRPC interfaces, the
 /// underlying hyper server instance. Resolves when the server has
@@ -49,30 +67,25 @@ where
         .build()
         .context(ReflectionError)?;
 
-    let services = [
-        generated_types::STORAGE_SERVICE,
-        generated_types::IOX_TESTING_SERVICE,
-        generated_types::ARROW_SERVICE,
-    ];
+    let mut builder = tonic::transport::Server::builder();
 
-    for service in &services {
-        health_reporter
-            .set_service_status(service, tonic_health::ServingStatus::Serving)
-            .await;
-    }
+    let builder = add_service!(
+        builder,
+        health_reporter,
+        tonic_health::ServingStatus::Serving,
+        [
+            health_service,
+            reflection_service,
+            testing::make_server(),
+            storage::make_server(Arc::clone(&server), Arc::clone(&server.registry),),
+            flight::make_server(Arc::clone(&server)),
+            write::make_server(Arc::clone(&server)),
+            management::make_server(Arc::clone(&server)),
+            operations::make_server(Arc::clone(&server)),
+        ],
+    );
 
-    tonic::transport::Server::builder()
-        .add_service(health_service)
-        .add_service(reflection_service)
-        .add_service(testing::make_server())
-        .add_service(storage::make_server(
-            Arc::clone(&server),
-            Arc::clone(&server.registry),
-        ))
-        .add_service(flight::make_server(Arc::clone(&server)))
-        .add_service(write::make_server(Arc::clone(&server)))
-        .add_service(management::make_server(Arc::clone(&server)))
-        .add_service(operations::make_server(server))
+    builder
         .serve_with_incoming_shutdown(stream, shutdown.cancelled())
         .await
         .context(TransportError)
