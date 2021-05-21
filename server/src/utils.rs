@@ -1,6 +1,6 @@
 use data_types::{
     chunk_metadata::{ChunkStorage, ChunkSummary},
-    database_rules::{DatabaseRules, WriteBufferRollover},
+    database_rules::DatabaseRules,
     server_id::ServerId,
     DatabaseName,
 };
@@ -8,7 +8,6 @@ use object_store::{memory::InMemory, ObjectStore};
 use query::{exec::Executor, Database};
 
 use crate::{
-    buffer::Buffer,
     db::{load_or_create_preserved_catalog, Db},
     JobRegistry,
 };
@@ -33,7 +32,6 @@ pub struct TestDbBuilder {
     server_id: Option<ServerId>,
     object_store: Option<Arc<ObjectStore>>,
     db_name: Option<DatabaseName<'static>>,
-    write_buffer: bool,
     worker_cleanup_avg_sleep: Option<Duration>,
 }
 
@@ -56,19 +54,6 @@ impl TestDbBuilder {
         let exec = Arc::new(Executor::new(1));
         let metrics_registry = Arc::new(metrics::MetricRegistry::new());
 
-        let write_buffer = if self.write_buffer {
-            let max = 1 << 32;
-            let segment = 1 << 16;
-            Some(Buffer::new(
-                max,
-                segment,
-                WriteBufferRollover::ReturnError,
-                false,
-                server_id,
-            ))
-        } else {
-            None
-        };
         let preserved_catalog = load_or_create_preserved_catalog(
             db_name.as_str(),
             Arc::clone(&object_store),
@@ -92,7 +77,6 @@ impl TestDbBuilder {
                 server_id,
                 object_store,
                 exec,
-                write_buffer,
                 Arc::new(JobRegistry::new()),
                 preserved_catalog,
             ),
@@ -111,11 +95,6 @@ impl TestDbBuilder {
 
     pub fn db_name<T: Into<Cow<'static, str>>>(mut self, db_name: T) -> Self {
         self.db_name = Some(DatabaseName::new(db_name).unwrap());
-        self
-    }
-
-    pub fn write_buffer(mut self, enabled: bool) -> Self {
-        self.write_buffer = enabled;
         self
     }
 

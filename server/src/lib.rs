@@ -86,7 +86,7 @@ use data_types::{
     server_id::ServerId,
     {DatabaseName, DatabaseNameError},
 };
-use entry::{lines_to_sharded_entries, Entry, OwnedSequencedEntry, ShardedEntry};
+use entry::{lines_to_sharded_entries, Entry, ShardedEntry};
 use influxdb_line_protocol::ParsedLine;
 use internal_types::once::OnceNonZeroU32;
 use metrics::{KeyValue, MetricObserverBuilder, MetricRegistry};
@@ -106,7 +106,6 @@ use influxdb_iox_client::{connection::Builder, write};
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
 
-pub mod buffer;
 mod config;
 pub mod db;
 
@@ -781,19 +780,6 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    pub async fn handle_sequenced_entry(
-        &self,
-        db: &Db,
-        sequenced_entry: OwnedSequencedEntry,
-    ) -> Result<()> {
-        db.store_sequenced_entry(Arc::new(sequenced_entry))
-            .map_err(|e| Error::UnknownDatabaseError {
-                source: Box::new(e),
-            })?;
-
-        Ok(())
-    }
-
     pub fn db(&self, name: &DatabaseName<'_>) -> Option<Arc<Db>> {
         self.config.db(name)
     }
@@ -992,15 +978,6 @@ pub trait RemoteServer {
     /// Sends an Entry to the remote server. An IOx server acting as a
     /// router/sharder will call this method to send entries to remotes.
     async fn write_entry(&self, db: &str, entry: Entry) -> Result<(), ConnectionManagerError>;
-
-    /// Sends a SequencedEntry to the remote server. An IOx server acting as a
-    /// write buffer will call this method to replicate to other write
-    /// buffer servers or to send data to downstream subscribers.
-    async fn write_sequenced_entry(
-        &self,
-        db: &str,
-        sequenced_entry: OwnedSequencedEntry,
-    ) -> Result<(), ConnectionManagerError>;
 }
 
 /// The connection manager maps a host identifier to a remote server.
@@ -1054,17 +1031,6 @@ impl RemoteServer for RemoteServerImpl {
             .write_entry(db_name, entry)
             .await
             .context(RemoteServerWriteError)
-    }
-
-    /// Sends a SequencedEntry to the remote server. An IOx server acting as a
-    /// write buffer will call this method to replicate to other write
-    /// buffer servers or to send data to downstream subscribers.
-    async fn write_sequenced_entry(
-        &self,
-        _db: &str,
-        _sequenced_entry: OwnedSequencedEntry,
-    ) -> Result<(), ConnectionManagerError> {
-        unimplemented!()
     }
 }
 
@@ -1197,7 +1163,6 @@ mod tests {
             partition_template: PartitionTemplate {
                 parts: vec![TemplatePart::TimeFormat("YYYY-MM".to_string())],
             },
-            write_buffer_config: None,
             lifecycle_rules: Default::default(),
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
@@ -1294,7 +1259,6 @@ mod tests {
             partition_template: PartitionTemplate {
                 parts: vec![TemplatePart::TimeFormat("YYYY-MM".to_string())],
             },
-            write_buffer_config: None,
             lifecycle_rules: Default::default(),
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
@@ -1726,14 +1690,6 @@ mod tests {
         ) -> Result<(), ConnectionManagerError> {
             self.written.store(true, Ordering::Relaxed);
             Ok(())
-        }
-
-        async fn write_sequenced_entry(
-            &self,
-            _db: &str,
-            _sequenced_entry: OwnedSequencedEntry,
-        ) -> Result<(), ConnectionManagerError> {
-            unimplemented!()
         }
     }
 

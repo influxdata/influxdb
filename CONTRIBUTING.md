@@ -189,10 +189,9 @@ cargo clippy --all-targets --workspace -- -D warnings
 
 ## Upgrading the `flatbuffers` crate
 
-IOx uses Flatbuffers for its write buffer. The structure is defined in
-[`generated_types/protos/write_buffer.fbs`]. We have then used the `flatc` Flatbuffers compiler to
-generate the corresponding Rust code in [`generated_types/src/write_buffer_generated.rs`], which
-is checked in to the repository.
+IOx uses Flatbuffers for some of its messages. The structure is defined in [`entry/src/entry.fbs`].
+We have then used the `flatc` Flatbuffers compiler to generate the corresponding Rust code in
+[`entry/src/entry_generated.rs`], which is checked in to the repository.
 
 The checked-in code is compatible with the `flatbuffers` crate version in the `Cargo.lock` file. If
 upgrading the version of the `flatbuffers` crate that IOx depends on, the generated code will need
@@ -200,6 +199,6 @@ to be updated as well.
 
 Instructions for updating the generated code are in [`docs/regenerating_flatbuffers.md`].
 
-[`generated_types/protos/write_buffer.fbs`]: generated_types/protos/write_buffer.fbs
-[`generated_types/src/write_buffer_generated.rs`]: generated_types/src/write_buffer_generated.rs
+[`entry/src/entry.fbs`]: entry/src/entry.fbs
+[`entry/src/entry_generated.rs`]: entry/src/entry_generated.rs
 [`docs/regenerating_flatbuffers.md`]: docs/regenerating_flatbuffers.md

@@ -32,58 +32,6 @@ message PartitionTemplate {
   repeated Part parts = 1;
 }
 
-message WriteBufferConfig {
-  enum Rollover {
-    ROLLOVER_UNSPECIFIED = 0;
-
-    // Drop the old segment even though it hasn't been persisted. This part of
-    // the Write Buffer will be lost on this server.
-    ROLLOVER_DROP_OLD_SEGMENT = 1;
-
-    // Drop the incoming write and fail silently. This favors making sure that
-    // older Write Buffer data will be backed up.
-    ROLLOVER_DROP_INCOMING = 2;
-
-    // Reject the incoming write and return an error. The client may retry the
-    // request, which will succeed once the oldest segment has been
-    // persisted to object storage.
-    ROLLOVER_RETURN_ERROR = 3;
-  }
-
-  // The size the Write Buffer should be limited to. Once the buffer gets to
-  // this size it will drop old segments to remain below this size, but
-  // still try to hold as much in memory as possible while remaining
-  // below this threshold
-  uint64 buffer_size = 1;
-
-  // Write Buffer segments become read-only after crossing over this size,
-  // which means that segments will always be >= this size. When old segments
-  // are dropped from of memory, at least this much space will be freed from
-  // the buffer.
-  uint64 segment_size = 2;
-
-  // What should happen if a write comes in that would exceed the Write Buffer
-  // size and the oldest segment that could be dropped hasn't yet been
-  // persisted to object storage. If the oldest segment has been
-  // persisted, then it will be dropped from the buffer so that new writes
-  // can be accepted. This option is only for defining the behavior of what
-  // happens if that segment hasn't been persisted. If set to return an
-  // error, new writes will be rejected until the oldest segment has been
-  // persisted so that it can be cleared from memory. Alternatively, this
-  // can be set so that old segments are dropped even if they haven't been
-  // persisted. This setting is also useful for cases where persistence
-  // isn't being used and this is only for in-memory buffering.
-  Rollover buffer_rollover = 3;
-
-  // If set to true, buffer segments will be written to object storage.
-  bool persist_segments = 4;
-
-  // If set, segments will be rolled over after this period of time even
-  // if they haven't hit the size threshold. This allows them to be written
-  // out to object storage as they must be immutable first.
-  google.protobuf.Duration close_segment_after = 5;
-}
-
 message LifecycleRules {
   message SortOrder {
     message ColumnSort {
@@ -173,9 +121,6 @@ message DatabaseRules {
 
   // Configures how data flows through the system
   LifecycleRules lifecycle_rules = 3;
-
-  // Write Buffer configuration for this database
-  WriteBufferConfig write_buffer_config = 6;
 
   oneof routing_rules {
     // Shard config

@@ -150,16 +150,11 @@ impl Config {
             return;
         }
 
-        let write_buffer = rules
-            .write_buffer_config
-            .as_ref()
-            .map(|config| crate::buffer::Buffer::new_from_config(config, server_id));
         let db = Arc::new(Db::new(
             rules,
             server_id,
             object_store,
             exec,
-            write_buffer,
             Arc::clone(&self.jobs),
             preserved_catalog,
         ));
