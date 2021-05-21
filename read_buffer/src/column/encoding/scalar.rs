@@ -31,9 +31,9 @@ where
         format!(
             "SCALAR_{}",
             match &self {
-                Self::Fixed(enc) => enc.name(),
-                Self::FixedNullable(enc) => enc.name(),
-                Self::RLE(enc) => enc.name(),
+                Self::Fixed(c) => c.name(),
+                Self::FixedNullable(c) => c.name(),
+                Self::RLE(c) => c.name(),
             }
         )
     }
@@ -41,30 +41,30 @@ where
     /// The total size in bytes of to store columnar data in memory.
     pub fn size(&self) -> usize {
         match self {
-            Self::Fixed(enc) => enc.size(),
-            Self::FixedNullable(enc) => enc.size(),
-            Self::RLE(enc) => enc.size(),
+            Self::Fixed(c) => c.size(),
+            Self::FixedNullable(c) => c.size(),
+            Self::RLE(c) => c.size(),
         }
     }
 
-    /// The estimated total size in bytes of the underlying float values in the
+    /// The estimated total size in bytes of the underlying values in the
     /// column if they were stored contiguously and uncompressed. `include_nulls`
-    /// will effectively size each NULL value as 8b if `true`.
+    /// will effectively size each NULL value as the size of `T` if `true`.
     pub fn size_raw(&self, include_nulls: bool) -> usize {
         match self {
             // this will be the size of a Vec<T>
-            Self::Fixed(enc) => size_of::<Vec<T>>() + (enc.num_rows() as usize * size_of::<T>()),
-            Self::FixedNullable(enc) => enc.size_raw(include_nulls),
-            Self::RLE(enc) => enc.size_raw(include_nulls),
+            Self::Fixed(c) => size_of::<Vec<T>>() + (c.num_rows() as usize * size_of::<T>()),
+            Self::FixedNullable(c) => c.size_raw(include_nulls),
+            Self::RLE(c) => c.size_raw(include_nulls),
         }
     }
 
     /// The total number of rows in the column.
     pub fn num_rows(&self) -> u32 {
         match self {
-            Self::Fixed(enc) => enc.num_rows(),
-            Self::FixedNullable(enc) => enc.num_rows(),
-            Self::RLE(enc) => enc.num_rows(),
+            Self::Fixed(c) => c.num_rows(),
+            Self::FixedNullable(c) => c.num_rows(),
+            Self::RLE(c) => c.num_rows(),
         }
     }
 
@@ -72,8 +72,8 @@ where
     pub fn contains_null(&self) -> bool {
         match self {
             Self::Fixed(_) => false,
-            Self::FixedNullable(enc) => enc.contains_null(),
-            Self::RLE(enc) => enc.contains_null(),
+            Self::FixedNullable(c) => c.contains_null(),
+            Self::RLE(c) => c.contains_null(),
         }
     }
 
@@ -81,8 +81,8 @@ where
     pub fn null_count(&self) -> u32 {
         match self {
             Self::Fixed(_) => 0,
-            Self::FixedNullable(enc) => enc.null_count(),
-            Self::RLE(enc) => enc.null_count(),
+            Self::FixedNullable(c) => c.null_count(),
+            Self::RLE(c) => c.null_count(),
         }
     }
 
@@ -90,8 +90,8 @@ where
     pub fn has_any_non_null_value(&self) -> bool {
         match self {
             Self::Fixed(_) => true,
-            Self::FixedNullable(enc) => enc.has_any_non_null_value(),
-            Self::RLE(enc) => enc.has_any_non_null_value(),
+            Self::FixedNullable(c) => c.has_any_non_null_value(),
+            Self::RLE(c) => c.has_any_non_null_value(),
         }
     }
 
@@ -100,8 +100,8 @@ where
     pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
         match self {
             Self::Fixed(_) => !row_ids.is_empty(), // all rows will be non-null
-            Self::FixedNullable(enc) => enc.has_non_null_value(row_ids),
-            Self::RLE(enc) => enc.has_non_null_value(row_ids),
+            Self::FixedNullable(c) => c.has_non_null_value(row_ids),
+            Self::RLE(c) => c.has_non_null_value(row_ids),
         }
     }
 
@@ -145,6 +145,11 @@ where
         }
     }
 
+    /// Produce encoded values for the provided row IDs. Typically for scalars
+    /// these are integer representations of the underlying values.
+    ///
+    /// TODO(edd): this is used in grouping and aggregating, which isn't hooked
+    /// up yet.
     pub fn encoded_values<U>(&self, row_ids: &[u32]) -> Vec<U>
     where
         U: From<T> + From<A::Native>,
@@ -191,10 +196,15 @@ where
         low: (T, &cmp::Operator),
         high: (T, &cmp::Operator),
         dst: RowIDs,
-    ) -> RowIDs {
+    ) -> RowIDs
+    where
+        T: Into<A::Native>,
+    {
         match &self {
             Self::Fixed(c) => c.row_ids_filter_range((low.0, &low.1), (high.0, &high.1), dst),
-            Self::FixedNullable(_) => todo!(),
+            Self::FixedNullable(c) => {
+                c.row_ids_filter_range((low.0.into(), &low.1), (high.0.into(), &high.1), dst)
+            }
             Self::RLE(c) => c.row_ids_filter_range((low.0, &low.1), (high.0, &high.1), dst),
         }
     }
@@ -248,9 +258,9 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Fixed(enc) => enc.fmt(f),
-            Self::FixedNullable(enc) => enc.fmt(f),
-            Self::RLE(enc) => enc.fmt(f),
+            Self::Fixed(c) => c.fmt(f),
+            Self::FixedNullable(c) => c.fmt(f),
+            Self::RLE(c) => c.fmt(f),
         }
     }
 }
@@ -360,10 +370,10 @@ mod test_super {
 
     #[test]
     fn size_raw() {
-        let enc: ScalarEncoding<u32, UInt32Type> =
+        let c: ScalarEncoding<u32, UInt32Type> =
             ScalarEncoding::Fixed(Fixed::from_iter(vec![2_u32, 22, 12, 31]));
         // (4 * 4) + 24
-        assert_eq!(enc.size_raw(true), 40);
-        assert_eq!(enc.size_raw(false), 40);
+        assert_eq!(c.size_raw(true), 40);
+        assert_eq!(c.size_raw(false), 40);
     }
 }

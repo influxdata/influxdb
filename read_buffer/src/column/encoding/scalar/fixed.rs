@@ -21,7 +21,7 @@ use arrow::array::Array;
 
 use crate::column::{cmp, RowIDs};
 
-pub const ENCODING_NAME: &str = "VEC";
+pub const ENCODING_NAME: &str = "FIXED";
 
 #[derive(Debug, Default, PartialEq, PartialOrd)]
 /// A Fixed encoding is one in which every value has a fixed width, and is

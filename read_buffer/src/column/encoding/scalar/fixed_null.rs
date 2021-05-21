@@ -23,7 +23,7 @@ use arrow::{
     datatypes::ArrowNumericType,
 };
 
-pub const ENCODING_NAME: &str = "VECN";
+pub const ENCODING_NAME: &str = "FIXEDN";
 
 #[derive(Debug, PartialEq)]
 pub struct FixedNull<T>
