@@ -96,17 +96,13 @@ impl DbChunk {
             ChunkState::Invalid => {
                 panic!("Invalid internal state");
             }
-            ChunkState::Open(chunk) | ChunkState::Closed(chunk) => State::MutableBuffer {
+            ChunkState::Open(chunk) => State::MutableBuffer {
                 chunk: chunk.snapshot(),
             },
-            ChunkState::Moving(chunk) => State::MutableBuffer {
+            ChunkState::Closed(chunk) => State::MutableBuffer {
                 chunk: chunk.snapshot(),
             },
             ChunkState::Moved(chunk) => State::ReadBuffer {
-                chunk: Arc::clone(chunk),
-                partition_key,
-            },
-            ChunkState::WritingToObjectStore(chunk) => State::ReadBuffer {
                 chunk: Arc::clone(chunk),
                 partition_key,
             },

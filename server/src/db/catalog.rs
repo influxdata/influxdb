@@ -50,7 +50,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Internal unexpected chunk state for {}:{}:{}  during {}. Expected {}, got {}",
+        "Internal Error: unexpected chunk state for {}:{}:{}  during {}. Expected {}, got {}",
         partition_key,
         table_name,
         chunk_id,
@@ -63,6 +63,36 @@ pub enum Error {
         table_name: String,
         chunk_id: u32,
         operation: String,
+        expected: String,
+        actual: String,
+    },
+
+    #[snafu(display(
+        "Internal Error: A lifecycle action '{}' is already in progress for  {}:{}:{}",
+        lifecycle_action,
+        partition_key,
+        table_name,
+        chunk_id,
+    ))]
+    LifecycleActionAlreadyInProgress {
+        partition_key: String,
+        table_name: String,
+        chunk_id: u32,
+        lifecycle_action: String,
+    },
+
+    #[snafu(display(
+        "Internal Error: Unexpected chunk state for {}:{}:{}. Expected {}, got {}",
+        partition_key,
+        table_name,
+        chunk_id,
+        expected,
+        actual
+    ))]
+    UnexpectedLifecycleAction {
+        partition_key: String,
+        table_name: String,
+        chunk_id: u32,
         expected: String,
         actual: String,
     },

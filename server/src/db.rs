@@ -39,7 +39,7 @@ use parquet_file::{
 use query::predicate::{Predicate, PredicateBuilder};
 use query::{exec::Executor, Database, DEFAULT_SCHEMA};
 use read_buffer::{Chunk as ReadBufferChunk, ChunkMetrics as ReadBufferChunkMetrics};
-use snafu::{ensure, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use std::{
     any::Any,
     num::NonZeroUsize,
@@ -88,17 +88,17 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Can not drop chunk {}:{}:{} which is {:?}. Wait for the movement to complete",
+        "Can not drop chunk {}:{}:{} which has an in-progress lifecycle action {}. Wait for this to complete",
         partition_key,
         table_name,
         chunk_id,
-        chunk_state
+        action
     ))]
     DropMovingChunk {
         partition_key: String,
         table_name: String,
         chunk_id: u32,
-        chunk_state: String,
+        action: String,
     },
 
     #[snafu(display(
@@ -507,15 +507,15 @@ impl Db {
             // migration logic cleanup afterwards so that users
             // weren't prevented from dropping chunks due to
             // background tasks
-            ensure!(
-                !matches!(chunk.state(), catalog::chunk::ChunkState::Moving(_)),
-                DropMovingChunk {
+            if let Some(lifecycle_action) = chunk.lifecycle_action() {
+                return DropMovingChunk {
                     partition_key,
                     table_name,
                     chunk_id,
-                    chunk_state,
+                    action: lifecycle_action.name(),
                 }
-            );
+                .fail();
+            }
 
             debug!(%partition_key, %table_name, %chunk_id, %chunk_state, "dropping chunk");
         }
@@ -1392,7 +1392,7 @@ mod tests {
             .has_metric_family("catalog_chunks_total")
             .with_labels(&[
                 ("db_name", "placeholder"),
-                ("state", "closed"),
+                ("state", "moved"),
                 ("svr_id", "1"),
             ])
             .counter()
@@ -1646,7 +1646,7 @@ mod tests {
             .has_metric_family("catalog_chunk_creation_size_bytes")
             .with_labels(&[
                 ("db_name", "placeholder"),
-                ("state", "moving"),
+                ("state", "closed"),
                 ("svr_id", "1"),
             ])
             .histogram()
