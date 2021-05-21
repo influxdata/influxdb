@@ -285,14 +285,13 @@ impl PartitionChunk for DbChunk {
                 Ok(Box::pin(MemoryStream::new(vec![batch])))
             }
             State::ReadBuffer { chunk, .. } => {
-                // Error converting to a rb_predicate needs to fail
+                // Only apply pushdownable predicates
                 let rb_predicate =
                     match to_read_buffer_predicate(&predicate).context(PredicateConversion) {
                         Ok(predicate) => predicate,
                         Err(_) => read_buffer::Predicate::default(),
                     };
 
-                // Still need this for further debugging. Will be removed when done
                 let read_results = chunk
                     .read_filter(table_name, rb_predicate, selection)
                     .context(ReadBufferChunkError {
