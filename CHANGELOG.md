@@ -55,7 +55,7 @@ v1.9.0 [unreleased]
 v1.8.6 [2021-05-21]
 -------------------
 
-Note: No OSS specific changes were made in this release.
+Note: No OSS specific changes were made in this release.  This release was created to support InfluxDB Enterprise 1.8.6.
 
 -	[#21290](https://github.com/influxdata/influxdb/pull/21290): fix: Anti-Entropy loops endlessly with empty shard
 -	[#21452](https://github.com/influxdata/influxdb/pull/21452): chore(ae): add more logging
