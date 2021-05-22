@@ -227,11 +227,6 @@ impl Chunk {
     pub fn rows(&self) -> usize {
         self.table.row_count()
     }
-
-    /// Return true if this chunk has the specified table name
-    pub fn has_table(&self, table_name: &str) -> bool {
-        table_name == self.table_name.as_ref()
-    }
 }
 
 pub mod test_helpers {
