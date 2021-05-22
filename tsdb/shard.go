@@ -1633,6 +1633,10 @@ func (m *MeasurementFields) ForEachField(fn func(name string, typ influxql.DataT
 	}
 }
 
+type returnValueWaiter struct {
+	wg sync.WaitGroup
+	err *error
+}
 // MeasurementFieldSet represents a collection of fields by measurement.
 // This safe for concurrent use.
 type MeasurementFieldSet struct {
@@ -1643,6 +1647,8 @@ type MeasurementFieldSet struct {
 	// ephemeral counters for updating the file on disk
 	memoryVersion  uint64
 	writtenVersion uint64
+	// WaitGroups for running instances by memoryVersion
+	valueWaiters     map[uint64]*returnValueWaiter
 }
 
 // NewMeasurementFieldSet returns a new instance of MeasurementFieldSet.
@@ -1652,6 +1658,7 @@ func NewMeasurementFieldSet(path string) (*MeasurementFieldSet, error) {
 		path:           path,
 		memoryVersion:  0,
 		writtenVersion: 0,
+		valueWaiters: 	make(map[uint64]*returnValueWaiter),
 	}
 
 	// If there is a load error, return the error and an empty set so
@@ -1738,27 +1745,42 @@ func (fs *MeasurementFieldSet) IsEmpty() bool {
 
 func (fs *MeasurementFieldSet) Save() (err error) {
 	// current version
-	var v uint64
-	// Is the MeasurementFieldSet empty?
-	isEmpty := false
-	// marshaled MeasurementFieldSet
+	var v 		uint64
+	var valueWaiter returnValueWaiter
+	waitForResults := false
+	valueWaiter.err = &err
+	valueWaiter.wg.Add(1)
 
-	b, err := func() ([]byte, error) {
+	defer func() {
+		valueWaiter.wg.Done()
 		fs.mu.Lock()
 		defer fs.mu.Unlock()
-		fs.memoryVersion += 1
-		v = fs.memoryVersion
+		delete(fs.valueWaiters, v)
+		fmt.Printf("Leaving %d\n", v)
+	}()
+
+	// Copy the in-memory MeasurementFieldSet into a
+	// marshalled byte slice, 'b', to be written to disk.
+	isEmpty, b, err := func() (bool, []byte, error) {
+		fs.mu.Lock()
+		defer fs.mu.Unlock()
+		v = atomic.AddUint64(&fs.memoryVersion, 1)
+		fmt.Printf("Entering Save for %d\n", v)
+		// Store this invocation's WaitGroup in a map in case
+		// any earlier invocations want to wait on it and
+		// avoid writing to disk.
+		fs.valueWaiters[v] = &valueWaiter
 		// If no fields left, remove the fields index file
 		if len(fs.fields) == 0 {
-			isEmpty = true
-			if err := os.RemoveAll(fs.path); err != nil {
-				return nil, err
+			if e := os.RemoveAll(fs.path); err != nil {
+				return true, nil, e
 			} else {
-				fs.writtenVersion = fs.memoryVersion
-				return nil, nil
+				atomic.StoreUint64(&fs.writtenVersion, v)
+				return false, nil, nil
 			}
 		}
-		return fs.marshalMeasurementFieldSetNoLock()
+		b, e := fs.marshalMeasurementFieldSetNoLock()
+		return false, b, e
 	}()
 
 	if err != nil {
@@ -1775,34 +1797,74 @@ func (fs *MeasurementFieldSet) Save() (err error) {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(path)
+	defer func () {
+		if e := os.RemoveAll(path); err == nil {
+			err = e
+		}
+	}()
 
-	if _, err := fd.Write(fieldsIndexMagicNumber); err != nil {
+	writeFn := func() (halt bool, err error) {
+		defer func() {
+			//close file handle before renaming to support Windows
+			if e := fd.Close(); err == nil {
+				err = e
+			}
+		}()
+
+		isSuperseded := func() (waitForResults bool, err error) {
+			var rvw *returnValueWaiter
+			curMV := atomic.LoadUint64(&fs.memoryVersion)
+			if v <  curMV {
+				// Someone else is right behind us adding fields.
+				// We can stop and let them handle this before we
+				// start the big write of the marshalled data
+				fs.mu.RLock()
+				rvw, waitForResults = fs.valueWaiters[curMV]
+				fs.mu.RUnlock()
+				if waitForResults {
+					fmt.Printf("Waiting for %d in %d\n", curMV, v)
+					rvw.wg.Wait()
+					err = *rvw.err
+					fmt.Printf("Done with  %d in %d returning %v\n", curMV, v, err)
+					return
+				}
+			}
+			waitForResults = false
+			err = nil
+			return
+		}
+
+		if _, err = fd.Write(fieldsIndexMagicNumber); err != nil {
+			return true, err
+		}
+		if waitForResults, err = isSuperseded(); waitForResults {
+			return true, err
+		}
+		if _, err = fd.Write(b); err != nil {
+			return true, err
+		}
+		if  waitForResults, err = isSuperseded(); waitForResults {
+			return true, err
+		}
+		if err = fd.Sync(); err != nil {
+			return true, err
+		}
+		return false, nil
+	}
+
+	if halt, err := writeFn(); err != nil || halt {
 		return err
 	}
 
-	if _, err := fd.Write(b); err != nil {
-		return err
-	}
-
-	if err = fd.Sync(); err != nil {
-		return err
-	}
-
-	//close file handle before renaming to support Windows
-	if err = fd.Close(); err != nil {
-		return err
+	// Check if a later invocation has completed writing
+	// If so, we are successfully done! We were beaten by
+	// a later call to this function
+	if atomic.LoadUint64(&fs.writtenVersion) > v {
+		return nil
 	}
 
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
-
-	// Check if a later modification and save of fields has superseded ours
-	// If so, we are successfully done! We were beaten by a later call
-	// to this function
-	if fs.writtenVersion > v {
-		return nil
-	}
 
 	if err := file.RenameFile(path, fs.path); err != nil {
 		return err
@@ -1812,7 +1874,7 @@ func (fs *MeasurementFieldSet) Save() (err error) {
 		return err
 	}
 	// Update the written version to the current version
-	fs.writtenVersion = v
+	atomic.StoreUint64(&fs.writtenVersion, v)
 	return nil
 }
 
