@@ -52,13 +52,17 @@ v1.9.0 [unreleased]
 -	[#21358](https://github.com/influxdata/influxdb/pull/21358): fix: disable MergeFiltersRule until it is more stable
 -	[#21516](https://github.com/influxdata/influxdb/pull/21516): fix: FGA enablement
 
-v1.8.6 [unreleased]
+v1.8.6 [2021-05-21]
 -------------------
+
+Note: No OSS specific changes were made in this release.  This release was created to support InfluxDB Enterprise 1.8.6.
 
 -	[#21290](https://github.com/influxdata/influxdb/pull/21290): fix: Anti-Entropy loops endlessly with empty shard
 -	[#21452](https://github.com/influxdata/influxdb/pull/21452): chore(ae): add more logging
+-	[#21518](https://github.com/influxdata/influxdb/pull/21518): fix: FGA enablement
 
 v1.8.5 [2021-04-19]
+-------------------
 
 ### Features
 
