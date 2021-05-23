@@ -1826,12 +1826,10 @@ func (fs *MeasurementFieldSet) Save() (err error) {
 					rvw.wg.Wait()
 					err = *rvw.err
 					fmt.Printf("Done with  %d in %d returning %v\n", curMV, v, err)
-					return
+					return true, err
 				}
 			}
-			waitForResults = false
-			err = nil
-			return
+			return false, nil
 		}
 
 		if _, err = fd.Write(fieldsIndexMagicNumber); err != nil {
