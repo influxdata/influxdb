@@ -1634,9 +1634,10 @@ func (m *MeasurementFields) ForEachField(fn func(name string, typ influxql.DataT
 }
 
 type returnValueWaiter struct {
-	wg sync.WaitGroup
+	wg  sync.WaitGroup
 	err *error
 }
+
 // MeasurementFieldSet represents a collection of fields by measurement.
 // This safe for concurrent use.
 type MeasurementFieldSet struct {
@@ -1648,7 +1649,7 @@ type MeasurementFieldSet struct {
 	memoryVersion  uint64
 	writtenVersion uint64
 	// WaitGroups for running instances by memoryVersion
-	valueWaiters     map[uint64]*returnValueWaiter
+	valueWaiters map[uint64]*returnValueWaiter
 }
 
 // NewMeasurementFieldSet returns a new instance of MeasurementFieldSet.
@@ -1658,7 +1659,7 @@ func NewMeasurementFieldSet(path string) (*MeasurementFieldSet, error) {
 		path:           path,
 		memoryVersion:  0,
 		writtenVersion: 0,
-		valueWaiters: 	make(map[uint64]*returnValueWaiter),
+		valueWaiters:   make(map[uint64]*returnValueWaiter),
 	}
 
 	// If there is a load error, return the error and an empty set so
@@ -1745,9 +1746,8 @@ func (fs *MeasurementFieldSet) IsEmpty() bool {
 
 func (fs *MeasurementFieldSet) Save() (err error) {
 	// current version
-	var v 		uint64
+	var v uint64
 	var valueWaiter returnValueWaiter
-	waitForResults := false
 	valueWaiter.err = &err
 	valueWaiter.wg.Add(1)
 
@@ -1797,13 +1797,13 @@ func (fs *MeasurementFieldSet) Save() (err error) {
 	if err != nil {
 		return err
 	}
-	defer func () {
+	defer func() {
 		if e := os.RemoveAll(path); err == nil {
 			err = e
 		}
 	}()
 
-	writeFn := func() (halt bool, err error) {
+	writeFn := func() (shouldHalt bool, err error) {
 		defer func() {
 			//close file handle before renaming to support Windows
 			if e := fd.Close(); err == nil {
@@ -1814,7 +1814,7 @@ func (fs *MeasurementFieldSet) Save() (err error) {
 		isSuperseded := func() (waitForResults bool, err error) {
 			var rvw *returnValueWaiter
 			curMV := atomic.LoadUint64(&fs.memoryVersion)
-			if v <  curMV {
+			if v < curMV {
 				// Someone else is right behind us adding fields.
 				// We can stop and let them handle this before we
 				// start the big write of the marshalled data
@@ -1837,13 +1837,13 @@ func (fs *MeasurementFieldSet) Save() (err error) {
 		if _, err = fd.Write(fieldsIndexMagicNumber); err != nil {
 			return true, err
 		}
-		if waitForResults, err = isSuperseded(); waitForResults {
+		if shouldHalt, err = isSuperseded(); shouldHalt {
 			return true, err
 		}
 		if _, err = fd.Write(b); err != nil {
 			return true, err
 		}
-		if  waitForResults, err = isSuperseded(); waitForResults {
+		if shouldHalt, err = isSuperseded(); shouldHalt {
 			return true, err
 		}
 		if err = fd.Sync(); err != nil {
