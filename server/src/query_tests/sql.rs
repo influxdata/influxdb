@@ -434,7 +434,7 @@ async fn sql_predicate_pushdown() {
         &expected
     );
 
-    // TODO: Make push-down predicates shown in explain verbose. Ticket #1538
+    // TODO: Make push-down predicates shown in explain verbose. Ticket #1538 - actively working on this
     // Check the plan
     // run_sql_test_case!(
     //     TwoMeasurementsPredicatePushDown {},
