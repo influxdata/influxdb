@@ -26,7 +26,12 @@ func buildLogger(options *logOptions, verbose bool) (*zap.Logger, error) {
 		config.Level.SetLevel(zap.DebugLevel)
 	}
 
-	logPath := "winfile:///" + filepath.Abs(options.logPath)
+	logPath, err := filepath.Abs(options.logPath)
+	if err != nil {
+		return nil, err
+	}
+	logPath = "winfile:///" + logPath
+
 	config.OutputPaths = append(config.OutputPaths, logPath)
 	config.ErrorOutputPaths = append(config.ErrorOutputPaths, logPath)
 
