@@ -15,7 +15,9 @@ fn sequenced_entry(c: &mut Criterion) {
         .collect::<Result<Vec<_>, _>>()
         .unwrap();
     let shard_config: Option<&ShardConfig> = None;
-    let sharded_entries = lines_to_sharded_entries(&lines, shard_config, &partitioner(1)).unwrap();
+    let default_time = 456;
+    let sharded_entries =
+        lines_to_sharded_entries(&lines, default_time, shard_config, &partitioner(1)).unwrap();
     let entry = &sharded_entries.first().unwrap().entry;
     let data = entry.data();
     assert_eq!(

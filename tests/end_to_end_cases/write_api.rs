@@ -93,8 +93,10 @@ async fn test_write_entry() {
     let lp_data = vec!["cpu bar=1 10", "cpu bar=2 20"].join("\n");
 
     let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
+    let default_time = 456;
     let sharded_entries =
-        lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(1)).unwrap();
+        lines_to_sharded_entries(&lines, default_time, sharder(1).as_ref(), &partitioner(1))
+            .unwrap();
 
     let entry: Vec<u8> = sharded_entries.into_iter().next().unwrap().entry.into();
 

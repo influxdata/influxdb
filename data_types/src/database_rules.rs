@@ -1,5 +1,5 @@
 use crate::{consistent_hasher::ConsistentHasher, server_id::ServerId, DatabaseName};
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{TimeZone, Utc};
 use influxdb_line_protocol::ParsedLine;
 use regex::Regex;
 use snafu::{OptionExt, Snafu};
@@ -57,11 +57,7 @@ pub struct DatabaseRules {
 }
 
 impl DatabaseRules {
-    pub fn partition_key(
-        &self,
-        line: &ParsedLine<'_>,
-        default_time: &DateTime<Utc>,
-    ) -> Result<String> {
+    pub fn partition_key(&self, line: &ParsedLine<'_>, default_time: i64) -> Result<String> {
         self.partition_template.partition_key(line, default_time)
     }
 
@@ -82,16 +78,12 @@ impl DatabaseRules {
 
 /// Generates a partition key based on the line and the default time.
 pub trait Partitioner {
-    fn partition_key(
-        &self,
-        _line: &ParsedLine<'_>,
-        _default_time: &DateTime<Utc>,
-    ) -> Result<String>;
+    fn partition_key(&self, _line: &ParsedLine<'_>, _default_time: i64) -> Result<String>;
 }
 
 impl Partitioner for DatabaseRules {
-    fn partition_key(&self, line: &ParsedLine<'_>, default_time: &DateTime<Utc>) -> Result<String> {
-        self.partition_key(&line, &default_time)
+    fn partition_key(&self, line: &ParsedLine<'_>, default_time: i64) -> Result<String> {
+        self.partition_key(&line, default_time)
     }
 }
 
@@ -291,7 +283,7 @@ pub struct PartitionTemplate {
 }
 
 impl Partitioner for PartitionTemplate {
-    fn partition_key(&self, line: &ParsedLine<'_>, default_time: &DateTime<Utc>) -> Result<String> {
+    fn partition_key(&self, line: &ParsedLine<'_>, default_time: i64) -> Result<String> {
         let parts: Vec<_> = self
             .parts
             .iter()
@@ -304,10 +296,10 @@ impl Partitioner for PartitionTemplate {
                         None => "".to_string(),
                     },
                 },
-                TemplatePart::TimeFormat(format) => match line.timestamp {
-                    Some(t) => Utc.timestamp_nanos(t).format(&format).to_string(),
-                    None => default_time.format(&format).to_string(),
-                },
+                TemplatePart::TimeFormat(format) => {
+                    let nanos = line.timestamp.unwrap_or(default_time);
+                    Utc.timestamp_nanos(nanos).format(&format).to_string()
+                }
                 _ => unimplemented!(),
             })
             .collect();
@@ -519,6 +511,8 @@ mod tests {
     use super::*;
     use influxdb_line_protocol::parse_lines;
 
+    const ARBITRARY_DEFAULT_TIME: i64 = 456;
+
     #[test]
     fn partition_key_with_table() {
         let template = PartitionTemplate {
@@ -526,7 +520,12 @@ mod tests {
         };
 
         let line = parse_line("cpu foo=1 10");
-        assert_eq!("cpu", template.partition_key(&line, &Utc::now()).unwrap());
+        assert_eq!(
+            "cpu",
+            template
+                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
+                .unwrap()
+        );
     }
 
     #[test]
@@ -536,7 +535,12 @@ mod tests {
         };
 
         let line = parse_line("cpu foo=1 10");
-        assert_eq!("foo_1", template.partition_key(&line, &Utc::now()).unwrap());
+        assert_eq!(
+            "foo_1",
+            template
+                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
+                .unwrap()
+        );
     }
 
     #[test]
@@ -548,7 +552,9 @@ mod tests {
         let line = parse_line("cpu foo=1.1 10");
         assert_eq!(
             "foo_1.1",
-            template.partition_key(&line, &Utc::now()).unwrap()
+            template
+                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
+                .unwrap()
         );
     }
 
@@ -561,7 +567,9 @@ mod tests {
         let line = parse_line("cpu foo=\"asdf\" 10");
         assert_eq!(
             "foo_asdf",
-            template.partition_key(&line, &Utc::now()).unwrap()
+            template
+                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
+                .unwrap()
         );
     }
 
@@ -574,7 +582,9 @@ mod tests {
         let line = parse_line("cpu bar=true 10");
         assert_eq!(
             "bar_true",
-            template.partition_key(&line, &Utc::now()).unwrap()
+            template
+                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
+                .unwrap()
         );
     }
 
@@ -587,7 +597,9 @@ mod tests {
         let line = parse_line("cpu,region=west usage_user=23.2 10");
         assert_eq!(
             "region_west",
-            template.partition_key(&line, &Utc::now()).unwrap()
+            template
+                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
+                .unwrap()
         );
     }
 
@@ -598,7 +610,12 @@ mod tests {
         };
 
         let line = parse_line("cpu,foo=asdf bar=true 10");
-        assert_eq!("", template.partition_key(&line, &Utc::now()).unwrap());
+        assert_eq!(
+            "",
+            template
+                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
+                .unwrap()
+        );
     }
 
     #[test]
@@ -610,7 +627,9 @@ mod tests {
         let line = parse_line("cpu,foo=asdf bar=true 1602338097000000000");
         assert_eq!(
             "2020-10-10 13:54:57",
-            template.partition_key(&line, &Utc::now()).unwrap()
+            template
+                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
+                .unwrap()
         );
     }
 
@@ -625,7 +644,9 @@ mod tests {
         let line = parse_line("cpu,foo=asdf bar=true");
         assert_eq!(
             default_time.format(format_string).to_string(),
-            template.partition_key(&line, &default_time).unwrap()
+            template
+                .partition_key(&line, default_time.timestamp_nanos())
+                .unwrap()
         );
     }
 
@@ -645,7 +666,9 @@ mod tests {
         );
         assert_eq!(
             "cpu-region_west-usage_system_53.1-2020-10-10 13:54:57",
-            template.partition_key(&line, &Utc::now()).unwrap()
+            template
+                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
+                .unwrap()
         );
     }
 

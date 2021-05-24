@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use chrono::Utc;
 use generated_types::{google::FieldViolation, influxdata::iox::write::v1::*};
 use influxdb_line_protocol::parse_lines;
 use observability_deps::tracing::debug;
@@ -25,6 +26,10 @@ where
     ) -> Result<tonic::Response<WriteResponse>, tonic::Status> {
         let request = request.into_inner();
 
+        // The time, in nanoseconds since the epoch, to assign to any points that don't
+        // contain a timestamp
+        let default_time = Utc::now().timestamp_nanos();
+
         let db_name = request.db_name;
         let lp_data = request.lp_data;
         let lp_chars = lp_data.len();
@@ -40,7 +45,7 @@ where
         debug!(%db_name, %lp_chars, lp_line_count, "Writing lines into database");
 
         self.server
-            .write_lines(&db_name, &lines)
+            .write_lines(&db_name, &lines, default_time)
             .await
             .map_err(default_server_error_handler)?;
 

@@ -570,7 +570,15 @@ impl<M: ConnectionManager> Server<M> {
     /// of ShardedEntry which are then sent to other IOx servers based on
     /// the ShardConfig or sent to the local database for buffering in the
     /// WriteBuffer and/or the MutableBuffer if configured.
-    pub async fn write_lines(&self, db_name: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
+    ///
+    /// The provided `default_time` is nanoseconds since the epoch and will be assigned
+    /// to any lines that don't have a timestamp.
+    pub async fn write_lines(
+        &self,
+        db_name: &str,
+        lines: &[ParsedLine<'_>],
+        default_time: i64,
+    ) -> Result<()> {
         self.require_id()?;
 
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
@@ -589,8 +597,9 @@ impl<M: ConnectionManager> Server<M> {
             let rules = db.rules.read();
             let shard_config = &rules.shard_config;
 
-            let sharded_entries = lines_to_sharded_entries(lines, shard_config.as_ref(), &*rules)
-                .context(LineConversion)?;
+            let sharded_entries =
+                lines_to_sharded_entries(lines, default_time, shard_config.as_ref(), &*rules)
+                    .context(LineConversion)?;
 
             let shards = shard_config
                 .as_ref()
@@ -1062,6 +1071,8 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use tempfile::TempDir;
 
+    const ARBITRARY_DEFAULT_TIME: i64 = 456;
+
     // TODO: perhaps switch to a builder pattern.
     fn config_with_metric_registry_and_store(
         object_store: ObjectStore,
@@ -1108,7 +1119,10 @@ mod tests {
         assert!(matches!(resp, Error::IdNotSet));
 
         let lines = parsed_lines("cpu foo=1 10");
-        let resp = server.write_lines("foo", &lines).await.unwrap_err();
+        let resp = server
+            .write_lines("foo", &lines, ARBITRARY_DEFAULT_TIME)
+            .await
+            .unwrap_err();
         assert!(matches!(resp, Error::IdNotSet));
     }
 
@@ -1317,7 +1331,10 @@ mod tests {
 
         let line = "cpu bar=1 10";
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
-        server.write_lines("foo", &lines).await.unwrap();
+        server
+            .write_lines("foo", &lines, ARBITRARY_DEFAULT_TIME)
+            .await
+            .unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).unwrap();
@@ -1357,8 +1374,13 @@ mod tests {
 
         let line = "cpu bar=1 10";
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
-        let sharded_entries = lines_to_sharded_entries(&lines, NO_SHARD_CONFIG, &*db.rules.read())
-            .expect("sharded entries");
+        let sharded_entries = lines_to_sharded_entries(
+            &lines,
+            ARBITRARY_DEFAULT_TIME,
+            NO_SHARD_CONFIG,
+            &*db.rules.read(),
+        )
+        .expect("sharded entries");
 
         let entry = &sharded_entries[0].entry;
         server
@@ -1457,14 +1479,20 @@ mod tests {
         let line = "cpu bar=1 10";
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
 
-        let err = server.write_lines(&db_name, &lines).await.unwrap_err();
+        let err = server
+            .write_lines(&db_name, &lines, ARBITRARY_DEFAULT_TIME)
+            .await
+            .unwrap_err();
         assert!(
             matches!(err, Error::NoRemoteConfigured { node_group } if node_group == remote_ids)
         );
 
         // one remote is configured but it's down and we'll get connection error
         server.update_remote(bad_remote_id, BAD_REMOTE_ADDR.into());
-        let err = server.write_lines(&db_name, &lines).await.unwrap_err();
+        let err = server
+            .write_lines(&db_name, &lines, ARBITRARY_DEFAULT_TIME)
+            .await
+            .unwrap_err();
         assert!(matches!(
             err,
             Error::NoRemoteReachable { errors } if matches!(
@@ -1484,7 +1512,7 @@ mod tests {
         // probability both the remotes will get hit.
         for _ in 0..100 {
             server
-                .write_lines(&db_name, &lines)
+                .write_lines(&db_name, &lines, ARBITRARY_DEFAULT_TIME)
                 .await
                 .expect("cannot write lines");
         }
@@ -1514,7 +1542,10 @@ mod tests {
 
         let line = "cpu bar=1 10";
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
-        server.write_lines(&db_name, &lines).await.unwrap();
+        server
+            .write_lines(&db_name, &lines, ARBITRARY_DEFAULT_TIME)
+            .await
+            .unwrap();
 
         // start the close (note this is not an async)
         let partition_key = "";
@@ -1678,9 +1709,13 @@ mod tests {
         // inserting first line does not trigger hard buffer limit
         let line_1 = "cpu bar=1 10";
         let lines_1: Vec<_> = parse_lines(line_1).map(|l| l.unwrap()).collect();
-        let sharded_entries_1 =
-            lines_to_sharded_entries(&lines_1, NO_SHARD_CONFIG, &*db.rules.read())
-                .expect("first sharded entries");
+        let sharded_entries_1 = lines_to_sharded_entries(
+            &lines_1,
+            ARBITRARY_DEFAULT_TIME,
+            NO_SHARD_CONFIG,
+            &*db.rules.read(),
+        )
+        .expect("first sharded entries");
 
         let entry_1 = &sharded_entries_1[0].entry;
         server
@@ -1691,9 +1726,13 @@ mod tests {
         // inserting second line will
         let line_2 = "cpu bar=2 20";
         let lines_2: Vec<_> = parse_lines(line_2).map(|l| l.unwrap()).collect();
-        let sharded_entries_2 =
-            lines_to_sharded_entries(&lines_2, NO_SHARD_CONFIG, &*db.rules.read())
-                .expect("second sharded entries");
+        let sharded_entries_2 = lines_to_sharded_entries(
+            &lines_2,
+            ARBITRARY_DEFAULT_TIME,
+            NO_SHARD_CONFIG,
+            &*db.rules.read(),
+        )
+        .expect("second sharded entries");
         let entry_2 = &sharded_entries_2[0].entry;
         let res = server.write_entry("foo", entry_2.data().into()).await;
         assert!(matches!(res, Err(super::Error::HardLimitReached {})));

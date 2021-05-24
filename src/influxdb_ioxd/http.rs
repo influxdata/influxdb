@@ -23,6 +23,7 @@ use server::{ConnectionManager, Server as AppServer};
 
 // External crates
 use bytes::{Bytes, BytesMut};
+use chrono::Utc;
 use futures::{self, StreamExt};
 use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use hyper::{http::HeaderValue, Body, Method, Request, Response, StatusCode};
@@ -480,6 +481,10 @@ where
 
     let body = str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
 
+    // The time, in nanoseconds since the epoch, to assign to any points that don't
+    // contain a timestamp
+    let default_time = Utc::now().timestamp_nanos();
+
     let mut num_fields = 0;
     let mut num_lines = 0;
 
@@ -501,43 +506,46 @@ where
         KeyValue::new("path", path),
     ];
 
-    server.write_lines(&db_name, &lines).await.map_err(|e| {
-        let labels = &[
-            metrics::KeyValue::new("status", "error"),
-            metrics::KeyValue::new("db_name", db_name.to_string()),
-        ];
-
-        server
-            .metrics
-            .ingest_lines_total
-            .add_with_labels(num_lines as u64, labels);
-
-        server
-            .metrics
-            .ingest_fields_total
-            .add_with_labels(num_fields as u64, labels);
-
-        server.metrics.ingest_points_bytes_total.add_with_labels(
-            body.len() as u64,
-            &[
+    server
+        .write_lines(&db_name, &lines, default_time)
+        .await
+        .map_err(|e| {
+            let labels = &[
                 metrics::KeyValue::new("status", "error"),
                 metrics::KeyValue::new("db_name", db_name.to_string()),
-            ],
-        );
-        debug!(?e, ?db_name, ?num_lines, "error writing lines");
+            ];
 
-        obs.client_error_with_labels(&metric_kv); // user error
-        match e {
-            server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
-                name: db_name.to_string(),
-            },
-            _ => ApplicationError::WritingPoints {
-                org: write_info.org.clone(),
-                bucket_name: write_info.bucket.clone(),
-                source: Box::new(e),
-            },
-        }
-    })?;
+            server
+                .metrics
+                .ingest_lines_total
+                .add_with_labels(num_lines as u64, labels);
+
+            server
+                .metrics
+                .ingest_fields_total
+                .add_with_labels(num_fields as u64, labels);
+
+            server.metrics.ingest_points_bytes_total.add_with_labels(
+                body.len() as u64,
+                &[
+                    metrics::KeyValue::new("status", "error"),
+                    metrics::KeyValue::new("db_name", db_name.to_string()),
+                ],
+            );
+            debug!(?e, ?db_name, ?num_lines, "error writing lines");
+
+            obs.client_error_with_labels(&metric_kv); // user error
+            match e {
+                server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
+                    name: db_name.to_string(),
+                },
+                _ => ApplicationError::WritingPoints {
+                    org: write_info.org.clone(),
+                    bucket_name: write_info.bucket.clone(),
+                    source: Box::new(e),
+                },
+            }
+        })?;
 
     let labels = &[
         metrics::KeyValue::new("status", "ok"),
