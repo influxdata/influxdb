@@ -66,7 +66,7 @@ func (s *SqlStore) Flush(ctx context.Context) {
 
 	for _, t := range tables {
 		stmt := fmt.Sprintf("DELETE FROM %s", t)
-		err := s.ExecTrans(stmt)
+		err := s.execTrans(stmt)
 		if err != nil {
 			s.log.Fatal("unable to flush sqlite", zap.Error(err))
 		}
@@ -74,7 +74,7 @@ func (s *SqlStore) Flush(ctx context.Context) {
 	s.log.Debug("sqlite data flushed successfully")
 }
 
-func (s *SqlStore) ExecTrans(stmt string) error {
+func (s *SqlStore) execTrans(stmt string) error {
 	// use a lock to prevent two potential simultaneous write operations to the database,
 	// which would throw an error
 	s.mu.Lock()
@@ -100,7 +100,7 @@ func (s *SqlStore) ExecTrans(stmt string) error {
 	return nil
 }
 
-func (s *SqlStore) UserVersion() (int, error) {
+func (s *SqlStore) userVersion() (int, error) {
 	stmt := `PRAGMA user_version`
 	res, err := s.queryToStrings(stmt)
 	if err != nil {

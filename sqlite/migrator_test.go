@@ -16,7 +16,7 @@ func TestUp(t *testing.T) {
 	defer clean(t)
 
 	// a new database should have a user_version of 0
-	v, err := store.UserVersion()
+	v, err := store.userVersion()
 	require.NoError(t, err)
 	require.Equal(t, 0, v)
 
@@ -24,7 +24,7 @@ func TestUp(t *testing.T) {
 	migrator.Up(&test_migrations.All{})
 
 	// user_version should now be 3 after applying the migrations
-	v, err = store.UserVersion()
+	v, err = store.userVersion()
 	require.NoError(t, err)
 	require.Equal(t, 3, v)
 }

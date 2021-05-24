@@ -27,7 +27,7 @@ func NewMigrator(store *SqlStore, log *zap.Logger) *Migrator {
 
 func (m *Migrator) Up(source MigrationSource) error {
 	// get the current value for user_version from the database
-	c, err := m.store.UserVersion()
+	c, err := m.store.userVersion()
 	if err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func (m *Migrator) Up(source MigrationSource) error {
 		if v > c {
 			m.log.Debug("Executing metadata migration", zap.String("migration_name", n))
 			stmt := source.MustAssetString(n)
-			err := m.store.ExecTrans(stmt)
+			err := m.store.execTrans(stmt)
 			if err != nil {
 				return err
 			}

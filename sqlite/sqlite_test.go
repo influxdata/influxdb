@@ -16,10 +16,10 @@ func TestFlush(t *testing.T) {
 	store, clean := newTestStore(t)
 	defer clean(t)
 
-	err := store.ExecTrans(`CREATE TABLE test_table_1 (id TEXT NOT NULL PRIMARY KEY)`)
+	err := store.execTrans(`CREATE TABLE test_table_1 (id TEXT NOT NULL PRIMARY KEY)`)
 	require.NoError(t, err)
 
-	err = store.ExecTrans(`INSERT INTO test_table_1 (id) VALUES ("one"), ("two"), ("three")`)
+	err = store.execTrans(`INSERT INTO test_table_1 (id) VALUES ("one"), ("two"), ("three")`)
 	require.NoError(t, err)
 
 	vals, err := store.queryToStrings(`SELECT * FROM test_table_1`)
@@ -39,10 +39,10 @@ func TestUserVersion(t *testing.T) {
 	store, clean := newTestStore(t)
 	defer clean(t)
 
-	err := store.ExecTrans(`PRAGMA user_version=12`)
+	err := store.execTrans(`PRAGMA user_version=12`)
 	require.NoError(t, err)
 
-	got, err := store.UserVersion()
+	got, err := store.userVersion()
 	require.NoError(t, err)
 	require.Equal(t, 12, got)
 }
@@ -53,7 +53,7 @@ func TestTableNames(t *testing.T) {
 	store, clean := newTestStore(t)
 	defer clean(t)
 
-	err := store.ExecTrans(`CREATE TABLE test_table_1 (id TEXT NOT NULL PRIMARY KEY);
+	err := store.execTrans(`CREATE TABLE test_table_1 (id TEXT NOT NULL PRIMARY KEY);
 	CREATE TABLE test_table_3 (id TEXT NOT NULL PRIMARY KEY);
 	CREATE TABLE test_table_2 (id TEXT NOT NULL PRIMARY KEY);`)
 	require.NoError(t, err)
