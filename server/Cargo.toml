@@ -5,9 +5,9 @@ authors = ["pauldix <paul@pauldix.net>"]
 edition = "2018"
 
 [dependencies] # In alphabetical order
-arrow = { path = "../arrow" }
+arrow = "4.0"
 arrow_util = { path = "../arrow_util" }
-arrow_flight = { path = "../arrow_flight" }
+arrow-flight = "4.0"
 async-trait = "0.1"
 bytes = { version = "1.0" }
 chrono = "0.4"
@@ -62,4 +62,3 @@ bench = ["mutable_buffer/nocache"]
 [[bench]]
 name = "influxrpc"
 harness = false
-

@@ -14,7 +14,7 @@ edition = "2018"
 # 2. Keep change/compile/link time down during development when working on just this crate
 
 [dependencies] # In alphabetical order
-arrow = { path = "../arrow" }
+arrow = { version = "4.0" }
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 data_types = { path = "../data_types" }
@@ -29,7 +29,6 @@ tokio = { version = "1.0", features = ["macros"] }
 tracker = { path = "../tracker" }
 
 [dev-dependencies] # In alphabetical order
-arrow_util = { path = "../arrow_util" }
 test_helpers = { path = "../test_helpers" }
 criterion = "0.3"
 flate2 = "1.0.20"

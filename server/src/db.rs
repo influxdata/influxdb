@@ -1136,7 +1136,7 @@ impl CatalogState for Catalog {
             read_schema_from_parquet_metadata(&info.metadata).context(SchemaReadFailed {
                 path: info.path.clone(),
             })?;
-        let (table_summary, timestamp_range) =
+        let table_summary =
             read_statistics_from_parquet_metadata(&info.metadata, &schema, &table_name).context(
                 StatisticsReadFailed {
                     path: info.path.clone(),
@@ -1155,7 +1155,6 @@ impl CatalogState for Catalog {
             object_store.path_from_dirs_and_filename(info.path.clone()),
             object_store,
             schema,
-            timestamp_range,
             metrics,
         );
         let parquet_chunk = Arc::new(parquet_chunk);

@@ -77,10 +77,9 @@ impl Chunk {
         file_location: Path,
         store: Arc<ObjectStore>,
         schema: Schema,
-        range: Option<TimestampRange>,
         metrics: ChunkMetrics,
     ) -> Self {
-        let table = Table::new(table_summary, file_location, store, schema, range);
+        let table = Table::new(table_summary, file_location, store, schema);
 
         let mut chunk = Self {
             partition_key: part_key.into(),
@@ -128,11 +127,6 @@ impl Chunk {
         self.table.schema(selection).context(NamedTableError {
             table_name: self.table_name(),
         })
-    }
-
-    /// Return the timestamp range of the table
-    pub fn timestamp_range(&self) -> Option<TimestampRange> {
-        self.table.timestamp_range()
     }
 
     // Return all tables of this chunk whose timestamp overlaps with the give one
