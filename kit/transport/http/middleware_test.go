@@ -67,6 +67,21 @@ func Test_normalizePath(t *testing.T) {
 			path:     "/api/v2/backup/shards/1005/extra",
 			expected: path.Join("/api/v2/backup/shards/", shardSlug, "extra"),
 		},
+		{
+			name:     "11",
+			path:     "/35bb8d560d.ttf",
+			expected: "/" + fileSlug + ".ttf",
+		},
+		{
+			name:     "12",
+			path:     "/35bb8d560d.woff",
+			expected: "/" + fileSlug + ".woff",
+		},
+		{
+			name:     "13",
+			path:     "/35bb8d560d.eot",
+			expected: "/" + fileSlug + ".eot",
+		},
 	}
 
 	for _, tt := range tests {

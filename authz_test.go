@@ -1,10 +1,10 @@
 package influxdb_test
 
 import (
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
 	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
@@ -325,6 +325,7 @@ func TestPermissionAllResources_Valid(t *testing.T) {
 		platform.BucketsResourceType,
 		platform.DashboardsResourceType,
 		platform.SourcesResourceType,
+		platform.DashboardsResourceType,
 	}
 
 	for _, rt := range resources {

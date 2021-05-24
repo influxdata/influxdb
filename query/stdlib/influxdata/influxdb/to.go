@@ -6,9 +6,6 @@ import (
 	"sort"
 	"time"
 
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/compiler"
@@ -21,6 +18,8 @@ import (
 	"github.com/influxdata/flux/stdlib/kafka"
 	"github.com/influxdata/flux/values"
 	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/query"
@@ -29,7 +28,7 @@ import (
 
 const (
 	// ToKind is the kind for the `to` flux function
-	ToKind = influxdb.ToKind
+	ToKind = "influx2x/toKind"
 
 	// TODO(jlapacik) remove this once we have execute.DefaultFieldColLabel
 	defaultFieldColLabel       = "_field"
@@ -54,7 +53,7 @@ type ToOpSpec struct {
 }
 
 func init() {
-	toSignature := runtime.MustLookupBuiltinType("influxdata/influxdb", ToKind)
+	toSignature := runtime.MustLookupBuiltinType("influxdata/influxdb", influxdb.ToKind)
 	runtime.ReplacePackageValue("influxdata/influxdb", "to", flux.MustValue(flux.FunctionValueWithSideEffect(ToKind, createToOpSpec, toSignature)))
 	flux.RegisterOpSpec(ToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ToKind, newToProcedure, ToKind)

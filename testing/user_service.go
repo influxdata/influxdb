@@ -328,8 +328,9 @@ func FindUsers(
 	t *testing.T,
 ) {
 	type args struct {
-		ID   platform.ID
-		name string
+		ID          platform.ID
+		name        string
+		findOptions influxdb.FindOptions
 	}
 
 	type wants struct {
@@ -482,6 +483,127 @@ func FindUsers(
 				},
 			},
 		},
+		{
+			name: "find all users by offset and limit",
+			fields: UserFields{
+				Users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "abc",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userTwoID),
+						Name:   "def",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userThreeID),
+						Name:   "xyz",
+						Status: influxdb.Active,
+					},
+				},
+			},
+			args: args{
+				findOptions: influxdb.FindOptions{
+					Offset: 1,
+					Limit:  1,
+				},
+			},
+			wants: wants{
+				users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userTwoID),
+						Name:   "def",
+						Status: influxdb.Active,
+					},
+				},
+			},
+		},
+		{
+			name: "find all users by after and limit",
+			fields: UserFields{
+				Users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "abc",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userTwoID),
+						Name:   "def",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userThreeID),
+						Name:   "xyz",
+						Status: influxdb.Active,
+					},
+				},
+			},
+			args: args{
+				findOptions: influxdb.FindOptions{
+					After: MustIDBase16Ptr(userOneID),
+					Limit: 2,
+				},
+			},
+			wants: wants{
+				users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userTwoID),
+						Name:   "def",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userThreeID),
+						Name:   "xyz",
+						Status: influxdb.Active,
+					},
+				},
+			},
+		},
+		{
+			name: "find all users by descending",
+			fields: UserFields{
+				Users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "abc",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userTwoID),
+						Name:   "def",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userThreeID),
+						Name:   "xyz",
+						Status: influxdb.Active,
+					},
+				},
+			},
+			args: args{
+				findOptions: influxdb.FindOptions{
+					Offset:     1,
+					Descending: true,
+				},
+			},
+			wants: wants{
+				users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userTwoID),
+						Name:   "def",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "abc",
+						Status: influxdb.Active,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -498,7 +620,7 @@ func FindUsers(
 				filter.Name = &tt.args.name
 			}
 
-			users, _, err := s.FindUsers(ctx, filter)
+			users, _, err := s.FindUsers(ctx, filter, tt.args.findOptions)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(users, tt.wants.users, userCmpOptions...); diff != "" {

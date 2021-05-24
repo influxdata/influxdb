@@ -43,6 +43,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/label"
 	"github.com/influxdata/influxdb/v2/nats"
+	notebookSvc "github.com/influxdata/influxdb/v2/notebooks/service"
 	notebookTransport "github.com/influxdata/influxdb/v2/notebooks/transport"
 	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	ruleservice "github.com/influxdata/influxdb/v2/notification/rule/service"
@@ -897,7 +898,15 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		)
 	}
 
-	notebookServer := notebookTransport.NewNotebookHandler(m.log.With(zap.String("handler", "notebooks")))
+	notebookSvc, err := notebookSvc.NewService()
+	if err != nil {
+		m.log.Error("Failed to initialize notebook service", zap.Error(err))
+		return err
+	}
+	notebookServer := notebookTransport.NewNotebookHandler(
+		m.log.With(zap.String("handler", "notebooks")),
+		authorizer.NewNotebookService(notebookSvc),
+	)
 
 	platformHandler := http.NewPlatformHandler(
 		m.apibackend,

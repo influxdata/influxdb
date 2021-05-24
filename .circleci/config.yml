@@ -30,6 +30,9 @@ workflows:
           requires:
             - godeps
       - e2e-monitor-ci:
+          filters:
+            branches:
+              ignore: /pull\/[0-9]+/
           requires:
             - build
       - grace_daily:
@@ -118,78 +121,9 @@ commands:
             curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
             echo 'export PATH=${HOME}/.cargo/bin:${PATH}' >> $BASH_ENV
 
-  # Run goreleaser to cross-build or cross-publish influxd
-  run_goreleaser:
-    parameters:
-      publish_release:
-        type: boolean
+  # Install dependencies for cross building binaries with goreleaser. Does not include Docker cross-builder.
+  install_cross_bin_deps:
     steps:
-      - when:
-          condition: << parameters.publish_release >>
-          steps:
-            - run:
-                name: Ensure not running from a fork
-                command: |
-                  if [ -n "$CIRCLE_PR_NUMBER" ]; then
-                    echo 'Error: release from fork detected, exiting!'
-                    exit 1
-                  fi
-            - run:
-                name: Import GPG key
-                command: |
-                  echo -e "$GPG_PRIVATE_KEY" > private.key
-                  gpg --batch --import private.key
-            - quay_login
-      - run:
-          name: Set GOPATH
-          # Machine executors use a different GOPATH from the cimg/go Docker executors.
-          command: |
-            echo 'export GOPATH=/home/circleci/go' >> $BASH_ENV
-            echo 'export PATH=${GOPATH}/bin:${PATH}' >> $BASH_ENV
-      - run:
-          name: Install updated Docker
-          command: |
-            export BUILDKIT_PROGRESS=plain
-            export DOCKER_BUILDKIT=1
-            export DOCKER_CLI_EXPERIMENTAL=enabled
-            echo 'export BUILDKIT_PROGRESS=plain' >> $BASH_ENV
-            echo 'export DOCKER_BUILDKIT=1' >> $BASH_ENV
-            echo 'export DOCKER_CLI_EXPERIMENTAL=enabled' >> $BASH_ENV
-
-            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-            sudo add-apt-repository \
-              "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-              $(lsb_release -cs) \
-              stable"
-            sudo apt-get update
-            sudo apt-get install -y \
-              containerd.io \
-              docker-ce \
-              docker-ce-cli
-            sudo service docker restart
-      - run:
-          name: Set up Docker cross-builder
-          command: |
-            # Get jq to parse binfmt output.
-            sudo apt-get update && sudo apt-get install -y jq
-
-            # Uninstall any emulators provided by the system.
-            emulators=($(docker run --rm --privileged tonistiigi/binfmt:latest | jq -r .emulators[]))
-            for e in ${emulators[@]}; do
-              docker run --rm --privileged tonistiigi/binfmt:latest --uninstall ${e}
-            done
-
-            # Install the QEMU emulators we need to cross-build.
-            docker run --rm --privileged tonistiigi/binfmt:latest --install all
-
-            # Create a new buildx context using the freshly-installed emulators.
-            docker buildx create --name cross-builder
-            docker buildx use --default cross-builder
-            docker buildx inspect --bootstrap
-
-            # Build the 1st stage of our Docker(s) on our target platforms, to flush out
-            # any problems in our emulator setup.
-            docker buildx build --target dependency-base --platform linux/amd64,linux/arm64 docker/influxd
       - run:
           name: Install cross-build system dependencies
           command: |
@@ -249,7 +183,7 @@ commands:
       - run:
           name: Install goreleaser
           environment:
-            GORELEASER_VERSION: 0.152.0
+            GORELEASER_VERSION: 0.164.0
           command: |
             curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh && \
               sh goreleaser-install -b ${GOPATH}/bin v${GORELEASER_VERSION} && \
@@ -257,6 +191,74 @@ commands:
       - run:
           name: Install pkg-config
           command: make pkg-config
+
+  # Run goreleaser to cross-build or cross-publish influxd
+  run_goreleaser:
+    parameters:
+      publish_release:
+        type: boolean
+    steps:
+      - when:
+          condition: << parameters.publish_release >>
+          steps:
+            - bail_if_forked
+            - run:
+                name: Import GPG key
+                command: |
+                  echo -e "$GPG_PRIVATE_KEY" > private.key
+                  gpg --batch --import private.key
+            - quay_login
+      - run:
+          name: Set GOPATH
+          # Machine executors use a different GOPATH from the cimg/go Docker executors.
+          command: |
+            echo 'export GOPATH=/home/circleci/go' >> $BASH_ENV
+            echo 'export PATH=${GOPATH}/bin:${PATH}' >> $BASH_ENV
+      - run:
+          name: Install updated Docker
+          command: |
+            export BUILDKIT_PROGRESS=plain
+            export DOCKER_BUILDKIT=1
+            export DOCKER_CLI_EXPERIMENTAL=enabled
+            echo 'export BUILDKIT_PROGRESS=plain' >> $BASH_ENV
+            echo 'export DOCKER_BUILDKIT=1' >> $BASH_ENV
+            echo 'export DOCKER_CLI_EXPERIMENTAL=enabled' >> $BASH_ENV
+
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+            sudo add-apt-repository \
+              "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+              $(lsb_release -cs) \
+              stable"
+            sudo apt-get update
+            sudo apt-get install -y \
+              containerd.io \
+              docker-ce \
+              docker-ce-cli
+            sudo service docker restart
+      - run:
+          name: Set up Docker cross-builder
+          command: |
+            # Get jq to parse binfmt output.
+            sudo apt-get update && sudo apt-get install -y jq
+
+            # Uninstall any emulators provided by the system.
+            emulators=($(docker run --rm --privileged tonistiigi/binfmt:latest | jq -r .emulators[]))
+            for e in ${emulators[@]}; do
+              docker run --rm --privileged tonistiigi/binfmt:latest --uninstall ${e}
+            done
+
+            # Install the QEMU emulators we need to cross-build.
+            docker run --rm --privileged tonistiigi/binfmt:latest --install all
+
+            # Create a new buildx context using the freshly-installed emulators.
+            docker buildx create --name cross-builder
+            docker buildx use --default cross-builder
+            docker buildx inspect --bootstrap
+
+            # Build the 1st stage of our Docker(s) on our target platforms, to flush out
+            # any problems in our emulator setup.
+            docker buildx build --target dependency-base --platform linux/amd64,linux/arm64 docker/influxd
+      - install_cross_bin_deps
       - unless:
           condition: << parameters.publish_release >>
           steps:
@@ -278,17 +280,13 @@ commands:
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
 
   bail_if_forked:
-    parameters:
-      exit_code:
-        type: integer
-        default: 1
     steps:
       - run:
           name: Exit if running from a fork
           command: |
             if [ -n "$CIRCLE_PR_NUMBER" ]; then
               echo 'Error: Running from a fork, exiting!'
-              exit << parameters.exit_code >>
+              exit 1
             fi
 
 jobs:
@@ -506,32 +504,37 @@ jobs:
             - influxdb-build-{{ .Branch }}-{{ .Revision }}
             - influxdb-build-{{ .Branch }}-
       - install_core_deps
-      - run: make build
+      - install_cross_bin_deps
+      # Build the static binary for linux
+      - run: goreleaser build --snapshot --single-target
       - save_cache:
           name: Save GOCACHE
           key: influxdb-build-{{ .Branch }}-{{ .Revision }}
           paths:
             - /tmp/go-cache
       - store_artifacts:
-          path: bin/linux
+          path: dist
       - persist_to_workspace:
           root: .
           paths:
             - project
-            - bin/linux/influxd
-            - bin/linux/influx
+            - dist/influx_linux_amd64/influx
+            - dist/influxd_linux_amd64/influxd
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
-      # if we are running on a fork, exit with success now instead of building & pushing a docker image.
-      - bail_if_forked:
-          exit_code: 0
+      - run:
+          name: Exit the job with success if running on a fork
+          command: |
+            if [ -n "$CIRCLE_PR_NUMBER" ]; then
+                circleci-agent step halt
+            fi
       - setup_remote_docker:
           version: 19.03.13
           docker_layer_caching: true
       - run:
           name: Build the candidate docker image
           command: |
-            cp ./bin/linux/{influx,influxd} .
+            cp dist/influx_linux_amd64/influx . && cp dist/influxd_linux_amd64/influxd .
             docker build -f docker/influxd/Dockerfile -t quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} .
             docker save -o docker-image.tar quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
       - persist_to_workspace:
@@ -618,8 +621,6 @@ jobs:
     docker:
       - image: cimg/go:1.15.6
     steps:
-      # if we are running from a fork, exit with a fail status.
-      - bail_if_forked
       - checkout
       - run:
           name: Run the tests
@@ -639,7 +640,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/project
-      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/smoke/test_smoke.py -e BINARYPATH=/Litmus/result/bin/linux/influxd -e BOLTPATH=/Litmus/result/influxd_test/influxd.bolt -e ENGINEPATH=/Litmus/result/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
+      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/smoke/test_smoke.py -e BINARYPATH=/Litmus/result/dist/influxd_linux_amd64/influxd -e BOLTPATH=/Litmus/result/influxd_test/influxd.bolt -e ENGINEPATH=/Litmus/result/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
       - run:
           name: Litmus Smoke Tests Success
           when: on_success
@@ -660,7 +661,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/project
-      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e INFLUXPATH=/Litmus/result/bin/linux/influx -e BINARYPATH=/Litmus/result/bin/linux/influxd -e BOLTPATH=/tmp/influxd_test/influxd.bolt -e ENGINEPATH=/tmp/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
+      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e INFLUXPATH=/Litmus/result/dist/influx_linux_amd64/influx -e BINARYPATH=/Litmus/result/dist/influxd_linux_amd64/influxd -e BOLTPATH=/tmp/influxd_test/influxd.bolt -e ENGINEPATH=/tmp/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
       - run:
           name: Litmus Integration Tests Success
           when: on_success
@@ -713,7 +714,7 @@ jobs:
       - attach_workspace:
           at: ~/project
       - run:
-          command: ./bin/linux/influxd --store=memory --log-level=debug
+          command: ./dist/influxd_linux_amd64/influxd --store=memory --log-level=debug
           background: true
       - run: mkdir -p ~/project/results
       - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project/results:/grace/test-results/grace-results quay.io/influxdb/grace:daily

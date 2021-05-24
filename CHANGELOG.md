@@ -4,6 +4,8 @@
 
 1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
 1. [21218](https://github.com/influxdata/influxdb/pull/21218): Add the properties of a static legend for line graphs and band plots.
+1. [21367](https://github.com/influxdata/influxdb/pull/21367): List users via the API now supports pagination
+1. [21531](https://github.com/influxdata/influxdb/pull/21531): Remove feature flags for permanent UI features
 
 ### Bug Fixes
 
@@ -11,6 +13,11 @@
 1. [21356](https://github.com/influxdata/influxdb/pull/21356): Disable MergeFiltersRule until it is more stable.
 1. [21369](https://github.com/influxdata/influxdb/pull/21369): Add limits to the `/api/v2/delete` endpoint for start and stop times with error messages.
 1. [21375](https://github.com/influxdata/influxdb/pull/21375): Add logging to NATS streaming server to help debug startup failures.
+1. [21477](https://github.com/influxdata/influxdb/pull/21477): Accept `--input` instead of a positional arg in `influx restore`.
+1. [21477](https://github.com/influxdata/influxdb/pull/21477): Print error instead of panicking when `influx restore` fails to find backup manifests.
+1. [21481](https://github.com/influxdata/influxdb/pull/21481): Set last-modified time of empty shard directory to the directory's mod time instead of Unix epoch.
+1. [21486](https://github.com/influxdata/influxdb/pull/21486): chore: remove erroneous dependency on istio
+1. [21522](https://github.com/influxdata/influxdb/pull/21522): Replace telemetry file name with slug for `ttf`, `woff`, and `eot` files.
 
 ## v2.0.6 [2021-04-29]
 
