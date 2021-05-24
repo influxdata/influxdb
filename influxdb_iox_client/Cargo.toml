@@ -5,13 +5,13 @@ authors = ["Dom Dwyer <dom@itsallbroken.com>"]
 edition = "2018"
 
 [features]
-flight = ["arrow", "arrow_flight", "serde/derive", "serde_json", "futures-util"]
+flight = ["arrow", "arrow-flight", "serde/derive", "serde_json", "futures-util"]
 format = ["arrow"]
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
-arrow = { path = "../arrow", optional = true }
-arrow_flight = { path = "../arrow_flight", optional = true}
+arrow = { version = "4.0", optional = true }
+arrow-flight = { version = "4.0", optional = true}
 generated_types = { path = "../generated_types" }
 
 # Crates.io dependencies, in alphabetical order

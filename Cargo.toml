@@ -8,8 +8,6 @@ readme = "README.md"
 
 [workspace] # In alphabetical order
 members = [
-    "arrow",
-    "arrow_flight",
     "arrow_util",
     "data_types",
     "datafusion",
@@ -30,7 +28,6 @@ members = [
     "observability_deps",
     "packers",
     "panic_logging",
-    "parquet",
     "query",
     "read_buffer",
     "server",
@@ -47,8 +44,6 @@ debug = true
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
-arrow = { path = "arrow" }
-arrow_flight = { path = "arrow_flight" }
 datafusion = { path = "datafusion" }
 data_types = { path = "data_types" }
 generated_types = { path = "generated_types" }
@@ -66,7 +61,6 @@ object_store = { path = "object_store" }
 observability_deps = { path = "observability_deps" }
 packers = { path = "packers" }
 panic_logging = { path = "panic_logging" }
-parquet = { path = "parquet" }
 query = { path = "query" }
 read_buffer = { path = "read_buffer" }
 server = { path = "server" }
@@ -74,6 +68,8 @@ tracker = { path = "tracker" }
 write_buffer = { path = "write_buffer" }
 
 # Crates.io dependencies, in alphabetical order
+arrow = "4.0"
+arrow-flight = "4.0"
 byteorder = "1.3.4"
 bytes = "1.0"
 chrono = "0.4"
@@ -90,6 +86,7 @@ opentelemetry-jaeger = { version = "0.12", features = ["tokio"] }
 opentelemetry-otlp = "0.6"
 parking_lot = "0.11.1"
 itertools = "0.9.0"
+parquet = "4.0"
 # used by arrow/datafusion anyway
 prettytable-rs = "0.8"
 pprof = { version = "^0.4", default-features = false, features = ["flamegraph", "protobuf"] }

@@ -5,7 +5,7 @@ authors = ["Nga Tran <nga-tran@live.com>"]
 edition = "2018"
 
 [dependencies] # In alphabetical order
-arrow = { path = "../arrow" }
+arrow = "4.0"
 bytes = "1.0"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
@@ -18,7 +18,7 @@ object_store = {path = "../object_store"}
 observability_deps = { path = "../observability_deps" }
 # Turn off the "arrow" feature; it currently has a bug that causes the crate to rebuild every time
 # and we're not currently using it anyway
-parquet = { path = "../parquet" }
+parquet = "4.0"
 parquet-format = "2.6"
 parking_lot = "0.11.1"
 prost = "0.7"

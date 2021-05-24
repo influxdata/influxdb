@@ -5,9 +5,9 @@ use arrow::{
     error::Result as ArrowResult,
     record_batch::RecordBatch,
 };
-use datafusion::physical_plan::{
-    common::SizedRecordBatchStream, parquet::RowGroupPredicateBuilder, RecordBatchStream,
-    SendableRecordBatchStream,
+use datafusion::{
+    physical_optimizer::pruning::PruningPredicateBuilder,
+    physical_plan::{common::SizedRecordBatchStream, RecordBatchStream, SendableRecordBatchStream},
 };
 use internal_types::{schema::Schema, selection::Selection};
 use object_store::{
@@ -20,7 +20,7 @@ use parquet::{
         arrow_reader::ParquetFileArrowReader, parquet_to_arrow_schema, ArrowReader, ArrowWriter,
     },
     file::{
-        metadata::ParquetMetaData,
+        metadata::{ParquetMetaData, RowGroupMetaData},
         reader::FileReader,
         serialized_reader::{SerializedFileReader, SliceableCursor},
         writer::TryClone,
@@ -74,6 +74,11 @@ pub enum Error {
 
     #[snafu(display("Error opening file: {}", source))]
     OpenFile { source: std::io::Error },
+
+    #[snafu(display("Error creating pruning predicate: {}", source))]
+    CreatingPredicate {
+        source: datafusion::error::DataFusionError,
+    },
 
     #[snafu(display("Error at serialized file reader: {}", source))]
     SerializedFileReaderError {
@@ -276,13 +281,13 @@ impl Storage {
     pub fn predicate_builder(
         predicate: &Predicate,
         schema: ArrowSchema,
-    ) -> Option<RowGroupPredicateBuilder> {
+    ) -> Option<PruningPredicateBuilder> {
         if predicate.exprs.is_empty() {
             None
         } else {
             // Convert to datafusion's predicate
             let predicate = predicate.filter_expr()?;
-            Some(RowGroupPredicateBuilder::try_new(&predicate, schema).ok()?)
+            Some(PruningPredicateBuilder::try_new(&predicate, schema).ok()?)
         }
     }
 
@@ -355,7 +360,7 @@ impl Storage {
         path: Path,
         store: Arc<ObjectStore>,
         projection: &[usize],
-        predicate_builder: Option<&RowGroupPredicateBuilder>,
+        predicate_builder: Option<&PruningPredicateBuilder>,
         batch_size: usize,
         batches: &mut Vec<Arc<RecordBatch>>,
         limit: Option<usize>,
@@ -375,8 +380,13 @@ impl Storage {
         let schema = read_schema_from_parquet_metadata(metadata)?;
 
         if let Some(predicate_builder) = predicate_builder {
-            let row_group_predicate =
-                predicate_builder.build_row_group_predicate(metadata.row_groups());
+            let predicate_values = predicate_builder
+                .build_pruning_predicate(metadata.row_groups())
+                .context(CreatingPredicate)?;
+
+            let row_group_predicate: Box<dyn Fn(&RowGroupMetaData, usize) -> bool> =
+                Box::new(move |_, i| predicate_values[i]);
+
             reader.filter_row_groups(&row_group_predicate); //filter out
                                                             // row group based
                                                             // on the predicate

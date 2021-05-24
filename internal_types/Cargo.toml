@@ -7,7 +7,7 @@ description = "InfluxDB IOx internal types, shared between IOx instances"
 readme = "README.md"
 
 [dependencies]
-arrow = { path = "../arrow" }
+arrow = "4.0"
 snafu = "0.6"
 observability_deps = { path = "../observability_deps" }
 
