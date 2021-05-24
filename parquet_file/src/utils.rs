@@ -32,7 +32,7 @@ use crate::{
     chunk::{self, Chunk},
     storage::Storage,
 };
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -60,12 +60,12 @@ pub async fn load_parquet_from_store_for_chunk(
     chunk: &Chunk,
     store: Arc<ObjectStore>,
 ) -> Result<(String, Vec<u8>)> {
-    let table = chunk
-        .table_names(None)
-        .next()
-        .context(LoadingFromObjectStore)?;
-    let path = chunk.table_path(&table).context(ReadingChunk)?;
-    Ok((table, load_parquet_from_store_for_path(&path, store).await?))
+    let path = chunk.table_path();
+    let table_name = chunk.table_name().to_string();
+    Ok((
+        table_name,
+        load_parquet_from_store_for_path(&path, store).await?,
+    ))
 }
 
 pub async fn load_parquet_from_store_for_path(
@@ -151,7 +151,6 @@ async fn make_chunk_common(
     let part_key = "part1";
     let table_name = table;
     let chunk_id = 1;
-    let mut chunk = Chunk::new(part_key.to_string(), ChunkMetrics::new_unregistered());
 
     let storage = Storage::new(Arc::clone(&store), server_id, db_name.to_string());
 
@@ -174,15 +173,16 @@ async fn make_chunk_common(
         )
         .await
         .unwrap();
-    chunk.add_table(
+
+    Chunk::new(
+        part_key,
         table_summary,
         path,
         Arc::clone(&store),
         schema,
         Some(time_range),
-    );
-
-    chunk
+        ChunkMetrics::new_unregistered(),
+    )
 }
 
 fn create_column_tag(

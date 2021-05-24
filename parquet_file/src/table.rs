@@ -76,8 +76,8 @@ impl Table {
     }
 
     /// Return name of this table
-    pub fn name(&self) -> String {
-        self.table_summary.name.clone()
+    pub fn name(&self) -> &str {
+        &self.table_summary.name
     }
 
     /// Return the object store path of this table

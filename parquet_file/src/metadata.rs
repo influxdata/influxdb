@@ -492,15 +492,15 @@ mod tests {
 
         // step 1: read back schema
         let schema_actual = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
-        let schema_expected = chunk.table_schema(&table, Selection::All).unwrap();
+        let schema_expected = chunk.table_schema(Selection::All).unwrap();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: read back statistics
         let (table_summary_actual, timestamp_range_actual) =
             read_statistics_from_parquet_metadata(&parquet_metadata, &schema_actual, &table)
                 .unwrap();
-        let table_summary_expected = chunk.table_summaries().first().cloned().unwrap();
-        let timestamp_range_expected = chunk.timestamp_range(&table).unwrap();
+        let table_summary_expected = chunk.table_summary();
+        let timestamp_range_expected = chunk.timestamp_range();
         assert_eq!(table_summary_actual, table_summary_expected);
         assert_eq!(timestamp_range_actual, timestamp_range_expected)
     }
@@ -517,15 +517,15 @@ mod tests {
 
         // step 1: read back schema
         let schema_actual = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
-        let schema_expected = chunk.table_schema(&table, Selection::All).unwrap();
+        let schema_expected = chunk.table_schema(Selection::All).unwrap();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: read back statistics
         let (table_summary_actual, timestamp_range_actual) =
             read_statistics_from_parquet_metadata(&parquet_metadata, &schema_actual, &table)
                 .unwrap();
-        let table_summary_expected = chunk.table_summaries().first().cloned().unwrap();
-        let timestamp_range_expected = chunk.timestamp_range(&table).unwrap();
+        let table_summary_expected = chunk.table_summary();
+        let timestamp_range_expected = chunk.timestamp_range();
         assert_eq!(table_summary_actual, table_summary_expected);
         assert_eq!(timestamp_range_actual, timestamp_range_expected)
     }
@@ -540,7 +540,7 @@ mod tests {
 
         // step 1: read back schema
         let schema_actual = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
-        let schema_expected = chunk.table_schema(&table, Selection::All).unwrap();
+        let schema_expected = chunk.table_schema(Selection::All).unwrap();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: reading back statistics fails
@@ -563,7 +563,7 @@ mod tests {
 
         // step 1: read back schema
         let schema_actual = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
-        let schema_expected = chunk.table_schema(&table, Selection::All).unwrap();
+        let schema_expected = chunk.table_schema(Selection::All).unwrap();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: reading back statistics fails
@@ -592,7 +592,7 @@ mod tests {
 
         // column count in summary including the timestamp column
         assert_eq!(
-            chunk.table_summaries().first().unwrap().columns.len(),
+            chunk.table_summary().columns.len(),
             parquet_metadata
                 .file_metadata()
                 .schema_descr()
@@ -602,7 +602,7 @@ mod tests {
         // check that column counts are consistent
         let n_rows = parquet_metadata.file_metadata().num_rows() as u64;
         assert!(n_rows >= parquet_metadata.num_row_groups() as u64);
-        for summary in &chunk.table_summaries().first().unwrap().columns {
+        for summary in &chunk.table_summary().columns {
             assert_eq!(summary.count(), n_rows);
         }
 
@@ -631,7 +631,7 @@ mod tests {
 
         // column count in summary including the timestamp column
         assert_eq!(
-            chunk.table_summaries().first().unwrap().columns.len(),
+            chunk.table_summary().columns.len(),
             parquet_metadata
                 .file_metadata()
                 .schema_descr()

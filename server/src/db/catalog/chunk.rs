@@ -353,11 +353,7 @@ impl Chunk {
                 assert_eq!(summaries.len(), 1);
                 summaries.remove(0)
             }
-            ChunkState::ObjectStoreOnly(chunk) => {
-                let mut summaries = chunk.table_summaries();
-                assert_eq!(summaries.len(), 1);
-                summaries.remove(0)
-            }
+            ChunkState::ObjectStoreOnly(chunk) => chunk.table_summary(),
         }
     }
 

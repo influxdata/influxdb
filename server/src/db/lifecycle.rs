@@ -370,8 +370,9 @@ fn can_move(rules: &LifecycleRules, chunk: &Chunk, now: DateTime<Utc>) -> bool {
 mod tests {
     use super::*;
     use crate::db::catalog::chunk::ChunkMetrics;
-    use data_types::server_id::ServerId;
+    use data_types::{partition_metadata::TableSummary, server_id::ServerId};
     use entry::{test_helpers::lp_to_entry, ClockValue};
+    use object_store::{memory::InMemory, parsed_path, ObjectStore};
     use std::{
         convert::TryFrom,
         num::{NonZeroU32, NonZeroUsize},
@@ -451,8 +452,23 @@ mod tests {
     }
 
     fn new_parquet_chunk(chunk: &Chunk) -> parquet_file::chunk::Chunk {
+        let in_memory = InMemory::new();
+
+        let schema = internal_types::schema::builder::SchemaBuilder::new()
+            .tag("foo")
+            .build()
+            .unwrap();
+
+        let object_store = Arc::new(ObjectStore::new_in_memory(in_memory));
+        let path = object_store.path_from_dirs_and_filename(parsed_path!("foo"));
+
         parquet_file::chunk::Chunk::new(
-            chunk.key().to_string(),
+            chunk.key(),
+            TableSummary::new("my_awesome_table"),
+            path,
+            object_store,
+            schema,
+            None,
             parquet_file::chunk::ChunkMetrics::new_unregistered(),
         )
     }

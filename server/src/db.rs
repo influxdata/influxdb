@@ -1147,16 +1147,16 @@ impl CatalogState for Catalog {
         let metrics = self
             .metrics_registry
             .register_domain_with_labels("parquet", self.metric_labels.clone());
-        let mut parquet_chunk = ParquetChunk::new(
-            partition_key.to_string(),
-            ParquetChunkMetrics::new(&metrics, self.metrics().memory().parquet()),
-        );
-        parquet_chunk.add_table(
+
+        let metrics = ParquetChunkMetrics::new(&metrics, self.metrics().memory().parquet());
+        let parquet_chunk = ParquetChunk::new(
+            &partition_key,
             table_summary,
             object_store.path_from_dirs_and_filename(info.path.clone()),
             object_store,
             schema,
             timestamp_range,
+            metrics,
         );
         let parquet_chunk = Arc::new(parquet_chunk);
 
@@ -1420,9 +1420,15 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
+        let expected_parquet_size = 807;
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1598).unwrap();
         // now also in OS
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "parquet", 81).unwrap(); // TODO: #1311
+        catalog_chunk_size_bytes_metric_eq(
+            &test_db.metric_registry,
+            "parquet",
+            expected_parquet_size,
+        )
+        .unwrap(); // TODO: #1311
 
         db.unload_read_buffer("1970-01-01T00", "cpu", 0)
             .await
@@ -1438,7 +1444,12 @@ mod tests {
             .unwrap();
 
         // verify chunk size not increased for OS (it was in OS before unload)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "parquet", 81).unwrap();
+        catalog_chunk_size_bytes_metric_eq(
+            &test_db.metric_registry,
+            "parquet",
+            expected_parquet_size,
+        )
+        .unwrap();
         // verify chunk size for RB has decreased
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 0).unwrap();
     }
@@ -1765,7 +1776,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2281.0)
+            .sample_sum_eq(2405.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1874,7 +1885,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2281.0)
+            .sample_sum_eq(2405.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -1902,7 +1913,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(683.0)
+            .sample_sum_eq(807.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -2263,7 +2274,7 @@ mod tests {
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
-                2272, // size of RB and OS chunks
+                2396, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2318,8 +2329,8 @@ mod tests {
         );
         assert_eq!(
             db.catalog.state().metrics().memory().parquet().get_total(),
-            81
-        ); // TODO: This 89 must be replaced with 691. Ticket #1311
+            807
+        );
     }
 
     #[tokio::test]
@@ -2867,7 +2878,7 @@ mod tests {
             };
             let chunk = chunk.read();
             if let ChunkState::WrittenToObjectStore(_, chunk) = chunk.state() {
-                paths_expected.push(chunk.table_path("cpu").unwrap().display());
+                paths_expected.push(chunk.table_path().display());
             } else {
                 panic!("Wrong chunk state.");
             }

@@ -149,7 +149,7 @@ impl DbChunk {
     /// Return object store paths
     pub fn object_store_paths(&self) -> Vec<Path> {
         match &self.state {
-            State::ParquetFile { chunk } => chunk.all_paths(),
+            State::ParquetFile { chunk } => vec![chunk.table_path()],
             _ => vec![],
         }
     }
@@ -174,7 +174,12 @@ impl PartitionChunk for DbChunk {
                     known_tables.insert(name);
                 }
             }
-            State::ParquetFile { chunk, .. } => chunk.all_table_names(known_tables),
+            State::ParquetFile { chunk, .. } => {
+                let table_name = chunk.table_name();
+                if !known_tables.contains(table_name) {
+                    known_tables.insert(table_name.to_string());
+                }
+            }
         }
     }
 
@@ -251,7 +256,7 @@ impl PartitionChunk for DbChunk {
             }
             State::ParquetFile { chunk, .. } => {
                 chunk
-                    .table_schema(table_name, selection)
+                    .table_schema(selection)
                     .context(ParquetFileChunkError {
                         chunk_id: self.id(),
                     })
@@ -353,7 +358,7 @@ impl PartitionChunk for DbChunk {
                     // TODO: Support predicates when MB supports it
                     return Ok(None);
                 }
-                Ok(chunk.column_names(table_name, columns))
+                Ok(chunk.column_names(columns))
             }
         }
     }

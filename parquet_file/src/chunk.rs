@@ -1,4 +1,4 @@
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, sync::Arc};
 
 use crate::table::Table;
@@ -64,19 +64,30 @@ pub struct Chunk {
     /// Partition this chunk belongs to
     partition_key: String,
 
-    /// Tables of this chunk
-    tables: Vec<Table>,
+    /// The table in chunk
+    table: Table,
 
     metrics: ChunkMetrics,
 }
 
 impl Chunk {
-    pub fn new(part_key: String, metrics: ChunkMetrics) -> Self {
+    pub fn new(
+        part_key: impl Into<String>,
+        table_summary: TableSummary,
+        file_location: Path,
+        store: Arc<ObjectStore>,
+        schema: Schema,
+        range: Option<TimestampRange>,
+        metrics: ChunkMetrics,
+    ) -> Self {
+        let table = Table::new(table_summary, file_location, store, schema, range);
+
         let mut chunk = Self {
-            partition_key: part_key,
-            tables: Default::default(),
+            partition_key: part_key.into(),
+            table,
             metrics,
         };
+
         chunk.metrics.memory_bytes.set(chunk.size());
         chunk
     }
@@ -86,77 +97,42 @@ impl Chunk {
         self.partition_key.as_ref()
     }
 
-    /// Return all paths of this chunks
-    pub fn all_paths(&self) -> Vec<Path> {
-        self.tables.iter().map(|t| t.path()).collect()
+    /// Return object store path for this chunk
+    pub fn table_path(&self) -> Path {
+        self.table.path()
     }
 
-    /// Returns a vec of the summary statistics of the tables in this chunk
-    pub fn table_summaries(&self) -> Vec<TableSummary> {
-        self.tables.iter().map(|t| t.table_summary()).collect()
+    /// Returns the summary statistics for this chunk
+    pub fn table_summary(&self) -> TableSummary {
+        self.table.table_summary()
     }
 
-    /// Add a chunk's table and its summary
-    pub fn add_table(
-        &mut self,
-        table_summary: TableSummary,
-        file_location: Path,
-        store: Arc<ObjectStore>,
-        schema: Schema,
-        range: Option<TimestampRange>,
-    ) {
-        self.tables.push(Table::new(
-            table_summary,
-            file_location,
-            store,
-            schema,
-            range,
-        ));
+    /// Returns the name of the table this chunk holds
+    pub fn table_name(&self) -> &str {
+        self.table.name()
     }
 
     /// Return true if this chunk includes the given table
     pub fn has_table(&self, table_name: &str) -> bool {
-        self.tables.iter().any(|t| t.has_table(table_name))
-    }
-
-    // Return all tables of this chunk
-    pub fn all_table_names(&self, names: &mut BTreeSet<String>) {
-        let mut tables = self
-            .tables
-            .iter()
-            .map(|t| t.name())
-            .collect::<BTreeSet<String>>();
-
-        names.append(&mut tables);
+        self.table_name() == table_name
     }
 
     /// Return the approximate memory size of the chunk, in bytes including the
     /// dictionary, tables, and their rows.
     pub fn size(&self) -> usize {
-        let size: usize = self.tables.iter().map(|t| t.size()).sum();
-
-        size + self.partition_key.len() + mem::size_of::<u32>() + mem::size_of::<Self>()
+        self.table.size() + self.partition_key.len() + mem::size_of::<Self>()
     }
 
-    /// Return Schema for the specified table / columns
-    pub fn table_schema(&self, table_name: &str, selection: Selection<'_>) -> Result<Schema> {
-        let table = self.find_table(table_name)?;
-
-        table
-            .schema(selection)
-            .context(NamedTableError { table_name })
+    /// Return Schema for the table in this chunk
+    pub fn table_schema(&self, selection: Selection<'_>) -> Result<Schema> {
+        self.table.schema(selection).context(NamedTableError {
+            table_name: self.table_name(),
+        })
     }
 
-    /// Return object store path for specified table
-    pub fn table_path(&self, table_name: &str) -> Result<Path> {
-        let table = self.find_table(table_name)?;
-        Ok(table.path())
-    }
-
-    /// Return Schema for the specified table / columns
-    pub fn timestamp_range(&self, table_name: &str) -> Result<Option<TimestampRange>> {
-        let table = self.find_table(table_name)?;
-        Ok(table.timestamp_range())
+    /// Return the timestamp range of the table
+    pub fn timestamp_range(&self) -> Option<TimestampRange> {
+        self.table.timestamp_range()
     }
 
     // Return all tables of this chunk whose timestamp overlaps with the give one
@@ -164,28 +140,15 @@ impl Chunk {
         &self,
         timestamp_range: Option<TimestampRange>,
     ) -> impl Iterator<Item = String> + '_ {
-        self.tables.iter().flat_map(move |t| {
-            if t.matches_predicate(&timestamp_range) {
-                Some(t.name())
-            } else {
-                None
-            }
-        })
+        std::iter::once(&self.table)
+            .filter(move |table| table.matches_predicate(&timestamp_range))
+            .map(|table| table.name().to_string())
     }
 
-    // Return columns names of a given table that belong to the given column
+    // Return the columns names that belong to the given column
     // selection
-    pub fn column_names(
-        &self,
-        table_name: &str,
-        selection: Selection<'_>,
-    ) -> Option<BTreeSet<String>> {
-        let table = self.find_table(table_name);
-
-        match table {
-            Ok(table) => table.column_names(selection),
-            Err(_) => None,
-        }
+    pub fn column_names(&self, selection: Selection<'_>) -> Option<BTreeSet<String>> {
+        self.table.column_names(selection)
     }
 
     /// Return stream of data read from parquet file of the given table
@@ -195,22 +158,13 @@ impl Chunk {
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream> {
-        let table = self.find_table(table_name)?;
-
-        table
+        self.table
             .read_filter(predicate, selection)
             .context(ReadParquet { table_name })
     }
 
     /// The total number of rows in all row groups in all tables in this chunk.
     pub fn rows(&self) -> usize {
-        self.tables.iter().map(|t| t.rows()).sum()
-    }
-
-    fn find_table(&self, table_name: &str) -> Result<&Table> {
-        self.tables
-            .iter()
-            .find(|t| t.has_table(table_name))
-            .context(NamedTableNotFoundInChunk { table_name })
+        self.table.rows()
     }
 }
