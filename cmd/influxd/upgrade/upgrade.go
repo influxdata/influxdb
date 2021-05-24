@@ -326,27 +326,6 @@ func (i *influxDBv2) close() error {
 	return nil
 }
 
-func buildLogger(options *logOptions, verbose bool) (*zap.Logger, error) {
-	config := zap.NewProductionConfig()
-
-	config.Level = zap.NewAtomicLevelAt(options.logLevel)
-	if verbose {
-		config.Level.SetLevel(zap.DebugLevel)
-	}
-
-	config.OutputPaths = append(config.OutputPaths, options.logPath)
-	config.ErrorOutputPaths = append(config.ErrorOutputPaths, options.logPath)
-
-	log, err := config.Build()
-	if err != nil {
-		return nil, err
-	}
-	if verbose {
-		log.Warn("--verbose is deprecated, use --log-level=debug instead")
-	}
-	return log, nil
-}
-
 func runUpgradeE(ctx context.Context, ui *input.UI, options *options, log *zap.Logger) error {
 	if options.source.configFile != "" && options.source.dbDir != "" {
 		return errors.New("only one of --v1-dir or --config-file may be specified")
