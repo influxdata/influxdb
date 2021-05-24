@@ -1772,15 +1772,15 @@ func (fs *MeasurementFieldSet) Save() (err error) {
 		fs.valueWaiters[v] = &valueWaiter
 		// If no fields left, remove the fields index file
 		if len(fs.fields) == 0 {
-			if e := os.RemoveAll(fs.path); err != nil {
-				return true, nil, e
+			if err := os.RemoveAll(fs.path); err != nil {
+				return true, nil, err
 			} else {
 				atomic.StoreUint64(&fs.writtenVersion, v)
-				return false, nil, nil
+				return true, nil, nil
 			}
 		}
-		b, e := fs.marshalMeasurementFieldSetNoLock()
-		return false, b, e
+		b, err := fs.marshalMeasurementFieldSetNoLock()
+		return false, b, err
 	}()
 
 	if err != nil {
