@@ -55,22 +55,6 @@
   contact: Query Team
   lifetime: permanent
 
-- name: Band Plot Type
-  description: Enables the creation of a band plot in Dashboards
-  key: bandPlotType
-  default: true
-  contact: Monitoring Team
-  expose: true
-  lifetime: temporary
-
-- name: Mosaic Graph Type
-  description: Enables the creation of a mosaic graph in Dashboards
-  key: mosaicGraphType
-  default: true
-  contact: Monitoring Team
-  expose: true
-  lifetime: temporary
-
 - name: Notebooks
   description: Determine if the notebook feature's route and navbar icon are visible to the user
   key: notebooks
@@ -106,14 +90,6 @@
   default: false
   expose: true
 
-- name: Axis Tick Generator
-  description: Allows for controlling how many axis ticks there are on a graph
-  key: axisTicksGenerator
-  default: true
-  contact: Monitoring Team
-  expose: true
-  lifetime: temporary
-
 - name: UI CSV Uploader
   description: Adds the ability to upload data from a CSV file to a bucket
   key: csvUploader
@@ -125,14 +101,6 @@
 - name: Editable Telegraf Configurations
   description: Edit telegraf configurations from the UI
   key: editTelegrafs
-  default: true
-  contact: Monitoring Team
-  expose: true
-  lifetime: temporary
-
-- name: Legend Orientation in the UI
-  description: Change the appearance of the legend
-  key: legendOrientation
   default: true
   contact: Monitoring Team
   expose: true
