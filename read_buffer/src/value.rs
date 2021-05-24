@@ -944,12 +944,46 @@ impl From<(&AggregateType, &LogicalDataType)> for AggregateVec {
 }
 
 /// A scalar is a numerical value that can be aggregated.
-#[derive(Debug, PartialEq, PartialOrd, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Scalar {
     Null,
     I64(i64),
     U64(u64),
     F64(f64),
+}
+
+// This `PartialOrd` implementation will attempt to compare all integer types
+// to each other, floating point types to themselves, but does not attempt to
+// compare floating point values to any other value.
+impl PartialOrd for Scalar {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (Self::I64(a), Self::I64(b)) => a.partial_cmp(b),
+            (Self::I64(a), Self::U64(b)) => {
+                if *b > i64::MAX as u64 {
+                    return Some(std::cmp::Ordering::Less);
+                }
+                // `try_from` must succeed.
+                let b = i64::try_from(*b).unwrap();
+                a.partial_cmp(&b)
+            }
+            (Self::U64(a), Self::I64(b)) => {
+                if *b < 0 {
+                    return Some(std::cmp::Ordering::Greater);
+                }
+                // `try_from` must succeed.
+                let b = u64::try_from(*b).unwrap();
+                a.partial_cmp(&b)
+            }
+            (Self::U64(a), Self::U64(b)) => a.partial_cmp(b),
+            (Self::F64(a), Self::F64(b)) => a.partial_cmp(b),
+            // Can't compare NULL to anything.
+            // Can't sanely compare floats to integers because not all integers
+            // can be represented precisely as floats. We could perhaps revisit
+            // this in the future.
+            (_, Self::Null) | (Self::Null, _) | (Self::F64(_), _) | (_, Self::F64(_)) => None,
+        }
+    }
 }
 
 macro_rules! typed_scalar_converters {
@@ -1666,6 +1700,7 @@ impl EncodedValues {
 mod test {
     use super::*;
     use arrow::array::ArrayRef;
+    use std::cmp::Ordering;
 
     #[test]
     fn aggregate_vec_update() {
@@ -1923,5 +1958,47 @@ mod test {
             .downcast_ref::<arrow::array::DictionaryArray<arrow::datatypes::Int32Type>>()
             .unwrap();
         assert_eq!(as_dict_arr.keys(), exp_dict_arr.keys());
+    }
+
+    #[test]
+    fn scalar_comparison() {
+        let cases = vec![
+            (Scalar::I64(1), Scalar::I64(2), Some(Ordering::Less)),
+            (Scalar::I64(3), Scalar::I64(3), Some(Ordering::Equal)),
+            (Scalar::I64(4), Scalar::I64(3), Some(Ordering::Greater)),
+            (Scalar::I64(1), Scalar::U64(2), Some(Ordering::Less)),
+            (Scalar::I64(3), Scalar::U64(3), Some(Ordering::Equal)),
+            (Scalar::I64(4), Scalar::U64(3), Some(Ordering::Greater)),
+            (Scalar::U64(1), Scalar::I64(2), Some(Ordering::Less)),
+            (Scalar::U64(3), Scalar::I64(3), Some(Ordering::Equal)),
+            (Scalar::U64(4), Scalar::I64(3), Some(Ordering::Greater)),
+            (Scalar::U64(1), Scalar::U64(2), Some(Ordering::Less)),
+            (Scalar::U64(3), Scalar::U64(3), Some(Ordering::Equal)),
+            (Scalar::U64(4), Scalar::U64(3), Some(Ordering::Greater)),
+            (Scalar::U64(1), Scalar::I64(-20), Some(Ordering::Greater)),
+            (Scalar::U64(3), Scalar::I64(-20), Some(Ordering::Greater)),
+            (Scalar::U64(4), Scalar::I64(-20), Some(Ordering::Greater)),
+            (
+                Scalar::U64(u64::MAX),
+                Scalar::I64(-20),
+                Some(Ordering::Greater),
+            ),
+            (
+                Scalar::U64(u64::MAX),
+                Scalar::I64(1),
+                Some(Ordering::Greater),
+            ),
+            (
+                Scalar::I64(-20),
+                Scalar::U64(u64::MAX),
+                Some(Ordering::Less),
+            ),
+            (Scalar::I64(1), Scalar::U64(u64::MAX), Some(Ordering::Less)),
+            (Scalar::F64(1.0), Scalar::F64(1.0), Some(Ordering::Equal)),
+        ];
+
+        for (a, b, exp) in cases {
+            assert_eq!(a.partial_cmp(&b), exp, "Example {:?} <=> {:?} failed", a, b);
+        }
     }
 }

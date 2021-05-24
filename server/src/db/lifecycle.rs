@@ -468,7 +468,6 @@ mod tests {
             path,
             object_store,
             schema,
-            None,
             parquet_file::chunk::ChunkMetrics::new_unregistered(),
         )
     }

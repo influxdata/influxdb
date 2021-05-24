@@ -13,7 +13,6 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use data_types::{
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     server_id::ServerId,
-    timestamp::TimestampRange,
 };
 use datafusion_util::MemoryStream;
 use futures::TryStreamExt;
@@ -93,46 +92,20 @@ pub async fn make_chunk_given_record_batch(
     schema: Schema,
     table: &str,
     column_summaries: Vec<ColumnSummary>,
-    time_range: TimestampRange,
 ) -> Chunk {
-    make_chunk_common(
-        store,
-        record_batches,
-        schema,
-        table,
-        column_summaries,
-        time_range,
-    )
-    .await
+    make_chunk_common(store, record_batches, schema, table, column_summaries).await
 }
 
 /// Same as [`make_chunk`] but parquet file does not contain any row group.
 pub async fn make_chunk(store: Arc<ObjectStore>, column_prefix: &str) -> Chunk {
-    let (record_batches, schema, column_summaries, time_range, _num_rows) =
-        make_record_batch(column_prefix);
-    make_chunk_common(
-        store,
-        record_batches,
-        schema,
-        "table1",
-        column_summaries,
-        time_range,
-    )
-    .await
+    let (record_batches, schema, column_summaries, _num_rows) = make_record_batch(column_prefix);
+    make_chunk_common(store, record_batches, schema, "table1", column_summaries).await
 }
 
 /// Same as [`make_chunk`] but parquet file does not contain any row group.
 pub async fn make_chunk_no_row_group(store: Arc<ObjectStore>, column_prefix: &str) -> Chunk {
-    let (_, schema, column_summaries, time_range, _num_rows) = make_record_batch(column_prefix);
-    make_chunk_common(
-        store,
-        vec![],
-        schema,
-        "table1",
-        column_summaries,
-        time_range,
-    )
-    .await
+    let (_, schema, column_summaries, _num_rows) = make_record_batch(column_prefix);
+    make_chunk_common(store, vec![], schema, "table1", column_summaries).await
 }
 
 /// Common code for all [`make_chunk`] and [`make_chunk_no_row_group`].
@@ -144,7 +117,6 @@ async fn make_chunk_common(
     schema: Schema,
     table: &str,
     column_summaries: Vec<ColumnSummary>,
-    time_range: TimestampRange,
 ) -> Chunk {
     let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
     let db_name = "db1";
@@ -180,7 +152,6 @@ async fn make_chunk_common(
         path,
         Arc::clone(&store),
         schema,
-        Some(time_range),
         ChunkMetrics::new_unregistered(),
     )
 }
@@ -367,7 +338,7 @@ fn create_column_timestamp(
     arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
     summaries: &mut Vec<ColumnSummary>,
     schema_builder: SchemaBuilder,
-) -> (SchemaBuilder, TimestampRange) {
+) -> SchemaBuilder {
     assert_eq!(data.len(), arrow_cols.len());
 
     for (arrow_cols_sub, data_sub) in arrow_cols.iter_mut().zip(data.iter()) {
@@ -389,10 +360,7 @@ fn create_column_timestamp(
         }),
     });
 
-    let timestamp_range = TimestampRange::new(min.unwrap(), max.unwrap());
-
-    let schema_builder = schema_builder.timestamp();
-    (schema_builder, timestamp_range)
+    schema_builder.timestamp()
 }
 
 /// Creates an Arrow RecordBatches with schema and IOx statistics.
@@ -404,13 +372,7 @@ fn create_column_timestamp(
 /// indeed self-contained and can act as a source to recorder schema and statistics.
 pub fn make_record_batch(
     column_prefix: &str,
-) -> (
-    Vec<RecordBatch>,
-    Schema,
-    Vec<ColumnSummary>,
-    TimestampRange,
-    usize,
-) {
+) -> (Vec<RecordBatch>, Schema, Vec<ColumnSummary>, usize) {
     // (name, array, nullable)
     let mut arrow_cols: Vec<Vec<(String, ArrayRef, bool)>> = vec![vec![], vec![], vec![]];
     let mut summaries = vec![];
@@ -527,7 +489,7 @@ pub fn make_record_batch(
     );
 
     // time
-    let (schema_builder, timestamp_range) = create_column_timestamp(
+    let schema_builder = create_column_timestamp(
         vec![vec![1000], vec![2000], vec![3000, 4000]],
         &mut arrow_cols,
         &mut summaries,
@@ -549,7 +511,7 @@ pub fn make_record_batch(
         record_batches.push(record_batch);
     }
 
-    (record_batches, schema, summaries, timestamp_range, num_rows)
+    (record_batches, schema, summaries, num_rows)
 }
 
 /// Creates new in-memory object store for testing.

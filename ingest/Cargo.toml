@@ -5,12 +5,12 @@ authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2018"
 
 [dependencies] # In alphabetical order
-arrow = { path = "../arrow" }
+arrow = "4.0"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 influxdb_tsm = { path = "../influxdb_tsm" }
 internal_types = { path = "../internal_types" }
 packers = { path = "../packers" }
-parquet = { path = "../parquet" }
+parquet = "4.0"
 snafu = "0.6.2"
 observability_deps = { path = "../observability_deps" }
 
