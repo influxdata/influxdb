@@ -20,8 +20,7 @@ mod tests {
         ////////////////////
         // Create test data which is also the expected data
         let table = "table1";
-        let (record_batches, schema, column_summaries, time_range, num_rows) =
-            make_record_batch("foo");
+        let (record_batches, schema, column_summaries, num_rows) = make_record_batch("foo");
         let mut table_summary = TableSummary::new(table);
         table_summary.columns = column_summaries.clone();
         let record_batch = record_batches[0].clone(); // Get the first one to compare key-value meta data that would be the same for all batches
@@ -40,7 +39,6 @@ mod tests {
             schema.clone(),
             table,
             column_summaries.clone(),
-            time_range,
         )
         .await;
 
@@ -61,11 +59,10 @@ mod tests {
         );
 
         // 2. Check statistics
-        let (table_summary_actual, timestamp_range_actual) =
+        let table_summary_actual =
             read_statistics_from_parquet_metadata(&parquet_metadata, &schema_actual, &table)
                 .unwrap();
         assert_eq!(table_summary_actual, table_summary);
-        assert_eq!(timestamp_range_actual, Some(time_range));
 
         // 3. Check data
         // Note that the read_data_from_parquet_data function fixes the row-group/batches' level metadata bug in arrow
