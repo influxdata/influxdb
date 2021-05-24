@@ -106,6 +106,7 @@ require (
 	golang.org/x/tools v0.0.0-20200721032237-77f530d86f9a
 	google.golang.org/api v0.17.0
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
+	gopkg.in/yaml.v2 v2.3.0
 	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
 	honnef.co/go/tools v0.0.1-2020.1.4
 	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
