@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -28,23 +31,23 @@ func UnmarshalJSON(b []byte) (influxdb.NotificationEndpoint, error) {
 		Type string `json:"type"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Msg: "unable to detect the notification endpoint type from json",
 		}
 	}
 
 	convertedFunc, ok := typeToEndpoint[raw.Type]
 	if !ok {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("invalid notification endpoint type %s", raw.Type),
 		}
 	}
 	converted := convertedFunc()
 
 	if err := json.Unmarshal(b, converted); err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInternal,
+		return nil, &errors.Error{
+			Code: errors.EInternal,
 			Err:  err,
 		}
 	}
@@ -53,17 +56,17 @@ func UnmarshalJSON(b []byte) (influxdb.NotificationEndpoint, error) {
 
 // Base is the embed struct of every notification endpoint.
 type Base struct {
-	ID          *influxdb.ID    `json:"id,omitempty"`
+	ID          *platform.ID    `json:"id,omitempty"`
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
-	OrgID       *influxdb.ID    `json:"orgID,omitempty"`
+	OrgID       *platform.ID    `json:"orgID,omitempty"`
 	Status      influxdb.Status `json:"status"`
 	influxdb.CRUDLog
 }
 
 func (b Base) idStr() string {
 	if b.ID == nil {
-		return influxdb.ID(0).String()
+		return platform.ID(0).String()
 	}
 	return b.ID.String()
 }
@@ -74,20 +77,20 @@ func (b Base) validID() bool {
 
 func (b Base) valid() error {
 	if !b.validID() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Notification Endpoint ID is invalid",
 		}
 	}
 	if b.Name == "" {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Notification Endpoint Name can't be empty",
 		}
 	}
 	if b.Status != influxdb.Active && b.Status != influxdb.Inactive {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "invalid status",
 		}
 	}
@@ -95,7 +98,7 @@ func (b Base) valid() error {
 }
 
 // GetID implements influxdb.Getter interface.
-func (b Base) GetID() influxdb.ID {
+func (b Base) GetID() platform.ID {
 	if b.ID == nil {
 		return 0
 	}
@@ -108,7 +111,7 @@ func (b *Base) GetName() string {
 }
 
 // GetOrgID implements influxdb.Getter interface.
-func (b Base) GetOrgID() influxdb.ID {
+func (b Base) GetOrgID() platform.ID {
 	return getID(b.OrgID)
 }
 
@@ -128,12 +131,12 @@ func (b *Base) GetStatus() influxdb.Status {
 }
 
 // SetID will set the primary key.
-func (b *Base) SetID(id influxdb.ID) {
+func (b *Base) SetID(id platform.ID) {
 	b.ID = &id
 }
 
 // SetOrgID will set the org key.
-func (b *Base) SetOrgID(id influxdb.ID) {
+func (b *Base) SetOrgID(id platform.ID) {
 	b.OrgID = &id
 }
 
@@ -152,7 +155,7 @@ func (b *Base) SetStatus(status influxdb.Status) {
 	b.Status = status
 }
 
-func getID(id *influxdb.ID) influxdb.ID {
+func getID(id *platform.ID) platform.ID {
 	if id == nil {
 		return 0
 	}

@@ -1,6 +1,10 @@
 package influxdb
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+)
 
 // Status defines if a resource is active or inactive.
 type Status string
@@ -18,8 +22,8 @@ func (s Status) Valid() error {
 	case Active, Inactive:
 		return nil
 	default:
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("invalid status: must be %v or %v", Active, Inactive),
 		}
 	}

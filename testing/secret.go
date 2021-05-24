@@ -6,6 +6,9 @@ import (
 	"sort"
 	"testing"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb/v2"
 )
@@ -23,7 +26,7 @@ var secretCmpOptions = cmp.Options{
 
 // A secret is a comparable data structure that is used for testing
 type Secret struct {
-	OrganizationID platform.ID
+	OrganizationID platform2.ID
 	Env            map[string]string
 }
 
@@ -85,7 +88,7 @@ func LoadSecret(
 	t *testing.T,
 ) {
 	type args struct {
-		orgID platform.ID
+		orgID platform2.ID
 		key   string
 	}
 	type wants struct {
@@ -104,7 +107,7 @@ func LoadSecret(
 			fields: SecretServiceFields{
 				Secrets: []Secret{
 					{
-						OrganizationID: platform.ID(1),
+						OrganizationID: platform2.ID(1),
 						Env: map[string]string{
 							"api_key": "abc123xyz",
 						},
@@ -112,7 +115,7 @@ func LoadSecret(
 				},
 			},
 			args: args{
-				orgID: platform.ID(1),
+				orgID: platform2.ID(1),
 				key:   "api_key",
 			},
 			wants: wants{
@@ -151,7 +154,7 @@ func PutSecret(
 	t *testing.T,
 ) {
 	type args struct {
-		orgID platform.ID
+		orgID platform2.ID
 		key   string
 		value string
 	}
@@ -169,7 +172,7 @@ func PutSecret(
 			name:   "put secret",
 			fields: SecretServiceFields{},
 			args: args{
-				orgID: platform.ID(1),
+				orgID: platform2.ID(1),
 				key:   "api_key",
 				value: "abc123xyz",
 			},
@@ -212,7 +215,7 @@ func PutSecrets(
 	t *testing.T,
 ) {
 	type args struct {
-		orgID   platform.ID
+		orgID   platform2.ID
 		secrets map[string]string
 	}
 	type wants struct {
@@ -231,7 +234,7 @@ func PutSecrets(
 			fields: SecretServiceFields{
 				Secrets: []Secret{
 					{
-						OrganizationID: platform.ID(1),
+						OrganizationID: platform2.ID(1),
 						Env: map[string]string{
 							"api_key": "abc123xyz",
 						},
@@ -239,7 +242,7 @@ func PutSecrets(
 				},
 			},
 			args: args{
-				orgID: platform.ID(1),
+				orgID: platform2.ID(1),
 				secrets: map[string]string{
 					"api_key2": "abc123xyz",
 					"batman":   "potato",
@@ -297,7 +300,7 @@ func PatchSecrets(
 	t *testing.T,
 ) {
 	type args struct {
-		orgID   platform.ID
+		orgID   platform2.ID
 		secrets map[string]string
 	}
 	type wants struct {
@@ -316,7 +319,7 @@ func PatchSecrets(
 			fields: SecretServiceFields{
 				Secrets: []Secret{
 					{
-						OrganizationID: platform.ID(1),
+						OrganizationID: platform2.ID(1),
 						Env: map[string]string{
 							"api_key": "abc123xyz",
 						},
@@ -324,7 +327,7 @@ func PatchSecrets(
 				},
 			},
 			args: args{
-				orgID: platform.ID(1),
+				orgID: platform2.ID(1),
 				secrets: map[string]string{
 					"api_key2": "abc123xyz",
 					"batman":   "potato",
@@ -357,7 +360,7 @@ func PatchSecrets(
 			for k, v := range tt.args.secrets {
 				val, err := s.LoadSecret(ctx, tt.args.orgID, k)
 				if err != nil {
-					if platform.ErrorCode(err) == platform.EMethodNotAllowed {
+					if errors.ErrorCode(err) == errors.EMethodNotAllowed {
 						// skip value checking for http service testing
 						break
 					}
@@ -387,7 +390,7 @@ func GetSecretKeys(
 	t *testing.T,
 ) {
 	type args struct {
-		orgID platform.ID
+		orgID platform2.ID
 	}
 	type wants struct {
 		keys []string
@@ -405,13 +408,13 @@ func GetSecretKeys(
 			fields: SecretServiceFields{
 				Secrets: []Secret{
 					{
-						OrganizationID: platform.ID(1),
+						OrganizationID: platform2.ID(1),
 						Env: map[string]string{
 							"api_key": "abc123xyz",
 						},
 					},
 					{
-						OrganizationID: platform.ID(2),
+						OrganizationID: platform2.ID(2),
 						Env: map[string]string{
 							"api_key": "zyx321cba",
 						},
@@ -419,7 +422,7 @@ func GetSecretKeys(
 				},
 			},
 			args: args{
-				orgID: platform.ID(1),
+				orgID: platform2.ID(1),
 			},
 			wants: wants{
 				keys: []string{"api_key"},
@@ -457,7 +460,7 @@ func DeleteSecrets(
 	t *testing.T,
 ) {
 	type args struct {
-		orgID platform.ID
+		orgID platform2.ID
 		keys  []string
 	}
 	type wants struct {
@@ -476,7 +479,7 @@ func DeleteSecrets(
 			fields: SecretServiceFields{
 				Secrets: []Secret{
 					{
-						OrganizationID: platform.ID(1),
+						OrganizationID: platform2.ID(1),
 						Env: map[string]string{
 							"api_key":  "abc123xyz",
 							"api_key2": "potato",
@@ -486,7 +489,7 @@ func DeleteSecrets(
 				},
 			},
 			args: args{
-				orgID: platform.ID(1),
+				orgID: platform2.ID(1),
 				keys:  []string{"api_key2", "batman"},
 			},
 			wants: wants{

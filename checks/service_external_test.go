@@ -12,9 +12,12 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -157,14 +160,14 @@ var taskCmpOptions = cmp.Options{
 	}),
 	// skip comparing permissions
 	cmpopts.IgnoreFields(
-		influxdb.Task{},
+		taskmodel.Task{},
 		"LatestCompleted",
 		"LatestScheduled",
 		"CreatedAt",
 		"UpdatedAt",
 	),
-	cmp.Transformer("Sort", func(in []*influxdb.Task) []*influxdb.Task {
-		out := append([]*influxdb.Task{}, in...) // Copy input to avoid mutating it
+	cmp.Transformer("Sort", func(in []*taskmodel.Task) []*taskmodel.Task {
+		out := append([]*taskmodel.Task{}, in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
 			return out[i].ID > out[j].ID
 		})
@@ -174,15 +177,15 @@ var taskCmpOptions = cmp.Options{
 
 // CheckFields will include the IDGenerator, and checks
 type CheckFields struct {
-	IDGenerator   influxdb.IDGenerator
+	IDGenerator   platform.IDGenerator
 	TimeGenerator influxdb.TimeGenerator
-	TaskService   influxdb.TaskService
+	TaskService   taskmodel.TaskService
 	Checks        []influxdb.Check
 	Organizations []*influxdb.Organization
-	Tasks         []influxdb.TaskCreate
+	Tasks         []taskmodel.TaskCreate
 }
 
-type checkServiceFactory func(CheckFields, *testing.T) (influxdb.CheckService, influxdb.TaskService, string, func())
+type checkServiceFactory func(CheckFields, *testing.T) (influxdb.CheckService, taskmodel.TaskService, string, func())
 
 type checkServiceF func(
 	init checkServiceFactory,
@@ -240,13 +243,13 @@ func CreateCheck(
 	t *testing.T,
 ) {
 	type args struct {
-		userID influxdb.ID
+		userID platform.ID
 		check  influxdb.Check
 	}
 	type wants struct {
-		err    *influxdb.Error
+		err    *errors.Error
 		checks []influxdb.Check
-		tasks  []*influxdb.Task
+		tasks  []*taskmodel.Task
 	}
 
 	tests := []struct {
@@ -305,7 +308,7 @@ func CreateCheck(
 				},
 			},
 			wants: wants{
-				tasks: []*influxdb.Task{
+				tasks: []*taskmodel.Task{
 					{
 						ID:             MustIDBase16("020f755c3c082000"),
 						Name:           "name1",
@@ -369,7 +372,7 @@ func CreateCheck(
 			name: "basic create check",
 			fields: CheckFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() influxdb.ID {
+					IDFn: func() platform.ID {
 						return MustIDBase16(checkTwoID)
 					},
 				},
@@ -434,7 +437,7 @@ func CreateCheck(
 					deadman1,
 					threshold1,
 				},
-				tasks: []*influxdb.Task{
+				tasks: []*taskmodel.Task{
 					{
 						ID:             MustIDBase16("020f755c3c082001"),
 						Name:           "name2",
@@ -453,7 +456,7 @@ func CreateCheck(
 			name: "names should be unique within an organization",
 			fields: CheckFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() influxdb.ID {
+					IDFn: func() platform.ID {
 						return MustIDBase16(checkTwoID)
 					},
 				},
@@ -508,8 +511,8 @@ func CreateCheck(
 				checks: []influxdb.Check{
 					deadman1,
 				},
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Op:   influxdb.OpCreateCheck,
 					Msg:  "check is not unique",
 				},
@@ -519,7 +522,7 @@ func CreateCheck(
 			name: "names should not be unique across organizations",
 			fields: CheckFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() influxdb.ID {
+					IDFn: func() platform.ID {
 						return MustIDBase16(checkTwoID)
 					},
 				},
@@ -571,7 +574,7 @@ func CreateCheck(
 				},
 			},
 			wants: wants{
-				tasks: []*influxdb.Task{
+				tasks: []*taskmodel.Task{
 					{
 						ID:             MustIDBase16("020f755c3c082001"),
 						Name:           "name1",
@@ -670,8 +673,8 @@ func CreateCheck(
 			},
 			wants: wants{
 				checks: []influxdb.Check{},
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "organization not found",
 					Op:   influxdb.OpCreateCheck,
 				},
@@ -698,7 +701,7 @@ func CreateCheck(
 				t.Errorf("checks are different -got/+want\ndiff %s", diff)
 			}
 
-			foundTasks, _, err := tasks.FindTasks(ctx, influxdb.TaskFilter{})
+			foundTasks, _, err := tasks.FindTasks(ctx, taskmodel.TaskFilter{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -716,10 +719,10 @@ func FindCheckByID(
 	t *testing.T,
 ) {
 	type args struct {
-		id influxdb.ID
+		id platform.ID
 	}
 	type wants struct {
-		err   *influxdb.Error
+		err   *errors.Error
 		check influxdb.Check
 	}
 
@@ -768,8 +771,8 @@ func FindCheckByID(
 				id: MustIDBase16(threeID),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindCheckByID,
 					Msg:  "check not found",
 				},
@@ -799,11 +802,11 @@ func FindChecks(
 	t *testing.T,
 ) {
 	type args struct {
-		ID           influxdb.ID
+		ID           platform.ID
 		name         string
 		organization string
-		OrgID        influxdb.ID
-		userID       influxdb.ID
+		OrgID        platform.ID
+		userID       platform.ID
 		findOptions  influxdb.FindOptions
 	}
 
@@ -1034,10 +1037,10 @@ func DeleteCheck(
 ) {
 	type args struct {
 		ID     string
-		userID influxdb.ID
+		userID platform.ID
 	}
 	type wants struct {
-		err    *influxdb.Error
+		err    *errors.Error
 		checks []influxdb.Check
 	}
 
@@ -1057,7 +1060,7 @@ func DeleteCheck(
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Tasks: []influxdb.TaskCreate{
+				Tasks: []taskmodel.TaskCreate{
 					{
 						Flux: `option task = { every: 10s, name: "foo" }
 data = from(bucket: "telegraf") |> range(start: -1m)`,
@@ -1090,7 +1093,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Tasks: []influxdb.TaskCreate{
+				Tasks: []taskmodel.TaskCreate{
 					{
 						Flux: `option task = { every: 10s, name: "foo" }
 		data = from(bucket: "telegraf") |> range(start: -1m)`,
@@ -1108,10 +1111,10 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 				userID: MustIDBase16(sixID),
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Op:   influxdb.OpDeleteCheck,
 					Msg:  "check not found",
-					Code: influxdb.ENotFound,
+					Code: errors.ENotFound,
 				},
 				checks: []influxdb.Check{
 					deadman1,
@@ -1148,12 +1151,12 @@ func FindCheck(
 ) {
 	type args struct {
 		name  string
-		OrgID influxdb.ID
+		OrgID platform.ID
 	}
 
 	type wants struct {
 		check influxdb.Check
-		err   *influxdb.Error
+		err   *errors.Error
 	}
 
 	tests := []struct {
@@ -1204,8 +1207,8 @@ func FindCheck(
 				OrgID: MustIDBase16(orgOneID),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindCheck,
 					Msg:  "check not found",
 				},
@@ -1227,8 +1230,8 @@ func FindCheck(
 				OrgID: MustIDBase16(orgOneID),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindCheck,
 					Msg:  "check not found",
 				},
@@ -1265,7 +1268,7 @@ func UpdateCheck(
 	t *testing.T,
 ) {
 	type args struct {
-		id    influxdb.ID
+		id    platform.ID
 		check influxdb.Check
 	}
 	type wants struct {
@@ -1290,7 +1293,7 @@ func UpdateCheck(
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Tasks: []influxdb.TaskCreate{
+				Tasks: []taskmodel.TaskCreate{
 					{
 						Flux: `option task = { every: 10s, name: "foo" }
 data = from(bucket: "telegraf") |> range(start: -1m)`,
@@ -1495,8 +1498,8 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Msg:  "check name is not unique",
 				},
 			},
@@ -1527,11 +1530,11 @@ func PatchCheck(
 	t *testing.T,
 ) {
 	type args struct {
-		id  influxdb.ID
+		id  platform.ID
 		upd influxdb.CheckUpdate
 	}
 	type wants struct {
-		err   *influxdb.Error
+		err   *errors.Error
 		check influxdb.Check
 	}
 
@@ -1548,7 +1551,7 @@ func PatchCheck(
 			fields: CheckFields{
 				IDGenerator:   mock.NewIDGenerator("0000000000000001", t),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2007, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Tasks: []influxdb.TaskCreate{
+				Tasks: []taskmodel.TaskCreate{
 					{
 						Flux: `option task = { every: 10s, name: "foo" }
 data = from(bucket: "telegraf") |> range(start: -1m)`,
@@ -1667,8 +1670,8 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Msg:  "check entity update conflicts with an existing entity",
 				},
 			},
@@ -1692,8 +1695,8 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 }
 
 // MustIDBase16 is an helper to ensure a correct ID is built during testing.
-func MustIDBase16(s string) influxdb.ID {
-	id, err := influxdb.IDFromString(s)
+func MustIDBase16(s string) platform.ID {
+	id, err := platform.IDFromString(s)
 	if err != nil {
 		panic(err)
 	}
@@ -1720,18 +1723,18 @@ func ErrorsEqual(t *testing.T, actual, expected error) {
 		t.Errorf("expected error %s but received nil", expected.Error())
 	}
 
-	if influxdb.ErrorCode(expected) != influxdb.ErrorCode(actual) {
+	if errors.ErrorCode(expected) != errors.ErrorCode(actual) {
 		t.Logf("\nexpected: %v\nactual: %v\n\n", expected, actual)
-		t.Errorf("expected error code %q but received %q", influxdb.ErrorCode(expected), influxdb.ErrorCode(actual))
+		t.Errorf("expected error code %q but received %q", errors.ErrorCode(expected), errors.ErrorCode(actual))
 	}
 
-	if influxdb.ErrorMessage(expected) != influxdb.ErrorMessage(actual) {
+	if errors.ErrorMessage(expected) != errors.ErrorMessage(actual) {
 		t.Logf("\nexpected: %v\nactual: %v\n\n", expected, actual)
-		t.Errorf("expected error message %q but received %q", influxdb.ErrorMessage(expected), influxdb.ErrorMessage(actual))
+		t.Errorf("expected error message %q but received %q", errors.ErrorMessage(expected), errors.ErrorMessage(actual))
 	}
 }
 
-func influxErrsEqual(t *testing.T, expected *influxdb.Error, actual error) {
+func influxErrsEqual(t *testing.T, expected *errors.Error, actual error) {
 	t.Helper()
 
 	if expected != nil {
@@ -1746,7 +1749,7 @@ func influxErrsEqual(t *testing.T, expected *influxdb.Error, actual error) {
 		require.NoError(t, actual)
 		return
 	}
-	iErr, ok := actual.(*influxdb.Error)
+	iErr, ok := actual.(*errors.Error)
 	require.True(t, ok)
 	assert.Equal(t, expected.Code, iErr.Code)
 	assert.Truef(t, strings.HasPrefix(iErr.Error(), expected.Error()), "expected: %s got err: %s", expected.Error(), actual.Error())

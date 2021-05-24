@@ -1,6 +1,7 @@
 package influxdb_test
 
 import (
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
@@ -23,8 +24,8 @@ func TestTagValid(t *testing.T) {
 		{
 			name: "empty",
 			src:  influxdb.TagRule{},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "tag must contain a key and a value",
 			},
 		},
@@ -33,8 +34,8 @@ func TestTagValid(t *testing.T) {
 			src: influxdb.TagRule{
 				Tag: influxdb.Tag{Value: "v1"},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "tag must contain a key and a value",
 			},
 		},
@@ -43,8 +44,8 @@ func TestTagValid(t *testing.T) {
 			src: influxdb.TagRule{
 				Tag: influxdb.Tag{Key: "k1"},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "tag must contain a key and a value",
 			},
 		},
@@ -54,8 +55,8 @@ func TestTagValid(t *testing.T) {
 				Tag:      influxdb.Tag{Key: "k1", Value: "v1"},
 				Operator: influxdb.Operator(-1),
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Operator is invalid",
 			},
 		},

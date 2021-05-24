@@ -3,6 +3,8 @@ package mock
 import (
 	"context"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	platform "github.com/influxdata/influxdb/v2"
 )
 
@@ -12,32 +14,32 @@ var _ platform.UserService = (*UserService)(nil)
 // also makes it a suitable mock to use wherever an platform.UserService is required.
 type UserService struct {
 	// Methods for a platform.UserService
-	FindUserByIDFn          func(context.Context, platform.ID) (*platform.User, error)
+	FindUserByIDFn          func(context.Context, platform2.ID) (*platform.User, error)
 	FindUsersFn             func(context.Context, platform.UserFilter, ...platform.FindOptions) ([]*platform.User, int, error)
 	CreateUserFn            func(context.Context, *platform.User) error
-	DeleteUserFn            func(context.Context, platform.ID) error
+	DeleteUserFn            func(context.Context, platform2.ID) error
 	FindUserFn              func(context.Context, platform.UserFilter) (*platform.User, error)
-	UpdateUserFn            func(context.Context, platform.ID, platform.UserUpdate) (*platform.User, error)
-	FindPermissionForUserFn func(context.Context, platform.ID) (platform.PermissionSet, error)
+	UpdateUserFn            func(context.Context, platform2.ID, platform.UserUpdate) (*platform.User, error)
+	FindPermissionForUserFn func(context.Context, platform2.ID) (platform.PermissionSet, error)
 }
 
 // NewUserService returns a mock of UserService where its methods will return zero values.
 func NewUserService() *UserService {
 	return &UserService{
-		FindUserByIDFn: func(context.Context, platform.ID) (*platform.User, error) { return nil, nil },
+		FindUserByIDFn: func(context.Context, platform2.ID) (*platform.User, error) { return nil, nil },
 		FindUserFn:     func(context.Context, platform.UserFilter) (*platform.User, error) { return nil, nil },
 		CreateUserFn:   func(context.Context, *platform.User) error { return nil },
-		UpdateUserFn:   func(context.Context, platform.ID, platform.UserUpdate) (*platform.User, error) { return nil, nil },
-		DeleteUserFn:   func(context.Context, platform.ID) error { return nil },
+		UpdateUserFn:   func(context.Context, platform2.ID, platform.UserUpdate) (*platform.User, error) { return nil, nil },
+		DeleteUserFn:   func(context.Context, platform2.ID) error { return nil },
 		FindUsersFn: func(context.Context, platform.UserFilter, ...platform.FindOptions) ([]*platform.User, int, error) {
 			return nil, 0, nil
 		},
-		FindPermissionForUserFn: func(context.Context, platform.ID) (platform.PermissionSet, error) { return nil, nil },
+		FindPermissionForUserFn: func(context.Context, platform2.ID) (platform.PermissionSet, error) { return nil, nil },
 	}
 }
 
 // FindUserByID returns a single User by ID.
-func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platform.User, error) {
+func (s *UserService) FindUserByID(ctx context.Context, id platform2.ID) (*platform.User, error) {
 	return s.FindUserByIDFn(ctx, id)
 }
 
@@ -52,7 +54,7 @@ func (s *UserService) CreateUser(ctx context.Context, User *platform.User) error
 }
 
 // DeleteUser removes a User by ID.
-func (s *UserService) DeleteUser(ctx context.Context, id platform.ID) error {
+func (s *UserService) DeleteUser(ctx context.Context, id platform2.ID) error {
 	return s.DeleteUserFn(ctx, id)
 }
 
@@ -62,10 +64,10 @@ func (s *UserService) FindUser(ctx context.Context, filter platform.UserFilter) 
 }
 
 // UpdateUser updates a user
-func (s *UserService) UpdateUser(ctx context.Context, id platform.ID, upd platform.UserUpdate) (*platform.User, error) {
+func (s *UserService) UpdateUser(ctx context.Context, id platform2.ID, upd platform.UserUpdate) (*platform.User, error) {
 	return s.UpdateUserFn(ctx, id, upd)
 }
 
-func (s *UserService) FindPermissionForUser(ctx context.Context, uid platform.ID) (platform.PermissionSet, error) {
+func (s *UserService) FindPermissionForUser(ctx context.Context, uid platform2.ID) (platform.PermissionSet, error) {
 	return s.FindPermissionForUserFn(ctx, uid)
 }

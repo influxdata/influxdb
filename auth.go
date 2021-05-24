@@ -3,25 +3,28 @@ package influxdb
 import (
 	"context"
 	"fmt"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // AuthorizationKind is returned by (*Authorization).Kind().
 const AuthorizationKind = "authorization"
 
 // ErrUnableToCreateToken sanitized error message for all errors when a user cannot create a token
-var ErrUnableToCreateToken = &Error{
+var ErrUnableToCreateToken = &errors.Error{
 	Msg:  "unable to create token",
-	Code: EInvalid,
+	Code: errors.EInvalid,
 }
 
 // Authorization is an authorization. 🎉
 type Authorization struct {
-	ID          ID           `json:"id"`
+	ID          platform.ID  `json:"id"`
 	Token       string       `json:"token"`
 	Status      Status       `json:"status"`
 	Description string       `json:"description"`
-	OrgID       ID           `json:"orgID"`
-	UserID      ID           `json:"userID,omitempty"`
+	OrgID       platform.ID  `json:"orgID"`
+	UserID      platform.ID  `json:"userID,omitempty"`
 	Permissions []Permission `json:"permissions"`
 	CRUDLog
 }
@@ -36,9 +39,9 @@ type AuthorizationUpdate struct {
 func (a *Authorization) Valid() error {
 	for _, p := range a.Permissions {
 		if p.Resource.OrgID != nil && *p.Resource.OrgID != a.OrgID {
-			return &Error{
+			return &errors.Error{
 				Msg:  fmt.Sprintf("permission %s is not for org id %s", p, a.OrgID),
-				Code: EInvalid,
+				Code: errors.EInvalid,
 			}
 		}
 	}
@@ -49,8 +52,8 @@ func (a *Authorization) Valid() error {
 // PermissionSet returns the set of permissions associated with the Authorization.
 func (a *Authorization) PermissionSet() (PermissionSet, error) {
 	if !a.IsActive() {
-		return nil, &Error{
-			Code: EUnauthorized,
+		return nil, &errors.Error{
+			Code: errors.EUnauthorized,
 			Msg:  "token is inactive",
 		}
 	}
@@ -69,7 +72,7 @@ func (a *Authorization) IsActive() bool {
 }
 
 // GetUserID returns the user id.
-func (a *Authorization) GetUserID() ID {
+func (a *Authorization) GetUserID() platform.ID {
 	return a.UserID
 }
 
@@ -77,7 +80,7 @@ func (a *Authorization) GetUserID() ID {
 func (a *Authorization) Kind() string { return AuthorizationKind }
 
 // Identifier returns the authorizations ID and is used for auditing.
-func (a *Authorization) Identifier() ID { return a.ID }
+func (a *Authorization) Identifier() platform.ID { return a.ID }
 
 // auth service op
 const (
@@ -92,7 +95,7 @@ const (
 // AuthorizationService represents a service for managing authorization data.
 type AuthorizationService interface {
 	// Returns a single authorization by ID.
-	FindAuthorizationByID(ctx context.Context, id ID) (*Authorization, error)
+	FindAuthorizationByID(ctx context.Context, id platform.ID) (*Authorization, error)
 
 	// Returns a single authorization by Token.
 	FindAuthorizationByToken(ctx context.Context, t string) (*Authorization, error)
@@ -105,20 +108,20 @@ type AuthorizationService interface {
 	CreateAuthorization(ctx context.Context, a *Authorization) error
 
 	// UpdateAuthorization updates the status and description if available.
-	UpdateAuthorization(ctx context.Context, id ID, upd *AuthorizationUpdate) (*Authorization, error)
+	UpdateAuthorization(ctx context.Context, id platform.ID, upd *AuthorizationUpdate) (*Authorization, error)
 
 	// Removes a authorization by token.
-	DeleteAuthorization(ctx context.Context, id ID) error
+	DeleteAuthorization(ctx context.Context, id platform.ID) error
 }
 
 // AuthorizationFilter represents a set of filter that restrict the returned results.
 type AuthorizationFilter struct {
 	Token *string
-	ID    *ID
+	ID    *platform.ID
 
-	UserID *ID
+	UserID *platform.ID
 	User   *string
 
-	OrgID *ID
+	OrgID *platform.ID
 	Org   *string
 }

@@ -3,6 +3,8 @@ package tenant
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/metric"
 	"github.com/prometheus/client_golang/prometheus"
@@ -27,7 +29,7 @@ func NewBucketMetrics(reg prometheus.Registerer, s influxdb.BucketService, opts 
 }
 
 // Returns a single bucket by ID.
-func (m *BucketMetrics) FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+func (m *BucketMetrics) FindBucketByID(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 	rec := m.rec.Record("find_bucket_by_id")
 	bucket, err := m.bucketService.FindBucketByID(ctx, id)
 	return bucket, rec(err)
@@ -55,21 +57,21 @@ func (m *BucketMetrics) CreateBucket(ctx context.Context, b *influxdb.Bucket) er
 }
 
 // Updates a single bucket with changeset and returns the new bucket state after update.
-func (m *BucketMetrics) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+func (m *BucketMetrics) UpdateBucket(ctx context.Context, id platform.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 	rec := m.rec.Record("update_bucket")
 	updatedBucket, err := m.bucketService.UpdateBucket(ctx, id, upd)
 	return updatedBucket, rec(err)
 }
 
 // Removes a bucket by ID.
-func (m *BucketMetrics) DeleteBucket(ctx context.Context, id influxdb.ID) error {
+func (m *BucketMetrics) DeleteBucket(ctx context.Context, id platform.ID) error {
 	rec := m.rec.Record("delete_bucket")
 	err := m.bucketService.DeleteBucket(ctx, id)
 	return rec(err)
 }
 
 // FindBucketByName finds a Bucket given its name and Organization ID
-func (m *BucketMetrics) FindBucketByName(ctx context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
+func (m *BucketMetrics) FindBucketByName(ctx context.Context, orgID platform.ID, name string) (*influxdb.Bucket, error) {
 	rec := m.rec.Record("find_bucket_by_name")
 	bucket, err := m.bucketService.FindBucketByName(ctx, orgID, name)
 	return bucket, rec(err)

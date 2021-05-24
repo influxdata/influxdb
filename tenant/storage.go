@@ -4,7 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/rand"
@@ -16,9 +18,9 @@ const MaxIDGenerationN = 100
 
 type Store struct {
 	kvStore     kv.Store
-	IDGen       influxdb.IDGenerator
-	OrgIDGen    influxdb.IDGenerator
-	BucketIDGen influxdb.IDGenerator
+	IDGen       platform.IDGenerator
+	OrgIDGen    platform.IDGenerator
+	BucketIDGen platform.IDGenerator
 
 	now func() time.Time
 
@@ -59,7 +61,7 @@ func (s *Store) Update(ctx context.Context, fn func(kv.Tx) error) error {
 
 // generateSafeID attempts to create ids for buckets
 // and orgs that are without backslash, commas, and spaces, BUT ALSO do not already exist.
-func (s *Store) generateSafeID(ctx context.Context, tx kv.Tx, bucket []byte, gen influxdb.IDGenerator) (influxdb.ID, error) {
+func (s *Store) generateSafeID(ctx context.Context, tx kv.Tx, bucket []byte, gen platform.IDGenerator) (platform.ID, error) {
 	for i := 0; i < MaxIDGenerationN; i++ {
 		id := gen.ID()
 
@@ -72,20 +74,20 @@ func (s *Store) generateSafeID(ctx context.Context, tx kv.Tx, bucket []byte, gen
 			continue
 		}
 
-		return influxdb.InvalidID(), err
+		return platform.InvalidID(), err
 	}
 
-	return influxdb.InvalidID(), ErrFailureGeneratingID
+	return platform.InvalidID(), ErrFailureGeneratingID
 }
 
-func (s *Store) uniqueID(ctx context.Context, tx kv.Tx, bucket []byte, id influxdb.ID) error {
+func (s *Store) uniqueID(ctx context.Context, tx kv.Tx, bucket []byte, id platform.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	encodedID, err := id.Encode()
 	if err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	tracetest "github.com/influxdata/influxdb/v2/kit/tracing/testing"
@@ -26,6 +27,7 @@ import (
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/backend/executor/mock"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
@@ -121,7 +123,7 @@ func testQuerySuccess(t *testing.T) {
 	)
 	ctx = opentracing.ContextWithSpan(ctx, span)
 
-	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, taskmodel.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +132,7 @@ func testQuerySuccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	promiseID := influxdb.ID(promise.ID())
+	promiseID := platform.ID(promise.ID())
 
 	run, err := tes.i.FindRunByID(context.Background(), task.ID, promiseID)
 	if err != nil {
@@ -183,7 +185,7 @@ func testQueryFailure(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, taskmodel.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +194,7 @@ func testQueryFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	promiseID := influxdb.ID(promise.ID())
+	promiseID := platform.ID(promise.ID())
 
 	run, err := tes.i.FindRunByID(context.Background(), task.ID, promiseID)
 	if err != nil {
@@ -219,7 +221,7 @@ func testManualRun(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, taskmodel.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +268,7 @@ func testResumingRun(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, taskmodel.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +284,7 @@ func testResumingRun(t *testing.T) {
 	}
 
 	// ensure that it doesn't recreate a promise
-	if _, err := tes.ex.ResumeCurrentRun(ctx, task.ID, stalledRun.ID); err != influxdb.ErrRunNotFound {
+	if _, err := tes.ex.ResumeCurrentRun(ctx, task.ID, stalledRun.ID); err != taskmodel.ErrRunNotFound {
 		t.Fatal("failed to error when run has already been resumed")
 	}
 
@@ -309,7 +311,7 @@ func testWorkerLimit(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, taskmodel.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,16 +341,16 @@ func testLimitFunc(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, taskmodel.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
 	forcedErr := errors.New("forced")
-	forcedQueryErr := influxdb.ErrQueryError(forcedErr)
+	forcedQueryErr := taskmodel.ErrQueryError(forcedErr)
 	tes.svc.FailNextQuery(forcedErr)
 
 	count := 0
-	tes.ex.SetLimitFunc(func(*influxdb.Task, *influxdb.Run) error {
+	tes.ex.SetLimitFunc(func(*taskmodel.Task, *taskmodel.Run) error {
 		count++
 		if count < 2 {
 			return errors.New("not there yet")
@@ -385,7 +387,7 @@ func testMetrics(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, taskmodel.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	assert.NoError(t, err)
 
 	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
@@ -423,7 +425,7 @@ func testMetrics(t *testing.T) {
 	assert.NoError(t, promise.Error())
 
 	// manual runs metrics
-	mt, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	mt, err := tes.i.CreateTask(ctx, taskmodel.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	assert.NoError(t, err)
 
 	scheduledFor := int64(123)
@@ -461,7 +463,7 @@ func testIteratorFailure(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, taskmodel.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,7 +472,7 @@ func testIteratorFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	promiseID := influxdb.ID(promise.ID())
+	promiseID := platform.ID(promise.ID())
 
 	run, err := tes.i.FindRunByID(context.Background(), task.ID, promiseID)
 	if err != nil {
@@ -501,7 +503,7 @@ func testErrorHandling(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script, Status: "active"})
+	task, err := tes.i.CreateTask(ctx, taskmodel.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script, Status: "active"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -549,7 +551,7 @@ func TestPromiseFailure(t *testing.T) {
 	)
 	ctx = opentracing.ContextWithSpan(ctx, span)
 
-	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, taskmodel.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -567,7 +569,7 @@ func TestPromiseFailure(t *testing.T) {
 		t.Fatalf("expected no promise but received one: %+v", promise)
 	}
 
-	runs, _, err := tes.i.FindRuns(context.Background(), influxdb.RunFilter{Task: task.ID})
+	runs, _, err := tes.i.FindRuns(context.Background(), taskmodel.RunFilter{Task: task.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -585,10 +587,10 @@ func TestPromiseFailure(t *testing.T) {
 type taskControlService struct {
 	backend.TaskControlService
 
-	run *influxdb.Run
+	run *taskmodel.Run
 }
 
-func (t *taskControlService) FinishRun(ctx context.Context, taskID influxdb.ID, runID influxdb.ID) (*influxdb.Run, error) {
+func (t *taskControlService) FinishRun(ctx context.Context, taskID platform.ID, runID platform.ID) (*taskmodel.Run, error) {
 	// ensure auth set on context
 	_, err := icontext.GetAuthorizer(ctx)
 	if err != nil {

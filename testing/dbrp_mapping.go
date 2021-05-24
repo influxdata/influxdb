@@ -6,6 +6,8 @@ import (
 	"sort"
 	"testing"
 
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/pkg/errors"
@@ -217,8 +219,8 @@ func CreateDBRPMapping(
 				},
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.EConflict,
+				err: &errors2.Error{
+					Code: errors2.EConflict,
 					Msg:  "dbrp mapping already exists",
 				},
 				dbrpMappings: []*platform.DBRPMapping{
@@ -515,8 +517,8 @@ func FindDBRPMappingByKey(
 				RetentionPolicy: "retention_policyA",
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
+				err: &errors2.Error{
+					Code: errors2.ENotFound,
 					Msg:  "dbrp mapping not found",
 				},
 			},
@@ -673,8 +675,8 @@ func FindDBRPMapping(
 				filter: platform.DBRPMappingFilter{},
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.EInvalid,
+				err: &errors2.Error{
+					Code: errors2.EInvalid,
 					Msg:  "no filter parameters provided",
 				},
 			},

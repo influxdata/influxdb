@@ -3,6 +3,8 @@ package zap
 import (
 	"context"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	platform "github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
@@ -16,7 +18,7 @@ type AuthorizationService struct {
 }
 
 // FindAuthorizationByID returns an authorization given an id, and logs any errors.
-func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform.ID) (a *platform.Authorization, err error) {
+func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform2.ID) (a *platform.Authorization, err error) {
 	defer func() {
 		if err != nil {
 			s.log.Info("Error finding authorization by id", zap.Error(err))
@@ -60,7 +62,7 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 }
 
 // DeleteAuthorization deletes an authorization, and logs any errors.
-func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform.ID) (err error) {
+func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform2.ID) (err error) {
 	defer func() {
 		if err != nil {
 			s.log.Info("Error deleting authorization", zap.Error(err))
@@ -71,7 +73,7 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 }
 
 // UpdateAuthorization updates an authorization's status, description and logs any errors.
-func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (a *platform.Authorization, err error) {
+func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform2.ID, upd *platform.AuthorizationUpdate) (a *platform.Authorization, err error) {
 	defer func() {
 		if err != nil {
 			s.log.Info("Error updating authorization", zap.Error(err))

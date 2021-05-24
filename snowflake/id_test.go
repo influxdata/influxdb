@@ -3,7 +3,7 @@ package snowflake
 import (
 	"testing"
 
-	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 func TestIDLength(t *testing.T) {
@@ -13,7 +13,7 @@ func TestIDLength(t *testing.T) {
 		t.Fail()
 	}
 	enc, _ := id.Encode()
-	if len(enc) != platform.IDLength {
+	if len(enc) != platform2.IDLength {
 		t.Fail()
 	}
 }
@@ -21,7 +21,7 @@ func TestIDLength(t *testing.T) {
 func TestToFromString(t *testing.T) {
 	gen := NewIDGenerator()
 	id := gen.ID()
-	var clone platform.ID
+	var clone platform2.ID
 	if err := clone.DecodeFromString(id.String()); err != nil {
 		t.Error(err)
 	} else if id != clone {

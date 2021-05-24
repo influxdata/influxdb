@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql"
@@ -46,8 +48,8 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 	}
 
 	if !auth.IsActive() {
-		h.HandleHTTPError(ctx, &influxdb.Error{
-			Code: influxdb.EForbidden,
+		h.HandleHTTPError(ctx, &errors.Error{
+			Code: errors.EForbidden,
 			Msg:  "insufficient permissions",
 		}, w)
 		return
@@ -79,8 +81,8 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 		ct := r.Header.Get("Content-Type")
 		mt, _, err := mime.ParseMediaType(ct)
 		if err != nil {
-			h.HandleHTTPError(ctx, &influxdb.Error{
-				Code: influxdb.EInvalid,
+			h.HandleHTTPError(ctx, &errors.Error{
+				Code: errors.EInvalid,
 				Err:  err,
 			}, w)
 			return
@@ -103,8 +105,8 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 		decoder := json.NewDecoder(strings.NewReader(rawParams))
 		decoder.UseNumber()
 		if err := decoder.Decode(&params); err != nil {
-			h.HandleHTTPError(ctx, &influxdb.Error{
-				Code: influxdb.EInvalid,
+			h.HandleHTTPError(ctx, &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "error parsing query parameters",
 				Err:  err,
 			}, w)
@@ -122,8 +124,8 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 				}
 
 				if err != nil {
-					h.HandleHTTPError(ctx, &influxdb.Error{
-						Code: influxdb.EInvalid,
+					h.HandleHTTPError(ctx, &errors.Error{
+						Code: errors.EInvalid,
 						Msg:  "error parsing json value",
 						Err:  err,
 					}, w)

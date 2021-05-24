@@ -6,6 +6,7 @@ package mocks
 
 import (
 	context "context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -50,7 +51,7 @@ func (mr *MockDBRPMappingServiceV2MockRecorder) Create(arg0, arg1 interface{}) *
 }
 
 // Delete mocks base method
-func (m *MockDBRPMappingServiceV2) Delete(arg0 context.Context, arg1, arg2 influxdb.ID) error {
+func (m *MockDBRPMappingServiceV2) Delete(arg0 context.Context, arg1, arg2 platform.ID) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -64,7 +65,7 @@ func (mr *MockDBRPMappingServiceV2MockRecorder) Delete(arg0, arg1, arg2 interfac
 }
 
 // FindByID mocks base method
-func (m *MockDBRPMappingServiceV2) FindByID(arg0 context.Context, arg1, arg2 influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+func (m *MockDBRPMappingServiceV2) FindByID(arg0 context.Context, arg1, arg2 platform.ID) (*influxdb.DBRPMappingV2, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindByID", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*influxdb.DBRPMappingV2)

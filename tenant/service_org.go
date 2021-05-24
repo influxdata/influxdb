@@ -3,6 +3,8 @@ package tenant
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -21,7 +23,7 @@ func NewOrganizationSvc(st *Store, svc *Service) *OrgSvc {
 }
 
 // Returns a single organization by ID.
-func (s *OrgSvc) FindOrganizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+func (s *OrgSvc) FindOrganizationByID(ctx context.Context, id platform.ID) (*influxdb.Organization, error) {
 	var org *influxdb.Organization
 	err := s.store.View(ctx, func(tx kv.Tx) error {
 		o, err := s.store.GetOrg(ctx, tx, id)
@@ -170,7 +172,7 @@ func (s *OrgSvc) CreateOrganization(ctx context.Context, o *influxdb.Organizatio
 
 // Updates a single organization with changeset.
 // Returns the new organization state after update.
-func (s *OrgSvc) UpdateOrganization(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
+func (s *OrgSvc) UpdateOrganization(ctx context.Context, id platform.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
 	var org *influxdb.Organization
 	err := s.store.Update(ctx, func(tx kv.Tx) error {
 		o, err := s.store.UpdateOrg(ctx, tx, id, upd)
@@ -187,7 +189,7 @@ func (s *OrgSvc) UpdateOrganization(ctx context.Context, id influxdb.ID, upd inf
 }
 
 // DeleteOrganization removes a organization by ID and its dependent resources.
-func (s *OrgSvc) DeleteOrganization(ctx context.Context, id influxdb.ID) error {
+func (s *OrgSvc) DeleteOrganization(ctx context.Context, id platform.ID) error {
 	// clean up the buckets for this organization
 	filter := influxdb.BucketFilter{
 		OrganizationID: &id,
@@ -215,7 +217,7 @@ func (s *OrgSvc) DeleteOrganization(ctx context.Context, id influxdb.ID) error {
 }
 
 // removeResourceRelations allows us to clean up any resource relationship that would have normally been left over after a delete action of a resource.
-func (s *OrgSvc) removeResourceRelations(ctx context.Context, resourceID influxdb.ID) error {
+func (s *OrgSvc) removeResourceRelations(ctx context.Context, resourceID platform.ID) error {
 	urms, _, err := s.svc.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
 		ResourceID: resourceID,
 	})

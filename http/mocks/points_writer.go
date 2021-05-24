@@ -6,10 +6,10 @@ package mocks
 
 import (
 	context "context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	influxdb "github.com/influxdata/influxdb/v2"
 	models "github.com/influxdata/influxdb/v2/models"
 )
 
@@ -37,7 +37,7 @@ func (m *MockPointsWriter) EXPECT() *MockPointsWriterMockRecorder {
 }
 
 // WritePoints mocks base method
-func (m *MockPointsWriter) WritePoints(arg0 context.Context, arg1, arg2 influxdb.ID, arg3 []models.Point) error {
+func (m *MockPointsWriter) WritePoints(arg0 context.Context, arg1, arg2 platform.ID, arg3 []models.Point) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WritePoints", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)

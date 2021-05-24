@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/prom"
@@ -29,7 +31,7 @@ type Engine interface {
 	influxdb.BackupService
 	influxdb.RestoreService
 
-	SeriesCardinality(orgID, bucketID influxdb.ID) int64
+	SeriesCardinality(orgID, bucketID platform.ID) int64
 
 	TSDBStore() storage.TSDBStore
 	MetaClient() storage.MetaClient
@@ -109,17 +111,17 @@ func (t *TemporaryEngine) Close() error {
 }
 
 // WritePoints stores points into the storage engine.
-func (t *TemporaryEngine) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID influxdb.ID, points []models.Point) error {
+func (t *TemporaryEngine) WritePoints(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error {
 	return t.engine.WritePoints(ctx, orgID, bucketID, points)
 }
 
 // SeriesCardinality returns the number of series in the engine.
-func (t *TemporaryEngine) SeriesCardinality(orgID, bucketID influxdb.ID) int64 {
+func (t *TemporaryEngine) SeriesCardinality(orgID, bucketID platform.ID) int64 {
 	return t.engine.SeriesCardinality(orgID, bucketID)
 }
 
 // DeleteBucketRangePredicate will delete a bucket from the range and predicate.
-func (t *TemporaryEngine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate) error {
+func (t *TemporaryEngine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID platform.ID, min, max int64, pred influxdb.Predicate) error {
 	return t.engine.DeleteBucketRangePredicate(ctx, orgID, bucketID, min, max, pred)
 }
 
@@ -127,12 +129,12 @@ func (t *TemporaryEngine) CreateBucket(ctx context.Context, b *influxdb.Bucket) 
 	return t.engine.CreateBucket(ctx, b)
 }
 
-func (t *TemporaryEngine) UpdateBucketRetentionPeriod(ctx context.Context, bucketID influxdb.ID, d time.Duration) error {
-	return t.engine.UpdateBucketRetentionPeriod(ctx, bucketID, d)
+func (t *TemporaryEngine) UpdateBucketRetentionPolicy(ctx context.Context, bucketID platform.ID, upd *influxdb.BucketUpdate) error {
+	return t.engine.UpdateBucketRetentionPolicy(ctx, bucketID, upd)
 }
 
 // DeleteBucket deletes a bucket from the time-series data.
-func (t *TemporaryEngine) DeleteBucket(ctx context.Context, orgID, bucketID influxdb.ID) error {
+func (t *TemporaryEngine) DeleteBucket(ctx context.Context, orgID, bucketID platform.ID) error {
 	return t.engine.DeleteBucket(ctx, orgID, bucketID)
 }
 
@@ -166,7 +168,7 @@ func (t *TemporaryEngine) RestoreKVStore(ctx context.Context, r io.Reader) error
 	return t.engine.RestoreKVStore(ctx, r)
 }
 
-func (t *TemporaryEngine) RestoreBucket(ctx context.Context, id influxdb.ID, dbi []byte) (map[uint64]uint64, error) {
+func (t *TemporaryEngine) RestoreBucket(ctx context.Context, id platform.ID, dbi []byte) (map[uint64]uint64, error) {
 	return t.engine.RestoreBucket(ctx, id, dbi)
 }
 

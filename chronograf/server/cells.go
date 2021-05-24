@@ -88,7 +88,7 @@ func ValidDashboardCellRequest(c *chronograf.DashboardCell) error {
 	if err = HasCorrectColors(c); err != nil {
 		return err
 	}
-	return HasCorrectLegend(c)
+	return nil
 }
 
 // HasCorrectAxes verifies that only permitted axes exist within a DashboardCell
@@ -119,27 +119,6 @@ func HasCorrectColors(c *chronograf.DashboardCell) error {
 		if len(color.Hex) != 7 {
 			return chronograf.ErrInvalidColor
 		}
-	}
-	return nil
-}
-
-// HasCorrectLegend verifies that the format of the legend is correct
-func HasCorrectLegend(c *chronograf.DashboardCell) error {
-	// No legend set
-	if c.Legend.Type == "" && c.Legend.Orientation == "" {
-		return nil
-	}
-
-	if c.Legend.Type == "" || c.Legend.Orientation == "" {
-		return chronograf.ErrInvalidLegend
-	}
-	if !oneOf(c.Legend.Orientation, "top", "bottom", "right", "left") {
-		return chronograf.ErrInvalidLegendOrient
-	}
-
-	// Remember! if we add other types, update ErrInvalidLegendType
-	if !oneOf(c.Legend.Type, "static") {
-		return chronograf.ErrInvalidLegendType
 	}
 	return nil
 }

@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -19,7 +21,7 @@ import (
 )
 
 func TestCmdUser(t *testing.T) {
-	var org = &influxdb.Organization{ID: influxdb.ID(9000), Name: "org name"}
+	var org = &influxdb.Organization{ID: platform.ID(9000), Name: "org name"}
 	var orgNameFlag = fmt.Sprintf("--org=%s", org.Name)
 
 	type orgSetResult struct {
@@ -156,7 +158,7 @@ func TestCmdUser(t *testing.T) {
 				return nil
 			}
 			passSVC := mock.NewPasswordsService()
-			passSVC.SetPasswordFn = func(ctx context.Context, id influxdb.ID, password string) error {
+			passSVC.SetPasswordFn = func(ctx context.Context, id platform.ID, password string) error {
 				if expected.password != password {
 					return fmt.Errorf("unexpected password;\n\twant= %+v\n\tgot=  %+v", expected.password, password)
 				}
@@ -220,27 +222,27 @@ func TestCmdUser(t *testing.T) {
 	t.Run("delete", func(t *testing.T) {
 		tests := []struct {
 			name       string
-			expectedID influxdb.ID
+			expectedID platform.ID
 			flag       string
 		}{
 			{
 				name:       "long id",
-				expectedID: influxdb.ID(1),
+				expectedID: platform.ID(1),
 				flag:       "--id=",
 			},
 			{
 				name:       "shorts",
-				expectedID: influxdb.ID(1),
+				expectedID: platform.ID(1),
 				flag:       "-i=",
 			},
 		}
 
-		cmdFn := func(expectedID influxdb.ID) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expectedID platform.ID) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewUserService()
-			svc.FindUserByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+			svc.FindUserByIDFn = func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 				return &influxdb.User{ID: id}, nil
 			}
-			svc.DeleteUserFn = func(ctx context.Context, id influxdb.ID) error {
+			svc.DeleteUserFn = func(ctx context.Context, id platform.ID) error {
 				if expectedID != id {
 					return fmt.Errorf("unexpected id:\n\twant= %s\n\tgot=  %s", expectedID, id)
 				}
@@ -273,7 +275,7 @@ func TestCmdUser(t *testing.T) {
 	t.Run("list", func(t *testing.T) {
 		type called struct {
 			name string
-			id   influxdb.ID
+			id   platform.ID
 		}
 
 		tests := []struct {
@@ -285,7 +287,7 @@ func TestCmdUser(t *testing.T) {
 			{
 				name: "id",
 				flags: []string{
-					"--id=" + influxdb.ID(2).String(),
+					"--id=" + platform.ID(2).String(),
 				},
 				expected: called{
 					id: 2,
@@ -300,7 +302,7 @@ func TestCmdUser(t *testing.T) {
 				name: "shorts",
 				flags: []string{
 					"-n=name1",
-					"-i=" + influxdb.ID(1).String(),
+					"-i=" + platform.ID(1).String(),
 				},
 				expected: called{name: "name1", id: 1},
 			},
@@ -308,7 +310,7 @@ func TestCmdUser(t *testing.T) {
 				name:    "ls alias",
 				command: "ls",
 				flags: []string{
-					"--id=" + influxdb.ID(2).String(),
+					"--id=" + platform.ID(2).String(),
 				},
 				expected: called{
 					id: 2,
@@ -318,7 +320,7 @@ func TestCmdUser(t *testing.T) {
 				name:    "find alias",
 				command: "find",
 				flags: []string{
-					"--id=" + influxdb.ID(2).String(),
+					"--id=" + platform.ID(2).String(),
 				},
 				expected: called{
 					id: 2,
@@ -378,7 +380,7 @@ func TestCmdUser(t *testing.T) {
 			{
 				name: "basic just name",
 				flags: []string{
-					"--id=" + influxdb.ID(3).String(),
+					"--id=" + platform.ID(3).String(),
 					"--name=new name",
 				},
 				expected: influxdb.UserUpdate{
@@ -388,7 +390,7 @@ func TestCmdUser(t *testing.T) {
 			{
 				name: "with all fields",
 				flags: []string{
-					"--id=" + influxdb.ID(3).String(),
+					"--id=" + platform.ID(3).String(),
 					"--name=new name",
 				},
 				expected: influxdb.UserUpdate{
@@ -398,7 +400,7 @@ func TestCmdUser(t *testing.T) {
 			{
 				name: "shorts",
 				flags: []string{
-					"-i=" + influxdb.ID(3).String(),
+					"-i=" + platform.ID(3).String(),
 					"-n=new name",
 				},
 				expected: influxdb.UserUpdate{
@@ -409,9 +411,9 @@ func TestCmdUser(t *testing.T) {
 
 		cmdFn := func(expectedUpdate influxdb.UserUpdate) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewUserService()
-			svc.UpdateUserFn = func(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
+			svc.UpdateUserFn = func(ctx context.Context, id platform.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
 				if id != 3 {
-					return nil, fmt.Errorf("unexpecte id:\n\twant= %s\n\tgot=  %s", influxdb.ID(3), id)
+					return nil, fmt.Errorf("unexpecte id:\n\twant= %s\n\tgot=  %s", platform.ID(3), id)
 				}
 				if !reflect.DeepEqual(expectedUpdate, upd) {
 					return nil, fmt.Errorf("unexpected User update;\n\twant= %+v\n\tgot=  %+v", expectedUpdate, upd)
@@ -450,14 +452,14 @@ func TestCmdUser(t *testing.T) {
 			{
 				name: "basic id",
 				flags: []string{
-					"--id=" + influxdb.ID(3).String(),
+					"--id=" + platform.ID(3).String(),
 				},
 				expected: "pass1",
 			},
 			{
 				name: "shorts",
 				flags: []string{
-					"-i=" + influxdb.ID(3).String(),
+					"-i=" + platform.ID(3).String(),
 					"-n=new name",
 				},
 				expected: "pass1",
@@ -477,7 +479,7 @@ func TestCmdUser(t *testing.T) {
 				return usr, nil
 			}
 			passSVC := mock.NewPasswordsService()
-			passSVC.SetPasswordFn = func(ctx context.Context, id influxdb.ID, pass string) error {
+			passSVC.SetPasswordFn = func(ctx context.Context, id platform.ID, pass string) error {
 				if pass != expected {
 					return fmt.Errorf("unexpecte id:\n\twant= %s\n\tgot=  %s", pass, expected)
 				}

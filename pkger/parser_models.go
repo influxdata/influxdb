@@ -541,7 +541,7 @@ const (
 	fieldChartFillColumns                = "fillColumns"
 	fieldChartGeom                       = "geom"
 	fieldChartHeight                     = "height"
-	fieldChartLegend                     = "legend"
+	fieldChartStaticLegend               = "staticLegend"
 	fieldChartNote                       = "note"
 	fieldChartNoteOnEmpty                = "noteOnEmpty"
 	fieldChartPosition                   = "position"
@@ -597,7 +597,7 @@ type chart struct {
 	EnforceDecimals            bool
 	Shade                      bool
 	HoverDimension             string
-	Legend                     legend
+	StaticLegend               StaticLegend
 	Colors                     colors
 	Queries                    queries
 	Axes                       axes
@@ -753,7 +753,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Type:                       influxdb.ViewPropertyTypeBand,
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.influxViewColors(),
-			Legend:                     c.Legend.influxLegend(),
+			StaticLegend:               c.StaticLegend.influxStaticLegend(),
 			HoverDimension:             c.HoverDimension,
 			XColumn:                    c.XCol,
 			GenerateXAxisTicks:         c.GenerateXAxisTicks,
@@ -846,7 +846,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			YTickStep:                  c.YTickStep,
 			ShadeBelow:                 c.Shade,
 			HoverDimension:             c.HoverDimension,
-			Legend:                     c.Legend.influxLegend(),
+			StaticLegend:               c.StaticLegend.influxStaticLegend(),
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.influxViewColors(),
 			Axes:                       c.Axes.influxAxes(),
@@ -903,7 +903,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			YTickStep:                  c.YTickStep,
 			ShadeBelow:                 c.Shade,
 			HoverDimension:             c.HoverDimension,
-			Legend:                     c.Legend.influxLegend(),
+			StaticLegend:               c.StaticLegend.influxStaticLegend(),
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.influxViewColors(),
 			Axes:                       c.Axes.influxAxes(),
@@ -1381,19 +1381,35 @@ func (a axes) hasAxes(expectedAxes ...string) []validationErr {
 	return failures
 }
 
-const (
-	fieldLegendOrientation = "orientation"
-)
-
-type legend struct {
-	Orientation string `json:"orientation,omitempty" yaml:"orientation,omitempty"`
-	Type        string `json:"type" yaml:"type"`
+type StaticLegend struct {
+	ColorizeRows         bool    `json:"colorizeRows,omitempty" yaml:"colorizeRows,omitempty"`
+	HeightRatio          float64 `json:"heightRatio,omitempty" yaml:"heightRatio,omitempty"`
+	Hide                 bool    `json:"hide,omitempty" yaml:"hide,omitempty"`
+	Opacity              float64 `json:"opacity,omitempty" yaml:"opacity,omitempty"`
+	OrientationThreshold int     `json:"orientationThreshold,omitempty" yaml:"orientationThreshold,omitempty"`
+	ValueAxis            string  `json:"valueAxis,omitempty" yaml:"valueAxis,omitempty"`
+	WidthRatio           float64 `json:"widthRatio,omitempty" yaml:"widthRatio,omitempty"`
 }
 
-func (l legend) influxLegend() influxdb.Legend {
-	return influxdb.Legend{
-		Type:        l.Type,
-		Orientation: l.Orientation,
+const (
+	fieldChartStaticLegendColorizeRows         = "colorizeRows"
+	fieldChartStaticLegendHeightRatio          = "heightRatio"
+	fieldChartStaticLegendHide                 = "hide"
+	fieldChartStaticLegendOpacity              = "opacity"
+	fieldChartStaticLegendOrientationThreshold = "orientationThreshold"
+	fieldChartStaticLegendValueAxis            = "valueAxis"
+	fieldChartStaticLegendWidthRatio           = "widthRatio"
+)
+
+func (sl StaticLegend) influxStaticLegend() influxdb.StaticLegend {
+	return influxdb.StaticLegend{
+		ColorizeRows:         sl.ColorizeRows,
+		HeightRatio:          sl.HeightRatio,
+		Hide:                 sl.Hide,
+		Opacity:              sl.Opacity,
+		OrientationThreshold: sl.OrientationThreshold,
+		ValueAxis:            sl.ValueAxis,
+		WidthRatio:           sl.WidthRatio,
 	}
 }
 

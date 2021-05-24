@@ -5,13 +5,14 @@ import (
 	"errors"
 	"time"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/metadata"
 	"github.com/influxdata/flux/plan"
-	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
@@ -40,7 +41,7 @@ type Source struct {
 	runner runner
 
 	m     *metrics
-	orgID platform.ID
+	orgID platform2.ID
 	op    string
 }
 
@@ -354,9 +355,10 @@ func createReadWindowAggregateSource(s plan.ProcedureSpec, id execute.DatasetID,
 				Period: spec.WindowEvery,
 				Offset: spec.Offset,
 			},
-			Aggregates:  spec.Aggregates,
-			CreateEmpty: spec.CreateEmpty,
-			TimeColumn:  spec.TimeColumn,
+			Aggregates:     spec.Aggregates,
+			CreateEmpty:    spec.CreateEmpty,
+			TimeColumn:     spec.TimeColumn,
+			ForceAggregate: spec.ForceAggregate,
 		},
 		a,
 	), nil

@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 const (
@@ -25,7 +27,7 @@ type RestoreService interface {
 	RestoreKVStore(ctx context.Context, r io.Reader) error
 
 	// RestoreKVStore restores the metadata database.
-	RestoreBucket(ctx context.Context, id ID, rpiData []byte) (shardIDMap map[uint64]uint64, err error)
+	RestoreBucket(ctx context.Context, id platform.ID, rpiData []byte) (shardIDMap map[uint64]uint64, err error)
 
 	// RestoreShard uploads a backup file for a single shard.
 	RestoreShard(ctx context.Context, shardID uint64, r io.Reader) error
@@ -35,10 +37,6 @@ type RestoreService interface {
 type Manifest struct {
 	KV    ManifestKVEntry `json:"kv"`
 	Files []ManifestEntry `json:"files"`
-
-	// These fields are only set if filtering options are set on the CLI.
-	OrganizationID string `json:"organizationID,omitempty"`
-	BucketID       string `json:"bucketID,omitempty"`
 }
 
 // ManifestEntry contains the data information for a backed up shard.

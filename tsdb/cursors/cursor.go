@@ -39,13 +39,32 @@ type BooleanArrayCursor interface {
 	Next() *BooleanArray
 }
 
+// CursorRequest is a request to the storage engine for a cursor to be
+// created with the given name, tags, and field for a given direction
+// and time range.
 type CursorRequest struct {
-	Name      []byte
-	Tags      models.Tags
-	Field     string
+	// Name is the measurement name a cursor is requested for.
+	Name []byte
+
+	// Tags is the set of series tags a cursor is requested for.
+	Tags models.Tags
+
+	// Field is the selected field for the cursor that is requested.
+	Field string
+
+	// Ascending is whether the cursor should move in an ascending
+	// or descending time order.
 	Ascending bool
+
+	// StartTime is the start time of the cursor. It is the lower
+	// absolute time regardless of the Ascending flag. This value
+	// is an inclusive bound.
 	StartTime int64
-	EndTime   int64
+
+	// EndTime is the end time of the cursor. It is the higher
+	// absolute time regardless of the Ascending flag. This value
+	// is an inclusive bound.
+	EndTime int64
 }
 
 type CursorIterator interface {

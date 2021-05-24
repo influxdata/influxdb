@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // ErrVariableNotFound is the error msg for a missing variable.
@@ -24,7 +26,7 @@ const (
 // VariableService describes a service for managing Variables
 type VariableService interface {
 	// FindVariableByID finds a single variable from the store by its ID
-	FindVariableByID(ctx context.Context, id ID) (*Variable, error)
+	FindVariableByID(ctx context.Context, id platform.ID) (*Variable, error)
 
 	// FindVariables returns all variables in the store
 	FindVariables(ctx context.Context, filter VariableFilter, opt ...FindOptions) ([]*Variable, error)
@@ -33,20 +35,20 @@ type VariableService interface {
 	CreateVariable(ctx context.Context, m *Variable) error
 
 	// UpdateVariable updates a single variable with a changeset
-	UpdateVariable(ctx context.Context, id ID, update *VariableUpdate) (*Variable, error)
+	UpdateVariable(ctx context.Context, id platform.ID, update *VariableUpdate) (*Variable, error)
 
 	// ReplaceVariable replaces a single variable
 	ReplaceVariable(ctx context.Context, variable *Variable) error
 
 	// DeleteVariable removes a variable from the store
-	DeleteVariable(ctx context.Context, id ID) error
+	DeleteVariable(ctx context.Context, id platform.ID) error
 }
 
 // A Variable describes a keyword that can be expanded into several possible
 // values when used in an InfluxQL or Flux query
 type Variable struct {
-	ID             ID                 `json:"id,omitempty"`
-	OrganizationID ID                 `json:"orgID,omitempty"`
+	ID             platform.ID        `json:"id,omitempty"`
+	OrganizationID platform.ID        `json:"orgID,omitempty"`
 	Name           string             `json:"name"`
 	Description    string             `json:"description"`
 	Selected       []string           `json:"selected"`
@@ -59,8 +61,8 @@ var DefaultVariableFindOptions = FindOptions{}
 
 // VariableFilter represents a set of filter that restrict the returned results.
 type VariableFilter struct {
-	ID             *ID
-	OrganizationID *ID
+	ID             *platform.ID
+	OrganizationID *platform.ID
 	Organization   *string
 }
 

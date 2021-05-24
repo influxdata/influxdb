@@ -3,7 +3,9 @@ package authorization
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"golang.org/x/crypto/bcrypt"
@@ -15,12 +17,12 @@ var EIncorrectPassword = tenant.EIncorrectPassword
 // SetPasswordHash returns an error.
 //
 // This API is intended for upgrading 1.x users.
-func (s *Service) SetPasswordHash(ctx context.Context, authID influxdb.ID, passHash string) error {
+func (s *Service) SetPasswordHash(ctx context.Context, authID platform.ID, passHash string) error {
 	// verify passHash is a valid bcrypt hash
 	_, err := bcrypt.Cost([]byte(passHash))
 	if err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "invalid bcrypt hash",
 			Err:  err,
 		}
@@ -36,7 +38,7 @@ func (s *Service) SetPasswordHash(ctx context.Context, authID influxdb.ID, passH
 }
 
 // SetPassword overrides the password of a known user.
-func (s *Service) SetPassword(ctx context.Context, authID influxdb.ID, password string) error {
+func (s *Service) SetPassword(ctx context.Context, authID platform.ID, password string) error {
 	if len(password) < tenant.MinPasswordLen {
 		return tenant.EShortPassword
 	}
@@ -56,7 +58,7 @@ func (s *Service) SetPassword(ctx context.Context, authID influxdb.ID, password 
 
 // ComparePassword checks if the password matches the password recorded.
 // Passwords that do not match return errors.
-func (s *Service) ComparePassword(ctx context.Context, authID influxdb.ID, password string) error {
+func (s *Service) ComparePassword(ctx context.Context, authID platform.ID, password string) error {
 	// get password
 	var hash []byte
 	err := s.store.View(ctx, func(tx kv.Tx) error {
@@ -87,7 +89,7 @@ func (s *Service) ComparePassword(ctx context.Context, authID influxdb.ID, passw
 
 // CompareAndSetPassword checks the password and if they match
 // updates to the new password.
-func (s *Service) CompareAndSetPassword(ctx context.Context, authID influxdb.ID, old, new string) error {
+func (s *Service) CompareAndSetPassword(ctx context.Context, authID platform.ID, old, new string) error {
 	err := s.ComparePassword(ctx, authID, old)
 	if err != nil {
 		return err

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,7 +20,7 @@ import (
 
 const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjbG91ZDIuaW5mbHV4ZGF0YS5jb20iLCJhdWQiOiJnYXRld2F5LmluZmx1eGRhdGEuY29tIiwiaWF0IjoxNTY4NjI4OTgwLCJraWQiOiJzb21lLWtleSIsInBlcm1pc3Npb25zIjpbeyJhY3Rpb24iOiJ3cml0ZSIsInJlc291cmNlIjp7InR5cGUiOiJidWNrZXRzIiwiaWQiOiIwMDAwMDAwMDAwMDAwMDAxIiwib3JnSUQiOiIwMDAwMDAwMDAwMDAwMDAyIn19XX0.74vjbExiOd702VSIMmQWaDT_GFvUI0-_P-SfQ_OOHB0"
 
-var one = influxdb.ID(1)
+var one = platform.ID(1)
 
 func TestAuthenticationHandler(t *testing.T) {
 	type fields struct {
@@ -123,7 +124,7 @@ func TestAuthenticationHandler(t *testing.T) {
 				},
 				SessionService: mock.NewSessionService(),
 				UserService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 						if !id.Valid() {
 							panic("user service should only be called with valid user ID")
 						}
@@ -160,7 +161,7 @@ func TestAuthenticationHandler(t *testing.T) {
 				},
 				SessionService: mock.NewSessionService(),
 				UserService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 						// ensure that this is not reached as jwt token authorizer produces
 						// invalid user id
 						if !id.Valid() {
@@ -213,7 +214,7 @@ func TestAuthenticationHandler(t *testing.T) {
 			h.AuthorizationService = tt.fields.AuthorizationService
 			h.SessionService = tt.fields.SessionService
 			h.UserService = &mock.UserService{
-				FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+				FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 					return &influxdb.User{}, nil
 				},
 			}

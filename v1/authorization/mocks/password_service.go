@@ -7,7 +7,7 @@ package mocks
 import (
 	context "context"
 	gomock "github.com/golang/mock/gomock"
-	influxdb "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	reflect "reflect"
 )
 
@@ -35,7 +35,7 @@ func (m *MockPasswordService) EXPECT() *MockPasswordServiceMockRecorder {
 }
 
 // SetPassword mocks base method
-func (m *MockPasswordService) SetPassword(arg0 context.Context, arg1 influxdb.ID, arg2 string) error {
+func (m *MockPasswordService) SetPassword(arg0 context.Context, arg1 platform.ID, arg2 string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetPassword", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)

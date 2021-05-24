@@ -14,6 +14,7 @@ import (
 	icontext "github.com/influxdata/influxdb/v2/context"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -25,6 +26,7 @@ import (
 	storageflux "github.com/influxdata/influxdb/v2/storage/flux"
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/servicetest"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	storage2 "github.com/influxdata/influxdb/v2/v1/services/storage"
@@ -60,8 +62,7 @@ func TestAnalyticalStore(t *testing.T) {
 
 			var (
 				ab       = newAnalyticalBackend(t, ts.OrganizationService, ts.BucketService, metaClient)
-				rr       = backend.NewStoragePointsWriterRecorder(logger, ab.PointsWriter())
-				svcStack = backend.NewAnalyticalRunStorage(logger, svc, ts.BucketService, svc, rr, ab.QueryService())
+				svcStack = backend.NewAnalyticalStorage(logger, svc, ts.BucketService, svc, ab.PointsWriter(), ab.QueryService())
 			)
 
 			ts.BucketService = storage.NewBucketService(logger, ts.BucketService, ab.storageEngine)
@@ -103,25 +104,25 @@ func TestDeduplicateRuns(t *testing.T) {
 	metaClient := meta.NewClient(meta.NewConfig(), store)
 	require.NoError(t, metaClient.Open())
 
-	_, err := metaClient.CreateDatabase(influxdb.ID(10).String())
+	_, err := metaClient.CreateDatabase(platform.ID(10).String())
 	require.NoError(t, err)
 
 	ab := newAnalyticalBackend(t, ts.OrganizationService, ts.BucketService, metaClient)
 	defer ab.Close(t)
 
 	mockTS := &mock.TaskService{
-		FindTaskByIDFn: func(context.Context, influxdb.ID) (*influxdb.Task, error) {
-			return &influxdb.Task{ID: 1, OrganizationID: 20}, nil
+		FindTaskByIDFn: func(context.Context, platform.ID) (*taskmodel.Task, error) {
+			return &taskmodel.Task{ID: 1, OrganizationID: 20}, nil
 		},
-		FindRunsFn: func(context.Context, influxdb.RunFilter) ([]*influxdb.Run, int, error) {
-			return []*influxdb.Run{
-				&influxdb.Run{ID: 2, Status: "started"},
+		FindRunsFn: func(context.Context, taskmodel.RunFilter) ([]*taskmodel.Run, int, error) {
+			return []*taskmodel.Run{
+				&taskmodel.Run{ID: 2, Status: "started"},
 			}, 1, nil
 		},
 	}
 	mockTCS := &mock.TaskControlService{
-		FinishRunFn: func(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
-			return &influxdb.Run{ID: 2, TaskID: 1, Status: "success", ScheduledFor: time.Now(), StartedAt: time.Now().Add(1), FinishedAt: time.Now().Add(2)}, nil
+		FinishRunFn: func(ctx context.Context, taskID, runID platform.ID) (*taskmodel.Run, error) {
+			return &taskmodel.Run{ID: 2, TaskID: 1, Status: "success", ScheduledFor: time.Now(), StartedAt: time.Now().Add(1), FinishedAt: time.Now().Add(2)}, nil
 		},
 	}
 	mockBS := mock.NewBucketService()
@@ -133,7 +134,7 @@ func TestDeduplicateRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runs, _, err := svcStack.FindRuns(context.Background(), influxdb.RunFilter{Task: 1})
+	runs, _, err := svcStack.FindRuns(context.Background(), taskmodel.RunFilter{Task: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,10 +216,9 @@ func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, buc
 		ConcurrencyQuota:         concurrencyQuota,
 		MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
 		QueueSize:                queueSize,
-		Logger:                   logger.With(zap.String("service", "storage-reads")),
 	}
 
-	queryController, err := control.New(cc)
+	queryController, err := control.New(cc, logger.With(zap.String("service", "storage-reads")))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,7 +5,9 @@ import (
 	"sort"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/notification/rule"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 type stateCoordinator struct {
@@ -445,7 +447,7 @@ func (s *stateCoordinator) reconcileStackResources(stackResources []StackResourc
 }
 
 func (s *stateCoordinator) reconcileLabelMappings(stackResources []StackResource) {
-	mLabelMetaNameToID := make(map[string]influxdb.ID)
+	mLabelMetaNameToID := make(map[string]platform.ID)
 	for _, r := range stackResources {
 		if r.Kind.is(KindLabel) {
 			mLabelMetaNameToID[r.MetaName] = r.ID
@@ -558,7 +560,7 @@ func (s *stateCoordinator) Contains(k Kind, metaName string) bool {
 }
 
 // setObjectID sets the id for the resource graphed from the object the key identifies.
-func (s *stateCoordinator) setObjectID(k Kind, metaName string, id influxdb.ID) {
+func (s *stateCoordinator) setObjectID(k Kind, metaName string, id platform.ID) {
 	idSetFn, ok := s.getObjectIDSetter(k, metaName)
 	if !ok {
 		return
@@ -570,7 +572,7 @@ func (s *stateCoordinator) setObjectID(k Kind, metaName string, id influxdb.ID) 
 // The metaName and kind are used as the unique identifier, when calling this it will
 // overwrite any existing value if one exists. If desired, check for the value by using
 // the Contains method.
-func (s *stateCoordinator) addObjectForRemoval(k Kind, metaName string, id influxdb.ID) {
+func (s *stateCoordinator) addObjectForRemoval(k Kind, metaName string, id platform.ID) {
 	newIdentity := identity{
 		name: &references{val: metaName},
 	}
@@ -636,29 +638,29 @@ func (s *stateCoordinator) addObjectForRemoval(k Kind, metaName string, id influ
 	}
 }
 
-func (s *stateCoordinator) getObjectIDSetter(k Kind, metaName string) (func(influxdb.ID), bool) {
+func (s *stateCoordinator) getObjectIDSetter(k Kind, metaName string) (func(platform.ID), bool) {
 	switch k {
 	case KindBucket:
 		r, ok := s.mBuckets[metaName]
-		return func(id influxdb.ID) {
+		return func(id platform.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
 	case KindCheck, KindCheckDeadman, KindCheckThreshold:
 		r, ok := s.mChecks[metaName]
-		return func(id influxdb.ID) {
+		return func(id platform.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
 	case KindDashboard:
 		r, ok := s.mDashboards[metaName]
-		return func(id influxdb.ID) {
+		return func(id platform.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
 	case KindLabel:
 		r, ok := s.mLabels[metaName]
-		return func(id influxdb.ID) {
+		return func(id platform.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
@@ -667,31 +669,31 @@ func (s *stateCoordinator) getObjectIDSetter(k Kind, metaName string) (func(infl
 		KindNotificationEndpointPagerDuty,
 		KindNotificationEndpointSlack:
 		r, ok := s.mEndpoints[metaName]
-		return func(id influxdb.ID) {
+		return func(id platform.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
 	case KindNotificationRule:
 		r, ok := s.mRules[metaName]
-		return func(id influxdb.ID) {
+		return func(id platform.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
 	case KindTask:
 		r, ok := s.mTasks[metaName]
-		return func(id influxdb.ID) {
+		return func(id platform.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
 	case KindTelegraf:
 		r, ok := s.mTelegrafs[metaName]
-		return func(id influxdb.ID) {
+		return func(id platform.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
 	case KindVariable:
 		r, ok := s.mVariables[metaName]
-		return func(id influxdb.ID) {
+		return func(id platform.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
@@ -701,7 +703,7 @@ func (s *stateCoordinator) getObjectIDSetter(k Kind, metaName string) (func(infl
 }
 
 type stateIdentity struct {
-	id           influxdb.ID
+	id           platform.ID
 	name         string
 	metaName     string
 	resourceType influxdb.ResourceType
@@ -713,7 +715,7 @@ func (s stateIdentity) exists() bool {
 }
 
 type stateBucket struct {
-	id, orgID         influxdb.ID
+	id, orgID         platform.ID
 	stateStatus       StateStatus
 	labelAssociations []*stateLabel
 
@@ -763,7 +765,7 @@ func (b *stateBucket) summarize() SummaryBucket {
 	return sum
 }
 
-func (b *stateBucket) ID() influxdb.ID {
+func (b *stateBucket) ID() platform.ID {
 	if !IsNew(b.stateStatus) && b.existing != nil {
 		return b.existing.ID
 	}
@@ -797,7 +799,7 @@ func (b *stateBucket) shouldApply() bool {
 }
 
 type stateCheck struct {
-	id, orgID         influxdb.ID
+	id, orgID         platform.ID
 	stateStatus       StateStatus
 	labelAssociations []*stateLabel
 
@@ -805,7 +807,7 @@ type stateCheck struct {
 	existing    influxdb.Check
 }
 
-func (c *stateCheck) ID() influxdb.ID {
+func (c *stateCheck) ID() platform.ID {
 	if !IsNew(c.stateStatus) && c.existing != nil {
 		return c.existing.GetID()
 	}
@@ -863,7 +865,7 @@ func (c *stateCheck) summarize() SummaryCheck {
 }
 
 type stateDashboard struct {
-	id, orgID         influxdb.ID
+	id, orgID         platform.ID
 	stateStatus       StateStatus
 	labelAssociations []*stateLabel
 
@@ -871,7 +873,7 @@ type stateDashboard struct {
 	existing   *influxdb.Dashboard
 }
 
-func (d *stateDashboard) ID() influxdb.ID {
+func (d *stateDashboard) ID() platform.ID {
 	if !IsNew(d.stateStatus) && d.existing != nil {
 		return d.existing.ID
 	}
@@ -958,7 +960,7 @@ func (d *stateDashboard) summarize() SummaryDashboard {
 }
 
 type stateLabel struct {
-	id, orgID   influxdb.ID
+	id, orgID   platform.ID
 	stateStatus StateStatus
 
 	parserLabel *label
@@ -996,7 +998,7 @@ func (l *stateLabel) summarize() SummaryLabel {
 	return sum
 }
 
-func (l *stateLabel) ID() influxdb.ID {
+func (l *stateLabel) ID() platform.ID {
 	if !IsNew(l.stateStatus) && l.existing != nil {
 		return l.existing.ID
 	}
@@ -1083,9 +1085,9 @@ func stateLabelMappingToInfluxLabelMapping(mapping stateLabelMapping) influxdb.L
 }
 
 type stateLabelMappingForRemoval struct {
-	LabelID          influxdb.ID
+	LabelID          platform.ID
 	LabelMetaName    string
-	ResourceID       influxdb.ID
+	ResourceID       platform.ID
 	ResourceMetaName string
 	ResourceType     influxdb.ResourceType
 }
@@ -1102,7 +1104,7 @@ func (m *stateLabelMappingForRemoval) diffLabelMapping() DiffLabelMapping {
 }
 
 type stateEndpoint struct {
-	id, orgID         influxdb.ID
+	id, orgID         platform.ID
 	stateStatus       StateStatus
 	labelAssociations []*stateLabel
 
@@ -1110,7 +1112,7 @@ type stateEndpoint struct {
 	existing       influxdb.NotificationEndpoint
 }
 
-func (e *stateEndpoint) ID() influxdb.ID {
+func (e *stateEndpoint) ID() platform.ID {
 	if !IsNew(e.stateStatus) && e.existing != nil {
 		return e.existing.GetID()
 	}
@@ -1172,7 +1174,7 @@ func (e *stateEndpoint) summarize() SummaryNotificationEndpoint {
 }
 
 type stateRule struct {
-	id, orgID         influxdb.ID
+	id, orgID         platform.ID
 	stateStatus       StateStatus
 	labelAssociations []*stateLabel
 
@@ -1182,7 +1184,7 @@ type stateRule struct {
 	existing   influxdb.NotificationRule
 }
 
-func (r *stateRule) ID() influxdb.ID {
+func (r *stateRule) ID() platform.ID {
 	if !IsNew(r.stateStatus) && r.existing != nil {
 		return r.existing.GetID()
 	}
@@ -1270,7 +1272,7 @@ func (r *stateRule) diffRule() DiffNotificationRule {
 	return sum
 }
 
-func (r *stateRule) endpointID() influxdb.ID {
+func (r *stateRule) endpointID() platform.ID {
 	if r.associatedEndpoint != nil {
 		return r.associatedEndpoint.ID()
 	}
@@ -1340,15 +1342,15 @@ func (r *stateRule) toInfluxRule() influxdb.NotificationRule {
 }
 
 type stateTask struct {
-	id, orgID         influxdb.ID
+	id, orgID         platform.ID
 	stateStatus       StateStatus
 	labelAssociations []*stateLabel
 
 	parserTask *task
-	existing   *influxdb.Task
+	existing   *taskmodel.Task
 }
 
-func (t *stateTask) ID() influxdb.ID {
+func (t *stateTask) ID() platform.ID {
 	if !IsNew(t.stateStatus) && t.existing != nil {
 		return t.existing.ID
 	}
@@ -1417,7 +1419,7 @@ func (t *stateTask) summarize() SummaryTask {
 }
 
 type stateTelegraf struct {
-	id, orgID         influxdb.ID
+	id, orgID         platform.ID
 	stateStatus       StateStatus
 	labelAssociations []*stateLabel
 
@@ -1425,7 +1427,7 @@ type stateTelegraf struct {
 	existing       *influxdb.TelegrafConfig
 }
 
-func (t *stateTelegraf) ID() influxdb.ID {
+func (t *stateTelegraf) ID() platform.ID {
 	if !IsNew(t.stateStatus) && t.existing != nil {
 		return t.existing.ID
 	}
@@ -1472,7 +1474,7 @@ func (t *stateTelegraf) summarize() SummaryTelegraf {
 }
 
 type stateVariable struct {
-	id, orgID         influxdb.ID
+	id, orgID         platform.ID
 	stateStatus       StateStatus
 	labelAssociations []*stateLabel
 
@@ -1480,7 +1482,7 @@ type stateVariable struct {
 	existing  *influxdb.Variable
 }
 
-func (v *stateVariable) ID() influxdb.ID {
+func (v *stateVariable) ID() platform.ID {
 	if !IsNew(v.stateStatus) && v.existing != nil {
 		return v.existing.ID
 	}

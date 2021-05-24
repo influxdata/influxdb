@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"path"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pctx "github.com/influxdata/influxdb/v2/context"
@@ -22,7 +25,7 @@ const (
 // ScraperBackend is all services and associated parameters required to construct
 // the ScraperHandler.
 type ScraperBackend struct {
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log *zap.Logger
 
 	ScraperStorageService      influxdb.ScraperTargetStoreService
@@ -51,7 +54,7 @@ func NewScraperBackend(log *zap.Logger, b *APIBackend) *ScraperBackend {
 // ScraperHandler represents an HTTP API handler for scraper targets.
 type ScraperHandler struct {
 	*httprouter.Router
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log                        *zap.Logger
 	UserService                influxdb.UserService
 	UserResourceMappingService influxdb.UserResourceMappingService
@@ -245,9 +248,9 @@ func decodeScraperTargetsRequest(ctx context.Context, r *http.Request) (*getScra
 	qp := r.URL.Query()
 	req := &getScraperTargetsRequest{}
 
-	initialID := influxdb.InvalidID()
+	initialID := platform.InvalidID()
 	if ids, ok := qp["id"]; ok {
-		req.filter.IDs = make(map[influxdb.ID]bool)
+		req.filter.IDs = make(map[platform.ID]bool)
 		for _, id := range ids {
 			i := initialID
 			if err := i.DecodeFromString(id); err != nil {
@@ -260,7 +263,7 @@ func decodeScraperTargetsRequest(ctx context.Context, r *http.Request) (*getScra
 		req.filter.Name = &name
 	}
 	if orgID := qp.Get("orgID"); orgID != "" {
-		id := influxdb.InvalidID()
+		id := platform.InvalidID()
 		if err := id.DecodeFromString(orgID); err != nil {
 			return nil, err
 		}
@@ -320,17 +323,17 @@ func decodeScraperTargetAddRequest(ctx context.Context, r *http.Request) (*influ
 	return req, nil
 }
 
-func decodeScraperTargetIDRequest(ctx context.Context, r *http.Request) (*influxdb.ID, error) {
+func decodeScraperTargetIDRequest(ctx context.Context, r *http.Request) (*platform.ID, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -403,10 +406,10 @@ func (s *ScraperService) ListTargets(ctx context.Context, filter influxdb.Scrape
 
 // UpdateTarget updates a single scraper target with changeset.
 // Returns the new target state after update.
-func (s *ScraperService) UpdateTarget(ctx context.Context, update *influxdb.ScraperTarget, userID influxdb.ID) (*influxdb.ScraperTarget, error) {
+func (s *ScraperService) UpdateTarget(ctx context.Context, update *influxdb.ScraperTarget, userID platform.ID) (*influxdb.ScraperTarget, error) {
 	if !update.ID.Valid() {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Op:   s.OpPrefix + influxdb.OpUpdateTarget,
 			Msg:  "provided scraper target ID has invalid format",
 		}
@@ -447,22 +450,22 @@ func (s *ScraperService) UpdateTarget(ctx context.Context, update *influxdb.Scra
 }
 
 // AddTarget creates a new scraper target and sets target.ID with the new identifier.
-func (s *ScraperService) AddTarget(ctx context.Context, target *influxdb.ScraperTarget, userID influxdb.ID) error {
+func (s *ScraperService) AddTarget(ctx context.Context, target *influxdb.ScraperTarget, userID platform.ID) error {
 	url, err := NewURL(s.Addr, prefixTargets)
 	if err != nil {
 		return err
 	}
 
 	if !target.OrgID.Valid() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "provided organization ID has invalid format",
 			Op:   s.OpPrefix + influxdb.OpAddTarget,
 		}
 	}
 	if !target.BucketID.Valid() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "provided bucket ID has invalid format",
 			Op:   s.OpPrefix + influxdb.OpAddTarget,
 		}
@@ -503,7 +506,7 @@ func (s *ScraperService) AddTarget(ctx context.Context, target *influxdb.Scraper
 }
 
 // RemoveTarget removes a scraper target by ID.
-func (s *ScraperService) RemoveTarget(ctx context.Context, id influxdb.ID) error {
+func (s *ScraperService) RemoveTarget(ctx context.Context, id platform.ID) error {
 	url, err := NewURL(s.Addr, targetIDPath(id))
 	if err != nil {
 		return err
@@ -526,7 +529,7 @@ func (s *ScraperService) RemoveTarget(ctx context.Context, id influxdb.ID) error
 }
 
 // GetTargetByID returns a single target by ID.
-func (s *ScraperService) GetTargetByID(ctx context.Context, id influxdb.ID) (*influxdb.ScraperTarget, error) {
+func (s *ScraperService) GetTargetByID(ctx context.Context, id platform.ID) (*influxdb.ScraperTarget, error) {
 	url, err := NewURL(s.Addr, targetIDPath(id))
 	if err != nil {
 		return nil, err
@@ -557,7 +560,7 @@ func (s *ScraperService) GetTargetByID(ctx context.Context, id influxdb.ID) (*in
 	return &targetResp.ScraperTarget, nil
 }
 
-func targetIDPath(id influxdb.ID) string {
+func targetIDPath(id platform.ID) string {
 	return path.Join(prefixTargets, id.String())
 }
 
@@ -619,7 +622,7 @@ func (h *ScraperHandler) newTargetResponse(ctx context.Context, target influxdb.
 		res.BucketID = bucket.ID
 		res.Links.Bucket = bucketIDPath(bucket.ID)
 	} else {
-		res.BucketID = influxdb.InvalidID()
+		res.BucketID = platform.InvalidID()
 	}
 
 	org, err := h.OrganizationService.FindOrganizationByID(ctx, target.OrgID)
@@ -628,16 +631,16 @@ func (h *ScraperHandler) newTargetResponse(ctx context.Context, target influxdb.
 		res.OrgID = org.ID
 		res.Links.Organization = organizationIDPath(org.ID)
 	} else {
-		res.OrgID = influxdb.InvalidID()
+		res.OrgID = platform.InvalidID()
 	}
 
 	return res, nil
 }
 
-func organizationIDPath(id influxdb.ID) string {
+func organizationIDPath(id platform.ID) string {
 	return path.Join(prefixOrganizations, id.String())
 }
 
-func bucketIDPath(id influxdb.ID) string {
+func bucketIDPath(id platform.ID) string {
 	return path.Join(prefixBuckets, id.String())
 }

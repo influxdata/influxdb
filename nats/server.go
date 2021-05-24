@@ -6,6 +6,7 @@ import (
 	"github.com/nats-io/gnatsd/server"
 	sserver "github.com/nats-io/nats-streaming-server/server"
 	"github.com/nats-io/nats-streaming-server/stores"
+	"go.uber.org/zap"
 )
 
 const ServerName = "platform"
@@ -23,6 +24,7 @@ var ErrNoNatsConnection = errors.New("nats connection has not been established. 
 type Server struct {
 	serverOpts *server.Options
 	Server     *sserver.StanServer
+	logger     server.Logger
 }
 
 // Open starts a NATS streaming server
@@ -31,6 +33,7 @@ func (s *Server) Open() error {
 	opts := sserver.GetDefaultOptions()
 	opts.StoreType = stores.TypeMemory
 	opts.ID = ServerName
+	opts.CustomLogger = s.logger
 
 	server, err := sserver.RunServerWithOpts(opts, s.serverOpts)
 	if err != nil {
@@ -54,10 +57,10 @@ func NewDefaultServerOptions() server.Options {
 }
 
 // NewServer creates a new streaming server with the provided server options.
-func NewServer(opts *server.Options) *Server {
+func NewServer(opts *server.Options, log *zap.Logger) *Server {
 	if opts == nil {
 		o := NewDefaultServerOptions()
 		opts = &o
 	}
-	return &Server{serverOpts: opts}
+	return &Server{serverOpts: opts, logger: &zapLoggerAdapter{log}}
 }

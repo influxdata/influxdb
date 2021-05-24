@@ -3,6 +3,9 @@ package authorizer
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -22,7 +25,7 @@ func NewUserService(s influxdb.UserService) *UserService {
 }
 
 // FindUserByID checks to see if the authorizer on context has read access to the id provided.
-func (s *UserService) FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 	if _, _, err := AuthorizeReadResource(ctx, influxdb.UsersResourceType, id); err != nil {
 		return nil, err
 	}
@@ -61,7 +64,7 @@ func (s *UserService) CreateUser(ctx context.Context, o *influxdb.User) error {
 }
 
 // UpdateUser checks to see if the authorizer on context has write access to the user provided.
-func (s *UserService) UpdateUser(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
+func (s *UserService) UpdateUser(ctx context.Context, id platform.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
 	if _, _, err := AuthorizeWriteResource(ctx, influxdb.UsersResourceType, id); err != nil {
 		return nil, err
 	}
@@ -69,16 +72,16 @@ func (s *UserService) UpdateUser(ctx context.Context, id influxdb.ID, upd influx
 }
 
 // DeleteUser checks to see if the authorizer on context has write access to the user provided.
-func (s *UserService) DeleteUser(ctx context.Context, id influxdb.ID) error {
+func (s *UserService) DeleteUser(ctx context.Context, id platform.ID) error {
 	if _, _, err := AuthorizeWriteResource(ctx, influxdb.UsersResourceType, id); err != nil {
 		return err
 	}
 	return s.s.DeleteUser(ctx, id)
 }
 
-func (s *UserService) FindPermissionForUser(ctx context.Context, uid influxdb.ID) (influxdb.PermissionSet, error) {
-	return nil, &influxdb.Error{
-		Code: influxdb.EInternal,
+func (s *UserService) FindPermissionForUser(ctx context.Context, uid platform.ID) (influxdb.PermissionSet, error) {
+	return nil, &errors.Error{
+		Code: errors.EInternal,
 		Msg:  "not implemented",
 	}
 }

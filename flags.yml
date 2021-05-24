@@ -21,28 +21,6 @@
   contact: Bucky, Monitoring Team
   lifetime: permanent
 
-- name: Backend Example
-  description: A permanent backend example boolean flag
-  key: backendExample
-  default: false
-  contact: Gavin Cabbage
-  lifetime: permanent
-
-- name: Community Templates
-  description: Replace current template uploading functionality with community driven templates
-  key: communityTemplates
-  default: true
-  expose: true
-  contact: Bucky
-  lifetime: permanent
-
-- name: Frontend Example
-  description: A temporary frontend example integer flag
-  key: frontendExample
-  default: 42
-  contact: Gavin Cabbage
-  expose: true
-
 - name: Group Window Aggregate Transpose
   description: Enables the GroupWindowAggregateTransposeRule for all enabled window aggregates
   key: groupWindowAggregateTranspose
@@ -77,27 +55,19 @@
   contact: Query Team
   lifetime: permanent
 
-- name: Band Plot Type
-  description: Enables the creation of a band plot in Dashboards
-  key: bandPlotType
-  default: false
-  contact: Monitoring Team
-  expose: true
-  lifetime: temporary
-
-- name: Mosaic Graph Type
-  description: Enables the creation of a mosaic graph in Dashboards
-  key: mosaicGraphType
-  default: false
-  contact: Monitoring Team
-  expose: true
-  lifetime: temporary
-
 - name: Notebooks
   description: Determine if the notebook feature's route and navbar icon are visible to the user
   key: notebooks
   default: false
   contact: Monitoring Team
+  lifetime: temporary
+  expose: true
+
+- name: Notebooks Service API
+  description: Enable the Equivalent notebooksd Service API
+  key: notebooksApi
+  default: false
+  contact: Edge Team
   lifetime: temporary
   expose: true
 
@@ -118,4 +88,44 @@
   key: timeFilterFlags
   contact: Compute Team
   default: false
+  expose: true
+
+- name: UI CSV Uploader
+  description: Adds the ability to upload data from a CSV file to a bucket
+  key: csvUploader
+  default: true
+  contact: Monitoring Team
+  expose: true
+  lifetime: temporary
+
+- name: Editable Telegraf Configurations
+  description: Edit telegraf configurations from the UI
+  key: editTelegrafs
+  default: true
+  contact: Monitoring Team
+  expose: true
+  lifetime: temporary
+
+- name: Default Monaco Selection to EOF
+  description: Positions the cursor at the end of the line(s) when using the monaco editor
+  key: cursorAtEOF
+  default: false
+  contact: Monitoring Team
+  expose: true
+  lifetime: temporary
+
+- name: Refresh Single Cell
+  description: Refresh a single cell on the dashboard rather than the entire dashboard
+  key: refreshSingleCell
+  default: true
+  contact: Monitoring Team
+  expose: true
+  lifetime: temporary
+
+- name: Annotations UI
+  description: Management, display, and manual addition of Annotations from the UI
+  key: annotations
+  default: false
+  contact: Monitoring Team
+  lifetime: temporary
   expose: true

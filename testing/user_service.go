@@ -6,6 +6,9 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -41,7 +44,7 @@ var userCmpOptions = cmp.Options{
 
 // UserFields will include the IDGenerator, and users
 type UserFields struct {
-	IDGenerator influxdb.IDGenerator
+	IDGenerator platform.IDGenerator
 	Users       []*influxdb.User
 }
 
@@ -170,7 +173,7 @@ func CreateUser(
 			name: "names should be unique",
 			fields: UserFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() influxdb.ID {
+					IDFn: func() platform.ID {
 						return MustIDBase16(userOneID)
 					},
 				},
@@ -195,8 +198,8 @@ func CreateUser(
 						Status: influxdb.Active,
 					},
 				},
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Op:   influxdb.OpCreateUser,
 					Msg:  "user with name user1 already exists",
 				},
@@ -234,7 +237,7 @@ func FindUserByID(
 	t *testing.T,
 ) {
 	type args struct {
-		id influxdb.ID
+		id platform.ID
 	}
 	type wants struct {
 		err  error
@@ -294,8 +297,8 @@ func FindUserByID(
 				id: MustIDBase16(threeID),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindUserByID,
 					Msg:  "user not found",
 				},
@@ -325,8 +328,9 @@ func FindUsers(
 	t *testing.T,
 ) {
 	type args struct {
-		ID   influxdb.ID
-		name string
+		ID          platform.ID
+		name        string
+		findOptions influxdb.FindOptions
 	}
 
 	type wants struct {
@@ -447,8 +451,8 @@ func FindUsers(
 				ID: MustIDBase16(threeID),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindUsers,
 					Msg:  "user not found",
 				},
@@ -472,10 +476,131 @@ func FindUsers(
 				name: "no_exist",
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindUsers,
 					Msg:  "user not found",
+				},
+			},
+		},
+		{
+			name: "find all users by offset and limit",
+			fields: UserFields{
+				Users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "abc",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userTwoID),
+						Name:   "def",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userThreeID),
+						Name:   "xyz",
+						Status: influxdb.Active,
+					},
+				},
+			},
+			args: args{
+				findOptions: influxdb.FindOptions{
+					Offset: 1,
+					Limit:  1,
+				},
+			},
+			wants: wants{
+				users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userTwoID),
+						Name:   "def",
+						Status: influxdb.Active,
+					},
+				},
+			},
+		},
+		{
+			name: "find all users by after and limit",
+			fields: UserFields{
+				Users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "abc",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userTwoID),
+						Name:   "def",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userThreeID),
+						Name:   "xyz",
+						Status: influxdb.Active,
+					},
+				},
+			},
+			args: args{
+				findOptions: influxdb.FindOptions{
+					After: MustIDBase16Ptr(userOneID),
+					Limit: 2,
+				},
+			},
+			wants: wants{
+				users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userTwoID),
+						Name:   "def",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userThreeID),
+						Name:   "xyz",
+						Status: influxdb.Active,
+					},
+				},
+			},
+		},
+		{
+			name: "find all users by descending",
+			fields: UserFields{
+				Users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "abc",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userTwoID),
+						Name:   "def",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userThreeID),
+						Name:   "xyz",
+						Status: influxdb.Active,
+					},
+				},
+			},
+			args: args{
+				findOptions: influxdb.FindOptions{
+					Offset:     1,
+					Descending: true,
+				},
+			},
+			wants: wants{
+				users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userTwoID),
+						Name:   "def",
+						Status: influxdb.Active,
+					},
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "abc",
+						Status: influxdb.Active,
+					},
 				},
 			},
 		},
@@ -495,7 +620,7 @@ func FindUsers(
 				filter.Name = &tt.args.name
 			}
 
-			users, _, err := s.FindUsers(ctx, filter)
+			users, _, err := s.FindUsers(ctx, filter, tt.args.findOptions)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(users, tt.wants.users, userCmpOptions...); diff != "" {
@@ -511,7 +636,7 @@ func DeleteUser(
 	t *testing.T,
 ) {
 	type args struct {
-		ID influxdb.ID
+		ID platform.ID
 	}
 	type wants struct {
 		err   error
@@ -573,8 +698,8 @@ func DeleteUser(
 				ID: MustIDBase16(userThreeID),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpDeleteUser,
 					Msg:  "user not found",
 				},
@@ -681,7 +806,7 @@ func FindUser(
 			},
 			args: args{
 				filter: influxdb.UserFilter{
-					ID: func(id influxdb.ID) *influxdb.ID { return &id }(MustIDBase16(userOneID)),
+					ID: func(id platform.ID) *platform.ID { return &id }(MustIDBase16(userOneID)),
 				},
 			},
 			wants: wants{
@@ -703,8 +828,8 @@ func FindUser(
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "user not found",
 					Op:   influxdb.OpFindUser,
 				},
@@ -717,12 +842,12 @@ func FindUser(
 			},
 			args: args{
 				filter: influxdb.UserFilter{
-					ID: func(id influxdb.ID) *influxdb.ID { return &id }(MustIDBase16(userOneID)),
+					ID: func(id platform.ID) *platform.ID { return &id }(MustIDBase16(userOneID)),
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "user not found",
 					Op:   influxdb.OpFindUser,
 				},
@@ -746,7 +871,7 @@ func FindUser(
 			},
 			args: args{
 				filter: influxdb.UserFilter{
-					ID:   func(id influxdb.ID) *influxdb.ID { return &id }(MustIDBase16(userOneID)),
+					ID:   func(id platform.ID) *platform.ID { return &id }(MustIDBase16(userOneID)),
 					Name: func(s string) *string { return &s }("xyz"),
 				},
 			},
@@ -772,8 +897,8 @@ func FindUser(
 				filter: influxdb.UserFilter{},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "user not found",
 					Op:   influxdb.OpFindUser,
 				},
@@ -791,13 +916,13 @@ func FindUser(
 			},
 			args: args{
 				filter: influxdb.UserFilter{
-					ID:   func(id influxdb.ID) *influxdb.ID { return &id }(MustIDBase16(userOneID)),
+					ID:   func(id platform.ID) *platform.ID { return &id }(MustIDBase16(userOneID)),
 					Name: func(s string) *string { return &s }("xyz"),
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "user not found",
 					Op:   influxdb.OpFindUser,
 				},
@@ -827,7 +952,7 @@ func UpdateUser(
 ) {
 	type args struct {
 		name   string
-		id     influxdb.ID
+		id     platform.ID
 		status string
 	}
 	type wants struct {
@@ -944,8 +1069,8 @@ func UpdateUser(
 				name: "changed",
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpUpdateUser,
 					Msg:  "user not found",
 				},
@@ -1026,8 +1151,8 @@ func UpdateUser_IndexHygiene(
 	_, oerr := s.FindUser(ctx, influxdb.UserFilter{
 		Name: &oldUserName,
 	})
-	ErrorsEqual(t, oerr, &influxdb.Error{
-		Code: influxdb.ENotFound,
+	ErrorsEqual(t, oerr, &errors.Error{
+		Code: errors.ENotFound,
 		Op:   influxdb.OpFindUser,
 		Msg:  "user not found",
 	})

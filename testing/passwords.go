@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
 // PasswordFields will include the IDGenerator, and users and their passwords.
 type PasswordFields struct {
-	IDGenerator influxdb.IDGenerator
+	IDGenerator platform.IDGenerator
 	Users       []*influxdb.User
 	Passwords   []string // passwords are indexed against the Users field
 }
@@ -51,7 +53,7 @@ func SetPassword(
 	init func(PasswordFields, *testing.T) (influxdb.PasswordsService, func()),
 	t *testing.T) {
 	type args struct {
-		user     influxdb.ID
+		user     platform.ID
 		password string
 	}
 	type wants struct {
@@ -144,7 +146,7 @@ func ComparePassword(
 	init func(PasswordFields, *testing.T) (influxdb.PasswordsService, func()),
 	t *testing.T) {
 	type args struct {
-		user     influxdb.ID
+		user     platform.ID
 		password string
 	}
 	type wants struct {
@@ -260,7 +262,7 @@ func CompareAndSetPassword(
 	init func(PasswordFields, *testing.T) (influxdb.PasswordsService, func()),
 	t *testing.T) {
 	type args struct {
-		user influxdb.ID
+		user platform.ID
 		old  string
 		new  string
 	}

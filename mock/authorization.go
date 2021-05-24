@@ -2,6 +2,7 @@ package mock
 
 import (
 	influxdb "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // ensure Authorizer implements influxdb.Authorizer
@@ -11,7 +12,7 @@ var _ influxdb.Authorizer = (*Authorizer)(nil)
 type Authorizer struct {
 	Permissions []influxdb.Permission
 	AllowAll    bool
-	UserID      influxdb.ID
+	UserID      platform.ID
 }
 
 func NewMockAuthorizer(allowAll bool, permissions []influxdb.Permission) *Authorizer {
@@ -34,11 +35,11 @@ func (a *Authorizer) PermissionSet() (influxdb.PermissionSet, error) {
 	return a.Permissions, nil
 }
 
-func (a *Authorizer) Identifier() influxdb.ID {
+func (a *Authorizer) Identifier() platform.ID {
 	return 1
 }
 
-func (a *Authorizer) GetUserID() influxdb.ID {
+func (a *Authorizer) GetUserID() platform.ID {
 	if a.UserID.Valid() {
 		return a.UserID
 	}

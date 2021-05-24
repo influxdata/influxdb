@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/notification/rule"
 	"github.com/influxdata/influxdb/v2/task/backend/middleware"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 func newNotificationRuleSvcStack() (mockedSvc, *middleware.CoordinatingNotificationRuleStore) {
@@ -43,7 +45,7 @@ func TestNotificationRuleCreate(t *testing.T) {
 	}
 
 	mocks.pipingCoordinator.err = fmt.Errorf("bad")
-	mocks.notificationSvc.DeleteNotificationRuleF = func(context.Context, influxdb.ID) error { return fmt.Errorf("AARGH") }
+	mocks.notificationSvc.DeleteNotificationRuleF = func(context.Context, platform.ID) error { return fmt.Errorf("AARGH") }
 
 	err = nrService.CreateNotificationRule(context.Background(), nrc, 1)
 	if err.Error() != "schedule task failed: bad\n\tcleanup also failed: AARGH" {
@@ -59,33 +61,33 @@ func TestNotificationRuleUpdateFromInactive(t *testing.T) {
 	}
 	ch := mocks.pipingCoordinator.taskUpdatedChan()
 
-	mocks.notificationSvc.UpdateNotificationRuleF = func(_ context.Context, _ influxdb.ID, c influxdb.NotificationRuleCreate, _ influxdb.ID) (influxdb.NotificationRule, error) {
+	mocks.notificationSvc.UpdateNotificationRuleF = func(_ context.Context, _ platform.ID, c influxdb.NotificationRuleCreate, _ platform.ID) (influxdb.NotificationRule, error) {
 		c.SetTaskID(10)
 		c.SetUpdatedAt(latest.Add(-20 * time.Hour))
 		return c, nil
 	}
 
-	mocks.notificationSvc.PatchNotificationRuleF = func(_ context.Context, id influxdb.ID, _ influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
+	mocks.notificationSvc.PatchNotificationRuleF = func(_ context.Context, id platform.ID, _ influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
 		ic := &rule.HTTP{}
 		ic.SetTaskID(10)
 		ic.SetUpdatedAt(latest.Add(-20 * time.Hour))
 		return ic, nil
 	}
 
-	mocks.notificationSvc.FindNotificationRuleByIDF = func(_ context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+	mocks.notificationSvc.FindNotificationRuleByIDF = func(_ context.Context, id platform.ID) (influxdb.NotificationRule, error) {
 		c := &rule.HTTP{}
 		c.SetID(id)
 		c.SetTaskID(1)
 		return c, nil
 	}
 
-	mocks.taskSvc.FindTaskByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.Task, error) {
+	mocks.taskSvc.FindTaskByIDFn = func(_ context.Context, id platform.ID) (*taskmodel.Task, error) {
 		if id == 1 {
-			return &influxdb.Task{ID: id, Status: string(influxdb.TaskInactive)}, nil
+			return &taskmodel.Task{ID: id, Status: string(taskmodel.TaskInactive)}, nil
 		} else if id == 10 {
-			return &influxdb.Task{ID: id, Status: string(influxdb.TaskActive)}, nil
+			return &taskmodel.Task{ID: id, Status: string(taskmodel.TaskActive)}, nil
 		}
-		return &influxdb.Task{ID: id}, nil
+		return &taskmodel.Task{ID: id}, nil
 	}
 
 	deadman := &rule.HTTP{}
@@ -134,7 +136,7 @@ func TestNotificationRuleUpdate(t *testing.T) {
 	mocks, nrService := newNotificationRuleSvcStack()
 	ch := mocks.pipingCoordinator.taskUpdatedChan()
 
-	mocks.notificationSvc.UpdateNotificationRuleF = func(_ context.Context, _ influxdb.ID, c influxdb.NotificationRuleCreate, _ influxdb.ID) (influxdb.NotificationRule, error) {
+	mocks.notificationSvc.UpdateNotificationRuleF = func(_ context.Context, _ platform.ID, c influxdb.NotificationRuleCreate, _ platform.ID) (influxdb.NotificationRule, error) {
 		c.SetTaskID(10)
 		return c, nil
 	}
@@ -169,7 +171,7 @@ func TestNotificationRulePatch(t *testing.T) {
 	deadman := &rule.HTTP{}
 	deadman.SetTaskID(4)
 
-	mocks.notificationSvc.PatchNotificationRuleF = func(context.Context, influxdb.ID, influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
+	mocks.notificationSvc.PatchNotificationRuleF = func(context.Context, platform.ID, influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
 		return deadman, nil
 	}
 
@@ -192,7 +194,7 @@ func TestNotificationRuleDelete(t *testing.T) {
 	mocks, nrService := newNotificationRuleSvcStack()
 	ch := mocks.pipingCoordinator.taskDeletedChan()
 
-	mocks.notificationSvc.FindNotificationRuleByIDF = func(_ context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+	mocks.notificationSvc.FindNotificationRuleByIDF = func(_ context.Context, id platform.ID) (influxdb.NotificationRule, error) {
 		c := &rule.HTTP{}
 		c.SetID(id)
 		c.SetTaskID(21)
@@ -206,7 +208,7 @@ func TestNotificationRuleDelete(t *testing.T) {
 
 	select {
 	case id := <-ch:
-		if id != influxdb.ID(21) {
+		if id != platform.ID(21) {
 			t.Fatalf("task sent to coordinator doesn't match expected")
 		}
 	default:

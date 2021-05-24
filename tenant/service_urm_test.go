@@ -2,6 +2,7 @@ package tenant_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
@@ -42,7 +43,7 @@ func initUserResourceMappingService(s kv.Store, f influxdbtesting.UserResourceFi
 		}
 	}
 
-	withID := func(gen *influxdb.IDGenerator, id influxdb.ID, fn func()) {
+	withID := func(gen *platform.IDGenerator, id platform.ID, fn func()) {
 		idGen := *gen
 		defer func() { *gen = idGen }()
 

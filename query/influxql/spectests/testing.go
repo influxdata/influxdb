@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/andreyvit/diff"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/parser"
@@ -17,9 +19,9 @@ import (
 )
 
 var dbrpMappingSvc = &mock.DBRPMappingServiceV2{}
-var organizationID platform.ID
-var bucketID platform.ID
-var altBucketID platform.ID
+var organizationID platform2.ID
+var bucketID platform2.ID
+var altBucketID platform2.ID
 
 func init() {
 	mapping := platform.DBRPMappingV2{
@@ -36,7 +38,7 @@ func init() {
 		OrganizationID:  organizationID,
 		BucketID:        altBucketID,
 	}
-	dbrpMappingSvc.FindByIDFn = func(ctx context.Context, orgID, id platform.ID) (*platform.DBRPMappingV2, error) {
+	dbrpMappingSvc.FindByIDFn = func(ctx context.Context, orgID, id platform2.ID) (*platform.DBRPMappingV2, error) {
 		return &mapping, nil
 	}
 	dbrpMappingSvc.FindManyFn = func(ctx context.Context, filter platform.DBRPMappingFilterV2, opt ...platform.FindOptions) ([]*platform.DBRPMappingV2, int, error) {

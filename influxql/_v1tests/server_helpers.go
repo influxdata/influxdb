@@ -3,6 +3,7 @@ package v1tests
 import (
 	"context"
 	"encoding/json"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -91,8 +92,8 @@ type Write struct {
 type Writes []*Write
 
 type Test struct {
-	orgID            influxdb.ID
-	bucketID         influxdb.ID
+	orgID            platform.ID
+	bucketID         platform.ID
 	db               string
 	rp               string
 	writes           Writes

@@ -18,7 +18,7 @@ import (
 	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/models"
 	storage "github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
@@ -111,6 +111,7 @@ type floatWindowTable struct {
 	idxInArr     int
 	createEmpty  bool
 	timeColumn   string
+	isAggregate  bool
 	window       interval.Window
 }
 
@@ -121,6 +122,7 @@ func newFloatWindowTable(
 	window interval.Window,
 	createEmpty bool,
 	timeColumn string,
+	isAggregate bool,
 
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -137,6 +139,7 @@ func newFloatWindowTable(
 		window:      window,
 		createEmpty: createEmpty,
 		timeColumn:  timeColumn,
+		isAggregate: isAggregate,
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
@@ -217,10 +220,10 @@ func (t *floatWindowTable) getWindowBoundsFor(bounds interval.Bounds) (int64, in
 // nextAt will retrieve the next value that can be used with
 // the given stop timestamp. If no values can be used with the timestamp,
 // it will return the default value and false.
-func (t *floatWindowTable) nextAt(ts int64) (v float64, ok bool) {
+func (t *floatWindowTable) nextAt(stop int64) (v float64, ok bool) {
 	if !t.nextBuffer() {
 		return
-	} else if !t.isInWindow(ts, t.arr.Timestamps[t.idxInArr]) {
+	} else if !t.isInWindow(stop, t.arr.Timestamps[t.idxInArr]) {
 		return
 	}
 	v, ok = t.arr.Values[t.idxInArr], true
@@ -228,23 +231,26 @@ func (t *floatWindowTable) nextAt(ts int64) (v float64, ok bool) {
 	return v, ok
 }
 
-// isInWindow will check if the given time at stop can be used within
-// the window stop time for ts. The ts may be a truncated stop time
-// because of a restricted boundary while stop will be the true
-// stop time returned by storage.
-func (t *floatWindowTable) isInWindow(ts int64, stop int64) bool {
-	// This method checks if the stop time is a valid stop time for
-	// that interval. This calculation is different from the calculation
-	// of the window itself. For example, for a 10 second window that
-	// starts at 20 seconds, we would include points between [20, 30).
-	// The stop time for this interval would be 30, but because the stop
-	// time can be truncated, valid stop times range from anywhere between
-	// (20, 30]. The storage engine will always produce 30 as the end time
-	// but we may have truncated the stop time because of the boundary
-	// and this is why we are checking for this range instead of checking
-	// if the two values are equal.
-	start := int64(t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stop))).Start())
-	return start < ts && ts <= stop
+// isInWindow will check if the given time may be used within the window
+// denoted by the stop timestamp. The stop may be a truncated stop time
+// because of a restricted boundary.
+//
+// When used with an aggregate, ts will be the true stop time returned
+// by storage. When used with an aggregate, it will be the real time
+// for the point.
+func (t *floatWindowTable) isInWindow(stop int64, ts int64) bool {
+	// Retrieve the boundary associated with this stop time.
+	// This will be the boundary for the previous nanosecond.
+	bounds := t.window.GetLatestBounds(values.Time(stop - 1))
+	start, stop := int64(bounds.Start()), int64(bounds.Stop())
+
+	// For an aggregate, the timestamp will be the stop time of the boundary.
+	if t.isAggregate {
+		return start < ts && ts <= stop
+	}
+
+	// For a selector, the timestamp should be within the boundary.
+	return start <= ts && ts < stop
 }
 
 // nextBuffer will ensure the array cursor is filled
@@ -737,20 +743,17 @@ func (t *floatGroupTable) advance() bool {
 		return true
 	}
 
-	aggregate, err := determineFloatAggregateMethod(t.gc.Aggregate().Type)
+	aggregate, err := makeFloatAggregateAccumulator(t.gc.Aggregate().Type)
 	if err != nil {
 		t.err = err
 		return false
 	}
 
-	ts, v := aggregate(arr.Timestamps, arr.Values)
-	timestamps, values := []int64{ts}, []float64{v}
+	aggregate.AccumulateFirst(arr.Timestamps, arr.Values, t.tags)
 	for {
 		arr = t.cur.Next()
 		if arr.Len() > 0 {
-			ts, v := aggregate(arr.Timestamps, arr.Values)
-			timestamps = append(timestamps, ts)
-			values = append(values, v)
+			aggregate.AccumulateMore(arr.Timestamps, arr.Values, t.tags)
 			continue
 		}
 
@@ -758,7 +761,7 @@ func (t *floatGroupTable) advance() bool {
 			break
 		}
 	}
-	timestamp, value := aggregate(timestamps, values)
+	timestamp, value, tags := aggregate.Result()
 
 	colReader := t.allocateBuffer(1)
 	if IsSelector(t.gc.Aggregate()) {
@@ -767,116 +770,200 @@ func (t *floatGroupTable) advance() bool {
 	} else {
 		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]float64{value})
 	}
-	t.appendTags(colReader)
+	t.appendTheseTags(colReader, tags)
 	t.appendBounds(colReader)
 	return true
 }
 
-type floatAggregateMethod func([]int64, []float64) (int64, float64)
+type FloatAggregateAccumulator interface {
+	// AccumulateFirst receives an initial array of items to select from.
+	// It selects an item and stores the state. Afterwards, more data can
+	// be supplied with AccumulateMore and the results can be requested at
+	// any time. Without a call to AccumulateFirst the results are not
+	// defined.
+	AccumulateFirst(timestamps []int64, values []float64, tags [][]byte)
 
-// determineFloatAggregateMethod returns the method for aggregating
-// returned points within the same group. The incoming points are the
-// ones returned for each series and the method returned here will
+	// AccumulateMore receives additional array elements to select from.
+	AccumulateMore(timestamps []int64, values []float64, tags [][]byte)
+
+	// Result returns the item selected from the data received so far.
+	Result() (int64, float64, [][]byte)
+}
+
+// The selector method takes a ( timestamp, value ) pair, a
+// ( []timestamp, []value ) pair, and a starting index. It applies the selector
+// to the single value and the array, starting at the supplied index. It
+// returns -1 if the single value is selected and a non-negative value if an
+// item from the array is selected.
+type floatSelectorMethod func(int64, float64, []int64, []float64, int) int
+
+// The selector accumulator tracks currently-selected item.
+type floatSelectorAccumulator struct {
+	selector floatSelectorMethod
+
+	ts   int64
+	v    float64
+	tags [][]byte
+}
+
+func (a *floatSelectorAccumulator) AccumulateFirst(timestamps []int64, values []float64, tags [][]byte) {
+	index := a.selector(timestamps[0], values[0], timestamps, values, 1)
+	if index < 0 {
+		a.ts = timestamps[0]
+		a.v = values[0]
+	} else {
+		a.ts = timestamps[index]
+		a.v = values[index]
+	}
+	a.tags = make([][]byte, len(tags))
+	copy(a.tags, tags)
+}
+
+func (a *floatSelectorAccumulator) AccumulateMore(timestamps []int64, values []float64, tags [][]byte) {
+	index := a.selector(a.ts, a.v, timestamps, values, 0)
+	if index >= 0 {
+		a.ts = timestamps[index]
+		a.v = values[index]
+
+		if len(tags) > cap(a.tags) {
+			a.tags = make([][]byte, len(tags))
+		} else {
+			a.tags = a.tags[:len(tags)]
+		}
+		copy(a.tags, tags)
+	}
+}
+
+func (a *floatSelectorAccumulator) Result() (int64, float64, [][]byte) {
+	return a.ts, a.v, a.tags
+}
+
+// The aggregate method takes a value, an array of values, and a starting
+// index, applies an aggregate operation over the value and the array, starting
+// at the given index, and returns the result.
+type floatAggregateMethod func(float64, []float64, int) float64
+
+type floatAggregateAccumulator struct {
+	aggregate floatAggregateMethod
+	accum     float64
+
+	// For pure aggregates it doesn't matter what we return for tags, but
+	// we need to satisfy the interface. We will just return the most
+	// recently seen tags.
+	tags [][]byte
+}
+
+func (a *floatAggregateAccumulator) AccumulateFirst(timestamps []int64, values []float64, tags [][]byte) {
+	a.accum = a.aggregate(values[0], values, 1)
+	a.tags = tags
+}
+
+func (a *floatAggregateAccumulator) AccumulateMore(timestamps []int64, values []float64, tags [][]byte) {
+	a.accum = a.aggregate(a.accum, values, 0)
+	a.tags = tags
+}
+
+// For group aggregates (non-selectors), the timestamp is always math.MaxInt64.
+// their final result does not contain _time, so this timestamp value can be
+// anything and it won't matter.
+func (a *floatAggregateAccumulator) Result() (int64, float64, [][]byte) {
+	return math.MaxInt64, a.accum, a.tags
+}
+
+// makeFloatAggregateAccumulator returns the interface implementation for
+// aggregating returned points within the same group. The incoming points are
+// the ones returned for each series and the struct returned here will
 // aggregate the aggregates.
-func determineFloatAggregateMethod(agg datatypes.Aggregate_AggregateType) (floatAggregateMethod, error) {
+func makeFloatAggregateAccumulator(agg datatypes.Aggregate_AggregateType) (FloatAggregateAccumulator, error) {
 	switch agg {
 	case datatypes.AggregateTypeFirst:
-		return aggregateFirstGroupsFloat, nil
+		return &floatSelectorAccumulator{selector: selectorFirstGroupsFloat}, nil
 	case datatypes.AggregateTypeLast:
-		return aggregateLastGroupsFloat, nil
+		return &floatSelectorAccumulator{selector: selectorLastGroupsFloat}, nil
 	case datatypes.AggregateTypeCount:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate count: Float",
 		}
 
 	case datatypes.AggregateTypeSum:
 
-		return aggregateSumGroupsFloat, nil
+		return &floatAggregateAccumulator{aggregate: aggregateSumGroupsFloat}, nil
 
 	case datatypes.AggregateTypeMin:
 
-		return aggregateMinGroupsFloat, nil
+		return &floatSelectorAccumulator{selector: selectorMinGroupsFloat}, nil
 
 	case datatypes.AggregateTypeMax:
 
-		return aggregateMaxGroupsFloat, nil
+		return &floatSelectorAccumulator{selector: selectorMaxGroupsFloat}, nil
 
 	default:
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
 		}
 	}
 }
 
-func aggregateMinGroupsFloat(timestamps []int64, values []float64) (int64, float64) {
-	value := values[0]
-	timestamp := timestamps[0]
+func selectorMinGroupsFloat(ts int64, v float64, timestamps []int64, values []float64, i int) int {
+	index := -1
 
-	for i := 1; i < len(values); i++ {
-		if value > values[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if v > values[i] {
+			index = i
+			v = values[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
-func aggregateMaxGroupsFloat(timestamps []int64, values []float64) (int64, float64) {
-	value := values[0]
-	timestamp := timestamps[0]
+func selectorMaxGroupsFloat(ts int64, v float64, timestamps []int64, values []float64, i int) int {
+	index := -1
 
-	for i := 1; i < len(values); i++ {
-		if value < values[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if v < values[i] {
+			index = i
+			v = values[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
-// For group count and sum, the timestamp here is always math.MaxInt64.
-// their final result does not contain _time, so this timestamp value can be anything
-// and it won't matter.
-
-func aggregateSumGroupsFloat(_ []int64, values []float64) (int64, float64) {
-	var sum float64
-	for _, v := range values {
-		sum += v
+func aggregateSumGroupsFloat(sum float64, values []float64, i int) float64 {
+	for ; i < len(values); i++ {
+		sum += values[i]
 	}
-	return math.MaxInt64, sum
+	return sum
 }
 
-func aggregateFirstGroupsFloat(timestamps []int64, values []float64) (int64, float64) {
-	value := values[0]
-	timestamp := timestamps[0]
+func selectorFirstGroupsFloat(ts int64, v float64, timestamps []int64, values []float64, i int) int {
+	index := -1
 
-	for i := 1; i < len(values); i++ {
-		if timestamp > timestamps[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if ts > timestamps[i] {
+			index = i
+			ts = timestamps[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
-func aggregateLastGroupsFloat(timestamps []int64, values []float64) (int64, float64) {
-	value := values[0]
-	timestamp := timestamps[0]
+func selectorLastGroupsFloat(ts int64, v float64, timestamps []int64, values []float64, i int) int {
+	index := -1
 
-	for i := 1; i < len(values); i++ {
-		if timestamp < timestamps[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if ts < timestamps[i] {
+			index = i
+			ts = timestamps[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
 func (t *floatGroupTable) advanceCursor() bool {
@@ -891,8 +978,8 @@ func (t *floatGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.FloatArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &influxdb.Error{
-				Code: influxdb.EInvalid,
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
 				Err: &GroupCursorError{
 					typ:    "float",
 					cursor: cur,
@@ -1005,6 +1092,7 @@ type integerWindowTable struct {
 	idxInArr     int
 	createEmpty  bool
 	timeColumn   string
+	isAggregate  bool
 	window       interval.Window
 	fillValue    *int64
 }
@@ -1016,6 +1104,7 @@ func newIntegerWindowTable(
 	window interval.Window,
 	createEmpty bool,
 	timeColumn string,
+	isAggregate bool,
 	fillValue *int64,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -1032,6 +1121,7 @@ func newIntegerWindowTable(
 		window:      window,
 		createEmpty: createEmpty,
 		timeColumn:  timeColumn,
+		isAggregate: isAggregate,
 		fillValue:   fillValue,
 	}
 	if t.createEmpty {
@@ -1113,10 +1203,10 @@ func (t *integerWindowTable) getWindowBoundsFor(bounds interval.Bounds) (int64, 
 // nextAt will retrieve the next value that can be used with
 // the given stop timestamp. If no values can be used with the timestamp,
 // it will return the default value and false.
-func (t *integerWindowTable) nextAt(ts int64) (v int64, ok bool) {
+func (t *integerWindowTable) nextAt(stop int64) (v int64, ok bool) {
 	if !t.nextBuffer() {
 		return
-	} else if !t.isInWindow(ts, t.arr.Timestamps[t.idxInArr]) {
+	} else if !t.isInWindow(stop, t.arr.Timestamps[t.idxInArr]) {
 		return
 	}
 	v, ok = t.arr.Values[t.idxInArr], true
@@ -1124,23 +1214,26 @@ func (t *integerWindowTable) nextAt(ts int64) (v int64, ok bool) {
 	return v, ok
 }
 
-// isInWindow will check if the given time at stop can be used within
-// the window stop time for ts. The ts may be a truncated stop time
-// because of a restricted boundary while stop will be the true
-// stop time returned by storage.
-func (t *integerWindowTable) isInWindow(ts int64, stop int64) bool {
-	// This method checks if the stop time is a valid stop time for
-	// that interval. This calculation is different from the calculation
-	// of the window itself. For example, for a 10 second window that
-	// starts at 20 seconds, we would include points between [20, 30).
-	// The stop time for this interval would be 30, but because the stop
-	// time can be truncated, valid stop times range from anywhere between
-	// (20, 30]. The storage engine will always produce 30 as the end time
-	// but we may have truncated the stop time because of the boundary
-	// and this is why we are checking for this range instead of checking
-	// if the two values are equal.
-	start := int64(t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stop))).Start())
-	return start < ts && ts <= stop
+// isInWindow will check if the given time may be used within the window
+// denoted by the stop timestamp. The stop may be a truncated stop time
+// because of a restricted boundary.
+//
+// When used with an aggregate, ts will be the true stop time returned
+// by storage. When used with an aggregate, it will be the real time
+// for the point.
+func (t *integerWindowTable) isInWindow(stop int64, ts int64) bool {
+	// Retrieve the boundary associated with this stop time.
+	// This will be the boundary for the previous nanosecond.
+	bounds := t.window.GetLatestBounds(values.Time(stop - 1))
+	start, stop := int64(bounds.Start()), int64(bounds.Stop())
+
+	// For an aggregate, the timestamp will be the stop time of the boundary.
+	if t.isAggregate {
+		return start < ts && ts <= stop
+	}
+
+	// For a selector, the timestamp should be within the boundary.
+	return start <= ts && ts < stop
 }
 
 // nextBuffer will ensure the array cursor is filled
@@ -1633,20 +1726,17 @@ func (t *integerGroupTable) advance() bool {
 		return true
 	}
 
-	aggregate, err := determineIntegerAggregateMethod(t.gc.Aggregate().Type)
+	aggregate, err := makeIntegerAggregateAccumulator(t.gc.Aggregate().Type)
 	if err != nil {
 		t.err = err
 		return false
 	}
 
-	ts, v := aggregate(arr.Timestamps, arr.Values)
-	timestamps, values := []int64{ts}, []int64{v}
+	aggregate.AccumulateFirst(arr.Timestamps, arr.Values, t.tags)
 	for {
 		arr = t.cur.Next()
 		if arr.Len() > 0 {
-			ts, v := aggregate(arr.Timestamps, arr.Values)
-			timestamps = append(timestamps, ts)
-			values = append(values, v)
+			aggregate.AccumulateMore(arr.Timestamps, arr.Values, t.tags)
 			continue
 		}
 
@@ -1654,7 +1744,7 @@ func (t *integerGroupTable) advance() bool {
 			break
 		}
 	}
-	timestamp, value := aggregate(timestamps, values)
+	timestamp, value, tags := aggregate.Result()
 
 	colReader := t.allocateBuffer(1)
 	if IsSelector(t.gc.Aggregate()) {
@@ -1663,117 +1753,201 @@ func (t *integerGroupTable) advance() bool {
 	} else {
 		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]int64{value})
 	}
-	t.appendTags(colReader)
+	t.appendTheseTags(colReader, tags)
 	t.appendBounds(colReader)
 	return true
 }
 
-type integerAggregateMethod func([]int64, []int64) (int64, int64)
+type IntegerAggregateAccumulator interface {
+	// AccumulateFirst receives an initial array of items to select from.
+	// It selects an item and stores the state. Afterwards, more data can
+	// be supplied with AccumulateMore and the results can be requested at
+	// any time. Without a call to AccumulateFirst the results are not
+	// defined.
+	AccumulateFirst(timestamps []int64, values []int64, tags [][]byte)
 
-// determineIntegerAggregateMethod returns the method for aggregating
-// returned points within the same group. The incoming points are the
-// ones returned for each series and the method returned here will
+	// AccumulateMore receives additional array elements to select from.
+	AccumulateMore(timestamps []int64, values []int64, tags [][]byte)
+
+	// Result returns the item selected from the data received so far.
+	Result() (int64, int64, [][]byte)
+}
+
+// The selector method takes a ( timestamp, value ) pair, a
+// ( []timestamp, []value ) pair, and a starting index. It applies the selector
+// to the single value and the array, starting at the supplied index. It
+// returns -1 if the single value is selected and a non-negative value if an
+// item from the array is selected.
+type integerSelectorMethod func(int64, int64, []int64, []int64, int) int
+
+// The selector accumulator tracks currently-selected item.
+type integerSelectorAccumulator struct {
+	selector integerSelectorMethod
+
+	ts   int64
+	v    int64
+	tags [][]byte
+}
+
+func (a *integerSelectorAccumulator) AccumulateFirst(timestamps []int64, values []int64, tags [][]byte) {
+	index := a.selector(timestamps[0], values[0], timestamps, values, 1)
+	if index < 0 {
+		a.ts = timestamps[0]
+		a.v = values[0]
+	} else {
+		a.ts = timestamps[index]
+		a.v = values[index]
+	}
+	a.tags = make([][]byte, len(tags))
+	copy(a.tags, tags)
+}
+
+func (a *integerSelectorAccumulator) AccumulateMore(timestamps []int64, values []int64, tags [][]byte) {
+	index := a.selector(a.ts, a.v, timestamps, values, 0)
+	if index >= 0 {
+		a.ts = timestamps[index]
+		a.v = values[index]
+
+		if len(tags) > cap(a.tags) {
+			a.tags = make([][]byte, len(tags))
+		} else {
+			a.tags = a.tags[:len(tags)]
+		}
+		copy(a.tags, tags)
+	}
+}
+
+func (a *integerSelectorAccumulator) Result() (int64, int64, [][]byte) {
+	return a.ts, a.v, a.tags
+}
+
+// The aggregate method takes a value, an array of values, and a starting
+// index, applies an aggregate operation over the value and the array, starting
+// at the given index, and returns the result.
+type integerAggregateMethod func(int64, []int64, int) int64
+
+type integerAggregateAccumulator struct {
+	aggregate integerAggregateMethod
+	accum     int64
+
+	// For pure aggregates it doesn't matter what we return for tags, but
+	// we need to satisfy the interface. We will just return the most
+	// recently seen tags.
+	tags [][]byte
+}
+
+func (a *integerAggregateAccumulator) AccumulateFirst(timestamps []int64, values []int64, tags [][]byte) {
+	a.accum = a.aggregate(values[0], values, 1)
+	a.tags = tags
+}
+
+func (a *integerAggregateAccumulator) AccumulateMore(timestamps []int64, values []int64, tags [][]byte) {
+	a.accum = a.aggregate(a.accum, values, 0)
+	a.tags = tags
+}
+
+// For group aggregates (non-selectors), the timestamp is always math.MaxInt64.
+// their final result does not contain _time, so this timestamp value can be
+// anything and it won't matter.
+func (a *integerAggregateAccumulator) Result() (int64, int64, [][]byte) {
+	return math.MaxInt64, a.accum, a.tags
+}
+
+// makeIntegerAggregateAccumulator returns the interface implementation for
+// aggregating returned points within the same group. The incoming points are
+// the ones returned for each series and the struct returned here will
 // aggregate the aggregates.
-func determineIntegerAggregateMethod(agg datatypes.Aggregate_AggregateType) (integerAggregateMethod, error) {
+func makeIntegerAggregateAccumulator(agg datatypes.Aggregate_AggregateType) (IntegerAggregateAccumulator, error) {
 	switch agg {
 	case datatypes.AggregateTypeFirst:
-		return aggregateFirstGroupsInteger, nil
+		return &integerSelectorAccumulator{selector: selectorFirstGroupsInteger}, nil
 	case datatypes.AggregateTypeLast:
-		return aggregateLastGroupsInteger, nil
+		return &integerSelectorAccumulator{selector: selectorLastGroupsInteger}, nil
 	case datatypes.AggregateTypeCount:
 
-		return aggregateCountGroupsInteger, nil
+		return &integerAggregateAccumulator{aggregate: aggregateCountGroupsInteger}, nil
 
 	case datatypes.AggregateTypeSum:
 
-		return aggregateSumGroupsInteger, nil
+		return &integerAggregateAccumulator{aggregate: aggregateSumGroupsInteger}, nil
 
 	case datatypes.AggregateTypeMin:
 
-		return aggregateMinGroupsInteger, nil
+		return &integerSelectorAccumulator{selector: selectorMinGroupsInteger}, nil
 
 	case datatypes.AggregateTypeMax:
 
-		return aggregateMaxGroupsInteger, nil
+		return &integerSelectorAccumulator{selector: selectorMaxGroupsInteger}, nil
 
 	default:
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
 		}
 	}
 }
 
-func aggregateMinGroupsInteger(timestamps []int64, values []int64) (int64, int64) {
-	value := values[0]
-	timestamp := timestamps[0]
+func selectorMinGroupsInteger(ts int64, v int64, timestamps []int64, values []int64, i int) int {
+	index := -1
 
-	for i := 1; i < len(values); i++ {
-		if value > values[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if v > values[i] {
+			index = i
+			v = values[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
-func aggregateMaxGroupsInteger(timestamps []int64, values []int64) (int64, int64) {
-	value := values[0]
-	timestamp := timestamps[0]
+func selectorMaxGroupsInteger(ts int64, v int64, timestamps []int64, values []int64, i int) int {
+	index := -1
 
-	for i := 1; i < len(values); i++ {
-		if value < values[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if v < values[i] {
+			index = i
+			v = values[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
-// For group count and sum, the timestamp here is always math.MaxInt64.
-// their final result does not contain _time, so this timestamp value can be anything
-// and it won't matter.
-
-func aggregateCountGroupsInteger(timestamps []int64, values []int64) (int64, int64) {
-	return aggregateSumGroupsInteger(timestamps, values)
+func aggregateCountGroupsInteger(accum int64, values []int64, i int) int64 {
+	return aggregateSumGroupsInteger(accum, values, i)
 }
 
-func aggregateSumGroupsInteger(_ []int64, values []int64) (int64, int64) {
-	var sum int64
-	for _, v := range values {
-		sum += v
+func aggregateSumGroupsInteger(sum int64, values []int64, i int) int64 {
+	for ; i < len(values); i++ {
+		sum += values[i]
 	}
-	return math.MaxInt64, sum
+	return sum
 }
 
-func aggregateFirstGroupsInteger(timestamps []int64, values []int64) (int64, int64) {
-	value := values[0]
-	timestamp := timestamps[0]
+func selectorFirstGroupsInteger(ts int64, v int64, timestamps []int64, values []int64, i int) int {
+	index := -1
 
-	for i := 1; i < len(values); i++ {
-		if timestamp > timestamps[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if ts > timestamps[i] {
+			index = i
+			ts = timestamps[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
-func aggregateLastGroupsInteger(timestamps []int64, values []int64) (int64, int64) {
-	value := values[0]
-	timestamp := timestamps[0]
+func selectorLastGroupsInteger(ts int64, v int64, timestamps []int64, values []int64, i int) int {
+	index := -1
 
-	for i := 1; i < len(values); i++ {
-		if timestamp < timestamps[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if ts < timestamps[i] {
+			index = i
+			ts = timestamps[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
 func (t *integerGroupTable) advanceCursor() bool {
@@ -1788,8 +1962,8 @@ func (t *integerGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.IntegerArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &influxdb.Error{
-				Code: influxdb.EInvalid,
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
 				Err: &GroupCursorError{
 					typ:    "integer",
 					cursor: cur,
@@ -1902,6 +2076,7 @@ type unsignedWindowTable struct {
 	idxInArr     int
 	createEmpty  bool
 	timeColumn   string
+	isAggregate  bool
 	window       interval.Window
 }
 
@@ -1912,6 +2087,7 @@ func newUnsignedWindowTable(
 	window interval.Window,
 	createEmpty bool,
 	timeColumn string,
+	isAggregate bool,
 
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -1928,6 +2104,7 @@ func newUnsignedWindowTable(
 		window:      window,
 		createEmpty: createEmpty,
 		timeColumn:  timeColumn,
+		isAggregate: isAggregate,
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
@@ -2008,10 +2185,10 @@ func (t *unsignedWindowTable) getWindowBoundsFor(bounds interval.Bounds) (int64,
 // nextAt will retrieve the next value that can be used with
 // the given stop timestamp. If no values can be used with the timestamp,
 // it will return the default value and false.
-func (t *unsignedWindowTable) nextAt(ts int64) (v uint64, ok bool) {
+func (t *unsignedWindowTable) nextAt(stop int64) (v uint64, ok bool) {
 	if !t.nextBuffer() {
 		return
-	} else if !t.isInWindow(ts, t.arr.Timestamps[t.idxInArr]) {
+	} else if !t.isInWindow(stop, t.arr.Timestamps[t.idxInArr]) {
 		return
 	}
 	v, ok = t.arr.Values[t.idxInArr], true
@@ -2019,23 +2196,26 @@ func (t *unsignedWindowTable) nextAt(ts int64) (v uint64, ok bool) {
 	return v, ok
 }
 
-// isInWindow will check if the given time at stop can be used within
-// the window stop time for ts. The ts may be a truncated stop time
-// because of a restricted boundary while stop will be the true
-// stop time returned by storage.
-func (t *unsignedWindowTable) isInWindow(ts int64, stop int64) bool {
-	// This method checks if the stop time is a valid stop time for
-	// that interval. This calculation is different from the calculation
-	// of the window itself. For example, for a 10 second window that
-	// starts at 20 seconds, we would include points between [20, 30).
-	// The stop time for this interval would be 30, but because the stop
-	// time can be truncated, valid stop times range from anywhere between
-	// (20, 30]. The storage engine will always produce 30 as the end time
-	// but we may have truncated the stop time because of the boundary
-	// and this is why we are checking for this range instead of checking
-	// if the two values are equal.
-	start := int64(t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stop))).Start())
-	return start < ts && ts <= stop
+// isInWindow will check if the given time may be used within the window
+// denoted by the stop timestamp. The stop may be a truncated stop time
+// because of a restricted boundary.
+//
+// When used with an aggregate, ts will be the true stop time returned
+// by storage. When used with an aggregate, it will be the real time
+// for the point.
+func (t *unsignedWindowTable) isInWindow(stop int64, ts int64) bool {
+	// Retrieve the boundary associated with this stop time.
+	// This will be the boundary for the previous nanosecond.
+	bounds := t.window.GetLatestBounds(values.Time(stop - 1))
+	start, stop := int64(bounds.Start()), int64(bounds.Stop())
+
+	// For an aggregate, the timestamp will be the stop time of the boundary.
+	if t.isAggregate {
+		return start < ts && ts <= stop
+	}
+
+	// For a selector, the timestamp should be within the boundary.
+	return start <= ts && ts < stop
 }
 
 // nextBuffer will ensure the array cursor is filled
@@ -2528,20 +2708,17 @@ func (t *unsignedGroupTable) advance() bool {
 		return true
 	}
 
-	aggregate, err := determineUnsignedAggregateMethod(t.gc.Aggregate().Type)
+	aggregate, err := makeUnsignedAggregateAccumulator(t.gc.Aggregate().Type)
 	if err != nil {
 		t.err = err
 		return false
 	}
 
-	ts, v := aggregate(arr.Timestamps, arr.Values)
-	timestamps, values := []int64{ts}, []uint64{v}
+	aggregate.AccumulateFirst(arr.Timestamps, arr.Values, t.tags)
 	for {
 		arr = t.cur.Next()
 		if arr.Len() > 0 {
-			ts, v := aggregate(arr.Timestamps, arr.Values)
-			timestamps = append(timestamps, ts)
-			values = append(values, v)
+			aggregate.AccumulateMore(arr.Timestamps, arr.Values, t.tags)
 			continue
 		}
 
@@ -2549,7 +2726,7 @@ func (t *unsignedGroupTable) advance() bool {
 			break
 		}
 	}
-	timestamp, value := aggregate(timestamps, values)
+	timestamp, value, tags := aggregate.Result()
 
 	colReader := t.allocateBuffer(1)
 	if IsSelector(t.gc.Aggregate()) {
@@ -2558,116 +2735,200 @@ func (t *unsignedGroupTable) advance() bool {
 	} else {
 		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]uint64{value})
 	}
-	t.appendTags(colReader)
+	t.appendTheseTags(colReader, tags)
 	t.appendBounds(colReader)
 	return true
 }
 
-type unsignedAggregateMethod func([]int64, []uint64) (int64, uint64)
+type UnsignedAggregateAccumulator interface {
+	// AccumulateFirst receives an initial array of items to select from.
+	// It selects an item and stores the state. Afterwards, more data can
+	// be supplied with AccumulateMore and the results can be requested at
+	// any time. Without a call to AccumulateFirst the results are not
+	// defined.
+	AccumulateFirst(timestamps []int64, values []uint64, tags [][]byte)
 
-// determineUnsignedAggregateMethod returns the method for aggregating
-// returned points within the same group. The incoming points are the
-// ones returned for each series and the method returned here will
+	// AccumulateMore receives additional array elements to select from.
+	AccumulateMore(timestamps []int64, values []uint64, tags [][]byte)
+
+	// Result returns the item selected from the data received so far.
+	Result() (int64, uint64, [][]byte)
+}
+
+// The selector method takes a ( timestamp, value ) pair, a
+// ( []timestamp, []value ) pair, and a starting index. It applies the selector
+// to the single value and the array, starting at the supplied index. It
+// returns -1 if the single value is selected and a non-negative value if an
+// item from the array is selected.
+type unsignedSelectorMethod func(int64, uint64, []int64, []uint64, int) int
+
+// The selector accumulator tracks currently-selected item.
+type unsignedSelectorAccumulator struct {
+	selector unsignedSelectorMethod
+
+	ts   int64
+	v    uint64
+	tags [][]byte
+}
+
+func (a *unsignedSelectorAccumulator) AccumulateFirst(timestamps []int64, values []uint64, tags [][]byte) {
+	index := a.selector(timestamps[0], values[0], timestamps, values, 1)
+	if index < 0 {
+		a.ts = timestamps[0]
+		a.v = values[0]
+	} else {
+		a.ts = timestamps[index]
+		a.v = values[index]
+	}
+	a.tags = make([][]byte, len(tags))
+	copy(a.tags, tags)
+}
+
+func (a *unsignedSelectorAccumulator) AccumulateMore(timestamps []int64, values []uint64, tags [][]byte) {
+	index := a.selector(a.ts, a.v, timestamps, values, 0)
+	if index >= 0 {
+		a.ts = timestamps[index]
+		a.v = values[index]
+
+		if len(tags) > cap(a.tags) {
+			a.tags = make([][]byte, len(tags))
+		} else {
+			a.tags = a.tags[:len(tags)]
+		}
+		copy(a.tags, tags)
+	}
+}
+
+func (a *unsignedSelectorAccumulator) Result() (int64, uint64, [][]byte) {
+	return a.ts, a.v, a.tags
+}
+
+// The aggregate method takes a value, an array of values, and a starting
+// index, applies an aggregate operation over the value and the array, starting
+// at the given index, and returns the result.
+type unsignedAggregateMethod func(uint64, []uint64, int) uint64
+
+type unsignedAggregateAccumulator struct {
+	aggregate unsignedAggregateMethod
+	accum     uint64
+
+	// For pure aggregates it doesn't matter what we return for tags, but
+	// we need to satisfy the interface. We will just return the most
+	// recently seen tags.
+	tags [][]byte
+}
+
+func (a *unsignedAggregateAccumulator) AccumulateFirst(timestamps []int64, values []uint64, tags [][]byte) {
+	a.accum = a.aggregate(values[0], values, 1)
+	a.tags = tags
+}
+
+func (a *unsignedAggregateAccumulator) AccumulateMore(timestamps []int64, values []uint64, tags [][]byte) {
+	a.accum = a.aggregate(a.accum, values, 0)
+	a.tags = tags
+}
+
+// For group aggregates (non-selectors), the timestamp is always math.MaxInt64.
+// their final result does not contain _time, so this timestamp value can be
+// anything and it won't matter.
+func (a *unsignedAggregateAccumulator) Result() (int64, uint64, [][]byte) {
+	return math.MaxInt64, a.accum, a.tags
+}
+
+// makeUnsignedAggregateAccumulator returns the interface implementation for
+// aggregating returned points within the same group. The incoming points are
+// the ones returned for each series and the struct returned here will
 // aggregate the aggregates.
-func determineUnsignedAggregateMethod(agg datatypes.Aggregate_AggregateType) (unsignedAggregateMethod, error) {
+func makeUnsignedAggregateAccumulator(agg datatypes.Aggregate_AggregateType) (UnsignedAggregateAccumulator, error) {
 	switch agg {
 	case datatypes.AggregateTypeFirst:
-		return aggregateFirstGroupsUnsigned, nil
+		return &unsignedSelectorAccumulator{selector: selectorFirstGroupsUnsigned}, nil
 	case datatypes.AggregateTypeLast:
-		return aggregateLastGroupsUnsigned, nil
+		return &unsignedSelectorAccumulator{selector: selectorLastGroupsUnsigned}, nil
 	case datatypes.AggregateTypeCount:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate count: Unsigned",
 		}
 
 	case datatypes.AggregateTypeSum:
 
-		return aggregateSumGroupsUnsigned, nil
+		return &unsignedAggregateAccumulator{aggregate: aggregateSumGroupsUnsigned}, nil
 
 	case datatypes.AggregateTypeMin:
 
-		return aggregateMinGroupsUnsigned, nil
+		return &unsignedSelectorAccumulator{selector: selectorMinGroupsUnsigned}, nil
 
 	case datatypes.AggregateTypeMax:
 
-		return aggregateMaxGroupsUnsigned, nil
+		return &unsignedSelectorAccumulator{selector: selectorMaxGroupsUnsigned}, nil
 
 	default:
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
 		}
 	}
 }
 
-func aggregateMinGroupsUnsigned(timestamps []int64, values []uint64) (int64, uint64) {
-	value := values[0]
-	timestamp := timestamps[0]
+func selectorMinGroupsUnsigned(ts int64, v uint64, timestamps []int64, values []uint64, i int) int {
+	index := -1
 
-	for i := 1; i < len(values); i++ {
-		if value > values[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if v > values[i] {
+			index = i
+			v = values[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
-func aggregateMaxGroupsUnsigned(timestamps []int64, values []uint64) (int64, uint64) {
-	value := values[0]
-	timestamp := timestamps[0]
+func selectorMaxGroupsUnsigned(ts int64, v uint64, timestamps []int64, values []uint64, i int) int {
+	index := -1
 
-	for i := 1; i < len(values); i++ {
-		if value < values[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if v < values[i] {
+			index = i
+			v = values[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
-// For group count and sum, the timestamp here is always math.MaxInt64.
-// their final result does not contain _time, so this timestamp value can be anything
-// and it won't matter.
-
-func aggregateSumGroupsUnsigned(_ []int64, values []uint64) (int64, uint64) {
-	var sum uint64
-	for _, v := range values {
-		sum += v
+func aggregateSumGroupsUnsigned(sum uint64, values []uint64, i int) uint64 {
+	for ; i < len(values); i++ {
+		sum += values[i]
 	}
-	return math.MaxInt64, sum
+	return sum
 }
 
-func aggregateFirstGroupsUnsigned(timestamps []int64, values []uint64) (int64, uint64) {
-	value := values[0]
-	timestamp := timestamps[0]
+func selectorFirstGroupsUnsigned(ts int64, v uint64, timestamps []int64, values []uint64, i int) int {
+	index := -1
 
-	for i := 1; i < len(values); i++ {
-		if timestamp > timestamps[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if ts > timestamps[i] {
+			index = i
+			ts = timestamps[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
-func aggregateLastGroupsUnsigned(timestamps []int64, values []uint64) (int64, uint64) {
-	value := values[0]
-	timestamp := timestamps[0]
+func selectorLastGroupsUnsigned(ts int64, v uint64, timestamps []int64, values []uint64, i int) int {
+	index := -1
 
-	for i := 1; i < len(values); i++ {
-		if timestamp < timestamps[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if ts < timestamps[i] {
+			index = i
+			ts = timestamps[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
 func (t *unsignedGroupTable) advanceCursor() bool {
@@ -2682,8 +2943,8 @@ func (t *unsignedGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.UnsignedArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &influxdb.Error{
-				Code: influxdb.EInvalid,
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
 				Err: &GroupCursorError{
 					typ:    "unsigned",
 					cursor: cur,
@@ -2796,6 +3057,7 @@ type stringWindowTable struct {
 	idxInArr     int
 	createEmpty  bool
 	timeColumn   string
+	isAggregate  bool
 	window       interval.Window
 }
 
@@ -2806,6 +3068,7 @@ func newStringWindowTable(
 	window interval.Window,
 	createEmpty bool,
 	timeColumn string,
+	isAggregate bool,
 
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -2822,6 +3085,7 @@ func newStringWindowTable(
 		window:      window,
 		createEmpty: createEmpty,
 		timeColumn:  timeColumn,
+		isAggregate: isAggregate,
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
@@ -2902,10 +3166,10 @@ func (t *stringWindowTable) getWindowBoundsFor(bounds interval.Bounds) (int64, i
 // nextAt will retrieve the next value that can be used with
 // the given stop timestamp. If no values can be used with the timestamp,
 // it will return the default value and false.
-func (t *stringWindowTable) nextAt(ts int64) (v string, ok bool) {
+func (t *stringWindowTable) nextAt(stop int64) (v string, ok bool) {
 	if !t.nextBuffer() {
 		return
-	} else if !t.isInWindow(ts, t.arr.Timestamps[t.idxInArr]) {
+	} else if !t.isInWindow(stop, t.arr.Timestamps[t.idxInArr]) {
 		return
 	}
 	v, ok = t.arr.Values[t.idxInArr], true
@@ -2913,23 +3177,26 @@ func (t *stringWindowTable) nextAt(ts int64) (v string, ok bool) {
 	return v, ok
 }
 
-// isInWindow will check if the given time at stop can be used within
-// the window stop time for ts. The ts may be a truncated stop time
-// because of a restricted boundary while stop will be the true
-// stop time returned by storage.
-func (t *stringWindowTable) isInWindow(ts int64, stop int64) bool {
-	// This method checks if the stop time is a valid stop time for
-	// that interval. This calculation is different from the calculation
-	// of the window itself. For example, for a 10 second window that
-	// starts at 20 seconds, we would include points between [20, 30).
-	// The stop time for this interval would be 30, but because the stop
-	// time can be truncated, valid stop times range from anywhere between
-	// (20, 30]. The storage engine will always produce 30 as the end time
-	// but we may have truncated the stop time because of the boundary
-	// and this is why we are checking for this range instead of checking
-	// if the two values are equal.
-	start := int64(t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stop))).Start())
-	return start < ts && ts <= stop
+// isInWindow will check if the given time may be used within the window
+// denoted by the stop timestamp. The stop may be a truncated stop time
+// because of a restricted boundary.
+//
+// When used with an aggregate, ts will be the true stop time returned
+// by storage. When used with an aggregate, it will be the real time
+// for the point.
+func (t *stringWindowTable) isInWindow(stop int64, ts int64) bool {
+	// Retrieve the boundary associated with this stop time.
+	// This will be the boundary for the previous nanosecond.
+	bounds := t.window.GetLatestBounds(values.Time(stop - 1))
+	start, stop := int64(bounds.Start()), int64(bounds.Stop())
+
+	// For an aggregate, the timestamp will be the stop time of the boundary.
+	if t.isAggregate {
+		return start < ts && ts <= stop
+	}
+
+	// For a selector, the timestamp should be within the boundary.
+	return start <= ts && ts < stop
 }
 
 // nextBuffer will ensure the array cursor is filled
@@ -3422,20 +3689,17 @@ func (t *stringGroupTable) advance() bool {
 		return true
 	}
 
-	aggregate, err := determineStringAggregateMethod(t.gc.Aggregate().Type)
+	aggregate, err := makeStringAggregateAccumulator(t.gc.Aggregate().Type)
 	if err != nil {
 		t.err = err
 		return false
 	}
 
-	ts, v := aggregate(arr.Timestamps, arr.Values)
-	timestamps, values := []int64{ts}, []string{v}
+	aggregate.AccumulateFirst(arr.Timestamps, arr.Values, t.tags)
 	for {
 		arr = t.cur.Next()
 		if arr.Len() > 0 {
-			ts, v := aggregate(arr.Timestamps, arr.Values)
-			timestamps = append(timestamps, ts)
-			values = append(values, v)
+			aggregate.AccumulateMore(arr.Timestamps, arr.Values, t.tags)
 			continue
 		}
 
@@ -3443,7 +3707,7 @@ func (t *stringGroupTable) advance() bool {
 			break
 		}
 	}
-	timestamp, value := aggregate(timestamps, values)
+	timestamp, value, tags := aggregate.Result()
 
 	colReader := t.allocateBuffer(1)
 	if IsSelector(t.gc.Aggregate()) {
@@ -3452,89 +3716,144 @@ func (t *stringGroupTable) advance() bool {
 	} else {
 		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]string{value})
 	}
-	t.appendTags(colReader)
+	t.appendTheseTags(colReader, tags)
 	t.appendBounds(colReader)
 	return true
 }
 
-type stringAggregateMethod func([]int64, []string) (int64, string)
+type StringAggregateAccumulator interface {
+	// AccumulateFirst receives an initial array of items to select from.
+	// It selects an item and stores the state. Afterwards, more data can
+	// be supplied with AccumulateMore and the results can be requested at
+	// any time. Without a call to AccumulateFirst the results are not
+	// defined.
+	AccumulateFirst(timestamps []int64, values []string, tags [][]byte)
 
-// determineStringAggregateMethod returns the method for aggregating
-// returned points within the same group. The incoming points are the
-// ones returned for each series and the method returned here will
+	// AccumulateMore receives additional array elements to select from.
+	AccumulateMore(timestamps []int64, values []string, tags [][]byte)
+
+	// Result returns the item selected from the data received so far.
+	Result() (int64, string, [][]byte)
+}
+
+// The selector method takes a ( timestamp, value ) pair, a
+// ( []timestamp, []value ) pair, and a starting index. It applies the selector
+// to the single value and the array, starting at the supplied index. It
+// returns -1 if the single value is selected and a non-negative value if an
+// item from the array is selected.
+type stringSelectorMethod func(int64, string, []int64, []string, int) int
+
+// The selector accumulator tracks currently-selected item.
+type stringSelectorAccumulator struct {
+	selector stringSelectorMethod
+
+	ts   int64
+	v    string
+	tags [][]byte
+}
+
+func (a *stringSelectorAccumulator) AccumulateFirst(timestamps []int64, values []string, tags [][]byte) {
+	index := a.selector(timestamps[0], values[0], timestamps, values, 1)
+	if index < 0 {
+		a.ts = timestamps[0]
+		a.v = values[0]
+	} else {
+		a.ts = timestamps[index]
+		a.v = values[index]
+	}
+	a.tags = make([][]byte, len(tags))
+	copy(a.tags, tags)
+}
+
+func (a *stringSelectorAccumulator) AccumulateMore(timestamps []int64, values []string, tags [][]byte) {
+	index := a.selector(a.ts, a.v, timestamps, values, 0)
+	if index >= 0 {
+		a.ts = timestamps[index]
+		a.v = values[index]
+
+		if len(tags) > cap(a.tags) {
+			a.tags = make([][]byte, len(tags))
+		} else {
+			a.tags = a.tags[:len(tags)]
+		}
+		copy(a.tags, tags)
+	}
+}
+
+func (a *stringSelectorAccumulator) Result() (int64, string, [][]byte) {
+	return a.ts, a.v, a.tags
+}
+
+// makeStringAggregateAccumulator returns the interface implementation for
+// aggregating returned points within the same group. The incoming points are
+// the ones returned for each series and the struct returned here will
 // aggregate the aggregates.
-func determineStringAggregateMethod(agg datatypes.Aggregate_AggregateType) (stringAggregateMethod, error) {
+func makeStringAggregateAccumulator(agg datatypes.Aggregate_AggregateType) (StringAggregateAccumulator, error) {
 	switch agg {
 	case datatypes.AggregateTypeFirst:
-		return aggregateFirstGroupsString, nil
+		return &stringSelectorAccumulator{selector: selectorFirstGroupsString}, nil
 	case datatypes.AggregateTypeLast:
-		return aggregateLastGroupsString, nil
+		return &stringSelectorAccumulator{selector: selectorLastGroupsString}, nil
 	case datatypes.AggregateTypeCount:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate count: String",
 		}
 
 	case datatypes.AggregateTypeSum:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate sum: String",
 		}
 
 	case datatypes.AggregateTypeMin:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate min: String",
 		}
 
 	case datatypes.AggregateTypeMax:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate max: String",
 		}
 
 	default:
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
 		}
 	}
 }
 
-// For group count and sum, the timestamp here is always math.MaxInt64.
-// their final result does not contain _time, so this timestamp value can be anything
-// and it won't matter.
+func selectorFirstGroupsString(ts int64, v string, timestamps []int64, values []string, i int) int {
+	index := -1
 
-func aggregateFirstGroupsString(timestamps []int64, values []string) (int64, string) {
-	value := values[0]
-	timestamp := timestamps[0]
-
-	for i := 1; i < len(values); i++ {
-		if timestamp > timestamps[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if ts > timestamps[i] {
+			index = i
+			ts = timestamps[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
-func aggregateLastGroupsString(timestamps []int64, values []string) (int64, string) {
-	value := values[0]
-	timestamp := timestamps[0]
+func selectorLastGroupsString(ts int64, v string, timestamps []int64, values []string, i int) int {
+	index := -1
 
-	for i := 1; i < len(values); i++ {
-		if timestamp < timestamps[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if ts < timestamps[i] {
+			index = i
+			ts = timestamps[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
 func (t *stringGroupTable) advanceCursor() bool {
@@ -3549,8 +3868,8 @@ func (t *stringGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.StringArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &influxdb.Error{
-				Code: influxdb.EInvalid,
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
 				Err: &GroupCursorError{
 					typ:    "string",
 					cursor: cur,
@@ -3663,6 +3982,7 @@ type booleanWindowTable struct {
 	idxInArr     int
 	createEmpty  bool
 	timeColumn   string
+	isAggregate  bool
 	window       interval.Window
 }
 
@@ -3673,6 +3993,7 @@ func newBooleanWindowTable(
 	window interval.Window,
 	createEmpty bool,
 	timeColumn string,
+	isAggregate bool,
 
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -3689,6 +4010,7 @@ func newBooleanWindowTable(
 		window:      window,
 		createEmpty: createEmpty,
 		timeColumn:  timeColumn,
+		isAggregate: isAggregate,
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
@@ -3769,10 +4091,10 @@ func (t *booleanWindowTable) getWindowBoundsFor(bounds interval.Bounds) (int64, 
 // nextAt will retrieve the next value that can be used with
 // the given stop timestamp. If no values can be used with the timestamp,
 // it will return the default value and false.
-func (t *booleanWindowTable) nextAt(ts int64) (v bool, ok bool) {
+func (t *booleanWindowTable) nextAt(stop int64) (v bool, ok bool) {
 	if !t.nextBuffer() {
 		return
-	} else if !t.isInWindow(ts, t.arr.Timestamps[t.idxInArr]) {
+	} else if !t.isInWindow(stop, t.arr.Timestamps[t.idxInArr]) {
 		return
 	}
 	v, ok = t.arr.Values[t.idxInArr], true
@@ -3780,23 +4102,26 @@ func (t *booleanWindowTable) nextAt(ts int64) (v bool, ok bool) {
 	return v, ok
 }
 
-// isInWindow will check if the given time at stop can be used within
-// the window stop time for ts. The ts may be a truncated stop time
-// because of a restricted boundary while stop will be the true
-// stop time returned by storage.
-func (t *booleanWindowTable) isInWindow(ts int64, stop int64) bool {
-	// This method checks if the stop time is a valid stop time for
-	// that interval. This calculation is different from the calculation
-	// of the window itself. For example, for a 10 second window that
-	// starts at 20 seconds, we would include points between [20, 30).
-	// The stop time for this interval would be 30, but because the stop
-	// time can be truncated, valid stop times range from anywhere between
-	// (20, 30]. The storage engine will always produce 30 as the end time
-	// but we may have truncated the stop time because of the boundary
-	// and this is why we are checking for this range instead of checking
-	// if the two values are equal.
-	start := int64(t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stop))).Start())
-	return start < ts && ts <= stop
+// isInWindow will check if the given time may be used within the window
+// denoted by the stop timestamp. The stop may be a truncated stop time
+// because of a restricted boundary.
+//
+// When used with an aggregate, ts will be the true stop time returned
+// by storage. When used with an aggregate, it will be the real time
+// for the point.
+func (t *booleanWindowTable) isInWindow(stop int64, ts int64) bool {
+	// Retrieve the boundary associated with this stop time.
+	// This will be the boundary for the previous nanosecond.
+	bounds := t.window.GetLatestBounds(values.Time(stop - 1))
+	start, stop := int64(bounds.Start()), int64(bounds.Stop())
+
+	// For an aggregate, the timestamp will be the stop time of the boundary.
+	if t.isAggregate {
+		return start < ts && ts <= stop
+	}
+
+	// For a selector, the timestamp should be within the boundary.
+	return start <= ts && ts < stop
 }
 
 // nextBuffer will ensure the array cursor is filled
@@ -4289,20 +4614,17 @@ func (t *booleanGroupTable) advance() bool {
 		return true
 	}
 
-	aggregate, err := determineBooleanAggregateMethod(t.gc.Aggregate().Type)
+	aggregate, err := makeBooleanAggregateAccumulator(t.gc.Aggregate().Type)
 	if err != nil {
 		t.err = err
 		return false
 	}
 
-	ts, v := aggregate(arr.Timestamps, arr.Values)
-	timestamps, values := []int64{ts}, []bool{v}
+	aggregate.AccumulateFirst(arr.Timestamps, arr.Values, t.tags)
 	for {
 		arr = t.cur.Next()
 		if arr.Len() > 0 {
-			ts, v := aggregate(arr.Timestamps, arr.Values)
-			timestamps = append(timestamps, ts)
-			values = append(values, v)
+			aggregate.AccumulateMore(arr.Timestamps, arr.Values, t.tags)
 			continue
 		}
 
@@ -4310,7 +4632,7 @@ func (t *booleanGroupTable) advance() bool {
 			break
 		}
 	}
-	timestamp, value := aggregate(timestamps, values)
+	timestamp, value, tags := aggregate.Result()
 
 	colReader := t.allocateBuffer(1)
 	if IsSelector(t.gc.Aggregate()) {
@@ -4319,89 +4641,144 @@ func (t *booleanGroupTable) advance() bool {
 	} else {
 		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]bool{value})
 	}
-	t.appendTags(colReader)
+	t.appendTheseTags(colReader, tags)
 	t.appendBounds(colReader)
 	return true
 }
 
-type booleanAggregateMethod func([]int64, []bool) (int64, bool)
+type BooleanAggregateAccumulator interface {
+	// AccumulateFirst receives an initial array of items to select from.
+	// It selects an item and stores the state. Afterwards, more data can
+	// be supplied with AccumulateMore and the results can be requested at
+	// any time. Without a call to AccumulateFirst the results are not
+	// defined.
+	AccumulateFirst(timestamps []int64, values []bool, tags [][]byte)
 
-// determineBooleanAggregateMethod returns the method for aggregating
-// returned points within the same group. The incoming points are the
-// ones returned for each series and the method returned here will
+	// AccumulateMore receives additional array elements to select from.
+	AccumulateMore(timestamps []int64, values []bool, tags [][]byte)
+
+	// Result returns the item selected from the data received so far.
+	Result() (int64, bool, [][]byte)
+}
+
+// The selector method takes a ( timestamp, value ) pair, a
+// ( []timestamp, []value ) pair, and a starting index. It applies the selector
+// to the single value and the array, starting at the supplied index. It
+// returns -1 if the single value is selected and a non-negative value if an
+// item from the array is selected.
+type booleanSelectorMethod func(int64, bool, []int64, []bool, int) int
+
+// The selector accumulator tracks currently-selected item.
+type booleanSelectorAccumulator struct {
+	selector booleanSelectorMethod
+
+	ts   int64
+	v    bool
+	tags [][]byte
+}
+
+func (a *booleanSelectorAccumulator) AccumulateFirst(timestamps []int64, values []bool, tags [][]byte) {
+	index := a.selector(timestamps[0], values[0], timestamps, values, 1)
+	if index < 0 {
+		a.ts = timestamps[0]
+		a.v = values[0]
+	} else {
+		a.ts = timestamps[index]
+		a.v = values[index]
+	}
+	a.tags = make([][]byte, len(tags))
+	copy(a.tags, tags)
+}
+
+func (a *booleanSelectorAccumulator) AccumulateMore(timestamps []int64, values []bool, tags [][]byte) {
+	index := a.selector(a.ts, a.v, timestamps, values, 0)
+	if index >= 0 {
+		a.ts = timestamps[index]
+		a.v = values[index]
+
+		if len(tags) > cap(a.tags) {
+			a.tags = make([][]byte, len(tags))
+		} else {
+			a.tags = a.tags[:len(tags)]
+		}
+		copy(a.tags, tags)
+	}
+}
+
+func (a *booleanSelectorAccumulator) Result() (int64, bool, [][]byte) {
+	return a.ts, a.v, a.tags
+}
+
+// makeBooleanAggregateAccumulator returns the interface implementation for
+// aggregating returned points within the same group. The incoming points are
+// the ones returned for each series and the struct returned here will
 // aggregate the aggregates.
-func determineBooleanAggregateMethod(agg datatypes.Aggregate_AggregateType) (booleanAggregateMethod, error) {
+func makeBooleanAggregateAccumulator(agg datatypes.Aggregate_AggregateType) (BooleanAggregateAccumulator, error) {
 	switch agg {
 	case datatypes.AggregateTypeFirst:
-		return aggregateFirstGroupsBoolean, nil
+		return &booleanSelectorAccumulator{selector: selectorFirstGroupsBoolean}, nil
 	case datatypes.AggregateTypeLast:
-		return aggregateLastGroupsBoolean, nil
+		return &booleanSelectorAccumulator{selector: selectorLastGroupsBoolean}, nil
 	case datatypes.AggregateTypeCount:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate count: Boolean",
 		}
 
 	case datatypes.AggregateTypeSum:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate sum: Boolean",
 		}
 
 	case datatypes.AggregateTypeMin:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate min: Boolean",
 		}
 
 	case datatypes.AggregateTypeMax:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate max: Boolean",
 		}
 
 	default:
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
 		}
 	}
 }
 
-// For group count and sum, the timestamp here is always math.MaxInt64.
-// their final result does not contain _time, so this timestamp value can be anything
-// and it won't matter.
+func selectorFirstGroupsBoolean(ts int64, v bool, timestamps []int64, values []bool, i int) int {
+	index := -1
 
-func aggregateFirstGroupsBoolean(timestamps []int64, values []bool) (int64, bool) {
-	value := values[0]
-	timestamp := timestamps[0]
-
-	for i := 1; i < len(values); i++ {
-		if timestamp > timestamps[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if ts > timestamps[i] {
+			index = i
+			ts = timestamps[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
-func aggregateLastGroupsBoolean(timestamps []int64, values []bool) (int64, bool) {
-	value := values[0]
-	timestamp := timestamps[0]
+func selectorLastGroupsBoolean(ts int64, v bool, timestamps []int64, values []bool, i int) int {
+	index := -1
 
-	for i := 1; i < len(values); i++ {
-		if timestamp < timestamps[i] {
-			value = values[i]
-			timestamp = timestamps[i]
+	for ; i < len(values); i++ {
+		if ts < timestamps[i] {
+			index = i
+			ts = timestamps[i]
 		}
 	}
 
-	return timestamp, value
+	return index
 }
 
 func (t *booleanGroupTable) advanceCursor() bool {
@@ -4416,8 +4793,8 @@ func (t *booleanGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.BooleanArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &influxdb.Error{
-				Code: influxdb.EInvalid,
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
 				Err: &GroupCursorError{
 					typ:    "boolean",
 					cursor: cur,

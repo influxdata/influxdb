@@ -3,10 +3,16 @@ package http
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/models"
 
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
@@ -89,6 +95,40 @@ func TestDelete(t *testing.T) {
 			},
 		},
 		{
+			name: "start time too soon",
+			args: args{
+				queryParams: map[string][]string{},
+				body:        []byte(fmt.Sprintf(`{"start":"%s"}`, time.Unix(0, models.MinNanoTime-1).UTC().Format(time.RFC3339Nano))),
+				authorizer:  &influxdb.Authorization{UserID: user1ID},
+			},
+			fields: fields{},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body: fmt.Sprintf(`{
+					"code": "invalid",
+					"message": "invalid request; error parsing request json: %s"
+				  }`, msgStartTooSoon),
+			},
+		},
+		{
+			name: "stop time too late",
+			args: args{
+				queryParams: map[string][]string{},
+				body:        []byte(fmt.Sprintf(`{"start":"2020-01-01T01:01:01Z", "stop":"%s"}`, time.Unix(0, models.MaxNanoTime+1).UTC().Format(time.RFC3339Nano))),
+				authorizer:  &influxdb.Authorization{UserID: user1ID},
+			},
+			fields: fields{},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body: fmt.Sprintf(`{
+					"code": "invalid",
+					"message": "invalid request; error parsing request json: %s"
+				  }`, msgStopTooLate),
+			},
+		},
+		{
 			name: "missing org",
 			args: args{
 				queryParams: map[string][]string{},
@@ -98,8 +138,8 @@ func TestDelete(t *testing.T) {
 			fields: fields{
 				OrganizationService: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, f influxdb.OrganizationFilter) (*influxdb.Organization, error) {
-						return nil, &influxdb.Error{
-							Code: influxdb.EInvalid,
+						return nil, &errors.Error{
+							Code: errors.EInvalid,
 							Msg:  "Please provide either orgID or org",
 						}
 					},
@@ -126,8 +166,8 @@ func TestDelete(t *testing.T) {
 			fields: fields{
 				BucketService: &mock.BucketService{
 					FindBucketFn: func(ctx context.Context, f influxdb.BucketFilter) (*influxdb.Bucket, error) {
-						return nil, &influxdb.Error{
-							Code: influxdb.EInvalid,
+						return nil, &errors.Error{
+							Code: errors.EInvalid,
 							Msg:  "Please provide either bucketID or bucket",
 						}
 					},
@@ -135,7 +175,7 @@ func TestDelete(t *testing.T) {
 				OrganizationService: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, f influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 						return &influxdb.Organization{
-							ID: influxdb.ID(1),
+							ID: platform.ID(1),
 						}, nil
 					},
 				},
@@ -163,7 +203,7 @@ func TestDelete(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketFn: func(ctx context.Context, f influxdb.BucketFilter) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   influxdb.ID(2),
+							ID:   platform.ID(2),
 							Name: "bucket1",
 						}, nil
 					},
@@ -171,7 +211,7 @@ func TestDelete(t *testing.T) {
 				OrganizationService: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, f influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 						return &influxdb.Organization{
-							ID: influxdb.ID(1),
+							ID: platform.ID(1),
 						}, nil
 					},
 				},
@@ -201,8 +241,8 @@ func TestDelete(t *testing.T) {
 							Action: influxdb.WriteAction,
 							Resource: influxdb.Resource{
 								Type:  influxdb.BucketsResourceType,
-								ID:    influxtesting.IDPtr(influxdb.ID(2)),
-								OrgID: influxtesting.IDPtr(influxdb.ID(1)),
+								ID:    influxtesting.IDPtr(platform.ID(2)),
+								OrgID: influxtesting.IDPtr(platform.ID(1)),
 							},
 						},
 					},
@@ -213,7 +253,7 @@ func TestDelete(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketFn: func(ctx context.Context, f influxdb.BucketFilter) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   influxdb.ID(2),
+							ID:   platform.ID(2),
 							Name: "bucket1",
 						}, nil
 					},
@@ -221,7 +261,7 @@ func TestDelete(t *testing.T) {
 				OrganizationService: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, f influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 						return &influxdb.Organization{
-							ID:   influxdb.ID(1),
+							ID:   platform.ID(1),
 							Name: "org1",
 						}, nil
 					},
@@ -252,8 +292,8 @@ func TestDelete(t *testing.T) {
 							Action: influxdb.WriteAction,
 							Resource: influxdb.Resource{
 								Type:  influxdb.BucketsResourceType,
-								ID:    influxtesting.IDPtr(influxdb.ID(2)),
-								OrgID: influxtesting.IDPtr(influxdb.ID(1)),
+								ID:    influxtesting.IDPtr(platform.ID(2)),
+								OrgID: influxtesting.IDPtr(platform.ID(1)),
 							},
 						},
 					},
@@ -264,7 +304,7 @@ func TestDelete(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketFn: func(ctx context.Context, f influxdb.BucketFilter) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   influxdb.ID(2),
+							ID:   platform.ID(2),
 							Name: "bucket1",
 						}, nil
 					},
@@ -272,7 +312,7 @@ func TestDelete(t *testing.T) {
 				OrganizationService: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, f influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 						return &influxdb.Organization{
-							ID:   influxdb.ID(1),
+							ID:   platform.ID(1),
 							Name: "org1",
 						}, nil
 					},
@@ -306,8 +346,8 @@ func TestDelete(t *testing.T) {
 							Action: influxdb.WriteAction,
 							Resource: influxdb.Resource{
 								Type:  influxdb.BucketsResourceType,
-								ID:    influxtesting.IDPtr(influxdb.ID(2)),
-								OrgID: influxtesting.IDPtr(influxdb.ID(1)),
+								ID:    influxtesting.IDPtr(platform.ID(2)),
+								OrgID: influxtesting.IDPtr(platform.ID(1)),
 							},
 						},
 					},
@@ -318,7 +358,7 @@ func TestDelete(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketFn: func(ctx context.Context, f influxdb.BucketFilter) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   influxdb.ID(2),
+							ID:   platform.ID(2),
 							Name: "bucket1",
 						}, nil
 					},
@@ -326,7 +366,7 @@ func TestDelete(t *testing.T) {
 				OrganizationService: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, f influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 						return &influxdb.Organization{
-							ID:   influxdb.ID(1),
+							ID:   platform.ID(1),
 							Name: "org1",
 						}, nil
 					},

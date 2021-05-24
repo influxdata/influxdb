@@ -17,6 +17,10 @@ influxd.bolt
 # GPG private keys
 private.key
 
+# TLS keys generated for testing
+test.crt
+test.key
+
 # Project distribution
 /dist
 

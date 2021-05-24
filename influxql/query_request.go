@@ -3,6 +3,9 @@ package influxql
 import (
 	"encoding/json"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -60,7 +63,7 @@ func (f EncodingFormat) ContentType() string {
 
 type QueryRequest struct {
 	Authorization  *influxdb.Authorization `json:"authorization,omitempty"`
-	OrganizationID influxdb.ID             `json:"organization_id"`
+	OrganizationID platform.ID             `json:"organization_id"`
 	DB             string                  `json:"db"`
 	RP             string                  `json:"rp"`
 	Epoch          string                  `json:"epoch"`
@@ -76,9 +79,9 @@ type QueryRequest struct {
 // The HTTP query requests represented the body expected by the QueryHandler
 func (r *QueryRequest) Valid() error {
 	if !r.OrganizationID.Valid() {
-		return &influxdb.Error{
+		return &errors.Error{
 			Msg:  "organization_id is not valid",
-			Code: influxdb.EInvalid,
+			Code: errors.EInvalid,
 		}
 	}
 	return r.Authorization.Valid()

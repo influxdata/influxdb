@@ -1,8 +1,6 @@
 package pprof
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,8 +8,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/go-chi/chi"
-	"github.com/influxdata/influxdb/v2"
 	ihttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 )
 
@@ -37,23 +36,8 @@ func NewHTTPHandler(profilingEnabled bool) *Handler {
 	return &Handler{r}
 }
 
-func errResponse(ctx context.Context, w http.ResponseWriter, code string, message string) {
-	w.Header().Set(ihttp.PlatformErrorCodeHeader, code)
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(ihttp.ErrorCodeToStatusCode(ctx, code))
-	e := struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	}{
-		Code:    code,
-		Message: message,
-	}
-	b, _ := json.Marshal(e)
-	_, _ = w.Write(b)
-}
-
 func profilingDisabledHandler(w http.ResponseWriter, r *http.Request) {
-	errResponse(r.Context(), w, influxdb.EForbidden, "profiling disabled")
+	ihttp.WriteErrorResponse(r.Context(), w, errors.EForbidden, "profiling disabled")
 }
 
 func archiveProfilesHandler(w http.ResponseWriter, r *http.Request) {
@@ -65,7 +49,7 @@ func archiveProfilesHandler(w http.ResponseWriter, r *http.Request) {
 	// distinguish between a form value that exists and has no value and one that
 	// does not exist at all.
 	if err := r.ParseForm(); err != nil {
-		errResponse(ctx, w, influxdb.EInternal, err.Error())
+		ihttp.WriteErrorResponse(ctx, w, errors.EInternal, err.Error())
 		return
 	}
 
@@ -112,18 +96,18 @@ func archiveProfilesHandler(w http.ResponseWriter, r *http.Request) {
 		// In this case it is a StatusBadRequest (400) since the problem is in the
 		// supplied form data.
 		if duration < 0 {
-			errResponse(ctx, w, influxdb.EInvalid, "negative trace durations not allowed")
+			ihttp.WriteErrorResponse(ctx, w, errors.EInvalid, "negative trace durations not allowed")
 			return
 		}
 
 		if err != nil {
-			errResponse(ctx, w, influxdb.EInvalid, fmt.Sprintf("could not parse supplied duration for trace %q", val))
+			ihttp.WriteErrorResponse(ctx, w, errors.EInvalid, fmt.Sprintf("could not parse supplied duration for trace %q", val))
 			return
 		}
 
 		// Trace files can get big. Lets clamp the maximum trace duration to 45s.
 		if duration > 45*time.Second {
-			errResponse(ctx, w, influxdb.EInvalid, "cannot trace for longer than 45s")
+			ihttp.WriteErrorResponse(ctx, w, errors.EInvalid, "cannot trace for longer than 45s")
 			return
 		}
 
@@ -172,7 +156,7 @@ func archiveProfilesHandler(w http.ResponseWriter, r *http.Request) {
 
 		duration, err := getDuration()
 		if err != nil {
-			errResponse(ctx, w, influxdb.EInvalid, fmt.Sprintf("could not parse supplied duration for cpu profile %q", val))
+			ihttp.WriteErrorResponse(ctx, w, errors.EInvalid, fmt.Sprintf("could not parse supplied duration for cpu profile %q", val))
 			return
 		}
 
@@ -181,7 +165,7 @@ func archiveProfilesHandler(w http.ResponseWriter, r *http.Request) {
 
 	tarstream, err := collectAllProfiles(ctx, traceDuration, cpuDuration)
 	if err != nil {
-		errResponse(ctx, w, influxdb.EInternal, err.Error())
+		ihttp.WriteErrorResponse(ctx, w, errors.EInternal, err.Error())
 		return
 	}
 	_, _ = io.Copy(w, tarstream)

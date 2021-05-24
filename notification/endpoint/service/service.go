@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	influxdb "github.com/influxdata/influxdb/v2"
 )
 
@@ -23,7 +25,7 @@ func New(store influxdb.NotificationEndpointService, secretSVC influxdb.SecretSe
 var _ influxdb.NotificationEndpointService = (*Service)(nil)
 
 // FindNotificationEndpointByID returns a single notification endpoint by ID.
-func (s *Service) FindNotificationEndpointByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+func (s *Service) FindNotificationEndpointByID(ctx context.Context, id platform.ID) (influxdb.NotificationEndpoint, error) {
 	return s.endpointStore.FindNotificationEndpointByID(ctx, id)
 }
 
@@ -34,7 +36,7 @@ func (s *Service) FindNotificationEndpoints(ctx context.Context, filter influxdb
 }
 
 // CreateNotificationEndpoint creates a new notification endpoint and sets b.ID with the new identifier.
-func (s *Service) CreateNotificationEndpoint(ctx context.Context, edp influxdb.NotificationEndpoint, userID influxdb.ID) error {
+func (s *Service) CreateNotificationEndpoint(ctx context.Context, edp influxdb.NotificationEndpoint, userID platform.ID) error {
 	err := s.endpointStore.CreateNotificationEndpoint(ctx, edp, userID)
 	if err != nil {
 		return err
@@ -55,7 +57,7 @@ func (s *Service) CreateNotificationEndpoint(ctx context.Context, edp influxdb.N
 
 // UpdateNotificationEndpoint updates a single notification endpoint.
 // Returns the new notification endpoint after update.
-func (s *Service) UpdateNotificationEndpoint(ctx context.Context, id influxdb.ID, nr influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
+func (s *Service) UpdateNotificationEndpoint(ctx context.Context, id platform.ID, nr influxdb.NotificationEndpoint, userID platform.ID) (influxdb.NotificationEndpoint, error) {
 	nr.BackfillSecretKeys() // :sadpanda:
 	updatedEndpoint, err := s.endpointStore.UpdateNotificationEndpoint(ctx, id, nr, userID)
 	if err != nil {
@@ -82,11 +84,11 @@ func (s *Service) UpdateNotificationEndpoint(ctx context.Context, id influxdb.ID
 
 // PatchNotificationEndpoint updates a single  notification endpoint with changeset.
 // Returns the new notification endpoint state after update.
-func (s *Service) PatchNotificationEndpoint(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
+func (s *Service) PatchNotificationEndpoint(ctx context.Context, id platform.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
 	return s.endpointStore.PatchNotificationEndpoint(ctx, id, upd)
 }
 
 // DeleteNotificationEndpoint removes a notification endpoint by ID, returns secret fields, orgID for further deletion.
-func (s *Service) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
+func (s *Service) DeleteNotificationEndpoint(ctx context.Context, id platform.ID) ([]influxdb.SecretField, platform.ID, error) {
 	return s.endpointStore.DeleteNotificationEndpoint(ctx, id)
 }

@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	influxdb "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration"
 	"go.uber.org/zap"
@@ -59,17 +60,17 @@ func Migrator(t *testing.T, store kv.SchemaStore, newMigrator func(*testing.T, *
 
 		if expected := []migration.Migration{
 			{
-				ID:    influxdb.ID(1),
+				ID:    platform.ID(1),
 				Name:  "migration one",
 				State: migration.DownMigrationState,
 			},
 			{
-				ID:    influxdb.ID(2),
+				ID:    platform.ID(2),
 				Name:  "migration two",
 				State: migration.DownMigrationState,
 			},
 			{
-				ID:    influxdb.ID(3),
+				ID:    platform.ID(3),
 				Name:  "migration three",
 				State: migration.DownMigrationState,
 			},
@@ -92,21 +93,21 @@ func Migrator(t *testing.T, store kv.SchemaStore, newMigrator func(*testing.T, *
 
 		if expected := []migration.Migration{
 			{
-				ID:         influxdb.ID(1),
+				ID:         platform.ID(1),
 				Name:       "migration one",
 				State:      migration.UpMigrationState,
 				StartedAt:  ts(1),
 				FinishedAt: ts(2),
 			},
 			{
-				ID:         influxdb.ID(2),
+				ID:         platform.ID(2),
 				Name:       "migration two",
 				State:      migration.UpMigrationState,
 				StartedAt:  ts(3),
 				FinishedAt: ts(4),
 			},
 			{
-				ID:         influxdb.ID(3),
+				ID:         platform.ID(3),
 				Name:       "migration three",
 				State:      migration.UpMigrationState,
 				StartedAt:  ts(5),
@@ -133,28 +134,28 @@ func Migrator(t *testing.T, store kv.SchemaStore, newMigrator func(*testing.T, *
 
 		if expected := []migration.Migration{
 			{
-				ID:         influxdb.ID(1),
+				ID:         platform.ID(1),
 				Name:       "migration one",
 				State:      migration.UpMigrationState,
 				StartedAt:  ts(1),
 				FinishedAt: ts(2),
 			},
 			{
-				ID:         influxdb.ID(2),
+				ID:         platform.ID(2),
 				Name:       "migration two",
 				State:      migration.UpMigrationState,
 				StartedAt:  ts(3),
 				FinishedAt: ts(4),
 			},
 			{
-				ID:         influxdb.ID(3),
+				ID:         platform.ID(3),
 				Name:       "migration three",
 				State:      migration.UpMigrationState,
 				StartedAt:  ts(5),
 				FinishedAt: ts(6),
 			},
 			{
-				ID:    influxdb.ID(4),
+				ID:    platform.ID(4),
 				Name:  "migration four",
 				State: migration.DownMigrationState,
 			},
@@ -177,28 +178,28 @@ func Migrator(t *testing.T, store kv.SchemaStore, newMigrator func(*testing.T, *
 
 		if expected := []migration.Migration{
 			{
-				ID:         influxdb.ID(1),
+				ID:         platform.ID(1),
 				Name:       "migration one",
 				State:      migration.UpMigrationState,
 				StartedAt:  ts(1),
 				FinishedAt: ts(2),
 			},
 			{
-				ID:         influxdb.ID(2),
+				ID:         platform.ID(2),
 				Name:       "migration two",
 				State:      migration.UpMigrationState,
 				StartedAt:  ts(3),
 				FinishedAt: ts(4),
 			},
 			{
-				ID:         influxdb.ID(3),
+				ID:         platform.ID(3),
 				Name:       "migration three",
 				State:      migration.UpMigrationState,
 				StartedAt:  ts(5),
 				FinishedAt: ts(6),
 			},
 			{
-				ID:         influxdb.ID(4),
+				ID:         platform.ID(4),
 				Name:       "migration four",
 				State:      migration.UpMigrationState,
 				StartedAt:  ts(7),
@@ -229,22 +230,22 @@ func Migrator(t *testing.T, store kv.SchemaStore, newMigrator func(*testing.T, *
 
 		if expected := []migration.Migration{
 			{
-				ID:    influxdb.ID(1),
+				ID:    platform.ID(1),
 				Name:  "migration one",
 				State: migration.DownMigrationState,
 			},
 			{
-				ID:    influxdb.ID(2),
+				ID:    platform.ID(2),
 				Name:  "migration two",
 				State: migration.DownMigrationState,
 			},
 			{
-				ID:    influxdb.ID(3),
+				ID:    platform.ID(3),
 				Name:  "migration three",
 				State: migration.DownMigrationState,
 			},
 			{
-				ID:    influxdb.ID(4),
+				ID:    platform.ID(4),
 				Name:  "migration four",
 				State: migration.DownMigrationState,
 			},
@@ -273,28 +274,28 @@ func Migrator(t *testing.T, store kv.SchemaStore, newMigrator func(*testing.T, *
 
 		if expected := []migration.Migration{
 			{
-				ID:         influxdb.ID(1),
+				ID:         platform.ID(1),
 				Name:       "migration one",
 				State:      migration.UpMigrationState,
 				StartedAt:  ts(9),
 				FinishedAt: ts(10),
 			},
 			{
-				ID:         influxdb.ID(2),
+				ID:         platform.ID(2),
 				Name:       "migration two",
 				State:      migration.UpMigrationState,
 				StartedAt:  ts(11),
 				FinishedAt: ts(12),
 			},
 			{
-				ID:         influxdb.ID(3),
+				ID:         platform.ID(3),
 				Name:       "migration three",
 				State:      migration.UpMigrationState,
 				StartedAt:  ts(13),
 				FinishedAt: ts(14),
 			},
 			{
-				ID:         influxdb.ID(4),
+				ID:         platform.ID(4),
 				Name:       "migration four",
 				State:      migration.UpMigrationState,
 				StartedAt:  ts(15),

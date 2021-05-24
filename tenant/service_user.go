@@ -3,6 +3,9 @@ package tenant
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 	"golang.org/x/crypto/bcrypt"
@@ -21,7 +24,7 @@ func NewUserSvc(st *Store, svc *Service) *UserSvc {
 }
 
 // Returns a single user by ID.
-func (s *UserSvc) FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+func (s *UserSvc) FindUserByID(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 	var user *influxdb.User
 	err := s.store.View(ctx, func(tx kv.Tx) error {
 		u, err := s.store.GetUser(ctx, tx, id)
@@ -114,7 +117,7 @@ func (s *UserSvc) CreateUser(ctx context.Context, u *influxdb.User) error {
 
 // Updates a single user with changeset.
 // Returns the new user state after update. {
-func (s *UserSvc) UpdateUser(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
+func (s *UserSvc) UpdateUser(ctx context.Context, id platform.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
 	var user *influxdb.User
 	err := s.store.Update(ctx, func(tx kv.Tx) error {
 		u, err := s.store.UpdateUser(ctx, tx, id, upd)
@@ -132,7 +135,7 @@ func (s *UserSvc) UpdateUser(ctx context.Context, id influxdb.ID, upd influxdb.U
 }
 
 // Removes a user by ID.
-func (s *UserSvc) DeleteUser(ctx context.Context, id influxdb.ID) error {
+func (s *UserSvc) DeleteUser(ctx context.Context, id platform.ID) error {
 	err := s.store.Update(ctx, func(tx kv.Tx) error {
 		err := s.store.DeletePassword(ctx, tx, id)
 		if err != nil {
@@ -144,7 +147,7 @@ func (s *UserSvc) DeleteUser(ctx context.Context, id influxdb.ID) error {
 }
 
 // FindPermissionForUser gets the full set of permission for a specified user id
-func (s *UserSvc) FindPermissionForUser(ctx context.Context, uid influxdb.ID) (influxdb.PermissionSet, error) {
+func (s *UserSvc) FindPermissionForUser(ctx context.Context, uid platform.ID) (influxdb.PermissionSet, error) {
 	mappings, _, err := s.svc.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{UserID: uid}, influxdb.FindOptions{Limit: 100})
 	if err != nil {
 		return nil, err
@@ -176,7 +179,7 @@ func (s *UserSvc) FindPermissionForUser(ctx context.Context, uid influxdb.ID) (i
 }
 
 // SetPassword overrides the password of a known user.
-func (s *UserSvc) SetPassword(ctx context.Context, userID influxdb.ID, password string) error {
+func (s *UserSvc) SetPassword(ctx context.Context, userID platform.ID, password string) error {
 	if len(password) < MinPasswordLen {
 		return EShortPassword
 	}
@@ -196,7 +199,7 @@ func (s *UserSvc) SetPassword(ctx context.Context, userID influxdb.ID, password 
 
 // ComparePassword checks if the password matches the password recorded.
 // Passwords that do not match return errors.
-func (s *UserSvc) ComparePassword(ctx context.Context, userID influxdb.ID, password string) error {
+func (s *UserSvc) ComparePassword(ctx context.Context, userID platform.ID, password string) error {
 	// get password
 	var hash []byte
 	err := s.store.View(ctx, func(tx kv.Tx) error {
@@ -228,7 +231,7 @@ func (s *UserSvc) ComparePassword(ctx context.Context, userID influxdb.ID, passw
 
 // CompareAndSetPassword checks the password and if they match
 // updates to the new password.
-func (s *UserSvc) CompareAndSetPassword(ctx context.Context, userID influxdb.ID, old, new string) error {
+func (s *UserSvc) CompareAndSetPassword(ctx context.Context, userID platform.ID, old, new string) error {
 	err := s.ComparePassword(ctx, userID, old)
 	if err != nil {
 		return err
@@ -250,7 +253,7 @@ func permissionFromMapping(mappings []*influxdb.UserResourceMapping) ([]influxdb
 	for _, m := range mappings {
 		p, err := m.ToPermissions()
 		if err != nil {
-			return nil, &influxdb.Error{
+			return nil, &errors.Error{
 				Err: err,
 			}
 		}

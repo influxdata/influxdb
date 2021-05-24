@@ -3,6 +3,8 @@ package authorizer
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -22,7 +24,7 @@ func NewVariableService(s influxdb.VariableService) *VariableService {
 }
 
 // FindVariableByID checks to see if the authorizer on context has read access to the id provided.
-func (s *VariableService) FindVariableByID(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+func (s *VariableService) FindVariableByID(ctx context.Context, id platform.ID) (*influxdb.Variable, error) {
 	v, err := s.s.FindVariableByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -53,7 +55,7 @@ func (s *VariableService) CreateVariable(ctx context.Context, v *influxdb.Variab
 }
 
 // UpdateVariable checks to see if the authorizer on context has write access to the variable provided.
-func (s *VariableService) UpdateVariable(ctx context.Context, id influxdb.ID, upd *influxdb.VariableUpdate) (*influxdb.Variable, error) {
+func (s *VariableService) UpdateVariable(ctx context.Context, id platform.ID, upd *influxdb.VariableUpdate) (*influxdb.Variable, error) {
 	v, err := s.FindVariableByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -77,7 +79,7 @@ func (s *VariableService) ReplaceVariable(ctx context.Context, m *influxdb.Varia
 }
 
 // DeleteVariable checks to see if the authorizer on context has write access to the variable provided.
-func (s *VariableService) DeleteVariable(ctx context.Context, id influxdb.ID) error {
+func (s *VariableService) DeleteVariable(ctx context.Context, id platform.ID) error {
 	v, err := s.FindVariableByID(ctx, id)
 	if err != nil {
 		return err

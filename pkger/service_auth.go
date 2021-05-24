@@ -3,12 +3,14 @@ package pkger
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
 type AuthAgent interface {
-	IsWritable(ctx context.Context, orgID influxdb.ID, resType influxdb.ResourceType) error
-	OrgPermissions(ctx context.Context, orgID influxdb.ID, action influxdb.Action, rest ...influxdb.Action) error
+	IsWritable(ctx context.Context, orgID platform.ID, resType influxdb.ResourceType) error
+	OrgPermissions(ctx context.Context, orgID platform.ID, action influxdb.Action, rest ...influxdb.Action) error
 }
 
 type authMW struct {
@@ -28,7 +30,7 @@ func MWAuth(authAgent AuthAgent) SVCMiddleware {
 	}
 }
 
-func (s *authMW) InitStack(ctx context.Context, userID influxdb.ID, newStack StackCreate) (Stack, error) {
+func (s *authMW) InitStack(ctx context.Context, userID platform.ID, newStack StackCreate) (Stack, error) {
 	err := s.authAgent.IsWritable(ctx, newStack.OrgID, ResourceTypeStack)
 	if err != nil {
 		return Stack{}, err
@@ -36,7 +38,7 @@ func (s *authMW) InitStack(ctx context.Context, userID influxdb.ID, newStack Sta
 	return s.next.InitStack(ctx, userID, newStack)
 }
 
-func (s *authMW) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
+func (s *authMW) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) (Stack, error) {
 	err := s.authAgent.IsWritable(ctx, identifiers.OrgID, ResourceTypeStack)
 	if err != nil {
 		return Stack{}, err
@@ -44,7 +46,7 @@ func (s *authMW) UninstallStack(ctx context.Context, identifiers struct{ OrgID, 
 	return s.next.UninstallStack(ctx, identifiers)
 }
 
-func (s *authMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
+func (s *authMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) error {
 	err := s.authAgent.IsWritable(ctx, identifiers.OrgID, ResourceTypeStack)
 	if err != nil {
 		return err
@@ -52,7 +54,7 @@ func (s *authMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, Use
 	return s.next.DeleteStack(ctx, identifiers)
 }
 
-func (s *authMW) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
+func (s *authMW) ListStacks(ctx context.Context, orgID platform.ID, f ListFilter) ([]Stack, error) {
 	err := s.authAgent.OrgPermissions(ctx, orgID, influxdb.ReadAction)
 	if err != nil {
 		return nil, err
@@ -60,7 +62,7 @@ func (s *authMW) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter
 	return s.next.ListStacks(ctx, orgID, f)
 }
 
-func (s *authMW) ReadStack(ctx context.Context, id influxdb.ID) (Stack, error) {
+func (s *authMW) ReadStack(ctx context.Context, id platform.ID) (Stack, error) {
 	st, err := s.next.ReadStack(ctx, id)
 	if err != nil {
 		return Stack{}, err
@@ -99,10 +101,10 @@ func (s *authMW) Export(ctx context.Context, opts ...ExportOptFn) (*Template, er
 	return s.next.Export(ctx, opts...)
 }
 
-func (s *authMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
+func (s *authMW) DryRun(ctx context.Context, orgID, userID platform.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.next.DryRun(ctx, orgID, userID, opts...)
 }
 
-func (s *authMW) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
+func (s *authMW) Apply(ctx context.Context, orgID, userID platform.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.next.Apply(ctx, orgID, userID, opts...)
 }

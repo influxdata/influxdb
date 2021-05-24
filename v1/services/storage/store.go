@@ -7,9 +7,10 @@ import (
 	"sort"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
@@ -70,7 +71,11 @@ func (s *Store) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAg
 		return nil, err
 	}
 
-	shardIDs, err := s.findShardIDs(database, rp, false, start, end)
+	// Due to some optimizations around how flux's `last()` function is implemented with the
+	// storage engine, we need to detect if the read request requires a descending
+	// cursor or not.
+	descending := reads.IsLastDescendingAggregateOptimization(req)
+	shardIDs, err := s.findShardIDs(database, rp, descending, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +134,7 @@ func (s *Store) findShardIDs(database, rp string, desc bool, start, end int64) (
 }
 
 func (s *Store) validateArgs(orgID, bucketID uint64, start, end int64) (string, string, int64, int64, error) {
-	database := influxdb.ID(bucketID).String()
+	database := platform.ID(bucketID).String()
 	rp := meta.DefaultRetentionPolicyName
 
 	di := s.MetaClient.Database(database)
@@ -204,7 +209,11 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 		return nil, err
 	}
 
-	shardIDs, err := s.findShardIDs(database, rp, false, start, end)
+	// Due to some optimizations around how flux's `last()` function is implemented with the
+	// storage engine, we need to detect if the read request requires a descending
+	// cursor or not.
+	descending := reads.IsLastDescendingGroupOptimization(req)
+	shardIDs, err := s.findShardIDs(database, rp, descending, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +243,7 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 }
 
 type metaqueryAttributes struct {
-	orgID      influxdb.ID
+	orgID      platform.ID
 	db, rp     string
 	start, end int64
 	pred       influxql.Expr

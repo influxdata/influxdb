@@ -4,23 +4,26 @@ import (
 	"context"
 	"errors"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
 var (
-	ErrUnsupportedScheme = &influxdb.Error{
-		Code: influxdb.EInternal,
+	ErrUnsupportedScheme = &errors2.Error{
+		Code: errors2.EInternal,
 		Msg:  "unsupported authorization scheme",
 	}
 )
 
 type UserFinder interface {
 	// Returns a single user by ID.
-	FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.User, error)
+	FindUserByID(ctx context.Context, id platform.ID) (*influxdb.User, error)
 }
 
 type PasswordComparer interface {
-	ComparePassword(ctx context.Context, authID influxdb.ID, password string) error
+	ComparePassword(ctx context.Context, authID platform.ID, password string) error
 }
 
 type AuthTokenFinder interface {
@@ -112,10 +115,10 @@ func (v *Authorizer) normalizeError(err error) error {
 		return nil
 	}
 
-	var erri *influxdb.Error
+	var erri *errors2.Error
 	if errors.As(err, &erri) {
 		switch erri.Code {
-		case influxdb.ENotFound, influxdb.EForbidden:
+		case errors2.ENotFound, errors2.EForbidden:
 			return influxdb.ErrCredentialsUnauthorized
 		}
 	}

@@ -3,6 +3,8 @@ package authorizer
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
@@ -23,7 +25,7 @@ func NewBucketService(s influxdb.BucketService) *BucketService {
 }
 
 // FindBucketByID checks to see if the authorizer on context has read access to the id provided.
-func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -38,7 +40,7 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*in
 }
 
 // FindBucketByName returns a bucket by name for a particular organization.
-func (s *BucketService) FindBucketByName(ctx context.Context, orgID influxdb.ID, n string) (*influxdb.Bucket, error) {
+func (s *BucketService) FindBucketByName(ctx context.Context, orgID platform.ID, n string) (*influxdb.Bucket, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -93,7 +95,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) er
 }
 
 // UpdateBucket checks to see if the authorizer on context has write access to the bucket provided.
-func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 	b, err := s.s.FindBucketByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -105,7 +107,7 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd in
 }
 
 // DeleteBucket checks to see if the authorizer on context has write access to the bucket provided.
-func (s *BucketService) DeleteBucket(ctx context.Context, id influxdb.ID) error {
+func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error {
 	b, err := s.s.FindBucketByID(ctx, id)
 	if err != nil {
 		return err

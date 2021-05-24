@@ -3,6 +3,8 @@ package mock
 import (
 	"context"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	platform "github.com/influxdata/influxdb/v2"
 )
 
@@ -14,33 +16,33 @@ type AuthorizationService struct {
 	CloseFn func() error
 
 	// Methods for an platform.AuthorizationService
-	FindAuthorizationByIDFn    func(context.Context, platform.ID) (*platform.Authorization, error)
+	FindAuthorizationByIDFn    func(context.Context, platform2.ID) (*platform.Authorization, error)
 	FindAuthorizationByTokenFn func(context.Context, string) (*platform.Authorization, error)
 	FindAuthorizationsFn       func(context.Context, platform.AuthorizationFilter, ...platform.FindOptions) ([]*platform.Authorization, int, error)
 	CreateAuthorizationFn      func(context.Context, *platform.Authorization) error
-	DeleteAuthorizationFn      func(context.Context, platform.ID) error
-	UpdateAuthorizationFn      func(context.Context, platform.ID, *platform.AuthorizationUpdate) (*platform.Authorization, error)
+	DeleteAuthorizationFn      func(context.Context, platform2.ID) error
+	UpdateAuthorizationFn      func(context.Context, platform2.ID, *platform.AuthorizationUpdate) (*platform.Authorization, error)
 }
 
 // NewAuthorizationService returns a mock AuthorizationService where its methods will return
 // zero values.
 func NewAuthorizationService() *AuthorizationService {
 	return &AuthorizationService{
-		FindAuthorizationByIDFn:    func(context.Context, platform.ID) (*platform.Authorization, error) { return nil, nil },
+		FindAuthorizationByIDFn:    func(context.Context, platform2.ID) (*platform.Authorization, error) { return nil, nil },
 		FindAuthorizationByTokenFn: func(context.Context, string) (*platform.Authorization, error) { return nil, nil },
 		FindAuthorizationsFn: func(context.Context, platform.AuthorizationFilter, ...platform.FindOptions) ([]*platform.Authorization, int, error) {
 			return nil, 0, nil
 		},
 		CreateAuthorizationFn: func(context.Context, *platform.Authorization) error { return nil },
-		DeleteAuthorizationFn: func(context.Context, platform.ID) error { return nil },
-		UpdateAuthorizationFn: func(context.Context, platform.ID, *platform.AuthorizationUpdate) (*platform.Authorization, error) {
+		DeleteAuthorizationFn: func(context.Context, platform2.ID) error { return nil },
+		UpdateAuthorizationFn: func(context.Context, platform2.ID, *platform.AuthorizationUpdate) (*platform.Authorization, error) {
 			return nil, nil
 		},
 	}
 }
 
 // FindAuthorizationByID returns a single authorization by ID.
-func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
+func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform2.ID) (*platform.Authorization, error) {
 	return s.FindAuthorizationByIDFn(ctx, id)
 }
 
@@ -59,11 +61,11 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, authoriz
 }
 
 // DeleteAuthorization removes a authorization by ID.
-func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform.ID) error {
+func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform2.ID) error {
 	return s.DeleteAuthorizationFn(ctx, id)
 }
 
 // UpdateAuthorization updates the status and description if available.
-func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (*platform.Authorization, error) {
+func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform2.ID, upd *platform.AuthorizationUpdate) (*platform.Authorization, error) {
 	return s.UpdateAuthorizationFn(ctx, id, upd)
 }

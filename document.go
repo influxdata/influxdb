@@ -2,6 +2,8 @@ package influxdb
 
 import (
 	"context"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // ErrDocumentNotFound is the error msg for a missing document.
@@ -15,7 +17,7 @@ type DocumentService interface {
 
 // Document is a generic structure for stating data.
 type Document struct {
-	ID      ID           `json:"id"`
+	ID      platform.ID  `json:"id"`
 	Meta    DocumentMeta `json:"meta"`
 	Content interface{}  `json:"content,omitempty"` // TODO(desa): maybe this needs to be json.Marshaller & json.Unmarshaler
 	Labels  []*Label     `json:"labels,omitempty"`  // read only
@@ -25,7 +27,7 @@ type Document struct {
 	// via request parameters or others, as the kv store will take care of
 	// filling it once it returns a document.
 	// This is not stored in the kv store neither required in the API.
-	Organizations map[ID]UserType `json:"-"`
+	Organizations map[platform.ID]UserType `json:"-"`
 }
 
 // DocumentMeta is information that is universal across documents. Ideally
@@ -42,7 +44,7 @@ type DocumentMeta struct {
 // pattern that allows users to perform actions related to documents in a transactional way.
 type DocumentStore interface {
 	CreateDocument(ctx context.Context, d *Document) error
-	FindDocument(ctx context.Context, id ID) (*Document, error)
+	FindDocument(ctx context.Context, id platform.ID) (*Document, error)
 
-	FindDocuments(ctx context.Context, orgID ID) ([]*Document, error)
+	FindDocuments(ctx context.Context, orgID platform.ID) ([]*Document, error)
 }

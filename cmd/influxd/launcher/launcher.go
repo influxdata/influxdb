@@ -34,6 +34,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	overrideflagger "github.com/influxdata/influxdb/v2/kit/feature/override"
 	"github.com/influxdata/influxdb/v2/kit/metric"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -42,6 +43,8 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/label"
 	"github.com/influxdata/influxdb/v2/nats"
+	notebookSvc "github.com/influxdata/influxdb/v2/notebooks/service"
+	notebookTransport "github.com/influxdata/influxdb/v2/notebooks/transport"
 	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	ruleservice "github.com/influxdata/influxdb/v2/notification/rule/service"
 	"github.com/influxdata/influxdb/v2/pkger"
@@ -62,11 +65,16 @@ import (
 	"github.com/influxdata/influxdb/v2/task/backend/executor"
 	"github.com/influxdata/influxdb/v2/task/backend/middleware"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	telegrafservice "github.com/influxdata/influxdb/v2/telegraf/service"
 	"github.com/influxdata/influxdb/v2/telemetry"
 	"github.com/influxdata/influxdb/v2/tenant"
-	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1" // needed for tsm1
-	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"  // needed for tsi1
+
+	// needed for tsm1
+	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+
+	// needed for tsi1
+	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	authv1 "github.com/influxdata/influxdb/v2/v1/authorization"
 	iqlcoordinator "github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
@@ -93,8 +101,9 @@ const (
 
 // Launcher represents the main program execution.
 type Launcher struct {
-	wg     sync.WaitGroup
-	cancel func()
+	wg       sync.WaitGroup
+	cancel   func()
+	doneChan <-chan struct{}
 
 	flagger feature.Flagger
 
@@ -110,6 +119,7 @@ type Launcher struct {
 
 	httpPort   int
 	httpServer *nethttp.Server
+	tlsEnabled bool
 
 	natsServer *nats.Server
 	natsPort   int
@@ -140,11 +150,6 @@ func NewLauncher() *Launcher {
 // Registry returns the prometheus metrics registry.
 func (m *Launcher) Registry() *prom.Registry {
 	return m.reg
-}
-
-// URL returns the URL to connect to the HTTP server.
-func (m *Launcher) URL() string {
-	return fmt.Sprintf("http://127.0.0.1:%d", m.httpPort)
 }
 
 // NatsURL returns the URL to connection to the NATS server.
@@ -214,14 +219,16 @@ func (m *Launcher) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// Cancel executes the context cancel on the program. Used for testing.
-func (m *Launcher) Cancel() { m.cancel() }
+func (m *Launcher) Done() <-chan struct{} {
+	return m.doneChan
+}
 
 func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	ctx, m.cancel = context.WithCancel(ctx)
+	m.doneChan = ctx.Done()
 
 	info := platform.GetBuildInfo()
 	m.log.Info("Welcome to InfluxDB",
@@ -434,9 +441,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		MemoryBytesQuotaPerQuery:        opts.MemoryBytesQuotaPerQuery,
 		MaxMemoryBytes:                  opts.MaxMemoryBytes,
 		QueueSize:                       opts.QueueSize,
-		Logger:                          m.log.With(zap.String("service", "storage-reads")),
 		ExecutorDependencies:            dependencyList,
-	})
+	}, m.log.With(zap.String("service", "storage-reads")))
 	if err != nil {
 		m.log.Error("Failed to create query controller", zap.Error(err))
 		return err
@@ -445,7 +451,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 
 	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
-	var taskSvc platform.TaskService
+	var taskSvc taskmodel.TaskService
 	{
 		// create the task stack
 		combinedTaskService := taskbackend.NewAnalyticalStorage(
@@ -481,7 +487,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 				scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledAt time.Time, err error) {
 					schLogger.Info(
 						"error in scheduler run",
-						zap.String("taskID", platform.ID(taskID).String()),
+						zap.String("taskID", platform2.ID(taskID).String()),
 						zap.Time("scheduledAt", scheduledAt),
 						zap.Error(err))
 				}),
@@ -507,7 +513,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			taskSvc,
 			combinedTaskService,
 			taskCoord,
-			func(ctx context.Context, taskID platform.ID, runID platform.ID) error {
+			func(ctx context.Context, taskID platform2.ID, runID platform2.ID) error {
 				_, err := executor.ResumeCurrentRun(ctx, taskID, runID)
 				return err
 			},
@@ -579,7 +585,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	natsOpts := nats.NewDefaultServerOptions()
 	natsOpts.Port = opts.NatsPort
 	natsOpts.MaxPayload = opts.NatsMaxPayloadBytes
-	m.natsServer = nats.NewServer(&natsOpts)
+	m.natsServer = nats.NewServer(&natsOpts, m.log.With(zap.String("service", "nats")))
 	if err := m.natsServer.Open(); err != nil {
 		m.log.Error("Failed to start nats streaming server", zap.Error(err))
 		return err
@@ -615,10 +621,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		}
 		log.Info("Stopping")
 	}(m.log)
-
-	m.httpServer = &nethttp.Server{
-		Addr: opts.HttpBindAddress,
-	}
 
 	if m.flagger == nil {
 		m.flagger = feature.DefaultFlagger()
@@ -672,9 +674,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	onboardSvc = tenant.NewOnboardingLogger(onboardingLogger, onboardSvc)                 // with logging
 
 	var (
-		authorizerV1 platform.AuthorizerV1
-		passwordV1   platform.PasswordsService
-		authSvcV1    *authv1.Service
+		passwordV1 platform.PasswordsService
+		authSvcV1  *authv1.Service
 	)
 	{
 		authStore, err := authv1.NewStore(m.kvStore)
@@ -685,13 +686,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 		authSvcV1 = authv1.NewService(authStore, ts)
 		passwordV1 = authv1.NewCachingPasswordsService(authSvcV1)
-
-		authorizerV1 = &authv1.Authorizer{
-			AuthV1:   authSvcV1,
-			AuthV2:   authSvc,
-			Comparer: passwordV1,
-			User:     ts,
-		}
 	}
 
 	var (
@@ -735,12 +729,19 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			BucketFinder:  ts.BucketService,
 			LogBucketName: platform.MonitoringSystemBucketName,
 		},
-		DeleteService:        deleteService,
-		BackupService:        backupService,
-		RestoreService:       restoreService,
-		AuthorizationService: authSvc,
-		AuthorizerV1:         authorizerV1,
-		AlgoWProxy:           &http.NoopProxyHandler{},
+		DeleteService:          deleteService,
+		BackupService:          backupService,
+		RestoreService:         restoreService,
+		AuthorizationService:   authSvc,
+		AuthorizationV1Service: authSvcV1,
+		PasswordV1Service:      passwordV1,
+		AuthorizerV1: &authv1.Authorizer{
+			AuthV1:   authSvcV1,
+			AuthV2:   authSvc,
+			Comparer: passwordV1,
+			User:     ts,
+		},
+		AlgoWProxy: &http.NoopProxyHandler{},
 		// Wrap the BucketService in a storage backed one that will ensure deleted buckets are removed from the storage engine.
 		BucketService:                   ts.BucketService,
 		SessionService:                  sessionSvc,
@@ -897,125 +898,164 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		)
 	}
 
-	{
-		platformHandler := http.NewPlatformHandler(m.apibackend,
-			http.WithResourceHandler(stacksHTTPServer),
-			http.WithResourceHandler(templatesHTTPServer),
-			http.WithResourceHandler(onboardHTTPServer),
-			http.WithResourceHandler(authHTTPServer),
-			http.WithResourceHandler(labelHandler),
-			http.WithResourceHandler(sessionHTTPServer.SignInResourceHandler()),
-			http.WithResourceHandler(sessionHTTPServer.SignOutResourceHandler()),
-			http.WithResourceHandler(userHTTPServer.MeResourceHandler()),
-			http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
-			http.WithResourceHandler(orgHTTPServer),
-			http.WithResourceHandler(bucketHTTPServer),
-			http.WithResourceHandler(v1AuthHTTPServer),
-			http.WithResourceHandler(dashboardServer),
-		)
-
-		httpLogger := m.log.With(zap.String("service", "http"))
-		m.httpServer.Handler = http.NewHandlerFromRegistry(
-			"platform",
-			m.reg,
-			http.WithLog(httpLogger),
-			http.WithAPIHandler(platformHandler),
-			http.WithPprofEnabled(!opts.ProfilingDisabled),
-		)
-
-		if opts.LogLevel == zap.DebugLevel {
-			m.httpServer.Handler = http.LoggingMW(httpLogger)(m.httpServer.Handler)
-		}
-		// If we are in testing mode we allow all data to be flushed and removed.
-		if opts.Testing {
-			m.httpServer.Handler = http.DebugFlush(ctx, m.httpServer.Handler, flushers)
-		}
-	}
-
-	ln, err := net.Listen("tcp", opts.HttpBindAddress)
+	notebookSvc, err := notebookSvc.NewService()
 	if err != nil {
-		m.log.Error("failed http listener", zap.Error(err))
-		m.log.Info("Stopping")
+		m.log.Error("Failed to initialize notebook service", zap.Error(err))
 		return err
 	}
+	notebookServer := notebookTransport.NewNotebookHandler(
+		m.log.With(zap.String("handler", "notebooks")),
+		authorizer.NewNotebookService(notebookSvc),
+	)
 
-	var cer tls.Certificate
-	transport := "http"
+	platformHandler := http.NewPlatformHandler(
+		m.apibackend,
+		http.WithResourceHandler(stacksHTTPServer),
+		http.WithResourceHandler(templatesHTTPServer),
+		http.WithResourceHandler(onboardHTTPServer),
+		http.WithResourceHandler(authHTTPServer),
+		http.WithResourceHandler(labelHandler),
+		http.WithResourceHandler(sessionHTTPServer.SignInResourceHandler()),
+		http.WithResourceHandler(sessionHTTPServer.SignOutResourceHandler()),
+		http.WithResourceHandler(userHTTPServer.MeResourceHandler()),
+		http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
+		http.WithResourceHandler(orgHTTPServer),
+		http.WithResourceHandler(bucketHTTPServer),
+		http.WithResourceHandler(v1AuthHTTPServer),
+		http.WithResourceHandler(dashboardServer),
+		http.WithResourceHandler(notebookServer),
+	)
 
-	if opts.HttpTLSCert != "" && opts.HttpTLSKey != "" {
-		var err error
-		cer, err = tls.LoadX509KeyPair(opts.HttpTLSCert, opts.HttpTLSKey)
+	httpLogger := m.log.With(zap.String("service", "http"))
+	var httpHandler nethttp.Handler = http.NewRootHandler(
+		"platform",
+		http.WithLog(httpLogger),
+		http.WithAPIHandler(platformHandler),
+		http.WithPprofEnabled(!opts.ProfilingDisabled),
+		http.WithMetrics(m.reg, !opts.MetricsDisabled),
+	)
 
-		if err != nil {
-			m.log.Error("failed to load x509 key pair", zap.Error(err))
-			m.log.Info("Stopping")
-			return err
-		}
-		transport = "https"
-
-		// Sensible default
-		var tlsMinVersion uint16 = tls.VersionTLS12
-
-		switch opts.HttpTLSMinVersion {
-		case "1.0":
-			m.log.Warn("Setting the minimum version of TLS to 1.0 - this is discouraged. Please use 1.2 or 1.3")
-			tlsMinVersion = tls.VersionTLS10
-		case "1.1":
-			m.log.Warn("Setting the minimum version of TLS to 1.1 - this is discouraged. Please use 1.2 or 1.3")
-			tlsMinVersion = tls.VersionTLS11
-		case "1.2":
-			tlsMinVersion = tls.VersionTLS12
-		case "1.3":
-			tlsMinVersion = tls.VersionTLS13
-		}
-
-		strictCiphers := []uint16{
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-		}
-
-		// nil uses the default cipher suite
-		var cipherConfig []uint16 = nil
-
-		// TLS 1.3 does not support configuring the Cipher suites
-		if tlsMinVersion != tls.VersionTLS13 && opts.HttpTLSStrictCiphers {
-			cipherConfig = strictCiphers
-		}
-
-		m.httpServer.TLSConfig = &tls.Config{
-			CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
-			PreferServerCipherSuites: true,
-			MinVersion:               tlsMinVersion,
-			CipherSuites:             cipherConfig,
-		}
+	if opts.LogLevel == zap.DebugLevel {
+		httpHandler = http.LoggingMW(httpLogger)(httpHandler)
 	}
-
-	if addr, ok := ln.Addr().(*net.TCPAddr); ok {
-		m.httpPort = addr.Port
+	// If we are in testing mode we allow all data to be flushed and removed.
+	if opts.Testing {
+		httpHandler = http.DebugFlush(ctx, httpHandler, flushers)
 	}
-
-	m.wg.Add(1)
-	go func(log *zap.Logger) {
-		defer m.wg.Done()
-		log.Info("Listening", zap.String("transport", transport), zap.String("addr", opts.HttpBindAddress), zap.Int("port", m.httpPort))
-
-		if cer.Certificate != nil {
-			if err := m.httpServer.ServeTLS(ln, opts.HttpTLSCert, opts.HttpTLSKey); err != nethttp.ErrServerClosed {
-				log.Error("Failed https service", zap.Error(err))
-			}
-		} else {
-			if err := m.httpServer.Serve(ln); err != nethttp.ErrServerClosed {
-				log.Error("Failed http service", zap.Error(err))
-			}
-		}
-		log.Info("Stopping")
-	}(m.log)
 
 	if !opts.ReportingDisabled {
 		m.runReporter(ctx)
 	}
+	if err := m.runHTTP(opts, httpHandler, httpLogger); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// runHTTP configures and launches a listener for incoming HTTP(S) requests.
+// The listener is run in a separate goroutine. If it fails to start up, it
+// will cancel the launcher.
+func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogger *zap.Logger) error {
+	log := m.log.With(zap.String("service", "tcp-listener"))
+
+	m.httpServer = &nethttp.Server{
+		Addr:              opts.HttpBindAddress,
+		Handler:           handler,
+		ReadHeaderTimeout: opts.HttpReadHeaderTimeout,
+		ReadTimeout:       opts.HttpReadTimeout,
+		WriteTimeout:      opts.HttpWriteTimeout,
+		IdleTimeout:       opts.HttpIdleTimeout,
+		ErrorLog:          zap.NewStdLog(httpLogger),
+	}
+
+	ln, err := net.Listen("tcp", opts.HttpBindAddress)
+	if err != nil {
+		log.Error("Failed to set up TCP listener", zap.String("addr", opts.HttpBindAddress), zap.Error(err))
+		return err
+	}
+	if addr, ok := ln.Addr().(*net.TCPAddr); ok {
+		m.httpPort = addr.Port
+	}
+	m.wg.Add(1)
+
+	m.tlsEnabled = opts.HttpTLSCert != "" && opts.HttpTLSKey != ""
+	if !m.tlsEnabled {
+		if opts.HttpTLSCert != "" || opts.HttpTLSKey != "" {
+			log.Warn("TLS requires specifying both cert and key, falling back to HTTP")
+		}
+
+		go func(log *zap.Logger) {
+			defer m.wg.Done()
+			log.Info("Listening", zap.String("transport", "http"), zap.String("addr", opts.HttpBindAddress), zap.Int("port", m.httpPort))
+
+			if err := m.httpServer.Serve(ln); err != nethttp.ErrServerClosed {
+				log.Error("Failed to serve HTTP", zap.Error(err))
+				m.cancel()
+			}
+			log.Info("Stopping")
+		}(log)
+
+		return nil
+	}
+
+	if _, err = tls.LoadX509KeyPair(opts.HttpTLSCert, opts.HttpTLSKey); err != nil {
+		log.Error("Failed to load x509 key pair", zap.String("cert-path", opts.HttpTLSCert), zap.String("key-path", opts.HttpTLSKey))
+		return err
+	}
+
+	var tlsMinVersion uint16
+	var useStrictCiphers = opts.HttpTLSStrictCiphers
+	switch opts.HttpTLSMinVersion {
+	case "1.0":
+		log.Warn("Setting the minimum version of TLS to 1.0 - this is discouraged. Please use 1.2 or 1.3")
+		tlsMinVersion = tls.VersionTLS10
+	case "1.1":
+		log.Warn("Setting the minimum version of TLS to 1.1 - this is discouraged. Please use 1.2 or 1.3")
+		tlsMinVersion = tls.VersionTLS11
+	case "1.2":
+		tlsMinVersion = tls.VersionTLS12
+	case "1.3":
+		if useStrictCiphers {
+			log.Warn("TLS version 1.3 does not support configuring strict ciphers")
+			useStrictCiphers = false
+		}
+		tlsMinVersion = tls.VersionTLS13
+	default:
+		return fmt.Errorf("unsupported TLS version: %s", opts.HttpTLSMinVersion)
+	}
+
+	// nil uses the default cipher suite
+	var cipherConfig []uint16 = nil
+	if useStrictCiphers {
+		// See https://ssl-config.mozilla.org/#server=go&version=1.14.4&config=intermediate&guideline=5.6
+		cipherConfig = []uint16{
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+		}
+	}
+
+	m.httpServer.TLSConfig = &tls.Config{
+		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+		PreferServerCipherSuites: !useStrictCiphers,
+		MinVersion:               tlsMinVersion,
+		CipherSuites:             cipherConfig,
+	}
+
+	go func(log *zap.Logger) {
+		defer m.wg.Done()
+		log.Info("Listening", zap.String("transport", "https"), zap.String("addr", opts.HttpBindAddress), zap.Int("port", m.httpPort))
+
+		if err := m.httpServer.ServeTLS(ln, opts.HttpTLSCert, opts.HttpTLSKey); err != nethttp.ErrServerClosed {
+			log.Error("Failed to serve HTTPS", zap.Error(err))
+			m.cancel()
+		}
+		log.Info("Stopping")
+	}(log)
 
 	return nil
 }
@@ -1108,13 +1148,17 @@ func (m *Launcher) AuthorizationService() platform.AuthorizationService {
 	return m.apibackend.AuthorizationService
 }
 
+func (m *Launcher) AuthorizationV1Service() platform.AuthorizationService {
+	return m.apibackend.AuthorizationV1Service
+}
+
 // SecretService returns the internal secret service.
 func (m *Launcher) SecretService() platform.SecretService {
 	return m.apibackend.SecretService
 }
 
 // TaskService returns the internal task service.
-func (m *Launcher) TaskService() platform.TaskService {
+func (m *Launcher) TaskService() taskmodel.TaskService {
 	return m.apibackend.TaskService
 }
 

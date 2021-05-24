@@ -13,7 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/escape"
@@ -27,7 +28,7 @@ import (
 // exportFlags contains CLI-compatible forms of export options.
 type exportFlags struct {
 	enginePath   string
-	bucketID     influxdb.ID
+	bucketID     platform.ID
 	measurements []string
 	startTime    string
 	endTime      string
@@ -98,8 +99,8 @@ func NewExportLineProtocolCommand(v *viper.Viper) (*cobra.Command, error) {
 This command will export all TSM data stored in a bucket
 to line protocol for inspection and re-ingestion.`,
 		Args: cobra.NoArgs,
-		RunE: func(*cobra.Command, []string) error {
-			return exportRunE(flags)
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return exportRunE(cmd, flags)
 		},
 	}
 
@@ -134,7 +135,7 @@ to line protocol for inspection and re-ingestion.`,
 		{
 			DestP:    &flags.outputPath,
 			Flag:     "output-path",
-			Desc:     "path where exported line-protocol should be written",
+			Desc:     "path where exported line-protocol should be written. Use '-' to write to standard out",
 			Required: true,
 		},
 		{
@@ -155,7 +156,7 @@ to line protocol for inspection and re-ingestion.`,
 	return cmd, nil
 }
 
-func exportRunE(flags *exportFlags) error {
+func exportRunE(cmd *cobra.Command, flags *exportFlags) error {
 	logconf := zap.NewProductionConfig()
 	logconf.Level = zap.NewAtomicLevelAt(flags.logLevel)
 	logger, err := logconf.Build()
@@ -168,19 +169,25 @@ func exportRunE(flags *exportFlags) error {
 		return err
 	}
 
-	f, err := os.Create(flags.outputPath)
-	if err != nil {
-		return err
+	var w io.Writer
+	if flags.outputPath == "-" {
+		w = cmd.OutOrStdout()
+	} else {
+		f, err := os.Create(flags.outputPath)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		w = f
 	}
-	defer f.Close()
 
 	// Because calling (*os.File).Write is relatively expensive,
 	// and we don't *need* to sync to disk on every written line of export,
 	// use a sized buffered writer so that we only sync the file every megabyte.
-	bw := bufio.NewWriterSize(f, 1024*1024)
+	bw := bufio.NewWriterSize(w, 1024*1024)
 	defer bw.Flush()
+	w = bw
 
-	var w io.Writer = bw
 	if flags.compress {
 		gzw := gzip.NewWriter(w)
 		defer gzw.Close()
@@ -200,7 +207,7 @@ func exportRunE(flags *exportFlags) error {
 }
 
 // exportTSMs finds, reads, and exports all data stored in TSM files for a bucket that matches a set of filters.
-func exportTSMs(engineDir string, bucketID influxdb.ID, filters *exportFilters, out io.Writer, log *zap.Logger) error {
+func exportTSMs(engineDir string, bucketID platform.ID, filters *exportFilters, out io.Writer, log *zap.Logger) error {
 	// TSM is stored under `<engine>/data/<bucket-id>/<rp>/<shard-id>/*.tsm`
 	tsmDir := filepath.Join(engineDir, "data", bucketID.String())
 	tsmPattern := filepath.Join(tsmDir, "*", "*", fmt.Sprintf("*.%s", tsm1.TSMFileExtension))
@@ -283,7 +290,7 @@ func exportTSM(tsmFile string, filters *exportFilters, out io.Writer, log *zap.L
 //
 // N.B. exported lines can include some duplicates from a matching call to exportTSMs on the same engine/bucket.
 // This is OK since writes are idempotent.
-func exportWALs(engineDir string, bucketID influxdb.ID, filters *exportFilters, out io.Writer, log *zap.Logger) error {
+func exportWALs(engineDir string, bucketID platform.ID, filters *exportFilters, out io.Writer, log *zap.Logger) error {
 	// WAL is stored under `<engine>/wal/<bucket-id>/<rp>/<shard-id>/*.wal`
 	walDir := filepath.Join(engineDir, "wal", bucketID.String())
 	walPattern := filepath.Join(walDir, "*", "*", fmt.Sprintf("*.%s", tsm1.WALFileExtension))

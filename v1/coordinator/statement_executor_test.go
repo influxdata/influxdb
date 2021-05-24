@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"reflect"
 	"regexp"
 	"testing"
@@ -42,7 +43,7 @@ func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
 	defer ctrl.Finish()
 
 	dbrp := mocks.NewMockDBRPMappingServiceV2(ctrl)
-	orgID := influxdb.ID(0xff00)
+	orgID := platform.ID(0xff00)
 	empty := ""
 	filt := influxdb.DBRPMappingFilterV2{OrgID: &orgID, Database: &empty, RetentionPolicy: &empty}
 	res := []*influxdb.DBRPMappingV2{{}}
@@ -108,7 +109,7 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 	defer ctrl.Finish()
 
 	dbrp := mocks.NewMockDBRPMappingServiceV2(ctrl)
-	orgID := influxdb.ID(0xff00)
+	orgID := platform.ID(0xff00)
 	empty := ""
 	filt := influxdb.DBRPMappingFilterV2{OrgID: &orgID, Database: &empty, RetentionPolicy: &empty}
 	res := []*influxdb.DBRPMappingV2{{}}
@@ -226,8 +227,8 @@ func TestStatementExecutor_NormalizeStatement(t *testing.T) {
 			defer ctrl.Finish()
 
 			dbrp := mocks.NewMockDBRPMappingServiceV2(ctrl)
-			orgID := influxdb.ID(0xff00)
-			bucketID := influxdb.ID(0xffee)
+			orgID := platform.ID(0xff00)
+			bucketID := platform.ID(0xffee)
 			filt := influxdb.DBRPMappingFilterV2{OrgID: &orgID, Database: &testCase.expectedDB}
 			res := []*influxdb.DBRPMappingV2{{Database: testCase.expectedDB, RetentionPolicy: testCase.expectedRP, OrganizationID: orgID, BucketID: bucketID, Default: true}}
 			dbrp.EXPECT().
@@ -330,7 +331,7 @@ func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
 	defer ctrl.Finish()
 
 	dbrp := mocks.NewMockDBRPMappingServiceV2(ctrl)
-	orgID := influxdb.ID(0xff00)
+	orgID := platform.ID(0xff00)
 	filt := influxdb.DBRPMappingFilterV2{OrgID: &orgID}
 	res := []*influxdb.DBRPMappingV2{
 		{Database: "db1", OrganizationID: orgID, BucketID: 0xffe0},
@@ -451,7 +452,7 @@ func DefaultQueryExecutor(t *testing.T, opts ...optFn) *QueryExecutor {
 }
 
 // ExecuteQuery parses query and executes against the database.
-func (e *QueryExecutor) ExecuteQuery(ctx context.Context, q, database string, chunkSize int, orgID influxdb.ID) (<-chan *query.Result, *influxql2.Statistics) {
+func (e *QueryExecutor) ExecuteQuery(ctx context.Context, q, database string, chunkSize int, orgID platform.ID) (<-chan *query.Result, *influxql2.Statistics) {
 	return e.Executor.ExecuteQuery(ctx, MustParseQuery(q), query.ExecutionOptions{
 		OrgID:     orgID,
 		Database:  database,

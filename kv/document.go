@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"path"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -93,7 +96,7 @@ func (s *Service) putDocument(ctx context.Context, tx Tx, ns string, d *influxdb
 	return nil
 }
 
-func (s *Service) putAtID(ctx context.Context, tx Tx, bucket string, id influxdb.ID, i interface{}) error {
+func (s *Service) putAtID(ctx context.Context, tx Tx, bucket string, id platform.ID, i interface{}) error {
 	v, err := json.Marshal(i)
 	if err != nil {
 		return err
@@ -116,11 +119,11 @@ func (s *Service) putAtID(ctx context.Context, tx Tx, bucket string, id influxdb
 	return nil
 }
 
-func (s *Service) putDocumentContent(ctx context.Context, tx Tx, ns string, id influxdb.ID, data interface{}) error {
+func (s *Service) putDocumentContent(ctx context.Context, tx Tx, ns string, id platform.ID, data interface{}) error {
 	return s.putAtID(ctx, tx, path.Join(ns, documentContentBucket), id, data)
 }
 
-func (s *Service) putDocumentMeta(ctx context.Context, tx Tx, ns string, id influxdb.ID, m influxdb.DocumentMeta) error {
+func (s *Service) putDocumentMeta(ctx context.Context, tx Tx, ns string, id platform.ID, m influxdb.DocumentMeta) error {
 	return s.putAtID(ctx, tx, path.Join(ns, documentMetaBucket), id, m)
 }
 
@@ -130,7 +133,7 @@ func (s *DocumentStore) PutDocument(ctx context.Context, d *influxdb.Document) e
 	})
 }
 
-func (s *Service) findByID(ctx context.Context, tx Tx, bucket string, id influxdb.ID, i interface{}) error {
+func (s *Service) findByID(ctx context.Context, tx Tx, bucket string, id platform.ID, i interface{}) error {
 	b, err := tx.Bucket([]byte(bucket))
 	if err != nil {
 		return err
@@ -153,7 +156,7 @@ func (s *Service) findByID(ctx context.Context, tx Tx, bucket string, id influxd
 	return nil
 }
 
-func (s *Service) findDocumentMetaByID(ctx context.Context, tx Tx, ns string, id influxdb.ID) (*influxdb.DocumentMeta, error) {
+func (s *Service) findDocumentMetaByID(ctx context.Context, tx Tx, ns string, id platform.ID) (*influxdb.DocumentMeta, error) {
 	m := &influxdb.DocumentMeta{}
 
 	if err := s.findByID(ctx, tx, path.Join(ns, documentMetaBucket), id, m); err != nil {
@@ -163,7 +166,7 @@ func (s *Service) findDocumentMetaByID(ctx context.Context, tx Tx, ns string, id
 	return m, nil
 }
 
-func (s *Service) findDocumentContentByID(ctx context.Context, tx Tx, ns string, id influxdb.ID) (interface{}, error) {
+func (s *Service) findDocumentContentByID(ctx context.Context, tx Tx, ns string, id platform.ID) (interface{}, error) {
 	var data interface{}
 	if err := s.findByID(ctx, tx, path.Join(ns, documentContentBucket), id, &data); err != nil {
 		return nil, err
@@ -173,7 +176,7 @@ func (s *Service) findDocumentContentByID(ctx context.Context, tx Tx, ns string,
 }
 
 // FindDocument retrieves the specified document with all its content and labels.
-func (s *DocumentStore) FindDocument(ctx context.Context, id influxdb.ID) (*influxdb.Document, error) {
+func (s *DocumentStore) FindDocument(ctx context.Context, id platform.ID) (*influxdb.Document, error) {
 	var d *influxdb.Document
 	err := s.service.kv.View(ctx, func(tx Tx) error {
 		m, err := s.service.findDocumentMetaByID(ctx, tx, s.namespace, id)
@@ -194,8 +197,8 @@ func (s *DocumentStore) FindDocument(ctx context.Context, id influxdb.ID) (*infl
 	})
 
 	if IsNotFound(err) {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  influxdb.ErrDocumentNotFound,
 		}
 	}
@@ -208,7 +211,7 @@ func (s *DocumentStore) FindDocument(ctx context.Context, id influxdb.ID) (*infl
 }
 
 // FindDocuments retrieves all documents returned by the document find options.
-func (s *DocumentStore) FindDocuments(ctx context.Context, _ influxdb.ID) ([]*influxdb.Document, error) {
+func (s *DocumentStore) FindDocuments(ctx context.Context, _ platform.ID) ([]*influxdb.Document, error) {
 	var ds []*influxdb.Document
 
 	err := s.service.kv.View(ctx, func(tx Tx) error {

@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"path"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb/v2"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -83,19 +86,19 @@ func (h *urmHandler) getURMsByType(w http.ResponseWriter, r *http.Request) {
 }
 
 type getRequest struct {
-	ResourceID influxdb.ID
+	ResourceID platform.ID
 }
 
 func (h *urmHandler) decodeGetRequest(ctx context.Context, r *http.Request) (*getRequest, error) {
 	id := chi.URLParam(r, h.idLookupKey)
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -138,20 +141,20 @@ func (h *urmHandler) postURMByType(w http.ResponseWriter, r *http.Request) {
 }
 
 type postRequest struct {
-	UserID     influxdb.ID
-	ResourceID influxdb.ID
+	UserID     platform.ID
+	ResourceID platform.ID
 }
 
 func (h urmHandler) decodePostRequest(ctx context.Context, r *http.Request) (*postRequest, error) {
 	id := chi.URLParam(r, h.idLookupKey)
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var rid influxdb.ID
+	var rid platform.ID
 	if err := rid.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -162,8 +165,8 @@ func (h urmHandler) decodePostRequest(ctx context.Context, r *http.Request) (*po
 	}
 
 	if !u.ID.Valid() {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "user id missing or invalid",
 		}
 	}
@@ -192,33 +195,33 @@ func (h *urmHandler) deleteURM(w http.ResponseWriter, r *http.Request) {
 }
 
 type deleteRequest struct {
-	userID     influxdb.ID
-	resourceID influxdb.ID
+	userID     platform.ID
+	resourceID platform.ID
 }
 
 func (h *urmHandler) decodeDeleteRequest(ctx context.Context, r *http.Request) (*deleteRequest, error) {
 	id := chi.URLParam(r, h.idLookupKey)
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var rid influxdb.ID
+	var rid platform.ID
 	if err := rid.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
 	id = chi.URLParam(r, "userID")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing member id",
 		}
 	}
 
-	var uid influxdb.ID
+	var uid platform.ID
 	if err := uid.DecodeFromString(id); err != nil {
 		return nil, err
 	}

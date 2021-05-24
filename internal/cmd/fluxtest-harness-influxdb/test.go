@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
@@ -111,7 +112,7 @@ func (t *testExecutor) executeWithOptions(bucketOpt, orgOpt *ast.OptionStatement
 
 	// Add options to pkg
 	pkg = pkg.Copy().(*ast.Package)
-	pkg.Files = append(pkg.Files, options)
+	pkg.Files = append([]*ast.File{options}, pkg.Files...)
 
 	bs, err := json.Marshal(pkg)
 	if err != nil {
@@ -129,6 +130,7 @@ func (t *testExecutor) executeWithOptions(bucketOpt, orgOpt *ast.OptionStatement
 	}
 	defer r.Release()
 
+	var output strings.Builder
 	for r.More() {
 		v := r.Next()
 
@@ -137,10 +139,14 @@ func (t *testExecutor) executeWithOptions(bucketOpt, orgOpt *ast.OptionStatement
 			// a comparison of two tables showed inequality. Capture that inequality as part of the error.
 			// XXX: rockstar (08 Dec 2020) - This could use some ergonomic work, as the diff testOutput
 			// is not exactly "human readable."
-			return fmt.Errorf("%s", table.Stringify(tbl))
+			_, _ = fmt.Fprint(&output, table.Stringify(tbl))
+			return nil
 		}); err != nil {
 			return err
 		}
+	}
+	if output.Len() > 0 {
+		return errors.New(output.String())
 	}
 	r.Release()
 	return r.Err()
@@ -156,6 +162,9 @@ import c "csv"
 option testing.loadStorage = (csv) => {
 	return c.from(csv: csv) |> to(bucket: bucket, org: org)
 }
+option testing.load = (tables=<-) => {
+	return tables |> to(bucket: bucket, org: org)
+}
 `
 
 // This options definition is for the second run, the test run. It loads the
@@ -166,6 +175,9 @@ import "testing"
 import c "csv"
 
 option testing.loadStorage = (csv) => {
+	return from(bucket: bucket)
+}
+option testing.load = (tables=<-) => {
 	return from(bucket: bucket)
 }
 `

@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration"
 	"github.com/stretchr/testify/assert"
@@ -99,7 +100,7 @@ func TestStoreBase(t *testing.T) {
 					return base.Put(context.TODO(), tx, entCopy, kv.PutNew())
 				})
 				require.Error(t, err)
-				assert.Equal(t, influxdb.EConflict, influxdb.ErrorCode(err))
+				assert.Equal(t, errors.EConflict, errors.ErrorCode(err))
 			})
 		})
 
@@ -115,7 +116,7 @@ func TestStoreBase(t *testing.T) {
 				return base.Put(context.TODO(), tx, entCopy, kv.PutUpdate())
 			})
 			require.Error(t, err)
-			assert.Equal(t, influxdb.ENotFound, influxdb.ErrorCode(err))
+			assert.Equal(t, errors.ENotFound, errors.ErrorCode(err))
 		})
 	})
 
@@ -336,7 +337,7 @@ func testFind(t *testing.T, fn func(t *testing.T, suffix string) (storeBase, fun
 		{
 			name: "with id prefix",
 			opts: kv.FindOpts{
-				Prefix: encodeID(t, 3000000)[:influxdb.IDLength-5],
+				Prefix: encodeID(t, 3000000)[:platform.IDLength-5],
 			},
 			expected: toIfaces(expectedEnts[2], expectedEnts[3]),
 		},
@@ -366,8 +367,8 @@ func testFind(t *testing.T, fn func(t *testing.T, suffix string) (storeBase, fun
 }
 
 type foo struct {
-	ID    influxdb.ID
-	OrgID influxdb.ID
+	ID    platform.ID
+	OrgID platform.ID
 
 	Name string
 }
@@ -422,7 +423,7 @@ func getEntRaw(t *testing.T, kvStore kv.Store, bktName []byte, key []byte) []byt
 	return actualRaw
 }
 
-func encodeID(t *testing.T, id influxdb.ID) []byte {
+func encodeID(t *testing.T, id platform.ID) []byte {
 	t.Helper()
 
 	b, err := id.Encode()
@@ -450,7 +451,7 @@ func decFooEntFn(k []byte, v interface{}) (kv.Entity, error) {
 	}, nil
 }
 
-func newFooEnt(id, orgID influxdb.ID, name string) kv.Entity {
+func newFooEnt(id, orgID platform.ID, name string) kv.Entity {
 	f := foo{ID: id, Name: name, OrgID: orgID}
 	return kv.Entity{
 		PK:        kv.EncID(f.ID),
@@ -462,11 +463,11 @@ func newFooEnt(id, orgID influxdb.ID, name string) kv.Entity {
 func isNotFoundErr(t *testing.T, err error) {
 	t.Helper()
 
-	iErr, ok := err.(*influxdb.Error)
+	iErr, ok := err.(*errors.Error)
 	if !ok {
 		require.FailNowf(t, "expected an *influxdb.Error type", "got: %#v", err)
 	}
-	assert.Equal(t, influxdb.ENotFound, iErr.Code)
+	assert.Equal(t, errors.ENotFound, iErr.Code)
 }
 
 func toIfaces(ents ...kv.Entity) []interface{} {

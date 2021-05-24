@@ -2,6 +2,7 @@ package coordinator_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"reflect"
 	"testing"
 	"time"
@@ -22,8 +23,8 @@ func TestLocalShardMapper(t *testing.T) {
 	defer ctrl.Finish()
 
 	dbrp := mocks.NewMockDBRPMappingServiceV2(ctrl)
-	orgID := influxdb.ID(0xff00)
-	bucketID := influxdb.ID(0xffee)
+	orgID := platform.ID(0xff00)
+	bucketID := platform.ID(0xffee)
 	db := "db0"
 	rp := "rp0"
 	filt := influxdb.DBRPMappingFilterV2{OrgID: &orgID, Database: &db, RetentionPolicy: &rp}

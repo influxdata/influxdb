@@ -2,6 +2,7 @@ package rule_test
 
 import (
 	"encoding/json"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 	"time"
 
@@ -41,8 +42,8 @@ func TestValidRule(t *testing.T) {
 		{
 			name: "invalid rule id",
 			src:  &rule.Slack{},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Notification Rule ID is invalid",
 			},
 		},
@@ -53,8 +54,8 @@ func TestValidRule(t *testing.T) {
 					ID: influxTesting.MustIDBase16(id1),
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Notification Rule Name can't be empty",
 			},
 		},
@@ -66,8 +67,8 @@ func TestValidRule(t *testing.T) {
 					Name: "name1",
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Notification Rule OwnerID is invalid",
 			},
 		},
@@ -80,8 +81,8 @@ func TestValidRule(t *testing.T) {
 					OwnerID: influxTesting.MustIDBase16(id2),
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Notification Rule OrgID is invalid",
 			},
 		},
@@ -96,8 +97,8 @@ func TestValidRule(t *testing.T) {
 					EndpointID: 0,
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Notification Rule EndpointID is invalid",
 			},
 		},
@@ -114,8 +115,8 @@ func TestValidRule(t *testing.T) {
 					Offset:     mustDuration("2m"),
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Offset should not be equal or greater than the interval",
 			},
 		},
@@ -125,8 +126,8 @@ func TestValidRule(t *testing.T) {
 				Base:    goodBase,
 				Channel: "channel1",
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "slack msg template is empty",
 			},
 		},
@@ -135,8 +136,8 @@ func TestValidRule(t *testing.T) {
 			src: &rule.PagerDuty{
 				Base: goodBase,
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "pagerduty invalid message template",
 			},
 		},
@@ -161,8 +162,8 @@ func TestValidRule(t *testing.T) {
 				},
 				MessageTemplate: "body {var2}",
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  `Operator is invalid`,
 			},
 		},
@@ -190,8 +191,8 @@ func TestValidRule(t *testing.T) {
 				},
 				MessageTemplate: "body {var2}",
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  `if limit is set, limit and limitEvery must be larger than 0`,
 			},
 		},

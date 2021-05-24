@@ -35,6 +35,15 @@
           "legendColorizeRows": true,
           "legendOpacity": 1.0,
           "legendOrientationThreshold": 5,
+          "staticLegend": {
+            "colorizeRows": true,
+            "heightRatio": 0.2,
+            "hide": false,
+            "opacity": 1.0,
+            "orientationThreshold": 5,
+            "valueAxis": "y",
+            "widthRatio": 1.0
+          },
           "queries": [
             {
               "query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == \"boltdb_writes_total\")  |> filter(fn: (r) => r._field == \"counter\")"

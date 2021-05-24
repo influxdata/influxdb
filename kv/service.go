@@ -3,6 +3,8 @@ package kv
 import (
 	"github.com/benbjohnson/clock"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/rand"
 	"github.com/influxdata/influxdb/v2/resource"
 	"github.com/influxdata/influxdb/v2/resource/noop"
@@ -20,12 +22,12 @@ type Service struct {
 	clock       clock.Clock
 	Config      ServiceConfig
 	audit       resource.Logger
-	IDGenerator influxdb.IDGenerator
+	IDGenerator platform.IDGenerator
 
 	// FluxLanguageService is used for parsing flux.
 	// If this is unset, operations that require parsing flux
 	// will fail.
-	FluxLanguageService influxdb.FluxLanguageService
+	FluxLanguageService fluxlang.FluxLanguageService
 
 	TokenGenerator influxdb.TokenGenerator
 	// TODO(desa:ariel): this should not be embedded
@@ -66,7 +68,7 @@ func NewService(log *zap.Logger, kv Store, orgs influxdb.OrganizationService, co
 // ServiceConfig allows us to configure Services
 type ServiceConfig struct {
 	Clock               clock.Clock
-	FluxLanguageService influxdb.FluxLanguageService
+	FluxLanguageService fluxlang.FluxLanguageService
 }
 
 // WithResourceLogger sets the resource audit logger for the service.

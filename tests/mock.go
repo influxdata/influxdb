@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	influxhttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/notification"
@@ -13,7 +15,7 @@ import (
 )
 
 // ValidCustomNotificationEndpoint creates a NotificationEndpoint with a custom name
-func ValidCustomNotificationEndpoint(org influxdb.ID, name string) influxdb.NotificationEndpoint {
+func ValidCustomNotificationEndpoint(org platform.ID, name string) influxdb.NotificationEndpoint {
 	return &endpoint.HTTP{
 		Base: endpoint.Base{
 			Name:    name,
@@ -29,12 +31,12 @@ func ValidCustomNotificationEndpoint(org influxdb.ID, name string) influxdb.Noti
 
 // ValidNotificationEndpoint returns a valid notification endpoint.
 // This is the easiest way of "mocking" a influxdb.NotificationEndpoint.
-func ValidNotificationEndpoint(org influxdb.ID) influxdb.NotificationEndpoint {
+func ValidNotificationEndpoint(org platform.ID) influxdb.NotificationEndpoint {
 	return ValidCustomNotificationEndpoint(org, "howdy")
 }
 
 // ValidNotificationRule returns a valid Notification Rule of type HTTP for testing
-func ValidNotificationRule(org, endpoint influxdb.ID) influxdb.NotificationRule {
+func ValidNotificationRule(org, endpoint platform.ID) influxdb.NotificationRule {
 	d, _ := notification.FromTimeDuration(time.Second * 5)
 	return &rule.HTTP{
 		Base: rule.Base{
@@ -54,7 +56,7 @@ func ValidNotificationRule(org, endpoint influxdb.ID) influxdb.NotificationRule 
 }
 
 // MockCheck returns a valid check to be used in tests.
-func MockCheck(name string, orgID, userID influxdb.ID) *influxhttp.Check {
+func MockCheck(name string, orgID, userID platform.ID) *influxhttp.Check {
 	return &influxhttp.Check{
 		ID:                    userID,
 		OwnerID:               userID,

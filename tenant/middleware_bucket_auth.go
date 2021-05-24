@@ -3,6 +3,8 @@ package tenant
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -26,7 +28,7 @@ func NewAuthedBucketService(s influxdb.BucketService) *AuthedBucketService {
 }
 
 // FindBucketByID checks to see if the authorizer on context has read access to the id provided.
-func (s *AuthedBucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+func (s *AuthedBucketService) FindBucketByID(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -41,7 +43,7 @@ func (s *AuthedBucketService) FindBucketByID(ctx context.Context, id influxdb.ID
 }
 
 // FindBucketByName returns a bucket by name for a particular organization.
-func (s *AuthedBucketService) FindBucketByName(ctx context.Context, orgID influxdb.ID, n string) (*influxdb.Bucket, error) {
+func (s *AuthedBucketService) FindBucketByName(ctx context.Context, orgID platform.ID, n string) (*influxdb.Bucket, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -96,7 +98,7 @@ func (s *AuthedBucketService) CreateBucket(ctx context.Context, b *influxdb.Buck
 }
 
 // UpdateBucket checks to see if the authorizer on context has write access to the bucket provided.
-func (s *AuthedBucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+func (s *AuthedBucketService) UpdateBucket(ctx context.Context, id platform.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 	b, err := s.s.FindBucketByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -108,7 +110,7 @@ func (s *AuthedBucketService) UpdateBucket(ctx context.Context, id influxdb.ID, 
 }
 
 // DeleteBucket checks to see if the authorizer on context has write access to the bucket provided.
-func (s *AuthedBucketService) DeleteBucket(ctx context.Context, id influxdb.ID) error {
+func (s *AuthedBucketService) DeleteBucket(ctx context.Context, id platform.ID) error {
 	b, err := s.s.FindBucketByID(ctx, id)
 	if err != nil {
 		return err

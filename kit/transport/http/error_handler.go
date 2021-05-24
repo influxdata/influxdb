@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/influxdata/influxdb/v2"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // ErrorHandler is the error handler in http package.
@@ -26,19 +26,27 @@ func (h ErrorHandler) HandleHTTPError(ctx context.Context, err error, w http.Res
 		return
 	}
 
-	code := influxdb.ErrorCode(err)
+	code := errors2.ErrorCode(err)
+	var msg string
+	if err, ok := err.(*errors2.Error); ok {
+		msg = err.Error()
+	} else {
+		msg = "An internal error has occurred"
+	}
+
+	WriteErrorResponse(ctx, w, code, msg)
+}
+
+func WriteErrorResponse(ctx context.Context, w http.ResponseWriter, code string, msg string) {
 	w.Header().Set(PlatformErrorCodeHeader, code)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(ErrorCodeToStatusCode(ctx, code))
-	var e struct {
+	e := struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
-	}
-	e.Code = influxdb.ErrorCode(err)
-	if err, ok := err.(*influxdb.Error); ok {
-		e.Message = err.Error()
-	} else {
-		e.Message = "An internal error has occurred"
+	}{
+		Code:    code,
+		Message: msg,
 	}
 	b, _ := json.Marshal(e)
 	_, _ = w.Write(b)
@@ -52,7 +60,7 @@ func StatusCodeToErrorCode(statusCode int) string {
 		return errorCode
 	}
 
-	return influxdb.EInternal
+	return errors2.EInternal
 }
 
 // ErrorCodeToStatusCode maps an influxdb error code string to a
@@ -77,19 +85,19 @@ func ErrorCodeToStatusCode(ctx context.Context, code string) int {
 
 // influxDBErrorToStatusCode is a mapping of ErrorCode to http status code.
 var influxDBErrorToStatusCode = map[string]int{
-	influxdb.EInternal:            http.StatusInternalServerError,
-	influxdb.ENotImplemented:      http.StatusNotImplemented,
-	influxdb.EInvalid:             http.StatusBadRequest,
-	influxdb.EUnprocessableEntity: http.StatusUnprocessableEntity,
-	influxdb.EEmptyValue:          http.StatusBadRequest,
-	influxdb.EConflict:            http.StatusUnprocessableEntity,
-	influxdb.ENotFound:            http.StatusNotFound,
-	influxdb.EUnavailable:         http.StatusServiceUnavailable,
-	influxdb.EForbidden:           http.StatusForbidden,
-	influxdb.ETooManyRequests:     http.StatusTooManyRequests,
-	influxdb.EUnauthorized:        http.StatusUnauthorized,
-	influxdb.EMethodNotAllowed:    http.StatusMethodNotAllowed,
-	influxdb.ETooLarge:            http.StatusRequestEntityTooLarge,
+	errors2.EInternal:            http.StatusInternalServerError,
+	errors2.ENotImplemented:      http.StatusNotImplemented,
+	errors2.EInvalid:             http.StatusBadRequest,
+	errors2.EUnprocessableEntity: http.StatusUnprocessableEntity,
+	errors2.EEmptyValue:          http.StatusBadRequest,
+	errors2.EConflict:            http.StatusUnprocessableEntity,
+	errors2.ENotFound:            http.StatusNotFound,
+	errors2.EUnavailable:         http.StatusServiceUnavailable,
+	errors2.EForbidden:           http.StatusForbidden,
+	errors2.ETooManyRequests:     http.StatusTooManyRequests,
+	errors2.EUnauthorized:        http.StatusUnauthorized,
+	errors2.EMethodNotAllowed:    http.StatusMethodNotAllowed,
+	errors2.ETooLarge:            http.StatusRequestEntityTooLarge,
 }
 
 var httpStatusCodeToInfluxDBError = map[int]string{}
@@ -128,13 +136,13 @@ func CheckError(resp *http.Response) (err error) {
 		return nil
 	default:
 		// TODO(jsternberg): Figure out what to do here?
-		return &influxdb.Error{
-			Code: influxdb.EInternal,
+		return &errors2.Error{
+			Code: errors2.EInternal,
 			Msg:  fmt.Sprintf("unexpected status code: %d %s", resp.StatusCode, resp.Status),
 		}
 	}
 
-	perr := &influxdb.Error{
+	perr := &errors2.Error{
 		Code: StatusCodeToErrorCode(resp.StatusCode),
 	}
 

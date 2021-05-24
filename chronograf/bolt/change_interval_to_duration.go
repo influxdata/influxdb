@@ -250,7 +250,6 @@ type DashboardCell struct {
 	ID           string           `protobuf:"bytes,8,opt,name=ID,proto3" json:"ID,omitempty"`
 	Axes         map[string]*Axis `protobuf:"bytes,9,rep,name=axes" json:"axes,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value"`
 	Colors       []*Color         `protobuf:"bytes,10,rep,name=colors" json:"colors,omitempty"`
-	Legend       *Legend          `protobuf:"bytes,11,opt,name=legend" json:"legend,omitempty"`
 	TableOptions *TableOptions    `protobuf:"bytes,12,opt,name=tableOptions" json:"tableOptions,omitempty"`
 }
 
@@ -325,13 +324,6 @@ func (m *DashboardCell) GetAxes() map[string]*Axis {
 func (m *DashboardCell) GetColors() []*Color {
 	if m != nil {
 		return m.Colors
-	}
-	return nil
-}
-
-func (m *DashboardCell) GetLegend() *Legend {
-	if m != nil {
-		return m.Legend
 	}
 	return nil
 }
@@ -467,30 +459,6 @@ func (m *Color) GetName() string {
 func (m *Color) GetValue() string {
 	if m != nil {
 		return m.Value
-	}
-	return ""
-}
-
-type Legend struct {
-	Type        string `protobuf:"bytes,1,opt,name=Type,proto3" json:"Type,omitempty"`
-	Orientation string `protobuf:"bytes,2,opt,name=Orientation,proto3" json:"Orientation,omitempty"`
-}
-
-func (m *Legend) Reset()                    { *m = Legend{} }
-func (m *Legend) String() string            { return proto.CompactTextString(m) }
-func (*Legend) ProtoMessage()               {}
-func (*Legend) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{6} }
-
-func (m *Legend) GetType() string {
-	if m != nil {
-		return m.Type
-	}
-	return ""
-}
-
-func (m *Legend) GetOrientation() string {
-	if m != nil {
-		return m.Orientation
 	}
 	return ""
 }

@@ -5,24 +5,24 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 func TestOrgBucketID_ID(t *testing.T) {
 	tests := []struct {
 		name string
 		seed int64
-		want influxdb.ID
+		want platform.ID
 	}{
 		{
 			name: "when seeded with 6 the first random number contains characters",
 			seed: 6,
-			want: influxdb.ID(0xaddff35d7fe88f15),
+			want: platform.ID(0xaddff35d7fe88f15),
 		},
 		{
 			name: "when seeded with 1234567890 we get a random number without any bad chars",
 			seed: 1234567890,
-			want: influxdb.ID(0x8a95c1bf40518fee),
+			want: platform.ID(0x8a95c1bf40518fee),
 		},
 	}
 	for _, tt := range tests {

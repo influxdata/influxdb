@@ -3,6 +3,8 @@ package authorizer_test
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
 
@@ -33,7 +35,7 @@ func TestDashboardService_FindDashboardByID(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		id         influxdb.ID
+		id         platform.ID
 	}
 	type wants struct {
 		err error
@@ -49,7 +51,7 @@ func TestDashboardService_FindDashboardByID(t *testing.T) {
 			name: "authorized to access id",
 			fields: fields{
 				DashboardService: &mock.DashboardService{
-					FindDashboardByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 						return &influxdb.Dashboard{
 							ID:             id,
 							OrganizationID: 10,
@@ -75,7 +77,7 @@ func TestDashboardService_FindDashboardByID(t *testing.T) {
 			name: "unauthorized to access id",
 			fields: fields{
 				DashboardService: &mock.DashboardService{
-					FindDashboardByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 						return &influxdb.Dashboard{
 							ID:             id,
 							OrganizationID: 10,
@@ -94,9 +96,9 @@ func TestDashboardService_FindDashboardByID(t *testing.T) {
 				id: 1,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/000000000000000a/dashboards/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -249,7 +251,7 @@ func TestDashboardService_UpdateDashboard(t *testing.T) {
 		DashboardService influxdb.DashboardService
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -266,13 +268,13 @@ func TestDashboardService_UpdateDashboard(t *testing.T) {
 			name: "authorized to update dashboard",
 			fields: fields{
 				DashboardService: &mock.DashboardService{
-					FindDashboardByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+					FindDashboardByIDF: func(ctc context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 						return &influxdb.Dashboard{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					UpdateDashboardF: func(ctx context.Context, id influxdb.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
+					UpdateDashboardF: func(ctx context.Context, id platform.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
 						return &influxdb.Dashboard{
 							ID:             1,
 							OrganizationID: 10,
@@ -307,13 +309,13 @@ func TestDashboardService_UpdateDashboard(t *testing.T) {
 			name: "unauthorized to update dashboard",
 			fields: fields{
 				DashboardService: &mock.DashboardService{
-					FindDashboardByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+					FindDashboardByIDF: func(ctc context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 						return &influxdb.Dashboard{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					UpdateDashboardF: func(ctx context.Context, id influxdb.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
+					UpdateDashboardF: func(ctx context.Context, id platform.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
 						return &influxdb.Dashboard{
 							ID:             1,
 							OrganizationID: 10,
@@ -334,9 +336,9 @@ func TestDashboardService_UpdateDashboard(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/dashboards/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -360,7 +362,7 @@ func TestDashboardService_DeleteDashboard(t *testing.T) {
 		DashboardService influxdb.DashboardService
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -377,13 +379,13 @@ func TestDashboardService_DeleteDashboard(t *testing.T) {
 			name: "authorized to delete dashboard",
 			fields: fields{
 				DashboardService: &mock.DashboardService{
-					FindDashboardByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+					FindDashboardByIDF: func(ctc context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 						return &influxdb.Dashboard{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					DeleteDashboardF: func(ctx context.Context, id influxdb.ID) error {
+					DeleteDashboardF: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -415,13 +417,13 @@ func TestDashboardService_DeleteDashboard(t *testing.T) {
 			name: "unauthorized to delete dashboard",
 			fields: fields{
 				DashboardService: &mock.DashboardService{
-					FindDashboardByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+					FindDashboardByIDF: func(ctc context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 						return &influxdb.Dashboard{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					DeleteDashboardF: func(ctx context.Context, id influxdb.ID) error {
+					DeleteDashboardF: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -439,9 +441,9 @@ func TestDashboardService_DeleteDashboard(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/dashboards/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -466,7 +468,7 @@ func TestDashboardService_CreateDashboard(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		orgID      influxdb.ID
+		orgID      platform.ID
 	}
 	type wants struct {
 		err error
@@ -521,9 +523,9 @@ func TestDashboardService_CreateDashboard(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/dashboards is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -548,7 +550,7 @@ func TestDashboardService_WriteDashboardCell(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		orgID      influxdb.ID
+		orgID      platform.ID
 	}
 	type wants struct {
 		err error
@@ -564,25 +566,25 @@ func TestDashboardService_WriteDashboardCell(t *testing.T) {
 			name: "authorized to write dashboard cells/cell/view",
 			fields: fields{
 				DashboardService: &mock.DashboardService{
-					FindDashboardByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 						return &influxdb.Dashboard{
 							ID:             id,
 							OrganizationID: 10,
 						}, nil
 					},
-					AddDashboardCellF: func(ctx context.Context, id influxdb.ID, c *influxdb.Cell, opts influxdb.AddDashboardCellOptions) error {
+					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *influxdb.Cell, opts influxdb.AddDashboardCellOptions) error {
 						return nil
 					},
-					RemoveDashboardCellF: func(ctx context.Context, id influxdb.ID, cid influxdb.ID) error {
+					RemoveDashboardCellF: func(ctx context.Context, id platform.ID, cid platform.ID) error {
 						return nil
 					},
-					ReplaceDashboardCellsF: func(ctx context.Context, id influxdb.ID, cs []*influxdb.Cell) error {
+					ReplaceDashboardCellsF: func(ctx context.Context, id platform.ID, cs []*influxdb.Cell) error {
 						return nil
 					},
-					UpdateDashboardCellF: func(ctx context.Context, id influxdb.ID, cid influxdb.ID, upd influxdb.CellUpdate) (*influxdb.Cell, error) {
+					UpdateDashboardCellF: func(ctx context.Context, id platform.ID, cid platform.ID, upd influxdb.CellUpdate) (*influxdb.Cell, error) {
 						return &influxdb.Cell{}, nil
 					},
-					UpdateDashboardCellViewF: func(ctx context.Context, id influxdb.ID, cid influxdb.ID, upd influxdb.ViewUpdate) (*influxdb.View, error) {
+					UpdateDashboardCellViewF: func(ctx context.Context, id platform.ID, cid platform.ID, upd influxdb.ViewUpdate) (*influxdb.View, error) {
 						return &influxdb.View{}, nil
 					},
 				},
@@ -605,25 +607,25 @@ func TestDashboardService_WriteDashboardCell(t *testing.T) {
 			name: "unauthorized to write dashboard cells/cell/view",
 			fields: fields{
 				DashboardService: &mock.DashboardService{
-					FindDashboardByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 						return &influxdb.Dashboard{
 							ID:             id,
 							OrganizationID: 10,
 						}, nil
 					},
-					AddDashboardCellF: func(ctx context.Context, id influxdb.ID, c *influxdb.Cell, opts influxdb.AddDashboardCellOptions) error {
+					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *influxdb.Cell, opts influxdb.AddDashboardCellOptions) error {
 						return nil
 					},
-					ReplaceDashboardCellsF: func(ctx context.Context, id influxdb.ID, cs []*influxdb.Cell) error {
+					ReplaceDashboardCellsF: func(ctx context.Context, id platform.ID, cs []*influxdb.Cell) error {
 						return nil
 					},
-					UpdateDashboardCellF: func(ctx context.Context, id influxdb.ID, cid influxdb.ID, upd influxdb.CellUpdate) (*influxdb.Cell, error) {
+					UpdateDashboardCellF: func(ctx context.Context, id platform.ID, cid platform.ID, upd influxdb.CellUpdate) (*influxdb.Cell, error) {
 						return &influxdb.Cell{}, nil
 					},
-					RemoveDashboardCellF: func(ctx context.Context, id influxdb.ID, cid influxdb.ID) error {
+					RemoveDashboardCellF: func(ctx context.Context, id platform.ID, cid platform.ID) error {
 						return nil
 					},
-					UpdateDashboardCellViewF: func(ctx context.Context, id influxdb.ID, cid influxdb.ID, upd influxdb.ViewUpdate) (*influxdb.View, error) {
+					UpdateDashboardCellViewF: func(ctx context.Context, id platform.ID, cid platform.ID, upd influxdb.ViewUpdate) (*influxdb.View, error) {
 						return &influxdb.View{}, nil
 					},
 				},
@@ -639,9 +641,9 @@ func TestDashboardService_WriteDashboardCell(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/dashboards/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -678,7 +680,7 @@ func TestDashboardService_FindDashboardCellView(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		orgID      influxdb.ID
+		orgID      platform.ID
 	}
 	type wants struct {
 		err error
@@ -694,13 +696,13 @@ func TestDashboardService_FindDashboardCellView(t *testing.T) {
 			name: "authorized to read dashboard cells/cell/view",
 			fields: fields{
 				DashboardService: &mock.DashboardService{
-					FindDashboardByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 						return &influxdb.Dashboard{
 							ID:             id,
 							OrganizationID: 10,
 						}, nil
 					},
-					GetDashboardCellViewF: func(ctx context.Context, id influxdb.ID, cid influxdb.ID) (*influxdb.View, error) {
+					GetDashboardCellViewF: func(ctx context.Context, id platform.ID, cid platform.ID) (*influxdb.View, error) {
 						return &influxdb.View{}, nil
 					},
 				},
@@ -723,13 +725,13 @@ func TestDashboardService_FindDashboardCellView(t *testing.T) {
 			name: "unauthorized to read dashboard cells/cell/view",
 			fields: fields{
 				DashboardService: &mock.DashboardService{
-					FindDashboardByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 						return &influxdb.Dashboard{
 							ID:             id,
 							OrganizationID: 10,
 						}, nil
 					},
-					GetDashboardCellViewF: func(ctx context.Context, id influxdb.ID, cid influxdb.ID) (*influxdb.View, error) {
+					GetDashboardCellViewF: func(ctx context.Context, id platform.ID, cid platform.ID) (*influxdb.View, error) {
 						return &influxdb.View{}, nil
 					},
 				},
@@ -745,9 +747,9 @@ func TestDashboardService_FindDashboardCellView(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/000000000000000a/dashboards/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},

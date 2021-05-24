@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )
@@ -72,7 +74,7 @@ func (s *AuthorizationClientService) FindAuthorizationByToken(ctx context.Contex
 }
 
 // FindAuthorizationByID finds a single Authorization by its ID against a remote influx server.
-func (s *AuthorizationClientService) FindAuthorizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Authorization, error) {
+func (s *AuthorizationClientService) FindAuthorizationByID(ctx context.Context, id platform.ID) (*influxdb.Authorization, error) {
 	var b influxdb.Authorization
 	err := s.Client.
 		Get(prefixAuthorization, id.String()).
@@ -85,7 +87,7 @@ func (s *AuthorizationClientService) FindAuthorizationByID(ctx context.Context, 
 }
 
 // UpdateAuthorization updates the status and description if available.
-func (s *AuthorizationClientService) UpdateAuthorization(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
+func (s *AuthorizationClientService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
 	var res authResponse
 	err := s.Client.
 		PatchJSON(upd, prefixAuthorization, id.String()).
@@ -99,7 +101,7 @@ func (s *AuthorizationClientService) UpdateAuthorization(ctx context.Context, id
 }
 
 // DeleteAuthorization removes a authorization by id.
-func (s *AuthorizationClientService) DeleteAuthorization(ctx context.Context, id influxdb.ID) error {
+func (s *AuthorizationClientService) DeleteAuthorization(ctx context.Context, id platform.ID) error {
 	return s.Client.
 		Delete(prefixAuthorization, id.String()).
 		Do(ctx)

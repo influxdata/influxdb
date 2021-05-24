@@ -3,6 +3,7 @@ package query_test
 import (
 	"bytes"
 	"context"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"io/ioutil"
 	"testing"
@@ -12,7 +13,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/metadata"
-	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/mock"
 	"github.com/opentracing/opentracing-go"
@@ -23,8 +23,8 @@ import (
 var orgID = MustIDBase16("ba55ba55ba55ba55")
 
 // MustIDBase16 is an helper to ensure a correct ID is built during testing.
-func MustIDBase16(s string) platform.ID {
-	id, err := platform.IDFromString(s)
+func MustIDBase16(s string) platform2.ID {
+	id, err := platform2.IDFromString(s)
 	if err != nil {
 		panic(err)
 	}

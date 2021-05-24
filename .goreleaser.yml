@@ -4,15 +4,19 @@ builds:
     goos:
       - linux
       - darwin
+      - windows
     goarch:
       - amd64
       - arm64
     ignore:
       - goos: darwin
         goarch: arm64
+      - goos: windows
+        goarch: arm64
     main: ./cmd/influx/
     flags:
       - -tags={{if eq .Os "linux"}}osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
+      - -buildmode={{if eq .Os "windows"}}exe{{else}}pie{{end}}
     env:
       - GO111MODULE=on
       - CGO_ENABLED=1
@@ -27,15 +31,19 @@ builds:
     goos:
       - linux
       - darwin
+      - windows
     goarch:
       - amd64
       - arm64
     ignore:
       - goos: darwin
         goarch: arm64
+      - goos: windows
+        goarch: arm64
     main: ./cmd/influxd/
     flags:
       - -tags=assets{{if eq .Os "linux"}},osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
+      - -buildmode={{if eq .Os "windows"}}exe{{else}}pie{{end}}
     env:
       - GO111MODULE=on
       - CGO_ENABLED=1
@@ -87,6 +95,9 @@ archives:
   - id: influx_only
     builds: ["influx"]
     format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
     wrap_in_directory: true
     name_template: "influxdb2-client-nightly-{{ .Os }}-{{ .Arch }}"
     files:
@@ -94,6 +105,9 @@ archives:
       - README.md
   - id: influx_and_influxd
     format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
     wrap_in_directory: true
     name_template: "influxdb2-nightly-{{ .Os }}-{{ .Arch }}"
     files:

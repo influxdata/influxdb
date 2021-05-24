@@ -189,6 +189,7 @@ func (c *compiledStatement) compile(stmt *influxql.SelectStatement) error {
 			if err := c.subquery(source.Statement); err != nil {
 				return err
 			}
+			source.Statement.RewriteRegexConditions()
 		}
 	}
 	return nil

@@ -3,6 +3,8 @@ package endpoint
 import (
 	"encoding/json"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -41,8 +43,8 @@ func (s PagerDuty) Valid() error {
 		return err
 	}
 	if s.RoutingKey.Key == "" {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "pagerduty routing key is invalid",
 		}
 	}

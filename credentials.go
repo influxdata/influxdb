@@ -1,12 +1,16 @@
 package influxdb
 
-import "context"
+import (
+	"context"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+)
 
 var (
 	// ErrCredentialsUnauthorized is the error returned when CredentialsV1 cannot be
 	// authorized.
-	ErrCredentialsUnauthorized = &Error{
-		Code: EUnauthorized,
+	ErrCredentialsUnauthorized = &errors.Error{
+		Code: errors.EUnauthorized,
 		Msg:  "Unauthorized",
 	}
 )

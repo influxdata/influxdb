@@ -12,6 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/go-chi/chi"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
@@ -419,10 +422,10 @@ func TestService_handleGetDashboard(t *testing.T) {
 			name: "get a dashboard by id with view properties",
 			fields: fields{
 				&mock.DashboardService{
-					GetDashboardCellViewF: func(ctx context.Context, dashboardID influxdb.ID, cellID influxdb.ID) (*influxdb.View, error) {
+					GetDashboardCellViewF: func(ctx context.Context, dashboardID platform.ID, cellID platform.ID) (*influxdb.View, error) {
 						return &influxdb.View{ViewContents: influxdb.ViewContents{Name: "the cell name"}, Properties: influxdb.XYViewProperties{Type: influxdb.ViewPropertyTypeXY}}, nil
 					},
-					FindDashboardByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 						if id == dashboardstesting.MustIDBase16("020f755c3c082000") {
 							return &influxdb.Dashboard{
 								ID:             dashboardstesting.MustIDBase16("020f755c3c082000"),
@@ -484,7 +487,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 			"axes": null,
 			"colors": null,
 			"geom": "",
-			"legend": {},
+			"staticLegend": {},
 			"position": "",
 			"note": "",
 			"queries": null,
@@ -529,10 +532,10 @@ func TestService_handleGetDashboard(t *testing.T) {
 			name: "get a dashboard by id with view properties, but a cell doesnt exist",
 			fields: fields{
 				&mock.DashboardService{
-					GetDashboardCellViewF: func(ctx context.Context, dashboardID influxdb.ID, cellID influxdb.ID) (*influxdb.View, error) {
+					GetDashboardCellViewF: func(ctx context.Context, dashboardID platform.ID, cellID platform.ID) (*influxdb.View, error) {
 						return nil, nil
 					},
-					FindDashboardByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 						if id == dashboardstesting.MustIDBase16("020f755c3c082000") {
 							return &influxdb.Dashboard{
 								ID:             dashboardstesting.MustIDBase16("020f755c3c082000"),
@@ -609,10 +612,10 @@ func TestService_handleGetDashboard(t *testing.T) {
 			name: "get a dashboard by id doesnt return cell properties if they exist by default",
 			fields: fields{
 				&mock.DashboardService{
-					GetDashboardCellViewF: func(ctx context.Context, dashboardID influxdb.ID, cellID influxdb.ID) (*influxdb.View, error) {
+					GetDashboardCellViewF: func(ctx context.Context, dashboardID platform.ID, cellID platform.ID) (*influxdb.View, error) {
 						return &influxdb.View{ViewContents: influxdb.ViewContents{Name: "the cell name"}, Properties: influxdb.XYViewProperties{Type: influxdb.ViewPropertyTypeXY}}, nil
 					},
-					FindDashboardByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 						if id == dashboardstesting.MustIDBase16("020f755c3c082000") {
 							return &influxdb.Dashboard{
 								ID:             dashboardstesting.MustIDBase16("020f755c3c082000"),
@@ -687,7 +690,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 			name: "get a dashboard by id",
 			fields: fields{
 				&mock.DashboardService{
-					FindDashboardByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 						if id == dashboardstesting.MustIDBase16("020f755c3c082000") {
 							return &influxdb.Dashboard{
 								ID:             dashboardstesting.MustIDBase16("020f755c3c082000"),
@@ -761,9 +764,9 @@ func TestService_handleGetDashboard(t *testing.T) {
 			name: "not found",
 			fields: fields{
 				&mock.DashboardService{
-					FindDashboardByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
-						return nil, &influxdb.Error{
-							Code: influxdb.ENotFound,
+					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Dashboard, error) {
+						return nil, &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  influxdb.ErrDashboardNotFound,
 						}
 					},
@@ -1010,7 +1013,7 @@ func TestService_handlePostDashboard(t *testing.T) {
 								"axes": null,
 								"colors": null,
 								"geom": "",
-								"legend": {},
+								"staticLegend": {},
 								"note": "note",
 								"position": "",
 								"queries": null,
@@ -1112,7 +1115,7 @@ func TestService_handleDeleteDashboard(t *testing.T) {
 			name: "remove a dashboard by id",
 			fields: fields{
 				&mock.DashboardService{
-					DeleteDashboardF: func(ctx context.Context, id influxdb.ID) error {
+					DeleteDashboardF: func(ctx context.Context, id platform.ID) error {
 						if id == dashboardstesting.MustIDBase16("020f755c3c082000") {
 							return nil
 						}
@@ -1132,9 +1135,9 @@ func TestService_handleDeleteDashboard(t *testing.T) {
 			name: "dashboard not found",
 			fields: fields{
 				&mock.DashboardService{
-					DeleteDashboardF: func(ctx context.Context, id influxdb.ID) error {
-						return &influxdb.Error{
-							Code: influxdb.ENotFound,
+					DeleteDashboardF: func(ctx context.Context, id platform.ID) error {
+						return &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  influxdb.ErrDashboardNotFound,
 						}
 					},
@@ -1214,7 +1217,7 @@ func TestService_handlePatchDashboard(t *testing.T) {
 			name: "update a dashboard name",
 			fields: fields{
 				&mock.DashboardService{
-					UpdateDashboardF: func(ctx context.Context, id influxdb.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
+					UpdateDashboardF: func(ctx context.Context, id platform.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
 						if id == dashboardstesting.MustIDBase16("020f755c3c082000") {
 							d := &influxdb.Dashboard{
 								ID:             dashboardstesting.MustIDBase16("020f755c3c082000"),
@@ -1295,7 +1298,7 @@ func TestService_handlePatchDashboard(t *testing.T) {
 			name: "update a dashboard with empty request body",
 			fields: fields{
 				&mock.DashboardService{
-					UpdateDashboardF: func(ctx context.Context, id influxdb.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
+					UpdateDashboardF: func(ctx context.Context, id platform.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
 						return nil, fmt.Errorf("not found")
 					},
 				},
@@ -1311,9 +1314,9 @@ func TestService_handlePatchDashboard(t *testing.T) {
 			name: "dashboard not found",
 			fields: fields{
 				&mock.DashboardService{
-					UpdateDashboardF: func(ctx context.Context, id influxdb.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
-						return nil, &influxdb.Error{
-							Code: influxdb.ENotFound,
+					UpdateDashboardF: func(ctx context.Context, id platform.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
+						return nil, &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  influxdb.ErrDashboardNotFound,
 						}
 					},
@@ -1405,7 +1408,7 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 			name: "empty body",
 			fields: fields{
 				&mock.DashboardService{
-					AddDashboardCellF: func(ctx context.Context, id influxdb.ID, c *influxdb.Cell, opt influxdb.AddDashboardCellOptions) error {
+					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *influxdb.Cell, opt influxdb.AddDashboardCellOptions) error {
 						c.ID = dashboardstesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
@@ -1424,7 +1427,7 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 			name: "no properties",
 			fields: fields{
 				&mock.DashboardService{
-					AddDashboardCellF: func(ctx context.Context, id influxdb.ID, c *influxdb.Cell, opt influxdb.AddDashboardCellOptions) error {
+					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *influxdb.Cell, opt influxdb.AddDashboardCellOptions) error {
 						c.ID = dashboardstesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
@@ -1448,7 +1451,7 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 			name: "bad dash id",
 			fields: fields{
 				&mock.DashboardService{
-					AddDashboardCellF: func(ctx context.Context, id influxdb.ID, c *influxdb.Cell, opt influxdb.AddDashboardCellOptions) error {
+					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *influxdb.Cell, opt influxdb.AddDashboardCellOptions) error {
 						c.ID = dashboardstesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
@@ -1472,11 +1475,11 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 			name: "general create a dashboard cell",
 			fields: fields{
 				&mock.DashboardService{
-					AddDashboardCellF: func(ctx context.Context, id influxdb.ID, c *influxdb.Cell, opt influxdb.AddDashboardCellOptions) error {
+					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *influxdb.Cell, opt influxdb.AddDashboardCellOptions) error {
 						c.ID = dashboardstesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
-					GetDashboardCellViewF: func(ctx context.Context, id1, id2 influxdb.ID) (*influxdb.View, error) {
+					GetDashboardCellViewF: func(ctx context.Context, id1, id2 platform.ID) (*influxdb.View, error) {
 						return &influxdb.View{
 							ViewContents: influxdb.ViewContents{
 								ID: dashboardstesting.MustIDBase16("020f755c3c082001"),
@@ -1576,7 +1579,7 @@ func TestService_handleDeleteDashboardCell(t *testing.T) {
 			name: "remove a dashboard cell",
 			fields: fields{
 				&mock.DashboardService{
-					RemoveDashboardCellF: func(ctx context.Context, id influxdb.ID, cellID influxdb.ID) error {
+					RemoveDashboardCellF: func(ctx context.Context, id platform.ID, cellID platform.ID) error {
 						return nil
 					},
 				},
@@ -1662,7 +1665,7 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 			name: "update a dashboard cell",
 			fields: fields{
 				&mock.DashboardService{
-					UpdateDashboardCellF: func(ctx context.Context, id, cellID influxdb.ID, upd influxdb.CellUpdate) (*influxdb.Cell, error) {
+					UpdateDashboardCellF: func(ctx context.Context, id, cellID platform.ID, upd influxdb.CellUpdate) (*influxdb.Cell, error) {
 						cell := &influxdb.Cell{
 							ID: dashboardstesting.MustIDBase16("020f755c3c082000"),
 						}
@@ -1764,12 +1767,12 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 
 func Test_dashboardCellIDPath(t *testing.T) {
 	t.Parallel()
-	dashboard, err := influxdb.IDFromString("deadbeefdeadbeef")
+	dashboard, err := platform.IDFromString("deadbeefdeadbeef")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	cell, err := influxdb.IDFromString("cade9a7ecade9a7e")
+	cell, err := platform.IDFromString("cade9a7ecade9a7e")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1833,7 +1836,7 @@ func TestService_handlePostDashboardLabel(t *testing.T) {
 	}
 	type args struct {
 		labelMapping *influxdb.LabelMapping
-		dashboardID  influxdb.ID
+		dashboardID  platform.ID
 	}
 	type wants struct {
 		statusCode  int
@@ -1851,7 +1854,7 @@ func TestService_handlePostDashboardLabel(t *testing.T) {
 			name: "add label to dashboard",
 			fields: fields{
 				LabelService: &mock.LabelService{
-					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
+					FindLabelByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:   1,
 							Name: "label",
@@ -1897,10 +1900,10 @@ func TestService_handlePostDashboardLabel(t *testing.T) {
 				zaptest.NewLogger(t),
 				withLabelService(tt.fields.LabelService),
 				withDashboardService(&mock.DashboardService{
-					FindDashboardByIDF: func(_ context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+					FindDashboardByIDF: func(_ context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 						return &influxdb.Dashboard{
 							ID:             id,
-							OrganizationID: influxdb.ID(25),
+							OrganizationID: platform.ID(25),
 						}, nil
 					},
 				}),

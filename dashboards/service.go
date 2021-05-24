@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	influxdb "github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/feature"
@@ -46,7 +49,7 @@ type Service struct {
 
 	opLog OpLogStore
 
-	IDGenerator   influxdb.IDGenerator
+	IDGenerator   platform.IDGenerator
 	TimeGenerator influxdb.TimeGenerator
 }
 
@@ -61,7 +64,7 @@ func NewService(store kv.Store, opLog OpLogStore) *Service {
 }
 
 // FindDashboardByID retrieves a dashboard by id.
-func (s *Service) FindDashboardByID(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+func (s *Service) FindDashboardByID(ctx context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 	var d *influxdb.Dashboard
 
 	err := s.kv.View(ctx, func(tx kv.Tx) error {
@@ -74,7 +77,7 @@ func (s *Service) FindDashboardByID(ctx context.Context, id influxdb.ID) (*influ
 	})
 
 	if err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 		}
 	}
@@ -82,10 +85,10 @@ func (s *Service) FindDashboardByID(ctx context.Context, id influxdb.ID) (*influ
 	return d, nil
 }
 
-func (s *Service) findDashboardByID(ctx context.Context, tx kv.Tx, id influxdb.ID) (*influxdb.Dashboard, error) {
+func (s *Service) findDashboardByID(ctx context.Context, tx kv.Tx, id platform.ID) (*influxdb.Dashboard, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 		}
 	}
@@ -97,8 +100,8 @@ func (s *Service) findDashboardByID(ctx context.Context, tx kv.Tx, id influxdb.I
 
 	v, err := b.Get(encodedID)
 	if kv.IsNotFound(err) {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  influxdb.ErrDashboardNotFound,
 		}
 	}
@@ -109,7 +112,7 @@ func (s *Service) findDashboardByID(ctx context.Context, tx kv.Tx, id influxdb.I
 
 	var d influxdb.Dashboard
 	if err := json.Unmarshal(v, &d); err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 		}
 	}
@@ -140,8 +143,8 @@ func (s *Service) FindDashboard(ctx context.Context, filter influxdb.DashboardFi
 	}
 
 	if d == nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  influxdb.ErrDashboardNotFound,
 		}
 	}
@@ -172,8 +175,8 @@ func (s *Service) FindDashboards(ctx context.Context, filter influxdb.DashboardF
 	ds := []*influxdb.Dashboard{}
 	if len(filter.IDs) == 1 {
 		d, err := s.FindDashboardByID(ctx, *filter.IDs[0])
-		if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
-			return ds, 0, &influxdb.Error{
+		if err != nil && errors.ErrorCode(err) != errors.ENotFound {
+			return ds, 0, &errors.Error{
 				Err: err,
 			}
 		}
@@ -184,7 +187,7 @@ func (s *Service) FindDashboards(ctx context.Context, filter influxdb.DashboardF
 	}
 	err := s.kv.View(ctx, func(tx kv.Tx) error {
 		dashs, err := s.findDashboards(ctx, tx, filter, opts)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
+		if err != nil && errors.ErrorCode(err) != errors.ENotFound {
 			return err
 		}
 		ds = dashs
@@ -192,7 +195,7 @@ func (s *Service) FindDashboards(ctx context.Context, filter influxdb.DashboardF
 	})
 
 	if err != nil {
-		return nil, 0, &influxdb.Error{
+		return nil, 0, &errors.Error{
 			Err: err,
 		}
 	}
@@ -202,7 +205,7 @@ func (s *Service) FindDashboards(ctx context.Context, filter influxdb.DashboardF
 	return ds, len(ds), nil
 }
 
-func (s *Service) findOrganizationDashboards(ctx context.Context, tx kv.Tx, orgID influxdb.ID, filter influxdb.DashboardFilter) ([]*influxdb.Dashboard, error) {
+func (s *Service) findOrganizationDashboards(ctx context.Context, tx kv.Tx, orgID platform.ID, filter influxdb.DashboardFilter) ([]*influxdb.Dashboard, error) {
 	idx, err := tx.Bucket(orgDashboardIndex)
 	if err != nil {
 		return nil, err
@@ -240,17 +243,17 @@ func (s *Service) findOrganizationDashboards(ctx context.Context, tx kv.Tx, orgI
 	return ds, nil
 }
 
-func decodeOrgDashboardIndexKey(indexKey []byte) (orgID influxdb.ID, dashID influxdb.ID, err error) {
-	if len(indexKey) != 2*influxdb.IDLength {
-		return 0, 0, &influxdb.Error{Code: influxdb.EInternal, Msg: "malformed org dashboard index key (please report this error)"}
+func decodeOrgDashboardIndexKey(indexKey []byte) (orgID platform.ID, dashID platform.ID, err error) {
+	if len(indexKey) != 2*platform.IDLength {
+		return 0, 0, &errors.Error{Code: errors.EInternal, Msg: "malformed org dashboard index key (please report this error)"}
 	}
 
-	if err := (&orgID).Decode(indexKey[:influxdb.IDLength]); err != nil {
-		return 0, 0, &influxdb.Error{Code: influxdb.EInternal, Msg: "bad org id", Err: influxdb.ErrInvalidID}
+	if err := (&orgID).Decode(indexKey[:platform.IDLength]); err != nil {
+		return 0, 0, &errors.Error{Code: errors.EInternal, Msg: "bad org id", Err: platform.ErrInvalidID}
 	}
 
-	if err := (&dashID).Decode(indexKey[influxdb.IDLength:]); err != nil {
-		return 0, 0, &influxdb.Error{Code: influxdb.EInternal, Msg: "bad dashboard id", Err: influxdb.ErrInvalidID}
+	if err := (&dashID).Decode(indexKey[platform.IDLength:]); err != nil {
+		return 0, 0, &errors.Error{Code: errors.EInternal, Msg: "bad dashboard id", Err: platform.ErrInvalidID}
 	}
 
 	return orgID, dashID, nil
@@ -276,7 +279,7 @@ func (s *Service) findDashboards(ctx context.Context, tx kv.Tx, filter influxdb.
 		if filter.OrganizationID != nil {
 			orgDashboards, err := s.findOrganizationDashboards(ctx, tx, *filter.OrganizationID, filter)
 			if err != nil {
-				return nil, &influxdb.Error{
+				return nil, &errors.Error{
 					Err: err,
 				}
 			}
@@ -349,14 +352,14 @@ func (s *Service) CreateDashboard(ctx context.Context, d *influxdb.Dashboard) er
 		return nil
 	})
 	if err != nil {
-		return &influxdb.Error{
+		return &errors.Error{
 			Err: err,
 		}
 	}
 	return nil
 }
 
-func (s *Service) createCellView(ctx context.Context, tx kv.Tx, dashID, cellID influxdb.ID, view *influxdb.View) error {
+func (s *Service) createCellView(ctx context.Context, tx kv.Tx, dashID, cellID platform.ID, view *influxdb.View) error {
 	if view == nil {
 		// If not view exists create the view
 		view = &influxdb.View{}
@@ -367,7 +370,7 @@ func (s *Service) createCellView(ctx context.Context, tx kv.Tx, dashID, cellID i
 }
 
 // ReplaceDashboardCells updates the positions of each cell in a dashboard concurrently.
-func (s *Service) ReplaceDashboardCells(ctx context.Context, id influxdb.ID, cs []*influxdb.Cell) error {
+func (s *Service) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs []*influxdb.Cell) error {
 	err := s.kv.Update(ctx, func(tx kv.Tx) error {
 		d, err := s.findDashboardByID(ctx, tx, id)
 		if err != nil {
@@ -381,15 +384,15 @@ func (s *Service) ReplaceDashboardCells(ctx context.Context, id influxdb.ID, cs 
 
 		for _, cell := range cs {
 			if !cell.ID.Valid() {
-				return &influxdb.Error{
-					Code: influxdb.EInvalid,
+				return &errors.Error{
+					Code: errors.EInvalid,
 					Msg:  "cannot provide empty cell id",
 				}
 			}
 
 			if _, ok := ids[cell.ID.String()]; !ok {
-				return &influxdb.Error{
-					Code: influxdb.EConflict,
+				return &errors.Error{
+					Code: errors.EConflict,
 					Msg:  "cannot replace cells that were not already present",
 				}
 			}
@@ -403,14 +406,14 @@ func (s *Service) ReplaceDashboardCells(ctx context.Context, id influxdb.ID, cs 
 		return s.putDashboardWithMeta(ctx, tx, d)
 	})
 	if err != nil {
-		return &influxdb.Error{
+		return &errors.Error{
 			Err: err,
 		}
 	}
 	return nil
 }
 
-func (s *Service) addDashboardCell(ctx context.Context, tx kv.Tx, id influxdb.ID, cell *influxdb.Cell, opts influxdb.AddDashboardCellOptions) error {
+func (s *Service) addDashboardCell(ctx context.Context, tx kv.Tx, id platform.ID, cell *influxdb.Cell, opts influxdb.AddDashboardCellOptions) error {
 	d, err := s.findDashboardByID(ctx, tx, id)
 	if err != nil {
 		return err
@@ -430,12 +433,12 @@ func (s *Service) addDashboardCell(ctx context.Context, tx kv.Tx, id influxdb.ID
 }
 
 // AddDashboardCell adds a cell to a dashboard and sets the cells ID.
-func (s *Service) AddDashboardCell(ctx context.Context, id influxdb.ID, cell *influxdb.Cell, opts influxdb.AddDashboardCellOptions) error {
+func (s *Service) AddDashboardCell(ctx context.Context, id platform.ID, cell *influxdb.Cell, opts influxdb.AddDashboardCellOptions) error {
 	err := s.kv.Update(ctx, func(tx kv.Tx) error {
 		return s.addDashboardCell(ctx, tx, id, cell, opts)
 	})
 	if err != nil {
-		return &influxdb.Error{
+		return &errors.Error{
 			Err: err,
 		}
 	}
@@ -443,11 +446,11 @@ func (s *Service) AddDashboardCell(ctx context.Context, id influxdb.ID, cell *in
 }
 
 // RemoveDashboardCell removes a cell from a dashboard.
-func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID, cellID influxdb.ID) error {
+func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID, cellID platform.ID) error {
 	return s.kv.Update(ctx, func(tx kv.Tx) error {
 		d, err := s.findDashboardByID(ctx, tx, dashboardID)
 		if err != nil {
-			return &influxdb.Error{
+			return &errors.Error{
 				Err: err,
 			}
 		}
@@ -460,14 +463,14 @@ func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID, cellID i
 			}
 		}
 		if idx == -1 {
-			return &influxdb.Error{
-				Code: influxdb.ENotFound,
+			return &errors.Error{
+				Code: errors.ENotFound,
 				Msg:  influxdb.ErrCellNotFound,
 			}
 		}
 
 		if err := s.deleteDashboardCellView(ctx, tx, d.ID, d.Cells[idx].ID); err != nil {
-			return &influxdb.Error{
+			return &errors.Error{
 				Err: err,
 			}
 		}
@@ -475,13 +478,13 @@ func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID, cellID i
 		d.Cells = append(d.Cells[:idx], d.Cells[idx+1:]...)
 
 		if err := s.appendDashboardEventToLog(ctx, tx, d.ID, dashboardCellRemovedEvent); err != nil {
-			return &influxdb.Error{
+			return &errors.Error{
 				Err: err,
 			}
 		}
 
 		if err := s.putDashboardWithMeta(ctx, tx, d); err != nil {
-			return &influxdb.Error{
+			return &errors.Error{
 				Err: err,
 			}
 		}
@@ -490,7 +493,7 @@ func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID, cellID i
 }
 
 // GetDashboardCellView retrieves the view for a dashboard cell.
-func (s *Service) GetDashboardCellView(ctx context.Context, dashboardID, cellID influxdb.ID) (*influxdb.View, error) {
+func (s *Service) GetDashboardCellView(ctx context.Context, dashboardID, cellID platform.ID) (*influxdb.View, error) {
 	var v *influxdb.View
 	err := s.kv.View(ctx, func(tx kv.Tx) error {
 		view, err := s.findDashboardCellView(ctx, tx, dashboardID, cellID)
@@ -503,7 +506,7 @@ func (s *Service) GetDashboardCellView(ctx context.Context, dashboardID, cellID 
 	})
 
 	if err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 		}
 	}
@@ -511,10 +514,10 @@ func (s *Service) GetDashboardCellView(ctx context.Context, dashboardID, cellID 
 	return v, nil
 }
 
-func (s *Service) findDashboardCellView(ctx context.Context, tx kv.Tx, dashboardID, cellID influxdb.ID) (*influxdb.View, error) {
+func (s *Service) findDashboardCellView(ctx context.Context, tx kv.Tx, dashboardID, cellID platform.ID) (*influxdb.View, error) {
 	k, err := encodeDashboardCellViewID(dashboardID, cellID)
 	if err != nil {
-		return nil, influxdb.NewError(influxdb.WithErrorErr(err))
+		return nil, errors.NewError(errors.WithErrorErr(err))
 	}
 
 	vb, err := tx.Bucket(dashboardCellViewBucket)
@@ -524,7 +527,7 @@ func (s *Service) findDashboardCellView(ctx context.Context, tx kv.Tx, dashboard
 
 	v, err := vb.Get(k)
 	if kv.IsNotFound(err) {
-		return nil, influxdb.NewError(influxdb.WithErrorCode(influxdb.ENotFound), influxdb.WithErrorMsg(influxdb.ErrViewNotFound))
+		return nil, errors.NewError(errors.WithErrorCode(errors.ENotFound), errors.WithErrorMsg(influxdb.ErrViewNotFound))
 	}
 
 	if err != nil {
@@ -533,16 +536,16 @@ func (s *Service) findDashboardCellView(ctx context.Context, tx kv.Tx, dashboard
 
 	view := &influxdb.View{}
 	if err := json.Unmarshal(v, view); err != nil {
-		return nil, influxdb.NewError(influxdb.WithErrorErr(err))
+		return nil, errors.NewError(errors.WithErrorErr(err))
 	}
 
 	return view, nil
 }
 
-func (s *Service) deleteDashboardCellView(ctx context.Context, tx kv.Tx, dashboardID, cellID influxdb.ID) error {
+func (s *Service) deleteDashboardCellView(ctx context.Context, tx kv.Tx, dashboardID, cellID platform.ID) error {
 	k, err := encodeDashboardCellViewID(dashboardID, cellID)
 	if err != nil {
-		return influxdb.NewError(influxdb.WithErrorErr(err))
+		return errors.NewError(errors.WithErrorErr(err))
 	}
 
 	vb, err := tx.Bucket(dashboardCellViewBucket)
@@ -551,21 +554,21 @@ func (s *Service) deleteDashboardCellView(ctx context.Context, tx kv.Tx, dashboa
 	}
 
 	if err := vb.Delete(k); err != nil {
-		return influxdb.NewError(influxdb.WithErrorErr(err))
+		return errors.NewError(errors.WithErrorErr(err))
 	}
 
 	return nil
 }
 
-func (s *Service) putDashboardCellView(ctx context.Context, tx kv.Tx, dashboardID, cellID influxdb.ID, view *influxdb.View) error {
+func (s *Service) putDashboardCellView(ctx context.Context, tx kv.Tx, dashboardID, cellID platform.ID, view *influxdb.View) error {
 	k, err := encodeDashboardCellViewID(dashboardID, cellID)
 	if err != nil {
-		return influxdb.NewError(influxdb.WithErrorErr(err))
+		return errors.NewError(errors.WithErrorErr(err))
 	}
 
 	v, err := json.Marshal(view)
 	if err != nil {
-		return influxdb.NewError(influxdb.WithErrorErr(err))
+		return errors.NewError(errors.WithErrorErr(err))
 	}
 
 	vb, err := tx.Bucket(dashboardCellViewBucket)
@@ -574,13 +577,13 @@ func (s *Service) putDashboardCellView(ctx context.Context, tx kv.Tx, dashboardI
 	}
 
 	if err := vb.Put(k, v); err != nil {
-		return influxdb.NewError(influxdb.WithErrorErr(err))
+		return errors.NewError(errors.WithErrorErr(err))
 	}
 
 	return nil
 }
 
-func encodeDashboardCellViewID(dashID, cellID influxdb.ID) ([]byte, error) {
+func encodeDashboardCellViewID(dashID, cellID platform.ID) ([]byte, error) {
 	did, err := dashID.Encode()
 	if err != nil {
 		return nil, err
@@ -604,7 +607,7 @@ func encodeDashboardCellViewID(dashID, cellID influxdb.ID) ([]byte, error) {
 }
 
 // UpdateDashboardCellView updates the view for a dashboard cell.
-func (s *Service) UpdateDashboardCellView(ctx context.Context, dashboardID, cellID influxdb.ID, upd influxdb.ViewUpdate) (*influxdb.View, error) {
+func (s *Service) UpdateDashboardCellView(ctx context.Context, dashboardID, cellID platform.ID, upd influxdb.ViewUpdate) (*influxdb.View, error) {
 	var v *influxdb.View
 
 	err := s.kv.Update(ctx, func(tx kv.Tx) error {
@@ -626,7 +629,7 @@ func (s *Service) UpdateDashboardCellView(ctx context.Context, dashboardID, cell
 	})
 
 	if err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 		}
 	}
@@ -635,9 +638,9 @@ func (s *Service) UpdateDashboardCellView(ctx context.Context, dashboardID, cell
 }
 
 // UpdateDashboardCell udpates a cell on a dashboard.
-func (s *Service) UpdateDashboardCell(ctx context.Context, dashboardID, cellID influxdb.ID, upd influxdb.CellUpdate) (*influxdb.Cell, error) {
+func (s *Service) UpdateDashboardCell(ctx context.Context, dashboardID, cellID platform.ID, upd influxdb.CellUpdate) (*influxdb.Cell, error) {
 	if err := upd.Valid(); err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 		}
 	}
@@ -657,8 +660,8 @@ func (s *Service) UpdateDashboardCell(ctx context.Context, dashboardID, cellID i
 			}
 		}
 		if idx == -1 {
-			return &influxdb.Error{
-				Code: influxdb.ENotFound,
+			return &errors.Error{
+				Code: errors.ENotFound,
 				Msg:  influxdb.ErrCellNotFound,
 			}
 		}
@@ -677,7 +680,7 @@ func (s *Service) UpdateDashboardCell(ctx context.Context, dashboardID, cellID i
 	})
 
 	if err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 		}
 	}
@@ -702,7 +705,7 @@ func (s *Service) PutDashboard(ctx context.Context, d *influxdb.Dashboard) error
 	})
 }
 
-func encodeOrgDashboardIndex(orgID influxdb.ID, dashID influxdb.ID) ([]byte, error) {
+func encodeOrgDashboardIndex(orgID platform.ID, dashID platform.ID) ([]byte, error) {
 	oid, err := orgID.Encode()
 	if err != nil {
 		return nil, err
@@ -817,7 +820,7 @@ func (s *Service) forEachDashboard(ctx context.Context, tx kv.Tx, descending boo
 }
 
 // UpdateDashboard updates a dashboard according the parameters set on upd.
-func (s *Service) UpdateDashboard(ctx context.Context, id influxdb.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
+func (s *Service) UpdateDashboard(ctx context.Context, id platform.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
 	if err := upd.Valid(); err != nil {
 		return nil, err
 	}
@@ -833,7 +836,7 @@ func (s *Service) UpdateDashboard(ctx context.Context, id influxdb.ID, upd influ
 		return nil
 	})
 	if err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 		}
 	}
@@ -841,7 +844,7 @@ func (s *Service) UpdateDashboard(ctx context.Context, id influxdb.ID, upd influ
 	return d, err
 }
 
-func (s *Service) updateDashboard(ctx context.Context, tx kv.Tx, id influxdb.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
+func (s *Service) updateDashboard(ctx context.Context, tx kv.Tx, id platform.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
 	d, err := s.findDashboardByID(ctx, tx, id)
 	if err != nil {
 		return nil, err
@@ -887,10 +890,10 @@ func (s *Service) updateDashboard(ctx context.Context, tx kv.Tx, id influxdb.ID,
 }
 
 // DeleteDashboard deletes a dashboard and prunes it from the index.
-func (s *Service) DeleteDashboard(ctx context.Context, id influxdb.ID) error {
+func (s *Service) DeleteDashboard(ctx context.Context, id platform.ID) error {
 	return s.kv.Update(ctx, func(tx kv.Tx) error {
 		if pe := s.deleteDashboard(ctx, tx, id); pe != nil {
-			return &influxdb.Error{
+			return &errors.Error{
 				Err: pe,
 			}
 		}
@@ -898,7 +901,7 @@ func (s *Service) DeleteDashboard(ctx context.Context, id influxdb.ID) error {
 	})
 }
 
-func (s *Service) deleteDashboard(ctx context.Context, tx kv.Tx, id influxdb.ID) error {
+func (s *Service) deleteDashboard(ctx context.Context, tx kv.Tx, id platform.ID) error {
 	d, err := s.findDashboardByID(ctx, tx, id)
 	if err != nil {
 		return err
@@ -906,7 +909,7 @@ func (s *Service) deleteDashboard(ctx context.Context, tx kv.Tx, id influxdb.ID)
 
 	for _, cell := range d.Cells {
 		if err := s.deleteDashboardCellView(ctx, tx, d.ID, cell.ID); err != nil {
-			return &influxdb.Error{
+			return &errors.Error{
 				Err: err,
 			}
 		}
@@ -914,13 +917,13 @@ func (s *Service) deleteDashboard(ctx context.Context, tx kv.Tx, id influxdb.ID)
 
 	encodedID, err := id.Encode()
 	if err != nil {
-		return &influxdb.Error{
+		return &errors.Error{
 			Err: err,
 		}
 	}
 
 	if err := s.removeOrganizationDashboardIndex(ctx, tx, d); err != nil {
-		return influxdb.NewError(influxdb.WithErrorErr(err))
+		return errors.NewError(errors.WithErrorErr(err))
 	}
 
 	b, err := tx.Bucket(dashboardBucket)
@@ -929,13 +932,13 @@ func (s *Service) deleteDashboard(ctx context.Context, tx kv.Tx, id influxdb.ID)
 	}
 
 	if err := b.Delete(encodedID); err != nil {
-		return &influxdb.Error{
+		return &errors.Error{
 			Err: err,
 		}
 	}
 
 	if err := s.appendDashboardEventToLog(ctx, tx, d.ID, dashboardRemovedEvent); err != nil {
-		return &influxdb.Error{
+		return &errors.Error{
 			Err: err,
 		}
 	}
@@ -945,7 +948,7 @@ func (s *Service) deleteDashboard(ctx context.Context, tx kv.Tx, id influxdb.ID)
 
 const dashboardOperationLogKeyPrefix = "dashboard"
 
-func encodeDashboardOperationLogKey(id influxdb.ID) ([]byte, error) {
+func encodeDashboardOperationLogKey(id platform.ID) ([]byte, error) {
 	buf, err := id.Encode()
 	if err != nil {
 		return nil, err
@@ -954,7 +957,7 @@ func encodeDashboardOperationLogKey(id influxdb.ID) ([]byte, error) {
 }
 
 // GetDashboardOperationLog retrieves a dashboards operation log.
-func (s *Service) GetDashboardOperationLog(ctx context.Context, id influxdb.ID, opts influxdb.FindOptions) ([]*influxdb.OperationLogEntry, int, error) {
+func (s *Service) GetDashboardOperationLog(ctx context.Context, id platform.ID, opts influxdb.FindOptions) ([]*influxdb.OperationLogEntry, int, error) {
 	// TODO(desa): might be worthwhile to allocate a slice of size opts.Limit
 	log := []*influxdb.OperationLogEntry{}
 
@@ -984,7 +987,7 @@ func (s *Service) GetDashboardOperationLog(ctx context.Context, id influxdb.ID, 
 	return log, len(log), nil
 }
 
-func (s *Service) appendDashboardEventToLog(ctx context.Context, tx kv.Tx, id influxdb.ID, st string) error {
+func (s *Service) appendDashboardEventToLog(ctx context.Context, tx kv.Tx, id platform.ID, st string) error {
 	e := &influxdb.OperationLogEntry{
 		Description: st,
 	}

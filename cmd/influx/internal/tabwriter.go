@@ -6,7 +6,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // TabWriter wraps tab writer headers logic.
@@ -62,7 +62,7 @@ func formatStringType(i interface{}) string {
 	switch i.(type) {
 	case int:
 		return "%d"
-	case platform.ID, string:
+	case platform2.ID, string:
 		return "%s"
 	}
 

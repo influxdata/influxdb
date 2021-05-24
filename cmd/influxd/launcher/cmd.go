@@ -33,8 +33,8 @@ const (
 // NewInfluxdCommand constructs the root of the influxd CLI, along with a `run` subcommand.
 // The `run` subcommand is set as the default to execute.
 func NewInfluxdCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
-	o := newOpts(v)
-	cliOpts := o.bindCliOpts()
+	o := NewOpts(v)
+	cliOpts := o.BindCliOpts()
 
 	prog := cli.Program{
 		Name: "influxd",
@@ -103,11 +103,10 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		l.log = logger
 
 		// Start the launcher and wait for it to exit on SIGINT or SIGTERM.
-		runCtx := signals.WithStandardSignals(ctx)
-		if err := l.run(runCtx, o); err != nil {
+		if err := l.run(signals.WithStandardSignals(ctx), o); err != nil {
 			return err
 		}
-		<-runCtx.Done()
+		<-l.Done()
 
 		// Tear down the launcher, allowing it a few seconds to finish any
 		// in-progress requests.
@@ -134,15 +133,20 @@ type InfluxdOpts struct {
 	SecretStore string
 	VaultConfig vault.Config
 
-	HttpBindAddress      string
-	HttpTLSCert          string
-	HttpTLSKey           string
-	HttpTLSMinVersion    string
-	HttpTLSStrictCiphers bool
-	SessionLength        int // in minutes
-	SessionRenewDisabled bool
+	HttpBindAddress       string
+	HttpReadHeaderTimeout time.Duration
+	HttpReadTimeout       time.Duration
+	HttpWriteTimeout      time.Duration
+	HttpIdleTimeout       time.Duration
+	HttpTLSCert           string
+	HttpTLSKey            string
+	HttpTLSMinVersion     string
+	HttpTLSStrictCiphers  bool
+	SessionLength         int // in minutes
+	SessionRenewDisabled  bool
 
 	ProfilingDisabled bool
+	MetricsDisabled   bool
 
 	NatsPort            int
 	NatsMaxPayloadBytes int
@@ -164,8 +168,8 @@ type InfluxdOpts struct {
 	Viper *viper.Viper
 }
 
-// newOpts constructs options with default values.
-func newOpts(viper *viper.Viper) *InfluxdOpts {
+// NewOpts constructs options with default values.
+func NewOpts(viper *viper.Viper) *InfluxdOpts {
 	dir, err := fs.InfluxDir()
 	if err != nil {
 		panic(fmt.Errorf("failed to determine influx directory: %v", err))
@@ -182,13 +186,16 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 		BoltPath:   filepath.Join(dir, bolt.DefaultFilename),
 		EnginePath: filepath.Join(dir, "engine"),
 
-		HttpBindAddress:      ":8086",
-		HttpTLSMinVersion:    "1.2",
-		HttpTLSStrictCiphers: false,
-		SessionLength:        60, // 60 minutes
-		SessionRenewDisabled: false,
+		HttpBindAddress:       ":8086",
+		HttpReadHeaderTimeout: 10 * time.Second,
+		HttpIdleTimeout:       3 * time.Minute,
+		HttpTLSMinVersion:     "1.2",
+		HttpTLSStrictCiphers:  false,
+		SessionLength:         60, // 60 minutes
+		SessionRenewDisabled:  false,
 
 		ProfilingDisabled: false,
+		MetricsDisabled:   false,
 
 		StoreType:   BoltStore,
 		SecretStore: BoltStore,
@@ -198,20 +205,20 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 
 		NoTasks: false,
 
-		ConcurrencyQuota:                10,
+		ConcurrencyQuota:                1024,
 		InitialMemoryBytesQuotaPerQuery: 0,
 		MemoryBytesQuotaPerQuery:        MaxInt,
 		MaxMemoryBytes:                  0,
-		QueueSize:                       10,
+		QueueSize:                       1024,
 
 		Testing:                 false,
 		TestingAlwaysAllowSetup: false,
 	}
 }
 
-// bindCliOpts returns a list of options which can be added to a cobra command
+// BindCliOpts returns a list of options which can be added to a cobra command
 // in order to set options over the CLI.
-func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
+func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 	return []cli.Opt{
 		{
 			DestP:   &o.LogLevel,
@@ -223,12 +230,6 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			DestP: &o.TracingType,
 			Flag:  "tracing-type",
 			Desc:  fmt.Sprintf("supported tracing types are %s, %s", LogTracing, JaegerTracing),
-		},
-		{
-			DestP:   &o.HttpBindAddress,
-			Flag:    "http-bind-address",
-			Default: o.HttpBindAddress,
-			Desc:    "bind address for the REST HTTP API",
 		},
 		{
 			DestP:   &o.BoltPath,
@@ -339,6 +340,38 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			Flag:  "vault-token",
 			Desc:  "vault authentication token",
 		},
+
+		// HTTP options
+		{
+			DestP:   &o.HttpBindAddress,
+			Flag:    "http-bind-address",
+			Default: o.HttpBindAddress,
+			Desc:    "bind address for the REST HTTP API",
+		},
+		{
+			DestP:   &o.HttpReadHeaderTimeout,
+			Flag:    "http-read-header-timeout",
+			Default: o.HttpReadHeaderTimeout,
+			Desc:    "max duration the server should spend trying to read HTTP headers for new requests. Set to 0 for no timeout",
+		},
+		{
+			DestP:   &o.HttpReadTimeout,
+			Flag:    "http-read-timeout",
+			Default: o.HttpReadTimeout,
+			Desc:    "max duration the server should spend trying to read the entirety of new requests. Set to 0 for no timeout",
+		},
+		{
+			DestP:   &o.HttpWriteTimeout,
+			Flag:    "http-write-timeout",
+			Default: o.HttpWriteTimeout,
+			Desc:    "max duration the server should spend on processing+responding to requests. Set to 0 for no timeout",
+		},
+		{
+			DestP:   &o.HttpIdleTimeout,
+			Flag:    "http-idle-timeout",
+			Default: o.HttpIdleTimeout,
+			Desc:    "max duration the server should keep established connections alive while waiting for new requests. Set to 0 for no timeout",
+		},
 		{
 			DestP: &o.HttpTLSCert,
 			Flag:  "tls-cert",
@@ -359,8 +392,9 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			DestP:   &o.HttpTLSStrictCiphers,
 			Flag:    "tls-strict-ciphers",
 			Default: o.HttpTLSStrictCiphers,
-			Desc:    "Restrict accept ciphers to: ECDHE_RSA_WITH_AES_256_GCM_SHA384, ECDHE_RSA_WITH_AES_256_CBC_SHA, RSA_WITH_AES_256_GCM_SHA384, RSA_WITH_AES_256_CBC_SHA",
+			Desc:    "Restrict accept ciphers to: ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, ECDHE_RSA_WITH_AES_128_GCM_SHA256, ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, ECDHE_RSA_WITH_AES_256_GCM_SHA384, ECDHE_ECDSA_WITH_CHACHA20_POLY1305, ECDHE_RSA_WITH_CHACHA20_POLY1305",
 		},
+
 		{
 			DestP:   &o.NoTasks,
 			Flag:    "no-tasks",
@@ -371,7 +405,7 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			DestP:   &o.ConcurrencyQuota,
 			Flag:    "query-concurrency",
 			Default: o.ConcurrencyQuota,
-			Desc:    "the number of queries that are allowed to execute concurrently",
+			Desc:    "the number of queries that are allowed to execute concurrently. Set to 0 to allow an unlimited number of concurrent queries",
 		},
 		{
 			DestP:   &o.InitialMemoryBytesQuotaPerQuery,
@@ -389,13 +423,13 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			DestP:   &o.MaxMemoryBytes,
 			Flag:    "query-max-memory-bytes",
 			Default: o.MaxMemoryBytes,
-			Desc:    "the maximum amount of memory used for queries. If this is unset, then this number is query-concurrency * query-memory-bytes",
+			Desc:    "the maximum amount of memory used for queries. Can only be set when query-concurrency is limited. If this is unset, then this number is query-concurrency * query-memory-bytes",
 		},
 		{
 			DestP:   &o.QueueSize,
 			Flag:    "query-queue-size",
 			Default: o.QueueSize,
-			Desc:    "the number of queries that are allowed to be awaiting execution before new queries are rejected",
+			Desc:    "the number of queries that are allowed to be awaiting execution before new queries are rejected. Must be > 0 if query-concurrency is not unlimited",
 		},
 		{
 			DestP: &o.FeatureFlags,
@@ -518,6 +552,14 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			Flag:    "pprof-disabled",
 			Desc:    "Don't expose debugging information over HTTP at /debug/pprof",
 			Default: o.ProfilingDisabled,
+		},
+
+		// Metrics config
+		{
+			DestP:   &o.MetricsDisabled,
+			Flag:    "metrics-disabled",
+			Desc:    "Don't expose metrics over HTTP at /metrics",
+			Default: o.MetricsDisabled,
 		},
 	}
 }

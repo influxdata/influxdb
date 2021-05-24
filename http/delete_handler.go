@@ -8,6 +8,9 @@ import (
 	http "net/http"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/models"
+
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
@@ -20,7 +23,7 @@ import (
 // the DeleteHandler.
 type DeleteBackend struct {
 	log *zap.Logger
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 
 	DeleteService       influxdb.DeleteService
 	BucketService       influxdb.BucketService
@@ -41,7 +44,7 @@ func NewDeleteBackend(log *zap.Logger, b *APIBackend) *DeleteBackend {
 
 // DeleteHandler receives a delete request with a predicate and sends it to storage.
 type DeleteHandler struct {
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	*httprouter.Router
 
 	log *zap.Logger
@@ -53,6 +56,11 @@ type DeleteHandler struct {
 
 const (
 	prefixDelete = "/api/v2/delete"
+)
+
+var (
+	msgStartTooSoon = fmt.Sprintf("invalid start time, start time must not be before %s", time.Unix(0, models.MinNanoTime).UTC().Format(time.RFC3339Nano))
+	msgStopTooLate  = fmt.Sprintf("invalid stop time, stop time must not be after %s", time.Unix(0, models.MaxNanoTime).UTC().Format(time.RFC3339Nano))
 )
 
 // NewDeleteHandler creates a new handler at /api/v2/delete to receive delete requests.
@@ -96,8 +104,8 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 
 	p, err := influxdb.NewPermissionAtID(dr.Bucket.ID, influxdb.WriteAction, influxdb.BucketsResourceType, dr.Org.ID)
 	if err != nil {
-		h.HandleHTTPError(ctx, &influxdb.Error{
-			Code: influxdb.EInternal,
+		h.HandleHTTPError(ctx, &errors.Error{
+			Code: errors.EInternal,
 			Op:   "http/handleDelete",
 			Msg:  fmt.Sprintf("unable to create permission for bucket: %v", err),
 			Err:  err,
@@ -106,8 +114,8 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if pset, err := a.PermissionSet(); err != nil || !pset.Allowed(*p) {
-		h.HandleHTTPError(ctx, &influxdb.Error{
-			Code: influxdb.EForbidden,
+		h.HandleHTTPError(ctx, &errors.Error{
+			Code: errors.EForbidden,
 			Op:   "http/handleDelete",
 			Msg:  "insufficient permissions to delete",
 		}, w)
@@ -115,8 +123,8 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.DeleteService.DeleteBucketRangePredicate(r.Context(), dr.Org.ID, dr.Bucket.ID, dr.Start, dr.Stop, dr.Predicate); err != nil {
-		h.HandleHTTPError(ctx, &influxdb.Error{
-			Code: influxdb.EInternal,
+		h.HandleHTTPError(ctx, &errors.Error{
+			Code: errors.EInternal,
 			Op:   "http/handleDelete",
 			Msg:  fmt.Sprintf("unable to delete: %v", err),
 			Err:  err,
@@ -136,8 +144,8 @@ func decodeDeleteRequest(ctx context.Context, r *http.Request, orgSvc influxdb.O
 	dr := new(deleteRequest)
 	err := json.NewDecoder(r.Body).Decode(dr)
 	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "invalid request; error parsing request json",
 			Err:  err,
 		}
@@ -180,8 +188,8 @@ type DeleteRequest struct {
 func (dr *deleteRequest) UnmarshalJSON(b []byte) error {
 	var drd deleteRequestDecode
 	if err := json.Unmarshal(b, &drd); err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Invalid delete predicate node request",
 			Err:  err,
 		}
@@ -189,20 +197,34 @@ func (dr *deleteRequest) UnmarshalJSON(b []byte) error {
 	*dr = deleteRequest{}
 	start, err := time.Parse(time.RFC3339Nano, drd.Start)
 	if err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Op:   "http/Delete",
 			Msg:  "invalid RFC3339Nano for field start, please format your time with RFC3339Nano format, example: 2009-01-02T23:00:00Z",
+		}
+	}
+	if err = models.CheckTime(start); err != nil {
+		return &errors.Error{
+			Code: errors.EInvalid,
+			Op:   "http/Delete",
+			Msg:  msgStartTooSoon,
 		}
 	}
 	dr.Start = start.UnixNano()
 
 	stop, err := time.Parse(time.RFC3339Nano, drd.Stop)
 	if err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Op:   "http/Delete",
 			Msg:  "invalid RFC3339Nano for field stop, please format your time with RFC3339Nano format, example: 2009-01-01T23:00:00Z",
+		}
+	}
+	if err = models.CheckTime(stop); err != nil {
+		return &errors.Error{
+			Code: errors.EInvalid,
+			Op:   "http/Delete",
+			Msg:  msgStopTooLate,
 		}
 	}
 	dr.Stop = stop.UnixNano()

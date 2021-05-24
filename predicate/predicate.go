@@ -2,6 +2,7 @@ package predicate
 
 import (
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 )
@@ -25,8 +26,8 @@ func New(n Node) (influxdb.Predicate, error) {
 		Root: dt,
 	})
 	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}

@@ -3,7 +3,9 @@ package authorization
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2/kv"
 )
 
@@ -14,15 +16,15 @@ var (
 // UnavailablePasswordServiceError is used if we aren't able to add the
 // password to the store, it means the store is not available at the moment
 // (e.g. network).
-func UnavailablePasswordServiceError(err error) *influxdb.Error {
-	return &influxdb.Error{
-		Code: influxdb.EInternal,
+func UnavailablePasswordServiceError(err error) *errors.Error {
+	return &errors.Error{
+		Code: errors.EInternal,
 		Msg:  "unable to access password bucket",
 		Err:  err,
 	}
 }
 
-func (s *Store) GetPassword(ctx context.Context, tx kv.Tx, id influxdb.ID) (string, error) {
+func (s *Store) GetPassword(ctx context.Context, tx kv.Tx, id platform.ID) (string, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return "", ErrInvalidAuthIDError(err)
@@ -38,7 +40,7 @@ func (s *Store) GetPassword(ctx context.Context, tx kv.Tx, id influxdb.ID) (stri
 	return string(passwd), err
 }
 
-func (s *Store) SetPassword(ctx context.Context, tx kv.Tx, id influxdb.ID, password string) error {
+func (s *Store) SetPassword(ctx context.Context, tx kv.Tx, id platform.ID, password string) error {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return ErrInvalidAuthIDError(err)
@@ -52,7 +54,7 @@ func (s *Store) SetPassword(ctx context.Context, tx kv.Tx, id influxdb.ID, passw
 	return b.Put(encodedID, []byte(password))
 }
 
-func (s *Store) DeletePassword(ctx context.Context, tx kv.Tx, id influxdb.ID) error {
+func (s *Store) DeletePassword(ctx context.Context, tx kv.Tx, id platform.ID) error {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return ErrInvalidAuthIDError(err)

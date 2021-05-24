@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"go.uber.org/zap"
 )
 
@@ -25,7 +26,7 @@ func MWLogging(log *zap.Logger) SVCMiddleware {
 
 var _ SVC = (*loggingMW)(nil)
 
-func (s *loggingMW) InitStack(ctx context.Context, userID influxdb.ID, newStack StackCreate) (stack Stack, err error) {
+func (s *loggingMW) InitStack(ctx context.Context, userID platform.ID, newStack StackCreate) (stack Stack, err error) {
 	defer func(start time.Time) {
 		if err == nil {
 			return
@@ -43,7 +44,7 @@ func (s *loggingMW) InitStack(ctx context.Context, userID influxdb.ID, newStack 
 	return s.next.InitStack(ctx, userID, newStack)
 }
 
-func (s *loggingMW) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (_ Stack, err error) {
+func (s *loggingMW) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) (_ Stack, err error) {
 	defer func(start time.Time) {
 		if err == nil {
 			return
@@ -61,7 +62,7 @@ func (s *loggingMW) UninstallStack(ctx context.Context, identifiers struct{ OrgI
 	return s.next.UninstallStack(ctx, identifiers)
 }
 
-func (s *loggingMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (err error) {
+func (s *loggingMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) (err error) {
 	defer func(start time.Time) {
 		if err == nil {
 			return
@@ -79,7 +80,7 @@ func (s *loggingMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, 
 	return s.next.DeleteStack(ctx, identifiers)
 }
 
-func (s *loggingMW) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) (stacks []Stack, err error) {
+func (s *loggingMW) ListStacks(ctx context.Context, orgID platform.ID, f ListFilter) (stacks []Stack, err error) {
 	defer func(start time.Time) {
 		if err == nil {
 			return
@@ -102,7 +103,7 @@ func (s *loggingMW) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFil
 	return s.next.ListStacks(ctx, orgID, f)
 }
 
-func (s *loggingMW) ReadStack(ctx context.Context, id influxdb.ID) (st Stack, err error) {
+func (s *loggingMW) ReadStack(ctx context.Context, id platform.ID) (st Stack, err error) {
 	defer func(start time.Time) {
 		if err != nil {
 			s.logger.Error("failed to read stack",
@@ -153,7 +154,7 @@ func (s *loggingMW) Export(ctx context.Context, opts ...ExportOptFn) (template *
 	return s.next.Export(ctx, opts...)
 }
 
-func (s *loggingMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (impact ImpactSummary, err error) {
+func (s *loggingMW) DryRun(ctx context.Context, orgID, userID platform.ID, opts ...ApplyOptFn) (impact ImpactSummary, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -181,7 +182,7 @@ func (s *loggingMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts 
 	return s.next.DryRun(ctx, orgID, userID, opts...)
 }
 
-func (s *loggingMW) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (impact ImpactSummary, err error) {
+func (s *loggingMW) Apply(ctx context.Context, orgID, userID platform.ID, opts ...ApplyOptFn) (impact ImpactSummary, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {

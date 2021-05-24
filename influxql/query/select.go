@@ -8,7 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	iql "github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/influxql/query/internal/gota"
 	"github.com/influxdata/influxql"
@@ -23,7 +24,7 @@ var DefaultTypeMapper = influxql.MultiTypeMapper(
 // SelectOptions are options that customize the select call.
 type SelectOptions struct {
 	// OrgID is the organization for which this query is being executed.
-	OrgID influxdb.ID
+	OrgID platform.ID
 
 	// Node to exclusively read from.
 	// If zero, all nodes are used.

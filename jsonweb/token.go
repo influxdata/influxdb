@@ -3,6 +3,8 @@ package jsonweb
 import (
 	"errors"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/influxdata/influxdb/v2"
 )
@@ -100,10 +102,10 @@ func (t *Token) PermissionSet() (influxdb.PermissionSet, error) {
 
 // Identifier returns the identifier for this Token
 // as found in the standard claims
-func (t *Token) Identifier() influxdb.ID {
-	id, err := influxdb.IDFromString(t.Id)
+func (t *Token) Identifier() platform.ID {
+	id, err := platform.IDFromString(t.Id)
 	if err != nil || id == nil {
-		return influxdb.ID(1)
+		return platform.ID(1)
 	}
 
 	return *id
@@ -111,10 +113,10 @@ func (t *Token) Identifier() influxdb.ID {
 
 // GetUserID returns an invalid id as tokens are generated
 // with permissions rather than for or by a particular user
-func (t *Token) GetUserID() influxdb.ID {
-	id, err := influxdb.IDFromString(t.UserID)
+func (t *Token) GetUserID() platform.ID {
+	id, err := platform.IDFromString(t.UserID)
 	if err != nil {
-		return influxdb.InvalidID()
+		return platform.InvalidID()
 	}
 	return *id
 }
@@ -125,7 +127,7 @@ func (t *Token) Kind() string {
 }
 
 // EphemeralAuth creates a influxdb Auth form a jwt token
-func (t *Token) EphemeralAuth(orgID influxdb.ID) *influxdb.Authorization {
+func (t *Token) EphemeralAuth(orgID platform.ID) *influxdb.Authorization {
 	return &influxdb.Authorization{
 		ID:          t.Identifier(),
 		OrgID:       orgID,

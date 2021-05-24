@@ -3,11 +3,13 @@ package authorizer
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
 type OrgIDResolver interface {
-	FindResourceOrganizationID(ctx context.Context, rt influxdb.ResourceType, id influxdb.ID) (influxdb.ID, error)
+	FindResourceOrganizationID(ctx context.Context, rt influxdb.ResourceType, id platform.ID) (platform.ID, error)
 }
 
 type URMService struct {
@@ -41,7 +43,7 @@ func (s *URMService) CreateUserResourceMapping(ctx context.Context, m *influxdb.
 	return s.s.CreateUserResourceMapping(ctx, m)
 }
 
-func (s *URMService) DeleteUserResourceMapping(ctx context.Context, resourceID influxdb.ID, userID influxdb.ID) error {
+func (s *URMService) DeleteUserResourceMapping(ctx context.Context, resourceID platform.ID, userID platform.ID) error {
 	f := influxdb.UserResourceMappingFilter{ResourceID: resourceID, UserID: userID}
 	urms, _, err := s.s.FindUserResourceMappings(ctx, f)
 	if err != nil {

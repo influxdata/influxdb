@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"go.uber.org/zap/zaptest"
 )
@@ -31,7 +32,7 @@ func TestCheckService(t *testing.T) {
 	CheckService(initCheckService, t)
 }
 
-func initCheckService(f CheckFields, t *testing.T) (influxdb.CheckService, influxdb.TaskService, string, func()) {
+func initCheckService(f CheckFields, t *testing.T) (influxdb.CheckService, taskmodel.TaskService, string, func()) {
 	store, closeKVStore := NewKVTestStore(t)
 	logger := zaptest.NewLogger(t)
 

@@ -36,9 +36,14 @@
           "legendColorizeRows": true,
           "legendOpacity": 1.0,
           "legendOrientationThreshold": 5,
-          "legend": {
-            "type": "leg_type",
-            "orientation": "horizontal"
+          "staticLegend": {
+            "colorizeRows": true,
+            "heightRatio": 0.2,
+            "hide": false,
+            "opacity": 1.0,
+            "orientationThreshold": 5,
+            "valueAxis": "y",
+            "widthRatio": 1.0
           },
           "queries": [
             {

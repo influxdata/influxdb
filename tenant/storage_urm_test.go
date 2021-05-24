@@ -3,6 +3,8 @@ package tenant_test
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"reflect"
 	"sort"
 	"testing"
@@ -17,7 +19,7 @@ func TestURM(t *testing.T) {
 	simpleSetup := func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 		for i := 1; i <= 10; i++ {
 			// User must exist to create urm.
-			uid := influxdb.ID(i + 1)
+			uid := platform.ID(i + 1)
 			err := store.CreateUser(context.Background(), tx, &influxdb.User{
 				ID:   uid,
 				Name: fmt.Sprintf("user%d", i),
@@ -30,7 +32,7 @@ func TestURM(t *testing.T) {
 				UserType:     influxdb.Owner,
 				MappingType:  influxdb.UserMappingType,
 				ResourceType: influxdb.OrgsResourceType,
-				ResourceID:   influxdb.ID(i%2 + 1),
+				ResourceID:   platform.ID(i%2 + 1),
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -59,11 +61,11 @@ func TestURM(t *testing.T) {
 				var expected []*influxdb.UserResourceMapping
 				for i := 1; i <= 10; i++ {
 					expected = append(expected, &influxdb.UserResourceMapping{
-						UserID:       influxdb.ID(i + 1),
+						UserID:       platform.ID(i + 1),
 						UserType:     influxdb.Owner,
 						MappingType:  influxdb.UserMappingType,
 						ResourceType: influxdb.OrgsResourceType,
-						ResourceID:   influxdb.ID(i%2 + 1),
+						ResourceID:   platform.ID(i%2 + 1),
 					})
 				}
 				sort.Slice(expected, func(i, j int) bool {
@@ -88,7 +90,7 @@ func TestURM(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				maxID := influxdb.ID(0)
+				maxID := platform.ID(0)
 				for _, u := range users {
 					if u.ID > maxID {
 						maxID = u.ID
@@ -100,11 +102,11 @@ func TestURM(t *testing.T) {
 					UserType:     influxdb.Owner,
 					MappingType:  influxdb.UserMappingType,
 					ResourceType: influxdb.OrgsResourceType,
-					ResourceID:   influxdb.ID(1),
+					ResourceID:   platform.ID(1),
 				})
 				if err == nil {
 					t.Fatal("expected error got none")
-				} else if influxdb.ErrorCode(err) != influxdb.ENotFound {
+				} else if errors.ErrorCode(err) != errors.ENotFound {
 					t.Fatalf("expected not found error got: %v", err)
 				}
 			},
@@ -150,11 +152,11 @@ func TestURM(t *testing.T) {
 				var expected []*influxdb.UserResourceMapping
 				for i := 1; i <= 10; i++ {
 					expected = append(expected, &influxdb.UserResourceMapping{
-						UserID:       influxdb.ID(i + 1),
+						UserID:       platform.ID(i + 1),
 						UserType:     influxdb.Owner,
 						MappingType:  influxdb.UserMappingType,
 						ResourceType: influxdb.OrgsResourceType,
-						ResourceID:   influxdb.ID(i%2 + 1),
+						ResourceID:   platform.ID(i%2 + 1),
 					})
 				}
 				sort.Slice(expected, func(i, j int) bool {
@@ -169,7 +171,7 @@ func TestURM(t *testing.T) {
 					t.Fatalf("expected identical urms: \n%s", cmp.Diff(urms, expected))
 				}
 
-				urms, err = store.ListURMs(context.Background(), tx, influxdb.UserResourceMappingFilter{ResourceID: influxdb.ID(1)})
+				urms, err = store.ListURMs(context.Background(), tx, influxdb.UserResourceMappingFilter{ResourceID: platform.ID(1)})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -187,7 +189,7 @@ func TestURM(t *testing.T) {
 		{
 			name: "list by user with limit",
 			setup: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
-				uid := influxdb.ID(1)
+				uid := platform.ID(1)
 				err := store.CreateUser(context.Background(), tx, &influxdb.User{
 					ID:   uid,
 					Name: "user",
@@ -202,7 +204,7 @@ func TestURM(t *testing.T) {
 						UserType:     influxdb.Owner,
 						MappingType:  influxdb.UserMappingType,
 						ResourceType: influxdb.OrgsResourceType,
-						ResourceID:   influxdb.ID(i + 1),
+						ResourceID:   platform.ID(i + 1),
 					})
 					if err != nil {
 						t.Fatal(err)
@@ -210,7 +212,7 @@ func TestURM(t *testing.T) {
 				}
 			},
 			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
-				urms, err := store.ListURMs(context.Background(), tx, influxdb.UserResourceMappingFilter{UserID: influxdb.ID(1)}, influxdb.FindOptions{Limit: 10})
+				urms, err := store.ListURMs(context.Background(), tx, influxdb.UserResourceMappingFilter{UserID: platform.ID(1)}, influxdb.FindOptions{Limit: 10})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -221,11 +223,11 @@ func TestURM(t *testing.T) {
 				var expected []*influxdb.UserResourceMapping
 				for i := 1; i <= 10; i++ {
 					expected = append(expected, &influxdb.UserResourceMapping{
-						UserID:       influxdb.ID(1),
+						UserID:       platform.ID(1),
 						UserType:     influxdb.Owner,
 						MappingType:  influxdb.UserMappingType,
 						ResourceType: influxdb.OrgsResourceType,
-						ResourceID:   influxdb.ID(i + 1),
+						ResourceID:   platform.ID(i + 1),
 					})
 				}
 				sort.Slice(expected, func(i, j int) bool {
@@ -244,7 +246,7 @@ func TestURM(t *testing.T) {
 		{
 			name: "list by user with limit and offset",
 			setup: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
-				uid := influxdb.ID(1)
+				uid := platform.ID(1)
 				err := store.CreateUser(context.Background(), tx, &influxdb.User{
 					ID:   uid,
 					Name: "user",
@@ -259,7 +261,7 @@ func TestURM(t *testing.T) {
 						UserType:     influxdb.Owner,
 						MappingType:  influxdb.UserMappingType,
 						ResourceType: influxdb.OrgsResourceType,
-						ResourceID:   influxdb.ID(i + 1),
+						ResourceID:   platform.ID(i + 1),
 					})
 					if err != nil {
 						t.Fatal(err)
@@ -271,7 +273,7 @@ func TestURM(t *testing.T) {
 					context.Background(),
 					tx,
 					influxdb.UserResourceMappingFilter{
-						UserID: influxdb.ID(1)},
+						UserID: platform.ID(1)},
 					influxdb.FindOptions{
 						Offset: 10,
 						Limit:  10,
@@ -287,11 +289,11 @@ func TestURM(t *testing.T) {
 				var expected []*influxdb.UserResourceMapping
 				for i := 11; i <= 20; i++ {
 					expected = append(expected, &influxdb.UserResourceMapping{
-						UserID:       influxdb.ID(1),
+						UserID:       platform.ID(1),
 						UserType:     influxdb.Owner,
 						MappingType:  influxdb.UserMappingType,
 						ResourceType: influxdb.OrgsResourceType,
-						ResourceID:   influxdb.ID(i + 1),
+						ResourceID:   platform.ID(i + 1),
 					})
 				}
 				sort.Slice(expected, func(i, j int) bool {

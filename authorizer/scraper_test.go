@@ -3,6 +3,8 @@ package authorizer_test
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
 
@@ -33,7 +35,7 @@ func TestScraperTargetStoreService_GetTargetByID(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		id         influxdb.ID
+		id         platform.ID
 	}
 	type wants struct {
 		err error
@@ -49,7 +51,7 @@ func TestScraperTargetStoreService_GetTargetByID(t *testing.T) {
 			name: "authorized to access id",
 			fields: fields{
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					GetTargetByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.ScraperTarget, error) {
+					GetTargetByIDF: func(ctx context.Context, id platform.ID) (*influxdb.ScraperTarget, error) {
 						return &influxdb.ScraperTarget{
 							ID:    id,
 							OrgID: 10,
@@ -75,7 +77,7 @@ func TestScraperTargetStoreService_GetTargetByID(t *testing.T) {
 			name: "unauthorized to access id",
 			fields: fields{
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					GetTargetByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.ScraperTarget, error) {
+					GetTargetByIDF: func(ctx context.Context, id platform.ID) (*influxdb.ScraperTarget, error) {
 						return &influxdb.ScraperTarget{
 							ID:    id,
 							OrgID: 10,
@@ -94,9 +96,9 @@ func TestScraperTargetStoreService_GetTargetByID(t *testing.T) {
 				id: 1,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/000000000000000a/scrapers/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -249,8 +251,8 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 		ScraperTargetStoreService influxdb.ScraperTargetStoreService
 	}
 	type args struct {
-		id          influxdb.ID
-		bucketID    influxdb.ID
+		id          platform.ID
+		bucketID    platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -267,14 +269,14 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 			name: "authorized to update scraper",
 			fields: fields{
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					GetTargetByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.ScraperTarget, error) {
+					GetTargetByIDF: func(ctc context.Context, id platform.ID) (*influxdb.ScraperTarget, error) {
 						return &influxdb.ScraperTarget{
 							ID:       1,
 							OrgID:    10,
 							BucketID: 100,
 						}, nil
 					},
-					UpdateTargetF: func(ctx context.Context, upd *influxdb.ScraperTarget, userID influxdb.ID) (*influxdb.ScraperTarget, error) {
+					UpdateTargetF: func(ctx context.Context, upd *influxdb.ScraperTarget, userID platform.ID) (*influxdb.ScraperTarget, error) {
 						return &influxdb.ScraperTarget{
 							ID:       1,
 							OrgID:    10,
@@ -318,14 +320,14 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 			name: "unauthorized to update scraper",
 			fields: fields{
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					GetTargetByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.ScraperTarget, error) {
+					GetTargetByIDF: func(ctc context.Context, id platform.ID) (*influxdb.ScraperTarget, error) {
 						return &influxdb.ScraperTarget{
 							ID:       1,
 							OrgID:    10,
 							BucketID: 100,
 						}, nil
 					},
-					UpdateTargetF: func(ctx context.Context, upd *influxdb.ScraperTarget, userID influxdb.ID) (*influxdb.ScraperTarget, error) {
+					UpdateTargetF: func(ctx context.Context, upd *influxdb.ScraperTarget, userID platform.ID) (*influxdb.ScraperTarget, error) {
 						return &influxdb.ScraperTarget{
 							ID:       1,
 							OrgID:    10,
@@ -348,9 +350,9 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/scrapers/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -358,14 +360,14 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 			name: "unauthorized to write to bucket",
 			fields: fields{
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					GetTargetByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.ScraperTarget, error) {
+					GetTargetByIDF: func(ctc context.Context, id platform.ID) (*influxdb.ScraperTarget, error) {
 						return &influxdb.ScraperTarget{
 							ID:       1,
 							OrgID:    10,
 							BucketID: 100,
 						}, nil
 					},
-					UpdateTargetF: func(ctx context.Context, upd *influxdb.ScraperTarget, userID influxdb.ID) (*influxdb.ScraperTarget, error) {
+					UpdateTargetF: func(ctx context.Context, upd *influxdb.ScraperTarget, userID platform.ID) (*influxdb.ScraperTarget, error) {
 						return &influxdb.ScraperTarget{
 							ID:       1,
 							OrgID:    10,
@@ -388,9 +390,9 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/buckets/0000000000000064 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -404,7 +406,7 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
-			_, err := s.UpdateTarget(ctx, &influxdb.ScraperTarget{ID: tt.args.id, BucketID: tt.args.bucketID}, influxdb.ID(1))
+			_, err := s.UpdateTarget(ctx, &influxdb.ScraperTarget{ID: tt.args.id, BucketID: tt.args.bucketID}, platform.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
@@ -415,7 +417,7 @@ func TestScraperTargetStoreService_RemoveTarget(t *testing.T) {
 		ScraperTargetStoreService influxdb.ScraperTargetStoreService
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -432,13 +434,13 @@ func TestScraperTargetStoreService_RemoveTarget(t *testing.T) {
 			name: "authorized to delete scraper",
 			fields: fields{
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					GetTargetByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.ScraperTarget, error) {
+					GetTargetByIDF: func(ctc context.Context, id platform.ID) (*influxdb.ScraperTarget, error) {
 						return &influxdb.ScraperTarget{
 							ID:    1,
 							OrgID: 10,
 						}, nil
 					},
-					RemoveTargetF: func(ctx context.Context, id influxdb.ID) error {
+					RemoveTargetF: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -470,13 +472,13 @@ func TestScraperTargetStoreService_RemoveTarget(t *testing.T) {
 			name: "unauthorized to delete scraper",
 			fields: fields{
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					GetTargetByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.ScraperTarget, error) {
+					GetTargetByIDF: func(ctc context.Context, id platform.ID) (*influxdb.ScraperTarget, error) {
 						return &influxdb.ScraperTarget{
 							ID:    1,
 							OrgID: 10,
 						}, nil
 					},
-					RemoveTargetF: func(ctx context.Context, id influxdb.ID) error {
+					RemoveTargetF: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -494,9 +496,9 @@ func TestScraperTargetStoreService_RemoveTarget(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/scrapers/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -522,8 +524,8 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 	}
 	type args struct {
 		permissions []influxdb.Permission
-		orgID       influxdb.ID
-		bucketID    influxdb.ID
+		orgID       platform.ID
+		bucketID    platform.ID
 	}
 	type wants struct {
 		err error
@@ -539,7 +541,7 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 			name: "authorized to create scraper",
 			fields: fields{
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					AddTargetF: func(ctx context.Context, st *influxdb.ScraperTarget, userID influxdb.ID) error {
+					AddTargetF: func(ctx context.Context, st *influxdb.ScraperTarget, userID platform.ID) error {
 						return nil
 					},
 				},
@@ -572,7 +574,7 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 			name: "unauthorized to create scraper",
 			fields: fields{
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					AddTargetF: func(ctx context.Context, st *influxdb.ScraperTarget, userID influxdb.ID) error {
+					AddTargetF: func(ctx context.Context, st *influxdb.ScraperTarget, userID platform.ID) error {
 						return nil
 					},
 				},
@@ -598,9 +600,9 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/scrapers is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -608,7 +610,7 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 			name: "unauthorized to write to bucket",
 			fields: fields{
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					AddTargetF: func(ctx context.Context, st *influxdb.ScraperTarget, userID influxdb.ID) error {
+					AddTargetF: func(ctx context.Context, st *influxdb.ScraperTarget, userID platform.ID) error {
 						return nil
 					},
 				},
@@ -634,9 +636,9 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/buckets/0000000000000064 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -650,7 +652,7 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
-			err := s.AddTarget(ctx, &influxdb.ScraperTarget{OrgID: tt.args.orgID, BucketID: tt.args.bucketID}, influxdb.ID(1))
+			err := s.AddTarget(ctx, &influxdb.ScraperTarget{OrgID: tt.args.orgID, BucketID: tt.args.bucketID}, platform.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}

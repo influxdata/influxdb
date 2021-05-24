@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	platcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/opentracing/opentracing-go"
@@ -17,14 +19,14 @@ type Authorizer interface {
 }
 
 type Influx1xAuthenticationHandler struct {
-	influxdb.HTTPErrorHandler
+	errors2.HTTPErrorHandler
 	next http.Handler
 	auth Authorizer
 }
 
 // NewInflux1xAuthenticationHandler creates an authentication handler to process
 // InfluxDB 1.x authentication requests.
-func NewInflux1xAuthenticationHandler(next http.Handler, auth Authorizer, h influxdb.HTTPErrorHandler) *Influx1xAuthenticationHandler {
+func NewInflux1xAuthenticationHandler(next http.Handler, auth Authorizer, h errors2.HTTPErrorHandler) *Influx1xAuthenticationHandler {
 	return &Influx1xAuthenticationHandler{
 		HTTPErrorHandler: h,
 		next:             next,
@@ -49,10 +51,10 @@ func (h *Influx1xAuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http
 
 	auth, err := h.auth.Authorize(ctx, creds)
 	if err != nil {
-		var erri *influxdb.Error
+		var erri *errors2.Error
 		if errors.As(err, &erri) {
 			switch erri.Code {
-			case influxdb.EForbidden, influxdb.EUnauthorized:
+			case errors2.EForbidden, errors2.EUnauthorized:
 				h.HandleHTTPError(ctx, erri, w)
 				return
 			}
@@ -132,9 +134,9 @@ func (h *Influx1xAuthenticationHandler) parseCredentials(r *http.Request) (influ
 }
 
 // unauthorizedError encodes a error message and status code for unauthorized access.
-func unauthorizedError(ctx context.Context, h influxdb.HTTPErrorHandler, w http.ResponseWriter) {
-	h.HandleHTTPError(ctx, &influxdb.Error{
-		Code: influxdb.EUnauthorized,
+func unauthorizedError(ctx context.Context, h errors2.HTTPErrorHandler, w http.ResponseWriter) {
+	h.HandleHTTPError(ctx, &errors2.Error{
+		Code: errors2.EUnauthorized,
 		Msg:  "unauthorized access",
 	}, w)
 }

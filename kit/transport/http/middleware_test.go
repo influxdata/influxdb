@@ -5,7 +5,8 @@ import (
 	"path"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,7 +19,7 @@ func Test_normalizePath(t *testing.T) {
 	}{
 		{
 			name:     "1",
-			path:     path.Join("/api/v2/organizations", influxdb.ID(2).String()),
+			path:     path.Join("/api/v2/organizations", platform.ID(2).String()),
 			expected: "/api/v2/organizations/:id",
 		},
 		{
@@ -33,8 +34,53 @@ func Test_normalizePath(t *testing.T) {
 		},
 		{
 			name:     "4",
-			path:     path.Join("/api/v2/organizations", influxdb.ID(2).String(), "users", influxdb.ID(3).String()),
+			path:     path.Join("/api/v2/organizations", platform.ID(2).String(), "users", platform.ID(3).String()),
 			expected: "/api/v2/organizations/:id/users/:id",
+		},
+		{
+			name:     "5",
+			path:     "/838442d56d.svg",
+			expected: "/" + fileSlug + ".svg",
+		},
+		{
+			name:     "6",
+			path:     "/838442d56d.svg/extra",
+			expected: "/838442d56d.svg/extra",
+		},
+		{
+			name:     "7",
+			path:     "/api/v2/restore/shards/1001",
+			expected: path.Join("/api/v2/restore/shards/", shardSlug),
+		},
+		{
+			name:     "8",
+			path:     "/api/v2/restore/shards/1001/extra",
+			expected: path.Join("/api/v2/restore/shards/", shardSlug, "extra"),
+		},
+		{
+			name:     "9",
+			path:     "/api/v2/backup/shards/1005",
+			expected: path.Join("/api/v2/backup/shards/", shardSlug),
+		},
+		{
+			name:     "10",
+			path:     "/api/v2/backup/shards/1005/extra",
+			expected: path.Join("/api/v2/backup/shards/", shardSlug, "extra"),
+		},
+		{
+			name:     "11",
+			path:     "/35bb8d560d.ttf",
+			expected: "/" + fileSlug + ".ttf",
+		},
+		{
+			name:     "12",
+			path:     "/35bb8d560d.woff",
+			expected: "/" + fileSlug + ".woff",
+		},
+		{
+			name:     "13",
+			path:     "/35bb8d560d.eot",
+			expected: "/" + fileSlug + ".eot",
 		},
 	}
 

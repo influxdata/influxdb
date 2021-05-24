@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"regexp"
 	"strings"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // Operator is an Enum value of operators.
@@ -12,8 +14,8 @@ type Operator int
 // Valid returns invalid error if the operator is invalid.
 func (op Operator) Valid() error {
 	if op < Equal || op > NotRegexEqual {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Operator is invalid",
 		}
 	}
@@ -68,15 +70,15 @@ func (op Operator) MarshalJSON() ([]byte, error) {
 func (op *Operator) UnmarshalJSON(b []byte) error {
 	var s string
 	if err := json.Unmarshal(b, &s); err != nil {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
 	var ok bool
 	if *op, ok = opStrMap[s]; !ok {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unrecognized operator",
 		}
 	}
@@ -95,8 +97,8 @@ func NewTag(s string) (Tag, error) {
 
 	matched, err := regexp.MatchString(`^[a-zA-Z0-9_]+:[a-zA-Z0-9_]+$`, s)
 	if !matched || err != nil {
-		return tagPair, &Error{
-			Code: EInvalid,
+		return tagPair, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  `tag must be in form key:value`,
 		}
 	}
@@ -111,8 +113,8 @@ func NewTag(s string) (Tag, error) {
 // Valid returns an error if the tagpair is missing fields
 func (t Tag) Valid() error {
 	if t.Key == "" || t.Value == "" {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "tag must contain a key and a value",
 		}
 	}

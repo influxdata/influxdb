@@ -3,6 +3,8 @@ package authorizer
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -25,7 +27,7 @@ func NewLabelServiceWithOrg(s influxdb.LabelService, orgIDResolver OrgIDResolver
 }
 
 // FindLabelByID checks to see if the authorizer on context has read access to the label id provided.
-func (s *LabelService) FindLabelByID(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
+func (s *LabelService) FindLabelByID(ctx context.Context, id platform.ID) (*influxdb.Label, error) {
 	l, err := s.s.FindLabelByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -95,7 +97,7 @@ func (s *LabelService) CreateLabelMapping(ctx context.Context, m *influxdb.Label
 }
 
 // UpdateLabel checks to see if the authorizer on context has write access to the label provided.
-func (s *LabelService) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
+func (s *LabelService) UpdateLabel(ctx context.Context, id platform.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 	l, err := s.s.FindLabelByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -107,7 +109,7 @@ func (s *LabelService) UpdateLabel(ctx context.Context, id influxdb.ID, upd infl
 }
 
 // DeleteLabel checks to see if the authorizer on context has write access to the label provided.
-func (s *LabelService) DeleteLabel(ctx context.Context, id influxdb.ID) error {
+func (s *LabelService) DeleteLabel(ctx context.Context, id platform.ID) error {
 	l, err := s.s.FindLabelByID(ctx, id)
 	if err != nil {
 		return err

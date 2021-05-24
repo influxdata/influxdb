@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )
@@ -14,23 +16,23 @@ type Client struct {
 }
 
 // LoadSecret is not implemented for http
-func (s *Client) LoadSecret(ctx context.Context, orgID influxdb.ID, k string) (string, error) {
-	return "", &influxdb.Error{
-		Code: influxdb.EMethodNotAllowed,
+func (s *Client) LoadSecret(ctx context.Context, orgID platform.ID, k string) (string, error) {
+	return "", &errors.Error{
+		Code: errors.EMethodNotAllowed,
 		Msg:  "load secret is not implemented for http",
 	}
 }
 
 // PutSecret is not implemented for http.
-func (s *Client) PutSecret(ctx context.Context, orgID influxdb.ID, k string, v string) error {
-	return &influxdb.Error{
-		Code: influxdb.EMethodNotAllowed,
+func (s *Client) PutSecret(ctx context.Context, orgID platform.ID, k string, v string) error {
+	return &errors.Error{
+		Code: errors.EMethodNotAllowed,
 		Msg:  "put secret is not implemented for http",
 	}
 }
 
 // GetSecretKeys get all secret keys mathing an org ID via HTTP.
-func (s *Client) GetSecretKeys(ctx context.Context, orgID influxdb.ID) ([]string, error) {
+func (s *Client) GetSecretKeys(ctx context.Context, orgID platform.ID) ([]string, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -51,15 +53,15 @@ func (s *Client) GetSecretKeys(ctx context.Context, orgID influxdb.ID) ([]string
 }
 
 // PutSecrets is not implemented for http.
-func (s *Client) PutSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
-	return &influxdb.Error{
-		Code: influxdb.EMethodNotAllowed,
+func (s *Client) PutSecrets(ctx context.Context, orgID platform.ID, m map[string]string) error {
+	return &errors.Error{
+		Code: errors.EMethodNotAllowed,
 		Msg:  "put secrets is not implemented for http",
 	}
 }
 
 // PatchSecrets will update the existing secret with new via http.
-func (s *Client) PatchSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+func (s *Client) PatchSecrets(ctx context.Context, orgID platform.ID, m map[string]string) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -75,7 +77,7 @@ func (s *Client) PatchSecrets(ctx context.Context, orgID influxdb.ID, m map[stri
 }
 
 // DeleteSecret removes a single secret via HTTP.
-func (s *Client) DeleteSecret(ctx context.Context, orgID influxdb.ID, ks ...string) error {
+func (s *Client) DeleteSecret(ctx context.Context, orgID platform.ID, ks ...string) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 

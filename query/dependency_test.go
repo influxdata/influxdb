@@ -2,9 +2,9 @@ package query_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
 )
@@ -13,7 +13,7 @@ func TestSecretLookup(t *testing.T) {
 	req := &query.Request{OrganizationID: orgID}
 	ctx := query.ContextWithRequest(context.Background(), req)
 	svc := &mock.SecretService{
-		LoadSecretFn: func(ctx context.Context, orgID influxdb.ID, k string) (string, error) {
+		LoadSecretFn: func(ctx context.Context, orgID platform.ID, k string) (string, error) {
 			if want, got := req.OrganizationID, orgID; want != got {
 				t.Errorf("unexpected organization id -want/+got:\n\t- %v\n\t+ %v", want, got)
 			}

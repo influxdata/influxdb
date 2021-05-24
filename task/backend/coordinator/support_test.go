@@ -3,9 +3,10 @@ package coordinator
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/task/backend/executor"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 var _ Executor = (*executorE)(nil)
@@ -16,12 +17,12 @@ type (
 	}
 
 	manualRunCall struct {
-		TaskID influxdb.ID
-		RunID  influxdb.ID
+		TaskID platform.ID
+		RunID  platform.ID
 	}
 
 	cancelCallC struct {
-		RunID influxdb.ID
+		RunID platform.ID
 	}
 )
 
@@ -43,7 +44,7 @@ type (
 
 type (
 	promise struct {
-		run *influxdb.Run
+		run *taskmodel.Run
 
 		done chan struct{}
 		err  error
@@ -54,7 +55,7 @@ type (
 )
 
 // ID is the id of the run that was created
-func (p *promise) ID() influxdb.ID {
+func (p *promise) ID() platform.ID {
 	return p.run.ID
 }
 
@@ -94,7 +95,7 @@ func (s *schedulerC) Release(taskID scheduler.ID) error {
 	return nil
 }
 
-func (e *executorE) ManualRun(ctx context.Context, id influxdb.ID, runID influxdb.ID) (executor.Promise, error) {
+func (e *executorE) ManualRun(ctx context.Context, id platform.ID, runID platform.ID) (executor.Promise, error) {
 	e.calls = append(e.calls, manualRunCall{id, runID})
 	ctx, cancel := context.WithCancel(ctx)
 	p := promise{
@@ -108,7 +109,7 @@ func (e *executorE) ManualRun(ctx context.Context, id influxdb.ID, runID influxd
 	return &p, err
 }
 
-func (e *executorE) Cancel(ctx context.Context, runID influxdb.ID) error {
+func (e *executorE) Cancel(ctx context.Context, runID platform.ID) error {
 	e.calls = append(e.calls, cancelCallC{runID})
 	return nil
 }

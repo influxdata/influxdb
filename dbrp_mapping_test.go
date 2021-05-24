@@ -1,6 +1,7 @@
 package influxdb_test
 
 import (
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
 	platform "github.com/influxdata/influxdb/v2"
@@ -13,8 +14,8 @@ func TestDBRPMapping_Validate(t *testing.T) {
 		Database        string
 		RetentionPolicy string
 		Default         bool
-		OrganizationID  platform.ID
-		BucketID        platform.ID
+		OrganizationID  platform2.ID
+		BucketID        platform2.ID
 	}
 	tests := []struct {
 		name    string
