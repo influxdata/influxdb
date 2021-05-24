@@ -17,6 +17,7 @@ use tokio::time::Duration;
 mod http;
 mod planner;
 mod rpc;
+pub(crate) mod serving_readiness;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -163,7 +164,13 @@ pub async fn main(config: Config) -> Result<()> {
         .await
         .context(StartListeningGrpc { grpc_bind_addr })?;
 
-    let grpc_server = rpc::serve(socket, Arc::clone(&app_server), frontend_shutdown.clone()).fuse();
+    let grpc_server = rpc::serve(
+        socket,
+        Arc::clone(&app_server),
+        frontend_shutdown.clone(),
+        config.initial_serving_state.into(),
+    )
+    .fuse();
 
     info!(bind_address=?grpc_bind_addr, "gRPC server listening");
 

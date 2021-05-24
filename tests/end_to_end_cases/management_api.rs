@@ -2,7 +2,7 @@ use generated_types::{
     google::protobuf::{Duration, Empty},
     influxdata::iox::management::v1::*,
 };
-use influxdb_iox_client::{management::CreateDatabaseError, operations};
+use influxdb_iox_client::{management::CreateDatabaseError, operations, write::WriteError};
 
 use test_helpers::assert_contains;
 
@@ -10,6 +10,40 @@ use super::scenario::{
     create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
 };
 use crate::common::server_fixture::ServerFixture;
+use tonic::Code;
+
+#[tokio::test]
+async fn test_serving_readiness() {
+    let server_fixture = ServerFixture::create_single_use().await;
+    let mut mgmt_client = server_fixture.management_client();
+    let mut write_client = server_fixture.write_client();
+
+    let name = "foo";
+    let lp_data = "bar baz=1 10";
+
+    mgmt_client
+        .update_server_id(42)
+        .await
+        .expect("set ID failed");
+    mgmt_client
+        .create_database(DatabaseRules {
+            name: name.to_string(),
+            ..Default::default()
+        })
+        .await
+        .expect("create database failed");
+
+    mgmt_client.set_serving_readiness(false).await.unwrap();
+    let err = write_client.write(name, lp_data).await.unwrap_err();
+    assert!(
+        matches!(&err, WriteError::ServerError(status) if status.code() == Code::Unavailable),
+        "{}",
+        &err
+    );
+
+    mgmt_client.set_serving_readiness(true).await.unwrap();
+    write_client.write(name, lp_data).await.unwrap();
+}
 
 #[tokio::test]
 async fn test_list_update_remotes() {
