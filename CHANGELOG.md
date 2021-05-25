@@ -1,11 +1,17 @@
 ## unreleased
 
+### SQLite Metadata Store
+
+This release adds an embedded SQLite database for storing metadata required by the latest UI features like Notebooks and Annotations.
+
 ### Features
 
 1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
 1. [21218](https://github.com/influxdata/influxdb/pull/21218): Add the properties of a static legend for line graphs and band plots.
 1. [21367](https://github.com/influxdata/influxdb/pull/21367): List users via the API now supports pagination
 1. [21531](https://github.com/influxdata/influxdb/pull/21531): Remove feature flags for permanent UI features
+1. [21543](https://github.com/influxdata/influxdb/pull/21543): Added `influxd` configuration flag `--sqlite-path` for specifying a user-defined path to the SQLite database file
+1. [21543](https://github.com/influxdata/influxdb/pull/21543): Updated `influxd` configuration flag `--store` to work with string values `disk` or `memory`. Memory continues to store metadata in-memory for testing; `disk` will persist metadata to disk via bolt and SQLite
 
 ### Bug Fixes
 

@@ -16,6 +16,7 @@ import (
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/nats"
 	"github.com/influxdata/influxdb/v2/pprof"
+	"github.com/influxdata/influxdb/v2/sqlite"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/vault"
@@ -127,6 +128,7 @@ type InfluxdOpts struct {
 
 	AssetsPath string
 	BoltPath   string
+	SqLitePath string
 	EnginePath string
 
 	StoreType   string
@@ -184,6 +186,7 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		ReportingDisabled: false,
 
 		BoltPath:   filepath.Join(dir, bolt.DefaultFilename),
+		SqLitePath: filepath.Join(dir, sqlite.DefaultFilename),
 		EnginePath: filepath.Join(dir, "engine"),
 
 		HttpBindAddress:       ":8086",
@@ -197,7 +200,7 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		ProfilingDisabled: false,
 		MetricsDisabled:   false,
 
-		StoreType:   BoltStore,
+		StoreType:   DiskStore,
 		SecretStore: BoltStore,
 
 		NatsPort:            nats.RandomPort,
@@ -238,6 +241,11 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Desc:    "path to boltdb database",
 		},
 		{
+			DestP: &o.SqLitePath,
+			Flag:  "sqlite-path",
+			Desc:  fmt.Sprintf("path to sqlite database. if not set, sqlite database will be stored in the bolt-path directory as %q.", sqlite.DefaultFilename),
+		},
+		{
 			DestP: &o.AssetsPath,
 			Flag:  "assets-path",
 			Desc:  "override default assets by serving from a specific directory (developer mode)",
@@ -246,7 +254,7 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			DestP:   &o.StoreType,
 			Flag:    "store",
 			Default: o.StoreType,
-			Desc:    "backing store for REST resources (bolt or memory)",
+			Desc:    "backing store for REST resources (disk or memory)",
 		},
 		{
 			DestP:   &o.Testing,
