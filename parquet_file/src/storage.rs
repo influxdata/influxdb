@@ -162,13 +162,10 @@ impl Storage {
         table_name: String,
     ) -> object_store::path::Path {
         // Full path of the file in object store
-        //    <writer id>/<database>/data/<partition key>/<chunk id>/<table
+        //    <server id>/<database>/data/<partition key>/<chunk id>/<table
         // name>.parquet
 
-        let mut path = self.object_store.new_path();
-        path.push_dir(self.server_id.to_string());
-        path.push_dir(self.db_name.clone());
-        path.push_dir("data");
+        let mut path = data_location(&self.object_store, self.server_id, &self.db_name);
         path.push_dir(partition_key);
         path.push_dir(chunk_id.to_string());
         let file_name = format!("{}.parquet", table_name);
@@ -489,6 +486,25 @@ impl TryClone for MemWriter {
             mem: Arc::clone(&self.mem),
         })
     }
+}
+
+/// Location where parquet data goes to.
+///
+/// Schema currently is:
+///
+/// ```text
+/// <writer_id>/<database>/data
+/// ```
+pub(crate) fn data_location(
+    object_store: &ObjectStore,
+    server_id: ServerId,
+    db_name: &str,
+) -> Path {
+    let mut path = object_store.new_path();
+    path.push_dir(server_id.to_string());
+    path.push_dir(db_name.to_string());
+    path.push_dir("data");
+    path
 }
 
 #[cfg(test)]
