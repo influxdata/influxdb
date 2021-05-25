@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
@@ -129,24 +130,23 @@ func (t *testExecutor) executeWithOptions(bucketOpt, orgOpt *ast.OptionStatement
 	}
 	defer r.Release()
 
-	wasDiff := false
+	var output strings.Builder
 	for r.More() {
 		v := r.Next()
 
 		if err := v.Tables().Do(func(tbl flux.Table) error {
-			wasDiff = true
 			// The data returned here is the result of `testing.diff`, so any result means that
 			// a comparison of two tables showed inequality. Capture that inequality as part of the error.
 			// XXX: rockstar (08 Dec 2020) - This could use some ergonomic work, as the diff testOutput
 			// is not exactly "human readable."
-			fmt.Fprintln(os.Stderr, table.Stringify(tbl))
+			_, _ = fmt.Fprint(&output, table.Stringify(tbl))
 			return nil
 		}); err != nil {
 			return err
 		}
 	}
-	if wasDiff {
-		return errors.New("test failed with diff tables, see logs for details")
+	if output.Len() > 0 {
+		return errors.New(output.String())
 	}
 	r.Release()
 	return r.Err()
@@ -162,6 +162,9 @@ import c "csv"
 option testing.loadStorage = (csv) => {
 	return c.from(csv: csv) |> to(bucket: bucket, org: org)
 }
+option testing.load = (tables=<-) => {
+	return tables |> to(bucket: bucket, org: org)
+}
 `
 
 // This options definition is for the second run, the test run. It loads the
@@ -172,6 +175,9 @@ import "testing"
 import c "csv"
 
 option testing.loadStorage = (csv) => {
+	return from(bucket: bucket)
+}
+option testing.load = (tables=<-) => {
 	return from(bucket: bucket)
 }
 `

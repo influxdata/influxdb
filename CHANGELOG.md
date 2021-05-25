@@ -1,6 +1,11 @@
 ## v2.0.7 [unreleased]
 ----------------------
 
+### Features
+
+1. [21519](https://github.com/influxdata/influxdb/pull/21519): Upgrade Flux to v0.117.0
+1. [21519](https://github.com/influxdata/influxdb/pull/21519): Optimize `table.fill()` execution within Flux aggregate windows.
+
 ### Bug Fixes
 
 1. [21349](https://github.com/influxdata/influxdb/pull/21349): Fix off-by-one error in query range calculation over partially compacted data.

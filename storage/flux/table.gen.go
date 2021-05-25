@@ -111,6 +111,7 @@ type floatWindowTable struct {
 	idxInArr     int
 	createEmpty  bool
 	timeColumn   string
+	isAggregate  bool
 	window       interval.Window
 }
 
@@ -121,6 +122,7 @@ func newFloatWindowTable(
 	window interval.Window,
 	createEmpty bool,
 	timeColumn string,
+	isAggregate bool,
 
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -137,6 +139,7 @@ func newFloatWindowTable(
 		window:      window,
 		createEmpty: createEmpty,
 		timeColumn:  timeColumn,
+		isAggregate: isAggregate,
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
@@ -217,10 +220,10 @@ func (t *floatWindowTable) getWindowBoundsFor(bounds interval.Bounds) (int64, in
 // nextAt will retrieve the next value that can be used with
 // the given stop timestamp. If no values can be used with the timestamp,
 // it will return the default value and false.
-func (t *floatWindowTable) nextAt(ts int64) (v float64, ok bool) {
+func (t *floatWindowTable) nextAt(stop int64) (v float64, ok bool) {
 	if !t.nextBuffer() {
 		return
-	} else if !t.isInWindow(ts, t.arr.Timestamps[t.idxInArr]) {
+	} else if !t.isInWindow(stop, t.arr.Timestamps[t.idxInArr]) {
 		return
 	}
 	v, ok = t.arr.Values[t.idxInArr], true
@@ -228,23 +231,26 @@ func (t *floatWindowTable) nextAt(ts int64) (v float64, ok bool) {
 	return v, ok
 }
 
-// isInWindow will check if the given time at stop can be used within
-// the window stop time for ts. The ts may be a truncated stop time
-// because of a restricted boundary while stop will be the true
-// stop time returned by storage.
-func (t *floatWindowTable) isInWindow(ts int64, stop int64) bool {
-	// This method checks if the stop time is a valid stop time for
-	// that interval. This calculation is different from the calculation
-	// of the window itself. For example, for a 10 second window that
-	// starts at 20 seconds, we would include points between [20, 30).
-	// The stop time for this interval would be 30, but because the stop
-	// time can be truncated, valid stop times range from anywhere between
-	// (20, 30]. The storage engine will always produce 30 as the end time
-	// but we may have truncated the stop time because of the boundary
-	// and this is why we are checking for this range instead of checking
-	// if the two values are equal.
-	start := int64(t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stop))).Start())
-	return start < ts && ts <= stop
+// isInWindow will check if the given time may be used within the window
+// denoted by the stop timestamp. The stop may be a truncated stop time
+// because of a restricted boundary.
+//
+// When used with an aggregate, ts will be the true stop time returned
+// by storage. When used with an aggregate, it will be the real time
+// for the point.
+func (t *floatWindowTable) isInWindow(stop int64, ts int64) bool {
+	// Retrieve the boundary associated with this stop time.
+	// This will be the boundary for the previous nanosecond.
+	bounds := t.window.GetLatestBounds(values.Time(stop - 1))
+	start, stop := int64(bounds.Start()), int64(bounds.Stop())
+
+	// For an aggregate, the timestamp will be the stop time of the boundary.
+	if t.isAggregate {
+		return start < ts && ts <= stop
+	}
+
+	// For a selector, the timestamp should be within the boundary.
+	return start <= ts && ts < stop
 }
 
 // nextBuffer will ensure the array cursor is filled
@@ -1086,6 +1092,7 @@ type integerWindowTable struct {
 	idxInArr     int
 	createEmpty  bool
 	timeColumn   string
+	isAggregate  bool
 	window       interval.Window
 	fillValue    *int64
 }
@@ -1097,6 +1104,7 @@ func newIntegerWindowTable(
 	window interval.Window,
 	createEmpty bool,
 	timeColumn string,
+	isAggregate bool,
 	fillValue *int64,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -1113,6 +1121,7 @@ func newIntegerWindowTable(
 		window:      window,
 		createEmpty: createEmpty,
 		timeColumn:  timeColumn,
+		isAggregate: isAggregate,
 		fillValue:   fillValue,
 	}
 	if t.createEmpty {
@@ -1194,10 +1203,10 @@ func (t *integerWindowTable) getWindowBoundsFor(bounds interval.Bounds) (int64, 
 // nextAt will retrieve the next value that can be used with
 // the given stop timestamp. If no values can be used with the timestamp,
 // it will return the default value and false.
-func (t *integerWindowTable) nextAt(ts int64) (v int64, ok bool) {
+func (t *integerWindowTable) nextAt(stop int64) (v int64, ok bool) {
 	if !t.nextBuffer() {
 		return
-	} else if !t.isInWindow(ts, t.arr.Timestamps[t.idxInArr]) {
+	} else if !t.isInWindow(stop, t.arr.Timestamps[t.idxInArr]) {
 		return
 	}
 	v, ok = t.arr.Values[t.idxInArr], true
@@ -1205,23 +1214,26 @@ func (t *integerWindowTable) nextAt(ts int64) (v int64, ok bool) {
 	return v, ok
 }
 
-// isInWindow will check if the given time at stop can be used within
-// the window stop time for ts. The ts may be a truncated stop time
-// because of a restricted boundary while stop will be the true
-// stop time returned by storage.
-func (t *integerWindowTable) isInWindow(ts int64, stop int64) bool {
-	// This method checks if the stop time is a valid stop time for
-	// that interval. This calculation is different from the calculation
-	// of the window itself. For example, for a 10 second window that
-	// starts at 20 seconds, we would include points between [20, 30).
-	// The stop time for this interval would be 30, but because the stop
-	// time can be truncated, valid stop times range from anywhere between
-	// (20, 30]. The storage engine will always produce 30 as the end time
-	// but we may have truncated the stop time because of the boundary
-	// and this is why we are checking for this range instead of checking
-	// if the two values are equal.
-	start := int64(t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stop))).Start())
-	return start < ts && ts <= stop
+// isInWindow will check if the given time may be used within the window
+// denoted by the stop timestamp. The stop may be a truncated stop time
+// because of a restricted boundary.
+//
+// When used with an aggregate, ts will be the true stop time returned
+// by storage. When used with an aggregate, it will be the real time
+// for the point.
+func (t *integerWindowTable) isInWindow(stop int64, ts int64) bool {
+	// Retrieve the boundary associated with this stop time.
+	// This will be the boundary for the previous nanosecond.
+	bounds := t.window.GetLatestBounds(values.Time(stop - 1))
+	start, stop := int64(bounds.Start()), int64(bounds.Stop())
+
+	// For an aggregate, the timestamp will be the stop time of the boundary.
+	if t.isAggregate {
+		return start < ts && ts <= stop
+	}
+
+	// For a selector, the timestamp should be within the boundary.
+	return start <= ts && ts < stop
 }
 
 // nextBuffer will ensure the array cursor is filled
@@ -2064,6 +2076,7 @@ type unsignedWindowTable struct {
 	idxInArr     int
 	createEmpty  bool
 	timeColumn   string
+	isAggregate  bool
 	window       interval.Window
 }
 
@@ -2074,6 +2087,7 @@ func newUnsignedWindowTable(
 	window interval.Window,
 	createEmpty bool,
 	timeColumn string,
+	isAggregate bool,
 
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -2090,6 +2104,7 @@ func newUnsignedWindowTable(
 		window:      window,
 		createEmpty: createEmpty,
 		timeColumn:  timeColumn,
+		isAggregate: isAggregate,
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
@@ -2170,10 +2185,10 @@ func (t *unsignedWindowTable) getWindowBoundsFor(bounds interval.Bounds) (int64,
 // nextAt will retrieve the next value that can be used with
 // the given stop timestamp. If no values can be used with the timestamp,
 // it will return the default value and false.
-func (t *unsignedWindowTable) nextAt(ts int64) (v uint64, ok bool) {
+func (t *unsignedWindowTable) nextAt(stop int64) (v uint64, ok bool) {
 	if !t.nextBuffer() {
 		return
-	} else if !t.isInWindow(ts, t.arr.Timestamps[t.idxInArr]) {
+	} else if !t.isInWindow(stop, t.arr.Timestamps[t.idxInArr]) {
 		return
 	}
 	v, ok = t.arr.Values[t.idxInArr], true
@@ -2181,23 +2196,26 @@ func (t *unsignedWindowTable) nextAt(ts int64) (v uint64, ok bool) {
 	return v, ok
 }
 
-// isInWindow will check if the given time at stop can be used within
-// the window stop time for ts. The ts may be a truncated stop time
-// because of a restricted boundary while stop will be the true
-// stop time returned by storage.
-func (t *unsignedWindowTable) isInWindow(ts int64, stop int64) bool {
-	// This method checks if the stop time is a valid stop time for
-	// that interval. This calculation is different from the calculation
-	// of the window itself. For example, for a 10 second window that
-	// starts at 20 seconds, we would include points between [20, 30).
-	// The stop time for this interval would be 30, but because the stop
-	// time can be truncated, valid stop times range from anywhere between
-	// (20, 30]. The storage engine will always produce 30 as the end time
-	// but we may have truncated the stop time because of the boundary
-	// and this is why we are checking for this range instead of checking
-	// if the two values are equal.
-	start := int64(t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stop))).Start())
-	return start < ts && ts <= stop
+// isInWindow will check if the given time may be used within the window
+// denoted by the stop timestamp. The stop may be a truncated stop time
+// because of a restricted boundary.
+//
+// When used with an aggregate, ts will be the true stop time returned
+// by storage. When used with an aggregate, it will be the real time
+// for the point.
+func (t *unsignedWindowTable) isInWindow(stop int64, ts int64) bool {
+	// Retrieve the boundary associated with this stop time.
+	// This will be the boundary for the previous nanosecond.
+	bounds := t.window.GetLatestBounds(values.Time(stop - 1))
+	start, stop := int64(bounds.Start()), int64(bounds.Stop())
+
+	// For an aggregate, the timestamp will be the stop time of the boundary.
+	if t.isAggregate {
+		return start < ts && ts <= stop
+	}
+
+	// For a selector, the timestamp should be within the boundary.
+	return start <= ts && ts < stop
 }
 
 // nextBuffer will ensure the array cursor is filled
@@ -3039,6 +3057,7 @@ type stringWindowTable struct {
 	idxInArr     int
 	createEmpty  bool
 	timeColumn   string
+	isAggregate  bool
 	window       interval.Window
 }
 
@@ -3049,6 +3068,7 @@ func newStringWindowTable(
 	window interval.Window,
 	createEmpty bool,
 	timeColumn string,
+	isAggregate bool,
 
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -3065,6 +3085,7 @@ func newStringWindowTable(
 		window:      window,
 		createEmpty: createEmpty,
 		timeColumn:  timeColumn,
+		isAggregate: isAggregate,
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
@@ -3145,10 +3166,10 @@ func (t *stringWindowTable) getWindowBoundsFor(bounds interval.Bounds) (int64, i
 // nextAt will retrieve the next value that can be used with
 // the given stop timestamp. If no values can be used with the timestamp,
 // it will return the default value and false.
-func (t *stringWindowTable) nextAt(ts int64) (v string, ok bool) {
+func (t *stringWindowTable) nextAt(stop int64) (v string, ok bool) {
 	if !t.nextBuffer() {
 		return
-	} else if !t.isInWindow(ts, t.arr.Timestamps[t.idxInArr]) {
+	} else if !t.isInWindow(stop, t.arr.Timestamps[t.idxInArr]) {
 		return
 	}
 	v, ok = t.arr.Values[t.idxInArr], true
@@ -3156,23 +3177,26 @@ func (t *stringWindowTable) nextAt(ts int64) (v string, ok bool) {
 	return v, ok
 }
 
-// isInWindow will check if the given time at stop can be used within
-// the window stop time for ts. The ts may be a truncated stop time
-// because of a restricted boundary while stop will be the true
-// stop time returned by storage.
-func (t *stringWindowTable) isInWindow(ts int64, stop int64) bool {
-	// This method checks if the stop time is a valid stop time for
-	// that interval. This calculation is different from the calculation
-	// of the window itself. For example, for a 10 second window that
-	// starts at 20 seconds, we would include points between [20, 30).
-	// The stop time for this interval would be 30, but because the stop
-	// time can be truncated, valid stop times range from anywhere between
-	// (20, 30]. The storage engine will always produce 30 as the end time
-	// but we may have truncated the stop time because of the boundary
-	// and this is why we are checking for this range instead of checking
-	// if the two values are equal.
-	start := int64(t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stop))).Start())
-	return start < ts && ts <= stop
+// isInWindow will check if the given time may be used within the window
+// denoted by the stop timestamp. The stop may be a truncated stop time
+// because of a restricted boundary.
+//
+// When used with an aggregate, ts will be the true stop time returned
+// by storage. When used with an aggregate, it will be the real time
+// for the point.
+func (t *stringWindowTable) isInWindow(stop int64, ts int64) bool {
+	// Retrieve the boundary associated with this stop time.
+	// This will be the boundary for the previous nanosecond.
+	bounds := t.window.GetLatestBounds(values.Time(stop - 1))
+	start, stop := int64(bounds.Start()), int64(bounds.Stop())
+
+	// For an aggregate, the timestamp will be the stop time of the boundary.
+	if t.isAggregate {
+		return start < ts && ts <= stop
+	}
+
+	// For a selector, the timestamp should be within the boundary.
+	return start <= ts && ts < stop
 }
 
 // nextBuffer will ensure the array cursor is filled
@@ -3958,6 +3982,7 @@ type booleanWindowTable struct {
 	idxInArr     int
 	createEmpty  bool
 	timeColumn   string
+	isAggregate  bool
 	window       interval.Window
 }
 
@@ -3968,6 +3993,7 @@ func newBooleanWindowTable(
 	window interval.Window,
 	createEmpty bool,
 	timeColumn string,
+	isAggregate bool,
 
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -3984,6 +4010,7 @@ func newBooleanWindowTable(
 		window:      window,
 		createEmpty: createEmpty,
 		timeColumn:  timeColumn,
+		isAggregate: isAggregate,
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
@@ -4064,10 +4091,10 @@ func (t *booleanWindowTable) getWindowBoundsFor(bounds interval.Bounds) (int64, 
 // nextAt will retrieve the next value that can be used with
 // the given stop timestamp. If no values can be used with the timestamp,
 // it will return the default value and false.
-func (t *booleanWindowTable) nextAt(ts int64) (v bool, ok bool) {
+func (t *booleanWindowTable) nextAt(stop int64) (v bool, ok bool) {
 	if !t.nextBuffer() {
 		return
-	} else if !t.isInWindow(ts, t.arr.Timestamps[t.idxInArr]) {
+	} else if !t.isInWindow(stop, t.arr.Timestamps[t.idxInArr]) {
 		return
 	}
 	v, ok = t.arr.Values[t.idxInArr], true
@@ -4075,23 +4102,26 @@ func (t *booleanWindowTable) nextAt(ts int64) (v bool, ok bool) {
 	return v, ok
 }
 
-// isInWindow will check if the given time at stop can be used within
-// the window stop time for ts. The ts may be a truncated stop time
-// because of a restricted boundary while stop will be the true
-// stop time returned by storage.
-func (t *booleanWindowTable) isInWindow(ts int64, stop int64) bool {
-	// This method checks if the stop time is a valid stop time for
-	// that interval. This calculation is different from the calculation
-	// of the window itself. For example, for a 10 second window that
-	// starts at 20 seconds, we would include points between [20, 30).
-	// The stop time for this interval would be 30, but because the stop
-	// time can be truncated, valid stop times range from anywhere between
-	// (20, 30]. The storage engine will always produce 30 as the end time
-	// but we may have truncated the stop time because of the boundary
-	// and this is why we are checking for this range instead of checking
-	// if the two values are equal.
-	start := int64(t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stop))).Start())
-	return start < ts && ts <= stop
+// isInWindow will check if the given time may be used within the window
+// denoted by the stop timestamp. The stop may be a truncated stop time
+// because of a restricted boundary.
+//
+// When used with an aggregate, ts will be the true stop time returned
+// by storage. When used with an aggregate, it will be the real time
+// for the point.
+func (t *booleanWindowTable) isInWindow(stop int64, ts int64) bool {
+	// Retrieve the boundary associated with this stop time.
+	// This will be the boundary for the previous nanosecond.
+	bounds := t.window.GetLatestBounds(values.Time(stop - 1))
+	start, stop := int64(bounds.Start()), int64(bounds.Stop())
+
+	// For an aggregate, the timestamp will be the stop time of the boundary.
+	if t.isAggregate {
+		return start < ts && ts <= stop
+	}
+
+	// For a selector, the timestamp should be within the boundary.
+	return start <= ts && ts < stop
 }
 
 // nextBuffer will ensure the array cursor is filled
