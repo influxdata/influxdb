@@ -573,6 +573,7 @@ const (
 	fieldChartYTickStep                  = "yTickStep"
 	fieldChartYPos                       = "yPos"
 	fieldChartLegendColorizeRows         = "legendColorizeRows"
+	fieldChartLegendHide                 = "legendHide"
 	fieldChartLegendOpacity              = "legendOpacity"
 	fieldChartLegendOrientationThreshold = "legendOrientationThreshold"
 	fieldChartGeoCenterLon               = "lon"
@@ -624,6 +625,7 @@ type chart struct {
 	TableOptions               tableOptions
 	TimeFormat                 string
 	LegendColorizeRows         bool
+	LegendHide                 bool
 	LegendOpacity              float64
 	LegendOrientationThreshold int
 	Zoom                       float64
@@ -694,6 +696,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
 			LegendColorizeRows:         c.LegendColorizeRows,
+			LegendHide:                 c.LegendHide,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -711,6 +714,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			LegendColorizeRows:         c.LegendColorizeRows,
+			LegendHide:                 c.LegendHide,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -745,6 +749,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
 			LegendColorizeRows:         c.LegendColorizeRows,
+			LegendHide:                 c.LegendHide,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -774,6 +779,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
 			LegendColorizeRows:         c.LegendColorizeRows,
+			LegendHide:                 c.LegendHide,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -804,6 +810,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
 			LegendColorizeRows:         c.LegendColorizeRows,
+			LegendHide:                 c.LegendHide,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -852,6 +859,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Axes:                       c.Axes.influxAxes(),
 			Position:                   c.Position,
 			LegendColorizeRows:         c.LegendColorizeRows,
+			LegendHide:                 c.LegendHide,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -911,6 +919,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Position:                   c.Position,
 			TimeFormat:                 c.TimeFormat,
 			LegendColorizeRows:         c.LegendColorizeRows,
+			LegendHide:                 c.LegendHide,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}

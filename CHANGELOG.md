@@ -12,6 +12,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21531](https://github.com/influxdata/influxdb/pull/21531): Remove feature flags for permanent UI features
 1. [21543](https://github.com/influxdata/influxdb/pull/21543): Added `influxd` configuration flag `--sqlite-path` for specifying a user-defined path to the SQLite database file
 1. [21543](https://github.com/influxdata/influxdb/pull/21543): Updated `influxd` configuration flag `--store` to work with string values `disk` or `memory`. Memory continues to store metadata in-memory for testing; `disk` will persist metadata to disk via bolt and SQLite
+1. [21547](https://github.com/influxdata/influxdb/pull/21547): Allow hiding the tooltip independently of the static legend
 
 ### Bug Fixes
 

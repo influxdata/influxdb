@@ -32,6 +32,7 @@ spec:
         - _value
         - foo
       legendColorizeRows: true
+      legendHide: false
       legendOpacity: 1.0
       legendOrientationThreshold: 5
       queries:

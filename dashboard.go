@@ -755,6 +755,7 @@ type LinePlusSingleStatProperties struct {
 	TimeFormat                 string           `json:"timeFormat"`
 	HoverDimension             string           `json:"hoverDimension"`
 	LegendColorizeRows         bool             `json:"legendColorizeRows"`
+	LegendHide                 bool             `json:"legendHide"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
@@ -784,6 +785,7 @@ type XYViewProperties struct {
 	TimeFormat                 string           `json:"timeFormat"`
 	HoverDimension             string           `json:"hoverDimension"`
 	LegendColorizeRows         bool             `json:"legendColorizeRows"`
+	LegendHide                 bool             `json:"legendHide"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
@@ -814,6 +816,7 @@ type BandViewProperties struct {
 	MainColumn                 string           `json:"mainColumn"`
 	LowerColumn                string           `json:"lowerColumn"`
 	LegendColorizeRows         bool             `json:"legendColorizeRows"`
+	LegendHide                 bool             `json:"legendHide"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
@@ -825,6 +828,7 @@ type CheckViewProperties struct {
 	Queries                    []DashboardQuery `json:"queries"`
 	ViewColors                 []string         `json:"colors"`
 	LegendColorizeRows         bool             `json:"legendColorizeRows"`
+	LegendHide                 bool             `json:"legendHide"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
@@ -857,6 +861,7 @@ type HistogramViewProperties struct {
 	Note                       string           `json:"note"`
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
 	LegendColorizeRows         bool             `json:"legendColorizeRows"`
+	LegendHide                 bool             `json:"legendHide"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
@@ -889,6 +894,7 @@ type HeatmapViewProperties struct {
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
 	TimeFormat                 string           `json:"timeFormat"`
 	LegendColorizeRows         bool             `json:"legendColorizeRows"`
+	LegendHide                 bool             `json:"legendHide"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
@@ -922,6 +928,7 @@ type ScatterViewProperties struct {
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
 	TimeFormat                 string           `json:"timeFormat"`
 	LegendColorizeRows         bool             `json:"legendColorizeRows"`
+	LegendHide                 bool             `json:"legendHide"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
@@ -953,6 +960,7 @@ type MosaicViewProperties struct {
 	TimeFormat                 string           `json:"timeFormat"`
 	HoverDimension             string           `json:"hoverDimension"`
 	LegendColorizeRows         bool             `json:"legendColorizeRows"`
+	LegendHide                 bool             `json:"legendHide"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
