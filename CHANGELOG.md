@@ -24,6 +24,8 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21481](https://github.com/influxdata/influxdb/pull/21481): Set last-modified time of empty shard directory to the directory's mod time instead of Unix epoch.
 1. [21486](https://github.com/influxdata/influxdb/pull/21486): chore: remove erroneous dependency on istio
 1. [21522](https://github.com/influxdata/influxdb/pull/21522): Replace telemetry file name with slug for `ttf`, `woff`, and `eot` files.
+1. [21540](https://github.com/influxdata/influxdb/pull/21540): Enable use of absolute path for `--upgrade-log` when running `influxd upgrade` on Windows.
+1. [21545](https://github.com/influxdata/influxdb/pull/21545): Make InfluxQL meta queries respect query timeouts.
 
 ## v2.0.6 [2021-04-29]
 

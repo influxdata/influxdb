@@ -90,11 +90,11 @@ type MetaClient interface {
 type TSDBStore interface {
 	DeleteMeasurement(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
-	MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
+	MeasurementNames(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
 	ShardGroup(ids []uint64) tsdb.ShardGroup
 	Shards(ids []uint64) []*tsdb.Shard
-	TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
-	TagValues(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
+	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
+	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 }
 
 // NewEngine initialises a new storage engine, including a series file, index and
@@ -463,14 +463,14 @@ func (e *Engine) RestoreShard(ctx context.Context, shardID uint64, r io.Reader) 
 }
 
 // SeriesCardinality returns the number of series in the engine.
-func (e *Engine) SeriesCardinality(orgID, bucketID platform.ID) int64 {
+func (e *Engine) SeriesCardinality(ctx context.Context, bucketID platform.ID) int64 {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if e.closing == nil {
 		return 0
 	}
 
-	n, err := e.tsdbStore.SeriesCardinality(bucketID.String())
+	n, err := e.tsdbStore.SeriesCardinality(ctx, bucketID.String())
 	if err != nil {
 		return 0
 	}

@@ -396,7 +396,7 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx context.Context
 		return err
 	}
 
-	names, err := e.TSDBStore.MeasurementNames(ectx.Authorizer, mapping.BucketID.String(), q.Condition)
+	names, err := e.TSDBStore.MeasurementNames(ctx, ectx.Authorizer, mapping.BucketID.String(), q.Condition)
 	if err != nil || len(names) == 0 {
 		return ectx.Send(ctx, &query.Result{
 			Err: err,
@@ -510,7 +510,7 @@ func (e *StatementExecutor) executeShowTagKeys(ctx context.Context, q *influxql.
 		}
 	}
 
-	tagKeys, err := e.TSDBStore.TagKeys(ectx.Authorizer, shardIDs, cond)
+	tagKeys, err := e.TSDBStore.TagKeys(ctx, ectx.Authorizer, shardIDs, cond)
 	if err != nil {
 		return ectx.Send(ctx, &query.Result{
 			Err: err,
@@ -602,7 +602,7 @@ func (e *StatementExecutor) executeShowTagValues(ctx context.Context, q *influxq
 		}
 	}
 
-	tagValues, err := e.TSDBStore.TagValues(ectx.Authorizer, shardIDs, cond)
+	tagValues, err := e.TSDBStore.TagValues(ctx, ectx.Authorizer, shardIDs, cond)
 	if err != nil {
 		return ectx.Send(ctx, &query.Result{Err: err})
 	}
@@ -759,9 +759,9 @@ func (m mappings) DefaultRetentionPolicy(db string) string {
 type TSDBStore interface {
 	DeleteMeasurement(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
-	MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
-	TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
-	TagValues(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
+	MeasurementNames(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
+	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
+	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 }
 
 var _ TSDBStore = LocalTSDBStore{}
