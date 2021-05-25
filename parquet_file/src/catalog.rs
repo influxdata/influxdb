@@ -911,6 +911,11 @@ where
         Ok(())
     }
 
+    /// Abort transaction w/o commit.
+    pub fn abort(mut self) {
+        self.transaction = None;
+    }
+
     /// Add a new parquet file to the catalog.
     ///
     /// If a file with the same path already exists an error will be returned.
