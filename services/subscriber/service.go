@@ -245,6 +245,17 @@ func (s *Service) run() {
 				s.close(&wg)
 				return
 			}
+			index := 0
+			for _, point := range p.Points {
+				if err := models.ValidPointStrings(point); err != nil {
+					// Log and omit this point from subscription writes
+					s.Logger.Debug("discarding point", zap.String("database", p.Database), zap.String("retention_policy", p.RetentionPolicy), zap.Error(err))
+				} else {
+					p.Points[index] = point
+					index++
+				}
+			}
+			p.Points = p.Points[:index]
 			for se, cw := range s.subs {
 				if p.Database == se.db && p.RetentionPolicy == se.rp {
 					select {

@@ -2546,3 +2546,26 @@ func ValidKeyTokens(name string, tags Tags) bool {
 	}
 	return true
 }
+
+// ValidPointStrings validates the measurement name, tage names and values, and field names in a point
+func ValidPointStrings(p Point) error {
+	if !ValidKeyToken(string(p.Name())) {
+		return fmt.Errorf("invalid or unprintable UTF-8 characters in measurement name: %q", p.Name())
+	}
+	for _, tag := range p.Tags() {
+		if !ValidKeyToken(string(tag.Key)) {
+			return fmt.Errorf("invalid or unprintable UTF-8 characters in tag key: %q", tag.Key)
+		} else if !ValidKeyToken(string(tag.Value)) {
+			return fmt.Errorf("invalid or unprintable UTF-8 characters in tag value: %q", tag.Value)
+		}
+	}
+	for iter := p.FieldIterator(); iter.Next(); {
+		if !ValidKeyToken(string(iter.FieldKey())) {
+			return fmt.Errorf("invalid or unprintable UTF-8 in field name: %q", iter.FieldKey())
+		}
+		if (iter.Type() == String) && !ValidKeyToken(iter.StringValue()) {
+			return fmt.Errorf("invalid or unprintable UTF-8 in field value: %q", iter.StringValue())
+		}
+	}
+	return nil
+}
