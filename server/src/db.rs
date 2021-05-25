@@ -1213,6 +1213,10 @@ impl CatalogState for Catalog {
     fn remove(&self, _path: DirsAndFileName) -> parquet_file::catalog::Result<()> {
         unimplemented!("parquet files cannot be removed from the catalog for now")
     }
+
+    fn tracked_parquet_files(&self) -> std::collections::HashSet<DirsAndFileName> {
+        todo!()
+    }
 }
 
 pub mod test_helpers {
