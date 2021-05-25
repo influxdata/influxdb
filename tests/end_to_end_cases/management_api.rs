@@ -1,6 +1,6 @@
 use generated_types::{
     google::protobuf::{Duration, Empty},
-    influxdata::iox::management::v1::*,
+    influxdata::iox::management::v1::{database_rules::RoutingRules, *},
 };
 use influxdb_iox_client::{management::CreateDatabaseError, operations, write::WriteError};
 
@@ -222,7 +222,7 @@ async fn test_create_get_update_database() {
             }),
             ..Default::default()
         }),
-        shard_config: None,
+        routing_rules: None,
     };
 
     client
@@ -235,12 +235,12 @@ async fn test_create_get_update_database() {
         .await
         .expect("get database failed");
 
-    assert_eq!(response.shard_config, None);
+    assert_eq!(response.routing_rules, None);
 
-    rules.shard_config = Some(ShardConfig {
+    rules.routing_rules = Some(RoutingRules::ShardConfig(ShardConfig {
         ignore_errors: true,
         ..Default::default()
-    });
+    }));
 
     let updated_rules = client
         .update_database(rules.clone())
@@ -254,13 +254,10 @@ async fn test_create_get_update_database() {
         .await
         .expect("get database failed");
 
-    assert_eq!(
-        response
-            .shard_config
-            .expect("shard config missing")
-            .ignore_errors,
-        true
-    );
+    assert!(matches!(
+            response.routing_rules,
+            Some(RoutingRules::ShardConfig(cfg)) if cfg.ignore_errors,
+    ));
 }
 
 #[tokio::test]

@@ -319,16 +319,22 @@ mod tests {
     fn test_database_rules_shard_config() {
         let protobuf = management::DatabaseRules {
             name: "database".to_string(),
-            shard_config: Some(management::ShardConfig {
-                ..Default::default()
-            }),
+            routing_rules: Some(management::database_rules::RoutingRules::ShardConfig(
+                management::ShardConfig {
+                    ..Default::default()
+                },
+            )),
             ..Default::default()
         };
 
         let rules: DatabaseRules = protobuf.try_into().unwrap();
         let back: management::DatabaseRules = rules.into();
 
-        assert!(back.shard_config.is_some());
+        assert!(back.routing_rules.is_some());
+        assert!(matches!(
+            back.routing_rules,
+            Some(management::database_rules::RoutingRules::ShardConfig(_))
+        ));
     }
 
     #[test]

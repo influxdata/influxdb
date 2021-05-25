@@ -101,7 +101,7 @@ use crate::{
     db::Db,
 };
 use cached::Return;
-use data_types::database_rules::{NodeGroup, Shard, ShardId};
+use data_types::database_rules::{NodeGroup, RoutingRules, Shard, ShardConfig, ShardId};
 use generated_types::database_rules::{decode_database_rules, encode_database_rules};
 use influxdb_iox_client::{connection::Builder, write};
 use rand::seq::SliceRandom;
@@ -587,6 +587,31 @@ impl<M: ConnectionManager> Server<M> {
             .db(&db_name)
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
+        // need to split this in two blocks because we cannot hold a lock across an async call.
+        let routing_config_target = {
+            let rules = db.rules.read();
+            if let Some(RoutingRules::RoutingConfig(routing_config)) = &rules.routing_rules {
+                let sharded_entries = lines_to_sharded_entries(
+                    lines,
+                    default_time,
+                    None as Option<&ShardConfig>,
+                    &*rules,
+                )
+                .context(LineConversion)?;
+                Some((routing_config.target.clone(), sharded_entries))
+            } else {
+                None
+            }
+        };
+
+        if let Some((target, sharded_entries)) = routing_config_target {
+            for i in sharded_entries {
+                self.write_entry_downstream(&db_name, &target, i.entry)
+                    .await?;
+            }
+            return Ok(());
+        }
+
         // Split lines into shards while holding a read lock on the sharding config.
         // Once the lock is released we have a vector of entries, each associated with a
         // shard id, and an Arc to the mapping between shard ids and node
@@ -595,10 +620,14 @@ impl<M: ConnectionManager> Server<M> {
         // lock.
         let (sharded_entries, shards) = {
             let rules = db.rules.read();
-            let shard_config = &rules.shard_config;
+
+            let shard_config = rules.routing_rules.as_ref().map(|cfg| match cfg {
+                RoutingRules::RoutingConfig(_) => todo!("routing config"),
+                RoutingRules::ShardConfig(shard_config) => shard_config,
+            });
 
             let sharded_entries =
-                lines_to_sharded_entries(lines, default_time, shard_config.as_ref(), &*rules)
+                lines_to_sharded_entries(lines, default_time, shard_config, &*rules)
                     .context(LineConversion)?;
 
             let shards = shard_config
@@ -1143,7 +1172,7 @@ mod tests {
             },
             write_buffer_config: None,
             lifecycle_rules: Default::default(),
-            shard_config: None,
+            routing_rules: None,
         };
 
         // Create a database
@@ -1239,7 +1268,7 @@ mod tests {
             },
             write_buffer_config: None,
             lifecycle_rules: Default::default(),
-            shard_config: None,
+            routing_rules: None,
         };
 
         // Create a database
@@ -1462,7 +1491,7 @@ mod tests {
         let db = server.db(&db_name).unwrap();
         {
             let mut rules = db.rules.write();
-            rules.shard_config = Some(ShardConfig {
+            let shard_config = ShardConfig {
                 hash_ring: Some(HashRing {
                     shards: vec![TEST_SHARD_ID].into(),
                     ..Default::default()
@@ -1473,7 +1502,8 @@ mod tests {
                         .collect(),
                 ),
                 ..Default::default()
-            });
+            };
+            rules.routing_rules = Some(RoutingRules::ShardConfig(shard_config));
         }
 
         let line = "cpu bar=1 10";
