@@ -30,7 +30,6 @@ import (
 	iqlcontrol "github.com/influxdata/influxdb/v2/influxql/control"
 	iqlquery "github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/inmem"
-	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/internal/resource"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	overrideflagger "github.com/influxdata/influxdb/v2/kit/feature/override"
@@ -289,11 +288,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		kvStore.WithDB(m.boltClient.DB())
 		m.kvStore = kvStore
 
-		// If a bolt path is specified and the sqlite path has NOT been specified, put the
-		// sqlite data in the same folder as the bolt file.
-		dir, _ := fs.InfluxDir()
-		if opts.BoltPath != filepath.Join(dir, bolt.DefaultFilename) &&
-			opts.SqLitePath == filepath.Join(dir, sqlite.DefaultFilename) {
+		// If a sqlite-path is not specified, store sqlite db in the same directory as bolt with the default filename.
+		if opts.SqLitePath == "" {
 			opts.SqLitePath = filepath.Dir(opts.BoltPath) + "/" + sqlite.DefaultFilename
 		}
 		sqlStore, err := sqlite.NewSqlStore(opts.SqLitePath, m.log.With(zap.String("service", "sqlite")))

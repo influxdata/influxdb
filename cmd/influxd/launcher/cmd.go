@@ -241,10 +241,9 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Desc:    "path to boltdb database",
 		},
 		{
-			DestP:   &o.SqLitePath,
-			Flag:    "sqlite-path",
-			Default: o.SqLitePath,
-			Desc:    fmt.Sprintf("path to sqlite database. note: if bolt-path is set but sqlite-path is not set, sqlite database will be stored in the same directory as bolt-path with the filename %q. if sqlite-path and bolt-path are both not set, sqlite database is stored at the default location.", sqlite.DefaultFilename),
+			DestP: &o.SqLitePath,
+			Flag:  "sqlite-path",
+			Desc:  fmt.Sprintf("path to sqlite database. if not set, sqlite database will be stored in the bolt-path directory as %q.", sqlite.DefaultFilename),
 		},
 		{
 			DestP: &o.AssetsPath,
