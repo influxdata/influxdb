@@ -18,6 +18,7 @@
 1. [21499](https://github.com/influxdata/influxdb/pull/21499): Remove erroneous dependency on istio.
 1. [21501](https://github.com/influxdata/influxdb/pull/21501): Don't deadlock in `influx org members list` when an org has > 10 members.
 1. [21524](https://github.com/influxdata/influxdb/pull/21524): Replace telemetry file name with slug for `ttf`, `woff`, and `eot` files.
+1. [21549](https://github.com/influxdata/influxdb/pull/21549): Enable use of absolute path for `--upgrade-log` when running `influxd upgrade` on Windows.
 
 ## v2.0.6 [2021-04-29]
 ----------------------

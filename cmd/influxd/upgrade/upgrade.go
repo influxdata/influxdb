@@ -331,9 +331,13 @@ func buildLogger(options *logOptions, verbose bool) (*zap.Logger, error) {
 	if verbose {
 		config.Level.SetLevel(zap.DebugLevel)
 	}
+	logPath, err := options.zapSafeLogPath()
+	if err != nil {
+		return nil, err
+	}
 
-	config.OutputPaths = append(config.OutputPaths, options.logPath)
-	config.ErrorOutputPaths = append(config.ErrorOutputPaths, options.logPath)
+	config.OutputPaths = append(config.OutputPaths, logPath)
+	config.ErrorOutputPaths = append(config.ErrorOutputPaths, logPath)
 
 	log, err := config.Build()
 	if err != nil {
