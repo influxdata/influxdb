@@ -22,6 +22,7 @@ mod tests {
         ////////////////////
         // Create test data which is also the expected data
         let table = "table1";
+        let chunk_id = 1;
         let (record_batches, schema, column_summaries, num_rows) = make_record_batch("foo");
         let mut table_summary = TableSummary::new(table);
         table_summary.columns = column_summaries.clone();
@@ -41,6 +42,7 @@ mod tests {
             schema.clone(),
             table,
             column_summaries.clone(),
+            chunk_id,
         )
         .await;
 

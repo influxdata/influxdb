@@ -1055,15 +1055,12 @@ pub mod test_helpers {
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use std::{num::NonZeroU32, ops::Deref};
 
     use crate::{
-        metadata::{
-            read_parquet_metadata_from_file, read_schema_from_parquet_metadata,
-            read_statistics_from_parquet_metadata,
-        },
-        utils::{load_parquet_from_store, make_chunk, make_object_store},
+        metadata::{read_schema_from_parquet_metadata, read_statistics_from_parquet_metadata},
+        utils::{make_metadata, make_object_store},
     };
     use object_store::parsed_path;
 
@@ -1681,8 +1678,8 @@ pub mod tests {
         .unwrap();
 
         // get some test metadata
-        let metadata1 = make_metadata(object_store, "foo").await;
-        let metadata2 = make_metadata(object_store, "bar").await;
+        let (_, metadata1) = make_metadata(object_store, "foo", 1).await;
+        let (_, metadata2) = make_metadata(object_store, "bar", 1).await;
 
         // track all the intermediate results
         let mut trace = TestTrace::new();
@@ -1991,17 +1988,5 @@ pub mod tests {
             &catalog,
             &get_catalog_parquet_files(trace.states.last().unwrap()),
         );
-    }
-
-    /// Create test metadata. See [`make_chunk`] for details.
-    async fn make_metadata(
-        object_store: &Arc<ObjectStore>,
-        column_prefix: &str,
-    ) -> ParquetMetaData {
-        let chunk = make_chunk(Arc::clone(object_store), column_prefix).await;
-        let (_, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(object_store))
-            .await
-            .unwrap();
-        read_parquet_metadata_from_file(parquet_data).unwrap()
     }
 }
