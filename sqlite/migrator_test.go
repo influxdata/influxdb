@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"context"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2/kit/errors"
@@ -14,6 +15,7 @@ func TestUp(t *testing.T) {
 
 	store, clean := newTestStore(t)
 	defer clean(t)
+	ctx := context.Background()
 
 	// a new database should have a user_version of 0
 	v, err := store.userVersion()
@@ -21,7 +23,7 @@ func TestUp(t *testing.T) {
 	require.Equal(t, 0, v)
 
 	migrator := NewMigrator(store, zaptest.NewLogger(t))
-	migrator.Up(&test_migrations.All{})
+	migrator.Up(ctx, &test_migrations.All{})
 
 	// user_version should now be 3 after applying the migrations
 	v, err = store.userVersion()

@@ -281,7 +281,10 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	var flushers flushers
 	switch opts.StoreType {
-	case DiskStore, BoltStore:
+	case BoltStore:
+		m.log.Warn("Using --store=bolt is deprecated. Use --store=disk instead.")
+		fallthrough
+	case DiskStore:
 		kvStore := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), opts.BoltPath)
 		kvStore.WithDB(m.boltClient.DB())
 		m.kvStore = kvStore
@@ -344,7 +347,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	sqliteMigrator := sqlite.NewMigrator(m.sqlStore, m.log.With(zap.String("service", "sqlite migrations")))
 
 	// apply migrations to the sqlite metadata store
-	if err := sqliteMigrator.Up(&sqliteMigrations.All{}); err != nil {
+	if err := sqliteMigrator.Up(ctx, &sqliteMigrations.All{}); err != nil {
 		m.log.Error("Failed to apply sqlite migrations", zap.Error(err))
 		return err
 	}

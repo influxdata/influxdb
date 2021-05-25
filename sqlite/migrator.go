@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"context"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,7 +26,7 @@ func NewMigrator(store *SqlStore, log *zap.Logger) *Migrator {
 	}
 }
 
-func (m *Migrator) Up(source MigrationSource) error {
+func (m *Migrator) Up(ctx context.Context, source MigrationSource) error {
 	// get the current value for user_version from the database
 	c, err := m.store.userVersion()
 	if err != nil {
@@ -50,7 +51,7 @@ func (m *Migrator) Up(source MigrationSource) error {
 		if v > c {
 			m.log.Debug("Executing metadata migration", zap.String("migration_name", n))
 			stmt := source.MustAssetString(n)
-			err := m.store.execTrans(stmt)
+			err := m.store.execTrans(ctx, stmt)
 			if err != nil {
 				return err
 			}
