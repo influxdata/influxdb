@@ -29,7 +29,7 @@ type Engine interface {
 	influxdb.BackupService
 	influxdb.RestoreService
 
-	SeriesCardinality(orgID, bucketID influxdb.ID) int64
+	SeriesCardinality(ctx context.Context, bucketID influxdb.ID) int64
 
 	TSDBStore() storage.TSDBStore
 	MetaClient() storage.MetaClient
@@ -114,8 +114,8 @@ func (t *TemporaryEngine) WritePoints(ctx context.Context, orgID influxdb.ID, bu
 }
 
 // SeriesCardinality returns the number of series in the engine.
-func (t *TemporaryEngine) SeriesCardinality(orgID, bucketID influxdb.ID) int64 {
-	return t.engine.SeriesCardinality(orgID, bucketID)
+func (t *TemporaryEngine) SeriesCardinality(ctx context.Context, bucketID influxdb.ID) int64 {
+	return t.engine.SeriesCardinality(ctx, bucketID)
 }
 
 // DeleteBucketRangePredicate will delete a bucket from the range and predicate.
