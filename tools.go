@@ -11,6 +11,7 @@ import (
 	_ "github.com/kevinburke/go-bindata/go-bindata"
 	_ "github.com/mna/pigeon"
 	_ "golang.org/x/tools/cmd/stringer"
+	_ "gopkg.in/yaml.v2"
 	_ "honnef.co/go/tools/cmd/staticcheck"
 )
 

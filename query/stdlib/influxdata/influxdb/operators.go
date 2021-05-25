@@ -118,10 +118,14 @@ type ReadWindowAggregatePhysSpec struct {
 	Aggregates  []plan.ProcedureKind
 	CreateEmpty bool
 	TimeColumn  string
+
+	// ForceAggregate forces the aggregates to be treated as
+	// aggregates even if they are selectors.
+	ForceAggregate bool
 }
 
 func (s *ReadWindowAggregatePhysSpec) PlanDetails() string {
-	return fmt.Sprintf("every = %v, aggregates = %v, createEmpty = %v, timeColumn = \"%s\"", s.WindowEvery, s.Aggregates, s.CreateEmpty, s.TimeColumn)
+	return fmt.Sprintf("every = %v, aggregates = %v, createEmpty = %v, timeColumn = \"%s\", forceAggregate = %v", s.WindowEvery, s.Aggregates, s.CreateEmpty, s.TimeColumn, s.ForceAggregate)
 }
 
 func (s *ReadWindowAggregatePhysSpec) Kind() plan.ProcedureKind {
@@ -129,16 +133,12 @@ func (s *ReadWindowAggregatePhysSpec) Kind() plan.ProcedureKind {
 }
 
 func (s *ReadWindowAggregatePhysSpec) Copy() plan.ProcedureSpec {
-	ns := new(ReadWindowAggregatePhysSpec)
-
+	ns := *s
 	ns.ReadRangePhysSpec = *s.ReadRangePhysSpec.Copy().(*ReadRangePhysSpec)
-	ns.WindowEvery = s.WindowEvery
-	ns.Offset = s.Offset
-	ns.Aggregates = s.Aggregates
-	ns.CreateEmpty = s.CreateEmpty
-	ns.TimeColumn = s.TimeColumn
+	ns.Aggregates = make([]plan.ProcedureKind, len(s.Aggregates))
+	copy(ns.Aggregates, s.Aggregates)
 
-	return ns
+	return &ns
 }
 
 type ReadTagKeysPhysSpec struct {

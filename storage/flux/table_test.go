@@ -1059,6 +1059,210 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStartTime(t *testing.T) 
 	}
 }
 
+func TestStorageReader_ReadWindowAggregate_CreateEmptyAggregateByStopTime(t *testing.T) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(org, bucket,
+			MeasurementSpec("m0",
+				FloatArrayValuesSequence("f0", 15*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
+				TagValuesSequence("t0", "a-%s", 0, 3),
+			),
+		)
+		tr := TimeRange("2019-11-25T00:00:00Z", "2019-11-25T00:01:00Z")
+		return datagen.NewSeriesGeneratorFromSpec(spec, tr), tr
+	})
+	defer reader.Close()
+
+	for _, tt := range []struct {
+		aggregate plan.ProcedureKind
+		want      flux.TableIterator
+	}{
+		{
+			aggregate: storageflux.CountKind,
+			want: static.TableGroup{
+				static.StringKey("_measurement", "m0"),
+				static.StringKey("_field", "f0"),
+				static.TimeKey("_start", "2019-11-25T00:00:00Z"),
+				static.TimeKey("_stop", "2019-11-25T00:01:00Z"),
+				static.TableMatrix{
+					static.StringKeys("t0", "a-0", "a-1", "a-2"),
+					{
+						static.Table{
+							static.Times("_time", "2019-11-25T00:00:10Z", 10, 20, 30, 40, 50),
+							static.Ints("_value", 1, 1, 0, 1, 1, 0),
+						},
+					},
+				},
+			},
+		},
+		{
+			aggregate: storageflux.MinKind,
+			want: static.TableGroup{
+				static.StringKey("_measurement", "m0"),
+				static.StringKey("_field", "f0"),
+				static.TimeKey("_start", "2019-11-25T00:00:00Z"),
+				static.TimeKey("_stop", "2019-11-25T00:01:00Z"),
+				static.TableMatrix{
+					static.StringKeys("t0", "a-0", "a-1", "a-2"),
+					{
+						static.Table{
+							static.Times("_time", "2019-11-25T00:00:10Z", 10, 20, 30, 40, 50),
+							static.Floats("_value", 1, 2, nil, 3, 4, nil),
+						},
+					},
+				},
+			},
+		},
+		{
+			aggregate: storageflux.MaxKind,
+			want: static.TableGroup{
+				static.StringKey("_measurement", "m0"),
+				static.StringKey("_field", "f0"),
+				static.TimeKey("_start", "2019-11-25T00:00:00Z"),
+				static.TimeKey("_stop", "2019-11-25T00:01:00Z"),
+				static.TableMatrix{
+					static.StringKeys("t0", "a-0", "a-1", "a-2"),
+					{
+						static.Table{
+							static.Times("_time", "2019-11-25T00:00:10Z", 10, 20, 30, 40, 50),
+							static.Floats("_value", 1, 2, nil, 3, 4, nil),
+						},
+					},
+				},
+			},
+		},
+	} {
+		t.Run(string(tt.aggregate), func(t *testing.T) {
+			mem := &memory.Allocator{}
+			got, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
+				ReadFilterSpec: query.ReadFilterSpec{
+					OrganizationID: reader.Org,
+					BucketID:       reader.Bucket,
+					Bounds:         reader.Bounds,
+				},
+				TimeColumn: execute.DefaultStopColLabel,
+				Window: execute.Window{
+					Every:  flux.ConvertDuration(10 * time.Second),
+					Period: flux.ConvertDuration(10 * time.Second),
+				},
+				Aggregates: []plan.ProcedureKind{
+					tt.aggregate,
+				},
+				CreateEmpty:    true,
+				ForceAggregate: true,
+			}, mem)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if diff := table.Diff(tt.want, got); diff != "" {
+				t.Errorf("unexpected results -want/+got:\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestStorageReader_ReadWindowAggregate_CreateEmptyAggregateByStartTime(t *testing.T) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(org, bucket,
+			MeasurementSpec("m0",
+				FloatArrayValuesSequence("f0", 15*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
+				TagValuesSequence("t0", "a-%s", 0, 3),
+			),
+		)
+		tr := TimeRange("2019-11-25T00:00:00Z", "2019-11-25T00:01:00Z")
+		return datagen.NewSeriesGeneratorFromSpec(spec, tr), tr
+	})
+	defer reader.Close()
+
+	for _, tt := range []struct {
+		aggregate plan.ProcedureKind
+		want      flux.TableIterator
+	}{
+		{
+			aggregate: storageflux.CountKind,
+			want: static.TableGroup{
+				static.StringKey("_measurement", "m0"),
+				static.StringKey("_field", "f0"),
+				static.TimeKey("_start", "2019-11-25T00:00:00Z"),
+				static.TimeKey("_stop", "2019-11-25T00:01:00Z"),
+				static.TableMatrix{
+					static.StringKeys("t0", "a-0", "a-1", "a-2"),
+					{
+						static.Table{
+							static.Times("_time", "2019-11-25T00:00:00Z", 10, 20, 30, 40, 50),
+							static.Ints("_value", 1, 1, 0, 1, 1, 0),
+						},
+					},
+				},
+			},
+		},
+		{
+			aggregate: storageflux.MinKind,
+			want: static.TableGroup{
+				static.StringKey("_measurement", "m0"),
+				static.StringKey("_field", "f0"),
+				static.TimeKey("_start", "2019-11-25T00:00:00Z"),
+				static.TimeKey("_stop", "2019-11-25T00:01:00Z"),
+				static.TableMatrix{
+					static.StringKeys("t0", "a-0", "a-1", "a-2"),
+					{
+						static.Table{
+							static.Times("_time", "2019-11-25T00:00:00Z", 10, 20, 30, 40, 50),
+							static.Floats("_value", 1, 2, nil, 3, 4, nil),
+						},
+					},
+				},
+			},
+		},
+		{
+			aggregate: storageflux.MaxKind,
+			want: static.TableGroup{
+				static.StringKey("_measurement", "m0"),
+				static.StringKey("_field", "f0"),
+				static.TimeKey("_start", "2019-11-25T00:00:00Z"),
+				static.TimeKey("_stop", "2019-11-25T00:01:00Z"),
+				static.TableMatrix{
+					static.StringKeys("t0", "a-0", "a-1", "a-2"),
+					{
+						static.Table{
+							static.Times("_time", "2019-11-25T00:00:00Z", 10, 20, 30, 40, 50),
+							static.Floats("_value", 1, 2, nil, 3, 4, nil),
+						},
+					},
+				},
+			},
+		},
+	} {
+		t.Run(string(tt.aggregate), func(t *testing.T) {
+			mem := &memory.Allocator{}
+			got, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
+				ReadFilterSpec: query.ReadFilterSpec{
+					OrganizationID: reader.Org,
+					BucketID:       reader.Bucket,
+					Bounds:         reader.Bounds,
+				},
+				TimeColumn: execute.DefaultStartColLabel,
+				Window: execute.Window{
+					Every:  flux.ConvertDuration(10 * time.Second),
+					Period: flux.ConvertDuration(10 * time.Second),
+				},
+				Aggregates: []plan.ProcedureKind{
+					tt.aggregate,
+				},
+				CreateEmpty:    true,
+				ForceAggregate: true,
+			}, mem)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if diff := table.Diff(tt.want, got); diff != "" {
+				t.Errorf("unexpected results -want/+got:\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestStorageReader_ReadWindowAggregate_TruncatedBounds(t *testing.T) {
 	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,

@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/plan/plantest"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/stdlib/experimental/table"
 	fluxinfluxdb "github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/flux/values"
@@ -1937,6 +1938,120 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
+			plantest.PhysicalRuleTestHelper(t, &tc)
+		})
+	}
+}
+
+func TestPushDownWindowForceAggregateRule(t *testing.T) {
+	rules := []plan.Rule{
+		influxdb.PushDownWindowAggregateRule{},
+		influxdb.PushDownWindowForceAggregateRule{},
+		influxdb.PushDownWindowAggregateByTimeRule{},
+	}
+
+	readRange := influxdb.ReadRangePhysSpec{
+		Bucket: "test",
+		Bounds: flux.Bounds{
+			Start: flux.Time{
+				IsRelative: true,
+				Relative:   -time.Hour,
+			},
+			Stop: flux.Time{
+				IsRelative: true,
+			},
+		},
+	}
+
+	tests := []plantest.RuleTestCase{
+		{
+			Name:  "simple",
+			Rules: rules,
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadWindowAggregate", &influxdb.ReadWindowAggregatePhysSpec{
+						ReadRangePhysSpec: readRange,
+						WindowEvery:       flux.ConvertDuration(5 * time.Minute),
+						Aggregates: []plan.ProcedureKind{
+							universe.MaxKind,
+						},
+					}),
+					plan.CreatePhysicalNode("fill", &table.FillProcedureSpec{}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("merged_ReadWindowAggregate_fill", &influxdb.ReadWindowAggregatePhysSpec{
+						ReadRangePhysSpec: readRange,
+						WindowEvery:       flux.ConvertDuration(5 * time.Minute),
+						Aggregates: []plan.ProcedureKind{
+							universe.MaxKind,
+						},
+						ForceAggregate: true,
+					}),
+				},
+			},
+		},
+		{
+			Name:  "idempotent",
+			Rules: rules,
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadWindowAggregate", &influxdb.ReadWindowAggregatePhysSpec{
+						ReadRangePhysSpec: readRange,
+						WindowEvery:       flux.ConvertDuration(5 * time.Minute),
+						Aggregates: []plan.ProcedureKind{
+							universe.MaxKind,
+						},
+					}),
+					plan.CreatePhysicalNode("fill0", &table.FillProcedureSpec{}),
+					plan.CreatePhysicalNode("fill1", &table.FillProcedureSpec{}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+					{1, 2},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("merged_ReadWindowAggregate_fill0_fill1", &influxdb.ReadWindowAggregatePhysSpec{
+						ReadRangePhysSpec: readRange,
+						WindowEvery:       flux.ConvertDuration(5 * time.Minute),
+						Aggregates: []plan.ProcedureKind{
+							universe.MaxKind,
+						},
+						ForceAggregate: true,
+					}),
+				},
+			},
+		},
+		{
+			Name:  "bare",
+			Rules: rules,
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadWindowAggregate", &influxdb.ReadWindowAggregatePhysSpec{
+						ReadRangePhysSpec: readRange,
+						WindowEvery:       flux.ConvertDuration(math.MaxInt64),
+						Aggregates: []plan.ProcedureKind{
+							universe.MaxKind,
+						},
+					}),
+					plan.CreatePhysicalNode("fill", &table.FillProcedureSpec{}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			NoChange: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
 			plantest.PhysicalRuleTestHelper(t, &tc)
 		})
 	}
