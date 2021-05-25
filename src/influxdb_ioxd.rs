@@ -100,7 +100,14 @@ async fn wait_for_signal() {
 pub async fn main(config: Config) -> Result<()> {
     let git_hash = option_env!("GIT_HASH").unwrap_or("UNKNOWN");
     let num_cpus = num_cpus::get();
-    info!(git_hash, num_cpus, "InfluxDB IOx server starting");
+    let build_malloc_conf = tikv_jemalloc_ctl::config::malloc_conf::mib()
+        .unwrap()
+        .read()
+        .unwrap();
+    info!(
+        git_hash,
+        num_cpus, build_malloc_conf, "InfluxDB IOx server starting"
+    );
 
     // Install custom panic handler and forget about it.
     //
