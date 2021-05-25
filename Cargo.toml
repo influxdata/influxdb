@@ -100,7 +100,7 @@ serde_urlencoded = "0.7.0"
 snafu = "0.6.9"
 structopt = "0.3.21"
 thiserror = "1.0.23"
-tikv-jemallocator = "0.4.0"
+tikv-jemallocator = {version = "0.4.0", features = ["unprefixed_malloc_on_supported_platforms"] }
 tikv-jemalloc-ctl = "0.4.0"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "parking_lot", "signal"] }
 tokio-stream = { version = "0.1.2", features = ["net"] }

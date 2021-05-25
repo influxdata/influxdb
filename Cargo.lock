@@ -3020,6 +3020,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-stream",
+ "tracker",
 ]
 
 [[package]]

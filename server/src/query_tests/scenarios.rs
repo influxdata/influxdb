@@ -200,7 +200,7 @@ impl DbSetup for TwoMeasurementsPredicatePushDown {
             "school,town=andover count=25u,system=6.0 160",
         ];
 
-        make_one_rub_chunk_scenario(partition_key, &lp_lines.join("\n")).await
+        make_one_rub_or_parquet_chunk_scenario(partition_key, &lp_lines.join("\n")).await
     }
 }
 
@@ -688,7 +688,7 @@ pub async fn rollover_and_load(db: &Db, partition_key: &str, table_name: &str) {
 }
 
 // This function loads one chunk of lp data into RUB for testing predicate pushdown
-pub(crate) async fn make_one_rub_chunk_scenario(
+pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
     partition_key: &str,
     data: &str,
 ) -> Vec<DbScenario> {
@@ -704,9 +704,31 @@ pub(crate) async fn make_one_rub_chunk_scenario(
             .unwrap();
     }
     let scenario1 = DbScenario {
-        scenario_name: "Data in read buffer".into(),
+        scenario_name: "--------------------- Data in read buffer".into(),
         db,
     };
 
-    vec![scenario1]
+    // Scenario 2: One closed chunk in Parquet only
+    let db = make_db().await.db;
+    let table_names = write_lp(&db, data);
+    for table_name in &table_names {
+        db.rollover_partition(partition_key, &table_name)
+            .await
+            .unwrap();
+        db.load_chunk_to_read_buffer(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+        db.write_chunk_to_object_store(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+        db.unload_read_buffer(partition_key, &table_name, 0)
+            .await
+            .unwrap();
+    }
+    let scenario2 = DbScenario {
+        scenario_name: "--------------------- Data in object store only ".into(),
+        db,
+    };
+
+    vec![scenario1, scenario2]
 }

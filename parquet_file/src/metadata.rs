@@ -88,9 +88,8 @@
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
 use std::sync::Arc;
 
-use data_types::{
-    partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
-    timestamp::TimestampRange,
+use data_types::partition_metadata::{
+    ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
 };
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
 use parquet::{
@@ -193,44 +192,30 @@ pub fn read_statistics_from_parquet_metadata(
     parquet_md: &ParquetMetaData,
     schema: &Schema,
     table_name: &str,
-) -> Result<(TableSummary, Option<TimestampRange>)> {
+) -> Result<TableSummary> {
     let mut table_summary_agg: Option<TableSummary> = None;
-    let mut timestamp_range_agg = None;
 
     for (row_group_idx, row_group) in parquet_md.row_groups().iter().enumerate() {
-        let (table_summary, timestamp_range) =
+        let table_summary =
             read_statistics_from_parquet_row_group(row_group, row_group_idx, schema, table_name)?;
 
         match table_summary_agg.as_mut() {
             Some(existing) => existing.update_from(&table_summary),
             None => table_summary_agg = Some(table_summary),
         }
-
-        timestamp_range_agg = match (timestamp_range_agg, timestamp_range) {
-            (Some(a), Some(b)) => Some(TimestampRange {
-                start: a.start.min(b.start),
-                end: a.end.max(b.end),
-            }),
-            (Some(a), None) | (None, Some(a)) => Some(a),
-            (None, None) => None,
-        };
     }
 
-    match table_summary_agg {
-        Some(table_summary) => Ok((table_summary, timestamp_range_agg)),
-        None => Err(Error::NoRowGroup {}),
-    }
+    table_summary_agg.context(NoRowGroup)
 }
 
-/// Read IOx statistics (including timestamp range) from parquet row group metadata.
+/// Read IOx statistics from parquet row group metadata.
 fn read_statistics_from_parquet_row_group(
     row_group: &ParquetRowGroupMetaData,
     row_group_idx: usize,
     schema: &Schema,
     table_name: &str,
-) -> Result<(TableSummary, Option<TimestampRange>)> {
+) -> Result<TableSummary> {
     let mut column_summaries = vec![];
-    let mut timestamp_range = None;
 
     for ((iox_type, field), column_chunk_metadata) in schema.iter().zip(row_group.columns()) {
         if let Some(iox_type) = iox_type {
@@ -252,7 +237,7 @@ fn read_statistics_from_parquet_row_group(
             let count =
                 (row_group.num_rows().max(0) as u64).saturating_sub(parquet_stats.null_count());
 
-            let (stats, maybe_tsrange) = extract_iox_statistics(
+            let stats = extract_iox_statistics(
                 parquet_stats,
                 iox_type,
                 count,
@@ -268,10 +253,6 @@ fn read_statistics_from_parquet_row_group(
                 }),
                 stats,
             });
-            if let Some(range) = maybe_tsrange {
-                assert!(timestamp_range.is_none());
-                timestamp_range = Some(range);
-            }
         }
     }
 
@@ -280,97 +261,83 @@ fn read_statistics_from_parquet_row_group(
         columns: column_summaries,
     };
 
-    Ok((table_summary, timestamp_range))
+    Ok(table_summary)
 }
 
 /// Extract IOx statistics from parquet statistics.
 ///
-/// This is required because upstream does not have a mapper from parquet statistics back to arrow or Rust native types.
+/// This is required because upstream does not have a mapper from
+/// parquet statistics back to arrow or Rust native types.
 fn extract_iox_statistics(
     parquet_stats: &ParquetStatistics,
     iox_type: InfluxColumnType,
     count: u64,
     row_group_idx: usize,
     column_name: &str,
-) -> Result<(Statistics, Option<TimestampRange>)> {
+) -> Result<Statistics> {
     match (parquet_stats, iox_type) {
         (ParquetStatistics::Boolean(stats), InfluxColumnType::Field(InfluxFieldType::Boolean)) => {
-            Ok((
-                Statistics::Bool(StatValues {
-                    min: Some(*stats.min()),
-                    max: Some(*stats.max()),
-                    count,
-                }),
-                None,
-            ))
-        }
-        (ParquetStatistics::Int64(stats), InfluxColumnType::Field(InfluxFieldType::Integer)) => {
-            Ok((
-                Statistics::I64(StatValues {
-                    min: Some(*stats.min()),
-                    max: Some(*stats.max()),
-                    count,
-                }),
-                None,
-            ))
-        }
-        (ParquetStatistics::Int64(stats), InfluxColumnType::Field(InfluxFieldType::UInteger)) => {
-            // TODO: that's very likely wrong, but blocked by https://github.com/apache/arrow-rs/issues/254
-            Ok((
-                Statistics::U64(StatValues {
-                    min: Some(*stats.min() as u64),
-                    max: Some(*stats.max() as u64),
-                    count,
-                }),
-                None,
-            ))
-        }
-        (ParquetStatistics::Double(stats), InfluxColumnType::Field(InfluxFieldType::Float)) => {
-            Ok((
-                Statistics::F64(StatValues {
-                    min: Some(*stats.min()),
-                    max: Some(*stats.max()),
-                    count,
-                }),
-                None,
-            ))
-        }
-        (ParquetStatistics::Int64(stats), InfluxColumnType::Timestamp) => Ok((
-            Statistics::I64(StatValues {
+            Ok(Statistics::Bool(StatValues {
                 min: Some(*stats.min()),
                 max: Some(*stats.max()),
                 count,
-            }),
-            Some(TimestampRange::new(*stats.min(), *stats.max())),
-        )),
+            }))
+        }
+        (ParquetStatistics::Int64(stats), InfluxColumnType::Field(InfluxFieldType::Integer)) => {
+            Ok(Statistics::I64(StatValues {
+                min: Some(*stats.min()),
+                max: Some(*stats.max()),
+                count,
+            }))
+        }
+        (ParquetStatistics::Int64(stats), InfluxColumnType::Field(InfluxFieldType::UInteger)) => {
+            // TODO: Likely incorrect for large values until
+            // https://github.com/apache/arrow-rs/issues/254
+            Ok(Statistics::U64(StatValues {
+                min: Some(*stats.min() as u64),
+                max: Some(*stats.max() as u64),
+                count,
+            }))
+        }
+        (ParquetStatistics::Double(stats), InfluxColumnType::Field(InfluxFieldType::Float)) => {
+            Ok(Statistics::F64(StatValues {
+                min: Some(*stats.min()),
+                max: Some(*stats.max()),
+                count,
+            }))
+        }
+        (ParquetStatistics::Int64(stats), InfluxColumnType::Timestamp) => {
+            Ok(Statistics::I64(StatValues {
+                min: Some(*stats.min()),
+                max: Some(*stats.max()),
+                count,
+            }))
+        }
         (ParquetStatistics::ByteArray(stats), InfluxColumnType::Tag)
         | (ParquetStatistics::ByteArray(stats), InfluxColumnType::Field(InfluxFieldType::String)) => {
-            Ok((
-                Statistics::String(StatValues {
-                    min: Some(
-                        stats
-                            .min()
-                            .as_utf8()
-                            .context(StatisticsUtf8Error {
-                                row_group: row_group_idx,
-                                column: column_name.to_string(),
-                            })?
-                            .to_string(),
-                    ),
-                    max: Some(
-                        stats
-                            .max()
-                            .as_utf8()
-                            .context(StatisticsUtf8Error {
-                                row_group: row_group_idx,
-                                column: column_name.to_string(),
-                            })?
-                            .to_string(),
-                    ),
-                    count,
-                }),
-                None,
-            ))
+            Ok(Statistics::String(StatValues {
+                min: Some(
+                    stats
+                        .min()
+                        .as_utf8()
+                        .context(StatisticsUtf8Error {
+                            row_group: row_group_idx,
+                            column: column_name.to_string(),
+                        })?
+                        .to_string(),
+                ),
+                max: Some(
+                    stats
+                        .max()
+                        .as_utf8()
+                        .context(StatisticsUtf8Error {
+                            row_group: row_group_idx,
+                            column: column_name.to_string(),
+                        })?
+                        .to_string(),
+                ),
+                count,
+            }))
         }
         _ => Err(Error::StatisticsTypeMismatch {
             row_group: row_group_idx,
@@ -496,13 +463,11 @@ mod tests {
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: read back statistics
-        let (table_summary_actual, timestamp_range_actual) =
+        let table_summary_actual =
             read_statistics_from_parquet_metadata(&parquet_metadata, &schema_actual, &table)
                 .unwrap();
         let table_summary_expected = chunk.table_summary();
-        let timestamp_range_expected = chunk.timestamp_range();
         assert_eq!(table_summary_actual, table_summary_expected);
-        assert_eq!(timestamp_range_actual, timestamp_range_expected)
     }
 
     #[tokio::test]
@@ -521,13 +486,11 @@ mod tests {
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: read back statistics
-        let (table_summary_actual, timestamp_range_actual) =
+        let table_summary_actual =
             read_statistics_from_parquet_metadata(&parquet_metadata, &schema_actual, &table)
                 .unwrap();
         let table_summary_expected = chunk.table_summary();
-        let timestamp_range_expected = chunk.timestamp_range();
         assert_eq!(table_summary_actual, table_summary_expected);
-        assert_eq!(timestamp_range_actual, timestamp_range_expected)
     }
 
     #[tokio::test]

@@ -2,9 +2,15 @@ use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, mem, sync::Arc};
 
 use crate::storage::{self, Storage};
-use data_types::{partition_metadata::TableSummary, timestamp::TimestampRange};
+use data_types::{
+    partition_metadata::{Statistics, TableSummary},
+    timestamp::TimestampRange,
+};
 use datafusion::physical_plan::SendableRecordBatchStream;
-use internal_types::{schema::Schema, selection::Selection};
+use internal_types::{
+    schema::{Schema, TIME_COLUMN_NAME},
+    selection::Selection,
+};
 use object_store::{path::Path, ObjectStore};
 use query::predicate::Predicate;
 
@@ -38,24 +44,26 @@ pub struct Table {
     /// Schema that goes with this table's parquet file
     table_schema: Schema,
 
-    /// Timestamp rang of this table's parquet file
+    /// Timestamp range of this table's parquet file
+    /// (extracted from TableSummary)
     timestamp_range: Option<TimestampRange>,
 }
 
 impl Table {
     pub fn new(
-        meta: TableSummary,
+        table_summary: TableSummary,
         path: Path,
         store: Arc<ObjectStore>,
         schema: Schema,
-        range: Option<TimestampRange>,
     ) -> Self {
+        let timestamp_range = extract_range(&table_summary);
+
         Self {
-            table_summary: meta,
+            table_summary,
             object_store_path: path,
             object_store: store,
             table_schema: schema,
-            timestamp_range: range,
+            timestamp_range,
         }
     }
 
@@ -94,11 +102,6 @@ impl Table {
                 self.table_schema.project(&columns)
             }
         })
-    }
-
-    /// Return timestamp range of this table
-    pub fn timestamp_range(&self) -> Option<TimestampRange> {
-        self.timestamp_range
     }
 
     // Check if 2 time ranges overlap
@@ -151,4 +154,19 @@ impl Table {
         // All columns have the same rows, so return get row count of the first column
         self.table_summary.columns[0].count() as usize
     }
+}
+
+/// Extracts min/max values of the timestamp column, from the TableSummary, if possible
+fn extract_range(table_summary: &TableSummary) -> Option<TimestampRange> {
+    table_summary
+        .column(TIME_COLUMN_NAME)
+        .map(|c| {
+            if let Statistics::I64(s) = &c.stats {
+                if let (Some(min), Some(max)) = (s.min, s.max) {
+                    return Some(TimestampRange::new(min, max));
+                }
+            }
+            None
+        })
+        .flatten()
 }
