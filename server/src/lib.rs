@@ -296,7 +296,7 @@ impl ServerMetrics {
                     use tikv_jemalloc_ctl::{epoch, stats};
                     epoch::advance().unwrap();
 
-                    let active = stats::allocated::read().unwrap();
+                    let active = stats::active::read().unwrap();
                     observer.observe(active as u64, &[KeyValue::new("stat", "active")]);
 
                     let allocated = stats::allocated::read().unwrap();
