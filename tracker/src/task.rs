@@ -340,6 +340,11 @@ impl TaskRegistration {
     pub fn new() -> Self {
         Self::default()
     }
+
+    /// Converts the registration into a tracker with id 0 and no metadata
+    pub fn into_tracker(self) -> TaskTracker<()> {
+        TaskTracker::new(TaskId(0), &self, ())
+    }
 }
 
 impl Drop for TaskRegistration {
