@@ -212,6 +212,20 @@ func RefreshSingleCell() BoolFlag {
 	return refreshSingleCell
 }
 
+var rangeAnnotations = MakeBoolFlag(
+	"Range Annotations",
+	"rangeAnnotations",
+	"Jill Pelavin/ Dumplings Team",
+	false,
+	Temporary,
+	true,
+)
+
+// RangeAnnotations - Enables the creation of Range Annotations on Drag (if annotation write mode is activated)
+func RangeAnnotations() BoolFlag {
+	return rangeAnnotations
+}
+
 var annotations = MakeBoolFlag(
 	"Annotations UI",
 	"annotations",
@@ -242,6 +256,7 @@ var all = []Flag{
 	editTelegrafs,
 	cursorAtEOF,
 	refreshSingleCell,
+	rangeAnnotations,
 	annotations,
 }
 
@@ -261,5 +276,6 @@ var byKey = map[string]Flag{
 	"editTelegrafs":                 editTelegrafs,
 	"cursorAtEOF":                   cursorAtEOF,
 	"refreshSingleCell":             refreshSingleCell,
+	"rangeAnnotations":              rangeAnnotations,
 	"annotations":                   annotations,
 }
