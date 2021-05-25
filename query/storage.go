@@ -55,6 +55,10 @@ type ReadTagValuesSpec struct {
 	TagKey string
 }
 
+// ReadWindowAggregateSpec defines the options for WindowAggregate.
+//
+// Window and the WindowEvery/Offset should be mutually exclusive. If you set either the WindowEvery or Offset with
+// nanosecond values, then the Window will be ignored.
 type ReadWindowAggregateSpec struct {
 	ReadFilterSpec
 	WindowEvery int64
@@ -63,6 +67,11 @@ type ReadWindowAggregateSpec struct {
 	CreateEmpty bool
 	TimeColumn  string
 	Window      execute.Window
+
+	// ForceAggregate forces all aggregates to be treated as aggregates.
+	// This forces selectors, which normally don't return values for empty
+	// windows, to return a null value.
+	ForceAggregate bool
 }
 
 func (spec *ReadWindowAggregateSpec) Name() string {
