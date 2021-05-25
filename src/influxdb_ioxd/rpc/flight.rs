@@ -5,7 +5,7 @@ use futures::Stream;
 use observability_deps::tracing::error;
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tonic::{Request, Response, Streaming};
+use tonic::{Interceptor, Request, Response, Streaming};
 
 use arrow::{
     array::{make_array, ArrayRef, MutableArrayData},
@@ -109,11 +109,14 @@ struct FlightService<M: ConnectionManager> {
     server: Arc<Server<M>>,
 }
 
-pub fn make_server<M>(server: Arc<Server<M>>) -> FlightServer<impl Flight>
+pub fn make_server<M>(
+    server: Arc<Server<M>>,
+    interceptor: impl Into<Interceptor>,
+) -> FlightServer<impl Flight>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    FlightServer::new(FlightService { server })
+    FlightServer::with_interceptor(FlightService { server }, interceptor)
 }
 
 #[tonic::async_trait]

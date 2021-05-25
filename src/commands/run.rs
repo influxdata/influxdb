@@ -1,7 +1,7 @@
 //! Implementation of command line option for running server
 
 use crate::commands::tracing;
-use crate::influxdb_ioxd;
+use crate::influxdb_ioxd::{self, serving_readiness::ServingReadinessState};
 use clap::arg_enum;
 use core::num::NonZeroU16;
 use data_types::server_id::ServerId;
@@ -406,6 +406,15 @@ Possible values (case insensitive):
     /// Example: http://node-{id}.ioxmydomain.com:8082
     #[structopt(long = "--remote-template", env = "INFLUXDB_IOX_REMOTE_TEMPLATE")]
     pub remote_template: Option<String>,
+
+    /// After startup the IOx server can either accept serving data plane traffic right away
+    /// or require a SetServingReadiness call from the Management API to enable serving.
+    #[structopt(
+        long = "--initial-serving-readiness-state",
+        env = "INFLUXDB_IOX_INITIAL_SERVING_READINESS_STATE",
+        default_value = "serving"
+    )]
+    pub initial_serving_state: ServingReadinessState,
 }
 
 pub async fn command(config: Config) -> Result<()> {

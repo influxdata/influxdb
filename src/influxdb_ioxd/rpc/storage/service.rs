@@ -1165,6 +1165,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::ServingReadinessInterceptor;
     use super::super::id::Id;
 
     use super::*;
@@ -1188,6 +1189,7 @@ mod tests {
         Window as RPCWindow,
     };
 
+    use crate::influxdb_ioxd::serving_readiness::ServingReadinessState;
     use generated_types::google::protobuf::Any;
     use prost::Message;
     use tokio_stream::wrappers::TcpListenerStream;
@@ -2807,6 +2809,7 @@ mod tests {
                 .add_service(crate::influxdb_ioxd::rpc::storage::make_server(
                     Arc::clone(&test_storage),
                     test_storage.metrics_registry.registry(),
+                    ServingReadinessInterceptor(ServingReadinessState::Serving.into()),
                 ));
 
             let server = async move {
