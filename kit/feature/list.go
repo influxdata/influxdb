@@ -226,6 +226,20 @@ func AnnotationsUi() BoolFlag {
 	return annotations
 }
 
+var rangeAnnotations = MakeBoolFlag(
+	"Range Annotations",
+	"rangeAnnotations",
+	"Jill Pelavin/ Dumplings Team",
+	false,
+	Temporary,
+	true,
+)
+
+// RangeAnnotations - Enables the creation of Range Annotations on Drag (if annotation write mode is activated)
+func RangeAnnotations() BoolFlag {
+	return rangeAnnotations
+}
+
 var all = []Flag{
 	appMetrics,
 	groupWindowAggregateTranspose,
@@ -243,6 +257,7 @@ var all = []Flag{
 	cursorAtEOF,
 	refreshSingleCell,
 	annotations,
+	rangeAnnotations,
 }
 
 var byKey = map[string]Flag{
@@ -262,4 +277,5 @@ var byKey = map[string]Flag{
 	"cursorAtEOF":                   cursorAtEOF,
 	"refreshSingleCell":             refreshSingleCell,
 	"annotations":                   annotations,
+	"rangeAnnotations":              rangeAnnotations,
 }

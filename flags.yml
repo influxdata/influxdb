@@ -129,3 +129,12 @@
   contact: Monitoring Team
   lifetime: temporary
   expose: true
+
+- name: Range Annotations
+  description: Enables the creation of Range Annotations on Drag (if annotation write mode is activated)
+  key: rangeAnnotations
+  default: false
+  contact: Jill Pelavin/ Dumplings Team
+  lifetime: temporary
+  expose: true
+  
