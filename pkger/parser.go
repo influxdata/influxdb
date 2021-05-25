@@ -1504,6 +1504,7 @@ func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*c
 		MainColumn:                 r.stringShort(fieldChartMainColumn),
 		LowerColumn:                r.stringShort(fieldChartLowerColumn),
 		LegendColorizeRows:         r.boolShort(fieldChartLegendColorizeRows),
+		LegendHide:                 r.boolShort(fieldChartLegendHide),
 		LegendOpacity:              r.float64Short(fieldChartLegendOpacity),
 		LegendOrientationThreshold: r.intShort(fieldChartLegendOrientationThreshold),
 		Zoom:                       r.float64Short(fieldChartGeoZoom),

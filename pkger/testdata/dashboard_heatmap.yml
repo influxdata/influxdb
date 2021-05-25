@@ -15,6 +15,7 @@ spec:
       height: 3
       binSize: 10
       legendColorizeRows: true
+      legendHide: false
       legendOpacity: 1.0
       legendOrientationThreshold: 5
       generateXAxisTicks:
