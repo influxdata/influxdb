@@ -429,6 +429,21 @@ where
             .map(|tkey| tkey.revision_counter)
             .expect("catalog should have at least an empty transaction")
     }
+
+    /// Object store used by this catalog.
+    pub fn object_store(&self) -> Arc<ObjectStore> {
+        Arc::clone(&self.object_store)
+    }
+
+    /// Server ID used by this catalog.
+    pub fn server_id(&self) -> ServerId {
+        self.server_id
+    }
+
+    /// Database name used by this catalog.
+    pub fn db_name(&self) -> &str {
+        &self.db_name
+    }
 }
 
 impl<S> Debug for PreservedCatalog<S>
