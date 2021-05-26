@@ -8,14 +8,19 @@ builds:
     goarch:
       - amd64
       - arm64
+      - s390x
     ignore:
       - goos: darwin
         goarch: arm64
       - goos: windows
         goarch: arm64
+      - goos: darwin
+        goarch: s390x
+      - goos: windows
+        goarch: s390x
     main: ./cmd/influx/
     flags:
-      - -tags={{if eq .Os "linux"}}osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
+      - -tags={{if eq .Os "linux"}}osusergo,netgo{{if not (eq .Arch "s390x")}},static_build{{end}}{{if eq .Arch "arm64"}},noasm{{end}}{{end}}
       - -buildmode={{if eq .Os "windows"}}exe{{else}}pie{{end}}
     env:
       - GO111MODULE=on
@@ -24,7 +29,7 @@ builds:
       - PKG_CONFIG=$GOPATH/bin/pkg-config
       - MACOSX_DEPLOYMENT_TARGET=10.11
     ldflags:
-      - -s -w -X main.version=nightly -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
+      - -s -w -X main.version=nightly -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC{{if not (eq .Arch "s390x")}} -static{{end}} -Wl,-z,stack-size=8388608"{{end}}
     binary: influx
 
   - id: influxd
@@ -35,14 +40,19 @@ builds:
     goarch:
       - amd64
       - arm64
+      - s390x
     ignore:
       - goos: darwin
         goarch: arm64
       - goos: windows
         goarch: arm64
+      - goos: darwin
+        goarch: s390x
+      - goos: windows
+        goarch: s390x
     main: ./cmd/influxd/
     flags:
-      - -tags=assets{{if eq .Os "linux"}},osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
+      - -tags=assets{{if eq .Os "linux"}},osusergo,netgo{{if not (eq .Arch "s390x")}},static_build{{end}}{{if eq .Arch "arm64"}},noasm{{end}}{{end}}
       - -buildmode={{if eq .Os "windows"}}exe{{else}}pie{{end}}
     env:
       - GO111MODULE=on
@@ -51,7 +61,7 @@ builds:
       - PKG_CONFIG=$GOPATH/bin/pkg-config
       - MACOSX_DEPLOYMENT_TARGET=10.11
     ldflags:
-      - -s -w -X main.version=nightly -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
+      - -s -w -X main.version=nightly -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC{{if not (eq .Arch "s390x")}} -static{{end}} -Wl,-z,stack-size=8388608"{{end}}
     binary: influxd
     hooks:
       pre: make generate
@@ -151,12 +161,26 @@ dockers:
     build_flag_templates:
       - "--platform=linux/arm64/v8"
     use_buildx: true
+  - goos: linux
+    goarch: s390x
+    binaries:
+      - influxd
+      - influx
+    image_templates:
+      - "quay.io/influxdb/influxdb-s390x:nightly"
+    dockerfile: docker/influxd/Dockerfile
+    extra_files:
+      - docker/influxd/entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/s390x"
+    use_buildx: true
 
 docker_manifests:
   - name_template: "quay.io/influxdb/influxdb:nightly"
     image_templates:
       - "quay.io/influxdb/influxdb-amd64:nightly"
       - "quay.io/influxdb/influxdb-arm64v8:nightly"
+      - "quay.io/influxdb/influxdb-s390x:nightly"
 
 signs:
   - signature: "${artifact}.asc"
