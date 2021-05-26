@@ -1,11 +1,13 @@
 package subscriber_test
 
 import (
+	"fmt"
 	"net/url"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb/coordinator"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/subscriber"
 )
@@ -442,4 +444,157 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	}
 
 	close(dataChanged)
+}
+
+func TestService_BadUTF8(t *testing.T) {
+	dataChanged := make(chan struct{})
+	ms := MetaClient{}
+	ms.WaitForDataChangedFn = func() chan struct{} {
+		return dataChanged
+	}
+	ms.DatabasesFn = func() []meta.DatabaseInfo {
+		return []meta.DatabaseInfo{
+			{
+				Name: "db0",
+				RetentionPolicies: []meta.RetentionPolicyInfo{
+					{
+						Name: "rp0",
+						Subscriptions: []meta.SubscriptionInfo{
+							{Name: "s0", Mode: "ALL", Destinations: []string{"udp://h0:9093", "udp://h1:9093"}},
+						},
+					},
+				},
+			},
+		}
+	}
+
+	prs := make(chan *coordinator.WritePointsRequest, 2)
+	urls := make(chan url.URL, 2)
+	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
+		sub := Subscription{}
+		sub.WritePointsFn = func(p *coordinator.WritePointsRequest) error {
+			prs <- p
+			return nil
+		}
+		urls <- u
+		return sub, nil
+	}
+
+	s := subscriber.NewService(subscriber.NewConfig())
+	s.MetaClient = ms
+	s.NewPointsWriter = newPointsWriter
+	s.Open()
+	defer s.Close()
+
+	// Signal that data has changed
+	dataChanged <- struct{}{}
+
+	for _, expURLStr := range []string{"udp://h0:9093", "udp://h1:9093"} {
+		var u url.URL
+		expURL, _ := url.Parse(expURLStr)
+		select {
+		case u = <-urls:
+		case <-time.After(testTimeout):
+			t.Fatal("expected urls")
+		}
+		if expURL.String() != u.String() {
+			t.Fatalf("unexpected url: got %s exp %s", u.String(), expURL.String())
+		}
+	}
+
+	badOne := []byte{255, 112, 114, 111, 99} // A known invalid UTF-8 string
+	badTwo := []byte{255, 110, 101, 116}     // A known invalid UTF-8 string
+	// bad measurement
+	// all good
+	// bad field name
+	// bad tag name
+	// bad tag value
+	// all good
+	fmtString :=
+		`%s,tagname=A fieldname=1.1,stringfield="bathyscape1" 6000000000
+		measurementname,tagname=a fieldname=1.1,stringfield="bathyscape5" 6000000001
+		measurementname,tagname=A %s=1.2,stringfield="bathyscape2" 6000000002
+		measurementname,%s=A fieldname=1.3,stringfield="bathyscape3" 6000000003
+		measurementname,tagname=%s fieldname=1.4,stringfield="bathyscape4" 6000000004
+		measurementname,tagname=a fieldname=1.6,stringfield="bathyscape5" 6000000006`
+	pointString := fmt.Sprintf(fmtString, badOne, badTwo, badOne, badTwo)
+	verifyNonUTF8Removal(t, pointString, s, prs, []int{1, 5}, "2 good, 4 bad")
+
+	// All points are bad
+	fmtString = `measurementname,tagname=A %s=1.2,stringfield="bathyscape2" 6000000002
+				measurementname,tagname=%s fieldname=1.4,stringfield="bathyscape4" 6000000003`
+	pointString = fmt.Sprintf(fmtString, badTwo, badOne)
+	verifyNonUTF8Removal(t, pointString, s, prs, []int{}, "All 2 bad")
+
+	// First point is bad
+	fmtString = `measurementname,tagname=A %s=1.2,stringfield="bathyscape2" 6000000004
+				measurementname,tagname=a fieldname=1.1,stringfield="bathyscape5" 6000000005
+				measurementname,tagname=b fieldname=1.2,stringfield="bathyscape6" 6000000006`
+	pointString = fmt.Sprintf(fmtString, badTwo)
+	verifyNonUTF8Removal(t, pointString, s, prs, []int{1, 2}, "First of 3 bad")
+
+	// last point is bad
+	fmtString = `measurementname,tagname=a fieldname=1.1,stringfield="bathyscape5" 6000000006
+				measurementname,tagname=b %s=1.2,stringfield="bathyscape2" 6000000007`
+	pointString = fmt.Sprintf(fmtString, badOne)
+	verifyNonUTF8Removal(t, pointString, s, prs, []int{0}, "Last of 2 bad")
+
+	// only point is bad
+	fmtString = `measurementname,tagname=b %s=1.2,stringfield="bathyscape2" 6000000007`
+	pointString = fmt.Sprintf(fmtString, badOne)
+	verifyNonUTF8Removal(t, pointString, s, prs, []int{}, "1 bad, 0 good")
+
+	// last 2 points are bad
+	fmtString = `measurementname,tagname=a fieldname=1.1,stringfield="bathyscape5" 6000000006
+				measurementname,tagname=b %s=1.2,stringfield="bathyscape2" 6000000007
+				%s,tagname=A fieldname=1.1,stringfield="bathyscape1" 6000000008`
+	pointString = fmt.Sprintf(fmtString, badTwo, badOne)
+	verifyNonUTF8Removal(t, pointString, s, prs, []int{0}, "1 good, 2 bad")
+
+	// first 2 points are bad
+	fmtString = `measurementname,tagname=b %s=1.2,stringfield="bathyscape2" 6000000007
+				%s,tagname=A fieldname=1.1,stringfield="bathyscape1" 6000000008
+				measurementname,tagname=a fieldname=1.1,stringfield="bathyscape5" 6000000009`
+	pointString = fmt.Sprintf(fmtString, badTwo, badOne)
+	verifyNonUTF8Removal(t, pointString, s, prs, []int{2}, "2 bad, 1 good")
+
+	close(dataChanged)
+}
+
+func verifyNonUTF8Removal(t *testing.T, pointString string, s *subscriber.Service, prs chan *coordinator.WritePointsRequest, goodLines []int, trialMessage string) {
+	points, err := models.ParsePointsString(pointString)
+	if err != nil {
+		t.Fatalf("%s: %v", trialMessage, err)
+	}
+	goodPoints := make([]string, 0, len(goodLines))
+
+	for _, line := range goodLines {
+		goodPoints = append(goodPoints, points[line].String())
+	}
+
+	// Write points that match subscription with mode ALL
+	expPR := &coordinator.WritePointsRequest{
+		Database:        "db0",
+		RetentionPolicy: "rp0",
+		Points:          points,
+	}
+	s.Points() <- expPR
+
+	// Should get pr back twice
+	for i := 0; i < 2; i++ {
+		var pr *coordinator.WritePointsRequest
+		select {
+		case pr = <-prs:
+			if len(pr.Points) != len(goodPoints) {
+				t.Fatalf("%s expected %d points: got %d for %q", trialMessage, len(goodPoints), len(pr.Points), pointString)
+			}
+			for i, p := range pr.Points {
+				if p.String() != goodPoints[i] {
+					t.Fatalf("%s expected %q: got %q for %q", trialMessage, goodPoints[i], p.String(), pointString)
+				}
+			}
+		case <-time.After(testTimeout):
+			t.Fatalf("%s expected points request: got %d exp 2 for %q", trialMessage, i, pointString)
+		}
+	}
 }
