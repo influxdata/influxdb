@@ -2,30 +2,31 @@
 // For now it enables user experimentation with the UI in front of the notebooks
 // backend server.
 
-package service
+package notebooks
 
 import (
 	"context"
 	"time"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/snowflake"
 )
 
-var _ NotebookService = (*FakeStore)(nil)
+var _ influxdb.NotebookService = (*FakeStore)(nil)
 
 type FakeStore struct {
-	list map[string][]*Notebook
+	list map[string][]*influxdb.Notebook
 }
 
 func NewService() (*FakeStore, error) {
 	return &FakeStore{
-		list: make(map[string][]*Notebook),
+		list: make(map[string][]*influxdb.Notebook),
 	}, nil
 }
 
-func (s *FakeStore) GetNotebook(ctx context.Context, id platform.ID) (*Notebook, error) {
-	ns := []*Notebook{}
+func (s *FakeStore) GetNotebook(ctx context.Context, id platform.ID) (*influxdb.Notebook, error) {
+	ns := []*influxdb.Notebook{}
 
 	for _, nList := range s.list {
 		ns = append(ns, nList...)
@@ -37,22 +38,22 @@ func (s *FakeStore) GetNotebook(ctx context.Context, id platform.ID) (*Notebook,
 		}
 	}
 
-	return nil, ErrNotebookNotFound
+	return nil, influxdb.ErrNotebookNotFound
 }
 
-func (s *FakeStore) ListNotebooks(ctx context.Context, filter NotebookListFilter) ([]*Notebook, error) {
+func (s *FakeStore) ListNotebooks(ctx context.Context, filter influxdb.NotebookListFilter) ([]*influxdb.Notebook, error) {
 	o := filter.OrgID
 
 	ns, ok := s.list[o.String()]
 	if !ok {
-		return []*Notebook{}, nil
+		return []*influxdb.Notebook{}, nil
 	}
 
 	return ns, nil
 }
 
-func (s *FakeStore) CreateNotebook(ctx context.Context, create *NotebookReqBody) (*Notebook, error) {
-	n := &Notebook{
+func (s *FakeStore) CreateNotebook(ctx context.Context, create *influxdb.NotebookReqBody) (*influxdb.Notebook, error) {
+	n := &influxdb.Notebook{
 		OrgID:     create.OrgID,
 		Name:      create.Name,
 		Spec:      create.Spec,
@@ -81,10 +82,10 @@ func (s *FakeStore) DeleteNotebook(ctx context.Context, id platform.ID) error {
 	}
 
 	if foundOrg == "" {
-		return ErrNotebookNotFound
+		return influxdb.ErrNotebookNotFound
 	}
 
-	newNs := []*Notebook{}
+	newNs := []*influxdb.Notebook{}
 
 	for _, b := range s.list[foundOrg] {
 		if b.ID != id {
@@ -96,7 +97,7 @@ func (s *FakeStore) DeleteNotebook(ctx context.Context, id platform.ID) error {
 	return nil
 }
 
-func (s *FakeStore) UpdateNotebook(ctx context.Context, id platform.ID, update *NotebookReqBody) (*Notebook, error) {
+func (s *FakeStore) UpdateNotebook(ctx context.Context, id platform.ID, update *influxdb.NotebookReqBody) (*influxdb.Notebook, error) {
 	n, err := s.GetNotebook(ctx, id)
 	if err != nil {
 		return nil, err
