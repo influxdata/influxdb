@@ -108,6 +108,7 @@ use std::collections::HashMap;
 
 mod config;
 pub mod db;
+mod write_buffer;
 
 /// Utility modules used by benchmarks and tests
 pub mod utils;
