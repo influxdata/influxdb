@@ -1,12 +1,18 @@
 //! Methods to cleanup the object store.
 
+use std::{
+    collections::HashSet,
+    sync::{Arc, Mutex},
+};
+
+use data_types::server_id::ServerId;
 use futures::TryStreamExt;
 use object_store::{path::parsed::DirsAndFileName, ObjectStore, ObjectStoreApi};
 use observability_deps::tracing::info;
 use snafu::{ResultExt, Snafu};
 
 use crate::{
-    catalog::{CatalogState, PreservedCatalog},
+    catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
     storage::data_location,
 };
 #[derive(Debug, Snafu)]
@@ -20,6 +26,9 @@ pub enum Error {
     WriteError {
         source: <ObjectStore as ObjectStoreApi>::Error,
     },
+
+    #[snafu(display("Error from catalog loading while cleaning object store: {}", source))]
+    CatalogLoadError { source: crate::catalog::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -35,9 +44,29 @@ where
     // that are about to get added to the catalog.
     let transaction = catalog.open_transaction().await;
 
-    let all_known = catalog.state().tracked_parquet_files();
     let store = catalog.object_store();
-    let prefix = data_location(&store, catalog.server_id(), catalog.db_name());
+    let server_id = catalog.server_id();
+    let db_name = catalog.db_name();
+    let all_known = {
+        // replay catalog transactions to track ALL (even dropped) files that are referenced
+        let catalog = PreservedCatalog::<TracerCatalogState>::load(
+            Arc::clone(&store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .context(CatalogLoadError)?
+        .expect("catalog gone while reading it?");
+        catalog
+            .state()
+            .files
+            .lock()
+            .expect("lock poissened?")
+            .clone()
+    };
+
+    let prefix = data_location(&store, server_id, db_name);
 
     // gather a list of "files to remove" eagerly so we do not block transactions on the catalog for too long
     let to_remove = store
@@ -82,6 +111,45 @@ where
     Ok(())
 }
 
+/// Catalog state that traces all used parquet files.
+struct TracerCatalogState {
+    files: Mutex<HashSet<DirsAndFileName>>,
+}
+
+impl CatalogState for TracerCatalogState {
+    type EmptyInput = ();
+
+    fn new_empty(_data: Self::EmptyInput) -> Self {
+        Self {
+            files: Default::default(),
+        }
+    }
+
+    fn clone_or_keep(origin: &Arc<Self>) -> Arc<Self> {
+        // no copy
+        Arc::clone(origin)
+    }
+
+    fn add(
+        &self,
+        _object_store: Arc<ObjectStore>,
+        _server_id: ServerId,
+        _db_name: &str,
+        info: CatalogParquetInfo,
+    ) -> crate::catalog::Result<()> {
+        self.files
+            .lock()
+            .expect("lock poissened?")
+            .insert(info.path);
+        Ok(())
+    }
+
+    fn remove(&self, _path: DirsAndFileName) -> crate::catalog::Result<()> {
+        // Do NOT remove the file since we still need it for time travel
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{collections::HashSet, num::NonZeroU32, sync::Arc};
@@ -122,9 +190,10 @@ mod tests {
             transaction.add_parquet(&path.clone().into(), &md).unwrap();
             paths_keep.push(path.display());
 
-            // another ordinary tracked parquet file => keep
+            // another ordinary tracked parquet file that was added and removed => keep (for time travel)
             let (path, md) = make_metadata(&object_store, "foo", 2).await;
             transaction.add_parquet(&path.clone().into(), &md).unwrap();
+            transaction.remove_parquet(&path.clone().into()).unwrap();
             paths_keep.push(path.display());
 
             // not a parquet file => keep

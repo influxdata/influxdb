@@ -1,8 +1,6 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
-use crate::db::catalog::chunk::ChunkState;
-
 use super::{
     buffer::{self, Buffer},
     JobRegistry,
@@ -47,7 +45,6 @@ use read_buffer::{Chunk as ReadBufferChunk, ChunkMetrics as ReadBufferChunkMetri
 use snafu::{ResultExt, Snafu};
 use std::{
     any::Any,
-    collections::HashSet,
     num::NonZeroUsize,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -1249,25 +1246,6 @@ impl CatalogState for Catalog {
     fn remove(&self, _path: DirsAndFileName) -> parquet_file::catalog::Result<()> {
         unimplemented!("parquet files cannot be removed from the catalog for now")
     }
-
-    fn tracked_parquet_files(&self) -> HashSet<DirsAndFileName> {
-        let mut files = HashSet::new();
-
-        for part in self.partitions() {
-            let part_guard = part.read();
-            for chunk in part_guard.chunks() {
-                let chunk_guard = chunk.read();
-                if let ChunkState::WrittenToObjectStore(_, pq_chunk)
-                | ChunkState::ObjectStoreOnly(pq_chunk) = chunk_guard.state()
-                {
-                    let path: DirsAndFileName = pq_chunk.table_path().into();
-                    files.insert(path);
-                }
-            }
-        }
-
-        files
-    }
 }
 
 pub mod test_helpers {
@@ -1316,6 +1294,7 @@ mod tests {
     use ::test_helpers::assert_contains;
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
+    use bytes::Bytes;
     use chrono::Utc;
     use data_types::{
         chunk_metadata::ChunkStorage,
@@ -1326,7 +1305,7 @@ mod tests {
     use futures::{stream, StreamExt, TryStreamExt};
     use object_store::{
         memory::InMemory,
-        path::{ObjectStorePath, Path},
+        path::{parts::PathPart, ObjectStorePath, Path},
         ObjectStore, ObjectStoreApi,
     };
     use parquet_file::{
@@ -2998,8 +2977,8 @@ mod tests {
         // create the following chunks:
         //   0: ReadBuffer + Parquet
         //   1: only Parquet
-        //   2: dropped (not in catalog but parquet file still present)
-        let mut paths = vec![];
+        //   2: dropped (not in current catalog but parquet file still present for time travel)
+        let mut paths_keep = vec![];
         for i in 0..3i8 {
             let (partition_key, table_name, chunk_id) = create_parquet_chunk(db.as_ref()).await;
             let chunk = {
@@ -3010,7 +2989,7 @@ mod tests {
             };
             let chunk = chunk.read();
             if let ChunkState::WrittenToObjectStore(_, chunk) = chunk.state() {
-                paths.push(chunk.table_path().display());
+                paths_keep.push(chunk.table_path());
             } else {
                 panic!("Wrong chunk state.");
             }
@@ -3029,11 +3008,20 @@ mod tests {
             }
         }
 
+        // ==================== do: create garbage ====================
+        let mut path: DirsAndFileName = paths_keep[0].clone().into();
+        path.file_name = Some(PathPart::from(
+            format!("prefix_{}", path.file_name.unwrap().encoded()).as_ref(),
+        ));
+        let path_delete = object_store.path_from_dirs_and_filename(path);
+        create_empty_file(&object_store, &path_delete).await;
+        let path_delete = path_delete.display();
+
         // ==================== check: all files are there ====================
         let all_files = get_object_store_files(&object_store).await;
-        assert!(all_files.contains(&paths[0]));
-        assert!(all_files.contains(&paths[1]));
-        assert!(all_files.contains(&paths[2]));
+        for path in &paths_keep {
+            assert!(all_files.contains(&path.display()));
+        }
 
         // ==================== do: start background task loop ====================
         let shutdown: CancellationToken = Default::default();
@@ -3046,7 +3034,7 @@ mod tests {
         let t_0 = Instant::now();
         loop {
             let all_files = get_object_store_files(&object_store).await;
-            if !all_files.contains(&paths[2]) {
+            if !all_files.contains(&path_delete) {
                 break;
             }
             assert!(t_0.elapsed() < Duration::from_secs(10));
@@ -3059,9 +3047,10 @@ mod tests {
 
         // ==================== check: some files are there ====================
         let all_files = get_object_store_files(&object_store).await;
-        assert!(all_files.contains(&paths[0]));
-        assert!(all_files.contains(&paths[1]));
-        assert!(!all_files.contains(&paths[2]));
+        assert!(!all_files.contains(&path_delete));
+        for path in &paths_keep {
+            assert!(all_files.contains(&path.display()));
+        }
     }
 
     async fn create_parquet_chunk(db: &Db) -> (String, String, u32) {
@@ -3102,5 +3091,19 @@ mod tests {
             .iter()
             .map(|p| p.display())
             .collect()
+    }
+
+    async fn create_empty_file(object_store: &ObjectStore, path: &Path) {
+        let data = Bytes::default();
+        let len = data.len();
+
+        object_store
+            .put(
+                &path,
+                futures::stream::once(async move { Ok(data) }),
+                Some(len),
+            )
+            .await
+            .unwrap();
     }
 }

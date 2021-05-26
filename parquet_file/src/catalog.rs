@@ -2,7 +2,7 @@
 use std::{
     collections::{
         hash_map::Entry::{Occupied, Vacant},
-        HashMap, HashSet,
+        HashMap,
     },
     fmt::{Debug, Display},
     str::FromStr,
@@ -207,9 +207,6 @@ pub trait CatalogState {
 
     /// Remove parquet file from state.
     fn remove(&self, path: DirsAndFileName) -> Result<()>;
-
-    /// Get a set of all parquet file paths currently tracked by this state.
-    fn tracked_parquet_files(&self) -> HashSet<DirsAndFileName>;
 }
 
 /// Inner mutable part of the preserved catalog.
@@ -1048,10 +1045,6 @@ pub mod test_helpers {
             }
 
             Ok(())
-        }
-
-        fn tracked_parquet_files(&self) -> HashSet<DirsAndFileName> {
-            self.inner.borrow().parquet_files.keys().cloned().collect()
         }
     }
 
