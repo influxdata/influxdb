@@ -53,7 +53,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    time::{Duration, Instant},
+    time::Duration,
 };
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
 use tracker::{TaskTracker, TrackedFutureExt};
@@ -310,8 +310,11 @@ pub struct Db {
     /// Value is nanoseconds since the Unix Epoch.
     process_clock: process_clock::ProcessClock,
 
-    /// Number of iterations of the worker loop for this Db
-    worker_iterations: AtomicUsize,
+    /// Number of iterations of the worker lifecycle loop for this Db
+    worker_iterations_lifecycle: AtomicUsize,
+
+    /// Number of iterations of the worker cleanup loop for this Db
+    worker_iterations_cleanup: AtomicUsize,
 
     /// Metric labels
     metric_labels: Vec<KeyValue>,
@@ -434,7 +437,8 @@ impl Db {
             metrics_registry,
             system_tables,
             process_clock,
-            worker_iterations: AtomicUsize::new(0),
+            worker_iterations_lifecycle: AtomicUsize::new(0),
+            worker_iterations_cleanup: AtomicUsize::new(0),
             metric_labels,
         }
     }
@@ -905,9 +909,14 @@ impl Db {
         None
     }
 
-    /// Returns the number of iterations of the background worker loop
-    pub fn worker_iterations(&self) -> usize {
-        self.worker_iterations.load(Ordering::Relaxed)
+    /// Returns the number of iterations of the background worker lifecycle loop
+    pub fn worker_iterations_lifecycle(&self) -> usize {
+        self.worker_iterations_lifecycle.load(Ordering::Relaxed)
+    }
+
+    /// Returns the number of iterations of the background worker lifecycle loop
+    pub fn worker_iterations_cleanup(&self) -> usize {
+        self.worker_iterations_cleanup.load(Ordering::Relaxed)
     }
 
     /// Background worker function
@@ -917,24 +926,37 @@ impl Db {
     ) {
         info!("started background worker");
 
-        let mut lifecycle_manager = LifecycleManager::new(Arc::clone(&self));
-        let mut last_cleanup: Option<Instant> = None;
+        tokio::join!(
+            // lifecycle manager loop
+            async {
+                let mut lifecycle_manager = LifecycleManager::new(Arc::clone(&self));
 
-        while !shutdown.is_cancelled() {
-            self.worker_iterations.fetch_add(1, Ordering::Relaxed);
-            tokio::select! {
-                _ = async {
-                    lifecycle_manager.check_for_work().await;
-                    if last_cleanup.map(|d| d.elapsed() >= Duration::from_secs(500)).unwrap_or(true) {
-                        if let Err(e) = cleanup_unreferenced_parquet_files(&self.catalog).await {
-                            error!("error in background cleanup task: {:?}", e);
-                        }
-                        last_cleanup = Some(Instant::now());
+                while !shutdown.is_cancelled() {
+                    self.worker_iterations_lifecycle
+                        .fetch_add(1, Ordering::Relaxed);
+                    tokio::select! {
+                        _ = lifecycle_manager.check_for_work() => {},
+                        _ = shutdown.cancelled() => break,
                     }
-                } => {},
-                _ = shutdown.cancelled() => break
-            }
-        }
+                }
+            },
+            // object store cleanup loop
+            async {
+                while !shutdown.is_cancelled() {
+                    self.worker_iterations_cleanup
+                        .fetch_add(1, Ordering::Relaxed);
+                    tokio::select! {
+                        _ = async {
+                            if let Err(e) = cleanup_unreferenced_parquet_files(&self.catalog).await {
+                                error!("error in background cleanup task: {:?}", e);
+                            }
+                            tokio::time::sleep(Duration::from_secs(500)).await;
+                        } => {},
+                        _ = shutdown.cancelled() => break,
+                    }
+                }
+            },
+        );
 
         info!("finished background worker");
     }
