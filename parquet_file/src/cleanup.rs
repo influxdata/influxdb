@@ -7,7 +7,10 @@ use std::{
 
 use data_types::server_id::ServerId;
 use futures::TryStreamExt;
-use object_store::{path::parsed::DirsAndFileName, ObjectStore, ObjectStoreApi};
+use object_store::{
+    path::{parsed::DirsAndFileName, ObjectStorePath},
+    ObjectStore, ObjectStoreApi,
+};
 use observability_deps::tracing::info;
 use snafu::{ResultExt, Snafu};
 
@@ -103,6 +106,7 @@ where
     info!("Found {} files to delete, start deletion.", n_files);
 
     for path in to_remove {
+        info!("Delete file: {}", path.display());
         store.delete(&path).await.context(WriteError)?;
     }
 
