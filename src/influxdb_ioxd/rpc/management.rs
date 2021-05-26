@@ -14,9 +14,11 @@ use tonic::{Request, Response, Status};
 
 struct ManagementService<M: ConnectionManager> {
     server: Arc<Server<M>>,
+    serving_readiness: ServingReadiness,
 }
 
 use super::error::{default_db_error_handler, default_server_error_handler};
+use crate::influxdb_ioxd::serving_readiness::ServingReadiness;
 
 #[derive(Debug)]
 enum UpdateError {
@@ -365,15 +367,28 @@ where
 
         Ok(Response::new(ClosePartitionChunkResponse { operation }))
     }
+
+    async fn set_serving_readiness(
+        &self,
+        request: Request<SetServingReadinessRequest>,
+    ) -> Result<Response<SetServingReadinessResponse>, Status> {
+        let SetServingReadinessRequest { ready } = request.into_inner();
+        self.serving_readiness.set(ready.into());
+        Ok(Response::new(SetServingReadinessResponse {}))
+    }
 }
 
 pub fn make_server<M>(
     server: Arc<Server<M>>,
+    serving_readiness: ServingReadiness,
 ) -> management_service_server::ManagementServiceServer<
     impl management_service_server::ManagementService,
 >
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    management_service_server::ManagementServiceServer::new(ManagementService { server })
+    management_service_server::ManagementServiceServer::new(ManagementService {
+        server,
+        serving_readiness,
+    })
 }

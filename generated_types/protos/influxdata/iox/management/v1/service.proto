@@ -13,6 +13,8 @@ service ManagementService {
 
   rpc UpdateServerId(UpdateServerIdRequest) returns (UpdateServerIdResponse);
 
+  rpc SetServingReadiness(SetServingReadinessRequest) returns (SetServingReadinessResponse);
+
   rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
 
   rpc GetDatabase(GetDatabaseRequest) returns (GetDatabaseResponse);
@@ -72,6 +74,13 @@ message UpdateServerIdRequest {
 }
 
 message UpdateServerIdResponse {}
+
+message SetServingReadinessRequest {
+  // If false, the IOx server will respond with UNAVAILABLE to all data plane requests.
+  bool ready = 1;
+}
+
+message SetServingReadinessResponse {}
 
 message ListDatabasesRequest {}
 

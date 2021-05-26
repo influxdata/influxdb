@@ -44,9 +44,9 @@ dependencies = [
 
 [[package]]
 name = "ahash"
-version = "0.7.3"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11149c3eb723d15cb065a9ea5cc74ab57250f098ef33c9f6f7f39b48bd207750"
+checksum = "43bb833f0bf979d8475d38fbf09ed3b8a55e1885fe93ad3f93239fc6a4f17b98"
 dependencies = [
  "getrandom 0.2.3",
  "once_cell",
@@ -167,7 +167,7 @@ dependencies = [
 name = "arrow_util"
 version = "0.1.0"
 dependencies = [
- "ahash 0.7.3",
+ "ahash 0.7.4",
  "arrow",
  "futures",
  "hashbrown 0.11.2",
@@ -507,9 +507,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.67"
+version = "1.0.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3c69b077ad434294d3ce9f1f6143a2a4b89a8a2d54ef813d85003a4fd1137fd"
+checksum = "4a72c244c1ff497a746a7e1fb3d14bd08420ecda70c8f25c7112f2781652d787"
 dependencies = [
  "jobserver",
 ]
@@ -905,9 +905,9 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=7359e4b4df0836b8de970d551c6eeae22d1cc810#7359e4b4df0836b8de970d551c6eeae22d1cc810"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=d9b044787ce465e2597f9ab37f601ae8515921ee#d9b044787ce465e2597f9ab37f601ae8515921ee"
 dependencies = [
- "ahash 0.7.3",
+ "ahash 0.7.4",
  "arrow",
  "async-trait",
  "chrono",
@@ -915,7 +915,7 @@ dependencies = [
  "hashbrown 0.11.2",
  "log",
  "num_cpus",
- "ordered-float 2.4.0",
+ "ordered-float 2.5.0",
  "parquet",
  "paste 1.0.5",
  "pin-project-lite",
@@ -1448,7 +1448,7 @@ version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
 dependencies = [
- "ahash 0.7.3",
+ "ahash 0.7.4",
 ]
 
 [[package]]
@@ -1515,9 +1515,9 @@ checksum = "f3a87b616e37e93c22fb19bcd386f02f3af5ea98a25670ad0fce773de23c5e68"
 
 [[package]]
 name = "httpdate"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05842d0d43232b23ccb7060ecb0f0626922c21f30012e97b767b30afd4a5d4b9"
+checksum = "6456b8a6c8f33fee7d958fcd1b60d55b11940a79e63ae87013e6d22e26034440"
 
 [[package]]
 name = "human_format"
@@ -1533,9 +1533,9 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
-version = "0.14.7"
+version = "0.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e5f105c494081baa3bf9e200b279e27ec1623895cd504c7dbef8d0b080fcf54"
+checksum = "d3f71a7eea53a3f8257a7b4795373ff886397178cd634430ea94e12d7fe4fe34"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -1901,9 +1901,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.94"
+version = "0.2.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18794a8ad5b29321f790b55d93dfba91e125cb1a9edbd4f8e3150acc771c1a5e"
+checksum = "789da6d93f1b866ffe175afc5322a4d76c038605a1c3319bb57b06967ca98a36"
 
 [[package]]
 name = "libloading"
@@ -2513,11 +2513,12 @@ dependencies = [
 
 [[package]]
 name = "ordered-float"
-version = "2.4.0"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76d99537dd7019c4dabfcf3898a43ee685412f76e6bee1ecc48785d730c1a275"
+checksum = "809348965973b261c3e504c8d0434e465274f78c880e10039914f2c5dcf49461"
 dependencies = [
  "num-traits",
+ "rand 0.8.3",
 ]
 
 [[package]]
@@ -3022,6 +3023,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-stream",
+ "tracker",
 ]
 
 [[package]]

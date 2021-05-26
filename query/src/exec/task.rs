@@ -4,6 +4,7 @@
 use parking_lot::Mutex;
 use std::{pin::Pin, sync::Arc};
 use tokio::sync::oneshot::Receiver;
+use tracker::{TaskRegistration, TrackedFutureExt};
 
 use futures::Future;
 
@@ -63,7 +64,7 @@ impl DedicatedExecutor {
     pub fn new(thread_name: &str, num_threads: usize) -> Self {
         let thread_name = thread_name.to_string();
 
-        let (tx, rx) = std::sync::mpsc::channel();
+        let (tx, rx) = std::sync::mpsc::channel::<Task>();
 
         let thread = std::thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -74,14 +75,20 @@ impl DedicatedExecutor {
                 .build()
                 .expect("Creating tokio runtime");
 
-            // By entering the context, all calls to `tokio::spawn` go
-            // to this executor
-            let _guard = runtime.enter();
+            runtime.block_on(async move {
+                // Dropping the tokio runtime only waits for tasks to yield not to complete
+                //
+                // All spawned tasks are therefore registered with a TaskRegistration
+                // which is used to wait for all tasks to finish before shutting down
+                let registration = TaskRegistration::new();
 
-            while let Ok(request) = rx.recv() {
-                // TODO track the outstanding tasks
-                tokio::task::spawn(request);
-            }
+                while let Ok(task) = rx.recv() {
+                    tokio::task::spawn(task.track(registration.clone()));
+                }
+
+                // Wait for all tasks to finish
+                registration.into_tracker().join().await;
+            })
         });
 
         let state = State {
@@ -281,9 +288,13 @@ mod tests {
     #[tokio::test]
     async fn executor_shutdown_while_task_running() {
         let barrier = Arc::new(Barrier::new(2));
+        let captured = Arc::clone(&barrier);
 
         let exec = DedicatedExecutor::new("Test DedicatedExecutor", 1);
-        let dedicated_task = exec.spawn(do_work(42, Arc::clone(&barrier)));
+        let dedicated_task = exec.spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+            do_work(42, captured).await
+        });
 
         exec.shutdown();
         // block main thread until completion of the outstanding task

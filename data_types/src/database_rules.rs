@@ -46,14 +46,25 @@ pub struct DatabaseRules {
     /// Configure how data flows through the system
     pub lifecycle_rules: LifecycleRules,
 
-    /// An optional config to split writes into different "shards". A shard
+    /// An optional config to delegate data plane operations to one or more
+    /// remote servers.
+    pub routing_rules: Option<RoutingRules>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum RoutingRules {
+    // A routing config defines the target where all data plane operations for
+    // a given database are delegated to.
+    RoutingConfig(RoutingConfig),
+
+    /// A sharding config split writes into different "shards". A shard
     /// is a logical concept, but the usage is meant to split data into
     /// mutually exclusive areas. The rough order of organization is:
     /// database -> shard -> partition -> chunk. For example, you could shard
     /// based on table name and assign to 1 of 10 shards. Within each
     /// shard you would have partitions, which would likely be based off time.
     /// This makes it possible to horizontally scale out writes.
-    pub shard_config: Option<ShardConfig>,
+    ShardConfig(ShardConfig),
 }
 
 impl DatabaseRules {
@@ -67,7 +78,7 @@ impl DatabaseRules {
             partition_template: Default::default(),
             write_buffer_config: None,
             lifecycle_rules: Default::default(),
-            shard_config: None,
+            routing_rules: None,
         }
     }
 
@@ -349,6 +360,13 @@ pub struct RegexCapture {
 pub struct StrftimeColumn {
     pub column: String,
     pub format: String,
+}
+
+/// A routing config defines the destination where to route all data plane operations
+/// for a given database.
+#[derive(Debug, Eq, PartialEq, Clone, Default)]
+pub struct RoutingConfig {
+    pub target: NodeGroup,
 }
 
 /// ShardId maps to a nodegroup that holds the the shard.

@@ -2,7 +2,9 @@ use std::convert::{TryFrom, TryInto};
 
 use thiserror::Error;
 
-use data_types::database_rules::{ColumnType, ColumnValue, DatabaseRules, Order};
+use data_types::database_rules::{
+    ColumnType, ColumnValue, DatabaseRules, Order, RoutingConfig, RoutingRules,
+};
 use data_types::DatabaseName;
 
 use crate::google::{FieldViolation, FieldViolationExt, FromFieldOpt};
@@ -20,7 +22,7 @@ impl From<DatabaseRules> for management::DatabaseRules {
             partition_template: Some(rules.partition_template.into()),
             write_buffer_config: rules.write_buffer_config.map(Into::into),
             lifecycle_rules: Some(rules.lifecycle_rules.into()),
-            shard_config: rules.shard_config.map(Into::into),
+            routing_rules: rules.routing_rules.map(Into::into),
         }
     }
 }
@@ -43,9 +45,9 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             .optional("partition_template")?
             .unwrap_or_default();
 
-        let shard_config = proto
-            .shard_config
-            .optional("shard_config")
+        let routing_rules = proto
+            .routing_rules
+            .optional("routing_rules")
             .unwrap_or_default();
 
         Ok(Self {
@@ -53,7 +55,53 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             partition_template,
             write_buffer_config,
             lifecycle_rules,
-            shard_config,
+            routing_rules,
+        })
+    }
+}
+
+impl From<RoutingRules> for management::database_rules::RoutingRules {
+    fn from(routing_rules: RoutingRules) -> Self {
+        match routing_rules {
+            RoutingRules::RoutingConfig(cfg) => {
+                management::database_rules::RoutingRules::RoutingConfig(cfg.into())
+            }
+            RoutingRules::ShardConfig(cfg) => {
+                management::database_rules::RoutingRules::ShardConfig(cfg.into())
+            }
+        }
+    }
+}
+
+impl TryFrom<management::database_rules::RoutingRules> for RoutingRules {
+    type Error = FieldViolation;
+
+    fn try_from(proto: management::database_rules::RoutingRules) -> Result<Self, Self::Error> {
+        Ok(match proto {
+            management::database_rules::RoutingRules::ShardConfig(cfg) => {
+                RoutingRules::ShardConfig(cfg.try_into()?)
+            }
+            management::database_rules::RoutingRules::RoutingConfig(cfg) => {
+                RoutingRules::RoutingConfig(cfg.try_into()?)
+            }
+        })
+    }
+}
+
+impl From<RoutingConfig> for management::RoutingConfig {
+    fn from(routing_config: RoutingConfig) -> Self {
+        Self {
+            target: Some(routing_config.target.into()),
+        }
+    }
+}
+
+impl TryFrom<management::RoutingConfig> for RoutingConfig {
+    type Error = FieldViolation;
+
+    fn try_from(proto: management::RoutingConfig) -> Result<Self, Self::Error> {
+        Ok(Self {
+            target: proto.target.required("target")?,
         })
     }
 }
@@ -184,6 +232,6 @@ mod tests {
 
         // These should be none as preserved on non-protobuf DatabaseRules
         assert!(back.write_buffer_config.is_none());
-        assert!(back.shard_config.is_none());
+        assert!(back.routing_rules.is_none());
     }
 }

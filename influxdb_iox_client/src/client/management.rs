@@ -33,6 +33,14 @@ pub enum GetServerIdError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by Client::set_serving_readiness
+#[derive(Debug, Error)]
+pub enum SetServingReadinessError {
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
 /// Errors returned by Client::create_database
 #[derive(Debug, Error)]
 pub enum CreateDatabaseError {
@@ -271,6 +279,18 @@ impl Client {
             .map_err(|_| GetServerIdError::NoServerId)?;
 
         Ok(id)
+    }
+
+    /// Set serving readiness.
+    pub async fn set_serving_readiness(
+        &mut self,
+        ready: bool,
+    ) -> Result<(), SetServingReadinessError> {
+        self.inner
+            .set_serving_readiness(SetServingReadinessRequest { ready })
+            .await
+            .map_err(SetServingReadinessError::ServerError)?;
+        Ok(())
     }
 
     /// Creates a new IOx database.
