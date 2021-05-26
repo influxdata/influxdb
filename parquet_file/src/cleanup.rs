@@ -11,12 +11,12 @@ use crate::{
 };
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Error during store read operation: {}", source))]
+    #[snafu(display("Error from read operation while cleaning object store: {}", source))]
     ReadError {
         source: <ObjectStore as ObjectStoreApi>::Error,
     },
 
-    #[snafu(display("Error during store write operation: {}", source))]
+    #[snafu(display("Error from write operation while cleaning object store: {}", source))]
     WriteError {
         source: <ObjectStore as ObjectStoreApi>::Error,
     },
