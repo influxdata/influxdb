@@ -100,6 +100,9 @@ type Point interface {
 	// HasTag returns true if the tag exists for the point.
 	HasTag(tag []byte) bool
 
+	// ForEachField iterates over each field invoking fn. if fn returns false, iteration stops.
+	ForEachField(fn func(k, v []byte) bool) error
+
 	// Fields returns the fields for the point.
 	Fields() (Fields, error)
 
@@ -1574,6 +1577,10 @@ func walkTags(buf []byte, fn func(key, value []byte) bool) {
 	}
 }
 
+func (p *point) ForEachField(fn func(k, v []byte) bool) error {
+	return walkFields(p.fields, fn)
+}
+
 // walkFields walks each field key and value via fn.  If fn returns false, the iteration
 // is stopped.  The values are the raw byte slices and not the converted types.
 func walkFields(buf []byte, fn func(key, value []byte) bool) error {
@@ -2548,24 +2555,41 @@ func ValidKeyTokens(name string, tags Tags) bool {
 }
 
 // ValidPointStrings validates the measurement name, tage names and values, and field names in a point
-func ValidPointStrings(p Point) error {
+func ValidPointStrings(p Point) (err error) {
 	if !ValidKeyToken(string(p.Name())) {
 		return fmt.Errorf("invalid or unprintable UTF-8 characters in measurement name: %q", p.Name())
 	}
-	for _, tag := range p.Tags() {
-		if !ValidKeyToken(string(tag.Key)) {
-			return fmt.Errorf("invalid or unprintable UTF-8 characters in tag key: %q", tag.Key)
-		} else if !ValidKeyToken(string(tag.Value)) {
-			return fmt.Errorf("invalid or unprintable UTF-8 characters in tag value: %q", tag.Value)
+
+	validTag := func(k []byte, v []byte) bool {
+		if !ValidKeyToken(string(k)) {
+			err = fmt.Errorf("invalid or unprintable UTF-8 characters in tag key: %q", k)
+			return false
+		} else if !ValidKeyToken(string(v)) {
+			err = fmt.Errorf("invalid or unprintable UTF-8 characters in tag value: %q", v)
+			return false
+		}
+		return true
+	}
+
+	p.ForEachTag(validTag)
+	if err != nil {
+		return err
+	}
+
+	validField := func(k, v []byte) bool {
+		if !ValidKeyToken(string(k)) {
+			err = fmt.Errorf("invalid or unprintable UTF-8 in field name: %q", k)
+			return false
+		} else {
+			return true
 		}
 	}
-	for iter := p.FieldIterator(); iter.Next(); {
-		if !ValidKeyToken(string(iter.FieldKey())) {
-			return fmt.Errorf("invalid or unprintable UTF-8 in field name: %q", iter.FieldKey())
-		}
-		if (iter.Type() == String) && !ValidKeyToken(iter.StringValue()) {
-			return fmt.Errorf("invalid or unprintable UTF-8 in field value: %q", iter.StringValue())
-		}
+
+	if e := p.ForEachField(validField); e != nil {
+		return e
+	} else if err != nil {
+		return err
+	} else {
+		return nil
 	}
-	return nil
 }

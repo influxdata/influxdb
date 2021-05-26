@@ -505,24 +505,26 @@ func TestService_BadUTF8(t *testing.T) {
 	badOne := []byte{255, 112, 114, 111, 99} // A known invalid UTF-8 string
 	badTwo := []byte{255, 110, 101, 116}     // A known invalid UTF-8 string
 	// bad measurement
+	// all good
 	// bad field name
 	// bad tag name
 	// bad tag value
-	// bad field value
 	// all good
 	fmtString :=
 		`%s,tagname=A fieldname=1.1,stringfield="bathyscape1" 6000000000
-		measurementname,tagname=A %s=1.2,stringfield="bathyscape2" 6000000001
-		measurementname,%s=A fieldname=1.3,stringfield="bathyscape3" 6000000002
-		measurementname,tagname=%s fieldname=1.4,stringfield="bathyscape4" 6000000003
-		measurementname,tagname=a fieldname=1.5,stringfield="%s" 6000000004
-		measurementname,tagname=a fieldname=1.6,stringfield="bathyscape5" 6000000005`
-	points, err := models.ParsePointsString(fmt.Sprintf(fmtString, badOne, badTwo, badOne, badTwo, badOne))
-	// points, err := models.ParsePointsString(fmt.Sprintf(fmtString))
+		measurementname,tagname=a fieldname=1.1,stringfield="bathyscape5" 6000000001
+		measurementname,tagname=A %s=1.2,stringfield="bathyscape2" 6000000002
+		measurementname,%s=A fieldname=1.3,stringfield="bathyscape3" 6000000003
+		measurementname,tagname=%s fieldname=1.4,stringfield="bathyscape4" 6000000004
+		measurementname,tagname=a fieldname=1.6,stringfield="bathyscape5" 6000000006`
+	points, err := models.ParsePointsString(fmt.Sprintf(fmtString, badOne, badTwo, badOne, badTwo))
 	if err != nil {
 		t.Fatal(err)
 	}
-	goodPoint := points[len(points)-1]
+	goodPoints := []string{
+		points[1].String(),
+		points[5].String(),
+	}
 
 	// Write points that match subscription with mode ALL
 	expPR := &coordinator.WritePointsRequest{
@@ -537,16 +539,16 @@ func TestService_BadUTF8(t *testing.T) {
 		var pr *coordinator.WritePointsRequest
 		select {
 		case pr = <-prs:
-			if len(pr.Points) != 1 {
-				t.Fatalf("expected 1 point: got %d", len(pr.Points))
-			} else if pr.Points[0].String() != goodPoint.String() {
-				t.Fatalf("expected %q: got %q", pr.Points[0].String(), goodPoint.String())
+			if len(pr.Points) != len(goodPoints) {
+				t.Fatalf("expected %d points: got %d", len(goodPoints), len(pr.Points))
+			}
+			for i, p := range pr.Points {
+				if p.String() != goodPoints[i] {
+					t.Fatalf("expected %q: got %q ", goodPoints[i], p.String())
+				}
 			}
 		case <-time.After(testTimeout):
 			t.Fatalf("expected points request: got %d exp 2", i)
-		}
-		if pr != expPR {
-			t.Errorf("unexpected points request: got %v, exp %v", pr, expPR)
 		}
 	}
 	close(dataChanged)

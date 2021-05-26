@@ -245,17 +245,8 @@ func (s *Service) run() {
 				s.close(&wg)
 				return
 			}
-			index := 0
-			for _, point := range p.Points {
-				if err := models.ValidPointStrings(point); err != nil {
-					// Log and omit this point from subscription writes
-					s.Logger.Debug("discarding point", zap.String("database", p.Database), zap.String("retention_policy", p.RetentionPolicy), zap.Error(err))
-				} else {
-					p.Points[index] = point
-					index++
-				}
-			}
-			p.Points = p.Points[:index]
+
+			p = s.removeBadPoints(p)
 			for se, cw := range s.subs {
 				if p.Database == se.db && p.RetentionPolicy == se.rp {
 					select {
@@ -267,6 +258,44 @@ func (s *Service) run() {
 			}
 		}
 	}
+}
+
+// removeBadPoints - if any non-UTF8 strings are found in the points in the WritePointRequest,
+// make a copy without those points
+func (s *Service) removeBadPoints(p *coordinator.WritePointsRequest) *coordinator.WritePointsRequest {
+	log := s.Logger.With(zap.String("database", p.Database), zap.String("retention_policy", p.RetentionPolicy))
+
+	firstBad, err := func() (int, error) {
+		for i, point := range p.Points {
+			if err := models.ValidPointStrings(point); err != nil {
+				atomic.AddInt64(&s.stats.WriteFailures, 1)
+				log.Debug("discarding point", zap.Error(err))
+				return i, err
+			}
+		}
+		return -1, nil
+	}()
+	if err != nil {
+		wrq := &coordinator.WritePointsRequest{
+			Database:        p.Database,
+			RetentionPolicy: p.RetentionPolicy,
+			Points:          make([]models.Point, 0, len(p.Points)-1),
+		}
+
+		// Copy all the points up to the first bad one.
+		copy(wrq.Points, p.Points[:firstBad])
+		for _, point := range p.Points[firstBad+1:] {
+			if err := models.ValidPointStrings(point); err != nil {
+				// Log and omit this point from subscription writes
+				atomic.AddInt64(&s.stats.WriteFailures, 1)
+				log.Debug("discarding point", zap.Error(err))
+			} else {
+				wrq.Points = append(wrq.Points, point)
+			}
+		}
+		p = wrq
+	}
+	return p
 }
 
 // close closes the existing channel writers.
