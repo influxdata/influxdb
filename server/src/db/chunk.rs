@@ -164,9 +164,7 @@ impl PartitionChunk for DbChunk {
 
     fn all_table_names(&self, known_tables: &mut StringSet) {
         match &self.state {
-            State::MutableBuffer { chunk, .. } => {
-                known_tables.extend(chunk.table_names(None).cloned())
-            }
+            State::MutableBuffer { chunk, .. } => known_tables.append(&mut chunk.table_names(None)),
             State::ReadBuffer { chunk, .. } => {
                 // TODO - align APIs so they behave in the same way...
                 let rb_names = chunk.all_table_names(known_tables);
@@ -194,7 +192,7 @@ impl PartitionChunk for DbChunk {
                     // TODO: Support more predicates
                     return Ok(None);
                 }
-                chunk.table_names(predicate.range).cloned().collect()
+                chunk.table_names(predicate.range)
             }
             State::ReadBuffer { chunk, .. } => {
                 // If not supported, ReadBuffer can't answer with
