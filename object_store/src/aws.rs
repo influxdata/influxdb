@@ -450,6 +450,7 @@ mod tests {
         secret_access_key: String,
         region: String,
         bucket: String,
+        endpoint: Option<String>,
     }
 
     // Helper macro to skip tests if TEST_INTEGRATION and the AWS environment variables are not set.
@@ -500,6 +501,7 @@ mod tests {
                         .expect("already checked AWS_DEFAULT_REGION"),
                     bucket: env::var("INFLUXDB_IOX_BUCKET")
                         .expect("already checked INFLUXDB_IOX_BUCKET"),
+                    endpoint: env::var("AWS_ENDPOINT").ok(),
                 }
             }
         }};
@@ -530,7 +532,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 config.bucket,
-                Option::<String>::None,
+                config.endpoint,
             )
             .expect("Valid S3 config"),
         );
@@ -551,7 +553,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
-                Option::<String>::None,
+                config.endpoint,
             )
             .expect("Valid S3 config"),
         );
@@ -582,7 +584,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
-                Option::<String>::None,
+                config.endpoint,
             )
             .expect("Valid S3 config"),
         );
@@ -624,7 +626,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
-                Option::<String>::None,
+                config.endpoint,
             )
             .expect("Valid S3 config"),
         );
@@ -661,7 +663,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
-                Option::<String>::None,
+                config.endpoint,
             )
             .expect("Valid S3 config"),
         );
@@ -708,7 +710,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
-                Option::<String>::None,
+                config.endpoint,
             )
             .expect("Valid S3 config"),
         );
@@ -753,7 +755,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 config.bucket,
-                Option::<String>::None,
+                config.endpoint,
             )
             .expect("Valid S3 config"),
         );
@@ -778,7 +780,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
-                Option::<String>::None,
+                config.endpoint,
             )
             .expect("Valid S3 config"),
         );
@@ -815,7 +817,7 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
-                Option::<String>::None,
+                config.endpoint,
             )
             .expect("Valid S3 config"),
         );
