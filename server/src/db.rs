@@ -1309,7 +1309,7 @@ mod tests {
     };
     use parquet_file::{
         metadata::{read_parquet_metadata_from_file, read_schema_from_parquet_metadata},
-        utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
+        test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
     use query::{frontend::sql::SqlQueryPlanner, PartitionChunk};
     use std::{

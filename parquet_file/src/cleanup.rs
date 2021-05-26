@@ -93,7 +93,7 @@ mod tests {
     use super::*;
     use crate::{
         catalog::test_helpers::TestCatalogState,
-        utils::{make_metadata, make_object_store},
+        test_utils::{make_metadata, make_object_store},
     };
 
     #[tokio::test]

@@ -14,7 +14,10 @@ mod tests {
             read_parquet_metadata_from_file, read_schema_from_parquet_metadata,
             read_statistics_from_parquet_metadata,
         },
-        utils::*,
+        test_utils::{
+            load_parquet_from_store, make_chunk_given_record_batch, make_object_store,
+            make_record_batch, read_data_from_parquet_data,
+        },
     };
 
     #[tokio::test]

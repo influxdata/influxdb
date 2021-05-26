@@ -1087,7 +1087,7 @@ mod tests {
 
     use crate::{
         metadata::{read_schema_from_parquet_metadata, read_statistics_from_parquet_metadata},
-        utils::{make_metadata, make_object_store},
+        test_utils::{make_metadata, make_object_store},
     };
     use object_store::parsed_path;
 

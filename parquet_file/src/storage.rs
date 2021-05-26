@@ -512,7 +512,7 @@ mod tests {
     use std::num::NonZeroU32;
 
     use super::*;
-    use crate::utils::{make_object_store, make_record_batch};
+    use crate::test_utils::{make_object_store, make_record_batch};
     use datafusion_util::MemoryStream;
     use object_store::parsed_path;
     use uuid::Uuid;

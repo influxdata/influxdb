@@ -497,7 +497,7 @@ mod tests {
 
     use internal_types::{schema::TIME_COLUMN_NAME, selection::Selection};
 
-    use crate::utils::{
+    use crate::test_utils::{
         load_parquet_from_store, make_chunk, make_chunk_no_row_group, make_object_store,
     };
 
