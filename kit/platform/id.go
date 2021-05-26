@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"database/sql/driver"
 	"encoding/binary"
 	"encoding/hex"
 	"strconv"
@@ -142,4 +143,21 @@ func (i ID) MarshalText() ([]byte, error) {
 // also relevant when IDs are used as map keys.
 func (i *ID) UnmarshalText(b []byte) error {
 	return i.Decode(b)
+}
+
+// Value implements the database/sql Valuer interface for adding IDs to a sql database.
+func (i ID) Value() (driver.Value, error) {
+	return i.String(), nil
+}
+
+// Scan implements the database/sql Scanner interface for retrieving IDs from a sql database.
+func (i *ID) Scan(value interface{}) error {
+	switch v := value.(type) {
+	case int64:
+		return i.DecodeFromString(strconv.Itoa(int(v)))
+	case string:
+		return i.DecodeFromString(v)
+	default:
+		return ErrInvalidID
+	}
 }

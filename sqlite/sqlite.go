@@ -2,12 +2,12 @@ package sqlite
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
 	"sync"
 
 	// sqlite3 driver
+	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 
 	"go.uber.org/zap"
@@ -21,13 +21,13 @@ const (
 // SqlStore is a wrapper around the db and provides basic functionality for maintaining the db
 // including flushing the data from the db during end-to-end testing.
 type SqlStore struct {
-	mu  sync.Mutex
-	db  *sql.DB
+	Mu  sync.Mutex
+	DB  *sqlx.DB
 	log *zap.Logger
 }
 
 func NewSqlStore(path string, log *zap.Logger) (*SqlStore, error) {
-	db, err := sql.Open("sqlite3", path)
+	db, err := sqlx.Open("sqlite3", path)
 	if err != nil {
 		return nil, err
 	}
@@ -42,14 +42,14 @@ func NewSqlStore(path string, log *zap.Logger) (*SqlStore, error) {
 	}
 
 	return &SqlStore{
-		db:  db,
+		DB:  db,
 		log: log,
 	}, nil
 }
 
 // Close the connection to the sqlite database
 func (s *SqlStore) Close() error {
-	err := s.db.Close()
+	err := s.DB.Close()
 	if err != nil {
 		return err
 	}
@@ -77,10 +77,10 @@ func (s *SqlStore) Flush(ctx context.Context) {
 func (s *SqlStore) execTrans(ctx context.Context, stmt string) error {
 	// use a lock to prevent two potential simultaneous write operations to the database,
 	// which would throw an error
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (s *SqlStore) tableNames() ([]string, error) {
 func (s *SqlStore) queryToStrings(stmt string) ([]string, error) {
 	var output []string
 
-	rows, err := s.db.Query(stmt)
+	rows, err := s.DB.Query(stmt)
 	if err != nil {
 		return nil, err
 	}

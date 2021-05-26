@@ -940,11 +940,10 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		)
 	}
 
-	notebookSvc, err := notebooks.NewService()
-	if err != nil {
-		m.log.Error("Failed to initialize notebook service", zap.Error(err))
-		return err
-	}
+	notebookSvc := notebooks.NewService(
+		m.log.With(zap.String("service", "notebooks")),
+		m.sqlStore,
+	)
 	notebookServer := notebookTransport.NewNotebookHandler(
 		m.log.With(zap.String("handler", "notebooks")),
 		authorizer.NewNotebookService(notebookSvc),
