@@ -517,13 +517,40 @@ func TestService_BadUTF8(t *testing.T) {
 		measurementname,%s=A fieldname=1.3,stringfield="bathyscape3" 6000000003
 		measurementname,tagname=%s fieldname=1.4,stringfield="bathyscape4" 6000000004
 		measurementname,tagname=a fieldname=1.6,stringfield="bathyscape5" 6000000006`
-	points, err := models.ParsePointsString(fmt.Sprintf(fmtString, badOne, badTwo, badOne, badTwo))
+	pointString := fmt.Sprintf(fmtString, badOne, badTwo, badOne, badTwo)
+	verifyNonUTF8Removal(t, pointString, s, prs, []int{1, 5}, "2 good, 4 bad")
+
+	// All points are bad
+	fmtString = `measurementname,tagname=A %s=1.2,stringfield="bathyscape2" 6000000002
+				measurementname,tagname=%s fieldname=1.4,stringfield="bathyscape4" 6000000003`
+	pointString = fmt.Sprintf(fmtString, badTwo, badOne)
+	verifyNonUTF8Removal(t, pointString, s, prs, []int{}, "All 2 bad")
+
+	// First point is bad
+	fmtString = `measurementname,tagname=A %s=1.2,stringfield="bathyscape2" 6000000004
+				measurementname,tagname=a fieldname=1.1,stringfield="bathyscape5" 6000000005
+				measurementname,tagname=b fieldname=1.2,stringfield="bathyscape6" 6000000006`
+	pointString = fmt.Sprintf(fmtString, badTwo)
+	verifyNonUTF8Removal(t, pointString, s, prs, []int{1, 2}, "First of 3 bad")
+
+	// last point is bad
+	fmtString = `measurementname,tagname=a fieldname=1.1,stringfield="bathyscape5" 6000000006
+				measurementname,tagname=b %s=1.2,stringfield="bathyscape2" 6000000007`
+	pointString = fmt.Sprintf(fmtString, badOne)
+	verifyNonUTF8Removal(t, pointString, s, prs, []int{0}, "Last of 2 bad")
+
+	close(dataChanged)
+}
+
+func verifyNonUTF8Removal(t *testing.T, pointString string, s *subscriber.Service, prs chan *coordinator.WritePointsRequest, goodLines []int, trialMessage string) {
+	points, err := models.ParsePointsString(pointString)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("%s: %v", trialMessage, err)
 	}
-	goodPoints := []string{
-		points[1].String(),
-		points[5].String(),
+	goodPoints := make([]string, 0, len(goodLines))
+
+	for _, line := range goodLines {
+		goodPoints = append(goodPoints, points[line].String())
 	}
 
 	// Write points that match subscription with mode ALL
@@ -540,16 +567,15 @@ func TestService_BadUTF8(t *testing.T) {
 		select {
 		case pr = <-prs:
 			if len(pr.Points) != len(goodPoints) {
-				t.Fatalf("expected %d points: got %d", len(goodPoints), len(pr.Points))
+				t.Fatalf("%s expected %d points: got %d for %q", trialMessage, len(goodPoints), len(pr.Points), pointString)
 			}
 			for i, p := range pr.Points {
 				if p.String() != goodPoints[i] {
-					t.Fatalf("expected %q: got %q ", goodPoints[i], p.String())
+					t.Fatalf("%s expected %q: got %q for %q", trialMessage, goodPoints[i], p.String(), pointString)
 				}
 			}
 		case <-time.After(testTimeout):
-			t.Fatalf("expected points request: got %d exp 2", i)
+			t.Fatalf("%s expected points request: got %d exp 2 for %q", trialMessage, i, pointString)
 		}
 	}
-	close(dataChanged)
 }

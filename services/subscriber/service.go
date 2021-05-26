@@ -283,7 +283,7 @@ func (s *Service) removeBadPoints(p *coordinator.WritePointsRequest) *coordinato
 		}
 
 		// Copy all the points up to the first bad one.
-		copy(wrq.Points, p.Points[:firstBad])
+		wrq.Points = append(wrq.Points, p.Points[:firstBad]...)
 		for _, point := range p.Points[firstBad+1:] {
 			if err := models.ValidPointStrings(point); err != nil {
 				// Log and omit this point from subscription writes
