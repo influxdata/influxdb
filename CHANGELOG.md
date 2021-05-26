@@ -5,6 +5,7 @@
 
 1. [21519](https://github.com/influxdata/influxdb/pull/21519): Upgrade Flux to v0.117.0
 1. [21519](https://github.com/influxdata/influxdb/pull/21519): Optimize `table.fill()` execution within Flux aggregate windows.
+1. [21564](https://github.com/influxdata/influxdb/pull/21564): Upgrade UI to [v2.0.7](https://github.com/influxdata/ui/releases/tag/OSS-v2.0.7)
 
 ### Bug Fixes
 

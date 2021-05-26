@@ -12,6 +12,6 @@
 # respective releases in "influxdata/ui" (OSS-2.0, OSS-2.1, etc). Those releases
 # are updated only when a bug fix needs included for the UI of that OSS release.
 
-curl -L https://github.com/influxdata/ui/releases/download/OSS-v2.0.5/build.tar.gz --output build.tar.gz
+curl -L https://github.com/influxdata/ui/releases/download/OSS-v2.0.7/build.tar.gz --output build.tar.gz
 tar -xzf build.tar.gz
 rm build.tar.gz
