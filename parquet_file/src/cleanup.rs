@@ -80,7 +80,7 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn test_cleanup() {
+    async fn test_cleanup_rules() {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let db_name = "db1";
@@ -128,21 +128,50 @@ mod tests {
         cleanup_unreferenced_parquet_files(&catalog).await.unwrap();
 
         // list all files
-        let all_files: HashSet<_> = object_store
-            .list(None)
-            .await
-            .unwrap()
-            .try_concat()
-            .await
-            .unwrap()
-            .iter()
-            .map(|p| p.display())
-            .collect();
+        let all_files = list_all_files(&object_store).await;
         for p in paths_keep {
             assert!(dbg!(&all_files).contains(dbg!(&p)));
         }
         for p in paths_delete {
             assert!(!dbg!(&all_files).contains(dbg!(&p)));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_with_parallel_transaction() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+
+        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+            Arc::clone(&object_store),
+            server_id,
+            db_name,
+            (),
+        )
+        .await
+        .unwrap();
+
+        // try multiple times to provoke a conflict
+        for i in 0..100 {
+            let (path, _) = tokio::join!(
+                async {
+                    let mut transaction = catalog.open_transaction().await;
+
+                    let (path, md) = make_metadata(&object_store, "foo", i).await;
+                    transaction.add_parquet(&path.clone().into(), &md).unwrap();
+
+                    transaction.commit().await.unwrap();
+
+                    path.display()
+                },
+                async {
+                    cleanup_unreferenced_parquet_files(&catalog).await.unwrap();
+                },
+            );
+
+            let all_files = list_all_files(&object_store).await;
+            assert!(all_files.contains(&path));
         }
     }
 
@@ -162,5 +191,18 @@ mod tests {
             )
             .await
             .unwrap();
+    }
+
+    async fn list_all_files(object_store: &ObjectStore) -> HashSet<String> {
+        object_store
+            .list(None)
+            .await
+            .unwrap()
+            .try_concat()
+            .await
+            .unwrap()
+            .iter()
+            .map(|p| p.display())
+            .collect()
     }
 }
