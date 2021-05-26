@@ -43,7 +43,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/label"
 	"github.com/influxdata/influxdb/v2/nats"
-	notebookSvc "github.com/influxdata/influxdb/v2/notebooks/service"
+	"github.com/influxdata/influxdb/v2/notebooks"
 	notebookTransport "github.com/influxdata/influxdb/v2/notebooks/transport"
 	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	ruleservice "github.com/influxdata/influxdb/v2/notification/rule/service"
@@ -940,7 +940,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		)
 	}
 
-	notebookSvc, err := notebookSvc.NewService()
+	notebookSvc, err := notebooks.NewService()
 	if err != nil {
 		m.log.Error("Failed to initialize notebook service", zap.Error(err))
 		return err
