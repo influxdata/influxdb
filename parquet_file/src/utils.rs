@@ -25,8 +25,9 @@ use parquet::{
     arrow::{ArrowReader, ParquetFileArrowReader},
     file::serialized_reader::{SerializedFileReader, SliceableCursor},
 };
+use uuid::Uuid;
 
-use crate::chunk::ChunkMetrics;
+use crate::{chunk::ChunkMetrics, metadata::IoxMetadata};
 use crate::{
     chunk::{self, Chunk},
     storage::Storage,
@@ -136,12 +137,17 @@ async fn make_chunk_common(
     } else {
         Box::pin(MemoryStream::new(record_batches))
     };
+    let metadata = IoxMetadata {
+        transaction_revision_counter: 0,
+        transaction_uuid: Uuid::nil(),
+    };
     let (path, _metadata) = storage
         .write_to_object_store(
             part_key.to_string(),
             chunk_id,
             table_name.to_string(),
             stream,
+            metadata,
         )
         .await
         .unwrap();

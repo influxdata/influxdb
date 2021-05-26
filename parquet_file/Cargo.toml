@@ -24,6 +24,8 @@ parking_lot = "0.11.1"
 prost = "0.7"
 prost-types = "0.7"
 query = { path = "../query" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 snafu = "0.6"
 thrift = "0.13"
 tokio = { version = "1.0", features = ["macros", "rt", "rt-multi-thread", "sync"] }

@@ -33,8 +33,10 @@ use parking_lot::{Mutex, RwLock};
 use parquet_file::{
     catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
     chunk::{Chunk as ParquetChunk, ChunkMetrics as ParquetChunkMetrics},
-    metadata::read_statistics_from_parquet_metadata,
-    storage::{read_schema_from_parquet_metadata, Storage},
+    metadata::{
+        read_schema_from_parquet_metadata, read_statistics_from_parquet_metadata, IoxMetadata,
+    },
+    storage::Storage,
 };
 use query::predicate::{Predicate, PredicateBuilder};
 use query::{exec::Executor, Database, DEFAULT_SCHEMA};
@@ -707,20 +709,26 @@ impl Db {
             Arc::clone(&arrow_schema),
         ));
 
-        // Write this table data into the object store
-        let (path, parquet_metadata) = storage
-            .write_to_object_store(
-                partition_key.to_string(),
-                chunk_id,
-                stats.name.to_string(),
-                stream,
-            )
-            .await
-            .context(WritingToObjectStore)?;
-
         // catalog-level transaction for preseveration layer
         {
             let mut transaction = self.catalog.open_transaction().await;
+
+            // Write this table data into the object store
+            let metadata = IoxMetadata {
+                transaction_revision_counter: transaction.revision_counter(),
+                transaction_uuid: transaction.uuid(),
+            };
+            let (path, parquet_metadata) = storage
+                .write_to_object_store(
+                    partition_key.to_string(),
+                    chunk_id,
+                    stats.name.to_string(),
+                    stream,
+                    metadata,
+                )
+                .await
+                .context(WritingToObjectStore)?;
+
             transaction
                 .add_parquet(&path.into(), &parquet_metadata)
                 .context(TransactionError)?;
@@ -1267,8 +1275,7 @@ mod tests {
         ObjectStore, ObjectStoreApi,
     };
     use parquet_file::{
-        metadata::read_parquet_metadata_from_file,
-        storage::read_schema_from_parquet_metadata,
+        metadata::{read_parquet_metadata_from_file, read_schema_from_parquet_metadata},
         utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
     use query::{frontend::sql::SqlQueryPlanner, PartitionChunk};

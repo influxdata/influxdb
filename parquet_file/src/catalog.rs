@@ -140,7 +140,7 @@ pub enum Error {
         visibility(pub)
     )]
     SchemaReadFailed {
-        source: crate::storage::Error,
+        source: crate::metadata::Error,
         path: DirsAndFileName,
     },
 
@@ -668,7 +668,7 @@ where
     fn tkey(&self) -> TransactionKey {
         TransactionKey {
             revision_counter: self.proto.revision_counter,
-            uuid: Uuid::parse_str(&self.proto.uuid).unwrap(),
+            uuid: Uuid::parse_str(&self.proto.uuid).expect("UUID was checked before"),
         }
     }
 
@@ -853,12 +853,30 @@ where
         }
     }
 
+    /// Get revision counter for this transaction.
+    pub fn revision_counter(&self) -> u64 {
+        self.transaction
+            .as_ref()
+            .expect("No transaction in progress?")
+            .tkey()
+            .revision_counter
+    }
+
+    /// Get UUID for this transaction
+    pub fn uuid(&self) -> Uuid {
+        self.transaction
+            .as_ref()
+            .expect("No transaction in progress?")
+            .tkey()
+            .uuid
+    }
+
     /// Write data to object store and commit transaction to underlying catalog.
     pub async fn commit(mut self) -> Result<()> {
         // write to object store
         self.transaction
             .as_mut()
-            .unwrap()
+            .expect("No transaction in progress?")
             .store(
                 &self.catalog.object_store,
                 self.catalog.server_id,
@@ -1041,8 +1059,10 @@ pub mod tests {
     use std::{num::NonZeroU32, ops::Deref};
 
     use crate::{
-        metadata::{read_parquet_metadata_from_file, read_statistics_from_parquet_metadata},
-        storage::read_schema_from_parquet_metadata,
+        metadata::{
+            read_parquet_metadata_from_file, read_schema_from_parquet_metadata,
+            read_statistics_from_parquet_metadata,
+        },
         utils::{load_parquet_from_store, make_chunk, make_object_store},
     };
     use object_store::parsed_path;
@@ -1914,6 +1934,39 @@ pub mod tests {
         let mut files: Vec<_> = files.iter().map(|path| path.display()).collect();
         files.sort();
         assert_eq!(files, vec![path.display()]);
+    }
+
+    #[tokio::test]
+    async fn test_transaction_handle_revision_counter() {
+        let object_store = make_object_store();
+        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+            object_store,
+            make_server_id(),
+            "db1".to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+        let t = catalog.open_transaction().await;
+
+        assert_eq!(t.revision_counter(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_transaction_handle_uuid() {
+        let object_store = make_object_store();
+        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+            object_store,
+            make_server_id(),
+            "db1".to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+        let mut t = catalog.open_transaction().await;
+
+        t.transaction.as_mut().unwrap().proto.uuid = Uuid::nil().to_string();
+        assert_eq!(t.uuid(), Uuid::nil());
     }
 
     async fn assert_catalog_roundtrip_works(

@@ -86,13 +86,14 @@
 //! [Apache Parquet]: https://parquet.apache.org/
 //! [Apache Thrift]: https://thrift.apache.org/
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
-use std::sync::Arc;
+use std::{convert::TryInto, sync::Arc};
 
 use data_types::partition_metadata::{
     ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
 };
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
 use parquet::{
+    arrow::parquet_to_arrow_schema,
     file::{
         metadata::{
             FileMetaData as ParquetFileMetaData, ParquetMetaData,
@@ -104,8 +105,17 @@ use parquet::{
     },
     schema::types::SchemaDescriptor as ParquetSchemaDescriptor,
 };
+use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
+use uuid::Uuid;
+
+/// File-level metadata key to store the IOx-specific data.
+///
+/// This will contain [`IoxMetadata`] serialized as [JSON].
+///
+/// [JSON]: https://www.json.org/
+pub const METADATA_KEY: &str = "IOX:metadata";
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -177,14 +187,57 @@ pub enum Error {
         column: String,
         source: parquet::errors::ParquetError,
     },
+
+    #[snafu(display("Cannot read arrow schema from parquet: {}", source))]
+    ArrowFromParquetFailure {
+        source: parquet::errors::ParquetError,
+    },
+
+    #[snafu(display("Cannot read IOx schema from arrow: {}", source))]
+    IoxFromArrowFailure {
+        source: internal_types::schema::Error,
+    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// IOx-specific metadata.
+///
+/// This will serialized as [JSON] into the file-level key-value Parquet metadata (under [`METADATA_KEY`]).
+///
+/// [JSON]: https://www.json.org/
+#[allow(missing_copy_implementations)] // we want to extend this type in the future
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+pub struct IoxMetadata {
+    /// Revision counter of the transaction during which the Parquet file was created.
+    pub transaction_revision_counter: u64,
+
+    /// UUID of the transaction during which the Parquet file was created.
+    pub transaction_uuid: Uuid,
+}
 
 /// Read parquet metadata from a parquet file.
 pub fn read_parquet_metadata_from_file(data: Vec<u8>) -> Result<ParquetMetaData> {
     let cursor = SliceableCursor::new(data);
     let reader = SerializedFileReader::new(cursor).context(ParquetMetaDataRead {})?;
     Ok(reader.metadata().clone())
+}
+
+/// Read IOx schema from parquet metadata.
+pub fn read_schema_from_parquet_metadata(parquet_md: &ParquetMetaData) -> Result<Schema> {
+    let file_metadata = parquet_md.file_metadata();
+
+    let arrow_schema = parquet_to_arrow_schema(
+        file_metadata.schema_descr(),
+        file_metadata.key_value_metadata(),
+    )
+    .context(ArrowFromParquetFailure {})?;
+
+    let arrow_schema_ref = Arc::new(arrow_schema);
+
+    let schema: Schema = arrow_schema_ref
+        .try_into()
+        .context(IoxFromArrowFailure {})?;
+    Ok(schema)
 }
 
 /// Read IOx statistics (including timestamp range) from parquet metadata.
@@ -444,9 +497,8 @@ mod tests {
 
     use internal_types::{schema::TIME_COLUMN_NAME, selection::Selection};
 
-    use crate::{
-        storage::read_schema_from_parquet_metadata,
-        utils::{load_parquet_from_store, make_chunk, make_chunk_no_row_group, make_object_store},
+    use crate::utils::{
+        load_parquet_from_store, make_chunk, make_chunk_no_row_group, make_object_store,
     };
 
     #[tokio::test]

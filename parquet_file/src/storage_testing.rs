@@ -10,8 +10,10 @@ mod tests {
     use data_types::partition_metadata::TableSummary;
 
     use crate::{
-        metadata::{read_parquet_metadata_from_file, read_statistics_from_parquet_metadata},
-        storage::read_schema_from_parquet_metadata,
+        metadata::{
+            read_parquet_metadata_from_file, read_schema_from_parquet_metadata,
+            read_statistics_from_parquet_metadata,
+        },
         utils::*,
     };
 

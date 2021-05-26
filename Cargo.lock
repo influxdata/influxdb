@@ -2642,6 +2642,8 @@ dependencies = [
  "prost",
  "prost-types",
  "query",
+ "serde",
+ "serde_json",
  "snafu",
  "thrift",
  "tokio",
