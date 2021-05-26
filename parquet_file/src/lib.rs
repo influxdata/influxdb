@@ -9,9 +9,10 @@
 
 pub mod catalog;
 pub mod chunk;
+pub mod cleanup;
 pub mod metadata;
 pub mod storage;
 pub mod table;
-pub mod utils;
+pub mod test_utils;
 
 mod storage_testing;
