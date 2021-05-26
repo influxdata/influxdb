@@ -539,6 +539,25 @@ func TestService_BadUTF8(t *testing.T) {
 	pointString = fmt.Sprintf(fmtString, badOne)
 	verifyNonUTF8Removal(t, pointString, s, prs, []int{0}, "Last of 2 bad")
 
+	// only point is bad
+	fmtString = `measurementname,tagname=b %s=1.2,stringfield="bathyscape2" 6000000007`
+	pointString = fmt.Sprintf(fmtString, badOne)
+	verifyNonUTF8Removal(t, pointString, s, prs, []int{}, "1 bad, 0 good")
+
+	// last 2 points are bad
+	fmtString = `measurementname,tagname=a fieldname=1.1,stringfield="bathyscape5" 6000000006
+				measurementname,tagname=b %s=1.2,stringfield="bathyscape2" 6000000007
+				%s,tagname=A fieldname=1.1,stringfield="bathyscape1" 6000000008`
+	pointString = fmt.Sprintf(fmtString, badTwo, badOne)
+	verifyNonUTF8Removal(t, pointString, s, prs, []int{0}, "1 good, 2 bad")
+
+	// first 2 points are bad
+	fmtString = `measurementname,tagname=b %s=1.2,stringfield="bathyscape2" 6000000007
+				%s,tagname=A fieldname=1.1,stringfield="bathyscape1" 6000000008
+				measurementname,tagname=a fieldname=1.1,stringfield="bathyscape5" 6000000009`
+	pointString = fmt.Sprintf(fmtString, badTwo, badOne)
+	verifyNonUTF8Removal(t, pointString, s, prs, []int{2}, "2 bad, 1 good")
+
 	close(dataChanged)
 }
 
