@@ -47,7 +47,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Revision cannot be zero (this transaction is always empty): {:?}",
+        "Internal error: Revision cannot be zero (this transaction is always empty): {:?}",
         path
     ))]
     RevisionZeroFailure { path: Path },
@@ -402,8 +402,9 @@ mod tests {
         let res =
             rebuild_catalog::<TestCatalogState, _>(object_store, &path, server_id, db_name, ())
                 .await;
-        assert!(dbg!(res.unwrap_err().to_string())
-            .starts_with("Revision cannot be zero (this transaction is always empty):"));
+        assert!(dbg!(res.unwrap_err().to_string()).starts_with(
+            "Internal error: Revision cannot be zero (this transaction is always empty):"
+        ));
     }
 
     #[tokio::test]
