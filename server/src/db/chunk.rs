@@ -100,7 +100,7 @@ impl DbChunk {
                 chunk: chunk.snapshot(),
             },
             ChunkState::Closed(chunk) => State::MutableBuffer {
-                chunk: chunk.snapshot(),
+                chunk: Arc::clone(chunk),
             },
             ChunkState::Moved(chunk) => State::ReadBuffer {
                 chunk: Arc::clone(chunk),

@@ -68,7 +68,7 @@ tracker = { path = "tracker" }
 write_buffer = { path = "write_buffer" }
 
 # Crates.io dependencies, in alphabetical order
-arrow = "4.0"
+arrow = { version = "4.0", features = ["prettyprint"] }
 arrow-flight = "4.0"
 byteorder = "1.3.4"
 bytes = "1.0"

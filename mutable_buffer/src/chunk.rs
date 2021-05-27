@@ -157,8 +157,10 @@ impl Chunk {
             return Arc::clone(snapshot);
         }
 
-        // TODO: Incremental snapshot generation
-        let snapshot = Arc::new(ChunkSnapshot::new(self));
+        let snapshot = Arc::new(ChunkSnapshot::new(
+            self,
+            self.metrics.memory_bytes.clone_empty(),
+        ));
         *guard = Some(Arc::clone(&snapshot));
         snapshot
     }
@@ -166,7 +168,10 @@ impl Chunk {
     /// Returns a queryable snapshot of this chunk
     #[cfg(feature = "nocache")]
     pub fn snapshot(&self) -> Arc<ChunkSnapshot> {
-        Arc::new(ChunkSnapshot::new(self))
+        Arc::new(ChunkSnapshot::new(
+            self,
+            self.metrics.memory_bytes.clone_empty(),
+        ))
     }
 
     /// Return the name of the table in this chunk
@@ -201,6 +206,8 @@ impl Chunk {
 
     /// Return the approximate memory size of the chunk, in bytes including the
     /// dictionary, tables, and their rows.
+    ///
+    /// Note: This does not include the size of any cached ChunkSnapshot
     pub fn size(&self) -> usize {
         self.table.size() + self.dictionary.size()
     }

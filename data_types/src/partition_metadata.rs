@@ -180,7 +180,7 @@ impl ColumnSummary {
 
     /// Return size in bytes of this Column metadata (not the underlying column)
     pub fn size(&self) -> usize {
-        mem::size_of::<Self>() + self.name.len() + mem::size_of_val(&self.stats)
+        mem::size_of::<Self>() + self.name.len() + self.stats.size()
     }
 
     // Updates statistics from other if the same type, otherwise a noop
@@ -278,6 +278,14 @@ impl Statistics {
             Self::F64(v) => v.max.map(|x| Cow::Owned(x.to_string())),
             Self::Bool(v) => v.max.map(|x| Cow::Owned(x.to_string())),
             Self::String(v) => v.max.as_deref().map(|x| Cow::Borrowed(x)),
+        }
+    }
+
+    /// Return the size in bytes of this stats instance
+    pub fn size(&self) -> usize {
+        match self {
+            Self::String(v) => std::mem::size_of::<Self>() + v.string_size(),
+            _ => std::mem::size_of::<Self>(),
         }
     }
 }
@@ -394,6 +402,14 @@ impl<T> StatValues<T> {
                 }
             }
         }
+    }
+}
+
+impl StatValues<String> {
+    /// Returns the bytes associated by storing min/max string values
+    pub fn string_size(&self) -> usize {
+        self.min.as_ref().map(|x| x.len()).unwrap_or(0)
+            + self.max.as_ref().map(|x| x.len()).unwrap_or(0)
     }
 }
 
