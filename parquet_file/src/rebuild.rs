@@ -242,7 +242,7 @@ mod tests {
         let server_id = make_server_id();
         let db_name = "db1";
 
-        // build catalog with same data
+        // build catalog with some data
         let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
             Arc::clone(&object_store),
             server_id,
