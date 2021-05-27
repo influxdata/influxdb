@@ -404,6 +404,32 @@ where
             }),
         }))
     }
+
+    async fn wipe_preserved_catalog(
+        &self,
+        request: Request<WipePreservedCatalogRequest>,
+    ) -> Result<Response<WipePreservedCatalogResponse>, Status> {
+        let WipePreservedCatalogRequest { db_name } = request.into_inner();
+
+        // Validate that the database name is legit
+        let db_name = DatabaseName::new(db_name).field("db_name")?;
+
+        let tracker = self
+            .server
+            .wipe_preserved_catalog(db_name)
+            .map_err(|e| match e {
+                Error::DatabaseAlreadyExists { db_name } => AlreadyExists {
+                    resource_type: "database".to_string(),
+                    resource_name: db_name,
+                    ..Default::default()
+                }
+                .into(),
+                e => default_server_error_handler(e),
+            })?;
+        let operation = Some(super::operations::encode_tracker(tracker)?);
+
+        Ok(Response::new(WipePreservedCatalogResponse { operation }))
+    }
 }
 
 pub fn make_server<M>(

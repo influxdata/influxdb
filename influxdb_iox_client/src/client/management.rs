@@ -261,6 +261,30 @@ pub enum GetServerStatusError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by [`Client::wipe_persisted_catalog`]
+#[derive(Debug, Error)]
+pub enum WipePersistedCatalogError {
+    /// Server ID is not set
+    #[error("Server ID not set")]
+    NoServerId,
+
+    /// Database already exists
+    #[error("Database already exists")]
+    DatabaseAlreadyExists,
+
+    /// Server returned an invalid argument error
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    InvalidArgument(tonic::Status),
+
+    /// Response contained no payload
+    #[error("Server returned an empty response")]
+    EmptyResponse,
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
 /// An IOx Management API client.
 ///
 /// This client wraps the underlying `tonic` generated client with a
@@ -643,5 +667,29 @@ impl Client {
             .into_inner()
             .operation
             .ok_or(ClosePartitionChunkError::EmptyResponse)?)
+    }
+
+    /// Wipe preserved catalog of specified, but non-existing database.
+    pub async fn wipe_persisted_catalog(
+        &mut self,
+        db_name: impl Into<String> + Send,
+    ) -> Result<Operation, WipePersistedCatalogError> {
+        let db_name = db_name.into();
+
+        let response = self
+            .inner
+            .wipe_preserved_catalog(WipePreservedCatalogRequest { db_name })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::AlreadyExists => WipePersistedCatalogError::DatabaseAlreadyExists,
+                tonic::Code::FailedPrecondition => WipePersistedCatalogError::NoServerId,
+                tonic::Code::InvalidArgument => WipePersistedCatalogError::InvalidArgument(status),
+                _ => WipePersistedCatalogError::ServerError(status),
+            })?;
+
+        Ok(response
+            .into_inner()
+            .operation
+            .ok_or(WipePersistedCatalogError::EmptyResponse)?)
     }
 }
