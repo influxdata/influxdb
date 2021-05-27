@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	prefixNotebooks = "/api/v2private/notebooks"
+	prefixNotebooks     = "/api/v2private/notebooks"
+	allNotebooksJSONKey = "flows"
 )
 
 var (
@@ -107,7 +108,11 @@ func (h *NotebookHandler) handleGetNotebooks(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	h.api.Respond(w, r, http.StatusOK, l)
+	p := map[string][]*influxdb.Notebook{
+		allNotebooksJSONKey: l,
+	}
+
+	h.api.Respond(w, r, http.StatusOK, p)
 }
 
 // create a single notebook.

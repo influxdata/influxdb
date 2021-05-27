@@ -58,10 +58,10 @@ func TestNotebookHandler(t *testing.T) {
 
 		res := doTestRequest(t, req, http.StatusOK, true)
 
-		got := []*influxdb.Notebook{}
+		got := map[string][]*influxdb.Notebook{}
 		err := json.NewDecoder(res.Body).Decode(&got)
 		require.NoError(t, err)
-		require.Equal(t, got, []*influxdb.Notebook{testNotebook})
+		require.Equal(t, got[allNotebooksJSONKey], []*influxdb.Notebook{testNotebook})
 	})
 
 	t.Run("create notebook happy path", func(t *testing.T) {
