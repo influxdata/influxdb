@@ -13,6 +13,7 @@ use influxdb_iox_client::{
 use structopt::StructOpt;
 use thiserror::Error;
 
+mod catalog;
 mod chunk;
 mod partition;
 
@@ -53,6 +54,9 @@ pub enum Error {
 
     #[error("JSON Serialization error: {0}")]
     Serde(#[from] serde_json::Error),
+
+    #[error("Error in partition subcommand: {0}")]
+    Catalog(#[from] catalog::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -164,6 +168,7 @@ enum Command {
     Query(Query),
     Chunk(chunk::Config),
     Partition(partition::Config),
+    Catalog(catalog::Config),
 }
 
 pub async fn command(url: String, config: Config) -> Result<()> {
@@ -264,6 +269,9 @@ pub async fn command(url: String, config: Config) -> Result<()> {
         }
         Command::Partition(config) => {
             partition::command(url, config).await?;
+        }
+        Command::Catalog(config) => {
+            catalog::command(url, config).await?;
         }
     }
 

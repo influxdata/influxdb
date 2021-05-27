@@ -582,6 +582,59 @@ async fn test_close_partition_chunk_error() {
         .stderr(predicate::str::contains("Database not found"));
 }
 
+#[tokio::test]
+async fn test_wipe_persisted_catalog() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+
+    let stdout: Operation = serde_json::from_slice(
+        &Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("database")
+            .arg("catalog")
+            .arg("wipe")
+            .arg(&db_name)
+            .arg("--host")
+            .arg(addr)
+            .assert()
+            .success()
+            .get_output()
+            .stdout,
+    )
+    .expect("Expected JSON output");
+
+    let expected_job = Job::WipePreservedCatalog { db_name };
+
+    assert_eq!(
+        Some(expected_job),
+        stdout.job,
+        "operation was {:#?}",
+        stdout
+    );
+}
+
+#[tokio::test]
+async fn test_wipe_persisted_catalog_error() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+
+    create_readable_database(&db_name, server_fixture.grpc_channel()).await;
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("catalog")
+        .arg("wipe")
+        .arg(&db_name)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Database already exists"));
+}
+
 /// Loads the specified lines into the named database
 fn load_lp(addr: &str, db_name: &str, lp_data: Vec<&str>) {
     let lp_data_file = make_temp_file(lp_data.join("\n"));
