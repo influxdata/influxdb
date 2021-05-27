@@ -361,7 +361,7 @@ Possible values (case insensitive):
     )]
     pub aws_default_region: String,
 
-    /// When using Amazon s3 compatibility storage service, set this to the
+    /// When using Amazon S3 compatibility storage service, set this to the
     /// endpoint.
     ///
     /// Must also set `--object-store=s3`, `--bucket`. Can also set `--aws-default-region`
@@ -371,6 +371,16 @@ Possible values (case insensitive):
     /// environments.
     #[structopt(long = "--aws-endpoint", env = "AWS_ENDPOINT")]
     pub aws_endpoint: Option<String>,
+
+    /// When using Amazon S3 as an object store, set this to the session token. This is handy when using a federated
+    /// login / SSO and you fetch credentials via the UI.
+    ///
+    /// Is it assumed that the session is valid as long as the IOx server is running.
+    ///
+    /// Prefer the environment variable over the command line flag in shared
+    /// environments.
+    #[structopt(long = "--aws-session-token", env = "AWS_SESSION_TOKEN")]
+    pub aws_session_token: Option<String>,
 
     /// When using Google Cloud Storage as the object store, set this to the
     /// path to the JSON file that contains the Google credentials.

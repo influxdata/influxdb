@@ -336,14 +336,22 @@ impl TryFrom<&Config> for ObjectStore {
                     config.aws_secret_access_key.as_ref(),
                     config.aws_default_region.as_str(),
                     config.aws_endpoint.as_ref(),
+                    config.aws_session_token.as_ref(),
                 ) {
-                    (Some(bucket), key_id, secret_key, region, endpoint) => {
+                    (Some(bucket), key_id, secret_key, region, endpoint, session_token) => {
                         Ok(Self::new_amazon_s3(
-                            AmazonS3::new(key_id, secret_key, region, bucket, endpoint)
-                                .context(InvalidS3Config)?,
+                            AmazonS3::new(
+                                key_id,
+                                secret_key,
+                                region,
+                                bucket,
+                                endpoint,
+                                session_token,
+                            )
+                            .context(InvalidS3Config)?,
                         ))
                     }
-                    (bucket, _, _, _, _) => {
+                    (bucket, _, _, _, _, _) => {
                         let mut missing_args = vec![];
 
                         if bucket.is_none() {
