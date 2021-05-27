@@ -10,6 +10,7 @@ use object_store::{
     path::{parsed::DirsAndFileName, Path},
     ObjectStore, ObjectStoreApi,
 };
+use observability_deps::tracing::error;
 use parquet::file::metadata::ParquetMetaData;
 use snafu::{ResultExt, Snafu};
 use uuid::Uuid;
@@ -77,19 +78,33 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// - **No Removals:** The rebuild system cannot recover the fact that files where removed from the catalog during some
 ///   transaction. This might not always be an issue due to "deduplicate while read"-logic in the query engine, but also
 ///   might have unwanted side effects (e.g. performance issues).
+///
+/// # Error Handling
+/// This routine will fail if:
+///
+/// - **Metadata Read Failure:** There is a parquet file with metadata that cannot be read. Set
+///   `ignore_metadata_read_failure` to `true` to ignore these cases.
+/// - **Parquet With Revision Zero:** One of the parquet files reports it belongs to revision `0`. This should never
+///   happen since the first transaction is always an empty one. This was likely causes by a bug or a file created by
+///   3rd party tooling.
+/// - **Multiple Transactions:** If there are multiple transaction with the same revision but different UUIDs, this
+///   routine cannot reconstruct a single linear revision history. Make sure to
+//    [clean up](crate::cleanup::cleanup_unreferenced_parquet_files) regularly to avoid this case.
 pub async fn rebuild_catalog<S, N>(
     object_store: Arc<ObjectStore>,
     search_location: &Path,
     server_id: ServerId,
     db_name: N,
     catalog_empty_input: S::EmptyInput,
+    ignore_metadata_read_failure: bool,
 ) -> Result<PreservedCatalog<S>>
 where
     S: CatalogState,
     N: Into<String>,
 {
     // collect all revisions from parquet files
-    let revisions = collect_revisions(&object_store, search_location).await?;
+    let revisions =
+        collect_revisions(&object_store, search_location, ignore_metadata_read_failure).await?;
 
     // create new empty catalog
     let catalog =
@@ -136,6 +151,7 @@ where
 async fn collect_revisions(
     object_store: &ObjectStore,
     search_location: &Path,
+    ignore_metadata_read_failure: bool,
 ) -> Result<HashMap<u64, (Uuid, Vec<(Path, ParquetMetaData)>)>> {
     let mut stream = object_store
         .list(Some(search_location))
@@ -147,7 +163,14 @@ async fn collect_revisions(
 
     while let Some(paths) = stream.try_next().await.context(ReadFailure)? {
         for path in paths.into_iter().filter(is_parquet) {
-            let (iox_md, parquet_md) = read_parquet(object_store, &path).await?;
+            let (iox_md, parquet_md) = match read_parquet(object_store, &path).await {
+                Ok(res) => res,
+                Err(e @ Error::MetadataReadFailure { .. }) if ignore_metadata_read_failure => {
+                    error!("error while reading metdata from parquet, ignoring: {}", e);
+                    continue;
+                }
+                Err(e) => return Err(e),
+            };
 
             // revision 0 can never occur because it is always empty
             if iox_md.transaction_revision_counter == 0 {
@@ -319,10 +342,16 @@ mod tests {
 
         // rebuild
         let path = object_store.new_path();
-        let catalog =
-            rebuild_catalog::<TestCatalogState, _>(object_store, &path, server_id, db_name, ())
-                .await
-                .unwrap();
+        let catalog = rebuild_catalog::<TestCatalogState, _>(
+            object_store,
+            &path,
+            server_id,
+            db_name,
+            (),
+            false,
+        )
+        .await
+        .unwrap();
 
         // check match
         let mut paths_actual: Vec<_> = catalog
@@ -362,10 +391,16 @@ mod tests {
 
         // rebuild
         let path = object_store.new_path();
-        let catalog =
-            rebuild_catalog::<TestCatalogState, _>(object_store, &path, server_id, db_name, ())
-                .await
-                .unwrap();
+        let catalog = rebuild_catalog::<TestCatalogState, _>(
+            object_store,
+            &path,
+            server_id,
+            db_name,
+            (),
+            false,
+        )
+        .await
+        .unwrap();
 
         // check match
         assert!(catalog.state().inner.borrow().parquet_files.is_empty());
@@ -399,9 +434,15 @@ mod tests {
 
         // rebuild
         let path = object_store.new_path();
-        let res =
-            rebuild_catalog::<TestCatalogState, _>(object_store, &path, server_id, db_name, ())
-                .await;
+        let res = rebuild_catalog::<TestCatalogState, _>(
+            object_store,
+            &path,
+            server_id,
+            db_name,
+            (),
+            false,
+        )
+        .await;
         assert!(dbg!(res.unwrap_err().to_string()).starts_with(
             "Internal error: Revision cannot be zero (this transaction is always empty):"
         ));
@@ -458,15 +499,21 @@ mod tests {
 
         // rebuild
         let path = object_store.new_path();
-        let res =
-            rebuild_catalog::<TestCatalogState, _>(object_store, &path, server_id, db_name, ())
-                .await;
+        let res = rebuild_catalog::<TestCatalogState, _>(
+            object_store,
+            &path,
+            server_id,
+            db_name,
+            (),
+            false,
+        )
+        .await;
         assert!(dbg!(res.unwrap_err().to_string())
             .starts_with("Found multiple transaction for revision 1:"));
     }
 
     #[tokio::test]
-    async fn test_rebuild_fail_no_metadata() {
+    async fn test_rebuild_no_metadata() {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let db_name = "db1";
@@ -490,13 +537,33 @@ mod tests {
             .await
             .unwrap();
 
-        // rebuild
+        // rebuild (do not ignore errors)
         let path = object_store.new_path();
-        let res =
-            rebuild_catalog::<TestCatalogState, _>(object_store, &path, server_id, db_name, ())
-                .await;
+        let res = rebuild_catalog::<TestCatalogState, _>(
+            Arc::clone(&object_store),
+            &path,
+            server_id,
+            db_name,
+            (),
+            false,
+        )
+        .await;
         assert!(dbg!(res.unwrap_err().to_string())
             .starts_with("Cannot read IOx metadata from parquet file"));
+
+        // rebuild (ignore errors)
+        let catalog = rebuild_catalog::<TestCatalogState, _>(
+            object_store,
+            &path,
+            server_id,
+            db_name,
+            (),
+            true,
+        )
+        .await
+        .unwrap();
+        assert!(catalog.state().inner.borrow().parquet_files.is_empty());
+        assert_eq!(catalog.revision_counter(), 0);
     }
 
     /// Creates new test server ID
