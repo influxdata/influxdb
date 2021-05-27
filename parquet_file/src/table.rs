@@ -31,7 +31,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Clone)]
 pub struct Table {
     /// Meta data of the table
-    table_summary: TableSummary,
+    table_summary: Arc<TableSummary>,
 
     /// Path in the object store. Format:
     ///  <writer id>/<database>/data/<partition key>/<chunk
@@ -59,7 +59,7 @@ impl Table {
         let timestamp_range = extract_range(&table_summary);
 
         Self {
-            table_summary,
+            table_summary: Arc::new(table_summary),
             object_store_path: path,
             object_store: store,
             table_schema: schema,
@@ -67,8 +67,8 @@ impl Table {
         }
     }
 
-    pub fn table_summary(&self) -> TableSummary {
-        self.table_summary.clone()
+    pub fn table_summary(&self) -> &Arc<TableSummary> {
+        &self.table_summary
     }
 
     pub fn has_table(&self, table_name: &str) -> bool {

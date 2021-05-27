@@ -102,7 +102,7 @@ impl Chunk {
     }
 
     /// Returns the summary statistics for this chunk
-    pub fn table_summary(&self) -> TableSummary {
+    pub fn table_summary(&self) -> &Arc<TableSummary> {
         self.table.table_summary()
     }
 

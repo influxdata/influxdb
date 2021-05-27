@@ -256,7 +256,8 @@ impl Partition {
                 let chunk = chunk.read();
                 UnaggregatedTableSummary {
                     chunk_id: chunk.id(),
-                    table: chunk.table_summary(),
+                    // Note: makes a deep copy of the TableSummary
+                    table: chunk.table_summary().as_ref().clone(),
                 }
             })
             .collect();

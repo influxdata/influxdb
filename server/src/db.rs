@@ -577,19 +577,18 @@ impl Db {
 
         // update the catalog to say we are processing this chunk and
         // then drop the lock while we do the work
-        let mb_chunk = {
+        let (mb_chunk, table_summary) = {
             let mut chunk = chunk.write();
 
-            chunk.set_moving(tracker).context(LoadingChunk {
+            let mb_chunk = chunk.set_moving(tracker).context(LoadingChunk {
                 partition_key,
                 table_name,
                 chunk_id,
-            })?
+            })?;
+            (mb_chunk, chunk.table_summary())
         };
 
         info!(%partition_key, %table_name, %chunk_id, "chunk marked MOVING, loading tables into read buffer");
-
-        let table_summary = mb_chunk.table_summary();
 
         // create a new read buffer chunk with memory tracking
         let metrics = self
@@ -662,22 +661,22 @@ impl Db {
 
         // update the catalog to say we are processing this chunk and
         // then drop the lock while we do the work
-        let rb_chunk = {
+        let (rb_chunk, table_summary) = {
             let mut chunk = chunk.write();
 
-            chunk
-                .set_writing_to_object_store(tracker)
-                .context(LoadingChunkToParquet {
-                    partition_key,
-                    table_name,
-                    chunk_id,
-                })?
+            let rb_chunk =
+                chunk
+                    .set_writing_to_object_store(tracker)
+                    .context(LoadingChunkToParquet {
+                        partition_key,
+                        table_name,
+                        chunk_id,
+                    })?;
+
+            (rb_chunk, chunk.table_summary())
         };
 
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked WRITING , loading tables into object store");
-
-        // Get all tables in this chunk
-        let table_stats = rb_chunk.table_summaries();
 
         // Create a storage to save data of this chunk
         let storage = Storage::new(
@@ -686,24 +685,21 @@ impl Db {
             self.rules.read().name.to_string(),
         );
 
-        // as of now, there should be exactly 1 table in the chunk (see https://github.com/influxdata/influxdb_iox/issues/1295)
-        assert_eq!(table_stats.len(), 1);
-        let stats = &table_stats[0];
-
-        debug!(%partition_key, %table_name, %chunk_id, table=%stats.name, "loading table to object store");
+        let table_name = table_summary.name.as_str();
+        debug!(%partition_key, %table_name, %chunk_id, table=table_name, "loading table to object store");
 
         let predicate = read_buffer::Predicate::default();
 
         // Get RecordBatchStream of data from the read buffer chunk
         let read_results = rb_chunk
-            .read_filter(stats.name.as_str(), predicate, Selection::All)
+            .read_filter(table_name, predicate, Selection::All)
             .context(ReadBufferChunkError {
                 table_name,
                 chunk_id,
             })?;
 
         let arrow_schema: ArrowSchemaRef = rb_chunk
-            .read_filter_table_schema(stats.name.as_str(), Selection::All)
+            .read_filter_table_schema(table_name, Selection::All)
             .context(ReadBufferChunkSchemaError {
                 table_name,
                 chunk_id,
@@ -727,7 +723,7 @@ impl Db {
                 .write_to_object_store(
                     partition_key.to_string(),
                     chunk_id,
-                    stats.name.to_string(),
+                    table_name.to_string(),
                     stream,
                     metadata,
                 )
@@ -909,7 +905,7 @@ impl Db {
         partition_key: &str,
         table_name: &str,
         chunk_id: u32,
-    ) -> Option<TableSummary> {
+    ) -> Option<Arc<TableSummary>> {
         if let Some(partition) = self.catalog.state().partition(partition_key) {
             let partition = partition.read();
             if let Ok(chunk) = partition.chunk(table_name, chunk_id) {
@@ -1482,7 +1478,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 807;
+        let expected_parquet_size = 727;
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1598).unwrap();
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(
@@ -1838,7 +1834,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2405.0)
+            .sample_sum_eq(2325.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1947,7 +1943,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2405.0)
+            .sample_sum_eq(2325.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -1975,7 +1971,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(807.0)
+            .sample_sum_eq(727.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -2336,7 +2332,7 @@ mod tests {
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
-                2396, // size of RB and OS chunks
+                2316, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2391,7 +2387,7 @@ mod tests {
         );
         assert_eq!(
             db.catalog.state().metrics().memory().parquet().get_total(),
-            807
+            727
         );
     }
 
