@@ -5,7 +5,7 @@ use data_types::{
     chunk_metadata::{ChunkColumnSummary, ChunkStorage, ChunkSummary, DetailedChunkSummary},
     partition_metadata::TableSummary,
 };
-use mutable_buffer::chunk::Chunk as MBChunk;
+use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, Chunk as MBChunk};
 use parquet_file::chunk::Chunk as ParquetChunk;
 use read_buffer::Chunk as ReadBufferChunk;
 
@@ -48,7 +48,7 @@ pub enum ChunkState {
     Open(MBChunk),
 
     /// Chunk is closed for new writes
-    Closed(Arc<MBChunk>),
+    Closed(Arc<MBChunkSnapshot>),
 
     /// Chunk has been completely loaded in the read buffer
     Moved(Arc<ReadBufferChunk>),
@@ -384,15 +384,15 @@ impl Chunk {
     }
 
     /// Set the chunk to the Closed state
-    pub fn set_closed(&mut self) -> Result<Arc<MBChunk>> {
+    pub fn set_closed(&mut self) -> Result<Arc<MBChunkSnapshot>> {
         let mut s = ChunkState::Invalid;
         std::mem::swap(&mut s, &mut self.state);
 
         match s {
-            ChunkState::Open(s) => {
+            ChunkState::Open(chunk) => {
                 assert!(self.time_closed.is_none());
                 self.time_closed = Some(Utc::now());
-                let s = Arc::new(s);
+                let s = chunk.snapshot();
                 self.state = ChunkState::Closed(Arc::clone(&s));
                 self.metrics
                     .state
@@ -400,7 +400,7 @@ impl Chunk {
 
                 self.metrics
                     .immutable_chunk_size
-                    .observe_with_labels(s.size() as f64, &[KeyValue::new("state", "closed")]);
+                    .observe_with_labels(chunk.size() as f64, &[KeyValue::new("state", "closed")]);
 
                 Ok(s)
             }
@@ -415,7 +415,7 @@ impl Chunk {
     /// storage
     ///
     /// If called on an open chunk will first close the chunk
-    pub fn set_moving(&mut self) -> Result<Arc<MBChunk>> {
+    pub fn set_moving(&mut self) -> Result<Arc<MBChunkSnapshot>> {
         // This ensures the closing logic is consistent but doesn't break code that
         // assumes a chunk can be moved from open
         if matches!(self.state, ChunkState::Open(_)) {

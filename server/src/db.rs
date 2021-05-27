@@ -588,7 +588,6 @@ impl Db {
 
         info!(%partition_key, %table_name, %chunk_id, "chunk marked MOVING, loading tables into read buffer");
 
-        let mut batches = Vec::new();
         let table_summary = mb_chunk.table_summary();
 
         // create a new read buffer chunk with memory tracking
@@ -602,17 +601,15 @@ impl Db {
 
         // load table into the new chunk one by one.
         debug!(%partition_key, %table_name, %chunk_id, table=%table_summary.name, "loading table to read buffer");
-        mb_chunk
-            .table_to_arrow(&mut batches, Selection::All)
+        let batch = mb_chunk
+            .read_filter(table_name, Selection::All)
             // It is probably reasonable to recover from this error
             // (reset the chunk state to Open) but until that is
             // implemented (and tested) just panic
             .expect("Loading chunk to mutable buffer");
 
-        for batch in batches.drain(..) {
-            let sorted = sort_record_batch(batch).expect("failed to sort");
-            rb_chunk.upsert_table(&table_summary.name, sorted)
-        }
+        let sorted = sort_record_batch(batch).expect("failed to sort");
+        rb_chunk.upsert_table(&table_summary.name, sorted);
 
         // Relock the chunk again (nothing else should have been able
         // to modify the chunk state while we were moving it
@@ -1428,7 +1425,8 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 88).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1111)
+            .unwrap();
 
         db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", 0)
             .await
@@ -2338,7 +2336,7 @@ mod tests {
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ClosedMutableBuffer,
-                129,
+                2126,
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2364,7 +2362,7 @@ mod tests {
                 .memory()
                 .mutable_buffer()
                 .get_total(),
-            100 + 129 + 131
+            100 + 2126 + 131
         );
         assert_eq!(
             db.catalog

@@ -189,8 +189,8 @@ impl Table {
         Ok(())
     }
 
-    /// Returns the column selection for all the columns in this table, orderd
-    /// by table name
+    /// Returns the column selection for all the columns in this table, ordered
+    /// by column name
     fn all_columns_selection<'a>(
         &self,
         dictionary: &'a Dictionary,
