@@ -1849,15 +1849,14 @@ mod tests {
         // Verify data written to the parquet file in object store
         //
         // First, there must be one path of object store in the catalog
-        let paths = pq_chunk.object_store_paths();
-        assert_eq!(paths.len(), 1);
+        let path = pq_chunk.object_store_path().unwrap();
 
         // Check that the path must exist in the object store
-        let path_list = flatten_list_stream(Arc::clone(&object_store), Some(&paths[0]))
+        let path_list = flatten_list_stream(Arc::clone(&object_store), Some(&path))
             .await
             .unwrap();
         assert_eq!(path_list.len(), 1);
-        assert_eq!(path_list, paths.clone());
+        assert_eq!(path_list[0], path);
 
         // Now read data from that path
         let parquet_data = load_parquet_from_store_for_path(&path_list[0], object_store)
@@ -1977,16 +1976,15 @@ mod tests {
         // Verify data written to the parquet file in object store
         //
         // First, there must be one path of object store in the catalog
-        let paths = pq_chunk.object_store_paths();
-        assert_eq!(paths.len(), 1);
+        let path = pq_chunk.object_store_path().unwrap();
 
         // Check that the path must exist in the object store
-        let path_list = flatten_list_stream(Arc::clone(&object_store), Some(&paths[0]))
+        let path_list = flatten_list_stream(Arc::clone(&object_store), Some(&path))
             .await
             .unwrap();
         println!("path_list: {:#?}", path_list);
         assert_eq!(path_list.len(), 1);
-        assert_eq!(path_list, paths.clone());
+        assert_eq!(path_list[0], path);
 
         // Now read data from that path
         let parquet_data = load_parquet_from_store_for_path(&path_list[0], object_store)
