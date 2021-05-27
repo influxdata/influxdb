@@ -415,7 +415,7 @@ mod tests {
     /// Transitions a new ("open") chunk into the "moving" state.
     fn transition_to_moving(mut chunk: Chunk) -> Chunk {
         chunk.set_closed().unwrap();
-        chunk.set_moving().unwrap();
+        chunk.set_moving(&Default::default()).unwrap();
         chunk
     }
 
@@ -433,7 +433,9 @@ mod tests {
         rb: &Arc<read_buffer::Chunk>,
     ) -> Chunk {
         chunk = transition_to_moved(chunk, rb);
-        chunk.set_writing_to_object_store().unwrap();
+        chunk
+            .set_writing_to_object_store(&Default::default())
+            .unwrap();
         chunk
     }
 
@@ -543,7 +545,7 @@ mod tests {
                 .iter()
                 .find(|x| x.read().id() == chunk_id)
                 .unwrap();
-            chunk.write().set_moving().unwrap();
+            chunk.write().set_moving(&Default::default()).unwrap();
             self.events.push(MoverEvents::Move(chunk_id));
             let tracker = TaskTracker::complete(());
             self.move_tracker = Some(tracker.clone());
@@ -561,7 +563,10 @@ mod tests {
                 .iter()
                 .find(|x| x.read().id() == chunk_id)
                 .unwrap();
-            chunk.write().set_writing_to_object_store().unwrap();
+            chunk
+                .write()
+                .set_writing_to_object_store(&Default::default())
+                .unwrap();
             self.events.push(MoverEvents::Write(chunk_id));
             let tracker = TaskTracker::complete(());
             self.write_tracker = Some(tracker.clone());

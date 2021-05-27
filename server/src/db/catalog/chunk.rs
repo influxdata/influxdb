@@ -12,6 +12,7 @@ use read_buffer::Chunk as ReadBufferChunk;
 use super::{ChunkIsEmpty, Error, InternalChunkState, Result};
 use metrics::{Counter, Histogram, KeyValue};
 use snafu::ensure;
+use tracker::{TaskRegistration, TaskTracker};
 
 /// Any lifecycle action currently in progress for this chunk
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -91,7 +92,11 @@ pub struct Chunk {
     state: ChunkState,
 
     /// The active lifecycle task if any
-    lifecycle_action: Option<ChunkLifecycleAction>,
+    ///
+    /// This is stored as a TaskTracker to allow monitoring the progress of the
+    /// action, detecting if the task failed, waiting for the task to complete
+    /// or even triggering graceful termination of it
+    lifecycle_action: Option<TaskTracker<ChunkLifecycleAction>>,
 
     /// The metrics for this chunk
     metrics: ChunkMetrics,
@@ -246,7 +251,7 @@ impl Chunk {
     }
 
     pub fn lifecycle_action(&self) -> Option<&ChunkLifecycleAction> {
-        self.lifecycle_action.as_ref()
+        self.lifecycle_action.as_ref().map(|x| x.metadata())
     }
 
     pub fn time_of_first_write(&self) -> Option<DateTime<Utc>> {
@@ -415,7 +420,7 @@ impl Chunk {
     /// storage
     ///
     /// If called on an open chunk will first close the chunk
-    pub fn set_moving(&mut self) -> Result<Arc<MBChunkSnapshot>> {
+    pub fn set_moving(&mut self, registration: &TaskRegistration) -> Result<Arc<MBChunkSnapshot>> {
         // This ensures the closing logic is consistent but doesn't break code that
         // assumes a chunk can be moved from open
         if matches!(self.state, ChunkState::Open(_)) {
@@ -425,7 +430,7 @@ impl Chunk {
         match &self.state {
             ChunkState::Closed(chunk) => {
                 let chunk = Arc::clone(chunk);
-                self.set_lifecycle_action(ChunkLifecycleAction::Moving)?;
+                self.set_lifecycle_action(ChunkLifecycleAction::Moving, registration)?;
 
                 self.metrics
                     .state
@@ -468,11 +473,14 @@ impl Chunk {
     }
 
     /// Set the chunk to the MovingToObjectStore state
-    pub fn set_writing_to_object_store(&mut self) -> Result<Arc<ReadBufferChunk>> {
+    pub fn set_writing_to_object_store(
+        &mut self,
+        registration: &TaskRegistration,
+    ) -> Result<Arc<ReadBufferChunk>> {
         match &self.state {
             ChunkState::Moved(db) => {
                 let db = Arc::clone(db);
-                self.set_lifecycle_action(ChunkLifecycleAction::Persisting)?;
+                self.set_lifecycle_action(ChunkLifecycleAction::Persisting, registration)?;
                 self.metrics
                     .state
                     .inc_with_labels(&[KeyValue::new("state", "writing_os")]);
@@ -536,30 +544,38 @@ impl Chunk {
     }
 
     /// Set the chunk's in progress lifecycle action or return an error if already in-progress
-    fn set_lifecycle_action(&mut self, lifecycle_action: ChunkLifecycleAction) -> Result<()> {
+    fn set_lifecycle_action(
+        &mut self,
+        lifecycle_action: ChunkLifecycleAction,
+        registration: &TaskRegistration,
+    ) -> Result<()> {
         if let Some(lifecycle_action) = &self.lifecycle_action {
             return Err(Error::LifecycleActionAlreadyInProgress {
                 partition_key: self.partition_key.to_string(),
                 table_name: self.table_name.to_string(),
                 chunk_id: self.id,
-                lifecycle_action: lifecycle_action.name().to_string(),
+                lifecycle_action: lifecycle_action.metadata().name().to_string(),
             });
         }
-        self.lifecycle_action = Some(lifecycle_action);
+        self.lifecycle_action = Some(registration.clone().into_tracker(lifecycle_action));
         Ok(())
     }
 
     /// Clear the chunk's lifecycle action or return an error if it doesn't match that provided
     fn finish_lifecycle_action(&mut self, lifecycle_action: ChunkLifecycleAction) -> Result<()> {
         match &self.lifecycle_action {
-            Some(actual) if actual == &lifecycle_action => {}
+            Some(actual) if actual.metadata() == &lifecycle_action => {}
             actual => {
                 return Err(Error::UnexpectedLifecycleAction {
                     partition_key: self.partition_key.to_string(),
                     table_name: self.table_name.to_string(),
                     chunk_id: self.id,
                     expected: lifecycle_action.name().to_string(),
-                    actual: actual.map(|x| x.name()).unwrap_or("None").to_string(),
+                    actual: actual
+                        .as_ref()
+                        .map(|x| x.metadata().name())
+                        .unwrap_or("None")
+                        .to_string(),
                 })
             }
         }

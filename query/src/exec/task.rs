@@ -87,7 +87,7 @@ impl DedicatedExecutor {
                 }
 
                 // Wait for all tasks to finish
-                registration.into_tracker().join().await;
+                registration.into_tracker(()).join().await;
             })
         });
 

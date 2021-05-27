@@ -53,7 +53,7 @@ use std::{
     time::Duration,
 };
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
-use tracker::{TaskTracker, TrackedFutureExt};
+use tracker::{TaskRegistration, TaskTracker, TrackedFutureExt};
 
 pub mod catalog;
 mod chunk;
@@ -552,6 +552,7 @@ impl Db {
         partition_key: &str,
         table_name: &str,
         chunk_id: u32,
+        tracker: &TaskRegistration,
     ) -> Result<Arc<DbChunk>> {
         let chunk = {
             let partition = self
@@ -579,7 +580,7 @@ impl Db {
         let mb_chunk = {
             let mut chunk = chunk.write();
 
-            chunk.set_moving().context(LoadingChunk {
+            chunk.set_moving(tracker).context(LoadingChunk {
                 partition_key,
                 table_name,
                 chunk_id,
@@ -635,6 +636,7 @@ impl Db {
         partition_key: &str,
         table_name: &str,
         chunk_id: u32,
+        tracker: &TaskRegistration,
     ) -> Result<Arc<DbChunk>> {
         // Get the chunk from the catalog
         let chunk = {
@@ -664,7 +666,7 @@ impl Db {
             let mut chunk = chunk.write();
 
             chunk
-                .set_writing_to_object_store()
+                .set_writing_to_object_store(tracker)
                 .context(LoadingChunkToParquet {
                     partition_key,
                     table_name,
@@ -806,12 +808,19 @@ impl Db {
             chunk_id,
         });
 
-        let captured = Arc::clone(&self);
+        let captured_registration = registration.clone();
+        let captured_db = Arc::clone(&self);
         let task = async move {
             debug!(%name, %partition_key, %table_name, %chunk_id, "background task loading chunk to read buffer");
-            let result = captured
-                .load_chunk_to_read_buffer(&partition_key, &table_name, chunk_id)
+            let result = captured_db
+                .load_chunk_to_read_buffer(
+                    &partition_key,
+                    &table_name,
+                    chunk_id,
+                    &captured_registration,
+                )
                 .await;
+
             if let Err(e) = result {
                 info!(?e, %name, %partition_key, %chunk_id, "background task error loading read buffer chunk");
                 return Err(e);
@@ -843,12 +852,19 @@ impl Db {
             chunk_id,
         });
 
-        let captured = Arc::clone(&self);
+        let captured_registration = registration.clone();
+        let captured_db = Arc::clone(&self);
         let task = async move {
             debug!(%name, %partition_key, %table_name, %chunk_id, "background task loading chunk to object store");
-            let result = captured
-                .write_chunk_to_object_store(&partition_key, &table_name, chunk_id)
+            let result = captured_db
+                .write_chunk_to_object_store(
+                    &partition_key,
+                    &table_name,
+                    chunk_id,
+                    &captured_registration,
+                )
                 .await;
+
             if let Err(e) = result {
                 info!(?e, %name, %partition_key, %chunk_id, "background task error loading object store chunk");
                 return Err(e);
@@ -1428,7 +1444,7 @@ mod tests {
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1111)
             .unwrap();
 
-        db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", 0)
+        db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", 0, &Default::default())
             .await
             .unwrap();
 
@@ -1449,7 +1465,7 @@ mod tests {
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0).unwrap();
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1598).unwrap();
 
-        db.write_chunk_to_object_store("1970-01-01T00", "cpu", 0)
+        db.write_chunk_to_object_store("1970-01-01T00", "cpu", 0, &Default::default())
             .await
             .unwrap();
 
@@ -1600,7 +1616,7 @@ mod tests {
             .unwrap()
             .unwrap();
         let rb_chunk = db
-            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
+            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id(), &Default::default())
             .await
             .unwrap();
 
@@ -1693,7 +1709,7 @@ mod tests {
         let mb = collect_read_filter(&mb_chunk, "cpu").await;
 
         let rb_chunk = db
-            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
+            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id(), &Default::default())
             .await
             .unwrap();
 
@@ -1803,12 +1819,12 @@ mod tests {
             .unwrap();
         // Move that MB chunk to RB chunk and drop it from MB
         let rb_chunk = db
-            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
+            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id(), &Default::default())
             .await
             .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
         let pq_chunk = db
-            .write_chunk_to_object_store(partition_key, "cpu", mb_chunk.id())
+            .write_chunk_to_object_store(partition_key, "cpu", mb_chunk.id(), &Default::default())
             .await
             .unwrap();
 
@@ -1903,12 +1919,12 @@ mod tests {
             .unwrap();
         // Move that MB chunk to RB chunk and drop it from MB
         let rb_chunk = db
-            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
+            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id(), &Default::default())
             .await
             .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
         let pq_chunk = db
-            .write_chunk_to_object_store(partition_key, "cpu", mb_chunk.id())
+            .write_chunk_to_object_store(partition_key, "cpu", mb_chunk.id(), &Default::default())
             .await
             .unwrap();
 
@@ -2147,7 +2163,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        db.load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
+        db.load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id(), &Default::default())
             .await
             .unwrap();
 
@@ -2298,11 +2314,11 @@ mod tests {
 
         print!("Partitions: {:?}", db.partition_keys().unwrap());
 
-        db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", 0)
+        db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", 0, &Default::default())
             .await
             .unwrap();
 
-        db.write_chunk_to_object_store("1970-01-01T00", "cpu", 0)
+        db.write_chunk_to_object_store("1970-01-01T00", "cpu", 0, &Default::default())
             .await
             .unwrap();
 
@@ -2395,12 +2411,12 @@ mod tests {
         write_lp(&db, "mem foo=1 1");
 
         // load a chunk to the read buffer
-        db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", chunk_id)
+        db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", chunk_id, &Default::default())
             .await
             .unwrap();
 
         // write the read buffer chunk to object store
-        db.write_chunk_to_object_store("1970-01-01T00", "cpu", chunk_id)
+        db.write_chunk_to_object_store("1970-01-01T00", "cpu", chunk_id, &Default::default())
             .await
             .unwrap();
 
@@ -2607,7 +2623,12 @@ mod tests {
             .unwrap()
             .unwrap();
         let rb_chunk = db
-            .load_chunk_to_read_buffer(partition_key, table_name, mb_chunk.id())
+            .load_chunk_to_read_buffer(
+                partition_key,
+                table_name,
+                mb_chunk.id(),
+                &Default::default(),
+            )
             .await
             .unwrap();
         assert_eq!(mb_chunk.id(), rb_chunk.id());
@@ -3066,12 +3087,12 @@ mod tests {
             mb_chunk.id()
         };
         // Move that MB chunk to RB chunk and drop it from MB
-        db.load_chunk_to_read_buffer(partition_key, table_name, chunk_id)
+        db.load_chunk_to_read_buffer(partition_key, table_name, chunk_id, &Default::default())
             .await
             .unwrap();
 
         // Write the RB chunk to Object Store but keep it in RB
-        db.write_chunk_to_object_store(partition_key, table_name, chunk_id)
+        db.write_chunk_to_object_store(partition_key, table_name, chunk_id, &Default::default())
             .await
             .unwrap();
 
