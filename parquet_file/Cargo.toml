@@ -5,7 +5,7 @@ authors = ["Nga Tran <nga-tran@live.com>"]
 edition = "2018"
 
 [dependencies] # In alphabetical order
-arrow = "4.0"
+arrow = { version = "4.0", features = ["prettyprint"] }
 bytes = "1.0"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }

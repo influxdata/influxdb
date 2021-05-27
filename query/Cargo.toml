@@ -14,7 +14,7 @@ description = "IOx Query Interface and Executor"
 # 2. Allow for query logic testing without bringing in all the storage systems.
 
 [dependencies] # In alphabetical order
-arrow = "4.0"
+arrow = { version = "4.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 chrono = "0.4"
