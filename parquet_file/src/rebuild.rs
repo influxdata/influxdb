@@ -60,7 +60,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Creates a new catalog from parquet files.
 ///
-/// Users are required to [wipe](crate::catalog::PreservedCatalog::wipe) the existing catalog before running this
+/// Users are required to [wipe](crate::catalog::wipe) the existing catalog before running this
 /// procedure (**after creating a backup!**).
 ///
 /// This will create a catalog checkpoint for the very last transaction.
@@ -261,7 +261,7 @@ mod tests {
 
     use crate::{catalog::test_helpers::TestCatalogState, storage::MemWriter};
     use crate::{
-        catalog::PreservedCatalog,
+        catalog::{wipe, PreservedCatalog},
         storage::Storage,
         test_utils::{make_object_store, make_record_batch},
     };
@@ -340,9 +340,7 @@ mod tests {
 
         // wipe catalog
         drop(catalog);
-        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
-            .await
-            .unwrap();
+        wipe(&object_store, server_id, db_name).await.unwrap();
 
         // rebuild
         let path = object_store.new_path();
@@ -386,9 +384,7 @@ mod tests {
 
         // wipe catalog
         drop(catalog);
-        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
-            .await
-            .unwrap();
+        wipe(&object_store, server_id, db_name).await.unwrap();
 
         // rebuild
         let path = object_store.new_path();
@@ -430,9 +426,7 @@ mod tests {
 
         // wipe catalog
         drop(catalog);
-        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
-            .await
-            .unwrap();
+        wipe(&object_store, server_id, db_name).await.unwrap();
 
         // rebuild
         let path = object_store.new_path();
@@ -495,9 +489,7 @@ mod tests {
 
         // wipe catalog
         drop(catalog);
-        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
-            .await
-            .unwrap();
+        wipe(&object_store, server_id, db_name).await.unwrap();
 
         // rebuild
         let path = object_store.new_path();
@@ -535,9 +527,7 @@ mod tests {
 
         // wipe catalog
         drop(catalog);
-        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
-            .await
-            .unwrap();
+        wipe(&object_store, server_id, db_name).await.unwrap();
 
         // rebuild (do not ignore errors)
         let path = object_store.new_path();
@@ -628,9 +618,7 @@ mod tests {
 
         // wipe catalog
         drop(catalog);
-        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
-            .await
-            .unwrap();
+        wipe(&object_store, server_id, db_name).await.unwrap();
 
         // rebuild
         let path = object_store.new_path();
