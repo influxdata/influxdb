@@ -971,21 +971,31 @@ impl Db {
         info!("finished background worker");
     }
 
-    /// Stores an entry based on the configuration. The Entry will first be
-    /// converted into a `SequencedEntry` with sequence information assigned
-    /// from the database, and then the `SequencedEntry` will be passed to
-    /// `store_sequenced_entry`.
+    /// Stores an entry based on the configuration.
     pub fn store_entry(&self, entry: Entry) -> Result<()> {
-        let sequenced_entry = Arc::new(
-            SequencedEntry::new_from_process_clock(
-                self.process_clock.next(),
-                self.server_id,
-                entry.data(),
-            )
-            .context(SequencedEntryError)?,
-        );
+        let immutable = {
+            let rules = self.rules.read();
+            rules.lifecycle_rules.immutable
+        };
 
-        self.store_sequenced_entry(sequenced_entry)
+        // If the database is immutable, we don't even need to build a `SequencedEntry`.
+        // There will be additional cases when we add the write buffer as the `SequencedEntry`
+        // will potentially need to be constructed from other values, like the Kafka partition
+        // and offset, instead of the process clock.
+        if immutable {
+            DatabaseNotWriteable {}.fail()
+        } else {
+            let sequenced_entry = Arc::new(
+                SequencedEntry::new_from_process_clock(
+                    self.process_clock.next(),
+                    self.server_id,
+                    entry.data(),
+                )
+                .context(SequencedEntryError)?,
+            );
+
+            self.store_sequenced_entry(sequenced_entry)
+        }
     }
 
     /// Given a `SequencedEntry`, if the mutable buffer is configured, the `SequencedEntry` is then
@@ -998,6 +1008,9 @@ impl Db {
         let buffer_size_hard = rules.lifecycle_rules.buffer_size_hard;
         std::mem::drop(rules);
 
+        // We may have gotten here through `store_entry`, in which case this is checking the
+        // configuration again unnecessarily, but we may have come here by consuming records from
+        // Kafka, so this check is necessary in that case.
         if immutable {
             return DatabaseNotWriteable {}.fail();
         }
