@@ -416,7 +416,7 @@ mod test {
     use super::cmp::Operator;
     use super::*;
 
-    // Helper function to create a new FixedNull encoding using a mock transcoder
+    // Helper function to create a new Fixed encoding using a mock transcoder
     // that will allow tests to track calls to encode/decode.
     fn new_encoding(
         values: Vec<i64>,
