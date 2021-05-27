@@ -518,8 +518,8 @@ mod tests {
         let table_summary_actual =
             read_statistics_from_parquet_metadata(&parquet_metadata, &schema_actual, &table)
                 .unwrap();
-        let table_summary_expected = chunk.table_summary();
-        assert_eq!(table_summary_actual, table_summary_expected);
+        let table_summary_expected = chunk.table_summary().as_ref();
+        assert_eq!(&table_summary_actual, table_summary_expected);
     }
 
     #[tokio::test]
@@ -541,8 +541,8 @@ mod tests {
         let table_summary_actual =
             read_statistics_from_parquet_metadata(&parquet_metadata, &schema_actual, &table)
                 .unwrap();
-        let table_summary_expected = chunk.table_summary();
-        assert_eq!(table_summary_actual, table_summary_expected);
+        let table_summary_expected = chunk.table_summary().as_ref();
+        assert_eq!(&table_summary_actual, table_summary_expected);
     }
 
     #[tokio::test]

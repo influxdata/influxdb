@@ -101,6 +101,10 @@ pub struct Chunk {
     /// The metrics for this chunk
     metrics: ChunkMetrics,
 
+    /// The TableSummary, including statistics, for the table in this
+    /// Chunk, if known
+    table_summary: Option<Arc<TableSummary>>,
+
     /// Time at which the first data was written into this chunk. Note
     /// this is not the same as the timestamps on the data itself
     time_of_first_write: Option<DateTime<Utc>>,
@@ -170,7 +174,7 @@ impl Chunk {
         );
 
         let table_name = Arc::clone(&chunk.table_name());
-
+        let table_summary = None;
         let state = ChunkState::Open(chunk);
         metrics
             .state
@@ -183,6 +187,7 @@ impl Chunk {
             state,
             lifecycle_action: None,
             metrics,
+            table_summary,
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
@@ -208,6 +213,8 @@ impl Chunk {
                 .expect("chunk must have exactly 1 table")
                 .as_ref(),
         );
+        // Cache table summary
+        let table_summary = Some(Arc::clone(chunk.table_summary()));
         let state = ChunkState::ObjectStoreOnly(chunk);
 
         Self {
@@ -217,6 +224,7 @@ impl Chunk {
             state,
             lifecycle_action: None,
             metrics,
+            table_summary,
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
@@ -343,22 +351,20 @@ impl Chunk {
     }
 
     /// Return the summary information about the table stored in this Chunk
-    pub fn table_summary(&self) -> TableSummary {
+    pub fn table_summary(&self) -> Arc<TableSummary> {
         match &self.state {
-            ChunkState::Invalid => panic!("invalid chunk state"),
-            ChunkState::Open(chunk) => chunk.table_summary(),
-            ChunkState::Closed(chunk) => chunk.table_summary(),
-            ChunkState::Moved(chunk) => {
-                let mut summaries = chunk.table_summaries();
-                assert_eq!(summaries.len(), 1);
-                summaries.remove(0)
+            ChunkState::Invalid => panic!("Chunk in invalid state"),
+            ChunkState::Open(chunk) => {
+                // The stats for open chunks change so can't be cached
+                Arc::new(chunk.table_summary())
             }
-            ChunkState::WrittenToObjectStore(chunk, _) => {
-                let mut summaries = chunk.table_summaries();
-                assert_eq!(summaries.len(), 1);
-                summaries.remove(0)
+            _ => {
+                let table_summary = self
+                    .table_summary
+                    .as_ref()
+                    .expect("Table summary not set for non open chunk");
+                Arc::clone(table_summary)
             }
-            ChunkState::ObjectStoreOnly(chunk) => chunk.table_summary(),
         }
     }
 
@@ -407,6 +413,8 @@ impl Chunk {
                     .immutable_chunk_size
                     .observe_with_labels(chunk.size() as f64, &[KeyValue::new("state", "closed")]);
 
+                // Cache table summary
+                self.table_summary = Some(Arc::new(chunk.table_summary()));
                 Ok(s)
             }
             state => {
