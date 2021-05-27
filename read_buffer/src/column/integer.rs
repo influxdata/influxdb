@@ -274,8 +274,8 @@ impl From<&[i64]> for IntegerEncoding {
                 let arr = arr
                     .iter()
                     .map::<u8, _>(|v| transcoder.encode(*v))
-                    .collect::<Vec<u8>>();
-                let enc = Box::new(Fixed::<u8, i64, _>::new(arr, transcoder));
+                    .collect::<Vec<_>>();
+                let enc = Box::new(Fixed::new(arr, transcoder));
                 let name = enc.name();
                 Self::I64(enc, format!("BT_U8-{}", name))
             }
@@ -285,7 +285,7 @@ impl From<&[i64]> for IntegerEncoding {
                     .iter()
                     .map(|v| transcoder.encode(*v))
                     .collect::<Vec<i8>>();
-                let enc = Box::new(Fixed::<i8, i64, _>::new(arr, transcoder));
+                let enc = Box::new(Fixed::new(arr, transcoder));
                 let name = enc.name();
                 Self::I64(enc, format!("BT_I8-{}", name))
             }
@@ -295,7 +295,7 @@ impl From<&[i64]> for IntegerEncoding {
                     .iter()
                     .map::<u16, _>(|v| transcoder.encode(*v))
                     .collect::<Vec<u16>>();
-                let enc = Box::new(Fixed::<u16, i64, _>::new(arr, transcoder));
+                let enc = Box::new(Fixed::new(arr, transcoder));
                 let name = enc.name();
                 Self::I64(enc, format!("BT_U16-{}", name))
             }
@@ -305,7 +305,7 @@ impl From<&[i64]> for IntegerEncoding {
                     .iter()
                     .map(|v| transcoder.encode(*v))
                     .collect::<Vec<i16>>();
-                let enc = Box::new(Fixed::<i16, i64, _>::new(arr, transcoder));
+                let enc = Box::new(Fixed::new(arr, transcoder));
                 let name = enc.name();
                 Self::I64(enc, format!("BT_I16-{}", name))
             }
@@ -315,7 +315,7 @@ impl From<&[i64]> for IntegerEncoding {
                     .iter()
                     .map(|v| transcoder.encode(*v))
                     .collect::<Vec<u32>>();
-                let enc = Box::new(Fixed::<u32, i64, _>::new(arr, transcoder));
+                let enc = Box::new(Fixed::new(arr, transcoder));
                 let name = enc.name();
                 Self::I64(enc, format!("BT_U32-{}", name))
             }
@@ -325,13 +325,13 @@ impl From<&[i64]> for IntegerEncoding {
                     .iter()
                     .map(|v| transcoder.encode(*v))
                     .collect::<Vec<i32>>();
-                let enc = Box::new(Fixed::<i32, i64, _>::new(arr, transcoder));
+                let enc = Box::new(Fixed::new(arr, transcoder));
                 let name = enc.name();
                 Self::I64(enc, format!("BT_I32-{}", name))
             }
             // otherwise, encode with the same physical type (i64)
             (_, _) => {
-                let enc = Box::new(Fixed::<i64, i64, _>::new(arr.to_vec(), NoOpTranscoder {}));
+                let enc = Box::new(Fixed::new(arr.to_vec(), NoOpTranscoder {}));
                 let name = enc.name();
                 Self::I64(enc, format!("None-{}", name))
             }
