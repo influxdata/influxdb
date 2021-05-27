@@ -7,7 +7,7 @@
 
 use super::scenarios::*;
 use arrow::record_batch::RecordBatch;
-use arrow_util::assert_batches_sorted_eq;
+use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
 use query::frontend::sql::SqlQueryPlanner;
 use std::sync::Arc;
 
@@ -36,6 +36,35 @@ macro_rules! run_sql_test_case {
                 executor.collect(physical_plan).await.expect("Running plan");
 
             assert_batches_sorted_eq!($EXPECTED_LINES, &results);
+        }
+    };
+}
+
+/// runs table_names(predicate) and compares it to the expected
+/// output
+macro_rules! run_sql_explain_test_case {
+    ($DB_SETUP:expr, $SQL:expr, $EXPECTED_LINES:expr) => {
+        test_helpers::maybe_start_logging();
+        let sql = $SQL.to_string();
+        for scenario in $DB_SETUP.make().await {
+            let DbScenario {
+                scenario_name, db, ..
+            } = scenario;
+            let db = Arc::new(db);
+
+            println!("Running scenario '{}'", scenario_name);
+            println!("SQL: '{:#?}'", sql);
+            let planner = SqlQueryPlanner::default();
+            let executor = db.executor();
+
+            let physical_plan = planner
+                .query(db, &sql, executor.as_ref())
+                .expect("built plan successfully");
+
+            let results: Vec<RecordBatch> =
+                executor.collect(physical_plan).await.expect("Running plan");
+
+            assert_batches_eq!($EXPECTED_LINES, &results);
         }
     };
 }
@@ -411,10 +440,8 @@ async fn sql_select_with_schema_merge_subset() {
 }
 
 #[tokio::test]
-async fn sql_predicate_pushdown() {
+async fn sql_predicate_pushdown_correctness() {
     // Test 1: Select everything
-    //
-    // Check correctness
     let expected = vec![
         "+-------+--------+-------------------------------+-----------+",
         "| count | system | time                          | town      |",
@@ -434,17 +461,7 @@ async fn sql_predicate_pushdown() {
         &expected
     );
 
-    // TODO: Make push-down predicates shown in explain verbose. Ticket #1538
-    // Check the plan
-    // run_sql_test_case!(
-    //     TwoMeasurementsPredicatePushDown {},
-    //     "EXPLAIN VERBOSE SELECT * from restaurant",
-    //     &expected
-    // );
-
     // Test 2: One push-down expression: count > 200
-    //
-    // Check correctness
     let expected = vec![
         "+-------+--------+-------------------------------+-----------+",
         "| count | system | time                          | town      |",
@@ -463,16 +480,7 @@ async fn sql_predicate_pushdown() {
         &expected
     );
 
-    // Check the plan
-    // run_sql_test_case!(
-    //     TwoMeasurementsPredicatePushDown {},
-    //     "EXPLAIN VERBOSE SELECT * from restaurant where count > 200",
-    //     &expected
-    // );
-
     // Test 3: Two push-down expression: count > 200 and town != 'tewsbury'
-    //
-    // Check correctness
     let expected = vec![
         "+-------+--------+-------------------------------+-----------+",
         "| count | system | time                          | town      |",
@@ -490,17 +498,8 @@ async fn sql_predicate_pushdown() {
         &expected
     );
 
-    // Check the plan
-    // run_sql_test_case!(
-    //     TwoMeasurementsPredicatePushDown {},
-    //     "EXPLAIN VERBOSE SELECT * from restaurant where count > 200 and town != 'tewsbury'",
-    //     &expected
-    // );
-
     // Test 4: Still two push-down expression: count > 200 and town != 'tewsbury'
     // even though the results are different
-    //
-    // Check correctness
     let expected = vec![
         "+-------+--------+-------------------------------+-----------+",
         "| count | system | time                          | town      |",
@@ -518,8 +517,6 @@ async fn sql_predicate_pushdown() {
     );
 
     // Test 5: three push-down expression: count > 200 and town != 'tewsbury' and count < 40000
-    //
-    // Check correctness
     let expected = vec![
         "+-------+--------+-------------------------------+-----------+",
         "| count | system | time                          | town      |",
@@ -536,8 +533,6 @@ async fn sql_predicate_pushdown() {
     );
 
     // Test 6: two push-down expression: count > 200 and count < 40000
-    //
-    // Check correctness
     let expected = vec![
         "+-------+--------+-------------------------------+-----------+",
         "| count | system | time                          | town      |",
@@ -556,8 +551,6 @@ async fn sql_predicate_pushdown() {
     );
 
     // Test 7: two push-down expression on float: system > 4.0 and system < 7.0
-    //
-    // Check correctness
     let expected = vec![
         "+-------+--------+-------------------------------+-----------+",
         "| count | system | time                          | town      |",
@@ -577,8 +570,6 @@ async fn sql_predicate_pushdown() {
     );
 
     // Test 8: two push-down expression on float: system > 5.0 and system < 7.0
-    //
-    // Check correctness
     let expected = vec![
         "+-------+--------+-------------------------------+----------+",
         "| count | system | time                          | town     |",
@@ -595,8 +586,6 @@ async fn sql_predicate_pushdown() {
     );
 
     // Test 9: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0
-    //
-    // Check correctness
     let expected = vec![
         "+-------+--------+-------------------------------+----------+",
         "| count | system | time                          | town     |",
@@ -613,8 +602,6 @@ async fn sql_predicate_pushdown() {
 
     // Test 10: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0
     // even though there are more expressions,(count = 632 or town = 'reading'), in the filter
-    //
-    // Check correctness
     let expected = vec![
         "+-------+--------+-------------------------------+---------+",
         "| count | system | time                          | town    |",
@@ -631,12 +618,305 @@ async fn sql_predicate_pushdown() {
     // Test 11: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0
     // After DF ticket, https://github.com/apache/arrow-datafusion/issues/383 is done,
     // there will be more pushed-down predicate time > to_timestamp('1970-01-01T00:00:00.000000120+00:00')
-    //
-    // Check correctness
     let expected = vec!["++", "++"];
     run_sql_test_case!(
         TwoMeasurementsPredicatePushDown {},
         "SELECT * from restaurant where 5.0 < system and town != 'tewsbury' and system < 7.0 and (count = 632 or town = 'reading') and time > to_timestamp('1970-01-01T00:00:00.000000130+00:00')",
+        &expected
+    );
+}
+
+#[tokio::test]
+async fn sql_predicate_pushdown_explain() {
+    // Test 1: Select everything
+    let expected = vec![
+        "+-----------------------------------------+--------------------------------------------------------------------------+",
+        "| plan_type                               | plan                                                                     |",
+        "+-----------------------------------------+--------------------------------------------------------------------------+",
+        "| logical_plan                            | Projection: #count, #system, #time, #town                                |",
+        "|                                         |   TableScan: restaurant projection=None                                  |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                |",
+        "|                                         |   TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                |",
+        "|                                         |   TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
+        "| physical_plan                           | ProjectionExec: expr=[count, system, time, town]                         |",
+        "|                                         |   IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate |",
+        "+-----------------------------------------+--------------------------------------------------------------------------+",
+    ];
+    run_sql_explain_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "EXPLAIN VERBOSE SELECT * from restaurant",
+        &expected
+    );
+
+    // Test 2: One push-down expression: count > 200
+    // TODO: Make push-down predicates shown in explain verbose. Ticket #1538
+    let expected = vec![
+        "+--------------+-------------------------------------------+",
+        "| plan_type    | plan                                      |",
+        "+--------------+-------------------------------------------+",
+        "| logical_plan | Projection: #count, #system, #time, #town |",
+        "|              |   Filter: #count Gt Int64(200)            |",
+        "|              |     TableScan: restaurant projection=None |",
+        "+--------------+-------------------------------------------+",
+    ];
+    run_sql_explain_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "EXPLAIN SELECT * from restaurant where count > 200",
+        &expected
+    );
+
+    // Check the plan
+    let expected  = vec![
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+        "| plan_type                               | plan                                                                       |",
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+        "| logical_plan                            | Projection: #count, #system, #time, #town                                  |",
+        "|                                         |   Filter: #count Gt Int64(200)                                             |",
+        "|                                         |     TableScan: restaurant projection=None                                  |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                  |",
+        "|                                         |   Filter: #count Gt Int64(200)                                             |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                  |",
+        "|                                         |   Filter: #count Gt Int64(200)                                             |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
+        "| physical_plan                           | ProjectionExec: expr=[count, system, time, town]                           |",
+        "|                                         |   FilterExec: CAST(count AS Int64) > 200                                   |",
+        "|                                         |     IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate |",
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+    ];
+    run_sql_explain_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "EXPLAIN VERBOSE SELECT * from restaurant where count > 200",
+        &expected
+    );
+
+    // Test 3: Two push-down expression: count > 200 and town != 'tewsbury'
+    let expected = vec![
+        "+-----------------------------------------+-----------------------------------------------------------------------------+",
+        "| plan_type                               | plan                                                                        |",
+        "+-----------------------------------------+-----------------------------------------------------------------------------+",
+        "| logical_plan                            | Projection: #count, #system, #time, #town                                   |",
+        "|                                         |   Filter: #count Gt Int64(200) And #town NotEq Utf8(\"tewsbury\")             |",
+        "|                                         |     TableScan: restaurant projection=None                                   |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                   |",
+        "|                                         |   Filter: #count Gt Int64(200) And #town NotEq Utf8(\"tewsbury\")             |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                     |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                   |",
+        "|                                         |   Filter: #count Gt Int64(200) And #town NotEq Utf8(\"tewsbury\")             |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                     |",
+        "| physical_plan                           | ProjectionExec: expr=[count, system, time, town]                            |",
+        "|                                         |   FilterExec: CAST(count AS Int64) > 200 AND CAST(town AS Utf8) != tewsbury |",
+        "|                                         |     IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate  |",
+        "+-----------------------------------------+-----------------------------------------------------------------------------+",
+    ];
+    run_sql_explain_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "EXPLAIN VERBOSE SELECT * from restaurant where count > 200 and town != 'tewsbury'",
+        &expected
+    );
+
+    // Test 4: Still two push-down expression: count > 200 and town != 'tewsbury'
+    // even though the results are different
+    let expected = vec![
+        "+-----------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------+",
+        "| plan_type                               | plan                                                                                                                                         |",
+        "+-----------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------+",
+        "| logical_plan                            | Projection: #count, #system, #time, #town                                                                                                    |",
+        "|                                         |   Filter: #count Gt Int64(200) And #town NotEq Utf8(\"tewsbury\") And #system Eq Int64(5) Or #town Eq Utf8(\"lawrence\")                         |",
+        "|                                         |     TableScan: restaurant projection=None                                                                                                    |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                                                                                    |",
+        "|                                         |   Filter: #count Gt Int64(200) And #town NotEq Utf8(\"tewsbury\") And #system Eq Int64(5) Or #town Eq Utf8(\"lawrence\")                         |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                                                                                      |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                                                                                    |",
+        "|                                         |   Filter: #count Gt Int64(200) And #town NotEq Utf8(\"tewsbury\") And #system Eq Int64(5) Or #town Eq Utf8(\"lawrence\")                         |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                                                                                      |",
+        "| physical_plan                           | ProjectionExec: expr=[count, system, time, town]                                                                                             |",
+        "|                                         |   FilterExec: CAST(count AS Int64) > 200 AND CAST(town AS Utf8) != tewsbury AND system = CAST(5 AS Float64) OR CAST(town AS Utf8) = lawrence |",
+        "|                                         |     IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate                                                                   |",
+        "+-----------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------+",
+    ];
+    run_sql_explain_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "EXPLAIN VERBOSE SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence')",
+        &expected
+    );
+
+    // Test 5: three push-down expression: count > 200 and town != 'tewsbury' and count < 40000
+    let expected = vec![
+        "+-----------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+",
+        "| plan_type                               | plan                                                                                                                                                                          |",
+        "+-----------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+",
+        "| logical_plan                            | Projection: #count, #system, #time, #town                                                                                                                                     |",
+        "|                                         |   Filter: #count Gt Int64(200) And #town NotEq Utf8(\"tewsbury\") And #system Eq Int64(5) Or #town Eq Utf8(\"lawrence\") And #count Lt Int64(40000)                               |",
+        "|                                         |     TableScan: restaurant projection=None                                                                                                                                     |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                                                                                                                     |",
+        "|                                         |   Filter: #count Gt Int64(200) And #town NotEq Utf8(\"tewsbury\") And #system Eq Int64(5) Or #town Eq Utf8(\"lawrence\") And #count Lt Int64(40000)                               |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                                                                                                                       |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                                                                                                                     |",
+        "|                                         |   Filter: #count Gt Int64(200) And #town NotEq Utf8(\"tewsbury\") And #system Eq Int64(5) Or #town Eq Utf8(\"lawrence\") And #count Lt Int64(40000)                               |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                                                                                                                       |",
+        "| physical_plan                           | ProjectionExec: expr=[count, system, time, town]                                                                                                                              |",
+        "|                                         |   FilterExec: CAST(count AS Int64) > 200 AND CAST(town AS Utf8) != tewsbury AND system = CAST(5 AS Float64) OR CAST(town AS Utf8) = lawrence AND CAST(count AS Int64) < 40000 |",
+        "|                                         |     IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate                                                                                                    |",
+        "+-----------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+",
+    ];
+    run_sql_explain_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "EXPLAIN VERBOSE SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence') and count < 40000",
+        &expected
+    );
+
+    // Test 6: two push-down expression: count > 200 and count < 40000
+    let expected = vec![
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+        "| plan_type                               | plan                                                                       |",
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+        "| logical_plan                            | Projection: #count, #system, #time, #town                                  |",
+        "|                                         |   Filter: #count Gt Int64(200) And #count Lt Int64(40000)                  |",
+        "|                                         |     TableScan: restaurant projection=None                                  |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                  |",
+        "|                                         |   Filter: #count Gt Int64(200) And #count Lt Int64(40000)                  |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                  |",
+        "|                                         |   Filter: #count Gt Int64(200) And #count Lt Int64(40000)                  |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
+        "| physical_plan                           | ProjectionExec: expr=[count, system, time, town]                           |",
+        "|                                         |   FilterExec: CAST(count AS Int64) > 200 AND CAST(count AS Int64) < 40000  |",
+        "|                                         |     IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate |",
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+    ];
+    run_sql_explain_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "EXPLAIN VERBOSE SELECT * from restaurant where count > 200  and count < 40000",
+        &expected
+    );
+
+    // Test 7: two push-down expression on float: system > 4.0 and system < 7.0
+    let expected = vec![
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+        "| plan_type                               | plan                                                                       |",
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+        "| logical_plan                            | Projection: #count, #system, #time, #town                                  |",
+        "|                                         |   Filter: #system Gt Float64(4) And #system Lt Float64(7)                  |",
+        "|                                         |     TableScan: restaurant projection=None                                  |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                  |",
+        "|                                         |   Filter: #system Gt Float64(4) And #system Lt Float64(7)                  |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                  |",
+        "|                                         |   Filter: #system Gt Float64(4) And #system Lt Float64(7)                  |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
+        "| physical_plan                           | ProjectionExec: expr=[count, system, time, town]                           |",
+        "|                                         |   FilterExec: system > 4 AND system < 7                                    |",
+        "|                                         |     IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate |",
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+    ];
+    run_sql_explain_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "EXPLAIN VERBOSE SELECT * from restaurant where system > 4.0 and system < 7.0",
+        &expected
+    );
+
+    // Test 8: two push-down expression on float: system > 5.0 and system < 7.0
+    let expected = vec![
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+        "| plan_type                               | plan                                                                       |",
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+        "| logical_plan                            | Projection: #count, #system, #time, #town                                  |",
+        "|                                         |   Filter: #system Gt Float64(5) And #system Lt Float64(7)                  |",
+        "|                                         |     TableScan: restaurant projection=None                                  |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                  |",
+        "|                                         |   Filter: #system Gt Float64(5) And #system Lt Float64(7)                  |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                  |",
+        "|                                         |   Filter: #system Gt Float64(5) And #system Lt Float64(7)                  |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
+        "| physical_plan                           | ProjectionExec: expr=[count, system, time, town]                           |",
+        "|                                         |   FilterExec: system > 5 AND system < 7                                    |",
+        "|                                         |     IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate |",
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+    ];
+    run_sql_explain_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "EXPLAIN VERBOSE SELECT * from restaurant where system > 5.0 and system < 7.0",
+        &expected
+    );
+
+    // Test 9: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0
+    let expected = vec![
+        "+-----------------------------------------+--------------------------------------------------------------------------------------------+",
+        "| plan_type                               | plan                                                                                       |",
+        "+-----------------------------------------+--------------------------------------------------------------------------------------------+",
+        "| logical_plan                            | Projection: #count, #system, #time, #town                                                  |",
+        "|                                         |   Filter: #system Gt Float64(5) And #town NotEq Utf8(\"tewsbury\") And Float64(7) Gt #system |",
+        "|                                         |     TableScan: restaurant projection=None                                                  |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                                  |",
+        "|                                         |   Filter: #system Gt Float64(5) And #town NotEq Utf8(\"tewsbury\") And Float64(7) Gt #system |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                                    |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                                  |",
+        "|                                         |   Filter: #system Gt Float64(5) And #town NotEq Utf8(\"tewsbury\") And Float64(7) Gt #system |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                                    |",
+        "| physical_plan                           | ProjectionExec: expr=[count, system, time, town]                                           |",
+        "|                                         |   FilterExec: system > 5 AND CAST(town AS Utf8) != tewsbury AND 7 > system                 |",
+        "|                                         |     IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate                 |",
+        "+-----------------------------------------+--------------------------------------------------------------------------------------------+",
+    ];
+    run_sql_explain_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "EXPLAIN VERBOSE SELECT * from restaurant where system > 5.0 and town != 'tewsbury' and 7.0 > system",
+        &expected
+    );
+
+    // Test 10: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0
+    // even though there are more expressions,(count = 632 or town = 'reading'), in the filter
+    let expected = vec![
+        "+-----------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------+",
+        "| plan_type                               | plan                                                                                                                                            |",
+        "+-----------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------+",
+        "| logical_plan                            | Projection: #count, #system, #time, #town                                                                                                       |",
+        "|                                         |   Filter: #system Gt Float64(5) And Utf8(\"tewsbury\") NotEq #town And #system Lt Float64(7) And #count Eq Int64(632) Or #town Eq Utf8(\"reading\") |",
+        "|                                         |     TableScan: restaurant projection=None                                                                                                       |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                                                                                       |",
+        "|                                         |   Filter: #system Gt Float64(5) And Utf8(\"tewsbury\") NotEq #town And #system Lt Float64(7) And #count Eq Int64(632) Or #town Eq Utf8(\"reading\") |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                                                                                         |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                                                                                       |",
+        "|                                         |   Filter: #system Gt Float64(5) And Utf8(\"tewsbury\") NotEq #town And #system Lt Float64(7) And #count Eq Int64(632) Or #town Eq Utf8(\"reading\") |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                                                                                         |",
+        "| physical_plan                           | ProjectionExec: expr=[count, system, time, town]                                                                                                |",
+        "|                                         |   FilterExec: system > 5 AND tewsbury != CAST(town AS Utf8) AND system < 7 AND CAST(count AS Int64) = 632 OR CAST(town AS Utf8) = reading       |",
+        "|                                         |     IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate                                                                      |",
+        "+-----------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------+",
+    ];
+    run_sql_explain_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "EXPLAIN VERBOSE SELECT * from restaurant where system > 5.0 and 'tewsbury' != town and system < 7.0 and (count = 632 or town = 'reading')",
+        &expected
+    );
+
+    // Test 11: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0
+    // After DF ticket, https://github.com/apache/arrow-datafusion/issues/383 is done,
+    // there will be more pushed-down predicate time > to_timestamp('1970-01-01T00:00:00.000000120+00:00')
+    let expected = vec![
+        "+-----------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+",
+        "| plan_type                               | plan                                                                                                                                                                                                                  |",
+        "+-----------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+",
+        "| logical_plan                            | Projection: #count, #system, #time, #town                                                                                                                                                                             |",
+        "|                                         |   Filter: Float64(5) Lt #system And #town NotEq Utf8(\"tewsbury\") And #system Lt Float64(7) And #count Eq Int64(632) Or #town Eq Utf8(\"reading\") And #time Gt totimestamp(Utf8(\"1970-01-01T00:00:00.000000130+00:00\")) |",
+        "|                                         |     TableScan: restaurant projection=None                                                                                                                                                                             |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                                                                                                                                                             |",
+        "|                                         |   Filter: Float64(5) Lt #system And #town NotEq Utf8(\"tewsbury\") And #system Lt Float64(7) And #count Eq Int64(632) Or #town Eq Utf8(\"reading\") And #time Gt totimestamp(Utf8(\"1970-01-01T00:00:00.000000130+00:00\")) |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                                                                                                                                                               |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                                                                                                                                                             |",
+        "|                                         |   Filter: Float64(5) Lt #system And #town NotEq Utf8(\"tewsbury\") And #system Lt Float64(7) And #count Eq Int64(632) Or #town Eq Utf8(\"reading\") And #time Gt totimestamp(Utf8(\"1970-01-01T00:00:00.000000130+00:00\")) |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                                                                                                                                                               |",
+        "| physical_plan                           | ProjectionExec: expr=[count, system, time, town]                                                                                                                                                                      |",
+        "|                                         |   FilterExec: 5 < system AND CAST(town AS Utf8) != tewsbury AND system < 7 AND CAST(count AS Int64) = 632 OR CAST(town AS Utf8) = reading AND time > totimestamp(1970-01-01T00:00:00.000000130+00:00)                 |",
+        "|                                         |     IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate                                                                                                                                            |",
+        "+-----------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+",
+    ];
+    run_sql_explain_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "EXPLAIN VERBOSE SELECT * from restaurant where 5.0 < system and town != 'tewsbury' and system < 7.0 and (count = 632 or town = 'reading') and time > to_timestamp('1970-01-01T00:00:00.000000130+00:00')",
         &expected
     );
 }

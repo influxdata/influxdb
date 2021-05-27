@@ -145,7 +145,9 @@ impl IOxExecutionContext {
     /// Prepare a SQL statement for execution. This assumes that any
     /// tables referenced in the SQL have been registered with this context
     pub fn prepare_sql(&mut self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
+        debug!(text=%sql, "SQL");
         let logical_plan = self.inner.sql(sql)?.to_logical_plan();
+
         self.prepare_plan(&logical_plan)
     }
 
