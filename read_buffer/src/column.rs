@@ -339,7 +339,6 @@ impl Column {
                 EncodedValues::U32(dst) => EncodedValues::U32(data.encoded_values(row_ids, dst)),
                 typ => unimplemented!("column type String does not support {:?} encoding", typ),
             },
-            Self::Integer(_, data) => data.encoded_values(row_ids, dst),
             // Right now it only makes sense to expose encoded values on columns
             // that are being used for grouping operations, which typically is
             // are Tag Columns; they are `String` columns.
@@ -354,7 +353,6 @@ impl Column {
                 EncodedValues::U32(dst) => EncodedValues::U32(data.all_encoded_values(dst)),
                 _ => unimplemented!("column type does not support requested encoding"),
             },
-            Self::Integer(_, data) => data.all_encoded_values(dst),
             // Right now it only makes sense to expose encoded values on columns
             // that are being used for grouping operations, which typically is
             // are Tag Columns (Strings) or Time Columns (Integers).
@@ -1376,7 +1374,7 @@ impl Iterator for RowIDsIterator<'_> {
 
 // Statistics about the composition of a column
 pub(crate) struct Statistics {
-    pub enc_type: &'static str,      // The encoding type
+    pub enc_type: String,            // The encoding type
     pub log_data_type: &'static str, // The logical data-type
     pub values: u32,                 // Number of values present (NULL and non-NULL)
     pub nulls: u32,                  // Number of NULL values present
@@ -1517,49 +1515,13 @@ mod test {
         let input = &[-1, i8::MAX as i64];
         assert!(matches!(
             Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64I8(_))
-        ));
-
-        let input = &[0, u8::MAX as i64];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64U8(_))
-        ));
-
-        let input = &[-1, i16::MAX as i64];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64I16(_))
-        ));
-
-        let input = &[0, u16::MAX as i64];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64U16(_))
-        ));
-
-        let input = &[-1, i32::MAX as i64];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64I32(_))
-        ));
-
-        let input = &[0, u32::MAX as i64];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64U32(_))
-        ));
-
-        let input = &[-1, i64::MAX];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64I64(_))
+            Column::Integer(_, IntegerEncoding::I64(_, _))
         ));
 
         // validate min/max check
         let input = &[0, -12, u16::MAX as i64, 5];
         let col = Column::from(&input[..]);
-        if let Column::Integer(meta, IntegerEncoding::I64I32(_)) = col {
+        if let Column::Integer(meta, IntegerEncoding::I64(_, _)) = col {
             assert_eq!(meta.range, Some((-12, u16::MAX as i64)));
         } else {
             panic!("invalid variant");
@@ -1571,25 +1533,13 @@ mod test {
         let input = &[0, u8::MAX as u64];
         assert!(matches!(
             Column::from(&input[..]),
-            Column::Unsigned(_, IntegerEncoding::U64U8(_))
-        ));
-
-        let input = &[0, u16::MAX as u64];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Unsigned(_, IntegerEncoding::U64U16(_))
-        ));
-
-        let input = &[0, u32::MAX as u64];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Unsigned(_, IntegerEncoding::U64U32(_))
+            Column::Unsigned(_, IntegerEncoding::U64(_, _))
         ));
 
         // validate min/max check
         let input = &[13, 12, u16::MAX as u64, 5];
         let col = Column::from(&input[..]);
-        if let Column::Unsigned(meta, IntegerEncoding::U64U16(_)) = col {
+        if let Column::Unsigned(meta, IntegerEncoding::U64(_, _)) = col {
             assert_eq!(meta.range, Some((5, u16::MAX as u64)));
         } else {
             panic!("invalid variant");
@@ -1742,19 +1692,6 @@ mod test {
         } else {
             panic!("not a EncodedValues::U32")
         }
-
-        // timestamp column
-        let input = &[
-            1001231231243_i64,
-            1001231231343,
-            1001231231443,
-            1001231231543,
-        ];
-        let col = Column::from(&input[..]);
-        assert_eq!(
-            col.encoded_values(&[0, 2], EncodedValues::I64(vec![])),
-            EncodedValues::I64(vec![1001231231243, 1001231231443])
-        );
     }
 
     #[test]
@@ -1771,24 +1708,6 @@ mod test {
         assert_eq!(
             col.all_encoded_values(EncodedValues::U32(vec![])),
             EncodedValues::U32(vec![1, NULL_ID, 2, 1, 2])
-        );
-
-        // timestamp column
-        let input = &[
-            1001231231243_i64,
-            1001231231343,
-            1001231231443,
-            1001231231543,
-        ];
-        let col = Column::from(&input[..]);
-        assert_eq!(
-            col.all_encoded_values(EncodedValues::I64(vec![])),
-            EncodedValues::I64(vec![
-                1001231231243,
-                1001231231343,
-                1001231231443,
-                1001231231543,
-            ])
         );
     }
 
@@ -2139,7 +2058,7 @@ mod test {
         let col = Column::from(&input[..]);
         assert!(matches!(
             col,
-            Column::Integer(_, IntegerEncoding::I64I64(_))
+            Column::Integer(_, IntegerEncoding::I64(_, _))
         ));
 
         let cases: Vec<(Scalar, bool)> = vec![
@@ -2162,7 +2081,7 @@ mod test {
         let col = Column::from(&input[..]);
         assert!(matches!(
             col,
-            Column::Integer(_, IntegerEncoding::I64U16(_))
+            Column::Integer(_, IntegerEncoding::I64(_, _))
         ));
 
         for (scalar, result) in cases.clone() {
@@ -2174,7 +2093,7 @@ mod test {
         let col = Column::from(&input[..]);
         assert!(matches!(
             col,
-            Column::Unsigned(_, IntegerEncoding::U64U16(_))
+            Column::Unsigned(_, IntegerEncoding::U64(_, _))
         ));
 
         for (scalar, result) in cases.clone() {

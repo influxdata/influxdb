@@ -1,51 +1,51 @@
 //! An encoding for fixed width, nullable values backed by Arrow arrays.
 //!
-//! This encoding stores a column of fixed-width numerical values potentially
-//! using a smaller physical type in memory than the provided logical type.
-//!
-//! For example, if you have a column with 64-bit integers: [122, 232, 33, 0,
-//! -12] then you can reduce the space needed to store them, by converting them
-//! as a `Vec<i8>` instead of a `Vec<i64>`. In this case, this reduces the size
-//! of the column data by 87.5% and generally should increase throughput of
-//! operations on the column data.
-//!
-//! The encodings within this module do not concern themselves with choosing the
-//! appropriate physical type for a given logical type; that is the job of the
-//! consumer of these encodings.
-use std::cmp::Ordering;
+//! This encoding stores a column of fixed-width numerical values backed by an
+//! an Arrow array, allowing for storage of NULL values.
+use either::Either;
 use std::fmt::Debug;
-use std::iter::FromIterator;
+use std::marker::PhantomData;
 use std::mem::size_of;
+use std::ops::Add;
+use std::{
+    cmp::Ordering,
+    fmt::{Display, Formatter},
+};
 
-use crate::column::{cmp, RowIDs};
 use arrow::{
     array::{Array, PrimitiveArray},
     datatypes::ArrowNumericType,
 };
 
+use super::transcoders::Transcoder;
+use super::ScalarEncoding;
+use crate::column::{cmp, RowIDs};
+
 pub const ENCODING_NAME: &str = "FIXEDN";
 
 #[derive(Debug, PartialEq)]
-pub struct FixedNull<T>
+/// Types are: Physical, Logical, Transcoder
+pub struct FixedNull<P, L, T>
 where
-    T: ArrowNumericType,
-    T::Native: PartialEq + PartialOrd,
+    P: ArrowNumericType,
+    P::Native: PartialEq + PartialOrd,
 {
     // backing data
-    arr: PrimitiveArray<T>,
+    arr: PrimitiveArray<P>,
+
+    // The transcoder is responsible for converting from physical type `P` to
+    // logical type `L`.
+    transcoder: T,
+    _marker: PhantomData<L>,
 }
 
-impl<T: ArrowNumericType> std::fmt::Display for FixedNull<T>
+impl<P, L, T> Display for FixedNull<P, L, T>
 where
-    T: ArrowNumericType + std::fmt::Debug,
-    T::Native: Default
-        + PartialEq
-        + PartialOrd
-        + Copy
-        + std::fmt::Debug
-        + std::ops::Add<Output = T::Native>,
+    P: ArrowNumericType + Debug + Send + Sync,
+    L: Add<Output = L> + Debug + Default + Send + Sync,
+    T: Transcoder<P::Native, L> + Send + Sync,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "[{}] rows: {:?}, nulls: {:?}, size: {}",
@@ -56,281 +56,20 @@ where
         )
     }
 }
-impl<T> FixedNull<T>
+
+impl<P, L, T> FixedNull<P, L, T>
 where
-    T: ArrowNumericType,
+    P: ArrowNumericType + Debug + Send + Sync,
+    L: Add<Output = L> + Debug + Default + Send + Sync,
+    T: Transcoder<P::Native, L> + Send + Sync,
 {
-    /// The name of this encoding.
-    pub fn name(&self) -> &'static str {
-        ENCODING_NAME
-    }
-
-    pub fn num_rows(&self) -> u32 {
-        self.arr.len() as u32
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.arr.is_empty()
-    }
-
-    pub fn contains_null(&self) -> bool {
-        self.arr.null_count() > 0
-    }
-
-    pub fn null_count(&self) -> u32 {
-        self.arr.null_count() as u32
-    }
-
-    /// Returns an estimation of the total size in bytes used by this column
-    /// encoding.
-    pub fn size(&self) -> usize {
-        size_of::<PrimitiveArray<T>>() + self.arr.get_array_memory_size()
-    }
-
-    /// The estimated total size in bytes of the underlying values in the
-    /// column if they were stored contiguously and uncompressed. `include_nulls`
-    /// will effectively size each NULL value as 8b if `true` because the logical
-    /// size of all types of `T` is 8b
-    pub fn size_raw(&self, include_nulls: bool) -> usize {
-        // hmmm whilst Vec<i64> is probably accurate it's not really correct if
-        // T is not i64.
-        let base_size = size_of::<Vec<i64>>();
-        if !self.contains_null() || include_nulls {
-            return base_size + (self.num_rows() as usize * 8);
-        }
-        base_size + ((self.num_rows() as usize - self.arr.null_count()) * 8)
-    }
-
-    //
-    //
-    // ---- Methods for getting row ids from values.
-    //
-    //
-
-    /// Returns the first logical row that contains a value `v`.
-    pub fn first_row_id_eq_value(&self, v: T::Native) -> Option<usize> {
-        for i in 0..self.arr.len() {
-            if self.arr.is_null(i) {
-                continue;
-            } else if self.arr.value(i) == v {
-                return Some(i);
-            }
-        }
-        None
-    }
-
-    //
-    //
-    // ---- Methods for getting decoded (materialised) values.
-    //
-    //
-
-    /// Return the logical (decoded) value at the provided row ID according to
-    /// the logical type of the column, which is specified by `U`. A NULL value
-    /// is represented by None.
-    pub fn value<U>(&self, row_id: u32) -> Option<U>
-    where
-        U: From<T::Native>,
-    {
-        if self.arr.is_null(row_id as usize) {
-            return None;
-        }
-        Some(U::from(self.arr.value(row_id as usize)))
-    }
-
-    /// Returns the logical (decoded) values for the provided row IDs according
-    /// to the logical type of the column, which is specified by `U`.
-    ///
-    /// NULL values are represented by None.
-    ///
-    /// TODO(edd): Perf - we should return a vector of values and a vector of
-    /// integers representing the null validity bitmap.
-    pub fn values<U>(&self, row_ids: &[u32], mut dst: Vec<Option<U>>) -> Vec<Option<U>>
-    where
-        U: From<T::Native>,
-    {
-        dst.clear();
-        dst.reserve(row_ids.len());
-
-        for &row_id in row_ids {
-            if self.arr.is_null(row_id as usize) {
-                dst.push(None)
-            } else {
-                dst.push(Some(U::from(self.arr.value(row_id as usize))))
-            }
-        }
-        assert_eq!(dst.len(), row_ids.len());
-        dst
-    }
-
-    /// Returns the logical (decoded) values for all the rows in the column
-    /// according to the logical type of the column, which is specified by `U`.
-    ///
-    /// NULL values are represented by None.
-    ///
-    /// TODO(edd): Perf - we should return a vector of values and a vector of
-    /// integers representing the null validity bitmap.
-    pub fn all_values<U>(&self, mut dst: Vec<Option<U>>) -> Vec<Option<U>>
-    where
-        U: From<T::Native>,
-    {
-        dst.clear();
-        dst.reserve(self.arr.len());
-
-        for i in 0..self.num_rows() as usize {
-            if self.arr.is_null(i) {
-                dst.push(None)
-            } else {
-                dst.push(Some(U::from(self.arr.value(i))))
-            }
-        }
-        assert_eq!(dst.len(), self.num_rows() as usize);
-        dst
-    }
-
-    //
-    //
-    // ---- Methods for aggregation.
-    //
-    //
-
-    /// Returns the count of the non-null values for the provided
-    /// row IDs.
-    pub fn count(&self, row_ids: &[u32]) -> u32 {
-        if self.arr.null_count() == 0 {
-            return row_ids.len() as u32;
-        }
-
-        let mut count = 0;
-        for &i in row_ids {
-            if self.arr.is_null(i as usize) {
-                continue;
-            }
-            count += 1;
-        }
-        count
-    }
-
-    /// Returns the summation of the non-null logical (decoded) values for the
-    /// provided row IDs.
-    ///
-    /// TODO(edd): I have experimented with using the Arrow kernels for these
-    /// aggregations methods but they're currently significantly slower than
-    /// this implementation (about 85% in the `sum` case). We will revisit
-    /// them in the future as they do would the implementation of these
-    /// aggregation functions.
-    pub fn sum<U>(&self, row_ids: &[u32]) -> Option<U>
-    where
-        U: Default + From<T::Native> + std::ops::Add<Output = U>,
-    {
-        let mut result = U::default();
-
-        if self.arr.null_count() == 0 {
-            for chunks in row_ids.chunks_exact(4) {
-                result = result + U::from(self.arr.value(chunks[3] as usize));
-                result = result + U::from(self.arr.value(chunks[2] as usize));
-                result = result + U::from(self.arr.value(chunks[1] as usize));
-                result = result + U::from(self.arr.value(chunks[0] as usize));
-            }
-
-            let rem = row_ids.len() % 4;
-            for &i in &row_ids[row_ids.len() - rem..row_ids.len()] {
-                result = result + U::from(self.arr.value(i as usize));
-            }
-
-            return Some(result);
-        }
-
-        let mut is_none = true;
-        for &i in row_ids {
-            if self.arr.is_null(i as usize) {
-                continue;
-            }
-            is_none = false;
-            result = result + U::from(self.arr.value(i as usize));
-        }
-
-        if is_none {
-            return None;
-        }
-        Some(result)
-    }
-
-    /// Returns the first logical (decoded) value from the provided
-    /// row IDs.
-    pub fn first<U>(&self, row_ids: &[u32]) -> Option<U>
-    where
-        U: From<T::Native>,
-    {
-        self.value(row_ids[0])
-    }
-
-    /// Returns the last logical (decoded) value from the provided
-    /// row IDs.
-    pub fn last<U>(&self, row_ids: &[u32]) -> Option<U>
-    where
-        U: From<T::Native>,
-    {
-        self.value(row_ids[row_ids.len() - 1])
-    }
-
-    /// Returns the minimum logical (decoded) non-null value from the provided
-    /// row IDs.
-    pub fn min<U>(&self, row_ids: &[u32]) -> Option<U>
-    where
-        U: From<T::Native> + PartialOrd,
-    {
-        let mut min: Option<U> = self.value(row_ids[0]);
-        for &v in row_ids.iter().skip(1) {
-            if self.arr.is_null(v as usize) {
-                continue;
-            }
-
-            if self.value(v) < min {
-                min = self.value(v);
-            }
-        }
-        min
-    }
-
-    /// Returns the maximum logical (decoded) non-null value from the provided
-    /// row IDs.
-    pub fn max<U>(&self, row_ids: &[u32]) -> Option<U>
-    where
-        U: From<T::Native> + PartialOrd,
-    {
-        let mut max: Option<U> = self.value(row_ids[0]);
-        for &v in row_ids.iter().skip(1) {
-            if self.arr.is_null(v as usize) {
-                continue;
-            }
-
-            if self.value(v) > max {
-                max = self.value(v);
-            }
-        }
-        max
-    }
-
-    //
-    //
-    // ---- Methods for filtering via operators.
-    //
-    //
-
-    /// Returns the set of row ids that satisfy a binary operator on a logical
-    /// value.
-    ///
-    /// Essentially, this supports `value {=, !=, >, >=, <, <=} x`.
-    ///
-    /// The equivalent of `IS NULL` is not currently supported via this method.
-    pub fn row_ids_filter(&self, value: T::Native, op: &cmp::Operator, dst: RowIDs) -> RowIDs {
-        match op {
-            cmp::Operator::GT => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
-            cmp::Operator::GTE => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
-            cmp::Operator::LT => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
-            cmp::Operator::LTE => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
-            _ => self.row_ids_equal(value, op, dst),
+    /// Initialise a new FixedNull encoding from an Arrow array and a transcoder
+    /// to define how to convert stored physical types to logical columns types.
+    pub fn new(arr: PrimitiveArray<P>, transcoder: T) -> Self {
+        Self {
+            arr,
+            transcoder,
+            _marker: Default::default(),
         }
     }
 
@@ -348,7 +87,7 @@ where
     // Handles finding all rows that match the provided operator on `value`.
     // For performance reasons ranges of matching values are collected up and
     // added in bulk to the bitmap.
-    fn row_ids_equal(&self, value: T::Native, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
+    fn row_ids_equal(&self, value: P::Native, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
         dst.clear();
 
         let desired;
@@ -395,7 +134,7 @@ where
     // satisfied to satisfy the overall operator.
     fn row_ids_cmp_order(
         &self,
-        value: T::Native,
+        value: P::Native,
         op: (std::cmp::Ordering, std::cmp::Ordering),
         mut dst: RowIDs,
     ) -> RowIDs {
@@ -433,38 +172,6 @@ where
         dst
     }
 
-    /// Returns the set of row ids that satisfy a pair of binary operators
-    /// against two values of the same logical type.
-    ///
-    /// This method is a special case optimisation for common cases where one
-    /// wishes to do the equivalent of WHERE x > y AND x <= y` for example.
-    ///
-    /// Essentially, this supports:
-    ///     `x {>, >=, <, <=} value1 AND x {>, >=, <, <=} value2`.
-    pub fn row_ids_filter_range(
-        &self,
-        left: (T::Native, &cmp::Operator),
-        right: (T::Native, &cmp::Operator),
-        dst: RowIDs,
-    ) -> RowIDs {
-        match (left.1, right.1) {
-            (cmp::Operator::GT, cmp::Operator::LT)
-            | (cmp::Operator::GT, cmp::Operator::LTE)
-            | (cmp::Operator::GTE, cmp::Operator::LT)
-            | (cmp::Operator::GTE, cmp::Operator::LTE)
-            | (cmp::Operator::LT, cmp::Operator::GT)
-            | (cmp::Operator::LT, cmp::Operator::GTE)
-            | (cmp::Operator::LTE, cmp::Operator::GT)
-            | (cmp::Operator::LTE, cmp::Operator::GTE) => self.row_ids_cmp_range_order(
-                (left.0, Self::ord_from_op(&left.1)),
-                (right.0, Self::ord_from_op(&right.1)),
-                dst,
-            ),
-
-            (_, _) => panic!("unsupported operators provided"),
-        }
-    }
-
     // Special case function for finding all rows that satisfy two operators on
     // two values.
     //
@@ -477,8 +184,8 @@ where
     //
     fn row_ids_cmp_range_order(
         &self,
-        left: (T::Native, (std::cmp::Ordering, std::cmp::Ordering)),
-        right: (T::Native, (std::cmp::Ordering, std::cmp::Ordering)),
+        left: (P::Native, (std::cmp::Ordering, std::cmp::Ordering)),
+        right: (P::Native, (std::cmp::Ordering, std::cmp::Ordering)),
         mut dst: RowIDs,
     ) -> RowIDs {
         dst.clear();
@@ -520,275 +227,319 @@ where
         }
         dst
     }
+}
 
-    /// Determines if the column contains a non-null value.
-    pub fn has_any_non_null_value(&self) -> bool {
+impl<P, L, T> ScalarEncoding<L> for FixedNull<P, L, T>
+where
+    P: ArrowNumericType + Debug + Send + Sync,
+    L: Add<Output = L> + Debug + Default + Send + Sync,
+    T: Transcoder<P::Native, L> + Send + Sync,
+{
+    /// The name of this encoding.
+    fn name(&self) -> &'static str {
+        ENCODING_NAME
+    }
+
+    fn num_rows(&self) -> u32 {
+        self.arr.len() as u32
+    }
+
+    fn has_any_non_null_value(&self) -> bool {
         self.arr.null_count() < self.num_rows() as usize
     }
 
-    /// Returns true if a non-null value exists at any of the row ids.
-    pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
-        if !self.contains_null() {
+    fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
+        if self.null_count() == 0 && self.num_rows() > 0 {
             return true;
         }
 
         row_ids.iter().any(|id| !self.arr.is_null(*id as usize))
     }
-}
 
-// This macro implements the From trait for slices of various logical types.
-//
-// Here are example implementations:
-//
-//  impl From<Vec<i64>> for FixedNull<Int64Type> {
-//      fn from(v: Vec<i64>) -> Self {
-//          Self{
-//              arr: PrimitiveArray::from(v),
-//          }
-//      }
-//  }
-//
-//  impl From<&[i64]> for FixedNull<Int64Type> {
-//      fn from(v: &[i64]) -> Self {
-//          Self::from(v.to_vec())
-//      }
-//  }
-//
-//  impl From<Vec<Option<i64>>> for FixedNull<Int64Type> {
-//      fn from(v: Vec<Option<i64>>) -> Self {
-//          Self{
-//              arr: PrimitiveArray::from(v),
-//          }
-//      }
-//  }
-//
-//  impl From<&[Option<i64>]> for FixedNull<Int64Type> {
-//      fn from(v: &[i64]) -> Self {
-//          Self::from(v.to_vec())
-//      }
-//  }
-//
-macro_rules! fixed_null_from_native_types {
-    ($(($type_from:ty, $type_to:ty),)*) => {
-        $(
-            impl From<Vec<$type_from>> for FixedNull<$type_to> {
-                fn from(v: Vec<$type_from>) -> Self {
-                    Self{
-                        arr: PrimitiveArray::from(v),
-                    }
-                }
+    fn null_count(&self) -> u32 {
+        self.arr.null_count() as u32
+    }
+
+    fn size(&self) -> usize {
+        size_of::<Self>() + self.arr.get_array_memory_size()
+    }
+
+    /// The estimated total size in bytes of the underlying values in the
+    /// column if they were stored contiguously and uncompressed. `include_nulls`
+    /// will effectively size each NULL value as the size of an `L` if `true`.
+    fn size_raw(&self, include_nulls: bool) -> usize {
+        let base_size = size_of::<Vec<L>>();
+        if self.null_count() == 0 || include_nulls {
+            return base_size + (self.num_rows() as usize * size_of::<L>());
+        }
+        base_size + ((self.num_rows() as usize - self.arr.null_count()) * size_of::<L>())
+    }
+
+    fn value(&self, row_id: u32) -> Option<L> {
+        if self.arr.is_null(row_id as usize) {
+            return None;
+        }
+        Some(self.transcoder.decode(self.arr.value(row_id as usize)))
+    }
+
+    /// TODO(edd): Perf - we could return a vector of values and a vector of
+    /// integers representing the null validity bitmap.
+    fn values(&self, row_ids: &[u32]) -> Either<Vec<L>, Vec<Option<L>>> {
+        let mut dst = Vec::with_capacity(row_ids.len());
+
+        for &row_id in row_ids {
+            if self.arr.is_null(row_id as usize) {
+                dst.push(None)
+            } else {
+                dst.push(Some(
+                    self.transcoder.decode(self.arr.value(row_id as usize)),
+                ))
+            }
+        }
+        assert_eq!(dst.len(), row_ids.len());
+        Either::Right(dst)
+    }
+
+    /// TODO(edd): Perf - we could return a vector of values and a vector of
+    /// integers representing the null validity bitmap.
+    fn all_values(&self) -> Either<Vec<L>, Vec<Option<L>>> {
+        let mut dst = Vec::with_capacity(self.num_rows() as usize);
+
+        for i in 0..self.num_rows() as usize {
+            if self.arr.is_null(i) {
+                dst.push(None)
+            } else {
+                dst.push(Some(self.transcoder.decode(self.arr.value(i))))
+            }
+        }
+        assert_eq!(dst.len(), self.num_rows() as usize);
+        Either::Right(dst)
+    }
+
+    fn count(&self, row_ids: &[u32]) -> u32 {
+        if self.arr.null_count() == 0 {
+            return row_ids.len() as u32;
+        }
+
+        let mut count = 0;
+        for &i in row_ids {
+            if self.arr.is_null(i as usize) {
+                continue;
+            }
+            count += 1;
+        }
+        count
+    }
+
+    /// TODO(edd): I have experimented with using the Arrow kernels for these
+    /// aggregations methods but they're currently significantly slower than
+    /// this implementation (about 85% in the `sum` case). I will revisit/ work
+    /// on them them in the future.
+    fn sum(&self, row_ids: &[u32]) -> Option<L> {
+        let mut result = L::default();
+
+        if self.arr.null_count() == 0 {
+            for chunks in row_ids.chunks_exact(4) {
+                result = result + self.transcoder.decode(self.arr.value(chunks[3] as usize));
+                result = result + self.transcoder.decode(self.arr.value(chunks[2] as usize));
+                result = result + self.transcoder.decode(self.arr.value(chunks[1] as usize));
+                result = result + self.transcoder.decode(self.arr.value(chunks[0] as usize));
             }
 
-            impl From<&[$type_from]> for FixedNull<$type_to> {
-                fn from(v: &[$type_from]) -> Self {
-                    Self::from(v.to_vec())
-                }
+            let rem = row_ids.len() % 4;
+            for &i in &row_ids[row_ids.len() - rem..row_ids.len()] {
+                result = result + self.transcoder.decode(self.arr.value(i as usize));
             }
 
-            impl From<Vec<Option<$type_from>>> for FixedNull<$type_to> {
-                fn from(v: Vec<Option<$type_from>>) -> Self {
-                    Self{
-                        arr: PrimitiveArray::from(v),
-                    }
-                }
+            return Some(result);
+        }
+
+        let mut is_none = true;
+        for &i in row_ids {
+            if self.arr.is_null(i as usize) {
+                continue;
+            }
+            is_none = false;
+            result = result + self.transcoder.decode(self.arr.value(i as usize));
+        }
+
+        if is_none {
+            return None;
+        }
+        Some(result)
+    }
+
+    fn min(&self, row_ids: &[u32]) -> Option<L> {
+        // find the minimum physical value.
+        let mut min: Option<P::Native> =
+            (!self.arr.is_null(row_ids[0] as usize)).then(|| self.arr.value(row_ids[0] as usize));
+        for &row_id in row_ids.iter().skip(1) {
+            if self.arr.is_null(row_id as usize) {
+                continue;
             }
 
-            impl From<&[Option<$type_from>]> for FixedNull<$type_to> {
-                fn from(v: &[Option<$type_from>]) -> Self {
-                    Self::from(v.to_vec())
-                }
+            let next = Some(self.arr.value(row_id as usize));
+            if next < min {
+                min = next;
             }
-        )*
-    };
-}
+        }
 
-fixed_null_from_native_types! {
-    (i64, arrow::datatypes::Int64Type),
-    (i32, arrow::datatypes::Int32Type),
-    (i16, arrow::datatypes::Int16Type),
-    (i8, arrow::datatypes::Int8Type),
-    (u64, arrow::datatypes::UInt64Type),
-    (u32, arrow::datatypes::UInt32Type),
-    (u16, arrow::datatypes::UInt16Type),
-    (u8, arrow::datatypes::UInt8Type),
-    (f64, arrow::datatypes::Float64Type),
-}
+        // convert minimum physical value to logical value.
+        min.map(|v| self.transcoder.decode(v))
+    }
 
-// This macro implements the From trait for Arrow arrays
-//
-// Implementation:
-//
-//  impl From<Int64Array> for FixedNull<Int64Type> {
-//      fn from(arr: Int64Array) -> Self {
-//          Self{arr}
-//      }
-//  }
-//
-macro_rules! fixed_null_from_arrow_types {
-    ($(($type_from:ty, $type_to:ty),)*) => {
-        $(
-            impl From<$type_from> for FixedNull<$type_to> {
-                fn from(arr: $type_from) -> Self {
-                    Self{arr}
-                }
+    /// Returns the maximum logical (decoded) non-null value from the provided
+    /// row IDs.
+    fn max(&self, row_ids: &[u32]) -> Option<L> {
+        // find the maximum physical value.
+        let mut max: Option<P::Native> =
+            (!self.arr.is_null(row_ids[0] as usize)).then(|| self.arr.value(row_ids[0] as usize));
+        for &row_id in row_ids.iter().skip(1) {
+            if self.arr.is_null(row_id as usize) {
+                continue;
             }
-        )*
-    };
-}
 
-fixed_null_from_arrow_types! {
-    (arrow::array::Int64Array, arrow::datatypes::Int64Type),
-    (arrow::array::UInt64Array, arrow::datatypes::UInt64Type),
-    (arrow::array::Int32Array, arrow::datatypes::Int32Type),
-    (arrow::array::UInt32Array, arrow::datatypes::UInt32Type),
-    (arrow::array::Int16Array, arrow::datatypes::Int16Type),
-    (arrow::array::UInt16Array, arrow::datatypes::UInt16Type),
-    (arrow::array::Int8Array, arrow::datatypes::Int8Type),
-    (arrow::array::UInt8Array, arrow::datatypes::UInt8Type),
-    (arrow::array::Float64Array, arrow::datatypes::Float64Type),
-}
-
-// This macro implements the From trait for Arrow arrays where some down-casting
-// to a smaller physical type happens. It is the caller's responsibility to
-// ensure that this down-casting is safe.
-//
-// Example implementation:
-//
-//  impl From<Int64Array> for FixedNull<Int32Type> {
-//    fn from(arr: Int64Array) -> Self {
-//      let arr: PrimitiveArray<Int32Type> =
-//          PrimitiveArray::from_iter(arr.iter().map(|v| v.map(|v| v as i32)));
-//      Self { arr }
-//    }
-//  }
-//
-macro_rules! fixed_null_from_arrow_types_down_cast {
-    ($(($type_from:ty, $type_to:ty, $rust_type:ty),)*) => {
-        $(
-            impl From<$type_from> for FixedNull<$type_to> {
-                fn from(arr: $type_from) -> Self {
-                    let arr: PrimitiveArray<$type_to> =
-                        PrimitiveArray::from_iter(arr.iter().map(|v| v.map(|v| v as $rust_type)));
-                    Self { arr }
-                }
+            let next = Some(self.arr.value(row_id as usize));
+            if next > max {
+                max = next;
             }
-        )*
-    };
-}
+        }
 
-fixed_null_from_arrow_types_down_cast! {
-    (arrow::array::Int64Array, arrow::datatypes::Int32Type, i32),
-    (arrow::array::Int64Array, arrow::datatypes::UInt32Type, u32),
-    (arrow::array::Int64Array, arrow::datatypes::Int16Type, i16),
-    (arrow::array::Int64Array, arrow::datatypes::UInt16Type, u16),
-    (arrow::array::Int64Array, arrow::datatypes::Int8Type, i8),
-    (arrow::array::Int64Array, arrow::datatypes::UInt8Type, u8),
-    (arrow::array::UInt64Array, arrow::datatypes::UInt32Type, u32),
-    (arrow::array::UInt64Array, arrow::datatypes::UInt16Type, u16),
-    (arrow::array::UInt64Array, arrow::datatypes::UInt8Type, u8),
+        // convert minimum physical value to logical value.
+        max.map(|v| self.transcoder.decode(v))
+    }
+
+    fn row_ids_filter(&self, value: L, op: &cmp::Operator, dst: RowIDs) -> RowIDs {
+        let value = self.transcoder.encode(value);
+        match op {
+            cmp::Operator::GT => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
+            cmp::Operator::GTE => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
+            cmp::Operator::LT => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
+            cmp::Operator::LTE => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
+            _ => self.row_ids_equal(value, op, dst),
+        }
+    }
+
+    fn row_ids_filter_range(
+        &self,
+        left: (L, &cmp::Operator),
+        right: (L, &cmp::Operator),
+        dst: RowIDs,
+    ) -> RowIDs {
+        let left = (self.transcoder.encode(left.0), left.1);
+        let right = (self.transcoder.encode(right.0), right.1);
+
+        match (left.1, right.1) {
+            (cmp::Operator::GT, cmp::Operator::LT)
+            | (cmp::Operator::GT, cmp::Operator::LTE)
+            | (cmp::Operator::GTE, cmp::Operator::LT)
+            | (cmp::Operator::GTE, cmp::Operator::LTE)
+            | (cmp::Operator::LT, cmp::Operator::GT)
+            | (cmp::Operator::LT, cmp::Operator::GTE)
+            | (cmp::Operator::LTE, cmp::Operator::GT)
+            | (cmp::Operator::LTE, cmp::Operator::GTE) => self.row_ids_cmp_range_order(
+                (left.0, Self::ord_from_op(&left.1)),
+                (right.0, Self::ord_from_op(&right.1)),
+                dst,
+            ),
+
+            (_, _) => panic!("unsupported operators provided"),
+        }
+    }
 }
 
 #[cfg(test)]
 mod test {
+    use std::sync::Arc;
+
+    use arrow::datatypes::*;
+
+    use super::super::transcoders::MockTranscoder;
     use super::cmp::Operator;
     use super::*;
-    use arrow::array::*;
-    use arrow::datatypes::*;
+
+    // Helper function to create a new FixedNull encoding using a mock transcoder
+    // that will allow tests to track calls to encode/decode.
+    fn new_encoding(
+        values: Vec<Option<i64>>,
+    ) -> (
+        FixedNull<Int64Type, i64, Arc<MockTranscoder>>,
+        Arc<MockTranscoder>,
+    ) {
+        let arr = PrimitiveArray::from(values);
+        let mock = Arc::new(MockTranscoder::default());
+        (FixedNull::new(arr, Arc::clone(&mock)), mock)
+    }
 
     fn some_vec<T: Copy>(v: Vec<T>) -> Vec<Option<T>> {
         v.iter().map(|x| Some(*x)).collect()
     }
 
     #[test]
-    fn from_arrow_downcast() {
-        let arr = Int64Array::from(vec![100, u8::MAX as i64]);
-        let exp_values = arr.iter().collect::<Vec<Option<i64>>>();
-        let enc: FixedNull<UInt8Type> = FixedNull::from(arr);
-        assert_eq!(enc.all_values(vec![]), exp_values);
-
-        let arr = Int64Array::from(vec![100, i32::MAX as i64]);
-        let exp_values = arr.iter().collect::<Vec<Option<i64>>>();
-        let enc: FixedNull<UInt32Type> = FixedNull::from(arr);
-        assert_eq!(enc.all_values(vec![]), exp_values);
-    }
-
-    #[test]
     fn size() {
-        let v = FixedNull::<UInt64Type>::from(vec![None, None, Some(100), Some(2222)].as_slice());
-        assert_eq!(v.size(), 344);
+        let (v, _) = new_encoding(vec![None, None, Some(100), Some(2222)]);
+        assert_eq!(v.size(), 352);
     }
 
     #[test]
     fn size_raw() {
-        let v = FixedNull::<UInt64Type>::from(vec![None, None, Some(100), Some(2222)].as_slice());
+        let (v, _) = new_encoding(vec![None, None, Some(100), Some(2222)]);
         // values   = 4 * 8 = 32b
         // Vec<u64> = 24b
         assert_eq!(v.size_raw(true), 56);
         assert_eq!(v.size_raw(false), 40);
 
-        let v = FixedNull::<Int64Type>::from(vec![None, None].as_slice());
+        let (v, _) = new_encoding(vec![None, None]);
         assert_eq!(v.size_raw(true), 40);
         assert_eq!(v.size_raw(false), 24);
 
-        let v = FixedNull::<Float64Type>::from(vec![None, None, Some(22.3)].as_slice());
+        let (v, _) = new_encoding(vec![None, None, Some(22)]);
         assert_eq!(v.size_raw(true), 48);
         assert_eq!(v.size_raw(false), 32);
     }
 
     #[test]
-    fn first_row_id_eq_value() {
-        let v = super::FixedNull::<Int64Type>::from(vec![22, 33, 18].as_slice());
-
-        assert_eq!(v.first_row_id_eq_value(33), Some(1));
-        assert_eq!(v.first_row_id_eq_value(100), None);
-    }
-
-    #[test]
     fn value() {
-        let v = super::FixedNull::<Int8Type>::from(vec![22, 33, 18].as_slice());
-
+        let (v, transcoder) = new_encoding(vec![Some(22), Some(33), Some(18)]);
         assert_eq!(v.value(2), Some(18));
+        assert_eq!(transcoder.decodings(), 1);
     }
 
     #[test]
     fn values() {
-        let v = super::FixedNull::<Int8Type>::from((0..10).collect::<Vec<_>>().as_slice());
+        let (v, transcoder) = new_encoding((0..10).map(Option::Some).collect::<Vec<_>>());
 
-        assert_eq!(v.values(&[0, 1, 2, 3], vec![]), some_vec(vec![0, 1, 2, 3]));
         assert_eq!(
-            v.values(&[0, 1, 2, 3, 4], vec![]),
+            v.values(&[0, 1, 2, 3]).unwrap_right(),
+            some_vec(vec![0, 1, 2, 3])
+        );
+        assert_eq!(transcoder.decodings(), 4);
+
+        assert_eq!(
+            v.values(&[0, 1, 2, 3, 4]).unwrap_right(),
             some_vec(vec![0, 1, 2, 3, 4])
         );
         assert_eq!(
-            v.values(&(0..10).collect::<Vec<_>>(), vec![]),
+            v.values(&(0..10).collect::<Vec<_>>()).unwrap_right(),
             some_vec(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
         );
-
-        let mut dst = some_vec(vec![22, 33, 44, 55]);
-        dst = v.values(&[0, 1], dst);
-        assert_eq!(dst, some_vec(vec![0, 1]));
-        assert_eq!(dst.capacity(), 4);
     }
 
     #[test]
     fn all_values() {
-        let v = super::FixedNull::<Int8Type>::from((0..10).collect::<Vec<_>>().as_slice());
+        let (v, transcoder) = new_encoding((0..10).map(Option::Some).collect::<Vec<_>>());
 
         assert_eq!(
-            v.all_values(vec![]),
-            (0..10).map(Some).collect::<Vec<Option<i8>>>()
+            v.all_values(),
+            Either::Right((0..10).map(Some).collect::<Vec<_>>())
         );
-
-        let mut dst = some_vec(vec![22, 33, 44, 55]);
-        dst = v.all_values(dst);
-        assert_eq!(dst, (0..10).map(Some).collect::<Vec<Option<i8>>>());
-        assert_eq!(dst.capacity(), 10);
+        assert_eq!(transcoder.decodings(), 10);
     }
 
     #[test]
     fn count() {
         let data = vec![Some(0), None, Some(22), None, None, Some(33), Some(44)];
-        let v = super::FixedNull::<Int8Type>::from(data.as_slice());
+        let (v, _) = new_encoding(data);
 
         assert_eq!(v.count(&[0, 1, 2, 3, 4, 5, 6]), 4);
         assert_eq!(v.count(&[1, 3]), 0);
@@ -797,48 +548,42 @@ mod test {
 
     #[test]
     fn sum() {
-        let v = super::FixedNull::<Int8Type>::from((0..10).collect::<Vec<_>>().as_slice());
+        let (v, transcoder) = new_encoding((0..10).map(Option::Some).collect::<Vec<_>>());
 
         assert_eq!(v.sum(&[3, 5, 6, 7]), Some(21));
+        assert_eq!(transcoder.decodings(), 4);
         assert_eq!(v.sum(&[1, 2, 4, 7, 9]), Some(23));
     }
 
     #[test]
-    fn first() {
-        let v = super::FixedNull::<Int16Type>::from((10..20).collect::<Vec<_>>().as_slice());
-
-        assert_eq!(v.first(&[3, 5, 6, 7]), Some(13));
-    }
-
-    #[test]
-    fn last() {
-        let v = super::FixedNull::<Int16Type>::from((10..20).collect::<Vec<_>>().as_slice());
-
-        assert_eq!(v.last(&[3, 5, 6, 7]), Some(17));
-    }
-
-    #[test]
     fn min() {
-        let v = super::FixedNull::<Int16Type>::from(vec![100, 110, 20, 1, 110].as_slice());
+        let data = vec![Some(100), Some(110), Some(20), Some(1), Some(110)];
+        let (v, transcoder) = new_encoding(data);
 
         assert_eq!(v.min(&[0, 1, 2, 3, 4]), Some(1));
+        assert_eq!(transcoder.decodings(), 1); // only min is decoded
     }
 
     #[test]
     fn max() {
-        let v = super::FixedNull::<Int16Type>::from(vec![100, 110, 20, 1, 109].as_slice());
-
+        let data = vec![Some(100), Some(110), Some(20), Some(1), Some(109)];
+        let (v, transcoder) = new_encoding(data);
         assert_eq!(v.max(&[0, 1, 2, 3, 4]), Some(110));
+        assert_eq!(transcoder.decodings(), 1); // only max is decoded
     }
 
     #[test]
     fn row_ids_filter_eq() {
-        let v = super::FixedNull::<Int64Type>::from(
-            vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
+        let (v, transcoder) = new_encoding(
+            vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100]
+                .into_iter()
+                .map(Option::Some)
+                .collect::<Vec<_>>(),
         );
 
         let row_ids = v.row_ids_filter(100, &Operator::Equal, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![0, 2, 12]);
+        assert_eq!(transcoder.encodings(), 1);
 
         let row_ids = v.row_ids_filter(101, &Operator::Equal, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![1, 8]);
@@ -852,12 +597,16 @@ mod test {
 
     #[test]
     fn row_ids_filter_neq() {
-        let v = super::FixedNull::<Int64Type>::from(
-            vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
+        let (v, transcoder) = new_encoding(
+            vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100]
+                .into_iter()
+                .map(Option::Some)
+                .collect::<Vec<_>>(),
         );
 
         let row_ids = v.row_ids_filter(100, &Operator::NotEqual, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![1, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+        assert_eq!(transcoder.encodings(), 1);
 
         let row_ids = v.row_ids_filter(101, &Operator::NotEqual, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![0, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12]);
@@ -874,12 +623,16 @@ mod test {
 
     #[test]
     fn row_ids_filter_lt() {
-        let v = super::FixedNull::<Int64Type>::from(
-            vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
+        let (v, transcoder) = new_encoding(
+            vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100]
+                .into_iter()
+                .map(Option::Some)
+                .collect::<Vec<_>>(),
         );
 
         let row_ids = v.row_ids_filter(100, &Operator::LT, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![7, 9, 10, 11]);
+        assert_eq!(transcoder.encodings(), 1);
 
         let row_ids = v.row_ids_filter(3, &Operator::LT, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), Vec::<u32>::new());
@@ -887,12 +640,15 @@ mod test {
 
     #[test]
     fn row_ids_filter_lte() {
-        let v = super::FixedNull::<Int64Type>::from(
-            vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
+        let (v, transcoder) = new_encoding(
+            vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100]
+                .into_iter()
+                .map(Option::Some)
+                .collect::<Vec<_>>(),
         );
-
         let row_ids = v.row_ids_filter(100, &Operator::LTE, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![0, 2, 7, 9, 10, 11, 12]);
+        assert_eq!(transcoder.encodings(), 1);
 
         let row_ids = v.row_ids_filter(2, &Operator::LTE, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), Vec::<u32>::new());
@@ -900,12 +656,16 @@ mod test {
 
     #[test]
     fn row_ids_filter_gt() {
-        let v = super::FixedNull::<Int64Type>::from(
-            vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
+        let (v, transcoder) = new_encoding(
+            vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100]
+                .into_iter()
+                .map(Option::Some)
+                .collect::<Vec<_>>(),
         );
 
         let row_ids = v.row_ids_filter(100, &Operator::GT, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![1, 3, 4, 5, 6, 8]);
+        assert_eq!(transcoder.encodings(), 1);
 
         let row_ids = v.row_ids_filter(2030, &Operator::GT, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), Vec::<u32>::new());
@@ -913,21 +673,19 @@ mod test {
 
     #[test]
     fn row_ids_filter_null() {
-        let v = super::FixedNull::<Int64Type>::from(
-            vec![
-                Some(100),
-                Some(200),
-                None,
-                None,
-                Some(200),
-                Some(22),
-                Some(30),
-            ]
-            .as_slice(),
-        );
+        let (v, transcoder) = new_encoding(vec![
+            Some(100),
+            Some(200),
+            None,
+            None,
+            Some(200),
+            Some(22),
+            Some(30),
+        ]);
 
         let row_ids = v.row_ids_filter(10, &Operator::GT, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![0, 1, 4, 5, 6]);
+        assert_eq!(transcoder.encodings(), 1);
 
         let row_ids = v.row_ids_filter(30, &Operator::LTE, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![5, 6]);
@@ -935,12 +693,16 @@ mod test {
 
     #[test]
     fn row_ids_filter_gte() {
-        let v = super::FixedNull::<Int64Type>::from(
-            vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
+        let (v, transcoder) = new_encoding(
+            vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100]
+                .into_iter()
+                .map(Option::Some)
+                .collect::<Vec<_>>(),
         );
 
         let row_ids = v.row_ids_filter(100, &Operator::GTE, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![0, 1, 2, 3, 4, 5, 6, 8, 12]);
+        assert_eq!(transcoder.encodings(), 1);
 
         let row_ids = v.row_ids_filter(2031, &Operator::GTE, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), Vec::<u32>::new());
@@ -948,31 +710,28 @@ mod test {
 
     #[test]
     fn row_ids_filter_range() {
-        let v = FixedNull::<Int64Type>::from(
-            vec![
-                Some(100),
-                Some(101),
-                None,
-                None,
-                None,
-                Some(100),
-                Some(102),
-                Some(1000),
-                Some(300),
-                Some(2030),
-                None,
-                Some(3),
-                None,
-                Some(101),
-                Some(4),
-                Some(5),
-                Some(21),
-                Some(100),
-                None,
-                None,
-            ]
-            .as_slice(),
-        );
+        let (v, transcoder) = new_encoding(vec![
+            Some(100),
+            Some(101),
+            None,
+            None,
+            None,
+            Some(100),
+            Some(102),
+            Some(1000),
+            Some(300),
+            Some(2030),
+            None,
+            Some(3),
+            None,
+            Some(101),
+            Some(4),
+            Some(5),
+            Some(21),
+            Some(100),
+            None,
+            None,
+        ]);
 
         let row_ids = v.row_ids_filter_range(
             (100, &Operator::GTE),
@@ -980,6 +739,7 @@ mod test {
             RowIDs::new_vector(),
         );
         assert_eq!(row_ids.to_vec(), vec![0, 1, 5, 6, 13, 17]);
+        assert_eq!(transcoder.encodings(), 2); // both literals encoded
 
         let row_ids = v.row_ids_filter_range(
             (100, &Operator::GT),
@@ -1009,18 +769,15 @@ mod test {
         );
         assert_eq!(row_ids.to_vec(), Vec::<u32>::new());
 
-        let v = FixedNull::<Int64Type>::from(
-            vec![
-                Some(100),
-                Some(200),
-                Some(300),
-                Some(2),
-                Some(200),
-                Some(22),
-                Some(30),
-            ]
-            .as_slice(),
-        );
+        let (v, _) = new_encoding(vec![
+            Some(100),
+            Some(200),
+            Some(300),
+            Some(2),
+            Some(200),
+            Some(22),
+            Some(30),
+        ]);
         let row_ids = v.row_ids_filter_range(
             (200, &Operator::GTE),
             (300, &Operator::LTE),
@@ -1031,14 +788,14 @@ mod test {
 
     #[test]
     fn has_non_null_value() {
-        let v = FixedNull::<UInt64Type>::from(vec![None, None].as_slice());
+        let (v, _) = new_encoding(vec![None, None]);
         assert!(!v.has_non_null_value(&[0, 1]));
 
-        let v = FixedNull::from(vec![Some(100_u64), Some(222_u64)].as_slice());
+        let (v, _) = new_encoding(vec![Some(100), Some(222)]);
         assert!(v.has_non_null_value(&[0, 1]));
         assert!(v.has_non_null_value(&[1]));
 
-        let v = FixedNull::from(vec![None, Some(100_u64), Some(222_u64)].as_slice());
+        let (v, _) = new_encoding(vec![None, Some(100), Some(222)]);
         assert!(v.has_non_null_value(&[0, 1, 2]));
         assert!(!v.has_non_null_value(&[0]));
         assert!(v.has_non_null_value(&[2]));
@@ -1046,13 +803,13 @@ mod test {
 
     #[test]
     fn has_any_non_null_value() {
-        let v = FixedNull::<UInt64Type>::from(vec![None, None].as_slice());
+        let (v, _) = new_encoding(vec![None, None]);
         assert!(!v.has_any_non_null_value());
 
-        let v = FixedNull::from(vec![Some(100_u64), Some(222_u64)].as_slice());
+        let (v, _) = new_encoding(vec![Some(100), Some(222)]);
         assert!(v.has_any_non_null_value());
 
-        let v = FixedNull::from(vec![None, Some(100_u64), Some(222_u64)].as_slice());
+        let (v, _) = new_encoding(vec![None, Some(100), Some(222)]);
         assert!(v.has_any_non_null_value());
     }
 }
