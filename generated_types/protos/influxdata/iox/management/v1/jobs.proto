@@ -22,6 +22,7 @@ message OperationMetadata {
     */
     CloseChunk close_chunk = 7;
     WriteChunk write_chunk = 8;
+    WipePreservedCatalog wipe_preserved_catalog = 9;
   }
 }
 
@@ -59,4 +60,10 @@ message WriteChunk {
 
   // chunk_id
   uint32 chunk_id = 3;
+}
+
+// Wipe preserved catalog
+message WipePreservedCatalog {
+  // name of the database
+  string db_name = 1;
 }

@@ -77,6 +77,7 @@ use db::load_or_create_preserved_catalog;
 use init::InitStatus;
 use observability_deps::tracing::{debug, info, warn};
 use parking_lot::Mutex;
+use parquet_file::catalog::wipe as wipe_preserved_catalog;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use data_types::{
@@ -810,6 +811,30 @@ where
         Ok(db.load_chunk_to_read_buffer_in_background(table_name, partition_key, chunk_id))
     }
 
+    /// Wipe preserved catalog of specific DB.
+    ///
+    /// The DB must not yet exist within this server for this to work! This is done to prevent race conditions between
+    /// DB jobs and this command.
+    pub fn wipe_preserved_catalog(&self, db_name: DatabaseName<'_>) -> Result<TaskTracker<Job>> {
+        if self.config.db(&db_name).is_some() {
+            return Err(Error::DatabaseAlreadyExists {
+                db_name: db_name.to_string(),
+            });
+        }
+
+        let (tracker, registration) = self.jobs.register(Job::WipePreservedCatalog {
+            db_name: db_name.to_string(),
+        });
+        let object_store = Arc::clone(&self.store);
+        let server_id = self.require_id()?;
+        let db_name_string = db_name.to_string();
+        let task =
+            async move { wipe_preserved_catalog(&object_store, server_id, &db_name_string).await };
+        tokio::spawn(task.track(registration));
+
+        Ok(tracker)
+    }
+
     /// Returns a list of all jobs tracked by this server
     pub fn tracked_jobs(&self) -> Vec<TaskTracker<Job>> {
         self.jobs.inner.lock().tracked()
@@ -1026,6 +1051,7 @@ mod tests {
     use bytes::Bytes;
     use futures::TryStreamExt;
     use generated_types::database_rules::decode_database_rules;
+    use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
     use snafu::Snafu;
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
@@ -1855,5 +1881,62 @@ mod tests {
         // creating failed DBs does not work
         let err = create_simple_database(&server, "bar").await.unwrap_err();
         assert_eq!(err.to_string(), "database already exists");
+    }
+
+    #[tokio::test]
+    async fn wipe_preserved_catalog() {
+        let manager = TestConnectionManager::new();
+        let server = Server::new(manager, config());
+        let db_name1 = DatabaseName::new("db1".to_string()).unwrap();
+        let db_name2 = DatabaseName::new("db2".to_string()).unwrap();
+
+        // cannot wipe if server ID is not set
+        assert_eq!(
+            server
+                .wipe_preserved_catalog(db_name1.clone())
+                .unwrap_err()
+                .to_string(),
+            "cannot get id: unable to use server until id is set"
+        );
+
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server.maybe_initialize_server().await;
+
+        // wipe just works
+        PreservedCatalog::<TestCatalogState>::new_empty(
+            Arc::clone(&server.store),
+            server.require_id().unwrap(),
+            db_name1.to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+        let tracker = server.wipe_preserved_catalog(db_name1.clone()).unwrap();
+        let metadata = tracker.metadata();
+        let expected_metadata = Job::WipePreservedCatalog {
+            db_name: db_name1.to_string(),
+        };
+        assert_eq!(metadata, &expected_metadata);
+        tracker.join().await;
+        assert!(!PreservedCatalog::<TestCatalogState>::exists(
+            &server.store,
+            server.require_id().unwrap(),
+            &db_name1.to_string()
+        )
+        .await
+        .unwrap());
+
+        // cannot wipe if DB exists
+        server
+            .create_database(DatabaseRules::new(db_name2.clone()))
+            .await
+            .unwrap();
+        assert_eq!(
+            server
+                .wipe_preserved_catalog(db_name2.clone())
+                .unwrap_err()
+                .to_string(),
+            "database already exists"
+        );
     }
 }
