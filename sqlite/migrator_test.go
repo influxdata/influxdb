@@ -13,7 +13,7 @@ import (
 func TestUp(t *testing.T) {
 	t.Parallel()
 
-	store, clean := newTestStore(t)
+	store, clean := NewTestStore(t)
 	defer clean(t)
 	ctx := context.Background()
 

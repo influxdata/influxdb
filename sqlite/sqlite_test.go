@@ -2,19 +2,16 @@ package sqlite
 
 import (
 	"context"
-	"io/ioutil"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestFlush(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	store, clean := newTestStore(t)
+	store, clean := NewTestStore(t)
 	defer clean(t)
 
 	err := store.execTrans(ctx, `CREATE TABLE test_table_1 (id TEXT NOT NULL PRIMARY KEY)`)
@@ -37,7 +34,7 @@ func TestFlush(t *testing.T) {
 func TestUserVersion(t *testing.T) {
 	t.Parallel()
 
-	store, clean := newTestStore(t)
+	store, clean := NewTestStore(t)
 	defer clean(t)
 	ctx := context.Background()
 
@@ -52,7 +49,7 @@ func TestUserVersion(t *testing.T) {
 func TestTableNames(t *testing.T) {
 	t.Parallel()
 
-	store, clean := newTestStore(t)
+	store, clean := NewTestStore(t)
 	defer clean(t)
 	ctx := context.Background()
 
@@ -64,24 +61,4 @@ func TestTableNames(t *testing.T) {
 	got, err := store.tableNames()
 	require.NoError(t, err)
 	require.Equal(t, []string{"test_table_1", "test_table_3", "test_table_2"}, got)
-}
-
-func newTestStore(t *testing.T) (*SqlStore, func(t *testing.T)) {
-	tempDir, err := ioutil.TempDir("", "")
-	if err != nil {
-		t.Fatalf("unable to create temporary test directory %v", err)
-	}
-
-	cleanUpFn := func(t *testing.T) {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Fatalf("unable to delete temporary test directory %s: %v", tempDir, err)
-		}
-	}
-
-	s, err := NewSqlStore(tempDir+"/"+DefaultFilename, zap.NewNop())
-	if err != nil {
-		t.Fatal("unable to open testing database")
-	}
-
-	return s, cleanUpFn
 }
