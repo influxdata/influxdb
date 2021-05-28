@@ -388,7 +388,11 @@ where
         }))
     }
 
-    /// Deletes (potentially existing) catalog.
+    /// Deletes catalog.
+    ///
+    /// **Always create a backup before wiping your data!**
+    ///
+    /// This also works for broken catalogs. Also succeeds if no catalog is present.
     ///
     /// Note that wiping the catalog will NOT wipe any referenced parquet files.
     pub async fn wipe(
@@ -412,7 +416,13 @@ where
     /// post-blocking). This system is fair, which means that transactions are given out in the order they were
     /// requested.
     pub async fn open_transaction(&self) -> TransactionHandle<'_, S> {
-        TransactionHandle::new(self).await
+        self.open_transaction_with_uuid(Uuid::new_v4()).await
+    }
+
+    /// Crate-private API to open an transaction with a specified UUID. Should only be used for catalog rebuilding or
+    /// with a fresh V4-UUID!
+    pub(crate) async fn open_transaction_with_uuid(&self, uuid: Uuid) -> TransactionHandle<'_, S> {
+        TransactionHandle::new(self, uuid).await
     }
 
     /// Return current state.
@@ -662,7 +672,7 @@ where
     S: CatalogState,
 {
     /// Private API to create new transaction, users should always use [`PreservedCatalog::open_transaction`].
-    fn new(catalog_inner: &PreservedCatalogInner<S>) -> Self {
+    fn new(catalog_inner: &PreservedCatalogInner<S>, uuid: Uuid) -> Self {
         let (revision_counter, previous_uuid) = match &catalog_inner.previous_tkey {
             Some(tkey) => (tkey.revision_counter + 1, tkey.uuid.to_string()),
             None => (0, String::new()),
@@ -673,7 +683,7 @@ where
             proto: proto::Transaction {
                 actions: vec![],
                 version: TRANSACTION_VERSION,
-                uuid: Uuid::new_v4().to_string(),
+                uuid: uuid.to_string(),
                 revision_counter,
                 previous_uuid,
             },
@@ -844,7 +854,7 @@ impl<'c, S> TransactionHandle<'c, S>
 where
     S: CatalogState,
 {
-    async fn new(catalog: &'c PreservedCatalog<S>) -> TransactionHandle<'c, S> {
+    async fn new(catalog: &'c PreservedCatalog<S>, uuid: Uuid) -> TransactionHandle<'c, S> {
         // first acquire semaphore (which is only being used for transactions), then get state lock
         let permit = catalog
             .transaction_semaphore
@@ -853,7 +863,7 @@ where
             .expect("semaphore should not be closed");
         let inner_guard = catalog.inner.write();
 
-        let transaction = OpenTransaction::new(&inner_guard);
+        let transaction = OpenTransaction::new(&inner_guard, uuid);
 
         // free state for readers again
         drop(inner_guard);
