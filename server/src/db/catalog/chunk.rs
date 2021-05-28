@@ -40,11 +40,6 @@ impl ChunkLifecycleAction {
 /// The state a Chunk is in and what its underlying backing storage is
 #[derive(Debug)]
 pub enum ChunkState {
-    /// An invalid chunk state that should not be externally observed
-    ///
-    /// Used internally to allow moving data between enum variants
-    Invalid,
-
     /// Chunk can accept new writes
     Open(MBChunk),
 
@@ -64,7 +59,6 @@ pub enum ChunkState {
 impl ChunkState {
     pub fn name(&self) -> &'static str {
         match self {
-            Self::Invalid => "Invalid",
             Self::Open(_) => "Open",
             Self::Closed(_) => "Closed",
             Self::Moved(_) => "Moved",
@@ -286,7 +280,6 @@ impl Chunk {
     /// Return ChunkSummary metadata for this chunk
     pub fn summary(&self) -> ChunkSummary {
         let (estimated_bytes, row_count, storage) = match &self.state {
-            ChunkState::Invalid => panic!("invalid chunk state"),
             ChunkState::Open(chunk) => {
                 (chunk.size(), chunk.rows(), ChunkStorage::OpenMutableBuffer)
             }
@@ -337,7 +330,6 @@ impl Chunk {
         }
 
         let columns: Vec<ChunkColumnSummary> = match &self.state {
-            ChunkState::Invalid => panic!("invalid chunk state"),
             ChunkState::Open(chunk) => chunk.column_sizes().map(to_summary).collect(),
             ChunkState::Closed(chunk) => chunk.column_sizes().map(to_summary).collect(),
             ChunkState::Moved(chunk) => chunk.column_sizes(&self.table_name),
@@ -353,7 +345,6 @@ impl Chunk {
     /// Return the summary information about the table stored in this Chunk
     pub fn table_summary(&self) -> Arc<TableSummary> {
         match &self.state {
-            ChunkState::Invalid => panic!("Chunk in invalid state"),
             ChunkState::Open(chunk) => {
                 // The stats for open chunks change so can't be cached
                 Arc::new(chunk.table_summary())
@@ -372,7 +363,6 @@ impl Chunk {
     /// chunk
     pub fn size(&self) -> usize {
         match &self.state {
-            ChunkState::Invalid => 0,
             ChunkState::Open(chunk) => chunk.size(),
             ChunkState::Closed(chunk) => chunk.size(),
             ChunkState::Moved(chunk) => chunk.size() as usize,
@@ -396,15 +386,11 @@ impl Chunk {
 
     /// Set the chunk to the Closed state
     pub fn set_closed(&mut self) -> Result<Arc<MBChunkSnapshot>> {
-        let mut s = ChunkState::Invalid;
-        std::mem::swap(&mut s, &mut self.state);
-
-        match s {
+        match &self.state {
             ChunkState::Open(chunk) => {
                 assert!(self.time_closed.is_none());
                 self.time_closed = Some(Utc::now());
                 let s = chunk.snapshot();
-                self.state = ChunkState::Closed(Arc::clone(&s));
                 self.metrics
                     .state
                     .inc_with_labels(&[KeyValue::new("state", "closed")]);
@@ -415,10 +401,11 @@ impl Chunk {
 
                 // Cache table summary
                 self.table_summary = Some(Arc::new(chunk.table_summary()));
+
+                self.state = ChunkState::Closed(Arc::clone(&s));
                 Ok(s)
             }
-            state => {
-                self.state = state;
+            _ => {
                 unexpected_state!(self, "setting closed", "Open or Closed", &self.state)
             }
         }
@@ -527,10 +514,7 @@ impl Chunk {
     }
 
     pub fn set_unload_from_read_buffer(&mut self) -> Result<Arc<ReadBufferChunk>> {
-        let mut s = ChunkState::Invalid;
-        std::mem::swap(&mut s, &mut self.state);
-
-        match s {
+        match &self.state {
             ChunkState::WrittenToObjectStore(rub_chunk, parquet_chunk) => {
                 self.metrics
                     .state
@@ -541,11 +525,11 @@ impl Chunk {
                     &[KeyValue::new("state", "os")],
                 );
 
+                let rub_chunk = Arc::clone(rub_chunk);
                 self.state = ChunkState::ObjectStoreOnly(Arc::clone(&parquet_chunk));
                 Ok(rub_chunk)
             }
-            state => {
-                self.state = state;
+            _ => {
                 unexpected_state!(self, "setting unload", "WrittenToObjectStore", &self.state)
             }
         }

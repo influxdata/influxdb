@@ -93,9 +93,6 @@ impl DbChunk {
         use super::catalog::chunk::ChunkState;
 
         let state = match chunk.state() {
-            ChunkState::Invalid => {
-                panic!("Invalid internal state");
-            }
             ChunkState::Open(chunk) => State::MutableBuffer {
                 chunk: chunk.snapshot(),
             },
