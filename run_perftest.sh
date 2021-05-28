@@ -96,8 +96,8 @@ telegraf --once
 
 if [ "${CIRCLE_TEARDOWN}" = "true" ]; then
   curl --request POST \
-    --url https://circleci.com/api/v2/project/github/influxdata/influxdb/aws_destroy_callback \
-    --header 'Circle-Token: ${CIRCLE_TOKEN}' \
+    --url https://circleci.com/api/v2/project/github/influxdata/influxdb/pipeline \
+    --header "Circle-Token: ${CIRCLE_TOKEN}" \
     --header 'content-type: application/json' \
-    --data '{"parameters":{"aws_teardown": true, "aws_teardown_branch":"${INFLUXDB_VERSION}", "aws_teardown_sha":"${TEST_COMMIT}", "aws_teardown_datestring":"${CIRCLE_TEARDOWN_DATESTRING}"}}'
+    --data "{\"branch\":\"${INFLUXDB_VERSION}\", \"parameters\":{\"aws_teardown\": true, \"aws_teardown_branch\":\"${INFLUXDB_VERSION}\", \"aws_teardown_sha\":\"${TEST_COMMIT}\", \"aws_teardown_datestring\":\"${CIRCLE_TEARDOWN_DATESTRING}\"}}"
 fi

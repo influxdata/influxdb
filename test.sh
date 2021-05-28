@@ -102,7 +102,7 @@ fi
 case $ENVIRONMENT_INDEX in
     0)
         # 64 bit tests
-        run_test_docker Dockerfile_build_ubuntu64 test_64bit --test --junit-report
+        run_test_docker Dockerfile_build_ubuntu64 test_64bit --test --junit-report --package
         rc=$?
         ;;
     1)
