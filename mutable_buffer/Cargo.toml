@@ -19,6 +19,7 @@ arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 data_types = { path = "../data_types" }
 entry = { path = "../entry" }
+hashbrown = "0.11"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 internal_types = { path = "../internal_types" }
 metrics = { path = "../metrics" }

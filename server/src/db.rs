@@ -1401,13 +1401,13 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 72).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 44).unwrap();
 
         // write into same chunk again.
         write_lp(db.as_ref(), "cpu bar=2 10");
 
         // verify chunk size updated
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 88).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 60).unwrap();
 
         // Still only one chunk open
         test_db
@@ -1719,7 +1719,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(316.0)
+            .sample_sum_eq(280.0)
             .unwrap();
 
         // RB chunk size
@@ -1732,7 +1732,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3915.0)
+            .sample_sum_eq(3167.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk, "cpu").await;
@@ -2216,7 +2216,7 @@ mod tests {
             Arc::from("cpu"),
             0,
             ChunkStorage::OpenMutableBuffer,
-            106,
+            70,
             1,
         )];
 
@@ -2338,7 +2338,7 @@ mod tests {
                 Arc::from("cpu"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
-                100,
+                64,
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2354,7 +2354,7 @@ mod tests {
                 Arc::from("cpu"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
-                131,
+                87,
                 1,
             ),
         ];
@@ -2372,7 +2372,7 @@ mod tests {
                 .memory()
                 .mutable_buffer()
                 .get_total(),
-            100 + 2126 + 131
+            64 + 2126 + 87
         );
         assert_eq!(
             db.catalog

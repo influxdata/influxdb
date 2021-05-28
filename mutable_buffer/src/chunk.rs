@@ -1,17 +1,16 @@
 use std::{collections::BTreeSet, convert::TryFrom, sync::Arc};
 
+use arrow::record_batch::RecordBatch;
 use parking_lot::Mutex;
 use snafu::{ResultExt, Snafu};
 
-use arrow::record_batch::RecordBatch;
 use data_types::{partition_metadata::TableSummary, server_id::ServerId};
 use entry::{ClockValue, TableBatch};
 use internal_types::selection::Selection;
+use metrics::GaugeValue;
 
 use crate::chunk::snapshot::ChunkSnapshot;
-use crate::dictionary::{Dictionary, DID};
 use crate::table::Table;
-use metrics::GaugeValue;
 
 pub mod snapshot;
 
@@ -28,19 +27,6 @@ pub enum Error {
         table_name: String,
         source: crate::table::Error,
     },
-
-    #[snafu(display("Table {} not found in chunk {}", table, chunk))]
-    TableNotFoundInChunk { table: DID, chunk: u32 },
-
-    #[snafu(display("Column ID {} not found in dictionary of chunk {}", column_id, chunk))]
-    ColumnIdNotFoundInDictionary { column_id: DID, chunk: u32 },
-
-    #[snafu(display(
-        "Column name {} not found in dictionary of chunk {}",
-        column_name,
-        chunk_id
-    ))]
-    ColumnNameNotFoundInDictionary { column_name: String, chunk_id: u64 },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -71,11 +57,6 @@ impl ChunkMetrics {
 /// the mutable store.
 #[derive(Debug)]
 pub struct Chunk {
-    /// `dictionary` maps &str -> DID. The DIDs are used in place of String or
-    /// str to avoid slow string operations. The same dictionary is used for
-    /// table names, tag names, tag values, and column names.
-    dictionary: Dictionary,
-
     /// The name of this table
     table_name: Arc<str>,
 
@@ -94,15 +75,12 @@ pub struct Chunk {
 
 impl Chunk {
     pub fn new(table_name: impl AsRef<str>, metrics: ChunkMetrics) -> Self {
-        let table_name = table_name.as_ref();
-        let mut dictionary = Dictionary::new();
-        let table_id = dictionary.lookup_value_or_insert(table_name);
-        let table_name = Arc::from(table_name);
+        let table_name = Arc::from(table_name.as_ref());
+        let table = Table::new(Arc::clone(&table_name));
 
         let mut chunk = Self {
-            dictionary,
             table_name,
-            table: Table::new(table_id),
+            table,
             metrics,
             snapshot: Mutex::new(None),
         };
@@ -128,7 +106,7 @@ impl Chunk {
 
         let columns = batch.columns();
         self.table
-            .write_columns(&mut self.dictionary, clock_value, server_id, columns)
+            .write_columns(clock_value, server_id, columns)
             .context(TableWrite { table_name })?;
 
         // Invalidate chunk snapshot
@@ -186,13 +164,9 @@ impl Chunk {
         dst: &mut Vec<RecordBatch>,
         selection: Selection<'_>,
     ) -> Result<()> {
-        dst.push(
-            self.table
-                .to_arrow(&self.dictionary, selection)
-                .context(NamedTableError {
-                    table_name: self.table_name.as_ref(),
-                })?,
-        );
+        dst.push(self.table.to_arrow(selection).context(NamedTableError {
+            table_name: self.table_name.as_ref(),
+        })?);
         Ok(())
     }
 
@@ -200,7 +174,7 @@ impl Chunk {
     pub fn table_summary(&self) -> TableSummary {
         TableSummary {
             name: self.table_name.to_string(),
-            columns: self.table.stats(&self.dictionary),
+            columns: self.table.stats(),
         }
     }
 
@@ -209,25 +183,14 @@ impl Chunk {
     ///
     /// Note: This does not include the size of any cached ChunkSnapshot
     pub fn size(&self) -> usize {
-        self.table.size() + self.dictionary.size()
+        // TODO: Better accounting of non-column data (#1565)
+        self.table.size() + self.table_name.len()
     }
 
     /// Returns an iterator over (column_name, estimated_size) for all
     /// columns in this chunk.
-    ///
-    /// NOTE: also returns a special "__dictionary" column with the size of
-    /// the dictionary that is shared across all columns in this chunk
     pub fn column_sizes(&self) -> impl Iterator<Item = (&str, usize)> + '_ {
-        self.table
-            .column_sizes()
-            .map(move |(did, sz)| {
-                let column_name = self
-                    .dictionary
-                    .lookup_id(*did)
-                    .expect("column name in dictionary");
-                (column_name, sz)
-            })
-            .chain(std::iter::once(("__dictionary", self.dictionary.size())))
+        self.table.column_sizes()
     }
 
     /// Return the number of rows in this chunk
@@ -274,10 +237,10 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use arrow_util::assert_batches_eq;
 
     use super::test_helpers::write_lp_to_chunk;
+    use super::*;
 
     #[test]
     fn writes_table_batches() {
