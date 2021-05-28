@@ -146,11 +146,12 @@ impl DbChunk {
         })
     }
 
-    /// Return object store paths
-    pub fn object_store_paths(&self) -> Vec<Path> {
+    /// Return the Path in ObjectStorage where this chunk is
+    /// persisted, if any
+    pub fn object_store_path(&self) -> Option<Path> {
         match &self.state {
-            State::ParquetFile { chunk } => vec![chunk.table_path()],
-            _ => vec![],
+            State::ParquetFile { chunk } => Some(chunk.table_path()),
+            _ => None,
         }
     }
 }

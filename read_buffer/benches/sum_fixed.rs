@@ -1,11 +1,12 @@
 use std::mem::size_of;
 
+use arrow::array::PrimitiveArray;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::prelude::*;
 
 use arrow::datatypes::*;
-use read_buffer::benchmarks::Fixed;
-use read_buffer::benchmarks::FixedNull;
+
+use read_buffer::benchmarks::{ByteTrimmer, Fixed, FixedNull, NoOpTranscoder, ScalarEncoding};
 
 const ROWS: [usize; 5] = [10, 100, 1_000, 10_000, 60_000];
 const CHUNKS: [Chunks; 4] = [
@@ -84,8 +85,9 @@ fn benchmark_none_sum(
 
                         match enc_type {
                             EncType::Fixed => {
-                                let encoding = Fixed::<i64>::from(
-                                    (0..num_rows as i64).collect::<Vec<i64>>().as_slice(),
+                                let encoding = Fixed::<i64, i64, _>::new(
+                                    (0..num_rows as i64).collect::<Vec<i64>>(),
+                                    NoOpTranscoder {},
                                 );
 
                                 group.bench_with_input(
@@ -97,14 +99,17 @@ fn benchmark_none_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum::<i64>(&input);
+                                            let _ = encoding.sum(&input);
                                         });
                                     },
                                 );
                             }
                             EncType::FixedNull => {
-                                let encoding = FixedNull::<Int64Type>::from(
-                                    (0..num_rows as i64).collect::<Vec<i64>>().as_slice(),
+                                let encoding = FixedNull::<Int64Type, i64, _>::new(
+                                    PrimitiveArray::from(
+                                        (0..num_rows as i64).collect::<Vec<i64>>(),
+                                    ),
+                                    ByteTrimmer {},
                                 );
 
                                 group.bench_with_input(
@@ -116,7 +121,7 @@ fn benchmark_none_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum::<i64>(&input);
+                                            let _ = encoding.sum(&input);
                                         });
                                     },
                                 );
@@ -129,8 +134,9 @@ fn benchmark_none_sum(
 
                         match enc_type {
                             EncType::Fixed => {
-                                let encoding = Fixed::<i32>::from(
-                                    (0..num_rows as i32).collect::<Vec<i32>>().as_slice(),
+                                let encoding = Fixed::<i32, i64, _>::new(
+                                    (0..num_rows as i32).collect::<Vec<i32>>(),
+                                    ByteTrimmer {},
                                 );
 
                                 group.bench_with_input(
@@ -142,14 +148,17 @@ fn benchmark_none_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum::<i64>(&input);
+                                            let _ = encoding.sum(&input);
                                         });
                                     },
                                 );
                             }
                             EncType::FixedNull => {
-                                let encoding = FixedNull::<Int32Type>::from(
-                                    (0..num_rows as i32).collect::<Vec<i32>>().as_slice(),
+                                let encoding = FixedNull::<Int32Type, i64, _>::new(
+                                    PrimitiveArray::from(
+                                        (0..num_rows as i32).collect::<Vec<i32>>(),
+                                    ),
+                                    ByteTrimmer {},
                                 );
 
                                 group.bench_with_input(
@@ -161,7 +170,7 @@ fn benchmark_none_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum::<i64>(&input);
+                                            let _ = encoding.sum(&input);
                                         });
                                     },
                                 );
@@ -174,8 +183,9 @@ fn benchmark_none_sum(
 
                         match enc_type {
                             EncType::Fixed => {
-                                let encoding = Fixed::<i16>::from(
-                                    (0..num_rows as i16).collect::<Vec<i16>>().as_slice(),
+                                let encoding = Fixed::<i16, i64, _>::new(
+                                    (0..num_rows as i16).collect::<Vec<i16>>(),
+                                    ByteTrimmer {},
                                 );
 
                                 group.bench_with_input(
@@ -187,14 +197,17 @@ fn benchmark_none_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum::<i64>(&input);
+                                            let _ = encoding.sum(&input);
                                         });
                                     },
                                 );
                             }
                             EncType::FixedNull => {
-                                let encoding = FixedNull::<Int16Type>::from(
-                                    (0..num_rows as i16).collect::<Vec<i16>>().as_slice(),
+                                let encoding = FixedNull::<Int16Type, i64, _>::new(
+                                    PrimitiveArray::from(
+                                        (0..num_rows as i16).collect::<Vec<i16>>(),
+                                    ),
+                                    ByteTrimmer {},
                                 );
 
                                 group.bench_with_input(
@@ -206,7 +219,7 @@ fn benchmark_none_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum::<i64>(&input);
+                                            let _ = encoding.sum(&input);
                                         });
                                     },
                                 );

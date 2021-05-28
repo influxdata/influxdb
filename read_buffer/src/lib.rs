@@ -22,7 +22,10 @@ pub use table::ReadFilterResults;
 /// It should not be imported into any non-testing or benchmarking crates.
 pub mod benchmarks {
     pub use crate::column::{
-        cmp::Operator, encoding::scalar::Fixed, encoding::scalar::FixedNull, encoding::string,
+        cmp::Operator,
+        encoding::scalar::transcoders::*,
+        encoding::scalar::{Fixed, FixedNull, ScalarEncoding},
+        encoding::string,
         Column, RowIDs,
     };
     pub use crate::row_group::{ColumnType, RowGroup};
