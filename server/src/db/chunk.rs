@@ -228,27 +228,12 @@ impl PartitionChunk for DbChunk {
                 .table_schema(table_name, selection)
                 .context(MutableBufferChunk),
             State::ReadBuffer { chunk, .. } => {
-                // TODO: Andrew -- I think technically this reordering
-                // should be happening inside the read buffer, but
-                // we'll see when we get to read_filter as the same
-                // issue will appear when actually reading columns
-                // back
-                let needs_sort = matches!(selection, Selection::All);
-
                 // Get the expected output schema for the read_filter operation
-                let mut schema = chunk
+                chunk
                     .read_filter_table_schema(table_name, selection)
                     .context(ReadBufferChunkError {
                         chunk_id: self.id(),
-                    })?;
-
-                // Ensure the order of the output columns is as
-                // specified
-                if needs_sort {
-                    schema = schema.sort_fields_by_name()
-                }
-
-                Ok(schema)
+                    })
             }
             State::ParquetFile { chunk, .. } => {
                 chunk
