@@ -773,6 +773,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		},
 		DeleteService:          deleteService,
 		BackupService:          backupService,
+		SqlBackupService:       m.sqlStore,
 		RestoreService:         restoreService,
 		AuthorizationService:   authSvc,
 		AuthorizationV1Service: authSvcV1,

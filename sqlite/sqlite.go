@@ -2,13 +2,17 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
 	"strconv"
 	"sync"
 
-	// sqlite3 driver
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/jmoiron/sqlx"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 
 	"go.uber.org/zap"
 )
@@ -72,6 +76,90 @@ func (s *SqlStore) Flush(ctx context.Context) {
 		}
 	}
 	s.log.Debug("sqlite data flushed successfully")
+}
+
+// BackupSqlStore creates a new temporary database and uses the sqlite backup API
+// to back the database up into the temporary database. It then writes the temporary
+// database file to the writer. Using the sqlite backup API allows the backup to be
+// performed without needing to lock the database, and also allows it to work with
+// in-memory databases. See: https://www.sqlite.org/backup.html
+//
+// The backup works by copying the SOURCE database to the DESTINATION database.
+// The SOURCE is the running database that needs to be backed up, and the DESTINATION
+// is the resulting backup. The underlying sqlite connection is needed for both
+// SOURCE and DESTINATION databases to use the sqlite backup API made available by the
+// go-sqlite3 driver.
+func (s *SqlStore) BackupSqlStore(ctx context.Context, w io.Writer) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	// create a destination db in a temporary directory to hold the backup.
+	tempDir, err := ioutil.TempDir("", "")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tempDir)
+
+	destPath := tempDir + "/" + DefaultFilename
+	dest, err := NewSqlStore(destPath, zap.NewNop())
+	if err != nil {
+		return err
+	}
+
+	// get the connection for the destination so we can get the underlying sqlite connection
+	destConn, err := dest.DB.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer destConn.Close()
+
+	// get the sqlite connection for the destination to access the sqlite backup API
+	destSqliteConn, err := sqliteFromSqlConn(destConn)
+	if err != nil {
+		return err
+	}
+
+	// get the connection for the source database so we can get the underlying sqlite connection
+	srcConn, err := s.DB.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer srcConn.Close()
+
+	// get the sqlite connection for the source to access the sqlite backup API
+	srcSqliteConn, err := sqliteFromSqlConn(srcConn)
+	if err != nil {
+		return err
+	}
+
+	// call Backup on the destination sqlite connection - which initializes the backup
+	bk, err := destSqliteConn.Backup("main", srcSqliteConn, "main")
+	if err != nil {
+		return err
+	}
+
+	// perform the backup
+	_, err = bk.Step(-1)
+	if err != nil {
+		return err
+	}
+
+	// close the backup once it's done
+	err = bk.Finish()
+	if err != nil {
+		return err
+	}
+
+	// open the backup file so it can be copied to the destination writer
+	f, err := os.Open(destPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// copy the backup to the destination writer
+	_, err = io.Copy(w, f)
+	return err
 }
 
 func (s *SqlStore) execTrans(ctx context.Context, stmt string) error {
@@ -140,4 +228,18 @@ func (s *SqlStore) queryToStrings(stmt string) ([]string, error) {
 	}
 
 	return output, nil
+}
+
+// sqliteFromSqlConn returns the underlying sqlite3 connection from an sql connection
+func sqliteFromSqlConn(c *sql.Conn) (*sqlite3.SQLiteConn, error) {
+	var sqliteConn *sqlite3.SQLiteConn
+	err := c.Raw(func(driverConn interface{}) error {
+		sqliteConn = driverConn.(*sqlite3.SQLiteConn)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return sqliteConn, nil
 }

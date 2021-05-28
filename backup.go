@@ -21,6 +21,10 @@ type BackupService interface {
 	BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error
 }
 
+type SqlBackupService interface {
+	BackupSqlStore(ctx context.Context, w io.Writer) error
+}
+
 // RestoreService represents the data restore functions of InfluxDB.
 type RestoreService interface {
 	// RestoreKVStore restores & replaces metadata database.

@@ -64,6 +64,7 @@ type APIBackend struct {
 	PointsWriter                    storage.PointsWriter
 	DeleteService                   influxdb.DeleteService
 	BackupService                   influxdb.BackupService
+	SqlBackupService                influxdb.SqlBackupService
 	RestoreService                  influxdb.RestoreService
 	AuthorizationService            influxdb.AuthorizationService
 	AuthorizationV1Service          influxdb.AuthorizationService
@@ -199,6 +200,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	backupBackend := NewBackupBackend(b)
 	backupBackend.BackupService = authorizer.NewBackupService(backupBackend.BackupService)
+	backupBackend.SqlBackupService = authorizer.NewSqlBackupService(backupBackend.SqlBackupService)
 	h.Mount(prefixBackup, NewBackupHandler(backupBackend))
 
 	restoreBackend := NewRestoreBackend(b)
