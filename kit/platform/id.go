@@ -154,7 +154,7 @@ func (i ID) Value() (driver.Value, error) {
 func (i *ID) Scan(value interface{}) error {
 	switch v := value.(type) {
 	case int64:
-		return i.DecodeFromString(strconv.Itoa(int(v)))
+		return i.DecodeFromString(strconv.FormatInt(v, 10))
 	case string:
 		return i.DecodeFromString(v)
 	default:
