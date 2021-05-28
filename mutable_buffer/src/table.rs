@@ -14,7 +14,8 @@ use internal_types::{
     selection::Selection,
 };
 
-use crate::{column, column::Column};
+use crate::column;
+use crate::column::Column;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

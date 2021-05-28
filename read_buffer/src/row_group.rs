@@ -29,6 +29,7 @@ use datafusion::{
 };
 use internal_types::schema::{InfluxColumnType, Schema};
 use internal_types::selection::Selection;
+use std::num::NonZeroU64;
 
 /// The name used for a timestamp column.
 pub const TIME_COLUMN_NAME: &str = internal_types::schema::TIME_COLUMN_NAME;
@@ -83,6 +84,7 @@ impl RowGroup {
                         schema::ColumnType::Tag(name.clone()),
                         c.logical_datatype(),
                         c.column_range(),
+                        c.cardinality(),
                     );
 
                     all_columns_by_name.insert(name.clone(), all_columns.len());
@@ -97,6 +99,7 @@ impl RowGroup {
                         schema::ColumnType::Field(name.clone()),
                         c.logical_datatype(),
                         c.column_range(),
+                        c.cardinality(),
                     );
                     all_columns_by_name.insert(name.clone(), all_columns.len());
                     all_columns.push(c);
@@ -110,6 +113,7 @@ impl RowGroup {
                         schema::ColumnType::Timestamp(name.clone()),
                         c.logical_datatype(),
                         c.column_range(),
+                        c.cardinality(),
                     );
 
                     all_columns_by_name.insert(name.clone(), all_columns.len());
@@ -1449,12 +1453,21 @@ pub enum ColumnType {
 }
 
 impl ColumnType {
-    // The total size in bytes of the column
+    /// The total size in bytes of the column
     pub fn size(&self) -> usize {
         match &self {
             Self::Tag(c) => c.size(),
             Self::Field(c) => c.size(),
             Self::Time(c) => c.size(),
+        }
+    }
+
+    /// The number of distinct values if known
+    pub fn distinct_count(&self) -> Option<NonZeroU64> {
+        match &self {
+            Self::Tag(c) => c.cardinality(),
+            Self::Field(c) => c.cardinality(),
+            Self::Time(c) => c.cardinality(),
         }
     }
 
@@ -1474,6 +1487,7 @@ pub struct ColumnMeta {
     pub typ: crate::schema::ColumnType,
     pub logical_data_type: LogicalDataType,
     pub range: (OwnedValue, OwnedValue),
+    pub distinct_count: Option<NonZeroU64>,
 }
 
 impl ColumnMeta {
@@ -1603,6 +1617,7 @@ impl MetaData {
         col_type: schema::ColumnType,
         logical_data_type: LogicalDataType,
         range: (OwnedValue, OwnedValue),
+        distinct_count: Option<NonZeroU64>,
     ) {
         self.column_names.push(name.to_owned());
         self.columns.insert(
@@ -1611,6 +1626,7 @@ impl MetaData {
                 typ: col_type,
                 logical_data_type,
                 range,
+                distinct_count,
             },
         );
         self.columns_size += column_size;
@@ -3206,6 +3222,7 @@ west,host-c,pro,10,6
                 OwnedValue::String("east".to_owned()),
                 OwnedValue::String("west".to_owned()),
             ),
+            distinct_count: Some(NonZeroU64::new(233).unwrap()),
         };
 
         let col2 = ColumnMeta {
@@ -3215,6 +3232,7 @@ west,host-c,pro,10,6
                 OwnedValue::String("north".to_owned()),
                 OwnedValue::String("west".to_owned()),
             ),
+            distinct_count: Some(NonZeroU64::new(233).unwrap()),
         };
 
         let col3 = ColumnMeta {
@@ -3224,6 +3242,7 @@ west,host-c,pro,10,6
                 OwnedValue::String("east".to_owned()),
                 OwnedValue::String("west".to_owned()),
             ),
+            distinct_count: None,
         };
 
         assert_eq!(col1, col2);

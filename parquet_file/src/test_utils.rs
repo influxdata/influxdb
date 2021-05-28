@@ -189,6 +189,7 @@ fn create_column_tag(
             min: Some(data.iter().flatten().min().unwrap().to_string()),
             max: Some(data.iter().flatten().max().unwrap().to_string()),
             count: data.iter().map(Vec::len).sum::<usize>() as u64,
+            distinct_count: None,
         }),
     });
 
@@ -208,10 +209,16 @@ fn create_column_field_string(
         arrow_cols,
         summaries,
         schema_builder,
-        |StatValues { min, max, count }| {
+        |StatValues {
+             min,
+             max,
+             count,
+             distinct_count,
+         }| {
             Statistics::String(StatValues {
                 min: Some(min.unwrap().to_string()),
                 max: Some(max.unwrap().to_string()),
+                distinct_count,
                 count,
             })
         },
@@ -285,6 +292,7 @@ fn create_column_field_f64(
                 .max_by(|a, b| a.partial_cmp(b).unwrap())
                 .cloned(),
             count: data.iter().map(Vec::len).sum::<usize>() as u64,
+            distinct_count: None,
         }),
     });
 
@@ -338,6 +346,7 @@ where
             min: data.iter().flatten().min().cloned(),
             max: data.iter().flatten().max().cloned(),
             count: data.iter().map(Vec::len).sum::<usize>() as u64,
+            distinct_count: None,
         }),
     });
 
@@ -368,6 +377,7 @@ fn create_column_timestamp(
             min,
             max,
             count: data.iter().map(Vec::len).sum::<usize>() as u64,
+            distinct_count: None,
         }),
     });
 

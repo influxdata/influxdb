@@ -18,6 +18,8 @@ use boolean::BooleanEncoding;
 use encoding::bool;
 use float::FloatEncoding;
 use integer::IntegerEncoding;
+use std::convert::TryInto;
+use std::num::NonZeroU64;
 use string::StringEncoding;
 
 /// The possible logical types that column values can have. All values in a
@@ -88,6 +90,14 @@ impl Column {
 
                 meta_size + data.size()
             }
+        }
+    }
+
+    /// The number of distinct values if known
+    pub fn cardinality(&self) -> Option<NonZeroU64> {
+        match &self {
+            Self::String(_, data) => (data.cardinality() as u64).try_into().ok(),
+            _ => None,
         }
     }
 

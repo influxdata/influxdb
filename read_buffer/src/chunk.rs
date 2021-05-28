@@ -750,6 +750,7 @@ mod test {
     };
     use arrow::array::DictionaryArray;
     use arrow::datatypes::Int32Type;
+    use std::num::NonZeroU64;
 
     // helper to make the `add_remove_tables` test simpler to read.
     fn gen_recordbatch() -> RecordBatch {
@@ -1167,20 +1168,12 @@ mod test {
                 ColumnSummary {
                     name: "active".into(),
                     influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::Bool(StatValues {
-                        min: Some(false),
-                        max: Some(true),
-                        count: 3,
-                    }),
+                    stats: Statistics::Bool(StatValues::new(Some(false), Some(true), 3)),
                 },
                 ColumnSummary {
                     name: "counter".into(),
                     influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::U64(StatValues {
-                        min: Some(1000),
-                        max: Some(5000),
-                        count: 3,
-                    }),
+                    stats: Statistics::U64(StatValues::new(Some(1000), Some(5000), 3)),
                 },
                 ColumnSummary {
                     name: "env".into(),
@@ -1189,16 +1182,13 @@ mod test {
                         min: Some("dev".into()),
                         max: Some("prod".into()),
                         count: 3,
+                        distinct_count: Some(NonZeroU64::new(2).unwrap()),
                     }),
                 },
                 ColumnSummary {
                     name: "icounter".into(),
                     influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::I64(StatValues {
-                        min: Some(-1000),
-                        max: Some(4000),
-                        count: 3,
-                    }),
+                    stats: Statistics::I64(StatValues::new(Some(-1000), Some(4000), 3)),
                 },
                 ColumnSummary {
                     name: "msg".into(),
@@ -1207,25 +1197,18 @@ mod test {
                         min: Some("msg a".into()),
                         max: Some("msg b".into()),
                         count: 3,
+                        distinct_count: Some(NonZeroU64::new(3).unwrap()),
                     }),
                 },
                 ColumnSummary {
                     name: "temp".into(),
                     influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::F64(StatValues {
-                        min: Some(10.0),
-                        max: Some(30000.0),
-                        count: 3,
-                    }),
+                    stats: Statistics::F64(StatValues::new(Some(10.0), Some(30000.0), 3)),
                 },
                 ColumnSummary {
                     name: "time".into(),
                     influxdb_type: Some(InfluxDbType::Timestamp),
-                    stats: Statistics::I64(StatValues {
-                        min: Some(3333),
-                        max: Some(11111111),
-                        count: 3,
-                    }),
+                    stats: Statistics::I64(StatValues::new(Some(3333), Some(11111111), 3)),
                 },
             ],
         }];

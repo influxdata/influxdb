@@ -17,6 +17,7 @@ use entry::Column as EntryColumn;
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, TIME_DATA_TYPE};
 
 use crate::dictionary::{Dictionary, DID, INVALID_DID};
+use std::convert::TryInto;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations)]
@@ -260,8 +261,17 @@ impl Column {
             ColumnData::I64(_, stats) => Statistics::I64(stats.clone()),
             ColumnData::U64(_, stats) => Statistics::U64(stats.clone()),
             ColumnData::Bool(_, stats) => Statistics::Bool(stats.clone()),
-            ColumnData::String(_, stats) | ColumnData::Tag(_, _, stats) => {
-                Statistics::String(stats.clone())
+            ColumnData::String(_, stats) => Statistics::String(stats.clone()),
+            ColumnData::Tag(keys, dictionary, stats) => {
+                let mut distinct_count = dictionary.values().len() as u64;
+                if keys.len() as u64 != stats.count {
+                    // Column contains NULLs
+                    distinct_count += 1;
+                }
+
+                let mut stats = stats.clone();
+                stats.distinct_count = distinct_count.try_into().ok();
+                Statistics::String(stats)
             }
         }
     }

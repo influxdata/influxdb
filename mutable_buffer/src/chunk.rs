@@ -237,7 +237,10 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU64;
+
     use arrow_util::assert_batches_eq;
+    use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
 
     use super::test_helpers::write_lp_to_chunk;
     use super::*;
@@ -292,6 +295,68 @@ mod tests {
             ],
             &chunk_to_batches(&chunk)
         );
+    }
+
+    #[test]
+    fn test_summary() {
+        let mut chunk = Chunk::new("cpu", ChunkMetrics::new_unregistered());
+        let lp = r#"
+            cpu,host=a val=23 1
+            cpu,host=b,env=prod val=2 1
+            cpu,host=c,env=stage val=11 1
+            cpu,host=a,env=prod val=14 2
+        "#;
+        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+
+        let summary = chunk.table_summary();
+        assert_eq!(
+            summary,
+            TableSummary {
+                name: "cpu".to_string(),
+                columns: vec![
+                    ColumnSummary {
+                        name: "env".to_string(),
+                        influxdb_type: Some(InfluxDbType::Tag),
+                        stats: Statistics::String(StatValues {
+                            min: Some("prod".to_string()),
+                            max: Some("stage".to_string()),
+                            count: 3,
+                            distinct_count: Some(NonZeroU64::new(3).unwrap())
+                        })
+                    },
+                    ColumnSummary {
+                        name: "host".to_string(),
+                        influxdb_type: Some(InfluxDbType::Tag),
+                        stats: Statistics::String(StatValues {
+                            min: Some("a".to_string()),
+                            max: Some("c".to_string()),
+                            count: 4,
+                            distinct_count: Some(NonZeroU64::new(3).unwrap())
+                        })
+                    },
+                    ColumnSummary {
+                        name: "time".to_string(),
+                        influxdb_type: Some(InfluxDbType::Timestamp),
+                        stats: Statistics::I64(StatValues {
+                            min: Some(1),
+                            max: Some(2),
+                            count: 4,
+                            distinct_count: None
+                        })
+                    },
+                    ColumnSummary {
+                        name: "val".to_string(),
+                        influxdb_type: Some(InfluxDbType::Field),
+                        stats: Statistics::F64(StatValues {
+                            min: Some(2.),
+                            max: Some(23.),
+                            count: 4,
+                            distinct_count: None
+                        })
+                    },
+                ]
+            }
+        )
     }
 
     #[test]

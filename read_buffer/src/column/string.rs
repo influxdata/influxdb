@@ -355,6 +355,14 @@ impl StringEncoding {
         }
     }
 
+    /// The number of distinct logical values in this column encoding.
+    pub fn cardinality(&self) -> u32 {
+        match &self {
+            Self::RleDictionary(c) => c.cardinality(),
+            Self::Dictionary(c) => c.cardinality(),
+        }
+    }
+
     /// Calculate all row ids for each distinct value in the column.
     pub fn group_row_ids(&self) -> Either<Vec<&RowIDs>, Vec<RowIDs>> {
         match self {

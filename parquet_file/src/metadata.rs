@@ -355,6 +355,9 @@ fn extract_iox_statistics(
             Ok(Statistics::Bool(StatValues {
                 min: Some(*stats.min()),
                 max: Some(*stats.max()),
+                distinct_count: parquet_stats
+                    .distinct_count()
+                    .and_then(|x| x.try_into().ok()),
                 count,
             }))
         }
@@ -362,6 +365,9 @@ fn extract_iox_statistics(
             Ok(Statistics::I64(StatValues {
                 min: Some(*stats.min()),
                 max: Some(*stats.max()),
+                distinct_count: parquet_stats
+                    .distinct_count()
+                    .and_then(|x| x.try_into().ok()),
                 count,
             }))
         }
@@ -371,6 +377,9 @@ fn extract_iox_statistics(
             Ok(Statistics::U64(StatValues {
                 min: Some(*stats.min() as u64),
                 max: Some(*stats.max() as u64),
+                distinct_count: parquet_stats
+                    .distinct_count()
+                    .and_then(|x| x.try_into().ok()),
                 count,
             }))
         }
@@ -378,6 +387,9 @@ fn extract_iox_statistics(
             Ok(Statistics::F64(StatValues {
                 min: Some(*stats.min()),
                 max: Some(*stats.max()),
+                distinct_count: parquet_stats
+                    .distinct_count()
+                    .and_then(|x| x.try_into().ok()),
                 count,
             }))
         }
@@ -385,6 +397,9 @@ fn extract_iox_statistics(
             Ok(Statistics::I64(StatValues {
                 min: Some(*stats.min()),
                 max: Some(*stats.max()),
+                distinct_count: parquet_stats
+                    .distinct_count()
+                    .and_then(|x| x.try_into().ok()),
                 count,
             }))
         }
@@ -411,6 +426,9 @@ fn extract_iox_statistics(
                         })?
                         .to_string(),
                 ),
+                distinct_count: parquet_stats
+                    .distinct_count()
+                    .and_then(|x| x.try_into().ok()),
                 count,
             }))
         }
