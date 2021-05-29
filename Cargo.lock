@@ -169,7 +169,6 @@ version = "0.1.0"
 dependencies = [
  "ahash 0.7.4",
  "arrow",
- "futures",
  "hashbrown 0.11.2",
  "num-traits",
  "rand 0.8.3",
@@ -890,7 +889,6 @@ dependencies = [
  "percent-encoding",
  "regex",
  "serde",
- "serde_regex",
  "snafu",
  "test_helpers",
 ]
@@ -1340,7 +1338,6 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "data_types",
- "flatbuffers",
  "futures",
  "google_types",
  "observability_deps",
@@ -1408,7 +1405,6 @@ dependencies = [
  "prost",
  "prost-build",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -1681,7 +1677,6 @@ dependencies = [
  "internal_types",
  "itertools 0.9.0",
  "logfmt",
- "mem_qe",
  "metrics",
  "mutable_buffer",
  "num_cpus",
@@ -1723,7 +1718,6 @@ dependencies = [
  "tonic-reflection",
  "tracing-opentelemetry",
  "tracker",
- "write_buffer",
 ]
 
 [[package]]
@@ -2147,7 +2141,6 @@ dependencies = [
  "snafu",
  "test_helpers",
  "tokio",
- "tracker",
 ]
 
 [[package]]
@@ -2641,7 +2634,6 @@ dependencies = [
  "parquet",
  "parquet-format",
  "prost",
- "prost-types",
  "query",
  "serde",
  "serde_json",
@@ -3200,7 +3192,6 @@ dependencies = [
  "rand_distr",
  "snafu",
  "test_helpers",
- "tracker",
 ]
 
 [[package]]
@@ -3671,16 +3662,6 @@ dependencies = [
  "indexmap",
  "itoa",
  "ryu",
- "serde",
-]
-
-[[package]]
-name = "serde_regex"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8136f1a4ea815d7eac4101cfd0b16dc0cb5e1fe1b8609dfd728058656b7badf"
-dependencies = [
- "regex",
  "serde",
 ]
 
