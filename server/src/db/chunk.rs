@@ -68,6 +68,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct DbChunk {
     id: u32,
+    table_name: Arc<str>,
     state: State,
 }
 
@@ -116,6 +117,7 @@ impl DbChunk {
         };
         Arc::new(Self {
             id: chunk.id(),
+            table_name: chunk.table_name(),
             state,
         })
     }
@@ -139,6 +141,7 @@ impl DbChunk {
         };
         Arc::new(Self {
             id: chunk.id(),
+            table_name: chunk.table_name(),
             state,
         })
     }
@@ -150,6 +153,11 @@ impl DbChunk {
             State::ParquetFile { chunk } => Some(chunk.table_path()),
             _ => None,
         }
+    }
+
+    /// Return the name of the table in this chunk
+    pub fn table_name(&self) -> Arc<str> {
+        Arc::clone(&self.table_name)
     }
 }
 
@@ -218,11 +226,8 @@ impl PartitionChunk for DbChunk {
         ))
     }
 
-    fn table_schema(
-        &self,
-        table_name: &str,
-        selection: Selection<'_>,
-    ) -> Result<Schema, Self::Error> {
+    fn table_schema(&self, selection: Selection<'_>) -> Result<Schema, Self::Error> {
+        let table_name = self.table_name.as_ref();
         match &self.state {
             State::MutableBuffer { chunk, .. } => chunk
                 .table_schema(table_name, selection)
@@ -255,10 +260,10 @@ impl PartitionChunk for DbChunk {
 
     fn read_filter(
         &self,
-        table_name: &str,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
+        let table_name = self.table_name.as_ref();
         // Predicate is not required to be applied for correctness. We only pushed it down
         // when possible for performance gain
 
@@ -305,10 +310,10 @@ impl PartitionChunk for DbChunk {
 
     fn column_names(
         &self,
-        table_name: &str,
         predicate: &Predicate,
         columns: Selection<'_>,
     ) -> Result<Option<StringSet>, Self::Error> {
+        let table_name = self.table_name.as_ref();
         match &self.state {
             State::MutableBuffer { chunk, .. } => {
                 if !predicate.is_empty() {
@@ -346,10 +351,10 @@ impl PartitionChunk for DbChunk {
 
     fn column_values(
         &self,
-        table_name: &str,
         column_name: &str,
         predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error> {
+        let table_name = self.table_name.as_ref();
         match &self.state {
             State::MutableBuffer { .. } => {
                 // There is no advantage to manually implementing this

@@ -244,8 +244,8 @@ impl Chunk {
         self.partition_key.as_ref()
     }
 
-    pub fn table_name(&self) -> &str {
-        self.table_name.as_ref()
+    pub fn table_name(&self) -> Arc<str> {
+        Arc::clone(&self.table_name)
     }
 
     pub fn state(&self) -> &ChunkState {

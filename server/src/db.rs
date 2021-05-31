@@ -1672,9 +1672,9 @@ mod tests {
         // cpu").await; assert_batches_eq!(expected, &batches);
     }
 
-    async fn collect_read_filter(chunk: &DbChunk, table_name: &str) -> Vec<RecordBatch> {
+    async fn collect_read_filter(chunk: &DbChunk) -> Vec<RecordBatch> {
         chunk
-            .read_filter(table_name, &Default::default(), Selection::All)
+            .read_filter(&Default::default(), Selection::All)
             .unwrap()
             .collect::<Vec<_>>()
             .await
@@ -1702,7 +1702,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        let mb = collect_read_filter(&mb_chunk, "cpu").await;
+        let mb = collect_read_filter(&mb_chunk).await;
 
         let rb_chunk = db
             .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id(), &Default::default())
@@ -1735,7 +1735,7 @@ mod tests {
             .sample_sum_eq(3231.0)
             .unwrap();
 
-        let rb = collect_read_filter(&rb_chunk, "cpu").await;
+        let rb = collect_read_filter(&rb_chunk).await;
 
         // Test that data on load into the read buffer is sorted
 
