@@ -1515,6 +1515,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_broken_protobuf() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+
+        // break transaction file
+        assert!(trace.tkeys.len() >= 2);
+        let tkey = &trace.tkeys[0];
+        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let data = Bytes::from("foo");
+        let len = data.len();
+        object_store
+            .put(
+                &path,
+                futures::stream::once(async move { Ok(data) }),
+                Some(len),
+            )
+            .await
+            .unwrap();
+
+        // loading catalog should fail now
+        let res = PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await;
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Error during deserialization: failed to decode Protobuf message: invalid wire type value: 6"
+        );
+    }
+
+    #[tokio::test]
     async fn test_transaction_handle_debug() {
         let object_store = make_object_store();
         let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
