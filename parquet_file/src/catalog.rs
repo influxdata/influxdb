@@ -4,6 +4,7 @@ use std::{
         hash_map::Entry::{Occupied, Vacant},
         HashMap,
     },
+    convert::{Infallible, TryInto},
     fmt::{Debug, Display},
     str::FromStr,
     sync::Arc,
@@ -11,7 +12,7 @@ use std::{
 
 use crate::metadata::{parquet_metadata_to_thrift, thrift_to_parquet_metadata};
 use bytes::Bytes;
-use chrono::{DateTime, FixedOffset, Utc};
+use chrono::{DateTime, Utc};
 use data_types::server_id::ServerId;
 use futures::TryStreamExt;
 use generated_types::influxdata::iox::catalog::v1 as proto;
@@ -166,8 +167,11 @@ pub enum Error {
     #[snafu(display("Catalog already exists"))]
     AlreadyExists {},
 
+    #[snafu(display("Datetime required but missing"))]
+    DateTimeRequired {},
+
     #[snafu(display("Cannot parse datetime: {}", source))]
-    DateTimeParseError { source: chrono::ParseError },
+    DateTimeParseError { source: Infallible },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -678,13 +682,14 @@ fn unparse_dirs_and_filename(path: &DirsAndFileName) -> proto::Path {
     }
 }
 
-/// Parse timestamp encoded as [RFC 3339].
-///
-/// [RFC 3339]: https://datatracker.ietf.org/doc/html/rfc3339
-fn parse_timestamp(s: &str) -> Result<DateTime<Utc>> {
-    Ok(DateTime::<Utc>::from(
-        DateTime::<FixedOffset>::parse_from_rfc3339(s).context(DateTimeParseError)?,
-    ))
+/// Parse timestamp from protobuf.
+fn parse_timestamp(
+    ts: &Option<generated_types::google::protobuf::Timestamp>,
+) -> Result<DateTime<Utc>> {
+    let ts: generated_types::google::protobuf::Timestamp =
+        ts.as_ref().context(DateTimeRequired)?.clone();
+    let ts: DateTime<Utc> = ts.try_into().unwrap();
+    Ok(ts)
 }
 
 /// Key to address transactions.
@@ -728,7 +733,7 @@ where
                 uuid: uuid.to_string(),
                 revision_counter,
                 previous_uuid,
-                start_timestamp: Utc::now().to_rfc3339(),
+                start_timestamp: Some(Utc::now().into()),
             },
         }
     }
@@ -1691,7 +1696,7 @@ mod tests {
         let tkey = &trace.tkeys[0];
         let path = transaction_path(&object_store, server_id, db_name, tkey);
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
-        proto.start_timestamp = String::new();
+        proto.start_timestamp = None;
         store_transaction_proto(&object_store, &path, &proto)
             .await
             .unwrap();
@@ -1706,7 +1711,7 @@ mod tests {
         .await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Cannot parse datetime: premature end of input"
+            "Datetime required but missing"
         );
     }
 
@@ -2148,7 +2153,7 @@ mod tests {
         let tkey = &trace.tkeys[0];
         let path = transaction_path(&object_store, server_id, db_name, tkey);
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
-        proto.start_timestamp = String::new();
+        proto.start_timestamp = None;
         store_transaction_proto(&object_store, &path, &proto)
             .await
             .unwrap();

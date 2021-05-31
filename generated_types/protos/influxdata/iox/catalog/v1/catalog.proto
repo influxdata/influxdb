@@ -1,6 +1,8 @@
 syntax = "proto3";
 package influxdata.iox.catalog.v1;
 
+import "google/protobuf/timestamp.proto";
+
 // Path for object store interaction.
 message Path {
     // Directory hierarchy.
@@ -72,8 +74,6 @@ message Transaction {
 
     // Start timestamp.
     //
-    // Timestamp of the start of the transaction encoded as [RFC 3339].
-    //
-    // [RFC 3339]: https://datatracker.ietf.org/doc/html/rfc3339
-    string start_timestamp = 6;
+    // Timestamp of the start of the transaction.
+    google.protobuf.Timestamp start_timestamp = 6;
 }
