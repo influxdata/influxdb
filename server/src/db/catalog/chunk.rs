@@ -573,7 +573,7 @@ impl Chunk {
         }
     }
 
-    /// Set the chunk to the MovingToObjectStore state
+    /// Start lifecycle action that should move the chunk into the _persisted_ stage.
     pub fn set_writing_to_object_store(
         &mut self,
         registration: &TaskRegistration,
