@@ -12,12 +12,6 @@ pub enum Error {
     #[snafu(display("Error preparing query {}", source))]
     Preparing { source: crate::exec::context::Error },
 
-    #[snafu(display("Invalid sql query: {} : {}", query, source))]
-    InvalidSqlQuery {
-        query: String,
-        source: sqlparser::parser::ParserError,
-    },
-
     #[snafu(display("Internal Error creating memtable for table {}: {}", table, source))]
     InternalMemTableCreation {
         table: String,
