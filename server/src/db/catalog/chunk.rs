@@ -73,7 +73,7 @@ pub struct ChunkStageFrozen {
 pub struct ChunkStagePersisted {
     /// Parquet chunk that lives immutable within the object store.
     pub parquet: Arc<ParquetChunk>,
-    
+
     /// In-memory version of the parquet data.
     pub read_buffer: Option<Arc<ReadBufferChunk>>,
 }
