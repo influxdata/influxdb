@@ -11,6 +11,7 @@ use std::{
 
 use crate::metadata::{parquet_metadata_to_thrift, thrift_to_parquet_metadata};
 use bytes::Bytes;
+use chrono::{DateTime, FixedOffset, Utc};
 use data_types::server_id::ServerId;
 use futures::TryStreamExt;
 use generated_types::influxdata::iox::catalog::v1 as proto;
@@ -164,6 +165,9 @@ pub enum Error {
 
     #[snafu(display("Catalog already exists"))]
     AlreadyExists {},
+
+    #[snafu(display("Cannot parse datetime: {}", source))]
+    DateTimeParseError { source: chrono::ParseError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -645,6 +649,15 @@ fn unparse_dirs_and_filename(path: &DirsAndFileName) -> proto::Path {
     }
 }
 
+/// Parse timestamp encoded as [RFC 3339].
+///
+/// [RFC 3339]: https://datatracker.ietf.org/doc/html/rfc3339
+fn parse_timestamp(s: &str) -> Result<DateTime<Utc>> {
+    Ok(DateTime::<Utc>::from(
+        DateTime::<FixedOffset>::parse_from_rfc3339(s).context(DateTimeParseError)?,
+    ))
+}
+
 /// Key to address transactions.
 #[derive(Clone, Debug)]
 struct TransactionKey {
@@ -686,6 +699,7 @@ where
                 uuid: uuid.to_string(),
                 revision_counter,
                 previous_uuid,
+                start_timestamp: Utc::now().to_rfc3339(),
             },
         }
     }
@@ -818,6 +832,7 @@ where
             }
             .fail()?;
         }
+        parse_timestamp(&proto.start_timestamp)?;
 
         // apply
         for action in &proto.actions {
@@ -1596,6 +1611,37 @@ mod tests {
         assert_eq!(
             res.unwrap_err().to_string(),
             "Upgrade path not implemented/supported: foo",
+        );
+    }
+
+    #[tokio::test]
+    async fn test_missing_start_timestamp() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+
+        // break transaction file
+        assert!(trace.tkeys.len() >= 2);
+        let tkey = &trace.tkeys[0];
+        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        proto.start_timestamp = String::new();
+        store_transaction_proto(&object_store, &path, &proto)
+            .await
+            .unwrap();
+
+        // loading catalog should fail now
+        let res = PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await;
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Cannot parse datetime: premature end of input"
         );
     }
 

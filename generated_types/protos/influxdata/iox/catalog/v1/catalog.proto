@@ -69,4 +69,11 @@ message Transaction {
 
     // UUID of last commit.
     string previous_uuid = 5;
+
+    // Start timestamp.
+    //
+    // Timestamp of the start of the transaction encoded as [RFC 3339].
+    //
+    // [RFC 3339]: https://datatracker.ietf.org/doc/html/rfc3339
+    string start_timestamp = 6;
 }
