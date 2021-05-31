@@ -57,10 +57,8 @@ impl LifecycleManager {
 trait ChunkMover {
     type Job: Send + Sync + 'static;
 
-    /// Returns the size of a chunk - overridden for testing
-    fn chunk_size(chunk: &Chunk) -> usize {
-        chunk.size()
-    }
+    /// Return the in-memory size of the database
+    fn buffer_size(&self) -> usize;
 
     /// Return the name of the database
     fn db_name(&self) -> &str;
@@ -106,8 +104,6 @@ trait ChunkMover {
 
         let mut open_partitions: HashSet<String> = HashSet::new();
 
-        let mut buffer_size = 0;
-
         // Only want to start a new move/write task if there isn't one already in-flight
         //
         // Fetch the trackers for tasks created by previous loop iterations. If the trackers exist
@@ -127,8 +123,6 @@ trait ChunkMover {
 
         for chunk in &chunks {
             let chunk_guard = chunk.read();
-
-            buffer_size += Self::chunk_size(&*chunk_guard);
 
             let would_move = can_move(&rules, &*chunk_guard, now);
             let would_write = write_tracker.is_none() && rules.persist;
@@ -191,7 +185,14 @@ trait ChunkMover {
         if let Some(soft_limit) = rules.buffer_size_soft {
             let mut chunks = chunks.iter();
 
-            while buffer_size > soft_limit.get() {
+            loop {
+                let buffer_size = self.buffer_size();
+                if buffer_size < soft_limit.get() {
+                    break;
+                }
+
+                // Dropping chunks that are kept in memory by queries frees no memory
+                // TODO: LRU drop policy
                 match chunks.next() {
                     Some(chunk) => {
                         let chunk_guard = chunk.read();
@@ -207,8 +208,6 @@ trait ChunkMover {
                             let partition_key = chunk_guard.key().to_string();
                             let table_name = chunk_guard.table_name().to_string();
                             let chunk_id = chunk_guard.id();
-                            buffer_size =
-                                buffer_size.saturating_sub(Self::chunk_size(&*chunk_guard));
 
                             std::mem::drop(chunk_guard);
 
@@ -270,6 +269,10 @@ async fn wait_optional_tracker<Job: Send + Sync + 'static>(tracker: Option<TaskT
 
 impl ChunkMover for LifecycleManager {
     type Job = Job;
+
+    fn buffer_size(&self) -> usize {
+        self.db.catalog.state().metrics().memory().total()
+    }
 
     fn db_name(&self) -> &str {
         &self.db_name
@@ -509,9 +512,9 @@ mod tests {
     impl ChunkMover for DummyMover {
         type Job = ();
 
-        fn chunk_size(_: &Chunk) -> usize {
+        fn buffer_size(&self) -> usize {
             // All chunks are 20 bytes
-            20
+            self.chunks.len() * 20
         }
 
         fn db_name(&self) -> &str {
