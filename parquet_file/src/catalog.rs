@@ -213,6 +213,35 @@ pub trait CatalogState {
     fn remove(&self, path: DirsAndFileName) -> Result<()>;
 }
 
+/// Find last transaction-start-timestamp.
+///
+/// This method is designed to read and verify as little as possible and should also work on most broken catalogs.
+pub async fn find_last_transaction_timestamp(
+    object_store: &ObjectStore,
+    server_id: ServerId,
+    db_name: &str,
+) -> Result<Option<DateTime<Utc>>> {
+    let mut res = None;
+    for (path, _revision_counter, _uuid) in
+        list_transaction_files(object_store, server_id, db_name).await?
+    {
+        match load_transaction_proto(object_store, &path).await {
+            Ok(proto) => match parse_timestamp(&proto.start_timestamp) {
+                Ok(ts) => {
+                    res = Some(res.map_or(ts, |res: DateTime<Utc>| res.max(ts)));
+                }
+                Err(e) => warn!("Cannot parse timestamp from {:?}: {}", path, e),
+            },
+            Err(e @ Error::Read { .. }) => {
+                // bubble up IO error
+                return Err(e);
+            }
+            Err(e) => warn!("Cannot read transaction from {:?}: {}", path, e),
+        }
+    }
+    Ok(res)
+}
+
 /// Inner mutable part of the preserved catalog.
 struct PreservedCatalogInner<S>
 where
@@ -2076,6 +2105,90 @@ mod tests {
 
         t.transaction.as_mut().unwrap().proto.uuid = Uuid::nil().to_string();
         assert_eq!(t.uuid(), Uuid::nil());
+    }
+
+    #[tokio::test]
+    async fn test_find_last_transaction_timestamp_ok() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+        assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+
+        assert!(
+            find_last_transaction_timestamp(&object_store, server_id, db_name)
+                .await
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_find_last_transaction_timestamp_empty() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+
+        assert!(
+            find_last_transaction_timestamp(&object_store, server_id, db_name)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_find_last_transaction_timestamp_datetime_broken() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+
+        // break transaction file
+        assert!(trace.tkeys.len() >= 2);
+        let tkey = &trace.tkeys[0];
+        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        proto.start_timestamp = String::new();
+        store_transaction_proto(&object_store, &path, &proto)
+            .await
+            .unwrap();
+
+        assert!(
+            find_last_transaction_timestamp(&object_store, server_id, db_name)
+                .await
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_find_last_transaction_timestamp_protobuf_broken() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+
+        // break transaction file
+        assert!(trace.tkeys.len() >= 2);
+        let tkey = &trace.tkeys[0];
+        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let data = Bytes::from("foo");
+        let len = data.len();
+        object_store
+            .put(
+                &path,
+                futures::stream::once(async move { Ok(data) }),
+                Some(len),
+            )
+            .await
+            .unwrap();
+
+        assert!(
+            find_last_transaction_timestamp(&object_store, server_id, db_name)
+                .await
+                .unwrap()
+                .is_some()
+        );
     }
 
     async fn assert_catalog_roundtrip_works(
