@@ -30,7 +30,7 @@ use uuid::Uuid;
 /// Current version for serialized transactions.
 ///
 /// For breaking changes, this will change.
-pub const TRANSACTION_VERSION: u32 = 1;
+pub const TRANSACTION_VERSION: u32 = 2;
 
 /// File suffix for transaction files in object store.
 pub const TRANSACTION_FILE_SUFFIX: &str = "txn";
@@ -1323,7 +1323,7 @@ mod tests {
         .await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Format version of transaction file for revision 2 is 42 but only [1] are supported"
+            format!("Format version of transaction file for revision 2 is 42 but only [{}] are supported", TRANSACTION_VERSION)
         );
     }
 
