@@ -2614,3 +2614,27 @@ func ValidKeyTokens(name string, tags Tags) bool {
 
 	return ValidTagTokens(tags)
 }
+
+var (
+	errInvalidUTF8     = errors.New("invalid UTF-8 sequence")
+	errNonPrintable    = errors.New("non-printable character")
+	errReplacementChar = fmt.Errorf("unicode replacement char %q cannot be used", unicode.ReplacementChar)
+)
+
+// CheckToken returns an error when the given token is invalid
+// for use as a tag or value key or measurement name.
+func CheckToken(a []byte) error {
+	if !utf8.Valid(a) {
+		return errInvalidUTF8
+	}
+
+	for _, r := range string(a) {
+		if !unicode.IsPrint(r) {
+			return errNonPrintable
+		}
+		if r == unicode.ReplacementChar {
+			return errReplacementChar
+		}
+	}
+	return nil
+}
