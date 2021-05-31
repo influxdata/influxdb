@@ -9,7 +9,7 @@ use data_types::{database_rules::LifecycleRules, error::ErrorLogger, job::Job};
 use tracker::{RwLock, TaskTracker};
 
 use super::{
-    catalog::chunk::{Chunk, ChunkState},
+    catalog::chunk::{Chunk, ChunkStage, ChunkStageFrozen, ChunkStageFrozenRepr},
     Db,
 };
 use data_types::database_rules::SortOrder;
@@ -137,8 +137,8 @@ trait ChunkMover {
                 continue;
             }
 
-            match chunk_guard.state() {
-                ChunkState::Open(_) => {
+            match chunk_guard.stage() {
+                ChunkStage::Open(_) => {
                     open_partitions.insert(chunk_guard.key().to_string());
                     if move_tracker.is_none() && would_move {
                         let partition_key = chunk_guard.key().to_string();
@@ -151,37 +151,30 @@ trait ChunkMover {
                             Some(self.move_to_read_buffer(partition_key, table_name, chunk_id));
                     }
                 }
-                ChunkState::Closed(_) if move_tracker.is_none() => {
-                    let partition_key = chunk_guard.key().to_string();
-                    let table_name = chunk_guard.table_name().to_string();
-                    let chunk_id = chunk_guard.id();
+                ChunkStage::Frozen(stage) => match &stage.representation {
+                    ChunkStageFrozenRepr::MutableBufferSnapshot(_) if move_tracker.is_none() => {
+                        let partition_key = chunk_guard.key().to_string();
+                        let table_name = chunk_guard.table_name().to_string();
+                        let chunk_id = chunk_guard.id();
 
-                    std::mem::drop(chunk_guard);
+                        std::mem::drop(chunk_guard);
 
-                    move_tracker =
-                        Some(self.move_to_read_buffer(partition_key, table_name, chunk_id));
-                }
-                ChunkState::Moved(_) if would_write => {
-                    let partition_key = chunk_guard.key().to_string();
-                    let table_name = chunk_guard.table_name().to_string();
-                    let chunk_id = chunk_guard.id();
+                        move_tracker =
+                            Some(self.move_to_read_buffer(partition_key, table_name, chunk_id));
+                    }
+                    ChunkStageFrozenRepr::ReadBuffer(_) if would_write => {
+                        let partition_key = chunk_guard.key().to_string();
+                        let table_name = chunk_guard.table_name().to_string();
+                        let chunk_id = chunk_guard.id();
 
-                    std::mem::drop(chunk_guard);
+                        std::mem::drop(chunk_guard);
 
-                    write_tracker =
-                        Some(self.write_to_object_store(partition_key, table_name, chunk_id));
-                }
-                // todo: This will be needed when we hook unload_read_buffer into the life cycle
-                // ChunkState::WrittenToObjectStore(_,_) if would_unload => {
-                //     let partition_key = chunk_guard.key().to_string();
-                //     let table_name = chunk_guard.table_name().to_string();
-                //     let chunk_id = chunk_guard.id();
-
-                //     std::mem::drop(chunk_guard);
-
-                //     unload_tracker =
-                //         Some(self.unload_read_buffer(partition_key, table_name, chunk_id));
-                // }
+                        write_tracker =
+                            Some(self.write_to_object_store(partition_key, table_name, chunk_id));
+                    }
+                    _ => {}
+                },
+                // TODO: unload read buffer (https://github.com/influxdata/influxdb_iox/issues/1400)
                 _ => {}
             }
 
@@ -201,8 +194,13 @@ trait ChunkMover {
                         }
 
                         if (rules.drop_non_persisted
-                            && matches!(chunk_guard.state(), ChunkState::Moved(_)))
-                            || matches!(chunk_guard.state(), ChunkState::WrittenToObjectStore(_, _))
+                            && matches!(
+                                chunk_guard.stage(),
+                                ChunkStage::Frozen(ChunkStageFrozen {
+                                    representation: ChunkStageFrozenRepr::ReadBuffer(_)
+                                })
+                            ))
+                            || matches!(chunk_guard.stage(), ChunkStage::Persisted(_))
                         {
                             let partition_key = chunk_guard.key().to_string();
                             let table_name = chunk_guard.table_name().to_string();

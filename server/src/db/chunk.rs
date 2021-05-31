@@ -90,28 +90,32 @@ impl DbChunk {
     pub fn snapshot(chunk: &super::catalog::chunk::Chunk) -> Arc<Self> {
         let partition_key = Arc::from(chunk.key());
 
-        use super::catalog::chunk::ChunkState;
+        use super::catalog::chunk::{ChunkStage, ChunkStageFrozenRepr};
 
-        let state = match chunk.state() {
-            ChunkState::Open(chunk) => State::MutableBuffer {
-                chunk: chunk.snapshot(),
+        let state = match chunk.stage() {
+            ChunkStage::Open(stage) => State::MutableBuffer {
+                chunk: stage.mb_chunk.snapshot(),
             },
-            ChunkState::Closed(chunk) => State::MutableBuffer {
-                chunk: Arc::clone(chunk),
+            ChunkStage::Frozen(stage) => match &stage.representation {
+                ChunkStageFrozenRepr::MutableBufferSnapshot(repr) => State::MutableBuffer {
+                    chunk: Arc::clone(repr),
+                },
+                ChunkStageFrozenRepr::ReadBuffer(repr) => State::ReadBuffer {
+                    chunk: Arc::clone(repr),
+                    partition_key,
+                },
             },
-            ChunkState::Moved(chunk) => State::ReadBuffer {
-                chunk: Arc::clone(chunk),
-                partition_key,
-            },
-            ChunkState::WrittenToObjectStore(chunk, _) => State::ReadBuffer {
-                // Since data exists in both read buffer and object store, we should
-                // snapshot the chunk of read buffer
-                chunk: Arc::clone(chunk),
-                partition_key,
-            },
-            ChunkState::ObjectStoreOnly(chunk) => {
-                let chunk = Arc::clone(chunk);
-                State::ParquetFile { chunk }
+            ChunkStage::Persisted(stage) => {
+                if let Some(read_buffer) = &stage.read_buffer {
+                    State::ReadBuffer {
+                        chunk: Arc::clone(read_buffer),
+                        partition_key,
+                    }
+                } else {
+                    State::ParquetFile {
+                        chunk: Arc::clone(&stage.parquet),
+                    }
+                }
             }
         };
         Arc::new(Self {
@@ -126,15 +130,15 @@ impl DbChunk {
     /// reason we have this function is because the above snapshot
     /// function always returns the read buffer one for the same state
     pub fn parquet_file_snapshot(chunk: &super::catalog::chunk::Chunk) -> Arc<Self> {
-        use super::catalog::chunk::ChunkState;
+        use super::catalog::chunk::ChunkStage;
 
-        let state = match chunk.state() {
-            ChunkState::WrittenToObjectStore(_, chunk) => {
-                let chunk = Arc::clone(chunk);
+        let state = match chunk.stage() {
+            ChunkStage::Persisted(stage) => {
+                let chunk = Arc::clone(&stage.parquet);
                 State::ParquetFile { chunk }
             }
             _ => {
-                panic!("Internal error: This chunk's state is not WrittenToObjectStore");
+                panic!("Internal error: This chunk's stage is not Persisted");
             }
         };
         Arc::new(Self {
