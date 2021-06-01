@@ -245,6 +245,7 @@ impl Chunk {
             chunk.rows() > 0,
             ChunkIsEmpty {
                 partition_key: partition_key.as_ref(),
+                table_name: chunk.table_name().as_ref(),
                 chunk_id,
             }
         );
@@ -773,6 +774,39 @@ mod tests {
         chunk::Chunk as ParquetChunk,
         test_utils::{make_chunk as make_parquet_chunk_with_store, make_object_store},
     };
+
+    #[test]
+    fn test_new_open() {
+        let server_id = ServerId::try_from(1).unwrap();
+        let table_name = "table1";
+        let partition_key = "part1";
+        let chunk_id = 0;
+
+        // works with non-empty MBChunk
+        let mb_chunk = make_mb_chunk(table_name, server_id);
+        let chunk = Chunk::new_open(
+            chunk_id,
+            partition_key,
+            mb_chunk,
+            ChunkMetrics::new_unregistered(),
+        )
+        .unwrap();
+        assert!(matches!(chunk.stage(), &ChunkStage::Open(_)));
+
+        // fails with empty MBChunk
+        let mb_chunk = MBChunk::new(table_name, MBChunkMetrics::new_unregistered());
+        assert_eq!(
+            Chunk::new_open(
+                chunk_id,
+                partition_key,
+                mb_chunk,
+                ChunkMetrics::new_unregistered(),
+            )
+            .unwrap_err()
+            .to_string(),
+            "Cannot add an empty chunk to the catalog part1:table1:0"
+        );
+    }
 
     #[tokio::test]
     async fn test_freeze() {
