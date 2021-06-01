@@ -134,14 +134,9 @@ impl Chunk {
         self.table.full_schema()
     }
 
-    // Return all tables of this chunk whose timestamp overlaps with the give one
-    pub fn table_names(
-        &self,
-        timestamp_range: Option<TimestampRange>,
-    ) -> impl Iterator<Item = String> + '_ {
-        std::iter::once(&self.table)
-            .filter(move |table| table.matches_predicate(&timestamp_range))
-            .map(|table| table.name().to_string())
+    // Return true if the table in this chunk contains values within the time range
+    pub fn has_timerange(&self, timestamp_range: Option<&TimestampRange>) -> bool {
+        self.table.matches_predicate(timestamp_range)
     }
 
     // Return the columns names that belong to the given column

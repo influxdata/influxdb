@@ -14,7 +14,7 @@ use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBa
 use crate::exec::Executor;
 use crate::{
     exec::stringset::{StringSet, StringSetRef},
-    Database, DatabaseStore, PartitionChunk, Predicate,
+    Database, DatabaseStore, PartitionChunk, Predicate, PredicateMatch,
 };
 
 use internal_types::{
@@ -133,6 +133,9 @@ pub struct TestChunk {
 
     /// A saved error that is returned instead of actual results
     saved_error: Option<String>,
+
+    /// Return value for apply_predicate, if desired
+    predicate_match: Option<PredicateMatch>,
 }
 
 impl TestChunk {
@@ -147,6 +150,12 @@ impl TestChunk {
     /// specified
     pub fn with_error(mut self, error_message: impl Into<String>) -> Self {
         self.saved_error = Some(error_message.into());
+        self
+    }
+
+    /// specify that any call to apply_predicate should return this value
+    pub fn with_predicate_match(mut self, predicate_match: PredicateMatch) -> Self {
+        self.predicate_match = Some(predicate_match);
         self
     }
 
@@ -307,6 +316,10 @@ impl PartitionChunk for TestChunk {
         self.id
     }
 
+    fn table_name(&self) -> &str {
+        self.table_name.as_deref().unwrap()
+    }
+
     fn read_filter(
         &self,
         predicate: &Predicate,
@@ -322,29 +335,31 @@ impl PartitionChunk for TestChunk {
         Ok(Box::pin(stream))
     }
 
-    fn table_names(
-        &self,
-        predicate: &Predicate,
-        _known_tables: &StringSet,
-    ) -> Result<Option<StringSet>, Self::Error> {
+    fn apply_predicate(&self, predicate: &Predicate) -> Result<PredicateMatch> {
         self.check_error()?;
 
         // save the predicate
         self.predicates.lock().push(predicate.clone());
 
-        // do basic filtering based on table name predicate.
+        // check if there is a saved result to return
+        if let Some(&predicate_match) = self.predicate_match.as_ref() {
+            return Ok(predicate_match);
+        }
 
-        Ok(self
+        // otherwise fall back to basic filtering based on table name predicate.
+        let predicate_match = self
             .table_name
             .as_ref()
-            .filter(|table_name| predicate.should_include_table(&table_name))
-            .map(|table_name| std::iter::once(table_name.to_string()).collect::<StringSet>()))
-    }
+            .map(|table_name| {
+                if !predicate.should_include_table(&table_name) {
+                    PredicateMatch::Zero
+                } else {
+                    PredicateMatch::Unknown
+                }
+            })
+            .unwrap_or(PredicateMatch::Unknown);
 
-    fn all_table_names(&self, known_tables: &mut StringSet) {
-        if let Some(table_name) = self.table_name.as_ref() {
-            known_tables.insert(table_name.to_string());
-        }
+        Ok(predicate_match)
     }
 
     fn table_schema(&self, selection: Selection<'_>) -> Result<Schema, Self::Error> {
@@ -364,13 +379,6 @@ impl PartitionChunk for TestChunk {
     ) -> Result<Option<StringSet>, Self::Error> {
         // Model not being able to get column values from metadata
         Ok(None)
-    }
-
-    fn has_table(&self, table_name: &str) -> bool {
-        self.table_name
-            .as_ref()
-            .map(|n| n == table_name)
-            .unwrap_or(false)
     }
 
     fn column_names(

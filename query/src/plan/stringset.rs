@@ -101,6 +101,14 @@ impl StringSetPlanBuilder {
         &self.strings
     }
 
+    /// Append the name of a table to the known strings
+    pub fn append_table(mut self, table_name: &str) -> Self {
+        if !self.strings.contains(table_name) {
+            self.strings.insert(table_name.to_string());
+        }
+        self
+    }
+
     /// Append the strings from the passed plan into ourselves if possible, or
     /// passes on the plan
     pub fn append(mut self, other: StringSetPlan) -> Self {
