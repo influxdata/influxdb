@@ -2095,12 +2095,14 @@ mod tests {
         assert!(matches!(
             chunks[0].read().stage(),
             ChunkStage::Frozen(ChunkStageFrozen {
+                meta: _,
                 representation: ChunkStageFrozenRepr::MutableBufferSnapshot(_)
             })
         ));
         assert!(matches!(
             chunks[1].read().stage(),
             ChunkStage::Frozen(ChunkStageFrozen {
+                meta: _,
                 representation: ChunkStageFrozenRepr::MutableBufferSnapshot(_)
             })
         ));
@@ -2952,7 +2954,8 @@ mod tests {
                 chunk.stage(),
                 ChunkStage::Persisted(ChunkStagePersisted {
                     parquet: _,
-                    read_buffer: None
+                    read_buffer: None,
+                    meta: _,
                 })
             ));
         }

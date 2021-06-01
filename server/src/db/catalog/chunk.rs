@@ -5,6 +5,7 @@ use data_types::{
     chunk_metadata::{ChunkColumnSummary, ChunkStorage, ChunkSummary, DetailedChunkSummary},
     partition_metadata::TableSummary,
 };
+use internal_types::schema::Schema;
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, Chunk as MBChunk};
 use parquet_file::chunk::Chunk as ParquetChunk;
 use read_buffer::Chunk as ReadBufferChunk;
@@ -37,6 +38,17 @@ impl ChunkLifecycleAction {
     }
 }
 
+// Closed chunks have cached information about their schema and statistics
+#[derive(Debug, Clone)]
+pub struct ChunkMetadata {
+    /// The TableSummary, including statistics, for the table in this
+    /// Chunk
+    pub table_summary: Arc<TableSummary>,
+
+    /// The schema for the table in this Chunk
+    pub schema: Arc<Schema>,
+}
+
 /// A chunk in an _open_ stage.
 ///
 /// Chunks in this stage are writable (= can receive new data) and are never preserved.
@@ -64,6 +76,9 @@ pub enum ChunkStageFrozenRepr {
 /// or more chunks and creates a single new frozen chunk.
 #[derive(Debug)]
 pub struct ChunkStageFrozen {
+    /// Metadata (statistics, schema) about this chunk
+    pub meta: Arc<ChunkMetadata>,
+
     /// Internal memory representation of the frozen chunk.
     pub representation: ChunkStageFrozenRepr,
 }
@@ -71,6 +86,9 @@ pub struct ChunkStageFrozen {
 /// Chunk in _persisted_ stage.
 #[derive(Debug)]
 pub struct ChunkStagePersisted {
+    /// Metadata (statistics, schema) about this chunk
+    pub meta: Arc<ChunkMetadata>,
+
     /// Parquet chunk that lives immutable within the object store.
     pub parquet: Arc<ParquetChunk>,
 
@@ -163,10 +181,6 @@ pub struct Chunk {
     /// The metrics for this chunk
     metrics: ChunkMetrics,
 
-    /// The TableSummary, including statistics, for the table in this
-    /// Chunk, if known
-    table_summary: Option<Arc<TableSummary>>,
-
     /// Time at which the first data was written into this chunk. Note
     /// this is not the same as the timestamps on the data itself
     time_of_first_write: Option<DateTime<Utc>>,
@@ -236,8 +250,8 @@ impl Chunk {
         );
 
         let table_name = Arc::clone(&chunk.table_name());
-        let table_summary = None;
         let stage = ChunkStage::Open(ChunkStageOpen { mb_chunk: chunk });
+
         metrics
             .state
             .inc_with_labels(&[KeyValue::new("state", "open")]);
@@ -249,7 +263,6 @@ impl Chunk {
             stage,
             lifecycle_action: None,
             metrics,
-            table_summary,
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
@@ -275,11 +288,17 @@ impl Chunk {
                 .expect("chunk must have exactly 1 table")
                 .as_ref(),
         );
-        // Cache table summary
-        let table_summary = Some(Arc::clone(chunk.table_summary()));
+
+        // Cache table summary + schema
+        let meta = Arc::new(ChunkMetadata {
+            table_summary: Arc::clone(chunk.table_summary()),
+            schema: chunk.full_schema(),
+        });
+
         let stage = ChunkStage::Persisted(ChunkStagePersisted {
             parquet: chunk,
             read_buffer: None,
+            meta,
         });
 
         Self {
@@ -289,7 +308,6 @@ impl Chunk {
             stage,
             lifecycle_action: None,
             metrics,
-            table_summary,
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
@@ -423,13 +441,8 @@ impl Chunk {
                 // The stats for open chunks change so can't be cached
                 Arc::new(stage.mb_chunk.table_summary())
             }
-            _ => {
-                let table_summary = self
-                    .table_summary
-                    .as_ref()
-                    .expect("Table summary not set for non open chunk");
-                Arc::clone(table_summary)
-            }
+            ChunkStage::Frozen(stage) => Arc::clone(&stage.meta.table_summary),
+            ChunkStage::Persisted(stage) => Arc::clone(&stage.meta.table_summary),
         }
     }
 
@@ -479,12 +492,17 @@ impl Chunk {
                     &[KeyValue::new("state", "closed")],
                 );
 
-                // Cache table summary
-                self.table_summary = Some(Arc::new(stage.mb_chunk.table_summary()));
+                // Cache table summary + schema
+                let metadata = ChunkMetadata {
+                    table_summary: Arc::new(stage.mb_chunk.table_summary()),
+                    schema: s.full_schema(),
+                };
 
                 self.stage = ChunkStage::Frozen(ChunkStageFrozen {
                     representation: ChunkStageFrozenRepr::MutableBufferSnapshot(Arc::clone(&s)),
+                    meta: Arc::new(metadata),
                 });
+
                 Ok(s)
             }
             _ => {
@@ -614,6 +632,7 @@ impl Chunk {
     pub fn set_written_to_object_store(&mut self, chunk: Arc<ParquetChunk>) -> Result<()> {
         match &self.stage {
             ChunkStage::Frozen(stage) => {
+                let meta = Arc::clone(&stage.meta);
                 match &stage.representation {
                     ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
                         // TODO: ideally we would support all Frozen representations
@@ -641,6 +660,7 @@ impl Chunk {
                         );
 
                         self.stage = ChunkStage::Persisted(ChunkStagePersisted {
+                            meta,
                             parquet: chunk,
                             read_buffer: Some(db),
                         });
