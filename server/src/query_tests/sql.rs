@@ -626,9 +626,8 @@ async fn sql_predicate_pushdown() {
         &expected
     );
 
-    // Test 11: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0
-    // After DF ticket, https://github.com/apache/arrow-datafusion/issues/383 is done,
-    // there will be more pushed-down predicate time > to_timestamp('1970-01-01T00:00:00.000000120+00:00')
+    // Test 11: four push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0 and 
+    // time > to_timestamp('1970-01-01T00:00:00.000000120+00:00') (rewritten to time GT int(130))
     //
     // Check correctness
     let expected = vec!["++", "++"];

@@ -303,6 +303,8 @@ impl PartitionChunk for DbChunk {
                         Err(_) => read_buffer::Predicate::default(),
                     };
 
+                debug!("Predicate pushed down to RUB: {:#?}", rb_predicate);
+
                 let read_results = chunk
                     .read_filter(table_name, rb_predicate, selection)
                     .context(ReadBufferChunkError {
