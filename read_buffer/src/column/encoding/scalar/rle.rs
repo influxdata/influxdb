@@ -573,6 +573,40 @@ where
     }
 }
 
+// This function returns an estimated size in bytes for an input slice of `T`
+// were it to be run-length encoded.
+pub fn estimated_size_from<T: PartialOrd>(arr: &[T]) -> usize {
+    let run_lengths = arr.len()
+        - arr
+            .iter()
+            .zip(arr.iter().skip(1))
+            .filter(|(curr, next)| matches!(curr.partial_cmp(next), Some(Ordering::Equal)))
+            .count();
+    run_lengths * size_of::<(u32, Option<T>)>() + size_of::<Vec<(u32, Option<T>)>>()
+}
+
+// This function returns an estimated size in bytes for an input iterator
+// yielding `Option<T>`, were it to be run-length encoded.
+pub fn estimated_size_from_iter<T: PartialOrd>(mut itr: impl Iterator<Item = Option<T>>) -> usize {
+    let mut v = match itr.next() {
+        Some(v) => v,
+        None => return 0,
+    };
+
+    let mut total_rows = 0;
+    for next in itr {
+        if let Some(Ordering::Equal) = v.partial_cmp(&next) {
+            continue;
+        }
+
+        total_rows += 1;
+        v = next;
+    }
+
+    // +1 to account for original run
+    (total_rows + 1) * size_of::<(u32, Option<T>)>() + size_of::<Vec<(u32, Option<T>)>>()
+}
+
 #[cfg(test)]
 mod test {
     use cmp::Operator;
@@ -973,5 +1007,33 @@ mod test {
             assert_eq!(dst.unwrap_vector(), &exp);
         }
         assert_eq!(transcoder.encodings(), calls * 2);
+    }
+
+    #[test]
+    fn estimated_size_from() {
+        let cases = vec![
+            (vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 0.0], 192),
+            (vec![0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], 240),
+            (vec![0.0, 0.0], 48),
+            (vec![1.0, 2.0, 1.0], 96),
+            (vec![1.0, 2.0, 1.0, 1.0], 96),
+            (vec![1.0], 48),
+        ];
+
+        for (input, exp) in cases {
+            assert_eq!(super::estimated_size_from(input.as_slice()), exp);
+        }
+    }
+
+    #[test]
+    fn estimated_size_from_iter() {
+        let cases = vec![
+            (vec![Some(0.0), Some(2.0), Some(1.0)], 96),
+            (vec![Some(0.0), Some(0.0)], 48),
+        ];
+
+        for (input, exp) in cases {
+            assert_eq!(super::estimated_size_from_iter(input.into_iter()), exp);
+        }
     }
 }

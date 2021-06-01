@@ -1,7 +1,8 @@
 use arrow::array::Array;
 use arrow::datatypes::Float64Type;
-use std::{cmp::Ordering, mem::size_of};
+use std::mem::size_of;
 
+use super::encoding::scalar::rle;
 use super::encoding::scalar::transcoders::NoOpTranscoder;
 use super::encoding::scalar::ScalarEncoding;
 use super::encoding::{
@@ -202,36 +203,6 @@ impl std::fmt::Display for FloatEncoding {
     }
 }
 
-// helper to determine how many rows the slice would have if it were RLE
-// encoded.
-fn rle_rows(arr: &[f64]) -> usize {
-    arr.len()
-        - arr
-            .iter()
-            .zip(arr.iter().skip(1))
-            .filter(|(curr, next)| matches!(curr.partial_cmp(next), Some(Ordering::Equal)))
-            .count()
-}
-
-fn rle_rows_opt(mut itr: impl Iterator<Item = Option<f64>>) -> usize {
-    let mut v = match itr.next() {
-        Some(v) => v,
-        None => return 0,
-    };
-
-    let mut total_rows = 0;
-    for next in itr {
-        if let Some(Ordering::Equal) = v.partial_cmp(&next) {
-            continue;
-        }
-
-        total_rows += 1;
-        v = next;
-    }
-
-    total_rows + 1 // account for original run
-}
-
 /// A lever to decide the minimum size in bytes that RLE the column needs to
 /// reduce the overall footprint by. 0.1 means that the size of the column must
 /// be reduced by 10%
@@ -250,7 +221,7 @@ impl From<&[f64]> for FloatEncoding {
         // The number of rows we would reduce the column by if we encoded it
         // as RLE.
         let base_size = arr.len() * size_of::<f64>();
-        let rle_size = rle_rows(arr) * size_of::<(u32, Option<f64>)>(); // size of a run length
+        let rle_size = rle::estimated_size_from(arr); // size of a run length
         if (base_size as f64 - rle_size as f64) / base_size as f64 >= MIN_RLE_SIZE_REDUCTION {
             let enc = Box::new(RLE::new_from_iter(
                 arr.iter().cloned(),
@@ -282,7 +253,7 @@ impl From<arrow::array::Float64Array> for FloatEncoding {
         // The number of rows we would reduce the column by if we encoded it
         // as RLE.
         let base_size = arr.len() * size_of::<f64>();
-        let rle_size = rle_rows_opt(arr.iter()) * size_of::<(u32, Option<f64>)>(); // size of a run length
+        let rle_size = rle::estimated_size_from_iter(arr.iter()); // size of a run length
         if (base_size as f64 - rle_size as f64) / base_size as f64 >= MIN_RLE_SIZE_REDUCTION {
             let enc = Box::new(RLE::new_from_iter_opt(
                 arr.iter(),
@@ -309,34 +280,6 @@ mod test {
     use super::*;
     use crate::column::encoding::scalar::{fixed, fixed_null, rle};
     use cmp::Operator;
-
-    #[test]
-    fn rle_rows() {
-        let cases = vec![
-            (vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 0.0], 7),
-            (vec![0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], 9),
-            (vec![0.0, 0.0], 1),
-            (vec![1.0, 2.0, 1.0], 3),
-            (vec![1.0, 2.0, 1.0, 1.0], 3),
-            (vec![1.0], 1),
-        ];
-
-        for (input, exp) in cases {
-            assert_eq!(super::rle_rows(input.as_slice()), exp);
-        }
-    }
-
-    #[test]
-    fn rle_rows_opt() {
-        let cases = vec![
-            (vec![Some(0.0), Some(2.0), Some(1.0)], 3),
-            (vec![Some(0.0), Some(0.0)], 1),
-        ];
-
-        for (input, exp) in cases {
-            assert_eq!(super::rle_rows_opt(input.into_iter()), exp);
-        }
-    }
 
     #[test]
     fn from_arrow_array() {
