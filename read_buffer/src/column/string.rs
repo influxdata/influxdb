@@ -73,8 +73,8 @@ impl StringEncoding {
     pub(crate) fn storage_stats(&self) -> Statistics {
         Statistics {
             enc_type: match self {
-                Self::RleDictionary(_) => rle::ENCODING_NAME.to_string(),
-                Self::Dictionary(_) => dictionary::ENCODING_NAME.to_string(),
+                Self::RleDictionary(_) => rle::ENCODING_NAME.into(),
+                Self::Dictionary(_) => dictionary::ENCODING_NAME.into(),
             },
             log_data_type: "string",
             values: self.num_rows(),

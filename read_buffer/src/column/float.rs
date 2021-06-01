@@ -48,7 +48,7 @@ impl FloatEncoding {
     // Returns statistics about the physical layout of columns
     pub(crate) fn storage_stats(&self) -> Statistics {
         Statistics {
-            enc_type: self.name().to_string(),
+            enc_type: self.name().into(),
             log_data_type: self.logical_datatype(),
             values: self.num_rows(),
             nulls: self.null_count(),
