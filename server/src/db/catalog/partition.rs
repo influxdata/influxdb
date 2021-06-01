@@ -15,7 +15,7 @@ use tracker::RwLock;
 use crate::db::catalog::metrics::PartitionMetrics;
 
 use super::{
-    chunk::{Chunk, ChunkState},
+    chunk::{Chunk, ChunkStage},
     Error, Result, UnknownChunk, UnknownTable,
 };
 
@@ -197,7 +197,7 @@ impl Partition {
                 .values()
                 .find(|chunk| {
                     let chunk = chunk.read();
-                    matches!(chunk.state(), ChunkState::Open(_))
+                    matches!(chunk.stage(), ChunkStage::Open(_))
                 })
                 .cloned()),
             None => UnknownTable {
