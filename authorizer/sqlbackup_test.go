@@ -41,8 +41,8 @@ func Test_BackupSqlStore(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrlr := gomock.NewController(t)
-			svc := mock.NewMockSqlBackupService(ctrlr)
-			s := authorizer.NewSqlBackupService(svc)
+			svc := mock.NewMockSqlBackupRestoreService(ctrlr)
+			s := authorizer.NewSqlBackupRestoreService(svc)
 
 			w := bytes.NewBuffer([]byte{})
 

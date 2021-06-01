@@ -21,11 +21,11 @@ import (
 func TestBackupMetaService(t *testing.T) {
 	ctrlr := gomock.NewController(t)
 	backupSvc := mock.NewMockBackupService(ctrlr)
-	sqlBackupSvc := mock.NewMockSqlBackupService(ctrlr)
+	sqlBackupSvc := mock.NewMockSqlBackupRestoreService(ctrlr)
 
 	b := &BackupBackend{
-		BackupService:    backupSvc,
-		SqlBackupService: sqlBackupSvc,
+		BackupService:           backupSvc,
+		SqlBackupRestoreService: sqlBackupSvc,
 	}
 	h := NewBackupHandler(b)
 

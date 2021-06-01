@@ -24,7 +24,8 @@ type RestoreBackend struct {
 	Logger *zap.Logger
 	errors.HTTPErrorHandler
 
-	RestoreService influxdb.RestoreService
+	RestoreService          influxdb.RestoreService
+	SqlBackupRestoreService influxdb.SqlBackupRestoreService
 }
 
 // NewRestoreBackend returns a new instance of RestoreBackend.
@@ -32,8 +33,9 @@ func NewRestoreBackend(b *APIBackend) *RestoreBackend {
 	return &RestoreBackend{
 		Logger: b.Logger.With(zap.String("handler", "restore")),
 
-		HTTPErrorHandler: b.HTTPErrorHandler,
-		RestoreService:   b.RestoreService,
+		HTTPErrorHandler:        b.HTTPErrorHandler,
+		RestoreService:          b.RestoreService,
+		SqlBackupRestoreService: b.SqlBackupRestoreService,
 	}
 }
 
@@ -43,12 +45,14 @@ type RestoreHandler struct {
 	errors.HTTPErrorHandler
 	Logger *zap.Logger
 
-	RestoreService influxdb.RestoreService
+	RestoreService          influxdb.RestoreService
+	SqlBackupRestoreService influxdb.SqlBackupRestoreService
 }
 
 const (
 	prefixRestore     = "/api/v2/restore"
 	restoreKVPath     = prefixRestore + "/kv"
+	restoreSqlPath    = prefixRestore + "/sql"
 	restoreBucketPath = prefixRestore + "/buckets/:bucketID"
 	restoreShardPath  = prefixRestore + "/shards/:shardID"
 )
@@ -56,13 +60,15 @@ const (
 // NewRestoreHandler creates a new handler at /api/v2/restore to receive restore requests.
 func NewRestoreHandler(b *RestoreBackend) *RestoreHandler {
 	h := &RestoreHandler{
-		HTTPErrorHandler: b.HTTPErrorHandler,
-		Router:           NewRouter(b.HTTPErrorHandler),
-		Logger:           b.Logger,
-		RestoreService:   b.RestoreService,
+		HTTPErrorHandler:        b.HTTPErrorHandler,
+		Router:                  NewRouter(b.HTTPErrorHandler),
+		Logger:                  b.Logger,
+		RestoreService:          b.RestoreService,
+		SqlBackupRestoreService: b.SqlBackupRestoreService,
 	}
 
 	h.HandlerFunc(http.MethodPost, restoreKVPath, h.handleRestoreKVStore)
+	h.HandlerFunc(http.MethodPost, restoreSqlPath, h.handleRestoreSqlStore)
 	h.HandlerFunc(http.MethodPost, restoreBucketPath, h.handleRestoreBucket)
 	h.HandlerFunc(http.MethodPost, restoreShardPath, h.handleRestoreShard)
 
@@ -76,6 +82,18 @@ func (h *RestoreHandler) handleRestoreKVStore(w http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 
 	if err := h.RestoreService.RestoreKVStore(ctx, r.Body); err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+}
+
+func (h *RestoreHandler) handleRestoreSqlStore(w http.ResponseWriter, r *http.Request) {
+	span, r := tracing.ExtractFromHTTPRequest(r, "RestoreHandler.handleRestoreSqlStore")
+	defer span.Finish()
+
+	ctx := r.Context()
+
+	if err := h.SqlBackupRestoreService.RestoreSqlStore(ctx, r.Body); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}

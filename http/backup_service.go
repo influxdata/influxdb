@@ -25,8 +25,8 @@ type BackupBackend struct {
 	Logger *zap.Logger
 	errors.HTTPErrorHandler
 
-	BackupService    influxdb.BackupService
-	SqlBackupService influxdb.SqlBackupService
+	BackupService           influxdb.BackupService
+	SqlBackupRestoreService influxdb.SqlBackupRestoreService
 }
 
 // NewBackupBackend returns a new instance of BackupBackend.
@@ -34,9 +34,9 @@ func NewBackupBackend(b *APIBackend) *BackupBackend {
 	return &BackupBackend{
 		Logger: b.Logger.With(zap.String("handler", "backup")),
 
-		HTTPErrorHandler: b.HTTPErrorHandler,
-		BackupService:    b.BackupService,
-		SqlBackupService: b.SqlBackupService,
+		HTTPErrorHandler:        b.HTTPErrorHandler,
+		BackupService:           b.BackupService,
+		SqlBackupRestoreService: b.SqlBackupRestoreService,
 	}
 }
 
@@ -46,8 +46,8 @@ type BackupHandler struct {
 	errors.HTTPErrorHandler
 	Logger *zap.Logger
 
-	BackupService    influxdb.BackupService
-	SqlBackupService influxdb.SqlBackupService
+	BackupService           influxdb.BackupService
+	SqlBackupRestoreService influxdb.SqlBackupRestoreService
 }
 
 const (
@@ -62,11 +62,11 @@ const (
 // NewBackupHandler creates a new handler at /api/v2/backup to receive backup requests.
 func NewBackupHandler(b *BackupBackend) *BackupHandler {
 	h := &BackupHandler{
-		HTTPErrorHandler: b.HTTPErrorHandler,
-		Router:           NewRouter(b.HTTPErrorHandler),
-		Logger:           b.Logger,
-		BackupService:    b.BackupService,
-		SqlBackupService: b.SqlBackupService,
+		HTTPErrorHandler:        b.HTTPErrorHandler,
+		Router:                  NewRouter(b.HTTPErrorHandler),
+		Logger:                  b.Logger,
+		BackupService:           b.BackupService,
+		SqlBackupRestoreService: b.SqlBackupRestoreService,
 	}
 
 	h.HandlerFunc(http.MethodGet, backupKVStorePath, h.handleBackupKVStore)
@@ -158,7 +158,7 @@ func (h *BackupHandler) handleBackupMetadata(w http.ResponseWriter, r *http.Requ
 			"sqlite",
 			fmt.Sprintf("%s.sqlite", baseName),
 			func(fw io.Writer) error {
-				return h.SqlBackupService.BackupSqlStore(ctx, fw)
+				return h.SqlBackupRestoreService.BackupSqlStore(ctx, fw)
 			},
 		},
 		{

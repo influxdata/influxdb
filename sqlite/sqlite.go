@@ -162,6 +162,10 @@ func (s *SqlStore) BackupSqlStore(ctx context.Context, w io.Writer) error {
 	return err
 }
 
+func (s *SqlStore) RestoreSqlStore(ctx context.Context, r io.Reader) error {
+	return nil
+}
+
 func (s *SqlStore) execTrans(ctx context.Context, stmt string) error {
 	// use a lock to prevent two potential simultaneous write operations to the database,
 	// which would throw an error

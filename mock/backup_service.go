@@ -65,31 +65,31 @@ func (mr *MockBackupServiceMockRecorder) BackupShard(ctx, w, shardID, since inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackupShard", reflect.TypeOf((*MockBackupService)(nil).BackupShard), ctx, w, shardID, since)
 }
 
-// MockSqlBackupService is a mock of SqlBackupService interface.
-type MockSqlBackupService struct {
+// MockSqlBackupRestoreService is a mock of SqlBackupRestoreService interface.
+type MockSqlBackupRestoreService struct {
 	ctrl     *gomock.Controller
-	recorder *MockSqlBackupServiceMockRecorder
+	recorder *MockSqlBackupRestoreServiceMockRecorder
 }
 
-// MockSqlBackupServiceMockRecorder is the mock recorder for MockSqlBackupService.
-type MockSqlBackupServiceMockRecorder struct {
-	mock *MockSqlBackupService
+// MockSqlBackupRestoreServiceMockRecorder is the mock recorder for MockSqlBackupRestoreService.
+type MockSqlBackupRestoreServiceMockRecorder struct {
+	mock *MockSqlBackupRestoreService
 }
 
-// NewMockSqlBackupService creates a new mock instance.
-func NewMockSqlBackupService(ctrl *gomock.Controller) *MockSqlBackupService {
-	mock := &MockSqlBackupService{ctrl: ctrl}
-	mock.recorder = &MockSqlBackupServiceMockRecorder{mock}
+// NewMockSqlBackupRestoreService creates a new mock instance.
+func NewMockSqlBackupRestoreService(ctrl *gomock.Controller) *MockSqlBackupRestoreService {
+	mock := &MockSqlBackupRestoreService{ctrl: ctrl}
+	mock.recorder = &MockSqlBackupRestoreServiceMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockSqlBackupService) EXPECT() *MockSqlBackupServiceMockRecorder {
+func (m *MockSqlBackupRestoreService) EXPECT() *MockSqlBackupRestoreServiceMockRecorder {
 	return m.recorder
 }
 
 // BackupSqlStore mocks base method.
-func (m *MockSqlBackupService) BackupSqlStore(ctx context.Context, w io.Writer) error {
+func (m *MockSqlBackupRestoreService) BackupSqlStore(ctx context.Context, w io.Writer) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BackupSqlStore", ctx, w)
 	ret0, _ := ret[0].(error)
@@ -97,9 +97,23 @@ func (m *MockSqlBackupService) BackupSqlStore(ctx context.Context, w io.Writer) 
 }
 
 // BackupSqlStore indicates an expected call of BackupSqlStore.
-func (mr *MockSqlBackupServiceMockRecorder) BackupSqlStore(ctx, w interface{}) *gomock.Call {
+func (mr *MockSqlBackupRestoreServiceMockRecorder) BackupSqlStore(ctx, w interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackupSqlStore", reflect.TypeOf((*MockSqlBackupService)(nil).BackupSqlStore), ctx, w)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackupSqlStore", reflect.TypeOf((*MockSqlBackupRestoreService)(nil).BackupSqlStore), ctx, w)
+}
+
+// RestoreSqlStore mocks base method.
+func (m *MockSqlBackupRestoreService) RestoreSqlStore(ctx context.Context, r io.Reader) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RestoreSqlStore", ctx, r)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RestoreSqlStore indicates an expected call of RestoreSqlStore.
+func (mr *MockSqlBackupRestoreServiceMockRecorder) RestoreSqlStore(ctx, r interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreSqlStore", reflect.TypeOf((*MockSqlBackupRestoreService)(nil).RestoreSqlStore), ctx, r)
 }
 
 // MockRestoreService is a mock of RestoreService interface.

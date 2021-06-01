@@ -8,22 +8,22 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
 
-var _ influxdb.SqlBackupService = (*SqlBackupService)(nil)
+var _ influxdb.SqlBackupRestoreService = (*SqlBackupRestoreService)(nil)
 
-// SqlBackupService wraps a influxdb.SqlBackupService and authorizes actions
+// SqlBackupRestoreService wraps a influxdb.SqlBackupRestoreService and authorizes actions
 // against it appropriately.
-type SqlBackupService struct {
-	s influxdb.SqlBackupService
+type SqlBackupRestoreService struct {
+	s influxdb.SqlBackupRestoreService
 }
 
-// NewSqlBackupService constructs an instance of an authorizing backup service.
-func NewSqlBackupService(s influxdb.SqlBackupService) *SqlBackupService {
-	return &SqlBackupService{
+// NewSqlBackupRestoreService constructs an instance of an authorizing backup service.
+func NewSqlBackupRestoreService(s influxdb.SqlBackupRestoreService) *SqlBackupRestoreService {
+	return &SqlBackupRestoreService{
 		s: s,
 	}
 }
 
-func (b SqlBackupService) BackupSqlStore(ctx context.Context, w io.Writer) error {
+func (b SqlBackupRestoreService) BackupSqlStore(ctx context.Context, w io.Writer) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -31,4 +31,8 @@ func (b SqlBackupService) BackupSqlStore(ctx context.Context, w io.Writer) error
 		return err
 	}
 	return b.s.BackupSqlStore(ctx, w)
+}
+
+func (b SqlBackupRestoreService) RestoreSqlStore(ctx context.Context, r io.Reader) error {
+	return nil
 }
