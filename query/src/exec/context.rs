@@ -147,7 +147,6 @@ impl IOxExecutionContext {
     pub fn prepare_sql(&mut self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
         debug!(text=%sql, "SQL");
         let logical_plan = self.inner.sql(sql)?.to_logical_plan();
-
         self.prepare_plan(&logical_plan)
     }
 

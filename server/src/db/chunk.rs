@@ -287,7 +287,7 @@ impl PartitionChunk for DbChunk {
         // Predicate is not required to be applied for correctness. We only pushed it down
         // when possible for performance gain
 
-        println!(" ----- Input Predicate to read_filter: {:#?}", predicate);
+        debug!("Input Predicate to read_filter: {:#?}", predicate);
 
         match &self.state {
             State::MutableBuffer { chunk, .. } => {

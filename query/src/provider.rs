@@ -13,6 +13,7 @@ use datafusion::{
     physical_plan::ExecutionPlan,
 };
 use internal_types::schema::{builder::SchemaMerger, Schema};
+use observability_deps::tracing::debug;
 
 use crate::{predicate::PredicateBuilder, util::project_schema, PartitionChunk};
 
@@ -198,8 +199,7 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> std::result::Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-
-        println!(" ----- Input Filters to Scan: {:#?}", filters);
+        debug!("Input Filters to Scan: {:#?}", filters);
 
         // Note that `filters` don't actually need to be evaluated in
         // the scan for the plans to be correct, they are an extra
