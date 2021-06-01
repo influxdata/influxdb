@@ -2636,6 +2636,8 @@ dependencies = [
  "serde",
  "serde_json",
  "snafu",
+ "tempfile",
+ "test_helpers",
  "thrift",
  "tokio",
  "tokio-stream",
