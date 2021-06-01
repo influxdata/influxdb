@@ -1228,6 +1228,7 @@ impl CatalogState for Catalog {
                     .set_written_to_object_store(parquet_chunk)
                     .map_err(|e| Box::new(e) as _)
                     .context(CatalogStateFailure { path: info.path })?;
+                debug!(%partition_key, %table_name, %chunk_id, "chunk marked WRITTEN. Persisting to object store complete");
             }
             Err(catalog::Error::UnknownTable { .. }) | Err(catalog::Error::UnknownChunk { .. }) => {
                 // table unknown => that's ok, create chunk in "object store only" stage which will also create the table
@@ -1238,6 +1239,7 @@ impl CatalogState for Catalog {
                     .create_object_store_only_chunk(chunk_id, parquet_chunk)
                     .map_err(|e| Box::new(e) as _)
                     .context(CatalogStateFailure { path: info.path })?;
+                debug!(%partition_key, %table_name, %chunk_id, "recovered chunk from persisted catalog");
             }
             Err(e) => {
                 // Other unknown error => bail
@@ -1248,7 +1250,6 @@ impl CatalogState for Catalog {
             }
         }
 
-        debug!(%partition_key, %table_name, %chunk_id, "chunk marked WRITTEN. Persisting to object store complete");
         Ok(())
     }
 
