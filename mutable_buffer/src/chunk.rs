@@ -120,13 +120,6 @@ impl Chunk {
         Ok(())
     }
 
-    // Add the table name in this chunk to `names` if it is not already present
-    pub fn all_table_names(&self, names: &mut BTreeSet<String>) {
-        if !names.contains(self.table_name.as_ref()) {
-            names.insert(self.table_name.to_string());
-        }
-    }
-
     /// Returns a queryable snapshot of this chunk
     #[cfg(not(feature = "nocache"))]
     pub fn snapshot(&self) -> Arc<ChunkSnapshot> {

@@ -902,7 +902,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=d9b044787ce465e2597f9ab37f601ae8515921ee#d9b044787ce465e2597f9ab37f601ae8515921ee"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=c794f2df539a10524566cb02b6158ee46cb1459a#c794f2df539a10524566cb02b6158ee46cb1459a"
 dependencies = [
  "ahash 0.7.4",
  "arrow",
@@ -3242,11 +3242,10 @@ dependencies = [
 
 [[package]]
 name = "regex-automata"
-version = "0.1.9"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae1ded71d66a4a97f5e961fd0cb25a5f366a42a41570d16a763a69c092c26ae4"
+checksum = "6c230d73fb8d8c1b9c0b3135c5142a8acee3a0558fb8db5cf1cb65f8d7862132"
 dependencies = [
- "byteorder",
  "regex-syntax",
 ]
 

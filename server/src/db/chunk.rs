@@ -12,7 +12,11 @@ use mutable_buffer::chunk::snapshot::ChunkSnapshot;
 use object_store::path::Path;
 use observability_deps::tracing::debug;
 use parquet_file::chunk::Chunk as ParquetChunk;
-use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
+use query::{
+    exec::stringset::StringSet,
+    predicate::{Predicate, PredicateMatch},
+    PartitionChunk,
+};
 use read_buffer::Chunk as ReadBufferChunk;
 
 use super::{
@@ -196,26 +200,35 @@ impl PartitionChunk for DbChunk {
         self.id
     }
 
-    fn all_table_names(&self, known_tables: &mut StringSet) {
-        // TODO remove this function (use name from TableSummary directly!)
-        let table_name = &self.meta.table_summary.name;
-        if !known_tables.contains(table_name) {
-            known_tables.insert(table_name.to_string());
-        }
+    fn table_name(&self) -> &str {
+        self.table_name.as_ref()
     }
 
-    fn table_names(
-        &self,
-        predicate: &Predicate,
-        _known_tables: &StringSet, // TODO: Should this be being used?
-    ) -> Result<Option<StringSet>, Self::Error> {
-        let names = match &self.state {
+    fn apply_predicate(&self, predicate: &Predicate) -> Result<PredicateMatch> {
+        if !predicate.should_include_table(self.table_name().as_ref()) {
+            return Ok(PredicateMatch::Zero);
+        }
+
+        // TODO apply predicate pruning here...
+
+        let pred_result = match &self.state {
             State::MutableBuffer { chunk, .. } => {
                 if predicate.has_exprs() {
                     // TODO: Support more predicates
-                    return Ok(None);
+                    PredicateMatch::Unknown
+                } else if chunk.has_timerange(&predicate.range) {
+                    // Note: this isn't precise / correct: if the
+                    // chunk has the timerange, some other part of the
+                    // predicate may rule out the rows, and thus
+                    // without further work this clause should return
+                    // "Unknown" rather than falsely claiming that
+                    // there is at least one row:
+                    //
+                    // https://github.com/influxdata/influxdb_iox/issues/1590
+                    PredicateMatch::AtLeastOne
+                } else {
+                    PredicateMatch::Zero
                 }
-                chunk.table_names(predicate.range)
             }
             State::ReadBuffer { chunk, .. } => {
                 // If not supported, ReadBuffer can't answer with
@@ -224,23 +237,35 @@ impl PartitionChunk for DbChunk {
                     Ok(rb_predicate) => rb_predicate,
                     Err(e) => {
                         debug!(?predicate, %e, "read buffer predicate not supported for table_names, falling back");
-                        return Ok(None);
+                        return Ok(PredicateMatch::Unknown);
                     }
                 };
 
-                chunk.table_names(&rb_predicate, &BTreeSet::new())
+                // TODO align API in read_buffer
+                let table_names = chunk.table_names(&rb_predicate, &BTreeSet::new());
+                if !table_names.is_empty() {
+                    // As above, this should really be "Unknown" rather than AtLeastOne
+                    // for precision / correctness.
+                    PredicateMatch::AtLeastOne
+                } else {
+                    PredicateMatch::Zero
+                }
             }
-            State::ParquetFile { chunk, .. } => chunk.table_names(predicate.range).collect(),
+            State::ParquetFile { chunk, .. } => {
+                if predicate.has_exprs() {
+                    // TODO: Support more predicates
+                    PredicateMatch::Unknown
+                } else if chunk.has_timerange(predicate.range.as_ref()) {
+                    // As above, this should really be "Unknown" rather than AtLeastOne
+                    // for precision / correctness.
+                    PredicateMatch::AtLeastOne
+                } else {
+                    PredicateMatch::Zero
+                }
+            }
         };
 
-        // Prune out tables that should not be
-        // present (based on additional table restrictions of the Predicate)
-        Ok(Some(
-            names
-                .into_iter()
-                .filter(|table_name| predicate.should_include_table(table_name))
-                .collect(),
-        ))
+        Ok(pred_result)
     }
 
     fn table_schema(&self, selection: Selection<'_>) -> Result<Schema, Self::Error> {
@@ -251,10 +276,6 @@ impl PartitionChunk for DbChunk {
                 self.meta.schema.project(&columns)
             }
         })
-    }
-
-    fn has_table(&self, table_name: &str) -> bool {
-        table_name == self.meta.table_summary.name
     }
 
     fn read_filter(

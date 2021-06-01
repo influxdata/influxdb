@@ -110,7 +110,7 @@ impl Table {
     }
 
     // Check if 2 time ranges overlap
-    pub fn matches_predicate(&self, timestamp_range: &Option<TimestampRange>) -> bool {
+    pub fn matches_predicate(&self, timestamp_range: Option<&TimestampRange>) -> bool {
         match (self.timestamp_range, timestamp_range) {
             (Some(a), Some(b)) => !a.disjoint(b),
             (None, Some(_)) => false, /* If this chunk doesn't have a time column it can't match */

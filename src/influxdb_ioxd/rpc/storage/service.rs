@@ -1171,7 +1171,7 @@ mod tests {
     use super::*;
     use datafusion::logical_plan::{col, lit, Expr};
     use panic_logging::SendPanicsToTracing;
-    use query::{test::TestChunk, test::TestDatabaseStore};
+    use query::{predicate::PredicateMatch, test::TestChunk, test::TestDatabaseStore};
     use std::{
         convert::TryFrom,
         net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -1252,8 +1252,13 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk0 = TestChunk::new(0).with_table("h2o");
-        let chunk1 = TestChunk::new(1).with_table("o2");
+        let chunk0 = TestChunk::new(0)
+            .with_predicate_match(PredicateMatch::AtLeastOne)
+            .with_table("h2o");
+
+        let chunk1 = TestChunk::new(1)
+            .with_predicate_match(PredicateMatch::AtLeastOne)
+            .with_table("o2");
 
         fixture
             .test_storage
@@ -1409,7 +1414,9 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+        let chunk = TestChunk::new(0)
+            .with_table("my_table")
+            .with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -1535,6 +1542,7 @@ mod tests {
 
         let chunk = TestChunk::new(0)
             // predicate specifies m4, so this is filtered out
+            .with_table("my_table")
             .with_error("This is an error");
 
         fixture
@@ -1640,7 +1648,9 @@ mod tests {
             tag_key: [0].into(),
         };
 
-        let chunk = TestChunk::new(0).with_table("h2o");
+        let chunk = TestChunk::new(0)
+            .with_predicate_match(PredicateMatch::AtLeastOne)
+            .with_table("h2o");
 
         fixture
             .test_storage
@@ -1717,7 +1727,9 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+        let chunk = TestChunk::new(0)
+            .with_table("my_table")
+            .with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -1835,7 +1847,9 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+        let chunk = TestChunk::new(0)
+            .with_table("my_table")
+            .with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -1985,7 +1999,9 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+        let chunk = TestChunk::new(0)
+            .with_table("my_table")
+            .with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -2077,7 +2093,9 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+        let chunk = TestChunk::new(0)
+            .with_table("my_table")
+            .with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -2287,7 +2305,9 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+        let chunk = TestChunk::new(0)
+            .with_table("my_table")
+            .with_error("Sugar we are going down");
 
         fixture
             .test_storage
