@@ -470,7 +470,7 @@ impl Db {
             })?
         {
             let mut chunk = chunk.write();
-            chunk.set_closed().context(RollingOverPartition {
+            chunk.freeze().context(RollingOverPartition {
                 partition_key,
                 table_name,
             })?;
@@ -1091,7 +1091,7 @@ fn check_chunk_closed(chunk: &mut CatalogChunk, mutable_size_threshold: Option<N
             let size = mb_chunk.size();
 
             if size > threshold.get() {
-                chunk.set_closed().expect("cannot close open chunk");
+                chunk.freeze().expect("cannot close open chunk");
             }
         }
     }
