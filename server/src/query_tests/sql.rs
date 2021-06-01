@@ -670,3 +670,51 @@ async fn sql_predicate_pushdown() {
         &expected
     );
 }
+
+
+#[tokio::test]
+async fn sql_deduplicate() {
+
+    // This current expected is wring because deduplicate is not available yet
+    let expected = vec![
+        "+-------------------------------+-------+---------+----------+----------+------+",
+        "| time                          | state | city    | min_temp | max_temp | area |",
+        "+-------------------------------+-------+---------+----------+----------+------+",
+        "| 1970-01-01 00:00:00.000000050 | MA    | Boston  | 70.4     |          |      |",
+        "| 1970-01-01 00:00:00.000000150 | MA    | Bedford |          | 78.75    | 742  |",
+        "| 1970-01-01 00:00:00.000000150 | MA    | Bedford | 71.59    |          |      |", // duplicate
+        "| 1970-01-01 00:00:00.000000250 | MA    | Andover |          | 69.2     |      |",
+        "| 1970-01-01 00:00:00.000000250 | MA    | Boston  |          | 75.4     |      |",
+        "| 1970-01-01 00:00:00.000000250 | MA    | Boston  | 65.4     |          |      |", // duplicate
+        "| 1970-01-01 00:00:00.000000250 | MA    | Reading | 53.4     |          |      |",
+        "| 1970-01-01 00:00:00.000000300 | CA    | SF      | 79       | 87.2     | 500  |",
+        "| 1970-01-01 00:00:00.000000300 | CA    | SJ      | 78.5     | 88       |      |", // duplicate
+        "| 1970-01-01 00:00:00.000000350 | CA    | SJ      | 75.5     | 84.08    |      |",
+        "| 1970-01-01 00:00:00.000000400 | MA    | Bedford |          | 80.75    | 742  |",
+        "| 1970-01-01 00:00:00.000000400 | MA    | Bedford | 65.22    |          | 750  |", // duplicate
+        "| 1970-01-01 00:00:00.000000400 | MA    | Boston  | 65.4     | 82.67    |      |",
+        "| 1970-01-01 00:00:00.000000400 | MA    | Boston  | 68.4     |          |      |", // duplicate
+        "| 1970-01-01 00:00:00.000000450 | CA    | SJ      | 77       | 90.7     |      |",
+        "| 1970-01-01 00:00:00.000000500 | CA    | SJ      | 69.5     | 88.2     |      |",
+        "| 1970-01-01 00:00:00.000000600 | MA    | Bedford |          | 88.75    | 742  |",
+        "| 1970-01-01 00:00:00.000000600 | MA    | Boston  | 67.4     |          |      |",
+        "| 1970-01-01 00:00:00.000000600 | MA    | Reading | 60.4     |          |      |",
+        "| 1970-01-01 00:00:00.000000650 | CA    | SF      | 68.4     | 85.7     | 500  |",
+        "| 1970-01-01 00:00:00.000000650 | CA    | SJ      | 69.5     | 89.2     |      |",
+        "| 1970-01-01 00:00:00.000000700 | CA    | SJ      | 75.5     | 84.08    |      |",
+        "+-------------------------------+-------+---------+----------+----------+------+",
+    ];
+    run_sql_test_case!(
+        OneMeasurementThreeChunksWithDuplicates {},
+        "select time, state, city, min_temp, max_temp, area from h2o order by time, state, city",
+        &expected
+    );
+
+    // Use new macro to see the plan of union
+    run_sql_test_case!(
+        TwoMeasurementsManyFields {},
+        "EXPLAIN VERBOSE select state as name from h2o UNION ALL select city as name from h2o",
+        &expected
+    );
+
+}
