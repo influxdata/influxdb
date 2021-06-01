@@ -373,19 +373,18 @@ where
 // The API-global error handler, handles ApplicationErrors originating from
 // individual routes and middlewares, along with errors from the router itself
 async fn error_handler(err: RouterError<ApplicationError>, req: RequestInfo) -> Response<Body> {
+    let method = req.method().clone();
+    let uri = req.uri().clone();
+    let span_id = req.headers().get("x-b3-spanid");
+    let content_length = req.headers().get("content-length");
+    error!(error = ?err, error_message = ?err.to_string(), method = ?method, uri = ?uri, ?span_id, ?content_length, "Error while handling request");
+
     match err {
         RouterError::HandleRequest(e, _)
         | RouterError::HandlePreMiddlewareRequest(e)
         | RouterError::HandlePostMiddlewareWithInfoRequest(e)
-        | RouterError::HandlePostMiddlewareWithoutInfoRequest(e) => {
-            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
-            e.response()
-        }
+        | RouterError::HandlePostMiddlewareWithoutInfoRequest(e) => e.response(),
         _ => {
-            let method = req.method().clone();
-            let uri = req.uri().clone();
-            error!(error = ?err, error_message = ?err.to_string(), method = ?method, uri = ?uri, "Error while handling request");
-
             let json = serde_json::json!({"error": err.to_string()}).to_string();
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
