@@ -791,6 +791,47 @@ mod tests {
         assert_eq!(chunk.freeze().unwrap_err().to_string(), "Internal Error: unexpected chunk state for part1:table1:0  during setting closed. Expected Open or Frozen, got Persisted");
     }
 
+    #[test]
+    fn test_lifecycle_action() {
+        let mut chunk = make_open_chunk();
+        let registration = TaskRegistration::new();
+
+        // no action to begin with
+        assert_eq!(chunk.lifecycle_action(), None);
+
+        // set some action
+        chunk
+            .set_lifecycle_action(ChunkLifecycleAction::Moving, &registration)
+            .unwrap();
+        assert_eq!(
+            chunk.lifecycle_action(),
+            Some(&ChunkLifecycleAction::Moving)
+        );
+
+        // setting an action while there is one running fails
+        assert_eq!(chunk.set_lifecycle_action(ChunkLifecycleAction::Moving, &registration).unwrap_err().to_string(), "Internal Error: A lifecycle action \'Moving to the Read Buffer\' is already in progress for  part1:table1:0");
+
+        // finishing the wrong action fails
+        assert_eq!(chunk.finish_lifecycle_action(ChunkLifecycleAction::Compacting).unwrap_err().to_string(), "Internal Error: Unexpected chunk state for part1:table1:0. Expected Compacting, got Moving to the Read Buffer");
+
+        // finish some action
+        chunk
+            .finish_lifecycle_action(ChunkLifecycleAction::Moving)
+            .unwrap();
+
+        // finishing w/o any action in progress will fail
+        assert_eq!(chunk.finish_lifecycle_action(ChunkLifecycleAction::Moving).unwrap_err().to_string(), "Internal Error: Unexpected chunk state for part1:table1:0. Expected Moving to the Read Buffer, got None");
+
+        // now we can set another action
+        chunk
+            .set_lifecycle_action(ChunkLifecycleAction::Compacting, &registration)
+            .unwrap();
+        assert_eq!(
+            chunk.lifecycle_action(),
+            Some(&ChunkLifecycleAction::Compacting)
+        );
+    }
+
     fn make_mb_chunk(table_name: &str, server_id: ServerId) -> MBChunk {
         let mut mb_chunk = MBChunk::new(table_name, MBChunkMetrics::new_unregistered());
         let entry = lp_to_entry(&format!("{} bar=1 10", table_name));
