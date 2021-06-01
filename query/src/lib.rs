@@ -92,7 +92,6 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// this Chunk. Returns `None` otherwise
     fn column_names(
         &self,
-        table_name: &str,
         predicate: &Predicate,
         columns: Selection<'_>,
     ) -> Result<Option<StringSet>, Self::Error>;
@@ -104,7 +103,6 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// The requested columns must all have String type.
     fn column_values(
         &self,
-        table_name: &str,
         column_name: &str,
         predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error>;
@@ -112,11 +110,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// Returns the Schema for a table in this chunk, with the
     /// specified column selection. An error is returned if the
     /// selection refers to columns that do not exist.
-    fn table_schema(
-        &self,
-        table_name: &str,
-        selection: Selection<'_>,
-    ) -> Result<Schema, Self::Error>;
+    fn table_schema(&self, selection: Selection<'_>) -> Result<Schema, Self::Error>;
 
     /// Provides access to raw `PartitionChunk` data as an
     /// asynchronous stream of `RecordBatch`es filtered by a *required*
@@ -133,7 +127,6 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// streams from several different `PartitionChunks`.
     fn read_filter(
         &self,
-        table_name: &str,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error>;

@@ -63,12 +63,13 @@ impl TestDatabase {
     }
 
     /// Add a test chunk to the database
-    pub fn add_chunk(&self, partition_key: &str, chunk: Arc<TestChunk>) {
+    pub fn add_chunk(&self, partition_key: &str, chunk: Arc<TestChunk>) -> &Self {
         let mut partitions = self.partitions.lock();
         let chunks = partitions
             .entry(partition_key.to_string())
             .or_insert_with(BTreeMap::new);
         chunks.insert(chunk.id(), chunk);
+        self
     }
 
     /// Get the specified chunk
@@ -118,14 +119,17 @@ impl Database for TestDatabase {
 pub struct TestChunk {
     id: u32,
 
-    /// A copy of the captured predicate passed
-    predicate: Mutex<Option<Predicate>>,
+    /// A copy of the captured predicates passed
+    predicates: Mutex<Vec<Predicate>>,
 
-    /// Column names: table_name -> Schema
-    table_schemas: BTreeMap<String, Schema>,
+    /// Table name
+    table_name: Option<String>,
+
+    /// Schema of the table
+    table_schema: Option<Schema>,
 
     /// RecordBatches that are returned on each request
-    table_data: BTreeMap<String, Vec<Arc<RecordBatch>>>,
+    table_data: Vec<Arc<RecordBatch>>,
 
     /// A saved error that is returned instead of actual results
     saved_error: Option<String>,
@@ -210,35 +214,36 @@ impl TestChunk {
         new_column_schema: Schema,
     ) -> Self {
         let table_name = table_name.into();
+        if let Some(existing_name) = &self.table_name {
+            assert_eq!(&table_name, existing_name);
+        }
+        self.table_name = Some(table_name);
+
         let mut merger = SchemaMerger::new().merge(new_column_schema).unwrap();
 
-        if let Some(existing_schema) = self.table_schemas.remove(&table_name) {
+        if let Some(existing_schema) = self.table_schema.take() {
             merger = merger
                 .merge(existing_schema)
                 .expect("merging was successful");
         }
         let new_schema = merger.build().unwrap();
 
-        self.table_schemas.insert(table_name, new_schema);
+        self.table_schema = Some(new_schema);
         self
     }
 
     /// Get a copy of any predicate passed to the function
-    pub fn predicate(&self) -> Option<Predicate> {
-        self.predicate
-            .lock()
-            .as_ref()
-            //.map(|v| v.clone())
-            .cloned()
+    pub fn predicates(&self) -> Vec<Predicate> {
+        self.predicates.lock().clone()
     }
 
     /// Prepares this chunk to return a specific record batch with one
     /// row of non null data.
-    pub fn with_one_row_of_null_data(mut self, table_name: impl Into<String>) -> Self {
-        let table_name = table_name.into();
+    pub fn with_one_row_of_null_data(mut self, _table_name: impl Into<String>) -> Self {
+        //let table_name = table_name.into();
         let schema = self
-            .table_schemas
-            .get(&table_name)
+            .table_schema
+            .as_ref()
             .expect("table must exist in TestChunk");
 
         // create arrays
@@ -265,16 +270,13 @@ impl TestChunk {
 
         let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
 
-        self.table_data
-            .entry(table_name)
-            .or_default()
-            .push(Arc::new(batch));
+        self.table_data.push(Arc::new(batch));
         self
     }
 
     /// Returns all columns of the table
-    pub fn all_column_names(&self, table_name: &str) -> Option<StringSet> {
-        let column_names = self.table_schemas.get(table_name).map(|schema| {
+    pub fn all_column_names(&self) -> Option<StringSet> {
+        let column_names = self.table_schema.as_ref().map(|schema| {
             schema
                 .iter()
                 .map(|(_, field)| field.name().to_string())
@@ -285,12 +287,8 @@ impl TestChunk {
     }
 
     /// Returns just the specified columns
-    pub fn specific_column_names_selection(
-        &self,
-        table_name: &str,
-        columns: &[&str],
-    ) -> Option<StringSet> {
-        let column_names = self.table_schemas.get(table_name).map(|schema| {
+    pub fn specific_column_names_selection(&self, columns: &[&str]) -> Option<StringSet> {
+        let column_names = self.table_schema.as_ref().map(|schema| {
             schema
                 .iter()
                 .map(|(_, field)| field.name().to_string())
@@ -311,17 +309,16 @@ impl PartitionChunk for TestChunk {
 
     fn read_filter(
         &self,
-        table_name: &str,
         predicate: &Predicate,
         _selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         self.check_error()?;
 
         // save the predicate
-        self.predicate.lock().replace(predicate.clone());
+        self.predicates.lock().push(predicate.clone());
 
-        let batches = self.table_data.get(table_name).expect("Table had data");
-        let stream = SizedRecordBatchStream::new(batches[0].schema(), batches.clone());
+        let batches = self.table_data.clone();
+        let stream = SizedRecordBatchStream::new(batches[0].schema(), batches);
         Ok(Box::pin(stream))
     }
 
@@ -333,43 +330,35 @@ impl PartitionChunk for TestChunk {
         self.check_error()?;
 
         // save the predicate
-        self.predicate.lock().replace(predicate.clone());
+        self.predicates.lock().push(predicate.clone());
 
         // do basic filtering based on table name predicate.
-        let names = self
-            .table_schemas
-            .keys()
-            .filter(|table_name| predicate.should_include_table(&table_name))
-            .cloned()
-            .collect();
 
-        Ok(Some(names))
+        Ok(self
+            .table_name
+            .as_ref()
+            .filter(|table_name| predicate.should_include_table(&table_name))
+            .map(|table_name| std::iter::once(table_name.to_string()).collect::<StringSet>()))
     }
 
     fn all_table_names(&self, known_tables: &mut StringSet) {
-        known_tables.extend(self.table_schemas.keys().cloned())
+        if let Some(table_name) = self.table_name.as_ref() {
+            known_tables.insert(table_name.to_string());
+        }
     }
 
-    fn table_schema(
-        &self,
-        table_name: &str,
-        selection: Selection<'_>,
-    ) -> Result<Schema, Self::Error> {
+    fn table_schema(&self, selection: Selection<'_>) -> Result<Schema, Self::Error> {
         if !matches!(selection, Selection::All) {
             unimplemented!("Selection in TestChunk::table_schema");
         }
 
-        self.table_schemas
-            .get(table_name)
-            .cloned()
-            .context(General {
-                message: format!("TestChunk had no schema for table {}", table_name),
-            })
+        self.table_schema.as_ref().cloned().context(General {
+            message: "TestChunk had no schema".to_string(),
+        })
     }
 
     fn column_values(
         &self,
-        _table_name: &str,
         _column_name: &str,
         _predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error> {
@@ -378,24 +367,26 @@ impl PartitionChunk for TestChunk {
     }
 
     fn has_table(&self, table_name: &str) -> bool {
-        self.table_schemas.contains_key(table_name)
+        self.table_name
+            .as_ref()
+            .map(|n| n == table_name)
+            .unwrap_or(false)
     }
 
     fn column_names(
         &self,
-        table_name: &str,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<Option<StringSet>, Self::Error> {
         self.check_error()?;
 
         // save the predicate
-        self.predicate.lock().replace(predicate.clone());
+        self.predicates.lock().push(predicate.clone());
 
         // only return columns specified in selection
         let column_names = match selection {
-            Selection::All => self.all_column_names(table_name),
-            Selection::Some(cols) => self.specific_column_names_selection(table_name, cols),
+            Selection::All => self.all_column_names(),
+            Selection::Some(cols) => self.specific_column_names_selection(cols),
         };
 
         Ok(column_names)

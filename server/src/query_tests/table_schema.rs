@@ -38,7 +38,7 @@ macro_rules! run_table_schema_test_case {
             for chunk in db.chunks(&predicate) {
                 if chunk.has_table(table_name) {
                     chunks_with_table += 1;
-                    let actual_schema = chunk.table_schema(table_name, selection.clone()).unwrap();
+                    let actual_schema = chunk.table_schema(selection.clone()).unwrap();
 
                     assert_eq!(
                         expected_schema,

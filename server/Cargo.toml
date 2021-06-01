@@ -7,7 +7,6 @@ edition = "2018"
 [dependencies] # In alphabetical order
 arrow = { version = "4.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
-arrow-flight = "4.0"
 async-trait = "0.1"
 bytes = { version = "1.0" }
 chrono = "0.4"

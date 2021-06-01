@@ -16,7 +16,7 @@ use internal_types::{
     selection::Selection,
 };
 use observability_deps::tracing::debug;
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use snafu::{ensure, ResultExt, Snafu};
 
 use crate::{
     exec::{field::FieldColumns, make_schema_pivot, stringset::StringSet},
@@ -65,9 +65,6 @@ pub enum Error {
     InternalTableNamePlanForDefault {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
-
-    #[snafu(display("gRPC planner could not get table_names with default predicate, which should always return values"))]
-    InternalTableNameCannotGetPlanForDefault {},
 
     #[snafu(display("Unsupported predicate in gRPC table_names: {:?}", predicate))]
     UnsupportedPredicateForTableNames { predicate: Predicate },
@@ -256,7 +253,7 @@ impl InfluxRpcPlanner {
 
                 // get only tag columns from metadata
                 let schema = chunk
-                    .table_schema(&table_name, Selection::All)
+                    .table_schema(Selection::All)
                     .expect("to be able to get table schema");
                 let column_names: Vec<&str> = schema
                     .tags_iter()
@@ -267,7 +264,7 @@ impl InfluxRpcPlanner {
 
                 // filter the columns further from the predicate
                 let maybe_names = chunk
-                    .column_names(&table_name, &predicate, selection)
+                    .column_names(&predicate, selection)
                     .map_err(|e| Box::new(e) as _)
                     .context(FindingColumnNames)?;
 
@@ -360,7 +357,7 @@ impl InfluxRpcPlanner {
 
                 // use schema to validate column type
                 let schema = chunk
-                    .table_schema(&table_name, Selection::All)
+                    .table_schema(Selection::All)
                     .expect("to be able to get table schema");
 
                 // Skip this table if the tag_name is not a column in this table
@@ -391,7 +388,7 @@ impl InfluxRpcPlanner {
 
                 // try and get the list of values directly from metadata
                 let maybe_values = chunk
-                    .column_values(&table_name, tag_name, &predicate)
+                    .column_values(tag_name, &predicate)
                     .map_err(|e| Box::new(e) as _)
                     .context(FindingColumnValues)?;
 
@@ -666,8 +663,8 @@ impl InfluxRpcPlanner {
                     .table_names(&table_name_predicate, &no_tables)
                     .map_err(|e| Box::new(e) as _)
                     .context(InternalTableNamePlanForDefault)?
-                    // unwrap the Option
-                    .context(InternalTableNameCannotGetPlanForDefault)?
+                    // unwrap the Option (table didn't match)
+                    .unwrap_or(no_tables)
             }
         };
         Ok(table_names)
@@ -1120,7 +1117,7 @@ impl InfluxRpcPlanner {
             );
 
             let chunk_table_schema = chunk
-                .table_schema(table_name, selection)
+                .table_schema(selection)
                 .map_err(|e| Box::new(e) as _)
                 .context(GettingTableSchema {
                     table_name,
