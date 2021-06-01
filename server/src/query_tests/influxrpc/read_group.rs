@@ -402,7 +402,7 @@ impl DbSetup for MeasurementForMax {
             "h2o,state=MA,city=Cambridge f=7.0,i=7i,b=false,s=\"d\" 2000",
             "h2o,state=MA,city=Cambridge f=6.0,i=6i,b=true,s=\"a\" 3000",
         ];
-        let lp_lines2 = vec!["h2o,state=MA,city=Cambridge f=5.0,i=5i,b=true,s=\"z\" 4000"];
+        let lp_lines2 = vec!["h2o,state=MA,city=Cambridge f=5.0,i=5i,b=false,s=\"z\" 4000"];
 
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }

@@ -9,4 +9,4 @@ description = "Re-exports datafusion at a specific version"
 
 # Rename to workaround doctest bug
 # Turn off optional datafusion features (function packages)
-upstream = { git = "https://github.com/apache/arrow-datafusion.git", rev = "d9b044787ce465e2597f9ab37f601ae8515921ee", default-features = false, package = "datafusion" }
+upstream = { git = "https://github.com/apache/arrow-datafusion.git", rev = "c794f2df539a10524566cb02b6158ee46cb1459a", default-features = false, package = "datafusion" }
