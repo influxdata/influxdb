@@ -53,7 +53,7 @@ impl IntegerEncoding {
     // Returns statistics about the physical layout of columns
     pub(crate) fn storage_stats(&self) -> Statistics {
         Statistics {
-            enc_type: self.name(),
+            enc_type: self.name().into(),
             log_data_type: self.logical_datatype(),
             values: self.num_rows(),
             nulls: self.null_count(),
@@ -224,8 +224,8 @@ impl IntegerEncoding {
     /// The name of this encoding.
     pub fn name(&self) -> String {
         match self {
-            Self::I64(_, name) => name.clone(),
-            Self::U64(_, name) => name.clone(),
+            Self::I64(_, name) => name.to_string(),
+            Self::U64(_, name) => name.to_string(),
         }
     }
 

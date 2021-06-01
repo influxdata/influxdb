@@ -5,7 +5,7 @@ pub mod float;
 pub mod integer;
 pub mod string;
 
-use std::{collections::BTreeSet, mem::size_of};
+use std::{borrow::Cow, collections::BTreeSet, mem::size_of};
 
 use croaring::Bitmap;
 use either::Either;
@@ -1384,7 +1384,7 @@ impl Iterator for RowIDsIterator<'_> {
 
 // Statistics about the composition of a column
 pub(crate) struct Statistics {
-    pub enc_type: String,            // The encoding type
+    pub enc_type: Cow<'static, str>, // The encoding type
     pub log_data_type: &'static str, // The logical data-type
     pub values: u32,                 // Number of values present (NULL and non-NULL)
     pub nulls: u32,                  // Number of NULL values present
