@@ -102,19 +102,23 @@ impl DbChunk {
         use super::catalog::chunk::{ChunkStage, ChunkStageFrozenRepr};
 
         let (state, meta) = match chunk.stage() {
-            ChunkStage::Open(stage) => {
-                let snapshot = stage.mb_chunk.snapshot();
+            ChunkStage::Open { mb_chunk, .. } => {
+                let snapshot = mb_chunk.snapshot();
                 let state = State::MutableBuffer {
                     chunk: Arc::clone(&snapshot),
                 };
                 let meta = ChunkMetadata {
-                    table_summary: Arc::new(stage.mb_chunk.table_summary()),
+                    table_summary: Arc::new(mb_chunk.table_summary()),
                     schema: snapshot.full_schema(),
                 };
                 (state, Arc::new(meta))
             }
-            ChunkStage::Frozen(stage) => {
-                let state = match &stage.representation {
+            ChunkStage::Frozen {
+                representation,
+                meta,
+                ..
+            } => {
+                let state = match &representation {
                     ChunkStageFrozenRepr::MutableBufferSnapshot(snapshot) => State::MutableBuffer {
                         chunk: Arc::clone(snapshot),
                     },
@@ -123,20 +127,25 @@ impl DbChunk {
                         partition_key,
                     },
                 };
-                (state, Arc::clone(&stage.meta))
+                (state, Arc::clone(&meta))
             }
-            ChunkStage::Persisted(stage) => {
-                let state = if let Some(read_buffer) = &stage.read_buffer {
+            ChunkStage::Persisted {
+                parquet,
+                read_buffer,
+                meta,
+                ..
+            } => {
+                let state = if let Some(read_buffer) = &read_buffer {
                     State::ReadBuffer {
                         chunk: Arc::clone(read_buffer),
                         partition_key,
                     }
                 } else {
                     State::ParquetFile {
-                        chunk: Arc::clone(&stage.parquet),
+                        chunk: Arc::clone(&parquet),
                     }
                 };
-                (state, Arc::clone(&stage.meta))
+                (state, Arc::clone(&meta))
             }
         };
 
@@ -157,10 +166,10 @@ impl DbChunk {
         use super::catalog::chunk::ChunkStage;
 
         let (state, meta) = match chunk.stage() {
-            ChunkStage::Persisted(stage) => {
-                let chunk = Arc::clone(&stage.parquet);
+            ChunkStage::Persisted { parquet, meta, .. } => {
+                let chunk = Arc::clone(&parquet);
                 let state = State::ParquetFile { chunk };
-                (state, Arc::clone(&stage.meta))
+                (state, Arc::clone(&meta))
             }
             _ => {
                 panic!("Internal error: This chunk's stage is not Persisted");

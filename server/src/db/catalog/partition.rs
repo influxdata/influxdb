@@ -197,7 +197,7 @@ impl Partition {
                 .values()
                 .find(|chunk| {
                     let chunk = chunk.read();
-                    matches!(chunk.stage(), ChunkStage::Open(_))
+                    matches!(chunk.stage(), ChunkStage::Open { .. })
                 })
                 .cloned()),
             None => UnknownTable {
