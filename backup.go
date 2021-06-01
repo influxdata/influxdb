@@ -21,8 +21,12 @@ type BackupService interface {
 	BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error
 }
 
+// SqlBackupRestoreService represents the backup and restore functions for the sqlite database.
 type SqlBackupRestoreService interface {
+	// BackupSqlStore creates a live backup copy of the sqlite database.
 	BackupSqlStore(ctx context.Context, w io.Writer) error
+
+	// RestoreSqlStore restores & replaces the sqlite database.
 	RestoreSqlStore(ctx context.Context, r io.Reader) error
 }
 

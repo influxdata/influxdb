@@ -205,6 +205,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	restoreBackend := NewRestoreBackend(b)
 	restoreBackend.RestoreService = authorizer.NewRestoreService(restoreBackend.RestoreService)
+	restoreBackend.SqlBackupRestoreService = authorizer.NewSqlBackupRestoreService(restoreBackend.SqlBackupRestoreService)
 	h.Mount(prefixRestore, NewRestoreHandler(restoreBackend))
 
 	h.Mount(dbrp.PrefixDBRP, dbrp.NewHTTPHandler(b.Logger, b.DBRPService, b.OrganizationService))

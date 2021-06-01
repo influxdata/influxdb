@@ -23,16 +23,22 @@ func NewSqlBackupRestoreService(s influxdb.SqlBackupRestoreService) *SqlBackupRe
 	}
 }
 
-func (b SqlBackupRestoreService) BackupSqlStore(ctx context.Context, w io.Writer) error {
+func (s SqlBackupRestoreService) BackupSqlStore(ctx context.Context, w io.Writer) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if err := IsAllowedAll(ctx, influxdb.OperPermissions()); err != nil {
 		return err
 	}
-	return b.s.BackupSqlStore(ctx, w)
+	return s.s.BackupSqlStore(ctx, w)
 }
 
-func (b SqlBackupRestoreService) RestoreSqlStore(ctx context.Context, r io.Reader) error {
-	return nil
+func (s SqlBackupRestoreService) RestoreSqlStore(ctx context.Context, r io.Reader) error {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	if err := IsAllowedAll(ctx, influxdb.OperPermissions()); err != nil {
+		return err
+	}
+	return s.s.RestoreSqlStore(ctx, r)
 }

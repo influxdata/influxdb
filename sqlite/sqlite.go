@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
 	"github.com/jmoiron/sqlx"
 	"github.com/mattn/go-sqlite3"
 
@@ -25,30 +26,44 @@ const (
 // SqlStore is a wrapper around the db and provides basic functionality for maintaining the db
 // including flushing the data from the db during end-to-end testing.
 type SqlStore struct {
-	Mu  sync.Mutex
-	DB  *sqlx.DB
-	log *zap.Logger
+	Mu   sync.Mutex
+	DB   *sqlx.DB
+	log  *zap.Logger
+	path string
 }
 
 func NewSqlStore(path string, log *zap.Logger) (*SqlStore, error) {
-	db, err := sqlx.Open("sqlite3", path)
-	if err != nil {
+	s := &SqlStore{
+		log:  log,
+		path: path,
+	}
+
+	if err := s.openDB(); err != nil {
 		return nil, err
 	}
-	log.Info("Resources opened", zap.String("path", path))
+
+	return s, nil
+}
+
+// open the file at the specified path
+func (s *SqlStore) openDB() error {
+	db, err := sqlx.Open("sqlite3", s.path)
+	if err != nil {
+		return err
+	}
+	s.log.Info("Resources opened", zap.String("path", s.path))
 
 	// If using an in-memory database, don't allow more than 1 connection. Each connection
 	// is given a "new" database. We can't use a shared cache in-memory database because
 	// parallel tests that run multiple launchers in the same process will have issues doing
 	// concurrent writes to the database. See: https://sqlite.org/inmemorydb.html
-	if path == InmemPath {
+	if s.path == InmemPath {
 		db.SetMaxOpenConns(1)
 	}
 
-	return &SqlStore{
-		DB:  db,
-		log: log,
-	}, nil
+	s.DB = db
+
+	return nil
 }
 
 // Close the connection to the sqlite database
@@ -106,6 +121,23 @@ func (s *SqlStore) BackupSqlStore(ctx context.Context, w io.Writer) error {
 		return err
 	}
 
+	if err := backup(ctx, dest, s); err != nil {
+		return err
+	}
+
+	// open the backup file so it can be copied to the destination writer
+	f, err := os.Open(destPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// copy the backup to the destination writer
+	_, err = io.Copy(w, f)
+	return err
+}
+
+func backup(ctx context.Context, dest, src *SqlStore) error {
 	// get the connection for the destination so we can get the underlying sqlite connection
 	destConn, err := dest.DB.Conn(ctx)
 	if err != nil {
@@ -120,7 +152,7 @@ func (s *SqlStore) BackupSqlStore(ctx context.Context, w io.Writer) error {
 	}
 
 	// get the connection for the source database so we can get the underlying sqlite connection
-	srcConn, err := s.DB.Conn(ctx)
+	srcConn, err := src.DB.Conn(ctx)
 	if err != nil {
 		return err
 	}
@@ -145,25 +177,77 @@ func (s *SqlStore) BackupSqlStore(ctx context.Context, w io.Writer) error {
 	}
 
 	// close the backup once it's done
-	err = bk.Finish()
-	if err != nil {
-		return err
-	}
-
-	// open the backup file so it can be copied to the destination writer
-	f, err := os.Open(destPath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	// copy the backup to the destination writer
-	_, err = io.Copy(w, f)
-	return err
+	return bk.Finish()
 }
 
+// sqliteFromSqlConn returns the underlying sqlite3 connection from an sql connection
+func sqliteFromSqlConn(c *sql.Conn) (*sqlite3.SQLiteConn, error) {
+	var sqliteConn *sqlite3.SQLiteConn
+	err := c.Raw(func(driverConn interface{}) error {
+		sqliteConn = driverConn.(*sqlite3.SQLiteConn)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return sqliteConn, nil
+}
+
+// RestoreSqlStore replaces the underlying database with the data from r.
 func (s *SqlStore) RestoreSqlStore(ctx context.Context, r io.Reader) error {
-	return nil
+	tempDir, err := ioutil.TempDir("", "")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tempDir)
+
+	tempFileName := fmt.Sprintf("%s/%s", tempDir, DefaultFilename)
+
+	f, err := os.Create(tempFileName)
+	if err != nil {
+		return err
+	}
+
+	// Copy the contents of r to the temporary file
+	if _, err := io.Copy(f, r); err != nil {
+		return err
+	} else if err := f.Sync(); err != nil {
+		return err
+	} else if err := f.Close(); err != nil {
+		return err
+	}
+
+	// Close the current DB.
+	if err := s.Close(); err != nil {
+		return err
+	}
+
+	// If we're using a :memory: database, we need to open a new DB (which will be completely empty),
+	// and then use the sqlite backup API to copy the data from the restored db file into the database.
+	// Otherwise, we can just atomically swap the file and re-open the DB.
+	if s.path == InmemPath {
+		if err := s.openDB(); err != nil {
+			return err
+		}
+		// Open the temporary file - this is the "source" DB for doing the restore
+		tempDB, err := NewSqlStore(tempFileName, s.log.With(zap.String("service", "temp backup sqlite")))
+		if err != nil {
+			return err
+		}
+		defer tempDB.Close()
+
+		// Copy the data from the temporary restored DB into the currently open DB
+		return backup(ctx, s, tempDB)
+	}
+
+	// Atomically swap the temporary file with the current DB file.
+	if err := fs.RenameFileWithReplacement(tempFileName, s.path); err != nil {
+		return err
+	}
+
+	// Reopen the new database file
+	return s.openDB()
 }
 
 func (s *SqlStore) execTrans(ctx context.Context, stmt string) error {
@@ -232,18 +316,4 @@ func (s *SqlStore) queryToStrings(stmt string) ([]string, error) {
 	}
 
 	return output, nil
-}
-
-// sqliteFromSqlConn returns the underlying sqlite3 connection from an sql connection
-func sqliteFromSqlConn(c *sql.Conn) (*sqlite3.SQLiteConn, error) {
-	var sqliteConn *sqlite3.SQLiteConn
-	err := c.Raw(func(driverConn interface{}) error {
-		sqliteConn = driverConn.(*sqlite3.SQLiteConn)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return sqliteConn, nil
 }
