@@ -18,6 +18,7 @@ use generated_types::storage_server::{Storage, StorageServer};
 use metrics::{MetricRegistry, RedMetric};
 use query::DatabaseStore;
 use std::sync::Arc;
+use tonic::Interceptor;
 
 /// Concrete implementation of the gRPC InfluxDB Storage Service API
 #[derive(Debug)]
@@ -29,11 +30,15 @@ struct StorageService<T: DatabaseStore> {
 pub fn make_server<T: DatabaseStore + 'static>(
     db_store: Arc<T>,
     metrics_registry: Arc<MetricRegistry>,
+    interceptor: impl Into<Interceptor>,
 ) -> StorageServer<impl Storage> {
-    StorageServer::new(StorageService {
-        db_store,
-        metrics: Metrics::new(metrics_registry),
-    })
+    StorageServer::with_interceptor(
+        StorageService {
+            db_store,
+            metrics: Metrics::new(metrics_registry),
+        },
+        interceptor,
+    )
 }
 
 // These are the metrics associated with the gRPC server.

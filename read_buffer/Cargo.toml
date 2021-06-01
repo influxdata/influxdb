@@ -11,7 +11,7 @@ edition = "2018"
 # 2. Keep change/compile/link time down during development when working on just this crate
 
 [dependencies] # In alphabetical order
-arrow = "4.0"
+arrow = { version = "4.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 croaring = "0.4.5"
 data_types = { path = "../data_types" }
@@ -26,7 +26,6 @@ packers = { path = "../packers" }
 parking_lot = "0.11"
 permutation = "0.2.5"
 snafu = "0.6"
-tracker = { path = "../tracker" }
 
 [dev-dependencies] # In alphabetical order
 criterion = "0.3.3"

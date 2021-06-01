@@ -1,28 +1,29 @@
 /// This module responsible to write given data to specify object store and
 /// read them back
 use arrow::{
-    datatypes::{Schema as ArrowSchema, SchemaRef},
-    error::Result as ArrowResult,
+    datatypes::{Schema, SchemaRef},
+    error::{ArrowError, Result as ArrowResult},
     record_batch::RecordBatch,
 };
 use datafusion::{
-    physical_optimizer::pruning::PruningPredicateBuilder,
-    physical_plan::{common::SizedRecordBatchStream, RecordBatchStream, SendableRecordBatchStream},
+    logical_plan::Expr,
+    physical_plan::{
+        parquet::ParquetExec, ExecutionPlan, Partitioning, RecordBatchStream,
+        SendableRecordBatchStream,
+    },
 };
-use internal_types::{schema::Schema, selection::Selection};
+use internal_types::selection::Selection;
 use object_store::{
     path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
+use observability_deps::tracing::debug;
 use parquet::{
     self,
-    arrow::{
-        arrow_reader::ParquetFileArrowReader, parquet_to_arrow_schema, ArrowReader, ArrowWriter,
-    },
+    arrow::ArrowWriter,
     file::{
-        metadata::{ParquetMetaData, RowGroupMetaData},
-        reader::FileReader,
-        serialized_reader::{SerializedFileReader, SliceableCursor},
+        metadata::{KeyValue, ParquetMetaData},
+        properties::WriterProperties,
         writer::TryClone,
     },
 };
@@ -30,18 +31,17 @@ use query::predicate::Predicate;
 
 use bytes::Bytes;
 use data_types::server_id::ServerId;
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt};
 use parking_lot::Mutex;
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
-    convert::TryInto,
     io::{Cursor, Seek, SeekFrom, Write},
     sync::Arc,
     task::{Context, Poll},
 };
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::metadata::read_parquet_metadata_from_file;
+use crate::metadata::{read_parquet_metadata_from_file, IoxMetadata, METADATA_KEY};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -51,7 +51,7 @@ pub enum Error {
     },
 
     #[snafu(display("Error reading stream while creating snapshot: {}", source))]
-    ReadingStream { source: arrow::error::ArrowError },
+    ReadingStream { source: ArrowError },
 
     #[snafu(display("Error writing Parquet to memory: {}", source))]
     WritingParquetToMemory {
@@ -75,8 +75,33 @@ pub enum Error {
     #[snafu(display("Error opening file: {}", source))]
     OpenFile { source: std::io::Error },
 
+    #[snafu(display("Error opening temp file: {}", source))]
+    OpenTempFile { source: std::io::Error },
+
+    #[snafu(display("Error writing to temp file: {}", source))]
+    WriteTempFile { source: std::io::Error },
+
+    #[snafu(display("Internal error: can not get temp file as str: {}", path))]
+    TempFilePathAsStr { path: String },
+
+    #[snafu(display("Error creating parquet reader: {}", source))]
+    CreatingParquetReader {
+        source: datafusion::error::DataFusionError,
+    },
+
+    #[snafu(display(
+        "Internal error: unexpected partitioning in parquet reader: {:?}",
+        partitioning
+    ))]
+    UnexpectedPartitioning { partitioning: Partitioning },
+
     #[snafu(display("Error creating pruning predicate: {}", source))]
     CreatingPredicate {
+        source: datafusion::error::DataFusionError,
+    },
+
+    #[snafu(display("Error reading from parquet stream: {}", source))]
+    ReadingParquet {
         source: datafusion::error::DataFusionError,
     },
 
@@ -91,7 +116,7 @@ pub enum Error {
     },
 
     #[snafu(display("Error reading data from parquet file: {}", source))]
-    ReadingFile { source: arrow::error::ArrowError },
+    ReadingFile { source: ArrowError },
 
     #[snafu(display("Error reading data from object store: {}", source))]
     ReadingObjectStore { source: object_store::Error },
@@ -101,21 +126,14 @@ pub enum Error {
         source: datafusion::error::DataFusionError,
     },
 
-    #[snafu(display("Cannot read arrow schema from parquet: {}", source))]
-    ArrowFromParquetFailure {
-        source: parquet::errors::ParquetError,
-    },
-
-    #[snafu(display("Cannot read IOx schema from arrow: {}", source))]
-    IoxFromArrowFailure {
-        source: internal_types::schema::Error,
-    },
-
     #[snafu(display("Cannot extract Parquet metadata from byte array: {}", source))]
     ExtractingMetadataFailure { source: crate::metadata::Error },
 
     #[snafu(display("Cannot parse location: {:?}", path))]
     LocationParsingFailure { path: DirsAndFileName },
+
+    #[snafu(display("Cannot encode metadata: {}", source))]
+    MetadataEncodeFailure { source: serde_json::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -150,7 +168,12 @@ pub struct Storage {
 }
 
 impl Storage {
-    pub fn new(object_store: Arc<ObjectStore>, server_id: ServerId, db_name: String) -> Self {
+    pub fn new(
+        object_store: Arc<ObjectStore>,
+        server_id: ServerId,
+        db_name: impl Into<String>,
+    ) -> Self {
+        let db_name = db_name.into();
         Self {
             object_store,
             server_id,
@@ -169,13 +192,10 @@ impl Storage {
         table_name: String,
     ) -> object_store::path::Path {
         // Full path of the file in object store
-        //    <writer id>/<database>/data/<partition key>/<chunk id>/<table
+        //    <server id>/<database>/data/<partition key>/<chunk id>/<table
         // name>.parquet
 
-        let mut path = self.object_store.new_path();
-        path.push_dir(self.server_id.to_string());
-        path.push_dir(self.db_name.clone());
-        path.push_dir("data");
+        let mut path = data_location(&self.object_store, self.server_id, &self.db_name);
         path.push_dir(partition_key);
         path.push_dir(chunk_id.to_string());
         let file_name = format!("{}.parquet", table_name);
@@ -216,19 +236,20 @@ impl Storage {
     }
 
     /// Write the given stream of data of a specified table of
-    // a specified partitioned chunk to a parquet file of this storage
+    /// a specified partitioned chunk to a parquet file of this storage
     pub async fn write_to_object_store(
         &self,
         partition_key: String,
         chunk_id: u32,
         table_name: String,
         stream: SendableRecordBatchStream,
+        metadata: IoxMetadata,
     ) -> Result<(Path, ParquetMetaData)> {
         // Create full path location of this file in object store
         let path = self.location(partition_key, chunk_id, table_name);
 
         let schema = stream.schema();
-        let data = Self::parquet_stream_to_bytes(stream, schema).await?;
+        let data = Self::parquet_stream_to_bytes(stream, schema, metadata).await?;
         // TODO: make this work w/o cloning the byte vector (https://github.com/influxdata/influxdb_iox/issues/1504)
         let md =
             read_parquet_metadata_from_file(data.clone()).context(ExtractingMetadataFailure)?;
@@ -238,14 +259,21 @@ impl Storage {
     }
 
     /// Convert the given stream of RecordBatches to bytes
-
-    pub async fn parquet_stream_to_bytes(
+    async fn parquet_stream_to_bytes(
         mut stream: SendableRecordBatchStream,
         schema: SchemaRef,
+        metadata: IoxMetadata,
     ) -> Result<Vec<u8>> {
+        let props = WriterProperties::builder()
+            .set_key_value_metadata(Some(vec![KeyValue {
+                key: METADATA_KEY.to_string(),
+                value: Some(serde_json::to_string(&metadata).context(MetadataEncodeFailure)?),
+            }]))
+            .build();
+
         let mem_writer = MemWriter::default();
         {
-            let mut writer = ArrowWriter::try_new(mem_writer.clone(), schema, None)
+            let mut writer = ArrowWriter::try_new(mem_writer.clone(), schema, Some(props))
                 .context(OpeningParquetWriter)?;
             while let Some(batch) = stream.next().await {
                 let batch = batch.context(ReadingStream)?;
@@ -277,20 +305,6 @@ impl Storage {
             .context(WritingToObjectStore)
     }
 
-    /// Make a datafusion predicate builder for the given predicate and schema
-    pub fn predicate_builder(
-        predicate: &Predicate,
-        schema: ArrowSchema,
-    ) -> Option<PruningPredicateBuilder> {
-        if predicate.exprs.is_empty() {
-            None
-        } else {
-            // Convert to datafusion's predicate
-            let predicate = predicate.filter_expr()?;
-            Some(PruningPredicateBuilder::try_new(&predicate, schema).ok()?)
-        }
-    }
-
     /// Return indices of the schema's fields of the selection columns
     pub fn column_indices(selection: Selection<'_>, schema: SchemaRef) -> Vec<usize> {
         let fields = schema.fields().iter();
@@ -310,6 +324,78 @@ impl Storage {
         }
     }
 
+    /// Downloads the specified parquet file to a local temporary file
+    /// and uses the `[ParquetExec`] from DataFusion to read that
+    /// parquet file (including predicate and projection pushdown).
+    ///
+    /// The resulting record batches from Parquet are sent back to `tx`
+    async fn download_and_scan_parquet(
+        predicate: Option<Expr>,
+        projection: Vec<usize>,
+        path: Path,
+        store: Arc<ObjectStore>,
+        tx: tokio::sync::mpsc::Sender<ArrowResult<RecordBatch>>,
+    ) -> Result<()> {
+        // Size of each batch
+        let batch_size = 1024; // Todo: make a constant or policy for this
+        let max_concurrency = 1; // Todo: make a constant or policy for this
+
+        // Limit of total rows to read
+        let limit: Option<usize> = None; // Todo: this should be a parameter of the function
+
+        // read parquet file to local file
+        let mut temp_file = tempfile::Builder::new()
+            .prefix("iox-parquet-cache")
+            .suffix(".parquet")
+            .tempfile()
+            .context(OpenTempFile)?;
+
+        debug!(?path, ?temp_file, "Beginning to read parquet to temp file");
+        let mut read_stream = store.get(&path).await.context(ReadingObjectStore)?;
+
+        while let Some(bytes) = read_stream.next().await {
+            let bytes = bytes.context(ReadingObjectStore)?;
+            debug!(len = bytes.len(), "read bytes from object store");
+            temp_file.write_all(&bytes).context(WriteTempFile)?;
+        }
+
+        // now, create the appropriate parquet exec from datafusion and make it
+        let temp_path = temp_file.into_temp_path();
+        debug!(?temp_path, "Completed read parquet to tempfile");
+
+        let temp_path = temp_path.to_str().with_context(|| TempFilePathAsStr {
+            path: temp_path.to_string_lossy(),
+        })?;
+
+        let parquet_exec = ParquetExec::try_from_path(
+            temp_path,
+            Some(projection),
+            predicate,
+            batch_size,
+            max_concurrency,
+            limit,
+        )
+        .context(CreatingParquetReader)?;
+
+        // We are assuming there is only a single stream in the
+        // call to execute(0) below
+        let partitioning = parquet_exec.output_partitioning();
+        ensure!(
+            matches!(partitioning, Partitioning::UnknownPartitioning(1)),
+            UnexpectedPartitioning { partitioning }
+        );
+
+        let mut parquet_stream = parquet_exec.execute(0).await.context(ReadingParquet)?;
+
+        while let Some(batch) = parquet_stream.next().await {
+            if let Err(e) = tx.send(batch).await {
+                debug!(%e, "Stopping parquet exec early, receiver hung up");
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+
     pub fn read_filter(
         predicate: &Predicate,
         selection: Selection<'_>,
@@ -317,133 +403,66 @@ impl Storage {
         path: Path,
         store: Arc<ObjectStore>,
     ) -> Result<SendableRecordBatchStream> {
+        // fire up a async task that will fetch the parquet file
+        // locally, start it executing and send results
+
         // Indices of columns in the schema needed to read
         let projection: Vec<usize> = Self::column_indices(selection, Arc::clone(&schema));
 
-        // Filter needed predicates
-        let builder_schema = ArrowSchema::new(schema.fields().clone());
-        let predicate_builder = Self::predicate_builder(predicate, builder_schema);
+        // Compute final (output) schema after selection
+        let schema = Arc::new(Schema::new(
+            projection
+                .iter()
+                .map(|i| schema.field(*i).clone())
+                .collect(),
+        ));
 
-        // Size of each batch
-        let batch_size = 1024; // Todo: make a constant or policy for this
+        // pushdown predicate, if any
+        let predicate = predicate.filter_expr();
 
-        // Limit of total rows to read
-        let limit: Option<usize> = None; // Todo: this should be a parameter of the function
+        let (tx, rx) = tokio::sync::mpsc::channel(2);
 
-        let mut batches: Vec<Arc<RecordBatch>> = vec![];
-        if let Err(e) = Self::read_file(
-            path,
-            Arc::clone(&store),
-            projection.as_slice(),
-            predicate_builder.as_ref(),
-            batch_size,
-            &mut batches,
-            limit,
-        ) {
-            return Err(e);
-        }
+        // Do an an async dance here to make sure any error returned
+        // `download_and_scan_parquet` is sent back to the reader and
+        // not silently ignored
+        tokio::task::spawn(async move {
+            // Channels to/from the parquet reader
+            let (parquet_tx, mut parquet_rx) = tokio::sync::mpsc::channel(2);
 
-        // Schema of all record batches must be the same, Get the first one
-        // to build record batch stream
-        let batch_schema = if batches.is_empty() {
-            schema
-        } else {
-            batches[0].schema()
-        };
+            let download_future =
+                Self::download_and_scan_parquet(predicate, projection, path, store, parquet_tx);
 
-        Ok(Box::pin(SizedRecordBatchStream::new(batch_schema, batches)))
-    }
-
-    // Read the given path of the parquet file and return record batches satisfied
-    // the given predicate_builder
-    fn read_file(
-        path: Path,
-        store: Arc<ObjectStore>,
-        projection: &[usize],
-        predicate_builder: Option<&PruningPredicateBuilder>,
-        batch_size: usize,
-        batches: &mut Vec<Arc<RecordBatch>>,
-        limit: Option<usize>,
-    ) -> Result<()> {
-        let parquet_data = futures::executor::block_on(async move {
-            Self::load_parquet_data_from_object_store(path, store).await
-        });
-
-        let mut total_rows = 0;
-
-        let cursor = SliceableCursor::new(parquet_data?);
-        let mut reader = SerializedFileReader::new(cursor).context(SerializedFileReaderError)?;
-
-        // TODO: remove these line after https://github.com/apache/arrow-rs/issues/252 is done
-        // Get file level metadata to set it to the record batch's metadata below
-        let metadata = reader.metadata();
-        let schema = read_schema_from_parquet_metadata(metadata)?;
-
-        if let Some(predicate_builder) = predicate_builder {
-            let predicate_values = predicate_builder
-                .build_pruning_predicate(metadata.row_groups())
-                .context(CreatingPredicate)?;
-
-            let row_group_predicate: Box<dyn Fn(&RowGroupMetaData, usize) -> bool> =
-                Box::new(move |_, i| predicate_values[i]);
-
-            reader.filter_row_groups(&row_group_predicate); //filter out
-                                                            // row group based
-                                                            // on the predicate
-        }
-
-        let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(reader) as Arc<dyn FileReader>);
-
-        let mut batch_reader = arrow_reader
-            .get_record_reader_by_columns(projection.to_owned(), batch_size)
-            .context(ParquetArrowReaderError)?;
-
-        loop {
-            match batch_reader.next() {
-                Some(Ok(batch)) => {
-                    total_rows += batch.num_rows();
-
-                    // TODO: remove these lines when arow-rs' ticket https://github.com/apache/arrow-rs/issues/252 is done
-                    // Since arrow's parquet reading does not return the row group level's metadata, the
-                    // work around here is to get it from the file level which is the same
-                    let columns = batch.columns().to_vec();
-                    let fields = batch.schema().fields().clone();
-                    let arrow_column_schema = ArrowSchema::new_with_metadata(
-                        fields,
-                        schema.as_arrow().metadata().clone(),
-                    );
-                    let new_batch = RecordBatch::try_new(Arc::new(arrow_column_schema), columns)
-                        .context(ReadingFile)?;
-
-                    batches.push(Arc::new(new_batch));
-                    if limit.map(|l| total_rows >= l).unwrap_or(false) {
-                        break;
+            // task whose only job in life is to shuffle messages from
+            // the parquet reader to the final output receiver
+            let captured_tx = tx.clone();
+            tokio::task::spawn(async move {
+                while let Some(msg) = parquet_rx.recv().await {
+                    if let Err(e) = captured_tx.send(msg).await {
+                        debug!(%e, "Receiver hung up on parquet writer");
                     }
                 }
-                None => {
-                    break;
-                }
-                Some(Err(e)) => {
-                    return Err(e).context(ReadingFile);
+            });
+
+            // in this task, wait for the future that is doing the actual work on this task
+            let download_result = download_future.await;
+
+            // If there was an error returned from download_and_scan_parquet send it back to the receiver.
+            if let Err(e) = download_result {
+                let e = ArrowError::ExternalError(Box::new(e));
+                if let Err(e) = tx.send(ArrowResult::Err(e)).await {
+                    // if no one is listening, there is no one else to hear our screams
+                    debug!(%e, "Error sending result of download function. Receiver is closed.");
                 }
             }
-        }
+        });
 
-        Ok(())
-    }
+        // returned stream simply reads off the rx stream
+        let stream = ParquetStream {
+            schema,
+            inner: ReceiverStream::new(rx),
+        };
 
-    pub async fn load_parquet_data_from_object_store(
-        path: Path,
-        store: Arc<ObjectStore>,
-    ) -> Result<Vec<u8>> {
-        store
-            .get(&path)
-            .await
-            .context(ReadingObjectStore)?
-            .map_ok(|bytes| bytes.to_vec())
-            .try_concat()
-            .await
-            .context(ReadingObjectStore)
+        Ok(Box::pin(stream))
     }
 }
 
@@ -489,22 +508,23 @@ impl TryClone for MemWriter {
     }
 }
 
-/// Read IOx schema from parquet metadata.
-pub fn read_schema_from_parquet_metadata(parquet_md: &ParquetMetaData) -> Result<Schema> {
-    let file_metadata = parquet_md.file_metadata();
-
-    let arrow_schema = parquet_to_arrow_schema(
-        file_metadata.schema_descr(),
-        file_metadata.key_value_metadata(),
-    )
-    .context(ArrowFromParquetFailure {})?;
-
-    let arrow_schema_ref = Arc::new(arrow_schema);
-
-    let schema: Schema = arrow_schema_ref
-        .try_into()
-        .context(IoxFromArrowFailure {})?;
-    Ok(schema)
+/// Location where parquet data goes to.
+///
+/// Schema currently is:
+///
+/// ```text
+/// <writer_id>/<database>/data
+/// ```
+pub(crate) fn data_location(
+    object_store: &ObjectStore,
+    server_id: ServerId,
+    db_name: &str,
+) -> Path {
+    let mut path = object_store.new_path();
+    path.push_dir(server_id.to_string());
+    path.push_dir(db_name.to_string());
+    path.push_dir("data");
+    path
 }
 
 #[cfg(test)]
@@ -512,13 +532,52 @@ mod tests {
     use std::num::NonZeroU32;
 
     use super::*;
-    use crate::utils::make_object_store;
+    use crate::test_utils::{make_object_store, make_record_batch};
+    use arrow::array::{ArrayRef, StringArray};
+    use arrow_util::assert_batches_eq;
+    use datafusion::physical_plan::common::SizedRecordBatchStream;
+    use datafusion_util::MemoryStream;
     use object_store::parsed_path;
+    use uuid::Uuid;
+
+    #[tokio::test]
+    async fn test_parquet_contains_key_value_metadata() {
+        let metadata = IoxMetadata {
+            transaction_revision_counter: 42,
+            transaction_uuid: Uuid::new_v4(),
+        };
+
+        // create parquet file
+        let (_record_batches, schema, _column_summaries, _num_rows) = make_record_batch("foo");
+        let stream: SendableRecordBatchStream = Box::pin(MemoryStream::new_with_schema(
+            vec![],
+            Arc::clone(schema.inner()),
+        ));
+        let bytes =
+            Storage::parquet_stream_to_bytes(stream, Arc::clone(schema.inner()), metadata.clone())
+                .await
+                .unwrap();
+
+        // extract metadata
+        let md = read_parquet_metadata_from_file(bytes).unwrap();
+        let kv_vec = md.file_metadata().key_value_metadata().as_ref().unwrap();
+
+        // filter out relevant key
+        let kv = kv_vec
+            .iter()
+            .find(|kv| kv.key == METADATA_KEY)
+            .cloned()
+            .unwrap();
+
+        // compare with input
+        let metadata_roundtrip: IoxMetadata = serde_json::from_str(&kv.value.unwrap()).unwrap();
+        assert_eq!(metadata_roundtrip, metadata);
+    }
 
     #[test]
     fn test_location_to_from_path() {
         let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
-        let store = Storage::new(make_object_store(), server_id, "my_db".to_string());
+        let store = Storage::new(make_object_store(), server_id, "my_db");
 
         // happy roundtrip
         let path = store.location("p1".to_string(), 42, "my_table".to_string());
@@ -572,5 +631,74 @@ mod tests {
                 "my_table.parquet.tmp"
             ))
             .is_err());
+    }
+
+    #[tokio::test]
+    async fn test_roundtrip() {
+        test_helpers::maybe_start_logging();
+        // validates that the async plubing is setup to read parquet files from object store
+
+        // prepare input
+        let array = StringArray::from(vec!["foo", "bar", "baz"]);
+        let batch = RecordBatch::try_from_iter(vec![(
+            "my_awesome_test_column",
+            Arc::new(array) as ArrayRef,
+        )])
+        .unwrap();
+
+        let expected = vec![
+            "+------------------------+",
+            "| my_awesome_test_column |",
+            "+------------------------+",
+            "| foo                    |",
+            "| bar                    |",
+            "| baz                    |",
+            "+------------------------+",
+        ];
+
+        let input_batches = vec![batch.clone()];
+        assert_batches_eq!(&expected, &input_batches);
+
+        // create Storage
+        let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
+        let storage = Storage::new(make_object_store(), server_id, "my_db");
+
+        // write the data in
+        let schema = batch.schema();
+        let input_stream = Box::pin(SizedRecordBatchStream::new(
+            batch.schema(),
+            vec![Arc::new(batch)],
+        ));
+        let metadata = IoxMetadata {
+            transaction_revision_counter: 42,
+            transaction_uuid: Uuid::new_v4(),
+        };
+
+        let (path, _) = storage
+            .write_to_object_store(
+                "my_partition".to_string(),
+                33,
+                "my_table".to_string(),
+                input_stream,
+                metadata,
+            )
+            .await
+            .expect("successfully wrote to object store");
+
+        let object_store = Arc::clone(&storage.object_store);
+        let read_stream = Storage::read_filter(
+            &Predicate::default(),
+            Selection::All,
+            schema,
+            path,
+            object_store,
+        )
+        .expect("successfully called read_filter");
+
+        let read_batches = datafusion::physical_plan::common::collect(read_stream)
+            .await
+            .expect("collecting results");
+
+        assert_batches_eq!(&expected, &read_batches);
     }
 }

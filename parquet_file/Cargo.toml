@@ -5,7 +5,7 @@ authors = ["Nga Tran <nga-tran@live.com>"]
 edition = "2018"
 
 [dependencies] # In alphabetical order
-arrow = "4.0"
+arrow = { version = "4.0", features = ["prettyprint"] }
 bytes = "1.0"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
@@ -22,9 +22,11 @@ parquet = "4.0"
 parquet-format = "2.6"
 parking_lot = "0.11.1"
 prost = "0.7"
-prost-types = "0.7"
 query = { path = "../query" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 snafu = "0.6"
+tempfile = "3.1.0"
 thrift = "0.13"
 tokio = { version = "1.0", features = ["macros", "rt", "rt-multi-thread", "sync"] }
 tokio-stream = "0.1"
@@ -33,3 +35,4 @@ uuid = { version = "0.8", features = ["serde", "v4"] }
 
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }
+test_helpers = { path = "../test_helpers" }

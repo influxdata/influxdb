@@ -1,15 +1,15 @@
 use std::mem;
 use std::sync::Arc;
 
-use snafu::{ensure, Snafu};
-
 use arrow::{
     array::{
-        ArrayData, ArrayDataBuilder, ArrayRef, BooleanArray, DictionaryArray, Float64Array,
-        Int64Array, TimestampNanosecondArray, UInt64Array,
+        Array, ArrayDataBuilder, ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array,
+        TimestampNanosecondArray, UInt64Array,
     },
     datatypes::{DataType, Int32Type},
 };
+use snafu::{ensure, Snafu};
+
 use arrow_util::bitset::{iter_set_positions, BitSet};
 use arrow_util::string::PackedStringArray;
 use data_types::partition_metadata::{IsNan, StatValues, Statistics};
@@ -17,6 +17,7 @@ use entry::Column as EntryColumn;
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, TIME_DATA_TYPE};
 
 use crate::dictionary::{Dictionary, DID, INVALID_DID};
+use std::convert::TryInto;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations)]
@@ -55,7 +56,7 @@ pub enum ColumnData {
     U64(Vec<u64>, StatValues<u64>),
     String(PackedStringArray<i32>, StatValues<String>),
     Bool(BitSet, StatValues<bool>),
-    Tag(Vec<DID>, StatValues<String>),
+    Tag(Vec<DID>, Dictionary, StatValues<String>),
 }
 
 impl Column {
@@ -82,9 +83,11 @@ impl Column {
                 PackedStringArray::new_empty(row_count),
                 StatValues::default(),
             ),
-            InfluxColumnType::Tag => {
-                ColumnData::Tag(vec![INVALID_DID; row_count], StatValues::default())
-            }
+            InfluxColumnType::Tag => ColumnData::Tag(
+                vec![INVALID_DID; row_count],
+                Default::default(),
+                StatValues::default(),
+            ),
         };
 
         Self {
@@ -112,7 +115,7 @@ impl Column {
         self.influx_type
     }
 
-    pub fn append(&mut self, entry: &EntryColumn<'_>, dictionary: &mut Dictionary) -> Result<()> {
+    pub fn append(&mut self, entry: &EntryColumn<'_>) -> Result<()> {
         self.validate_schema(entry)?;
 
         let row_count = entry.row_count;
@@ -203,7 +206,7 @@ impl Column {
 
                 assert_eq!(stats.count - initial_non_null_count, to_add as u64);
             }
-            ColumnData::Tag(col_data, stats) => {
+            ColumnData::Tag(col_data, dictionary, stats) => {
                 let entry_data = entry
                     .inner()
                     .values_as_string_values()
@@ -244,7 +247,7 @@ impl Column {
             ColumnData::U64(data, _) => data.resize(len, 0),
             ColumnData::String(data, _) => data.extend(delta),
             ColumnData::Bool(data, _) => data.append_unset(delta),
-            ColumnData::Tag(data, _) => data.resize(len, INVALID_DID),
+            ColumnData::Tag(data, _, _) => data.resize(len, INVALID_DID),
         }
     }
 
@@ -258,8 +261,17 @@ impl Column {
             ColumnData::I64(_, stats) => Statistics::I64(stats.clone()),
             ColumnData::U64(_, stats) => Statistics::U64(stats.clone()),
             ColumnData::Bool(_, stats) => Statistics::Bool(stats.clone()),
-            ColumnData::String(_, stats) | ColumnData::Tag(_, stats) => {
-                Statistics::String(stats.clone())
+            ColumnData::String(_, stats) => Statistics::String(stats.clone()),
+            ColumnData::Tag(keys, dictionary, stats) => {
+                let mut distinct_count = dictionary.values().len() as u64;
+                if keys.len() as u64 != stats.count {
+                    // Column contains NULLs
+                    distinct_count += 1;
+                }
+
+                let mut stats = stats.clone();
+                stats.distinct_count = distinct_count.try_into().ok();
+                Statistics::String(stats)
             }
         }
     }
@@ -274,17 +286,17 @@ impl Column {
             ColumnData::I64(v, stats) => mem::size_of::<i64>() * v.len() + mem::size_of_val(&stats),
             ColumnData::U64(v, stats) => mem::size_of::<u64>() * v.len() + mem::size_of_val(&stats),
             ColumnData::Bool(v, stats) => v.byte_len() + mem::size_of_val(&stats),
-            ColumnData::Tag(v, stats) => mem::size_of::<DID>() * v.len() + mem::size_of_val(&stats),
+            ColumnData::Tag(v, dictionary, stats) => {
+                mem::size_of::<DID>() * v.len() + dictionary.size() + mem::size_of_val(&stats)
+            }
             ColumnData::String(v, stats) => {
-                let string_bytes_size = v.iter().fold(0, |acc, val| acc + val.len());
-                let vec_pointer_sizes = mem::size_of::<String>() * v.len();
-                string_bytes_size + vec_pointer_sizes + mem::size_of_val(&stats)
+                v.size() + mem::size_of_val(&stats) + stats.string_size()
             }
         };
         data_size + self.valid.byte_len()
     }
 
-    pub fn to_arrow(&self, dictionary: &ArrayData) -> Result<ArrayRef> {
+    pub fn to_arrow(&self) -> Result<ArrayRef> {
         let nulls = self.valid.to_arrow();
         let data: ArrayRef = match &self.data {
             ColumnData::F64(data, _) => {
@@ -332,7 +344,9 @@ impl Column {
                     .build();
                 Arc::new(BooleanArray::from(data))
             }
-            ColumnData::Tag(data, _) => {
+            ColumnData::Tag(data, dictionary, _) => {
+                let dictionary = dictionary.values().to_arrow();
+
                 let data = ArrayDataBuilder::new(DataType::Dictionary(
                     Box::new(DataType::Int32),
                     Box::new(DataType::Utf8),
@@ -340,7 +354,7 @@ impl Column {
                 .len(data.len())
                 .add_buffer(data.iter().cloned().collect())
                 .null_bit_buffer(nulls)
-                .add_child_data(dictionary.clone())
+                .add_child_data(dictionary.data().clone())
                 .build();
 
                 let array = DictionaryArray::<Int32Type>::from(data);

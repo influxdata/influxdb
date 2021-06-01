@@ -36,7 +36,7 @@ impl BooleanEncoding {
     // Returns statistics about the physical layout of columns
     pub(crate) fn storage_stats(&self) -> Statistics {
         Statistics {
-            enc_type: self.name(),
+            enc_type: self.name().into(),
             log_data_type: "bool",
             values: self.num_rows(),
             nulls: self.null_count(),
@@ -141,7 +141,7 @@ impl BooleanEncoding {
     /// The name of this encoding.
     pub fn name(&self) -> &'static str {
         match &self {
-            Self::BooleanNull(_) => "None",
+            Self::BooleanNull(_) => "FIXEDN",
         }
     }
 }

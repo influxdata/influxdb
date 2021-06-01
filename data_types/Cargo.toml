@@ -12,7 +12,6 @@ influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 percent-encoding = "2.1.0"
 regex = "1.4"
 serde = { version = "1.0", features = ["rc", "derive"] }
-serde_regex = "1.1"
 snafu = "0.6"
 observability_deps = { path = "../observability_deps" }
 

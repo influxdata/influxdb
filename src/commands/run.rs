@@ -1,7 +1,7 @@
 //! Implementation of command line option for running server
 
 use crate::commands::tracing;
-use crate::influxdb_ioxd;
+use crate::influxdb_ioxd::{self, serving_readiness::ServingReadinessState};
 use clap::arg_enum;
 use core::num::NonZeroU16;
 use data_types::server_id::ServerId;
@@ -361,7 +361,7 @@ Possible values (case insensitive):
     )]
     pub aws_default_region: String,
 
-    /// When using Amazon s3 compatibility storage service, set this to the
+    /// When using Amazon S3 compatibility storage service, set this to the
     /// endpoint.
     ///
     /// Must also set `--object-store=s3`, `--bucket`. Can also set `--aws-default-region`
@@ -371,6 +371,16 @@ Possible values (case insensitive):
     /// environments.
     #[structopt(long = "--aws-endpoint", env = "AWS_ENDPOINT")]
     pub aws_endpoint: Option<String>,
+
+    /// When using Amazon S3 as an object store, set this to the session token. This is handy when using a federated
+    /// login / SSO and you fetch credentials via the UI.
+    ///
+    /// Is it assumed that the session is valid as long as the IOx server is running.
+    ///
+    /// Prefer the environment variable over the command line flag in shared
+    /// environments.
+    #[structopt(long = "--aws-session-token", env = "AWS_SESSION_TOKEN")]
+    pub aws_session_token: Option<String>,
 
     /// When using Google Cloud Storage as the object store, set this to the
     /// path to the JSON file that contains the Google credentials.
@@ -406,6 +416,15 @@ Possible values (case insensitive):
     /// Example: http://node-{id}.ioxmydomain.com:8082
     #[structopt(long = "--remote-template", env = "INFLUXDB_IOX_REMOTE_TEMPLATE")]
     pub remote_template: Option<String>,
+
+    /// After startup the IOx server can either accept serving data plane traffic right away
+    /// or require a SetServingReadiness call from the Management API to enable serving.
+    #[structopt(
+        long = "--initial-serving-readiness-state",
+        env = "INFLUXDB_IOX_INITIAL_SERVING_READINESS_STATE",
+        default_value = "serving"
+    )]
+    pub initial_serving_state: ServingReadinessState,
 }
 
 pub async fn command(config: Config) -> Result<()> {

@@ -14,7 +14,7 @@ description = "IOx Query Interface and Executor"
 # 2. Allow for query logic testing without bringing in all the storage systems.
 
 [dependencies] # In alphabetical order
-arrow = "4.0"
+arrow = { version = "4.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 chrono = "0.4"
@@ -29,9 +29,9 @@ metrics = { path = "../metrics" }
 parking_lot = "0.11.1"
 regex = "1"
 snafu = "0.6.3"
-sqlparser = "0.8.0"
 tokio = { version = "1.0", features = ["macros"] }
 tokio-stream = "0.1.2"
+tracker = { path = "../tracker" }
 observability_deps = { path = "../observability_deps" }
 
 # use libc on unix like platforms to set worker priority in DedicatedExecutor

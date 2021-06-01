@@ -17,6 +17,7 @@ use tokio::time::Duration;
 mod http;
 mod planner;
 mod rpc;
+pub(crate) mod serving_readiness;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -100,7 +101,14 @@ async fn wait_for_signal() {
 pub async fn main(config: Config) -> Result<()> {
     let git_hash = option_env!("GIT_HASH").unwrap_or("UNKNOWN");
     let num_cpus = num_cpus::get();
-    info!(git_hash, num_cpus, "InfluxDB IOx server starting");
+    let build_malloc_conf = tikv_jemalloc_ctl::config::malloc_conf::mib()
+        .unwrap()
+        .read()
+        .unwrap();
+    info!(
+        git_hash,
+        num_cpus, build_malloc_conf, "InfluxDB IOx server starting"
+    );
 
     // Install custom panic handler and forget about it.
     //
@@ -163,7 +171,13 @@ pub async fn main(config: Config) -> Result<()> {
         .await
         .context(StartListeningGrpc { grpc_bind_addr })?;
 
-    let grpc_server = rpc::serve(socket, Arc::clone(&app_server), frontend_shutdown.clone()).fuse();
+    let grpc_server = rpc::serve(
+        socket,
+        Arc::clone(&app_server),
+        frontend_shutdown.clone(),
+        config.initial_serving_state.into(),
+    )
+    .fuse();
 
     info!(bind_address=?grpc_bind_addr, "gRPC server listening");
 
@@ -322,14 +336,22 @@ impl TryFrom<&Config> for ObjectStore {
                     config.aws_secret_access_key.as_ref(),
                     config.aws_default_region.as_str(),
                     config.aws_endpoint.as_ref(),
+                    config.aws_session_token.as_ref(),
                 ) {
-                    (Some(bucket), key_id, secret_key, region, endpoint) => {
+                    (Some(bucket), key_id, secret_key, region, endpoint, session_token) => {
                         Ok(Self::new_amazon_s3(
-                            AmazonS3::new(key_id, secret_key, region, bucket, endpoint)
-                                .context(InvalidS3Config)?,
+                            AmazonS3::new(
+                                key_id,
+                                secret_key,
+                                region,
+                                bucket,
+                                endpoint,
+                                session_token,
+                            )
+                            .context(InvalidS3Config)?,
                         ))
                     }
-                    (bucket, _, _, _, _) => {
+                    (bucket, _, _, _, _, _) => {
                         let mut missing_args = vec![];
 
                         if bucket.is_none() {

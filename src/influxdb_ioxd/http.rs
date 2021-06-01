@@ -98,6 +98,9 @@ pub enum ApplicationError {
     WritingPoints {
         org: String,
         bucket_name: String,
+        tables: Vec<String>,
+        num_lines: usize,
+        body_size: usize,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
@@ -373,19 +376,18 @@ where
 // The API-global error handler, handles ApplicationErrors originating from
 // individual routes and middlewares, along with errors from the router itself
 async fn error_handler(err: RouterError<ApplicationError>, req: RequestInfo) -> Response<Body> {
+    let method = req.method().clone();
+    let uri = req.uri().clone();
+    let span_id = req.headers().get("x-b3-spanid");
+    let content_length = req.headers().get("content-length");
+    error!(error = ?err, error_message = ?err.to_string(), method = ?method, uri = ?uri, ?span_id, ?content_length, "Error while handling request");
+
     match err {
         RouterError::HandleRequest(e, _)
         | RouterError::HandlePreMiddlewareRequest(e)
         | RouterError::HandlePostMiddlewareWithInfoRequest(e)
-        | RouterError::HandlePostMiddlewareWithoutInfoRequest(e) => {
-            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
-            e.response()
-        }
+        | RouterError::HandlePostMiddlewareWithoutInfoRequest(e) => e.response(),
         _ => {
-            let method = req.method().clone();
-            let uri = req.uri().clone();
-            error!(error = ?err, error_message = ?err.to_string(), method = ?method, uri = ?uri, "Error while handling request");
-
             let json = serde_json::json!({"error": err.to_string()}).to_string();
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
@@ -539,11 +541,20 @@ where
                 server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
                     name: db_name.to_string(),
                 },
-                _ => ApplicationError::WritingPoints {
-                    org: write_info.org.clone(),
-                    bucket_name: write_info.bucket.clone(),
-                    source: Box::new(e),
-                },
+                _ => {
+                    let tables = lines
+                        .iter()
+                        .map(|i| i.series.measurement.to_string())
+                        .collect();
+                    ApplicationError::WritingPoints {
+                        org: write_info.org.clone(),
+                        bucket_name: write_info.bucket.clone(),
+                        tables,
+                        num_lines: lines.len(),
+                        body_size: body.len(),
+                        source: Box::new(e),
+                    }
+                }
             }
         })?;
 

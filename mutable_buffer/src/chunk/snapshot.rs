@@ -1,14 +1,23 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use arrow::record_batch::RecordBatch;
+use arrow::{
+    array::DictionaryArray,
+    datatypes::{DataType, Int32Type},
+    record_batch::RecordBatch,
+};
+use snafu::{ensure, ResultExt, Snafu};
+
+use data_types::partition_metadata::TableSummary;
 use data_types::timestamp::TimestampRange;
+use data_types::{
+    error::ErrorLogger,
+    partition_metadata::{ColumnSummary, Statistics},
+};
 use internal_types::schema::{Schema, TIME_COLUMN_NAME};
 use internal_types::selection::Selection;
-use snafu::{OptionExt, ResultExt, Snafu};
 
 use super::Chunk;
-use data_types::{error::ErrorLogger, partition_metadata::Statistics};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -26,129 +35,90 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// A queryable snapshot of a mutable buffer chunk
 #[derive(Debug)]
 pub struct ChunkSnapshot {
-    /// Maps table name to `TableSnapshot`
-    records: HashMap<String, TableSnapshot>,
-    // TODO: Memory tracking
-}
-
-#[derive(Debug)]
-struct TableSnapshot {
-    schema: Schema,
+    schema: Arc<Schema>,
     batch: RecordBatch,
-    timestamp_range: Option<TimestampRange>,
-}
-
-impl TableSnapshot {
-    fn matches_predicate(&self, timestamp_range: &Option<TimestampRange>) -> bool {
-        match (self.timestamp_range, timestamp_range) {
-            (Some(a), Some(b)) => !a.disjoint(b),
-            (None, Some(_)) => false, /* If this chunk doesn't have a time column it can't match */
-            // the predicate
-            (_, None) => true,
-        }
-    }
+    table_name: Arc<str>,
+    stats: Vec<ColumnSummary>,
+    memory: metrics::GaugeValue,
 }
 
 impl ChunkSnapshot {
-    pub fn new(chunk: &Chunk) -> Self {
-        let mut records: HashMap<String, TableSnapshot> = Default::default();
+    pub(crate) fn new(chunk: &Chunk, memory: metrics::GaugeValue) -> Self {
         let table = &chunk.table;
 
         let schema = table
-            .schema(&chunk.dictionary, Selection::All)
+            .schema(Selection::All)
             .log_if_error("ChunkSnapshot getting table schema")
             .unwrap();
+
         let batch = table
-            .to_arrow(&chunk.dictionary, Selection::All)
+            .to_arrow(Selection::All)
             .log_if_error("ChunkSnapshot converting table to arrow")
             .unwrap();
 
-        let name = chunk.table_name.as_ref();
-
-        let timestamp_range =
-            chunk
-                .dictionary
-                .lookup_value(TIME_COLUMN_NAME)
-                .and_then(|column_id| {
-                    table
-                        .column(column_id)
-                        .ok()
-                        .and_then(|column| match column.stats() {
-                            Statistics::I64(stats) => match (stats.min, stats.max) {
-                                (Some(min), Some(max)) => Some(TimestampRange::new(min, max)),
-                                _ => None,
-                            },
-                            _ => None,
-                        })
-                });
-
-        records.insert(
-            name.to_string(),
-            TableSnapshot {
-                schema,
-                batch,
-                timestamp_range,
-            },
-        );
-
-        Self { records }
+        let mut s = Self {
+            schema: Arc::new(schema),
+            batch,
+            table_name: Arc::clone(&chunk.table_name),
+            stats: table.stats(),
+            memory,
+        };
+        s.memory.set(s.size());
+        s
     }
 
     /// returns true if there is no data in this snapshot
     pub fn is_empty(&self) -> bool {
-        self.records.is_empty()
-    }
-
-    /// Return true if this snapshot has the specified table name
-    pub fn has_table(&self, table_name: &str) -> bool {
-        self.records.get(table_name).is_some()
+        self.batch.num_rows() == 0
     }
 
     /// Return Schema for the specified table / columns
     pub fn table_schema(&self, table_name: &str, selection: Selection<'_>) -> Result<Schema> {
-        let table = self
-            .records
-            .get(table_name)
-            .context(TableNotFound { table_name })?;
+        // Temporary #1295
+        ensure!(
+            self.table_name.as_ref() == table_name,
+            TableNotFound { table_name }
+        );
 
         Ok(match selection {
-            Selection::All => table.schema.clone(),
+            Selection::All => self.schema.as_ref().clone(),
             Selection::Some(columns) => {
-                let columns = table.schema.select(columns).context(SelectColumns)?;
-                table.schema.project(&columns)
+                let columns = self.schema.select(columns).context(SelectColumns)?;
+                self.schema.project(&columns)
             }
         })
     }
 
+    /// Return Schema for all columns in this snapshot
+    pub fn full_schema(&self) -> Arc<Schema> {
+        Arc::clone(&self.schema)
+    }
+
     /// Returns a list of tables with writes matching the given timestamp_range
-    pub fn table_names(
-        &self,
-        timestamp_range: Option<TimestampRange>,
-    ) -> impl Iterator<Item = &String> + '_ {
-        self.records
-            .iter()
-            .flat_map(move |(table_name, table_snapshot)| {
-                table_snapshot
-                    .matches_predicate(&timestamp_range)
-                    .then(|| table_name)
-            })
+    pub fn table_names(&self, timestamp_range: Option<TimestampRange>) -> BTreeSet<String> {
+        let mut ret = BTreeSet::new();
+        if self.has_timerange(&timestamp_range) {
+            ret.insert(self.table_name.to_string());
+        }
+        ret
     }
 
     /// Returns a RecordBatch with the given selection
     pub fn read_filter(&self, table_name: &str, selection: Selection<'_>) -> Result<RecordBatch> {
-        let table = self
-            .records
-            .get(table_name)
-            .context(TableNotFound { table_name })?;
+        // Temporary #1295
+        ensure!(
+            self.table_name.as_ref() == table_name,
+            TableNotFound { table_name }
+        );
 
         Ok(match selection {
-            Selection::All => table.batch.clone(),
+            Selection::All => self.batch.clone(),
             Selection::Some(columns) => {
-                let projection = table.schema.select(columns).context(SelectColumns)?;
-                let schema = table.schema.project(&projection).into();
+                let projection = self.schema.select(columns).context(SelectColumns)?;
+                let schema = self.schema.project(&projection).into();
                 let columns = projection
                     .into_iter()
-                    .map(|x| Arc::clone(table.batch.column(x)))
+                    .map(|x| Arc::clone(self.batch.column(x)))
                     .collect();
 
                 RecordBatch::try_new(schema, columns).expect("failed to project record batch")
@@ -162,8 +132,12 @@ impl ChunkSnapshot {
         table_name: &str,
         selection: Selection<'_>,
     ) -> Option<BTreeSet<String>> {
-        let table = self.records.get(table_name)?;
-        let fields = table.schema.inner().fields().iter();
+        // Temporary #1295
+        if self.table_name.as_ref() != table_name {
+            return None;
+        }
+
+        let fields = self.schema.inner().fields().iter();
 
         Some(match selection {
             Selection::Some(cols) => fields
@@ -177,5 +151,87 @@ impl ChunkSnapshot {
                 .collect(),
             Selection::All => fields.map(|x| x.name().clone()).collect(),
         })
+    }
+
+    /// Returns a vec of the summary statistics of the tables in this chunk
+    pub fn table_summary(&self) -> TableSummary {
+        TableSummary {
+            name: self.table_name.to_string(),
+            columns: self.stats.clone(),
+        }
+    }
+
+    /// Return the approximate memory size of the chunk, in bytes including the
+    /// dictionary, tables, statistics and their rows.
+    pub fn size(&self) -> usize {
+        let columns = self.column_sizes().map(|(_, size)| size).sum::<usize>();
+        let stats = self.stats.iter().map(|c| c.size()).sum::<usize>();
+        columns + stats + std::mem::size_of::<Self>()
+    }
+
+    /// Returns the number of bytes taken up by the shared dictionary
+    pub fn dictionary_size(&self) -> usize {
+        self.batch
+            .columns()
+            .iter()
+            .filter_map(|array| {
+                let dict = array
+                    .as_any()
+                    .downcast_ref::<DictionaryArray<Int32Type>>()?;
+                let values = dict.values();
+                Some(values.get_buffer_memory_size() + values.get_array_memory_size())
+            })
+            .next()
+            .unwrap_or(0)
+    }
+
+    /// Returns an iterator over (column_name, estimated_size) for all
+    /// columns in this chunk.
+    ///
+    /// Dictionary-encoded columns do not include the size of the shared dictionary
+    /// in their reported total
+    ///
+    /// This is instead returned as a special "__dictionary" column
+    pub fn column_sizes(&self) -> impl Iterator<Item = (&str, usize)> + '_ {
+        let dictionary_size = self.dictionary_size();
+        self.batch
+            .columns()
+            .iter()
+            .zip(self.stats.iter())
+            .map(move |(array, summary)| {
+                let size = match array.data_type() {
+                    // Dictionary is only encoded once for all columns
+                    DataType::Dictionary(_, _) => {
+                        array.get_array_memory_size() + array.get_buffer_memory_size()
+                            - dictionary_size
+                    }
+                    _ => array.get_array_memory_size() + array.get_buffer_memory_size(),
+                };
+                (summary.name.as_str(), size)
+            })
+            .chain(std::iter::once(("__dictionary", dictionary_size)))
+    }
+
+    /// Return the number of rows in this chunk
+    pub fn rows(&self) -> usize {
+        self.batch.num_rows()
+    }
+
+    pub fn has_timerange(&self, timestamp_range: &Option<TimestampRange>) -> bool {
+        let timestamp_range = match timestamp_range {
+            Some(t) => t,
+            None => return true,
+        };
+
+        self.schema
+            .find_index_of(TIME_COLUMN_NAME)
+            .and_then(|idx| match &self.stats[idx].stats {
+                Statistics::I64(stats) => Some(
+                    !TimestampRange::new(stats.min? as _, stats.max? as _)
+                        .disjoint(timestamp_range),
+                ),
+                _ => panic!("invalid statistics for time column"),
+            })
+            .unwrap_or(false) // If no time column or no time column values - cannot match
     }
 }

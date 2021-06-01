@@ -1165,12 +1165,13 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::ServingReadinessInterceptor;
     use super::super::id::Id;
 
     use super::*;
     use datafusion::logical_plan::{col, lit, Expr};
     use panic_logging::SendPanicsToTracing;
-    use query::{test::TestChunk, test::TestDatabaseStore};
+    use query::{predicate::PredicateMatch, test::TestChunk, test::TestDatabaseStore};
     use std::{
         convert::TryFrom,
         net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -1188,6 +1189,7 @@ mod tests {
         Window as RPCWindow,
     };
 
+    use crate::influxdb_ioxd::serving_readiness::ServingReadinessState;
     use generated_types::google::protobuf::Any;
     use prost::Message;
     use tokio_stream::wrappers::TcpListenerStream;
@@ -1250,14 +1252,21 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0).with_table("h2o").with_table("o2");
+        let chunk0 = TestChunk::new(0)
+            .with_predicate_match(PredicateMatch::AtLeastOne)
+            .with_table("h2o");
+
+        let chunk1 = TestChunk::new(1)
+            .with_predicate_match(PredicateMatch::AtLeastOne)
+            .with_table("o2");
 
         fixture
             .test_storage
             .db_or_create(&db_info.db_name)
             .await
             .unwrap()
-            .add_chunk("my_partition_key", Arc::new(chunk));
+            .add_chunk("my_partition_key", Arc::new(chunk0))
+            .add_chunk("my_partition_key", Arc::new(chunk1));
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
@@ -1301,24 +1310,24 @@ mod tests {
 
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk
-        let actual_predicate = fixture
+        let actual_predicates = fixture
             .test_storage
             .db_or_create(&db_info.db_name)
             .await
             .expect("getting db")
             .get_chunk("my_partition_key", 0)
-            .and_then(|chunk| chunk.predicate());
+            .unwrap()
+            .predicates();
 
-        let expected_predicate = Some(
-            PredicateBuilder::default()
-                .timestamp_range(150, 200)
-                .build(),
-        );
+        let expected_predicate = PredicateBuilder::default()
+            .timestamp_range(150, 200)
+            .build();
 
-        assert_eq!(
-            actual_predicate, expected_predicate,
+        assert!(
+            actual_predicates.contains(&expected_predicate),
             "\nActual: {:?}\nExpected: {:?}",
-            actual_predicate, expected_predicate
+            actual_predicates,
+            expected_predicate
         );
 
         grpc_request_metric_has_count(&fixture, "measurement_names", "ok", 2).unwrap();
@@ -1337,9 +1346,11 @@ mod tests {
         let partition_id = 1;
 
         // Note multiple tables / measureemnts:
-        let chunk = TestChunk::new(0)
+        let chunk0 = TestChunk::new(0)
             .with_tag_column("m1", "k1")
-            .with_tag_column("m1", "k2")
+            .with_tag_column("m1", "k2");
+
+        let chunk1 = TestChunk::new(1)
             .with_tag_column("m2", "k3")
             .with_tag_column("m2", "k4");
 
@@ -1348,7 +1359,8 @@ mod tests {
             .db_or_create(&db_info.db_name)
             .await
             .unwrap()
-            .add_chunk("my_partition_key", Arc::new(chunk));
+            .add_chunk("my_partition_key", Arc::new(chunk0))
+            .add_chunk("my_partition_key", Arc::new(chunk1));
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
@@ -1369,25 +1381,25 @@ mod tests {
 
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk
-        let actual_predicate = fixture
+        let actual_predicates = fixture
             .test_storage
             .db_or_create(&db_info.db_name)
             .await
             .expect("getting db")
             .get_chunk("my_partition_key", 0)
-            .and_then(|chunk| chunk.predicate());
+            .unwrap()
+            .predicates();
 
-        let expected_predicate = Some(
-            PredicateBuilder::default()
-                .timestamp_range(150, 200)
-                .add_expr(make_state_ma_expr())
-                .build(),
-        );
+        let expected_predicate = PredicateBuilder::default()
+            .timestamp_range(150, 200)
+            .add_expr(make_state_ma_expr())
+            .build();
 
-        assert_eq!(
-            actual_predicate, expected_predicate,
+        assert!(
+            actual_predicates.contains(&expected_predicate),
             "\nActual: {:?}\nExpected: {:?}",
-            actual_predicate, expected_predicate
+            actual_predicates,
+            expected_predicate
         );
 
         grpc_request_metric_has_count(&fixture, "tag_keys", "ok", 1).unwrap();
@@ -1402,7 +1414,9 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+        let chunk = TestChunk::new(0)
+            .with_table("my_table")
+            .with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -1444,9 +1458,11 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0)
+        let chunk0 = TestChunk::new(0)
             // predicate specifies m4, so this is filtered out
-            .with_tag_column("m1", "k0")
+            .with_tag_column("m1", "k0");
+
+        let chunk1 = TestChunk::new(1)
             .with_tag_column("m4", "k1")
             .with_tag_column("m4", "k2")
             .with_tag_column("m4", "k3")
@@ -1457,7 +1473,8 @@ mod tests {
             .db_or_create(&db_info.db_name)
             .await
             .unwrap()
-            .add_chunk("my_partition_key", Arc::new(chunk));
+            .add_chunk("my_partition_key", Arc::new(chunk0))
+            .add_chunk("my_partition_key", Arc::new(chunk1));
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
@@ -1489,26 +1506,26 @@ mod tests {
 
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk
-        let actual_predicate = fixture
+        let actual_predicates = fixture
             .test_storage
             .db_or_create(&db_info.db_name)
             .await
             .expect("getting db")
             .get_chunk("my_partition_key", 0)
-            .and_then(|chunk| chunk.predicate());
+            .unwrap()
+            .predicates();
 
-        let expected_predicate = Some(
-            PredicateBuilder::default()
-                .timestamp_range(150, 200)
-                .add_expr(make_state_ma_expr())
-                .table("m4")
-                .build(),
-        );
+        let expected_predicate = PredicateBuilder::default()
+            .timestamp_range(150, 200)
+            .add_expr(make_state_ma_expr())
+            .table("m4")
+            .build();
 
-        assert_eq!(
-            actual_predicate, expected_predicate,
+        assert!(
+            actual_predicates.contains(&expected_predicate),
             "\nActual: {:?}\nExpected: {:?}",
-            actual_predicate, expected_predicate
+            actual_predicates,
+            expected_predicate
         );
 
         grpc_request_metric_has_count(&fixture, "measurement_tag_keys", "ok", 1).unwrap();
@@ -1525,6 +1542,7 @@ mod tests {
 
         let chunk = TestChunk::new(0)
             // predicate specifies m4, so this is filtered out
+            .with_table("my_table")
             .with_error("This is an error");
 
         fixture
@@ -1630,7 +1648,9 @@ mod tests {
             tag_key: [0].into(),
         };
 
-        let chunk = TestChunk::new(0).with_table("h2o");
+        let chunk = TestChunk::new(0)
+            .with_predicate_match(PredicateMatch::AtLeastOne)
+            .with_table("h2o");
 
         fixture
             .test_storage
@@ -1707,7 +1727,9 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+        let chunk = TestChunk::new(0)
+            .with_table("my_table")
+            .with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -1825,7 +1847,9 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+        let chunk = TestChunk::new(0)
+            .with_table("my_table")
+            .with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -1975,7 +1999,9 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+        let chunk = TestChunk::new(0)
+            .with_table("my_table")
+            .with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -2067,7 +2093,9 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+        let chunk = TestChunk::new(0)
+            .with_table("my_table")
+            .with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -2277,7 +2305,9 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+        let chunk = TestChunk::new(0)
+            .with_table("my_table")
+            .with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -2807,6 +2837,7 @@ mod tests {
                 .add_service(crate::influxdb_ioxd::rpc::storage::make_server(
                     Arc::clone(&test_storage),
                     test_storage.metrics_registry.registry(),
+                    ServingReadinessInterceptor(ServingReadinessState::Serving.into()),
                 ));
 
             let server = async move {

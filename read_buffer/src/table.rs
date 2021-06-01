@@ -600,17 +600,17 @@ impl MetaData {
         // Update the table schema using the incoming row group schema
         for (column_name, column_meta) in &other.columns {
             let (column_range_min, column_range_max) = &column_meta.range;
-            let mut curr_range = &mut this
-                .columns
-                .get_mut(&column_name.to_string())
-                .unwrap()
-                .range;
-            if column_range_min < &curr_range.0 {
-                curr_range.0 = column_range_min.clone();
+            let mut curr_meta = this.columns.get_mut(&column_name.to_string()).unwrap();
+
+            // No way to accurately aggregate counts across RowGroups
+            curr_meta.distinct_count = None;
+
+            if column_range_min < &curr_meta.range.0 {
+                curr_meta.range.0 = column_range_min.clone();
             }
 
-            if column_range_max > &curr_range.1 {
-                curr_range.1 = column_range_max.clone();
+            if column_range_max > &curr_meta.range.1 {
+                curr_meta.range.1 = column_range_max.clone();
             }
         }
 
@@ -682,12 +682,14 @@ impl MetaData {
             .iter()
             .map(|(name, column_meta)| {
                 let count = self.rows;
+                let distinct_count = column_meta.distinct_count;
 
                 let stats = match &column_meta.range {
                     (OwnedValue::String(min), OwnedValue::String(max)) => {
                         Statistics::String(StatValues {
                             min: Some(min.to_string()),
                             max: Some(max.to_string()),
+                            distinct_count,
                             count,
                         })
                     }
@@ -695,6 +697,7 @@ impl MetaData {
                         Statistics::Bool(StatValues {
                             min: Some(*min),
                             max: Some(*max),
+                            distinct_count,
                             count,
                         })
                     }
@@ -702,16 +705,19 @@ impl MetaData {
                         (Scalar::I64(min), Scalar::I64(max)) => Statistics::I64(StatValues {
                             min: Some(*min),
                             max: Some(*max),
+                            distinct_count,
                             count,
                         }),
                         (Scalar::U64(min), Scalar::U64(max)) => Statistics::U64(StatValues {
                             min: Some(*min),
                             max: Some(*max),
+                            distinct_count,
                             count,
                         }),
                         (Scalar::F64(min), Scalar::F64(max)) => Statistics::F64(StatValues {
                             min: Some(*min),
                             max: Some(*max),
+                            distinct_count,
                             count,
                         }),
                         _ => panic!(

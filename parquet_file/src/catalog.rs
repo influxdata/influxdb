@@ -140,7 +140,7 @@ pub enum Error {
         visibility(pub)
     )]
     SchemaReadFailed {
-        source: crate::storage::Error,
+        source: crate::metadata::Error,
         path: DirsAndFileName,
     },
 
@@ -388,7 +388,11 @@ where
         }))
     }
 
-    /// Deletes (potentially existing) catalog.
+    /// Deletes catalog.
+    ///
+    /// **Always create a backup before wiping your data!**
+    ///
+    /// This also works for broken catalogs. Also succeeds if no catalog is present.
     ///
     /// Note that wiping the catalog will NOT wipe any referenced parquet files.
     pub async fn wipe(
@@ -412,7 +416,13 @@ where
     /// post-blocking). This system is fair, which means that transactions are given out in the order they were
     /// requested.
     pub async fn open_transaction(&self) -> TransactionHandle<'_, S> {
-        TransactionHandle::new(self).await
+        self.open_transaction_with_uuid(Uuid::new_v4()).await
+    }
+
+    /// Crate-private API to open an transaction with a specified UUID. Should only be used for catalog rebuilding or
+    /// with a fresh V4-UUID!
+    pub(crate) async fn open_transaction_with_uuid(&self, uuid: Uuid) -> TransactionHandle<'_, S> {
+        TransactionHandle::new(self, uuid).await
     }
 
     /// Return current state.
@@ -428,6 +438,21 @@ where
             .clone()
             .map(|tkey| tkey.revision_counter)
             .expect("catalog should have at least an empty transaction")
+    }
+
+    /// Object store used by this catalog.
+    pub fn object_store(&self) -> Arc<ObjectStore> {
+        Arc::clone(&self.object_store)
+    }
+
+    /// Server ID used by this catalog.
+    pub fn server_id(&self) -> ServerId {
+        self.server_id
+    }
+
+    /// Database name used by this catalog.
+    pub fn db_name(&self) -> &str {
+        &self.db_name
     }
 }
 
@@ -647,7 +672,7 @@ where
     S: CatalogState,
 {
     /// Private API to create new transaction, users should always use [`PreservedCatalog::open_transaction`].
-    fn new(catalog_inner: &PreservedCatalogInner<S>) -> Self {
+    fn new(catalog_inner: &PreservedCatalogInner<S>, uuid: Uuid) -> Self {
         let (revision_counter, previous_uuid) = match &catalog_inner.previous_tkey {
             Some(tkey) => (tkey.revision_counter + 1, tkey.uuid.to_string()),
             None => (0, String::new()),
@@ -658,7 +683,7 @@ where
             proto: proto::Transaction {
                 actions: vec![],
                 version: TRANSACTION_VERSION,
-                uuid: Uuid::new_v4().to_string(),
+                uuid: uuid.to_string(),
                 revision_counter,
                 previous_uuid,
             },
@@ -668,7 +693,7 @@ where
     fn tkey(&self) -> TransactionKey {
         TransactionKey {
             revision_counter: self.proto.revision_counter,
-            uuid: Uuid::parse_str(&self.proto.uuid).unwrap(),
+            uuid: Uuid::parse_str(&self.proto.uuid).expect("UUID was checked before"),
         }
     }
 
@@ -829,7 +854,7 @@ impl<'c, S> TransactionHandle<'c, S>
 where
     S: CatalogState,
 {
-    async fn new(catalog: &'c PreservedCatalog<S>) -> TransactionHandle<'c, S> {
+    async fn new(catalog: &'c PreservedCatalog<S>, uuid: Uuid) -> TransactionHandle<'c, S> {
         // first acquire semaphore (which is only being used for transactions), then get state lock
         let permit = catalog
             .transaction_semaphore
@@ -838,7 +863,7 @@ where
             .expect("semaphore should not be closed");
         let inner_guard = catalog.inner.write();
 
-        let transaction = OpenTransaction::new(&inner_guard);
+        let transaction = OpenTransaction::new(&inner_guard, uuid);
 
         // free state for readers again
         drop(inner_guard);
@@ -853,12 +878,30 @@ where
         }
     }
 
+    /// Get revision counter for this transaction.
+    pub fn revision_counter(&self) -> u64 {
+        self.transaction
+            .as_ref()
+            .expect("No transaction in progress?")
+            .tkey()
+            .revision_counter
+    }
+
+    /// Get UUID for this transaction
+    pub fn uuid(&self) -> Uuid {
+        self.transaction
+            .as_ref()
+            .expect("No transaction in progress?")
+            .tkey()
+            .uuid
+    }
+
     /// Write data to object store and commit transaction to underlying catalog.
     pub async fn commit(mut self) -> Result<()> {
         // write to object store
         self.transaction
             .as_mut()
-            .unwrap()
+            .expect("No transaction in progress?")
             .store(
                 &self.catalog.object_store,
                 self.catalog.server_id,
@@ -876,6 +919,11 @@ where
         info!(?tkey, "transaction committed");
 
         Ok(())
+    }
+
+    /// Abort transaction w/o commit.
+    pub fn abort(mut self) {
+        self.transaction = None;
     }
 
     /// Add a new parquet file to the catalog.
@@ -1037,13 +1085,12 @@ pub mod test_helpers {
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use std::{num::NonZeroU32, ops::Deref};
 
     use crate::{
-        metadata::{read_parquet_metadata_from_file, read_statistics_from_parquet_metadata},
-        storage::read_schema_from_parquet_metadata,
-        utils::{load_parquet_from_store, make_chunk, make_object_store},
+        metadata::{read_schema_from_parquet_metadata, read_statistics_from_parquet_metadata},
+        test_utils::{make_metadata, make_object_store},
     };
     use object_store::parsed_path;
 
@@ -1661,8 +1708,8 @@ pub mod tests {
         .unwrap();
 
         // get some test metadata
-        let metadata1 = make_metadata(object_store, "foo").await;
-        let metadata2 = make_metadata(object_store, "bar").await;
+        let (_, metadata1) = make_metadata(object_store, "foo", 1).await;
+        let (_, metadata2) = make_metadata(object_store, "bar", 1).await;
 
         // track all the intermediate results
         let mut trace = TestTrace::new();
@@ -1916,6 +1963,39 @@ pub mod tests {
         assert_eq!(files, vec![path.display()]);
     }
 
+    #[tokio::test]
+    async fn test_transaction_handle_revision_counter() {
+        let object_store = make_object_store();
+        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+            object_store,
+            make_server_id(),
+            "db1".to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+        let t = catalog.open_transaction().await;
+
+        assert_eq!(t.revision_counter(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_transaction_handle_uuid() {
+        let object_store = make_object_store();
+        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+            object_store,
+            make_server_id(),
+            "db1".to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+        let mut t = catalog.open_transaction().await;
+
+        t.transaction.as_mut().unwrap().proto.uuid = Uuid::nil().to_string();
+        assert_eq!(t.uuid(), Uuid::nil());
+    }
+
     async fn assert_catalog_roundtrip_works(
         object_store: &Arc<ObjectStore>,
         server_id: ServerId,
@@ -1938,17 +2018,5 @@ pub mod tests {
             &catalog,
             &get_catalog_parquet_files(trace.states.last().unwrap()),
         );
-    }
-
-    /// Create test metadata. See [`make_chunk`] for details.
-    async fn make_metadata(
-        object_store: &Arc<ObjectStore>,
-        column_prefix: &str,
-    ) -> ParquetMetaData {
-        let chunk = make_chunk(Arc::clone(object_store), column_prefix).await;
-        let (_, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(object_store))
-            .await
-            .unwrap();
-        read_parquet_metadata_from_file(parquet_data).unwrap()
     }
 }

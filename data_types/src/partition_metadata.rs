@@ -5,6 +5,7 @@ use std::{borrow::Cow, mem};
 
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
+use std::num::NonZeroU64;
 
 /// Describes the aggregated (across all chunks) summary
 /// statistics for each column in each table in a partition
@@ -180,7 +181,7 @@ impl ColumnSummary {
 
     /// Return size in bytes of this Column metadata (not the underlying column)
     pub fn size(&self) -> usize {
-        mem::size_of::<Self>() + self.name.len() + mem::size_of_val(&self.stats)
+        mem::size_of::<Self>() + self.name.len() + self.stats.size()
     }
 
     // Updates statistics from other if the same type, otherwise a noop
@@ -280,6 +281,14 @@ impl Statistics {
             Self::String(v) => v.max.as_deref().map(|x| Cow::Borrowed(x)),
         }
     }
+
+    /// Return the size in bytes of this stats instance
+    pub fn size(&self) -> usize {
+        match self {
+            Self::String(v) => std::mem::size_of::<Self>() + v.string_size(),
+            _ => std::mem::size_of::<Self>(),
+        }
+    }
 }
 
 /// Summary statistics for a column.
@@ -293,6 +302,11 @@ pub struct StatValues<T> {
 
     /// number of non-nil values in this column
     pub count: u64,
+
+    /// number of distinct values in this column if known
+    ///
+    /// This includes NULLs and NANs
+    pub distinct_count: Option<NonZeroU64>,
 }
 
 impl<T> Default for StatValues<T> {
@@ -301,6 +315,7 @@ impl<T> Default for StatValues<T> {
             min: None,
             max: None,
             count: 0,
+            distinct_count: None,
         }
     }
 }
@@ -320,6 +335,7 @@ where
             min: starting_value.clone(),
             max: starting_value,
             count: 1,
+            distinct_count: None,
         }
     }
 
@@ -334,11 +350,19 @@ where
             assert!(min <= max);
         }
 
-        Self { min, max, count }
+        Self {
+            min,
+            max,
+            count,
+            distinct_count: None,
+        }
     }
 
     pub fn update_from(&mut self, other: &Self) {
         self.count += other.count;
+
+        // No way to accurately aggregate counts
+        self.distinct_count = None;
 
         match (&self.min, &other.min) {
             (None, None) | (Some(_), None) => {}
@@ -394,6 +418,14 @@ impl<T> StatValues<T> {
                 }
             }
         }
+    }
+}
+
+impl StatValues<String> {
+    /// Returns the bytes associated by storing min/max string values
+    pub fn string_size(&self) -> usize {
+        self.min.as_ref().map(|x| x.len()).unwrap_or(0)
+            + self.max.as_ref().map(|x| x.len()).unwrap_or(0)
     }
 }
 
@@ -631,62 +663,46 @@ mod tests {
         let col = table_a.column("string").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::String(StatValues {
-                min: Some("aaa".to_string()),
-                max: Some("zzz".to_string()),
-                count: 4
-            })
+            Statistics::String(StatValues::new(
+                Some("aaa".to_string()),
+                Some("zzz".to_string()),
+                4
+            ))
         );
 
         let col = table_a.column("int").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::I64(StatValues {
-                min: Some(1),
-                max: Some(9),
-                count: 4
-            })
+            Statistics::I64(StatValues::new(Some(1), Some(9), 4))
         );
 
         let col = table_a.column("float").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::F64(StatValues {
-                min: Some(1.3),
-                max: Some(9.1),
-                count: 2
-            })
+            Statistics::F64(StatValues::new(Some(1.3), Some(9.1), 2))
         );
 
         table_b.update_from(&table_c);
         let col = table_b.column("string").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::String(StatValues {
-                min: Some("aaa".to_string()),
-                max: Some("zzz".to_string()),
-                count: 4
-            })
+            Statistics::String(StatValues::new(
+                Some("aaa".to_string()),
+                Some("zzz".to_string()),
+                4
+            ))
         );
 
         let col = table_b.column("int").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::I64(StatValues {
-                min: Some(1),
-                max: Some(9),
-                count: 4
-            })
+            Statistics::I64(StatValues::new(Some(1), Some(9), 4))
         );
 
         let col = table_b.column("float").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::F64(StatValues {
-                min: Some(1.3),
-                max: Some(9.1),
-                count: 2
-            })
+            Statistics::F64(StatValues::new(Some(1.3), Some(9.1), 2))
         );
     }
 
@@ -746,30 +762,22 @@ mod tests {
         let col = t.column("string").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::String(StatValues {
-                min: Some("bar".to_string()),
-                max: Some("foo".to_string()),
-                count: 2
-            })
+            Statistics::String(StatValues::new(
+                Some("bar".to_string()),
+                Some("foo".to_string()),
+                2
+            ))
         );
         let col = t.column("int").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::I64(StatValues {
-                min: Some(1),
-                max: Some(10),
-                count: 3
-            })
+            Statistics::I64(StatValues::new(Some(1), Some(10), 3))
         );
         let t = partition.table("b").unwrap();
         let col = t.column("int").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::I64(StatValues {
-                min: Some(10),
-                max: Some(203),
-                count: 2
-            })
+            Statistics::I64(StatValues::new(Some(10), Some(203), 2))
         );
     }
 
@@ -778,27 +786,15 @@ mod tests {
         let bool_false = ColumnSummary {
             name: "b".to_string(),
             influxdb_type: None,
-            stats: Statistics::Bool(StatValues {
-                min: Some(false),
-                max: Some(false),
-                count: 1,
-            }),
+            stats: Statistics::Bool(StatValues::new(Some(false), Some(false), 1)),
         };
         let bool_true = ColumnSummary {
             name: "b".to_string(),
             influxdb_type: None,
-            stats: Statistics::Bool(StatValues {
-                min: Some(true),
-                max: Some(true),
-                count: 1,
-            }),
+            stats: Statistics::Bool(StatValues::new(Some(true), Some(true), 1)),
         };
 
-        let expected_stats = Statistics::Bool(StatValues {
-            min: Some(false),
-            max: Some(true),
-            count: 2,
-        });
+        let expected_stats = Statistics::Bool(StatValues::new(Some(false), Some(true), 2));
 
         let mut b = bool_false.clone();
         b.update_from(&bool_true);
@@ -814,30 +810,18 @@ mod tests {
         let mut min = ColumnSummary {
             name: "foo".to_string(),
             influxdb_type: None,
-            stats: Statistics::U64(StatValues {
-                min: Some(5),
-                max: Some(23),
-                count: 1,
-            }),
+            stats: Statistics::U64(StatValues::new(Some(5), Some(23), 1)),
         };
 
         let max = ColumnSummary {
             name: "foo".to_string(),
             influxdb_type: None,
-            stats: Statistics::U64(StatValues {
-                min: Some(6),
-                max: Some(506),
-                count: 43,
-            }),
+            stats: Statistics::U64(StatValues::new(Some(6), Some(506), 43)),
         };
 
         min.update_from(&max);
 
-        let expected = Statistics::U64(StatValues {
-            min: Some(5),
-            max: Some(506),
-            count: 44,
-        });
+        let expected = Statistics::U64(StatValues::new(Some(5), Some(506), 44));
         assert_eq!(min.stats, expected);
     }
 

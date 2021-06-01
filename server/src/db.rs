@@ -33,8 +33,11 @@ use parking_lot::{Mutex, RwLock};
 use parquet_file::{
     catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
     chunk::{Chunk as ParquetChunk, ChunkMetrics as ParquetChunkMetrics},
-    metadata::read_statistics_from_parquet_metadata,
-    storage::{read_schema_from_parquet_metadata, Storage},
+    cleanup::cleanup_unreferenced_parquet_files,
+    metadata::{
+        read_schema_from_parquet_metadata, read_statistics_from_parquet_metadata, IoxMetadata,
+    },
+    storage::Storage,
 };
 use query::predicate::{Predicate, PredicateBuilder};
 use query::{exec::Executor, Database, DEFAULT_SCHEMA};
@@ -47,9 +50,10 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
+    time::Duration,
 };
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
-use tracker::{TaskTracker, TrackedFutureExt};
+use tracker::{TaskRegistration, TaskTracker, TrackedFutureExt};
 
 pub mod catalog;
 mod chunk;
@@ -303,8 +307,11 @@ pub struct Db {
     /// Value is nanoseconds since the Unix Epoch.
     process_clock: process_clock::ProcessClock,
 
-    /// Number of iterations of the worker loop for this Db
-    worker_iterations: AtomicUsize,
+    /// Number of iterations of the worker lifecycle loop for this Db
+    worker_iterations_lifecycle: AtomicUsize,
+
+    /// Number of iterations of the worker cleanup loop for this Db
+    worker_iterations_cleanup: AtomicUsize,
 
     /// Metric labels
     metric_labels: Vec<KeyValue>,
@@ -427,7 +434,8 @@ impl Db {
             metrics_registry,
             system_tables,
             process_clock,
-            worker_iterations: AtomicUsize::new(0),
+            worker_iterations_lifecycle: AtomicUsize::new(0),
+            worker_iterations_cleanup: AtomicUsize::new(0),
             metric_labels,
         }
     }
@@ -500,7 +508,7 @@ impl Db {
                     chunk_id,
                 })?;
             let chunk = chunk.read();
-            let chunk_state = chunk.state().name();
+            let chunk_state = chunk.stage().name();
 
             // prevent chunks that are actively being moved. TODO it
             // would be nicer to allow this to happen have the chunk
@@ -544,6 +552,7 @@ impl Db {
         partition_key: &str,
         table_name: &str,
         chunk_id: u32,
+        tracker: &TaskRegistration,
     ) -> Result<Arc<DbChunk>> {
         let chunk = {
             let partition = self
@@ -568,20 +577,18 @@ impl Db {
 
         // update the catalog to say we are processing this chunk and
         // then drop the lock while we do the work
-        let mb_chunk = {
+        let (mb_chunk, table_summary) = {
             let mut chunk = chunk.write();
 
-            chunk.set_moving().context(LoadingChunk {
+            let mb_chunk = chunk.set_moving(tracker).context(LoadingChunk {
                 partition_key,
                 table_name,
                 chunk_id,
-            })?
+            })?;
+            (mb_chunk, chunk.table_summary())
         };
 
         info!(%partition_key, %table_name, %chunk_id, "chunk marked MOVING, loading tables into read buffer");
-
-        let mut batches = Vec::new();
-        let table_summary = mb_chunk.table_summary();
 
         // create a new read buffer chunk with memory tracking
         let metrics = self
@@ -594,17 +601,15 @@ impl Db {
 
         // load table into the new chunk one by one.
         debug!(%partition_key, %table_name, %chunk_id, table=%table_summary.name, "loading table to read buffer");
-        mb_chunk
-            .table_to_arrow(&mut batches, Selection::All)
+        let batch = mb_chunk
+            .read_filter(table_name, Selection::All)
             // It is probably reasonable to recover from this error
             // (reset the chunk state to Open) but until that is
             // implemented (and tested) just panic
             .expect("Loading chunk to mutable buffer");
 
-        for batch in batches.drain(..) {
-            let sorted = sort_record_batch(batch).expect("failed to sort");
-            rb_chunk.upsert_table(&table_summary.name, sorted)
-        }
+        let sorted = sort_record_batch(batch).expect("failed to sort");
+        rb_chunk.upsert_table(&table_summary.name, sorted);
 
         // Relock the chunk again (nothing else should have been able
         // to modify the chunk state while we were moving it
@@ -630,6 +635,7 @@ impl Db {
         partition_key: &str,
         table_name: &str,
         chunk_id: u32,
+        tracker: &TaskRegistration,
     ) -> Result<Arc<DbChunk>> {
         // Get the chunk from the catalog
         let chunk = {
@@ -655,22 +661,22 @@ impl Db {
 
         // update the catalog to say we are processing this chunk and
         // then drop the lock while we do the work
-        let rb_chunk = {
+        let (rb_chunk, table_summary) = {
             let mut chunk = chunk.write();
 
-            chunk
-                .set_writing_to_object_store()
-                .context(LoadingChunkToParquet {
-                    partition_key,
-                    table_name,
-                    chunk_id,
-                })?
+            let rb_chunk =
+                chunk
+                    .set_writing_to_object_store(tracker)
+                    .context(LoadingChunkToParquet {
+                        partition_key,
+                        table_name,
+                        chunk_id,
+                    })?;
+
+            (rb_chunk, chunk.table_summary())
         };
 
         debug!(%partition_key, %table_name, %chunk_id, "chunk marked WRITING , loading tables into object store");
-
-        // Get all tables in this chunk
-        let table_stats = rb_chunk.table_summaries();
 
         // Create a storage to save data of this chunk
         let storage = Storage::new(
@@ -679,24 +685,21 @@ impl Db {
             self.rules.read().name.to_string(),
         );
 
-        // as of now, there should be exactly 1 table in the chunk (see https://github.com/influxdata/influxdb_iox/issues/1295)
-        assert_eq!(table_stats.len(), 1);
-        let stats = &table_stats[0];
-
-        debug!(%partition_key, %table_name, %chunk_id, table=%stats.name, "loading table to object store");
+        let table_name = table_summary.name.as_str();
+        debug!(%partition_key, %table_name, %chunk_id, table=table_name, "loading table to object store");
 
         let predicate = read_buffer::Predicate::default();
 
         // Get RecordBatchStream of data from the read buffer chunk
         let read_results = rb_chunk
-            .read_filter(stats.name.as_str(), predicate, Selection::All)
+            .read_filter(table_name, predicate, Selection::All)
             .context(ReadBufferChunkError {
                 table_name,
                 chunk_id,
             })?;
 
         let arrow_schema: ArrowSchemaRef = rb_chunk
-            .read_filter_table_schema(stats.name.as_str(), Selection::All)
+            .read_filter_table_schema(table_name, Selection::All)
             .context(ReadBufferChunkSchemaError {
                 table_name,
                 chunk_id,
@@ -707,20 +710,26 @@ impl Db {
             Arc::clone(&arrow_schema),
         ));
 
-        // Write this table data into the object store
-        let (path, parquet_metadata) = storage
-            .write_to_object_store(
-                partition_key.to_string(),
-                chunk_id,
-                stats.name.to_string(),
-                stream,
-            )
-            .await
-            .context(WritingToObjectStore)?;
-
         // catalog-level transaction for preseveration layer
         {
             let mut transaction = self.catalog.open_transaction().await;
+
+            // Write this table data into the object store
+            let metadata = IoxMetadata {
+                transaction_revision_counter: transaction.revision_counter(),
+                transaction_uuid: transaction.uuid(),
+            };
+            let (path, parquet_metadata) = storage
+                .write_to_object_store(
+                    partition_key.to_string(),
+                    chunk_id,
+                    table_name.to_string(),
+                    stream,
+                    metadata,
+                )
+                .await
+                .context(WritingToObjectStore)?;
+
             transaction
                 .add_parquet(&path.into(), &parquet_metadata)
                 .context(TransactionError)?;
@@ -795,12 +804,19 @@ impl Db {
             chunk_id,
         });
 
-        let captured = Arc::clone(&self);
+        let captured_registration = registration.clone();
+        let captured_db = Arc::clone(&self);
         let task = async move {
             debug!(%name, %partition_key, %table_name, %chunk_id, "background task loading chunk to read buffer");
-            let result = captured
-                .load_chunk_to_read_buffer(&partition_key, &table_name, chunk_id)
+            let result = captured_db
+                .load_chunk_to_read_buffer(
+                    &partition_key,
+                    &table_name,
+                    chunk_id,
+                    &captured_registration,
+                )
                 .await;
+
             if let Err(e) = result {
                 info!(?e, %name, %partition_key, %chunk_id, "background task error loading read buffer chunk");
                 return Err(e);
@@ -832,12 +848,19 @@ impl Db {
             chunk_id,
         });
 
-        let captured = Arc::clone(&self);
+        let captured_registration = registration.clone();
+        let captured_db = Arc::clone(&self);
         let task = async move {
             debug!(%name, %partition_key, %table_name, %chunk_id, "background task loading chunk to object store");
-            let result = captured
-                .write_chunk_to_object_store(&partition_key, &table_name, chunk_id)
+            let result = captured_db
+                .write_chunk_to_object_store(
+                    &partition_key,
+                    &table_name,
+                    chunk_id,
+                    &captured_registration,
+                )
                 .await;
+
             if let Err(e) = result {
                 info!(?e, %name, %partition_key, %chunk_id, "background task error loading object store chunk");
                 return Err(e);
@@ -882,7 +905,7 @@ impl Db {
         partition_key: &str,
         table_name: &str,
         chunk_id: u32,
-    ) -> Option<TableSummary> {
+    ) -> Option<Arc<TableSummary>> {
         if let Some(partition) = self.catalog.state().partition(partition_key) {
             let partition = partition.read();
             if let Ok(chunk) = partition.chunk(table_name, chunk_id) {
@@ -892,9 +915,14 @@ impl Db {
         None
     }
 
-    /// Returns the number of iterations of the background worker loop
-    pub fn worker_iterations(&self) -> usize {
-        self.worker_iterations.load(Ordering::Relaxed)
+    /// Returns the number of iterations of the background worker lifecycle loop
+    pub fn worker_iterations_lifecycle(&self) -> usize {
+        self.worker_iterations_lifecycle.load(Ordering::Relaxed)
+    }
+
+    /// Returns the number of iterations of the background worker lifecycle loop
+    pub fn worker_iterations_cleanup(&self) -> usize {
+        self.worker_iterations_cleanup.load(Ordering::Relaxed)
     }
 
     /// Background worker function
@@ -904,15 +932,37 @@ impl Db {
     ) {
         info!("started background worker");
 
-        let mut lifecycle_manager = LifecycleManager::new(Arc::clone(&self));
+        tokio::join!(
+            // lifecycle manager loop
+            async {
+                let mut lifecycle_manager = LifecycleManager::new(Arc::clone(&self));
 
-        while !shutdown.is_cancelled() {
-            self.worker_iterations.fetch_add(1, Ordering::Relaxed);
-            tokio::select! {
-                _ = lifecycle_manager.check_for_work() => {},
-                _ = shutdown.cancelled() => break
-            }
-        }
+                while !shutdown.is_cancelled() {
+                    self.worker_iterations_lifecycle
+                        .fetch_add(1, Ordering::Relaxed);
+                    tokio::select! {
+                        _ = lifecycle_manager.check_for_work() => {},
+                        _ = shutdown.cancelled() => break,
+                    }
+                }
+            },
+            // object store cleanup loop
+            async {
+                while !shutdown.is_cancelled() {
+                    self.worker_iterations_cleanup
+                        .fetch_add(1, Ordering::Relaxed);
+                    tokio::select! {
+                        _ = async {
+                            if let Err(e) = cleanup_unreferenced_parquet_files(&self.catalog).await {
+                                error!("error in background cleanup task: {:?}", e);
+                            }
+                            tokio::time::sleep(Duration::from_secs(500)).await;
+                        } => {},
+                        _ = shutdown.cancelled() => break,
+                    }
+                }
+            },
+        );
 
         info!("finished background worker");
     }
@@ -1178,6 +1228,7 @@ impl CatalogState for Catalog {
                     .set_written_to_object_store(parquet_chunk)
                     .map_err(|e| Box::new(e) as _)
                     .context(CatalogStateFailure { path: info.path })?;
+                debug!(%partition_key, %table_name, %chunk_id, "chunk marked WRITTEN. Persisting to object store complete");
             }
             Err(catalog::Error::UnknownTable { .. }) | Err(catalog::Error::UnknownChunk { .. }) => {
                 // table unknown => that's ok, create chunk in "object store only" stage which will also create the table
@@ -1188,6 +1239,7 @@ impl CatalogState for Catalog {
                     .create_object_store_only_chunk(chunk_id, parquet_chunk)
                     .map_err(|e| Box::new(e) as _)
                     .context(CatalogStateFailure { path: info.path })?;
+                debug!(%partition_key, %table_name, %chunk_id, "recovered chunk from persisted catalog");
             }
             Err(e) => {
                 // Other unknown error => bail
@@ -1198,7 +1250,6 @@ impl CatalogState for Catalog {
             }
         }
 
-        debug!(%partition_key, %table_name, %chunk_id, "chunk marked WRITTEN. Persisting to object store complete");
         Ok(())
     }
 
@@ -1248,11 +1299,14 @@ mod tests {
         test_helpers::{try_write_lp, write_lp},
         *,
     };
-    use crate::db::catalog::chunk::ChunkState;
+    use crate::db::catalog::chunk::{
+        ChunkStage, ChunkStageFrozen, ChunkStageFrozenRepr, ChunkStagePersisted,
+    };
     use crate::query_tests::utils::{make_db, TestDb};
     use ::test_helpers::assert_contains;
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
+    use bytes::Bytes;
     use chrono::Utc;
     use data_types::{
         chunk_metadata::ChunkStorage,
@@ -1263,16 +1317,23 @@ mod tests {
     use futures::{stream, StreamExt, TryStreamExt};
     use object_store::{
         memory::InMemory,
-        path::{ObjectStorePath, Path},
+        path::{parts::PathPart, ObjectStorePath, Path},
         ObjectStore, ObjectStoreApi,
     };
     use parquet_file::{
-        metadata::read_parquet_metadata_from_file,
-        storage::read_schema_from_parquet_metadata,
-        utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
+        metadata::{read_parquet_metadata_from_file, read_schema_from_parquet_metadata},
+        test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
     use query::{frontend::sql::SqlQueryPlanner, PartitionChunk};
-    use std::{convert::TryFrom, iter::Iterator, num::NonZeroUsize, str};
+    use std::{
+        collections::HashSet,
+        convert::TryFrom,
+        iter::Iterator,
+        num::NonZeroUsize,
+        str,
+        time::{Duration, Instant},
+    };
+    use tokio_util::sync::CancellationToken;
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
@@ -1343,13 +1404,13 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 72).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 44).unwrap();
 
         // write into same chunk again.
         write_lp(db.as_ref(), "cpu bar=2 10");
 
         // verify chunk size updated
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 88).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 60).unwrap();
 
         // Still only one chunk open
         test_db
@@ -1379,9 +1440,10 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 88).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1143)
+            .unwrap();
 
-        db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", 0)
+        db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", 0, &Default::default())
             .await
             .unwrap();
 
@@ -1400,9 +1462,9 @@ mod tests {
 
         // verify chunk size updated (chunk moved from closing to moving to moved)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0).unwrap();
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1598).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1630).unwrap();
 
-        db.write_chunk_to_object_store("1970-01-01T00", "cpu", 0)
+        db.write_chunk_to_object_store("1970-01-01T00", "cpu", 0, &Default::default())
             .await
             .unwrap();
 
@@ -1419,8 +1481,8 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 807;
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1598).unwrap();
+        let expected_parquet_size = 759;
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1630).unwrap();
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
@@ -1553,7 +1615,7 @@ mod tests {
             .unwrap()
             .unwrap();
         let rb_chunk = db
-            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
+            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id(), &Default::default())
             .await
             .unwrap();
 
@@ -1590,7 +1652,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated (chunk moved from moved to writing to written)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1598).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1630).unwrap();
 
         // drop, the chunk from the read buffer
         db.drop_chunk(partition_key, "cpu", mb_chunk.id()).unwrap();
@@ -1600,7 +1662,7 @@ mod tests {
         );
 
         // verify size is reported until chunk dropped
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1598).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1630).unwrap();
         std::mem::drop(rb_chunk);
 
         // verify chunk size updated (chunk dropped from moved state)
@@ -1613,9 +1675,9 @@ mod tests {
         // cpu").await; assert_batches_eq!(expected, &batches);
     }
 
-    async fn collect_read_filter(chunk: &DbChunk, table_name: &str) -> Vec<RecordBatch> {
+    async fn collect_read_filter(chunk: &DbChunk) -> Vec<RecordBatch> {
         chunk
-            .read_filter(table_name, &Default::default(), Selection::All)
+            .read_filter(&Default::default(), Selection::All)
             .unwrap()
             .collect::<Vec<_>>()
             .await
@@ -1643,10 +1705,10 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        let mb = collect_read_filter(&mb_chunk, "cpu").await;
+        let mb = collect_read_filter(&mb_chunk).await;
 
         let rb_chunk = db
-            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
+            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id(), &Default::default())
             .await
             .unwrap();
 
@@ -1660,7 +1722,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(316.0)
+            .sample_sum_eq(280.0)
             .unwrap();
 
         // RB chunk size
@@ -1673,10 +1735,10 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3915.0)
+            .sample_sum_eq(3231.0)
             .unwrap();
 
-        let rb = collect_read_filter(&rb_chunk, "cpu").await;
+        let rb = collect_read_filter(&rb_chunk).await;
 
         // Test that data on load into the read buffer is sorted
 
@@ -1756,12 +1818,12 @@ mod tests {
             .unwrap();
         // Move that MB chunk to RB chunk and drop it from MB
         let rb_chunk = db
-            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
+            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id(), &Default::default())
             .await
             .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
         let pq_chunk = db
-            .write_chunk_to_object_store(partition_key, "cpu", mb_chunk.id())
+            .write_chunk_to_object_store(partition_key, "cpu", mb_chunk.id(), &Default::default())
             .await
             .unwrap();
 
@@ -1775,7 +1837,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2405.0)
+            .sample_sum_eq(2389.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1790,15 +1852,14 @@ mod tests {
         // Verify data written to the parquet file in object store
         //
         // First, there must be one path of object store in the catalog
-        let paths = pq_chunk.object_store_paths();
-        assert_eq!(paths.len(), 1);
+        let path = pq_chunk.object_store_path().unwrap();
 
         // Check that the path must exist in the object store
-        let path_list = flatten_list_stream(Arc::clone(&object_store), Some(&paths[0]))
+        let path_list = flatten_list_stream(Arc::clone(&object_store), Some(&path))
             .await
             .unwrap();
         assert_eq!(path_list.len(), 1);
-        assert_eq!(path_list, paths.clone());
+        assert_eq!(path_list[0], path);
 
         // Now read data from that path
         let parquet_data = load_parquet_from_store_for_path(&path_list[0], object_store)
@@ -1856,12 +1917,12 @@ mod tests {
             .unwrap();
         // Move that MB chunk to RB chunk and drop it from MB
         let rb_chunk = db
-            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
+            .load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id(), &Default::default())
             .await
             .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
         let pq_chunk = db
-            .write_chunk_to_object_store(partition_key, "cpu", mb_chunk.id())
+            .write_chunk_to_object_store(partition_key, "cpu", mb_chunk.id(), &Default::default())
             .await
             .unwrap();
 
@@ -1884,7 +1945,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2405.0)
+            .sample_sum_eq(2389.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -1912,22 +1973,21 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(807.0)
+            .sample_sum_eq(759.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
         //
         // First, there must be one path of object store in the catalog
-        let paths = pq_chunk.object_store_paths();
-        assert_eq!(paths.len(), 1);
+        let path = pq_chunk.object_store_path().unwrap();
 
         // Check that the path must exist in the object store
-        let path_list = flatten_list_stream(Arc::clone(&object_store), Some(&paths[0]))
+        let path_list = flatten_list_stream(Arc::clone(&object_store), Some(&path))
             .await
             .unwrap();
         println!("path_list: {:#?}", path_list);
         assert_eq!(path_list.len(), 1);
-        assert_eq!(path_list, paths.clone());
+        assert_eq!(path_list[0], path);
 
         // Now read data from that path
         let parquet_data = load_parquet_from_store_for_path(&path_list[0], object_store)
@@ -2033,8 +2093,20 @@ mod tests {
 
         let chunks: Vec<_> = partition.chunks().collect();
         assert_eq!(chunks.len(), 2);
-        assert!(matches!(chunks[0].read().state(), ChunkState::Closed(_)));
-        assert!(matches!(chunks[1].read().state(), ChunkState::Closed(_)));
+        assert!(matches!(
+            chunks[0].read().stage(),
+            ChunkStage::Frozen(ChunkStageFrozen {
+                meta: _,
+                representation: ChunkStageFrozenRepr::MutableBufferSnapshot(_)
+            })
+        ));
+        assert!(matches!(
+            chunks[1].read().stage(),
+            ChunkStage::Frozen(ChunkStageFrozen {
+                meta: _,
+                representation: ChunkStageFrozenRepr::MutableBufferSnapshot(_)
+            })
+        ));
     }
 
     #[tokio::test]
@@ -2100,7 +2172,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        db.load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id())
+        db.load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id(), &Default::default())
             .await
             .unwrap();
 
@@ -2159,7 +2231,7 @@ mod tests {
             Arc::from("cpu"),
             0,
             ChunkStorage::OpenMutableBuffer,
-            106,
+            70,
             1,
         )];
 
@@ -2251,11 +2323,11 @@ mod tests {
 
         print!("Partitions: {:?}", db.partition_keys().unwrap());
 
-        db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", 0)
+        db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", 0, &Default::default())
             .await
             .unwrap();
 
-        db.write_chunk_to_object_store("1970-01-01T00", "cpu", 0)
+        db.write_chunk_to_object_store("1970-01-01T00", "cpu", 0, &Default::default())
             .await
             .unwrap();
 
@@ -2273,7 +2345,7 @@ mod tests {
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
-                2396, // size of RB and OS chunks
+                2380, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2281,7 +2353,7 @@ mod tests {
                 Arc::from("cpu"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
-                100,
+                64,
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2289,7 +2361,7 @@ mod tests {
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ClosedMutableBuffer,
-                129,
+                2190,
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2297,7 +2369,7 @@ mod tests {
                 Arc::from("cpu"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
-                131,
+                87,
                 1,
             ),
         ];
@@ -2315,7 +2387,7 @@ mod tests {
                 .memory()
                 .mutable_buffer()
                 .get_total(),
-            100 + 129 + 131
+            64 + 2190 + 87
         );
         assert_eq!(
             db.catalog
@@ -2324,11 +2396,11 @@ mod tests {
                 .memory()
                 .read_buffer()
                 .get_total(),
-            1589
+            1621
         );
         assert_eq!(
             db.catalog.state().metrics().memory().parquet().get_total(),
-            807
+            759
         );
     }
 
@@ -2348,12 +2420,12 @@ mod tests {
         write_lp(&db, "mem foo=1 1");
 
         // load a chunk to the read buffer
-        db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", chunk_id)
+        db.load_chunk_to_read_buffer("1970-01-01T00", "cpu", chunk_id, &Default::default())
             .await
             .unwrap();
 
         // write the read buffer chunk to object store
-        db.write_chunk_to_object_store("1970-01-01T00", "cpu", chunk_id)
+        db.write_chunk_to_object_store("1970-01-01T00", "cpu", chunk_id, &Default::default())
             .await
             .unwrap();
 
@@ -2378,29 +2450,17 @@ mod tests {
                             ColumnSummary {
                                 name: "bar".into(),
                                 influxdb_type: Some(InfluxDbType::Field),
-                                stats: Statistics::F64(StatValues {
-                                    min: Some(1.0),
-                                    max: Some(2.0),
-                                    count: 2,
-                                }),
+                                stats: Statistics::F64(StatValues::new(Some(1.0), Some(2.0), 2)),
                             },
                             ColumnSummary {
                                 name: "time".into(),
                                 influxdb_type: Some(InfluxDbType::Timestamp),
-                                stats: Statistics::I64(StatValues {
-                                    min: Some(1),
-                                    max: Some(2),
-                                    count: 2,
-                                }),
+                                stats: Statistics::I64(StatValues::new(Some(1), Some(2), 2)),
                             },
                             ColumnSummary {
                                 name: "baz".into(),
                                 influxdb_type: Some(InfluxDbType::Field),
-                                stats: Statistics::F64(StatValues {
-                                    min: Some(3.0),
-                                    max: Some(3.0),
-                                    count: 1,
-                                }),
+                                stats: Statistics::F64(StatValues::new(Some(3.0), Some(3.0), 1)),
                             },
                         ],
                     },
@@ -2410,20 +2470,12 @@ mod tests {
                             ColumnSummary {
                                 name: "foo".into(),
                                 influxdb_type: Some(InfluxDbType::Field),
-                                stats: Statistics::F64(StatValues {
-                                    min: Some(1.0),
-                                    max: Some(1.0),
-                                    count: 1,
-                                }),
+                                stats: Statistics::F64(StatValues::new(Some(1.0), Some(1.0), 1)),
                             },
                             ColumnSummary {
                                 name: "time".into(),
                                 influxdb_type: Some(InfluxDbType::Timestamp),
-                                stats: Statistics::I64(StatValues {
-                                    min: Some(1),
-                                    max: Some(1),
-                                    count: 1,
-                                }),
+                                stats: Statistics::I64(StatValues::new(Some(1), Some(1), 1)),
                             },
                         ],
                     },
@@ -2438,20 +2490,16 @@ mod tests {
                             ColumnSummary {
                                 name: "bar".into(),
                                 influxdb_type: Some(InfluxDbType::Field),
-                                stats: Statistics::F64(StatValues {
-                                    min: Some(1.0),
-                                    max: Some(1.0),
-                                    count: 1,
-                                }),
+                                stats: Statistics::F64(StatValues::new(Some(1.0), Some(1.0), 1)),
                             },
                             ColumnSummary {
                                 name: "time".into(),
                                 influxdb_type: Some(InfluxDbType::Timestamp),
-                                stats: Statistics::I64(StatValues {
-                                    min: Some(400000000000000),
-                                    max: Some(400000000000000),
-                                    count: 1,
-                                }),
+                                stats: Statistics::I64(StatValues::new(
+                                    Some(400000000000000),
+                                    Some(400000000000000),
+                                    1,
+                                )),
                             },
                         ],
                     },
@@ -2461,20 +2509,16 @@ mod tests {
                             ColumnSummary {
                                 name: "frob".into(),
                                 influxdb_type: Some(InfluxDbType::Field),
-                                stats: Statistics::F64(StatValues {
-                                    min: Some(3.0),
-                                    max: Some(3.0),
-                                    count: 1,
-                                }),
+                                stats: Statistics::F64(StatValues::new(Some(3.0), Some(3.0), 1)),
                             },
                             ColumnSummary {
                                 name: "time".into(),
                                 influxdb_type: Some(InfluxDbType::Timestamp),
-                                stats: Statistics::I64(StatValues {
-                                    min: Some(400000000000001),
-                                    max: Some(400000000000001),
-                                    count: 1,
-                                }),
+                                stats: Statistics::I64(StatValues::new(
+                                    Some(400000000000001),
+                                    Some(400000000000001),
+                                    1,
+                                )),
                             },
                         ],
                     },
@@ -2560,7 +2604,12 @@ mod tests {
             .unwrap()
             .unwrap();
         let rb_chunk = db
-            .load_chunk_to_read_buffer(partition_key, table_name, mb_chunk.id())
+            .load_chunk_to_read_buffer(
+                partition_key,
+                table_name,
+                mb_chunk.id(),
+                &Default::default(),
+            )
             .await
             .unwrap();
         assert_eq!(mb_chunk.id(), rb_chunk.id());
@@ -2837,47 +2886,24 @@ mod tests {
         // ==================== do: write data to parquet ====================
         // create two chunks within the same table (to better test "new chunk ID" and "new table" during transaction
         // replay)
-        let mut chunk_ids = vec![];
-        let partition_key = "1970-01-01T00";
+        let mut chunks = vec![];
         for _ in 0..2 {
-            // Write some line protocols in Mutable buffer of the DB
-            write_lp(db.as_ref(), "cpu bar=1 10");
-
-            //Now mark the MB chunk close
-            let chunk_id = {
-                let mb_chunk = db
-                    .rollover_partition("1970-01-01T00", "cpu")
-                    .await
-                    .unwrap()
-                    .unwrap();
-                mb_chunk.id()
-            };
-            // Move that MB chunk to RB chunk and drop it from MB
-            db.load_chunk_to_read_buffer(partition_key, "cpu", chunk_id)
-                .await
-                .unwrap();
-
-            // Write the RB chunk to Object Store but keep it in RB
-            db.write_chunk_to_object_store(partition_key, "cpu", chunk_id)
-                .await
-                .unwrap();
-
-            chunk_ids.push(chunk_id);
+            chunks.push(create_parquet_chunk(db.as_ref()).await);
         }
 
         // ==================== check: catalog state ====================
         // the preserved catalog should now register a single file
         let mut paths_expected = vec![];
-        for chunk_id in &chunk_ids {
+        for (partition_key, table_name, chunk_id) in &chunks {
             let chunk = {
                 let partition = db.catalog.state().valid_partition(&partition_key).unwrap();
                 let partition = partition.read();
 
-                partition.chunk("cpu", *chunk_id).unwrap()
+                partition.chunk(table_name, *chunk_id).unwrap()
             };
             let chunk = chunk.read();
-            if let ChunkState::WrittenToObjectStore(_, chunk) = chunk.state() {
-                paths_expected.push(chunk.table_path().display());
+            if let ChunkStage::Persisted(stage) = chunk.stage() {
+                paths_expected.push(stage.parquet.table_path().display());
             } else {
                 panic!("Wrong chunk state.");
             }
@@ -2917,18 +2943,174 @@ mod tests {
 
         // ==================== check: DB state ====================
         // Re-created DB should have an "object store only"-chunk
-        for chunk_id in &chunk_ids {
+        for (partition_key, table_name, chunk_id) in &chunks {
             let chunk = {
                 let partition = db.catalog.state().valid_partition(&partition_key).unwrap();
                 let partition = partition.read();
 
-                partition.chunk("cpu", *chunk_id).unwrap()
+                partition.chunk(table_name, *chunk_id).unwrap()
             };
             let chunk = chunk.read();
-            assert!(matches!(chunk.state(), ChunkState::ObjectStoreOnly(_)));
+            assert!(matches!(
+                chunk.stage(),
+                ChunkStage::Persisted(ChunkStagePersisted {
+                    parquet: _,
+                    read_buffer: None,
+                    meta: _,
+                })
+            ));
         }
 
         // ==================== check: DB still writable ====================
         write_lp(db.as_ref(), "cpu bar=1 10");
+    }
+
+    #[tokio::test]
+    async fn object_store_cleanup() {
+        // Test that stale parquet files are removed from object store
+
+        // ==================== setup ====================
+        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+
+        // ==================== do: create DB ====================
+        // Create a DB given a server id, an object store and a db name
+        let test_db = TestDb::builder()
+            .object_store(Arc::clone(&object_store))
+            .build()
+            .await;
+        let db = Arc::new(test_db.db);
+
+        // ==================== do: write data to parquet ====================
+        // create the following chunks:
+        //   0: ReadBuffer + Parquet
+        //   1: only Parquet
+        //   2: dropped (not in current catalog but parquet file still present for time travel)
+        let mut paths_keep = vec![];
+        for i in 0..3i8 {
+            let (partition_key, table_name, chunk_id) = create_parquet_chunk(db.as_ref()).await;
+            let chunk = {
+                let partition = db.catalog.state().valid_partition(&partition_key).unwrap();
+                let partition = partition.read();
+
+                partition.chunk(table_name.clone(), chunk_id).unwrap()
+            };
+            let chunk = chunk.read();
+            if let ChunkStage::Persisted(stage) = chunk.stage() {
+                paths_keep.push(stage.parquet.table_path());
+            } else {
+                panic!("Wrong chunk state.");
+            }
+
+            // drop lock
+            drop(chunk);
+
+            if i == 1 {
+                db.unload_read_buffer(&partition_key, &table_name, chunk_id)
+                    .await
+                    .unwrap();
+            }
+            if i == 2 {
+                db.drop_chunk(&partition_key, &table_name, chunk_id)
+                    .unwrap();
+            }
+        }
+
+        // ==================== do: create garbage ====================
+        let mut path: DirsAndFileName = paths_keep[0].clone().into();
+        path.file_name = Some(PathPart::from(
+            format!("prefix_{}", path.file_name.unwrap().encoded()).as_ref(),
+        ));
+        let path_delete = object_store.path_from_dirs_and_filename(path);
+        create_empty_file(&object_store, &path_delete).await;
+        let path_delete = path_delete.display();
+
+        // ==================== check: all files are there ====================
+        let all_files = get_object_store_files(&object_store).await;
+        for path in &paths_keep {
+            assert!(all_files.contains(&path.display()));
+        }
+
+        // ==================== do: start background task loop ====================
+        let shutdown: CancellationToken = Default::default();
+        let shutdown_captured = shutdown.clone();
+        let db_captured = Arc::clone(&db);
+        let join_handle =
+            tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+
+        // ==================== check: after a while the dropped file should be gone ====================
+        let t_0 = Instant::now();
+        loop {
+            let all_files = get_object_store_files(&object_store).await;
+            if !all_files.contains(&path_delete) {
+                break;
+            }
+            assert!(t_0.elapsed() < Duration::from_secs(10));
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        // ==================== do: stop background task loop ====================
+        shutdown.cancel();
+        join_handle.await.unwrap();
+
+        // ==================== check: some files are there ====================
+        let all_files = get_object_store_files(&object_store).await;
+        assert!(!all_files.contains(&path_delete));
+        for path in &paths_keep {
+            assert!(all_files.contains(&path.display()));
+        }
+    }
+
+    async fn create_parquet_chunk(db: &Db) -> (String, String, u32) {
+        write_lp(db, "cpu bar=1 10");
+        let partition_key = "1970-01-01T00";
+        let table_name = "cpu";
+
+        //Now mark the MB chunk close
+        let chunk_id = {
+            let mb_chunk = db
+                .rollover_partition(partition_key, table_name)
+                .await
+                .unwrap()
+                .unwrap();
+            mb_chunk.id()
+        };
+        // Move that MB chunk to RB chunk and drop it from MB
+        db.load_chunk_to_read_buffer(partition_key, table_name, chunk_id, &Default::default())
+            .await
+            .unwrap();
+
+        // Write the RB chunk to Object Store but keep it in RB
+        db.write_chunk_to_object_store(partition_key, table_name, chunk_id, &Default::default())
+            .await
+            .unwrap();
+
+        (partition_key.to_string(), table_name.to_string(), chunk_id)
+    }
+
+    async fn get_object_store_files(object_store: &ObjectStore) -> HashSet<String> {
+        object_store
+            .list(None)
+            .await
+            .unwrap()
+            .try_concat()
+            .await
+            .unwrap()
+            .iter()
+            .map(|p| p.display())
+            .collect()
+    }
+
+    async fn create_empty_file(object_store: &ObjectStore, path: &Path) {
+        let data = Bytes::default();
+        let len = data.len();
+
+        object_store
+            .put(
+                &path,
+                futures::stream::once(async move { Ok(data) }),
+                Some(len),
+            )
+            .await
+            .unwrap();
     }
 }

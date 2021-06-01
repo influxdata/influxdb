@@ -73,8 +73,8 @@ impl StringEncoding {
     pub(crate) fn storage_stats(&self) -> Statistics {
         Statistics {
             enc_type: match self {
-                Self::RleDictionary(_) => rle::ENCODING_NAME,
-                Self::Dictionary(_) => dictionary::ENCODING_NAME,
+                Self::RleDictionary(_) => rle::ENCODING_NAME.into(),
+                Self::Dictionary(_) => dictionary::ENCODING_NAME.into(),
             },
             log_data_type: "string",
             values: self.num_rows(),
@@ -352,6 +352,14 @@ impl StringEncoding {
         match &self {
             Self::RleDictionary(c) => c.count(row_ids),
             Self::Dictionary(c) => c.count(row_ids),
+        }
+    }
+
+    /// The number of distinct logical values in this column encoding.
+    pub fn cardinality(&self) -> u32 {
+        match &self {
+            Self::RleDictionary(c) => c.cardinality(),
+            Self::Dictionary(c) => c.cardinality(),
         }
     }
 

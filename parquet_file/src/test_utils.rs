@@ -23,10 +23,17 @@ use internal_types::{
 use object_store::{memory::InMemory, path::Path, ObjectStore, ObjectStoreApi};
 use parquet::{
     arrow::{ArrowReader, ParquetFileArrowReader},
-    file::serialized_reader::{SerializedFileReader, SliceableCursor},
+    file::{
+        metadata::ParquetMetaData,
+        serialized_reader::{SerializedFileReader, SliceableCursor},
+    },
 };
+use uuid::Uuid;
 
-use crate::chunk::ChunkMetrics;
+use crate::{
+    chunk::ChunkMetrics,
+    metadata::{read_parquet_metadata_from_file, IoxMetadata},
+};
 use crate::{
     chunk::{self, Chunk},
     storage::Storage,
@@ -83,46 +90,45 @@ pub async fn load_parquet_from_store_for_path(
     Ok(parquet_data)
 }
 
+/// Same as [`make_chunk`] but parquet file does not contain any row group.
+pub async fn make_chunk(store: Arc<ObjectStore>, column_prefix: &str, chunk_id: u32) -> Chunk {
+    let (record_batches, schema, column_summaries, _num_rows) = make_record_batch(column_prefix);
+    make_chunk_given_record_batch(
+        store,
+        record_batches,
+        schema,
+        "table1",
+        column_summaries,
+        chunk_id,
+    )
+    .await
+}
+
+/// Same as [`make_chunk`] but parquet file does not contain any row group.
+pub async fn make_chunk_no_row_group(
+    store: Arc<ObjectStore>,
+    column_prefix: &str,
+    chunk_id: u32,
+) -> Chunk {
+    let (_, schema, column_summaries, _num_rows) = make_record_batch(column_prefix);
+    make_chunk_given_record_batch(store, vec![], schema, "table1", column_summaries, chunk_id).await
+}
+
 /// Create a test chunk by writing data to object store.
 ///
-/// See [`make_record_batch`] for the data content.
+/// TODO: This code creates a chunk that isn't hooked up with metrics
 pub async fn make_chunk_given_record_batch(
     store: Arc<ObjectStore>,
     record_batches: Vec<RecordBatch>,
     schema: Schema,
     table: &str,
     column_summaries: Vec<ColumnSummary>,
-) -> Chunk {
-    make_chunk_common(store, record_batches, schema, table, column_summaries).await
-}
-
-/// Same as [`make_chunk`] but parquet file does not contain any row group.
-pub async fn make_chunk(store: Arc<ObjectStore>, column_prefix: &str) -> Chunk {
-    let (record_batches, schema, column_summaries, _num_rows) = make_record_batch(column_prefix);
-    make_chunk_common(store, record_batches, schema, "table1", column_summaries).await
-}
-
-/// Same as [`make_chunk`] but parquet file does not contain any row group.
-pub async fn make_chunk_no_row_group(store: Arc<ObjectStore>, column_prefix: &str) -> Chunk {
-    let (_, schema, column_summaries, _num_rows) = make_record_batch(column_prefix);
-    make_chunk_common(store, vec![], schema, "table1", column_summaries).await
-}
-
-/// Common code for all [`make_chunk`] and [`make_chunk_no_row_group`].
-///
-/// TODO: This code creates a chunk that isn't hooked up with metrics
-async fn make_chunk_common(
-    store: Arc<ObjectStore>,
-    record_batches: Vec<RecordBatch>,
-    schema: Schema,
-    table: &str,
-    column_summaries: Vec<ColumnSummary>,
+    chunk_id: u32,
 ) -> Chunk {
     let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
     let db_name = "db1";
     let part_key = "part1";
     let table_name = table;
-    let chunk_id = 1;
 
     let storage = Storage::new(Arc::clone(&store), server_id, db_name.to_string());
 
@@ -136,12 +142,17 @@ async fn make_chunk_common(
     } else {
         Box::pin(MemoryStream::new(record_batches))
     };
+    let metadata = IoxMetadata {
+        transaction_revision_counter: 0,
+        transaction_uuid: Uuid::nil(),
+    };
     let (path, _metadata) = storage
         .write_to_object_store(
             part_key.to_string(),
             chunk_id,
             table_name.to_string(),
             stream,
+            metadata,
         )
         .await
         .unwrap();
@@ -178,6 +189,7 @@ fn create_column_tag(
             min: Some(data.iter().flatten().min().unwrap().to_string()),
             max: Some(data.iter().flatten().max().unwrap().to_string()),
             count: data.iter().map(Vec::len).sum::<usize>() as u64,
+            distinct_count: None,
         }),
     });
 
@@ -197,10 +209,16 @@ fn create_column_field_string(
         arrow_cols,
         summaries,
         schema_builder,
-        |StatValues { min, max, count }| {
+        |StatValues {
+             min,
+             max,
+             count,
+             distinct_count,
+         }| {
             Statistics::String(StatValues {
                 min: Some(min.unwrap().to_string()),
                 max: Some(max.unwrap().to_string()),
+                distinct_count,
                 count,
             })
         },
@@ -274,6 +292,7 @@ fn create_column_field_f64(
                 .max_by(|a, b| a.partial_cmp(b).unwrap())
                 .cloned(),
             count: data.iter().map(Vec::len).sum::<usize>() as u64,
+            distinct_count: None,
         }),
     });
 
@@ -327,6 +346,7 @@ where
             min: data.iter().flatten().min().cloned(),
             max: data.iter().flatten().max().cloned(),
             count: data.iter().map(Vec::len).sum::<usize>() as u64,
+            distinct_count: None,
         }),
     });
 
@@ -357,6 +377,7 @@ fn create_column_timestamp(
             min,
             max,
             count: data.iter().map(Vec::len).sum::<usize>() as u64,
+            distinct_count: None,
         }),
     });
 
@@ -549,4 +570,22 @@ pub fn read_data_from_parquet_data(schema: SchemaRef, parquet_data: Vec<u8>) -> 
     }
 
     record_batches
+}
+
+/// Create test metadata by creating a parquet file and reading it back into memory.
+///
+/// See [`make_chunk`] for details.
+pub async fn make_metadata(
+    object_store: &Arc<ObjectStore>,
+    column_prefix: &str,
+    chunk_id: u32,
+) -> (Path, ParquetMetaData) {
+    let chunk = make_chunk(Arc::clone(object_store), column_prefix, chunk_id).await;
+    let (_, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(object_store))
+        .await
+        .unwrap();
+    (
+        chunk.table_path(),
+        read_parquet_metadata_from_file(parquet_data).unwrap(),
+    )
 }

@@ -296,6 +296,7 @@ impl AmazonS3 {
         region: impl Into<String>,
         bucket_name: impl Into<String>,
         endpoint: Option<impl Into<String>>,
+        session_token: Option<impl Into<String>>,
     ) -> Result<Self> {
         let region = region.into();
         let region: rusoto_core::Region = match endpoint {
@@ -309,14 +310,23 @@ impl AmazonS3 {
         let http_client = rusoto_core::request::HttpClient::new()
             .expect("Current implementation of rusoto_core has no way for this to fail");
 
-        let client = match (access_key_id, secret_access_key) {
-            (Some(access_key_id), Some(secret_access_key)) => {
+        let client = match (access_key_id, secret_access_key, session_token) {
+            (Some(access_key_id), Some(secret_access_key), Some(session_token)) => {
+                let credentials_provider = StaticProvider::new(
+                    access_key_id.into(),
+                    secret_access_key.into(),
+                    Some(session_token.into()),
+                    None,
+                );
+                rusoto_s3::S3Client::new_with(http_client, credentials_provider, region)
+            }
+            (Some(access_key_id), Some(secret_access_key), None) => {
                 let credentials_provider =
                     StaticProvider::new_minimal(access_key_id.into(), secret_access_key.into());
                 rusoto_s3::S3Client::new_with(http_client, credentials_provider, region)
             }
-            (None, Some(_)) => return Err(Error::MissingAccessKey),
-            (Some(_), None) => return Err(Error::MissingSecretAccessKey),
+            (None, Some(_), _) => return Err(Error::MissingAccessKey),
+            (Some(_), None, _) => return Err(Error::MissingSecretAccessKey),
             _ => {
                 let credentials_provider = InstanceMetadataProvider::new();
                 rusoto_s3::S3Client::new_with(http_client, credentials_provider, region)
@@ -450,6 +460,8 @@ mod tests {
         secret_access_key: String,
         region: String,
         bucket: String,
+        endpoint: Option<String>,
+        token: Option<String>,
     }
 
     // Helper macro to skip tests if TEST_INTEGRATION and the AWS environment variables are not set.
@@ -500,6 +512,8 @@ mod tests {
                         .expect("already checked AWS_DEFAULT_REGION"),
                     bucket: env::var("INFLUXDB_IOX_BUCKET")
                         .expect("already checked INFLUXDB_IOX_BUCKET"),
+                    endpoint: env::var("AWS_ENDPOINT").ok(),
+                    token: env::var("AWS_SESSION_TOKEN").ok(),
                 }
             }
         }};
@@ -530,7 +544,8 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 config.bucket,
-                Option::<String>::None,
+                config.endpoint,
+                config.token,
             )
             .expect("Valid S3 config"),
         );
@@ -551,7 +566,8 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
-                Option::<String>::None,
+                config.endpoint,
+                config.token,
             )
             .expect("Valid S3 config"),
         );
@@ -582,7 +598,8 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
-                Option::<String>::None,
+                config.endpoint,
+                config.token,
             )
             .expect("Valid S3 config"),
         );
@@ -624,7 +641,8 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
-                Option::<String>::None,
+                config.endpoint,
+                config.token,
             )
             .expect("Valid S3 config"),
         );
@@ -661,7 +679,8 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
-                Option::<String>::None,
+                config.endpoint,
+                config.token,
             )
             .expect("Valid S3 config"),
         );
@@ -708,7 +727,8 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
-                Option::<String>::None,
+                config.endpoint,
+                config.token,
             )
             .expect("Valid S3 config"),
         );
@@ -753,7 +773,8 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 config.bucket,
-                Option::<String>::None,
+                config.endpoint,
+                config.token,
             )
             .expect("Valid S3 config"),
         );
@@ -778,7 +799,8 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
-                Option::<String>::None,
+                config.endpoint,
+                config.token,
             )
             .expect("Valid S3 config"),
         );
@@ -815,7 +837,8 @@ mod tests {
                 Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
-                Option::<String>::None,
+                config.endpoint,
+                config.token,
             )
             .expect("Valid S3 config"),
         );

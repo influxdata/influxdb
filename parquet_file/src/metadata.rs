@@ -86,13 +86,14 @@
 //! [Apache Parquet]: https://parquet.apache.org/
 //! [Apache Thrift]: https://thrift.apache.org/
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
-use std::sync::Arc;
+use std::{convert::TryInto, sync::Arc};
 
 use data_types::partition_metadata::{
     ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
 };
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
 use parquet::{
+    arrow::parquet_to_arrow_schema,
     file::{
         metadata::{
             FileMetaData as ParquetFileMetaData, ParquetMetaData,
@@ -104,8 +105,17 @@ use parquet::{
     },
     schema::types::SchemaDescriptor as ParquetSchemaDescriptor,
 };
+use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
+use uuid::Uuid;
+
+/// File-level metadata key to store the IOx-specific data.
+///
+/// This will contain [`IoxMetadata`] serialized as [JSON].
+///
+/// [JSON]: https://www.json.org/
+pub const METADATA_KEY: &str = "IOX:metadata";
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -177,14 +187,79 @@ pub enum Error {
         column: String,
         source: parquet::errors::ParquetError,
     },
+
+    #[snafu(display("Cannot read arrow schema from parquet: {}", source))]
+    ArrowFromParquetFailure {
+        source: parquet::errors::ParquetError,
+    },
+
+    #[snafu(display("Cannot read IOx schema from arrow: {}", source))]
+    IoxFromArrowFailure {
+        source: internal_types::schema::Error,
+    },
+
+    #[snafu(display("Parquet metadata does not contain IOx metadata"))]
+    IoxMetadataMissing {},
+
+    #[snafu(display("Cannot parse IOx metadata from JSON: {}", source))]
+    IoxMetadataBroken { source: serde_json::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// IOx-specific metadata.
+///
+/// This will serialized as [JSON] into the file-level key-value Parquet metadata (under [`METADATA_KEY`]).
+///
+/// [JSON]: https://www.json.org/
+#[allow(missing_copy_implementations)] // we want to extend this type in the future
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+pub struct IoxMetadata {
+    /// Revision counter of the transaction during which the Parquet file was created.
+    pub transaction_revision_counter: u64,
+
+    /// UUID of the transaction during which the Parquet file was created.
+    pub transaction_uuid: Uuid,
+}
 
 /// Read parquet metadata from a parquet file.
 pub fn read_parquet_metadata_from_file(data: Vec<u8>) -> Result<ParquetMetaData> {
     let cursor = SliceableCursor::new(data);
     let reader = SerializedFileReader::new(cursor).context(ParquetMetaDataRead {})?;
     Ok(reader.metadata().clone())
+}
+
+/// Read IOx metadata from file-level key-value parquet metadata.
+pub fn read_iox_metadata_from_parquet_metadata(
+    parquet_md: &ParquetMetaData,
+) -> Result<IoxMetadata> {
+    let kv = parquet_md
+        .file_metadata()
+        .key_value_metadata()
+        .as_ref()
+        .context(IoxMetadataMissing)?
+        .iter()
+        .find(|kv| kv.key == METADATA_KEY)
+        .context(IoxMetadataMissing)?;
+    let json = kv.value.as_ref().context(IoxMetadataMissing)?;
+    serde_json::from_str(json).context(IoxMetadataBroken)
+}
+
+/// Read IOx schema from parquet metadata.
+pub fn read_schema_from_parquet_metadata(parquet_md: &ParquetMetaData) -> Result<Schema> {
+    let file_metadata = parquet_md.file_metadata();
+
+    let arrow_schema = parquet_to_arrow_schema(
+        file_metadata.schema_descr(),
+        file_metadata.key_value_metadata(),
+    )
+    .context(ArrowFromParquetFailure {})?;
+
+    let arrow_schema_ref = Arc::new(arrow_schema);
+
+    let schema: Schema = arrow_schema_ref
+        .try_into()
+        .context(IoxFromArrowFailure {})?;
+    Ok(schema)
 }
 
 /// Read IOx statistics (including timestamp range) from parquet metadata.
@@ -280,6 +355,9 @@ fn extract_iox_statistics(
             Ok(Statistics::Bool(StatValues {
                 min: Some(*stats.min()),
                 max: Some(*stats.max()),
+                distinct_count: parquet_stats
+                    .distinct_count()
+                    .and_then(|x| x.try_into().ok()),
                 count,
             }))
         }
@@ -287,6 +365,9 @@ fn extract_iox_statistics(
             Ok(Statistics::I64(StatValues {
                 min: Some(*stats.min()),
                 max: Some(*stats.max()),
+                distinct_count: parquet_stats
+                    .distinct_count()
+                    .and_then(|x| x.try_into().ok()),
                 count,
             }))
         }
@@ -296,6 +377,9 @@ fn extract_iox_statistics(
             Ok(Statistics::U64(StatValues {
                 min: Some(*stats.min() as u64),
                 max: Some(*stats.max() as u64),
+                distinct_count: parquet_stats
+                    .distinct_count()
+                    .and_then(|x| x.try_into().ok()),
                 count,
             }))
         }
@@ -303,6 +387,9 @@ fn extract_iox_statistics(
             Ok(Statistics::F64(StatValues {
                 min: Some(*stats.min()),
                 max: Some(*stats.max()),
+                distinct_count: parquet_stats
+                    .distinct_count()
+                    .and_then(|x| x.try_into().ok()),
                 count,
             }))
         }
@@ -310,6 +397,9 @@ fn extract_iox_statistics(
             Ok(Statistics::I64(StatValues {
                 min: Some(*stats.min()),
                 max: Some(*stats.max()),
+                distinct_count: parquet_stats
+                    .distinct_count()
+                    .and_then(|x| x.try_into().ok()),
                 count,
             }))
         }
@@ -336,6 +426,9 @@ fn extract_iox_statistics(
                         })?
                         .to_string(),
                 ),
+                distinct_count: parquet_stats
+                    .distinct_count()
+                    .and_then(|x| x.try_into().ok()),
                 count,
             }))
         }
@@ -444,16 +537,15 @@ mod tests {
 
     use internal_types::{schema::TIME_COLUMN_NAME, selection::Selection};
 
-    use crate::{
-        storage::read_schema_from_parquet_metadata,
-        utils::{load_parquet_from_store, make_chunk, make_chunk_no_row_group, make_object_store},
+    use crate::test_utils::{
+        load_parquet_from_store, make_chunk, make_chunk_no_row_group, make_object_store,
     };
 
     #[tokio::test]
     async fn test_restore_from_file() {
         // setup: preserve chunk to object store
         let store = make_object_store();
-        let chunk = make_chunk(Arc::clone(&store), "foo").await;
+        let chunk = make_chunk(Arc::clone(&store), "foo", 1).await;
         let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
 
@@ -466,15 +558,15 @@ mod tests {
         let table_summary_actual =
             read_statistics_from_parquet_metadata(&parquet_metadata, &schema_actual, &table)
                 .unwrap();
-        let table_summary_expected = chunk.table_summary();
-        assert_eq!(table_summary_actual, table_summary_expected);
+        let table_summary_expected = chunk.table_summary().as_ref();
+        assert_eq!(&table_summary_actual, table_summary_expected);
     }
 
     #[tokio::test]
     async fn test_restore_from_thrift() {
         // setup: write chunk to object store and only keep thrift-encoded metadata
         let store = make_object_store();
-        let chunk = make_chunk(Arc::clone(&store), "foo").await;
+        let chunk = make_chunk(Arc::clone(&store), "foo", 1).await;
         let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
         let data = parquet_metadata_to_thrift(&parquet_metadata).unwrap();
@@ -489,15 +581,15 @@ mod tests {
         let table_summary_actual =
             read_statistics_from_parquet_metadata(&parquet_metadata, &schema_actual, &table)
                 .unwrap();
-        let table_summary_expected = chunk.table_summary();
-        assert_eq!(table_summary_actual, table_summary_expected);
+        let table_summary_expected = chunk.table_summary().as_ref();
+        assert_eq!(&table_summary_actual, table_summary_expected);
     }
 
     #[tokio::test]
     async fn test_restore_from_file_no_row_group() {
         // setup: preserve chunk to object store
         let store = make_object_store();
-        let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo").await;
+        let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo", 1).await;
         let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
 
@@ -518,7 +610,7 @@ mod tests {
     async fn test_restore_from_thrift_no_row_group() {
         // setup: write chunk to object store and only keep thrift-encoded metadata
         let store = make_object_store();
-        let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo").await;
+        let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo", 1).await;
         let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
         let data = parquet_metadata_to_thrift(&parquet_metadata).unwrap();
@@ -540,7 +632,7 @@ mod tests {
     #[tokio::test]
     async fn test_make_chunk() {
         let store = make_object_store();
-        let chunk = make_chunk(Arc::clone(&store), "foo").await;
+        let chunk = make_chunk(Arc::clone(&store), "foo", 1).await;
         let (_, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
 
@@ -578,7 +670,7 @@ mod tests {
     #[tokio::test]
     async fn test_make_chunk_no_row_group() {
         let store = make_object_store();
-        let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo").await;
+        let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo", 1).await;
         let (_, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = read_parquet_metadata_from_file(parquet_data).unwrap();
 

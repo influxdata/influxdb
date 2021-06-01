@@ -1,216 +1,59 @@
-use std::mem::size_of;
+use std::fmt::Display;
+use std::iter::FromIterator;
 
-use arrow::{
-    self, array::Array, datatypes::Int16Type as ArrowInt16Type,
-    datatypes::Int32Type as ArrowInt32Type, datatypes::Int64Type as ArrowInt64Type,
-    datatypes::Int8Type as ArrowInt8Type, datatypes::UInt16Type as ArrowUInt16Type,
-    datatypes::UInt32Type as ArrowUInt32Type, datatypes::UInt64Type as ArrowUInt64Type,
-    datatypes::UInt8Type as ArrowUInt8Type,
+use arrow::array::PrimitiveArray;
+use arrow::{self, array::Array, datatypes::*};
+use either::Either;
+
+use super::encoding::scalar::{
+    transcoders::{ByteTrimmer, NoOpTranscoder, Transcoder},
+    ScalarEncoding,
 };
-
 use super::encoding::{scalar::Fixed, scalar::FixedNull};
 use super::{cmp, Statistics};
-use crate::column::{EncodedValues, RowIDs, Scalar, Value, Values};
+use crate::column::{RowIDs, Scalar, Value, Values};
 
+/// A representation of a column encoding for integer data, providing an
+/// API for working against that data in an immutable way.
+#[derive(Debug)]
 pub enum IntegerEncoding {
-    // non-null encodings. These are backed by `Vec<T>`
-    I64I64(Fixed<i64>),
-    I64I32(Fixed<i32>),
-    I64U32(Fixed<u32>),
-    I64I16(Fixed<i16>),
-    I64U16(Fixed<u16>),
-    I64I8(Fixed<i8>),
-    I64U8(Fixed<u8>),
-    U64U64(Fixed<u64>),
-    U64U32(Fixed<u32>),
-    U64U16(Fixed<u16>),
-    U64U8(Fixed<u8>),
-
-    // Nullable encodings. These are backed by an Arrow array.
-    I64I64N(FixedNull<ArrowInt64Type>),
-    I64I32N(FixedNull<ArrowInt32Type>),
-    I64U32N(FixedNull<ArrowUInt32Type>),
-    I64I16N(FixedNull<ArrowInt16Type>),
-    I64U16N(FixedNull<ArrowUInt16Type>),
-    I64I8N(FixedNull<ArrowInt8Type>),
-    I64U8N(FixedNull<ArrowUInt8Type>),
-    U64U64N(FixedNull<ArrowUInt64Type>),
-    U64U32N(FixedNull<ArrowUInt32Type>),
-    U64U16N(FixedNull<ArrowUInt16Type>),
-    U64U8N(FixedNull<ArrowUInt8Type>),
-}
-
-impl PartialEq for IntegerEncoding {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::I64I64(a), Self::I64I64(b)) => a == b,
-            (Self::I64I32(a), Self::I64I32(b)) => a == b,
-            (Self::I64U32(a), Self::I64U32(b)) => a == b,
-            (Self::I64I16(a), Self::I64I16(b)) => a == b,
-            (Self::I64U16(a), Self::I64U16(b)) => a == b,
-            (Self::I64I8(a), Self::I64I8(b)) => a == b,
-            (Self::I64U8(a), Self::I64U8(b)) => a == b,
-            (Self::U64U64(a), Self::U64U64(b)) => a == b,
-            (Self::U64U32(a), Self::U64U32(b)) => a == b,
-            (Self::U64U16(a), Self::U64U16(b)) => a == b,
-            (Self::U64U8(a), Self::U64U8(b)) => a == b,
-            (Self::I64I64N(a), Self::I64I64N(b)) => {
-                let a = a.all_values::<i64>(vec![]);
-                let b = b.all_values(vec![]);
-                a == b
-            }
-            (Self::I64I32N(a), Self::I64I32N(b)) => {
-                let a = a.all_values::<i64>(vec![]);
-                let b = b.all_values(vec![]);
-                a == b
-            }
-            (Self::I64U32N(a), Self::I64U32N(b)) => {
-                let a = a.all_values::<i64>(vec![]);
-                let b = b.all_values(vec![]);
-                a == b
-            }
-            (Self::I64I16N(a), Self::I64I16N(b)) => {
-                let a = a.all_values::<i64>(vec![]);
-                let b = b.all_values(vec![]);
-                a == b
-            }
-            (Self::I64U16N(a), Self::I64U16N(b)) => {
-                let a = a.all_values::<i64>(vec![]);
-                let b = b.all_values(vec![]);
-                a == b
-            }
-            (Self::I64I8N(a), Self::I64I8N(b)) => {
-                let a = a.all_values::<i64>(vec![]);
-                let b = b.all_values(vec![]);
-                a == b
-            }
-            (Self::I64U8N(a), Self::I64U8N(b)) => {
-                let a = a.all_values::<i64>(vec![]);
-                let b = b.all_values(vec![]);
-                a == b
-            }
-            (Self::U64U64N(a), Self::U64U64N(b)) => {
-                let a = a.all_values::<u64>(vec![]);
-                let b = b.all_values(vec![]);
-                a == b
-            }
-            (Self::U64U32N(a), Self::U64U32N(b)) => {
-                let a = a.all_values::<u64>(vec![]);
-                let b = b.all_values(vec![]);
-                a == b
-            }
-            (Self::U64U16N(a), Self::U64U16N(b)) => {
-                let a = a.all_values::<u64>(vec![]);
-                let b = b.all_values(vec![]);
-                a == b
-            }
-            (Self::U64U8N(a), Self::U64U8N(b)) => {
-                let a = a.all_values::<u64>(vec![]);
-                let b = b.all_values(vec![]);
-                a == b
-            }
-            (_, _) => false,
-        }
-    }
+    // (encoding, name_of_encoding)
+    I64(Box<dyn ScalarEncoding<i64>>, String),
+    U64(Box<dyn ScalarEncoding<u64>>, String),
 }
 
 impl IntegerEncoding {
     /// The total size in bytes of the store columnar data.
     pub fn size(&self) -> usize {
         match self {
-            Self::I64I64(enc) => enc.size(),
-            Self::I64I32(enc) => enc.size(),
-            Self::I64U32(enc) => enc.size(),
-            Self::I64I16(enc) => enc.size(),
-            Self::I64U16(enc) => enc.size(),
-            Self::I64I8(enc) => enc.size(),
-            Self::I64U8(enc) => enc.size(),
-            Self::U64U64(enc) => enc.size(),
-            Self::U64U32(enc) => enc.size(),
-            Self::U64U16(enc) => enc.size(),
-            Self::U64U8(enc) => enc.size(),
-            Self::I64I64N(enc) => enc.size(),
-            Self::I64I32N(enc) => enc.size(),
-            Self::I64U32N(enc) => enc.size(),
-            Self::I64I16N(enc) => enc.size(),
-            Self::I64U16N(enc) => enc.size(),
-            Self::I64I8N(enc) => enc.size(),
-            Self::I64U8N(enc) => enc.size(),
-            Self::U64U64N(enc) => enc.size(),
-            Self::U64U32N(enc) => enc.size(),
-            Self::U64U16N(enc) => enc.size(),
-            Self::U64U8N(enc) => enc.size(),
+            Self::I64(enc, _) => enc.size(),
+            Self::U64(enc, _) => enc.size(),
         }
     }
 
     /// The estimated total size in bytes of the underlying integer values in
     /// the column if they were stored contiguously and uncompressed (natively
-    /// as i64/u64). `include_nulls` will effectively size each NULL value as 8b if
-    /// `true`.
+    /// as i64/u64). `include_nulls` will effectively size each NULL value as 8b
+    /// if `true`.
     pub fn size_raw(&self, include_nulls: bool) -> usize {
-        match &self {
-            Self::I64I64(_)
-            | Self::I64I32(_)
-            | Self::I64U32(_)
-            | Self::I64I16(_)
-            | Self::I64U16(_)
-            | Self::I64I8(_)
-            | Self::I64U8(_)
-            | Self::U64U64(_)
-            | Self::U64U32(_)
-            | Self::U64U16(_)
-            | Self::U64U8(_) => {
-                // really one should do the correct i64/u64 in each arm but this
-                // is terser and still correct.
-                size_of::<Vec<i64>>() + (size_of::<i64>() * self.num_rows() as usize)
-            }
-
-            Self::I64I64N(enc) => enc.size_raw(include_nulls),
-            Self::I64I32N(enc) => enc.size_raw(include_nulls),
-            Self::I64U32N(enc) => enc.size_raw(include_nulls),
-            Self::I64I16N(enc) => enc.size_raw(include_nulls),
-            Self::I64U16N(enc) => enc.size_raw(include_nulls),
-            Self::I64I8N(enc) => enc.size_raw(include_nulls),
-            Self::I64U8N(enc) => enc.size_raw(include_nulls),
-            Self::U64U64N(enc) => enc.size_raw(include_nulls),
-            Self::U64U32N(enc) => enc.size_raw(include_nulls),
-            Self::U64U16N(enc) => enc.size_raw(include_nulls),
-            Self::U64U8N(enc) => enc.size_raw(include_nulls),
+        match self {
+            Self::I64(enc, _) => enc.size_raw(include_nulls),
+            Self::U64(enc, _) => enc.size_raw(include_nulls),
         }
     }
 
     /// The total number of rows in the column.
     pub fn num_rows(&self) -> u32 {
         match self {
-            Self::I64I64(enc) => enc.num_rows(),
-            Self::I64I32(enc) => enc.num_rows(),
-            Self::I64U32(enc) => enc.num_rows(),
-            Self::I64I16(enc) => enc.num_rows(),
-            Self::I64U16(enc) => enc.num_rows(),
-            Self::I64I8(enc) => enc.num_rows(),
-            Self::I64U8(enc) => enc.num_rows(),
-            Self::U64U64(enc) => enc.num_rows(),
-            Self::U64U32(enc) => enc.num_rows(),
-            Self::U64U16(enc) => enc.num_rows(),
-            Self::U64U8(enc) => enc.num_rows(),
-            Self::I64I64N(enc) => enc.num_rows(),
-            Self::I64I32N(enc) => enc.num_rows(),
-            Self::I64U32N(enc) => enc.num_rows(),
-            Self::I64I16N(enc) => enc.num_rows(),
-            Self::I64U16N(enc) => enc.num_rows(),
-            Self::I64I8N(enc) => enc.num_rows(),
-            Self::I64U8N(enc) => enc.num_rows(),
-            Self::U64U64N(enc) => enc.num_rows(),
-            Self::U64U32N(enc) => enc.num_rows(),
-            Self::U64U16N(enc) => enc.num_rows(),
-            Self::U64U8N(enc) => enc.num_rows(),
+            Self::I64(enc, _) => enc.num_rows(),
+            Self::U64(enc, _) => enc.num_rows(),
         }
     }
 
     // Returns statistics about the physical layout of columns
     pub(crate) fn storage_stats(&self) -> Statistics {
         Statistics {
-            enc_type: self.name(),
+            enc_type: self.name().into(),
             log_data_type: self.logical_datatype(),
             values: self.num_rows(),
             nulls: self.null_count(),
@@ -222,65 +65,22 @@ impl IntegerEncoding {
 
     /// Determines if the column contains a NULL value.
     pub fn contains_null(&self) -> bool {
-        match self {
-            Self::I64I64N(enc) => enc.contains_null(),
-            Self::I64I32N(enc) => enc.contains_null(),
-            Self::I64U32N(enc) => enc.contains_null(),
-            Self::I64I16N(enc) => enc.contains_null(),
-            Self::I64U16N(enc) => enc.contains_null(),
-            Self::I64I8N(enc) => enc.contains_null(),
-            Self::I64U8N(enc) => enc.contains_null(),
-            Self::U64U64N(enc) => enc.contains_null(),
-            Self::U64U32N(enc) => enc.contains_null(),
-            Self::U64U16N(enc) => enc.contains_null(),
-            Self::U64U8N(enc) => enc.contains_null(),
-            _ => false,
-        }
+        self.null_count() > 0
     }
 
     /// The total number of rows in the column.
     pub fn null_count(&self) -> u32 {
         match self {
-            Self::I64I64(_) => 0,
-            Self::I64I32(_) => 0,
-            Self::I64U32(_) => 0,
-            Self::I64I16(_) => 0,
-            Self::I64U16(_) => 0,
-            Self::I64I8(_) => 0,
-            Self::I64U8(_) => 0,
-            Self::U64U64(_) => 0,
-            Self::U64U32(_) => 0,
-            Self::U64U16(_) => 0,
-            Self::U64U8(_) => 0,
-            Self::I64I64N(enc) => enc.null_count(),
-            Self::I64I32N(enc) => enc.null_count(),
-            Self::I64U32N(enc) => enc.null_count(),
-            Self::I64I16N(enc) => enc.null_count(),
-            Self::I64U16N(enc) => enc.null_count(),
-            Self::I64I8N(enc) => enc.null_count(),
-            Self::I64U8N(enc) => enc.null_count(),
-            Self::U64U64N(enc) => enc.null_count(),
-            Self::U64U32N(enc) => enc.null_count(),
-            Self::U64U16N(enc) => enc.null_count(),
-            Self::U64U8N(enc) => enc.null_count(),
+            Self::I64(enc, _) => enc.null_count(),
+            Self::U64(enc, _) => enc.null_count(),
         }
     }
 
     /// Determines if the column contains a non-null value.
     pub fn has_any_non_null_value(&self) -> bool {
         match self {
-            Self::I64I64N(enc) => enc.has_any_non_null_value(),
-            Self::I64I32N(enc) => enc.has_any_non_null_value(),
-            Self::I64U32N(enc) => enc.has_any_non_null_value(),
-            Self::I64I16N(enc) => enc.has_any_non_null_value(),
-            Self::I64U16N(enc) => enc.has_any_non_null_value(),
-            Self::I64I8N(enc) => enc.has_any_non_null_value(),
-            Self::I64U8N(enc) => enc.has_any_non_null_value(),
-            Self::U64U64N(enc) => enc.has_any_non_null_value(),
-            Self::U64U32N(enc) => enc.has_any_non_null_value(),
-            Self::U64U16N(enc) => enc.has_any_non_null_value(),
-            Self::U64U8N(enc) => enc.has_any_non_null_value(),
-            _ => true,
+            Self::I64(enc, _) => enc.has_any_non_null_value(),
+            Self::U64(enc, _) => enc.has_any_non_null_value(),
         }
     }
 
@@ -288,127 +88,36 @@ impl IntegerEncoding {
     /// provided rows.
     pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
         match self {
-            Self::I64I64N(enc) => enc.has_non_null_value(row_ids),
-            Self::I64I32N(enc) => enc.has_non_null_value(row_ids),
-            Self::I64U32N(enc) => enc.has_non_null_value(row_ids),
-            Self::I64I16N(enc) => enc.has_non_null_value(row_ids),
-            Self::I64U16N(enc) => enc.has_non_null_value(row_ids),
-            Self::I64I8N(enc) => enc.has_non_null_value(row_ids),
-            Self::I64U8N(enc) => enc.has_non_null_value(row_ids),
-            Self::U64U64N(enc) => enc.has_non_null_value(row_ids),
-            Self::U64U32N(enc) => enc.has_non_null_value(row_ids),
-            Self::U64U16N(enc) => enc.has_non_null_value(row_ids),
-            Self::U64U8N(enc) => enc.has_non_null_value(row_ids),
-            _ => !row_ids.is_empty(), // all rows will be non-null
+            Self::I64(enc, _) => enc.has_non_null_value(row_ids),
+            Self::U64(enc, _) => enc.has_non_null_value(row_ids),
         }
     }
 
     /// Returns the logical value found at the provided row id.
     pub fn value(&self, row_id: u32) -> Value<'_> {
-        match &self {
-            // N.B., The `Scalar` variant determines the physical type `U` that
-            // `c.value` should return as the logical type
-
-            // signed 64-bit variants - logical type is i64 for all these
-            Self::I64I64(enc) => Value::Scalar(Scalar::I64(enc.value(row_id))),
-            Self::I64I32(enc) => Value::Scalar(Scalar::I64(enc.value(row_id))),
-            Self::I64U32(enc) => Value::Scalar(Scalar::I64(enc.value(row_id))),
-            Self::I64I16(enc) => Value::Scalar(Scalar::I64(enc.value(row_id))),
-            Self::I64U16(enc) => Value::Scalar(Scalar::I64(enc.value(row_id))),
-            Self::I64I8(enc) => Value::Scalar(Scalar::I64(enc.value(row_id))),
-            Self::I64U8(enc) => Value::Scalar(Scalar::I64(enc.value(row_id))),
-
-            // unsigned 64-bit variants - logical type is u64 for all these
-            Self::U64U64(enc) => Value::Scalar(Scalar::U64(enc.value(row_id))),
-            Self::U64U32(enc) => Value::Scalar(Scalar::U64(enc.value(row_id))),
-            Self::U64U16(enc) => Value::Scalar(Scalar::U64(enc.value(row_id))),
-            Self::U64U8(enc) => Value::Scalar(Scalar::U64(enc.value(row_id))),
-
-            // signed 64-bit variants
-            Self::I64I64N(enc) => match enc.value(row_id) {
+        match self {
+            Self::I64(enc, _) => match enc.value(row_id) {
                 Some(v) => Value::Scalar(Scalar::I64(v)),
                 None => Value::Null,
             },
-            Self::I64I32N(enc) => match enc.value(row_id) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::I64U32N(enc) => match enc.value(row_id) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::I64I16N(enc) => match enc.value(row_id) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::I64U16N(enc) => match enc.value(row_id) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::I64I8N(enc) => match enc.value(row_id) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::I64U8N(enc) => match enc.value(row_id) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-
-            // unsigned 64-bit variants
-            Self::U64U64N(enc) => match enc.value(row_id) {
-                Some(v) => Value::Scalar(Scalar::U64(v)),
-                None => Value::Null,
-            },
-            Self::U64U32N(enc) => match enc.value(row_id) {
-                Some(v) => Value::Scalar(Scalar::U64(v)),
-                None => Value::Null,
-            },
-            Self::U64U16N(enc) => match enc.value(row_id) {
-                Some(v) => Value::Scalar(Scalar::U64(v)),
-                None => Value::Null,
-            },
-            Self::U64U8N(enc) => match enc.value(row_id) {
+            Self::U64(enc, _) => match enc.value(row_id) {
                 Some(v) => Value::Scalar(Scalar::U64(v)),
                 None => Value::Null,
             },
         }
     }
 
-    /// Returns the logical values found at the provided row ids.
-    ///
-    /// TODO(edd): perf - provide a pooling mechanism for these destination
-    /// vectors so that they can be re-used.
+    /// Returns the logical values found at the provided ordinal offsets.
     pub fn values(&self, row_ids: &[u32]) -> Values<'_> {
-        match &self {
-            // signed 64-bit variants - logical type is i64 for all these
-            Self::I64I64(enc) => Values::I64(enc.values::<i64>(row_ids, vec![])),
-            Self::I64I32(enc) => Values::I64(enc.values::<i64>(row_ids, vec![])),
-            Self::I64U32(enc) => Values::I64(enc.values::<i64>(row_ids, vec![])),
-            Self::I64I16(enc) => Values::I64(enc.values::<i64>(row_ids, vec![])),
-            Self::I64U16(enc) => Values::I64(enc.values::<i64>(row_ids, vec![])),
-            Self::I64I8(enc) => Values::I64(enc.values::<i64>(row_ids, vec![])),
-            Self::I64U8(enc) => Values::I64(enc.values::<i64>(row_ids, vec![])),
-
-            // unsigned 64-bit variants - logical type is u64 for all these
-            Self::U64U64(enc) => Values::U64(enc.values::<u64>(row_ids, vec![])),
-            Self::U64U32(enc) => Values::U64(enc.values::<u64>(row_ids, vec![])),
-            Self::U64U16(enc) => Values::U64(enc.values::<u64>(row_ids, vec![])),
-            Self::U64U8(enc) => Values::U64(enc.values::<u64>(row_ids, vec![])),
-
-            // signed 64-bit nullable variants - logical type is i64 for all these.
-            Self::I64I64N(enc) => Values::I64N(enc.values(row_ids, vec![])),
-            Self::I64I32N(enc) => Values::I64N(enc.values(row_ids, vec![])),
-            Self::I64U32N(enc) => Values::I64N(enc.values(row_ids, vec![])),
-            Self::I64I16N(enc) => Values::I64N(enc.values(row_ids, vec![])),
-            Self::I64U16N(enc) => Values::I64N(enc.values(row_ids, vec![])),
-            Self::I64I8N(enc) => Values::I64N(enc.values(row_ids, vec![])),
-            Self::I64U8N(enc) => Values::I64N(enc.values(row_ids, vec![])),
-
-            // unsigned 64-bit nullable variants - logical type is u64 for all these.
-            Self::U64U64N(enc) => Values::U64N(enc.values(row_ids, vec![])),
-            Self::U64U32N(enc) => Values::U64N(enc.values(row_ids, vec![])),
-            Self::U64U16N(enc) => Values::U64N(enc.values(row_ids, vec![])),
-            Self::U64U8N(enc) => Values::U64N(enc.values(row_ids, vec![])),
+        match self {
+            Self::I64(enc, _) => match enc.values(row_ids) {
+                Either::Left(values) => Values::I64(values),
+                Either::Right(values) => Values::I64N(values),
+            },
+            Self::U64(enc, _) => match enc.values(row_ids) {
+                Either::Left(values) => Values::U64(values),
+                Either::Right(values) => Values::U64N(values),
+            },
         }
     }
 
@@ -417,119 +126,31 @@ impl IntegerEncoding {
     /// TODO(edd): perf - provide a pooling mechanism for these destination
     /// vectors so that they can be re-used.
     pub fn all_values(&self) -> Values<'_> {
-        match &self {
-            // signed 64-bit variants - logical type is i64 for all these
-            Self::I64I64(c) => Values::I64(c.all_values::<i64>(vec![])),
-            Self::I64I32(c) => Values::I64(c.all_values::<i64>(vec![])),
-            Self::I64U32(c) => Values::I64(c.all_values::<i64>(vec![])),
-            Self::I64I16(c) => Values::I64(c.all_values::<i64>(vec![])),
-            Self::I64U16(c) => Values::I64(c.all_values::<i64>(vec![])),
-            Self::I64I8(c) => Values::I64(c.all_values::<i64>(vec![])),
-            Self::I64U8(c) => Values::I64(c.all_values::<i64>(vec![])),
-
-            // unsigned 64-bit variants - logical type is u64 for all these
-            Self::U64U64(c) => Values::U64(c.all_values::<u64>(vec![])),
-            Self::U64U32(c) => Values::U64(c.all_values::<u64>(vec![])),
-            Self::U64U16(c) => Values::U64(c.all_values::<u64>(vec![])),
-            Self::U64U8(c) => Values::U64(c.all_values::<u64>(vec![])),
-
-            // signed 64-bit nullable variants - logical type is i64 for all these.
-            Self::I64I64N(enc) => Values::I64N(enc.all_values(vec![])),
-            Self::I64I32N(enc) => Values::I64N(enc.all_values(vec![])),
-            Self::I64U32N(enc) => Values::I64N(enc.all_values(vec![])),
-            Self::I64I16N(enc) => Values::I64N(enc.all_values(vec![])),
-            Self::I64U16N(enc) => Values::I64N(enc.all_values(vec![])),
-            Self::I64I8N(enc) => Values::I64N(enc.all_values(vec![])),
-            Self::I64U8N(enc) => Values::I64N(enc.all_values(vec![])),
-
-            // unsigned 64-bit nullable variants - logical type is u64 for all these.
-            Self::U64U64N(enc) => Values::U64N(enc.all_values(vec![])),
-            Self::U64U32N(enc) => Values::U64N(enc.all_values(vec![])),
-            Self::U64U16N(enc) => Values::U64N(enc.all_values(vec![])),
-            Self::U64U8N(enc) => Values::U64N(enc.all_values(vec![])),
-        }
-    }
-
-    /// Returns the encoded values found at the provided row ids. For an
-    /// `IntegerEncoding` the encoded values are typically just the raw values.
-    pub fn encoded_values(&self, row_ids: &[u32], dst: EncodedValues) -> EncodedValues {
-        // Right now the use-case for encoded values on non-string columns is
-        // that it's used for grouping with timestamp columns, which should be
-        // non-null signed 64-bit integers.
-        match dst {
-            EncodedValues::I64(dst) => match &self {
-                Self::I64I64(data) => EncodedValues::I64(data.values(row_ids, dst)),
-                Self::I64I32(data) => EncodedValues::I64(data.values(row_ids, dst)),
-                Self::I64U32(data) => EncodedValues::I64(data.values(row_ids, dst)),
-                Self::I64I16(data) => EncodedValues::I64(data.values(row_ids, dst)),
-                Self::I64U16(data) => EncodedValues::I64(data.values(row_ids, dst)),
-                Self::I64I8(data) => EncodedValues::I64(data.values(row_ids, dst)),
-                Self::I64U8(data) => EncodedValues::I64(data.values(row_ids, dst)),
-                _ => unreachable!("encoded values on encoding type not currently supported"),
+        match self {
+            Self::I64(enc, _) => match enc.all_values() {
+                Either::Left(values) => Values::I64(values),
+                Either::Right(values) => Values::I64N(values),
             },
-            _ => unreachable!("currently only support encoded values as i64"),
-        }
-    }
-
-    /// All encoded values for the column. For `IntegerEncoding` this is
-    /// typically equivalent to `all_values`.
-    pub fn all_encoded_values(&self, dst: EncodedValues) -> EncodedValues {
-        // Right now the use-case for encoded values on non-string columns is
-        // that it's used for grouping with timestamp columns, which should be
-        // non-null signed 64-bit integers.
-        match dst {
-            EncodedValues::I64(dst) => match &self {
-                Self::I64I64(data) => EncodedValues::I64(data.all_values(dst)),
-                Self::I64I32(data) => EncodedValues::I64(data.all_values(dst)),
-                Self::I64U32(data) => EncodedValues::I64(data.all_values(dst)),
-                Self::I64I16(data) => EncodedValues::I64(data.all_values(dst)),
-                Self::I64U16(data) => EncodedValues::I64(data.all_values(dst)),
-                Self::I64I8(data) => EncodedValues::I64(data.all_values(dst)),
-                Self::I64U8(data) => EncodedValues::I64(data.all_values(dst)),
-                _ => unreachable!("encoded values on encoding type not supported"),
+            Self::U64(enc, _) => match enc.all_values() {
+                Either::Left(values) => Values::U64(values),
+                Either::Right(values) => Values::U64N(values),
             },
-            _ => unreachable!("currently only support encoded values as i64"),
         }
     }
 
-    /// Returns the row ids that satisfy the provided predicate.
+    /// Returns the ordinal offsets that satisfy the provided predicate.
     ///
     /// Note: it is the caller's responsibility to ensure that the provided
     /// `Scalar` value will fit within the physical type of the encoded column.
     /// `row_ids_filter` will panic if this invariant is broken.
     pub fn row_ids_filter(&self, op: &cmp::Operator, value: &Scalar, dst: RowIDs) -> RowIDs {
         match &self {
-            Self::I64I64(c) => c.row_ids_filter(value.as_i64(), op, dst),
-            Self::I64I32(c) => c.row_ids_filter(value.as_i32(), op, dst),
-            Self::I64U32(c) => c.row_ids_filter(value.as_u32(), op, dst),
-            Self::I64I16(c) => c.row_ids_filter(value.as_i16(), op, dst),
-            Self::I64U16(c) => c.row_ids_filter(value.as_u16(), op, dst),
-            Self::I64I8(c) => c.row_ids_filter(value.as_i8(), op, dst),
-            Self::I64U8(c) => c.row_ids_filter(value.as_u8(), op, dst),
-
-            Self::U64U64(c) => c.row_ids_filter(value.as_u64(), op, dst),
-            Self::U64U32(c) => c.row_ids_filter(value.as_u32(), op, dst),
-            Self::U64U16(c) => c.row_ids_filter(value.as_u16(), op, dst),
-            Self::U64U8(c) => c.row_ids_filter(value.as_u8(), op, dst),
-
-            // signed 64-bit nullable variants - logical type is i64 for all these.
-            Self::I64I64N(enc) => enc.row_ids_filter(value.as_i64(), op, dst),
-            Self::I64I32N(enc) => enc.row_ids_filter(value.as_i32(), op, dst),
-            Self::I64U32N(enc) => enc.row_ids_filter(value.as_u32(), op, dst),
-            Self::I64I16N(enc) => enc.row_ids_filter(value.as_i16(), op, dst),
-            Self::I64U16N(enc) => enc.row_ids_filter(value.as_u16(), op, dst),
-            Self::I64I8N(enc) => enc.row_ids_filter(value.as_i8(), op, dst),
-            Self::I64U8N(enc) => enc.row_ids_filter(value.as_u8(), op, dst),
-
-            // unsigned 64-bit nullable variants - logical type is u64 for all these.
-            Self::U64U64N(enc) => enc.row_ids_filter(value.as_u64(), op, dst),
-            Self::U64U32N(enc) => enc.row_ids_filter(value.as_u32(), op, dst),
-            Self::U64U16N(enc) => enc.row_ids_filter(value.as_u16(), op, dst),
-            Self::U64U8N(enc) => enc.row_ids_filter(value.as_u8(), op, dst),
+            Self::I64(enc, _) => enc.row_ids_filter(value.as_i64(), op, dst),
+            Self::U64(enc, _) => enc.row_ids_filter(value.as_u64(), op, dst),
         }
     }
 
-    /// Returns the row ids that satisfy both the provided predicates.
+    /// Returns the ordinal offsets that satisfy both the provided predicates.
     ///
     /// Note: it is the caller's responsibility to ensure that the provided
     /// `Scalar` value will fit within the physical type of the encoded column.
@@ -541,135 +162,26 @@ impl IntegerEncoding {
         dst: RowIDs,
     ) -> RowIDs {
         match &self {
-            Self::I64I64(c) => {
-                c.row_ids_filter_range((low.1.as_i64(), low.0), (high.1.as_i64(), high.0), dst)
+            Self::I64(enc, _) => {
+                let left = (low.1.as_i64(), low.0);
+                let right = (high.1.as_i64(), high.0);
+                enc.row_ids_filter_range(left, right, dst)
             }
-            Self::I64I32(c) => {
-                c.row_ids_filter_range((low.1.as_i32(), low.0), (high.1.as_i32(), high.0), dst)
-            }
-            Self::I64U32(c) => {
-                c.row_ids_filter_range((low.1.as_u32(), low.0), (high.1.as_u32(), high.0), dst)
-            }
-            Self::I64I16(c) => {
-                c.row_ids_filter_range((low.1.as_i16(), low.0), (high.1.as_i16(), high.0), dst)
-            }
-            Self::I64U16(c) => {
-                c.row_ids_filter_range((low.1.as_u16(), low.0), (high.1.as_u16(), high.0), dst)
-            }
-            Self::I64I8(c) => {
-                c.row_ids_filter_range((low.1.as_i8(), low.0), (high.1.as_i8(), high.0), dst)
-            }
-            Self::I64U8(c) => {
-                c.row_ids_filter_range((low.1.as_u8(), low.0), (high.1.as_u8(), high.0), dst)
-            }
-
-            Self::U64U64(c) => {
-                c.row_ids_filter_range((low.1.as_u64(), low.0), (high.1.as_u64(), high.0), dst)
-            }
-            Self::U64U32(c) => {
-                c.row_ids_filter_range((low.1.as_u32(), low.0), (high.1.as_u32(), high.0), dst)
-            }
-            Self::U64U16(c) => {
-                c.row_ids_filter_range((low.1.as_u16(), low.0), (high.1.as_u16(), high.0), dst)
-            }
-            Self::U64U8(c) => {
-                c.row_ids_filter_range((low.1.as_u8(), low.0), (high.1.as_u8(), high.0), dst)
-            }
-
-            Self::I64I64N(enc) => {
-                enc.row_ids_filter_range((low.1.as_i64(), low.0), (high.1.as_i64(), high.0), dst)
-            }
-            Self::I64I32N(enc) => {
-                enc.row_ids_filter_range((low.1.as_i32(), low.0), (high.1.as_i32(), high.0), dst)
-            }
-            Self::I64U32N(enc) => {
-                enc.row_ids_filter_range((low.1.as_u32(), low.0), (high.1.as_u32(), high.0), dst)
-            }
-            Self::I64I16N(enc) => {
-                enc.row_ids_filter_range((low.1.as_i16(), low.0), (high.1.as_i16(), high.0), dst)
-            }
-            Self::I64U16N(enc) => {
-                enc.row_ids_filter_range((low.1.as_u16(), low.0), (high.1.as_u16(), high.0), dst)
-            }
-            Self::I64I8N(enc) => {
-                enc.row_ids_filter_range((low.1.as_i8(), low.0), (high.1.as_i8(), high.0), dst)
-            }
-            Self::I64U8N(enc) => {
-                enc.row_ids_filter_range((low.1.as_u8(), low.0), (high.1.as_u8(), high.0), dst)
-            }
-
-            // unsigned 64-bit nullable variants - logical type is u64 for all these.
-            Self::U64U64N(enc) => {
-                enc.row_ids_filter_range((low.1.as_u64(), low.0), (high.1.as_u64(), high.0), dst)
-            }
-            Self::U64U32N(enc) => {
-                enc.row_ids_filter_range((low.1.as_u32(), low.0), (high.1.as_u32(), high.0), dst)
-            }
-            Self::U64U16N(enc) => {
-                enc.row_ids_filter_range((low.1.as_u16(), low.0), (high.1.as_u16(), high.0), dst)
-            }
-            Self::U64U8N(enc) => {
-                enc.row_ids_filter_range((low.1.as_u8(), low.0), (high.1.as_u8(), high.0), dst)
+            Self::U64(enc, _) => {
+                let left = (low.1.as_u64(), low.0);
+                let right = (high.1.as_u64(), high.0);
+                enc.row_ids_filter_range(left, right, dst)
             }
         }
     }
 
     pub fn min(&self, row_ids: &[u32]) -> Value<'_> {
         match &self {
-            Self::I64I64(c) => Value::Scalar(Scalar::I64(c.min(row_ids))),
-            Self::I64I32(c) => Value::Scalar(Scalar::I64(c.min(row_ids))),
-            Self::I64U32(c) => Value::Scalar(Scalar::I64(c.min(row_ids))),
-            Self::I64I16(c) => Value::Scalar(Scalar::I64(c.min(row_ids))),
-            Self::I64U16(c) => Value::Scalar(Scalar::I64(c.min(row_ids))),
-            Self::I64I8(c) => Value::Scalar(Scalar::I64(c.min(row_ids))),
-            Self::I64U8(c) => Value::Scalar(Scalar::I64(c.min(row_ids))),
-            Self::U64U64(c) => Value::Scalar(Scalar::U64(c.min(row_ids))),
-            Self::U64U32(c) => Value::Scalar(Scalar::U64(c.min(row_ids))),
-            Self::U64U16(c) => Value::Scalar(Scalar::U64(c.min(row_ids))),
-            Self::U64U8(c) => Value::Scalar(Scalar::U64(c.min(row_ids))),
-
-            Self::I64I64N(enc) => match enc.min(row_ids) {
+            Self::I64(enc, _) => match enc.min(row_ids) {
                 Some(v) => Value::Scalar(Scalar::I64(v)),
                 None => Value::Null,
             },
-            Self::I64I32N(enc) => match enc.min(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::I64U32N(enc) => match enc.min(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::I64I16N(enc) => match enc.min(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::I64U16N(enc) => match enc.min(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::I64I8N(enc) => match enc.min(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::I64U8N(enc) => match enc.min(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-
-            Self::U64U64N(enc) => match enc.min(row_ids) {
-                Some(v) => Value::Scalar(Scalar::U64(v)),
-                None => Value::Null,
-            },
-            Self::U64U32N(enc) => match enc.min(row_ids) {
-                Some(v) => Value::Scalar(Scalar::U64(v)),
-                None => Value::Null,
-            },
-            Self::U64U16N(enc) => match enc.min(row_ids) {
-                Some(v) => Value::Scalar(Scalar::U64(v)),
-                None => Value::Null,
-            },
-            Self::U64U8N(enc) => match enc.min(row_ids) {
+            Self::U64(enc, _) => match enc.min(row_ids) {
                 Some(v) => Value::Scalar(Scalar::U64(v)),
                 None => Value::Null,
             },
@@ -678,59 +190,11 @@ impl IntegerEncoding {
 
     pub fn max(&self, row_ids: &[u32]) -> Value<'_> {
         match &self {
-            Self::I64I64(c) => Value::Scalar(Scalar::I64(c.max(row_ids))),
-            Self::I64I32(c) => Value::Scalar(Scalar::I64(c.max(row_ids))),
-            Self::I64U32(c) => Value::Scalar(Scalar::I64(c.max(row_ids))),
-            Self::I64I16(c) => Value::Scalar(Scalar::I64(c.max(row_ids))),
-            Self::I64U16(c) => Value::Scalar(Scalar::I64(c.max(row_ids))),
-            Self::I64I8(c) => Value::Scalar(Scalar::I64(c.max(row_ids))),
-            Self::I64U8(c) => Value::Scalar(Scalar::I64(c.max(row_ids))),
-            Self::U64U64(c) => Value::Scalar(Scalar::U64(c.max(row_ids))),
-            Self::U64U32(c) => Value::Scalar(Scalar::U64(c.max(row_ids))),
-            Self::U64U16(c) => Value::Scalar(Scalar::U64(c.max(row_ids))),
-            Self::U64U8(c) => Value::Scalar(Scalar::U64(c.max(row_ids))),
-            Self::I64I64N(enc) => match enc.max(row_ids) {
+            Self::I64(enc, _) => match enc.max(row_ids) {
                 Some(v) => Value::Scalar(Scalar::I64(v)),
                 None => Value::Null,
             },
-            Self::I64I32N(enc) => match enc.max(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::I64U32N(enc) => match enc.max(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::I64I16N(enc) => match enc.max(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::I64U16N(enc) => match enc.max(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::I64I8N(enc) => match enc.max(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::I64U8N(enc) => match enc.max(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-
-            Self::U64U64N(enc) => match enc.max(row_ids) {
-                Some(v) => Value::Scalar(Scalar::U64(v)),
-                None => Value::Null,
-            },
-            Self::U64U32N(enc) => match enc.max(row_ids) {
-                Some(v) => Value::Scalar(Scalar::U64(v)),
-                None => Value::Null,
-            },
-            Self::U64U16N(enc) => match enc.max(row_ids) {
-                Some(v) => Value::Scalar(Scalar::U64(v)),
-                None => Value::Null,
-            },
-            Self::U64U8N(enc) => match enc.max(row_ids) {
+            Self::U64(enc, _) => match enc.max(row_ids) {
                 Some(v) => Value::Scalar(Scalar::U64(v)),
                 None => Value::Null,
             },
@@ -739,59 +203,11 @@ impl IntegerEncoding {
 
     pub fn sum(&self, row_ids: &[u32]) -> Scalar {
         match &self {
-            Self::I64I64(c) => Scalar::I64(c.sum(row_ids)),
-            Self::I64I32(c) => Scalar::I64(c.sum(row_ids)),
-            Self::I64U32(c) => Scalar::I64(c.sum(row_ids)),
-            Self::I64I16(c) => Scalar::I64(c.sum(row_ids)),
-            Self::I64U16(c) => Scalar::I64(c.sum(row_ids)),
-            Self::I64I8(c) => Scalar::I64(c.sum(row_ids)),
-            Self::I64U8(c) => Scalar::I64(c.sum(row_ids)),
-            Self::U64U64(c) => Scalar::U64(c.sum(row_ids)),
-            Self::U64U32(c) => Scalar::U64(c.sum(row_ids)),
-            Self::U64U16(c) => Scalar::U64(c.sum(row_ids)),
-            Self::U64U8(c) => Scalar::U64(c.sum(row_ids)),
-            Self::I64I64N(enc) => match enc.sum(row_ids) {
+            Self::I64(enc, _) => match enc.sum(row_ids) {
                 Some(v) => Scalar::I64(v),
                 None => Scalar::Null,
             },
-            Self::I64I32N(enc) => match enc.sum(row_ids) {
-                Some(v) => Scalar::I64(v),
-                None => Scalar::Null,
-            },
-            Self::I64U32N(enc) => match enc.sum(row_ids) {
-                Some(v) => Scalar::I64(v),
-                None => Scalar::Null,
-            },
-            Self::I64I16N(enc) => match enc.sum(row_ids) {
-                Some(v) => Scalar::I64(v),
-                None => Scalar::Null,
-            },
-            Self::I64U16N(enc) => match enc.sum(row_ids) {
-                Some(v) => Scalar::I64(v),
-                None => Scalar::Null,
-            },
-            Self::I64I8N(enc) => match enc.sum(row_ids) {
-                Some(v) => Scalar::I64(v),
-                None => Scalar::Null,
-            },
-            Self::I64U8N(enc) => match enc.sum(row_ids) {
-                Some(v) => Scalar::I64(v),
-                None => Scalar::Null,
-            },
-
-            Self::U64U64N(enc) => match enc.sum(row_ids) {
-                Some(v) => Scalar::U64(v),
-                None => Scalar::Null,
-            },
-            Self::U64U32N(enc) => match enc.sum(row_ids) {
-                Some(v) => Scalar::U64(v),
-                None => Scalar::Null,
-            },
-            Self::U64U16N(enc) => match enc.sum(row_ids) {
-                Some(v) => Scalar::U64(v),
-                None => Scalar::Null,
-            },
-            Self::U64U8N(enc) => match enc.sum(row_ids) {
+            Self::U64(enc, _) => match enc.sum(row_ids) {
                 Some(v) => Scalar::U64(v),
                 None => Scalar::Null,
             },
@@ -800,144 +216,33 @@ impl IntegerEncoding {
 
     pub fn count(&self, row_ids: &[u32]) -> u32 {
         match &self {
-            Self::I64I64(c) => c.count(row_ids),
-            Self::I64I32(c) => c.count(row_ids),
-            Self::I64U32(c) => c.count(row_ids),
-            Self::I64I16(c) => c.count(row_ids),
-            Self::I64U16(c) => c.count(row_ids),
-            Self::I64I8(c) => c.count(row_ids),
-            Self::I64U8(c) => c.count(row_ids),
-            Self::U64U64(c) => c.count(row_ids),
-            Self::U64U32(c) => c.count(row_ids),
-            Self::U64U16(c) => c.count(row_ids),
-            Self::U64U8(c) => c.count(row_ids),
-            Self::I64I64N(enc) => enc.count(row_ids),
-            Self::I64I32N(enc) => enc.count(row_ids),
-            Self::I64U32N(enc) => enc.count(row_ids),
-            Self::I64I16N(enc) => enc.count(row_ids),
-            Self::I64U16N(enc) => enc.count(row_ids),
-            Self::I64I8N(enc) => enc.count(row_ids),
-            Self::I64U8N(enc) => enc.count(row_ids),
-            Self::U64U64N(enc) => enc.count(row_ids),
-            Self::U64U32N(enc) => enc.count(row_ids),
-            Self::U64U16N(enc) => enc.count(row_ids),
-            Self::U64U8N(enc) => enc.count(row_ids),
+            Self::I64(enc, _) => enc.count(row_ids),
+            Self::U64(enc, _) => enc.count(row_ids),
         }
     }
 
     /// The name of this encoding.
-    pub fn name(&self) -> &'static str {
-        match &self {
-            Self::I64I64(_) => "None",
-            Self::I64I32(_) => "BT_I32",
-            Self::I64U32(_) => "BT_U32",
-            Self::I64I16(_) => "BT_I16",
-            Self::I64U16(_) => "BT_U16",
-            Self::I64I8(_) => "BT_I8",
-            Self::I64U8(_) => "BT_U8",
-            Self::U64U64(_) => "None",
-            Self::U64U32(_) => "BT_U32",
-            Self::U64U16(_) => "BT_U16",
-            Self::U64U8(_) => "BT_U8",
-            Self::I64I64N(_) => "None",
-            Self::I64I32N(_) => "BT_I32N",
-            Self::I64U32N(_) => "BT_U32N",
-            Self::I64I16N(_) => "BT_U16N",
-            Self::I64U16N(_) => "BT_U16N",
-            Self::I64I8N(_) => "BT_I8N",
-            Self::I64U8N(_) => "BT_U8N",
-            Self::U64U64N(_) => "None",
-            Self::U64U32N(_) => "BT_U32N",
-            Self::U64U16N(_) => "BT_U16N",
-            Self::U64U8N(_) => "BT_U8N",
+    pub fn name(&self) -> String {
+        match self {
+            Self::I64(_, name) => name.to_string(),
+            Self::U64(_, name) => name.to_string(),
         }
     }
 
     /// The logical datatype of this encoding.
     pub fn logical_datatype(&self) -> &'static str {
-        match &self {
-            Self::I64I64(_) => "i64",
-            Self::I64I32(_) => "i64",
-            Self::I64U32(_) => "i64",
-            Self::I64I16(_) => "i64",
-            Self::I64U16(_) => "i64",
-            Self::I64I8(_) => "i64",
-            Self::I64U8(_) => "i64",
-            Self::U64U64(_) => "u64",
-            Self::U64U32(_) => "u64",
-            Self::U64U16(_) => "u64",
-            Self::U64U8(_) => "u64",
-            Self::I64I64N(_) => "i64",
-            Self::I64I32N(_) => "i64",
-            Self::I64U32N(_) => "i64",
-            Self::I64I16N(_) => "i64",
-            Self::I64U16N(_) => "i64",
-            Self::I64I8N(_) => "i64",
-            Self::I64U8N(_) => "i64",
-            Self::U64U64N(_) => "u64",
-            Self::U64U32N(_) => "u64",
-            Self::U64U16N(_) => "u64",
-            Self::U64U8N(_) => "u64",
+        match self {
+            Self::I64(_, _) => "i64",
+            Self::U64(_, _) => "u64",
         }
     }
 }
 
-impl std::fmt::Display for IntegerEncoding {
+impl Display for IntegerEncoding {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = self.name();
         match self {
-            Self::I64I64(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::I64I32(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::I64U32(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::I64I16(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::I64U16(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::I64I8(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::I64U8(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::U64U64(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::U64U32(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::U64U16(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::U64U8(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::I64I64N(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::I64I32N(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::I64U32N(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::I64I16N(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::I64U16N(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::I64I8N(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::I64U8N(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::U64U64N(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::U64U32N(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::U64U16N(enc) => write!(f, "[{}]: {}", name, enc),
-            Self::U64U8N(enc) => write!(f, "[{}]: {}", name, enc),
-        }
-    }
-}
-
-impl std::fmt::Debug for IntegerEncoding {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = self.name();
-        match self {
-            Self::I64I64(enc) => enc.fmt(f),
-            Self::I64I32(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::I64U32(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::I64I16(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::I64U16(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::I64I8(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::I64U8(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::U64U64(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::U64U32(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::U64U16(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::U64U8(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::I64I64N(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::I64I32N(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::I64U32N(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::I64I16N(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::I64U16N(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::I64I8N(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::I64U8N(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::U64U64N(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::U64U32N(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::U64U16N(enc) => write!(f, "[{}]: {:?}", name, enc),
-            Self::U64U8N(enc) => write!(f, "[{}]: {:?}", name, enc),
+            Self::I64(enc, _) => write!(f, "[{}]: {}", self.name(), enc),
+            Self::U64(enc, _) => write!(f, "[{}]: {}", self.name(), enc),
         }
     }
 }
@@ -946,6 +251,8 @@ impl std::fmt::Debug for IntegerEncoding {
 ///
 /// The most compact physical type needed to store the columnar values is
 /// determined, and a `Fixed` encoding is used for storage.
+///
+/// #Panics
 ///
 /// Panics if the provided slice is empty.
 impl From<&[i64]> for IntegerEncoding {
@@ -960,31 +267,74 @@ impl From<&[i64]> for IntegerEncoding {
 
         // This match is carefully ordered. It prioritises smaller physical
         // datatypes that can safely represent the provided logical data
+        let transcoder = ByteTrimmer {};
         match (min, max) {
             // encode as u8 values
-            (min, max) if min >= 0 && max <= u8::MAX as i64 => Self::I64U8(Fixed::<u8>::from(arr)),
+            (min, max) if min >= 0 && max <= u8::MAX as i64 => {
+                let arr = arr
+                    .iter()
+                    .map::<u8, _>(|v| transcoder.encode(*v))
+                    .collect::<Vec<_>>();
+                let enc = Box::new(Fixed::new(arr, transcoder));
+                let name = enc.name();
+                Self::I64(enc, format!("BT_U8-{}", name))
+            }
             // encode as i8 values
             (min, max) if min >= i8::MIN as i64 && max <= i8::MAX as i64 => {
-                Self::I64I8(Fixed::<i8>::from(arr))
+                let arr = arr
+                    .iter()
+                    .map(|v| transcoder.encode(*v))
+                    .collect::<Vec<i8>>();
+                let enc = Box::new(Fixed::new(arr, transcoder));
+                let name = enc.name();
+                Self::I64(enc, format!("BT_I8-{}", name))
             }
             // encode as u16 values
             (min, max) if min >= 0 && max <= u16::MAX as i64 => {
-                Self::I64U16(Fixed::<u16>::from(arr))
+                let arr = arr
+                    .iter()
+                    .map::<u16, _>(|v| transcoder.encode(*v))
+                    .collect::<Vec<u16>>();
+                let enc = Box::new(Fixed::new(arr, transcoder));
+                let name = enc.name();
+                Self::I64(enc, format!("BT_U16-{}", name))
             }
             // encode as i16 values
             (min, max) if min >= i16::MIN as i64 && max <= i16::MAX as i64 => {
-                Self::I64I16(Fixed::<i16>::from(arr))
+                let arr = arr
+                    .iter()
+                    .map(|v| transcoder.encode(*v))
+                    .collect::<Vec<i16>>();
+                let enc = Box::new(Fixed::new(arr, transcoder));
+                let name = enc.name();
+                Self::I64(enc, format!("BT_I16-{}", name))
             }
             // encode as u32 values
             (min, max) if min >= 0 && max <= u32::MAX as i64 => {
-                Self::I64U32(Fixed::<u32>::from(arr))
+                let arr = arr
+                    .iter()
+                    .map(|v| transcoder.encode(*v))
+                    .collect::<Vec<u32>>();
+                let enc = Box::new(Fixed::new(arr, transcoder));
+                let name = enc.name();
+                Self::I64(enc, format!("BT_U32-{}", name))
             }
             // encode as i32 values
             (min, max) if min >= i32::MIN as i64 && max <= i32::MAX as i64 => {
-                Self::I64I32(Fixed::<i32>::from(arr))
+                let arr = arr
+                    .iter()
+                    .map(|v| transcoder.encode(*v))
+                    .collect::<Vec<i32>>();
+                let enc = Box::new(Fixed::new(arr, transcoder));
+                let name = enc.name();
+                Self::I64(enc, format!("BT_I32-{}", name))
             }
             // otherwise, encode with the same physical type (i64)
-            (_, _) => Self::I64I64(Fixed::<i64>::from(arr)),
+            (_, _) => {
+                let enc = Box::new(Fixed::new(arr.to_vec(), NoOpTranscoder {}));
+                let name = enc.name();
+                Self::I64(enc, format!("None-{}", name))
+            }
         }
     }
 }
@@ -1005,33 +355,82 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
 
         // This match is carefully ordered. It prioritises smaller physical
         // datatypes that can safely represent the provided logical data
+        let transcoder = ByteTrimmer {};
         match (min, max) {
+            // data is all NULL. Store as single byte column for now.
+            // TODO(edd): this will be smaller when stored using RLE
+            (None, None) => {
+                let arr = PrimitiveArray::from_iter(arr.iter().map::<Option<u8>, _>(|_| None));
+                let enc = Box::new(FixedNull::<UInt8Type, i64, _>::new(arr, transcoder));
+                let name = enc.name();
+                Self::I64(enc, format!("BT_U8-{}", name))
+            }
             // encode as u8 values
             (min, max) if min >= Some(0) && max <= Some(u8::MAX as i64) => {
-                Self::I64U8N(FixedNull::<ArrowUInt8Type>::from(arr))
+                let arr = PrimitiveArray::from_iter(
+                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as u8
+                );
+
+                let enc = Box::new(FixedNull::<UInt8Type, i64, _>::new(arr, transcoder));
+                let name = enc.name();
+                Self::I64(enc, format!("BT_U8-{}", name))
             }
             // encode as i8 values
             (min, max) if min >= Some(i8::MIN as i64) && max <= Some(i8::MAX as i64) => {
-                Self::I64I8N(FixedNull::<ArrowInt8Type>::from(arr))
+                let arr = PrimitiveArray::from_iter(
+                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as i8
+                );
+
+                let enc = Box::new(FixedNull::<Int8Type, i64, _>::new(arr, transcoder));
+                let name = enc.name();
+                Self::I64(enc, format!("BT_I8-{}", name))
             }
             // encode as u16 values
             (min, max) if min >= Some(0) && max <= Some(u16::MAX as i64) => {
-                Self::I64U16N(FixedNull::<ArrowUInt16Type>::from(arr))
+                let arr = PrimitiveArray::from_iter(
+                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as u16
+                );
+
+                let enc = Box::new(FixedNull::<UInt16Type, i64, _>::new(arr, transcoder));
+                let name = enc.name();
+                Self::I64(enc, format!("BT_U16-{}", name))
             }
             // encode as i16 values
             (min, max) if min >= Some(i16::MIN as i64) && max <= Some(i16::MAX as i64) => {
-                Self::I64I16N(FixedNull::<ArrowInt16Type>::from(arr))
+                let arr = PrimitiveArray::from_iter(
+                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as i16
+                );
+
+                let enc = Box::new(FixedNull::<Int16Type, i64, _>::new(arr, transcoder));
+                let name = enc.name();
+                Self::I64(enc, format!("BT_I16-{}", name))
             }
             // encode as u32 values
             (min, max) if min >= Some(0) && max <= Some(u32::MAX as i64) => {
-                Self::I64U32N(FixedNull::<ArrowUInt32Type>::from(arr))
+                let arr = PrimitiveArray::from_iter(
+                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as u32
+                );
+
+                let enc = Box::new(FixedNull::<UInt32Type, i64, _>::new(arr, transcoder));
+                let name = enc.name();
+                Self::I64(enc, format!("BT_U32-{}", name))
             }
             // encode as i32 values
             (min, max) if min >= Some(i32::MIN as i64) && max <= Some(i32::MAX as i64) => {
-                Self::I64I32N(FixedNull::<ArrowInt32Type>::from(arr))
+                let arr = PrimitiveArray::from_iter(
+                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as i32
+                );
+
+                let enc = Box::new(FixedNull::<Int32Type, i64, _>::new(arr, transcoder));
+                let name = enc.name();
+                Self::I64(enc, format!("BT_I32-{}", name))
             }
             // otherwise, encode with the same physical type (i64)
-            (_, _) => Self::I64I64N(FixedNull::<ArrowInt64Type>::from(arr)),
+            (_, _) => {
+                let enc = Box::new(FixedNull::<Int64Type, i64, _>::new(arr, NoOpTranscoder {}));
+                let name = enc.name();
+                Self::I64(enc, format!("None-{}", name))
+            }
         }
     }
 }
@@ -1044,25 +443,52 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
 /// Panics if the provided slice is empty.
 impl From<&[u64]> for IntegerEncoding {
     fn from(arr: &[u64]) -> Self {
-        // determine min and max values.
-        let mut min = arr[0];
+        // determine max value.
         let mut max = arr[0];
         for &v in arr.iter().skip(1) {
-            min = min.min(v);
             max = max.max(v);
         }
 
         // This match is carefully ordered. It prioritises smaller physical
         // datatypes that can safely represent the provided logical data
-        match (min, max) {
+        let transcoder = ByteTrimmer {};
+        match max {
             // encode as u8 values
-            (_, max) if max <= u8::MAX as u64 => Self::U64U8(Fixed::<u8>::from(arr)),
+            max if max <= u8::MAX as u64 => {
+                let arr = arr
+                    .iter()
+                    .map::<u8, _>(|v| transcoder.encode(*v)) // u64 -> u8
+                    .collect::<Vec<u8>>();
+                let enc = Box::new(Fixed::<u8, u64, _>::new(arr, transcoder));
+                let name = enc.name();
+                Self::U64(enc, format!("BT_U8-{}", name))
+            }
             // encode as u16 values
-            (_, max) if max <= u16::MAX as u64 => Self::U64U16(Fixed::<u16>::from(arr)),
+            max if max <= u16::MAX as u64 => {
+                let arr = arr
+                    .iter()
+                    .map::<u16, _>(|v| transcoder.encode(*v)) // u64 -> u16
+                    .collect::<Vec<u16>>();
+                let enc = Box::new(Fixed::<u16, u64, _>::new(arr, transcoder));
+                let name = enc.name();
+                Self::U64(enc, format!("BT_U16-{}", name))
+            }
             // encode as u32 values
-            (_, max) if max <= u32::MAX as u64 => Self::U64U32(Fixed::<u32>::from(arr)),
+            max if max <= u32::MAX as u64 => {
+                let arr = arr
+                    .iter()
+                    .map::<u32, _>(|v| transcoder.encode(*v)) // u64 -> u32
+                    .collect::<Vec<u32>>();
+                let enc = Box::new(Fixed::<u32, u64, _>::new(arr, transcoder));
+                let name = enc.name();
+                Self::U64(enc, format!("BT_U32-{}", name))
+            }
             // otherwise, encode with the same physical type (u64)
-            (_, _) => Self::U64U64(Fixed::<u64>::from(arr)),
+            _ => {
+                let enc = Box::new(Fixed::<u64, u64, _>::new(arr.to_vec(), NoOpTranscoder {})); // no transcoding needed
+                let name = enc.name();
+                Self::U64(enc, format!("None-{}", name))
+            }
         }
     }
 }
@@ -1082,21 +508,44 @@ impl From<arrow::array::UInt64Array> for IntegerEncoding {
 
         // This match is carefully ordered. It prioritises smaller physical
         // datatypes that can safely represent the provided logical data
+        let transcoder = ByteTrimmer {};
         match max {
             // encode as u8 values
             max if max <= Some(u8::MAX as u64) => {
-                Self::U64U8N(FixedNull::<ArrowUInt8Type>::from(arr))
+                let arr = PrimitiveArray::from_iter(
+                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode u64 as u8
+                );
+
+                let enc = Box::new(FixedNull::<UInt8Type, u64, _>::new(arr, transcoder));
+                let name = enc.name();
+                Self::U64(enc, format!("BT_U8-{}", name))
             }
             // encode as u16 values
             max if max <= Some(u16::MAX as u64) => {
-                Self::U64U16N(FixedNull::<ArrowUInt16Type>::from(arr))
+                let arr = PrimitiveArray::from_iter(
+                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode u64 as u16
+                );
+
+                let enc = Box::new(FixedNull::<UInt16Type, u64, _>::new(arr, transcoder));
+                let name = enc.name();
+                Self::U64(enc, format!("BT_U16-{}", name))
             }
             // encode as u32 values
             max if max <= Some(u32::MAX as u64) => {
-                Self::U64U32N(FixedNull::<ArrowUInt32Type>::from(arr))
+                let arr = PrimitiveArray::from_iter(
+                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode u64 as u32
+                );
+
+                let enc = Box::new(FixedNull::<UInt32Type, u64, _>::new(arr, transcoder));
+                let name = enc.name();
+                Self::U64(enc, format!("BT_U32-{}", name))
             }
             // otherwise, encode with the same physical type (u64)
-            _ => Self::U64U64N(FixedNull::<ArrowUInt64Type>::from(arr)),
+            _ => {
+                let enc = Box::new(FixedNull::<UInt64Type, u64, _>::new(arr, NoOpTranscoder {}));
+                let name = enc.name();
+                Self::U64(enc, format!("None-{}", name))
+            }
         }
     }
 }
@@ -1104,202 +553,112 @@ impl From<arrow::array::UInt64Array> for IntegerEncoding {
 #[cfg(test)]
 mod test {
     use arrow::array::{Int64Array, UInt64Array};
-    use std::iter;
 
     use super::*;
 
     #[test]
+    // Tests that input data gets byte trimmed correctly.
     fn from_slice_i64() {
         let cases = vec![
-            vec![0_i64, 2, 245, 3],
-            vec![0_i64, -120, 127, 3],
-            vec![399_i64, 2, 2452, 3],
-            vec![-399_i64, 2, 2452, 3],
-            vec![u32::MAX as i64, 2, 245, 3],
-            vec![i32::MIN as i64, 2, 245, 3],
-            vec![0_i64, 2, 245, u32::MAX as i64 + 1],
+            (vec![0_i64, 2, 245, 3], 28_usize),             // u8 fixed array
+            (vec![0_i64, -120, 127, 3], 28),                // i8 fixed array
+            (vec![399_i64, 2, 2452, 3], 32),                // u16 fixed array
+            (vec![-399_i64, 2, 2452, 3], 32),               // u16 fixed array
+            (vec![u32::MAX as i64, 2, 245, 3], 40),         // u32 fixed array
+            (vec![i32::MIN as i64, 2, 245, 3], 40),         // i32 fixed array
+            (vec![0_i64, 2, 245, u32::MAX as i64 + 1], 56), // u64 fixed array
+            (vec![0_i64, 2, 245, i64::MIN], 56),            // i64 fixed array
         ];
 
-        let exp = vec![
-            IntegerEncoding::I64U8(Fixed::<u8>::from(cases[0].as_slice())),
-            IntegerEncoding::I64I8(Fixed::<i8>::from(cases[1].as_slice())),
-            IntegerEncoding::I64U16(Fixed::<u16>::from(cases[2].as_slice())),
-            IntegerEncoding::I64I16(Fixed::<i16>::from(cases[3].as_slice())),
-            IntegerEncoding::I64U32(Fixed::<u32>::from(cases[4].as_slice())),
-            IntegerEncoding::I64I32(Fixed::<i32>::from(cases[5].as_slice())),
-            IntegerEncoding::I64I64(Fixed::<i64>::from(cases[6].as_slice())),
-        ];
-
-        for (case, exp) in cases.into_iter().zip(exp.into_iter()) {
-            assert_eq!(IntegerEncoding::from(case.as_slice()), exp);
+        for (case, size) in cases.into_iter() {
+            let enc = IntegerEncoding::from(case.as_slice());
+            assert_eq!(enc.size(), size, "failed: {:?}", enc);
         }
     }
 
     #[test]
     fn from_slice_u64() {
         let cases = vec![
-            vec![0_u64, 2, 245, 3],
-            vec![399_u64, 2, 2452, 3],
-            vec![u32::MAX as u64, 2, 245, 3],
-            vec![0_u64, 2, 245, u32::MAX as u64 + 1],
+            (vec![0_u64, 2, 245, 3], 28_usize),             // u8 fixed array
+            (vec![399_u64, 2, 2452, 3], 32),                // u16 fixed array
+            (vec![u32::MAX as u64, 2, 245, 3], 40),         // u32 fixed array
+            (vec![0_u64, 2, 245, u32::MAX as u64 + 1], 56), // u64 fixed array
         ];
 
-        let exp = vec![
-            IntegerEncoding::U64U8(Fixed::<u8>::from(cases[0].as_slice())),
-            IntegerEncoding::U64U16(Fixed::<u16>::from(cases[1].as_slice())),
-            IntegerEncoding::U64U32(Fixed::<u32>::from(cases[2].as_slice())),
-            IntegerEncoding::U64U64(Fixed::<u64>::from(cases[3].as_slice())),
-        ];
-
-        for (case, exp) in cases.into_iter().zip(exp.into_iter()) {
-            assert_eq!(IntegerEncoding::from(case.as_slice()), exp);
+        for (case, exp) in cases.into_iter() {
+            let enc = IntegerEncoding::from(case.as_slice());
+            assert_eq!(enc.size(), exp, "failed: {:?}", enc);
         }
     }
 
     #[test]
     fn from_arrow_i64_array() {
         let cases = vec![
-            vec![0_i64, 2, 245, 3],
-            vec![0_i64, -120, 127, 3],
-            vec![399_i64, 2, 2452, 3],
-            vec![-399_i64, 2, 2452, 3],
-            vec![u32::MAX as i64, 2, 245, 3],
-            vec![i32::MIN as i64, 2, 245, 3],
-            vec![0_i64, 2, 245, u32::MAX as i64 + 1],
-        ];
-
-        let exp = vec![
-            IntegerEncoding::I64U8(Fixed::<u8>::from(cases[0].as_slice())),
-            IntegerEncoding::I64I8(Fixed::<i8>::from(cases[1].as_slice())),
-            IntegerEncoding::I64U16(Fixed::<u16>::from(cases[2].as_slice())),
-            IntegerEncoding::I64I16(Fixed::<i16>::from(cases[3].as_slice())),
-            IntegerEncoding::I64U32(Fixed::<u32>::from(cases[4].as_slice())),
-            IntegerEncoding::I64I32(Fixed::<i32>::from(cases[5].as_slice())),
-            IntegerEncoding::I64I64(Fixed::<i64>::from(cases[6].as_slice())),
+            (vec![0_i64, 2, 245, 3], 28_usize),             // u8 fixed array
+            (vec![0_i64, -120, 127, 3], 28),                // i8 fixed array
+            (vec![399_i64, 2, 2452, 3], 32),                // u16 fixed array
+            (vec![-399_i64, 2, 2452, 3], 32),               // i16 fixed array
+            (vec![u32::MAX as i64, 2, 245, 3], 40),         // u32 fixed array
+            (vec![i32::MIN as i64, 2, 245, 3], 40),         // i32 fixed array
+            (vec![0_i64, 2, 245, u32::MAX as i64 + 1], 56), // u64 fixed array
+            (vec![0_i64, 2, 245, i64::MIN], 56),            // i64 fixed array
         ];
 
         // for Arrow arrays with no nulls we can store the column using a
         // non-nullable fixed encoding
-        for (case, exp) in cases.iter().cloned().zip(exp.into_iter()) {
+        for (case, size) in cases.iter().cloned() {
             let arr = Int64Array::from(case);
-            assert_eq!(IntegerEncoding::from(arr), exp);
+            let enc = IntegerEncoding::from(arr);
+            assert_eq!(enc.size(), size, "failed: {:?}", enc);
         }
 
-        // Tack a NULL onto each of the input cases.
-        let cases = cases
-            .iter()
-            .map(|case| {
-                case.iter()
-                    .map(|x| Some(*x))
-                    .chain(iter::repeat(None).take(1))
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-
-        // when a NULL value is present then we need to use a nullable encoding.
-        let exp = vec![
-            IntegerEncoding::I64U8N(FixedNull::<ArrowUInt8Type>::from(Int64Array::from(
-                cases[0].clone(),
-            ))),
-            IntegerEncoding::I64I8N(FixedNull::<ArrowInt8Type>::from(Int64Array::from(
-                cases[1].clone(),
-            ))),
-            IntegerEncoding::I64U16N(FixedNull::<ArrowUInt16Type>::from(Int64Array::from(
-                cases[2].clone(),
-            ))),
-            IntegerEncoding::I64I16N(FixedNull::<ArrowInt16Type>::from(Int64Array::from(
-                cases[3].clone(),
-            ))),
-            IntegerEncoding::I64U32N(FixedNull::<ArrowUInt32Type>::from(Int64Array::from(
-                cases[4].clone(),
-            ))),
-            IntegerEncoding::I64I32N(FixedNull::<ArrowInt32Type>::from(Int64Array::from(
-                cases[5].clone(),
-            ))),
-            IntegerEncoding::I64I64N(FixedNull::<ArrowInt64Type>::from(Int64Array::from(
-                cases[6].clone(),
-            ))),
+        // Input data containing NULL will be stored in an Arrow array encoding
+        let cases = vec![
+            (vec![None, Some(0_i64)], 344_usize),         // u8 Arrow array
+            (vec![None, Some(-120_i64)], 344),            // i8
+            (vec![None, Some(399_i64)], 344),             // u16
+            (vec![None, Some(-399_i64)], 344),            // i16
+            (vec![None, Some(u32::MAX as i64)], 344),     // u32
+            (vec![None, Some(i32::MIN as i64)], 344),     // i32
+            (vec![None, Some(u32::MAX as i64 + 1)], 344), //u64
         ];
 
-        for (case, exp) in cases.into_iter().zip(exp.into_iter()) {
-            let arr = Int64Array::from(case.clone());
-            assert_eq!(IntegerEncoding::from(arr), exp);
+        for (case, size) in cases.iter().cloned() {
+            let arr = Int64Array::from(case);
+            let enc = IntegerEncoding::from(arr);
+            assert_eq!(enc.size(), size, "failed: {:?}", enc);
         }
     }
 
     #[test]
     fn from_arrow_u64_array() {
         let cases = vec![
-            vec![0_u64, 2, 245, 3],
-            vec![399_u64, 2, 2452, 3],
-            vec![u32::MAX as u64, 2, 245, 3],
-            vec![0_u64, 2, 245, u32::MAX as u64 + 1],
-        ];
-
-        let exp = vec![
-            IntegerEncoding::U64U8(Fixed::<u8>::from(cases[0].as_slice())),
-            IntegerEncoding::U64U16(Fixed::<u16>::from(cases[1].as_slice())),
-            IntegerEncoding::U64U32(Fixed::<u32>::from(cases[2].as_slice())),
-            IntegerEncoding::U64U64(Fixed::<u64>::from(cases[3].as_slice())),
+            (vec![0_u64, 2, 245, 3], 28_usize),     // stored in Fixed u8 array
+            (vec![399_u64, 2, 2452, 3], 32),        // stored in Fixed u16 array
+            (vec![u32::MAX as u64, 2, 245, 3], 40), // stored in Fixed u32 array
+            (vec![0_u64, 2, 245, u32::MAX as u64 + 1], 56), // Fixed u64 array
         ];
 
         // for Arrow arrays with no nulls we can store the column using a
         // non-nullable fixed encoding
-        for (case, exp) in cases.iter().cloned().zip(exp.into_iter()) {
+        for (case, size) in cases.iter().cloned() {
             let arr = UInt64Array::from(case);
-            assert_eq!(IntegerEncoding::from(arr), exp);
+            let enc = IntegerEncoding::from(arr);
+            assert_eq!(enc.size(), size, "failed: {:?}", enc);
         }
 
-        // Tack a NULL onto each of the input cases.
-        let cases = cases
-            .iter()
-            .map(|case| {
-                case.iter()
-                    .map(|x| Some(*x))
-                    .chain(iter::repeat(None).take(1))
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-
-        // when a NULL value is present then we need to use a nullable encoding.
-        let exp = vec![
-            IntegerEncoding::U64U8N(FixedNull::<ArrowUInt8Type>::from(UInt64Array::from(
-                cases[0].clone(),
-            ))),
-            IntegerEncoding::U64U16N(FixedNull::<ArrowUInt16Type>::from(UInt64Array::from(
-                cases[1].clone(),
-            ))),
-            IntegerEncoding::U64U32N(FixedNull::<ArrowUInt32Type>::from(UInt64Array::from(
-                cases[2].clone(),
-            ))),
-            IntegerEncoding::U64U64N(FixedNull::<ArrowUInt64Type>::from(UInt64Array::from(
-                cases[3].clone(),
-            ))),
+        // Input data containing NULL will be stored in an Arrow array encoding
+        let cases = vec![
+            (vec![None, Some(0_u64)], 344_usize),
+            (vec![None, Some(399_u64)], 344),
+            (vec![None, Some(u32::MAX as u64)], 344),
+            (vec![None, Some(u64::MAX)], 344),
         ];
 
-        for (case, exp) in cases.into_iter().zip(exp.into_iter()) {
-            let arr = UInt64Array::from(case.clone());
-            assert_eq!(IntegerEncoding::from(arr), exp);
+        for (case, size) in cases.iter().cloned() {
+            let arr = UInt64Array::from(case);
+            let enc = IntegerEncoding::from(arr);
+            assert_eq!(enc.size(), size, "failed: {:?}", enc);
         }
-    }
-
-    #[test]
-    fn size_raw() {
-        let enc = IntegerEncoding::I64U8(Fixed::<u8>::from(&[2, 22, 12, 31][..]));
-        // (4 * 8) + 24
-        assert_eq!(enc.size_raw(true), 56);
-        assert_eq!(enc.size_raw(false), 56);
-
-        let enc = IntegerEncoding::U64U64(Fixed::<u64>::from(&[2, 22, 12, 31][..]));
-        // (4 * 8) + 24
-        assert_eq!(enc.size_raw(true), 56);
-        assert_eq!(enc.size_raw(false), 56);
-
-        let enc = IntegerEncoding::I64I64N(FixedNull::<ArrowInt64Type>::from(
-            &[Some(2), Some(22), Some(12), None, None, Some(31)][..],
-        ));
-        // (6 * 8) + 24
-        assert_eq!(enc.size_raw(true), 72);
-        assert_eq!(enc.size_raw(false), 56);
     }
 }

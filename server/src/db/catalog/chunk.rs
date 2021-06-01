@@ -5,13 +5,15 @@ use data_types::{
     chunk_metadata::{ChunkColumnSummary, ChunkStorage, ChunkSummary, DetailedChunkSummary},
     partition_metadata::TableSummary,
 };
-use mutable_buffer::chunk::Chunk as MBChunk;
+use internal_types::schema::Schema;
+use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, Chunk as MBChunk};
 use parquet_file::chunk::Chunk as ParquetChunk;
 use read_buffer::Chunk as ReadBufferChunk;
 
 use super::{ChunkIsEmpty, Error, InternalChunkState, Result};
 use metrics::{Counter, Histogram, KeyValue};
 use snafu::ensure;
+use tracker::{TaskRegistration, TaskTracker};
 
 /// Any lifecycle action currently in progress for this chunk
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -36,39 +38,112 @@ impl ChunkLifecycleAction {
     }
 }
 
-/// The state a Chunk is in and what its underlying backing storage is
-#[derive(Debug)]
-pub enum ChunkState {
-    /// An invalid chunk state that should not be externally observed
-    ///
-    /// Used internally to allow moving data between enum variants
-    Invalid,
+// Closed chunks have cached information about their schema and statistics
+#[derive(Debug, Clone)]
+pub struct ChunkMetadata {
+    /// The TableSummary, including statistics, for the table in this
+    /// Chunk
+    pub table_summary: Arc<TableSummary>,
 
-    /// Chunk can accept new writes
-    Open(MBChunk),
-
-    /// Chunk is closed for new writes
-    Closed(Arc<MBChunk>),
-
-    /// Chunk has been completely loaded in the read buffer
-    Moved(Arc<ReadBufferChunk>),
-
-    // Chunk has been completely written into object store
-    WrittenToObjectStore(Arc<ReadBufferChunk>, Arc<ParquetChunk>),
-
-    // Chunk only exists in object store
-    ObjectStoreOnly(Arc<ParquetChunk>),
+    /// The schema for the table in this Chunk
+    pub schema: Arc<Schema>,
 }
 
-impl ChunkState {
+/// A chunk in an _open_ stage.
+///
+/// Chunks in this stage are writable (= can receive new data) and are never preserved.
+#[derive(Debug)]
+pub struct ChunkStageOpen {
+    /// Mutable Buffer that receives writes.
+    pub mb_chunk: MBChunk,
+}
+
+/// Different memory representations of a frozen chunk.
+#[derive(Debug)]
+pub enum ChunkStageFrozenRepr {
+    /// Snapshot from the Mutable Buffer, freshly created from the former _open_ chunk. Not ideal for memory consumption
+    /// but good enough for the frozen stage. Should ideally be converted into the
+    /// [`ReadBuffer`](ChunkStageFrozenRepr::ReadBuffer) rather quickly.
+    MutableBufferSnapshot(Arc<MBChunkSnapshot>),
+
+    /// Read Buffer that is optimized for in-memory data processing.
+    ReadBuffer(Arc<ReadBufferChunk>),
+}
+
+/// A chunk in an _frozen stage.
+///
+/// Chunks in this stage cannot be modified but are not yet persisted. They can however be compacted which will take two
+/// or more chunks and creates a single new frozen chunk.
+#[derive(Debug)]
+pub struct ChunkStageFrozen {
+    /// Metadata (statistics, schema) about this chunk
+    pub meta: Arc<ChunkMetadata>,
+
+    /// Internal memory representation of the frozen chunk.
+    pub representation: ChunkStageFrozenRepr,
+}
+
+/// Chunk in _persisted_ stage.
+#[derive(Debug)]
+pub struct ChunkStagePersisted {
+    /// Metadata (statistics, schema) about this chunk
+    pub meta: Arc<ChunkMetadata>,
+
+    /// Parquet chunk that lives immutable within the object store.
+    pub parquet: Arc<ParquetChunk>,
+
+    /// In-memory version of the parquet data.
+    pub read_buffer: Option<Arc<ReadBufferChunk>>,
+}
+
+/// Represents the current lifecycle stage a chunk is in.
+///
+/// # Stages
+/// - **Open:** A chunk can receive new data. It is not persisted.
+/// - **Frozen:** A chunk cannot receive new data. It is not persisted.
+/// - **Persisted:** A chunk cannot receive new data. It is persisted.
+///
+/// # Stage Transitions
+/// State changes look like this:
+///
+/// ```text
+///      new           compact         restore
+///       │             ▲   │             │
+///       │             │   │             │
+/// ┌─────▼─────┐   ┌───┴───▼───┐   ┌─────▼─────┐
+/// │           │   │           │   │           │
+/// │   Open    ├───►  Frozen   ├──►│ Persisted │
+/// │           │   │           │   │           │
+/// └─────┬─────┘   └─────┬─────┘   └─────┬─────┘
+///       │               │               │
+///       │               ▼               │
+///       └────────────►drop◄─────────────┘
+/// ```
+///
+/// A chunk stage lifecycle is linear, i.e. it can never go back. Also note that the _peristed_ stage is the only one
+/// that can be restored on node startup (from the persisted catalog). Furthermore, multiple _frozen_ chunks can be
+/// compacted into a single one. Nodes at any stage can be dropped via API calls and according to lifecycle policies.
+///
+/// A chunk can be in-transit when there is a lifecycle job active. A lifecycle job can change the stage once finished
+/// (according to the diagram shown above). The chunk stage is considered unchanged as long as the job is running.
+#[derive(Debug)]
+pub enum ChunkStage {
+    /// Chunk can receive new data. It is not persisted.
+    Open(ChunkStageOpen),
+
+    /// Chunk cannot receive new data. It is not persisted.
+    Frozen(ChunkStageFrozen),
+
+    /// Chunk cannot receive new data. It is persisted.
+    Persisted(ChunkStagePersisted),
+}
+
+impl ChunkStage {
     pub fn name(&self) -> &'static str {
         match self {
-            Self::Invalid => "Invalid",
             Self::Open(_) => "Open",
-            Self::Closed(_) => "Closed",
-            Self::Moved(_) => "Moved",
-            Self::WrittenToObjectStore(_, _) => "Written to Object Store",
-            Self::ObjectStoreOnly(_) => "Object Store Only",
+            Self::Frozen(_) => "Frozen",
+            Self::Persisted(_) => "Persisted",
         }
     }
 }
@@ -76,6 +151,12 @@ impl ChunkState {
 /// The catalog representation of a Chunk in IOx. Note that a chunk
 /// may exist in several physical locations at any given time (e.g. in
 /// mutable buffer and in read buffer)
+///
+/// # State Handling
+/// The actual chunk _state_ consistest of multiple parts. First there is the [lifecycle _stage_](ChunkStage)
+/// which captures the grant movement of a chunk from a unoptimized mutable object to an optimized immutable one. Within
+/// these stages there are multiple ways to represent or cache data. This fact is captured by the _stage_-specific chunk
+/// _representation_ (e.g. a persisted chunk may have data cached in-memory).
 #[derive(Debug)]
 pub struct Chunk {
     /// What partition does the chunk belong to?
@@ -87,11 +168,15 @@ pub struct Chunk {
     /// The ID of the chunk
     id: u32,
 
-    /// The state of this chunk
-    state: ChunkState,
+    /// The lifecycle stage this chunk is in.
+    stage: ChunkStage,
 
     /// The active lifecycle task if any
-    lifecycle_action: Option<ChunkLifecycleAction>,
+    ///
+    /// This is stored as a TaskTracker to allow monitoring the progress of the
+    /// action, detecting if the task failed, waiting for the task to complete
+    /// or even triggering graceful termination of it
+    lifecycle_action: Option<TaskTracker<ChunkLifecycleAction>>,
 
     /// The metrics for this chunk
     metrics: ChunkMetrics,
@@ -165,8 +250,8 @@ impl Chunk {
         );
 
         let table_name = Arc::clone(&chunk.table_name());
+        let stage = ChunkStage::Open(ChunkStageOpen { mb_chunk: chunk });
 
-        let state = ChunkState::Open(chunk);
         metrics
             .state
             .inc_with_labels(&[KeyValue::new("state", "open")]);
@@ -175,7 +260,7 @@ impl Chunk {
             partition_key: Arc::from(partition_key.as_ref()),
             table_name,
             id: chunk_id,
-            state,
+            stage,
             lifecycle_action: None,
             metrics,
             time_of_first_write: None,
@@ -195,21 +280,25 @@ impl Chunk {
         chunk: Arc<parquet_file::chunk::Chunk>,
         metrics: ChunkMetrics,
     ) -> Self {
-        // workaround until https://github.com/influxdata/influxdb_iox/issues/1295 is fixed
-        let table_name = Arc::from(
-            chunk
-                .table_names(None)
-                .next()
-                .expect("chunk must have exactly 1 table")
-                .as_ref(),
-        );
-        let state = ChunkState::ObjectStoreOnly(chunk);
+        let table_name = Arc::from(chunk.table_name());
+
+        // Cache table summary + schema
+        let meta = Arc::new(ChunkMetadata {
+            table_summary: Arc::clone(chunk.table_summary()),
+            schema: chunk.full_schema(),
+        });
+
+        let stage = ChunkStage::Persisted(ChunkStagePersisted {
+            parquet: chunk,
+            read_buffer: None,
+            meta,
+        });
 
         Self {
             partition_key: Arc::from(partition_key.as_ref()),
             table_name,
             id: chunk_id,
-            state,
+            stage,
             lifecycle_action: None,
             metrics,
             time_of_first_write: None,
@@ -237,16 +326,16 @@ impl Chunk {
         self.partition_key.as_ref()
     }
 
-    pub fn table_name(&self) -> &str {
-        self.table_name.as_ref()
+    pub fn table_name(&self) -> Arc<str> {
+        Arc::clone(&self.table_name)
     }
 
-    pub fn state(&self) -> &ChunkState {
-        &self.state
+    pub fn stage(&self) -> &ChunkStage {
+        &self.stage
     }
 
     pub fn lifecycle_action(&self) -> Option<&ChunkLifecycleAction> {
-        self.lifecycle_action.as_ref()
+        self.lifecycle_action.as_ref().map(|x| x.metadata())
     }
 
     pub fn time_of_first_write(&self) -> Option<DateTime<Utc>> {
@@ -272,31 +361,25 @@ impl Chunk {
 
     /// Return ChunkSummary metadata for this chunk
     pub fn summary(&self) -> ChunkSummary {
-        let (estimated_bytes, row_count, storage) = match &self.state {
-            ChunkState::Invalid => panic!("invalid chunk state"),
-            ChunkState::Open(chunk) => {
-                (chunk.size(), chunk.rows(), ChunkStorage::OpenMutableBuffer)
+        let (row_count, storage) = match &self.stage {
+            ChunkStage::Open(stage) => (stage.mb_chunk.rows(), ChunkStorage::OpenMutableBuffer),
+            ChunkStage::Frozen(stage) => match &stage.representation {
+                ChunkStageFrozenRepr::MutableBufferSnapshot(repr) => {
+                    (repr.rows(), ChunkStorage::ClosedMutableBuffer)
+                }
+                ChunkStageFrozenRepr::ReadBuffer(repr) => {
+                    (repr.rows() as usize, ChunkStorage::ReadBuffer)
+                }
+            },
+            ChunkStage::Persisted(stage) => {
+                let rows = stage.parquet.rows() as usize;
+                let storage = if stage.read_buffer.is_some() {
+                    ChunkStorage::ReadBufferAndObjectStore
+                } else {
+                    ChunkStorage::ObjectStoreOnly
+                };
+                (rows, storage)
             }
-            ChunkState::Closed(chunk) => (
-                chunk.size(),
-                chunk.rows(),
-                ChunkStorage::ClosedMutableBuffer,
-            ),
-            ChunkState::Moved(chunk) => (
-                chunk.size(),
-                chunk.rows() as usize,
-                ChunkStorage::ReadBuffer,
-            ),
-            ChunkState::WrittenToObjectStore(chunk, parquet_chunk) => (
-                chunk.size() + parquet_chunk.size(),
-                chunk.rows() as usize,
-                ChunkStorage::ReadBufferAndObjectStore,
-            ),
-            ChunkState::ObjectStoreOnly(chunk) => (
-                chunk.size(),
-                chunk.rows() as usize,
-                ChunkStorage::ObjectStoreOnly,
-            ),
         };
 
         ChunkSummary {
@@ -304,7 +387,7 @@ impl Chunk {
             table_name: Arc::clone(&self.table_name),
             id: self.id,
             storage,
-            estimated_bytes,
+            estimated_bytes: self.size(),
             row_count,
             time_of_first_write: self.time_of_first_write,
             time_of_last_write: self.time_of_last_write,
@@ -323,52 +406,55 @@ impl Chunk {
             }
         }
 
-        let columns: Vec<ChunkColumnSummary> = match &self.state {
-            ChunkState::Invalid => panic!("invalid chunk state"),
-            ChunkState::Open(chunk) => chunk.column_sizes().map(to_summary).collect(),
-            ChunkState::Closed(chunk) => chunk.column_sizes().map(to_summary).collect(),
-            ChunkState::Moved(chunk) => chunk.column_sizes(&self.table_name),
-            ChunkState::WrittenToObjectStore(chunk, _parquet_chunk) => {
-                chunk.column_sizes(&self.table_name)
+        let columns: Vec<ChunkColumnSummary> = match &self.stage {
+            ChunkStage::Open(stage) => stage.mb_chunk.column_sizes().map(to_summary).collect(),
+            ChunkStage::Frozen(stage) => match &stage.representation {
+                ChunkStageFrozenRepr::MutableBufferSnapshot(repr) => {
+                    repr.column_sizes().map(to_summary).collect()
+                }
+                ChunkStageFrozenRepr::ReadBuffer(repr) => repr.column_sizes(&self.table_name),
+            },
+            ChunkStage::Persisted(stage) => {
+                if let Some(read_buffer) = &stage.read_buffer {
+                    read_buffer.column_sizes(&self.table_name)
+                } else {
+                    // TODO parquet statistics
+                    vec![]
+                }
             }
-            ChunkState::ObjectStoreOnly(_parquet_chunk) => vec![], // TODO parquet statistics
         };
 
         DetailedChunkSummary { inner, columns }
     }
 
     /// Return the summary information about the table stored in this Chunk
-    pub fn table_summary(&self) -> TableSummary {
-        match &self.state {
-            ChunkState::Invalid => panic!("invalid chunk state"),
-            ChunkState::Open(chunk) => chunk.table_summary(),
-            ChunkState::Closed(chunk) => chunk.table_summary(),
-            ChunkState::Moved(chunk) => {
-                let mut summaries = chunk.table_summaries();
-                assert_eq!(summaries.len(), 1);
-                summaries.remove(0)
+    pub fn table_summary(&self) -> Arc<TableSummary> {
+        match &self.stage {
+            ChunkStage::Open(stage) => {
+                // The stats for open chunks change so can't be cached
+                Arc::new(stage.mb_chunk.table_summary())
             }
-            ChunkState::WrittenToObjectStore(chunk, _) => {
-                let mut summaries = chunk.table_summaries();
-                assert_eq!(summaries.len(), 1);
-                summaries.remove(0)
-            }
-            ChunkState::ObjectStoreOnly(chunk) => chunk.table_summary(),
+            ChunkStage::Frozen(stage) => Arc::clone(&stage.meta.table_summary),
+            ChunkStage::Persisted(stage) => Arc::clone(&stage.meta.table_summary),
         }
     }
 
     /// Returns an approximation of the amount of process memory consumed by the
     /// chunk
     pub fn size(&self) -> usize {
-        match &self.state {
-            ChunkState::Invalid => 0,
-            ChunkState::Open(chunk) => chunk.size(),
-            ChunkState::Closed(chunk) => chunk.size(),
-            ChunkState::Moved(chunk) => chunk.size() as usize,
-            ChunkState::WrittenToObjectStore(chunk, parquet_chunk) => {
-                parquet_chunk.size() + chunk.size() as usize
+        match &self.stage {
+            ChunkStage::Open(stage) => stage.mb_chunk.size(),
+            ChunkStage::Frozen(stage) => match &stage.representation {
+                ChunkStageFrozenRepr::MutableBufferSnapshot(repr) => repr.size(),
+                ChunkStageFrozenRepr::ReadBuffer(repr) => repr.size(),
+            },
+            ChunkStage::Persisted(stage) => {
+                let mut size = stage.parquet.size();
+                if let Some(read_buffer) = &stage.read_buffer {
+                    size += read_buffer.size();
+                }
+                size
             }
-            ChunkState::ObjectStoreOnly(chunk) => chunk.size() as usize,
         }
     }
 
@@ -377,36 +463,43 @@ impl Chunk {
     ///
     /// Must be in open or closed state
     pub fn mutable_buffer(&mut self) -> Result<&mut MBChunk> {
-        match &mut self.state {
-            ChunkState::Open(chunk) => Ok(chunk),
-            state => unexpected_state!(self, "mutable buffer reference", "Open or Closed", state),
+        match &mut self.stage {
+            ChunkStage::Open(stage) => Ok(&mut stage.mb_chunk),
+            stage => unexpected_state!(self, "mutable buffer reference", "Open or Closed", stage),
         }
     }
 
     /// Set the chunk to the Closed state
-    pub fn set_closed(&mut self) -> Result<Arc<MBChunk>> {
-        let mut s = ChunkState::Invalid;
-        std::mem::swap(&mut s, &mut self.state);
-
-        match s {
-            ChunkState::Open(s) => {
+    pub fn set_closed(&mut self) -> Result<Arc<MBChunkSnapshot>> {
+        match &self.stage {
+            ChunkStage::Open(stage) => {
                 assert!(self.time_closed.is_none());
                 self.time_closed = Some(Utc::now());
-                let s = Arc::new(s);
-                self.state = ChunkState::Closed(Arc::clone(&s));
+                let s = stage.mb_chunk.snapshot();
                 self.metrics
                     .state
                     .inc_with_labels(&[KeyValue::new("state", "closed")]);
 
-                self.metrics
-                    .immutable_chunk_size
-                    .observe_with_labels(s.size() as f64, &[KeyValue::new("state", "closed")]);
+                self.metrics.immutable_chunk_size.observe_with_labels(
+                    stage.mb_chunk.size() as f64,
+                    &[KeyValue::new("state", "closed")],
+                );
+
+                // Cache table summary + schema
+                let metadata = ChunkMetadata {
+                    table_summary: Arc::new(stage.mb_chunk.table_summary()),
+                    schema: s.full_schema(),
+                };
+
+                self.stage = ChunkStage::Frozen(ChunkStageFrozen {
+                    representation: ChunkStageFrozenRepr::MutableBufferSnapshot(Arc::clone(&s)),
+                    meta: Arc::new(metadata),
+                });
 
                 Ok(s)
             }
-            state => {
-                self.state = state;
-                unexpected_state!(self, "setting closed", "Open or Closed", &self.state)
+            _ => {
+                unexpected_state!(self, "setting closed", "Open or Closed", &self.stage)
             }
         }
     }
@@ -415,30 +508,42 @@ impl Chunk {
     /// storage
     ///
     /// If called on an open chunk will first close the chunk
-    pub fn set_moving(&mut self) -> Result<Arc<MBChunk>> {
+    pub fn set_moving(&mut self, registration: &TaskRegistration) -> Result<Arc<MBChunkSnapshot>> {
         // This ensures the closing logic is consistent but doesn't break code that
         // assumes a chunk can be moved from open
-        if matches!(self.state, ChunkState::Open(_)) {
+        if matches!(self.stage, ChunkStage::Open(_)) {
             self.set_closed()?;
         }
 
-        match &self.state {
-            ChunkState::Closed(chunk) => {
-                let chunk = Arc::clone(chunk);
-                self.set_lifecycle_action(ChunkLifecycleAction::Moving)?;
+        match &self.stage {
+            ChunkStage::Frozen(stage) => match &stage.representation {
+                ChunkStageFrozenRepr::MutableBufferSnapshot(repr) => {
+                    let chunk = Arc::clone(repr);
+                    self.set_lifecycle_action(ChunkLifecycleAction::Moving, registration)?;
 
-                self.metrics
-                    .state
-                    .inc_with_labels(&[KeyValue::new("state", "moving")]);
+                    self.metrics
+                        .state
+                        .inc_with_labels(&[KeyValue::new("state", "moving")]);
 
-                self.metrics
-                    .immutable_chunk_size
-                    .observe_with_labels(chunk.size() as f64, &[KeyValue::new("state", "moving")]);
+                    self.metrics.immutable_chunk_size.observe_with_labels(
+                        chunk.size() as f64,
+                        &[KeyValue::new("state", "moving")],
+                    );
 
-                Ok(chunk)
-            }
-            state => {
-                unexpected_state!(self, "setting moving", "Open or Closed", state)
+                    Ok(chunk)
+                }
+                ChunkStageFrozenRepr::ReadBuffer(_) => InternalChunkState {
+                    partition_key: self.partition_key.as_ref(),
+                    table_name: self.table_name.as_ref(),
+                    chunk_id: self.id,
+                    operation: "setting moving",
+                    expected: "Frozen with MutableBufferSnapshot",
+                    actual: "Frozen with ReadBuffer",
+                }
+                .fail(),
+            },
+            _ => {
+                unexpected_state!(self, "setting closed", "Open or Closed", &self.stage)
             }
         }
     }
@@ -447,39 +552,70 @@ impl Chunk {
     /// storage handle to db, and discarding the underlying mutable buffer
     /// storage.
     pub fn set_moved(&mut self, chunk: Arc<ReadBufferChunk>) -> Result<()> {
-        match &self.state {
-            ChunkState::Closed(_) => {
-                self.finish_lifecycle_action(ChunkLifecycleAction::Moving)?;
-                self.metrics
-                    .state
-                    .inc_with_labels(&[KeyValue::new("state", "moved")]);
+        match &mut self.stage {
+            ChunkStage::Frozen(stage) => match &stage.representation {
+                ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
+                    self.metrics
+                        .state
+                        .inc_with_labels(&[KeyValue::new("state", "moved")]);
 
-                self.metrics
-                    .immutable_chunk_size
-                    .observe_with_labels(chunk.size() as f64, &[KeyValue::new("state", "moved")]);
+                    self.metrics.immutable_chunk_size.observe_with_labels(
+                        chunk.size() as f64,
+                        &[KeyValue::new("state", "moved")],
+                    );
 
-                self.state = ChunkState::Moved(chunk);
-                Ok(())
-            }
-            state => {
-                unexpected_state!(self, "setting moved", "Moving", state)
+                    stage.representation = ChunkStageFrozenRepr::ReadBuffer(chunk);
+                    self.finish_lifecycle_action(ChunkLifecycleAction::Moving)?;
+                    Ok(())
+                }
+                ChunkStageFrozenRepr::ReadBuffer(_) => InternalChunkState {
+                    partition_key: self.partition_key.as_ref(),
+                    table_name: self.table_name.as_ref(),
+                    chunk_id: self.id,
+                    operation: "setting moved",
+                    expected: "Frozen with MutableBufferSnapshot",
+                    actual: "Frozen with ReadBuffer",
+                }
+                .fail(),
+            },
+            _ => {
+                unexpected_state!(self, "setting moved", "Moving", self.stage)
             }
         }
     }
 
-    /// Set the chunk to the MovingToObjectStore state
-    pub fn set_writing_to_object_store(&mut self) -> Result<Arc<ReadBufferChunk>> {
-        match &self.state {
-            ChunkState::Moved(db) => {
-                let db = Arc::clone(db);
-                self.set_lifecycle_action(ChunkLifecycleAction::Persisting)?;
-                self.metrics
-                    .state
-                    .inc_with_labels(&[KeyValue::new("state", "writing_os")]);
-                Ok(db)
+    /// Start lifecycle action that should move the chunk into the _persisted_ stage.
+    pub fn set_writing_to_object_store(
+        &mut self,
+        registration: &TaskRegistration,
+    ) -> Result<Arc<ReadBufferChunk>> {
+        match &self.stage {
+            ChunkStage::Frozen(stage) => {
+                match &stage.representation {
+                    ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
+                        // TODO: ideally we would support all Frozen representations
+                        InternalChunkState {
+                            partition_key: self.partition_key.as_ref(),
+                            table_name: self.table_name.as_ref(),
+                            chunk_id: self.id,
+                            operation: "setting object store",
+                            expected: "Frozen with ReadBuffer",
+                            actual: "Frozen with MutableBufferSnapshot",
+                        }
+                        .fail()
+                    }
+                    ChunkStageFrozenRepr::ReadBuffer(repr) => {
+                        let db = Arc::clone(repr);
+                        self.set_lifecycle_action(ChunkLifecycleAction::Persisting, registration)?;
+                        self.metrics
+                            .state
+                            .inc_with_labels(&[KeyValue::new("state", "writing_os")]);
+                        Ok(db)
+                    }
+                }
             }
-            state => {
-                unexpected_state!(self, "setting object store", "Moved", state)
+            _ => {
+                unexpected_state!(self, "setting object store", "Moved", self.stage)
             }
         }
     }
@@ -487,79 +623,123 @@ impl Chunk {
     /// Set the chunk to the MovedToObjectStore state, returning a handle to the
     /// underlying storage
     pub fn set_written_to_object_store(&mut self, chunk: Arc<ParquetChunk>) -> Result<()> {
-        match &self.state {
-            ChunkState::Moved(db) => {
-                let db = Arc::clone(&db);
-                self.finish_lifecycle_action(ChunkLifecycleAction::Persisting)?;
+        match &self.stage {
+            ChunkStage::Frozen(stage) => {
+                let meta = Arc::clone(&stage.meta);
+                match &stage.representation {
+                    ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
+                        // TODO: ideally we would support all Frozen representations
+                        InternalChunkState {
+                            partition_key: self.partition_key.as_ref(),
+                            table_name: self.table_name.as_ref(),
+                            chunk_id: self.id,
+                            operation: "setting object store",
+                            expected: "Frozen with ReadBuffer",
+                            actual: "Frozen with MutableBufferSnapshot",
+                        }
+                        .fail()
+                    }
+                    ChunkStageFrozenRepr::ReadBuffer(repr) => {
+                        let db = Arc::clone(&repr);
+                        self.finish_lifecycle_action(ChunkLifecycleAction::Persisting)?;
 
-                self.metrics
-                    .state
-                    .inc_with_labels(&[KeyValue::new("state", "rub_and_os")]);
+                        self.metrics
+                            .state
+                            .inc_with_labels(&[KeyValue::new("state", "rub_and_os")]);
 
-                self.metrics.immutable_chunk_size.observe_with_labels(
-                    (chunk.size() + db.size()) as f64,
-                    &[KeyValue::new("state", "rub_and_os")],
-                );
+                        self.metrics.immutable_chunk_size.observe_with_labels(
+                            (chunk.size() + db.size()) as f64,
+                            &[KeyValue::new("state", "rub_and_os")],
+                        );
 
-                self.state = ChunkState::WrittenToObjectStore(db, chunk);
-                Ok(())
+                        self.stage = ChunkStage::Persisted(ChunkStagePersisted {
+                            meta,
+                            parquet: chunk,
+                            read_buffer: Some(db),
+                        });
+                        Ok(())
+                    }
+                }
             }
-            state => {
-                unexpected_state!(self, "setting object store", "MovingToObjectStore", state)
+            _ => {
+                unexpected_state!(
+                    self,
+                    "setting object store",
+                    "MovingToObjectStore",
+                    self.stage
+                )
             }
         }
     }
 
     pub fn set_unload_from_read_buffer(&mut self) -> Result<Arc<ReadBufferChunk>> {
-        let mut s = ChunkState::Invalid;
-        std::mem::swap(&mut s, &mut self.state);
+        match &mut self.stage {
+            ChunkStage::Persisted(stage) => {
+                if let Some(read_buffer) = &stage.read_buffer {
+                    self.metrics
+                        .state
+                        .inc_with_labels(&[KeyValue::new("state", "os")]);
 
-        match s {
-            ChunkState::WrittenToObjectStore(rub_chunk, parquet_chunk) => {
-                self.metrics
-                    .state
-                    .inc_with_labels(&[KeyValue::new("state", "os")]);
+                    self.metrics.immutable_chunk_size.observe_with_labels(
+                        stage.parquet.size() as f64,
+                        &[KeyValue::new("state", "os")],
+                    );
 
-                self.metrics.immutable_chunk_size.observe_with_labels(
-                    parquet_chunk.size() as f64,
-                    &[KeyValue::new("state", "os")],
-                );
-
-                self.state = ChunkState::ObjectStoreOnly(Arc::clone(&parquet_chunk));
-                Ok(rub_chunk)
+                    let rub_chunk = Arc::clone(read_buffer);
+                    stage.read_buffer = None;
+                    Ok(rub_chunk)
+                } else {
+                    // TODO: do we really need to error here or should unloading an unloaded chunk be a no-op?
+                    InternalChunkState {
+                        partition_key: self.partition_key.as_ref(),
+                        table_name: self.table_name.as_ref(),
+                        chunk_id: self.id,
+                        operation: "setting unload",
+                        expected: "Persisted with ReadBuffer",
+                        actual: "Persisted without ReadBuffer",
+                    }
+                    .fail()
+                }
             }
-            state => {
-                self.state = state;
-                unexpected_state!(self, "setting unload", "WrittenToObjectStore", &self.state)
+            _ => {
+                unexpected_state!(self, "setting unload", "WrittenToObjectStore", &self.stage)
             }
         }
     }
 
     /// Set the chunk's in progress lifecycle action or return an error if already in-progress
-    fn set_lifecycle_action(&mut self, lifecycle_action: ChunkLifecycleAction) -> Result<()> {
+    fn set_lifecycle_action(
+        &mut self,
+        lifecycle_action: ChunkLifecycleAction,
+        registration: &TaskRegistration,
+    ) -> Result<()> {
         if let Some(lifecycle_action) = &self.lifecycle_action {
             return Err(Error::LifecycleActionAlreadyInProgress {
                 partition_key: self.partition_key.to_string(),
                 table_name: self.table_name.to_string(),
                 chunk_id: self.id,
-                lifecycle_action: lifecycle_action.name().to_string(),
+                lifecycle_action: lifecycle_action.metadata().name().to_string(),
             });
         }
-        self.lifecycle_action = Some(lifecycle_action);
+        self.lifecycle_action = Some(registration.clone().into_tracker(lifecycle_action));
         Ok(())
     }
 
     /// Clear the chunk's lifecycle action or return an error if it doesn't match that provided
     fn finish_lifecycle_action(&mut self, lifecycle_action: ChunkLifecycleAction) -> Result<()> {
         match &self.lifecycle_action {
-            Some(actual) if actual == &lifecycle_action => {}
+            Some(actual) if actual.metadata() == &lifecycle_action => {}
             actual => {
                 return Err(Error::UnexpectedLifecycleAction {
                     partition_key: self.partition_key.to_string(),
                     table_name: self.table_name.to_string(),
                     chunk_id: self.id,
                     expected: lifecycle_action.name().to_string(),
-                    actual: actual.map(|x| x.name()).unwrap_or("None").to_string(),
+                    actual: actual
+                        .as_ref()
+                        .map(|x| x.metadata().name())
+                        .unwrap_or("None")
+                        .to_string(),
                 })
             }
         }

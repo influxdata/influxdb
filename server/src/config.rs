@@ -395,7 +395,14 @@ mod test {
             config
                 .db(&name)
                 .expect("expected database")
-                .worker_iterations()
+                .worker_iterations_lifecycle()
+                > 0
+        );
+        assert!(
+            config
+                .db(&name)
+                .expect("expected database")
+                .worker_iterations_cleanup()
                 > 0
         );
 

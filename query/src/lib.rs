@@ -11,6 +11,7 @@ use data_types::chunk_metadata::ChunkSummary;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, Executor};
 use internal_types::{schema::Schema, selection::Selection};
+use predicate::PredicateMatch;
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -59,32 +60,16 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// particular partition.
     fn id(&self) -> u32;
 
-    /// Returns true if this chunk contains data for the specified table
-    fn has_table(&self, table_name: &str) -> bool;
+    /// Returns the name of the table stored in this chunk
+    fn table_name(&self) -> &str;
 
-    /// Returns all table names from this chunk that have at least one
-    /// row that matches the `predicate` and are not already in `known_tables`.
+    /// Returns the result of applying the `predicate` to the chunk
+    /// using an efficient, but inexact method, based on metadata.
     ///
-    /// If the predicate cannot be evaluated (e.g it has predicates
-    /// that cannot be directly evaluated in the chunk), `None` is
-    /// returned.
-    ///
-    /// `known_tables` is a list of table names already known to be in
-    /// other chunks from the same partition. It may be empty or
-    /// contain `table_names` not in this chunk.
-    fn table_names(
-        &self,
-        predicate: &Predicate,
-        known_tables: &StringSet,
-    ) -> Result<Option<StringSet>, Self::Error>;
-
-    /// Adds all table names from this chunk without any predicate to
-    /// `known_tables)
-    ///
-    /// `known_tables` is a list of table names already known to be in
-    /// other chunks from the same partition. It may be empty or
-    /// contain `table_names` not in this chunk.
-    fn all_table_names(&self, known_tables: &mut StringSet);
+    /// NOTE: This method is suitable for calling during planning, and
+    /// may return PredicateMatch::Unknown for certain types of
+    /// predicates.
+    fn apply_predicate(&self, predicate: &Predicate) -> Result<PredicateMatch, Self::Error>;
 
     /// Returns a set of Strings with column names from the specified
     /// table that have at least one row that matches `predicate`, if
@@ -92,7 +77,6 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// this Chunk. Returns `None` otherwise
     fn column_names(
         &self,
-        table_name: &str,
         predicate: &Predicate,
         columns: Selection<'_>,
     ) -> Result<Option<StringSet>, Self::Error>;
@@ -104,7 +88,6 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// The requested columns must all have String type.
     fn column_values(
         &self,
-        table_name: &str,
         column_name: &str,
         predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error>;
@@ -112,11 +95,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// Returns the Schema for a table in this chunk, with the
     /// specified column selection. An error is returned if the
     /// selection refers to columns that do not exist.
-    fn table_schema(
-        &self,
-        table_name: &str,
-        selection: Selection<'_>,
-    ) -> Result<Schema, Self::Error>;
+    fn table_schema(&self, selection: Selection<'_>) -> Result<Schema, Self::Error>;
 
     /// Provides access to raw `PartitionChunk` data as an
     /// asynchronous stream of `RecordBatch`es filtered by a *required*
@@ -133,7 +112,6 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// streams from several different `PartitionChunks`.
     fn read_filter(
         &self,
-        table_name: &str,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error>;

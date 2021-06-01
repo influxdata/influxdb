@@ -177,6 +177,15 @@ message DatabaseRules {
   // Write Buffer configuration for this database
   WriteBufferConfig write_buffer_config = 6;
 
-  // Shard  config
-  ShardConfig shard_config = 8;
+  oneof routing_rules {
+    // Shard config
+    ShardConfig shard_config = 8;
+
+    // Routing config
+    RoutingConfig routing_config = 9;
+  }
+}
+
+message RoutingConfig {
+  NodeGroup target = 1;
 }

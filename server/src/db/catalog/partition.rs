@@ -15,7 +15,7 @@ use tracker::RwLock;
 use crate::db::catalog::metrics::PartitionMetrics;
 
 use super::{
-    chunk::{Chunk, ChunkState},
+    chunk::{Chunk, ChunkStage},
     Error, Result, UnknownChunk, UnknownTable,
 };
 
@@ -133,11 +133,7 @@ impl Partition {
         chunk_id: u32,
         chunk: Arc<parquet_file::chunk::Chunk>,
     ) -> Result<Arc<RwLock<Chunk>>> {
-        // workaround until https://github.com/influxdata/influxdb_iox/issues/1295 is fixed
-        let table_name = chunk
-            .table_names(None)
-            .next()
-            .expect("chunk must have exactly 1 table");
+        let table_name = chunk.table_name().to_string();
 
         let chunk = Arc::new(self.metrics.new_lock(Chunk::new_object_store_only(
             chunk_id,
@@ -197,7 +193,7 @@ impl Partition {
                 .values()
                 .find(|chunk| {
                     let chunk = chunk.read();
-                    matches!(chunk.state(), ChunkState::Open(_))
+                    matches!(chunk.stage(), ChunkStage::Open(_))
                 })
                 .cloned()),
             None => UnknownTable {
@@ -256,7 +252,8 @@ impl Partition {
                 let chunk = chunk.read();
                 UnaggregatedTableSummary {
                     chunk_id: chunk.id(),
-                    table: chunk.table_summary(),
+                    // Note: makes a deep copy of the TableSummary
+                    table: chunk.table_summary().as_ref().clone(),
                 }
             })
             .collect();

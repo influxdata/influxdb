@@ -1,17 +1,16 @@
 use std::{collections::BTreeSet, convert::TryFrom, sync::Arc};
 
+use arrow::record_batch::RecordBatch;
 use parking_lot::Mutex;
 use snafu::{ResultExt, Snafu};
 
-use arrow::record_batch::RecordBatch;
 use data_types::{partition_metadata::TableSummary, server_id::ServerId};
 use entry::{ClockValue, TableBatch};
 use internal_types::selection::Selection;
+use metrics::GaugeValue;
 
 use crate::chunk::snapshot::ChunkSnapshot;
-use crate::dictionary::{Dictionary, DID};
 use crate::table::Table;
-use metrics::GaugeValue;
 
 pub mod snapshot;
 
@@ -28,19 +27,6 @@ pub enum Error {
         table_name: String,
         source: crate::table::Error,
     },
-
-    #[snafu(display("Table {} not found in chunk {}", table, chunk))]
-    TableNotFoundInChunk { table: DID, chunk: u32 },
-
-    #[snafu(display("Column ID {} not found in dictionary of chunk {}", column_id, chunk))]
-    ColumnIdNotFoundInDictionary { column_id: DID, chunk: u32 },
-
-    #[snafu(display(
-        "Column name {} not found in dictionary of chunk {}",
-        column_name,
-        chunk_id
-    ))]
-    ColumnNameNotFoundInDictionary { column_name: String, chunk_id: u64 },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -71,11 +57,6 @@ impl ChunkMetrics {
 /// the mutable store.
 #[derive(Debug)]
 pub struct Chunk {
-    /// `dictionary` maps &str -> DID. The DIDs are used in place of String or
-    /// str to avoid slow string operations. The same dictionary is used for
-    /// table names, tag names, tag values, and column names.
-    dictionary: Dictionary,
-
     /// The name of this table
     table_name: Arc<str>,
 
@@ -94,15 +75,12 @@ pub struct Chunk {
 
 impl Chunk {
     pub fn new(table_name: impl AsRef<str>, metrics: ChunkMetrics) -> Self {
-        let table_name = table_name.as_ref();
-        let mut dictionary = Dictionary::new();
-        let table_id = dictionary.lookup_value_or_insert(table_name);
-        let table_name = Arc::from(table_name);
+        let table_name = Arc::from(table_name.as_ref());
+        let table = Table::new(Arc::clone(&table_name));
 
         let mut chunk = Self {
-            dictionary,
             table_name,
-            table: Table::new(table_id),
+            table,
             metrics,
             snapshot: Mutex::new(None),
         };
@@ -128,7 +106,7 @@ impl Chunk {
 
         let columns = batch.columns();
         self.table
-            .write_columns(&mut self.dictionary, clock_value, server_id, columns)
+            .write_columns(clock_value, server_id, columns)
             .context(TableWrite { table_name })?;
 
         // Invalidate chunk snapshot
@@ -142,13 +120,6 @@ impl Chunk {
         Ok(())
     }
 
-    // Add the table name in this chunk to `names` if it is not already present
-    pub fn all_table_names(&self, names: &mut BTreeSet<String>) {
-        if !names.contains(self.table_name.as_ref()) {
-            names.insert(self.table_name.to_string());
-        }
-    }
-
     /// Returns a queryable snapshot of this chunk
     #[cfg(not(feature = "nocache"))]
     pub fn snapshot(&self) -> Arc<ChunkSnapshot> {
@@ -157,8 +128,10 @@ impl Chunk {
             return Arc::clone(snapshot);
         }
 
-        // TODO: Incremental snapshot generation
-        let snapshot = Arc::new(ChunkSnapshot::new(self));
+        let snapshot = Arc::new(ChunkSnapshot::new(
+            self,
+            self.metrics.memory_bytes.clone_empty(),
+        ));
         *guard = Some(Arc::clone(&snapshot));
         snapshot
     }
@@ -166,7 +139,10 @@ impl Chunk {
     /// Returns a queryable snapshot of this chunk
     #[cfg(feature = "nocache")]
     pub fn snapshot(&self) -> Arc<ChunkSnapshot> {
-        Arc::new(ChunkSnapshot::new(self))
+        Arc::new(ChunkSnapshot::new(
+            self,
+            self.metrics.memory_bytes.clone_empty(),
+        ))
     }
 
     /// Return the name of the table in this chunk
@@ -181,13 +157,9 @@ impl Chunk {
         dst: &mut Vec<RecordBatch>,
         selection: Selection<'_>,
     ) -> Result<()> {
-        dst.push(
-            self.table
-                .to_arrow(&self.dictionary, selection)
-                .context(NamedTableError {
-                    table_name: self.table_name.as_ref(),
-                })?,
-        );
+        dst.push(self.table.to_arrow(selection).context(NamedTableError {
+            table_name: self.table_name.as_ref(),
+        })?);
         Ok(())
     }
 
@@ -195,32 +167,23 @@ impl Chunk {
     pub fn table_summary(&self) -> TableSummary {
         TableSummary {
             name: self.table_name.to_string(),
-            columns: self.table.stats(&self.dictionary),
+            columns: self.table.stats(),
         }
     }
 
     /// Return the approximate memory size of the chunk, in bytes including the
     /// dictionary, tables, and their rows.
+    ///
+    /// Note: This does not include the size of any cached ChunkSnapshot
     pub fn size(&self) -> usize {
-        self.table.size() + self.dictionary.size()
+        // TODO: Better accounting of non-column data (#1565)
+        self.table.size() + self.table_name.len()
     }
 
     /// Returns an iterator over (column_name, estimated_size) for all
     /// columns in this chunk.
-    ///
-    /// NOTE: also returns a special "__dictionary" column with the size of
-    /// the dictionary that is shared across all columns in this chunk
     pub fn column_sizes(&self) -> impl Iterator<Item = (&str, usize)> + '_ {
-        self.table
-            .column_sizes()
-            .map(move |(did, sz)| {
-                let column_name = self
-                    .dictionary
-                    .lookup_id(*did)
-                    .expect("column name in dictionary");
-                (column_name, sz)
-            })
-            .chain(std::iter::once(("__dictionary", self.dictionary.size())))
+        self.table.column_sizes()
     }
 
     /// Return the number of rows in this chunk
@@ -267,10 +230,13 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::num::NonZeroU64;
+
     use arrow_util::assert_batches_eq;
+    use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
 
     use super::test_helpers::write_lp_to_chunk;
+    use super::*;
 
     #[test]
     fn writes_table_batches() {
@@ -322,6 +288,68 @@ mod tests {
             ],
             &chunk_to_batches(&chunk)
         );
+    }
+
+    #[test]
+    fn test_summary() {
+        let mut chunk = Chunk::new("cpu", ChunkMetrics::new_unregistered());
+        let lp = r#"
+            cpu,host=a val=23 1
+            cpu,host=b,env=prod val=2 1
+            cpu,host=c,env=stage val=11 1
+            cpu,host=a,env=prod val=14 2
+        "#;
+        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+
+        let summary = chunk.table_summary();
+        assert_eq!(
+            summary,
+            TableSummary {
+                name: "cpu".to_string(),
+                columns: vec![
+                    ColumnSummary {
+                        name: "env".to_string(),
+                        influxdb_type: Some(InfluxDbType::Tag),
+                        stats: Statistics::String(StatValues {
+                            min: Some("prod".to_string()),
+                            max: Some("stage".to_string()),
+                            count: 3,
+                            distinct_count: Some(NonZeroU64::new(3).unwrap())
+                        })
+                    },
+                    ColumnSummary {
+                        name: "host".to_string(),
+                        influxdb_type: Some(InfluxDbType::Tag),
+                        stats: Statistics::String(StatValues {
+                            min: Some("a".to_string()),
+                            max: Some("c".to_string()),
+                            count: 4,
+                            distinct_count: Some(NonZeroU64::new(3).unwrap())
+                        })
+                    },
+                    ColumnSummary {
+                        name: "time".to_string(),
+                        influxdb_type: Some(InfluxDbType::Timestamp),
+                        stats: Statistics::I64(StatValues {
+                            min: Some(1),
+                            max: Some(2),
+                            count: 4,
+                            distinct_count: None
+                        })
+                    },
+                    ColumnSummary {
+                        name: "val".to_string(),
+                        influxdb_type: Some(InfluxDbType::Field),
+                        stats: Statistics::F64(StatValues {
+                            min: Some(2.),
+                            max: Some(23.),
+                            count: 4,
+                            distinct_count: None
+                        })
+                    },
+                ]
+            }
+        )
     }
 
     #[test]

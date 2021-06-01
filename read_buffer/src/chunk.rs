@@ -675,7 +675,7 @@ impl ChunkMetrics {
     fn update_column_storage_statistics(&mut self, statistics: &[Statistics]) {
         for stat in statistics {
             let labels = &[
-                KeyValue::new("encoding", stat.enc_type),
+                KeyValue::new("encoding", stat.enc_type.clone()),
                 KeyValue::new("log_data_type", stat.log_data_type),
             ];
 
@@ -689,7 +689,7 @@ impl ChunkMetrics {
             self.column_raw_bytes_total.inc(
                 stat.raw_bytes - stat.raw_bytes_no_null,
                 &[
-                    KeyValue::new("encoding", stat.enc_type),
+                    KeyValue::new("encoding", stat.enc_type.clone()),
                     KeyValue::new("log_data_type", stat.log_data_type),
                     KeyValue::new("null", "true"),
                 ],
@@ -699,7 +699,7 @@ impl ChunkMetrics {
             self.column_raw_bytes_total.inc(
                 stat.raw_bytes_no_null,
                 &[
-                    KeyValue::new("encoding", stat.enc_type),
+                    KeyValue::new("encoding", stat.enc_type.clone()),
                     KeyValue::new("log_data_type", stat.log_data_type),
                     KeyValue::new("null", "false"),
                 ],
@@ -709,7 +709,7 @@ impl ChunkMetrics {
             self.column_values_total.inc(
                 stat.nulls as usize,
                 &[
-                    KeyValue::new("encoding", stat.enc_type),
+                    KeyValue::new("encoding", stat.enc_type.clone()),
                     KeyValue::new("log_data_type", stat.log_data_type),
                     KeyValue::new("null", "true"),
                 ],
@@ -719,7 +719,7 @@ impl ChunkMetrics {
             self.column_values_total.inc(
                 (stat.values - stat.nulls) as usize,
                 &[
-                    KeyValue::new("encoding", stat.enc_type),
+                    KeyValue::new("encoding", stat.enc_type.clone()),
                     KeyValue::new("log_data_type", stat.log_data_type),
                     KeyValue::new("null", "false"),
                 ],
@@ -750,6 +750,7 @@ mod test {
     };
     use arrow::array::DictionaryArray;
     use arrow::datatypes::Int32Type;
+    use std::num::NonZeroU64;
 
     // helper to make the `add_remove_tables` test simpler to read.
     fn gen_recordbatch() -> RecordBatch {
@@ -977,78 +978,90 @@ mod test {
         assert_eq!(
             String::from_utf8(reg.registry().metrics_as_text()).unwrap(),
             vec![
-            "# HELP read_buffer_column_bytes The number of bytes used by all columns in the Read Buffer",
-            "# TYPE read_buffer_column_bytes gauge",
-            r#"read_buffer_column_bytes{db="mydb",encoding="BT_U32",log_data_type="i64"} 108"#,
-            r#"read_buffer_column_bytes{db="mydb",encoding="None",log_data_type="bool"} 1152"#,
-            r#"read_buffer_column_bytes{db="mydb",encoding="None",log_data_type="f64"} 1176"#,
-            r#"read_buffer_column_bytes{db="mydb",encoding="RLE",log_data_type="string"} 750"#,
-            r#"# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer"#,
-            r#"# TYPE read_buffer_column_raw_bytes gauge"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32",log_data_type="i64",null="false"} 144"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32",log_data_type="i64",null="true"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="bool",null="false"} 81"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="bool",null="true"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="f64",null="false"} 264"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="f64",null="true"} 24"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="false"} 324"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
-            r#"# HELP read_buffer_column_total The number of columns within the Read Buffer"#,
-            r#"# TYPE read_buffer_column_total gauge"#,
-            r#"read_buffer_column_total{db="mydb",encoding="BT_U32",log_data_type="i64"} 3"#,
-            r#"read_buffer_column_total{db="mydb",encoding="None",log_data_type="bool"} 3"#,
-            r#"read_buffer_column_total{db="mydb",encoding="None",log_data_type="f64"} 6"#,
-            r#"read_buffer_column_total{db="mydb",encoding="RLE",log_data_type="string"} 3"#,
-            r#"# HELP read_buffer_column_values The number of values within columns in the Read Buffer"#,
-            r#"# TYPE read_buffer_column_values gauge"#,
-            r#"read_buffer_column_values{db="mydb",encoding="BT_U32",log_data_type="i64",null="false"} 9"#,
-            r#"read_buffer_column_values{db="mydb",encoding="BT_U32",log_data_type="i64",null="true"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="bool",null="false"} 9"#,
-            r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="bool",null="true"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="f64",null="false"} 15"#,
-            r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="f64",null="true"} 3"#,
-            r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 9"#,
-            r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
-            "",
+                "# HELP read_buffer_column_bytes The number of bytes used by all columns in the Read Buffer",
+                "# TYPE read_buffer_column_bytes gauge",
+                r#"read_buffer_column_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 108"#,
+                r#"read_buffer_column_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 144"#,
+                r#"read_buffer_column_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 1152"#,
+                r#"read_buffer_column_bytes{db="mydb",encoding="FIXEDN",log_data_type="f64"} 1032"#,
+                r#"read_buffer_column_bytes{db="mydb",encoding="RLE",log_data_type="string"} 750"#,
+                "# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer",
+                "# TYPE read_buffer_column_raw_bytes gauge",
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 144"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="true"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 144"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXED",log_data_type="f64",null="true"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 81"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="f64",null="false"} 120"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="f64",null="true"} 24"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="false"} 324"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
+                "# HELP read_buffer_column_total The number of columns within the Read Buffer",
+                "# TYPE read_buffer_column_total gauge",
+                r#"read_buffer_column_total{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 3"#,
+                r#"read_buffer_column_total{db="mydb",encoding="FIXED",log_data_type="f64"} 3"#,
+                r#"read_buffer_column_total{db="mydb",encoding="FIXEDN",log_data_type="bool"} 3"#,
+                r#"read_buffer_column_total{db="mydb",encoding="FIXEDN",log_data_type="f64"} 3"#,
+                r#"read_buffer_column_total{db="mydb",encoding="RLE",log_data_type="string"} 3"#,
+                "# HELP read_buffer_column_values The number of values within columns in the Read Buffer",
+                "# TYPE read_buffer_column_values gauge",
+                r#"read_buffer_column_values{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 9"#,
+                r#"read_buffer_column_values{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="true"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 9"#,
+                r#"read_buffer_column_values{db="mydb",encoding="FIXED",log_data_type="f64",null="true"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 9"#,
+                r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="f64",null="false"} 6"#,
+                r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="f64",null="true"} 3"#,
+                r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 9"#,
+                r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
+                "",
             ]
             .join("\n")
         );
 
-        // when the chunk is dropped the metics are all correctly decreased
+        // when the chunk is dropped the metrics are all correctly decreased
         std::mem::drop(chunk);
         assert_eq!(
             String::from_utf8(reg.registry().metrics_as_text()).unwrap(),
             vec![
                 "# HELP read_buffer_column_bytes The number of bytes used by all columns in the Read Buffer",
                 "# TYPE read_buffer_column_bytes gauge",
-                r#"read_buffer_column_bytes{db="mydb",encoding="BT_U32",log_data_type="i64"} 0"#,
-                r#"read_buffer_column_bytes{db="mydb",encoding="None",log_data_type="bool"} 0"#,
-                r#"read_buffer_column_bytes{db="mydb",encoding="None",log_data_type="f64"} 0"#,
+                r#"read_buffer_column_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 0"#,
+                r#"read_buffer_column_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 0"#,
+                r#"read_buffer_column_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 0"#,
+                r#"read_buffer_column_bytes{db="mydb",encoding="FIXEDN",log_data_type="f64"} 0"#,
                 r#"read_buffer_column_bytes{db="mydb",encoding="RLE",log_data_type="string"} 0"#,
-                r#"# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer"#,
-                r#"# TYPE read_buffer_column_raw_bytes gauge"#,
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32",log_data_type="i64",null="false"} 0"#,
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32",log_data_type="i64",null="true"} 0"#,
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="bool",null="false"} 0"#,
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="bool",null="true"} 0"#,
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="f64",null="false"} 0"#,
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="None",log_data_type="f64",null="true"} 0"#,
+                "# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer",
+                "# TYPE read_buffer_column_raw_bytes gauge",
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="true"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXED",log_data_type="f64",null="true"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="f64",null="false"} 0"#,
+                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="f64",null="true"} 0"#,
                 r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="false"} 0"#,
                 r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
-                r#"# HELP read_buffer_column_total The number of columns within the Read Buffer"#,
-                r#"# TYPE read_buffer_column_total gauge"#,
-                r#"read_buffer_column_total{db="mydb",encoding="BT_U32",log_data_type="i64"} 0"#,
-                r#"read_buffer_column_total{db="mydb",encoding="None",log_data_type="bool"} 0"#,
-                r#"read_buffer_column_total{db="mydb",encoding="None",log_data_type="f64"} 0"#,
+                "# HELP read_buffer_column_total The number of columns within the Read Buffer",
+                "# TYPE read_buffer_column_total gauge",
+                r#"read_buffer_column_total{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 0"#,
+                r#"read_buffer_column_total{db="mydb",encoding="FIXED",log_data_type="f64"} 0"#,
+                r#"read_buffer_column_total{db="mydb",encoding="FIXEDN",log_data_type="bool"} 0"#,
+                r#"read_buffer_column_total{db="mydb",encoding="FIXEDN",log_data_type="f64"} 0"#,
                 r#"read_buffer_column_total{db="mydb",encoding="RLE",log_data_type="string"} 0"#,
-                r#"# HELP read_buffer_column_values The number of values within columns in the Read Buffer"#,
-                r#"# TYPE read_buffer_column_values gauge"#,
-                r#"read_buffer_column_values{db="mydb",encoding="BT_U32",log_data_type="i64",null="false"} 0"#,
-                r#"read_buffer_column_values{db="mydb",encoding="BT_U32",log_data_type="i64",null="true"} 0"#,
-                r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="bool",null="false"} 0"#,
-                r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="bool",null="true"} 0"#,
-                r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="f64",null="false"} 0"#,
-                r#"read_buffer_column_values{db="mydb",encoding="None",log_data_type="f64",null="true"} 0"#,
+                "# HELP read_buffer_column_values The number of values within columns in the Read Buffer",
+                "# TYPE read_buffer_column_values gauge",
+                r#"read_buffer_column_values{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="true"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="FIXED",log_data_type="f64",null="true"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="f64",null="false"} 0"#,
+                r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="f64",null="true"} 0"#,
                 r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 0"#,
                 r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
                 "",
@@ -1155,20 +1168,12 @@ mod test {
                 ColumnSummary {
                     name: "active".into(),
                     influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::Bool(StatValues {
-                        min: Some(false),
-                        max: Some(true),
-                        count: 3,
-                    }),
+                    stats: Statistics::Bool(StatValues::new(Some(false), Some(true), 3)),
                 },
                 ColumnSummary {
                     name: "counter".into(),
                     influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::U64(StatValues {
-                        min: Some(1000),
-                        max: Some(5000),
-                        count: 3,
-                    }),
+                    stats: Statistics::U64(StatValues::new(Some(1000), Some(5000), 3)),
                 },
                 ColumnSummary {
                     name: "env".into(),
@@ -1177,16 +1182,13 @@ mod test {
                         min: Some("dev".into()),
                         max: Some("prod".into()),
                         count: 3,
+                        distinct_count: Some(NonZeroU64::new(2).unwrap()),
                     }),
                 },
                 ColumnSummary {
                     name: "icounter".into(),
                     influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::I64(StatValues {
-                        min: Some(-1000),
-                        max: Some(4000),
-                        count: 3,
-                    }),
+                    stats: Statistics::I64(StatValues::new(Some(-1000), Some(4000), 3)),
                 },
                 ColumnSummary {
                     name: "msg".into(),
@@ -1195,25 +1197,18 @@ mod test {
                         min: Some("msg a".into()),
                         max: Some("msg b".into()),
                         count: 3,
+                        distinct_count: Some(NonZeroU64::new(3).unwrap()),
                     }),
                 },
                 ColumnSummary {
                     name: "temp".into(),
                     influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::F64(StatValues {
-                        min: Some(10.0),
-                        max: Some(30000.0),
-                        count: 3,
-                    }),
+                    stats: Statistics::F64(StatValues::new(Some(10.0), Some(30000.0), 3)),
                 },
                 ColumnSummary {
                     name: "time".into(),
                     influxdb_type: Some(InfluxDbType::Timestamp),
-                    stats: Statistics::I64(StatValues {
-                        min: Some(3333),
-                        max: Some(11111111),
-                        count: 3,
-                    }),
+                    stats: Statistics::I64(StatValues::new(Some(3333), Some(11111111), 3)),
                 },
             ],
         }];

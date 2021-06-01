@@ -5,7 +5,7 @@ authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2018"
 
 [dependencies] # In alphabetical order
-arrow = "4.0"
+arrow = { version = "4.0", features = ["prettyprint"] }
 human_format = "1.0.3"
 influxdb_tsm = { path = "../influxdb_tsm" }
 internal_types = { path = "../internal_types" }

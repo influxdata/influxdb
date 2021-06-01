@@ -9,7 +9,7 @@ use data_types::{database_rules::LifecycleRules, error::ErrorLogger, job::Job};
 use tracker::{RwLock, TaskTracker};
 
 use super::{
-    catalog::chunk::{Chunk, ChunkState},
+    catalog::chunk::{Chunk, ChunkStage, ChunkStageFrozen, ChunkStageFrozenRepr},
     Db,
 };
 use data_types::database_rules::SortOrder;
@@ -57,10 +57,8 @@ impl LifecycleManager {
 trait ChunkMover {
     type Job: Send + Sync + 'static;
 
-    /// Returns the size of a chunk - overridden for testing
-    fn chunk_size(chunk: &Chunk) -> usize {
-        chunk.size()
-    }
+    /// Return the in-memory size of the database
+    fn buffer_size(&self) -> usize;
 
     /// Return the name of the database
     fn db_name(&self) -> &str;
@@ -106,8 +104,6 @@ trait ChunkMover {
 
         let mut open_partitions: HashSet<String> = HashSet::new();
 
-        let mut buffer_size = 0;
-
         // Only want to start a new move/write task if there isn't one already in-flight
         //
         // Fetch the trackers for tasks created by previous loop iterations. If the trackers exist
@@ -128,8 +124,6 @@ trait ChunkMover {
         for chunk in &chunks {
             let chunk_guard = chunk.read();
 
-            buffer_size += Self::chunk_size(&*chunk_guard);
-
             let would_move = can_move(&rules, &*chunk_guard, now);
             let would_write = write_tracker.is_none() && rules.persist;
 
@@ -137,8 +131,8 @@ trait ChunkMover {
                 continue;
             }
 
-            match chunk_guard.state() {
-                ChunkState::Open(_) => {
+            match chunk_guard.stage() {
+                ChunkStage::Open(_) => {
                     open_partitions.insert(chunk_guard.key().to_string());
                     if move_tracker.is_none() && would_move {
                         let partition_key = chunk_guard.key().to_string();
@@ -151,37 +145,30 @@ trait ChunkMover {
                             Some(self.move_to_read_buffer(partition_key, table_name, chunk_id));
                     }
                 }
-                ChunkState::Closed(_) if move_tracker.is_none() => {
-                    let partition_key = chunk_guard.key().to_string();
-                    let table_name = chunk_guard.table_name().to_string();
-                    let chunk_id = chunk_guard.id();
+                ChunkStage::Frozen(stage) => match &stage.representation {
+                    ChunkStageFrozenRepr::MutableBufferSnapshot(_) if move_tracker.is_none() => {
+                        let partition_key = chunk_guard.key().to_string();
+                        let table_name = chunk_guard.table_name().to_string();
+                        let chunk_id = chunk_guard.id();
 
-                    std::mem::drop(chunk_guard);
+                        std::mem::drop(chunk_guard);
 
-                    move_tracker =
-                        Some(self.move_to_read_buffer(partition_key, table_name, chunk_id));
-                }
-                ChunkState::Moved(_) if would_write => {
-                    let partition_key = chunk_guard.key().to_string();
-                    let table_name = chunk_guard.table_name().to_string();
-                    let chunk_id = chunk_guard.id();
+                        move_tracker =
+                            Some(self.move_to_read_buffer(partition_key, table_name, chunk_id));
+                    }
+                    ChunkStageFrozenRepr::ReadBuffer(_) if would_write => {
+                        let partition_key = chunk_guard.key().to_string();
+                        let table_name = chunk_guard.table_name().to_string();
+                        let chunk_id = chunk_guard.id();
 
-                    std::mem::drop(chunk_guard);
+                        std::mem::drop(chunk_guard);
 
-                    write_tracker =
-                        Some(self.write_to_object_store(partition_key, table_name, chunk_id));
-                }
-                // todo: This will be needed when we hook unload_read_buffer into the life cycle
-                // ChunkState::WrittenToObjectStore(_,_) if would_unload => {
-                //     let partition_key = chunk_guard.key().to_string();
-                //     let table_name = chunk_guard.table_name().to_string();
-                //     let chunk_id = chunk_guard.id();
-
-                //     std::mem::drop(chunk_guard);
-
-                //     unload_tracker =
-                //         Some(self.unload_read_buffer(partition_key, table_name, chunk_id));
-                // }
+                        write_tracker =
+                            Some(self.write_to_object_store(partition_key, table_name, chunk_id));
+                    }
+                    _ => {}
+                },
+                // TODO: unload read buffer (https://github.com/influxdata/influxdb_iox/issues/1400)
                 _ => {}
             }
 
@@ -191,7 +178,14 @@ trait ChunkMover {
         if let Some(soft_limit) = rules.buffer_size_soft {
             let mut chunks = chunks.iter();
 
-            while buffer_size > soft_limit.get() {
+            loop {
+                let buffer_size = self.buffer_size();
+                if buffer_size < soft_limit.get() {
+                    break;
+                }
+
+                // Dropping chunks that are kept in memory by queries frees no memory
+                // TODO: LRU drop policy
                 match chunks.next() {
                     Some(chunk) => {
                         let chunk_guard = chunk.read();
@@ -201,14 +195,18 @@ trait ChunkMover {
                         }
 
                         if (rules.drop_non_persisted
-                            && matches!(chunk_guard.state(), ChunkState::Moved(_)))
-                            || matches!(chunk_guard.state(), ChunkState::WrittenToObjectStore(_, _))
+                            && matches!(
+                                chunk_guard.stage(),
+                                ChunkStage::Frozen(ChunkStageFrozen {
+                                    representation: ChunkStageFrozenRepr::ReadBuffer(_),
+                                    meta: _,
+                                })
+                            ))
+                            || matches!(chunk_guard.stage(), ChunkStage::Persisted(_))
                         {
                             let partition_key = chunk_guard.key().to_string();
                             let table_name = chunk_guard.table_name().to_string();
                             let chunk_id = chunk_guard.id();
-                            buffer_size =
-                                buffer_size.saturating_sub(Self::chunk_size(&*chunk_guard));
 
                             std::mem::drop(chunk_guard);
 
@@ -270,6 +268,10 @@ async fn wait_optional_tracker<Job: Send + Sync + 'static>(tracker: Option<TaskT
 
 impl ChunkMover for LifecycleManager {
     type Job = Job;
+
+    fn buffer_size(&self) -> usize {
+        self.db.catalog.state().metrics().memory().total()
+    }
 
     fn db_name(&self) -> &str {
         &self.db_name
@@ -415,7 +417,7 @@ mod tests {
     /// Transitions a new ("open") chunk into the "moving" state.
     fn transition_to_moving(mut chunk: Chunk) -> Chunk {
         chunk.set_closed().unwrap();
-        chunk.set_moving().unwrap();
+        chunk.set_moving(&Default::default()).unwrap();
         chunk
     }
 
@@ -433,7 +435,9 @@ mod tests {
         rb: &Arc<read_buffer::Chunk>,
     ) -> Chunk {
         chunk = transition_to_moved(chunk, rb);
-        chunk.set_writing_to_object_store().unwrap();
+        chunk
+            .set_writing_to_object_store(&Default::default())
+            .unwrap();
         chunk
     }
 
@@ -507,9 +511,9 @@ mod tests {
     impl ChunkMover for DummyMover {
         type Job = ();
 
-        fn chunk_size(_: &Chunk) -> usize {
+        fn buffer_size(&self) -> usize {
             // All chunks are 20 bytes
-            20
+            self.chunks.len() * 20
         }
 
         fn db_name(&self) -> &str {
@@ -543,7 +547,7 @@ mod tests {
                 .iter()
                 .find(|x| x.read().id() == chunk_id)
                 .unwrap();
-            chunk.write().set_moving().unwrap();
+            chunk.write().set_moving(&Default::default()).unwrap();
             self.events.push(MoverEvents::Move(chunk_id));
             let tracker = TaskTracker::complete(());
             self.move_tracker = Some(tracker.clone());
@@ -561,7 +565,10 @@ mod tests {
                 .iter()
                 .find(|x| x.read().id() == chunk_id)
                 .unwrap();
-            chunk.write().set_writing_to_object_store().unwrap();
+            chunk
+                .write()
+                .set_writing_to_object_store(&Default::default())
+                .unwrap();
             self.events.push(MoverEvents::Write(chunk_id));
             let tracker = TaskTracker::complete(());
             self.write_tracker = Some(tracker.clone());

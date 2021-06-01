@@ -28,6 +28,20 @@ pub const EMPTY_PREDICATE: Predicate = Predicate {
     partition_key: None,
 };
 
+#[derive(Debug, Clone, Copy)]
+/// The result of evaluating a predicate on a set of rows
+pub enum PredicateMatch {
+    /// There is at least one row that matches the predicate
+    AtLeastOne,
+
+    /// There are exactly zero rows that match the predicate
+    Zero,
+
+    /// There *may* be rows that match, OR there *may* be no rows that
+    /// match
+    Unknown,
+}
+
 /// Represents a parsed predicate for evaluation by the
 /// TSDatabase InfluxDB IOx query engine.
 ///

@@ -100,16 +100,14 @@ impl<C: PartitionChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
         let selection_cols = restrict_selection(selection_cols, &chunk_table_schema);
         let selection = Selection::Some(&selection_cols);
 
-        let stream = chunk
-            .read_filter(&self.table_name, &self.predicate, selection)
-            .map_err(|e| {
-                DataFusionError::Execution(format!(
-                    "Error creating scan for table {} chunk {}: {}",
-                    self.table_name,
-                    chunk.id(),
-                    e
-                ))
-            })?;
+        let stream = chunk.read_filter(&self.predicate, selection).map_err(|e| {
+            DataFusionError::Execution(format!(
+                "Error creating scan for table {} chunk {}: {}",
+                self.table_name,
+                chunk.id(),
+                e
+            ))
+        })?;
 
         let adapter = SchemaAdapterStream::try_new(stream, Arc::clone(&self.schema))
             .map_err(|e| DataFusionError::Internal(e.to_string()))?;

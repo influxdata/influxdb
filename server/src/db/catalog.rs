@@ -329,13 +329,11 @@ impl SchemaProvider for Catalog {
             for chunk in partition.chunks() {
                 let chunk = chunk.read();
 
-                if chunk.table_name() == table_name {
+                if chunk.table_name().as_ref() == table_name {
                     let chunk = super::DbChunk::snapshot(&chunk);
 
                     // This should only fail if the table doesn't exist which isn't possible
-                    let schema = chunk
-                        .table_schema(table_name, Selection::All)
-                        .expect("cannot fail");
+                    let schema = chunk.table_schema(Selection::All).expect("cannot fail");
 
                     // This is unfortunate - a table with incompatible chunks ceases to
                     // be visible to the query engine
@@ -431,17 +429,17 @@ mod tests {
         let p1 = p1.write();
 
         let c1_0 = p1.chunk("table1", 0).unwrap();
-        assert_eq!(c1_0.read().table_name(), "table1");
+        assert_eq!(c1_0.read().table_name().as_ref(), "table1");
         assert_eq!(c1_0.read().key(), "p1");
         assert_eq!(c1_0.read().id(), 0);
 
         let c1_1 = p1.chunk("table1", 1).unwrap();
-        assert_eq!(c1_1.read().table_name(), "table1");
+        assert_eq!(c1_1.read().table_name().as_ref(), "table1");
         assert_eq!(c1_1.read().key(), "p1");
         assert_eq!(c1_1.read().id(), 1);
 
         let c2_0 = p1.chunk("table2", 0).unwrap();
-        assert_eq!(c2_0.read().table_name(), "table2");
+        assert_eq!(c2_0.read().table_name().as_ref(), "table2");
         assert_eq!(c2_0.read().key(), "p1");
         assert_eq!(c2_0.read().id(), 0);
 

@@ -1,13 +1,15 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use snafu::{ResultExt, Snafu};
 use tokio::net::TcpListener;
 use tokio_stream::wrappers::TcpListenerStream;
-
-use server::{ConnectionManager, Server};
-use snafu::{ResultExt, Snafu};
 use tokio_util::sync::CancellationToken;
 use tonic::transport::NamedService;
+
+use crate::influxdb_ioxd::serving_readiness::{ServingReadiness, ServingReadinessState};
+use server::{ConnectionManager, Server};
+use tonic::{Interceptor, Status};
 
 pub mod error;
 mod flight;
@@ -30,21 +32,41 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-fn service_name<S: NamedService>(_service: &S) -> &'static str {
+/// Returns the name of the gRPC service S.
+fn service_name<S: NamedService>(_: &S) -> &'static str {
     S::NAME
 }
 
+/// Adds a gRPC service to ServiceBuilder `builder` while registering it to the HealthReporter `health_reporter`.
 macro_rules! add_service {
     ($builder:ident, $health_reporter:ident, $status:expr, $($tail:tt)* ) => {{
         add_service!(@internal $ builder, $health_reporter, $status, $($tail)* );
         $builder
     }};
-    (@internal $builder:ident, $health_reporter:ident, $status:expr, [ $($x:expr),* $(,)*] $(,)*) => {
+    (@internal $builder:ident, $health_reporter:ident, $status:expr, [ $($svc:expr),* $(,)*] $(,)*) => {
         $(
-          $health_reporter.set_service_status(service_name(&$x), $status).await;
-          let $builder = $builder.add_service($x);
+          let service = $svc;
+          $health_reporter.set_service_status(service_name(&service), $status).await;
+          let $builder = $builder.add_service(service);
         )*
     };
+}
+
+/// Implements the gRPC interceptor that returns SERVICE_UNAVAILABLE gRPC status
+/// if the service is not ready.
+#[derive(Debug, Clone)]
+pub struct ServingReadinessInterceptor(ServingReadiness);
+
+impl From<ServingReadinessInterceptor> for Interceptor {
+    fn from(serving_readiness: ServingReadinessInterceptor) -> Self {
+        let interceptor = move |req| match serving_readiness.0.get() {
+            ServingReadinessState::Unavailable => {
+                Err(Status::unavailable("service not ready to serve"))
+            }
+            ServingReadinessState::Serving => Ok(req),
+        };
+        interceptor.into()
+    }
 }
 
 /// Instantiate a server listening on the specified address
@@ -55,6 +77,7 @@ pub async fn serve<M>(
     socket: TcpListener,
     server: Arc<Server<M>>,
     shutdown: CancellationToken,
+    serving_readiness: ServingReadiness,
 ) -> Result<()>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
@@ -67,8 +90,9 @@ where
         .build()
         .context(ReflectionError)?;
 
-    let mut builder = tonic::transport::Server::builder();
+    let serving_gate = ServingReadinessInterceptor(serving_readiness.clone());
 
+    let mut builder = tonic::transport::Server::builder();
     let builder = add_service!(
         builder,
         health_reporter,
@@ -77,10 +101,14 @@ where
             health_service,
             reflection_service,
             testing::make_server(),
-            storage::make_server(Arc::clone(&server), Arc::clone(&server.registry),),
-            flight::make_server(Arc::clone(&server)),
-            write::make_server(Arc::clone(&server)),
-            management::make_server(Arc::clone(&server)),
+            storage::make_server(
+                Arc::clone(&server),
+                Arc::clone(&server.registry),
+                serving_gate.clone(),
+            ),
+            flight::make_server(Arc::clone(&server), serving_gate.clone()),
+            write::make_server(Arc::clone(&server), serving_gate.clone()),
+            management::make_server(Arc::clone(&server), serving_readiness.clone()),
             operations::make_server(Arc::clone(&server)),
         ],
     );

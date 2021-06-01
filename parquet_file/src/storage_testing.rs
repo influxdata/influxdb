@@ -10,9 +10,14 @@ mod tests {
     use data_types::partition_metadata::TableSummary;
 
     use crate::{
-        metadata::{read_parquet_metadata_from_file, read_statistics_from_parquet_metadata},
-        storage::read_schema_from_parquet_metadata,
-        utils::*,
+        metadata::{
+            read_parquet_metadata_from_file, read_schema_from_parquet_metadata,
+            read_statistics_from_parquet_metadata,
+        },
+        test_utils::{
+            load_parquet_from_store, make_chunk_given_record_batch, make_object_store,
+            make_record_batch, read_data_from_parquet_data,
+        },
     };
 
     #[tokio::test]
@@ -20,6 +25,7 @@ mod tests {
         ////////////////////
         // Create test data which is also the expected data
         let table = "table1";
+        let chunk_id = 1;
         let (record_batches, schema, column_summaries, num_rows) = make_record_batch("foo");
         let mut table_summary = TableSummary::new(table);
         table_summary.columns = column_summaries.clone();
@@ -39,6 +45,7 @@ mod tests {
             schema.clone(),
             table,
             column_summaries.clone(),
+            chunk_id,
         )
         .await;
 
