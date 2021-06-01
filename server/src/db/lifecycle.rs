@@ -198,7 +198,8 @@ trait ChunkMover {
                             && matches!(
                                 chunk_guard.stage(),
                                 ChunkStage::Frozen(ChunkStageFrozen {
-                                    representation: ChunkStageFrozenRepr::ReadBuffer(_)
+                                    representation: ChunkStageFrozenRepr::ReadBuffer(_),
+                                    meta: _,
                                 })
                             ))
                             || matches!(chunk_guard.stage(), ChunkStage::Persisted(_))

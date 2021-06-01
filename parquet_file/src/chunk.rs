@@ -122,11 +122,16 @@ impl Chunk {
         self.table.size() + self.partition_key.len() + mem::size_of::<Self>()
     }
 
-    /// Return Schema for the table in this chunk
+    /// Return possibly restricted Schema for the table in this chunk
     pub fn table_schema(&self, selection: Selection<'_>) -> Result<Schema> {
         self.table.schema(selection).context(NamedTableError {
             table_name: self.table_name(),
         })
+    }
+
+    /// Infallably return the full schema (for all columns) for this chunk
+    pub fn full_schema(&self) -> Arc<Schema> {
+        self.table.full_schema()
     }
 
     // Return all tables of this chunk whose timestamp overlaps with the give one

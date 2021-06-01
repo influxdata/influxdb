@@ -35,7 +35,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// A queryable snapshot of a mutable buffer chunk
 #[derive(Debug)]
 pub struct ChunkSnapshot {
-    schema: Schema,
+    schema: Arc<Schema>,
     batch: RecordBatch,
     table_name: Arc<str>,
     stats: Vec<ColumnSummary>,
@@ -57,7 +57,7 @@ impl ChunkSnapshot {
             .unwrap();
 
         let mut s = Self {
-            schema,
+            schema: Arc::new(schema),
             batch,
             table_name: Arc::clone(&chunk.table_name),
             stats: table.stats(),
@@ -86,12 +86,17 @@ impl ChunkSnapshot {
         );
 
         Ok(match selection {
-            Selection::All => self.schema.clone(),
+            Selection::All => self.schema.as_ref().clone(),
             Selection::Some(columns) => {
                 let columns = self.schema.select(columns).context(SelectColumns)?;
                 self.schema.project(&columns)
             }
         })
+    }
+
+    /// Return Schema for all columns in this snapshot
+    pub fn full_schema(&self) -> Arc<Schema> {
+        Arc::clone(&self.schema)
     }
 
     /// Returns a list of tables with writes matching the given timestamp_range
