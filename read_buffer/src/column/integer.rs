@@ -1,15 +1,17 @@
 use std::fmt::Display;
 use std::iter::FromIterator;
+use std::mem::size_of;
 
-use arrow::array::PrimitiveArray;
-use arrow::{self, array::Array, datatypes::*};
+use arrow::array::{Array, PrimitiveArray};
+use arrow::{self, datatypes::*};
 use either::Either;
+use rle::RLE;
 
 use super::encoding::scalar::{
     transcoders::{ByteTrimmer, NoOpTranscoder, Transcoder},
     ScalarEncoding,
 };
-use super::encoding::{scalar::Fixed, scalar::FixedNull};
+use super::encoding::{scalar::rle, scalar::Fixed, scalar::FixedNull};
 use super::{cmp, Statistics};
 use crate::column::{RowIDs, Scalar, Value, Values};
 
@@ -247,6 +249,25 @@ impl Display for IntegerEncoding {
     }
 }
 
+/// A lever to decide the minimum size in bytes that run-length encoding the
+/// column needs to reduce the overall footprint by. 0.1 means that the size of
+/// the column must be reduced by at least 10%
+pub const MIN_RLE_SIZE_REDUCTION: f64 = 0.1; // 10%
+
+// Applies a heuristic to decide whether the input data should be encoded using
+// run-length encoding.
+fn should_rle_from<T: PartialOrd>(arr: &[T]) -> bool {
+    should_rle_from_iter(arr.len(), arr.iter().map(Some))
+}
+
+// Applies a heuristic to decide whether the input data should be encoded using
+// run-length encoding.
+fn should_rle_from_iter<T: PartialOrd>(len: usize, iter: impl Iterator<Item = Option<T>>) -> bool {
+    let base_size = len * size_of::<T>();
+    (base_size as f64 - rle::estimate_rle_size(iter) as f64) / base_size as f64
+        >= MIN_RLE_SIZE_REDUCTION
+}
+
 /// Converts a slice of i64 values into an IntegerEncoding.
 ///
 /// The most compact physical type needed to store the columnar values is
@@ -265,19 +286,26 @@ impl From<&[i64]> for IntegerEncoding {
             max = max.max(v);
         }
 
+        // If true then use RLE after byte trimming.
+        let rle = should_rle_from(arr);
+
         // This match is carefully ordered. It prioritises smaller physical
         // datatypes that can safely represent the provided logical data
         let transcoder = ByteTrimmer {};
-        match (min, max) {
+        let (enc, name) = match (min, max) {
             // encode as u8 values
             (min, max) if min >= 0 && max <= u8::MAX as i64 => {
                 let arr = arr
                     .iter()
                     .map::<u8, _>(|v| transcoder.encode(*v))
                     .collect::<Vec<_>>();
-                let enc = Box::new(Fixed::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<i64>> = if rle {
+                    Box::new(RLE::new_from_iter(arr.into_iter(), transcoder))
+                } else {
+                    Box::new(Fixed::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::I64(enc, format!("BT_U8-{}", name))
+                (enc, format!("BT_U8-{}", name))
             }
             // encode as i8 values
             (min, max) if min >= i8::MIN as i64 && max <= i8::MAX as i64 => {
@@ -285,9 +313,13 @@ impl From<&[i64]> for IntegerEncoding {
                     .iter()
                     .map(|v| transcoder.encode(*v))
                     .collect::<Vec<i8>>();
-                let enc = Box::new(Fixed::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<i64>> = if rle {
+                    Box::new(RLE::new_from_iter(arr.into_iter(), transcoder))
+                } else {
+                    Box::new(Fixed::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::I64(enc, format!("BT_I8-{}", name))
+                (enc, format!("BT_I8-{}", name))
             }
             // encode as u16 values
             (min, max) if min >= 0 && max <= u16::MAX as i64 => {
@@ -295,9 +327,13 @@ impl From<&[i64]> for IntegerEncoding {
                     .iter()
                     .map::<u16, _>(|v| transcoder.encode(*v))
                     .collect::<Vec<u16>>();
-                let enc = Box::new(Fixed::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<i64>> = if rle {
+                    Box::new(RLE::new_from_iter(arr.into_iter(), transcoder))
+                } else {
+                    Box::new(Fixed::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::I64(enc, format!("BT_U16-{}", name))
+                (enc, format!("BT_U16-{}", name))
             }
             // encode as i16 values
             (min, max) if min >= i16::MIN as i64 && max <= i16::MAX as i64 => {
@@ -305,9 +341,13 @@ impl From<&[i64]> for IntegerEncoding {
                     .iter()
                     .map(|v| transcoder.encode(*v))
                     .collect::<Vec<i16>>();
-                let enc = Box::new(Fixed::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<i64>> = if rle {
+                    Box::new(RLE::new_from_iter(arr.into_iter(), transcoder))
+                } else {
+                    Box::new(Fixed::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::I64(enc, format!("BT_I16-{}", name))
+                (enc, format!("BT_I16-{}", name))
             }
             // encode as u32 values
             (min, max) if min >= 0 && max <= u32::MAX as i64 => {
@@ -315,9 +355,13 @@ impl From<&[i64]> for IntegerEncoding {
                     .iter()
                     .map(|v| transcoder.encode(*v))
                     .collect::<Vec<u32>>();
-                let enc = Box::new(Fixed::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<i64>> = if rle {
+                    Box::new(RLE::new_from_iter(arr.into_iter(), transcoder))
+                } else {
+                    Box::new(Fixed::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::I64(enc, format!("BT_U32-{}", name))
+                (enc, format!("BT_U32-{}", name))
             }
             // encode as i32 values
             (min, max) if min >= i32::MIN as i64 && max <= i32::MAX as i64 => {
@@ -325,17 +369,29 @@ impl From<&[i64]> for IntegerEncoding {
                     .iter()
                     .map(|v| transcoder.encode(*v))
                     .collect::<Vec<i32>>();
-                let enc = Box::new(Fixed::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<i64>> = if rle {
+                    Box::new(RLE::new_from_iter(arr.into_iter(), transcoder))
+                } else {
+                    Box::new(Fixed::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::I64(enc, format!("BT_I32-{}", name))
+                (enc, format!("BT_I32-{}", name))
             }
             // otherwise, encode with the same physical type (i64)
             (_, _) => {
-                let enc = Box::new(Fixed::new(arr.to_vec(), NoOpTranscoder {}));
+                let enc: Box<dyn ScalarEncoding<i64>> = if rle {
+                    Box::new(RLE::new_from_iter(
+                        arr.to_vec().into_iter(),
+                        NoOpTranscoder {},
+                    ))
+                } else {
+                    Box::new(Fixed::new(arr.to_vec(), NoOpTranscoder {}))
+                };
                 let name = enc.name();
-                Self::I64(enc, format!("None-{}", name))
+                (enc, name.to_owned())
             }
-        }
+        };
+        Self::I64(enc, name)
     }
 }
 
@@ -353,17 +409,23 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
         let min = arrow::compute::kernels::aggregate::min(&arr);
         let max = arrow::compute::kernels::aggregate::max(&arr);
 
+        // If true then use RLE after byte trimming.
+        let rle = should_rle_from_iter(arr.len(), arr.iter());
+
         // This match is carefully ordered. It prioritises smaller physical
         // datatypes that can safely represent the provided logical data
         let transcoder = ByteTrimmer {};
-        match (min, max) {
-            // data is all NULL. Store as single byte column for now.
-            // TODO(edd): this will be smaller when stored using RLE
+        let (enc, name) = match (min, max) {
+            // data is all NULL. Store u8 RLE
             (None, None) => {
                 let arr = PrimitiveArray::from_iter(arr.iter().map::<Option<u8>, _>(|_| None));
-                let enc = Box::new(FixedNull::<UInt8Type, i64, _>::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<i64>> = if rle {
+                    Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
+                } else {
+                    Box::new(FixedNull::<UInt8Type, i64, _>::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::I64(enc, format!("BT_U8-{}", name))
+                (enc, format!("BT_U8-{}", name))
             }
             // encode as u8 values
             (min, max) if min >= Some(0) && max <= Some(u8::MAX as i64) => {
@@ -371,9 +433,13 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
                     arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as u8
                 );
 
-                let enc = Box::new(FixedNull::<UInt8Type, i64, _>::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<i64>> = if rle {
+                    Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
+                } else {
+                    Box::new(FixedNull::<UInt8Type, i64, _>::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::I64(enc, format!("BT_U8-{}", name))
+                (enc, format!("BT_U8-{}", name))
             }
             // encode as i8 values
             (min, max) if min >= Some(i8::MIN as i64) && max <= Some(i8::MAX as i64) => {
@@ -381,9 +447,13 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
                     arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as i8
                 );
 
-                let enc = Box::new(FixedNull::<Int8Type, i64, _>::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<i64>> = if rle {
+                    Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
+                } else {
+                    Box::new(FixedNull::<Int8Type, i64, _>::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::I64(enc, format!("BT_I8-{}", name))
+                (enc, format!("BT_I8-{}", name))
             }
             // encode as u16 values
             (min, max) if min >= Some(0) && max <= Some(u16::MAX as i64) => {
@@ -391,9 +461,13 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
                     arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as u16
                 );
 
-                let enc = Box::new(FixedNull::<UInt16Type, i64, _>::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<i64>> = if rle {
+                    Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
+                } else {
+                    Box::new(FixedNull::<UInt16Type, i64, _>::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::I64(enc, format!("BT_U16-{}", name))
+                (enc, format!("BT_U16-{}", name))
             }
             // encode as i16 values
             (min, max) if min >= Some(i16::MIN as i64) && max <= Some(i16::MAX as i64) => {
@@ -401,9 +475,13 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
                     arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as i16
                 );
 
-                let enc = Box::new(FixedNull::<Int16Type, i64, _>::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<i64>> = if rle {
+                    Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
+                } else {
+                    Box::new(FixedNull::<Int16Type, i64, _>::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::I64(enc, format!("BT_I16-{}", name))
+                (enc, format!("BT_I16-{}", name))
             }
             // encode as u32 values
             (min, max) if min >= Some(0) && max <= Some(u32::MAX as i64) => {
@@ -411,9 +489,13 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
                     arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as u32
                 );
 
-                let enc = Box::new(FixedNull::<UInt32Type, i64, _>::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<i64>> = if rle {
+                    Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
+                } else {
+                    Box::new(FixedNull::<UInt32Type, i64, _>::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::I64(enc, format!("BT_U32-{}", name))
+                (enc, format!("BT_U32-{}", name))
             }
             // encode as i32 values
             (min, max) if min >= Some(i32::MIN as i64) && max <= Some(i32::MAX as i64) => {
@@ -421,17 +503,26 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
                     arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as i32
                 );
 
-                let enc = Box::new(FixedNull::<Int32Type, i64, _>::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<i64>> = if rle {
+                    Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
+                } else {
+                    Box::new(FixedNull::<Int32Type, i64, _>::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::I64(enc, format!("BT_I32-{}", name))
+                (enc, format!("BT_I32-{}", name))
             }
             // otherwise, encode with the same physical type (i64)
             (_, _) => {
-                let enc = Box::new(FixedNull::<Int64Type, i64, _>::new(arr, NoOpTranscoder {}));
+                let enc: Box<dyn ScalarEncoding<i64>> = if rle {
+                    Box::new(RLE::new_from_iter_opt(arr.iter(), NoOpTranscoder {}))
+                } else {
+                    Box::new(FixedNull::<Int64Type, i64, _>::new(arr, NoOpTranscoder {}))
+                };
                 let name = enc.name();
-                Self::I64(enc, format!("None-{}", name))
+                (enc, name.to_owned())
             }
-        }
+        };
+        Self::I64(enc, name)
     }
 }
 
@@ -449,47 +540,67 @@ impl From<&[u64]> for IntegerEncoding {
             max = max.max(v);
         }
 
+        // If true then use RLE after byte trimming.
+        let rle = should_rle_from(arr);
+
         // This match is carefully ordered. It prioritises smaller physical
         // datatypes that can safely represent the provided logical data
         let transcoder = ByteTrimmer {};
-        match max {
+        let (enc, name) = match max {
             // encode as u8 values
             max if max <= u8::MAX as u64 => {
                 let arr = arr
                     .iter()
-                    .map::<u8, _>(|v| transcoder.encode(*v)) // u64 -> u8
-                    .collect::<Vec<u8>>();
-                let enc = Box::new(Fixed::<u8, u64, _>::new(arr, transcoder));
+                    .map::<u8, _>(|v| transcoder.encode(*v))
+                    .collect::<Vec<_>>();
+                let enc: Box<dyn ScalarEncoding<u64>> = if rle {
+                    Box::new(RLE::new_from_iter(arr.into_iter(), transcoder))
+                } else {
+                    Box::new(Fixed::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::U64(enc, format!("BT_U8-{}", name))
+                (enc, format!("BT_U8-{}", name))
             }
             // encode as u16 values
             max if max <= u16::MAX as u64 => {
                 let arr = arr
                     .iter()
-                    .map::<u16, _>(|v| transcoder.encode(*v)) // u64 -> u16
+                    .map::<u16, _>(|v| transcoder.encode(*v))
                     .collect::<Vec<u16>>();
-                let enc = Box::new(Fixed::<u16, u64, _>::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<u64>> = if rle {
+                    Box::new(RLE::new_from_iter(arr.into_iter(), transcoder))
+                } else {
+                    Box::new(Fixed::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::U64(enc, format!("BT_U16-{}", name))
+                (enc, format!("BT_U16-{}", name))
             }
             // encode as u32 values
             max if max <= u32::MAX as u64 => {
                 let arr = arr
                     .iter()
-                    .map::<u32, _>(|v| transcoder.encode(*v)) // u64 -> u32
+                    .map(|v| transcoder.encode(*v))
                     .collect::<Vec<u32>>();
-                let enc = Box::new(Fixed::<u32, u64, _>::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<u64>> = if rle {
+                    Box::new(RLE::new_from_iter(arr.into_iter(), transcoder))
+                } else {
+                    Box::new(Fixed::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::U64(enc, format!("BT_U32-{}", name))
+                (enc, format!("BT_U32-{}", name))
             }
-            // otherwise, encode with the same physical type (u64)
+            // otherwise, encode with the same physical type (i64)
             _ => {
-                let enc = Box::new(Fixed::<u64, u64, _>::new(arr.to_vec(), NoOpTranscoder {})); // no transcoding needed
+                let enc: Box<dyn ScalarEncoding<u64>> = if rle {
+                    Box::new(RLE::new_from_iter(arr.to_vec().into_iter(), transcoder))
+                } else {
+                    Box::new(Fixed::new(arr.to_vec(), transcoder))
+                };
                 let name = enc.name();
-                Self::U64(enc, format!("None-{}", name))
+                (enc, name.to_owned())
             }
-        }
+        };
+        Self::U64(enc, name)
     }
 }
 
@@ -506,19 +617,38 @@ impl From<arrow::array::UInt64Array> for IntegerEncoding {
         // determine max value.
         let max = arrow::compute::kernels::aggregate::max(&arr);
 
+        // If true then use RLE after byte trimming.
+        let rle = should_rle_from_iter(arr.len(), arr.iter());
+
         // This match is carefully ordered. It prioritises smaller physical
         // datatypes that can safely represent the provided logical data
         let transcoder = ByteTrimmer {};
-        match max {
+        let (enc, name) = match max {
+            // data is all NULL. Store as single byte column for now.
+            // TODO(edd): this will be smaller when stored using RLE
+            None => {
+                let arr = PrimitiveArray::from_iter(arr.iter().map::<Option<u8>, _>(|_| None));
+                let enc: Box<dyn ScalarEncoding<u64>> = if rle {
+                    Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
+                } else {
+                    Box::new(FixedNull::<UInt8Type, u64, _>::new(arr, transcoder))
+                };
+                let name = enc.name();
+                (enc, format!("BT_U8-{}", name))
+            }
             // encode as u8 values
             max if max <= Some(u8::MAX as u64) => {
                 let arr = PrimitiveArray::from_iter(
                     arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode u64 as u8
                 );
 
-                let enc = Box::new(FixedNull::<UInt8Type, u64, _>::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<u64>> = if rle {
+                    Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
+                } else {
+                    Box::new(FixedNull::<UInt8Type, u64, _>::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::U64(enc, format!("BT_U8-{}", name))
+                (enc, format!("BT_U8-{}", name))
             }
             // encode as u16 values
             max if max <= Some(u16::MAX as u64) => {
@@ -526,9 +656,13 @@ impl From<arrow::array::UInt64Array> for IntegerEncoding {
                     arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode u64 as u16
                 );
 
-                let enc = Box::new(FixedNull::<UInt16Type, u64, _>::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<u64>> = if rle {
+                    Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
+                } else {
+                    Box::new(FixedNull::<UInt16Type, u64, _>::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::U64(enc, format!("BT_U16-{}", name))
+                (enc, format!("BT_U16-{}", name))
             }
             // encode as u32 values
             max if max <= Some(u32::MAX as u64) => {
@@ -536,25 +670,35 @@ impl From<arrow::array::UInt64Array> for IntegerEncoding {
                     arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode u64 as u32
                 );
 
-                let enc = Box::new(FixedNull::<UInt32Type, u64, _>::new(arr, transcoder));
+                let enc: Box<dyn ScalarEncoding<u64>> = if rle {
+                    Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
+                } else {
+                    Box::new(FixedNull::<UInt32Type, u64, _>::new(arr, transcoder))
+                };
                 let name = enc.name();
-                Self::U64(enc, format!("BT_U32-{}", name))
+                (enc, format!("BT_U32-{}", name))
             }
             // otherwise, encode with the same physical type (u64)
             _ => {
-                let enc = Box::new(FixedNull::<UInt64Type, u64, _>::new(arr, NoOpTranscoder {}));
+                let enc: Box<dyn ScalarEncoding<u64>> = if rle {
+                    Box::new(RLE::new_from_iter_opt(arr.iter(), NoOpTranscoder {}))
+                } else {
+                    Box::new(FixedNull::<UInt64Type, u64, _>::new(arr, NoOpTranscoder {}))
+                };
                 let name = enc.name();
-                Self::U64(enc, format!("None-{}", name))
+                (enc, name.to_owned())
             }
-        }
+        };
+        Self::U64(enc, name)
     }
 }
 
 #[cfg(test)]
 mod test {
-    use arrow::array::{Int64Array, UInt64Array};
+    use itertools::Itertools;
 
     use super::*;
+    use arrow::array::{Int64Array, UInt64Array};
 
     #[test]
     // Tests that input data gets byte trimmed correctly.
@@ -570,9 +714,133 @@ mod test {
             (vec![0_i64, 2, 245, i64::MIN], 56),            // i64 fixed array
         ];
 
-        for (case, size) in cases.into_iter() {
+        for (case, name) in cases.into_iter() {
             let enc = IntegerEncoding::from(case.as_slice());
-            assert_eq!(enc.size(), size, "failed: {:?}", enc);
+            assert_eq!(enc.size(), name, "failed: {:?}", enc);
+        }
+    }
+
+    #[test]
+    // Tests that input data gets encoded correctly
+    fn from_slice_i64_encoding() {
+        let cases = vec![
+            (
+                vec![1_i64; 1000]
+                    .into_iter()
+                    .interleave(vec![2_i64; 1000].into_iter()) // 1,2,1,2,1,2....
+                    .collect::<Vec<i64>>(),
+                // byte trimmed to u8
+                "BT_U8-FIXED",
+            ),
+            (
+                vec![1_i64; 1000]
+                    .into_iter()
+                    .chain(vec![2_i64; 1000]) // 1,1,1,1,1,2,2,2,2,2,2....
+                    .collect::<Vec<i64>>(),
+                // byte trimmed to u8 then RLE.
+                "BT_U8-RLE",
+            ),
+            (
+                vec![-1_i64; 1000]
+                    .into_iter()
+                    .interleave(vec![-2_i64; 1000].into_iter())
+                    .collect::<Vec<i64>>(),
+                // byte trimmed to i8
+                "BT_I8-FIXED",
+            ),
+            (
+                vec![-1_i64; 1000]
+                    .into_iter()
+                    .chain(vec![-2_i64; 1000])
+                    .collect::<Vec<i64>>(),
+                // byte trimmed to i8 then RLE.
+                "BT_I8-RLE",
+            ),
+            (
+                vec![500_i64; 1000]
+                    .into_iter()
+                    .interleave(vec![600_i64; 1000].into_iter())
+                    .collect::<Vec<i64>>(),
+                // byte trimmed to u16
+                "BT_U16-FIXED",
+            ),
+            (
+                vec![500_i64; 1000]
+                    .into_iter()
+                    .chain(vec![600_i64; 1000])
+                    .collect::<Vec<i64>>(),
+                // byte trimmed to u16 then RLE.
+                "BT_U16-RLE",
+            ),
+            (
+                vec![-500_i64; 1000]
+                    .into_iter()
+                    .interleave(vec![-600_i64; 1000].into_iter())
+                    .collect::<Vec<i64>>(),
+                // byte trimmed to i16
+                "BT_I16-FIXED",
+            ),
+            (
+                vec![-500_i64; 1000]
+                    .into_iter()
+                    .chain(vec![-600_i64; 1000])
+                    .collect::<Vec<i64>>(),
+                // byte trimmed to i16 then RLE.
+                "BT_I16-RLE",
+            ),
+            (
+                vec![100_000_i64; 1000]
+                    .into_iter()
+                    .interleave(vec![200_000_i64; 1000].into_iter())
+                    .collect::<Vec<i64>>(),
+                // byte trimmed to u32
+                "BT_U32-FIXED",
+            ),
+            (
+                vec![100_000_i64; 1000]
+                    .into_iter()
+                    .chain(vec![200_000_i64; 1000])
+                    .collect::<Vec<i64>>(),
+                // byte trimmed to u16 then RLE.
+                "BT_U32-RLE",
+            ),
+            (
+                vec![-100_000_i64; 1000]
+                    .into_iter()
+                    .interleave(vec![-200_000_i64; 1000].into_iter())
+                    .collect::<Vec<i64>>(),
+                // byte trimmed to i32
+                "BT_I32-FIXED",
+            ),
+            (
+                vec![-100_000_i64; 1000]
+                    .into_iter()
+                    .chain(vec![-200_000_i64; 1000])
+                    .collect::<Vec<i64>>(),
+                // byte trimmed to i16 then RLE.
+                "BT_I32-RLE",
+            ),
+            (
+                vec![i64::MIN; 1000]
+                    .into_iter()
+                    .interleave(vec![i64::MIN + 1; 1000].into_iter())
+                    .collect::<Vec<i64>>(),
+                // vanilla i64
+                "FIXED",
+            ),
+            (
+                vec![i64::MIN; 1000]
+                    .into_iter()
+                    .chain(vec![i64::MIN + 1; 1000])
+                    .collect::<Vec<i64>>(),
+                // RLE i64
+                "RLE",
+            ),
+        ];
+
+        for (case, name) in cases.into_iter() {
+            let enc = IntegerEncoding::from(case.as_slice());
+            assert_eq!(enc.name(), name, "failed: {:?}", enc);
         }
     }
 
@@ -588,6 +856,82 @@ mod test {
         for (case, exp) in cases.into_iter() {
             let enc = IntegerEncoding::from(case.as_slice());
             assert_eq!(enc.size(), exp, "failed: {:?}", enc);
+        }
+    }
+
+    #[test]
+    // Tests that input data gets encoded correctly
+    fn from_slice_u64_encoding() {
+        let cases = vec![
+            (
+                vec![1_u64; 1000]
+                    .into_iter()
+                    .interleave(vec![2_u64; 1000].into_iter()) // 1,2,1,2,1,2....
+                    .collect::<Vec<u64>>(),
+                // byte trimmed to u8
+                "BT_U8-FIXED",
+            ),
+            (
+                vec![1_u64; 1000]
+                    .into_iter()
+                    .chain(vec![2_u64; 1000]) // 1,1,1,1,1,2,2,2,2,2,2....
+                    .collect::<Vec<u64>>(),
+                // byte trimmed to u8 then RLE.
+                "BT_U8-RLE",
+            ),
+            (
+                vec![500_u64; 1000]
+                    .into_iter()
+                    .interleave(vec![600_u64; 1000].into_iter())
+                    .collect::<Vec<u64>>(),
+                // byte trimmed to u16
+                "BT_U16-FIXED",
+            ),
+            (
+                vec![500_u64; 1000]
+                    .into_iter()
+                    .chain(vec![600_u64; 1000])
+                    .collect::<Vec<u64>>(),
+                // byte trimmed to u16 then RLE.
+                "BT_U16-RLE",
+            ),
+            (
+                vec![100_000_u64; 1000]
+                    .into_iter()
+                    .interleave(vec![200_000_u64; 1000].into_iter())
+                    .collect::<Vec<u64>>(),
+                // byte trimmed to u32
+                "BT_U32-FIXED",
+            ),
+            (
+                vec![100_000_u64; 1000]
+                    .into_iter()
+                    .chain(vec![200_000_u64; 1000])
+                    .collect::<Vec<u64>>(),
+                // byte trimmed to u16 then RLE.
+                "BT_U32-RLE",
+            ),
+            (
+                vec![u64::MAX; 1000]
+                    .into_iter()
+                    .interleave(vec![u64::MAX - 1; 1000].into_iter())
+                    .collect::<Vec<u64>>(),
+                // vanilla u64
+                "FIXED",
+            ),
+            (
+                vec![u64::MAX; 1000]
+                    .into_iter()
+                    .chain(vec![u64::MAX - 1; 1000])
+                    .collect::<Vec<u64>>(),
+                // RLE u64
+                "RLE",
+            ),
+        ];
+
+        for (case, name) in cases.into_iter() {
+            let enc = IntegerEncoding::from(case.as_slice());
+            assert_eq!(enc.name(), name, "failed: {:?}", enc);
         }
     }
 
@@ -623,11 +967,168 @@ mod test {
             (vec![None, Some(u32::MAX as i64 + 1)], 344), //u64
         ];
 
-        for (case, size) in cases.iter().cloned() {
+        for (case, name) in cases.iter().cloned() {
             let arr = Int64Array::from(case);
             let enc = IntegerEncoding::from(arr);
-            assert_eq!(enc.size(), size, "failed: {:?}", enc);
+            assert_eq!(enc.size(), name, "failed: {:?}", enc);
         }
+    }
+
+    #[test]
+    // Tests that input data gets encoded correctly
+    fn from_arrow_i64_array_encoding() {
+        let cases = vec![
+            (
+                Int64Array::from(
+                    vec![1_i64; 1000]
+                        .into_iter()
+                        .interleave(vec![2_i64; 1000].into_iter()) // 1,2,1,2,1,2....
+                        .collect::<Vec<i64>>(),
+                ),
+                // byte trimmed to u8
+                "BT_U8-FIXED",
+            ),
+            (
+                Int64Array::from(
+                    vec![1_i64; 1000]
+                        .into_iter()
+                        .chain(vec![2_i64; 1000]) // 1,1,1,1,1,2,2,2,2,2,2....
+                        .collect::<Vec<i64>>(),
+                ),
+                // byte trimmed to u8 then RLE.
+                "BT_U8-RLE",
+            ),
+            (
+                Int64Array::from(
+                    vec![-1_i64; 1000]
+                        .into_iter()
+                        .interleave(vec![-2_i64; 1000].into_iter())
+                        .collect::<Vec<i64>>(),
+                ),
+                // byte trimmed to i8
+                "BT_I8-FIXED",
+            ),
+            (
+                Int64Array::from(
+                    vec![-1_i64; 1000]
+                        .into_iter()
+                        .chain(vec![-2_i64; 1000])
+                        .collect::<Vec<i64>>(),
+                ),
+                // byte trimmed to i8 then RLE.
+                "BT_I8-RLE",
+            ),
+            (
+                Int64Array::from(
+                    vec![500_i64; 1000]
+                        .into_iter()
+                        .interleave(vec![600_i64; 1000].into_iter())
+                        .collect::<Vec<i64>>(),
+                ),
+                // byte trimmed to u16
+                "BT_U16-FIXED",
+            ),
+            (
+                Int64Array::from(
+                    vec![500_i64; 1000]
+                        .into_iter()
+                        .chain(vec![600_i64; 1000])
+                        .collect::<Vec<i64>>(),
+                ),
+                // byte trimmed to u16 then RLE.
+                "BT_U16-RLE",
+            ),
+            (
+                Int64Array::from(
+                    vec![-500_i64; 1000]
+                        .into_iter()
+                        .interleave(vec![-600_i64; 1000].into_iter())
+                        .collect::<Vec<i64>>(),
+                ),
+                // byte trimmed to i16
+                "BT_I16-FIXED",
+            ),
+            (
+                Int64Array::from(
+                    vec![-500_i64; 1000]
+                        .into_iter()
+                        .chain(vec![-600_i64; 1000])
+                        .collect::<Vec<i64>>(),
+                ),
+                // byte trimmed to i16 then RLE.
+                "BT_I16-RLE",
+            ),
+            (
+                Int64Array::from(
+                    vec![100_000_i64; 1000]
+                        .into_iter()
+                        .interleave(vec![200_000_i64; 1000].into_iter())
+                        .collect::<Vec<i64>>(),
+                ),
+                // byte trimmed to u32
+                "BT_U32-FIXED",
+            ),
+            (
+                Int64Array::from(
+                    vec![100_000_i64; 1000]
+                        .into_iter()
+                        .chain(vec![200_000_i64; 1000])
+                        .collect::<Vec<i64>>(),
+                ),
+                // byte trimmed to u16 then RLE.
+                "BT_U32-RLE",
+            ),
+            (
+                Int64Array::from(
+                    vec![-100_000_i64; 1000]
+                        .into_iter()
+                        .interleave(vec![-200_000_i64; 1000].into_iter())
+                        .collect::<Vec<i64>>(),
+                ),
+                // byte trimmed to i32
+                "BT_I32-FIXED",
+            ),
+            (
+                Int64Array::from(
+                    vec![-100_000_i64; 1000]
+                        .into_iter()
+                        .chain(vec![-200_000_i64; 1000])
+                        .collect::<Vec<i64>>(),
+                ),
+                // byte trimmed to i32 then RLE.
+                "BT_I32-RLE",
+            ),
+            (
+                Int64Array::from(
+                    vec![i64::MIN; 1000]
+                        .into_iter()
+                        .interleave(vec![i64::MIN + 1; 1000].into_iter())
+                        .collect::<Vec<i64>>(),
+                ),
+                // vanilla i64
+                "FIXED",
+            ),
+            (
+                Int64Array::from(
+                    vec![i64::MIN; 1000]
+                        .into_iter()
+                        .chain(vec![i64::MIN + 1; 1000])
+                        .collect::<Vec<i64>>(),
+                ),
+                // RLE i64
+                "RLE",
+            ),
+        ];
+
+        for (case, name) in cases.into_iter() {
+            let enc = IntegerEncoding::from(case);
+            assert_eq!(enc.name(), name, "failed: {:?}", enc);
+        }
+
+        // All NULL array
+        let arr = Int64Array::from(vec![None; 1000].into_iter().collect::<Vec<Option<i64>>>());
+        let enc = IntegerEncoding::from(arr);
+        assert_eq!(enc.name(), "BT_U8-RLE", "failed: {:?}", enc);
     }
 
     #[test]
@@ -660,5 +1161,102 @@ mod test {
             let enc = IntegerEncoding::from(arr);
             assert_eq!(enc.size(), size, "failed: {:?}", enc);
         }
+    }
+
+    #[test]
+    // Tests that input data gets encoded correctly
+    fn from_arrow_u64_array_encoding() {
+        let cases = vec![
+            (
+                UInt64Array::from(
+                    vec![1_u64; 1000]
+                        .into_iter()
+                        .interleave(vec![2_u64; 1000].into_iter()) // 1,2,1,2,1,2....
+                        .collect::<Vec<u64>>(),
+                ),
+                // byte trimmed to u8
+                "BT_U8-FIXED",
+            ),
+            (
+                UInt64Array::from(
+                    vec![1_u64; 1000]
+                        .into_iter()
+                        .chain(vec![2_u64; 1000]) // 1,1,1,1,1,2,2,2,2,2,2....
+                        .collect::<Vec<u64>>(),
+                ),
+                // byte trimmed to u8 then RLE.
+                "BT_U8-RLE",
+            ),
+            (
+                UInt64Array::from(
+                    vec![500_u64; 1000]
+                        .into_iter()
+                        .interleave(vec![600_u64; 1000].into_iter())
+                        .collect::<Vec<u64>>(),
+                ),
+                // byte trimmed to u16
+                "BT_U16-FIXED",
+            ),
+            (
+                UInt64Array::from(
+                    vec![500_u64; 1000]
+                        .into_iter()
+                        .chain(vec![600_u64; 1000])
+                        .collect::<Vec<u64>>(),
+                ),
+                // byte trimmed to u16 then RLE.
+                "BT_U16-RLE",
+            ),
+            (
+                UInt64Array::from(
+                    vec![100_000_u64; 1000]
+                        .into_iter()
+                        .interleave(vec![200_000_u64; 1000].into_iter())
+                        .collect::<Vec<u64>>(),
+                ),
+                // byte trimmed to u32
+                "BT_U32-FIXED",
+            ),
+            (
+                UInt64Array::from(
+                    vec![100_000_u64; 1000]
+                        .into_iter()
+                        .chain(vec![200_000_u64; 1000])
+                        .collect::<Vec<u64>>(),
+                ),
+                // byte trimmed to u32 then RLE.
+                "BT_U32-RLE",
+            ),
+            (
+                UInt64Array::from(
+                    vec![u64::MAX; 1000]
+                        .into_iter()
+                        .interleave(vec![u64::MAX - 1; 1000].into_iter())
+                        .collect::<Vec<u64>>(),
+                ),
+                // vanilla i64
+                "FIXED",
+            ),
+            (
+                UInt64Array::from(
+                    vec![u64::MAX; 1000]
+                        .into_iter()
+                        .chain(vec![u64::MAX - 1; 1000])
+                        .collect::<Vec<u64>>(),
+                ),
+                // RLE i64
+                "RLE",
+            ),
+        ];
+
+        for (case, name) in cases.into_iter() {
+            let enc = IntegerEncoding::from(case);
+            assert_eq!(enc.name(), name, "failed: {:?}", enc);
+        }
+
+        // All NULL array
+        let arr = UInt64Array::from(vec![None; 1000].into_iter().collect::<Vec<Option<u64>>>());
+        let enc = IntegerEncoding::from(arr);
+        assert_eq!(enc.name(), "BT_U8-RLE", "failed: {:?}", enc);
     }
 }
