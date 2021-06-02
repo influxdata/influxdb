@@ -954,7 +954,7 @@ impl Db {
                     tokio::select! {
                         _ = async {
                             if let Err(e) = cleanup_unreferenced_parquet_files(&self.catalog).await {
-                                error!("error in background cleanup task: {:?}", e);
+                                error!(%e, "error in background cleanup task");
                             }
                             tokio::time::sleep(Duration::from_secs(500)).await;
                         } => {},
