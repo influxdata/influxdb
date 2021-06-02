@@ -137,7 +137,7 @@ func (s *Service) DeleteNotebook(ctx context.Context, id platform.ID) error {
 // ListNotebooks lists notebooks matching the provided filter. Currently, only org_id is used in the filter.
 // Future uses may support pagination via this filter as well.
 func (s *Service) ListNotebooks(ctx context.Context, filter influxdb.NotebookListFilter) ([]*influxdb.Notebook, error) {
-	var ns []*influxdb.Notebook
+	ns := []*influxdb.Notebook{}
 
 	query := `
 		SELECT id, org_id, name, spec, created_at, updated_at

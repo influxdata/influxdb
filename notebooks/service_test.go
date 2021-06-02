@@ -154,7 +154,7 @@ func TestList(t *testing.T) {
 	// selecting with no matches for org_id should return an empty list and no error
 	got, err := svc.ListNotebooks(ctx, influxdb.NotebookListFilter{OrgID: orgID})
 	require.NoError(t, err)
-	require.Equal(t, 0, len(got))
+	require.Equal(t, []*influxdb.Notebook{}, got)
 
 	// create some notebooks to test the list operation with
 	creates := []*influxdb.NotebookReqBody{
