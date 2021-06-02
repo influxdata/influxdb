@@ -117,8 +117,9 @@ You need a recent stable version of Rust. We recommend using [rustup](https://ru
 
 You also need `clang`, `make`, `pkg-config`, and `protobuf` installed.
 
-- OSX: `brew install make pkg-config protobuf`
+- OSX: `brew install pkg-config protobuf`
     - For OSX, you must have [HomeBrew](https://brew.sh) installed.
+    - You will also need the [Developer Tools](https://webkit.org/build-tools/), which includes `make`.
 - Linux (Arch): `pacman -S clang make pkgconf protobuf`
 - Linux (Ubuntu): `sudo apt install make clang pkg-config protobuf-compiler libprotobuf-dev`
 - Linux (RHEL): See below
