@@ -167,7 +167,7 @@ pub enum Error {
     #[snafu(display("Catalog already exists"))]
     AlreadyExists {},
 
-    #[snafu(display("Datetime required but missing"))]
+    #[snafu(display("Internal: Datetime required but missing in serialized catalog"))]
     DateTimeRequired {},
 
     #[snafu(display("Cannot parse datetime: {}", source))]
@@ -1712,7 +1712,7 @@ mod tests {
         .await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Datetime required but missing"
+            "Internal: Datetime required but missing in serialized catalog"
         );
     }
 
