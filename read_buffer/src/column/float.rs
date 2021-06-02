@@ -2,9 +2,7 @@ use arrow::array::Array;
 use arrow::datatypes::Float64Type;
 use std::mem::size_of;
 
-use super::encoding::scalar::rle;
-use super::encoding::scalar::transcoders::NoOpTranscoder;
-use super::encoding::scalar::ScalarEncoding;
+use super::encoding::scalar::{rle, transcoders::*, ScalarEncoding};
 use super::encoding::{
     scalar::Fixed,
     scalar::{rle::RLE, FixedNull},
@@ -19,14 +17,14 @@ use crate::column::{RowIDs, Scalar, Value, Values};
 /// Note: an enum to make supporting a logical `f32` type in the future a bit
 /// simpler.
 pub enum FloatEncoding {
-    F64(Box<dyn ScalarEncoding<f64>>),
+    F64(Box<dyn ScalarEncoding<f64>>, String),
 }
 
 impl FloatEncoding {
     /// The total size in bytes of to store columnar data in memory.
     pub fn size(&self) -> usize {
         match self {
-            Self::F64(enc) => enc.size(),
+            Self::F64(enc, _) => enc.size(),
         }
     }
 
@@ -35,14 +33,14 @@ impl FloatEncoding {
     /// will effectively size each NULL value as 8b if `true`.
     pub fn size_raw(&self, include_nulls: bool) -> usize {
         match self {
-            Self::F64(enc) => enc.size_raw(include_nulls),
+            Self::F64(enc, _) => enc.size_raw(include_nulls),
         }
     }
 
     /// The total number of rows in the column.
     pub fn num_rows(&self) -> u32 {
         match self {
-            Self::F64(enc) => enc.num_rows(),
+            Self::F64(enc, _) => enc.num_rows(),
         }
     }
 
@@ -67,14 +65,14 @@ impl FloatEncoding {
     /// The total number of NULL values in the column.
     pub fn null_count(&self) -> u32 {
         match self {
-            Self::F64(enc) => enc.null_count(),
+            Self::F64(enc, _) => enc.null_count(),
         }
     }
 
     /// Determines if the column contains a non-null value.
     pub fn has_any_non_null_value(&self) -> bool {
         match self {
-            Self::F64(enc) => enc.has_any_non_null_value(),
+            Self::F64(enc, _) => enc.has_any_non_null_value(),
         }
     }
 
@@ -82,14 +80,14 @@ impl FloatEncoding {
     /// provided ordinal offsets.
     pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
         match self {
-            Self::F64(enc) => enc.has_non_null_value(row_ids),
+            Self::F64(enc, _) => enc.has_non_null_value(row_ids),
         }
     }
 
     /// Returns the logical value found at the provided ordinal offset.
     pub fn value(&self, row_id: u32) -> Value<'_> {
         match self {
-            Self::F64(enc) => match enc.value(row_id) {
+            Self::F64(enc, _) => match enc.value(row_id) {
                 Some(v) => Value::Scalar(Scalar::F64(v)),
                 None => Value::Null,
             },
@@ -99,7 +97,7 @@ impl FloatEncoding {
     /// Returns the logical values found at the provided ordinal offsets.
     pub fn values(&self, row_ids: &[u32]) -> Values<'_> {
         match self {
-            Self::F64(enc) => match enc.values(row_ids) {
+            Self::F64(enc, _) => match enc.values(row_ids) {
                 either::Either::Left(values) => Values::F64(values),
                 either::Either::Right(values) => Values::F64N(values),
             },
@@ -109,7 +107,7 @@ impl FloatEncoding {
     /// Returns all logical values in the column.
     pub fn all_values(&self) -> Values<'_> {
         match self {
-            Self::F64(enc) => match enc.all_values() {
+            Self::F64(enc, _) => match enc.all_values() {
                 either::Either::Left(values) => Values::F64(values),
                 either::Either::Right(values) => Values::F64N(values),
             },
@@ -123,7 +121,7 @@ impl FloatEncoding {
     /// `row_ids_filter` will panic if this invariant is broken.
     pub fn row_ids_filter(&self, op: &cmp::Operator, value: &Scalar, dst: RowIDs) -> RowIDs {
         match self {
-            Self::F64(enc) => enc.row_ids_filter(value.as_f64(), op, dst),
+            Self::F64(enc, _) => enc.row_ids_filter(value.as_f64(), op, dst),
         }
     }
 
@@ -139,7 +137,7 @@ impl FloatEncoding {
         dst: RowIDs,
     ) -> RowIDs {
         match self {
-            Self::F64(enc) => {
+            Self::F64(enc, _) => {
                 let left = (low.1.as_f64(), low.0);
                 let right = (high.1.as_f64(), high.0);
                 enc.row_ids_filter_range(left, right, dst)
@@ -149,7 +147,7 @@ impl FloatEncoding {
 
     pub fn min(&self, row_ids: &[u32]) -> Value<'_> {
         match self {
-            Self::F64(enc) => match enc.min(row_ids) {
+            Self::F64(enc, _) => match enc.min(row_ids) {
                 Some(min) => Value::Scalar(Scalar::F64(min)),
                 None => Value::Null,
             },
@@ -158,7 +156,7 @@ impl FloatEncoding {
 
     pub fn max(&self, row_ids: &[u32]) -> Value<'_> {
         match self {
-            Self::F64(enc) => match enc.max(row_ids) {
+            Self::F64(enc, _) => match enc.max(row_ids) {
                 Some(max) => Value::Scalar(Scalar::F64(max)),
                 None => Value::Null,
             },
@@ -167,7 +165,7 @@ impl FloatEncoding {
 
     pub fn sum(&self, row_ids: &[u32]) -> Scalar {
         match self {
-            Self::F64(enc) => match enc.sum(row_ids) {
+            Self::F64(enc, _) => match enc.sum(row_ids) {
                 Some(sum) => Scalar::F64(sum),
                 None => Scalar::Null,
             },
@@ -176,21 +174,21 @@ impl FloatEncoding {
 
     pub fn count(&self, row_ids: &[u32]) -> u32 {
         match self {
-            Self::F64(enc) => enc.count(row_ids),
+            Self::F64(enc, _) => enc.count(row_ids),
         }
     }
 
     /// The name of this encoding.
     pub fn name(&self) -> &'static str {
         match self {
-            Self::F64(enc) => enc.name(),
+            Self::F64(enc, _) => enc.name(),
         }
     }
 
     /// The logical datatype of this encoding.
     pub fn logical_datatype(&self) -> &'static str {
         match self {
-            Self::F64(_) => "f64",
+            Self::F64(_, _) => "f64",
         }
     }
 }
@@ -198,7 +196,7 @@ impl FloatEncoding {
 impl std::fmt::Display for FloatEncoding {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::F64(enc) => write!(f, "[Float]: {}", enc),
+            Self::F64(enc, _) => write!(f, "[Float]: {}", enc),
         }
     }
 }
@@ -227,12 +225,14 @@ impl From<&[f64]> for FloatEncoding {
                 arr.iter().cloned(),
                 NoOpTranscoder {}, // No transcoding of values (store as physical type f64)
             ));
-            return Self::F64(enc);
+            let name = enc.name();
+            return Self::F64(enc, name.to_string());
         }
 
         // Don't apply a compression encoding to the column
         let enc = Box::new(Fixed::<f64, f64, _>::new(arr.to_vec(), NoOpTranscoder {}));
-        Self::F64(enc)
+        let name = enc.name();
+        Self::F64(enc, name.to_owned())
     }
 }
 
@@ -259,7 +259,8 @@ impl From<arrow::array::Float64Array> for FloatEncoding {
                 arr.iter(),
                 NoOpTranscoder {}, // No transcoding of values (store as physical type f64)
             ));
-            return Self::F64(enc);
+            let name = enc.name();
+            return Self::F64(enc, name.to_owned());
         }
 
         // Just store as nullable vector.
@@ -267,7 +268,8 @@ impl From<arrow::array::Float64Array> for FloatEncoding {
             arr,
             NoOpTranscoder {},
         ));
-        Self::F64(enc)
+        let name = enc.name();
+        Self::F64(enc, name.to_owned())
     }
 }
 
