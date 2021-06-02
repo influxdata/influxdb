@@ -8,7 +8,10 @@ use flatbuffers::{FlatBufferBuilder, Follow, ForwardsUOffset, Vector, VectorIter
 use ouroboros::self_referencing;
 use snafu::{OptionExt, ResultExt, Snafu};
 
-use data_types::database_rules::{Error as DataError, Partitioner, ShardId, Sharder};
+use data_types::{
+    database_rules::{Error as DataError, Partitioner, ShardId, Sharder},
+    server_id::ServerId,
+};
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
 
@@ -1188,6 +1191,61 @@ pub struct ClockValueError(InnerClockValueError);
 enum InnerClockValueError {
     #[snafu(display("Clock values must not be zero"))]
     ValueMayNotBeZero,
+}
+
+#[derive(Debug, Snafu)]
+pub enum SequencedEntryError {
+    #[snafu(display("{}", source))]
+    InvalidFlatbuffer {
+        source: flatbuffers::InvalidFlatbuffer,
+    },
+}
+
+#[self_referencing]
+#[derive(Debug)]
+pub struct SequencedEntry {
+    data: Vec<u8>,
+    #[borrows(data)]
+    #[covariant]
+    entry: entry_fb::Entry<'this>,
+    sequencer_id: u32,
+    sequence_number: u64,
+}
+
+impl SequencedEntry {
+    pub fn new_from_process_clock(
+        process_clock: ClockValue,
+        server_id: ServerId,
+        data: &[u8],
+    ) -> Result<Self, SequencedEntryError> {
+        SequencedEntryTryBuilder {
+            data: data.to_vec(),
+            entry_builder: |data| {
+                flatbuffers::root::<entry_fb::Entry<'_>>(data).context(InvalidFlatbuffer)
+            },
+            sequencer_id: server_id.get_u32(),
+            sequence_number: process_clock.get_u64(),
+        }
+        .try_build()
+    }
+
+    pub fn partition_writes(&self) -> Option<Vec<PartitionWrite<'_>>> {
+        match self.borrow_entry().operation_as_write().as_ref() {
+            Some(w) => w
+                .partition_writes()
+                .as_ref()
+                .map(|w| w.iter().map(|fb| PartitionWrite { fb }).collect::<Vec<_>>()),
+            None => None,
+        }
+    }
+
+    pub fn sequencer_id(&self) -> u32 {
+        *self.borrow_sequencer_id()
+    }
+
+    pub fn sequence_number(&self) -> u64 {
+        *self.borrow_sequence_number()
+    }
 }
 
 pub mod test_helpers {
