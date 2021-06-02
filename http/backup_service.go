@@ -162,10 +162,10 @@ func (h *BackupHandler) handleBackupMetadata(w http.ResponseWriter, r *http.Requ
 			},
 		},
 		{
-			"manifest",
-			fmt.Sprintf("%s.manifest", baseName),
+			"buckets",
+			fmt.Sprintf("%s.json", baseName),
 			func(fw io.Writer) error {
-				_, err := io.Copy(fw, strings.NewReader("manifest - to be implemented"))
+				_, err := io.Copy(fw, strings.NewReader("buckets json - to be implemented"))
 				return err
 			},
 		},
