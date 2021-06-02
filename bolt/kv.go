@@ -105,12 +105,12 @@ func (s *KVStore) Close() error {
 	return nil
 }
 
-// LockKVStore locks the database using the mutex. This is intended to lock the database for writes.
+// LockKVStore locks the database for reading during a backup.
 func (s *KVStore) Lock() {
 	s.mu.RLock()
 }
 
-// UnlockKVStore unlocks the database.
+// UnlockKVStore removes the read lock used during a backup.
 func (s *KVStore) Unlock() {
 	s.mu.RUnlock()
 }
