@@ -40,8 +40,7 @@ macro_rules! run_sql_test_case {
     };
 }
 
-/// runs table_names(predicate) and compares it to the expected
-/// output
+/// runs sql and compares it to the expected
 macro_rules! run_sql_explain_test_case {
     ($DB_SETUP:expr, $SQL:expr, $EXPECTED_LINES:expr) => {
         test_helpers::maybe_start_logging();
@@ -613,8 +612,9 @@ async fn sql_predicate_pushdown_correctness() {
         &expected
     );
 
-    // Test 11: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0 and
-    // time > to_timestamp('1970-01-01T00:00:00.000000120+00:00') rewritten to time GT INT(130)
+    // Test 11: four push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0 and
+    // time > to_timestamp('1970-01-01T00:00:00.000000120+00:00') (rewritten to time GT int(130))
+    //
     let expected = vec!["++", "++"];
     run_sql_test_case!(
         TwoMeasurementsPredicatePushDown {},
@@ -705,28 +705,53 @@ async fn sql_predicate_pushdown_explain() {
         &expected
     );
 
-    // Check the plan
+    // Test 2.2: One push-down expression: count > 200.0
     let expected  = vec![
         "+-----------------------------------------+----------------------------------------------------------------------------+",
         "| plan_type                               | plan                                                                       |",
         "+-----------------------------------------+----------------------------------------------------------------------------+",
         "| logical_plan                            | Projection: #count, #system, #time, #town                                  |",
-        "|                                         |   Filter: #count Gt Int64(200)                                             |",
+        "|                                         |   Filter: #count Gt Float64(200)                                           |",
         "|                                         |     TableScan: restaurant projection=None                                  |",
         "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                  |",
-        "|                                         |   Filter: #count Gt Int64(200)                                             |",
+        "|                                         |   Filter: #count Gt Float64(200)                                           |",
         "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
         "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                  |",
-        "|                                         |   Filter: #count Gt Int64(200)                                             |",
+        "|                                         |   Filter: #count Gt Float64(200)                                           |",
         "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
         "| physical_plan                           | ProjectionExec: expr=[count, system, time, town]                           |",
-        "|                                         |   FilterExec: CAST(count AS Int64) > 200                                   |",
+        "|                                         |   FilterExec: CAST(count AS Float64) > 200                                 |",
         "|                                         |     IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate |",
         "+-----------------------------------------+----------------------------------------------------------------------------+",
     ];
     run_sql_explain_test_case!(
         TwoMeasurementsPredicatePushDown {},
-        "EXPLAIN VERBOSE SELECT * from restaurant where count > 200",
+        "EXPLAIN VERBOSE SELECT * from restaurant where count > 200.0",
+        &expected
+    );
+
+    // Test 2.3: One push-down expression: system > 4.0
+    let expected  = vec![
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+        "| plan_type                               | plan                                                                       |",
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+        "| logical_plan                            | Projection: #count, #system, #time, #town                                  |",
+        "|                                         |   Filter: #system Gt Float64(4)                                            |",
+        "|                                         |     TableScan: restaurant projection=None                                  |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                  |",
+        "|                                         |   Filter: #system Gt Float64(4)                                            |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
+        "| logical_plan after projection_push_down | Projection: #count, #system, #time, #town                                  |",
+        "|                                         |   Filter: #system Gt Float64(4)                                            |",
+        "|                                         |     TableScan: restaurant projection=Some([0, 1, 2, 3])                    |",
+        "| physical_plan                           | ProjectionExec: expr=[count, system, time, town]                           |",
+        "|                                         |   FilterExec: system > 4                                                   |",
+        "|                                         |     IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate |",
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+    ];
+    run_sql_explain_test_case!(
+        TwoMeasurementsPredicatePushDown {},
+        "EXPLAIN VERBOSE SELECT * from restaurant where system > 4.0",
         &expected
     );
 
@@ -957,4 +982,111 @@ async fn sql_predicate_pushdown_explain() {
         "EXPLAIN VERBOSE SELECT * from restaurant where 5.0 < system and town != 'tewsbury' and system < 7.0 and (count = 632 or town = 'reading') and time > to_timestamp('1970-01-01T00:00:00.000000130+00:00')",
         &expected
     );
+}
+
+#[tokio::test]
+async fn sql_deduplicate() {
+    // This current expected is wrong because deduplicate is not available yet
+    let sql =
+        "select time, state, city, min_temp, max_temp, area from h2o order by time, state, city";
+    let expected = vec![
+        "+-------------------------------+-------+---------+----------+----------+------+",
+        "| time                          | state | city    | min_temp | max_temp | area |",
+        "+-------------------------------+-------+---------+----------+----------+------+",
+        "| 1970-01-01 00:00:00.000000050 | MA    | Boston  | 70.4     |          |      |",
+        "| 1970-01-01 00:00:00.000000150 | MA    | Bedford |          | 78.75    | 742  |",
+        "| 1970-01-01 00:00:00.000000150 | MA    | Bedford | 71.59    |          |      |", // duplicate
+        "| 1970-01-01 00:00:00.000000250 | MA    | Andover |          | 69.2     |      |",
+        "| 1970-01-01 00:00:00.000000250 | MA    | Boston  |          | 75.4     |      |",
+        "| 1970-01-01 00:00:00.000000250 | MA    | Boston  | 65.4     |          |      |", // duplicate
+        "| 1970-01-01 00:00:00.000000250 | MA    | Reading | 53.4     |          |      |",
+        "| 1970-01-01 00:00:00.000000300 | CA    | SF      | 79       | 87.2     | 500  |",
+        "| 1970-01-01 00:00:00.000000300 | CA    | SJ      | 78.5     | 88       |      |", // duplicate
+        "| 1970-01-01 00:00:00.000000350 | CA    | SJ      | 75.5     | 84.08    |      |",
+        "| 1970-01-01 00:00:00.000000400 | MA    | Bedford |          | 80.75    | 742  |",
+        "| 1970-01-01 00:00:00.000000400 | MA    | Bedford | 65.22    |          | 750  |", // duplicate
+        "| 1970-01-01 00:00:00.000000400 | MA    | Boston  | 65.4     | 82.67    |      |",
+        "| 1970-01-01 00:00:00.000000400 | MA    | Boston  | 68.4     |          |      |", // duplicate
+        "| 1970-01-01 00:00:00.000000450 | CA    | SJ      | 77       | 90.7     |      |",
+        "| 1970-01-01 00:00:00.000000500 | CA    | SJ      | 69.5     | 88.2     |      |",
+        "| 1970-01-01 00:00:00.000000600 | MA    | Bedford |          | 88.75    | 742  |",
+        "| 1970-01-01 00:00:00.000000600 | MA    | Boston  | 67.4     |          |      |",
+        "| 1970-01-01 00:00:00.000000600 | MA    | Reading | 60.4     |          |      |",
+        "| 1970-01-01 00:00:00.000000650 | CA    | SF      | 68.4     | 85.7     | 500  |",
+        "| 1970-01-01 00:00:00.000000650 | CA    | SJ      | 69.5     | 89.2     |      |",
+        "| 1970-01-01 00:00:00.000000700 | CA    | SJ      | 75.5     | 84.08    |      |",
+        "+-------------------------------+-------+---------+----------+----------+------+",
+    ];
+    run_sql_test_case!(OneMeasurementThreeChunksWithDuplicates {}, sql, &expected);
+
+    // Plan with order by
+    let expected = vec![
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+        "| plan_type                               | plan                                                                       |",
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+        "| logical_plan                            | Sort: #time ASC NULLS FIRST, #state ASC NULLS FIRST, #city ASC NULLS FIRST |",
+        "|                                         |   Projection: #time, #state, #city, #min_temp, #max_temp, #area            |",
+        "|                                         |     TableScan: h2o projection=None                                         |",
+        "| logical_plan after projection_push_down | Sort: #time ASC NULLS FIRST, #state ASC NULLS FIRST, #city ASC NULLS FIRST |",
+        "|                                         |   Projection: #time, #state, #city, #min_temp, #max_temp, #area            |",
+        "|                                         |     TableScan: h2o projection=Some([0, 1, 2, 3, 4, 5])                     |",
+        "| logical_plan after projection_push_down | Sort: #time ASC NULLS FIRST, #state ASC NULLS FIRST, #city ASC NULLS FIRST |",
+        "|                                         |   Projection: #time, #state, #city, #min_temp, #max_temp, #area            |",
+        "|                                         |     TableScan: h2o projection=Some([0, 1, 2, 3, 4, 5])                     |",
+        "| physical_plan                           | SortExec: [time ASC,state ASC,city ASC]                                    |",
+        "|                                         |   ProjectionExec: expr=[time, state, city, min_temp, max_temp, area]       |",
+        "|                                         |     IOxReadFilterNode: table_name=h2o, chunks=4 predicate=Predicate        |",
+        "+-----------------------------------------+----------------------------------------------------------------------------+",
+    ];
+    let sql = "explain verbose select time, state, city, min_temp, max_temp, area from h2o order by time, state, city";
+    run_sql_explain_test_case!(OneMeasurementThreeChunksWithDuplicates {}, sql, &expected);
+
+    // plan without order by
+    let expected = vec![
+        "+-----------------------------------------+--------------------------------------------------------------------+",
+        "| plan_type                               | plan                                                               |",
+        "+-----------------------------------------+--------------------------------------------------------------------+",
+        "| logical_plan                            | Projection: #time, #state, #city, #min_temp, #max_temp, #area      |",
+        "|                                         |   TableScan: h2o projection=None                                   |",
+        "| logical_plan after projection_push_down | Projection: #time, #state, #city, #min_temp, #max_temp, #area      |",
+        "|                                         |   TableScan: h2o projection=Some([0, 1, 2, 3, 4, 5])               |",
+        "| logical_plan after projection_push_down | Projection: #time, #state, #city, #min_temp, #max_temp, #area      |",
+        "|                                         |   TableScan: h2o projection=Some([0, 1, 2, 3, 4, 5])               |",
+        "| physical_plan                           | ProjectionExec: expr=[time, state, city, min_temp, max_temp, area] |",
+        "|                                         |   IOxReadFilterNode: table_name=h2o, chunks=4 predicate=Predicate  |",
+        "+-----------------------------------------+--------------------------------------------------------------------+",
+    ];
+    let sql = "explain verbose select time, state, city, min_temp, max_temp, area from h2o";
+    run_sql_explain_test_case!(OneMeasurementThreeChunksWithDuplicates {}, sql, &expected);
+
+    // Union plan
+    let sql =
+        "EXPLAIN VERBOSE select state as name from h2o UNION ALL select city as name from h2o";
+    let expected = vec![
+        "+-----------------------------------------+---------------------------------------------------------------------+",
+        "| plan_type                               | plan                                                                |",
+        "+-----------------------------------------+---------------------------------------------------------------------+",
+        "| logical_plan                            | Union                                                               |",
+        "|                                         |   Projection: #state AS name                                        |",
+        "|                                         |     TableScan: h2o projection=None                                  |",
+        "|                                         |   Projection: #city AS name                                         |",
+        "|                                         |     TableScan: h2o projection=None                                  |",
+        "| logical_plan after projection_push_down | Union                                                               |",
+        "|                                         |   Projection: #state AS name                                        |",
+        "|                                         |     TableScan: h2o projection=Some([4])                             |",
+        "|                                         |   Projection: #city AS name                                         |",
+        "|                                         |     TableScan: h2o projection=Some([1])                             |",
+        "| logical_plan after projection_push_down | Union                                                               |",
+        "|                                         |   Projection: #state AS name                                        |",
+        "|                                         |     TableScan: h2o projection=Some([4])                             |",
+        "|                                         |   Projection: #city AS name                                         |",
+        "|                                         |     TableScan: h2o projection=Some([1])                             |",
+        "| physical_plan                           | ExecutionPlan(PlaceHolder)                                          |",
+        "|                                         |   ProjectionExec: expr=[state as name]                              |",
+        "|                                         |     IOxReadFilterNode: table_name=h2o, chunks=4 predicate=Predicate |",
+        "|                                         |   ProjectionExec: expr=[city as name]                               |",
+        "|                                         |     IOxReadFilterNode: table_name=h2o, chunks=4 predicate=Predicate |",
+        "+-----------------------------------------+---------------------------------------------------------------------+",
+    ];
+    run_sql_explain_test_case!(OneMeasurementThreeChunksWithDuplicates {}, sql, &expected);
 }

@@ -296,7 +296,7 @@ impl PartitionChunk for DbChunk {
         // Predicate is not required to be applied for correctness. We only pushed it down
         // when possible for performance gain
 
-        debug!("Input Predicate to read_filter: {:#?}", predicate);
+        debug!(?predicate, "Input Predicate to read_filter");
 
         match &self.state {
             State::MutableBuffer { chunk, .. } => {
@@ -311,6 +311,8 @@ impl PartitionChunk for DbChunk {
                         Ok(predicate) => predicate,
                         Err(_) => read_buffer::Predicate::default(),
                     };
+
+                debug!(?rb_predicate, "Predicate pushed down to RUB");
 
                 let read_results = chunk
                     .read_filter(table_name, rb_predicate, selection)
