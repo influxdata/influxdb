@@ -300,9 +300,7 @@ impl PartitionChunk for DbChunk {
 
         match &self.state {
             State::MutableBuffer { chunk, .. } => {
-                let batch = chunk
-                    .read_filter(table_name, selection)
-                    .context(MutableBufferChunk)?;
+                let batch = chunk.read_filter(selection).context(MutableBufferChunk)?;
 
                 Ok(Box::pin(MemoryStream::new(vec![batch])))
             }
@@ -333,11 +331,13 @@ impl PartitionChunk for DbChunk {
                     schema.into(),
                 )))
             }
-            State::ParquetFile { chunk, .. } => chunk
-                .read_filter(table_name, predicate, selection)
-                .context(ParquetFileChunkError {
-                    chunk_id: self.id(),
-                }),
+            State::ParquetFile { chunk, .. } => {
+                chunk
+                    .read_filter(predicate, selection)
+                    .context(ParquetFileChunkError {
+                        chunk_id: self.id(),
+                    })
+            }
         }
     }
 
@@ -353,7 +353,7 @@ impl PartitionChunk for DbChunk {
                     // TODO: Support predicates
                     return Ok(None);
                 }
-                Ok(chunk.column_names(table_name, columns))
+                Ok(chunk.column_names(columns))
             }
             State::ReadBuffer { chunk, .. } => {
                 let rb_predicate = match to_read_buffer_predicate(&predicate) {

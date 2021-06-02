@@ -6,7 +6,7 @@ use arrow::{
     datatypes::{DataType, Int32Type},
     record_batch::RecordBatch,
 };
-use snafu::{ensure, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 
 use data_types::partition_metadata::TableSummary;
 use data_types::timestamp::TimestampRange;
@@ -73,13 +73,7 @@ impl ChunkSnapshot {
     }
 
     /// Return Schema for the specified table / columns
-    pub fn table_schema(&self, table_name: &str, selection: Selection<'_>) -> Result<Schema> {
-        // Temporary #1295
-        ensure!(
-            self.table_name.as_ref() == table_name,
-            TableNotFound { table_name }
-        );
-
+    pub fn table_schema(&self, selection: Selection<'_>) -> Result<Schema> {
         Ok(match selection {
             Selection::All => self.schema.as_ref().clone(),
             Selection::Some(columns) => {
@@ -104,13 +98,7 @@ impl ChunkSnapshot {
     }
 
     /// Returns a RecordBatch with the given selection
-    pub fn read_filter(&self, table_name: &str, selection: Selection<'_>) -> Result<RecordBatch> {
-        // Temporary #1295
-        ensure!(
-            self.table_name.as_ref() == table_name,
-            TableNotFound { table_name }
-        );
-
+    pub fn read_filter(&self, selection: Selection<'_>) -> Result<RecordBatch> {
         Ok(match selection {
             Selection::All => self.batch.clone(),
             Selection::Some(columns) => {
@@ -127,16 +115,7 @@ impl ChunkSnapshot {
     }
 
     /// Returns a given selection of column names from a table
-    pub fn column_names(
-        &self,
-        table_name: &str,
-        selection: Selection<'_>,
-    ) -> Option<BTreeSet<String>> {
-        // Temporary #1295
-        if self.table_name.as_ref() != table_name {
-            return None;
-        }
-
+    pub fn column_names(&self, selection: Selection<'_>) -> Option<BTreeSet<String>> {
         let fields = self.schema.inner().fields().iter();
 
         Some(match selection {
