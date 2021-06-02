@@ -221,7 +221,7 @@ impl From<&[f64]> for FloatEncoding {
         // The number of rows we would reduce the column by if we encoded it
         // as RLE.
         let base_size = arr.len() * size_of::<f64>();
-        let rle_size = rle::estimated_size_from(arr); // size of a run length
+        let rle_size = rle::estimate_rle_size(arr.iter().map(Some)); // size of a run length
         if (base_size as f64 - rle_size as f64) / base_size as f64 >= MIN_RLE_SIZE_REDUCTION {
             let enc = Box::new(RLE::new_from_iter(
                 arr.iter().cloned(),
@@ -253,7 +253,7 @@ impl From<arrow::array::Float64Array> for FloatEncoding {
         // The number of rows we would reduce the column by if we encoded it
         // as RLE.
         let base_size = arr.len() * size_of::<f64>();
-        let rle_size = rle::estimated_size_from_iter(arr.iter()); // size of a run length
+        let rle_size = rle::estimate_rle_size(arr.iter()); // size of a run length
         if (base_size as f64 - rle_size as f64) / base_size as f64 >= MIN_RLE_SIZE_REDUCTION {
             let enc = Box::new(RLE::new_from_iter_opt(
                 arr.iter(),

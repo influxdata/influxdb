@@ -257,8 +257,14 @@ pub const MIN_RLE_SIZE_REDUCTION: f64 = 0.1; // 10%
 // Applies a heuristic to decide whether the input data should be encoded using
 // run-length encoding.
 fn should_rle_from<T: PartialOrd>(arr: &[T]) -> bool {
-    let base_size = arr.len() * size_of::<T>();
-    (base_size as f64 - rle::estimated_size_from(arr) as f64) / base_size as f64
+    should_rle_from_iter(arr.len(), arr.iter().map(Some))
+}
+
+// Applies a heuristic to decide whether the input data should be encoded using
+// run-length encoding.
+fn should_rle_from_iter<T: PartialOrd>(len: usize, iter: impl Iterator<Item = Option<T>>) -> bool {
+    let base_size = len * size_of::<T>();
+    (base_size as f64 - rle::estimate_rle_size(iter) as f64) / base_size as f64
         >= MIN_RLE_SIZE_REDUCTION
 }
 
@@ -387,14 +393,6 @@ impl From<&[i64]> for IntegerEncoding {
         };
         Self::I64(enc, name)
     }
-}
-
-// Applies a heuristic to decide whether the input data should be encoded using
-// run-length encoding.
-fn should_rle_from_iter<T: PartialOrd>(len: usize, iter: impl Iterator<Item = Option<T>>) -> bool {
-    let base_size = len * size_of::<T>();
-    (base_size as f64 - rle::estimated_size_from_iter(iter) as f64) / base_size as f64
-        >= MIN_RLE_SIZE_REDUCTION
 }
 
 /// Converts an Arrow array into an IntegerEncoding.
@@ -1097,7 +1095,7 @@ mod test {
                         .chain(vec![-200_000_i64; 1000])
                         .collect::<Vec<i64>>(),
                 ),
-                // byte trimmed to i16 then RLE.
+                // byte trimmed to i32 then RLE.
                 "BT_I32-RLE",
             ),
             (
@@ -1226,7 +1224,7 @@ mod test {
                         .chain(vec![200_000_u64; 1000])
                         .collect::<Vec<u64>>(),
                 ),
-                // byte trimmed to u16 then RLE.
+                // byte trimmed to u32 then RLE.
                 "BT_U32-RLE",
             ),
             (
