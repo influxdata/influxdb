@@ -573,6 +573,32 @@ where
     }
 }
 
+// Calculate an estimation for the size in bytes for an input iterator
+// yielding `Option<T>`, were it to be run-length encoded.
+pub fn estimate_rle_size<I, T>(mut itr: I) -> usize
+where
+    I: Iterator<Item = Option<T>>,
+    T: PartialOrd,
+{
+    let mut v = match itr.next() {
+        Some(v) => v,
+        None => return 0,
+    };
+
+    let mut total_rows = 0;
+    for next in itr {
+        if let Some(Ordering::Equal) = v.partial_cmp(&next) {
+            continue;
+        }
+
+        total_rows += 1;
+        v = next;
+    }
+
+    // +1 to account for original run
+    (total_rows + 1) * size_of::<(u32, Option<T>)>() + size_of::<Vec<(u32, Option<T>)>>()
+}
+
 #[cfg(test)]
 mod test {
     use cmp::Operator;
@@ -973,5 +999,31 @@ mod test {
             assert_eq!(dst.unwrap_vector(), &exp);
         }
         assert_eq!(transcoder.encodings(), calls * 2);
+    }
+
+    #[test]
+    fn estimate_rle_size() {
+        let cases = vec![
+            (vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 0.0], 192),
+            (vec![0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], 240),
+            (vec![0.0, 0.0], 48),
+            (vec![1.0, 2.0, 1.0], 96),
+            (vec![1.0, 2.0, 1.0, 1.0], 96),
+            (vec![1.0], 48),
+        ];
+
+        for (input, exp) in cases {
+            assert_eq!(super::estimate_rle_size(input.into_iter().map(Some)), exp);
+        }
+
+        // With `Option<T>`
+        let cases = vec![
+            (vec![Some(0.0), Some(2.0), Some(1.0)], 96),
+            (vec![Some(0.0), Some(0.0)], 48),
+        ];
+
+        for (input, exp) in cases {
+            assert_eq!(super::estimate_rle_size(input.into_iter()), exp);
+        }
     }
 }

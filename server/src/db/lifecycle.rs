@@ -9,7 +9,7 @@ use data_types::{database_rules::LifecycleRules, error::ErrorLogger, job::Job};
 use tracker::{RwLock, TaskTracker};
 
 use super::{
-    catalog::chunk::{Chunk, ChunkStage, ChunkStageFrozen, ChunkStageFrozenRepr},
+    catalog::chunk::{Chunk, ChunkStage, ChunkStageFrozenRepr},
     Db,
 };
 use data_types::database_rules::SortOrder;
@@ -132,7 +132,7 @@ trait ChunkMover {
             }
 
             match chunk_guard.stage() {
-                ChunkStage::Open(_) => {
+                ChunkStage::Open { .. } => {
                     open_partitions.insert(chunk_guard.key().to_string());
                     if move_tracker.is_none() && would_move {
                         let partition_key = chunk_guard.key().to_string();
@@ -145,7 +145,7 @@ trait ChunkMover {
                             Some(self.move_to_read_buffer(partition_key, table_name, chunk_id));
                     }
                 }
-                ChunkStage::Frozen(stage) => match &stage.representation {
+                ChunkStage::Frozen { representation, .. } => match &representation {
                     ChunkStageFrozenRepr::MutableBufferSnapshot(_) if move_tracker.is_none() => {
                         let partition_key = chunk_guard.key().to_string();
                         let table_name = chunk_guard.table_name().to_string();
@@ -156,7 +156,7 @@ trait ChunkMover {
                         move_tracker =
                             Some(self.move_to_read_buffer(partition_key, table_name, chunk_id));
                     }
-                    ChunkStageFrozenRepr::ReadBuffer(_) if would_write => {
+                    ChunkStageFrozenRepr::ReadBuffer { .. } if would_write => {
                         let partition_key = chunk_guard.key().to_string();
                         let table_name = chunk_guard.table_name().to_string();
                         let chunk_id = chunk_guard.id();
@@ -197,12 +197,12 @@ trait ChunkMover {
                         if (rules.drop_non_persisted
                             && matches!(
                                 chunk_guard.stage(),
-                                ChunkStage::Frozen(ChunkStageFrozen {
+                                ChunkStage::Frozen {
                                     representation: ChunkStageFrozenRepr::ReadBuffer(_),
-                                    meta: _,
-                                })
+                                    ..
+                                }
                             ))
-                            || matches!(chunk_guard.stage(), ChunkStage::Persisted(_))
+                            || matches!(chunk_guard.stage(), ChunkStage::Persisted { .. })
                         {
                             let partition_key = chunk_guard.key().to_string();
                             let table_name = chunk_guard.table_name().to_string();
@@ -416,7 +416,7 @@ mod tests {
 
     /// Transitions a new ("open") chunk into the "moving" state.
     fn transition_to_moving(mut chunk: Chunk) -> Chunk {
-        chunk.set_closed().unwrap();
+        chunk.freeze().unwrap();
         chunk.set_moving(&Default::default()).unwrap();
         chunk
     }
@@ -907,7 +907,7 @@ mod tests {
         mover.check_for_work(from_secs(80));
         assert_eq!(mover.events, vec![]);
 
-        mover.chunks[0].write().set_closed().unwrap();
+        mover.chunks[0].write().freeze().unwrap();
 
         // As soon as closed can move
         mover.check_for_work(from_secs(80));

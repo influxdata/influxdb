@@ -358,12 +358,11 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         //  . no duplicates in its own chunk
         let lp_lines = vec![
             "h2o,state=MA,city=Bedford max_temp=78.75,area=742u 150", // new field (area) and update available NULL (max_temp)
-            "h2o,state=MA,city=Boston min_temp=65.4 250", // update min_temp from NULL
+            "h2o,state=MA,city=Boston min_temp=65.4 250",             // update min_temp from NULL
             "h2o,state=MA,city=Reading min_temp=53.4, 250",
             "h2o,state=CA,city=SF min_temp=79.0,max_temp=87.2,area=500u 300",
             "h2o,state=CA,city=SJ min_temp=78.5,max_temp=88.0 300",
             "h2o,state=CA,city=SJ min_temp=75.5,max_temp=84.08 350",
-
         ];
         write_lp(&db, &lp_lines.join("\n"));
         db.rollover_partition(partition_key, "h2o").await.unwrap();
@@ -377,7 +376,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         let lp_lines = vec![
             "h2o,state=MA,city=Bedford max_temp=80.75,area=742u 400",
             "h2o,state=MA,city=Boston min_temp=68.4 400",
-            "h2o,state=MA,city=Bedford min_temp=65.22,area=750u 400",  // duplicate
+            "h2o,state=MA,city=Bedford min_temp=65.22,area=750u 400", // duplicate
             "h2o,state=MA,city=Boston min_temp=65.40,max_temp=82.67 400", // duplicate
             "h2o,state=CA,city=SJ min_temp=77.0,max_temp=90.7 450",
             "h2o,state=CA,city=SJ min_temp=69.5,max_temp=88.2 500",
@@ -404,7 +403,6 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         db.load_chunk_to_read_buffer(partition_key, "h2o", 3, &Default::default())
             .await
             .unwrap();
-        
 
         vec![DbScenario {
             scenario_name: "Data in open chunk of mutable buffer and read buffer".into(),
@@ -412,7 +410,6 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         }]
     }
 }
-
 
 #[derive(Debug)]
 /// This has a single scenario with all the life cycle operations to

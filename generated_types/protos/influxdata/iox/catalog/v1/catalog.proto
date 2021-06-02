@@ -1,6 +1,8 @@
 syntax = "proto3";
 package influxdata.iox.catalog.v1;
 
+import "google/protobuf/timestamp.proto";
+
 // Path for object store interaction.
 message Path {
     // Directory hierarchy.
@@ -69,4 +71,9 @@ message Transaction {
 
     // UUID of last commit.
     string previous_uuid = 5;
+
+    // Start timestamp.
+    //
+    // Timestamp of the start of the transaction.
+    google.protobuf.Timestamp start_timestamp = 6;
 }
