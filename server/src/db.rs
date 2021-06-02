@@ -602,7 +602,7 @@ impl Db {
         // load table into the new chunk one by one.
         debug!(%partition_key, %table_name, %chunk_id, table=%table_summary.name, "loading table to read buffer");
         let batch = mb_chunk
-            .read_filter(table_name, Selection::All)
+            .read_filter(Selection::All)
             // It is probably reasonable to recover from this error
             // (reset the chunk state to Open) but until that is
             // implemented (and tested) just panic

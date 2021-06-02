@@ -111,11 +111,6 @@ impl Chunk {
         self.table.name()
     }
 
-    /// Return true if this chunk includes the given table
-    pub fn has_table(&self, table_name: &str) -> bool {
-        self.table_name() == table_name
-    }
-
     /// Return the approximate memory size of the chunk, in bytes including the
     /// dictionary, tables, and their rows.
     pub fn size(&self) -> usize {
@@ -148,13 +143,14 @@ impl Chunk {
     /// Return stream of data read from parquet file of the given table
     pub fn read_filter(
         &self,
-        table_name: &str,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream> {
         self.table
             .read_filter(predicate, selection)
-            .context(ReadParquet { table_name })
+            .context(ReadParquet {
+                table_name: self.table_name(),
+            })
     }
 
     /// The total number of rows in all row groups in all tables in this chunk.
