@@ -137,6 +137,14 @@ func (h *BackupHandler) handleBackupMetadata(w http.ResponseWriter, r *http.Requ
 
 	ctx := r.Context()
 
+	// Lock the sqlite and bolt databases prior to writing the response to prevent
+	// data inconsistencies.
+	h.BackupService.LockKVStore()
+	defer h.BackupService.UnlockKVStore()
+
+	h.SqlBackupRestoreService.LockSqlStore()
+	defer h.SqlBackupRestoreService.UnlockSqlStore()
+
 	baseName := time.Now().UTC().Format(influxdb.BackupFilenamePattern)
 
 	dataWriter := multipart.NewWriter(w)
@@ -267,3 +275,7 @@ func (s *BackupService) BackupShard(ctx context.Context, w io.Writer, shardID ui
 	}
 	return resp.Body.Close()
 }
+
+// LockKVStore & UnlockKVStore are not implemented for the client.
+func (s *BackupService) LockKVStore()   {}
+func (s *BackupService) UnlockKVStore() {}

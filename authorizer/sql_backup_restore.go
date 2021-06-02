@@ -42,3 +42,16 @@ func (s SqlBackupRestoreService) RestoreSqlStore(ctx context.Context, r io.Reade
 	}
 	return s.s.RestoreSqlStore(ctx, r)
 }
+
+// The Lock and Unlock methods below do not have authorization checks and should only be used
+// when appropriate authorization has already been confirmed, such as behind a middleware. They
+// are intended to be used for coordinating the locking and unlocking of the kv and sql metadata
+// databases during a backup. They are made available here to allow the calls to pass-through to the
+// underlying service.
+func (s SqlBackupRestoreService) LockSqlStore() {
+	s.s.LockSqlStore()
+}
+
+func (s SqlBackupRestoreService) UnlockSqlStore() {
+	s.s.UnlockSqlStore()
+}

@@ -37,9 +37,21 @@ func TestBackupMetaService(t *testing.T) {
 		BackupKVStore(gomock.Any(), gomock.Any()).
 		Return(nil)
 
+	backupSvc.EXPECT().
+		LockKVStore()
+
+	backupSvc.EXPECT().
+		UnlockKVStore()
+
 	sqlBackupSvc.EXPECT().
 		BackupSqlStore(gomock.Any(), gomock.Any()).
 		Return(nil)
+
+	sqlBackupSvc.EXPECT().
+		LockSqlStore()
+
+	sqlBackupSvc.EXPECT().
+		UnlockSqlStore()
 
 	h.handleBackupMetadata(rr, r)
 	rs := rr.Result()

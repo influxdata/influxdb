@@ -105,6 +105,16 @@ func (s *KVStore) Close() error {
 	return nil
 }
 
+// LockKVStore locks the database using the mutex. This is intended to lock the database for writes.
+func (s *KVStore) Lock() {
+	s.mu.Lock()
+}
+
+// UnlockKVStore unlocks the database.
+func (s *KVStore) Unlock() {
+	s.mu.Unlock()
+}
+
 // DB returns a reference to the current Bolt database.
 func (s *KVStore) DB() *bolt.DB {
 	s.mu.RLock()
@@ -198,7 +208,10 @@ func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	return s.DB().View(func(tx *bolt.Tx) error {
+	// We need to use s.db here to called View directly on the db rather than the DB() method,
+	// because the DB() method will try to acquire a lock. This will result in a deadlock when
+	// trying to do the backup, because the DB is locked separately in the backup handler.
+	return s.db.View(func(tx *bolt.Tx) error {
 		_, err := tx.WriteTo(w)
 		return err
 	})

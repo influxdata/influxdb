@@ -76,6 +76,17 @@ func (s *SqlStore) Close() error {
 	return nil
 }
 
+// LockSqlStore locks the database using the mutex. This is intended to lock the database for writes.
+// It is the responsibilty of implementing service code to manage locks for write operations.
+func (s *SqlStore) LockSqlStore() {
+	s.Mu.Lock()
+}
+
+// UnlockSqlStore unlocks the database.
+func (s *SqlStore) UnlockSqlStore() {
+	s.Mu.Unlock()
+}
+
 // Flush deletes all records for all tables in the database.
 func (s *SqlStore) Flush(ctx context.Context) {
 	tables, err := s.tableNames()
