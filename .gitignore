@@ -13,6 +13,7 @@ vendor
 # binary databases
 influxd.bolt
 *.db
+*.sqlite
 
 # GPG private keys
 private.key

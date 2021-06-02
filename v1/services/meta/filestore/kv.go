@@ -32,6 +32,15 @@ func (s *KVStore) Update(ctx context.Context, f func(kv.Tx) error) error {
 	return f(&Tx{kv: s, ctx: ctx, writable: true})
 }
 
+// Lock and unlock are only used when doing a backup, so panic if they are called here.
+func (s *KVStore) Lock() {
+	panic("not implemented")
+}
+
+func (s *KVStore) Unlock() {
+	panic("not implemented")
+}
+
 func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
 	panic("not implemented")
 }

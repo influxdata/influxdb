@@ -1036,6 +1036,14 @@ func (c *Client) Load() error {
 	})
 }
 
+func (c *Client) Lock() {
+	c.store.Lock()
+}
+
+func (c *Client) Unlock() {
+	c.store.Unlock()
+}
+
 func (c *Client) Backup(ctx context.Context, w io.Writer) error {
 	return c.store.Backup(ctx, w)
 }
