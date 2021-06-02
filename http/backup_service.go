@@ -139,8 +139,8 @@ func (h *BackupHandler) handleBackupMetadata(w http.ResponseWriter, r *http.Requ
 
 	baseName := time.Now().UTC().Format(influxdb.BackupFilenamePattern)
 
-	formWriter := multipart.NewWriter(w)
-	w.Header().Set("Content-Type", formWriter.FormDataContentType())
+	dataWriter := multipart.NewWriter(w)
+	w.Header().Set("Content-Type", "multipart/mixed; boundary="+dataWriter.Boundary())
 
 	parts := []struct {
 		fieldname string
@@ -148,14 +148,14 @@ func (h *BackupHandler) handleBackupMetadata(w http.ResponseWriter, r *http.Requ
 		writeFn   func(io.Writer) error
 	}{
 		{
-			"bolt",
+			"kv",
 			fmt.Sprintf("%s.bolt", baseName),
 			func(fw io.Writer) error {
 				return h.BackupService.BackupKVStore(ctx, fw)
 			},
 		},
 		{
-			"sqlite",
+			"sql",
 			fmt.Sprintf("%s.sqlite", baseName),
 			func(fw io.Writer) error {
 				return h.SqlBackupRestoreService.BackupSqlStore(ctx, fw)
@@ -172,7 +172,7 @@ func (h *BackupHandler) handleBackupMetadata(w http.ResponseWriter, r *http.Requ
 	}
 
 	for _, p := range parts {
-		fw, err := formWriter.CreateFormFile(p.fieldname, p.filename)
+		fw, err := dataWriter.CreateFormFile(p.fieldname, p.filename)
 		if err != nil {
 			h.HandleHTTPError(ctx, err, w)
 			return
@@ -184,7 +184,7 @@ func (h *BackupHandler) handleBackupMetadata(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	if err := formWriter.Close(); err != nil {
+	if err := dataWriter.Close(); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}

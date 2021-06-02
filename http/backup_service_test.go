@@ -67,8 +67,8 @@ func TestBackupMetaService(t *testing.T) {
 
 	// wants is a map of form names with the expected extension of the file for that part
 	wants := map[string]string{
-		"bolt":     ".bolt",
-		"sqlite":   ".sqlite",
+		"kv":       ".bolt",
+		"sql":      ".sqlite",
 		"manifest": ".manifest",
 	}
 
