@@ -98,12 +98,14 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Can not add an empty chunk to the catalog {}:{}",
+        "Cannot add an empty chunk to the catalog {}:{}:{}",
         partition_key,
+        table_name,
         chunk_id
     ))]
     ChunkIsEmpty {
         partition_key: String,
+        table_name: String,
         chunk_id: u32,
     },
 

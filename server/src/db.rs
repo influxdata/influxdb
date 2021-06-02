@@ -470,7 +470,7 @@ impl Db {
             })?
         {
             let mut chunk = chunk.write();
-            chunk.set_closed().context(RollingOverPartition {
+            chunk.freeze().context(RollingOverPartition {
                 partition_key,
                 table_name,
             })?;
@@ -1091,7 +1091,7 @@ fn check_chunk_closed(chunk: &mut CatalogChunk, mutable_size_threshold: Option<N
             let size = mb_chunk.size();
 
             if size > threshold.get() {
-                chunk.set_closed().expect("cannot close open chunk");
+                chunk.freeze().expect("cannot close open chunk");
             }
         }
     }
@@ -1299,9 +1299,7 @@ mod tests {
         test_helpers::{try_write_lp, write_lp},
         *,
     };
-    use crate::db::catalog::chunk::{
-        ChunkStage, ChunkStageFrozen, ChunkStageFrozenRepr, ChunkStagePersisted,
-    };
+    use crate::db::catalog::chunk::{ChunkStage, ChunkStageFrozenRepr};
     use crate::query_tests::utils::{make_db, TestDb};
     use ::test_helpers::assert_contains;
     use arrow::record_batch::RecordBatch;
@@ -2095,17 +2093,17 @@ mod tests {
         assert_eq!(chunks.len(), 2);
         assert!(matches!(
             chunks[0].read().stage(),
-            ChunkStage::Frozen(ChunkStageFrozen {
-                meta: _,
-                representation: ChunkStageFrozenRepr::MutableBufferSnapshot(_)
-            })
+            ChunkStage::Frozen {
+                representation: ChunkStageFrozenRepr::MutableBufferSnapshot(_),
+                ..
+            }
         ));
         assert!(matches!(
             chunks[1].read().stage(),
-            ChunkStage::Frozen(ChunkStageFrozen {
-                meta: _,
-                representation: ChunkStageFrozenRepr::MutableBufferSnapshot(_)
-            })
+            ChunkStage::Frozen {
+                representation: ChunkStageFrozenRepr::MutableBufferSnapshot(_),
+                ..
+            }
         ));
     }
 
@@ -2902,8 +2900,8 @@ mod tests {
                 partition.chunk(table_name, *chunk_id).unwrap()
             };
             let chunk = chunk.read();
-            if let ChunkStage::Persisted(stage) = chunk.stage() {
-                paths_expected.push(stage.parquet.table_path().display());
+            if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
+                paths_expected.push(parquet.table_path().display());
             } else {
                 panic!("Wrong chunk state.");
             }
@@ -2953,11 +2951,10 @@ mod tests {
             let chunk = chunk.read();
             assert!(matches!(
                 chunk.stage(),
-                ChunkStage::Persisted(ChunkStagePersisted {
-                    parquet: _,
+                ChunkStage::Persisted {
                     read_buffer: None,
-                    meta: _,
-                })
+                    ..
+                }
             ));
         }
 
@@ -2995,8 +2992,8 @@ mod tests {
                 partition.chunk(table_name.clone(), chunk_id).unwrap()
             };
             let chunk = chunk.read();
-            if let ChunkStage::Persisted(stage) = chunk.stage() {
-                paths_keep.push(stage.parquet.table_path());
+            if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
+                paths_keep.push(parquet.table_path());
             } else {
                 panic!("Wrong chunk state.");
             }
