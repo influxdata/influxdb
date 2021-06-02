@@ -184,6 +184,9 @@ message DatabaseRules {
     // Routing config
     RoutingConfig routing_config = 9;
   }
+
+  // Duration for which the cleanup loop should sleep on avarage.
+  google.protobuf.Duration worker_cleanup_avg_sleep = 10;
 }
 
 message RoutingConfig {

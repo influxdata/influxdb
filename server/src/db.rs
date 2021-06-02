@@ -41,6 +41,7 @@ use parquet_file::{
 };
 use query::predicate::{Predicate, PredicateBuilder};
 use query::{exec::Executor, Database, DEFAULT_SCHEMA};
+use rand_distr::{Distribution, Poisson};
 use read_buffer::{Chunk as ReadBufferChunk, ChunkMetrics as ReadBufferChunkMetrics};
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -953,10 +954,17 @@ impl Db {
                         .fetch_add(1, Ordering::Relaxed);
                     tokio::select! {
                         _ = async {
+                            // Sleep for a duration drawn from a poisson distribution to de-correlate workers.
+                            // Perform this sleep BEFORE the actual clean-up so that we don't immediately run a clean-up
+                            // on startup.
+                            let dist = Poisson::new(self.rules.read().worker_cleanup_avg_sleep.as_secs_f32().max(1.0)).expect("parameter should be positive and finite");
+                            let duration = Duration::from_secs_f32(dist.sample(&mut rand::thread_rng()));
+                            debug!(?duration, "cleanup worker sleeps");
+                            tokio::time::sleep(duration).await;
+
                             if let Err(e) = cleanup_unreferenced_parquet_files(&self.catalog).await {
                                 error!(%e, "error in background cleanup task");
                             }
-                            tokio::time::sleep(Duration::from_secs(500)).await;
                         } => {},
                         _ = shutdown.cancelled() => break,
                     }
