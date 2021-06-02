@@ -866,6 +866,7 @@ where
             }
             .fail()?;
         }
+        // verify we can parse the timestamp (checking that no error is raised)
         parse_timestamp(&proto.start_timestamp)?;
 
         // apply
