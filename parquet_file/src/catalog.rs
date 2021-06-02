@@ -1828,6 +1828,7 @@ mod tests {
     struct TestTrace {
         tkeys: Vec<TransactionKey>,
         states: Vec<TestCatalogState>,
+        post_timestamps: Vec<DateTime<Utc>>,
     }
 
     impl TestTrace {
@@ -1835,6 +1836,7 @@ mod tests {
             Self {
                 tkeys: vec![],
                 states: vec![],
+                post_timestamps: vec![],
             }
         }
 
@@ -1842,6 +1844,7 @@ mod tests {
             self.tkeys
                 .push(catalog.inner.read().previous_tkey.clone().unwrap());
             self.states.push(catalog.state().deref().clone());
+            self.post_timestamps.push(Utc::now());
         }
     }
 
@@ -2153,13 +2156,28 @@ mod tests {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let db_name = "db1";
-        assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
 
+        let ts = find_last_transaction_timestamp(&object_store, server_id, db_name)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // last trace entry is an aborted transaction, so the valid transaction timestamp is the third last
+        let second_last_committed_end_ts = trace.post_timestamps[trace.post_timestamps.len() - 3];
         assert!(
-            find_last_transaction_timestamp(&object_store, server_id, db_name)
-                .await
-                .unwrap()
-                .is_some()
+            ts > second_last_committed_end_ts,
+            "failed: last start ts ({}) > second last committed end ts ({})",
+            ts,
+            second_last_committed_end_ts
+        );
+
+        let last_committed_end_ts = trace.post_timestamps[trace.post_timestamps.len() - 2];
+        assert!(
+            ts < last_committed_end_ts,
+            "failed: last start ts ({}) < last committed end ts ({})",
+            ts,
+            last_committed_end_ts
         );
     }
 
@@ -2194,11 +2212,26 @@ mod tests {
             .await
             .unwrap();
 
+        let ts = find_last_transaction_timestamp(&object_store, server_id, db_name)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // last trace entry is an aborted transaction, so the valid transaction timestamp is the third last
+        let second_last_committed_end_ts = trace.post_timestamps[trace.post_timestamps.len() - 3];
         assert!(
-            find_last_transaction_timestamp(&object_store, server_id, db_name)
-                .await
-                .unwrap()
-                .is_some()
+            ts > second_last_committed_end_ts,
+            "failed: last start ts ({}) > second last committed end ts ({})",
+            ts,
+            second_last_committed_end_ts
+        );
+
+        let last_committed_end_ts = trace.post_timestamps[trace.post_timestamps.len() - 2];
+        assert!(
+            ts < last_committed_end_ts,
+            "failed: last start ts ({}) < last committed end ts ({})",
+            ts,
+            last_committed_end_ts
         );
     }
 
@@ -2224,11 +2257,26 @@ mod tests {
             .await
             .unwrap();
 
+        let ts = find_last_transaction_timestamp(&object_store, server_id, db_name)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // last trace entry is an aborted transaction, so the valid transaction timestamp is the third last
+        let second_last_committed_end_ts = trace.post_timestamps[trace.post_timestamps.len() - 3];
         assert!(
-            find_last_transaction_timestamp(&object_store, server_id, db_name)
-                .await
-                .unwrap()
-                .is_some()
+            ts > second_last_committed_end_ts,
+            "failed: last start ts ({}) > second last committed end ts ({})",
+            ts,
+            second_last_committed_end_ts
+        );
+
+        let last_committed_end_ts = trace.post_timestamps[trace.post_timestamps.len() - 2];
+        assert!(
+            ts < last_committed_end_ts,
+            "failed: last start ts ({}) < last committed end ts ({})",
+            ts,
+            last_committed_end_ts
         );
     }
 
