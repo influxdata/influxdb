@@ -957,7 +957,8 @@ impl Db {
                             // Sleep for a duration drawn from a poisson distribution to de-correlate workers.
                             // Perform this sleep BEFORE the actual clean-up so that we don't immediately run a clean-up
                             // on startup.
-                            let dist = Poisson::new(self.rules.read().worker_cleanup_avg_sleep.as_secs_f32().max(1.0)).expect("parameter should be positive and finite");
+                            let avg_sleep_secs = self.rules.read().worker_cleanup_avg_sleep.as_secs_f32().max(1.0);
+                            let dist = Poisson::new(avg_sleep_secs).expect("parameter should be positive and finite");
                             let duration = Duration::from_secs_f32(dist.sample(&mut rand::thread_rng()));
                             debug!(?duration, "cleanup worker sleeps");
                             tokio::time::sleep(duration).await;
