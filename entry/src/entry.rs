@@ -1208,8 +1208,13 @@ pub struct SequencedEntry {
     #[borrows(data)]
     #[covariant]
     entry: entry_fb::Entry<'this>,
-    sequencer_id: u32,
-    sequence_number: u64,
+    sequence: Sequence,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Sequence {
+    pub id: u32,
+    pub number: u64,
 }
 
 impl SequencedEntry {
@@ -1223,8 +1228,10 @@ impl SequencedEntry {
             entry_builder: |data| {
                 flatbuffers::root::<entry_fb::Entry<'_>>(data).context(InvalidFlatbuffer)
             },
-            sequencer_id: server_id.get_u32(),
-            sequence_number: process_clock.get_u64(),
+            sequence: Sequence {
+                id: server_id.get_u32(),
+                number: process_clock.get_u64(),
+            },
         }
         .try_build()
     }
@@ -1239,12 +1246,8 @@ impl SequencedEntry {
         }
     }
 
-    pub fn sequencer_id(&self) -> u32 {
-        *self.borrow_sequencer_id()
-    }
-
-    pub fn sequence_number(&self) -> u64 {
-        *self.borrow_sequence_number()
+    pub fn sequence(&self) -> &Sequence {
+        self.borrow_sequence()
     }
 }
 
