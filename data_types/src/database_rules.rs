@@ -51,7 +51,8 @@ pub struct DatabaseRules {
     /// remote servers.
     pub routing_rules: Option<RoutingRules>,
 
-    /// Duration for which the cleanup loop should sleep on avarage.
+    /// Duration for which the cleanup loop should sleep on average.
+    /// Defaults to 500 seconds.
     pub worker_cleanup_avg_sleep: Duration,
 }
 
