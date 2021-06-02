@@ -234,13 +234,13 @@ pub async fn find_last_transaction_timestamp(
                 Ok(ts) => {
                     res = Some(res.map_or(ts, |res: DateTime<Utc>| res.max(ts)));
                 }
-                Err(e) => warn!("Cannot parse timestamp from {:?}: {}", path, e),
+                Err(e) => warn!(%e, ?path, "Cannot parse timestamp"),
             },
             Err(e @ Error::Read { .. }) => {
                 // bubble up IO error
                 return Err(e);
             }
-            Err(e) => warn!("Cannot read transaction from {:?}: {}", path, e),
+            Err(e) => warn!(%e, ?path, "Cannot read transaction"),
         }
     }
     Ok(res)
