@@ -72,11 +72,6 @@ impl ChunkSnapshot {
         self.batch.num_rows() == 0
     }
 
-    /// Return true if this snapshot has the specified table name
-    pub fn has_table(&self, table_name: &str) -> bool {
-        self.table_name.as_ref() == table_name
-    }
-
     /// Return Schema for the specified table / columns
     pub fn table_schema(&self, table_name: &str, selection: Selection<'_>) -> Result<Schema> {
         // Temporary #1295
@@ -102,7 +97,7 @@ impl ChunkSnapshot {
     /// Returns a list of tables with writes matching the given timestamp_range
     pub fn table_names(&self, timestamp_range: Option<TimestampRange>) -> BTreeSet<String> {
         let mut ret = BTreeSet::new();
-        if self.matches_predicate(&timestamp_range) {
+        if self.has_timerange(&timestamp_range) {
             ret.insert(self.table_name.to_string());
         }
         ret
@@ -222,7 +217,7 @@ impl ChunkSnapshot {
         self.batch.num_rows()
     }
 
-    fn matches_predicate(&self, timestamp_range: &Option<TimestampRange>) -> bool {
+    pub fn has_timerange(&self, timestamp_range: &Option<TimestampRange>) -> bool {
         let timestamp_range = match timestamp_range {
             Some(t) => t,
             None => return true,

@@ -133,11 +133,7 @@ impl Partition {
         chunk_id: u32,
         chunk: Arc<parquet_file::chunk::Chunk>,
     ) -> Result<Arc<RwLock<Chunk>>> {
-        // workaround until https://github.com/influxdata/influxdb_iox/issues/1295 is fixed
-        let table_name = chunk
-            .table_names(None)
-            .next()
-            .expect("chunk must have exactly 1 table");
+        let table_name = chunk.table_name().to_string();
 
         let chunk = Arc::new(self.metrics.new_lock(Chunk::new_object_store_only(
             chunk_id,

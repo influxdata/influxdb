@@ -19,7 +19,7 @@ use observability_deps::tracing::debug;
 use snafu::{ensure, ResultExt, Snafu};
 
 use crate::{
-    exec::{field::FieldColumns, make_schema_pivot, stringset::StringSet},
+    exec::{field::FieldColumns, make_schema_pivot},
     func::{
         selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
         window::make_window_bound_expr,
@@ -30,7 +30,7 @@ use crate::{
         seriesset::{SeriesSetPlan, SeriesSetPlans},
         stringset::{Error as StringSetError, StringSetPlan, StringSetPlanBuilder},
     },
-    predicate::{Predicate, PredicateBuilder},
+    predicate::{Predicate, PredicateMatch},
     provider::ProviderBuilder,
     util::schema_has_all_expr_columns,
     Database, PartitionChunk,
@@ -196,21 +196,31 @@ impl InfluxRpcPlanner {
         let mut builder = StringSetPlanBuilder::new();
 
         for chunk in database.chunks(&predicate) {
-            let new_table_names = chunk
-                .table_names(&predicate, builder.known_strings())
+            // Try and apply the predicate using only metadata
+            let pred_result = chunk
+                .apply_predicate(&predicate)
                 .map_err(|e| Box::new(e) as _)
-                .context(TableNamePlan)?;
+                .context(CheckingChunkPredicate {
+                    chunk_id: chunk.id(),
+                })?;
 
-            builder = match new_table_names {
-                Some(new_table_names) => builder.append(new_table_names.into()),
-                None => {
+            builder = match pred_result {
+                PredicateMatch::AtLeastOne => builder.append_table(chunk.table_name()),
+                // no match, ignore table
+                PredicateMatch::Zero => builder,
+                // can't evaluate predicate, need a new plan
+                PredicateMatch::Unknown => {
                     // TODO: General purpose plans for
-                    // table_names. For now, if we couldn't figure out
-                    // the table names from only metadata, generate an
-                    // error
+                    // table_names. For now, return an error
+                    debug!(
+                        chunk = chunk.id(),
+                        ?predicate,
+                        table_name = chunk.table_name(),
+                        "can not evaluate predicate"
+                    );
                     return UnsupportedPredicateForTableNames { predicate }.fail();
                 }
-            }
+            };
         }
 
         let plan = builder.build().context(CreatingStringSet)?;
@@ -241,51 +251,60 @@ impl InfluxRpcPlanner {
 
         let mut known_columns = BTreeSet::new();
         for chunk in database.chunks(&predicate) {
-            // try and get the table names that have rows that match the predicate
-            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate)?;
+            // Try and apply the predicate using only metadata
+            let pred_result = chunk
+                .apply_predicate(&predicate)
+                .map_err(|e| Box::new(e) as _)
+                .context(CheckingChunkPredicate {
+                    chunk_id: chunk.id(),
+                })?;
 
-            for table_name in table_names {
-                debug!(
-                    table_name = table_name.as_str(),
-                    chunk_id = chunk.id(),
-                    "finding columns in table"
-                );
+            if matches!(pred_result, PredicateMatch::Zero) {
+                continue;
+            }
+            let table_name = chunk.table_name();
+            let chunk_id = chunk.id();
+            debug!(table_name, chunk_id, "finding columns in table");
 
-                // get only tag columns from metadata
-                let schema = chunk
-                    .table_schema(Selection::All)
-                    .expect("to be able to get table schema");
-                let column_names: Vec<&str> = schema
-                    .tags_iter()
-                    .map(|f| f.name().as_str())
-                    .collect::<Vec<&str>>();
+            // get only tag columns from metadata
+            let schema = chunk
+                .table_schema(Selection::All)
+                .map_err(|e| Box::new(e) as _)
+                .context(GettingTableSchema {
+                    table_name,
+                    chunk_id,
+                })?;
 
-                let selection = Selection::Some(&column_names);
+            let column_names: Vec<&str> = schema
+                .tags_iter()
+                .map(|f| f.name().as_str())
+                .collect::<Vec<&str>>();
 
-                // filter the columns further from the predicate
-                let maybe_names = chunk
-                    .column_names(&predicate, selection)
-                    .map_err(|e| Box::new(e) as _)
-                    .context(FindingColumnNames)?;
+            let selection = Selection::Some(&column_names);
 
-                match maybe_names {
-                    Some(mut names) => {
-                        debug!(names=?names, chunk_id = chunk.id(), "column names found from metadata");
-                        known_columns.append(&mut names);
-                    }
-                    None => {
-                        debug!(
-                            table_name = table_name.as_str(),
-                            chunk_id = chunk.id(),
-                            "column names need full plan"
-                        );
-                        // can't get columns only from metadata, need
-                        // a general purpose plan
-                        need_full_plans
-                            .entry(table_name)
-                            .or_insert_with(Vec::new)
-                            .push(Arc::clone(&chunk));
-                    }
+            // filter the columns further from the predicate
+            let maybe_names = chunk
+                .column_names(&predicate, selection)
+                .map_err(|e| Box::new(e) as _)
+                .context(FindingColumnNames)?;
+
+            match maybe_names {
+                Some(mut names) => {
+                    debug!(names=?names, chunk_id = chunk.id(), "column names found from metadata");
+                    known_columns.append(&mut names);
+                }
+                None => {
+                    debug!(
+                        table_name,
+                        chunk_id = chunk.id(),
+                        "column names need full plan"
+                    );
+                    // can't get columns only from metadata, need
+                    // a general purpose plan
+                    need_full_plans
+                        .entry(table_name.to_string())
+                        .or_insert_with(Vec::new)
+                        .push(Arc::clone(&chunk));
                 }
             }
         }
@@ -346,70 +365,79 @@ impl InfluxRpcPlanner {
 
         let mut known_values = BTreeSet::new();
         for chunk in database.chunks(&predicate) {
-            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate)?;
+            // Try and apply the predicate using only metadata
+            let pred_result = chunk
+                .apply_predicate(&predicate)
+                .map_err(|e| Box::new(e) as _)
+                .context(CheckingChunkPredicate {
+                    chunk_id: chunk.id(),
+                })?;
 
-            for table_name in table_names {
-                debug!(
-                    table_name = table_name.as_str(),
-                    chunk_id = chunk.id(),
-                    "finding columns in table"
-                );
+            if matches!(pred_result, PredicateMatch::Zero) {
+                continue;
+            }
+            let table_name = chunk.table_name();
+            let chunk_id = chunk.id();
+            debug!(table_name, chunk_id, "finding columns in table");
 
-                // use schema to validate column type
-                let schema = chunk
-                    .table_schema(Selection::All)
-                    .expect("to be able to get table schema");
+            // use schema to validate column type
+            let schema = chunk
+                .table_schema(Selection::All)
+                .map_err(|e| Box::new(e) as _)
+                .context(GettingTableSchema {
+                    table_name,
+                    chunk_id,
+                })?;
 
-                // Skip this table if the tag_name is not a column in this table
-                let idx = if let Some(idx) = schema.find_index_of(tag_name) {
-                    idx
-                } else {
-                    continue;
-                };
+            // Skip this table if the tag_name is not a column in this table
+            let idx = if let Some(idx) = schema.find_index_of(tag_name) {
+                idx
+            } else {
+                continue;
+            };
 
-                // Validate that this really is a Tag column
-                let (influx_column_type, field) = schema.field(idx);
-                ensure!(
-                    matches!(influx_column_type, Some(InfluxColumnType::Tag)),
-                    InvalidTagColumn {
-                        tag_name,
-                        influx_column_type,
-                    }
-                );
-                ensure!(
-                    influx_column_type
-                        .unwrap()
-                        .valid_arrow_type(field.data_type()),
-                    InternalInvalidTagType {
-                        tag_name,
-                        data_type: field.data_type().clone(),
-                    }
-                );
+            // Validate that this really is a Tag column
+            let (influx_column_type, field) = schema.field(idx);
+            ensure!(
+                matches!(influx_column_type, Some(InfluxColumnType::Tag)),
+                InvalidTagColumn {
+                    tag_name,
+                    influx_column_type,
+                }
+            );
+            ensure!(
+                influx_column_type
+                    .unwrap()
+                    .valid_arrow_type(field.data_type()),
+                InternalInvalidTagType {
+                    tag_name,
+                    data_type: field.data_type().clone(),
+                }
+            );
 
-                // try and get the list of values directly from metadata
-                let maybe_values = chunk
-                    .column_values(tag_name, &predicate)
-                    .map_err(|e| Box::new(e) as _)
-                    .context(FindingColumnValues)?;
+            // try and get the list of values directly from metadata
+            let maybe_values = chunk
+                .column_values(tag_name, &predicate)
+                .map_err(|e| Box::new(e) as _)
+                .context(FindingColumnValues)?;
 
-                match maybe_values {
-                    Some(mut names) => {
-                        debug!(names=?names, chunk_id = chunk.id(), "column values found from metadata");
-                        known_values.append(&mut names);
-                    }
-                    None => {
-                        debug!(
-                            table_name = table_name.as_str(),
-                            chunk_id = chunk.id(),
-                            "need full plan to find column values"
-                        );
-                        // can't get columns only from metadata, need
-                        // a general purpose plan
-                        need_full_plans
-                            .entry(table_name)
-                            .or_insert_with(Vec::new)
-                            .push(Arc::clone(&chunk));
-                    }
+            match maybe_values {
+                Some(mut names) => {
+                    debug!(names=?names, chunk_id = chunk.id(), "column values found from metadata");
+                    known_values.append(&mut names);
+                }
+                None => {
+                    debug!(
+                        table_name,
+                        chunk_id = chunk.id(),
+                        "need full plan to find column values"
+                    );
+                    // can't get columns only from metadata, need
+                    // a general purpose plan
+                    need_full_plans
+                        .entry(table_name.to_string())
+                        .or_insert_with(Vec::new)
+                        .push(Arc::clone(&chunk));
                 }
             }
         }
@@ -609,7 +637,7 @@ impl InfluxRpcPlanner {
         Ok(ss_plans.into())
     }
 
-    /// Creates a map of table_name --> Chunks that have that table
+    /// Creates a map of table_name --> Chunks that have that table that *may* pass the predicate
     fn group_chunks_by_table<C>(
         &self,
         predicate: &Predicate,
@@ -620,54 +648,30 @@ impl InfluxRpcPlanner {
     {
         let mut table_chunks = BTreeMap::new();
         for chunk in chunks {
-            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate)?;
-            for table_name in table_names {
-                table_chunks
-                    .entry(table_name)
-                    .or_insert_with(Vec::new)
-                    .push(Arc::clone(&chunk));
+            // Try and apply the predicate using only metadata
+            let pred_result = chunk
+                .apply_predicate(&predicate)
+                .map_err(|e| Box::new(e) as _)
+                .context(CheckingChunkPredicate {
+                    chunk_id: chunk.id(),
+                })?;
+
+            match pred_result {
+                PredicateMatch::AtLeastOne |
+                // have to include chunk as we can't rule it out
+                PredicateMatch::Unknown => {
+                    let table_name = chunk.table_name().to_string();
+                    table_chunks
+                        .entry(table_name)
+                        .or_insert_with(Vec::new)
+                        .push(Arc::clone(&chunk));
+                }
+                // Skip chunk here based on metadata
+                PredicateMatch::Zero => {
+                }
             }
         }
         Ok(table_chunks)
-    }
-
-    /// Find all the table names in the specified chunk that pass the predicate
-    fn chunk_table_names<C>(&self, chunk: &C, predicate: &Predicate) -> Result<BTreeSet<String>>
-    where
-        C: PartitionChunk + 'static,
-    {
-        let no_tables = StringSet::new();
-
-        // try and get the table names that have rows that match the predicate
-        let table_names = chunk
-            .table_names(&predicate, &no_tables)
-            .map_err(|e| Box::new(e) as _)
-            .context(TableNamePlan)?;
-
-        debug!(table_names=?table_names, chunk_id = chunk.id(), "chunk tables");
-
-        let table_names = match table_names {
-            Some(table_names) => {
-                debug!("found table names with original predicate");
-                table_names
-            }
-            None => {
-                // couldn't find table names with predicate, get all chunk tables,
-                // fall back to filtering ourself
-                let table_name_predicate = if let Some(table_names) = &predicate.table_names {
-                    PredicateBuilder::new().tables(table_names).build()
-                } else {
-                    Predicate::default()
-                };
-                chunk
-                    .table_names(&table_name_predicate, &no_tables)
-                    .map_err(|e| Box::new(e) as _)
-                    .context(InternalTableNamePlanForDefault)?
-                    // unwrap the Option (table didn't match)
-                    .unwrap_or(no_tables)
-            }
-        };
-        Ok(table_names)
     }
 
     /// Creates a DataFusion LogicalPlan that returns column *names* as a
@@ -1109,11 +1113,11 @@ impl InfluxRpcPlanner {
             let chunk_id = chunk.id();
 
             // check that it is consistent with this table_name
-            assert!(
-                chunk.has_table(table_name),
-                "Chunk {} did not have table {}, while trying to make a plan for it",
+            assert_eq!(
+                chunk.table_name(),
+                table_name,
+                "Chunk {} expected table mismatch",
                 chunk.id(),
-                table_name
             );
 
             let chunk_table_schema = chunk

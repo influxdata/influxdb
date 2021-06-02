@@ -11,6 +11,7 @@ use data_types::chunk_metadata::ChunkSummary;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, Executor};
 use internal_types::{schema::Schema, selection::Selection};
+use predicate::PredicateMatch;
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -59,32 +60,16 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// particular partition.
     fn id(&self) -> u32;
 
-    /// Returns true if this chunk contains data for the specified table
-    fn has_table(&self, table_name: &str) -> bool;
+    /// Returns the name of the table stored in this chunk
+    fn table_name(&self) -> &str;
 
-    /// Returns all table names from this chunk that have at least one
-    /// row that matches the `predicate` and are not already in `known_tables`.
+    /// Returns the result of applying the `predicate` to the chunk
+    /// using an efficient, but inexact method, based on metadata.
     ///
-    /// If the predicate cannot be evaluated (e.g it has predicates
-    /// that cannot be directly evaluated in the chunk), `None` is
-    /// returned.
-    ///
-    /// `known_tables` is a list of table names already known to be in
-    /// other chunks from the same partition. It may be empty or
-    /// contain `table_names` not in this chunk.
-    fn table_names(
-        &self,
-        predicate: &Predicate,
-        known_tables: &StringSet,
-    ) -> Result<Option<StringSet>, Self::Error>;
-
-    /// Adds all table names from this chunk without any predicate to
-    /// `known_tables)
-    ///
-    /// `known_tables` is a list of table names already known to be in
-    /// other chunks from the same partition. It may be empty or
-    /// contain `table_names` not in this chunk.
-    fn all_table_names(&self, known_tables: &mut StringSet);
+    /// NOTE: This method is suitable for calling during planning, and
+    /// may return PredicateMatch::Unknown for certain types of
+    /// predicates.
+    fn apply_predicate(&self, predicate: &Predicate) -> Result<PredicateMatch, Self::Error>;
 
     /// Returns a set of Strings with column names from the specified
     /// table that have at least one row that matches `predicate`, if
