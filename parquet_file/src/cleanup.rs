@@ -103,14 +103,14 @@ where
 
     // now that the transaction lock is dropped, perform the actual (and potentially slow) delete operation
     let n_files = to_remove.len();
-    info!("Found {} files to delete, start deletion.", n_files);
+    info!(%n_files, "Found files to delete, start deletion.");
 
     for path in to_remove {
-        info!("Delete file: {}", path.display());
+        info!(path = %path.display(), "Delete file");
         store.delete(&path).await.context(WriteError)?;
     }
 
-    info!("Finished deletion, removed {} files.", n_files);
+    info!(%n_files, "Finished deletion, removed files.");
 
     Ok(())
 }
