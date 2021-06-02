@@ -80,7 +80,7 @@ impl TestDbBuilder {
         let mut rules = DatabaseRules::new(db_name);
 
         // make background loop spin a bit faster for tests
-        rules.worker_cleanup_avg_sleep = Duration::from_secs(2);
+        rules.worker_cleanup_avg_sleep = Duration::from_secs(1);
 
         TestDb {
             metric_registry: metrics::TestMetricRegistry::new(metrics_registry),
