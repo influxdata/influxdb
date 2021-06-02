@@ -4,8 +4,9 @@ use std::{
         hash_map::Entry::{Occupied, Vacant},
         HashMap,
     },
-    convert::{Infallible, TryInto},
+    convert::TryInto,
     fmt::{Debug, Display},
+    num::TryFromIntError,
     str::FromStr,
     sync::Arc,
 };
@@ -170,8 +171,8 @@ pub enum Error {
     #[snafu(display("Internal: Datetime required but missing in serialized catalog"))]
     DateTimeRequired {},
 
-    #[snafu(display("Cannot parse datetime: {}", source))]
-    DateTimeParseError { source: Infallible },
+    #[snafu(display("Internal: Cannot parse datetime in serialized catalog: {}", source))]
+    DateTimeParseError { source: TryFromIntError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -688,7 +689,7 @@ fn parse_timestamp(
 ) -> Result<DateTime<Utc>> {
     let ts: generated_types::google::protobuf::Timestamp =
         ts.as_ref().context(DateTimeRequired)?.clone();
-    let ts: DateTime<Utc> = ts.try_into().unwrap();
+    let ts: DateTime<Utc> = ts.try_into().context(DateTimeParseError)?;
     Ok(ts)
 }
 
@@ -1713,6 +1714,40 @@ mod tests {
         assert_eq!(
             res.unwrap_err().to_string(),
             "Internal: Datetime required but missing in serialized catalog"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_broken_start_timestamp() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+
+        // break transaction file
+        assert!(trace.tkeys.len() >= 2);
+        let tkey = &trace.tkeys[0];
+        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        proto.start_timestamp = Some(generated_types::google::protobuf::Timestamp {
+            seconds: 0,
+            nanos: -1,
+        });
+        store_transaction_proto(&object_store, &path, &proto)
+            .await
+            .unwrap();
+
+        // loading catalog should fail now
+        let res = PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await;
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Internal: Cannot parse datetime in serialized catalog: out of range integral type conversion attempted"
         );
     }
 
