@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 
@@ -126,7 +127,7 @@ func (s *SqlStore) BackupSqlStore(ctx context.Context, w io.Writer) error {
 	}
 	defer os.RemoveAll(tempDir)
 
-	destPath := tempDir + "/" + DefaultFilename
+	destPath := filepath.Join(tempDir, DefaultFilename)
 	dest, err := NewSqlStore(destPath, zap.NewNop())
 	if err != nil {
 		return err
@@ -213,7 +214,7 @@ func (s *SqlStore) RestoreSqlStore(ctx context.Context, r io.Reader) error {
 	}
 	defer os.RemoveAll(tempDir)
 
-	tempFileName := fmt.Sprintf("%s/%s", tempDir, DefaultFilename)
+	tempFileName := filepath.Join(tempDir, DefaultFilename)
 
 	f, err := os.Create(tempFileName)
 	if err != nil {
