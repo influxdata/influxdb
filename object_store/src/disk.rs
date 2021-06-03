@@ -50,9 +50,6 @@ pub enum Error {
     #[snafu(display("Unable to open file {}: {}", path.display(), source))]
     UnableToOpenFile { source: io::Error, path: PathBuf },
 
-    #[snafu(display("Unable to process directory entry: {}", source))]
-    UnableToProcessEntry { source: walkdir::Error },
-
     #[snafu(display("Unable to read data from file {}: {}", path.display(), source))]
     UnableToReadBytes { source: io::Error, path: PathBuf },
 
@@ -196,8 +193,7 @@ impl ObjectStoreApi for File {
         let mut objects = Vec::new();
 
         let root_path = self.root.to_raw();
-        for entry in walkdir {
-            let entry = entry.context(UnableToProcessEntry)?;
+        for entry in walkdir.into_iter().filter_map(Result::ok) {
             let entry_location = FilePath::raw(entry.path(), false);
 
             if entry_location.prefix_matches(&resolved_prefix) {
