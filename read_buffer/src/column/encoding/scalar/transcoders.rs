@@ -80,7 +80,7 @@ impl Display for ByteTrimmer {
 #[derive(Debug)]
 pub struct FloatByteTrimmer {}
 macro_rules! make_float_trimmer {
-    ($type:ident) => {
+    ($type:ty) => {
         #[allow(clippy::float_cmp)]
         impl Transcoder<$type, f64> for FloatByteTrimmer {
             fn encode(&self, v: f64) -> $type {
