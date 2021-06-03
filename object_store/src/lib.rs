@@ -584,9 +584,11 @@ mod tests {
     pub(crate) async fn list_with_delimiter(storage: &ObjectStore) -> Result<()> {
         delete_fixtures(storage).await;
 
+        // ==================== check: store is empty ====================
         let content_list = flatten_list_stream(storage, None).await?;
         assert!(content_list.is_empty());
 
+        // ==================== do: create files ====================
         let data = Bytes::from("arbitrary data");
 
         let files: Vec<_> = [
@@ -614,6 +616,7 @@ mod tests {
                 .unwrap();
         }
 
+        // ==================== check: prefix-list `mydb/wb` (directory) ====================
         let mut prefix = storage.new_path();
         prefix.push_all_dirs(&["mydb", "wb"]);
 
@@ -634,7 +637,7 @@ mod tests {
         assert_eq!(object.location, expected_location);
         assert_eq!(object.size, data.len());
 
-        // List with a prefix containing a partial "file name"
+        // ==================== check: prefix-list `mydb/wb/000/000/001` (partial filename) ====================
         let mut prefix = storage.new_path();
         prefix.push_all_dirs(&["mydb", "wb", "000", "000"]);
         prefix.set_file_name("001");
@@ -651,10 +654,20 @@ mod tests {
 
         assert_eq!(object.location, expected_location);
 
+        // ==================== check: prefix-list `not_there` (non-existing prefix) ====================
+        let mut prefix = storage.new_path();
+        prefix.push_all_dirs(&["not_there"]);
+
+        let result = storage.list_with_delimiter(&prefix).await.unwrap();
+        assert!(result.common_prefixes.is_empty());
+        assert!(result.objects.is_empty());
+
+        // ==================== do: remove all files ====================
         for f in &files {
             storage.delete(f).await.unwrap();
         }
 
+        // ==================== check: store is empty ====================
         let content_list = flatten_list_stream(storage, None).await?;
         assert!(content_list.is_empty());
 

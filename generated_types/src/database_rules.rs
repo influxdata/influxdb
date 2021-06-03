@@ -1,4 +1,5 @@
 use std::convert::{TryFrom, TryInto};
+use std::time::Duration;
 
 use thiserror::Error;
 
@@ -23,6 +24,7 @@ impl From<DatabaseRules> for management::DatabaseRules {
             write_buffer_config: rules.write_buffer_config.map(Into::into),
             lifecycle_rules: Some(rules.lifecycle_rules.into()),
             routing_rules: rules.routing_rules.map(Into::into),
+            worker_cleanup_avg_sleep: Some(rules.worker_cleanup_avg_sleep.into()),
         }
     }
 }
@@ -50,12 +52,18 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             .optional("routing_rules")
             .unwrap_or_default();
 
+        let worker_cleanup_avg_sleep = match proto.worker_cleanup_avg_sleep {
+            Some(d) => d.try_into().field("worker_cleanup_avg_sleep")?,
+            None => Duration::from_secs(500),
+        };
+
         Ok(Self {
             name,
             partition_template,
             write_buffer_config,
             lifecycle_rules,
             routing_rules,
+            worker_cleanup_avg_sleep,
         })
     }
 }

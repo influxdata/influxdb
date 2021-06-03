@@ -9,14 +9,13 @@ use data_types::chunk_metadata::ChunkSummary;
 use data_types::partition_metadata::{
     PartitionSummary, UnaggregatedPartitionSummary, UnaggregatedTableSummary,
 };
-use query::predicate::Predicate;
 use tracker::RwLock;
 
 use crate::db::catalog::metrics::PartitionMetrics;
 
 use super::{
     chunk::{Chunk, ChunkStage},
-    Error, Result, UnknownChunk, UnknownTable,
+    Error, Result, TableNameFilter, UnknownChunk, UnknownTable,
 };
 
 /// IOx Catalog Partition
@@ -231,16 +230,24 @@ impl Partition {
         self.tables.values().flat_map(|table| table.chunks.values())
     }
 
-    /// Return an iterator over chunks in this partition that
-    /// may pass the provided predicate
+    /// Return an iterator over chunks in this partition
+    ///
+    /// `table_names` specifies which tables to include
     pub fn filtered_chunks<'a>(
         &'a self,
-        predicate: &'a Predicate,
+        table_names: TableNameFilter<'a>,
     ) -> impl Iterator<Item = &Arc<RwLock<Chunk>>> + 'a {
         self.tables
             .iter()
-            .filter(move |(table_name, _)| predicate.should_include_table(table_name))
-            .flat_map(|(_, table)| table.chunks.values())
+            .filter_map(
+                move |(partition_table_name, partition_table)| match table_names {
+                    TableNameFilter::AllTables => Some(partition_table.chunks.values()),
+                    TableNameFilter::NamedTables(table_names) => table_names
+                        .contains(partition_table_name)
+                        .then(|| partition_table.chunks.values()),
+                },
+            )
+            .flatten()
     }
 
     /// Return the unaggregated chunk summary information for tables
