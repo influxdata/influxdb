@@ -3722,6 +3722,7 @@ dependencies = [
  "parquet_file",
  "query",
  "rand 0.8.3",
+ "rand_distr",
  "read_buffer",
  "serde",
  "serde_json",

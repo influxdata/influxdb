@@ -12,7 +12,7 @@ use crate::{
     db::{load_or_create_preserved_catalog, Db},
     JobRegistry,
 };
-use std::{borrow::Cow, convert::TryFrom, sync::Arc};
+use std::{borrow::Cow, convert::TryFrom, sync::Arc, time::Duration};
 
 // A wrapper around a Db and a metrics registry allowing for isolated testing
 // of a Db and its metrics.
@@ -34,6 +34,7 @@ pub struct TestDbBuilder {
     object_store: Option<Arc<ObjectStore>>,
     db_name: Option<DatabaseName<'static>>,
     write_buffer: bool,
+    worker_cleanup_avg_sleep: Option<Duration>,
 }
 
 impl TestDbBuilder {
@@ -77,10 +78,17 @@ impl TestDbBuilder {
         .await
         .unwrap();
 
+        let mut rules = DatabaseRules::new(db_name);
+
+        // make background loop spin a bit faster for tests
+        rules.worker_cleanup_avg_sleep = self
+            .worker_cleanup_avg_sleep
+            .unwrap_or_else(|| Duration::from_secs(1));
+
         TestDb {
             metric_registry: metrics::TestMetricRegistry::new(metrics_registry),
             db: Db::new(
-                DatabaseRules::new(db_name),
+                rules,
                 server_id,
                 object_store,
                 exec,
@@ -108,6 +116,11 @@ impl TestDbBuilder {
 
     pub fn write_buffer(mut self, enabled: bool) -> Self {
         self.write_buffer = enabled;
+        self
+    }
+
+    pub fn worker_cleanup_avg_sleep(mut self, d: Duration) -> Self {
+        self.worker_cleanup_avg_sleep = Some(d);
         self
     }
 }

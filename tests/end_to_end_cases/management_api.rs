@@ -223,6 +223,10 @@ async fn test_create_get_update_database() {
             ..Default::default()
         }),
         routing_rules: None,
+        worker_cleanup_avg_sleep: Some(Duration {
+            seconds: 2,
+            nanos: 0,
+        }),
     };
 
     client

@@ -1112,7 +1112,7 @@ async fn get_database_config_bytes(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, convert::TryFrom};
+    use std::{collections::BTreeMap, convert::TryFrom, time::Duration};
 
     use async_trait::async_trait;
     use futures::TryStreamExt;
@@ -1206,6 +1206,7 @@ mod tests {
             write_buffer_config: None,
             lifecycle_rules: Default::default(),
             routing_rules: None,
+            worker_cleanup_avg_sleep: Duration::from_secs(2),
         };
 
         // Create a database
@@ -1302,6 +1303,7 @@ mod tests {
             write_buffer_config: None,
             lifecycle_rules: Default::default(),
             routing_rules: None,
+            worker_cleanup_avg_sleep: Duration::from_secs(2),
         };
 
         // Create a database

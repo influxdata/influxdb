@@ -4,6 +4,7 @@ use influxdb_line_protocol::ParsedLine;
 use regex::Regex;
 use snafu::{OptionExt, Snafu};
 use std::num::NonZeroU64;
+use std::time::Duration;
 use std::{
     collections::HashMap,
     hash::{Hash, Hasher},
@@ -49,6 +50,10 @@ pub struct DatabaseRules {
     /// An optional config to delegate data plane operations to one or more
     /// remote servers.
     pub routing_rules: Option<RoutingRules>,
+
+    /// Duration for which the cleanup loop should sleep on average.
+    /// Defaults to 500 seconds.
+    pub worker_cleanup_avg_sleep: Duration,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -79,6 +84,7 @@ impl DatabaseRules {
             write_buffer_config: None,
             lifecycle_rules: Default::default(),
             routing_rules: None,
+            worker_cleanup_avg_sleep: Duration::from_secs(500),
         }
     }
 

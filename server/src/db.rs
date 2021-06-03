@@ -41,6 +41,7 @@ use parquet_file::{
 };
 use query::predicate::{Predicate, PredicateBuilder};
 use query::{exec::Executor, Database, DEFAULT_SCHEMA};
+use rand_distr::{Distribution, Poisson};
 use read_buffer::{Chunk as ReadBufferChunk, ChunkMetrics as ReadBufferChunkMetrics};
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -953,10 +954,18 @@ impl Db {
                         .fetch_add(1, Ordering::Relaxed);
                     tokio::select! {
                         _ = async {
+                            // Sleep for a duration drawn from a poisson distribution to de-correlate workers.
+                            // Perform this sleep BEFORE the actual clean-up so that we don't immediately run a clean-up
+                            // on startup.
+                            let avg_sleep_secs = self.rules.read().worker_cleanup_avg_sleep.as_secs_f32().max(1.0);
+                            let dist = Poisson::new(avg_sleep_secs).expect("parameter should be positive and finite");
+                            let duration = Duration::from_secs_f32(dist.sample(&mut rand::thread_rng()));
+                            debug!(?duration, "cleanup worker sleeps");
+                            tokio::time::sleep(duration).await;
+
                             if let Err(e) = cleanup_unreferenced_parquet_files(&self.catalog).await {
-                                error!("error in background cleanup task: {:?}", e);
+                                error!(%e, "error in background cleanup task");
                             }
-                            tokio::time::sleep(Duration::from_secs(500)).await;
                         } => {},
                         _ = shutdown.cancelled() => break,
                     }
@@ -2668,6 +2677,8 @@ mod tests {
             .server_id(server_id)
             .object_store(Arc::clone(&object_store))
             .db_name(db_name)
+            // "dispable" clean-up by setting it to a very long time to avoid interference with this test
+            .worker_cleanup_avg_sleep(Duration::from_secs(1_000))
             .build()
             .await;
 
@@ -2750,7 +2761,7 @@ mod tests {
             let _ = chunk_a.read();
         });
 
-        // Hold lock for 100 seconds blocking background task
+        // Hold lock for 100 milliseconds blocking background task
         std::thread::sleep(std::time::Duration::from_millis(100));
 
         std::mem::drop(chunk_b);
