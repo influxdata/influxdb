@@ -22,6 +22,7 @@ pub mod group_by;
 pub mod plan;
 pub mod predicate;
 pub mod provider;
+pub mod pruning;
 pub mod util;
 
 pub use exec::context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
