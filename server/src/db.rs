@@ -2677,6 +2677,8 @@ mod tests {
             .server_id(server_id)
             .object_store(Arc::clone(&object_store))
             .db_name(db_name)
+            // "dispable" clean-up by setting it to a very long time to avoid interference with this test
+            .worker_cleanup_avg_sleep(Duration::from_secs(1_000))
             .build()
             .await;
 
@@ -2759,7 +2761,7 @@ mod tests {
             let _ = chunk_a.read();
         });
 
-        // Hold lock for 100 seconds blocking background task
+        // Hold lock for 100 milliseconds blocking background task
         std::thread::sleep(std::time::Duration::from_millis(100));
 
         std::mem::drop(chunk_b);
