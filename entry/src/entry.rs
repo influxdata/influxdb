@@ -1248,10 +1248,13 @@ impl SequencedEntry {
     pub fn new_from_process_clock(
         process_clock: ClockValue,
         server_id: ServerId,
-        data: &[u8],
+        entry: Entry,
     ) -> Result<Self, SequencedEntryError> {
+        let heads = entry.into_heads();
+        let data = heads.data;
+
         SequencedEntryTryBuilder {
-            data: data.to_vec(),
+            data,
             entry_builder: |data| {
                 flatbuffers::root::<entry_fb::Entry<'_>>(data).context(InvalidFlatbuffer)
             },
@@ -1265,10 +1268,13 @@ impl SequencedEntry {
 
     pub fn new_from_write_metadata(
         (sequencer_id, sequence_number): WriteMetadata,
-        data: &[u8],
+        entry: Entry,
     ) -> Result<Self, SequencedEntryError> {
+        let heads = entry.into_heads();
+        let data = heads.data;
+
         SequencedEntryTryBuilder {
-            data: data.to_vec(),
+            data,
             entry_builder: |data| {
                 flatbuffers::root::<entry_fb::Entry<'_>>(data).context(InvalidFlatbuffer)
             },

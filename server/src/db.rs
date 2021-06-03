@@ -1001,7 +1001,7 @@ impl Db {
                 // buffer to return success before adding the entry to the mutable buffer.
                 let write_metadata = write_buffer.store_entry(&entry).context(WriteBufferError)?;
                 let sequenced_entry = Arc::new(
-                    SequencedEntry::new_from_write_metadata(write_metadata, entry.data())
+                    SequencedEntry::new_from_write_metadata(write_metadata, entry)
                         .context(SequencedEntryError)?,
                 );
 
@@ -1019,7 +1019,7 @@ impl Db {
                     SequencedEntry::new_from_process_clock(
                         self.process_clock.next(),
                         self.server_id,
-                        entry.data(),
+                        entry,
                     )
                     .context(SequencedEntryError)?,
                 );
