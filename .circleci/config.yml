@@ -212,9 +212,7 @@ jobs:
     environment:
         # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
         CARGO_INCREMENTAL: "0"
-        # Disable full debug symbol generation to speed up CI build
-        # "1" means line tables only, which is useful for panic tracebacks.
-        RUSTFLAGS: "-C debuginfo=1"
+        # We keep the debug symbols (Enabled in Cargo.toml as debug = true)
     steps:
       - checkout
       - rust_components
