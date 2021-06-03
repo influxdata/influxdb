@@ -84,7 +84,6 @@ type MetaClient interface {
 	Lock()
 	Unlock()
 	Backup(ctx context.Context, w io.Writer) error
-	CreateBucketManifests(ctx context.Context, w io.Writer) error
 	Restore(ctx context.Context, r io.Reader) error
 	Data() meta.Data
 	SetData(data *meta.Data) error
@@ -342,17 +341,6 @@ func (e *Engine) BackupKVStore(ctx context.Context, w io.Writer) error {
 	}
 
 	return e.metaClient.Backup(ctx, w)
-}
-
-func (e *Engine) CreateBucketManifests(ctx context.Context, w io.Writer) error {
-	span, _ := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	if e.closing == nil {
-		return ErrEngineClosed
-	}
-
-	return e.metaClient.CreateBucketManifests(ctx, w)
 }
 
 func (e *Engine) BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error {

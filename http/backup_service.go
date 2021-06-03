@@ -26,6 +26,7 @@ type BackupBackend struct {
 
 	BackupService           influxdb.BackupService
 	SqlBackupRestoreService influxdb.SqlBackupRestoreService
+	BucketManifestWriter    influxdb.BucketManifestWriter
 }
 
 // NewBackupBackend returns a new instance of BackupBackend.
@@ -36,6 +37,7 @@ func NewBackupBackend(b *APIBackend) *BackupBackend {
 		HTTPErrorHandler:        b.HTTPErrorHandler,
 		BackupService:           b.BackupService,
 		SqlBackupRestoreService: b.SqlBackupRestoreService,
+		BucketManifestWriter:    b.BucketManifestWriter,
 	}
 }
 
@@ -47,6 +49,7 @@ type BackupHandler struct {
 
 	BackupService           influxdb.BackupService
 	SqlBackupRestoreService influxdb.SqlBackupRestoreService
+	BucketManifestWriter    influxdb.BucketManifestWriter
 }
 
 const (
@@ -66,6 +69,7 @@ func NewBackupHandler(b *BackupBackend) *BackupHandler {
 		Logger:                  b.Logger,
 		BackupService:           b.BackupService,
 		SqlBackupRestoreService: b.SqlBackupRestoreService,
+		BucketManifestWriter:    b.BucketManifestWriter,
 	}
 
 	h.HandlerFunc(http.MethodGet, backupKVStorePath, h.handleBackupKVStore)
@@ -172,7 +176,7 @@ func (h *BackupHandler) handleBackupMetadata(w http.ResponseWriter, r *http.Requ
 			"application/json; charset=utf-8",
 			fmt.Sprintf("attachment; name=%q; filename=%q", "buckets", fmt.Sprintf("%s.json", baseName)),
 			func(fw io.Writer) error {
-				return h.BackupService.CreateBucketManifests(ctx, fw)
+				return h.BucketManifestWriter.WriteManifest(ctx, fw)
 			},
 		},
 	}
@@ -277,9 +281,6 @@ func (s *BackupService) BackupShard(ctx context.Context, w io.Writer, shardID ui
 	return resp.Body.Close()
 }
 
-// LockKVStore, UnlockKVStore & CreateBucketManifests are not implemented for the client.
+// LockKVStore & UnlockKVStore are not implemented for the client.
 func (s *BackupService) LockKVStore()   {}
 func (s *BackupService) UnlockKVStore() {}
-func (s *BackupService) CreateBucketManifests(ctx context.Context, w io.Writer) error {
-	return nil
-}

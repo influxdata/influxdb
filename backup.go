@@ -20,10 +20,6 @@ type BackupService interface {
 	// BackupShard downloads a backup file for a single shard.
 	BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error
 
-	// CreateBucketManifests writes an array of JSON objects describing the metadata of the
-	// buckets relevant to the backup
-	CreateBucketManifests(ctx context.Context, w io.Writer) error
-
 	// LockKVStore locks the database.
 	LockKVStore()
 
@@ -46,6 +42,10 @@ type SqlBackupRestoreService interface {
 	UnlockSqlStore()
 }
 
+type BucketManifestWriter interface {
+	WriteManifest(ctx context.Context, w io.Writer) error
+}
+
 // RestoreService represents the data restore functions of InfluxDB.
 type RestoreService interface {
 	// RestoreKVStore restores & replaces metadata database.
@@ -59,17 +59,16 @@ type RestoreService interface {
 }
 
 // BucketMetadataManifest contains the information about a bucket for backup purposes.
+// It is composed of various nested structs below.
 type BucketMetadataManifest struct {
-	OrganizationID         platform.ID
-	OrganizationName       string
-	BucketID               platform.ID
-	BucketName             string
-	DefaultRetentionPolicy string
-	RetentionPolicies      []RetentionPolicyManifest
+	OrganizationID         platform.ID               `json:"organizationID"`
+	OrganizationName       string                    `json:"organizationName"`
+	BucketID               platform.ID               `json:"bucketID"`
+	BucketName             string                    `json:"bucketName"`
+	DefaultRetentionPolicy string                    `json:"defaultRetentionPolicy"`
+	RetentionPolicies      []RetentionPolicyManifest `json:"retentionPolicies"`
 }
 
-// RetentionPolicyManifest is a copy of meta.RetentionPolicyInfo to avoid import cycle basically
-// so is everything else below this
 type RetentionPolicyManifest struct {
 	Name               string                 `json:"name"`
 	ReplicaN           int                    `json:"replicaN"`
@@ -83,14 +82,14 @@ type ShardGroupManifest struct {
 	ID          uint64          `json:"id"`
 	StartTime   time.Time       `json:"startTime"`
 	EndTime     time.Time       `json:"endTime"`
-	DeletedAt   time.Time       `json:"deletedAt"`
+	DeletedAt   *time.Time      `json:"deletedAt,omitempty"`   // use pointer to time.Time so that omitempty works
+	TruncatedAt *time.Time      `json:"truncatedAt,omitempty"` // use pointer to time.Time so that omitempty works
 	Shards      []ShardManifest `json:"shards"`
-	TruncatedAt time.Time       `json:"truncatedAt"`
 }
 
 type ShardManifest struct {
-	ID     uint64       `json:"id"`
-	Owners []ShardOwner `json:"owners"`
+	ID          uint64       `json:"id"`
+	ShardOwners []ShardOwner `json:"shardOwners"`
 }
 
 type ShardOwner struct {

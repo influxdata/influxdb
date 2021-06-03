@@ -65,6 +65,7 @@ type APIBackend struct {
 	DeleteService                   influxdb.DeleteService
 	BackupService                   influxdb.BackupService
 	SqlBackupRestoreService         influxdb.SqlBackupRestoreService
+	BucketManifestWriter            influxdb.BucketManifestWriter
 	RestoreService                  influxdb.RestoreService
 	AuthorizationService            influxdb.AuthorizationService
 	AuthorizationV1Service          influxdb.AuthorizationService
