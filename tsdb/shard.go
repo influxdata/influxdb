@@ -1752,7 +1752,10 @@ type MeasurementFieldSetWriter struct {
 // SetMeasurementFieldSetWriter - initialize the queue for write requests
 // and start the background write process
 func (fs *MeasurementFieldSet) SetMeasurementFieldSetWriter(queueLength int) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
 	fs.writer = &MeasurementFieldSetWriter{writeRequests: make(chan writeRequest, queueLength)}
+	fs.writer.wg.Add(1)
 	go fs.saveWriter()
 }
 
@@ -1775,7 +1778,6 @@ func (w *MeasurementFieldSetWriter) RequestSave() error {
 }
 
 func (fs *MeasurementFieldSet) saveWriter() {
-	fs.writer.wg.Add(1)
 	defer fs.writer.wg.Done()
 	// Block until someone modifies the MeasurementFieldSet and
 	// it needs to be written to disk.
