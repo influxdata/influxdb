@@ -1745,7 +1745,7 @@ type writeRequest struct {
 }
 
 type MeasurementFieldSetWriter struct {
-	wg sync.WaitGroup
+	wg            sync.WaitGroup
 	writeRequests chan writeRequest
 }
 
