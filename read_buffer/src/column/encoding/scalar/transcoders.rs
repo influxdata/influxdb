@@ -74,11 +74,45 @@ impl Display for ByteTrimmer {
     }
 }
 
+/// An encoding that forcefully converts logical `f64` values into other integer
+/// types. It is the caller's responsibility to ensure that conversion can take
+/// place without loss of precision.
+#[derive(Debug)]
+pub struct FloatByteTrimmer {}
+macro_rules! make_float_trimmer {
+    ($type:ty) => {
+        #[allow(clippy::float_cmp)]
+        impl Transcoder<$type, f64> for FloatByteTrimmer {
+            fn encode(&self, v: f64) -> $type {
+                // shouldn't be too expensive as only called during column
+                // creation and when passing in single literals for
+                // predicate evaluation.
+                assert!(v == (v as $type) as f64);
+                v as $type
+            }
+
+            fn decode(&self, v: $type) -> f64 {
+                v.into()
+            }
+        }
+    };
+}
+
+make_float_trimmer!(u8);
+make_float_trimmer!(i8);
+make_float_trimmer!(u16);
+make_float_trimmer!(i16);
+make_float_trimmer!(u32);
+make_float_trimmer!(i32);
+
+impl Display for FloatByteTrimmer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "FBT")
+    }
+}
+
 //
 // TODO(edd): soon to be adding the following
-//
-//  * FloatByteTrimmer: a transcoder that will coerce `f64` values into signed
-//        and unsigned integers.
 //
 //  * FrameOfReferenceTranscoder: a transcoder that will apply a transformation
 //        to logical values and then optionally apply a byte trimming to the
