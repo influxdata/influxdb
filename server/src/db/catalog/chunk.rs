@@ -325,8 +325,8 @@ impl Chunk {
         &self.stage
     }
 
-    pub fn lifecycle_action(&self) -> Option<&ChunkLifecycleAction> {
-        self.lifecycle_action.as_ref().map(|x| x.metadata())
+    pub fn lifecycle_action(&self) -> Option<&TaskTracker<ChunkLifecycleAction>> {
+        self.lifecycle_action.as_ref()
     }
 
     pub fn time_of_first_write(&self) -> Option<DateTime<Utc>> {
@@ -759,6 +759,23 @@ impl Chunk {
         self.lifecycle_action = None;
         Ok(())
     }
+
+    /// Abort the current lifecycle action if any
+    ///
+    /// Returns an error if the lifecycle action is still running
+    pub fn clear_lifecycle_action(&mut self) -> Result<()> {
+        if let Some(tracker) = &self.lifecycle_action {
+            if !tracker.is_complete() {
+                return Err(Error::IncompleteLifecycleAction {
+                    partition_key: self.partition_key.to_string(),
+                    chunk_id: self.id,
+                    action: tracker.metadata().name().to_string(),
+                });
+            }
+            self.lifecycle_action = None
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -830,15 +847,15 @@ mod tests {
         let registration = TaskRegistration::new();
 
         // no action to begin with
-        assert_eq!(chunk.lifecycle_action(), None);
+        assert!(chunk.lifecycle_action().is_none());
 
         // set some action
         chunk
             .set_lifecycle_action(ChunkLifecycleAction::Moving, &registration)
             .unwrap();
         assert_eq!(
-            chunk.lifecycle_action(),
-            Some(&ChunkLifecycleAction::Moving)
+            *chunk.lifecycle_action().unwrap().metadata(),
+            ChunkLifecycleAction::Moving
         );
 
         // setting an action while there is one running fails
@@ -860,8 +877,8 @@ mod tests {
             .set_lifecycle_action(ChunkLifecycleAction::Compacting, &registration)
             .unwrap();
         assert_eq!(
-            chunk.lifecycle_action(),
-            Some(&ChunkLifecycleAction::Compacting)
+            *chunk.lifecycle_action().unwrap().metadata(),
+            ChunkLifecycleAction::Compacting
         );
     }
 

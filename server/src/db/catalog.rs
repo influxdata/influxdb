@@ -97,6 +97,18 @@ pub enum Error {
     },
 
     #[snafu(display(
+        "Cannot clear a lifecycle action '{}' for chunk {}:{} that is still running",
+        action,
+        partition_key,
+        chunk_id
+    ))]
+    IncompleteLifecycleAction {
+        partition_key: String,
+        chunk_id: u32,
+        action: String,
+    },
+
+    #[snafu(display(
         "Cannot add an empty chunk to the catalog {}:{}:{}",
         partition_key,
         table_name,

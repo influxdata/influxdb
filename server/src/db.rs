@@ -522,7 +522,7 @@ impl Db {
                     partition_key,
                     table_name,
                     chunk_id,
-                    action: lifecycle_action.name(),
+                    action: lifecycle_action.metadata().name(),
                 }
                 .fail();
             }
