@@ -263,9 +263,7 @@ impl From<&[f64]> for FloatEncoding {
         // Store as f64, potentially with RLE.
 
         // Check if we gain space savings by encoding as RLE.
-        let base_size = arr.len() * size_of::<f64>();
-        let rle_size = rle::estimate_rle_size(arr.iter().map(Some)); // size of a run length
-        if (base_size as f64 - rle_size as f64) / base_size as f64 >= MIN_RLE_SIZE_REDUCTION {
+        if should_rle_from_iter(arr.len(), arr.iter().map(Some)) {
             let enc = Box::new(RLE::new_from_iter(
                 arr.iter().cloned(),
                 NoOpTranscoder {}, // No transcoding of values (store as physical type f64)
@@ -453,9 +451,7 @@ impl From<Float64Array> for FloatEncoding {
 
         // The number of rows we would reduce the column by if we encoded it
         // as RLE.
-        let base_size = arr.len() * size_of::<f64>();
-        let rle_size = rle::estimate_rle_size(arr.iter()); // size of a run length
-        if (base_size as f64 - rle_size as f64) / base_size as f64 >= MIN_RLE_SIZE_REDUCTION {
+        if should_rle_from_iter(arr.len(), arr.iter()) {
             let enc = Box::new(RLE::new_from_iter_opt(
                 arr.iter(),
                 NoOpTranscoder {}, // No transcoding of values (store as physical type f64)
