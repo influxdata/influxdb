@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/influxdb/v2"
@@ -21,20 +23,20 @@ type BucketLookup struct {
 }
 
 // Lookup returns the bucket id and its existence given an org id and bucket name.
-func (b *BucketLookup) Lookup(ctx context.Context, orgID influxdb.ID, name string) (influxdb.ID, bool) {
+func (b *BucketLookup) Lookup(ctx context.Context, orgID platform.ID, name string) (platform.ID, bool) {
 	filter := influxdb.BucketFilter{
 		OrganizationID: &orgID,
 		Name:           &name,
 	}
 	bucket, err := b.BucketService.FindBucket(ctx, filter)
 	if err != nil {
-		return influxdb.InvalidID(), false
+		return platform.InvalidID(), false
 	}
 	return bucket.ID, true
 }
 
 // LookupName returns an bucket name given its organization ID and its bucket ID.
-func (b *BucketLookup) LookupName(ctx context.Context, orgID influxdb.ID, id influxdb.ID) string {
+func (b *BucketLookup) LookupName(ctx context.Context, orgID platform.ID, id platform.ID) string {
 	filter := influxdb.BucketFilter{
 		OrganizationID: &orgID,
 		ID:             &id,
@@ -46,7 +48,7 @@ func (b *BucketLookup) LookupName(ctx context.Context, orgID influxdb.ID, id inf
 	return bucket.Name
 }
 
-func (b *BucketLookup) FindAllBuckets(ctx context.Context, orgID influxdb.ID) ([]*influxdb.Bucket, int) {
+func (b *BucketLookup) FindAllBuckets(ctx context.Context, orgID platform.ID) ([]*influxdb.Bucket, int) {
 	filter := influxdb.BucketFilter{
 		OrganizationID: &orgID,
 	}
@@ -77,21 +79,21 @@ type OrganizationLookup struct {
 }
 
 // Lookup returns the organization ID and its existence given an organization name.
-func (o *OrganizationLookup) Lookup(ctx context.Context, name string) (influxdb.ID, bool) {
+func (o *OrganizationLookup) Lookup(ctx context.Context, name string) (platform.ID, bool) {
 	org, err := o.OrganizationService.FindOrganization(
 		ctx,
 		influxdb.OrganizationFilter{Name: &name},
 	)
 
 	if err != nil {
-		return influxdb.InvalidID(), false
+		return platform.InvalidID(), false
 	}
 	return org.ID, true
 }
 
 // LookupName returns an organization name given its ID.
-func (o *OrganizationLookup) LookupName(ctx context.Context, id influxdb.ID) string {
-	id = influxdb.ID(id)
+func (o *OrganizationLookup) LookupName(ctx context.Context, id platform.ID) string {
+	id = platform.ID(id)
 	org, err := o.OrganizationService.FindOrganization(
 		ctx,
 		influxdb.OrganizationFilter{

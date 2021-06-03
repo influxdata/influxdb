@@ -3,7 +3,9 @@ package label
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/snowflake"
@@ -20,7 +22,7 @@ var (
 
 type Store struct {
 	kvStore     kv.Store
-	IDGenerator influxdb.IDGenerator
+	IDGenerator platform.IDGenerator
 }
 
 func NewStore(kvStore kv.Store) (*Store, error) {
@@ -62,7 +64,7 @@ func (s *Store) setup() error {
 
 // generateSafeID attempts to create ids for buckets
 // and orgs that are without backslash, commas, and spaces, BUT ALSO do not already exist.
-func (s *Store) generateSafeID(ctx context.Context, tx kv.Tx, bucket []byte) (influxdb.ID, error) {
+func (s *Store) generateSafeID(ctx context.Context, tx kv.Tx, bucket []byte) (platform.ID, error) {
 	for i := 0; i < MaxIDGenerationN; i++ {
 		id := s.IDGenerator.ID()
 
@@ -75,19 +77,19 @@ func (s *Store) generateSafeID(ctx context.Context, tx kv.Tx, bucket []byte) (in
 			continue
 		}
 
-		return influxdb.InvalidID(), err
+		return platform.InvalidID(), err
 	}
-	return influxdb.InvalidID(), ErrFailureGeneratingID
+	return platform.InvalidID(), ErrFailureGeneratingID
 }
 
-func (s *Store) uniqueID(ctx context.Context, tx kv.Tx, bucket []byte, id influxdb.ID) error {
+func (s *Store) uniqueID(ctx context.Context, tx kv.Tx, bucket []byte, id platform.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	encodedID, err := id.Encode()
 	if err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}

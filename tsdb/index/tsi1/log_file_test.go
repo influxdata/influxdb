@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/pkg/slices"
+	"github.com/stretchr/testify/require"
 
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/bloom"
@@ -313,6 +314,60 @@ func TestLogFile_Open(t *testing.T) {
 	})
 }
 
+func TestLogFile_MeasurementHasSeries(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	f := MustOpenLogFile(sfile.SeriesFile)
+	defer f.Close()
+
+	measurementN, seriesValueN, seriesKeyN := 3, 2, 5
+	tagValueN := pow(seriesValueN, seriesKeyN)
+
+	seriesSet := tsdb.NewSeriesIDSet()        //  all series in all measurements
+	seriesIDs := make([]uint64, 0, tagValueN) // all series ids in measurement0
+
+	// add series to all measurements
+	for i := 0; i < measurementN; i++ {
+		name := []byte(fmt.Sprintf("measurement%d", i))
+
+		names := make([][]byte, tagValueN)
+		tags := make([]models.Tags, tagValueN)
+
+		for j := 0; j < tagValueN; j++ {
+			var tag models.Tags
+			for k := 0; k < seriesKeyN; k++ {
+				key := []byte(fmt.Sprintf("key%d", k))
+				value := []byte(fmt.Sprintf("value%d", j/pow(seriesValueN, k)%seriesValueN))
+				tag = append(tag, models.NewTag(key, value))
+			}
+
+			names[j] = name
+			tags[j] = tag
+		}
+
+		ids, err := f.AddSeriesList(seriesSet, names, tags)
+		require.NoError(t, err)
+
+		if i == 0 {
+			seriesIDs = append(seriesIDs, ids...)
+		}
+	}
+
+	// remove series from measurement 0
+	name := []byte("measurement0")
+	for i := 0; i < tagValueN; i++ {
+		// measurement0 has series before last one removed
+		require.True(t, f.MeasurementHasSeries(seriesSet, name))
+
+		require.NoError(t, f.DeleteSeriesID(seriesIDs[i]))
+		seriesSet.Remove(seriesIDs[i])
+	}
+
+	// measurement0 has none series when last one removed
+	require.False(t, f.MeasurementHasSeries(seriesSet, name))
+}
+
 // LogFile is a test wrapper for tsi1.LogFile.
 type LogFile struct {
 	*tsi1.LogFile
@@ -492,6 +547,70 @@ func BenchmarkLogFile_WriteTo(b *testing.B) {
 		})
 	}
 }
+
+func benchmarkLogFile_MeasurementHasSeries(b *testing.B,  seriesKeyN, seriesValueN int) {
+	b.StopTimer()
+
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	f := MustOpenLogFile(sfile.SeriesFile)
+	defer f.Close()
+
+	measurementN := 2
+	tagValueN := pow(seriesValueN, seriesKeyN)
+
+	seriesSet := tsdb.NewSeriesIDSet()        //  all series in all measurements
+	seriesIDs := make([]uint64, 0, tagValueN) // all series ids in measurement0
+
+	// add series to all measurements
+	for i := 0; i < measurementN; i++ {
+		name := []byte(fmt.Sprintf("measurement%d", i))
+
+		names := make([][]byte, tagValueN)
+		tags := make([]models.Tags, tagValueN)
+
+		for j := 0; j < tagValueN; j++ {
+			var tag models.Tags
+			for k := 0; k < seriesKeyN; k++ {
+				key := []byte(fmt.Sprintf("key%d", k))
+				value := []byte(fmt.Sprintf("value%d", j/pow(seriesValueN, k)%seriesValueN))
+				tag = append(tag, models.NewTag(key, value))
+			}
+
+			names[j] = name
+			tags[j] = tag
+		}
+
+		ids, err := f.AddSeriesList(seriesSet, names, tags)
+		require.NoError(b, err)
+
+		if i == 0 {
+			seriesIDs = append(seriesIDs, ids...)
+		}
+	}
+
+	// remove some series in measurement0
+	name := []byte("measurement0")
+	for i := 0; i < 50; i++ {
+		require.NoError(b, f.DeleteSeriesID(seriesIDs[i]))
+		seriesSet.Remove(seriesIDs[i])
+	}
+
+	b.StartTimer()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		if !f.MeasurementHasSeries(seriesSet, name) {
+			b.Fatal("expect true, got false")
+		}
+	}
+}
+
+func BenchmarkLogFile_MeasurementHasSeries_2_10(b *testing.B) { benchmarkLogFile_MeasurementHasSeries(b,  2, 10) } // 100 series
+func BenchmarkLogFile_MeasurementHasSeries_3_10(b *testing.B) { benchmarkLogFile_MeasurementHasSeries(b,  3, 10) } // 1k series
+func BenchmarkLogFile_MeasurementHasSeries_4_10(b *testing.B) { benchmarkLogFile_MeasurementHasSeries(b,  4, 10) } // 10k series
+func BenchmarkLogFile_MeasurementHasSeries_5_10(b *testing.B) { benchmarkLogFile_MeasurementHasSeries(b,  5, 10) } // 100k series
 
 // MustStartCPUProfile starts a cpu profile in a temporary path based on name.
 func MustStartCPUProfile(name string) {

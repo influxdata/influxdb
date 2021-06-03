@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	iql "github.com/influxdata/influxdb/v2/influxql"
@@ -336,7 +338,7 @@ func (e *StatementExecutor) executeShowDatabasesStatement(ctx context.Context, q
 		}
 		err = authorizer.IsAllowed(ctx, *perm)
 		if err != nil {
-			if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+			if errors2.ErrorCode(err) == errors2.EUnauthorized {
 				continue
 			}
 			return nil, err
@@ -394,7 +396,7 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx context.Context
 		return err
 	}
 
-	names, err := e.TSDBStore.MeasurementNames(ectx.Authorizer, mapping.BucketID.String(), q.Condition)
+	names, err := e.TSDBStore.MeasurementNames(ctx, ectx.Authorizer, mapping.BucketID.String(), q.Condition)
 	if err != nil || len(names) == 0 {
 		return ectx.Send(ctx, &query.Result{
 			Err: err,
@@ -455,7 +457,7 @@ func (e *StatementExecutor) executeShowRetentionPoliciesStatement(ctx context.Co
 		}
 		err = authorizer.IsAllowed(ctx, *perm)
 		if err != nil {
-			if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+			if errors2.ErrorCode(err) == errors2.EUnauthorized {
 				continue
 			}
 			return nil, err
@@ -508,7 +510,7 @@ func (e *StatementExecutor) executeShowTagKeys(ctx context.Context, q *influxql.
 		}
 	}
 
-	tagKeys, err := e.TSDBStore.TagKeys(ectx.Authorizer, shardIDs, cond)
+	tagKeys, err := e.TSDBStore.TagKeys(ctx, ectx.Authorizer, shardIDs, cond)
 	if err != nil {
 		return ectx.Send(ctx, &query.Result{
 			Err: err,
@@ -600,7 +602,7 @@ func (e *StatementExecutor) executeShowTagValues(ctx context.Context, q *influxq
 		}
 	}
 
-	tagValues, err := e.TSDBStore.TagValues(ectx.Authorizer, shardIDs, cond)
+	tagValues, err := e.TSDBStore.TagValues(ctx, ectx.Authorizer, shardIDs, cond)
 	if err != nil {
 		return ectx.Send(ctx, &query.Result{Err: err})
 	}
@@ -757,9 +759,9 @@ func (m mappings) DefaultRetentionPolicy(db string) string {
 type TSDBStore interface {
 	DeleteMeasurement(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
-	MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
-	TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
-	TagValues(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
+	MeasurementNames(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
+	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
+	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 }
 
 var _ TSDBStore = LocalTSDBStore{}

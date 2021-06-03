@@ -11,12 +11,14 @@ import (
 	"github.com/influxdata/influxdb/v2/bolt"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
 	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/secret"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -26,7 +28,7 @@ func TestInmemNotificationRuleStore(t *testing.T) {
 	NotificationRuleStore(initInmemNotificationRuleStore, t)
 }
 
-func initInmemNotificationRuleStore(f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, influxdb.TaskService, func()) {
+func initInmemNotificationRuleStore(f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, taskmodel.TaskService, func()) {
 	store := inmem.NewKVStore()
 	if err := all.Up(context.Background(), zaptest.NewLogger(t), store); err != nil {
 		t.Fatal(err)
@@ -38,7 +40,7 @@ func initInmemNotificationRuleStore(f NotificationRuleFields, t *testing.T) (inf
 	}
 }
 
-func initBoltNotificationRuleStore(f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, influxdb.TaskService, func()) {
+func initBoltNotificationRuleStore(f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, taskmodel.TaskService, func()) {
 	store, closeBolt, err := newTestBoltStore(t)
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +57,7 @@ func TestBoltNotificationRuleStore(t *testing.T) {
 	NotificationRuleStore(initBoltNotificationRuleStore, t)
 }
 
-func initNotificationRuleStore(s kv.Store, f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, influxdb.TaskService, func()) {
+func initNotificationRuleStore(s kv.Store, f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, taskmodel.TaskService, func()) {
 	logger := zaptest.NewLogger(t)
 
 	var (
@@ -136,7 +138,7 @@ func initNotificationRuleStore(s kv.Store, f NotificationRuleFields, t *testing.
 	}
 }
 
-func withOrgID(store *tenant.Store, orgID influxdb.ID, fn func()) {
+func withOrgID(store *tenant.Store, orgID platform.ID, fn func()) {
 	backup := store.OrgIDGen
 	defer func() { store.OrgIDGen = backup }()
 

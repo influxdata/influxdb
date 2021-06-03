@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -37,13 +40,13 @@ func (s *Storage) FindSessionByKey(ctx context.Context, key string) (*influxdb.S
 	}
 
 	if val == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  influxdb.ErrSessionNotFound,
 		}
 	}
 
-	id, err := influxdb.IDFromString(val)
+	id, err := platform.IDFromString(val)
 	if err != nil {
 		return nil, err
 	}
@@ -51,14 +54,14 @@ func (s *Storage) FindSessionByKey(ctx context.Context, key string) (*influxdb.S
 }
 
 // FindSessionByID use a provided id to retrieve the stored session
-func (s *Storage) FindSessionByID(ctx context.Context, id influxdb.ID) (*influxdb.Session, error) {
+func (s *Storage) FindSessionByID(ctx context.Context, id platform.ID) (*influxdb.Session, error) {
 	val, err := s.store.Get(storePrefix + id.String())
 	if err != nil {
 		return nil, err
 	}
 	if val == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  influxdb.ErrSessionNotFound,
 		}
 	}
@@ -91,7 +94,7 @@ func (s *Storage) CreateSession(ctx context.Context, session *influxdb.Session) 
 }
 
 // RefreshSession updates the expiration time of a session.
-func (s *Storage) RefreshSession(ctx context.Context, id influxdb.ID, expireAt time.Time) error {
+func (s *Storage) RefreshSession(ctx context.Context, id platform.ID, expireAt time.Time) error {
 	session, err := s.FindSessionByID(ctx, id)
 	if err != nil {
 		return err
@@ -107,7 +110,7 @@ func (s *Storage) RefreshSession(ctx context.Context, id influxdb.ID, expireAt t
 }
 
 // DeleteSession removes the session and index from storage
-func (s *Storage) DeleteSession(ctx context.Context, id influxdb.ID) error {
+func (s *Storage) DeleteSession(ctx context.Context, id platform.ID) error {
 	session, err := s.FindSessionByID(ctx, id)
 	if err != nil {
 		return err
@@ -127,7 +130,7 @@ func (s *Storage) DeleteSession(ctx context.Context, id influxdb.ID) error {
 	return nil
 }
 
-func sessionID(id influxdb.ID) string {
+func sessionID(id platform.ID) string {
 	return storePrefix + id.String()
 }
 

@@ -146,6 +146,9 @@ var blacklistEndpoints = map[string]isValidMethodFn{
 	prefixSetup:                      ignoreMethod("POST"),
 	prefixNotificationEndpoints:      ignoreMethod("POST"),
 	notificationEndpointsIDPath:      ignoreMethod("PUT"),
+	restoreKVPath:                    ignoreMethod(),
+	restoreBucketPath:                ignoreMethod(),
+	restoreShardPath:                 ignoreMethod(),
 }
 
 type bodyEchoer struct {

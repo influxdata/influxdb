@@ -44,7 +44,7 @@ func TestView_MarshalJSON(t *testing.T) {
     "queries": null,
     "axes": null,
     "type": "xy",
-    "legend": {},
+    "staticLegend": {},
     "geom": "",
     "colors": null,
     "note": "",
@@ -64,6 +64,7 @@ func TestView_MarshalJSON(t *testing.T) {
     "timeFormat": "",
     "hoverDimension": "",
     "legendColorizeRows": false,
+    "legendHide": false,
     "legendOpacity": 0,
     "legendOrientationThreshold": 0
   }

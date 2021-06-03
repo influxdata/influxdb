@@ -3,7 +3,8 @@ package predicate
 import (
 	"fmt"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 )
 
@@ -21,8 +22,8 @@ func (op LogicalOperator) Value() (datatypes.Node_Logical, error) {
 	case LogicalAnd:
 		return datatypes.LogicalAnd, nil
 	default:
-		return 0, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return 0, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("the logical operator %q is invalid", op),
 		}
 	}
@@ -44,8 +45,8 @@ func (n LogicalNode) ToDataType() (*datatypes.Node, error) {
 	for k, node := range n.Children {
 		children[k], err = node.ToDataType()
 		if err != nil {
-			return nil, &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return nil, &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  fmt.Sprintf("Err in Child %d, err: %s", k, err.Error()),
 			}
 		}

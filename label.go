@@ -2,6 +2,9 @@ package influxdb
 
 import (
 	"context"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // ErrLabelNotFound is the error for a missing Label.
@@ -21,15 +24,15 @@ const (
 // errors on label
 var (
 	// ErrLabelNameisEmpty is error when org name is empty
-	ErrLabelNameisEmpty = &Error{
-		Code: EInvalid,
+	ErrLabelNameisEmpty = &errors.Error{
+		Code: errors.EInvalid,
 		Msg:  "label name is empty",
 	}
 
 	// ErrLabelExistsOnResource is used when attempting to add a label to a resource
 	// when that label already exists on the resource
-	ErrLabelExistsOnResource = &Error{
-		Code: EConflict,
+	ErrLabelExistsOnResource = &errors.Error{
+		Code: errors.EConflict,
 		Msg:  "Cannot add label, label already exists on resource",
 	}
 )
@@ -37,7 +40,7 @@ var (
 // LabelService represents a service for managing resource labels
 type LabelService interface {
 	// FindLabelByID a single label by ID.
-	FindLabelByID(ctx context.Context, id ID) (*Label, error)
+	FindLabelByID(ctx context.Context, id platform.ID) (*Label, error)
 
 	// FindLabels returns a list of labels that match a filter
 	FindLabels(ctx context.Context, filter LabelFilter, opt ...FindOptions) ([]*Label, error)
@@ -52,10 +55,10 @@ type LabelService interface {
 	CreateLabelMapping(ctx context.Context, m *LabelMapping) error
 
 	// UpdateLabel updates a label with a changeset.
-	UpdateLabel(ctx context.Context, id ID, upd LabelUpdate) (*Label, error)
+	UpdateLabel(ctx context.Context, id platform.ID, upd LabelUpdate) (*Label, error)
 
 	// DeleteLabel deletes a label
-	DeleteLabel(ctx context.Context, id ID) error
+	DeleteLabel(ctx context.Context, id platform.ID) error
 
 	// DeleteLabelMapping deletes a label mapping
 	DeleteLabelMapping(ctx context.Context, m *LabelMapping) error
@@ -63,8 +66,8 @@ type LabelService interface {
 
 // Label is a tag set on a resource, typically used for filtering on a UI.
 type Label struct {
-	ID         ID                `json:"id,omitempty"`
-	OrgID      ID                `json:"orgID,omitempty"`
+	ID         platform.ID       `json:"id,omitempty"`
+	OrgID      platform.ID       `json:"orgID,omitempty"`
 	Name       string            `json:"name"`
 	Properties map[string]string `json:"properties,omitempty"`
 }
@@ -72,15 +75,15 @@ type Label struct {
 // Validate returns an error if the label is invalid.
 func (l *Label) Validate() error {
 	if l.Name == "" {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "label name is required",
 		}
 	}
 
 	if !l.OrgID.Valid() {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "orgID is required",
 		}
 	}
@@ -91,28 +94,28 @@ func (l *Label) Validate() error {
 // LabelMapping is used to map resource to its labels.
 // It should not be shared directly over the HTTP API.
 type LabelMapping struct {
-	LabelID      ID `json:"labelID"`
-	ResourceID   ID `json:"resourceID,omitempty"`
+	LabelID      platform.ID `json:"labelID"`
+	ResourceID   platform.ID `json:"resourceID,omitempty"`
 	ResourceType `json:"resourceType"`
 }
 
 // Validate returns an error if the mapping is invalid.
 func (l *LabelMapping) Validate() error {
 	if !l.LabelID.Valid() {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "label id is required",
 		}
 	}
 	if !l.ResourceID.Valid() {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "resource id is required",
 		}
 	}
 	if err := l.ResourceType.Valid(); err != nil {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -130,11 +133,11 @@ type LabelUpdate struct {
 // LabelFilter represents a set of filters that restrict the returned results.
 type LabelFilter struct {
 	Name  string
-	OrgID *ID
+	OrgID *platform.ID
 }
 
 // LabelMappingFilter represents a set of filters that restrict the returned results.
 type LabelMappingFilter struct {
-	ResourceID ID
+	ResourceID platform.ID
 	ResourceType
 }

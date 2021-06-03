@@ -18,6 +18,11 @@ import (
 	"github.com/golang/snappy"
 )
 
+// Convenience method for testing.
+func (c *Cache) Write(key []byte, values []Value) error {
+	return c.WriteMulti(map[string][]Value{string(key): values})
+}
+
 func TestCache_NewCache(t *testing.T) {
 	c := NewCache(100)
 	if c == nil {
@@ -32,51 +37,6 @@ func TestCache_NewCache(t *testing.T) {
 	}
 	if len(c.Keys()) != 0 {
 		t.Fatalf("new cache keys not correct: %v", c.Keys())
-	}
-}
-
-func TestCache_CacheWrite(t *testing.T) {
-	v0 := NewValue(1, 1.0)
-	v1 := NewValue(2, 2.0)
-	v2 := NewValue(3, 3.0)
-	values := Values{v0, v1, v2}
-	valuesSize := uint64(v0.Size() + v1.Size() + v2.Size())
-
-	c := NewCache(3 * valuesSize)
-
-	if err := c.Write([]byte("foo"), values); err != nil {
-		t.Fatalf("failed to write key foo to cache: %s", err.Error())
-	}
-	if err := c.Write([]byte("bar"), values); err != nil {
-		t.Fatalf("failed to write key foo to cache: %s", err.Error())
-	}
-	if n := c.Size(); n != 2*valuesSize+6 {
-		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
-	}
-
-	if exp, keys := [][]byte{[]byte("bar"), []byte("foo")}, c.Keys(); !reflect.DeepEqual(keys, exp) {
-		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
-	}
-}
-
-func TestCache_CacheWrite_TypeConflict(t *testing.T) {
-	v0 := NewValue(1, 1.0)
-	v1 := NewValue(2, int(64))
-	values := Values{v0, v1}
-	valuesSize := v0.Size() + v1.Size()
-
-	c := NewCache(uint64(2 * valuesSize))
-
-	if err := c.Write([]byte("foo"), values[:1]); err != nil {
-		t.Fatalf("failed to write key foo to cache: %s", err.Error())
-	}
-
-	if err := c.Write([]byte("foo"), values[1:]); err == nil {
-		t.Fatalf("expected field type conflict")
-	}
-
-	if exp, got := uint64(v0.Size())+3, c.Size(); exp != got {
-		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
 	}
 }
 

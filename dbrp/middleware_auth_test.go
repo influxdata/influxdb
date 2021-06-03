@@ -2,6 +2,8 @@ package dbrp_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -17,8 +19,8 @@ func TestAuth_FindByID(t *testing.T) {
 		service influxdb.DBRPMappingServiceV2
 	}
 	type args struct {
-		orgID      influxdb.ID
-		id         influxdb.ID
+		orgID      platform.ID
+		id         platform.ID
 		permission influxdb.Permission
 	}
 	type wants struct {
@@ -35,10 +37,10 @@ func TestAuth_FindByID(t *testing.T) {
 			name: "authorized to access id by org id",
 			fields: fields{
 				service: &mock.DBRPMappingServiceV2{
-					FindByIDFn: func(_ context.Context, _, _ influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMappingV2, error) {
 						return &influxdb.DBRPMappingV2{
-							OrganizationID: influxdb.ID(1),
-							BucketID:       influxdb.ID(1),
+							OrganizationID: platform.ID(1),
+							BucketID:       platform.ID(1),
 						}, nil
 					},
 				},
@@ -62,10 +64,10 @@ func TestAuth_FindByID(t *testing.T) {
 			name: "authorized to access id by id",
 			fields: fields{
 				service: &mock.DBRPMappingServiceV2{
-					FindByIDFn: func(_ context.Context, _, _ influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMappingV2, error) {
 						return &influxdb.DBRPMappingV2{
-							OrganizationID: influxdb.ID(1),
-							BucketID:       influxdb.ID(1),
+							OrganizationID: platform.ID(1),
+							BucketID:       platform.ID(1),
 						}, nil
 					},
 				},
@@ -89,10 +91,10 @@ func TestAuth_FindByID(t *testing.T) {
 			name: "unauthorized to access id by org id",
 			fields: fields{
 				service: &mock.DBRPMappingServiceV2{
-					FindByIDFn: func(_ context.Context, _, _ influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMappingV2, error) {
 						return &influxdb.DBRPMappingV2{
-							OrganizationID: influxdb.ID(2),
-							BucketID:       influxdb.ID(1),
+							OrganizationID: platform.ID(2),
+							BucketID:       platform.ID(1),
 						}, nil
 					},
 				},
@@ -109,9 +111,9 @@ func TestAuth_FindByID(t *testing.T) {
 				orgID: 2,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/0000000000000002/buckets/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -119,10 +121,10 @@ func TestAuth_FindByID(t *testing.T) {
 			name: "unauthorized to access id by id",
 			fields: fields{
 				service: &mock.DBRPMappingServiceV2{
-					FindByIDFn: func(_ context.Context, _, _ influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMappingV2, error) {
 						return &influxdb.DBRPMappingV2{
-							OrganizationID: influxdb.ID(1),
-							BucketID:       influxdb.ID(1),
+							OrganizationID: platform.ID(1),
+							BucketID:       platform.ID(1),
 						}, nil
 					},
 				},
@@ -139,9 +141,9 @@ func TestAuth_FindByID(t *testing.T) {
 				orgID: 2,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/0000000000000002/buckets/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -446,9 +448,9 @@ func TestAuth_Create(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/0000000000000001/buckets/0000000000000002 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -472,8 +474,8 @@ func TestAuth_Update(t *testing.T) {
 		service influxdb.DBRPMappingServiceV2
 	}
 	type args struct {
-		orgID      influxdb.ID
-		id         influxdb.ID
+		orgID      platform.ID
+		id         platform.ID
 		permission influxdb.Permission
 	}
 	type wants struct {
@@ -523,9 +525,9 @@ func TestAuth_Update(t *testing.T) {
 				orgID: 1,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/0000000000000001/buckets/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -550,8 +552,8 @@ func TestAuth_Delete(t *testing.T) {
 		service influxdb.DBRPMappingServiceV2
 	}
 	type args struct {
-		orgID      influxdb.ID
-		id         influxdb.ID
+		orgID      platform.ID
+		id         platform.ID
 		permission influxdb.Permission
 	}
 	type wants struct {
@@ -568,10 +570,10 @@ func TestAuth_Delete(t *testing.T) {
 			name: "authorized",
 			fields: fields{
 				service: &mock.DBRPMappingServiceV2{
-					FindByIDFn: func(_ context.Context, _, _ influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMappingV2, error) {
 						return &influxdb.DBRPMappingV2{
-							OrganizationID: influxdb.ID(1),
-							BucketID:       influxdb.ID(1),
+							OrganizationID: platform.ID(1),
+							BucketID:       platform.ID(1),
 						}, nil
 					},
 				},
@@ -595,10 +597,10 @@ func TestAuth_Delete(t *testing.T) {
 			name: "unauthorized",
 			fields: fields{
 				service: &mock.DBRPMappingServiceV2{
-					FindByIDFn: func(_ context.Context, _, _ influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMappingV2, error) {
 						return &influxdb.DBRPMappingV2{
-							OrganizationID: influxdb.ID(1),
-							BucketID:       influxdb.ID(1),
+							OrganizationID: platform.ID(1),
+							BucketID:       platform.ID(1),
 						}, nil
 					},
 				},
@@ -615,9 +617,9 @@ func TestAuth_Delete(t *testing.T) {
 				orgID: 1,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/0000000000000001/buckets/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},

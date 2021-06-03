@@ -9,7 +9,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
@@ -17,10 +19,10 @@ import (
 //	Purpose of test suite:
 //   	checking if cmd line tool gives all data needed for TaskService to perform functions
 func TestCmdTask(t *testing.T) {
-	orgID := influxdb.ID(9000)
+	orgID := platform.ID(9000)
 
-	fakeSVCFn := func(svc influxdb.TaskService) taskSVCsFn {
-		return func() (influxdb.TaskService, influxdb.OrganizationService, error) {
+	fakeSVCFn := func(svc taskmodel.TaskService) taskSVCsFn {
+		return func() (taskmodel.TaskService, influxdb.OrganizationService, error) {
 			return svc, &mock.OrganizationService{
 				FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 					return &influxdb.Organization{ID: orgID, Name: "influxdata"}, nil
@@ -34,7 +36,7 @@ func TestCmdTask(t *testing.T) {
 		// todo: add more test cases
 		tests := []struct {
 			name         string
-			expectedTask influxdb.Task
+			expectedTask taskmodel.Task
 			flags        []string
 			envVars      map[string]string
 		}{
@@ -43,17 +45,17 @@ func TestCmdTask(t *testing.T) {
 				flags: []string{
 					"--org=influxdata",
 				},
-				expectedTask: influxdb.Task{
+				expectedTask: taskmodel.Task{
 					OrganizationID: 9000,
 					Organization:   "influxdata",
 				},
 			},
 		}
 
-		cmdFn := func(expectedTsk influxdb.Task) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expectedTsk taskmodel.Task) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewTaskService()
-			svc.CreateTaskFn = func(ctx context.Context, task influxdb.TaskCreate) (*influxdb.Task, error) {
-				tmpTsk := influxdb.Task{
+			svc.CreateTaskFn = func(ctx context.Context, task taskmodel.TaskCreate) (*taskmodel.Task, error) {
+				tmpTsk := taskmodel.Task{
 					Type:           task.Type,
 					OrganizationID: task.OrganizationID,
 					Organization:   task.Organization,

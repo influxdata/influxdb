@@ -16,10 +16,11 @@ import (
 	"strings"
 	"time"
 
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/parser"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
 	"github.com/influxdata/influxdb/v2/task/options"
 	"gopkg.in/yaml.v3"
@@ -104,8 +105,8 @@ func FromFile(filePath string) ReaderFn {
 	return func() (io.Reader, string, error) {
 		u, err := url.Parse(filePath)
 		if err != nil {
-			return nil, filePath, &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return nil, filePath, &errors2.Error{
+				Code: errors2.EInvalid,
 				Msg:  "invalid filepath provided",
 				Err:  err,
 			}
@@ -812,6 +813,7 @@ func (p *Template) graphBuckets() *parseErr {
 		bkt := &bucket{
 			identity:    ident,
 			Description: o.Spec.stringShort(fieldDescription),
+			SchemaType:  o.Spec.stringShort(fieldBucketSchemaType),
 		}
 		if rules, ok := o.Spec[fieldBucketRetentionRules].(retentionRules); ok {
 			bkt.RetentionRules = rules
@@ -821,6 +823,21 @@ func (p *Template) graphBuckets() *parseErr {
 					Type:    r.stringShort(fieldType),
 					Seconds: r.intShort(fieldRetentionRulesEverySeconds),
 				})
+			}
+		}
+		if schemas, ok := o.Spec[fieldMeasurementSchemas].(measurementSchemas); ok {
+			bkt.MeasurementSchemas = schemas
+		} else {
+			for _, sr := range o.Spec.slcResource(fieldMeasurementSchemas) {
+				ms := measurementSchema{Name: sr.stringShort(fieldMeasurementSchemaName)}
+				for _, scr := range sr.slcResource(fieldMeasurementSchemaColumns) {
+					ms.Columns = append(ms.Columns, measurementColumn{
+						Name:     scr.stringShort(fieldMeasurementColumnName),
+						Type:     scr.stringShort(fieldMeasurementColumnType),
+						DataType: scr.stringShort(fieldMeasurementColumnDataType),
+					})
+				}
+				bkt.MeasurementSchemas = append(bkt.MeasurementSchemas, ms)
 			}
 		}
 		p.setRefs(bkt.name, bkt.displayName)
@@ -1503,6 +1520,7 @@ func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*c
 		MainColumn:                 r.stringShort(fieldChartMainColumn),
 		LowerColumn:                r.stringShort(fieldChartLowerColumn),
 		LegendColorizeRows:         r.boolShort(fieldChartLegendColorizeRows),
+		LegendHide:                 r.boolShort(fieldChartLegendHide),
 		LegendOpacity:              r.float64Short(fieldChartLegendOpacity),
 		LegendOrientationThreshold: r.intShort(fieldChartLegendOrientationThreshold),
 		Zoom:                       r.float64Short(fieldChartGeoZoom),
@@ -1512,12 +1530,17 @@ func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*c
 		DetectCoordinateFields:     r.boolShort(fieldChartGeoDetectCoordinateFields),
 	}
 
-	if presLeg, ok := r[fieldChartLegend].(legend); ok {
-		c.Legend = presLeg
+	if presStaticLeg, ok := r[fieldChartStaticLegend].(StaticLegend); ok {
+		c.StaticLegend = presStaticLeg
 	} else {
-		if leg, ok := ifaceToResource(r[fieldChartLegend]); ok {
-			c.Legend.Type = leg.stringShort(fieldType)
-			c.Legend.Orientation = leg.stringShort(fieldLegendOrientation)
+		if staticLeg, ok := ifaceToResource(r[fieldChartStaticLegend]); ok {
+			c.StaticLegend.ColorizeRows = staticLeg.boolShort(fieldChartStaticLegendColorizeRows)
+			c.StaticLegend.HeightRatio = staticLeg.float64Short(fieldChartStaticLegendHeightRatio)
+			c.StaticLegend.Hide = staticLeg.boolShort(fieldChartStaticLegendHide)
+			c.StaticLegend.Opacity = staticLeg.float64Short(fieldChartStaticLegendOpacity)
+			c.StaticLegend.OrientationThreshold = staticLeg.intShort(fieldChartStaticLegendOrientationThreshold)
+			c.StaticLegend.ValueAxis = staticLeg.stringShort(fieldChartStaticLegendValueAxis)
+			c.StaticLegend.WidthRatio = staticLeg.float64Short(fieldChartStaticLegendWidthRatio)
 		}
 	}
 
@@ -1664,7 +1687,7 @@ func (p *Template) parseChartQueries(dashMetaName string, chartIdx int, resource
 func (p *Template) parseQuery(prefix, source string, params, task []Resource) (query, error) {
 	files := parser.ParseSource(source).Files
 	if len(files) != 1 {
-		return query{}, influxErr(influxdb.EInvalid, "invalid query source")
+		return query{}, influxErr(errors2.EInvalid, "invalid query source")
 	}
 
 	q := query{
@@ -1756,7 +1779,7 @@ func (p *Template) parseQuery(prefix, source string, params, task []Resource) (q
 				case string:
 					tParams[field].defaultVal, err = time.ParseDuration(defDur)
 					if err != nil {
-						return query{}, influxErr(influxdb.EInvalid, err.Error())
+						return query{}, influxErr(errors2.EInvalid, err.Error())
 					}
 				case time.Duration:
 					tParams[field].defaultVal = defDur
@@ -2287,7 +2310,7 @@ func IsParseErr(err error) bool {
 		return true
 	}
 
-	iErr, ok := err.(*influxdb.Error)
+	iErr, ok := err.(*errors2.Error)
 	if !ok {
 		return false
 	}

@@ -3,12 +3,14 @@ package authorization
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 )
 
 type AuthFinder interface {
-	FindAuthorizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Authorization, error)
+	FindAuthorizationByID(ctx context.Context, id platform.ID) (*influxdb.Authorization, error)
 }
 
 // AuthedPasswordService is middleware for authorizing requests to the inner PasswordService.
@@ -23,7 +25,7 @@ func NewAuthedPasswordService(auth AuthFinder, inner PasswordService) *AuthedPas
 }
 
 // SetPassword overrides the password of a known user.
-func (s *AuthedPasswordService) SetPassword(ctx context.Context, authID influxdb.ID, password string) error {
+func (s *AuthedPasswordService) SetPassword(ctx context.Context, authID platform.ID, password string) error {
 	auth, err := s.auth.FindAuthorizationByID(ctx, authID)
 	if err != nil {
 		return ErrAuthNotFound

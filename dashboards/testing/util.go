@@ -4,6 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -28,14 +31,14 @@ func ErrorsEqual(t *testing.T, actual, expected error) {
 		t.Errorf("expected error %s but received nil", expected.Error())
 	}
 
-	if influxdb.ErrorCode(expected) != influxdb.ErrorCode(actual) {
+	if errors.ErrorCode(expected) != errors.ErrorCode(actual) {
 		t.Logf("\nexpected: %v\nactual: %v\n\n", expected, actual)
-		t.Errorf("expected error code %q but received %q", influxdb.ErrorCode(expected), influxdb.ErrorCode(actual))
+		t.Errorf("expected error code %q but received %q", errors.ErrorCode(expected), errors.ErrorCode(actual))
 	}
 
-	if influxdb.ErrorMessage(expected) != influxdb.ErrorMessage(actual) {
+	if errors.ErrorMessage(expected) != errors.ErrorMessage(actual) {
 		t.Logf("\nexpected: %v\nactual: %v\n\n", expected, actual)
-		t.Errorf("expected error message %q but received %q", influxdb.ErrorMessage(expected), influxdb.ErrorMessage(actual))
+		t.Errorf("expected error message %q but received %q", errors.ErrorMessage(expected), errors.ErrorMessage(actual))
 	}
 }
 
@@ -46,13 +49,13 @@ func FloatPtr(f float64) *float64 {
 	return p
 }
 
-func idPtr(id influxdb.ID) *influxdb.ID {
+func idPtr(id platform.ID) *platform.ID {
 	return &id
 }
 
 // MustIDBase16 is an helper to ensure a correct ID is built during testing.
-func MustIDBase16(s string) influxdb.ID {
-	id, err := influxdb.IDFromString(s)
+func MustIDBase16(s string) platform.ID {
+	id, err := platform.IDFromString(s)
 	if err != nil {
 		panic(err)
 	}
@@ -60,7 +63,7 @@ func MustIDBase16(s string) influxdb.ID {
 }
 
 // MustIDBase16Ptr is an helper to ensure a correct ID ptr ref is built during testing.
-func MustIDBase16Ptr(s string) *influxdb.ID {
+func MustIDBase16Ptr(s string) *platform.ID {
 	id := MustIDBase16(s)
 	return &id
 }
@@ -97,7 +100,7 @@ func MustCreateMappings(ctx context.Context, svc influxdb.UserResourceMappingSer
 	}
 }
 
-func MustMakeUsersOrgOwner(ctx context.Context, svc influxdb.UserResourceMappingService, oid influxdb.ID, uids ...influxdb.ID) {
+func MustMakeUsersOrgOwner(ctx context.Context, svc influxdb.UserResourceMappingService, oid platform.ID, uids ...platform.ID) {
 	ms := make([]*influxdb.UserResourceMapping, len(uids))
 	for i, uid := range uids {
 		ms[i] = &influxdb.UserResourceMapping{
@@ -110,7 +113,7 @@ func MustMakeUsersOrgOwner(ctx context.Context, svc influxdb.UserResourceMapping
 	MustCreateMappings(ctx, svc, ms...)
 }
 
-func MustMakeUsersOrgMember(ctx context.Context, svc influxdb.UserResourceMappingService, oid influxdb.ID, uids ...influxdb.ID) {
+func MustMakeUsersOrgMember(ctx context.Context, svc influxdb.UserResourceMappingService, oid platform.ID, uids ...platform.ID) {
 	ms := make([]*influxdb.UserResourceMapping, len(uids))
 	for i, uid := range uids {
 		ms[i] = &influxdb.UserResourceMapping{
@@ -123,7 +126,7 @@ func MustMakeUsersOrgMember(ctx context.Context, svc influxdb.UserResourceMappin
 	MustCreateMappings(ctx, svc, ms...)
 }
 
-func MustNewPermissionAtID(id influxdb.ID, a influxdb.Action, rt influxdb.ResourceType, orgID influxdb.ID) *influxdb.Permission {
+func MustNewPermissionAtID(id platform.ID, a influxdb.Action, rt influxdb.ResourceType, orgID platform.ID) *influxdb.Permission {
 	perm, err := influxdb.NewPermissionAtID(id, a, rt, orgID)
 	if err != nil {
 		panic(err)

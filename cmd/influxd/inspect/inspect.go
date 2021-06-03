@@ -6,7 +6,7 @@ import (
 )
 
 // NewCommand creates the new command.
-func NewCommand(v *viper.Viper) *cobra.Command {
+func NewCommand(v *viper.Viper) (*cobra.Command, error) {
 	base := &cobra.Command{
 		Use:   "inspect",
 		Short: "Commands for inspecting on-disk database data",
@@ -16,14 +16,12 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 		},
 	}
 
-	// List of available sub-commands
-	// If a new sub-command is created, it must be added here
-	subCommands := []*cobra.Command{
-		NewExportLineProtocolCommand(v),
-		NewExportIndexCommand(),
+	exportLp, err := NewExportLineProtocolCommand(v)
+	if err != nil {
+		return nil, err
 	}
+	base.AddCommand(exportLp)
+	base.AddCommand(NewExportIndexCommand())
 
-	base.AddCommand(subCommands...)
-
-	return base
+	return base, nil
 }

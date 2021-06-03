@@ -7,7 +7,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2/kv"
 )
 
@@ -80,7 +82,7 @@ func (s *StoreKV) CreateStack(ctx context.Context, stack Stack) error {
 }
 
 // ListStacks returns a list of stacks.
-func (s *StoreKV) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
+func (s *StoreKV) ListStacks(ctx context.Context, orgID platform.ID, f ListFilter) ([]Stack, error) {
 	if len(f.StackIDs) > 0 && len(f.Names) == 0 {
 		return s.listStacksByID(ctx, orgID, f.StackIDs)
 	}
@@ -114,7 +116,7 @@ func (s *StoreKV) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilte
 	return stacks, nil
 }
 
-func storeListFilterFn(orgID influxdb.ID, f ListFilter) (func(*entStack) bool, error) {
+func storeListFilterFn(orgID platform.ID, f ListFilter) (func(*entStack) bool, error) {
 	orgIDEncoded, err := orgID.Encode()
 	if err != nil {
 		return nil, err
@@ -155,11 +157,11 @@ func storeListFilterFn(orgID influxdb.ID, f ListFilter) (func(*entStack) bool, e
 	}, nil
 }
 
-func (s *StoreKV) listStacksByID(ctx context.Context, orgID influxdb.ID, stackIDs []influxdb.ID) ([]Stack, error) {
+func (s *StoreKV) listStacksByID(ctx context.Context, orgID platform.ID, stackIDs []platform.ID) ([]Stack, error) {
 	var stacks []Stack
 	for _, id := range stackIDs {
 		st, err := s.ReadStackByID(ctx, id)
-		if influxdb.ErrorCode(err) == influxdb.ENotFound {
+		if errors.ErrorCode(err) == errors.ENotFound {
 			// since the stackIDs are a filter, if it is not found, we just continue
 			// on. If the user wants to verify the existence of a particular stack
 			// then it would be upon them to use the ReadByID call.
@@ -177,7 +179,7 @@ func (s *StoreKV) listStacksByID(ctx context.Context, orgID influxdb.ID, stackID
 }
 
 // ReadStackByID reads a stack by the provided ID.
-func (s *StoreKV) ReadStackByID(ctx context.Context, id influxdb.ID) (Stack, error) {
+func (s *StoreKV) ReadStackByID(ctx context.Context, id platform.ID) (Stack, error) {
 	var stack Stack
 	err := s.view(ctx, func(tx kv.Tx) error {
 		decodedEnt, err := s.indexBase.FindEnt(ctx, tx, kv.Entity{PK: kv.EncID(id)})
@@ -198,8 +200,8 @@ func (s *StoreKV) UpdateStack(ctx context.Context, stack Stack) error {
 	}
 
 	if stack.OrgID != existing.OrgID {
-		return &influxdb.Error{
-			Code: influxdb.EUnprocessableEntity,
+		return &errors.Error{
+			Code: errors.EUnprocessableEntity,
 			Msg:  "org id does not match",
 		}
 	}
@@ -208,7 +210,7 @@ func (s *StoreKV) UpdateStack(ctx context.Context, stack Stack) error {
 }
 
 // DeleteStack deletes a stack by id.
-func (s *StoreKV) DeleteStack(ctx context.Context, id influxdb.ID) error {
+func (s *StoreKV) DeleteStack(ctx context.Context, id platform.ID) error {
 	return s.kvStore.Update(ctx, func(tx kv.Tx) error {
 		return s.indexBase.DeleteEnt(ctx, tx, kv.Entity{PK: kv.EncID(id)})
 	})
@@ -217,7 +219,7 @@ func (s *StoreKV) DeleteStack(ctx context.Context, id influxdb.ID) error {
 func (s *StoreKV) put(ctx context.Context, stack Stack, opts ...kv.PutOptionFn) error {
 	ent, err := convertStackToEnt(stack)
 	if err != nil {
-		return influxErr(influxdb.EInvalid, err)
+		return influxErr(errors.EInvalid, err)
 	}
 
 	return s.kvStore.Update(ctx, func(tx kv.Tx) error {
@@ -251,7 +253,7 @@ func (s *StoreKV) entStoreBase(resource string) *kv.StoreBase {
 
 func (s *StoreKV) indexStoreBase(resource string) *kv.StoreBase {
 	var decValToEntFn kv.ConvertValToEntFn = func(k []byte, v interface{}) (kv.Entity, error) {
-		id, ok := v.(influxdb.ID)
+		id, ok := v.(platform.ID)
 		if err := kv.IsErrUnexpectedDecodeVal(ok); err != nil {
 			return kv.Entity{}, err
 		}

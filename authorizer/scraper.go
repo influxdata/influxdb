@@ -3,6 +3,8 @@ package authorizer
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -28,7 +30,7 @@ func NewScraperTargetStoreService(s influxdb.ScraperTargetStoreService,
 }
 
 // GetTargetByID checks to see if the authorizer on context has read access to the id provided.
-func (s *ScraperTargetStoreService) GetTargetByID(ctx context.Context, id influxdb.ID) (*influxdb.ScraperTarget, error) {
+func (s *ScraperTargetStoreService) GetTargetByID(ctx context.Context, id platform.ID) (*influxdb.ScraperTarget, error) {
 	st, err := s.s.GetTargetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -52,7 +54,7 @@ func (s *ScraperTargetStoreService) ListTargets(ctx context.Context, filter infl
 }
 
 // AddTarget checks to see if the authorizer on context has write access to the global scraper target resource.
-func (s *ScraperTargetStoreService) AddTarget(ctx context.Context, st *influxdb.ScraperTarget, userID influxdb.ID) error {
+func (s *ScraperTargetStoreService) AddTarget(ctx context.Context, st *influxdb.ScraperTarget, userID platform.ID) error {
 	if _, _, err := AuthorizeCreate(ctx, influxdb.ScraperResourceType, st.OrgID); err != nil {
 		return err
 	}
@@ -63,7 +65,7 @@ func (s *ScraperTargetStoreService) AddTarget(ctx context.Context, st *influxdb.
 }
 
 // UpdateTarget checks to see if the authorizer on context has write access to the scraper target provided.
-func (s *ScraperTargetStoreService) UpdateTarget(ctx context.Context, upd *influxdb.ScraperTarget, userID influxdb.ID) (*influxdb.ScraperTarget, error) {
+func (s *ScraperTargetStoreService) UpdateTarget(ctx context.Context, upd *influxdb.ScraperTarget, userID platform.ID) (*influxdb.ScraperTarget, error) {
 	st, err := s.s.GetTargetByID(ctx, upd.ID)
 	if err != nil {
 		return nil, err
@@ -78,7 +80,7 @@ func (s *ScraperTargetStoreService) UpdateTarget(ctx context.Context, upd *influ
 }
 
 // RemoveTarget checks to see if the authorizer on context has write access to the scraper target provided.
-func (s *ScraperTargetStoreService) RemoveTarget(ctx context.Context, id influxdb.ID) error {
+func (s *ScraperTargetStoreService) RemoveTarget(ctx context.Context, id platform.ID) error {
 	st, err := s.s.GetTargetByID(ctx, id)
 	if err != nil {
 		return err

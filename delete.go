@@ -1,6 +1,10 @@
 package influxdb
 
-import "context"
+import (
+	"context"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+)
 
 // Predicate is something that can match on a series key.
 type Predicate interface {
@@ -11,5 +15,5 @@ type Predicate interface {
 
 // DeleteService will delete a bucket from the range and predict.
 type DeleteService interface {
-	DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID ID, min, max int64, pred Predicate) error
+	DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID platform.ID, min, max int64, pred Predicate) error
 }

@@ -2,6 +2,7 @@ package influxdb_test
 
 import (
 	"context"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 	"time"
 
@@ -13,7 +14,6 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/stdlib/universe"
-	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
@@ -98,7 +98,7 @@ const (
 func TestMetrics(t *testing.T) {
 	reg := prometheus.NewRegistry()
 
-	orgID, err := platform.IDFromString("deadbeefbeefdead")
+	orgID, err := platform2.IDFromString("deadbeefbeefdead")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func (t *TableIterator) Statistics() cursors.CursorStats {
 func TestReadWindowAggregateSource(t *testing.T) {
 	t.Skip("test panics in CI; issue: https://github.com/influxdata/influxdb/issues/17847")
 
-	orgID, bucketID := platform.ID(1), platform.ID(2)
+	orgID, bucketID := platform2.ID(1), platform2.ID(2)
 	executetest.RunSourceHelper(t,
 		[]*executetest.Table{
 			{

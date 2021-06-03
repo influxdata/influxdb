@@ -3,6 +3,8 @@ package dbrp
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
@@ -21,7 +23,7 @@ func NewBucketService(logger *zap.Logger, bucketService influxdb.BucketService, 
 	}
 }
 
-func (s *BucketService) DeleteBucket(ctx context.Context, id influxdb.ID) error {
+func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error {
 	bucket, err := s.BucketService.FindBucketByID(ctx, id)
 	if err != nil {
 		return err

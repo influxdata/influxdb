@@ -3,20 +3,22 @@ package authorization
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
 // tenantService is a mock implementation of an authorization.tenantService
 type tenantService struct {
-	FindUserByIDFn        func(context.Context, influxdb.ID) (*influxdb.User, error)
+	FindUserByIDFn        func(context.Context, platform.ID) (*influxdb.User, error)
 	FindUserFn            func(context.Context, influxdb.UserFilter) (*influxdb.User, error)
-	FindOrganizationByIDF func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error)
+	FindOrganizationByIDF func(ctx context.Context, id platform.ID) (*influxdb.Organization, error)
 	FindOrganizationF     func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error)
-	FindBucketByIDFn      func(context.Context, influxdb.ID) (*influxdb.Bucket, error)
+	FindBucketByIDFn      func(context.Context, platform.ID) (*influxdb.Bucket, error)
 }
 
 // FindUserByID returns a single User by ID.
-func (s *tenantService) FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+func (s *tenantService) FindUserByID(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 	return s.FindUserByIDFn(ctx, id)
 }
 
@@ -26,7 +28,7 @@ func (s *tenantService) FindUser(ctx context.Context, filter influxdb.UserFilter
 }
 
 //FindOrganizationByID calls FindOrganizationByIDF.
-func (s *tenantService) FindOrganizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+func (s *tenantService) FindOrganizationByID(ctx context.Context, id platform.ID) (*influxdb.Organization, error) {
 	return s.FindOrganizationByIDF(ctx, id)
 }
 
@@ -35,6 +37,6 @@ func (s *tenantService) FindOrganization(ctx context.Context, filter influxdb.Or
 	return s.FindOrganizationF(ctx, filter)
 }
 
-func (s *tenantService) FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+func (s *tenantService) FindBucketByID(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 	return s.FindBucketByIDFn(ctx, id)
 }

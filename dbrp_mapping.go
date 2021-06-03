@@ -5,13 +5,16 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // DBRPMappingServiceV2 provides CRUD to DBRPMappingV2s.
 type DBRPMappingServiceV2 interface {
 	// FindBy returns the dbrp mapping for the specified ID.
 	// Requires orgID because every resource will be org-scoped.
-	FindByID(ctx context.Context, orgID, id ID) (*DBRPMappingV2, error)
+	FindByID(ctx context.Context, orgID, id platform.ID) (*DBRPMappingV2, error)
 	// FindMany returns a list of dbrp mappings that match filter and the total count of matching dbrp mappings.
 	FindMany(ctx context.Context, dbrp DBRPMappingFilterV2, opts ...FindOptions) ([]*DBRPMappingV2, int, error)
 	// Create creates a new dbrp mapping, if a different mapping exists an error is returned.
@@ -21,45 +24,45 @@ type DBRPMappingServiceV2 interface {
 	// Delete removes a dbrp mapping.
 	// Deleting a mapping that does not exists is not an error.
 	// Requires orgID because every resource will be org-scoped.
-	Delete(ctx context.Context, orgID, id ID) error
+	Delete(ctx context.Context, orgID, id platform.ID) error
 }
 
 // DBRPMappingV2 represents a mapping of a database and retention policy to an organization ID and bucket ID.
 type DBRPMappingV2 struct {
-	ID              ID     `json:"id"`
-	Database        string `json:"database"`
-	RetentionPolicy string `json:"retention_policy"`
+	ID              platform.ID `json:"id"`
+	Database        string      `json:"database"`
+	RetentionPolicy string      `json:"retention_policy"`
 
 	// Default indicates if this mapping is the default for the cluster and database.
 	Default bool `json:"default"`
 
-	OrganizationID ID `json:"orgID"`
-	BucketID       ID `json:"bucketID"`
+	OrganizationID platform.ID `json:"orgID"`
+	BucketID       platform.ID `json:"bucketID"`
 }
 
 // Validate reports any validation errors for the mapping.
 func (m DBRPMappingV2) Validate() error {
 	if !validName(m.Database) {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "database must contain at least one character and only be letters, numbers, '_', '-', and '.'",
 		}
 	}
 	if !validName(m.RetentionPolicy) {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "retentionPolicy must contain at least one character and only be letters, numbers, '_', '-', and '.'",
 		}
 	}
 	if !m.OrganizationID.Valid() {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "organizationID is required",
 		}
 	}
 	if !m.BucketID.Valid() {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "bucketID is required",
 		}
 	}
@@ -89,9 +92,9 @@ func (m *DBRPMappingV2) Equal(o *DBRPMappingV2) bool {
 
 // DBRPMappingFilterV2 represents a set of filters that restrict the returned results.
 type DBRPMappingFilterV2 struct {
-	ID       *ID
-	OrgID    *ID
-	BucketID *ID
+	ID       *platform.ID
+	OrgID    *platform.ID
+	BucketID *platform.ID
 
 	Database        *string
 	RetentionPolicy *string
@@ -170,39 +173,39 @@ type DBRPMapping struct {
 	// Default indicates if this mapping is the default for the cluster and database.
 	Default bool `json:"default"`
 
-	OrganizationID ID `json:"organization_id"`
-	BucketID       ID `json:"bucket_id"`
+	OrganizationID platform.ID `json:"organization_id"`
+	BucketID       platform.ID `json:"bucket_id"`
 }
 
 // Validate reports any validation errors for the mapping.
 func (m DBRPMapping) Validate() error {
 	if !validName(m.Cluster) {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "cluster must contain at least one character and only be letters, numbers, '_', '-', and '.'",
 		}
 	}
 	if !validName(m.Database) {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "database must contain at least one character and only be letters, numbers, '_', '-', and '.'",
 		}
 	}
 	if !validName(m.RetentionPolicy) {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "retentionPolicy must contain at least one character and only be letters, numbers, '_', '-', and '.'",
 		}
 	}
 	if !m.OrganizationID.Valid() {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "organizationID is required",
 		}
 	}
 	if !m.BucketID.Valid() {
-		return &Error{
-			Code: EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "bucketID is required",
 		}
 	}

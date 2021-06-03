@@ -3,6 +3,8 @@ package mock
 import (
 	"context"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	platform "github.com/influxdata/influxdb/v2"
 )
 
@@ -12,15 +14,15 @@ var _ platform.LabelService = &LabelService{}
 type LabelService struct {
 	CreateLabelFn           func(context.Context, *platform.Label) error
 	CreateLabelCalls        SafeCount
-	DeleteLabelFn           func(context.Context, platform.ID) error
+	DeleteLabelFn           func(context.Context, platform2.ID) error
 	DeleteLabelCalls        SafeCount
-	FindLabelByIDFn         func(ctx context.Context, id platform.ID) (*platform.Label, error)
+	FindLabelByIDFn         func(ctx context.Context, id platform2.ID) (*platform.Label, error)
 	FindLabelByIDCalls      SafeCount
 	FindLabelsFn            func(context.Context, platform.LabelFilter) ([]*platform.Label, error)
 	FindLabelsCalls         SafeCount
 	FindResourceLabelsFn    func(context.Context, platform.LabelMappingFilter) ([]*platform.Label, error)
 	FindResourceLabelsCalls SafeCount
-	UpdateLabelFn           func(context.Context, platform.ID, platform.LabelUpdate) (*platform.Label, error)
+	UpdateLabelFn           func(context.Context, platform2.ID, platform.LabelUpdate) (*platform.Label, error)
 	UpdateLabelCalls        SafeCount
 	CreateLabelMappingFn    func(context.Context, *platform.LabelMapping) error
 	CreateLabelMappingCalls SafeCount
@@ -32,7 +34,7 @@ type LabelService struct {
 // where its methods will return zero values.
 func NewLabelService() *LabelService {
 	return &LabelService{
-		FindLabelByIDFn: func(ctx context.Context, id platform.ID) (*platform.Label, error) {
+		FindLabelByIDFn: func(ctx context.Context, id platform2.ID) (*platform.Label, error) {
 			return nil, nil
 		},
 		FindLabelsFn: func(context.Context, platform.LabelFilter) ([]*platform.Label, error) {
@@ -43,14 +45,14 @@ func NewLabelService() *LabelService {
 		},
 		CreateLabelFn:        func(context.Context, *platform.Label) error { return nil },
 		CreateLabelMappingFn: func(context.Context, *platform.LabelMapping) error { return nil },
-		UpdateLabelFn:        func(context.Context, platform.ID, platform.LabelUpdate) (*platform.Label, error) { return nil, nil },
-		DeleteLabelFn:        func(context.Context, platform.ID) error { return nil },
+		UpdateLabelFn:        func(context.Context, platform2.ID, platform.LabelUpdate) (*platform.Label, error) { return nil, nil },
+		DeleteLabelFn:        func(context.Context, platform2.ID) error { return nil },
 		DeleteLabelMappingFn: func(context.Context, *platform.LabelMapping) error { return nil },
 	}
 }
 
 // FindLabelByID finds mappings by their ID
-func (s *LabelService) FindLabelByID(ctx context.Context, id platform.ID) (*platform.Label, error) {
+func (s *LabelService) FindLabelByID(ctx context.Context, id platform2.ID) (*platform.Label, error) {
 	defer s.FindLabelByIDCalls.IncrFn()()
 	return s.FindLabelByIDFn(ctx, id)
 }
@@ -80,13 +82,13 @@ func (s *LabelService) CreateLabelMapping(ctx context.Context, m *platform.Label
 }
 
 // UpdateLabel updates a label.
-func (s *LabelService) UpdateLabel(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
+func (s *LabelService) UpdateLabel(ctx context.Context, id platform2.ID, upd platform.LabelUpdate) (*platform.Label, error) {
 	defer s.UpdateLabelCalls.IncrFn()()
 	return s.UpdateLabelFn(ctx, id, upd)
 }
 
 // DeleteLabel removes a Label.
-func (s *LabelService) DeleteLabel(ctx context.Context, id platform.ID) error {
+func (s *LabelService) DeleteLabel(ctx context.Context, id platform2.ID) error {
 	defer s.DeleteLabelCalls.IncrFn()()
 	return s.DeleteLabelFn(ctx, id)
 }

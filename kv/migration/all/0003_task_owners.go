@@ -6,7 +6,10 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 var taskBucket = []byte("tasksv1")
@@ -15,23 +18,23 @@ var taskBucket = []byte("tasksv1")
 var Migration0003_TaskOwnerIDUpMigration = UpOnlyMigration(
 	"migrate task owner id",
 	func(ctx context.Context, store kv.SchemaStore) error {
-		var ownerlessTasks []*influxdb.Task
+		var ownerlessTasks []*taskmodel.Task
 		// loop through the tasks and collect a set of tasks that are missing the owner id.
 		err := store.View(ctx, func(tx kv.Tx) error {
 			taskBucket, err := tx.Bucket(taskBucket)
 			if err != nil {
-				return influxdb.ErrUnexpectedTaskBucketErr(err)
+				return taskmodel.ErrUnexpectedTaskBucketErr(err)
 			}
 
 			c, err := taskBucket.ForwardCursor([]byte{})
 			if err != nil {
-				return influxdb.ErrUnexpectedTaskBucketErr(err)
+				return taskmodel.ErrUnexpectedTaskBucketErr(err)
 			}
 
 			for k, v := c.Next(); k != nil; k, v = c.Next() {
 				kvTask := &kvTask{}
 				if err := json.Unmarshal(v, kvTask); err != nil {
-					return influxdb.ErrInternalTaskServiceError(err)
+					return taskmodel.ErrInternalTaskServiceError(err)
 				}
 
 				t := kvToInfluxTask(kvTask)
@@ -60,19 +63,19 @@ var Migration0003_TaskOwnerIDUpMigration = UpOnlyMigration(
 				}
 				b, err := tx.Bucket(taskBucket)
 				if err != nil {
-					return influxdb.ErrUnexpectedTaskBucketErr(err)
+					return taskmodel.ErrUnexpectedTaskBucketErr(err)
 				}
 
 				if !t.OwnerID.Valid() {
 					v, err := b.Get(taskKey)
 					if kv.IsNotFound(err) {
-						return influxdb.ErrTaskNotFound
+						return taskmodel.ErrTaskNotFound
 					}
 					authType := struct {
-						AuthorizationID influxdb.ID `json:"authorizationID"`
+						AuthorizationID platform.ID `json:"authorizationID"`
 					}{}
 					if err := json.Unmarshal(v, &authType); err != nil {
-						return influxdb.ErrInternalTaskServiceError(err)
+						return taskmodel.ErrInternalTaskServiceError(err)
 					}
 
 					// try populating the owner from auth
@@ -131,8 +134,8 @@ var Migration0003_TaskOwnerIDUpMigration = UpOnlyMigration(
 
 				// if population fails return error
 				if !t.OwnerID.Valid() {
-					return &influxdb.Error{
-						Code: influxdb.EInternal,
+					return &errors.Error{
+						Code: errors.EInternal,
 						Msg:  "could not populate owner ID for task",
 					}
 				}
@@ -140,12 +143,12 @@ var Migration0003_TaskOwnerIDUpMigration = UpOnlyMigration(
 				// save task
 				taskBytes, err := json.Marshal(t)
 				if err != nil {
-					return influxdb.ErrInternalTaskServiceError(err)
+					return taskmodel.ErrInternalTaskServiceError(err)
 				}
 
 				err = b.Put(taskKey, taskBytes)
 				if err != nil {
-					return influxdb.ErrUnexpectedTaskBucketErr(err)
+					return taskmodel.ErrUnexpectedTaskBucketErr(err)
 				}
 				return nil
 			})
@@ -158,11 +161,11 @@ var Migration0003_TaskOwnerIDUpMigration = UpOnlyMigration(
 )
 
 type kvTask struct {
-	ID              influxdb.ID            `json:"id"`
+	ID              platform.ID            `json:"id"`
 	Type            string                 `json:"type,omitempty"`
-	OrganizationID  influxdb.ID            `json:"orgID"`
+	OrganizationID  platform.ID            `json:"orgID"`
 	Organization    string                 `json:"org"`
-	OwnerID         influxdb.ID            `json:"ownerID"`
+	OwnerID         platform.ID            `json:"ownerID"`
 	Name            string                 `json:"name"`
 	Description     string                 `json:"description,omitempty"`
 	Status          string                 `json:"status"`
@@ -179,8 +182,8 @@ type kvTask struct {
 	Metadata        map[string]interface{} `json:"metadata,omitempty"`
 }
 
-func kvToInfluxTask(k *kvTask) *influxdb.Task {
-	return &influxdb.Task{
+func kvToInfluxTask(k *kvTask) *taskmodel.Task {
+	return &taskmodel.Task{
 		ID:              k.ID,
 		Type:            k.Type,
 		OrganizationID:  k.OrganizationID,
@@ -203,10 +206,10 @@ func kvToInfluxTask(k *kvTask) *influxdb.Task {
 	}
 }
 
-func taskKey(taskID influxdb.ID) ([]byte, error) {
+func taskKey(taskID platform.ID) ([]byte, error) {
 	encodedID, err := taskID.Encode()
 	if err != nil {
-		return nil, influxdb.ErrInvalidTaskID
+		return nil, taskmodel.ErrInvalidTaskID
 	}
 	return encodedID, nil
 }

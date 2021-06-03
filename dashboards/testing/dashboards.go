@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	platform "github.com/influxdata/influxdb/v2"
@@ -36,7 +39,7 @@ var dashboardCmpOptions = cmp.Options{
 
 // DashboardFields will include the IDGenerator, and dashboards
 type DashboardFields struct {
-	IDGenerator   platform.IDGenerator
+	IDGenerator   platform2.IDGenerator
 	TimeGenerator platform.TimeGenerator
 	Dashboards    []*platform.Dashboard
 	Views         []*platform.View
@@ -128,7 +131,7 @@ func CreateDashboard(
 			name: "basic create dashboard",
 			fields: DashboardFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
+					IDFn: func() platform2.ID {
 						return MustIDBase16(dashTwoID)
 					},
 				},
@@ -173,7 +176,7 @@ func CreateDashboard(
 			name: "create dashboard with missing id",
 			fields: DashboardFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
+					IDFn: func() platform2.ID {
 						return MustIDBase16(dashTwoID)
 					},
 				},
@@ -240,7 +243,7 @@ func AddDashboardCell(
 	t *testing.T,
 ) {
 	type args struct {
-		dashboardID platform.ID
+		dashboardID platform2.ID
 		cell        *platform.Cell
 	}
 	type wants struct {
@@ -258,7 +261,7 @@ func AddDashboardCell(
 			name: "basic add cell",
 			fields: DashboardFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
+					IDFn: func() platform2.ID {
 						return MustIDBase16(dashTwoID)
 					},
 				},
@@ -307,7 +310,7 @@ func AddDashboardCell(
 			fields: DashboardFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC)},
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
+					IDFn: func() platform2.ID {
 						return MustIDBase16(dashTwoID)
 					},
 				},
@@ -353,7 +356,7 @@ func AddDashboardCell(
 			fields: DashboardFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC)},
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
+					IDFn: func() platform2.ID {
 						return MustIDBase16(dashTwoID)
 					},
 				},
@@ -377,8 +380,8 @@ func AddDashboardCell(
 				cell:        &platform.Cell{},
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   platform.OpAddDashboardCell,
 					Msg:  platform.ErrDashboardNotFound,
 				},
@@ -420,7 +423,7 @@ func FindDashboardByID(
 	t *testing.T,
 ) {
 	type args struct {
-		id platform.ID
+		id platform2.ID
 	}
 	type wants struct {
 		err       error
@@ -480,8 +483,8 @@ func FindDashboardByID(
 				id: MustIDBase16(dashThreeID),
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   platform.OpFindDashboardByID,
 					Msg:  platform.ErrDashboardNotFound,
 				},
@@ -511,9 +514,9 @@ func FindDashboards(
 	t *testing.T,
 ) {
 	type args struct {
-		IDs            []*platform.ID
-		organizationID *platform.ID
-		ownerID        *platform.ID
+		IDs            []*platform2.ID
+		organizationID *platform2.ID
+		ownerID        *platform2.ID
 		findOptions    platform.FindOptions
 	}
 
@@ -868,7 +871,7 @@ func FindDashboards(
 				},
 			},
 			args: args{
-				IDs: []*platform.ID{
+				IDs: []*platform2.ID{
 					idPtr(MustIDBase16(dashTwoID)),
 				},
 				findOptions: platform.DefaultDashboardFindOptions,
@@ -900,7 +903,7 @@ func FindDashboards(
 				},
 			},
 			args: args{
-				IDs: []*platform.ID{
+				IDs: []*platform2.ID{
 					idPtr(MustIDBase16(dashOneID)),
 					idPtr(MustIDBase16(dashTwoID)),
 				},
@@ -984,7 +987,7 @@ func FindDashboards(
 				},
 			},
 			args: args{
-				IDs: []*platform.ID{
+				IDs: []*platform2.ID{
 					idPtr(MustIDBase16(dashThreeID)),
 				},
 				findOptions: platform.DefaultDashboardFindOptions,
@@ -1028,7 +1031,7 @@ func DeleteDashboard(
 	t *testing.T,
 ) {
 	type args struct {
-		ID platform.ID
+		ID platform2.ID
 	}
 	type wants struct {
 		err        error
@@ -1090,8 +1093,8 @@ func DeleteDashboard(
 				ID: MustIDBase16(dashThreeID),
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   platform.OpDeleteDashboard,
 					Msg:  platform.ErrDashboardNotFound,
 				},
@@ -1139,7 +1142,7 @@ func UpdateDashboard(
 	type args struct {
 		name        string
 		description string
-		id          platform.ID
+		id          platform2.ID
 		cells       []*platform.Cell
 	}
 	type wants struct {
@@ -1256,7 +1259,7 @@ func UpdateDashboard(
 			name: "update description name and cells",
 			fields: DashboardFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC)},
-				IDGenerator: mock.IDGenerator{IDFn: func() platform.ID {
+				IDGenerator: mock.IDGenerator{IDFn: func() platform2.ID {
 					return 5
 				}},
 				Dashboards: []*platform.Dashboard{
@@ -1338,8 +1341,8 @@ func UpdateDashboard(
 				name:        "changed",
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   platform.OpUpdateDashboard,
 					Msg:  platform.ErrDashboardNotFound,
 				},
@@ -1380,8 +1383,8 @@ func RemoveDashboardCell(
 	t *testing.T,
 ) {
 	type args struct {
-		dashboardID platform.ID
-		cellID      platform.ID
+		dashboardID platform2.ID
+		cellID      platform2.ID
 	}
 	type wants struct {
 		err        error
@@ -1399,7 +1402,7 @@ func RemoveDashboardCell(
 			fields: DashboardFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC)},
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
+					IDFn: func() platform2.ID {
 						return MustIDBase16(dashTwoID)
 					},
 				},
@@ -1477,8 +1480,8 @@ func UpdateDashboardCell(
 	t *testing.T,
 ) {
 	type args struct {
-		dashboardID platform.ID
-		cellID      platform.ID
+		dashboardID platform2.ID
+		cellID      platform2.ID
 		cellUpdate  platform.CellUpdate
 	}
 	type wants struct {
@@ -1497,7 +1500,7 @@ func UpdateDashboardCell(
 			fields: DashboardFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC)},
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
+					IDFn: func() platform2.ID {
 						return MustIDBase16(dashTwoID)
 					},
 				},
@@ -1553,7 +1556,7 @@ func UpdateDashboardCell(
 			fields: DashboardFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC)},
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
+					IDFn: func() platform2.ID {
 						return MustIDBase16(dashTwoID)
 					},
 				},
@@ -1594,8 +1597,8 @@ func UpdateDashboardCell(
 						},
 					},
 				},
-				err: &platform.Error{
-					Code: platform.EInvalid,
+				err: &errors.Error{
+					Code: errors.EInvalid,
 					Op:   platform.OpUpdateDashboardCell,
 					Msg:  "must update at least one attribute",
 				},
@@ -1606,7 +1609,7 @@ func UpdateDashboardCell(
 			fields: DashboardFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC)},
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
+					IDFn: func() platform2.ID {
 						return MustIDBase16(dashTwoID)
 					},
 				},
@@ -1649,8 +1652,8 @@ func UpdateDashboardCell(
 						},
 					},
 				},
-				err: &platform.Error{
-					Code: platform.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   platform.OpUpdateDashboardCell,
 					Msg:  platform.ErrCellNotFound,
 				},
@@ -1685,7 +1688,7 @@ func ReplaceDashboardCells(
 	t *testing.T,
 ) {
 	type args struct {
-		dashboardID platform.ID
+		dashboardID platform2.ID
 		cells       []*platform.Cell
 	}
 	type wants struct {
@@ -1704,7 +1707,7 @@ func ReplaceDashboardCells(
 			fields: DashboardFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC)},
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
+					IDFn: func() platform2.ID {
 						return MustIDBase16(dashTwoID)
 					},
 				},
@@ -1785,7 +1788,7 @@ func ReplaceDashboardCells(
 			fields: DashboardFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC)},
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
+					IDFn: func() platform2.ID {
 						return MustIDBase16(dashTwoID)
 					},
 				},
@@ -1827,8 +1830,8 @@ func ReplaceDashboardCells(
 				},
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Op:   platform.OpReplaceDashboardCells,
 					Msg:  "cannot replace cells that were not already present",
 				},
@@ -1875,8 +1878,8 @@ func GetDashboardCellView(
 	t *testing.T,
 ) {
 	type args struct {
-		dashboardID platform.ID
-		cellID      platform.ID
+		dashboardID platform2.ID
+		cellID      platform2.ID
 	}
 	type wants struct {
 		err  error
@@ -1939,8 +1942,8 @@ func GetDashboardCellView(
 				cellID:      5,
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   platform.OpGetDashboardCellView,
 					Msg:  platform.ErrViewNotFound,
 				},
@@ -1970,8 +1973,8 @@ func UpdateDashboardCellView(
 	t *testing.T,
 ) {
 	type args struct {
-		dashboardID platform.ID
-		cellID      platform.ID
+		dashboardID platform2.ID
+		cellID      platform2.ID
 		properties  platform.ViewProperties
 		name        string
 	}
@@ -2112,8 +2115,8 @@ func UpdateDashboardCellView(
 				cellID:      5,
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   platform.OpGetDashboardCellView,
 					Msg:  platform.ErrViewNotFound,
 				},

@@ -16,48 +16,6 @@ func AppMetrics() BoolFlag {
 	return appMetrics
 }
 
-var backendExample = MakeBoolFlag(
-	"Backend Example",
-	"backendExample",
-	"Gavin Cabbage",
-	false,
-	Permanent,
-	false,
-)
-
-// BackendExample - A permanent backend example boolean flag
-func BackendExample() BoolFlag {
-	return backendExample
-}
-
-var communityTemplates = MakeBoolFlag(
-	"Community Templates",
-	"communityTemplates",
-	"Bucky",
-	true,
-	Permanent,
-	true,
-)
-
-// CommunityTemplates - Replace current template uploading functionality with community driven templates
-func CommunityTemplates() BoolFlag {
-	return communityTemplates
-}
-
-var frontendExample = MakeIntFlag(
-	"Frontend Example",
-	"frontendExample",
-	"Gavin Cabbage",
-	42,
-	Temporary,
-	true,
-)
-
-// FrontendExample - A temporary frontend example integer flag
-func FrontendExample() IntFlag {
-	return frontendExample
-}
-
 var groupWindowAggregateTranspose = MakeBoolFlag(
 	"Group Window Aggregate Transpose",
 	"groupWindowAggregateTranspose",
@@ -128,48 +86,6 @@ func QueryTracing() BoolFlag {
 	return queryTracing
 }
 
-var simpleTaskOptionsExtraction = MakeBoolFlag(
-	"Simple Task Options Extraction",
-	"simpleTaskOptionsExtraction",
-	"Brett Buddin",
-	false,
-	Temporary,
-	false,
-)
-
-// SimpleTaskOptionsExtraction - Simplified task options extraction to avoid undefined functions when saving tasks
-func SimpleTaskOptionsExtraction() BoolFlag {
-	return simpleTaskOptionsExtraction
-}
-
-var bandPlotType = MakeBoolFlag(
-	"Band Plot Type",
-	"bandPlotType",
-	"Monitoring Team",
-	false,
-	Temporary,
-	true,
-)
-
-// BandPlotType - Enables the creation of a band plot in Dashboards
-func BandPlotType() BoolFlag {
-	return bandPlotType
-}
-
-var mosaicGraphType = MakeBoolFlag(
-	"Mosaic Graph Type",
-	"mosaicGraphType",
-	"Monitoring Team",
-	false,
-	Temporary,
-	true,
-)
-
-// MosaicGraphType - Enables the creation of a mosaic graph in Dashboards
-func MosaicGraphType() BoolFlag {
-	return mosaicGraphType
-}
-
 var notebooks = MakeBoolFlag(
 	"Notebooks",
 	"notebooks",
@@ -182,6 +98,20 @@ var notebooks = MakeBoolFlag(
 // Notebooks - Determine if the notebook feature's route and navbar icon are visible to the user
 func Notebooks() BoolFlag {
 	return notebooks
+}
+
+var notebooksApi = MakeBoolFlag(
+	"Notebooks Service API",
+	"notebooksApi",
+	"Edge Team",
+	false,
+	Temporary,
+	true,
+)
+
+// NotebooksServiceApi - Enable the Equivalent notebooksd Service API
+func NotebooksServiceApi() BoolFlag {
+	return notebooksApi
 }
 
 var injectLatestSuccessTime = MakeBoolFlag(
@@ -226,40 +156,126 @@ func TimeFilterFlags() BoolFlag {
 	return timeFilterFlags
 }
 
+var csvUploader = MakeBoolFlag(
+	"UI CSV Uploader",
+	"csvUploader",
+	"Monitoring Team",
+	true,
+	Temporary,
+	true,
+)
+
+// UiCsvUploader - Adds the ability to upload data from a CSV file to a bucket
+func UiCsvUploader() BoolFlag {
+	return csvUploader
+}
+
+var editTelegrafs = MakeBoolFlag(
+	"Editable Telegraf Configurations",
+	"editTelegrafs",
+	"Monitoring Team",
+	true,
+	Temporary,
+	true,
+)
+
+// EditableTelegrafConfigurations - Edit telegraf configurations from the UI
+func EditableTelegrafConfigurations() BoolFlag {
+	return editTelegrafs
+}
+
+var cursorAtEOF = MakeBoolFlag(
+	"Default Monaco Selection to EOF",
+	"cursorAtEOF",
+	"Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// DefaultMonacoSelectionToEof - Positions the cursor at the end of the line(s) when using the monaco editor
+func DefaultMonacoSelectionToEof() BoolFlag {
+	return cursorAtEOF
+}
+
+var refreshSingleCell = MakeBoolFlag(
+	"Refresh Single Cell",
+	"refreshSingleCell",
+	"Monitoring Team",
+	true,
+	Temporary,
+	true,
+)
+
+// RefreshSingleCell - Refresh a single cell on the dashboard rather than the entire dashboard
+func RefreshSingleCell() BoolFlag {
+	return refreshSingleCell
+}
+
+var rangeAnnotations = MakeBoolFlag(
+	"Range Annotations",
+	"rangeAnnotations",
+	"Jill Pelavin/ Dumplings Team",
+	false,
+	Temporary,
+	true,
+)
+
+// RangeAnnotations - Enables the creation of Range Annotations on Drag (if annotation write mode is activated)
+func RangeAnnotations() BoolFlag {
+	return rangeAnnotations
+}
+
+var annotations = MakeBoolFlag(
+	"Annotations UI",
+	"annotations",
+	"Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// AnnotationsUi - Management, display, and manual addition of Annotations from the UI
+func AnnotationsUi() BoolFlag {
+	return annotations
+}
+
 var all = []Flag{
 	appMetrics,
-	backendExample,
-	communityTemplates,
-	frontendExample,
 	groupWindowAggregateTranspose,
 	newLabels,
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
 	queryTracing,
-	simpleTaskOptionsExtraction,
-	bandPlotType,
-	mosaicGraphType,
 	notebooks,
+	notebooksApi,
 	injectLatestSuccessTime,
 	enforceOrgDashboardLimits,
 	timeFilterFlags,
+	csvUploader,
+	editTelegrafs,
+	cursorAtEOF,
+	refreshSingleCell,
+	rangeAnnotations,
+	annotations,
 }
 
 var byKey = map[string]Flag{
 	"appMetrics":                    appMetrics,
-	"backendExample":                backendExample,
-	"communityTemplates":            communityTemplates,
-	"frontendExample":               frontendExample,
 	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
 	"newLabels":                     newLabels,
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"queryTracing":                  queryTracing,
-	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
-	"bandPlotType":                  bandPlotType,
-	"mosaicGraphType":               mosaicGraphType,
 	"notebooks":                     notebooks,
+	"notebooksApi":                  notebooksApi,
 	"injectLatestSuccessTime":       injectLatestSuccessTime,
 	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,
 	"timeFilterFlags":               timeFilterFlags,
+	"csvUploader":                   csvUploader,
+	"editTelegrafs":                 editTelegrafs,
+	"cursorAtEOF":                   cursorAtEOF,
+	"refreshSingleCell":             refreshSingleCell,
+	"rangeAnnotations":              rangeAnnotations,
+	"annotations":                   annotations,
 }

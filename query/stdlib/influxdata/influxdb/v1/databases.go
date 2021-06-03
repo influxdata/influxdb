@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
@@ -38,7 +41,7 @@ func (s *LocalDatabasesProcedureSpec) Copy() plan.ProcedureSpec {
 }
 
 type DatabasesDecoder struct {
-	orgID     platform.ID
+	orgID     platform2.ID
 	deps      *DatabasesDependencies
 	databases []*platform.DBRPMappingV2
 	alloc     *memory.Allocator
@@ -67,8 +70,8 @@ func (bd *DatabasesDecoder) Decode(ctx context.Context) (flux.Table, error) {
 	for _, db := range bd.databases {
 		bucket, err := bd.deps.BucketLookup.FindBucketByID(ctx, db.BucketID)
 		if err != nil {
-			code := platform.ErrorCode(err)
-			if code == platform.EUnauthorized || code == platform.EForbidden {
+			code := errors2.ErrorCode(err)
+			if code == errors2.EUnauthorized || code == errors2.EForbidden {
 				continue
 			}
 			return nil, err
@@ -80,8 +83,8 @@ func (bd *DatabasesDecoder) Decode(ctx context.Context) (flux.Table, error) {
 	}
 
 	if len(databases) == 0 {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
+		return nil, &errors2.Error{
+			Code: errors2.ENotFound,
 			Msg:  "no 1.x databases found",
 		}
 	}

@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/ghodss/yaml"
-	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
 
@@ -16,7 +17,7 @@ var _ http.Handler = (*swaggerLoader)(nil)
 
 // swaggerLoader manages loading the swagger asset and serving it as JSON.
 type swaggerLoader struct {
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log *zap.Logger
 
 	// Ensure we only call initialize once.
@@ -29,7 +30,7 @@ type swaggerLoader struct {
 	loadErr error
 }
 
-func newSwaggerLoader(log *zap.Logger, h influxdb.HTTPErrorHandler) *swaggerLoader {
+func newSwaggerLoader(log *zap.Logger, h errors.HTTPErrorHandler) *swaggerLoader {
 	return &swaggerLoader{
 		log:              log,
 		HTTPErrorHandler: h,
@@ -55,10 +56,10 @@ func (s *swaggerLoader) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.once.Do(s.initialize)
 
 	if s.loadErr != nil {
-		s.HandleHTTPError(r.Context(), &influxdb.Error{
+		s.HandleHTTPError(r.Context(), &errors.Error{
 			Err:  s.loadErr,
 			Msg:  "this developer binary not built with assets",
-			Code: influxdb.EInternal,
+			Code: errors.EInternal,
 		}, w)
 		return
 	}

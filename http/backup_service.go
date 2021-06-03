@@ -4,10 +4,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/authorizer"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
@@ -18,9 +23,10 @@ import (
 // BackupBackend is all services and associated parameters required to construct the BackupHandler.
 type BackupBackend struct {
 	Logger *zap.Logger
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 
-	BackupService influxdb.BackupService
+	BackupService           influxdb.BackupService
+	SqlBackupRestoreService influxdb.SqlBackupRestoreService
 }
 
 // NewBackupBackend returns a new instance of BackupBackend.
@@ -28,24 +34,27 @@ func NewBackupBackend(b *APIBackend) *BackupBackend {
 	return &BackupBackend{
 		Logger: b.Logger.With(zap.String("handler", "backup")),
 
-		HTTPErrorHandler: b.HTTPErrorHandler,
-		BackupService:    b.BackupService,
+		HTTPErrorHandler:        b.HTTPErrorHandler,
+		BackupService:           b.BackupService,
+		SqlBackupRestoreService: b.SqlBackupRestoreService,
 	}
 }
 
 // BackupHandler is http handler for backup service.
 type BackupHandler struct {
 	*httprouter.Router
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	Logger *zap.Logger
 
-	BackupService influxdb.BackupService
+	BackupService           influxdb.BackupService
+	SqlBackupRestoreService influxdb.SqlBackupRestoreService
 }
 
 const (
-	prefixBackup      = "/api/v2/backup"
-	backupKVStorePath = prefixBackup + "/kv"
-	backupShardPath   = prefixBackup + "/shards/:shardID"
+	prefixBackup       = "/api/v2/backup"
+	backupKVStorePath  = prefixBackup + "/kv"
+	backupShardPath    = prefixBackup + "/shards/:shardID"
+	backupMetadataPath = prefixBackup + "/metadata"
 
 	httpClientTimeout = time.Hour
 )
@@ -53,16 +62,34 @@ const (
 // NewBackupHandler creates a new handler at /api/v2/backup to receive backup requests.
 func NewBackupHandler(b *BackupBackend) *BackupHandler {
 	h := &BackupHandler{
-		HTTPErrorHandler: b.HTTPErrorHandler,
-		Router:           NewRouter(b.HTTPErrorHandler),
-		Logger:           b.Logger,
-		BackupService:    b.BackupService,
+		HTTPErrorHandler:        b.HTTPErrorHandler,
+		Router:                  NewRouter(b.HTTPErrorHandler),
+		Logger:                  b.Logger,
+		BackupService:           b.BackupService,
+		SqlBackupRestoreService: b.SqlBackupRestoreService,
 	}
 
 	h.HandlerFunc(http.MethodGet, backupKVStorePath, h.handleBackupKVStore)
 	h.HandlerFunc(http.MethodGet, backupShardPath, h.handleBackupShard)
+	h.HandlerFunc(http.MethodGet, backupMetadataPath, h.requireOperPermissions(http.HandlerFunc(h.handleBackupMetadata)))
 
 	return h
+}
+
+// requireOperPermissions returns an "unauthorized" response for requests that do not have OperPermissions.
+// This is needed for the handleBackupMetadata handler, which sets a header prior to
+// accessing any methods on the BackupService which would also return an "authorized" response.
+func (h *BackupHandler) requireOperPermissions(next http.Handler) http.HandlerFunc {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
+		if err := authorizer.IsAllowedAll(ctx, influxdb.OperPermissions()); err != nil {
+			h.HandleHTTPError(ctx, err, w)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(fn)
 }
 
 func (h *BackupHandler) handleBackupKVStore(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +126,73 @@ func (h *BackupHandler) handleBackupShard(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := h.BackupService.BackupShard(ctx, w, shardID, since); err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+}
+
+func (h *BackupHandler) handleBackupMetadata(w http.ResponseWriter, r *http.Request) {
+	span, r := tracing.ExtractFromHTTPRequest(r, "BackupHandler.handleBackupMetadata")
+	defer span.Finish()
+
+	ctx := r.Context()
+
+	// Lock the sqlite and bolt databases prior to writing the response to prevent
+	// data inconsistencies.
+	h.BackupService.LockKVStore()
+	defer h.BackupService.UnlockKVStore()
+
+	h.SqlBackupRestoreService.LockSqlStore()
+	defer h.SqlBackupRestoreService.UnlockSqlStore()
+
+	baseName := time.Now().UTC().Format(influxdb.BackupFilenamePattern)
+
+	dataWriter := multipart.NewWriter(w)
+	w.Header().Set("Content-Type", "multipart/mixed; boundary="+dataWriter.Boundary())
+
+	parts := []struct {
+		fieldname string
+		filename  string
+		writeFn   func(io.Writer) error
+	}{
+		{
+			"kv",
+			fmt.Sprintf("%s.bolt", baseName),
+			func(fw io.Writer) error {
+				return h.BackupService.BackupKVStore(ctx, fw)
+			},
+		},
+		{
+			"sql",
+			fmt.Sprintf("%s.sqlite", baseName),
+			func(fw io.Writer) error {
+				return h.SqlBackupRestoreService.BackupSqlStore(ctx, fw)
+			},
+		},
+		{
+			"buckets",
+			fmt.Sprintf("%s.json", baseName),
+			func(fw io.Writer) error {
+				_, err := io.Copy(fw, strings.NewReader("buckets json - to be implemented"))
+				return err
+			},
+		},
+	}
+
+	for _, p := range parts {
+		fw, err := dataWriter.CreateFormFile(p.fieldname, p.filename)
+		if err != nil {
+			h.HandleHTTPError(ctx, err, w)
+			return
+		}
+
+		if err := p.writeFn(fw); err != nil {
+			h.HandleHTTPError(ctx, err, w)
+			return
+		}
+	}
+
+	if err := dataWriter.Close(); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -181,3 +275,7 @@ func (s *BackupService) BackupShard(ctx context.Context, w io.Writer, shardID ui
 	}
 	return resp.Body.Close()
 }
+
+// LockKVStore & UnlockKVStore are not implemented for the client.
+func (s *BackupService) LockKVStore()   {}
+func (s *BackupService) UnlockKVStore() {}

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	platform "github.com/influxdata/influxdb/v2"
 )
 
@@ -18,8 +20,8 @@ var (
 
 	// ErrKeyValueLogBoundsNotFound is returned when oplog entries cannot be located
 	// for the provided bounds
-	ErrKeyValueLogBoundsNotFound = &platform.Error{
-		Code: platform.ENotFound,
+	ErrKeyValueLogBoundsNotFound = &errors.Error{
+		Code: errors.ENotFound,
 		Msg:  "oplog not found",
 	}
 )

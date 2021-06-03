@@ -3,6 +3,8 @@ package dbrp
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 )
@@ -17,7 +19,7 @@ func NewAuthorizedService(s influxdb.DBRPMappingServiceV2) *AuthorizedService {
 	return &AuthorizedService{DBRPMappingServiceV2: s}
 }
 
-func (svc AuthorizedService) FindByID(ctx context.Context, orgID, id influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+func (svc AuthorizedService) FindByID(ctx context.Context, orgID, id platform.ID) (*influxdb.DBRPMappingV2, error) {
 	mapping, err := svc.DBRPMappingServiceV2.FindByID(ctx, orgID, id)
 	if err != nil {
 		return nil, err
@@ -50,7 +52,7 @@ func (svc AuthorizedService) Update(ctx context.Context, u *influxdb.DBRPMapping
 	return svc.DBRPMappingServiceV2.Update(ctx, u)
 }
 
-func (svc AuthorizedService) Delete(ctx context.Context, orgID, id influxdb.ID) error {
+func (svc AuthorizedService) Delete(ctx context.Context, orgID, id platform.ID) error {
 	mapping, err := svc.DBRPMappingServiceV2.FindByID(ctx, orgID, id)
 	if err != nil {
 		return err

@@ -143,7 +143,7 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 	// Normalise ShardDuration before comparing to any existing
 	// retention policies. The client is supposed to do this, but
 	// do it again to verify input.
-	rpi.ShardGroupDuration = normalisedShardDuration(rpi.ShardGroupDuration, rpi.Duration)
+	rpi.ShardGroupDuration = NormalisedShardDuration(rpi.ShardGroupDuration, rpi.Duration)
 
 	if rpi.Duration > 0 && rpi.Duration < rpi.ShardGroupDuration {
 		return ErrIncompatibleDurations
@@ -260,7 +260,7 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 		rpi.ReplicaN = *rpu.ReplicaN
 	}
 	if rpu.ShardGroupDuration != nil {
-		rpi.ShardGroupDuration = normalisedShardDuration(*rpu.ShardGroupDuration, rpi.Duration)
+		rpi.ShardGroupDuration = NormalisedShardDuration(*rpu.ShardGroupDuration, rpi.Duration)
 	}
 
 	if di.DefaultRetentionPolicy != rpi.Name && makeDefault {
@@ -1076,7 +1076,7 @@ func (s *RetentionPolicySpec) Matches(rpi *RetentionPolicyInfo) bool {
 	// Normalise ShardDuration before comparing to any existing retention policies.
 	// Normalize with the retention policy info's duration instead of the spec
 	// since they should be the same and we're performing a comparison.
-	sgDuration := normalisedShardDuration(s.ShardGroupDuration, rpi.Duration)
+	sgDuration := NormalisedShardDuration(s.ShardGroupDuration, rpi.Duration)
 	return sgDuration == rpi.ShardGroupDuration
 }
 
@@ -1184,7 +1184,7 @@ func (rpi *RetentionPolicyInfo) Apply(spec *RetentionPolicySpec) *RetentionPolic
 	if spec.Duration != nil {
 		rp.Duration = *spec.Duration
 	}
-	rp.ShardGroupDuration = normalisedShardDuration(spec.ShardGroupDuration, rp.Duration)
+	rp.ShardGroupDuration = NormalisedShardDuration(spec.ShardGroupDuration, rp.Duration)
 	return rp
 }
 
@@ -1308,8 +1308,8 @@ func shardGroupDuration(d time.Duration) time.Duration {
 	return 1 * time.Hour
 }
 
-// normalisedShardDuration returns normalised shard duration based on a policy duration.
-func normalisedShardDuration(sgd, d time.Duration) time.Duration {
+// NormalisedShardDuration returns normalised shard duration based on a policy duration.
+func NormalisedShardDuration(sgd, d time.Duration) time.Duration {
 	// If it is zero, it likely wasn't specified, so we default to the shard group duration
 	if sgd == 0 {
 		return shardGroupDuration(d)
@@ -1514,9 +1514,11 @@ func (si *ShardInfo) unmarshal(pb *internal.ShardInfo) {
 	si.ID = pb.GetID()
 
 	// If deprecated "OwnerIDs" exists then convert it to "Owners" format.
-	if len(pb.GetOwnerIDs()) > 0 {
-		si.Owners = make([]ShardOwner, len(pb.GetOwnerIDs()))
-		for i, x := range pb.GetOwnerIDs() {
+	//lint:ignore SA1019 we need to check for the presence of the deprecated field so we can convert it
+	oldStyleOwnerIds := pb.GetOwnerIDs()
+	if len(oldStyleOwnerIds) > 0 {
+		si.Owners = make([]ShardOwner, len(oldStyleOwnerIds))
+		for i, x := range oldStyleOwnerIds {
 			si.Owners[i].unmarshal(&internal.ShardOwner{
 				NodeID: proto.Uint64(x),
 			})

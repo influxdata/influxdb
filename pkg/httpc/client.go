@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"path"
 
-	"github.com/influxdata/influxdb/v2"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 type (
@@ -145,8 +145,8 @@ func (c *Client) Req(method string, bFn BodyFn, urlPath ...string) *Req {
 		// TODO(@jsteenb2): add a inspection for an OK() or Valid() method, then enforce
 		//  that across all consumers? Same for all bodyFns for that matter.
 		return &Req{
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors2.Error{
+				Code: errors2.EInvalid,
 				Err:  err,
 			},
 		}

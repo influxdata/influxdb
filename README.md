@@ -73,7 +73,7 @@ Once setup is complete, a configuration profile is created to allow you to inter
 ```bash
 $ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx config
 Active	Name	URL			            Org
-*	    default	http://localhost:9999	InfluxData
+*	    default	http://localhost:8086	InfluxData
 ```
 
 ## Writing Data
@@ -164,7 +164,7 @@ If you re-generate a file and find that `staticcheck` has failed, please see thi
 
 #### End-to-End Tests
 
-CI also runs end-to-end tests. These test the integration between the influx server the ui. You can run them locally in two steps:
-
-- Start the server in "testing mode" by running `make run-e2e`.
-- Run the tests with `make e2e`.
+CI also runs end-to-end tests. These test the integration between the `influxd` server the UI. 
+Since the UI is used by interal repositories as well as the `influxdb` repository, the
+end-to-end tests cannot be run on forked pull requests or run locally. The extent of end-to-end
+testing required for forked pull requests will be determined as part of the review process.

@@ -49,9 +49,8 @@ Generate profiles with the following commands for bugs related to performance, l
 
 ```sh
 # Commands should be run when the bug is actively happening.
-# Note: This command will run for at least 30 seconds.
-curl -o profiles.tar.gz "http://localhost:8086/debug/pprof/all?cpu=true"
-curl -o vars.txt "http://localhost:8086/debug/vars"
+# Note: This command will run for ~30 seconds.
+curl -o profiles.tar.gz "http://localhost:8086/debug/pprof/all?cpu=30s"
 iostat -xd 1 30 > iostat.txt
-# Attach the `profiles.tar.gz`, `vars.txt`, and `iostat.txt` output files.
+# Attach the `profiles.tar.gz` and `iostat.txt` output files.
 ```

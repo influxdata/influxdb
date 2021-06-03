@@ -3,6 +3,8 @@ package tenant
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 )
@@ -25,7 +27,7 @@ func NewAuthedUserService(s influxdb.UserService) *AuthedUserService {
 }
 
 // FindUserByID checks to see if the authorizer on context has read access to the id provided.
-func (s *AuthedUserService) FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+func (s *AuthedUserService) FindUserByID(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 	if _, _, err := authorizer.AuthorizeReadResource(ctx, influxdb.UsersResourceType, id); err != nil {
 		return nil, err
 	}
@@ -64,7 +66,7 @@ func (s *AuthedUserService) CreateUser(ctx context.Context, o *influxdb.User) er
 }
 
 // UpdateUser checks to see if the authorizer on context has write access to the user provided.
-func (s *AuthedUserService) UpdateUser(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
+func (s *AuthedUserService) UpdateUser(ctx context.Context, id platform.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
 	if _, _, err := authorizer.AuthorizeWriteResource(ctx, influxdb.UsersResourceType, id); err != nil {
 		return nil, err
 	}
@@ -72,14 +74,14 @@ func (s *AuthedUserService) UpdateUser(ctx context.Context, id influxdb.ID, upd 
 }
 
 // DeleteUser checks to see if the authorizer on context has write access to the user provided.
-func (s *AuthedUserService) DeleteUser(ctx context.Context, id influxdb.ID) error {
+func (s *AuthedUserService) DeleteUser(ctx context.Context, id platform.ID) error {
 	if _, _, err := authorizer.AuthorizeWriteResource(ctx, influxdb.UsersResourceType, id); err != nil {
 		return err
 	}
 	return s.s.DeleteUser(ctx, id)
 }
 
-func (s *AuthedUserService) FindPermissionForUser(ctx context.Context, id influxdb.ID) (influxdb.PermissionSet, error) {
+func (s *AuthedUserService) FindPermissionForUser(ctx context.Context, id platform.ID) (influxdb.PermissionSet, error) {
 	if _, _, err := authorizer.AuthorizeReadResource(ctx, influxdb.UsersResourceType, id); err != nil {
 		return nil, err
 	}
@@ -97,7 +99,7 @@ func NewAuthedPasswordService(svc influxdb.PasswordsService) *AuthedPasswordServ
 }
 
 // SetPassword overrides the password of a known user.
-func (s *AuthedPasswordService) SetPassword(ctx context.Context, userID influxdb.ID, password string) error {
+func (s *AuthedPasswordService) SetPassword(ctx context.Context, userID platform.ID, password string) error {
 	if _, _, err := authorizer.AuthorizeWriteResource(ctx, influxdb.UsersResourceType, userID); err != nil {
 		return err
 	}
@@ -106,12 +108,12 @@ func (s *AuthedPasswordService) SetPassword(ctx context.Context, userID influxdb
 
 // ComparePassword checks if the password matches the password recorded.
 // Passwords that do not match return errors.
-func (s *AuthedPasswordService) ComparePassword(ctx context.Context, userID influxdb.ID, password string) error {
+func (s *AuthedPasswordService) ComparePassword(ctx context.Context, userID platform.ID, password string) error {
 	panic("not implemented")
 }
 
 // CompareAndSetPassword checks the password and if they match
 // updates to the new password.
-func (s *AuthedPasswordService) CompareAndSetPassword(ctx context.Context, userID influxdb.ID, old string, new string) error {
+func (s *AuthedPasswordService) CompareAndSetPassword(ctx context.Context, userID platform.ID, old string, new string) error {
 	panic("not implemented")
 }

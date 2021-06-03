@@ -1,6 +1,7 @@
 package rule_test
 
 import (
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
@@ -58,7 +59,7 @@ all_statuses
 		},
 	}
 
-	id := influxdb.ID(2)
+	id := platform.ID(2)
 	e := &endpoint.HTTP{
 		Base: endpoint.Base{
 			ID:   &id,
@@ -126,7 +127,7 @@ all_statuses
 		},
 	}
 
-	id := influxdb.ID(2)
+	id := platform.ID(2)
 	e := &endpoint.HTTP{
 		Base: endpoint.Base{
 			ID:   &id,
@@ -202,7 +203,7 @@ all_statuses
 		},
 	}
 
-	id := influxdb.ID(2)
+	id := platform.ID(2)
 	e := &endpoint.HTTP{
 		Base: endpoint.Base{
 			ID:   &id,
@@ -275,7 +276,7 @@ all_statuses
 		},
 	}
 
-	id := influxdb.ID(2)
+	id := platform.ID(2)
 	e := &endpoint.HTTP{
 		Base: endpoint.Base{
 			ID:   &id,

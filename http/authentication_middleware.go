@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb/v2"
 	platcontext "github.com/influxdata/influxdb/v2/context"
@@ -17,7 +19,7 @@ import (
 
 // AuthenticationHandler is a middleware for authenticating incoming requests.
 type AuthenticationHandler struct {
-	platform.HTTPErrorHandler
+	errors2.HTTPErrorHandler
 	log *zap.Logger
 
 	AuthorizationService platform.AuthorizationService
@@ -34,11 +36,11 @@ type AuthenticationHandler struct {
 }
 
 // NewAuthenticationHandler creates an authentication handler.
-func NewAuthenticationHandler(log *zap.Logger, h platform.HTTPErrorHandler) *AuthenticationHandler {
+func NewAuthenticationHandler(log *zap.Logger, h errors2.HTTPErrorHandler) *AuthenticationHandler {
 	return &AuthenticationHandler{
 		log:              log,
 		HTTPErrorHandler: h,
-		Handler:          http.DefaultServeMux,
+		Handler:          http.NotFoundHandler(),
 		TokenParser:      jsonweb.NewTokenParser(jsonweb.EmptyKeyStore),
 		noAuthRouter:     httprouter.New(),
 	}
@@ -135,7 +137,7 @@ func (h *AuthenticationHandler) isUserActive(ctx context.Context, auth platform.
 		return nil
 	}
 
-	return &platform.Error{Code: platform.EForbidden, Msg: "User is inactive"}
+	return &errors2.Error{Code: errors2.EForbidden, Msg: "User is inactive"}
 }
 
 func (h *AuthenticationHandler) extractAuthorization(ctx context.Context, r *http.Request) (platform.Authorizer, error) {

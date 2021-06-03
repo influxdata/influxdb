@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
@@ -20,7 +23,7 @@ const (
 // VariableBackend is all services and associated parameters required to construct
 // the VariableHandler.
 type VariableBackend struct {
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log             *zap.Logger
 	VariableService influxdb.VariableService
 	LabelService    influxdb.LabelService
@@ -40,7 +43,7 @@ func NewVariableBackend(log *zap.Logger, b *APIBackend) *VariableBackend {
 type VariableHandler struct {
 	*httprouter.Router
 
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log *zap.Logger
 
 	VariableService influxdb.VariableService
@@ -126,7 +129,7 @@ func decodeGetVariablesRequest(ctx context.Context, r *http.Request) (*getVariab
 	}
 	qp := r.URL.Query()
 	if orgID := qp.Get("orgID"); orgID != "" {
-		id, err := influxdb.IDFromString(orgID)
+		id, err := platform.IDFromString(orgID)
 		if err != nil {
 			return nil, err
 		}
@@ -150,8 +153,8 @@ func (h *VariableHandler) handleGetVariables(w http.ResponseWriter, r *http.Requ
 
 	variables, err := h.VariableService.FindVariables(ctx, req.filter, req.opts)
 	if err != nil {
-		h.HandleHTTPError(ctx, &influxdb.Error{
-			Code: influxdb.EInternal,
+		h.HandleHTTPError(ctx, &errors.Error{
+			Code: errors.EInternal,
 			Msg:  "could not read variables",
 			Err:  err,
 		}, w)
@@ -165,19 +168,19 @@ func (h *VariableHandler) handleGetVariables(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func requestVariableID(ctx context.Context) (influxdb.ID, error) {
+func requestVariableID(ctx context.Context) (platform.ID, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	urlID := params.ByName("id")
 	if urlID == "" {
-		return influxdb.InvalidID(), &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return platform.InvalidID(), &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	id, err := influxdb.IDFromString(urlID)
+	id, err := platform.IDFromString(urlID)
 	if err != nil {
-		return influxdb.InvalidID(), err
+		return platform.InvalidID(), err
 	}
 
 	return *id, nil
@@ -272,8 +275,8 @@ func decodePostVariableRequest(r *http.Request) (*postVariableRequest, error) {
 
 	err := json.NewDecoder(r.Body).Decode(m)
 	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  err.Error(),
 		}
 	}
@@ -283,8 +286,8 @@ func decodePostVariableRequest(r *http.Request) (*postVariableRequest, error) {
 	}
 
 	if err := req.Valid(); err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  err.Error(),
 		}
 	}
@@ -320,7 +323,7 @@ func (h *VariableHandler) handlePatchVariable(w http.ResponseWriter, r *http.Req
 }
 
 type patchVariableRequest struct {
-	id             influxdb.ID
+	id             platform.ID
 	variableUpdate *influxdb.VariableUpdate
 }
 
@@ -333,8 +336,8 @@ func decodePatchVariableRequest(ctx context.Context, r *http.Request) (*patchVar
 
 	err := json.NewDecoder(r.Body).Decode(u)
 	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  err.Error(),
 		}
 	}
@@ -350,8 +353,8 @@ func decodePatchVariableRequest(ctx context.Context, r *http.Request) (*patchVar
 	}
 
 	if err := req.Valid(); err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  err.Error(),
 		}
 	}
@@ -390,7 +393,7 @@ func (h *VariableHandler) handlePutVariable(w http.ResponseWriter, r *http.Reque
 }
 
 type putVariableRequest struct {
-	id       influxdb.ID
+	id       platform.ID
 	variable *influxdb.Variable
 }
 
@@ -403,8 +406,8 @@ func decodePutVariableRequest(ctx context.Context, r *http.Request) (*putVariabl
 
 	err := json.NewDecoder(r.Body).Decode(m)
 	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -420,8 +423,8 @@ func decodePutVariableRequest(ctx context.Context, r *http.Request) (*putVariabl
 	}
 
 	if err := req.Valid(); err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -452,7 +455,7 @@ type VariableService struct {
 }
 
 // FindVariableByID finds a single variable from the store by its ID
-func (s *VariableService) FindVariableByID(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+func (s *VariableService) FindVariableByID(ctx context.Context, id platform.ID) (*influxdb.Variable, error) {
 	var mr variableResponse
 	err := s.Client.
 		Get(prefixVariables, id.String()).
@@ -496,8 +499,8 @@ func (s *VariableService) FindVariables(ctx context.Context, filter influxdb.Var
 func (s *VariableService) CreateVariable(ctx context.Context, m *influxdb.Variable) error {
 	m.Name = strings.TrimSpace(m.Name)
 	if err := m.Valid(); err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -509,7 +512,7 @@ func (s *VariableService) CreateVariable(ctx context.Context, m *influxdb.Variab
 }
 
 // UpdateVariable updates a single variable with a changeset
-func (s *VariableService) UpdateVariable(ctx context.Context, id influxdb.ID, update *influxdb.VariableUpdate) (*influxdb.Variable, error) {
+func (s *VariableService) UpdateVariable(ctx context.Context, id platform.ID, update *influxdb.VariableUpdate) (*influxdb.Variable, error) {
 	var m influxdb.Variable
 	err := s.Client.
 		PatchJSON(update, prefixVariables, id.String()).
@@ -531,7 +534,7 @@ func (s *VariableService) ReplaceVariable(ctx context.Context, variable *influxd
 }
 
 // DeleteVariable removes a variable from the store
-func (s *VariableService) DeleteVariable(ctx context.Context, id influxdb.ID) error {
+func (s *VariableService) DeleteVariable(ctx context.Context, id platform.ID) error {
 	return s.Client.
 		Delete(prefixVariables, id.String()).
 		Do(ctx)

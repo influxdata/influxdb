@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -57,7 +58,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 	t.Run("create pkg", func(t *testing.T) {
 		t.Run("should successfully return with valid req body", func(t *testing.T) {
 			fakeLabelSVC := mock.NewLabelService()
-			fakeLabelSVC.FindLabelByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
+			fakeLabelSVC.FindLabelByIDFn = func(ctx context.Context, id platform.ID) (*influxdb.Label, error) {
 				return &influxdb.Label{
 					ID: id,
 				}, nil
@@ -117,7 +118,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 					contentType: "application/json",
 					reqBody: pkger.ReqApply{
 						DryRun:      true,
-						OrgID:       influxdb.ID(9000).String(),
+						OrgID:       platform.ID(9000).String(),
 						RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
 					},
 				},
@@ -125,7 +126,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 					name: "defaults json when no content type",
 					reqBody: pkger.ReqApply{
 						DryRun:      true,
-						OrgID:       influxdb.ID(9000).String(),
+						OrgID:       platform.ID(9000).String(),
 						RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
 					},
 				},
@@ -133,7 +134,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 					name: "retrieves package from a URL",
 					reqBody: pkger.ReqApply{
 						DryRun: true,
-						OrgID:  influxdb.ID(9000).String(),
+						OrgID:  platform.ID(9000).String(),
 						Remotes: []pkger.ReqTemplateRemote{{
 							URL: newPkgURL(t, filesvr.URL, "testdata/remote_bucket.json"),
 						}},
@@ -144,7 +145,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 					contentType: "application/x-jsonnet",
 					reqBody: pkger.ReqApply{
 						DryRun:      true,
-						OrgID:       influxdb.ID(9000).String(),
+						OrgID:       platform.ID(9000).String(),
 						RawTemplate: bucketPkgKinds(t, pkger.EncodingJsonnet),
 					},
 				},
@@ -153,7 +154,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID platform.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 							var opt pkger.ApplyOpt
 							for _, o := range opts {
 								o(&opt)
@@ -221,7 +222,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID platform.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 							var opt pkger.ApplyOpt
 							for _, o := range opts {
 								o(&opt)
@@ -253,7 +254,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 					pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
-					body := newReqApplyYMLBody(t, influxdb.ID(9000), true)
+					body := newReqApplyYMLBody(t, platform.ID(9000), true)
 
 					testttp.
 						Post(t, "/api/v2/templates/apply", body).
@@ -275,7 +276,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 
 		t.Run("all diff and summary resource collections are non null", func(t *testing.T) {
 			svc := &fakeSVC{
-				dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+				dryRunFn: func(ctx context.Context, orgID, userID platform.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 					// return zero value pkg
 					return pkger.ImpactSummary{}, nil
 				},
@@ -287,7 +288,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 			testttp.
 				PostJSON(t, "/api/v2/templates/apply", pkger.ReqApply{
 					DryRun:      true,
-					OrgID:       influxdb.ID(1).String(),
+					OrgID:       platform.ID(1).String(),
 					RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
 				}).
 				Headers("Content-Type", "application/json").
@@ -336,7 +337,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 					name: "retrieves package from a URL and raw pkgs",
 					reqBody: pkger.ReqApply{
 						DryRun: true,
-						OrgID:  influxdb.ID(9000).String(),
+						OrgID:  platform.ID(9000).String(),
 						Remotes: []pkger.ReqTemplateRemote{{
 							ContentType: "json",
 							URL:         newPkgURL(t, filesvr.URL, "testdata/remote_bucket.json"),
@@ -353,7 +354,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 					name: "retrieves packages from raw single and list",
 					reqBody: pkger.ReqApply{
 						DryRun:      true,
-						OrgID:       influxdb.ID(9000).String(),
+						OrgID:       platform.ID(9000).String(),
 						RawTemplate: newBktPkg(t, "bkt4"),
 						RawTemplates: []pkger.ReqRawTemplate{
 							newBktPkg(t, "bkt1"),
@@ -368,7 +369,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID platform.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 							var opt pkger.ApplyOpt
 							for _, o := range opts {
 								o(&opt)
@@ -442,7 +443,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 					contentType: "application/json",
 					reqBody: pkger.ReqApply{
 						DryRun:      true,
-						OrgID:       influxdb.ID(9000).String(),
+						OrgID:       platform.ID(9000).String(),
 						StackID:     strPtr("invalid stack id"),
 						RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
 					},
@@ -453,7 +454,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID platform.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 							var opt pkger.ApplyOpt
 							for _, o := range opts {
 								o(&opt)
@@ -486,7 +487,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 	t.Run("apply a pkg", func(t *testing.T) {
 		t.Run("happy path", func(t *testing.T) {
 			svc := &fakeSVC{
-				applyFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+				applyFn: func(ctx context.Context, orgID, userID platform.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 					var opt pkger.ApplyOpt
 					for _, o := range opts {
 						o(&opt)
@@ -523,7 +524,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 
 			testttp.
 				PostJSON(t, "/api/v2/templates/apply", pkger.ReqApply{
-					OrgID:       influxdb.ID(9000).String(),
+					OrgID:       platform.ID(9000).String(),
 					Secrets:     map[string]string{"secret1": "val1"},
 					RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
 				}).
@@ -542,7 +543,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 
 		t.Run("all diff and summary resource collections are non null", func(t *testing.T) {
 			svc := &fakeSVC{
-				applyFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+				applyFn: func(ctx context.Context, orgID, userID platform.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 					// return zero value pkg
 					return pkger.ImpactSummary{}, nil
 				},
@@ -553,7 +554,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 
 			testttp.
 				PostJSON(t, "/api/v2/templates/apply", pkger.ReqApply{
-					OrgID:       influxdb.ID(1).String(),
+					OrgID:       platform.ID(1).String(),
 					RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
 				}).
 				Headers("Content-Type", "application/json").
@@ -656,7 +657,7 @@ spec:
 	}
 }
 
-func newReqApplyYMLBody(t *testing.T, orgID influxdb.ID, dryRun bool) *bytes.Buffer {
+func newReqApplyYMLBody(t *testing.T, orgID platform.ID, dryRun bool) *bytes.Buffer {
 	t.Helper()
 
 	var buf bytes.Buffer
@@ -677,13 +678,13 @@ func decodeBody(t *testing.T, r io.Reader, v interface{}) {
 	}
 }
 
-func newMountedHandler(rh kithttp.ResourceHandler, userID influxdb.ID) chi.Router {
+func newMountedHandler(rh kithttp.ResourceHandler, userID platform.ID) chi.Router {
 	r := chi.NewRouter()
 	r.Mount(rh.Prefix(), authMW(userID)(rh))
 	return r
 }
 
-func authMW(userID influxdb.ID) func(http.Handler) http.Handler {
+func authMW(userID platform.ID) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			r = r.WithContext(pcontext.SetAuthorizer(r.Context(), &influxdb.Session{UserID: userID}))

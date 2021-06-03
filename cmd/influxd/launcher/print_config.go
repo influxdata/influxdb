@@ -10,7 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func NewInfluxdPrintConfigCommand(v *viper.Viper, influxdOpts []cli.Opt) *cobra.Command {
+func NewInfluxdPrintConfigCommand(v *viper.Viper, influxdOpts []cli.Opt) (*cobra.Command, error) {
 
 	var keyToPrint string
 	printOpts := make([]cli.Opt, len(influxdOpts)+1)
@@ -61,9 +61,11 @@ See 'influxd -h' for the full list of config options supported by the server.
 		},
 		Args: cobra.NoArgs,
 	}
-	cli.BindOptions(v, cmd, printOpts)
+	if err := cli.BindOptions(v, cmd, printOpts); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func printAllConfigRunE(configOpts []cli.Opt, out io.Writer) error {

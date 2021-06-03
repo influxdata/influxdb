@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 const (
@@ -17,6 +19,27 @@ type BackupService interface {
 
 	// BackupShard downloads a backup file for a single shard.
 	BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error
+
+	// LockKVStore locks the database.
+	LockKVStore()
+
+	// UnlockKVStore unlocks the database.
+	UnlockKVStore()
+}
+
+// SqlBackupRestoreService represents the backup and restore functions for the sqlite database.
+type SqlBackupRestoreService interface {
+	// BackupSqlStore creates a live backup copy of the sqlite database.
+	BackupSqlStore(ctx context.Context, w io.Writer) error
+
+	// RestoreSqlStore restores & replaces the sqlite database.
+	RestoreSqlStore(ctx context.Context, r io.Reader) error
+
+	// LockSqlStore locks the database.
+	LockSqlStore()
+
+	// UnlockSqlStore unlocks the database.
+	UnlockSqlStore()
 }
 
 // RestoreService represents the data restore functions of InfluxDB.
@@ -25,7 +48,7 @@ type RestoreService interface {
 	RestoreKVStore(ctx context.Context, r io.Reader) error
 
 	// RestoreKVStore restores the metadata database.
-	RestoreBucket(ctx context.Context, id ID, rpiData []byte) (shardIDMap map[uint64]uint64, err error)
+	RestoreBucket(ctx context.Context, id platform.ID, rpiData []byte) (shardIDMap map[uint64]uint64, err error)
 
 	// RestoreShard uploads a backup file for a single shard.
 	RestoreShard(ctx context.Context, shardID uint64, r io.Reader) error
@@ -35,10 +58,6 @@ type RestoreService interface {
 type Manifest struct {
 	KV    ManifestKVEntry `json:"kv"`
 	Files []ManifestEntry `json:"files"`
-
-	// These fields are only set if filtering options are set on the CLI.
-	OrganizationID string `json:"organizationID,omitempty"`
-	BucketID       string `json:"bucketID,omitempty"`
 }
 
 // ManifestEntry contains the data information for a backed up shard.

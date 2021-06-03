@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"time"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/hashicorp/vault/api"
 	platform "github.com/influxdata/influxdb/v2"
 )
@@ -125,7 +127,7 @@ func NewSecretService(cfgOpts ...ConfigOptFn) (*SecretService, error) {
 }
 
 // LoadSecret retrieves the secret value v found at key k for organization orgID.
-func (s *SecretService) LoadSecret(ctx context.Context, orgID platform.ID, k string) (string, error) {
+func (s *SecretService) LoadSecret(ctx context.Context, orgID platform2.ID, k string) (string, error) {
 	data, _, err := s.loadSecrets(ctx, orgID)
 	if err != nil {
 		return "", err
@@ -140,7 +142,7 @@ func (s *SecretService) LoadSecret(ctx context.Context, orgID platform.ID, k str
 
 // loadSecrets retrieves a map of secrets for an organization and the version of the secrets retrieved.
 // The version is used to ensure that concurrent updates will not overwrite one another.
-func (s *SecretService) loadSecrets(ctx context.Context, orgID platform.ID) (map[string]string, int, error) {
+func (s *SecretService) loadSecrets(ctx context.Context, orgID platform2.ID) (map[string]string, int, error) {
 	// TODO(desa): update url construction
 	sec, err := s.Client.Logical().Read(fmt.Sprintf("/secret/data/%s", orgID))
 	if err != nil {
@@ -194,7 +196,7 @@ func (s *SecretService) loadSecrets(ctx context.Context, orgID platform.ID) (map
 }
 
 // GetSecretKeys retrieves all secret keys that are stored for the organization orgID.
-func (s *SecretService) GetSecretKeys(ctx context.Context, orgID platform.ID) ([]string, error) {
+func (s *SecretService) GetSecretKeys(ctx context.Context, orgID platform2.ID) ([]string, error) {
 	data, _, err := s.loadSecrets(ctx, orgID)
 	if err != nil {
 		return nil, err
@@ -209,7 +211,7 @@ func (s *SecretService) GetSecretKeys(ctx context.Context, orgID platform.ID) ([
 }
 
 // PutSecret stores the secret pair (k,v) for the organization orgID.
-func (s *SecretService) PutSecret(ctx context.Context, orgID platform.ID, k string, v string) error {
+func (s *SecretService) PutSecret(ctx context.Context, orgID platform2.ID, k string, v string) error {
 	data, ver, err := s.loadSecrets(ctx, orgID)
 	if err != nil {
 		return err
@@ -225,7 +227,7 @@ func (s *SecretService) PutSecret(ctx context.Context, orgID platform.ID, k stri
 // If version is 0, the write will only be allowed if the keys do not exists.
 // If version is non-zero, the write will only be allowed if the keys current
 // version in vault matches the version specified.
-func (s *SecretService) putSecrets(ctx context.Context, orgID platform.ID, data map[string]string, version int) error {
+func (s *SecretService) putSecrets(ctx context.Context, orgID platform2.ID, data map[string]string, version int) error {
 	m := map[string]interface{}{"data": data}
 
 	if version >= 0 {
@@ -240,12 +242,12 @@ func (s *SecretService) putSecrets(ctx context.Context, orgID platform.ID, data 
 }
 
 // PutSecrets puts all provided secrets and overwrites any previous values.
-func (s *SecretService) PutSecrets(ctx context.Context, orgID platform.ID, m map[string]string) error {
+func (s *SecretService) PutSecrets(ctx context.Context, orgID platform2.ID, m map[string]string) error {
 	return s.putSecrets(ctx, orgID, m, -1)
 }
 
 // PatchSecrets patches all provided secrets and updates any previous values.
-func (s *SecretService) PatchSecrets(ctx context.Context, orgID platform.ID, m map[string]string) error {
+func (s *SecretService) PatchSecrets(ctx context.Context, orgID platform2.ID, m map[string]string) error {
 	data, ver, err := s.loadSecrets(ctx, orgID)
 	if err != nil {
 		return err
@@ -259,7 +261,7 @@ func (s *SecretService) PatchSecrets(ctx context.Context, orgID platform.ID, m m
 }
 
 // DeleteSecret removes a single secret from the secret store.
-func (s *SecretService) DeleteSecret(ctx context.Context, orgID platform.ID, ks ...string) error {
+func (s *SecretService) DeleteSecret(ctx context.Context, orgID platform2.ID, ks ...string) error {
 	data, ver, err := s.loadSecrets(ctx, orgID)
 	if err != nil {
 		return err

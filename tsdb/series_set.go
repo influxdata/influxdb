@@ -206,6 +206,17 @@ func (s *SeriesIDSet) Diff(other *SeriesIDSet) {
 	s.bitmap = roaring.AndNot(s.bitmap, other.bitmap)
 }
 
+// Intersects checks whether two SeriesIDSet intersects, SeriesIDSet are not modified
+func (s *SeriesIDSet) Intersects(other *SeriesIDSet) bool {
+	other.RLock()
+	defer other.RUnlock()
+
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.bitmap.Intersects(other.bitmap)
+}
+
 // Clone returns a new SeriesIDSet with a deep copy of the underlying bitmap.
 func (s *SeriesIDSet) Clone() *SeriesIDSet {
 	s.RLock()

@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	platcontext "github.com/influxdata/influxdb/v2/context"
@@ -20,7 +23,7 @@ const prefixAuthorization = "/api/v2/authorizations"
 // AuthorizationBackend is all services and associated parameters required to construct
 // the AuthorizationHandler.
 type AuthorizationBackend struct {
-	influxdb.HTTPErrorHandler
+	errors2.HTTPErrorHandler
 	log *zap.Logger
 
 	AuthorizationService influxdb.AuthorizationService
@@ -45,7 +48,7 @@ func NewAuthorizationBackend(log *zap.Logger, b *APIBackend) *AuthorizationBacke
 // AuthorizationHandler represents an HTTP API handler for authorizations.
 type AuthorizationHandler struct {
 	*httprouter.Router
-	influxdb.HTTPErrorHandler
+	errors2.HTTPErrorHandler
 	log *zap.Logger
 
 	OrganizationService  influxdb.OrganizationService
@@ -76,13 +79,13 @@ func NewAuthorizationHandler(log *zap.Logger, b *AuthorizationBackend) *Authoriz
 }
 
 type authResponse struct {
-	ID          influxdb.ID          `json:"id"`
+	ID          platform.ID          `json:"id"`
 	Token       string               `json:"token"`
 	Status      influxdb.Status      `json:"status"`
 	Description string               `json:"description"`
-	OrgID       influxdb.ID          `json:"orgID"`
+	OrgID       platform.ID          `json:"orgID"`
 	Org         string               `json:"org"`
-	UserID      influxdb.ID          `json:"userID"`
+	UserID      platform.ID          `json:"userID"`
 	User        string               `json:"user"`
 	Permissions []permissionResponse `json:"permissions"`
 	Links       map[string]string    `json:"links"`
@@ -153,7 +156,7 @@ func newPermissionsResponse(ctx context.Context, ps []influxdb.Permission, svc i
 
 		if p.Resource.ID != nil {
 			name, err := svc.FindResourceName(ctx, p.Resource.Type, *p.Resource.ID)
-			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+			if errors2.ErrorCode(err) == errors2.ENotFound {
 				continue
 			}
 			if err != nil {
@@ -164,7 +167,7 @@ func newPermissionsResponse(ctx context.Context, ps []influxdb.Permission, svc i
 
 		if p.Resource.OrgID != nil {
 			name, err := svc.FindResourceName(ctx, influxdb.OrgsResourceType, *p.Resource.OrgID)
-			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+			if errors2.ErrorCode(err) == errors2.ENotFound {
 				continue
 			}
 			if err != nil {
@@ -241,13 +244,13 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 
 type postAuthorizationRequest struct {
 	Status      influxdb.Status       `json:"status"`
-	OrgID       influxdb.ID           `json:"orgID"`
-	UserID      *influxdb.ID          `json:"userID,omitempty"`
+	OrgID       platform.ID           `json:"orgID"`
+	UserID      *platform.ID          `json:"userID,omitempty"`
 	Description string                `json:"description"`
 	Permissions []influxdb.Permission `json:"permissions"`
 }
 
-func (p *postAuthorizationRequest) toPlatform(userID influxdb.ID) *influxdb.Authorization {
+func (p *postAuthorizationRequest) toPlatform(userID platform.ID) *influxdb.Authorization {
 	return &influxdb.Authorization{
 		OrgID:       p.OrgID,
 		Status:      p.Status,
@@ -282,24 +285,24 @@ func (p *postAuthorizationRequest) SetDefaults() {
 
 func (p *postAuthorizationRequest) Validate() error {
 	if len(p.Permissions) == 0 {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors2.Error{
+			Code: errors2.EInvalid,
 			Msg:  "authorization must include permissions",
 		}
 	}
 
 	for _, perm := range p.Permissions {
 		if err := perm.Valid(); err != nil {
-			return &influxdb.Error{
+			return &errors2.Error{
 				Err: err,
 			}
 		}
 	}
 
 	if !p.OrgID.Valid() {
-		return &influxdb.Error{
-			Err:  influxdb.ErrInvalidID,
-			Code: influxdb.EInvalid,
+		return &errors2.Error{
+			Err:  platform.ErrInvalidID,
+			Code: errors2.EInvalid,
 			Msg:  "org id required",
 		}
 	}
@@ -319,8 +322,8 @@ func (p *postAuthorizationRequest) Validate() error {
 func decodePostAuthorizationRequest(ctx context.Context, r *http.Request) (*postAuthorizationRequest, error) {
 	a := &postAuthorizationRequest{}
 	if err := json.NewDecoder(r.Body).Decode(a); err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
 			Msg:  "invalid json structure",
 			Err:  err,
 		}
@@ -390,7 +393,7 @@ func decodeGetAuthorizationsRequest(ctx context.Context, r *http.Request) (*getA
 
 	userID := qp.Get("userID")
 	if userID != "" {
-		id, err := influxdb.IDFromString(userID)
+		id, err := platform.IDFromString(userID)
 		if err != nil {
 			return nil, err
 		}
@@ -404,7 +407,7 @@ func decodeGetAuthorizationsRequest(ctx context.Context, r *http.Request) (*getA
 
 	orgID := qp.Get("orgID")
 	if orgID != "" {
-		id, err := influxdb.IDFromString(orgID)
+		id, err := platform.IDFromString(orgID)
 		if err != nil {
 			return nil, err
 		}
@@ -418,7 +421,7 @@ func decodeGetAuthorizationsRequest(ctx context.Context, r *http.Request) (*getA
 
 	authID := qp.Get("id")
 	if authID != "" {
-		id, err := influxdb.IDFromString(authID)
+		id, err := platform.IDFromString(authID)
 		if err != nil {
 			return nil, err
 		}
@@ -472,20 +475,20 @@ func (h *AuthorizationHandler) handleGetAuthorization(w http.ResponseWriter, r *
 }
 
 type getAuthorizationRequest struct {
-	ID influxdb.ID
+	ID platform.ID
 }
 
 func decodeGetAuthorizationRequest(ctx context.Context, r *http.Request) (*getAuthorizationRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -543,7 +546,7 @@ func (h *AuthorizationHandler) handleUpdateAuthorization(w http.ResponseWriter, 
 }
 
 type updateAuthorizationRequest struct {
-	ID influxdb.ID
+	ID platform.ID
 	*influxdb.AuthorizationUpdate
 }
 
@@ -551,13 +554,13 @@ func decodeUpdateAuthorizationRequest(ctx context.Context, r *http.Request) (*up
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -595,20 +598,20 @@ func (h *AuthorizationHandler) handleDeleteAuthorization(w http.ResponseWriter, 
 }
 
 type deleteAuthorizationRequest struct {
-	ID influxdb.ID
+	ID platform.ID
 }
 
 func decodeDeleteAuthorizationRequest(ctx context.Context, r *http.Request) (*deleteAuthorizationRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -637,7 +640,7 @@ type AuthorizationService struct {
 var _ influxdb.AuthorizationService = (*AuthorizationService)(nil)
 
 // FindAuthorizationByID finds the authorization against a remote influx server.
-func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Authorization, error) {
+func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform.ID) (*influxdb.Authorization, error) {
 	var b influxdb.Authorization
 	err := s.Client.
 		Get(prefixAuthorization, id.String()).
@@ -706,7 +709,7 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *influ
 }
 
 // UpdateAuthorization updates the status and description if available.
-func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
+func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
 	var res authResponse
 	err := s.Client.
 		PatchJSON(upd, prefixAuthorization, id.String()).
@@ -720,7 +723,7 @@ func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id influ
 }
 
 // DeleteAuthorization removes a authorization by id.
-func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id influxdb.ID) error {
+func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform.ID) error {
 	return s.Client.
 		Delete(prefixAuthorization, id.String()).
 		Do(ctx)

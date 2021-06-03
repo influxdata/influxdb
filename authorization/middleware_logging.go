@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
@@ -36,7 +38,7 @@ func (l *AuthLogger) CreateAuthorization(ctx context.Context, a *influxdb.Author
 	return l.authService.CreateAuthorization(ctx, a)
 }
 
-func (l *AuthLogger) FindAuthorizationByID(ctx context.Context, id influxdb.ID) (a *influxdb.Authorization, err error) {
+func (l *AuthLogger) FindAuthorizationByID(ctx context.Context, id platform.ID) (a *influxdb.Authorization, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -74,7 +76,7 @@ func (l *AuthLogger) FindAuthorizations(ctx context.Context, filter influxdb.Aut
 	return l.authService.FindAuthorizations(ctx, filter)
 }
 
-func (l *AuthLogger) UpdateAuthorization(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) (a *influxdb.Authorization, err error) {
+func (l *AuthLogger) UpdateAuthorization(ctx context.Context, id platform.ID, upd *influxdb.AuthorizationUpdate) (a *influxdb.Authorization, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -86,7 +88,7 @@ func (l *AuthLogger) UpdateAuthorization(ctx context.Context, id influxdb.ID, up
 	return l.authService.UpdateAuthorization(ctx, id, upd)
 }
 
-func (l *AuthLogger) DeleteAuthorization(ctx context.Context, id influxdb.ID) (err error) {
+func (l *AuthLogger) DeleteAuthorization(ctx context.Context, id platform.ID) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {

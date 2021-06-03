@@ -6,6 +6,8 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
@@ -26,11 +28,11 @@ func NewClient(client *httpc.Client) *Client {
 	}
 }
 
-func (c *Client) dbrpURL(id influxdb.ID) string {
+func (c *Client) dbrpURL(id platform.ID) string {
 	return path.Join(c.Prefix, id.String())
 }
 
-func (c *Client) FindByID(ctx context.Context, orgID, id influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+func (c *Client) FindByID(ctx context.Context, orgID, id platform.ID) (*influxdb.DBRPMappingV2, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -123,7 +125,7 @@ func (c *Client) Update(ctx context.Context, dbrp *influxdb.DBRPMappingV2) error
 	return nil
 }
 
-func (c *Client) Delete(ctx context.Context, orgID, id influxdb.ID) error {
+func (c *Client) Delete(ctx context.Context, orgID, id platform.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 

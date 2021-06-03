@@ -4,6 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/rand"
 	"github.com/influxdata/influxdb/v2/snowflake"
@@ -18,7 +21,7 @@ type Service struct {
 	authService   influxdb.AuthorizationService
 	sessionLength time.Duration
 
-	idGen    influxdb.IDGenerator
+	idGen    platform.IDGenerator
 	tokenGen influxdb.TokenGenerator
 
 	disableAuthorizationsForMaxPermissions func(context.Context) bool
@@ -37,7 +40,7 @@ func WithSessionLength(length time.Duration) ServiceOption {
 
 // WithIDGenerator overrides the default ID generator with the one
 // provided to this function when called on a *Service
-func WithIDGenerator(gen influxdb.IDGenerator) ServiceOption {
+func WithIDGenerator(gen platform.IDGenerator) ServiceOption {
 	return func(s *Service) {
 		s.idGen = gen
 	}
@@ -139,14 +142,14 @@ func (s *Service) CreateSession(ctx context.Context, user string) (*influxdb.Ses
 // RenewSession update the sessions expiration time
 func (s *Service) RenewSession(ctx context.Context, session *influxdb.Session, newExpiration time.Time) error {
 	if session == nil {
-		return &influxdb.Error{
+		return &errors.Error{
 			Msg: "session is nil",
 		}
 	}
 	return s.store.RefreshSession(ctx, session.ID, newExpiration)
 }
 
-func (s *Service) getPermissionSet(ctx context.Context, uid influxdb.ID) ([]influxdb.Permission, error) {
+func (s *Service) getPermissionSet(ctx context.Context, uid platform.ID) ([]influxdb.Permission, error) {
 	mappings, _, err := s.urmService.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{UserID: uid}, influxdb.FindOptions{Limit: 100})
 	if err != nil {
 		return nil, err
@@ -192,7 +195,7 @@ func permissionFromMapping(mappings []*influxdb.UserResourceMapping) ([]influxdb
 	for _, m := range mappings {
 		p, err := m.ToPermissions()
 		if err != nil {
-			return nil, &influxdb.Error{
+			return nil, &errors.Error{
 				Err: err,
 			}
 		}

@@ -32,7 +32,7 @@ func TestTo_Query(t *testing.T) {
 						},
 					},
 					{
-						ID: "to1",
+						ID: "influx2x/toKind1",
 						Spec: &influxdb.ToOpSpec{
 							Bucket:            "series1",
 							Org:               "fred",
@@ -48,7 +48,7 @@ func TestTo_Query(t *testing.T) {
 					},
 				},
 				Edges: []flux.Edge{
-					{Parent: "from0", Child: "to1"},
+					{Parent: "from0", Child: "influx2x/toKind1"},
 				},
 			},
 		},

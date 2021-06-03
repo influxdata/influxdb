@@ -3,6 +3,7 @@ package prometheus_test
 import (
 	"context"
 	"errors"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
 	platform "github.com/influxdata/influxdb/v2"
@@ -19,7 +20,7 @@ type authzSvc struct {
 
 var _ platform.AuthorizationService = (*authzSvc)(nil)
 
-func (a *authzSvc) FindAuthorizationByID(context.Context, platform.ID) (*platform.Authorization, error) {
+func (a *authzSvc) FindAuthorizationByID(context.Context, platform2.ID) (*platform.Authorization, error) {
 	return nil, a.Err
 }
 
@@ -35,11 +36,11 @@ func (a *authzSvc) CreateAuthorization(context.Context, *platform.Authorization)
 	return a.Err
 }
 
-func (a *authzSvc) DeleteAuthorization(context.Context, platform.ID) error {
+func (a *authzSvc) DeleteAuthorization(context.Context, platform2.ID) error {
 	return a.Err
 }
 
-func (a *authzSvc) UpdateAuthorization(context.Context, platform.ID, *platform.AuthorizationUpdate) (*platform.Authorization, error) {
+func (a *authzSvc) UpdateAuthorization(context.Context, platform2.ID, *platform.AuthorizationUpdate) (*platform.Authorization, error) {
 	return nil, a.Err
 }
 
@@ -52,7 +53,7 @@ func TestAuthorizationService_Metrics(t *testing.T) {
 	reg.MustRegister(svc.PrometheusCollectors()...)
 
 	ctx := context.Background()
-	id := platform.ID(1)
+	id := platform2.ID(1)
 
 	if _, err := svc.FindAuthorizationByID(ctx, id); err != nil {
 		t.Fatal(err)
@@ -90,7 +91,7 @@ func TestAuthorizationService_Metrics(t *testing.T) {
 		t.Fatalf("exp 1 request, got %v", got)
 	}
 
-	var tempID platform.ID
+	var tempID platform2.ID
 	if err := svc.DeleteAuthorization(ctx, tempID); err != nil {
 		t.Fatal(err)
 	}

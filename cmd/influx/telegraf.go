@@ -5,6 +5,9 @@ import (
 	"errors"
 	"io/ioutil"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
 	"github.com/influxdata/influxdb/v2/http"
@@ -76,14 +79,14 @@ func (b *cmdTelegrafBuilder) listRunE(cmd *cobra.Command, args []string) error {
 
 	orgID, _ := b.org.getID(orgSVC)
 	if orgID == 0 && b.id == "" {
-		return &influxdb.Error{
-			Code: influxdb.EUnprocessableEntity,
+		return &errors2.Error{
+			Code: errors2.EUnprocessableEntity,
 			Msg:  "at least one of org, org-id, or id must be provided",
 		}
 	}
 
 	if b.id != "" {
-		id, err := influxdb.IDFromString(b.id)
+		id, err := platform.IDFromString(b.id)
 		if err != nil {
 			return err
 		}
@@ -190,13 +193,13 @@ func (b *cmdTelegrafBuilder) removeRunEFn(cmd *cobra.Command, args []string) err
 	}
 
 	for _, rawID := range b.ids {
-		id, err := influxdb.IDFromString(rawID)
+		id, err := platform.IDFromString(rawID)
 		if err != nil {
 			return err
 		}
 
 		err = svc.DeleteTelegrafConfig(context.Background(), *id)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
+		if err != nil && errors2.ErrorCode(err) != errors2.ENotFound {
 			return err
 		}
 	}
@@ -247,7 +250,7 @@ func (b *cmdTelegrafBuilder) updateRunEFn(cmd *cobra.Command, args []string) err
 		return err
 	}
 
-	id, err := influxdb.IDFromString(b.id)
+	id, err := platform.IDFromString(b.id)
 	if err != nil {
 		return err
 	}
@@ -309,8 +312,8 @@ func (b *cmdTelegrafBuilder) readConfig(file string) (string, error) {
 
 	stdIn, err := inStdIn(b.in)
 	if err != nil {
-		return "", &influxdb.Error{
-			Code: influxdb.EUnprocessableEntity,
+		return "", &errors2.Error{
+			Code: errors2.EUnprocessableEntity,
 			Err:  errors.New("a Telegraf config must be provided"),
 		}
 	}

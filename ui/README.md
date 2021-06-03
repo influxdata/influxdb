@@ -1,55 +1,42 @@
-## Packages
+## InfluxDB UI
 
-### Adding new packages
+UI assets for InfluxDB are automatically downloaded and embedded in the `influxd` binary
+when using the top-level `Makefile`. The UI assets are built and made available from
+the [`influxdata/ui` repository](https://github.com/influxdata/ui). All of the UI source code
+has been removed from this directory, and now lives in the [`influxdata/ui` repository](https://github.com/influxdata/ui).
+Please submit all PRs and issues related to the InfluxDB UI to the [`influxdata/ui` repository](https://github.com/influxdata/ui).
 
-To add a new package, run
+### Starting a Local Development Environment
 
-```sh
-yarn add packageName
+It is possible to run a frontend development server with hot reloading using the UI from
+[`influxdata/ui`](https://github.com/influxdata/ui) in front of the InfluxDB backend:
+
+Start `influxd` listening on the default port (`8086`):
+
+`$ ./bin/darwin/influxd`
+
+Clone (if needed) & start the UI development server from the `ui` repository:
+
+```
+$ git clone https://github.com/influxdata/ui.git
+$ cd ui
+$ yarn start
 ```
 
-### Adding devDependency
+The UI development server runs at [`http://localhost:8080`](http://localhost:8080/)
 
-```sh
-yarn add packageName --dev
+### Running InfluxDB with Local UI Assets
+
+To run InfluxDB with local UI assets, first build the assets:
+
+```
+$ git clone https://github.com/influxdata/ui.git
+$ cd ui
+$ yarn build
 ```
 
-### Updating a package
+Start `influxd` using the local UI assets via the `--assets-path` flag. For example,
+if the `ui` folder containing built assets is at the same level as the `influxdb` folder
+and the `influxd` binary is at `influxdb/bin/darwin/influxd`:
 
-First, run the command
-
-```sh
-yarn outdated
-```
-
-... to determine which packages may need upgrading.
-
-We _really_ should not upgrade all packages at once, but, one at a time and make darn sure
-to test.
-
-To upgrade a single package named `packageName`:
-
-```sh
-yarn upgrade packageName
-```
-
-## Testing
-
-Tests can be run via command line with `yarn test`, from within the `/ui` directory. For more detailed reporting, use `yarn test -- --reporters=verbose`.
-
-
-## Cypress Testing
-
-e2e tests:
-For the end to end tests to run properly, the server needs to be running in the e2e testing mode with the in memory data store.
-From the influxdb directory
-`$ ./bin/darwin/influxd --assets-path=ui/build --e2e-testing --store=memory`
-
-From the ui directory. Build the javascript with
-`$ yarn start`
- To run Cypress locally
-`$ yarn cy:dev`
-
-## Starting Dev Server
-
-The assets are built by running `yarn start` from withing the `/ui` directory. The dev server with hot reloading runs at `localhost:8080`.
+`$ ./bin/darwin/influxd --assets-path=../ui/build`

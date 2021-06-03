@@ -10,6 +10,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -19,9 +22,10 @@ import (
 // RestoreBackend is all services and associated parameters required to construct the RestoreHandler.
 type RestoreBackend struct {
 	Logger *zap.Logger
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 
-	RestoreService influxdb.RestoreService
+	RestoreService          influxdb.RestoreService
+	SqlBackupRestoreService influxdb.SqlBackupRestoreService
 }
 
 // NewRestoreBackend returns a new instance of RestoreBackend.
@@ -29,23 +33,26 @@ func NewRestoreBackend(b *APIBackend) *RestoreBackend {
 	return &RestoreBackend{
 		Logger: b.Logger.With(zap.String("handler", "restore")),
 
-		HTTPErrorHandler: b.HTTPErrorHandler,
-		RestoreService:   b.RestoreService,
+		HTTPErrorHandler:        b.HTTPErrorHandler,
+		RestoreService:          b.RestoreService,
+		SqlBackupRestoreService: b.SqlBackupRestoreService,
 	}
 }
 
 // RestoreHandler is http handler for restore service.
 type RestoreHandler struct {
 	*httprouter.Router
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	Logger *zap.Logger
 
-	RestoreService influxdb.RestoreService
+	RestoreService          influxdb.RestoreService
+	SqlBackupRestoreService influxdb.SqlBackupRestoreService
 }
 
 const (
 	prefixRestore     = "/api/v2/restore"
 	restoreKVPath     = prefixRestore + "/kv"
+	restoreSqlPath    = prefixRestore + "/sql"
 	restoreBucketPath = prefixRestore + "/buckets/:bucketID"
 	restoreShardPath  = prefixRestore + "/shards/:shardID"
 )
@@ -53,13 +60,15 @@ const (
 // NewRestoreHandler creates a new handler at /api/v2/restore to receive restore requests.
 func NewRestoreHandler(b *RestoreBackend) *RestoreHandler {
 	h := &RestoreHandler{
-		HTTPErrorHandler: b.HTTPErrorHandler,
-		Router:           NewRouter(b.HTTPErrorHandler),
-		Logger:           b.Logger,
-		RestoreService:   b.RestoreService,
+		HTTPErrorHandler:        b.HTTPErrorHandler,
+		Router:                  NewRouter(b.HTTPErrorHandler),
+		Logger:                  b.Logger,
+		RestoreService:          b.RestoreService,
+		SqlBackupRestoreService: b.SqlBackupRestoreService,
 	}
 
 	h.HandlerFunc(http.MethodPost, restoreKVPath, h.handleRestoreKVStore)
+	h.HandlerFunc(http.MethodPost, restoreSqlPath, h.handleRestoreSqlStore)
 	h.HandlerFunc(http.MethodPost, restoreBucketPath, h.handleRestoreBucket)
 	h.HandlerFunc(http.MethodPost, restoreShardPath, h.handleRestoreShard)
 
@@ -73,6 +82,18 @@ func (h *RestoreHandler) handleRestoreKVStore(w http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 
 	if err := h.RestoreService.RestoreKVStore(ctx, r.Body); err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+}
+
+func (h *RestoreHandler) handleRestoreSqlStore(w http.ResponseWriter, r *http.Request) {
+	span, r := tracing.ExtractFromHTTPRequest(r, "RestoreHandler.handleRestoreSqlStore")
+	defer span.Finish()
+
+	ctx := r.Context()
+
+	if err := h.SqlBackupRestoreService.RestoreSqlStore(ctx, r.Body); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -167,7 +188,7 @@ func (s *RestoreService) RestoreKVStore(ctx context.Context, r io.Reader) error 
 	return nil
 }
 
-func (s *RestoreService) RestoreBucket(ctx context.Context, id influxdb.ID, dbi []byte) (map[uint64]uint64, error) {
+func (s *RestoreService) RestoreBucket(ctx context.Context, id platform.ID, dbi []byte) (map[uint64]uint64, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 

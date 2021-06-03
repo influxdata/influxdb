@@ -15,6 +15,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
@@ -35,7 +38,7 @@ import (
 )
 
 func TestFluxService_Query(t *testing.T) {
-	orgID, err := influxdb.IDFromString("abcdabcdabcdabcd")
+	orgID, err := platform.IDFromString("abcdabcdabcdabcd")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +136,7 @@ func TestFluxService_Query(t *testing.T) {
 }
 
 func TestFluxQueryService_Query(t *testing.T) {
-	var orgID influxdb.ID
+	var orgID platform.ID
 	orgID.DecodeFromString("aaaaaaaaaaaaaaaa")
 	tests := []struct {
 		name    string
@@ -336,8 +339,8 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 		OrganizationService: orgSVC,
 		ProxyQueryService: &mock.ProxyQueryService{
 			QueryF: func(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
-				return flux.Statistics{}, &influxdb.Error{
-					Code: influxdb.EInvalid,
+				return flux.Statistics{}, &errors.Error{
+					Code: errors.EInvalid,
 					Msg:  "some query error",
 				}
 			},
@@ -371,7 +374,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		var ierr influxdb.Error
+		var ierr errors.Error
 		if err := json.Unmarshal(body, &ierr); err != nil {
 			t.Logf("failed to json unmarshal into influxdb.error: %q", body)
 			t.Fatal(err)
@@ -402,7 +405,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 		}
 
 		body := w.Body.Bytes()
-		var ierr influxdb.Error
+		var ierr errors.Error
 		if err := json.Unmarshal(body, &ierr); err != nil {
 			t.Logf("failed to json unmarshal into influxdb.error: %q", body)
 			t.Fatal(err)
@@ -440,13 +443,13 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 
 		body := w.Body.Bytes()
 		t.Logf("%s", body)
-		var ierr influxdb.Error
+		var ierr errors.Error
 		if err := json.Unmarshal(body, &ierr); err != nil {
 			t.Logf("failed to json unmarshal into influxdb.error: %q", body)
 			t.Fatal(err)
 		}
 
-		if got, want := ierr.Code, influxdb.EInvalid; got != want {
+		if got, want := ierr.Code, errors.EInvalid; got != want {
 			t.Fatalf("unexpected error code -want/+got:\n\t- %v\n\t+ %v", want, got)
 		}
 		if ierr.Msg != "some query error" {
@@ -459,7 +462,7 @@ func TestFluxService_Query_gzip(t *testing.T) {
 	// orgService is just to mock out orgs by returning
 	// the same org every time.
 	orgService := &influxmock.OrganizationService{
-		FindOrganizationByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+		FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Organization, error) {
 			return &influxdb.Organization{
 				ID:   id,
 				Name: id.String(),
@@ -468,8 +471,8 @@ func TestFluxService_Query_gzip(t *testing.T) {
 
 		FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 			return &influxdb.Organization{
-				ID:   influxdb.ID(1),
-				Name: influxdb.ID(1).String(),
+				ID:   platform.ID(1),
+				Name: platform.ID(1).String(),
 			}, nil
 		},
 	}
@@ -490,8 +493,8 @@ func TestFluxService_Query_gzip(t *testing.T) {
 	authService := &influxmock.AuthorizationService{
 		FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*influxdb.Authorization, error) {
 			return &influxdb.Authorization{
-				ID:          influxdb.ID(1),
-				OrgID:       influxdb.ID(1),
+				ID:          platform.ID(1),
+				OrgID:       platform.ID(1),
 				Permissions: influxdb.OperPermissions(),
 			}, nil
 		},
@@ -516,7 +519,7 @@ func TestFluxService_Query_gzip(t *testing.T) {
 	auth.AuthorizationService = authService
 	auth.Handler = fluxHandler
 	auth.UserService = &influxmock.UserService{
-		FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+		FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 			return &influxdb.User{}, nil
 		},
 	}
@@ -597,7 +600,7 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 	// orgService is just to mock out orgs by returning
 	// the same org every time.
 	orgService := &influxmock.OrganizationService{
-		FindOrganizationByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+		FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Organization, error) {
 			return &influxdb.Organization{
 				ID:   id,
 				Name: id.String(),
@@ -606,8 +609,8 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 
 		FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 			return &influxdb.Organization{
-				ID:   influxdb.ID(1),
-				Name: influxdb.ID(1).String(),
+				ID:   platform.ID(1),
+				Name: platform.ID(1).String(),
 			}, nil
 		},
 	}
@@ -628,8 +631,8 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 	authService := &influxmock.AuthorizationService{
 		FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*influxdb.Authorization, error) {
 			return &influxdb.Authorization{
-				ID:          influxdb.ID(1),
-				OrgID:       influxdb.ID(1),
+				ID:          platform.ID(1),
+				OrgID:       platform.ID(1),
 				Permissions: influxdb.OperPermissions(),
 			}, nil
 		},

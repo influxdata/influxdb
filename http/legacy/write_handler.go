@@ -6,6 +6,9 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http/metric"
@@ -25,7 +28,7 @@ const (
 
 // PointsWriterBackend contains all the services needed to run a PointsWriterHandler.
 type PointsWriterBackend struct {
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	Logger *zap.Logger
 
 	EventRecorder      metric.EventRecorder
@@ -48,7 +51,7 @@ func NewPointsWriterBackend(b *Backend) *PointsWriterBackend {
 
 // PointsWriterHandler represents an HTTP API handler for writing points.
 type WriteHandler struct {
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	EventRecorder      metric.EventRecorder
 	BucketService      influxdb.BucketService
 	PointsWriter       storage.PointsWriter
@@ -143,8 +146,8 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.PointsWriter.WritePoints(ctx, auth.OrgID, bucket.ID, parsed.Points); err != nil {
 		if partialErr, ok := err.(tsdb.PartialWriteError); ok {
-			h.HandleHTTPError(ctx, &influxdb.Error{
-				Code: influxdb.EUnprocessableEntity,
+			h.HandleHTTPError(ctx, &errors.Error{
+				Code: errors.EUnprocessableEntity,
 				Op:   opWriteHandler,
 				Msg:  "failure writing points to database",
 				Err:  partialErr,
@@ -152,8 +155,8 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		h.HandleHTTPError(ctx, &influxdb.Error{
-			Code: influxdb.EInternal,
+		h.HandleHTTPError(ctx, &errors.Error{
+			Code: errors.EInternal,
 			Op:   opWriteHandler,
 			Msg:  "unexpected error writing points to database",
 			Err:  err,
@@ -166,7 +169,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 // findBucket finds a bucket for the specified database and
 // retention policy combination.
-func (h *WriteHandler) findBucket(ctx context.Context, orgID influxdb.ID, db, rp string) (*influxdb.Bucket, error) {
+func (h *WriteHandler) findBucket(ctx context.Context, orgID platform.ID, db, rp string) (*influxdb.Bucket, error) {
 	mapping, err := h.findMapping(ctx, orgID, db, rp)
 	if err != nil {
 		return nil, err
@@ -177,19 +180,19 @@ func (h *WriteHandler) findBucket(ctx context.Context, orgID influxdb.ID, db, rp
 
 // checkBucketWritePermissions checks an Authorizer for write permissions to a
 // specific Bucket.
-func checkBucketWritePermissions(auth influxdb.Authorizer, orgID, bucketID influxdb.ID) error {
+func checkBucketWritePermissions(auth influxdb.Authorizer, orgID, bucketID platform.ID) error {
 	p, err := influxdb.NewPermissionAtID(bucketID, influxdb.WriteAction, influxdb.BucketsResourceType, orgID)
 	if err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInternal,
+		return &errors.Error{
+			Code: errors.EInternal,
 			Op:   opWriteHandler,
 			Msg:  fmt.Sprintf("unable to create permission for bucket: %v", err),
 			Err:  err,
 		}
 	}
 	if pset, err := auth.PermissionSet(); err != nil || !pset.Allowed(*p) {
-		return &influxdb.Error{
-			Code: influxdb.EForbidden,
+		return &errors.Error{
+			Code: errors.EForbidden,
 			Op:   opWriteHandler,
 			Msg:  "insufficient permissions for write",
 			Err:  err,
@@ -200,7 +203,7 @@ func checkBucketWritePermissions(auth influxdb.Authorizer, orgID, bucketID influ
 
 // findMapping finds a DBRPMappingV2 for the database and retention policy
 // combination.
-func (h *WriteHandler) findMapping(ctx context.Context, orgID influxdb.ID, db, rp string) (*influxdb.DBRPMappingV2, error) {
+func (h *WriteHandler) findMapping(ctx context.Context, orgID platform.ID, db, rp string) (*influxdb.DBRPMappingV2, error) {
 	filter := influxdb.DBRPMappingFilterV2{
 		OrgID:    &orgID,
 		Database: &db,
@@ -217,8 +220,8 @@ func (h *WriteHandler) findMapping(ctx context.Context, orgID influxdb.ID, db, r
 		return nil, err
 	}
 	if count == 0 {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  "no dbrp mapping found",
 		}
 	}
@@ -245,8 +248,8 @@ func decodeWriteRequest(_ context.Context, r *http.Request, maxBatchSizeBytes in
 	}
 	db := qp.Get("db")
 	if db == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "missing db",
 		}
 	}

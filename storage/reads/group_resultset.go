@@ -40,6 +40,13 @@ func GroupOptionNilSortLo() GroupOption {
 	}
 }
 
+// IsLastDescendingGroupOptimization checks if this request is using the `last` aggregate type.
+// It returns true if an ascending cursor should be used (all other conditions)
+// or a descending cursor (when `last` is used).
+func IsLastDescendingGroupOptimization(req *datatypes.ReadGroupRequest) bool {
+	return req.Aggregate != nil && req.Aggregate.Type == datatypes.AggregateTypeLast
+}
+
 func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, newSeriesCursorFn func() (SeriesCursor, error), opts ...GroupOption) GroupResultSet {
 	g := &groupResultSet{
 		ctx:               ctx,
@@ -54,7 +61,8 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, new
 		o(g)
 	}
 
-	g.arrayCursors = newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true)
+	ascending := !IsLastDescendingGroupOptimization(req)
+	g.arrayCursors = newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, ascending)
 
 	for i, k := range req.GroupKeys {
 		g.keys[i] = []byte(k)

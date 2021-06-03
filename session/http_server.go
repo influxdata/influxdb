@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
@@ -113,11 +115,11 @@ type signinRequest struct {
 	Password string
 }
 
-func decodeSigninRequest(ctx context.Context, r *http.Request) (*signinRequest, *influxdb.Error) {
+func decodeSigninRequest(ctx context.Context, r *http.Request) (*signinRequest, *errors.Error) {
 	u, p, ok := r.BasicAuth()
 	if !ok {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "invalid basic auth",
 		}
 	}
@@ -166,6 +168,7 @@ func encodeCookieSession(w http.ResponseWriter, s *influxdb.Session) {
 	c := &http.Cookie{
 		Name:  cookieSessionName,
 		Value: s.Key,
+		Path:  "/api/",
 	}
 
 	http.SetCookie(w, c)
@@ -174,8 +177,8 @@ func encodeCookieSession(w http.ResponseWriter, s *influxdb.Session) {
 func decodeCookieSession(ctx context.Context, r *http.Request) (string, error) {
 	c, err := r.Cookie(cookieSessionName)
 	if err != nil {
-		return "", &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return "", &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}

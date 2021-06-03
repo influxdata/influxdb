@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
@@ -22,7 +24,7 @@ import (
 type SourceProxyQueryService struct {
 	InsecureSkipVerify bool
 	URL                string
-	OrganizationID     platform.ID
+	OrganizationID     platform2.ID
 	platform.SourceFields
 	platform.V1SourceFields
 }

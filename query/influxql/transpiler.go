@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxql"
@@ -622,8 +624,8 @@ func (t *transpilerState) transpileSelect(ctx context.Context, stmt *influxql.Se
 	if err != nil {
 		return nil, err
 	} else if len(groups) == 0 {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unable to transpile: at least one non-time field must be queried",
 		}
 	}
@@ -674,16 +676,16 @@ func (t *transpilerState) from(m *influxql.Measurement) (ast.Expression, error) 
 		}
 	} else {
 		if t.dbrpMappingSvc == nil {
-			return nil, &influxdb.Error{
-				Code: influxdb.EInternal,
+			return nil, &errors.Error{
+				Code: errors.EInternal,
 				Msg:  "unable to transpile: db and rp mappings need to be created by some way",
 			}
 		}
 		db, rp := m.Database, m.RetentionPolicy
 		if db == "" {
 			if t.config.DefaultDatabase == "" {
-				return nil, &influxdb.Error{
-					Code: influxdb.EInvalid,
+				return nil, &errors.Error{
+					Code: errors.EInvalid,
 					Msg:  "unable to transpile: database is required",
 				}
 			}

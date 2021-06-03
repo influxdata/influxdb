@@ -10,7 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
-	influxdb "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -160,6 +160,8 @@ func TestOnboardAuth(t *testing.T) {
 		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.ChecksResourceType}},
 		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DBRPResourceType}},
 		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DBRPResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.NotebooksResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.NotebooksResourceType}},
 		{Action: influxdb.ReadAction, Resource: influxdb.Resource{ID: &onboard.User.ID, Type: influxdb.UsersResourceType}},
 		{Action: influxdb.WriteAction, Resource: influxdb.Resource{ID: &onboard.User.ID, Type: influxdb.UsersResourceType}},
 	}
@@ -186,12 +188,44 @@ func TestOnboardService_RetentionPolicy(t *testing.T) {
 		UserID: 123,
 	})
 
+	var retention int64 = 72 * 3600 // 72h
+	onboard, err := svc.OnboardInitialUser(ctx, &influxdb.OnboardingRequest{
+		User:                   "name",
+		Org:                    "name",
+		Bucket:                 "name",
+		RetentionPeriodSeconds: retention,
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, onboard.Bucket.RetentionPeriod, time.Duration(retention)*time.Second, "Retention policy should pass through")
+}
+
+func TestOnboardService_RetentionPolicyDeprecated(t *testing.T) {
+	s, _, _ := NewTestInmemStore(t)
+	storage := tenant.NewStore(s)
+	ten := tenant.NewService(storage)
+
+	authStore, err := authorization.NewStore(s)
+	require.NoError(t, err)
+
+	authSvc := authorization.NewService(authStore, ten)
+
+	// we will need an auth service as well
+	svc := tenant.NewOnboardService(ten, authSvc)
+
+	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
+		UserID: 123,
+	})
+
 	retention := 72 * time.Hour
 	onboard, err := svc.OnboardInitialUser(ctx, &influxdb.OnboardingRequest{
-		User:            "name",
-		Org:             "name",
-		Bucket:          "name",
-		RetentionPeriod: retention,
+		User:                      "name",
+		Org:                       "name",
+		Bucket:                    "name",
+		RetentionPeriodDeprecated: retention,
 	})
 
 	if err != nil {

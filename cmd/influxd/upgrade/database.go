@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/dustin/go-humanize"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/internal"
@@ -18,10 +20,10 @@ import (
 )
 
 // upgradeDatabases creates databases, buckets, retention policies and shard info according to 1.x meta and copies data
-func upgradeDatabases(ctx context.Context, ui *input.UI, v1 *influxDBv1, v2 *influxDBv2, opts *options, orgID influxdb.ID, log *zap.Logger) (map[string][]influxdb.ID, error) {
+func upgradeDatabases(ctx context.Context, ui *input.UI, v1 *influxDBv1, v2 *influxDBv2, opts *options, orgID platform.ID, log *zap.Logger) (map[string][]platform.ID, error) {
 	v1opts := opts.source
 	v2opts := opts.target
-	db2BucketIds := make(map[string][]influxdb.ID)
+	db2BucketIds := make(map[string][]platform.ID)
 
 	targetDataPath := filepath.Join(v2opts.enginePath, "data")
 	targetWalPath := filepath.Join(v2opts.enginePath, "wal")
@@ -61,7 +63,7 @@ func upgradeDatabases(ctx context.Context, ui *input.UI, v1 *influxDBv1, v2 *inf
 		log.Debug("Upgrading database", zap.String("database", db.Name))
 
 		// db to buckets IDs mapping
-		db2BucketIds[db.Name] = make([]influxdb.ID, 0, len(db.RetentionPolicies))
+		db2BucketIds[db.Name] = make([]platform.ID, 0, len(db.RetentionPolicies))
 
 		for _, rp := range db.RetentionPolicies {
 			sourcePath := filepath.Join(v1opts.dataDir, db.Name, rp.Name)

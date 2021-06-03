@@ -3,6 +3,8 @@ package mock
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -40,8 +42,8 @@ func NewDocumentService() *DocumentService {
 type DocumentStore struct {
 	TimeGenerator    TimeGenerator
 	CreateDocumentFn func(ctx context.Context, d *influxdb.Document) error
-	FindDocumentFn   func(ctx context.Context, id influxdb.ID) (*influxdb.Document, error)
-	FindDocumentsFn  func(ctx context.Context, oid influxdb.ID) ([]*influxdb.Document, error)
+	FindDocumentFn   func(ctx context.Context, id platform.ID) (*influxdb.Document, error)
+	FindDocumentsFn  func(ctx context.Context, oid platform.ID) ([]*influxdb.Document, error)
 }
 
 // NewDocumentStore returns a mock of DocumentStore where its methods will return zero values.
@@ -50,10 +52,10 @@ func NewDocumentStore() *DocumentStore {
 		CreateDocumentFn: func(ctx context.Context, d *influxdb.Document) error {
 			return nil
 		},
-		FindDocumentFn: func(ctx context.Context, id influxdb.ID) (document *influxdb.Document, e error) {
+		FindDocumentFn: func(ctx context.Context, id platform.ID) (document *influxdb.Document, e error) {
 			return nil, nil
 		},
-		FindDocumentsFn: func(ctx context.Context, oid influxdb.ID) ([]*influxdb.Document, error) {
+		FindDocumentsFn: func(ctx context.Context, oid platform.ID) ([]*influxdb.Document, error) {
 			return nil, nil
 		},
 	}
@@ -65,11 +67,11 @@ func (s *DocumentStore) CreateDocument(ctx context.Context, d *influxdb.Document
 }
 
 // FindDocument will call the mocked FindDocumentFn.
-func (s *DocumentStore) FindDocument(ctx context.Context, id influxdb.ID) (*influxdb.Document, error) {
+func (s *DocumentStore) FindDocument(ctx context.Context, id platform.ID) (*influxdb.Document, error) {
 	return s.FindDocumentFn(ctx, id)
 }
 
 // FindDocuments will call the mocked FindDocumentsFn.
-func (s *DocumentStore) FindDocuments(ctx context.Context, oid influxdb.ID) ([]*influxdb.Document, error) {
+func (s *DocumentStore) FindDocuments(ctx context.Context, oid platform.ID) ([]*influxdb.Document, error) {
 	return s.FindDocumentsFn(ctx, oid)
 }

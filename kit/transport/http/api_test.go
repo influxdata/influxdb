@@ -5,12 +5,12 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
 	"github.com/stretchr/testify/assert"
@@ -93,7 +93,7 @@ func Test_API(t *testing.T) {
 
 				var out validatFoo
 				err := api.DecodeJSON(bytes.NewReader(invalidBody), &out)
-				expectInfluxdbError(t, influxdb.EInvalid, err)
+				expectInfluxdbError(t, errors.EInvalid, err)
 			})
 
 			t.Run("gob", func(t *testing.T) {
@@ -103,7 +103,7 @@ func Test_API(t *testing.T) {
 
 				var out validatFoo
 				err := api.DecodeGob(bytes.NewReader(invalidBody), &out)
-				expectInfluxdbError(t, influxdb.EInvalid, err)
+				expectInfluxdbError(t, errors.EInvalid, err)
 			})
 		})
 
@@ -115,7 +115,7 @@ func Test_API(t *testing.T) {
 
 				var out validatFoo
 				err := api.DecodeJSON(encodeJSON(t, badFoo), &out)
-				expectInfluxdbError(t, influxdb.EUnprocessableEntity, err)
+				expectInfluxdbError(t, errors.EUnprocessableEntity, err)
 			})
 
 			t.Run("gob", func(t *testing.T) {
@@ -123,7 +123,7 @@ func Test_API(t *testing.T) {
 
 				var out validatFoo
 				err := api.DecodeGob(encodeGob(t, badFoo), &out)
-				expectInfluxdbError(t, influxdb.EUnprocessableEntity, err)
+				expectInfluxdbError(t, errors.EUnprocessableEntity, err)
 			})
 		})
 	})
@@ -171,33 +171,33 @@ func Test_API(t *testing.T) {
 	t.Run("Err", func(t *testing.T) {
 		tests := []struct {
 			statusCode  int
-			expectedErr *influxdb.Error
+			expectedErr *errors.Error
 		}{
 			{
 				statusCode: http.StatusBadRequest,
-				expectedErr: &influxdb.Error{
-					Code: influxdb.EInvalid,
+				expectedErr: &errors.Error{
+					Code: errors.EInvalid,
 					Msg:  "failed to unmarshal",
 				},
 			},
 			{
 				statusCode: http.StatusForbidden,
-				expectedErr: &influxdb.Error{
-					Code: influxdb.EForbidden,
+				expectedErr: &errors.Error{
+					Code: errors.EForbidden,
 					Msg:  "forbidden",
 				},
 			},
 			{
 				statusCode: http.StatusUnprocessableEntity,
-				expectedErr: &influxdb.Error{
-					Code: influxdb.EUnprocessableEntity,
+				expectedErr: &errors.Error{
+					Code: errors.EUnprocessableEntity,
 					Msg:  "failed validation",
 				},
 			},
 			{
 				statusCode: http.StatusInternalServerError,
-				expectedErr: &influxdb.Error{
-					Code: influxdb.EInternal,
+				expectedErr: &errors.Error{
+					Code: errors.EInternal,
 					Msg:  "internal error",
 				},
 			},
@@ -233,7 +233,7 @@ func expectInfluxdbError(t *testing.T, expectedCode string, err error) {
 	if err == nil {
 		t.Fatal("expected an error")
 	}
-	iErr, ok := err.(*influxdb.Error)
+	iErr, ok := err.(*errors.Error)
 	if !ok {
 		t.Fatalf("expected an influxdb error; got=%#v", err)
 	}
@@ -264,16 +264,16 @@ func encodeJSON(t *testing.T, v interface{}) io.Reader {
 }
 
 func okErrFn(err error) error {
-	return &influxdb.Error{
-		Code: influxdb.EUnprocessableEntity,
+	return &errors.Error{
+		Code: errors.EUnprocessableEntity,
 		Msg:  "failed validation",
 		Err:  err,
 	}
 }
 
 func unmarshalErrFn(encoding string, err error) error {
-	return &influxdb.Error{
-		Code: influxdb.EInvalid,
+	return &errors.Error{
+		Code: errors.EInvalid,
 		Msg:  fmt.Sprintf("invalid %s request body", encoding),
 		Err:  err,
 	}

@@ -7,9 +7,10 @@ import (
 	"sort"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
@@ -27,11 +28,11 @@ var (
 )
 
 type TSDBStore interface {
-	MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
+	MeasurementNames(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
 	ShardGroup(ids []uint64) tsdb.ShardGroup
 	Shards(ids []uint64) []*tsdb.Shard
-	TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
-	TagValues(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
+	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
+	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 }
 
 type MetaClient interface {
@@ -70,7 +71,11 @@ func (s *Store) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAg
 		return nil, err
 	}
 
-	shardIDs, err := s.findShardIDs(database, rp, false, start, end)
+	// Due to some optimizations around how flux's `last()` function is implemented with the
+	// storage engine, we need to detect if the read request requires a descending
+	// cursor or not.
+	descending := reads.IsLastDescendingAggregateOptimization(req)
+	shardIDs, err := s.findShardIDs(database, rp, descending, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +134,7 @@ func (s *Store) findShardIDs(database, rp string, desc bool, start, end int64) (
 }
 
 func (s *Store) validateArgs(orgID, bucketID uint64, start, end int64) (string, string, int64, int64, error) {
-	database := influxdb.ID(bucketID).String()
+	database := platform.ID(bucketID).String()
 	rp := meta.DefaultRetentionPolicyName
 
 	di := s.MetaClient.Database(database)
@@ -204,7 +209,11 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 		return nil, err
 	}
 
-	shardIDs, err := s.findShardIDs(database, rp, false, start, end)
+	// Due to some optimizations around how flux's `last()` function is implemented with the
+	// storage engine, we need to detect if the read request requires a descending
+	// cursor or not.
+	descending := reads.IsLastDescendingGroupOptimization(req)
+	shardIDs, err := s.findShardIDs(database, rp, descending, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +243,7 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 }
 
 type metaqueryAttributes struct {
-	orgID      influxdb.ID
+	orgID      platform.ID
 	db, rp     string
 	start, end int64
 	pred       influxql.Expr
@@ -327,7 +336,7 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 
 	// TODO(jsternberg): Use a real authorizer.
 	auth := query.OpenAuthorizer
-	keys, err := s.TSDBStore.TagKeys(auth, shardIDs, expr)
+	keys, err := s.TSDBStore.TagKeys(ctx, auth, shardIDs, expr)
 	if err != nil {
 		return cursors.EmptyStringIterator, err
 	}
@@ -450,7 +459,7 @@ func (s *Store) tagValues(ctx context.Context, mqAttrs *metaqueryAttributes, tag
 
 	// TODO(jsternberg): Use a real authorizer.
 	auth := query.OpenAuthorizer
-	values, err := s.TSDBStore.TagValues(auth, shardIDs, mqAttrs.pred)
+	values, err := s.TSDBStore.TagValues(ctx, auth, shardIDs, mqAttrs.pred)
 	if err != nil {
 		return nil, err
 	}
@@ -482,7 +491,7 @@ func (s *Store) MeasurementNames(ctx context.Context, mqAttrs *metaqueryAttribut
 
 	// TODO(jsternberg): Use a real authorizer.
 	auth := query.OpenAuthorizer
-	values, err := s.TSDBStore.MeasurementNames(auth, mqAttrs.db, mqAttrs.pred)
+	values, err := s.TSDBStore.MeasurementNames(ctx, auth, mqAttrs.db, mqAttrs.pred)
 	if err != nil {
 		return nil, err
 	}

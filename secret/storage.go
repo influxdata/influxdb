@@ -5,6 +5,9 @@ import (
 	"encoding/base64"
 	"errors"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 )
@@ -31,7 +34,7 @@ func (s *Storage) Update(ctx context.Context, fn func(kv.Tx) error) error {
 }
 
 // GetSecret Returns the value of a secret
-func (s *Storage) GetSecret(ctx context.Context, tx kv.Tx, orgID influxdb.ID, k string) (string, error) {
+func (s *Storage) GetSecret(ctx context.Context, tx kv.Tx, orgID platform.ID, k string) (string, error) {
 	key, err := encodeSecretKey(orgID, k)
 	if err != nil {
 		return "", err
@@ -44,8 +47,8 @@ func (s *Storage) GetSecret(ctx context.Context, tx kv.Tx, orgID influxdb.ID, k 
 
 	val, err := b.Get(key)
 	if kv.IsNotFound(err) {
-		return "", &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return "", &errors2.Error{
+			Code: errors2.ENotFound,
 			Msg:  influxdb.ErrSecretNotFound,
 		}
 	}
@@ -63,7 +66,7 @@ func (s *Storage) GetSecret(ctx context.Context, tx kv.Tx, orgID influxdb.ID, k 
 }
 
 // ListSecrets returns a list of secret keys
-func (s *Storage) ListSecret(ctx context.Context, tx kv.Tx, orgID influxdb.ID) ([]string, error) {
+func (s *Storage) ListSecret(ctx context.Context, tx kv.Tx, orgID platform.ID) ([]string, error) {
 	b, err := tx.Bucket(secretBucket)
 	if err != nil {
 		return nil, err
@@ -104,7 +107,7 @@ func (s *Storage) ListSecret(ctx context.Context, tx kv.Tx, orgID influxdb.ID) (
 }
 
 // PutSecret sets a secret in the db.
-func (s *Storage) PutSecret(ctx context.Context, tx kv.Tx, orgID influxdb.ID, k, v string) error {
+func (s *Storage) PutSecret(ctx context.Context, tx kv.Tx, orgID platform.ID, k, v string) error {
 	key, err := encodeSecretKey(orgID, k)
 	if err != nil {
 		return err
@@ -125,7 +128,7 @@ func (s *Storage) PutSecret(ctx context.Context, tx kv.Tx, orgID influxdb.ID, k,
 }
 
 // DeleteSecret removes a secret for the db
-func (s *Storage) DeleteSecret(ctx context.Context, tx kv.Tx, orgID influxdb.ID, k string) error {
+func (s *Storage) DeleteSecret(ctx context.Context, tx kv.Tx, orgID platform.ID, k string) error {
 	key, err := encodeSecretKey(orgID, k)
 	if err != nil {
 		return err
@@ -139,31 +142,31 @@ func (s *Storage) DeleteSecret(ctx context.Context, tx kv.Tx, orgID influxdb.ID,
 	return b.Delete(key)
 }
 
-func encodeSecretKey(orgID influxdb.ID, k string) ([]byte, error) {
+func encodeSecretKey(orgID platform.ID, k string) ([]byte, error) {
 	buf, err := orgID.Encode()
 	if err != nil {
 		return nil, err
 	}
 
-	key := make([]byte, 0, influxdb.IDLength+len(k))
+	key := make([]byte, 0, platform.IDLength+len(k))
 	key = append(key, buf...)
 	key = append(key, k...)
 
 	return key, nil
 }
 
-func decodeSecretKey(key []byte) (influxdb.ID, string, error) {
-	if len(key) < influxdb.IDLength {
+func decodeSecretKey(key []byte) (platform.ID, string, error) {
+	if len(key) < platform.IDLength {
 		// This should not happen.
-		return influxdb.InvalidID(), "", errors.New("provided key is too short to contain an ID (please report this error)")
+		return platform.InvalidID(), "", errors.New("provided key is too short to contain an ID (please report this error)")
 	}
 
-	var id influxdb.ID
-	if err := id.Decode(key[:influxdb.IDLength]); err != nil {
-		return influxdb.InvalidID(), "", err
+	var id platform.ID
+	if err := id.Decode(key[:platform.IDLength]); err != nil {
+		return platform.InvalidID(), "", err
 	}
 
-	k := string(key[influxdb.IDLength:])
+	k := string(key[platform.IDLength:])
 
 	return id, k, nil
 }

@@ -1,6 +1,7 @@
 package rule_test
 
 import (
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
 	"github.com/influxdata/flux/ast"
@@ -24,8 +25,8 @@ func statusRulePtr(r notification.CheckLevel) *notification.CheckLevel {
 	return &r
 }
 
-func idPtr(i int) *influxdb.ID {
-	id := influxdb.ID(i)
+func idPtr(i int) *platform.ID {
+	id := platform.ID(i)
 	return &id
 }
 

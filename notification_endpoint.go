@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 var (
@@ -18,15 +21,15 @@ type NotificationEndpoint interface {
 	Type() string
 	json.Marshaler
 	CRUDLogSetter
-	SetID(id ID)
-	SetOrgID(id ID)
+	SetID(id platform.ID)
+	SetOrgID(id platform.ID)
 	SetName(name string)
 	SetDescription(description string)
 	SetStatus(status Status)
 
-	GetID() ID
+	GetID() platform.ID
 	GetCRUDLog() CRUDLog
-	GetOrgID() ID
+	GetOrgID() platform.ID
 	GetName() string
 	GetDescription() string
 	GetStatus() Status
@@ -49,8 +52,8 @@ var (
 
 // NotificationEndpointFilter represents a set of filter that restrict the returned notification endpoints.
 type NotificationEndpointFilter struct {
-	ID    *ID
-	OrgID *ID
+	ID    *platform.ID
+	OrgID *platform.ID
 	Org   *string
 	UserResourceMappingFilter
 }
@@ -80,15 +83,15 @@ type NotificationEndpointUpdate struct {
 // Valid will verify if the NotificationEndpointUpdate is valid.
 func (n *NotificationEndpointUpdate) Valid() error {
 	if n.Name != nil && *n.Name == "" {
-		return &Error{
-			Code: EInvalid,
+		return &errors2.Error{
+			Code: errors2.EInvalid,
 			Msg:  "Notification Endpoint Name can't be empty",
 		}
 	}
 
 	if n.Description != nil && *n.Description == "" {
-		return &Error{
-			Code: EInvalid,
+		return &errors2.Error{
+			Code: errors2.EInvalid,
 			Msg:  "Notification Endpoint Description can't be empty",
 		}
 	}
@@ -105,23 +108,23 @@ func (n *NotificationEndpointUpdate) Valid() error {
 // NotificationEndpointService represents a service for managing notification endpoints.
 type NotificationEndpointService interface {
 	// FindNotificationEndpointByID returns a single notification endpoint by ID.
-	FindNotificationEndpointByID(ctx context.Context, id ID) (NotificationEndpoint, error)
+	FindNotificationEndpointByID(ctx context.Context, id platform.ID) (NotificationEndpoint, error)
 
 	// FindNotificationEndpoints returns a list of notification endpoints that match filter and the total count of matching notification endpoints.
 	// Additional options provide pagination & sorting.
 	FindNotificationEndpoints(ctx context.Context, filter NotificationEndpointFilter, opt ...FindOptions) ([]NotificationEndpoint, int, error)
 
 	// CreateNotificationEndpoint creates a new notification endpoint and sets b.ID with the new identifier.
-	CreateNotificationEndpoint(ctx context.Context, ne NotificationEndpoint, userID ID) error
+	CreateNotificationEndpoint(ctx context.Context, ne NotificationEndpoint, userID platform.ID) error
 
 	// UpdateNotificationEndpoint updates a single notification endpoint.
 	// Returns the new notification endpoint after update.
-	UpdateNotificationEndpoint(ctx context.Context, id ID, nr NotificationEndpoint, userID ID) (NotificationEndpoint, error)
+	UpdateNotificationEndpoint(ctx context.Context, id platform.ID, nr NotificationEndpoint, userID platform.ID) (NotificationEndpoint, error)
 
 	// PatchNotificationEndpoint updates a single  notification endpoint with changeset.
 	// Returns the new notification endpoint state after update.
-	PatchNotificationEndpoint(ctx context.Context, id ID, upd NotificationEndpointUpdate) (NotificationEndpoint, error)
+	PatchNotificationEndpoint(ctx context.Context, id platform.ID, upd NotificationEndpointUpdate) (NotificationEndpoint, error)
 
 	// DeleteNotificationEndpoint removes a notification endpoint by ID, returns secret fields, orgID for further deletion.
-	DeleteNotificationEndpoint(ctx context.Context, id ID) (flds []SecretField, orgID ID, err error)
+	DeleteNotificationEndpoint(ctx context.Context, id platform.ID) (flds []SecretField, orgID platform.ID, err error)
 }

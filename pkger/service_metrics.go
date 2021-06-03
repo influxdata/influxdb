@@ -7,7 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2/kit/metric"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/prometheus/client_golang/prometheus"
@@ -42,30 +43,30 @@ func MWMetrics(reg *prom.Registry) SVCMiddleware {
 	}
 }
 
-func (s *mwMetrics) InitStack(ctx context.Context, userID influxdb.ID, newStack StackCreate) (Stack, error) {
+func (s *mwMetrics) InitStack(ctx context.Context, userID platform.ID, newStack StackCreate) (Stack, error) {
 	rec := s.rec.Record("init_stack")
 	stack, err := s.next.InitStack(ctx, userID, newStack)
 	return stack, rec(err)
 }
 
-func (s *mwMetrics) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
+func (s *mwMetrics) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) (Stack, error) {
 	rec := s.rec.Record("uninstall_stack")
 	stack, err := s.next.UninstallStack(ctx, identifiers)
 	return stack, rec(err)
 }
 
-func (s *mwMetrics) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
+func (s *mwMetrics) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) error {
 	rec := s.rec.Record("delete_stack")
 	return rec(s.next.DeleteStack(ctx, identifiers))
 }
 
-func (s *mwMetrics) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
+func (s *mwMetrics) ListStacks(ctx context.Context, orgID platform.ID, f ListFilter) ([]Stack, error) {
 	rec := s.rec.Record("list_stacks")
 	stacks, err := s.next.ListStacks(ctx, orgID, f)
 	return stacks, rec(err)
 }
 
-func (s *mwMetrics) ReadStack(ctx context.Context, id influxdb.ID) (Stack, error) {
+func (s *mwMetrics) ReadStack(ctx context.Context, id platform.ID) (Stack, error) {
 	rec := s.rec.Record("read_stack")
 	stack, err := s.next.ReadStack(ctx, id)
 	return stack, rec(err)
@@ -96,13 +97,13 @@ func (s *mwMetrics) Export(ctx context.Context, opts ...ExportOptFn) (*Template,
 	}))
 }
 
-func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
+func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID platform.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	rec := s.rec.Record("dry_run")
 	impact, err := s.next.DryRun(ctx, orgID, userID, opts...)
 	return impact, rec(err, applyMetricAdditions(orgID, userID, impact.Sources))
 }
 
-func (s *mwMetrics) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
+func (s *mwMetrics) Apply(ctx context.Context, orgID, userID platform.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	rec := s.rec.Record("apply")
 	impact, err := s.next.Apply(ctx, orgID, userID, opts...)
 	if err == nil {
@@ -111,7 +112,7 @@ func (s *mwMetrics) Apply(ctx context.Context, orgID, userID influxdb.ID, opts .
 	return impact, rec(err, applyMetricAdditions(orgID, userID, impact.Sources))
 }
 
-func applyMetricAdditions(orgID, userID influxdb.ID, sources []string) func(*metric.CollectFnOpts) {
+func applyMetricAdditions(orgID, userID platform.ID, sources []string) func(*metric.CollectFnOpts) {
 	return metric.RecordAdditional(map[string]interface{}{
 		"org_id":  orgID.String(),
 		"sources": sources,

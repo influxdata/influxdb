@@ -3,6 +3,8 @@ package authorizer
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -34,7 +36,7 @@ func (s *SourceService) DefaultSource(ctx context.Context) (*influxdb.Source, er
 }
 
 // FindSourceByID checks to see if the authorizer on context has read access to the id provided.
-func (s *SourceService) FindSourceByID(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
+func (s *SourceService) FindSourceByID(ctx context.Context, id platform.ID) (*influxdb.Source, error) {
 	src, err := s.s.FindSourceByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -64,7 +66,7 @@ func (s *SourceService) CreateSource(ctx context.Context, src *influxdb.Source) 
 }
 
 // UpdateSource checks to see if the authorizer on context has write access to the source provided.
-func (s *SourceService) UpdateSource(ctx context.Context, id influxdb.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
+func (s *SourceService) UpdateSource(ctx context.Context, id platform.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
 	src, err := s.s.FindSourceByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -76,7 +78,7 @@ func (s *SourceService) UpdateSource(ctx context.Context, id influxdb.ID, upd in
 }
 
 // DeleteSource checks to see if the authorizer on context has write access to the source provided.
-func (s *SourceService) DeleteSource(ctx context.Context, id influxdb.ID) error {
+func (s *SourceService) DeleteSource(ctx context.Context, id platform.ID) error {
 	src, err := s.s.FindSourceByID(ctx, id)
 	if err != nil {
 		return err

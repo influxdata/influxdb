@@ -8,6 +8,8 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
@@ -30,7 +32,7 @@ func TestUpgradeSecurity(t *testing.T) {
 	type testCase struct {
 		name    string
 		users   []meta.UserInfo
-		db2ids  map[string][]influxdb.ID
+		db2ids  map[string][]platform.ID
 		wantErr error
 		want    []*influxdb.Authorization
 	}
@@ -90,7 +92,7 @@ func TestUpgradeSecurity(t *testing.T) {
 					},
 				},
 			},
-			db2ids: map[string][]influxdb.ID{
+			db2ids: map[string][]platform.ID{
 				"water": {0x33f9d67bc9cbc5b7, 0x33f9d67bc9cbc5b8, 0x33f9d67bc9cbc5b9},
 				"air":   {0x43f9d67bc9cbc5b7, 0x43f9d67bc9cbc5b8, 0x43f9d67bc9cbc5b9},
 				"hits":  {0x53f9d67bc9cbc5b7},
@@ -183,11 +185,11 @@ func TestUpgradeSecurity(t *testing.T) {
 
 			// onboard admin
 			oReq := &influxdb.OnboardingRequest{
-				User:            "admin",
-				Password:        "12345678",
-				Org:             "testers",
-				Bucket:          "def",
-				RetentionPeriod: influxdb.InfiniteRetention,
+				User:                   "admin",
+				Password:               "12345678",
+				Org:                    "testers",
+				Bucket:                 "def",
+				RetentionPeriodSeconds: influxdb.InfiniteRetention,
 			}
 			oResp, err := setupAdmin(ctx, v2, oReq)
 			require.NoError(t, err)

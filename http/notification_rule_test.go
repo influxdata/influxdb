@@ -6,9 +6,11 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/rule"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	influxTesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -23,8 +25,8 @@ func NewMockNotificationRuleBackend(t *testing.T) *NotificationRuleBackend {
 		UserService:                mock.NewUserService(),
 		OrganizationService:        mock.NewOrganizationService(),
 		TaskService: &mock.TaskService{
-			FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
-				return &influxdb.Task{Status: "active"}, nil
+			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
+				return &taskmodel.Task{Status: "active"}, nil
 			},
 		},
 	}
@@ -49,16 +51,16 @@ func Test_newNotificationRuleResponses(t *testing.T) {
 					Descending: true,
 				},
 				filter: influxdb.NotificationRuleFilter{
-					OrgID: influxTesting.IDPtr(influxdb.ID(2)),
+					OrgID: influxTesting.IDPtr(platform.ID(2)),
 				},
 				nrs: []influxdb.NotificationRule{
 					&rule.Slack{
 						Channel:         "ch1",
 						MessageTemplate: "message 1{var1}",
 						Base: rule.Base{
-							ID:          influxdb.ID(1),
-							OrgID:       influxdb.ID(2),
-							OwnerID:     influxdb.ID(3),
+							ID:          platform.ID(1),
+							OrgID:       platform.ID(2),
+							OwnerID:     platform.ID(3),
 							EndpointID:  4,
 							Name:        "name1",
 							Description: "desc1",
@@ -87,9 +89,9 @@ func Test_newNotificationRuleResponses(t *testing.T) {
 					&rule.PagerDuty{
 						MessageTemplate: "body 2{var2}",
 						Base: rule.Base{
-							ID:          influxdb.ID(11),
-							OrgID:       influxdb.ID(2),
-							OwnerID:     influxdb.ID(33),
+							ID:          platform.ID(11),
+							OrgID:       platform.ID(2),
+							OwnerID:     platform.ID(33),
 							EndpointID:  44,
 							Name:        "name2",
 							Description: "desc2",
@@ -217,9 +219,9 @@ func Test_newNotificationRuleResponse(t *testing.T) {
 					Channel:         "ch1",
 					MessageTemplate: "message 1{var1}",
 					Base: rule.Base{
-						ID:          influxdb.ID(1),
-						OrgID:       influxdb.ID(2),
-						OwnerID:     influxdb.ID(3),
+						ID:          platform.ID(1),
+						OrgID:       platform.ID(2),
+						OwnerID:     platform.ID(3),
 						EndpointID:  4,
 						Name:        "name1",
 						Description: "desc1",

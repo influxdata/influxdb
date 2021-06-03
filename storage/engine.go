@@ -8,6 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -78,6 +81,8 @@ type MetaClient interface {
 	RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 	UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
+	Lock()
+	Unlock()
 	Backup(ctx context.Context, w io.Writer) error
 	Restore(ctx context.Context, r io.Reader) error
 	Data() meta.Data
@@ -87,11 +92,11 @@ type MetaClient interface {
 type TSDBStore interface {
 	DeleteMeasurement(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
-	MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
+	MeasurementNames(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
 	ShardGroup(ids []uint64) tsdb.ShardGroup
 	Shards(ids []uint64) []*tsdb.Shard
-	TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
-	TagValues(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
+	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
+	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 }
 
 // NewEngine initialises a new storage engine, including a series file, index and
@@ -242,7 +247,7 @@ func (e *Engine) Close() error {
 // Rosalie was here lockdown 2020
 //
 // Appropriate errors are returned in those cases.
-func (e *Engine) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID influxdb.ID, points []models.Point) error {
+func (e *Engine) WritePoints(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -263,8 +268,9 @@ func (e *Engine) CreateBucket(ctx context.Context, b *influxdb.Bucket) (err erro
 	defer span.Finish()
 
 	spec := meta.RetentionPolicySpec{
-		Name:     meta.DefaultRetentionPolicyName,
-		Duration: &b.RetentionPeriod,
+		Name:               meta.DefaultRetentionPolicyName,
+		Duration:           &b.RetentionPeriod,
+		ShardGroupDuration: b.ShardGroupDuration,
 	}
 
 	if _, err = e.metaClient.CreateDatabaseWithRetentionPolicy(b.ID.String(), &spec); err != nil {
@@ -274,23 +280,27 @@ func (e *Engine) CreateBucket(ctx context.Context, b *influxdb.Bucket) (err erro
 	return nil
 }
 
-func (e *Engine) UpdateBucketRetentionPeriod(ctx context.Context, bucketID influxdb.ID, d time.Duration) error {
+func (e *Engine) UpdateBucketRetentionPolicy(ctx context.Context, bucketID platform.ID, upd *influxdb.BucketUpdate) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	// A value of zero ensures the ShardGroupDuration is adjusted to an appropriate value based on the specified
-	//   duration
-	zero := time.Duration(0)
 	rpu := meta.RetentionPolicyUpdate{
-		Duration:           &d,
-		ShardGroupDuration: &zero,
+		Duration:           upd.RetentionPeriod,
+		ShardGroupDuration: upd.ShardGroupDuration,
 	}
 
-	return e.metaClient.UpdateRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName, &rpu, true)
+	err := e.metaClient.UpdateRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName, &rpu, true)
+	if err == meta.ErrIncompatibleDurations {
+		err = &errors2.Error{
+			Code: errors2.EUnprocessableEntity,
+			Msg:  "shard-group duration must also be updated to be smaller than new retention duration",
+		}
+	}
+	return err
 }
 
 // DeleteBucket deletes an entire bucket from the storage engine.
-func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID influxdb.ID) error {
+func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID platform.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	return e.tsdbStore.DeleteDatabase(bucketID.String())
@@ -298,7 +308,7 @@ func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID influxdb.ID) 
 
 // DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
 // deleted must be in [min, max], and the key must match the predicate if provided.
-func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate) error {
+func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID platform.ID, min, max int64, pred influxdb.Predicate) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -310,12 +320,21 @@ func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID
 	return e.tsdbStore.DeleteSeriesWithPredicate(bucketID.String(), min, max, pred)
 }
 
+// LockKVStore locks the KV store as well as the engine in preparation for doing a backup.
+func (e *Engine) LockKVStore() {
+	e.mu.Lock()
+	e.metaClient.Lock()
+}
+
+// UnlockKVStore unlocks the KV store & engine, intended to be used after a backup is complete.
+func (e *Engine) UnlockKVStore() {
+	e.mu.Unlock()
+	e.metaClient.Unlock()
+}
+
 func (e *Engine) BackupKVStore(ctx context.Context, w io.Writer) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-
-	e.mu.RLock()
-	defer e.mu.RUnlock()
 
 	if e.closing == nil {
 		return ErrEngineClosed
@@ -377,7 +396,7 @@ func (e *Engine) RestoreKVStore(ctx context.Context, r io.Reader) error {
 	return nil
 }
 
-func (e *Engine) RestoreBucket(ctx context.Context, id influxdb.ID, buf []byte) (map[uint64]uint64, error) {
+func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte) (map[uint64]uint64, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -455,14 +474,14 @@ func (e *Engine) RestoreShard(ctx context.Context, shardID uint64, r io.Reader) 
 }
 
 // SeriesCardinality returns the number of series in the engine.
-func (e *Engine) SeriesCardinality(orgID, bucketID influxdb.ID) int64 {
+func (e *Engine) SeriesCardinality(ctx context.Context, bucketID platform.ID) int64 {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if e.closing == nil {
 		return 0
 	}
 
-	n, err := e.tsdbStore.SeriesCardinality(bucketID.String())
+	n, err := e.tsdbStore.SeriesCardinality(ctx, bucketID.String())
 	if err != nil {
 		return 0
 	}

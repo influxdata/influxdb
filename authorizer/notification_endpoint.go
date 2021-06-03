@@ -3,6 +3,9 @@ package authorizer
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -30,7 +33,7 @@ func NewNotificationEndpointService(
 }
 
 // FindNotificationEndpointByID checks to see if the authorizer on context has read access to the id provided.
-func (s *NotificationEndpointService) FindNotificationEndpointByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+func (s *NotificationEndpointService) FindNotificationEndpointByID(ctx context.Context, id platform.ID) (influxdb.NotificationEndpoint, error) {
 	edp, err := s.s.FindNotificationEndpointByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -45,8 +48,8 @@ func (s *NotificationEndpointService) FindNotificationEndpointByID(ctx context.C
 func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Context, filter influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
 	// TODO: This is a temporary fix as to not fetch the entire collection when no filter is provided.
 	if !filter.UserID.Valid() && filter.OrgID == nil {
-		return nil, 0, &influxdb.Error{
-			Code: influxdb.EUnauthorized,
+		return nil, 0, &errors.Error{
+			Code: errors.EUnauthorized,
 			Msg:  "cannot process a request without a org or user filter",
 		}
 	}
@@ -61,7 +64,7 @@ func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Cont
 }
 
 // CreateNotificationEndpoint checks to see if the authorizer on context has write access to the global notification endpoint resource.
-func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Context, edp influxdb.NotificationEndpoint, userID influxdb.ID) error {
+func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Context, edp influxdb.NotificationEndpoint, userID platform.ID) error {
 	if _, _, err := AuthorizeCreate(ctx, influxdb.NotificationEndpointResourceType, edp.GetOrgID()); err != nil {
 		return err
 	}
@@ -69,7 +72,7 @@ func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Con
 }
 
 // UpdateNotificationEndpoint checks to see if the authorizer on context has write access to the notification endpoint provided.
-func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
+func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Context, id platform.ID, upd influxdb.NotificationEndpoint, userID platform.ID) (influxdb.NotificationEndpoint, error) {
 	edp, err := s.FindNotificationEndpointByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -81,7 +84,7 @@ func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Con
 }
 
 // PatchNotificationEndpoint checks to see if the authorizer on context has write access to the notification endpoint provided.
-func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
+func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Context, id platform.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
 	edp, err := s.FindNotificationEndpointByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -93,7 +96,7 @@ func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Cont
 }
 
 // DeleteNotificationEndpoint checks to see if the authorizer on context has write access to the notification endpoint provided.
-func (s *NotificationEndpointService) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
+func (s *NotificationEndpointService) DeleteNotificationEndpoint(ctx context.Context, id platform.ID) ([]influxdb.SecretField, platform.ID, error) {
 	edp, err := s.FindNotificationEndpointByID(ctx, id)
 	if err != nil {
 		return nil, 0, err

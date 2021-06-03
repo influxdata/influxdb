@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -78,18 +80,18 @@ func (s *OnboardService) OnboardInitialUser(ctx context.Context, req *influxdb.O
 		return nil, ErrOnboardingNotAllowed
 	}
 
-	return s.onboardUser(ctx, req, func(influxdb.ID, influxdb.ID) []influxdb.Permission { return influxdb.OperPermissions() })
+	return s.onboardUser(ctx, req, func(platform.ID, platform.ID) []influxdb.Permission { return influxdb.OperPermissions() })
 }
 
 // OnboardUser allows us to onboard a new user if is onboarding is allowed
 func (s *OnboardService) OnboardUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
-	return s.onboardUser(ctx, req, func(orgID, userID influxdb.ID) []influxdb.Permission {
+	return s.onboardUser(ctx, req, func(orgID, userID platform.ID) []influxdb.Permission {
 		return append(influxdb.OwnerPermissions(orgID), influxdb.MePermissions(userID)...)
 	})
 }
 
 // onboardUser allows us to onboard new users.
-func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.OnboardingRequest, permFn func(orgID, userID influxdb.ID) []influxdb.Permission) (*influxdb.OnboardingResults, error) {
+func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.OnboardingRequest, permFn func(orgID, userID platform.ID) []influxdb.Permission) (*influxdb.OnboardingResults, error) {
 	if req == nil || req.User == "" || req.Org == "" || req.Bucket == "" {
 		return nil, ErrOnboardInvalid
 	}
@@ -141,7 +143,7 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 		OrgID:           org.ID,
 		Name:            req.Bucket,
 		Type:            influxdb.BucketTypeUser,
-		RetentionPeriod: req.RetentionPeriod,
+		RetentionPeriod: req.RetentionPeriod(),
 	}
 
 	if err := s.service.CreateBucket(ctx, ub); err != nil {

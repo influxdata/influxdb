@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // EncodeFn returns an encoding when called. Closures are your friend here.
@@ -39,7 +39,7 @@ func EncStringCaseInsensitive(str string) EncodeFn {
 }
 
 // EncID encodes an influx ID.
-func EncID(id influxdb.ID) EncodeFn {
+func EncID(id platform.ID) EncodeFn {
 	return func() ([]byte, error) {
 		if id == 0 {
 			return nil, errors.New("no ID was provided")

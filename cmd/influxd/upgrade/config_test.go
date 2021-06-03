@@ -40,6 +40,11 @@ func TestConfigUpgrade(t *testing.T) {
 			config1x: testConfigV1obsoleteArrays,
 			config2x: testConfigV2obsoleteArrays,
 		},
+		{
+			name:     "query concurrency",
+			config1x: testConfigV1QueryConcurrency,
+			config2x: testConfigV2QueryConcurrency,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -181,6 +186,7 @@ bind-address = "127.0.0.1:8088"
   bind-address = ":8086"
   https-certificate = "/etc/ssl/influxdb.pem"
   https-private-key = "/etc/ssl/influxdb-key.pem"
+  pprof-enabled = false
 
 [logging]
   level = "debug"
@@ -397,6 +403,11 @@ reporting-disabled = true
 var testConfigV1empty = `
 `
 
+var testConfigV1QueryConcurrency = `
+[coordinator]
+  max-concurrent-queries = 128
+`
+
 // 2.x test configs
 
 var testConfigV2minimal = `reporting-disabled = false
@@ -410,6 +421,7 @@ storage-shard-precreator-check-interval = "5m"
 storage-wal-fsync-delay = "100s"
 tls-cert = "/etc/ssl/influxdb.pem"
 tls-key = "/etc/ssl/influxdb-key.pem"
+pprof-disabled = true
 `
 
 var testConfigV2default = `reporting-disabled = false
@@ -420,7 +432,7 @@ influxql-max-select-buckets = 0
 influxql-max-select-point = 0
 influxql-max-select-series = 0
 log-level = "info"
-query-concurrency = 10
+query-concurrency = 0
 storage-cache-max-memory-size = 1073741824
 storage-cache-snapshot-memory-size = 26214400
 storage-cache-snapshot-write-cold-duration = "10m0s"
@@ -438,6 +450,7 @@ storage-validate-keys = false
 storage-wal-fsync-delay = "0s"
 tls-cert = "/etc/ssl/influxdb.pem"
 tls-key = ""
+pprof-disabled = false
 `
 
 var testConfigV2obsoleteArrays = `reporting-disabled = true
@@ -449,4 +462,11 @@ http-bind-address = ":8086"
 var testConfigV2empty = `
 bolt-path = "/db/.influxdbv2/influxd.bolt"
 engine-path = "/db/.influxdbv2/engine"
+`
+
+var testConfigV2QueryConcurrency = `
+bolt-path = "/db/.influxdbv2/influxd.bolt"
+engine-path = "/db/.influxdbv2/engine"
+query-concurrency = 128
+query-queue-size = 128
 `

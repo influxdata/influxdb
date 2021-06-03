@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/toml"
-	"github.com/influxdata/influxdb/v2/v1/monitor/diagnostics"
 )
 
 const (
@@ -44,16 +43,4 @@ func NewConfig() Config {
 		MaxSelectPointN:      DefaultMaxSelectPointN,
 		MaxSelectSeriesN:     DefaultMaxSelectSeriesN,
 	}
-}
-
-// Diagnostics returns a diagnostics representation of a subset of the Config.
-func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
-	return diagnostics.RowFromMap(map[string]interface{}{
-		"write-timeout":          c.WriteTimeout,
-		"max-concurrent-queries": c.MaxConcurrentQueries,
-		"log-queries-after":      c.LogQueriesAfter,
-		"max-select-point":       c.MaxSelectPointN,
-		"max-select-series":      c.MaxSelectSeriesN,
-		"max-select-buckets":     c.MaxSelectBucketsN,
-	}), nil
 }

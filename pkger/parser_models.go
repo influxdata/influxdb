@@ -88,7 +88,11 @@ type bucket struct {
 
 	Description    string
 	RetentionRules retentionRules
-	labels         sortedLabels
+
+	SchemaType         string
+	MeasurementSchemas measurementSchemas
+
+	labels sortedLabels
 }
 
 func (b *bucket) summarize() SummaryBucket {
@@ -98,10 +102,12 @@ func (b *bucket) summarize() SummaryBucket {
 			MetaName:      b.MetaName(),
 			EnvReferences: summarizeCommonReferences(b.identity, b.labels),
 		},
-		Name:              b.Name(),
-		Description:       b.Description,
-		RetentionPeriod:   b.RetentionRules.RP(),
-		LabelAssociations: toSummaryLabels(b.labels...),
+		Name:               b.Name(),
+		Description:        b.Description,
+		SchemaType:         b.SchemaType,
+		MeasurementSchemas: b.MeasurementSchemas.summarize(),
+		RetentionPeriod:    b.RetentionRules.RP(),
+		LabelAssociations:  toSummaryLabels(b.labels...),
 	}
 }
 
@@ -115,6 +121,7 @@ func (b *bucket) valid() []validationErr {
 		vErrs = append(vErrs, err)
 	}
 	vErrs = append(vErrs, b.RetentionRules.valid()...)
+	vErrs = append(vErrs, b.MeasurementSchemas.valid()...)
 	if len(vErrs) == 0 {
 		return nil
 	}
@@ -541,7 +548,7 @@ const (
 	fieldChartFillColumns                = "fillColumns"
 	fieldChartGeom                       = "geom"
 	fieldChartHeight                     = "height"
-	fieldChartLegend                     = "legend"
+	fieldChartStaticLegend               = "staticLegend"
 	fieldChartNote                       = "note"
 	fieldChartNoteOnEmpty                = "noteOnEmpty"
 	fieldChartPosition                   = "position"
@@ -573,6 +580,7 @@ const (
 	fieldChartYTickStep                  = "yTickStep"
 	fieldChartYPos                       = "yPos"
 	fieldChartLegendColorizeRows         = "legendColorizeRows"
+	fieldChartLegendHide                 = "legendHide"
 	fieldChartLegendOpacity              = "legendOpacity"
 	fieldChartLegendOrientationThreshold = "legendOrientationThreshold"
 	fieldChartGeoCenterLon               = "lon"
@@ -597,7 +605,7 @@ type chart struct {
 	EnforceDecimals            bool
 	Shade                      bool
 	HoverDimension             string
-	Legend                     legend
+	StaticLegend               StaticLegend
 	Colors                     colors
 	Queries                    queries
 	Axes                       axes
@@ -624,6 +632,7 @@ type chart struct {
 	TableOptions               tableOptions
 	TimeFormat                 string
 	LegendColorizeRows         bool
+	LegendHide                 bool
 	LegendOpacity              float64
 	LegendOrientationThreshold int
 	Zoom                       float64
@@ -694,6 +703,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
 			LegendColorizeRows:         c.LegendColorizeRows,
+			LegendHide:                 c.LegendHide,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -711,6 +721,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			LegendColorizeRows:         c.LegendColorizeRows,
+			LegendHide:                 c.LegendHide,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -745,6 +756,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
 			LegendColorizeRows:         c.LegendColorizeRows,
+			LegendHide:                 c.LegendHide,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -753,7 +765,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Type:                       influxdb.ViewPropertyTypeBand,
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.influxViewColors(),
-			Legend:                     c.Legend.influxLegend(),
+			StaticLegend:               c.StaticLegend.influxStaticLegend(),
 			HoverDimension:             c.HoverDimension,
 			XColumn:                    c.XCol,
 			GenerateXAxisTicks:         c.GenerateXAxisTicks,
@@ -774,6 +786,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
 			LegendColorizeRows:         c.LegendColorizeRows,
+			LegendHide:                 c.LegendHide,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -804,6 +817,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
 			LegendColorizeRows:         c.LegendColorizeRows,
+			LegendHide:                 c.LegendHide,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -846,12 +860,13 @@ func (c *chart) properties() influxdb.ViewProperties {
 			YTickStep:                  c.YTickStep,
 			ShadeBelow:                 c.Shade,
 			HoverDimension:             c.HoverDimension,
-			Legend:                     c.Legend.influxLegend(),
+			StaticLegend:               c.StaticLegend.influxStaticLegend(),
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.influxViewColors(),
 			Axes:                       c.Axes.influxAxes(),
 			Position:                   c.Position,
 			LegendColorizeRows:         c.LegendColorizeRows,
+			LegendHide:                 c.LegendHide,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -903,7 +918,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			YTickStep:                  c.YTickStep,
 			ShadeBelow:                 c.Shade,
 			HoverDimension:             c.HoverDimension,
-			Legend:                     c.Legend.influxLegend(),
+			StaticLegend:               c.StaticLegend.influxStaticLegend(),
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.influxViewColors(),
 			Axes:                       c.Axes.influxAxes(),
@@ -911,6 +926,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Position:                   c.Position,
 			TimeFormat:                 c.TimeFormat,
 			LegendColorizeRows:         c.LegendColorizeRows,
+			LegendHide:                 c.LegendHide,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -1381,19 +1397,35 @@ func (a axes) hasAxes(expectedAxes ...string) []validationErr {
 	return failures
 }
 
-const (
-	fieldLegendOrientation = "orientation"
-)
-
-type legend struct {
-	Orientation string `json:"orientation,omitempty" yaml:"orientation,omitempty"`
-	Type        string `json:"type" yaml:"type"`
+type StaticLegend struct {
+	ColorizeRows         bool    `json:"colorizeRows,omitempty" yaml:"colorizeRows,omitempty"`
+	HeightRatio          float64 `json:"heightRatio,omitempty" yaml:"heightRatio,omitempty"`
+	Hide                 bool    `json:"hide,omitempty" yaml:"hide,omitempty"`
+	Opacity              float64 `json:"opacity,omitempty" yaml:"opacity,omitempty"`
+	OrientationThreshold int     `json:"orientationThreshold,omitempty" yaml:"orientationThreshold,omitempty"`
+	ValueAxis            string  `json:"valueAxis,omitempty" yaml:"valueAxis,omitempty"`
+	WidthRatio           float64 `json:"widthRatio,omitempty" yaml:"widthRatio,omitempty"`
 }
 
-func (l legend) influxLegend() influxdb.Legend {
-	return influxdb.Legend{
-		Type:        l.Type,
-		Orientation: l.Orientation,
+const (
+	fieldChartStaticLegendColorizeRows         = "colorizeRows"
+	fieldChartStaticLegendHeightRatio          = "heightRatio"
+	fieldChartStaticLegendHide                 = "hide"
+	fieldChartStaticLegendOpacity              = "opacity"
+	fieldChartStaticLegendOrientationThreshold = "orientationThreshold"
+	fieldChartStaticLegendValueAxis            = "valueAxis"
+	fieldChartStaticLegendWidthRatio           = "widthRatio"
+)
+
+func (sl StaticLegend) influxStaticLegend() influxdb.StaticLegend {
+	return influxdb.StaticLegend{
+		ColorizeRows:         sl.ColorizeRows,
+		HeightRatio:          sl.HeightRatio,
+		Hide:                 sl.Hide,
+		Opacity:              sl.Opacity,
+		OrientationThreshold: sl.OrientationThreshold,
+		ValueAxis:            sl.ValueAxis,
+		WidthRatio:           sl.WidthRatio,
 	}
 }
 

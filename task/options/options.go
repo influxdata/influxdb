@@ -9,11 +9,9 @@ import (
 	"time"
 
 	"github.com/influxdata/cron"
-	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/interpreter"
-	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2/pkg/pointer"
 )
@@ -139,61 +137,6 @@ const (
 	optConcurrency = "concurrency"
 	optRetry       = "retry"
 )
-
-// contains is a helper function to see if an array of strings contains a string
-func contains(s []string, e string) bool {
-	for i := range s {
-		if s[i] == e {
-			return true
-		}
-	}
-	return false
-}
-
-func grabTaskOptionAST(p *ast.Package, keys ...string) map[string]ast.Expression {
-	res := make(map[string]ast.Expression, 2) // we preallocate two keys for the map, as that is how many we will use at maximum (offset and every)
-	for i := range p.Files {
-		for j := range p.Files[i].Body {
-			if p.Files[i].Body[j].Type() != "OptionStatement" {
-				continue
-			}
-			opt := (p.Files[i].Body[j]).(*ast.OptionStatement)
-			if opt.Assignment.Type() != "VariableAssignment" {
-				continue
-			}
-			asmt, ok := opt.Assignment.(*ast.VariableAssignment)
-			if !ok {
-				continue
-			}
-			if asmt.ID.Key() != "task" {
-				continue
-			}
-			ae, ok := asmt.Init.(*ast.ObjectExpression)
-			if !ok {
-				continue
-			}
-			for k := range ae.Properties {
-				prop := ae.Properties[k]
-				if prop != nil {
-					if key := prop.Key.Key(); contains(keys, key) {
-						res[key] = prop.Value
-					}
-				}
-			}
-			return res
-		}
-	}
-	return res
-}
-
-func newDeps() flux.Dependencies {
-	deps := flux.NewDefaultDependencies()
-	deps.Deps.HTTPClient = httpClient{}
-	deps.Deps.URLValidator = urlValidator{}
-	deps.Deps.SecretService = secretService{}
-	deps.Deps.FilesystemService = fileSystem{}
-	return deps
-}
 
 // FluxLanguageService is a service for interacting with flux code.
 type FluxLanguageService interface {
@@ -380,124 +323,6 @@ func extractRetryOption(opts *Options, objExpr *ast.ObjectExpression) error {
 	return nil
 }
 
-// FromScript extracts Options from a Flux script.
-func FromScript(lang FluxLanguageService, script string) (Options, error) {
-	opt := Options{Retry: pointer.Int64(1), Concurrency: pointer.Int64(1)}
-
-	fluxAST, err := parse(lang, script)
-	if err != nil {
-		return opt, err
-	}
-	durTypes := grabTaskOptionAST(fluxAST, optEvery, optOffset)
-	// TODO(desa): should be dependencies.NewEmpty(), but for now we'll hack things together
-	ctx := newDeps().Inject(context.Background())
-	_, scope, err := evalAST(ctx, lang, fluxAST)
-	if err != nil {
-		return opt, err
-	}
-
-	// pull options from the program scope
-	task, ok := scope.Lookup("task")
-	if !ok {
-		return opt, errMissingRequiredTaskOption("task")
-	}
-	// check to make sure task is an object
-	if err := checkNature(task.Type().Nature(), semantic.Object); err != nil {
-		return opt, err
-	}
-	optObject := task.Object()
-	if err := validateOptionNames(optObject); err != nil {
-		return opt, err
-	}
-
-	nameVal, ok := optObject.Get(optName)
-	if !ok {
-		return opt, errMissingRequiredTaskOption("name")
-	}
-
-	if err := checkNature(nameVal.Type().Nature(), semantic.String); err != nil {
-		return opt, err
-	}
-	opt.Name = nameVal.Str()
-	crVal, cronOK := optObject.Get(optCron)
-	everyVal, everyOK := optObject.Get(optEvery)
-	if cronOK && everyOK {
-		return opt, ErrDuplicateIntervalField
-	}
-
-	if !cronOK && !everyOK {
-		return opt, errMissingRequiredTaskOption("cron or every is required")
-	}
-
-	if cronOK {
-		if err := checkNature(crVal.Type().Nature(), semantic.String); err != nil {
-			return opt, err
-		}
-		opt.Cron = crVal.Str()
-	}
-
-	if everyOK {
-		if err := checkNature(everyVal.Type().Nature(), semantic.Duration); err != nil {
-			return opt, err
-		}
-		dur, ok := durTypes["every"]
-		if !ok || dur == nil {
-			return opt, errParseTaskOptionField("every")
-		}
-		durNode, err := ParseSignedDuration(dur.Location().Source)
-		if err != nil {
-			return opt, err
-		}
-
-		if !ok || durNode == nil {
-			return opt, errParseTaskOptionField("every")
-		}
-
-		durNode.BaseNode = ast.BaseNode{}
-		opt.Every.Node = *durNode
-	}
-
-	if offsetVal, ok := optObject.Get(optOffset); ok {
-		if err := checkNature(offsetVal.Type().Nature(), semantic.Duration); err != nil {
-			return opt, err
-		}
-		dur, ok := durTypes["offset"]
-		if !ok || dur == nil {
-			return opt, errParseTaskOptionField("offset")
-		}
-		durNode, err := ParseSignedDuration(dur.Location().Source)
-		if err != nil {
-			return opt, err
-		}
-		if !ok || durNode == nil {
-			return opt, errParseTaskOptionField("offset")
-		}
-		durNode.BaseNode = ast.BaseNode{}
-		opt.Offset = &Duration{}
-		opt.Offset.Node = *durNode
-	}
-
-	if concurrencyVal, ok := optObject.Get(optConcurrency); ok {
-		if err := checkNature(concurrencyVal.Type().Nature(), semantic.Int); err != nil {
-			return opt, err
-		}
-		opt.Concurrency = pointer.Int64(concurrencyVal.Int())
-	}
-
-	if retryVal, ok := optObject.Get(optRetry); ok {
-		if err := checkNature(retryVal.Type().Nature(), semantic.Int); err != nil {
-			return opt, err
-		}
-		opt.Retry = pointer.Int64(retryVal.Int())
-	}
-
-	if err := opt.Validate(); err != nil {
-		return opt, err
-	}
-
-	return opt, nil
-}
-
 // Validate returns an error if the options aren't valid.
 func (o *Options) Validate() error {
 	now := time.Now()
@@ -578,36 +403,6 @@ func (o *Options) EffectiveCronString() string {
 	return ""
 }
 
-// checkNature returns a clean error of got and expected dont match.
-func checkNature(got, exp semantic.Nature) error {
-	if got != exp {
-		return fmt.Errorf("unexpected kind: got %q expected %q", got, exp)
-	}
-	return nil
-}
-
-// validateOptionNames returns an error if any keys in the option object o
-// do not match an expected option name.
-func validateOptionNames(o values.Object) error {
-	var unexpected []string
-	o.Range(func(name string, _ values.Value) {
-		switch name {
-		case optName, optCron, optEvery, optOffset, optConcurrency, optRetry:
-			// Known option. Nothing to do.
-		default:
-			unexpected = append(unexpected, name)
-		}
-	})
-
-	if len(unexpected) > 0 {
-		u := strings.Join(unexpected, ", ")
-		v := strings.Join([]string{optName, optCron, optEvery, optOffset, optConcurrency, optRetry}, ", ")
-		return fmt.Errorf("unknown task option(s): %s. valid options are %s", u, v)
-	}
-
-	return nil
-}
-
 // parse will take flux source code and produce a package.
 // If there are errors when parsing, the first error is returned.
 // An ast.Package may be returned when a parsing error occurs,
@@ -619,14 +414,4 @@ func parse(lang FluxLanguageService, source string) (*ast.Package, error) {
 		return nil, errors.New("flux is not configured; cannot parse")
 	}
 	return lang.Parse(source)
-}
-
-// EvalAST will evaluate and run an AST.
-//
-// This will return an error if the FluxLanguageService is nil.
-func evalAST(ctx context.Context, lang FluxLanguageService, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error) {
-	if lang == nil {
-		return nil, nil, errors.New("flux is not configured; cannot evaluate")
-	}
-	return lang.EvalAST(ctx, astPkg)
 }

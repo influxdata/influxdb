@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/stdlib/experimental/table"
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/flux/values"
@@ -27,14 +28,17 @@ func init() {
 		PushDownReadTagValuesRule{},
 		SortedPivotRule{},
 		PushDownWindowAggregateRule{},
+		PushDownWindowForceAggregateRule{},
 		PushDownWindowAggregateByTimeRule{},
 		PushDownBareAggregateRule{},
 		GroupWindowAggregateTransposeRule{},
-		// PushDownGroupAggregateRule{},
+		PushDownGroupAggregateRule{},
 	)
-	plan.RegisterLogicalRules(
-		MergeFiltersRule{},
-	)
+	// TODO(lesam): re-enable MergeFilterRule once it works with complex use cases
+	// such as filter() |> geo.strictFilter(). See geo_merge_filter flux test.
+	//plan.RegisterLogicalRules(
+	//	MergeFiltersRule{},
+	//)
 }
 
 type FromStorageRule struct{}
@@ -750,7 +754,44 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 	}), true, nil
 }
 
-// PushDownWindowAggregateWithTimeRule will match the given pattern.
+// PushDownWindowForceAggregateRule will match the given pattern.
+// ReadWindowAggregatePhys |> table.fill()
+//
+// If this pattern matches, then the ForceAggregate switch will be enabled
+// on the ReadWindowAggregate which will force selectors to return a null value.
+//
+// This pattern is idempotent and may be applied multiple times with the same effect.
+type PushDownWindowForceAggregateRule struct{}
+
+func (PushDownWindowForceAggregateRule) Name() string {
+	return "PushDownWindowForceAggregateRule"
+}
+
+func (PushDownWindowForceAggregateRule) Pattern() plan.Pattern {
+	return plan.Pat(table.FillKind,
+		plan.Pat(ReadWindowAggregatePhysKind))
+}
+
+func (PushDownWindowForceAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	windowAggregateNode := pn.Predecessors()[0]
+	windowAggregateSpec := windowAggregateNode.ProcedureSpec().(*ReadWindowAggregatePhysSpec)
+	if windowAggregateSpec.WindowEvery == flux.ConvertDuration(math.MaxInt64) {
+		// Do not apply this transformation to the bare aggregate case.
+		// There's virtually no benefit to pushing that down since there are no
+		// subsequent transformations to push down and I'm not actually sure the
+		// code works properly in that case.
+		return pn, false, nil
+	}
+	windowAggregateSpec.ForceAggregate = true
+
+	newNode, err := plan.MergeToPhysicalNode(pn, windowAggregateNode, windowAggregateSpec)
+	if err != nil {
+		return pn, false, err
+	}
+	return newNode, true, nil
+}
+
+// PushDownWindowAggregateByTimeRule will match the given pattern.
 // ReadWindowAggregatePhys |> duplicate |> window(every: inf)
 //
 // If this pattern matches and the arguments to duplicate are
@@ -762,7 +803,7 @@ func (PushDownWindowAggregateByTimeRule) Name() string {
 	return "PushDownWindowAggregateByTimeRule"
 }
 
-func (rule PushDownWindowAggregateByTimeRule) Pattern() plan.Pattern {
+func (PushDownWindowAggregateByTimeRule) Pattern() plan.Pattern {
 	return plan.Pat(universe.WindowKind,
 		plan.Pat(universe.SchemaMutationKind,
 			plan.Pat(ReadWindowAggregatePhysKind)))

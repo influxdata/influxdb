@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/chronograf"
@@ -37,7 +39,6 @@ func convert1To2Cell(cell chronograf.DashboardCell) *influxdb.Cell {
 			Queries:    convertQueries(cell.Queries),
 			Axes:       convertAxes(cell.Axes),
 			Type:       "xy",
-			Legend:     convertLegend(cell.Legend),
 			Geom:       "line",
 			ViewColors: convertColors(cell.CellColors),
 			Note:       cell.Note,
@@ -48,7 +49,6 @@ func convert1To2Cell(cell chronograf.DashboardCell) *influxdb.Cell {
 			Queries:    convertQueries(cell.Queries),
 			Axes:       convertAxes(cell.Axes),
 			Type:       "xy",
-			Legend:     convertLegend(cell.Legend),
 			Geom:       "line", // TODO(desa): maybe this needs to be stacked?
 			ViewColors: convertColors(cell.CellColors),
 			Note:       cell.Note,
@@ -59,7 +59,6 @@ func convert1To2Cell(cell chronograf.DashboardCell) *influxdb.Cell {
 			Queries:    convertQueries(cell.Queries),
 			Axes:       convertAxes(cell.Axes),
 			Type:       "xy",
-			Legend:     convertLegend(cell.Legend),
 			Geom:       "step",
 			ViewColors: convertColors(cell.CellColors),
 			Note:       cell.Note,
@@ -70,7 +69,6 @@ func convert1To2Cell(cell chronograf.DashboardCell) *influxdb.Cell {
 			Queries:    convertQueries(cell.Queries),
 			Axes:       convertAxes(cell.Axes),
 			Type:       "xy",
-			Legend:     convertLegend(cell.Legend),
 			Geom:       "bar",
 			ViewColors: convertColors(cell.CellColors),
 			Note:       cell.Note,
@@ -80,7 +78,6 @@ func convert1To2Cell(cell chronograf.DashboardCell) *influxdb.Cell {
 		v.Properties = influxdb.LinePlusSingleStatProperties{
 			Queries:    convertQueries(cell.Queries),
 			Axes:       convertAxes(cell.Axes),
-			Legend:     convertLegend(cell.Legend),
 			ViewColors: convertColors(cell.CellColors),
 			Note:       cell.Note,
 			Position:   "overlaid",
@@ -258,13 +255,6 @@ func convertAxes(a map[string]chronograf.Axis) map[string]influxdb.Axis {
 	return m
 }
 
-func convertLegend(l chronograf.Legend) influxdb.Legend {
-	return influxdb.Legend{
-		Type:        l.Type,
-		Orientation: l.Orientation,
-	}
-}
-
 func convertColors(cs []chronograf.CellColor) []influxdb.ViewColor {
 	vs := []influxdb.ViewColor{}
 
@@ -379,7 +369,7 @@ func convertQueries(qs []chronograf.DashboardQuery) []influxdb.DashboardQuery {
 type dbrpMapper struct{}
 
 // FindBy returns the dbrp mapping for the specified ID.
-func (d dbrpMapper) FindByID(ctx context.Context, orgID influxdb.ID, id influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+func (d dbrpMapper) FindByID(ctx context.Context, orgID platform.ID, id platform.ID) (*influxdb.DBRPMappingV2, error) {
 	return nil, errors.New("mapping not found")
 }
 
@@ -399,6 +389,6 @@ func (d dbrpMapper) Update(ctx context.Context, dbrp *influxdb.DBRPMappingV2) er
 }
 
 // Delete removes a dbrp mapping.
-func (d dbrpMapper) Delete(ctx context.Context, orgID influxdb.ID, id influxdb.ID) error {
+func (d dbrpMapper) Delete(ctx context.Context, orgID platform.ID, id platform.ID) error {
 	return errors.New("dbrpMapper does not support deleting mappings")
 }

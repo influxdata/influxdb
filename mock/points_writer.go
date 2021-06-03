@@ -4,7 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2/models"
 )
 
@@ -15,7 +16,7 @@ type PointsWriter struct {
 	Points           []models.Point
 	Err              error
 
-	WritePointsFn func(ctx context.Context, orgID influxdb.ID, bucketID influxdb.ID, points []models.Point) error
+	WritePointsFn func(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error
 }
 
 // ForceError is for error testing, if WritePoints is called after ForceError, it will return that error.
@@ -26,7 +27,7 @@ func (p *PointsWriter) ForceError(err error) {
 }
 
 // WritePoints writes points to the PointsWriter that will be exposed in the Values.
-func (p *PointsWriter) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID influxdb.ID, points []models.Point) error {
+func (p *PointsWriter) WritePoints(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error {
 	if p.WritePointsFn != nil {
 		return p.WritePointsFn(ctx, orgID, bucketID, points)
 	}

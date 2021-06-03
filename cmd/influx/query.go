@@ -21,9 +21,10 @@ import (
 )
 
 var queryFlags struct {
-	org  organization
-	file string
-	raw  bool
+	org       organization
+	file      string
+	raw       bool
+	profilers []string
 }
 
 func cmdQuery(f *globalFlags, opts genericCLIOpts) *cobra.Command {
@@ -36,6 +37,7 @@ func cmdQuery(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 	queryFlags.org.register(opts.viper, cmd, true)
 	cmd.Flags().StringVarP(&queryFlags.file, "file", "f", "", "Path to Flux query file")
 	cmd.Flags().BoolVarP(&queryFlags.raw, "raw", "r", false, "Display raw query results")
+	cmd.Flags().StringSliceVarP(&queryFlags.profilers, "profilers", "p", nil, "Names of Flux profilers to enable. Profiler information will be appended to query results")
 
 	return cmd
 }
@@ -101,7 +103,7 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 	}
 	u.RawQuery = params.Encode()
 
-	body, _ := json.Marshal(map[string]interface{}{
+	var body_map = map[string]interface{}{
 		"query": q,
 		"type":  "flux",
 		"dialect": map[string]interface{}{
@@ -109,7 +111,13 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 			"delimiter":   ",",
 			"header":      true,
 		},
-	})
+	}
+
+	if len(queryFlags.profilers) > 0 {
+		body_map["extern"] = buildProfilersExtern(queryFlags.profilers)
+	}
+
+	body, _ := json.Marshal(body_map)
 
 	req, _ := http.NewRequest("POST", u.String(), bytes.NewReader(body))
 	req.Header.Set("Authorization", "Token "+flags.config().Token)
@@ -153,6 +161,56 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 	// called before checking the error on the next line.
 	results.Release()
 	return results.Err()
+}
+
+// buildProfilersExtern constructs the AST representation of a Flux statement enabling
+// the specified profilers in the query options.
+//
+// See the docs for more info: https://docs.influxdata.com/influxdb/cloud/reference/flux/stdlib/profiler/
+func buildProfilersExtern(profilersToEnable []string) (profilersExtern map[string]interface{}) {
+	elements := make([]interface{}, len(profilersToEnable))
+	for i, profiler := range profilersToEnable {
+		elements[i] = map[string]interface{}{
+			"type":  "StringLiteral",
+			"value": profiler,
+		}
+	}
+	profilersExtern = map[string]interface{}{
+		"type": "File",
+		"imports": []interface{}{
+			map[string]interface{}{
+				"type": "ImportDeclaration",
+				"path": map[string]interface{}{
+					"type":  "StringLiteral",
+					"value": "profiler",
+				},
+			},
+		},
+		"body": []interface{}{
+			map[string]interface{}{
+				"assignment": map[string]interface{}{
+					"member": map[string]interface{}{
+						"object": map[string]interface{}{
+							"name": "profiler",
+							"type": "Identifier",
+						},
+						"property": map[string]interface{}{
+							"name": "enabledProfilers",
+							"type": "Identifier",
+						},
+						"type": "MemberExpression",
+					},
+					"init": map[string]interface{}{
+						"type":     "ArrayExpression",
+						"elements": elements,
+					},
+					"type": "MemberAssignment",
+				},
+				"type": "OptionStatement",
+			},
+		},
+	}
+	return profilersExtern
 }
 
 // Below is a copy and trimmed version of the execute/format.go file from flux.

@@ -730,7 +730,7 @@ type indirectIndex struct {
 	// key.
 	offsets []byte
 
-	// minKey, maxKey are the minium and maximum (lexicographically sorted) contained in the
+	// minKey, maxKey are the minimum and maximum (lexicographically sorted) contained in the
 	// file
 	minKey, maxKey []byte
 

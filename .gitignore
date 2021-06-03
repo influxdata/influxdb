@@ -13,9 +13,14 @@ vendor
 # binary databases
 influxd.bolt
 *.db
+*.sqlite
 
 # GPG private keys
 private.key
+
+# TLS keys generated for testing
+test.crt
+test.key
 
 # Project distribution
 /dist

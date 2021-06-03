@@ -3,13 +3,13 @@ package kv
 import (
 	"fmt"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // UnexpectedIndexError is used when the error comes from an internal system.
-func UnexpectedIndexError(err error) *influxdb.Error {
-	return &influxdb.Error{
-		Code: influxdb.EInternal,
+func UnexpectedIndexError(err error) *errors.Error {
+	return &errors.Error{
+		Code: errors.EInternal,
 		Msg:  fmt.Sprintf("unexpected error retrieving index; Err: %v", err),
 		Op:   "kv/index",
 	}
@@ -17,7 +17,7 @@ func UnexpectedIndexError(err error) *influxdb.Error {
 
 // NotUniqueError is used when attempting to create a resource that already
 // exists.
-var NotUniqueError = &influxdb.Error{
-	Code: influxdb.EConflict,
+var NotUniqueError = &errors.Error{
+	Code: errors.EConflict,
 	Msg:  "name already exists",
 }

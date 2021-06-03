@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"testing"
@@ -20,12 +21,11 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/plan/plantest"
 	"github.com/influxdata/flux/stdlib/universe"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	pmock "github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
-	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/query/control"
-	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/prometheus/client_golang/prometheus"
@@ -48,15 +48,14 @@ var (
 		},
 	}
 	config = control.Config{
-		ConcurrencyQuota:         1,
-		MemoryBytesQuotaPerQuery: 1024,
-		QueueSize:                1,
-		ExecutorDependencies: []flux.Dependency{
-			influxdb.Dependencies{
-				FluxDeps: executetest.NewTestExecuteDependencies(),
-			},
-		},
+		MemoryBytesQuotaPerQuery: math.MaxInt64,
 	}
+	limitedConfig = control.Config{
+		MemoryBytesQuotaPerQuery: math.MaxInt64,
+		ConcurrencyQuota:         1,
+		QueueSize:                1,
+	}
+	bothConfigs          = map[string]control.Config{"unlimited": config, "limited": limitedConfig}
 )
 
 func setupPromRegistry(c *control.Controller) *prometheus.Registry {
@@ -79,7 +78,7 @@ func validateRequestTotals(t testing.TB, reg *prometheus.Registry, success, comp
 	validate := func(name string, want int) {
 		m := FindMetric(
 			metrics,
-			"query_control_requests_total",
+			"qc_requests_total",
 			map[string]string{
 				"result": name,
 				"org":    "",
@@ -107,7 +106,7 @@ func validateUnusedMemory(t testing.TB, reg *prometheus.Registry, c control.Conf
 	}
 	m := FindMetric(
 		metrics,
-		"query_control_memory_unused_bytes",
+		"qc_memory_unused_bytes",
 		map[string]string{
 			"org": "",
 		},
@@ -123,121 +122,133 @@ func validateUnusedMemory(t testing.TB, reg *prometheus.Registry, c control.Conf
 }
 
 func TestController_QuerySuccess(t *testing.T) {
-	ctrl, err := control.New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer shutdown(t, ctrl)
+	for name, config := range bothConfigs {
+		t.Run(name, func(t *testing.T) {
+			ctrl, err := control.New(config, zaptest.NewLogger(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer shutdown(t, ctrl)
 
-	reg := setupPromRegistry(ctrl)
+			reg := setupPromRegistry(ctrl)
 
-	q, err := ctrl.Query(context.Background(), makeRequest(mockCompiler))
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
+			q, err := ctrl.Query(context.Background(), makeRequest(mockCompiler))
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
 
-	for range q.Results() {
-		// discard the results as we do not care.
-	}
-	q.Done()
+			for range q.Results() {
+				// discard the results as we do not care.
+			}
+			q.Done()
 
-	if err := q.Err(); err != nil {
-		t.Errorf("unexpected error: %s", err)
-	}
+			if err := q.Err(); err != nil {
+				t.Errorf("unexpected error: %s", err)
+			}
 
-	stats := q.Statistics()
-	if stats.CompileDuration == 0 {
-		t.Error("expected compile duration to be above zero")
+			stats := q.Statistics()
+			if stats.CompileDuration == 0 {
+				t.Error("expected compile duration to be above zero")
+			}
+			if stats.QueueDuration == 0 {
+				t.Error("expected queue duration to be above zero")
+			}
+			if stats.ExecuteDuration == 0 {
+				t.Error("expected execute duration to be above zero")
+			}
+			if stats.TotalDuration == 0 {
+				t.Error("expected total duration to be above zero")
+			}
+			validateRequestTotals(t, reg, 1, 0, 0, 0)
+		})
 	}
-	if stats.QueueDuration == 0 {
-		t.Error("expected queue duration to be above zero")
-	}
-	if stats.ExecuteDuration == 0 {
-		t.Error("expected execute duration to be above zero")
-	}
-	if stats.TotalDuration == 0 {
-		t.Error("expected total duration to be above zero")
-	}
-	validateRequestTotals(t, reg, 1, 0, 0, 0)
 }
 
 func TestController_QueryCompileError(t *testing.T) {
-	ctrl, err := control.New(config)
-	if err != nil {
-		t.Fatal(err)
+	for name, config := range bothConfigs {
+		t.Run(name, func(t *testing.T) {
+			ctrl, err := control.New(config, zaptest.NewLogger(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer shutdown(t, ctrl)
+
+			reg := setupPromRegistry(ctrl)
+
+			q, err := ctrl.Query(context.Background(), makeRequest(&mock.Compiler{
+				CompileFn: func(ctx context.Context) (flux.Program, error) {
+					return nil, errors.New("compile error")
+				},
+			}))
+			if err == nil {
+				t.Error("expected compiler error")
+			}
+
+			if q != nil {
+				t.Errorf("unexpected query value: %v", q)
+				defer q.Done()
+			}
+
+			validateRequestTotals(t, reg, 0, 1, 0, 0)
+		})
 	}
-	defer shutdown(t, ctrl)
-
-	reg := setupPromRegistry(ctrl)
-
-	q, err := ctrl.Query(context.Background(), makeRequest(&mock.Compiler{
-		CompileFn: func(ctx context.Context) (flux.Program, error) {
-			return nil, errors.New("compile error")
-		},
-	}))
-	if err == nil {
-		t.Error("expected compiler error")
-	}
-
-	if q != nil {
-		t.Errorf("unexpected query value: %v", q)
-		defer q.Done()
-	}
-
-	validateRequestTotals(t, reg, 0, 1, 0, 0)
 }
 
 func TestController_QueryRuntimeError(t *testing.T) {
-	ctrl, err := control.New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer shutdown(t, ctrl)
+	for name, config := range bothConfigs {
+		t.Run(name, func(t *testing.T) {
+			ctrl, err := control.New(config, zaptest.NewLogger(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer shutdown(t, ctrl)
 
-	reg := setupPromRegistry(ctrl)
+			reg := setupPromRegistry(ctrl)
 
-	q, err := ctrl.Query(context.Background(), makeRequest(&mock.Compiler{
-		CompileFn: func(ctx context.Context) (flux.Program, error) {
-			return &mock.Program{
-				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
-					q.SetErr(errors.New("runtime error"))
+			q, err := ctrl.Query(context.Background(), makeRequest(&mock.Compiler{
+				CompileFn: func(ctx context.Context) (flux.Program, error) {
+					return &mock.Program{
+						ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+							q.SetErr(errors.New("runtime error"))
+						},
+					}, nil
 				},
-			}, nil
-		},
-	}))
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
+			}))
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
 
-	for range q.Results() {
-		// discard the results as we do not care.
-	}
-	q.Done()
+			for range q.Results() {
+				// discard the results as we do not care.
+			}
+			q.Done()
 
-	if q.Err() == nil {
-		t.Error("expected runtime error")
-	}
+			if q.Err() == nil {
+				t.Error("expected runtime error")
+			}
 
-	stats := q.Statistics()
-	if stats.CompileDuration == 0 {
-		t.Error("expected compile duration to be above zero")
+			stats := q.Statistics()
+			if stats.CompileDuration == 0 {
+				t.Error("expected compile duration to be above zero")
+			}
+			if stats.QueueDuration == 0 {
+				t.Error("expected queue duration to be above zero")
+			}
+			if stats.ExecuteDuration == 0 {
+				t.Error("expected execute duration to be above zero")
+			}
+			if stats.TotalDuration == 0 {
+				t.Error("expected total duration to be above zero")
+			}
+			validateRequestTotals(t, reg, 0, 0, 1, 0)
+		})
 	}
-	if stats.QueueDuration == 0 {
-		t.Error("expected queue duration to be above zero")
-	}
-	if stats.ExecuteDuration == 0 {
-		t.Error("expected execute duration to be above zero")
-	}
-	if stats.TotalDuration == 0 {
-		t.Error("expected total duration to be above zero")
-	}
-	validateRequestTotals(t, reg, 0, 0, 1, 0)
 }
 
 func TestController_QueryQueueError(t *testing.T) {
 	t.Skip("This test exposed several race conditions, its not clear if the races are specific to the test case")
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, zaptest.NewLogger(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,92 +352,105 @@ func findMetric(mfs []*dto.MetricFamily, name string, labels map[string]string) 
 }
 
 func TestController_AfterShutdown(t *testing.T) {
-	ctrl, err := control.New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	shutdown(t, ctrl)
+	for name, config := range bothConfigs {
+		t.Run(name, func(t *testing.T) {
+			ctrl, err := control.New(config, zaptest.NewLogger(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			shutdown(t, ctrl)
 
-	// No point in continuing. The shutdown didn't work
-	// even though there are no queries.
-	if t.Failed() {
-		return
-	}
+			// No point in continuing. The shutdown didn't work
+			// even though there are no queries.
+			if t.Failed() {
+				return
+			}
 
-	if _, err := ctrl.Query(context.Background(), makeRequest(mockCompiler)); err == nil {
-		t.Error("expected error")
-	} else if got, want := err.Error(), "query controller shutdown"; got != want {
-		t.Errorf("unexpected error -want/+got\n\t- %q\n\t+ %q", want, got)
+			if _, err := ctrl.Query(context.Background(), makeRequest(mockCompiler)); err == nil {
+				t.Error("expected error")
+			} else if got, want := err.Error(), "query controller shutdown"; got != want {
+				t.Errorf("unexpected error -want/+got\n\t- %q\n\t+ %q", want, got)
+			}
+		})
 	}
 }
 
 func TestController_CompileError(t *testing.T) {
-	ctrl, err := control.New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer shutdown(t, ctrl)
-
-	compiler := &mock.Compiler{
-		CompileFn: func(ctx context.Context) (flux.Program, error) {
-			return nil, &flux.Error{
-				Code: codes.Invalid,
-				Msg:  "expected error",
+	for name, config := range bothConfigs {
+		t.Run(name, func(t *testing.T) {
+			ctrl, err := control.New(config, zaptest.NewLogger(t))
+			if err != nil {
+				t.Fatal(err)
 			}
-		},
-	}
-	if _, err := ctrl.Query(context.Background(), makeRequest(compiler)); err == nil {
-		t.Error("expected error")
-	} else if got, want := err.Error(), "compilation failed: expected error"; got != want {
-		t.Errorf("unexpected error -want/+got\n\t- %q\n\t+ %q", want, got)
+			defer shutdown(t, ctrl)
+
+			compiler := &mock.Compiler{
+				CompileFn: func(ctx context.Context) (flux.Program, error) {
+					return nil, &flux.Error{
+						Code: codes.Invalid,
+						Msg:  "expected error",
+					}
+				},
+			}
+			if _, err := ctrl.Query(context.Background(), makeRequest(compiler)); err == nil {
+				t.Error("expected error")
+			} else if got, want := err.Error(), "compilation failed: expected error"; got != want {
+				t.Errorf("unexpected error -want/+got\n\t- %q\n\t+ %q", want, got)
+			}
+		})
 	}
 }
 
 func TestController_ExecuteError(t *testing.T) {
-	ctrl, err := control.New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer shutdown(t, ctrl)
+	for name, config := range bothConfigs {
+		t.Run(name, func(t *testing.T) {
+			ctrl, err := control.New(config, zaptest.NewLogger(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer shutdown(t, ctrl)
 
-	compiler := &mock.Compiler{
-		CompileFn: func(ctx context.Context) (flux.Program, error) {
-			return &mock.Program{
-				StartFn: func(ctx context.Context, alloc *memory.Allocator) (*mock.Query, error) {
-					return nil, errors.New("expected error")
+			compiler := &mock.Compiler{
+				CompileFn: func(ctx context.Context) (flux.Program, error) {
+					return &mock.Program{
+						StartFn: func(ctx context.Context, alloc *memory.Allocator) (*mock.Query, error) {
+							return nil, errors.New("expected error")
+						},
+					}, nil
 				},
-			}, nil
-		},
-	}
+			}
 
-	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
+			q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
 
-	// There should be no results.
-	numResults := 0
-	for range q.Results() {
-		numResults++
-	}
+			// There should be no results.
+			numResults := 0
+			for range q.Results() {
+				numResults++
+			}
 
-	if numResults != 0 {
-		t.Errorf("no results should have been returned, but %d were", numResults)
-	}
-	q.Done()
+			if numResults != 0 {
+				t.Errorf("no results should have been returned, but %d were", numResults)
+			}
+			q.Done()
 
-	if err := q.Err(); err == nil {
-		t.Error("expected error")
-	} else if got, want := err.Error(), "expected error"; got != want {
-		t.Errorf("unexpected error -want/+got\n\t- %q\n\t+ %q", want, got)
+			if err := q.Err(); err == nil {
+				t.Error("expected error")
+			} else if got, want := err.Error(), "expected error"; got != want {
+				t.Errorf("unexpected error -want/+got\n\t- %q\n\t+ %q", want, got)
+			}
+		})
 	}
 }
 
 func TestController_LimitExceededError(t *testing.T) {
+
 	const memoryBytesQuotaPerQuery = 64
 	config := config
 	config.MemoryBytesQuotaPerQuery = memoryBytesQuotaPerQuery
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, zaptest.NewLogger(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -497,194 +521,214 @@ func TestController_LimitExceededError(t *testing.T) {
 }
 
 func TestController_CompilePanic(t *testing.T) {
-	ctrl, err := control.New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer shutdown(t, ctrl)
+	for name, config := range bothConfigs {
+		t.Run(name, func(t *testing.T) {
+			ctrl, err := control.New(config, zaptest.NewLogger(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer shutdown(t, ctrl)
 
-	compiler := &mock.Compiler{
-		CompileFn: func(ctx context.Context) (flux.Program, error) {
-			panic("panic during compile step")
-		},
-	}
+			compiler := &mock.Compiler{
+				CompileFn: func(ctx context.Context) (flux.Program, error) {
+					panic("panic during compile step")
+				},
+			}
 
-	_, err = ctrl.Query(context.Background(), makeRequest(compiler))
-	if err == nil {
-		t.Fatalf("expected error when query was compiled")
-	} else if !strings.Contains(err.Error(), "panic during compile step") {
-		t.Fatalf(`expected error to contain "panic during compile step" instead it contains "%v"`, err.Error())
+			_, err = ctrl.Query(context.Background(), makeRequest(compiler))
+			if err == nil {
+				t.Fatalf("expected error when query was compiled")
+			} else if !strings.Contains(err.Error(), "panic during compile step") {
+				t.Fatalf(`expected error to contain "panic during compile step" instead it contains "%v"`, err.Error())
+			}
+		})
 	}
 }
 
 func TestController_StartPanic(t *testing.T) {
-	ctrl, err := control.New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer shutdown(t, ctrl)
+	for name, config := range bothConfigs {
+		t.Run(name, func(t *testing.T) {
+			ctrl, err := control.New(config, zaptest.NewLogger(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer shutdown(t, ctrl)
 
-	compiler := &mock.Compiler{
-		CompileFn: func(ctx context.Context) (flux.Program, error) {
-			return &mock.Program{
-				StartFn: func(ctx context.Context, alloc *memory.Allocator) (i *mock.Query, e error) {
-					panic("panic during start step")
+			compiler := &mock.Compiler{
+				CompileFn: func(ctx context.Context) (flux.Program, error) {
+					return &mock.Program{
+						StartFn: func(ctx context.Context, alloc *memory.Allocator) (i *mock.Query, e error) {
+							panic("panic during start step")
+						},
+					}, nil
 				},
-			}, nil
-		},
-	}
+			}
 
-	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
-	if err != nil {
-		t.Fatalf("unexpected error when query was compiled")
-	}
+			q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+			if err != nil {
+				t.Fatalf("unexpected error when query was compiled")
+			}
 
-	for range q.Results() {
-	}
-	q.Done()
+			for range q.Results() {
+			}
+			q.Done()
 
-	if err = q.Err(); err == nil {
-		t.Fatalf("expected error after query started")
-	} else if !strings.Contains(err.Error(), "panic during start step") {
-		t.Fatalf(`expected error to contain "panic during start step" instead it contains "%v"`, err.Error())
+			if err = q.Err(); err == nil {
+				t.Fatalf("expected error after query started")
+			} else if !strings.Contains(err.Error(), "panic during start step") {
+				t.Fatalf(`expected error to contain "panic during start step" instead it contains "%v"`, err.Error())
+			}
+		})
 	}
 }
 
 func TestController_ShutdownWithRunningQuery(t *testing.T) {
-	ctrl, err := control.New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer shutdown(t, ctrl)
+	for name, config := range bothConfigs {
+		t.Run(name, func(t *testing.T) {
+			ctrl, err := control.New(config, zaptest.NewLogger(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer shutdown(t, ctrl)
 
-	executing := make(chan struct{})
-	compiler := &mock.Compiler{
-		CompileFn: func(ctx context.Context) (flux.Program, error) {
-			return &mock.Program{
-				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
-					close(executing)
-					<-ctx.Done()
+			executing := make(chan struct{})
+			compiler := &mock.Compiler{
+				CompileFn: func(ctx context.Context) (flux.Program, error) {
+					return &mock.Program{
+						ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+							close(executing)
+							<-ctx.Done()
 
-					// This should still be read even if we have been canceled.
-					q.ResultsCh <- &executetest.Result{}
+							// This should still be read even if we have been canceled.
+							q.ResultsCh <- &executetest.Result{}
+						},
+					}, nil
 				},
-			}, nil
-		},
+			}
+
+			q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+			if err != nil {
+				t.Errorf("unexpected error: %s", err)
+			}
+
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for range q.Results() {
+					// discard the results
+				}
+				q.Done()
+			}()
+
+			// Wait until execution has started.
+			<-executing
+
+			// Shutdown should succeed and not timeout. The above blocked
+			// query should be canceled and then shutdown should return.
+			shutdown(t, ctrl)
+			wg.Wait()
+		})
 	}
-
-	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
-	if err != nil {
-		t.Errorf("unexpected error: %s", err)
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for range q.Results() {
-			// discard the results
-		}
-		q.Done()
-	}()
-
-	// Wait until execution has started.
-	<-executing
-
-	// Shutdown should succeed and not timeout. The above blocked
-	// query should be canceled and then shutdown should return.
-	shutdown(t, ctrl)
-	wg.Wait()
 }
 
 func TestController_ShutdownWithTimeout(t *testing.T) {
-	ctrl, err := control.New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer shutdown(t, ctrl)
+	for name, config := range bothConfigs {
+		t.Run(name, func(t *testing.T) {
+			ctrl, err := control.New(config, zaptest.NewLogger(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer shutdown(t, ctrl)
 
-	// This channel blocks program execution until we are done
-	// with running the test.
-	done := make(chan struct{})
-	defer close(done)
+			// This channel blocks program execution until we are done
+			// with running the test.
+			done := make(chan struct{})
+			defer close(done)
 
-	executing := make(chan struct{})
-	compiler := &mock.Compiler{
-		CompileFn: func(ctx context.Context) (flux.Program, error) {
-			return &mock.Program{
-				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
-					// This should just block until the end of the test
-					// when we perform cleanup.
-					close(executing)
-					<-done
+			executing := make(chan struct{})
+			compiler := &mock.Compiler{
+				CompileFn: func(ctx context.Context) (flux.Program, error) {
+					return &mock.Program{
+						ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+							// This should just block until the end of the test
+							// when we perform cleanup.
+							close(executing)
+							<-done
+						},
+					}, nil
 				},
-			}, nil
-		},
+			}
+
+			q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+			if err != nil {
+				t.Errorf("unexpected error: %s", err)
+			}
+
+			go func() {
+				for range q.Results() {
+					// discard the results
+				}
+				q.Done()
+			}()
+
+			// Wait until execution has started.
+			<-executing
+
+			// The shutdown should not succeed.
+			ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+			if err := ctrl.Shutdown(ctx); err == nil {
+				t.Error("expected error")
+			} else if got, want := err.Error(), context.DeadlineExceeded.Error(); got != want {
+				t.Errorf("unexpected error -want/+got\n\t- %q\n\t+ %q", want, got)
+			}
+			cancel()
+		})
 	}
-
-	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
-	if err != nil {
-		t.Errorf("unexpected error: %s", err)
-	}
-
-	go func() {
-		for range q.Results() {
-			// discard the results
-		}
-		q.Done()
-	}()
-
-	// Wait until execution has started.
-	<-executing
-
-	// The shutdown should not succeed.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-	if err := ctrl.Shutdown(ctx); err == nil {
-		t.Error("expected error")
-	} else if got, want := err.Error(), context.DeadlineExceeded.Error(); got != want {
-		t.Errorf("unexpected error -want/+got\n\t- %q\n\t+ %q", want, got)
-	}
-	cancel()
 }
 
 func TestController_PerQueryMemoryLimit(t *testing.T) {
-	ctrl, err := control.New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer shutdown(t, ctrl)
+	for name, config := range bothConfigs {
+		t.Run(name, func(t *testing.T) {
+			ctrl, err := control.New(config, zaptest.NewLogger(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer shutdown(t, ctrl)
 
-	compiler := &mock.Compiler{
-		CompileFn: func(ctx context.Context) (flux.Program, error) {
-			return &mock.Program{
-				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
-					defer func() {
-						if err, ok := recover().(error); ok && err != nil {
-							q.SetErr(err)
-						}
-					}()
+			compiler := &mock.Compiler{
+				CompileFn: func(ctx context.Context) (flux.Program, error) {
+					return &mock.Program{
+						ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+							defer func() {
+								if err, ok := recover().(error); ok && err != nil {
+									q.SetErr(err)
+								}
+							}()
 
-					// This is emulating the behavior of exceeding the memory limit at runtime
-					mem := arrow.NewAllocator(alloc)
-					b := mem.Allocate(int(config.MemoryBytesQuotaPerQuery + 1))
-					mem.Free(b)
+							// This is emulating the behavior of exceeding the memory limit at runtime
+							mem := arrow.NewAllocator(alloc)
+							b := mem.Allocate(int(config.MemoryBytesQuotaPerQuery + 1))
+							mem.Free(b)
+						},
+					}, nil
 				},
-			}, nil
-		},
-	}
+			}
 
-	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
-	if err != nil {
-		t.Fatal(err)
-	}
+			q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	for range q.Results() {
-		// discard the results
-	}
-	q.Done()
+			for range q.Results() {
+				// discard the results
+			}
+			q.Done()
 
-	if q.Err() == nil {
-		t.Fatal("expected error about memory limit exceeded")
+			if q.Err() == nil {
+				t.Fatal("expected error about memory limit exceeded")
+			}
+		})
 	}
 }
 
@@ -697,7 +741,7 @@ func TestController_ConcurrencyQuota(t *testing.T) {
 	config := config
 	config.ConcurrencyQuota = concurrencyQuota
 	config.QueueSize = numQueries
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, zaptest.NewLogger(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -763,7 +807,7 @@ func TestController_QueueSize(t *testing.T) {
 	config := config
 	config.ConcurrencyQuota = concurrencyQuota
 	config.QueueSize = queueSize
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, zaptest.NewLogger(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -826,12 +870,107 @@ func TestController_QueueSize(t *testing.T) {
 
 // Test that rapidly starting and canceling the query and then calling done will correctly
 // cancel the query and not result in a race condition.
+func TestController_CancelDone_Unlimited(t *testing.T) {
+	config := config
+
+	ctrl, err := control.New(config, zaptest.NewLogger(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer shutdown(t, ctrl)
+
+	compiler := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (flux.Program, error) {
+			return &mock.Program{
+				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+					// Ensure the query takes a little bit of time so the cancel actually cancels something.
+					t := time.NewTimer(time.Second)
+					defer t.Stop()
+
+					select {
+					case <-t.C:
+					case <-ctx.Done():
+					}
+				},
+			}, nil
+		},
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+			if err != nil {
+				t.Errorf("unexpected error: %s", err)
+				return
+			}
+			q.Cancel()
+			q.Done()
+		}()
+	}
+	wg.Wait()
+}
+
+// Test that rapidly starts and calls done on queries without reading the result.
+func TestController_DoneWithoutRead_Unlimited(t *testing.T) {
+	config := config
+
+	ctrl, err := control.New(config, zaptest.NewLogger(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer shutdown(t, ctrl)
+
+	compiler := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (flux.Program, error) {
+			return &mock.Program{
+				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+					// Ensure the query takes a little bit of time so the cancel actually cancels something.
+					t := time.NewTimer(time.Second)
+					defer t.Stop()
+
+					select {
+					case <-t.C:
+						q.ResultsCh <- &executetest.Result{
+							Nm:   "_result",
+							Tbls: []*executetest.Table{},
+						}
+					case <-ctx.Done():
+					}
+				},
+			}, nil
+		},
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+			if err != nil {
+				t.Errorf("unexpected error: %s", err)
+				return
+			}
+			// If we call done without reading anything it should work just fine.
+			q.Done()
+		}()
+	}
+	wg.Wait()
+}
+
+// Test that rapidly starting and canceling the query and then calling done will correctly
+// cancel the query and not result in a race condition.
 func TestController_CancelDone(t *testing.T) {
 	config := config
 	config.ConcurrencyQuota = 10
 	config.QueueSize = 200
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, zaptest.NewLogger(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -878,7 +1017,7 @@ func TestController_DoneWithoutRead(t *testing.T) {
 	config.ConcurrencyQuota = 10
 	config.QueueSize = 200
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, zaptest.NewLogger(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -927,10 +1066,13 @@ func TestController_DoneWithoutRead(t *testing.T) {
 // but we would go above the maximum amount of available memory.
 func TestController_Error_MaxMemory(t *testing.T) {
 	config := config
-	config.InitialMemoryBytesQuotaPerQuery = config.MemoryBytesQuotaPerQuery / 2
-	config.MaxMemoryBytes = config.MemoryBytesQuotaPerQuery * 2
+	config.InitialMemoryBytesQuotaPerQuery = 512
+	config.MaxMemoryBytes = 2048
+	config.MemoryBytesQuotaPerQuery = 512
+	config.QueueSize = 1
+	config.ConcurrencyQuota = 1
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, zaptest.NewLogger(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -988,7 +1130,7 @@ func TestController_NoisyNeighbor(t *testing.T) {
 	// Set the queue length to something that can accommodate the input.
 	config.QueueSize = 1000
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, zaptest.NewLogger(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1090,7 +1232,11 @@ func TestController_Error_NoRemainingMemory(t *testing.T) {
 	// The maximum memory available on the system is double the initial quota.
 	config.MaxMemoryBytes = config.InitialMemoryBytesQuotaPerQuery * 2
 
-	ctrl, err := control.New(config)
+	// Need to limit concurrency along with max memory or the config validation complains
+	config.ConcurrencyQuota = 1
+	config.QueueSize = 1
+
+	ctrl, err := control.New(config, zaptest.NewLogger(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1131,9 +1277,12 @@ func TestController_Error_NoRemainingMemory(t *testing.T) {
 func TestController_MemoryRelease(t *testing.T) {
 	config := config
 	config.InitialMemoryBytesQuotaPerQuery = 16
+	config.MemoryBytesQuotaPerQuery = 1024
 	config.MaxMemoryBytes = config.MemoryBytesQuotaPerQuery * 2
+	config.QueueSize = 1
+	config.ConcurrencyQuota = 1
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, zaptest.NewLogger(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1179,8 +1328,10 @@ func TestController_IrregularMemoryQuota(t *testing.T) {
 	config.InitialMemoryBytesQuotaPerQuery = 64
 	config.MemoryBytesQuotaPerQuery = 768
 	config.MaxMemoryBytes = config.MemoryBytesQuotaPerQuery * 2
+	config.QueueSize = 1
+	config.ConcurrencyQuota = 1
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, zaptest.NewLogger(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1239,7 +1390,7 @@ func TestController_ReserveMemoryWithoutExceedingMax(t *testing.T) {
 	// Set the queue length to something that can accommodate the input.
 	config.QueueSize = 1000
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, zaptest.NewLogger(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1303,7 +1454,7 @@ func TestController_QueryTracing(t *testing.T) {
 	const memoryBytesQuotaPerQuery = 64
 	config := config
 	config.MemoryBytesQuotaPerQuery = memoryBytesQuotaPerQuery
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, zaptest.NewLogger(t))
 	if err != nil {
 		t.Fatal(err)
 	}

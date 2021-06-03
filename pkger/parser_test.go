@@ -14,9 +14,11 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/notification"
 	icheck "github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,6 +57,35 @@ func TestParse(t *testing.T) {
 				}
 				assert.Equal(t, expectedBucket, actual)
 			})
+		})
+
+		t.Run("with valid bucket and schema should be valid", func(t *testing.T) {
+			template := validParsedTemplateFromFile(t, "testdata/bucket_schema.yml", EncodingYAML)
+			buckets := template.Summary().Buckets
+			require.Len(t, buckets, 1)
+
+			exp := SummaryBucket{
+				SummaryIdentifier: SummaryIdentifier{
+					Kind:          KindBucket,
+					MetaName:      "explicit-11",
+					EnvReferences: []SummaryReference{},
+				},
+				Name:              "my_explicit",
+				SchemaType:        "explicit",
+				LabelAssociations: []SummaryLabel{},
+				MeasurementSchemas: []SummaryMeasurementSchema{
+					{
+						Name: "cpu",
+						Columns: []SummaryMeasurementSchemaColumn{
+							{Name: "host", Type: "tag"},
+							{Name: "time", Type: "timestamp"},
+							{Name: "usage_user", Type: "field", DataType: "float"},
+						},
+					},
+				},
+			}
+
+			assert.Equal(t, exp, buckets[0])
 		})
 
 		t.Run("with env refs should be valid", func(t *testing.T) {
@@ -180,6 +211,70 @@ metadata:
   name:  invalid-name
 spec:
   name:  f
+`,
+				},
+				{
+					name:           "invalid measurement name",
+					resourceErrs:   1,
+					validationErrs: 1,
+					valFields:      []string{strings.Join([]string{fieldSpec, fieldMeasurementSchemas}, ".")},
+					templateStr: `apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name: foo-1
+spec:
+  name: foo
+  schemaType: explicit
+  measurementSchemas:
+    - name: _cpu
+      columns: 
+        - name: time
+          type: timestamp
+        - name: usage_user
+          type: field
+          dataType: float
+`,
+				},
+				{
+					name:           "invalid semantic type",
+					resourceErrs:   1,
+					validationErrs: 1,
+					valFields:      []string{strings.Join([]string{fieldSpec, fieldMeasurementSchemas, fieldMeasurementSchemaColumns}, ".")},
+					templateStr: `apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name: foo-1
+spec:
+  name: foo
+  schemaType: explicit
+  measurementSchemas:
+    - name: _cpu
+      columns: 
+        - name: time
+          type: field
+        - name: usage_user
+          type: field
+          dataType: float
+`,
+				},
+				{
+					name:           "missing time column",
+					resourceErrs:   1,
+					validationErrs: 1,
+					valFields:      []string{strings.Join([]string{fieldSpec, fieldMeasurementSchemas}, ".")},
+					templateStr: `apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name: foo-1
+spec:
+  name: foo
+  schemaType: explicit
+  measurementSchemas:
+    - name: cpu
+      columns: 
+        - name: usage_user
+          type: field
+          dataType: float
 `,
 				},
 			}
@@ -1067,6 +1162,7 @@ spec:
 						assert.Equal(t, 0.0, props.YTickStart)
 						assert.Equal(t, 100.0, props.YTickStep)
 						assert.Equal(t, true, props.LegendColorizeRows)
+						assert.Equal(t, false, props.LegendHide)
 						assert.Equal(t, 1.0, props.LegendOpacity)
 						assert.Equal(t, 5, props.LegendOrientationThreshold)
 						assert.True(t, props.ShowNoteWhenEmpty)
@@ -1187,6 +1283,7 @@ spec:
 						assert.Equal(t, "histogram note", props.Note)
 						assert.Equal(t, 30, props.BinCount)
 						assert.Equal(t, true, props.LegendColorizeRows)
+						assert.Equal(t, false, props.LegendHide)
 						assert.Equal(t, 1.0, props.LegendOpacity)
 						assert.Equal(t, 5, props.LegendOrientationThreshold)
 						assert.True(t, props.ShowNoteWhenEmpty)
@@ -1311,6 +1408,7 @@ spec:
 						assert.Equal(t, 0.0, props.XTickStart)
 						assert.Equal(t, 1000.0, props.XTickStep)
 						assert.Equal(t, true, props.LegendColorizeRows)
+						assert.Equal(t, false, props.LegendHide)
 						assert.Equal(t, 1.0, props.LegendOpacity)
 						assert.Equal(t, 5, props.LegendOrientationThreshold)
 					})
@@ -1352,8 +1450,16 @@ spec:
 						assert.Equal(t, 0.0, props.YTickStart)
 						assert.Equal(t, 100.0, props.YTickStep)
 						assert.Equal(t, true, props.LegendColorizeRows)
+						assert.Equal(t, false, props.LegendHide)
 						assert.Equal(t, 1.0, props.LegendOpacity)
 						assert.Equal(t, 5, props.LegendOrientationThreshold)
+						assert.Equal(t, true, props.StaticLegend.ColorizeRows)
+						assert.Equal(t, 0.2, props.StaticLegend.HeightRatio)
+						assert.Equal(t, false, props.StaticLegend.Hide)
+						assert.Equal(t, 1.0, props.StaticLegend.Opacity)
+						assert.Equal(t, 5, props.StaticLegend.OrientationThreshold)
+						assert.Equal(t, "y", props.StaticLegend.ValueAxis)
+						assert.Equal(t, 1.0, props.StaticLegend.WidthRatio)
 
 						require.Len(t, props.ViewColors, 1)
 						c := props.ViewColors[0]
@@ -1426,6 +1532,7 @@ spec:
 						assert.Equal(t, 0.0, props.YTickStart)
 						assert.Equal(t, 100.0, props.YTickStep)
 						assert.Equal(t, true, props.LegendColorizeRows)
+						assert.Equal(t, false, props.LegendHide)
 						assert.Equal(t, 1.0, props.LegendOpacity)
 						assert.Equal(t, 5, props.LegendOrientationThreshold)
 					})
@@ -1864,8 +1971,6 @@ spec:
 						assert.Equal(t, "days", props.Suffix)
 						assert.Equal(t, "sumtin", props.Prefix)
 						assert.Equal(t, "overlaid", props.Position)
-						assert.Equal(t, "leg_type", props.Legend.Type)
-						assert.Equal(t, "horizontal", props.Legend.Orientation)
 						assert.Equal(t, []string{"xTotalTicks", "xTickStart", "xTickStep"}, props.GenerateXAxisTicks)
 						assert.Equal(t, 15, props.XTotalTicks)
 						assert.Equal(t, 0.0, props.XTickStart)
@@ -1875,8 +1980,16 @@ spec:
 						assert.Equal(t, 0.0, props.YTickStart)
 						assert.Equal(t, 100.0, props.YTickStep)
 						assert.Equal(t, true, props.LegendColorizeRows)
+						assert.Equal(t, false, props.LegendHide)
 						assert.Equal(t, 1.0, props.LegendOpacity)
 						assert.Equal(t, 5, props.LegendOrientationThreshold)
+						assert.Equal(t, true, props.StaticLegend.ColorizeRows)
+						assert.Equal(t, 0.2, props.StaticLegend.HeightRatio)
+						assert.Equal(t, false, props.StaticLegend.Hide)
+						assert.Equal(t, 1.0, props.StaticLegend.Opacity)
+						assert.Equal(t, 5, props.StaticLegend.OrientationThreshold)
+						assert.Equal(t, "y", props.StaticLegend.ValueAxis)
+						assert.Equal(t, 1.0, props.StaticLegend.WidthRatio)
 
 						require.Len(t, props.Queries, 1)
 						q := props.Queries[0]
@@ -2342,8 +2455,16 @@ spec:
 						assert.Equal(t, 0.0, props.YTickStart)
 						assert.Equal(t, 100.0, props.YTickStep)
 						assert.Equal(t, true, props.LegendColorizeRows)
+						assert.Equal(t, false, props.LegendHide)
 						assert.Equal(t, 1.0, props.LegendOpacity)
 						assert.Equal(t, 5, props.LegendOrientationThreshold)
+						assert.Equal(t, true, props.StaticLegend.ColorizeRows)
+						assert.Equal(t, 0.2, props.StaticLegend.HeightRatio)
+						assert.Equal(t, false, props.StaticLegend.Hide)
+						assert.Equal(t, 1.0, props.StaticLegend.Opacity)
+						assert.Equal(t, 5, props.StaticLegend.OrientationThreshold)
+						assert.Equal(t, "y", props.StaticLegend.ValueAxis)
+						assert.Equal(t, 1.0, props.StaticLegend.WidthRatio)
 
 						require.Len(t, props.Queries, 1)
 						q := props.Queries[0]
@@ -2421,7 +2542,7 @@ spec:
       width:  6
       height: 3
       position: stacked
-      legend:
+      staticLegend:
       queries:
         - query: >
             from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")
@@ -2707,7 +2828,7 @@ spec:
 							Base: endpoint.Base{
 								Name:        "basic endpoint name",
 								Description: "http basic auth desc",
-								Status:      influxdb.TaskStatusInactive,
+								Status:      taskmodel.TaskStatusInactive,
 							},
 							URL:        "https://www.example.com/endpoint/basicauth",
 							AuthMethod: "basic",
@@ -2725,7 +2846,7 @@ spec:
 							Base: endpoint.Base{
 								Name:        "http-bearer-auth-notification-endpoint",
 								Description: "http bearer auth desc",
-								Status:      influxdb.TaskStatusActive,
+								Status:      taskmodel.TaskStatusActive,
 							},
 							URL:        "https://www.example.com/endpoint/bearerauth",
 							AuthMethod: "bearer",
@@ -2742,7 +2863,7 @@ spec:
 							Base: endpoint.Base{
 								Name:        "http-none-auth-notification-endpoint",
 								Description: "http none auth desc",
-								Status:      influxdb.TaskStatusActive,
+								Status:      taskmodel.TaskStatusActive,
 							},
 							URL:        "https://www.example.com/endpoint/noneauth",
 							AuthMethod: "none",
@@ -2758,7 +2879,7 @@ spec:
 							Base: endpoint.Base{
 								Name:        "pager duty name",
 								Description: "pager duty desc",
-								Status:      influxdb.TaskStatusActive,
+								Status:      taskmodel.TaskStatusActive,
 							},
 							ClientURL:  "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
 							RoutingKey: influxdb.SecretField{Value: strPtr("secret routing-key")},
@@ -2773,7 +2894,7 @@ spec:
 							Base: endpoint.Base{
 								Name:        "slack name",
 								Description: "slack desc",
-								Status:      influxdb.TaskStatusActive,
+								Status:      taskmodel.TaskStatusActive,
 							},
 							URL:   "https://hooks.slack.com/services/bip/piddy/boppidy",
 							Token: influxdb.SecretField{Value: strPtr("tokenval")},
@@ -4243,7 +4364,7 @@ spec:
 			expected := &endpoint.PagerDuty{
 				Base: endpoint.Base{
 					Name:   "pager-duty-notification-endpoint",
-					Status: influxdb.TaskStatusActive,
+					Status: taskmodel.TaskStatusActive,
 				},
 				ClientURL:  "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
 				RoutingKey: influxdb.SecretField{Key: "-routing-key", Value: strPtr("not empty")},
@@ -4561,17 +4682,17 @@ func Test_IsParseError(t *testing.T) {
 		},
 		{
 			name: "wrapped by influxdb error",
-			err: &influxdb.Error{
+			err: &errors2.Error{
 				Err: &parseErr{},
 			},
 			expected: true,
 		},
 		{
 			name: "deeply nested in influxdb error",
-			err: &influxdb.Error{
-				Err: &influxdb.Error{
-					Err: &influxdb.Error{
-						Err: &influxdb.Error{
+			err: &errors2.Error{
+				Err: &errors2.Error{
+					Err: &errors2.Error{
+						Err: &errors2.Error{
 							Err: &parseErr{},
 						},
 					},
@@ -4581,7 +4702,7 @@ func Test_IsParseError(t *testing.T) {
 		},
 		{
 			name: "influxdb error without nested parse err",
-			err: &influxdb.Error{
+			err: &errors2.Error{
 				Err: errors.New("nope"),
 			},
 			expected: false,

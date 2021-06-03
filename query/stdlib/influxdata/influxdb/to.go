@@ -18,6 +18,8 @@ import (
 	"github.com/influxdata/flux/stdlib/kafka"
 	"github.com/influxdata/flux/values"
 	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/query"
@@ -26,7 +28,7 @@ import (
 
 const (
 	// ToKind is the kind for the `to` flux function
-	ToKind = influxdb.ToKind
+	ToKind = "influx2x/toKind"
 
 	// TODO(jlapacik) remove this once we have execute.DefaultFieldColLabel
 	defaultFieldColLabel       = "_field"
@@ -51,7 +53,7 @@ type ToOpSpec struct {
 }
 
 func init() {
-	toSignature := runtime.MustLookupBuiltinType("influxdata/influxdb", ToKind)
+	toSignature := runtime.MustLookupBuiltinType("influxdata/influxdb", influxdb.ToKind)
 	runtime.ReplacePackageValue("influxdata/influxdb", "to", flux.MustValue(flux.FunctionValueWithSideEffect(ToKind, createToOpSpec, toSignature)))
 	flux.RegisterOpSpec(ToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ToKind, newToProcedure, ToKind)
@@ -164,13 +166,13 @@ func (ToOpSpec) Kind() flux.OperationKind {
 }
 
 // BucketsAccessed returns the buckets accessed by the spec.
-func (o *ToOpSpec) BucketsAccessed(orgID *platform.ID) (readBuckets, writeBuckets []platform.BucketFilter) {
+func (o *ToOpSpec) BucketsAccessed(orgID *platform2.ID) (readBuckets, writeBuckets []platform.BucketFilter) {
 	bf := platform.BucketFilter{}
 	if o.Bucket != "" {
 		bf.Name = &o.Bucket
 	}
 	if o.BucketID != "" {
-		id, err := platform.IDFromString(o.BucketID)
+		id, err := platform2.IDFromString(o.BucketID)
 		if err == nil {
 			bf.ID = id
 		}
@@ -179,7 +181,7 @@ func (o *ToOpSpec) BucketsAccessed(orgID *platform.ID) (readBuckets, writeBucket
 		bf.Org = &o.Org
 	}
 	if o.OrgID != "" {
-		id, err := platform.IDFromString(o.OrgID)
+		id, err := platform2.IDFromString(o.OrgID)
 		if err == nil {
 			bf.OrganizationID = id
 		}
@@ -259,8 +261,8 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 type ToTransformation struct {
 	execute.ExecutionNode
 	Ctx                context.Context
-	OrgID              platform.ID
-	BucketID           platform.ID
+	OrgID              platform2.ID
+	BucketID           platform2.ID
 	d                  execute.Dataset
 	fn                 *execute.RowMapFn
 	cache              execute.TableBuilderCache
@@ -279,7 +281,7 @@ func (t *ToTransformation) RetractTable(id execute.DatasetID, key flux.GroupKey)
 func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.TableBuilderCache, toSpec *ToProcedureSpec, deps ToDependencies) (x *ToTransformation, err error) {
 	var fn *execute.RowMapFn
 	spec := toSpec.Spec
-	var bucketID, orgID *platform.ID
+	var bucketID, orgID *platform2.ID
 	if spec.FieldFn.Fn != nil {
 		fn = execute.NewRowMapFn(spec.FieldFn.Fn, compiler.ToScope(spec.FieldFn.Scope))
 	}
@@ -294,15 +296,15 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		}
 		orgID = &oID
 	} else if spec.OrgID != "" {
-		if orgID, err = platform.IDFromString(spec.OrgID); err != nil {
+		if orgID, err = platform2.IDFromString(spec.OrgID); err != nil {
 			return nil, err
 		}
 	} else {
 		// No org or orgID provided as an arg, use the orgID from the context
 		req := query.RequestFromContext(ctx)
 		if req == nil {
-			return nil, &platform.Error{
-				Code: platform.EInternal,
+			return nil, &errors.Error{
+				Code: errors.EInternal,
 				Msg:  "missing request on context",
 				Op:   toOp,
 			}
@@ -320,7 +322,7 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 			}
 		}
 		bucketID = &bID
-	} else if bucketID, err = platform.IDFromString(spec.BucketID); err != nil {
+	} else if bucketID, err = platform2.IDFromString(spec.BucketID); err != nil {
 		return nil, &flux.Error{
 			Code: codes.Invalid,
 			Msg:  "invalid bucket id",
@@ -466,22 +468,22 @@ type ToDependencies struct {
 // Validate returns an error if any required field is unset.
 func (d ToDependencies) Validate() error {
 	if d.BucketLookup == nil {
-		return &platform.Error{
-			Code: platform.EInternal,
+		return &errors.Error{
+			Code: errors.EInternal,
 			Msg:  "missing bucket lookup dependency",
 			Op:   toOp,
 		}
 	}
 	if d.OrganizationLookup == nil {
-		return &platform.Error{
-			Code: platform.EInternal,
+		return &errors.Error{
+			Code: errors.EInternal,
 			Msg:  "missing organization lookup dependency",
 			Op:   toOp,
 		}
 	}
 	if d.PointsWriter == nil {
-		return &platform.Error{
-			Code: platform.EInternal,
+		return &errors.Error{
+			Code: errors.EInternal,
 			Msg:  "missing points writer dependency",
 			Op:   toOp,
 		}
@@ -589,8 +591,8 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 					pointTime = valueTime.Time().Time()
 				case isTag[j]:
 					if col.Type != flux.TString {
-						return &platform.Error{
-							Code: platform.EInvalid,
+						return &errors.Error{
+							Code: errors.EInvalid,
 							Msg:  "invalid type for tag column",
 							Op:   toOp,
 						}

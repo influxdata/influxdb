@@ -1,6 +1,7 @@
 package influxdb_test
 
 import (
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
@@ -14,7 +15,7 @@ const (
 func TestLabelValidate(t *testing.T) {
 	type fields struct {
 		Name  string
-		OrgID influxdb.ID
+		OrgID platform.ID
 	}
 	tests := []struct {
 		name    string

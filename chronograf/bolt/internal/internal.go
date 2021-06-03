@@ -314,20 +314,16 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 		}
 
 		cells[i] = &DashboardCell{
-			ID:      c.ID,
-			X:       c.X,
-			Y:       c.Y,
-			W:       c.W,
-			H:       c.H,
-			Name:    c.Name,
-			Queries: queries,
-			Type:    c.Type,
-			Axes:    axes,
-			Colors:  colors,
-			Legend: &Legend{
-				Type:        c.Legend.Type,
-				Orientation: c.Legend.Orientation,
-			},
+			ID:            c.ID,
+			X:             c.X,
+			Y:             c.Y,
+			W:             c.W,
+			H:             c.H,
+			Name:          c.Name,
+			Queries:       queries,
+			Type:          c.Type,
+			Axes:          axes,
+			Colors:        colors,
 			TableOptions:  tableOptions,
 			FieldOptions:  fieldOptions,
 			TimeFormat:    c.TimeFormat,
@@ -454,12 +450,6 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			}
 		}
 
-		legend := chronograf.Legend{}
-		if c.Legend != nil {
-			legend.Type = c.Legend.Type
-			legend.Orientation = c.Legend.Orientation
-		}
-
 		tableOptions := chronograf.TableOptions{}
 		if c.TableOptions != nil {
 			sortBy := chronograf.RenamableField{}
@@ -509,7 +499,6 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			Type:          cellType,
 			Axes:          axes,
 			CellColors:    colors,
-			Legend:        legend,
 			TableOptions:  tableOptions,
 			FieldOptions:  fieldOptions,
 			TimeFormat:    c.TimeFormat,

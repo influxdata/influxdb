@@ -7,13 +7,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
+	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 )
 
 const (
-	idOne = influxdb.ID(iota + 1)
+	idOne = platform.ID(iota + 1)
 	idTwo
 	idThree
 	idFour
@@ -50,9 +54,9 @@ var bucketCmpOptions = cmp.Options{
 
 // BucketFields will include the IDGenerator, and buckets
 type BucketFields struct {
-	IDGenerator   influxdb.IDGenerator
-	OrgIDs        influxdb.IDGenerator
-	BucketIDs     influxdb.IDGenerator
+	IDGenerator   platform.IDGenerator
+	OrgIDs        platform.IDGenerator
+	BucketIDs     platform.IDGenerator
 	TimeGenerator influxdb.TimeGenerator
 	Buckets       []*influxdb.Bucket
 	Organizations []*influxdb.Organization
@@ -189,8 +193,10 @@ func CreateBucket(
 			},
 			args: args{
 				bucket: &influxdb.Bucket{
-					Name:  "bucket2",
-					OrgID: idTwo,
+					Name:               "bucket2",
+					OrgID:              idTwo,
+					RetentionPeriod:    humanize.Week,
+					ShardGroupDuration: humanize.Day,
 				},
 			},
 			wants: wants{
@@ -201,9 +207,11 @@ func CreateBucket(
 						OrgID: idOne,
 					},
 					{
-						ID:    idTwo,
-						Name:  "bucket2",
-						OrgID: idTwo,
+						ID:                 idTwo,
+						Name:               "bucket2",
+						OrgID:              idTwo,
+						RetentionPeriod:    humanize.Week,
+						ShardGroupDuration: humanize.Day,
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
@@ -251,8 +259,8 @@ func CreateBucket(
 						OrgID: idOne,
 					},
 				},
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Op:   influxdb.OpCreateBucket,
 					Msg:  "bucket with name bucket1 already exists",
 				},
@@ -328,8 +336,8 @@ func CreateBucket(
 			},
 			wants: wants{
 				buckets: []*influxdb.Bucket{},
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "organization not found",
 					Op:   influxdb.OpCreateBucket,
 				},
@@ -357,8 +365,8 @@ func CreateBucket(
 			},
 			wants: wants{
 				buckets: []*influxdb.Bucket{},
-				err: &influxdb.Error{
-					Code: influxdb.EInvalid,
+				err: &errors.Error{
+					Code: errors.EInvalid,
 					Op:   influxdb.OpCreateBucket,
 					Msg:  "bucket name namewith\"quote is invalid. Bucket names may not include quotation marks",
 				},
@@ -405,7 +413,7 @@ func FindBucketByID(
 	t *testing.T,
 ) {
 	type args struct {
-		id influxdb.ID
+		id platform.ID
 	}
 	type wants struct {
 		err    error
@@ -482,8 +490,8 @@ func FindBucketByID(
 				id: idThree,
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindBucketByID,
 					Msg:  "bucket not found",
 				},
@@ -513,10 +521,10 @@ func FindBuckets(
 	t *testing.T,
 ) {
 	type args struct {
-		ID             influxdb.ID
+		ID             platform.ID
 		name           string
 		organization   string
-		organizationID influxdb.ID
+		organizationID platform.ID
 		findOptions    influxdb.FindOptions
 	}
 
@@ -547,12 +555,14 @@ func FindBuckets(
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						OrgID: idOne,
-						Name:  "abc",
+						OrgID:           idOne,
+						Name:            "abc",
+						RetentionPeriod: humanize.Week,
 					},
 					{
-						OrgID: idTwo,
-						Name:  "xyz",
+						OrgID:              idTwo,
+						Name:               "xyz",
+						ShardGroupDuration: humanize.Day,
 					},
 				},
 			},
@@ -560,14 +570,16 @@ func FindBuckets(
 			wants: wants{
 				buckets: []*influxdb.Bucket{
 					{
-						ID:    idOne,
-						OrgID: idOne,
-						Name:  "abc",
+						ID:              idOne,
+						OrgID:           idOne,
+						Name:            "abc",
+						RetentionPeriod: humanize.Week,
 					},
 					{
-						ID:    idTwo,
-						OrgID: idTwo,
-						Name:  "xyz",
+						ID:                 idTwo,
+						OrgID:              idTwo,
+						Name:               "xyz",
+						ShardGroupDuration: humanize.Day,
 					},
 				},
 			},
@@ -919,7 +931,7 @@ func DeleteBucket(
 	t *testing.T,
 ) {
 	type args struct {
-		ID influxdb.ID
+		ID platform.ID
 	}
 	type wants struct {
 		err     error
@@ -997,10 +1009,10 @@ func DeleteBucket(
 				ID: MustIDBase16("1234567890654321"),
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Op:   influxdb.OpDeleteBucket,
 					Msg:  "bucket not found",
-					Code: influxdb.ENotFound,
+					Code: errors.ENotFound,
 				},
 				buckets: []*influxdb.Bucket{
 					{
@@ -1040,10 +1052,10 @@ func DeleteBucket(
 				ID: idOne,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Op:   influxdb.OpDeleteBucket,
 					Msg:  "system buckets cannot be deleted",
-					Code: influxdb.EInvalid,
+					Code: errors.EInvalid,
 				},
 				buckets: []*influxdb.Bucket{
 					{
@@ -1093,8 +1105,8 @@ func FindBucket(
 ) {
 	type args struct {
 		name           string
-		organizationID influxdb.ID
-		id             influxdb.ID
+		organizationID platform.ID
+		id             platform.ID
 	}
 
 	type wants struct {
@@ -1122,8 +1134,10 @@ func FindBucket(
 				Buckets: []*influxdb.Bucket{
 					{
 						// ID(1)
-						OrgID: idOne,
-						Name:  "abc",
+						OrgID:              idOne,
+						Name:               "abc",
+						RetentionPeriod:    humanize.Week,
+						ShardGroupDuration: humanize.Day,
 					},
 					{
 						// ID(2)
@@ -1138,9 +1152,11 @@ func FindBucket(
 			},
 			wants: wants{
 				bucket: &influxdb.Bucket{
-					ID:    idOne,
-					OrgID: idOne,
-					Name:  "abc",
+					ID:                 idOne,
+					OrgID:              idOne,
+					Name:               "abc",
+					RetentionPeriod:    humanize.Week,
+					ShardGroupDuration: humanize.Day,
 				},
 			},
 		},
@@ -1163,8 +1179,10 @@ func FindBucket(
 					},
 					{
 						// ID(2)
-						OrgID: idOne,
-						Name:  "xyz",
+						OrgID:              idOne,
+						Name:               "xyz",
+						RetentionPeriod:    humanize.Week,
+						ShardGroupDuration: humanize.Day,
 					},
 				},
 			},
@@ -1174,9 +1192,11 @@ func FindBucket(
 			},
 			wants: wants{
 				bucket: &influxdb.Bucket{
-					ID:    idTwo,
-					OrgID: idOne,
-					Name:  "xyz",
+					ID:                 idTwo,
+					OrgID:              idOne,
+					Name:               "xyz",
+					RetentionPeriod:    humanize.Week,
+					ShardGroupDuration: humanize.Day,
 				},
 			},
 		},
@@ -1198,8 +1218,8 @@ func FindBucket(
 				organizationID: idOne,
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindBucket,
 					Msg:  "bucket \"xyz\" not found",
 				},
@@ -1239,10 +1259,11 @@ func UpdateBucket(
 	t *testing.T,
 ) {
 	type args struct {
-		name        string
-		id          influxdb.ID
-		retention   int
-		description *string
+		name          string
+		id            platform.ID
+		retention     int
+		shardDuration int
+		description   *string
 	}
 	type wants struct {
 		err    error
@@ -1325,8 +1346,8 @@ func UpdateBucket(
 				name: "bucket2",
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Msg:  "bucket name is not unique",
 				},
 			},
@@ -1357,8 +1378,8 @@ func UpdateBucket(
 				name: "bucket2",
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EInvalid,
+				err: &errors.Error{
+					Code: errors.EInvalid,
 					Msg:  "system buckets cannot be renamed",
 				},
 			},
@@ -1378,8 +1399,9 @@ func UpdateBucket(
 				Buckets: []*influxdb.Bucket{
 					{
 						// ID(1)
-						OrgID: idOne,
-						Name:  "bucket1",
+						OrgID:              idOne,
+						Name:               "bucket1",
+						ShardGroupDuration: time.Hour,
 					},
 					{
 						// ID(2)
@@ -1394,10 +1416,100 @@ func UpdateBucket(
 			},
 			wants: wants{
 				bucket: &influxdb.Bucket{
-					ID:              idOne,
-					OrgID:           idOne,
-					Name:            "bucket1",
-					RetentionPeriod: 100 * time.Minute,
+					ID:                 idOne,
+					OrgID:              idOne,
+					Name:               "bucket1",
+					RetentionPeriod:    100 * time.Minute,
+					ShardGroupDuration: time.Hour,
+					CRUDLog: influxdb.CRUDLog{
+						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+					},
+				},
+			},
+		},
+		{
+			name: "update shard-group duration",
+			fields: BucketFields{
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID:              idOne,
+						Name:               "bucket1",
+						RetentionPeriod:    humanize.Day,
+						ShardGroupDuration: time.Hour,
+					},
+					{
+						// ID(2)
+						OrgID: idOne,
+						Name:  "bucket2",
+					},
+				},
+			},
+			args: args{
+				id:            idOne,
+				shardDuration: 100,
+			},
+			wants: wants{
+				bucket: &influxdb.Bucket{
+					ID:                 idOne,
+					OrgID:              idOne,
+					Name:               "bucket1",
+					RetentionPeriod:    humanize.Day,
+					ShardGroupDuration: 100 * time.Minute,
+					CRUDLog: influxdb.CRUDLog{
+						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+					},
+				},
+			},
+		},
+		{
+			name: "update retention and shard-group duration",
+			fields: BucketFields{
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID:              idOne,
+						Name:               "bucket1",
+						RetentionPeriod:    humanize.Day,
+						ShardGroupDuration: time.Hour,
+					},
+					{
+						// ID(2)
+						OrgID: idOne,
+						Name:  "bucket2",
+					},
+				},
+			},
+			args: args{
+				id:            idOne,
+				retention:     100,
+				shardDuration: 100,
+			},
+			wants: wants{
+				bucket: &influxdb.Bucket{
+					ID:                 idOne,
+					OrgID:              idOne,
+					Name:               "bucket1",
+					RetentionPeriod:    100 * time.Minute,
+					ShardGroupDuration: 100 * time.Minute,
 					CRUDLog: influxdb.CRUDLog{
 						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 					},
@@ -1530,6 +1642,48 @@ func UpdateBucket(
 			},
 		},
 		{
+			name: "update retention and same name",
+			fields: BucketFields{
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "bucket1",
+					},
+					{
+						// ID(2)
+						OrgID: idOne,
+						Name:  "bucket2",
+					},
+				},
+			},
+			args: args{
+				id:        idTwo,
+				retention: 101,
+				name:      "bucket2",
+			},
+			wants: wants{
+				bucket: &influxdb.Bucket{
+					ID:              idTwo,
+					OrgID:           idOne,
+					Name:            "bucket2",
+					RetentionPeriod: 101 * time.Minute,
+					CRUDLog: influxdb.CRUDLog{
+						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+					},
+				},
+			},
+		},
+		{
 			name: "update bucket with illegal quotation mark",
 			fields: BucketFields{
 				OrgIDs:        mock.NewStaticIDGenerator(idOne),
@@ -1554,8 +1708,8 @@ func UpdateBucket(
 				name: "namewith\"quote",
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EInvalid,
+				err: &errors.Error{
+					Code: errors.EInvalid,
 					Op:   influxdb.OpCreateBucket,
 					Msg:  "bucket name namewith\"quote is invalid. Bucket names may not include quotation marks",
 				},
@@ -1576,6 +1730,10 @@ func UpdateBucket(
 			if tt.args.retention != 0 {
 				d := time.Duration(tt.args.retention) * time.Minute
 				upd.RetentionPeriod = &d
+			}
+			if tt.args.shardDuration != 0 {
+				d := time.Duration(tt.args.shardDuration) * time.Minute
+				upd.ShardGroupDuration = &d
 			}
 
 			upd.Description = tt.args.description

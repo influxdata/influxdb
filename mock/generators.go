@@ -4,16 +4,16 @@ import (
 	"testing"
 	"time"
 
-	influxdb "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // IDGenerator is mock implementation of influxdb.IDGenerator.
 type IDGenerator struct {
-	IDFn func() influxdb.ID
+	IDFn func() platform.ID
 }
 
 // ID generates a new influxdb.ID from a mock function.
-func (g IDGenerator) ID() influxdb.ID {
+func (g IDGenerator) ID() platform.ID {
 	return g.IDFn()
 }
 
@@ -21,7 +21,7 @@ func (g IDGenerator) ID() influxdb.ID {
 func NewIDGenerator(s string, t *testing.T) IDGenerator {
 	t.Helper()
 
-	id, err := influxdb.IDFromString(s)
+	id, err := platform.IDFromString(s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,9 +31,9 @@ func NewIDGenerator(s string, t *testing.T) IDGenerator {
 
 // NewStaticIDGenerator returns an IDGenerator which produces the ID
 // provided to this function on a call to ID().
-func NewStaticIDGenerator(id influxdb.ID) IDGenerator {
+func NewStaticIDGenerator(id platform.ID) IDGenerator {
 	return IDGenerator{
-		IDFn: func() influxdb.ID {
+		IDFn: func() platform.ID {
 			return id
 		},
 	}
@@ -41,9 +41,9 @@ func NewStaticIDGenerator(id influxdb.ID) IDGenerator {
 
 // NewIncrementingIDGenerator returns an ID generator which starts at the
 // provided ID and increments on each call to ID().
-func NewIncrementingIDGenerator(start influxdb.ID) IDGenerator {
+func NewIncrementingIDGenerator(start platform.ID) IDGenerator {
 	return IDGenerator{
-		IDFn: func() influxdb.ID {
+		IDFn: func() platform.ID {
 			defer func() { start++ }()
 			return start
 		},
@@ -53,7 +53,7 @@ func NewIncrementingIDGenerator(start influxdb.ID) IDGenerator {
 // SetIDForFunc replaces the id generator at the end of the pointer with
 // one which returns the provided id. It then invokes the provided function before
 // restoring the original value at the end of the pointer.
-func SetIDForFunc(gen *influxdb.IDGenerator, id influxdb.ID, fn func()) {
+func SetIDForFunc(gen *platform.IDGenerator, id platform.ID, fn func()) {
 	backup := *gen
 	defer func() { *gen = backup }()
 
@@ -63,7 +63,7 @@ func SetIDForFunc(gen *influxdb.IDGenerator, id influxdb.ID, fn func()) {
 }
 
 type MockIDGenerator struct {
-	Last  *influxdb.ID
+	Last  *platform.ID
 	Count int
 }
 
@@ -75,8 +75,8 @@ func NewMockIDGenerator() *MockIDGenerator {
 	}
 }
 
-func (g *MockIDGenerator) ID() influxdb.ID {
-	id := influxdb.ID(g.Count)
+func (g *MockIDGenerator) ID() platform.ID {
+	id := platform.ID(g.Count)
 	g.Count++
 
 	g.Last = &id

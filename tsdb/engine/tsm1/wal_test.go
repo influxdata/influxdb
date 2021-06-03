@@ -466,6 +466,93 @@ func TestWALRollSegment(t *testing.T) {
 	require.NoError(t, w.Close())
 }
 
+func TestWAL_DiskSize(t *testing.T) {
+	test := func(w *tsm1.WAL, oldZero, curZero bool) {
+		// get disk size by reading file
+		files, err := ioutil.ReadDir(w.Path())
+		require.NoError(t, err)
+
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].Name() < files[j].Name()
+		})
+
+		var old, cur int64
+		if len(files) > 0 {
+			cur = files[len(files)-1].Size()
+			for i := 0; i < len(files)-1; i++ {
+				old += files[i].Size()
+			}
+		}
+
+		// test zero size condition
+		require.False(t, oldZero && old > 0)
+		require.False(t, !oldZero && old == 0)
+		require.False(t, curZero && cur > 0)
+		require.False(t, !curZero && cur == 0)
+
+		// test method DiskSizeBytes
+		require.Equal(t, old+cur, w.DiskSizeBytes(), "total disk size")
+
+		// test Statistics
+		ss := w.Statistics(nil)
+		require.Equal(t, 1, len(ss))
+
+		m := ss[0].Values
+		require.NotNil(t, m)
+
+		require.Equal(t, m["oldSegmentsDiskBytes"].(int64), old, "old disk size")
+		require.Equal(t, m["currentSegmentDiskBytes"].(int64), cur, "current dist size")
+	}
+
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	w := tsm1.NewWAL(dir)
+
+	const segSize = 1024
+	w.SegmentSize = segSize
+
+	// open
+	require.NoError(t, w.Open())
+
+	test(w, true, true)
+
+	// write some values, the total size of these values does not exceed segSize(1024),
+	// so rollSegment will not be triggered
+	values := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": {tsm1.NewValue(1, 1.0)},
+		"cpu,host=B#!~#value": {tsm1.NewValue(1, 1.0)},
+		"cpu,host=C#!~#value": {tsm1.NewValue(1, 1.0)},
+	}
+
+	_, err := w.WriteMulti(values)
+	require.NoError(t, err)
+
+	test(w, true, false)
+
+	// write some values, the total size of these values exceeds segSize(1024),
+	// so rollSegment will be triggered
+	for i := 0; i < 100; i++ {
+		_, err := w.WriteMulti(values)
+		require.NoError(t, err)
+	}
+
+	test(w, false, false)
+
+	// reopen
+	require.NoError(t, w.Close())
+	require.NoError(t, w.Open())
+
+	test(w, false, false)
+
+	// remove
+	closedSegments, err := w.ClosedSegments()
+	require.NoError(t, err)
+	require.NoError(t, w.Remove(closedSegments))
+
+	test(w, true, false)
+}
+
 func TestWriteWALSegment_UnmarshalBinary_WriteWALCorrupt(t *testing.T) {
 	p1 := tsm1.NewValue(1, 1.1)
 	p2 := tsm1.NewValue(1, int64(1))

@@ -6,7 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/influxdata/influxdb/v2"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
@@ -81,8 +82,8 @@ func (s *IndexStore) FindEnt(ctx context.Context, tx Tx, ent Entity) (interface{
 	_, err := s.EntStore.EntKey(ctx, ent)
 	if err != nil {
 		if _, idxErr := s.IndexStore.EntKey(ctx, ent); idxErr != nil {
-			return nil, &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return nil, &errors2.Error{
+				Code: errors2.EInvalid,
 				Msg:  "no key was provided for " + s.Resource,
 			}
 		}
@@ -123,8 +124,8 @@ func (s *IndexStore) Put(ctx context.Context, tx Tx, ent Entity, opts ...PutOpti
 	var opt putOption
 	for _, o := range opts {
 		if err := o(&opt); err != nil {
-			return &influxdb.Error{
-				Code: influxdb.EConflict,
+			return &errors2.Error{
+				Code: errors2.EConflict,
 				Err:  err,
 			}
 		}
@@ -153,18 +154,18 @@ func (s *IndexStore) putValidate(ctx context.Context, tx Tx, ent Entity, opt put
 
 func (s *IndexStore) validNew(ctx context.Context, tx Tx, ent Entity) error {
 	_, err := s.IndexStore.FindEnt(ctx, tx, ent)
-	if err == nil || influxdb.ErrorCode(err) != influxdb.ENotFound {
+	if err == nil || errors2.ErrorCode(err) != errors2.ENotFound {
 		key, _ := s.IndexStore.EntKey(ctx, ent)
-		return &influxdb.Error{
-			Code: influxdb.EConflict,
+		return &errors2.Error{
+			Code: errors2.EConflict,
 			Msg:  fmt.Sprintf("%s is not unique for key %s", s.Resource, string(key)),
 			Err:  err,
 		}
 	}
 
 	_, err = s.EntStore.FindEnt(ctx, tx, ent)
-	if err == nil || influxdb.ErrorCode(err) != influxdb.ENotFound {
-		return &influxdb.Error{Code: influxdb.EConflict, Err: err}
+	if err == nil || errors2.ErrorCode(err) != errors2.ENotFound {
+		return &errors2.Error{Code: errors2.EConflict, Err: err}
 	}
 	return nil
 }
@@ -197,7 +198,7 @@ func (s *IndexStore) validUpdate(ctx context.Context, tx Tx, ent Entity) (e erro
 
 	idxVal, err := s.IndexStore.FindEnt(ctx, tx, ent)
 	if err != nil {
-		if influxdb.ErrorCode(err) == influxdb.ENotFound {
+		if errors2.ErrorCode(err) == errors2.ENotFound {
 			return nil
 		}
 		return err
@@ -214,17 +215,17 @@ func (s *IndexStore) validUpdate(ctx context.Context, tx Tx, ent Entity) (e erro
 	}
 
 	if err := sameKeys(ent.PK, indexEnt.PK); err != nil {
-		if _, err := s.EntStore.FindEnt(ctx, tx, ent); influxdb.ErrorCode(err) == influxdb.ENotFound {
+		if _, err := s.EntStore.FindEnt(ctx, tx, ent); errors2.ErrorCode(err) == errors2.ENotFound {
 			key, _ := ent.PK()
-			return &influxdb.Error{
-				Code: influxdb.ENotFound,
+			return &errors2.Error{
+				Code: errors2.ENotFound,
 				Msg:  fmt.Sprintf("%s does not exist for key %s", s.Resource, string(key)),
 				Err:  err,
 			}
 		}
 		key, _ := indexEnt.UniqueKey()
-		return &influxdb.Error{
-			Code: influxdb.EConflict,
+		return &errors2.Error{
+			Code: errors2.EConflict,
 			Msg:  fmt.Sprintf("%s entity update conflicts with an existing entity for key %s", s.Resource, string(key)),
 		}
 	}

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-    "github.com/influxdata/flux/interval"
+	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/values"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
@@ -57,11 +57,11 @@ func TestNewWindowAggregateArrayCursorMonths_{{$ColType}}(t *testing.T) {
 {{range .Aggs}}
 {{$Agg := .Name}}
 	t.Run("{{$Agg}}", func(t *testing.T) {
-        window, _ := interval.NewWindow(
-            values.MakeDuration(int64(time.Hour), 0, false),
-            values.MakeDuration(int64(time.Hour), 0, false),
-            values.MakeDuration(0, 0, false),
-        )
+		window, _ := interval.NewWindow(
+			values.MakeDuration(int64(time.Hour), 0, false),
+			values.MakeDuration(int64(time.Hour), 0, false),
+			values.MakeDuration(0, 0, false),
+		)
 
 		want := &{{$colType}}Window{{$Agg}}ArrayCursor{
 			{{$ColType}}ArrayCursor: &Mock{{$ColType}}ArrayCursor{},
@@ -87,11 +87,11 @@ func TestNewWindowAggregateArrayCursor_{{$ColType}}(t *testing.T) {
 {{range .Aggs}}
 {{$Agg := .Name}}
 	t.Run("{{$Agg}}", func(t *testing.T) {
-        window, _ := interval.NewWindow(
-            values.MakeDuration(0, 1, false),
-            values.MakeDuration(0, 1, false),
-            values.MakeDuration(0, 0, false),
-        )
+		window, _ := interval.NewWindow(
+			values.MakeDuration(0, 1, false),
+			values.MakeDuration(0, 1, false),
+			values.MakeDuration(0, 0, false),
+		)
 
 		want := &{{$colType}}Window{{$Agg}}ArrayCursor{
 			{{$ColType}}ArrayCursor: &Mock{{$ColType}}ArrayCursor{},

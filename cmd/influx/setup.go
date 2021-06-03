@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -55,7 +56,12 @@ func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 func cmdSetupUser(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("user", nil, true)
 	cmd.RunE = setupUserF
-	cmd.Short = "Setup instance with user, org, bucket"
+	cmd.Short = "Setup instance with user, org, bucket [DEPRECATED]"
+	cmd.Long = `***************************************** WARNING *****************************************
+*** 'setup user' is not intended for public use, and will be removed in InfluxDB 2.1.0. ***
+*** Please migrate to using the 'bucket', 'org', and 'user' commands.                   ***
+*******************************************************************************************`
+	cmd.Hidden = true
 
 	f.registerFlags(opt.viper, cmd, "token")
 	cmd.Flags().StringVarP(&setupFlags.username, "username", "u", "", "primary username")
@@ -72,7 +78,8 @@ func cmdSetupUser(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 }
 
 func setupUserF(cmd *cobra.Command, args []string) error {
-	// check if setup is allowed
+	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cmd.Long)
+
 	client, err := newHTTPClient()
 	if err != nil {
 		return err
@@ -226,12 +233,12 @@ func onboardingRequest(ui *input.UI) (*influxdb.OnboardingRequest, error) {
 	}
 
 	req := &influxdb.OnboardingRequest{
-		User:            setupFlags.username,
-		Password:        setupFlags.password,
-		Org:             setupFlags.org,
-		Bucket:          setupFlags.bucket,
-		RetentionPeriod: influxdb.InfiniteRetention,
-		Token:           setupFlags.token,
+		User:                   setupFlags.username,
+		Password:               setupFlags.password,
+		Org:                    setupFlags.org,
+		Bucket:                 setupFlags.bucket,
+		RetentionPeriodSeconds: influxdb.InfiniteRetention,
+		Token:                  setupFlags.token,
 	}
 
 	if setupFlags.retention != "" {
@@ -239,7 +246,11 @@ func onboardingRequest(ui *input.UI) (*influxdb.OnboardingRequest, error) {
 		if err != nil {
 			return nil, err
 		}
-		req.RetentionPeriod = dur
+		secs, nanos := math.Modf(dur.Seconds())
+		if nanos > 0 {
+			return nil, fmt.Errorf("retention policy %q is too precise, must be divisible by 1s", setupFlags.retention)
+		}
+		req.RetentionPeriodSeconds = int64(secs)
 	}
 
 	if setupFlags.force {
@@ -268,7 +279,7 @@ func onboardingRequest(ui *input.UI) (*influxdb.OnboardingRequest, error) {
 				"Please type your retention period in hours.\nOr press ENTER for infinite", infiniteStr)
 			rp, err := strconv.Atoi(rpStr)
 			if rp >= 0 && err == nil {
-				req.RetentionPeriod = time.Duration(rp) * time.Hour
+				req.RetentionPeriodSeconds = int64((time.Duration(rp) * time.Hour).Seconds())
 				break
 			}
 		}
@@ -276,8 +287,8 @@ func onboardingRequest(ui *input.UI) (*influxdb.OnboardingRequest, error) {
 
 	if confirmed := internal2.GetConfirm(ui, func() string {
 		rp := "infinite"
-		if req.RetentionPeriod > 0 {
-			rp = fmt.Sprintf("%d hrs", req.RetentionPeriod/time.Hour)
+		if req.RetentionPeriodSeconds > 0 {
+			rp = (time.Duration(req.RetentionPeriodSeconds) * time.Second).String()
 		}
 		return fmt.Sprintf(`
 You have entered:

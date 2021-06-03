@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/bolt"
@@ -98,8 +100,8 @@ type optionsV2 struct {
 	password  string
 	orgName   string
 	bucket    string
-	orgID     influxdb.ID
-	userID    influxdb.ID
+	orgID     platform.ID
+	userID    platform.ID
 	token     string
 	retention string
 }
@@ -119,12 +121,12 @@ type logOptions struct {
 	logPath  string
 }
 
-func NewCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
+func NewCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
 
 	// target flags
 	v2dir, err := fs.InfluxDir()
 	if err != nil {
-		panic("error fetching default InfluxDB 2.0 dir: " + err.Error())
+		return nil, fmt.Errorf("error fetching default InfluxDB 2.0 dir: %w", err)
 	}
 
 	// DEPRECATED in favor of log-level=debug, but left for backwards-compatibility
@@ -280,11 +282,13 @@ func NewCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
 		},
 	}
 
-	cli.BindOptions(v, cmd, opts)
+	if err := cli.BindOptions(v, cmd, opts); err != nil {
+		return nil, err
+	}
 	// add sub commands
 	cmd.AddCommand(v1DumpMetaCommand)
 	cmd.AddCommand(v2DumpMetaCommand)
-	return cmd
+	return cmd, nil
 }
 
 type influxDBv1 struct {
@@ -329,9 +333,13 @@ func buildLogger(options *logOptions, verbose bool) (*zap.Logger, error) {
 	if verbose {
 		config.Level.SetLevel(zap.DebugLevel)
 	}
+	logPath, err := options.zapSafeLogPath()
+	if err != nil {
+		return nil, err
+	}
 
-	config.OutputPaths = append(config.OutputPaths, options.logPath)
-	config.ErrorOutputPaths = append(config.ErrorOutputPaths, options.logPath)
+	config.OutputPaths = append(config.OutputPaths, logPath)
+	config.ErrorOutputPaths = append(config.ErrorOutputPaths, logPath)
 
 	log, err := config.Build()
 	if err != nil {
@@ -457,8 +465,8 @@ func runUpgradeE(ctx context.Context, ui *input.UI, options *options, log *zap.L
 
 	db2BucketIds, err := upgradeDatabases(ctx, ui, v1, v2, options, or.Org.ID, log)
 	if err != nil {
-		//remove all files
-		log.Info("Database upgrade error, removing data")
+		// remove all files
+		log.Error("Database upgrade error, removing data", zap.Error(err))
 		if e := os.Remove(options.target.boltPath); e != nil {
 			log.Error("Unable to remove bolt database", zap.Error(e))
 		}

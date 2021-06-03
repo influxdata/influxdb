@@ -18,6 +18,10 @@ type resultSet struct {
 	arrayCursors multiShardCursors
 }
 
+// TODO(jsternberg): The range is [start, end) for this function which is consistent
+// with the documented interface for datatypes.ReadFilterRequest. This function should
+// be refactored to take in a datatypes.ReadFilterRequest similar to the other
+// ResultSet functions.
 func NewFilteredResultSet(ctx context.Context, start, end int64, seriesCursor SeriesCursor) ResultSet {
 	return &resultSet{
 		ctx:          ctx,

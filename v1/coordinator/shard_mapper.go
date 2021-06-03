@@ -6,6 +6,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/tsdb"
@@ -48,7 +50,7 @@ func (e *LocalShardMapper) MapShards(ctx context.Context, sources influxql.Sourc
 	return a, nil
 }
 
-func (e *LocalShardMapper) mapShards(ctx context.Context, a *LocalShardMapping, sources influxql.Sources, tmin, tmax time.Time, orgID influxdb.ID) error {
+func (e *LocalShardMapper) mapShards(ctx context.Context, a *LocalShardMapping, sources influxql.Sources, tmin, tmax time.Time, orgID platform.ID) error {
 	for _, s := range sources {
 		switch s := s.(type) {
 		case *influxql.Measurement:

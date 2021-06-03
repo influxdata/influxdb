@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"go.uber.org/zap/zaptest"
@@ -45,11 +47,11 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 			r:    httptest.NewRequest("GET", "http://any.url/api/v2/telegrafs?orgID=0000000000000002", nil),
 			svc: &mock.TelegrafConfigStore{
 				FindTelegrafConfigsF: func(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
-					if filter.OrgID != nil && *filter.OrgID == platform.ID(2) {
+					if filter.OrgID != nil && *filter.OrgID == platform2.ID(2) {
 						return []*platform.TelegrafConfig{
 							{
-								ID:          platform.ID(1),
-								OrgID:       platform.ID(2),
+								ID:          platform2.ID(1),
+								OrgID:       platform2.ID(2),
 								Name:        "tc1",
 								Description: "",
 								Config:      "[[inputs.cpu]]\n",
@@ -90,8 +92,8 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 					if filter.Organization != nil && *filter.Organization == "tc1" {
 						return []*platform.TelegrafConfig{
 							{
-								ID:          platform.ID(1),
-								OrgID:       platform.ID(2),
+								ID:          platform2.ID(1),
+								OrgID:       platform2.ID(2),
 								Name:        "tc1",
 								Description: "",
 								Config:      "[[inputs.cpu]]\n",
@@ -131,8 +133,8 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 				FindTelegrafConfigsF: func(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
 					return []*platform.TelegrafConfig{
 						{
-							ID:          platform.ID(1),
-							OrgID:       platform.ID(2),
+							ID:          platform2.ID(1),
+							OrgID:       platform2.ID(2),
 							Name:        "my config",
 							Description: "my description",
 							Config:      "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
@@ -212,10 +214,10 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			r:            httptest.NewRequest("GET", "http://any.url/api/v2/telegrafs/0000000000000001", nil),
 			acceptHeader: "application/json",
 			svc: &mock.TelegrafConfigStore{
-				FindTelegrafConfigByIDF: func(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
+				FindTelegrafConfigByIDF: func(ctx context.Context, id platform2.ID) (*platform.TelegrafConfig, error) {
 					return &platform.TelegrafConfig{
-						ID:          platform.ID(1),
-						OrgID:       platform.ID(2),
+						ID:          platform2.ID(1),
+						OrgID:       platform2.ID(2),
 						Name:        "my config",
 						Description: "",
 						Config:      "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
@@ -245,10 +247,10 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			r:            httptest.NewRequest("GET", "http://any.url/api/v2/telegrafs/0000000000000001", nil),
 			acceptHeader: "application/json, text/plain, */*",
 			svc: &mock.TelegrafConfigStore{
-				FindTelegrafConfigByIDF: func(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
+				FindTelegrafConfigByIDF: func(ctx context.Context, id platform2.ID) (*platform.TelegrafConfig, error) {
 					return &platform.TelegrafConfig{
-						ID:          platform.ID(1),
-						OrgID:       platform.ID(2),
+						ID:          platform2.ID(1),
+						OrgID:       platform2.ID(2),
 						Name:        "my config",
 						Description: "",
 						Config:      "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
@@ -278,10 +280,10 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			r:            httptest.NewRequest("GET", "http://any.url/api/v2/telegrafs/0000000000000001", nil),
 			acceptHeader: "application/toml",
 			svc: &mock.TelegrafConfigStore{
-				FindTelegrafConfigByIDF: func(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
+				FindTelegrafConfigByIDF: func(ctx context.Context, id platform2.ID) (*platform.TelegrafConfig, error) {
 					return &platform.TelegrafConfig{
-						ID:    platform.ID(1),
-						OrgID: platform.ID(2),
+						ID:    platform2.ID(1),
+						OrgID: platform2.ID(2),
 						Name:  "my config",
 						Config: `# Configuration for telegraf agent
 [agent]
@@ -455,10 +457,10 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			name: "return TOML telegraf config with no accept header",
 			r:    httptest.NewRequest("GET", "http://any.url/api/v2/telegrafs/0000000000000001", nil),
 			svc: &mock.TelegrafConfigStore{
-				FindTelegrafConfigByIDF: func(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
+				FindTelegrafConfigByIDF: func(ctx context.Context, id platform2.ID) (*platform.TelegrafConfig, error) {
 					return &platform.TelegrafConfig{
-						ID:    platform.ID(1),
-						OrgID: platform.ID(2),
+						ID:    platform2.ID(1),
+						OrgID: platform2.ID(2),
 						Config: `# Configuration for telegraf agent
 [agent]
   ## Default data collection interval for all inputs
@@ -632,10 +634,10 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			r:            httptest.NewRequest("GET", "http://any.url/api/v2/telegrafs/0000000000000001", nil),
 			acceptHeader: "application/octet-stream",
 			svc: &mock.TelegrafConfigStore{
-				FindTelegrafConfigByIDF: func(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
+				FindTelegrafConfigByIDF: func(ctx context.Context, id platform2.ID) (*platform.TelegrafConfig, error) {
 					return &platform.TelegrafConfig{
-						ID:    platform.ID(1),
-						OrgID: platform.ID(2),
+						ID:    platform2.ID(1),
+						OrgID: platform2.ID(2),
 						Name:  "my config",
 						Config: `# Configuration for telegraf agent
 [agent]
@@ -853,8 +855,8 @@ func Test_newTelegrafResponses(t *testing.T) {
 			args: args{
 				tcs: []*platform.TelegrafConfig{
 					{
-						ID:          platform.ID(1),
-						OrgID:       platform.ID(2),
+						ID:          platform2.ID(1),
+						OrgID:       platform2.ID(2),
 						Name:        "my config",
 						Description: "",
 						Config:      "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
@@ -907,8 +909,8 @@ func Test_newTelegrafResponse(t *testing.T) {
 		{
 			args: args{
 				tc: &platform.TelegrafConfig{
-					ID:          platform.ID(1),
-					OrgID:       platform.ID(2),
+					ID:          platform2.ID(1),
+					OrgID:       platform2.ID(2),
 					Name:        "my config",
 					Description: "my description",
 					Config:      "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",

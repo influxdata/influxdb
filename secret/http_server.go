@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb/v2"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -45,7 +48,7 @@ func (h *handler) handleGetSecrets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ks, err := h.svc.GetSecretKeys(r.Context(), orgID)
-	if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
+	if err != nil && errors.ErrorCode(err) != errors.ENotFound {
 		h.api.Err(w, r, err)
 		return
 	}
@@ -58,7 +61,7 @@ type secretsResponse struct {
 	Secrets []string          `json:"secrets"`
 }
 
-func newSecretsResponse(orgID influxdb.ID, ks []string) *secretsResponse {
+func newSecretsResponse(orgID platform.ID, ks []string) *secretsResponse {
 	if ks == nil {
 		ks = []string{}
 	}
@@ -118,17 +121,17 @@ func (h *handler) handleDeleteSecrets(w http.ResponseWriter, r *http.Request) {
 	h.api.Respond(w, r, http.StatusNoContent, nil)
 }
 
-func (h *handler) decodeOrgID(r *http.Request) (influxdb.ID, error) {
+func (h *handler) decodeOrgID(r *http.Request) (platform.ID, error) {
 	org := chi.URLParam(r, h.idLookupKey)
 	if org == "" {
-		return influxdb.InvalidID(), &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return platform.InvalidID(), &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
-	id, err := influxdb.IDFromString(org)
+	id, err := platform.IDFromString(org)
 	if err != nil {
-		return influxdb.InvalidID(), err
+		return platform.InvalidID(), err
 	}
 	return *id, nil
 }

@@ -13,10 +13,14 @@ import (
 	"github.com/influxdata/influxdb/v2/http/metric"
 	"github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -31,7 +35,7 @@ type APIHandler struct {
 type APIBackend struct {
 	AssetsPath string // if empty then assets are served from bindata.
 	Logger     *zap.Logger
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	SessionRenewDisabled bool
 	// MaxBatchSizeBytes is the maximum number of bytes which can be written
 	// in a single points batch
@@ -60,8 +64,11 @@ type APIBackend struct {
 	PointsWriter                    storage.PointsWriter
 	DeleteService                   influxdb.DeleteService
 	BackupService                   influxdb.BackupService
+	SqlBackupRestoreService         influxdb.SqlBackupRestoreService
 	RestoreService                  influxdb.RestoreService
 	AuthorizationService            influxdb.AuthorizationService
+	AuthorizationV1Service          influxdb.AuthorizationService
+	PasswordV1Service               influxdb.PasswordsService
 	AuthorizerV1                    influxdb.AuthorizerV1
 	OnboardingService               influxdb.OnboardingService
 	DBRPService                     influxdb.DBRPMappingServiceV2
@@ -82,8 +89,8 @@ type APIBackend struct {
 	InfluxQLService                 query.ProxyQueryService
 	InfluxqldService                influxql.ProxyQueryService
 	FluxService                     query.ProxyQueryService
-	FluxLanguageService             influxdb.FluxLanguageService
-	TaskService                     influxdb.TaskService
+	FluxLanguageService             fluxlang.FluxLanguageService
+	TaskService                     taskmodel.TaskService
 	CheckService                    influxdb.CheckService
 	TelegrafService                 influxdb.TelegrafConfigStore
 	ScraperTargetStoreService       influxdb.ScraperTargetStoreService
@@ -193,10 +200,12 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	backupBackend := NewBackupBackend(b)
 	backupBackend.BackupService = authorizer.NewBackupService(backupBackend.BackupService)
+	backupBackend.SqlBackupRestoreService = authorizer.NewSqlBackupRestoreService(backupBackend.SqlBackupRestoreService)
 	h.Mount(prefixBackup, NewBackupHandler(backupBackend))
 
 	restoreBackend := NewRestoreBackend(b)
 	restoreBackend.RestoreService = authorizer.NewRestoreService(restoreBackend.RestoreService)
+	restoreBackend.SqlBackupRestoreService = authorizer.NewSqlBackupRestoreService(restoreBackend.SqlBackupRestoreService)
 	h.Mount(prefixRestore, NewRestoreHandler(restoreBackend))
 
 	h.Mount(dbrp.PrefixDBRP, dbrp.NewHTTPHandler(b.Logger, b.DBRPService, b.OrganizationService))
@@ -261,7 +270,7 @@ var apiLinks = map[string]interface{}{
 	"delete":    "/api/v2/delete",
 }
 
-func serveLinksHandler(errorHandler influxdb.HTTPErrorHandler) http.Handler {
+func serveLinksHandler(errorHandler errors.HTTPErrorHandler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		if err := encodeResponse(ctx, w, http.StatusOK, apiLinks); err != nil {
@@ -271,21 +280,21 @@ func serveLinksHandler(errorHandler influxdb.HTTPErrorHandler) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
-func decodeIDFromCtx(ctx context.Context, name string) (influxdb.ID, error) {
+func decodeIDFromCtx(ctx context.Context, name string) (platform.ID, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	idStr := params.ByName(name)
 
 	if idStr == "" {
-		return 0, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return 0, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing " + name,
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(idStr); err != nil {
-		return 0, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return 0, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}

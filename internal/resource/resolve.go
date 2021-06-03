@@ -5,6 +5,9 @@ import (
 	"fmt"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 // Resolver is a type which combines multiple resource services
@@ -14,45 +17,45 @@ import (
 // Consider it deprecated.
 type Resolver struct {
 	AuthorizationFinder interface {
-		FindAuthorizationByID(context.Context, influxdb.ID) (*influxdb.Authorization, error)
+		FindAuthorizationByID(context.Context, platform.ID) (*influxdb.Authorization, error)
 	}
 	BucketFinder interface {
-		FindBucketByID(context.Context, influxdb.ID) (*influxdb.Bucket, error)
+		FindBucketByID(context.Context, platform.ID) (*influxdb.Bucket, error)
 	}
 	OrganizationFinder interface {
-		FindOrganizationByID(context.Context, influxdb.ID) (*influxdb.Organization, error)
+		FindOrganizationByID(context.Context, platform.ID) (*influxdb.Organization, error)
 	}
 	DashboardFinder interface {
-		FindDashboardByID(context.Context, influxdb.ID) (*influxdb.Dashboard, error)
+		FindDashboardByID(context.Context, platform.ID) (*influxdb.Dashboard, error)
 	}
 	SourceFinder interface {
-		FindSourceByID(context.Context, influxdb.ID) (*influxdb.Source, error)
+		FindSourceByID(context.Context, platform.ID) (*influxdb.Source, error)
 	}
 	TaskFinder interface {
-		FindTaskByID(context.Context, influxdb.ID) (*influxdb.Task, error)
+		FindTaskByID(context.Context, platform.ID) (*taskmodel.Task, error)
 	}
 	TelegrafConfigFinder interface {
-		FindTelegrafConfigByID(context.Context, influxdb.ID) (*influxdb.TelegrafConfig, error)
+		FindTelegrafConfigByID(context.Context, platform.ID) (*influxdb.TelegrafConfig, error)
 	}
 	VariableFinder interface {
-		FindVariableByID(context.Context, influxdb.ID) (*influxdb.Variable, error)
+		FindVariableByID(context.Context, platform.ID) (*influxdb.Variable, error)
 	}
 	TargetFinder interface {
-		GetTargetByID(context.Context, influxdb.ID) (*influxdb.ScraperTarget, error)
+		GetTargetByID(context.Context, platform.ID) (*influxdb.ScraperTarget, error)
 	}
 	CheckFinder interface {
-		FindCheckByID(context.Context, influxdb.ID) (influxdb.Check, error)
+		FindCheckByID(context.Context, platform.ID) (influxdb.Check, error)
 	}
 	NotificationEndpointFinder interface {
-		FindNotificationEndpointByID(context.Context, influxdb.ID) (influxdb.NotificationEndpoint, error)
+		FindNotificationEndpointByID(context.Context, platform.ID) (influxdb.NotificationEndpoint, error)
 	}
 	NotificationRuleFinder interface {
-		FindNotificationRuleByID(context.Context, influxdb.ID) (influxdb.NotificationRule, error)
+		FindNotificationRuleByID(context.Context, platform.ID) (influxdb.NotificationRule, error)
 	}
 }
 
 // FindResourceOrganizationID is used to find the organization that a resource belongs to five the id of a resource and a resource type.
-func (o *Resolver) FindResourceOrganizationID(ctx context.Context, rt influxdb.ResourceType, id influxdb.ID) (influxdb.ID, error) {
+func (o *Resolver) FindResourceOrganizationID(ctx context.Context, rt influxdb.ResourceType, id platform.ID) (platform.ID, error) {
 	switch rt {
 	case influxdb.AuthorizationsResourceType:
 		if o.AuthorizationFinder == nil {
@@ -61,7 +64,7 @@ func (o *Resolver) FindResourceOrganizationID(ctx context.Context, rt influxdb.R
 
 		r, err := o.AuthorizationFinder.FindAuthorizationByID(ctx, id)
 		if err != nil {
-			return influxdb.InvalidID(), err
+			return platform.InvalidID(), err
 		}
 
 		return r.OrgID, nil
@@ -72,7 +75,7 @@ func (o *Resolver) FindResourceOrganizationID(ctx context.Context, rt influxdb.R
 
 		r, err := o.BucketFinder.FindBucketByID(ctx, id)
 		if err != nil {
-			return influxdb.InvalidID(), err
+			return platform.InvalidID(), err
 		}
 
 		return r.OrgID, nil
@@ -83,7 +86,7 @@ func (o *Resolver) FindResourceOrganizationID(ctx context.Context, rt influxdb.R
 
 		r, err := o.OrganizationFinder.FindOrganizationByID(ctx, id)
 		if err != nil {
-			return influxdb.InvalidID(), err
+			return platform.InvalidID(), err
 		}
 
 		return r.ID, nil
@@ -94,7 +97,7 @@ func (o *Resolver) FindResourceOrganizationID(ctx context.Context, rt influxdb.R
 
 		r, err := o.DashboardFinder.FindDashboardByID(ctx, id)
 		if err != nil {
-			return influxdb.InvalidID(), err
+			return platform.InvalidID(), err
 		}
 
 		return r.OrganizationID, nil
@@ -105,7 +108,7 @@ func (o *Resolver) FindResourceOrganizationID(ctx context.Context, rt influxdb.R
 
 		r, err := o.SourceFinder.FindSourceByID(ctx, id)
 		if err != nil {
-			return influxdb.InvalidID(), err
+			return platform.InvalidID(), err
 		}
 
 		return r.OrganizationID, nil
@@ -116,7 +119,7 @@ func (o *Resolver) FindResourceOrganizationID(ctx context.Context, rt influxdb.R
 
 		r, err := o.TaskFinder.FindTaskByID(ctx, id)
 		if err != nil {
-			return influxdb.InvalidID(), err
+			return platform.InvalidID(), err
 		}
 
 		return r.OrganizationID, nil
@@ -127,7 +130,7 @@ func (o *Resolver) FindResourceOrganizationID(ctx context.Context, rt influxdb.R
 
 		r, err := o.TelegrafConfigFinder.FindTelegrafConfigByID(ctx, id)
 		if err != nil {
-			return influxdb.InvalidID(), err
+			return platform.InvalidID(), err
 		}
 
 		return r.OrgID, nil
@@ -138,7 +141,7 @@ func (o *Resolver) FindResourceOrganizationID(ctx context.Context, rt influxdb.R
 
 		r, err := o.VariableFinder.FindVariableByID(ctx, id)
 		if err != nil {
-			return influxdb.InvalidID(), err
+			return platform.InvalidID(), err
 		}
 
 		return r.OrganizationID, nil
@@ -149,7 +152,7 @@ func (o *Resolver) FindResourceOrganizationID(ctx context.Context, rt influxdb.R
 
 		r, err := o.TargetFinder.GetTargetByID(ctx, id)
 		if err != nil {
-			return influxdb.InvalidID(), err
+			return platform.InvalidID(), err
 		}
 
 		return r.OrgID, nil
@@ -160,7 +163,7 @@ func (o *Resolver) FindResourceOrganizationID(ctx context.Context, rt influxdb.R
 
 		r, err := o.CheckFinder.FindCheckByID(ctx, id)
 		if err != nil {
-			return influxdb.InvalidID(), err
+			return platform.InvalidID(), err
 		}
 
 		return r.GetOrgID(), nil
@@ -171,7 +174,7 @@ func (o *Resolver) FindResourceOrganizationID(ctx context.Context, rt influxdb.R
 
 		r, err := o.NotificationEndpointFinder.FindNotificationEndpointByID(ctx, id)
 		if err != nil {
-			return influxdb.InvalidID(), err
+			return platform.InvalidID(), err
 		}
 
 		return r.GetOrgID(), nil
@@ -182,19 +185,19 @@ func (o *Resolver) FindResourceOrganizationID(ctx context.Context, rt influxdb.R
 
 		r, err := o.NotificationRuleFinder.FindNotificationRuleByID(ctx, id)
 		if err != nil {
-			return influxdb.InvalidID(), err
+			return platform.InvalidID(), err
 		}
 
 		return r.GetOrgID(), nil
 	}
 
-	return influxdb.InvalidID(), &influxdb.Error{
+	return platform.InvalidID(), &errors.Error{
 		Msg: fmt.Sprintf("unsupported resource type %s", rt),
 	}
 }
 
 // FindResourceName is used to find the name of the resource associated with the provided type and id.
-func (o *Resolver) FindResourceName(ctx context.Context, rt influxdb.ResourceType, id influxdb.ID) (string, error) {
+func (o *Resolver) FindResourceName(ctx context.Context, rt influxdb.ResourceType, id platform.ID) (string, error) {
 	switch rt {
 	case influxdb.AuthorizationsResourceType:
 		// keeping this consistent with the original kv implementation

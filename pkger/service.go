@@ -15,11 +15,14 @@ import (
 	"github.com/go-stack/stack"
 	"github.com/influxdata/influxdb/v2"
 	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	icheck "github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/notification/rule"
 	"github.com/influxdata/influxdb/v2/pkger/internal/wordplay"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/task/options"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"go.uber.org/zap"
 )
 
@@ -32,8 +35,8 @@ const APIVersion2 = "influxdata.com/v2alpha2"
 // platform. This stack is updated only after side effects of applying a template.
 // If the template is applied, and no changes are had, then the stack is not updated.
 type Stack struct {
-	ID        influxdb.ID
-	OrgID     influxdb.ID
+	ID        platform.ID
+	OrgID     platform.ID
 	CreatedAt time.Time `json:"createdAt"`
 	Events    []StackEvent
 }
@@ -60,7 +63,7 @@ type (
 	}
 
 	StackCreate struct {
-		OrgID        influxdb.ID
+		OrgID        platform.ID
 		Name         string
 		Description  string
 		Sources      []string
@@ -72,7 +75,7 @@ type (
 	// applying a template.
 	StackResource struct {
 		APIVersion   string
-		ID           influxdb.ID
+		ID           platform.ID
 		Name         string
 		Kind         Kind
 		MetaName     string
@@ -87,7 +90,7 @@ type (
 
 	// StackUpdate provides a means to update an existing stack.
 	StackUpdate struct {
-		ID                  influxdb.ID
+		ID                  platform.ID
 		Name                *string
 		Description         *string
 		TemplateURLs        []string
@@ -96,7 +99,7 @@ type (
 
 	StackAdditionalResource struct {
 		APIVersion string
-		ID         influxdb.ID
+		ID         platform.ID
 		Kind       Kind
 		MetaName   string
 	}
@@ -127,16 +130,16 @@ const ResourceTypeStack influxdb.ResourceType = "stack"
 
 // SVC is the packages service interface.
 type SVC interface {
-	InitStack(ctx context.Context, userID influxdb.ID, stack StackCreate) (Stack, error)
-	UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error)
-	DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error
-	ListStacks(ctx context.Context, orgID influxdb.ID, filter ListFilter) ([]Stack, error)
-	ReadStack(ctx context.Context, id influxdb.ID) (Stack, error)
+	InitStack(ctx context.Context, userID platform.ID, stack StackCreate) (Stack, error)
+	UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) (Stack, error)
+	DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) error
+	ListStacks(ctx context.Context, orgID platform.ID, filter ListFilter) ([]Stack, error)
+	ReadStack(ctx context.Context, id platform.ID) (Stack, error)
 	UpdateStack(ctx context.Context, upd StackUpdate) (Stack, error)
 
 	Export(ctx context.Context, opts ...ExportOptFn) (*Template, error)
-	DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error)
-	Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error)
+	DryRun(ctx context.Context, orgID, userID platform.ID, opts ...ApplyOptFn) (ImpactSummary, error)
+	Apply(ctx context.Context, orgID, userID platform.ID, opts ...ApplyOptFn) (ImpactSummary, error)
 }
 
 // SVCMiddleware is a service middleware func.
@@ -146,7 +149,7 @@ type serviceOpt struct {
 	logger *zap.Logger
 
 	applyReqLimit int
-	idGen         influxdb.IDGenerator
+	idGen         platform.IDGenerator
 	nameGen       NameGenerator
 	timeGen       influxdb.TimeGenerator
 	store         Store
@@ -159,7 +162,7 @@ type serviceOpt struct {
 	orgSVC      influxdb.OrganizationService
 	ruleSVC     influxdb.NotificationRuleStore
 	secretSVC   influxdb.SecretService
-	taskSVC     influxdb.TaskService
+	taskSVC     taskmodel.TaskService
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
 }
@@ -175,7 +178,7 @@ func WithLogger(log *zap.Logger) ServiceSetterFn {
 }
 
 // WithIDGenerator sets the id generator for the service.
-func WithIDGenerator(idGen influxdb.IDGenerator) ServiceSetterFn {
+func WithIDGenerator(idGen platform.IDGenerator) ServiceSetterFn {
 	return func(opt *serviceOpt) {
 		opt.idGen = idGen
 	}
@@ -258,7 +261,7 @@ func WithSecretSVC(secretSVC influxdb.SecretService) ServiceSetterFn {
 }
 
 // WithTaskSVC sets the task service.
-func WithTaskSVC(taskSVC influxdb.TaskService) ServiceSetterFn {
+func WithTaskSVC(taskSVC taskmodel.TaskService) ServiceSetterFn {
 	return func(opt *serviceOpt) {
 		opt.taskSVC = taskSVC
 	}
@@ -281,10 +284,10 @@ func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
 // Store is the storage behavior the Service depends on.
 type Store interface {
 	CreateStack(ctx context.Context, stack Stack) error
-	ListStacks(ctx context.Context, orgID influxdb.ID, filter ListFilter) ([]Stack, error)
-	ReadStackByID(ctx context.Context, id influxdb.ID) (Stack, error)
+	ListStacks(ctx context.Context, orgID platform.ID, filter ListFilter) ([]Stack, error)
+	ReadStackByID(ctx context.Context, id platform.ID) (Stack, error)
 	UpdateStack(ctx context.Context, stack Stack) error
-	DeleteStack(ctx context.Context, id influxdb.ID) error
+	DeleteStack(ctx context.Context, id platform.ID) error
 }
 
 // Service provides the template business logic including all the dependencies to make
@@ -294,7 +297,7 @@ type Service struct {
 
 	// internal dependencies
 	applyReqLimit int
-	idGen         influxdb.IDGenerator
+	idGen         platform.IDGenerator
 	nameGen       NameGenerator
 	store         Store
 	timeGen       influxdb.TimeGenerator
@@ -308,7 +311,7 @@ type Service struct {
 	orgSVC      influxdb.OrganizationService
 	ruleSVC     influxdb.NotificationRuleStore
 	secretSVC   influxdb.SecretService
-	taskSVC     influxdb.TaskService
+	taskSVC     taskmodel.TaskService
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
 }
@@ -354,15 +357,15 @@ func NewService(opts ...ServiceSetterFn) *Service {
 // InitStack will create a new stack for the given user and its given org. The stack can be created
 // with urls that point to the location of packages that are included as part of the stack when
 // it is applied.
-func (s *Service) InitStack(ctx context.Context, userID influxdb.ID, stCreate StackCreate) (Stack, error) {
+func (s *Service) InitStack(ctx context.Context, userID platform.ID, stCreate StackCreate) (Stack, error) {
 	if err := validURLs(stCreate.TemplateURLs); err != nil {
 		return Stack{}, err
 	}
 
 	if _, err := s.orgSVC.FindOrganizationByID(ctx, stCreate.OrgID); err != nil {
-		if influxdb.ErrorCode(err) == influxdb.ENotFound {
+		if errors2.ErrorCode(err) == errors2.ENotFound {
 			msg := fmt.Sprintf("organization dependency does not exist for id[%q]", stCreate.OrgID.String())
-			return Stack{}, influxErr(influxdb.EConflict, msg)
+			return Stack{}, influxErr(errors2.EConflict, msg)
 		}
 		return Stack{}, internalErr(err)
 	}
@@ -391,7 +394,7 @@ func (s *Service) InitStack(ctx context.Context, userID influxdb.ID, stCreate St
 }
 
 // UninstallStack will remove all resources associated with the stack.
-func (s *Service) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
+func (s *Service) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) (Stack, error) {
 	uninstalledStack, err := s.uninstallStack(ctx, identifiers)
 	if err != nil {
 		return Stack{}, err
@@ -410,9 +413,9 @@ func (s *Service) UninstallStack(ctx context.Context, identifiers struct{ OrgID,
 }
 
 // DeleteStack removes a stack and all the resources that have are associated with the stack.
-func (s *Service) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (e error) {
+func (s *Service) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) (e error) {
 	deletedStack, err := s.uninstallStack(ctx, identifiers)
-	if influxdb.ErrorCode(err) == influxdb.ENotFound {
+	if errors2.ErrorCode(err) == errors2.ENotFound {
 		return nil
 	}
 	if err != nil {
@@ -422,14 +425,14 @@ func (s *Service) DeleteStack(ctx context.Context, identifiers struct{ OrgID, Us
 	return s.store.DeleteStack(ctx, deletedStack.ID)
 }
 
-func (s *Service) uninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (_ Stack, e error) {
+func (s *Service) uninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) (_ Stack, e error) {
 	stack, err := s.store.ReadStackByID(ctx, identifiers.StackID)
 	if err != nil {
 		return Stack{}, err
 	}
 	if stack.OrgID != identifiers.OrgID {
-		return Stack{}, &influxdb.Error{
-			Code: influxdb.EConflict,
+		return Stack{}, &errors2.Error{
+			Code: errors2.EConflict,
 			Msg:  "you do not have access to given stack ID",
 		}
 	}
@@ -452,17 +455,17 @@ func (s *Service) uninstallStack(ctx context.Context, identifiers struct{ OrgID,
 
 // ListFilter are filter options for filtering stacks from being returned.
 type ListFilter struct {
-	StackIDs []influxdb.ID
+	StackIDs []platform.ID
 	Names    []string
 }
 
 // ListStacks returns a list of stacks.
-func (s *Service) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
+func (s *Service) ListStacks(ctx context.Context, orgID platform.ID, f ListFilter) ([]Stack, error) {
 	return s.store.ListStacks(ctx, orgID, f)
 }
 
 // ReadStack returns a stack that matches the given id.
-func (s *Service) ReadStack(ctx context.Context, id influxdb.ID) (Stack, error) {
+func (s *Service) ReadStack(ctx context.Context, id platform.ID) (Stack, error) {
 	return s.store.ReadStackByID(ctx, id)
 }
 
@@ -497,7 +500,7 @@ func (s *Service) applyStackUpdate(existing Stack, upd StackUpdate) Stack {
 
 	type key struct {
 		k  Kind
-		id influxdb.ID
+		id platform.ID
 	}
 	mExistingResources := make(map[key]bool)
 	mExistingNames := make(map[string]bool)
@@ -551,7 +554,7 @@ type (
 
 	// ExportOpt are the options for creating a new package.
 	ExportOpt struct {
-		StackID   influxdb.ID
+		StackID   platform.ID
 		OrgIDs    []ExportByOrgIDOpt
 		Resources []ResourceToClone
 	}
@@ -559,7 +562,7 @@ type (
 	// ExportByOrgIDOpt identifies an org to export resources for and provides
 	// multiple filtering options.
 	ExportByOrgIDOpt struct {
-		OrgID         influxdb.ID
+		OrgID         platform.ID
 		LabelNames    []string
 		ResourceKinds []Kind
 	}
@@ -596,7 +599,7 @@ func ExportWithAllOrgResources(orgIDOpt ExportByOrgIDOpt) ExportOptFn {
 }
 
 // ExportWithStackID provides an export for the given stack ID.
-func ExportWithStackID(stackID influxdb.ID) ExportOptFn {
+func ExportWithStackID(stackID platform.ID) ExportOptFn {
 	return func(opt *ExportOpt) error {
 		opt.StackID = stackID
 		return nil
@@ -668,7 +671,7 @@ func (s *Service) Export(ctx context.Context, setters ...ExportOptFn) (*Template
 	return template, nil
 }
 
-func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID, resourceKinds []Kind) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgResources(ctx context.Context, orgID platform.ID, resourceKinds []Kind) ([]ResourceToClone, error) {
 	var resources []ResourceToClone
 	for _, resGen := range s.filterOrgResourceKinds(resourceKinds) {
 		existingResources, err := resGen.cloneFn(ctx, orgID)
@@ -681,7 +684,7 @@ func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID, reso
 	return resources, nil
 }
 
-func (s *Service) cloneOrgBuckets(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgBuckets(ctx context.Context, orgID platform.ID) ([]ResourceToClone, error) {
 	buckets, _, err := s.bucketSVC.FindBuckets(ctx, influxdb.BucketFilter{
 		OrganizationID: &orgID,
 	})
@@ -703,7 +706,7 @@ func (s *Service) cloneOrgBuckets(ctx context.Context, orgID influxdb.ID) ([]Res
 	return resources, nil
 }
 
-func (s *Service) cloneOrgChecks(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgChecks(ctx context.Context, orgID platform.ID) ([]ResourceToClone, error) {
 	checks, _, err := s.checkSVC.FindChecks(ctx, influxdb.CheckFilter{
 		OrgID: &orgID,
 	})
@@ -722,7 +725,7 @@ func (s *Service) cloneOrgChecks(ctx context.Context, orgID influxdb.ID) ([]Reso
 	return resources, nil
 }
 
-func (s *Service) cloneOrgDashboards(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgDashboards(ctx context.Context, orgID platform.ID) ([]ResourceToClone, error) {
 	dashs, _, err := s.dashSVC.FindDashboards(ctx, influxdb.DashboardFilter{
 		OrganizationID: &orgID,
 	}, influxdb.FindOptions{Limit: 100})
@@ -740,7 +743,7 @@ func (s *Service) cloneOrgDashboards(ctx context.Context, orgID influxdb.ID) ([]
 	return resources, nil
 }
 
-func (s *Service) cloneOrgLabels(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgLabels(ctx context.Context, orgID platform.ID) ([]ResourceToClone, error) {
 	filter := influxdb.LabelFilter{
 		OrgID: &orgID,
 	}
@@ -761,7 +764,7 @@ func (s *Service) cloneOrgLabels(ctx context.Context, orgID influxdb.ID) ([]Reso
 	return resources, nil
 }
 
-func (s *Service) cloneOrgNotificationEndpoints(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgNotificationEndpoints(ctx context.Context, orgID platform.ID) ([]ResourceToClone, error) {
 	endpoints, _, err := s.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
 		OrgID: &orgID,
 	})
@@ -780,7 +783,7 @@ func (s *Service) cloneOrgNotificationEndpoints(ctx context.Context, orgID influ
 	return resources, nil
 }
 
-func (s *Service) cloneOrgNotificationRules(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgNotificationRules(ctx context.Context, orgID platform.ID) ([]ResourceToClone, error) {
 	rules, _, err := s.ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
 		OrgID: &orgID,
 	})
@@ -799,7 +802,7 @@ func (s *Service) cloneOrgNotificationRules(ctx context.Context, orgID influxdb.
 	return resources, nil
 }
 
-func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgTasks(ctx context.Context, orgID platform.ID) ([]ResourceToClone, error) {
 	tasks, err := s.getAllTasks(ctx, orgID)
 	if err != nil {
 		return nil, err
@@ -819,10 +822,10 @@ func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]Resou
 		return nil, err
 	}
 
-	mTasks := make(map[influxdb.ID]*influxdb.Task)
+	mTasks := make(map[platform.ID]*taskmodel.Task)
 	for i := range tasks {
 		t := tasks[i]
-		if t.Type != influxdb.TaskSystemType {
+		if t.Type != taskmodel.TaskSystemType {
 			continue
 		}
 		mTasks[t.ID] = t
@@ -844,7 +847,7 @@ func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]Resou
 	return resources, nil
 }
 
-func (s *Service) cloneOrgTelegrafs(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgTelegrafs(ctx context.Context, orgID platform.ID) ([]ResourceToClone, error) {
 	teles, _, err := s.teleSVC.FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{OrgID: &orgID})
 	if err != nil {
 		return nil, err
@@ -860,7 +863,7 @@ func (s *Service) cloneOrgTelegrafs(ctx context.Context, orgID influxdb.ID) ([]R
 	return resources, nil
 }
 
-func (s *Service) cloneOrgVariables(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgVariables(ctx context.Context, orgID platform.ID) ([]ResourceToClone, error) {
 	vars, err := s.varSVC.FindVariables(ctx, influxdb.VariableFilter{
 		OrganizationID: &orgID,
 	}, influxdb.FindOptions{Limit: 10000})
@@ -880,7 +883,7 @@ func (s *Service) cloneOrgVariables(ctx context.Context, orgID influxdb.ID) ([]R
 }
 
 type (
-	cloneResFn func(context.Context, influxdb.ID) ([]ResourceToClone, error)
+	cloneResFn func(context.Context, platform.ID) ([]ResourceToClone, error)
 	resClone   struct {
 		resType influxdb.ResourceType
 		cloneFn cloneResFn
@@ -931,12 +934,12 @@ func (s *Service) filterOrgResourceKinds(resourceKindFilters []Kind) []resClone 
 // ImpactSummary represents the impact the application of a template will have on the system.
 type ImpactSummary struct {
 	Sources []string
-	StackID influxdb.ID
+	StackID platform.ID
 	Diff    Diff
 	Summary Summary
 }
 
-var reCommunityTemplatesValidAddr = regexp.MustCompile(`(?:https://raw.githubusercontent.com/influxdata/community-templates/master/)(?P<name>\w+)(?:/.*)`)
+var reCommunityTemplatesValidAddr = regexp.MustCompile(`(?:https://raw\.githubusercontent\.com/influxdata/community-templates/master/)(?P<name>\w+)(?:/.*)`)
 
 func (i *ImpactSummary) communityName() string {
 	if len(i.Sources) == 0 {
@@ -957,7 +960,7 @@ func (i *ImpactSummary) communityName() string {
 // DryRun provides a dry run of the template application. The template will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
-func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
+func (s *Service) DryRun(ctx context.Context, orgID, userID platform.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	opt := applyOptFromOptFns(opts...)
 	template, err := s.templateFromApplyOpts(ctx, opt)
 	if err != nil {
@@ -977,7 +980,7 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ..
 	}, nil
 }
 
-func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, template *Template, opt ApplyOpt) (*stateCoordinator, error) {
+func (s *Service) dryRun(ctx context.Context, orgID platform.ID, template *Template, opt ApplyOpt) (*stateCoordinator, error) {
 	// so here's the deal, when we have issues with the parsing validation, we
 	// continue to do the diff anyhow. any resource that does not have a name
 	// will be skipped, and won't bleed into the dry run here. We can now return
@@ -1039,7 +1042,7 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, template *Templ
 	return state, parseErr
 }
 
-func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, bkts map[string]*stateBucket) {
+func (s *Service) dryRunBuckets(ctx context.Context, orgID platform.ID, bkts map[string]*stateBucket) {
 	for _, stateBkt := range bkts {
 		stateBkt.orgID = orgID
 		var existing *influxdb.Bucket
@@ -1055,7 +1058,7 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, bkts map
 	}
 }
 
-func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, checks map[string]*stateCheck) {
+func (s *Service) dryRunChecks(ctx context.Context, orgID platform.ID, checks map[string]*stateCheck) {
 	for _, c := range checks {
 		c.orgID = orgID
 
@@ -1076,7 +1079,7 @@ func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, checks ma
 	}
 }
 
-func (s *Service) dryRunDashboards(ctx context.Context, orgID influxdb.ID, dashs map[string]*stateDashboard) {
+func (s *Service) dryRunDashboards(ctx context.Context, orgID platform.ID, dashs map[string]*stateDashboard) {
 	for _, stateDash := range dashs {
 		stateDash.orgID = orgID
 		var existing *influxdb.Dashboard
@@ -1090,7 +1093,7 @@ func (s *Service) dryRunDashboards(ctx context.Context, orgID influxdb.ID, dashs
 	}
 }
 
-func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, labels map[string]*stateLabel) {
+func (s *Service) dryRunLabels(ctx context.Context, orgID platform.ID, labels map[string]*stateLabel) {
 	for _, l := range labels {
 		l.orgID = orgID
 		existingLabel, _ := s.findLabel(ctx, orgID, l)
@@ -1101,7 +1104,7 @@ func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, labels ma
 	}
 }
 
-func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxdb.ID, endpoints map[string]*stateEndpoint) error {
+func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID platform.ID, endpoints map[string]*stateEndpoint) error {
 	existingEndpoints, _, err := s.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
 		OrgID: &orgID,
 	}) // grab em all
@@ -1110,7 +1113,7 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 	}
 
 	mExistingByName := make(map[string]influxdb.NotificationEndpoint)
-	mExistingByID := make(map[influxdb.ID]influxdb.NotificationEndpoint)
+	mExistingByID := make(map[platform.ID]influxdb.NotificationEndpoint)
 	for i := range existingEndpoints {
 		e := existingEndpoints[i]
 		mExistingByName[e.GetName()] = e
@@ -1138,7 +1141,7 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 	return nil
 }
 
-func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID, rules map[string]*stateRule, endpoints map[string]*stateEndpoint) error {
+func (s *Service) dryRunNotificationRules(ctx context.Context, orgID platform.ID, rules map[string]*stateRule, endpoints map[string]*stateEndpoint) error {
 	for _, rule := range rules {
 		rule.orgID = orgID
 		var existing influxdb.NotificationRule
@@ -1156,8 +1159,8 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 		e, ok := endpoints[r.parserRule.endpointMetaName()]
 		if !IsRemoval(r.stateStatus) && !ok {
 			err := fmt.Errorf("failed to find notification endpoint %q dependency for notification rule %q", r.parserRule.endpointName, r.parserRule.MetaName())
-			return &influxdb.Error{
-				Code: influxdb.EUnprocessableEntity,
+			return &errors2.Error{
+				Code: errors2.EUnprocessableEntity,
 				Err:  err,
 			}
 		}
@@ -1167,7 +1170,7 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 	return nil
 }
 
-func (s *Service) dryRunSecrets(ctx context.Context, orgID influxdb.ID, template *Template) error {
+func (s *Service) dryRunSecrets(ctx context.Context, orgID platform.ID, template *Template) error {
 	templateSecrets := template.mSecrets
 	if len(templateSecrets) == 0 {
 		return nil
@@ -1175,7 +1178,7 @@ func (s *Service) dryRunSecrets(ctx context.Context, orgID influxdb.ID, template
 
 	existingSecrets, err := s.secretSVC.GetSecretKeys(ctx, orgID)
 	if err != nil {
-		return &influxdb.Error{Code: influxdb.EInternal, Err: err}
+		return &errors2.Error{Code: errors2.EInternal, Err: err}
 	}
 
 	for _, secret := range existingSecrets {
@@ -1185,10 +1188,10 @@ func (s *Service) dryRunSecrets(ctx context.Context, orgID influxdb.ID, template
 	return nil
 }
 
-func (s *Service) dryRunTasks(ctx context.Context, orgID influxdb.ID, tasks map[string]*stateTask) {
+func (s *Service) dryRunTasks(ctx context.Context, orgID platform.ID, tasks map[string]*stateTask) {
 	for _, stateTask := range tasks {
 		stateTask.orgID = orgID
-		var existing *influxdb.Task
+		var existing *taskmodel.Task
 		if stateTask.ID() != 0 {
 			existing, _ = s.taskSVC.FindTaskByID(ctx, stateTask.ID())
 		}
@@ -1199,7 +1202,7 @@ func (s *Service) dryRunTasks(ctx context.Context, orgID influxdb.ID, tasks map[
 	}
 }
 
-func (s *Service) dryRunTelegrafConfigs(ctx context.Context, orgID influxdb.ID, teleConfigs map[string]*stateTelegraf) {
+func (s *Service) dryRunTelegrafConfigs(ctx context.Context, orgID platform.ID, teleConfigs map[string]*stateTelegraf) {
 	for _, stateTele := range teleConfigs {
 		stateTele.orgID = orgID
 		var existing *influxdb.TelegrafConfig
@@ -1213,10 +1216,10 @@ func (s *Service) dryRunTelegrafConfigs(ctx context.Context, orgID influxdb.ID, 
 	}
 }
 
-func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, vars map[string]*stateVariable) {
+func (s *Service) dryRunVariables(ctx context.Context, orgID platform.ID, vars map[string]*stateVariable) {
 	existingVars, _ := s.getAllPlatformVariables(ctx, orgID)
 
-	mIDs := make(map[influxdb.ID]*influxdb.Variable)
+	mIDs := make(map[platform.ID]*influxdb.Variable)
 	mNames := make(map[string]*influxdb.Variable)
 	for _, v := range existingVars {
 		mIDs[v.ID] = v
@@ -1360,7 +1363,7 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, state *stateCo
 		ResourceID:   ident.id,
 		ResourceType: ident.resourceType,
 	})
-	if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
+	if err != nil && errors2.ErrorCode(err) != errors2.ENotFound {
 		msgFmt := fmt.Sprintf("failed to find labels mappings for %s resource[%q]", ident.resourceType, ident.id)
 		return nil, ierrors.Wrap(err, msgFmt)
 	}
@@ -1395,7 +1398,7 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, state *stateCo
 	return mappings, nil
 }
 
-func (s *Service) addStackState(ctx context.Context, stackID influxdb.ID, state *stateCoordinator) error {
+func (s *Service) addStackState(ctx context.Context, stackID platform.ID, state *stateCoordinator) error {
 	stack, err := s.store.ReadStackByID(ctx, stackID)
 	if err != nil {
 		return ierrors.Wrap(err, "reading stack")
@@ -1411,7 +1414,7 @@ type (
 		Templates       []*Template
 		EnvRefs         map[string]interface{}
 		MissingSecrets  map[string]string
-		StackID         influxdb.ID
+		StackID         platform.ID
 		ResourcesToSkip map[ActionSkipResource]bool
 		KindsToSkip     map[Kind]bool
 	}
@@ -1491,7 +1494,7 @@ func ApplyWithSecrets(secrets map[string]string) ApplyOptFn {
 }
 
 // ApplyWithStackID associates the application of a template with a stack.
-func ApplyWithStackID(stackID influxdb.ID) ApplyOptFn {
+func ApplyWithStackID(stackID platform.ID) ApplyOptFn {
 	return func(o *ApplyOpt) {
 		o.StackID = stackID
 	}
@@ -1508,7 +1511,7 @@ func applyOptFromOptFns(opts ...ApplyOptFn) ApplyOpt {
 // Apply will apply all the resources identified in the provided template. The entire template will be applied
 // in its entirety. If a failure happens midway then the entire template will be rolled back to the state
 // from before the template were applied.
-func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (impact ImpactSummary, e error) {
+func (s *Service) Apply(ctx context.Context, orgID, userID platform.ID, opts ...ApplyOptFn) (impact ImpactSummary, e error) {
 	opt := applyOptFromOptFns(opts...)
 
 	template, err := s.templateFromApplyOpts(ctx, opt)
@@ -1539,7 +1542,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...
 		stackID = newStack.ID
 	}
 
-	defer func(stackID influxdb.ID) {
+	defer func(stackID platform.ID) {
 		updateStackFn := s.updateStackAfterSuccess
 		if e != nil {
 			updateStackFn = s.updateStackAfterRollback
@@ -1574,7 +1577,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...
 	}, nil
 }
 
-func (s *Service) applyState(ctx context.Context, coordinator *rollbackCoordinator, orgID, userID influxdb.ID, state *stateCoordinator, missingSecrets map[string]string) (e error) {
+func (s *Service) applyState(ctx context.Context, coordinator *rollbackCoordinator, orgID, userID platform.ID, state *stateCoordinator, missingSecrets map[string]string) (e error) {
 	endpointApp, ruleApp, err := s.applyNotificationGenerator(ctx, userID, state.rules(), state.endpoints())
 	if err != nil {
 		return ierrors.Wrap(err, "failed to setup notification generator")
@@ -1642,7 +1645,7 @@ func (s *Service) applyBuckets(ctx context.Context, buckets []*stateBucket) appl
 	mutex := new(doMutex)
 	rollbackBuckets := make([]*stateBucket, 0, len(buckets))
 
-	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID platform.ID) *applyErrBody {
 		var b *stateBucket
 		mutex.Do(func() {
 			buckets[i].orgID = orgID
@@ -1675,7 +1678,7 @@ func (s *Service) applyBuckets(ctx context.Context, buckets []*stateBucket) appl
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func(_ influxdb.ID) error { return s.rollbackBuckets(ctx, rollbackBuckets) },
+			fn:       func(_ platform.ID) error { return s.rollbackBuckets(ctx, rollbackBuckets) },
 		},
 	}
 }
@@ -1724,7 +1727,7 @@ func (s *Service) applyBucket(ctx context.Context, b *stateBucket) (influxdb.Buc
 	switch {
 	case IsRemoval(b.stateStatus):
 		if err := s.bucketSVC.DeleteBucket(ctx, b.ID()); err != nil {
-			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+			if errors2.ErrorCode(err) == errors2.ENotFound {
 				return influxdb.Bucket{}, nil
 			}
 			return influxdb.Bucket{}, applyFailErr("delete", b.stateIdentity(), err)
@@ -1764,7 +1767,7 @@ func (s *Service) applyChecks(ctx context.Context, checks []*stateCheck) applier
 	mutex := new(doMutex)
 	rollbackChecks := make([]*stateCheck, 0, len(checks))
 
-	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID platform.ID) *applyErrBody {
 		var c *stateCheck
 		mutex.Do(func() {
 			checks[i].orgID = orgID
@@ -1794,7 +1797,7 @@ func (s *Service) applyChecks(ctx context.Context, checks []*stateCheck) applier
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func(_ influxdb.ID) error { return s.rollbackChecks(ctx, rollbackChecks) },
+			fn:       func(_ platform.ID) error { return s.rollbackChecks(ctx, rollbackChecks) },
 		},
 	}
 }
@@ -1841,11 +1844,11 @@ func (s *Service) rollbackChecks(ctx context.Context, checks []*stateCheck) erro
 	return nil
 }
 
-func (s *Service) applyCheck(ctx context.Context, c *stateCheck, userID influxdb.ID) (influxdb.Check, error) {
+func (s *Service) applyCheck(ctx context.Context, c *stateCheck, userID platform.ID) (influxdb.Check, error) {
 	switch {
 	case IsRemoval(c.stateStatus):
 		if err := s.checkSVC.DeleteCheck(ctx, c.ID()); err != nil {
-			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+			if errors2.ErrorCode(err) == errors2.ENotFound {
 				return &icheck.Threshold{Base: icheck.Base{ID: c.ID()}}, nil
 			}
 			return nil, applyFailErr("delete", c.stateIdentity(), err)
@@ -1879,7 +1882,7 @@ func (s *Service) applyDashboards(ctx context.Context, dashboards []*stateDashbo
 	mutex := new(doMutex)
 	rollbackDashboards := make([]*stateDashboard, 0, len(dashboards))
 
-	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID platform.ID) *applyErrBody {
 		var d *stateDashboard
 		mutex.Do(func() {
 			dashboards[i].orgID = orgID
@@ -1908,7 +1911,7 @@ func (s *Service) applyDashboards(ctx context.Context, dashboards []*stateDashbo
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn: func(_ influxdb.ID) error {
+			fn: func(_ platform.ID) error {
 				return s.rollbackDashboards(ctx, rollbackDashboards)
 			},
 		},
@@ -1919,7 +1922,7 @@ func (s *Service) applyDashboard(ctx context.Context, d *stateDashboard) (influx
 	switch {
 	case IsRemoval(d.stateStatus):
 		if err := s.dashSVC.DeleteDashboard(ctx, d.ID()); err != nil {
-			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+			if errors2.ErrorCode(err) == errors2.ENotFound {
 				return influxdb.Dashboard{}, nil
 			}
 			return influxdb.Dashboard{}, applyFailErr("delete", d.stateIdentity(), err)
@@ -2017,7 +2020,7 @@ func (s *Service) applyLabels(ctx context.Context, labels []*stateLabel) applier
 	mutex := new(doMutex)
 	rollBackLabels := make([]*stateLabel, 0, len(labels))
 
-	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID platform.ID) *applyErrBody {
 		var l *stateLabel
 		mutex.Do(func() {
 			labels[i].orgID = orgID
@@ -2050,7 +2053,7 @@ func (s *Service) applyLabels(ctx context.Context, labels []*stateLabel) applier
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func(_ influxdb.ID) error { return s.rollbackLabels(ctx, rollBackLabels) },
+			fn:       func(_ platform.ID) error { return s.rollbackLabels(ctx, rollBackLabels) },
 		},
 	}
 }
@@ -2109,7 +2112,7 @@ func (s *Service) applyLabel(ctx context.Context, l *stateLabel) (influxdb.Label
 		influxLabel = &creatLabel
 		err = ierrors.Wrap(s.labelSVC.CreateLabel(ctx, &creatLabel), "creating")
 	}
-	if influxdb.ErrorCode(err) == influxdb.ENotFound {
+	if errors2.ErrorCode(err) == errors2.ENotFound {
 		return influxdb.Label{}, nil
 	}
 	if err != nil || influxLabel == nil {
@@ -2119,11 +2122,11 @@ func (s *Service) applyLabel(ctx context.Context, l *stateLabel) (influxdb.Label
 	return *influxLabel, nil
 }
 
-func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxdb.ID, endpoints []*stateEndpoint) (applier, func(influxdb.ID) error) {
+func (s *Service) applyNotificationEndpoints(ctx context.Context, userID platform.ID, endpoints []*stateEndpoint) (applier, func(platform.ID) error) {
 	mutex := new(doMutex)
 	rollbackEndpoints := make([]*stateEndpoint, 0, len(endpoints))
 
-	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID platform.ID) *applyErrBody {
 		var endpoint *stateEndpoint
 		mutex.Do(func() {
 			endpoints[i].orgID = orgID
@@ -2172,7 +2175,7 @@ func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxd
 		return nil
 	}
 
-	rollbackFn := func(_ influxdb.ID) error {
+	rollbackFn := func(_ platform.ID) error {
 		return s.rollbackNotificationEndpoints(ctx, userID, rollbackEndpoints)
 	}
 
@@ -2182,18 +2185,18 @@ func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxd
 			fn:      createFn,
 		},
 		rollbacker: rollbacker{
-			fn: func(_ influxdb.ID) error {
+			fn: func(_ platform.ID) error {
 				return nil
 			},
 		},
 	}, rollbackFn
 }
 
-func (s *Service) applyNotificationEndpoint(ctx context.Context, e *stateEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
+func (s *Service) applyNotificationEndpoint(ctx context.Context, e *stateEndpoint, userID platform.ID) (influxdb.NotificationEndpoint, error) {
 	switch {
 	case IsRemoval(e.stateStatus):
 		_, _, err := s.endpointSVC.DeleteNotificationEndpoint(ctx, e.ID())
-		if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
+		if err != nil && errors2.ErrorCode(err) != errors2.ENotFound {
 			return nil, applyFailErr("delete", e.stateIdentity(), err)
 		}
 		return e.existing, nil
@@ -2218,7 +2221,7 @@ func (s *Service) applyNotificationEndpoint(ctx context.Context, e *stateEndpoin
 	}
 }
 
-func (s *Service) rollbackNotificationEndpoints(ctx context.Context, userID influxdb.ID, endpoints []*stateEndpoint) error {
+func (s *Service) rollbackNotificationEndpoints(ctx context.Context, userID platform.ID, endpoints []*stateEndpoint) error {
 	rollbackFn := func(e *stateEndpoint) error {
 		if !IsNew(e.stateStatus) && e.existing == nil {
 			return nil
@@ -2252,7 +2255,7 @@ func (s *Service) rollbackNotificationEndpoints(ctx context.Context, userID infl
 	return nil
 }
 
-func (s *Service) applyNotificationGenerator(ctx context.Context, userID influxdb.ID, rules []*stateRule, stateEndpoints []*stateEndpoint) (endpointApplier applier, ruleApplier applier, err error) {
+func (s *Service) applyNotificationGenerator(ctx context.Context, userID platform.ID, rules []*stateRule, stateEndpoints []*stateEndpoint) (endpointApplier applier, ruleApplier applier, err error) {
 	mEndpoints := make(map[string]*stateEndpoint)
 	for _, e := range stateEndpoints {
 		mEndpoints[e.parserEndpoint.MetaName()] = e
@@ -2287,7 +2290,7 @@ func (s *Service) applyNotificationGenerator(ctx context.Context, userID influxd
 	// reference for the rule has settled. The dependency has to be available before rolling back
 	// notification rules.
 	endpointApp.rollbacker = rollbacker{
-		fn: func(orgID influxdb.ID) error {
+		fn: func(orgID platform.ID) error {
 			if err := endpointRollbackFn(orgID); err != nil {
 				s.log.Error("failed to roll back endpoints", zap.Error(err))
 			}
@@ -2298,11 +2301,11 @@ func (s *Service) applyNotificationGenerator(ctx context.Context, userID influxd
 	return endpointApp, ruleApp, nil
 }
 
-func (s *Service) applyNotificationRules(ctx context.Context, userID influxdb.ID, rules []*stateRule) (applier, func(influxdb.ID) error) {
+func (s *Service) applyNotificationRules(ctx context.Context, userID platform.ID, rules []*stateRule) (applier, func(platform.ID) error) {
 	mutex := new(doMutex)
 	rollbackEndpoints := make([]*stateRule, 0, len(rules))
 
-	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID platform.ID) *applyErrBody {
 		var rule *stateRule
 		mutex.Do(func() {
 			rules[i].orgID = orgID
@@ -2327,7 +2330,7 @@ func (s *Service) applyNotificationRules(ctx context.Context, userID influxdb.ID
 		return nil
 	}
 
-	rollbackFn := func(_ influxdb.ID) error {
+	rollbackFn := func(_ platform.ID) error {
 		return s.rollbackNotificationRules(ctx, userID, rollbackEndpoints)
 	}
 
@@ -2337,16 +2340,16 @@ func (s *Service) applyNotificationRules(ctx context.Context, userID influxdb.ID
 			fn:      createFn,
 		},
 		rollbacker: rollbacker{
-			fn: func(_ influxdb.ID) error { return nil },
+			fn: func(_ platform.ID) error { return nil },
 		},
 	}, rollbackFn
 }
 
-func (s *Service) applyNotificationRule(ctx context.Context, r *stateRule, userID influxdb.ID) (influxdb.NotificationRule, error) {
+func (s *Service) applyNotificationRule(ctx context.Context, r *stateRule, userID platform.ID) (influxdb.NotificationRule, error) {
 	switch {
 	case IsRemoval(r.stateStatus):
 		if err := s.ruleSVC.DeleteNotificationRule(ctx, r.ID()); err != nil {
-			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+			if errors2.ErrorCode(err) == errors2.ENotFound {
 				return nil, nil
 			}
 			return nil, applyFailErr("delete", r.stateIdentity(), err)
@@ -2375,13 +2378,13 @@ func (s *Service) applyNotificationRule(ctx context.Context, r *stateRule, userI
 	}
 }
 
-func (s *Service) rollbackNotificationRules(ctx context.Context, userID influxdb.ID, rules []*stateRule) error {
+func (s *Service) rollbackNotificationRules(ctx context.Context, userID platform.ID, rules []*stateRule) error {
 	rollbackFn := func(r *stateRule) error {
 		if !IsNew(r.stateStatus) && r.existing == nil {
 			return nil
 		}
 
-		existingRuleFn := func(endpointID influxdb.ID) influxdb.NotificationRule {
+		existingRuleFn := func(endpointID platform.ID) influxdb.NotificationRule {
 			switch rr := r.existing.(type) {
 			case *rule.HTTP:
 				rr.EndpointID = endpointID
@@ -2448,14 +2451,14 @@ func (s *Service) applySecrets(secrets map[string]string) applier {
 
 	if len(secrets) == 0 {
 		return applier{
-			rollbacker: rollbacker{fn: func(orgID influxdb.ID) error { return nil }},
+			rollbacker: rollbacker{fn: func(orgID platform.ID) error { return nil }},
 		}
 	}
 
 	mutex := new(doMutex)
 	rollbackSecrets := make([]string, 0)
 
-	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID platform.ID) *applyErrBody {
 		err := s.secretSVC.PutSecrets(ctx, orgID, secrets)
 		if err != nil {
 			return &applyErrBody{name: "secrets", msg: err.Error()}
@@ -2477,7 +2480,7 @@ func (s *Service) applySecrets(secrets map[string]string) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn: func(orgID influxdb.ID) error {
+			fn: func(orgID platform.ID) error {
 				return s.secretSVC.DeleteSecret(context.Background(), orgID)
 			},
 		},
@@ -2490,7 +2493,7 @@ func (s *Service) applyTasks(ctx context.Context, tasks []*stateTask) applier {
 	mutex := new(doMutex)
 	rollbackTasks := make([]*stateTask, 0, len(tasks))
 
-	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID platform.ID) *applyErrBody {
 		var t *stateTask
 		mutex.Do(func() {
 			tasks[i].orgID = orgID
@@ -2520,24 +2523,24 @@ func (s *Service) applyTasks(ctx context.Context, tasks []*stateTask) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn: func(_ influxdb.ID) error {
+			fn: func(_ platform.ID) error {
 				return s.rollbackTasks(ctx, rollbackTasks)
 			},
 		},
 	}
 }
 
-func (s *Service) applyTask(ctx context.Context, userID influxdb.ID, t *stateTask) (influxdb.Task, error) {
+func (s *Service) applyTask(ctx context.Context, userID platform.ID, t *stateTask) (taskmodel.Task, error) {
 	if isRestrictedTask(t.existing) {
 		return *t.existing, nil
 	}
 	switch {
 	case IsRemoval(t.stateStatus):
 		if err := s.taskSVC.DeleteTask(ctx, t.ID()); err != nil {
-			if influxdb.ErrorCode(err) == influxdb.ENotFound {
-				return influxdb.Task{}, nil
+			if errors2.ErrorCode(err) == errors2.ENotFound {
+				return taskmodel.Task{}, nil
 			}
-			return influxdb.Task{}, applyFailErr("delete", t.stateIdentity(), err)
+			return taskmodel.Task{}, applyFailErr("delete", t.stateIdentity(), err)
 		}
 		return *t.existing, nil
 	case IsExisting(t.stateStatus) && t.existing != nil:
@@ -2557,19 +2560,19 @@ func (s *Service) applyTask(ctx context.Context, userID influxdb.ID, t *stateTas
 			}
 		}
 
-		updatedTask, err := s.taskSVC.UpdateTask(ctx, t.ID(), influxdb.TaskUpdate{
+		updatedTask, err := s.taskSVC.UpdateTask(ctx, t.ID(), taskmodel.TaskUpdate{
 			Flux:        &newFlux,
 			Status:      &newStatus,
 			Description: &t.parserTask.description,
 			Options:     opt,
 		})
 		if err != nil {
-			return influxdb.Task{}, applyFailErr("update", t.stateIdentity(), err)
+			return taskmodel.Task{}, applyFailErr("update", t.stateIdentity(), err)
 		}
 		return *updatedTask, nil
 	default:
-		newTask, err := s.taskSVC.CreateTask(ctx, influxdb.TaskCreate{
-			Type:           influxdb.TaskSystemType,
+		newTask, err := s.taskSVC.CreateTask(ctx, taskmodel.TaskCreate{
+			Type:           taskmodel.TaskSystemType,
 			Flux:           t.parserTask.flux(),
 			OwnerID:        userID,
 			Description:    t.parserTask.description,
@@ -2577,7 +2580,7 @@ func (s *Service) applyTask(ctx context.Context, userID influxdb.ID, t *stateTas
 			OrganizationID: t.orgID,
 		})
 		if err != nil {
-			return influxdb.Task{}, applyFailErr("create", t.stateIdentity(), err)
+			return taskmodel.Task{}, applyFailErr("create", t.stateIdentity(), err)
 		}
 		return *newTask, nil
 	}
@@ -2592,7 +2595,7 @@ func (s *Service) rollbackTasks(ctx context.Context, tasks []*stateTask) error {
 		var err error
 		switch t.stateStatus {
 		case StateStatusRemove:
-			newTask, err := s.taskSVC.CreateTask(ctx, influxdb.TaskCreate{
+			newTask, err := s.taskSVC.CreateTask(ctx, taskmodel.TaskCreate{
 				Type:           t.existing.Type,
 				Flux:           t.existing.Flux,
 				OwnerID:        t.existing.OwnerID,
@@ -2620,7 +2623,7 @@ func (s *Service) rollbackTasks(ctx context.Context, tasks []*stateTask) error {
 				}
 			}
 
-			_, err = s.taskSVC.UpdateTask(ctx, t.ID(), influxdb.TaskUpdate{
+			_, err = s.taskSVC.UpdateTask(ctx, t.ID(), taskmodel.TaskUpdate{
 				Flux:        &t.existing.Flux,
 				Status:      &t.existing.Status,
 				Description: &t.existing.Description,
@@ -2650,13 +2653,13 @@ func (s *Service) rollbackTasks(ctx context.Context, tasks []*stateTask) error {
 	return nil
 }
 
-func (s *Service) applyTelegrafs(ctx context.Context, userID influxdb.ID, teles []*stateTelegraf) applier {
+func (s *Service) applyTelegrafs(ctx context.Context, userID platform.ID, teles []*stateTelegraf) applier {
 	const resource = "telegrafs"
 
 	mutex := new(doMutex)
 	rollbackTelegrafs := make([]*stateTelegraf, 0, len(teles))
 
-	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID platform.ID) *applyErrBody {
 		var t *stateTelegraf
 		mutex.Do(func() {
 			teles[i].orgID = orgID
@@ -2686,18 +2689,18 @@ func (s *Service) applyTelegrafs(ctx context.Context, userID influxdb.ID, teles 
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn: func(_ influxdb.ID) error {
+			fn: func(_ platform.ID) error {
 				return s.rollbackTelegrafConfigs(ctx, userID, rollbackTelegrafs)
 			},
 		},
 	}
 }
 
-func (s *Service) applyTelegrafConfig(ctx context.Context, userID influxdb.ID, t *stateTelegraf) (influxdb.TelegrafConfig, error) {
+func (s *Service) applyTelegrafConfig(ctx context.Context, userID platform.ID, t *stateTelegraf) (influxdb.TelegrafConfig, error) {
 	switch {
 	case IsRemoval(t.stateStatus):
 		if err := s.teleSVC.DeleteTelegrafConfig(ctx, t.ID()); err != nil {
-			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+			if errors2.ErrorCode(err) == errors2.ENotFound {
 				return influxdb.TelegrafConfig{}, nil
 			}
 			return influxdb.TelegrafConfig{}, applyFailErr("delete", t.stateIdentity(), err)
@@ -2720,7 +2723,7 @@ func (s *Service) applyTelegrafConfig(ctx context.Context, userID influxdb.ID, t
 	}
 }
 
-func (s *Service) rollbackTelegrafConfigs(ctx context.Context, userID influxdb.ID, cfgs []*stateTelegraf) error {
+func (s *Service) rollbackTelegrafConfigs(ctx context.Context, userID platform.ID, cfgs []*stateTelegraf) error {
 	rollbackFn := func(t *stateTelegraf) error {
 		if !IsNew(t.stateStatus) && t.existing == nil {
 			return nil
@@ -2759,7 +2762,7 @@ func (s *Service) applyVariables(ctx context.Context, vars []*stateVariable) app
 	mutex := new(doMutex)
 	rollBackVars := make([]*stateVariable, 0, len(vars))
 
-	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID platform.ID) *applyErrBody {
 		var v *stateVariable
 		mutex.Do(func() {
 			vars[i].orgID = orgID
@@ -2790,7 +2793,7 @@ func (s *Service) applyVariables(ctx context.Context, vars []*stateVariable) app
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func(_ influxdb.ID) error { return s.rollbackVariables(ctx, rollBackVars) },
+			fn:       func(_ platform.ID) error { return s.rollbackVariables(ctx, rollBackVars) },
 		},
 	}
 }
@@ -2838,7 +2841,7 @@ func (s *Service) rollbackVariables(ctx context.Context, variables []*stateVaria
 func (s *Service) applyVariable(ctx context.Context, v *stateVariable) (influxdb.Variable, error) {
 	switch {
 	case IsRemoval(v.stateStatus):
-		if err := s.varSVC.DeleteVariable(ctx, v.id); err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
+		if err := s.varSVC.DeleteVariable(ctx, v.id); err != nil && errors2.ErrorCode(err) != errors2.ENotFound {
 			return influxdb.Variable{}, applyFailErr("delete", v.stateIdentity(), err)
 		}
 		if v.existing == nil {
@@ -2880,7 +2883,7 @@ func (s *Service) removeLabelMappings(ctx context.Context, labelMappings []state
 	var rollbackMappings []stateLabelMappingForRemoval
 
 	mutex := new(doMutex)
-	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID platform.ID) *applyErrBody {
 		var mapping stateLabelMappingForRemoval
 		mutex.Do(func() {
 			mapping = labelMappings[i]
@@ -2891,7 +2894,7 @@ func (s *Service) removeLabelMappings(ctx context.Context, labelMappings []state
 			ResourceID:   mapping.ResourceID,
 			ResourceType: mapping.ResourceType,
 		})
-		if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
+		if err != nil && errors2.ErrorCode(err) != errors2.ENotFound {
 			return &applyErrBody{
 				name: fmt.Sprintf("%s:%s:%s", mapping.ResourceType, mapping.ResourceID, mapping.LabelID),
 				msg:  err.Error(),
@@ -2911,7 +2914,7 @@ func (s *Service) removeLabelMappings(ctx context.Context, labelMappings []state
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func(_ influxdb.ID) error { return s.rollbackRemoveLabelMappings(ctx, rollbackMappings) },
+			fn:       func(_ platform.ID) error { return s.rollbackRemoveLabelMappings(ctx, rollbackMappings) },
 		},
 	}
 }
@@ -2949,7 +2952,7 @@ func (s *Service) applyLabelMappings(ctx context.Context, labelMappings []stateL
 	mutex := new(doMutex)
 	rollbackMappings := make([]stateLabelMapping, 0, len(labelMappings))
 
-	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID platform.ID) *applyErrBody {
 		var mapping stateLabelMapping
 		mutex.Do(func() {
 			mapping = labelMappings[i]
@@ -2993,7 +2996,7 @@ func (s *Service) applyLabelMappings(ctx context.Context, labelMappings []stateL
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func(_ influxdb.ID) error { return s.rollbackLabelMappings(ctx, rollbackMappings) },
+			fn:       func(_ platform.ID) error { return s.rollbackLabelMappings(ctx, rollbackMappings) },
 		},
 	}
 }
@@ -3027,7 +3030,7 @@ func (s *Service) templateFromApplyOpts(ctx context.Context, opt ApplyOpt) (*Tem
 	return Combine(opt.Templates, ValidWithoutResources())
 }
 
-func (s *Service) getStackRemoteTemplates(ctx context.Context, stackID influxdb.ID) ([]*Template, error) {
+func (s *Service) getStackRemoteTemplates(ctx context.Context, stackID platform.ID) ([]*Template, error) {
 	stack, err := s.store.ReadStackByID(ctx, stackID)
 	if err != nil {
 		return nil, err
@@ -3038,8 +3041,8 @@ func (s *Service) getStackRemoteTemplates(ctx context.Context, stackID influxdb.
 	for _, rawURL := range lastEvent.TemplateURLs {
 		u, err := url.Parse(rawURL)
 		if err != nil {
-			return nil, &influxdb.Error{
-				Code: influxdb.EInternal,
+			return nil, &errors2.Error{
+				Code: errors2.EInternal,
 				Msg:  "failed to parse url",
 				Err:  err,
 			}
@@ -3069,7 +3072,7 @@ func (s *Service) getStackRemoteTemplates(ctx context.Context, stackID influxdb.
 	return remotes, nil
 }
 
-func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.ID, state *stateCoordinator, sources []string) error {
+func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID platform.ID, state *stateCoordinator, sources []string) error {
 	stack, err := s.store.ReadStackByID(ctx, stackID)
 	if err != nil {
 		return err
@@ -3195,7 +3198,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 	return s.store.UpdateStack(ctx, stack)
 }
 
-func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb.ID, state *stateCoordinator, sources []string) error {
+func (s *Service) updateStackAfterRollback(ctx context.Context, stackID platform.ID, state *stateCoordinator, sources []string) error {
 	stack, err := s.store.ReadStackByID(ctx, stackID)
 	if err != nil {
 		return err
@@ -3316,7 +3319,7 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 	return s.store.UpdateStack(ctx, stack)
 }
 
-func (s *Service) findLabel(ctx context.Context, orgID influxdb.ID, l *stateLabel) (*influxdb.Label, error) {
+func (s *Service) findLabel(ctx context.Context, orgID platform.ID, l *stateLabel) (*influxdb.Label, error) {
 	if l.ID() != 0 {
 		return s.labelSVC.FindLabelByID(ctx, l.ID())
 	}
@@ -3334,7 +3337,7 @@ func (s *Service) findLabel(ctx context.Context, orgID influxdb.ID, l *stateLabe
 	return existingLabels[0], nil
 }
 
-func (s *Service) getAllPlatformVariables(ctx context.Context, orgID influxdb.ID) ([]*influxdb.Variable, error) {
+func (s *Service) getAllPlatformVariables(ctx context.Context, orgID platform.ID) ([]*influxdb.Variable, error) {
 	const limit = 100
 
 	var (
@@ -3361,7 +3364,7 @@ func (s *Service) getAllPlatformVariables(ctx context.Context, orgID influxdb.ID
 	return existingVars, nil
 }
 
-func (s *Service) getAllChecks(ctx context.Context, orgID influxdb.ID) ([]influxdb.Check, error) {
+func (s *Service) getAllChecks(ctx context.Context, orgID platform.ID) ([]influxdb.Check, error) {
 	filter := influxdb.CheckFilter{OrgID: &orgID}
 	const limit = 100
 
@@ -3386,7 +3389,7 @@ func (s *Service) getAllChecks(ctx context.Context, orgID influxdb.ID) ([]influx
 	return out, nil
 }
 
-func (s *Service) getNotificationRules(ctx context.Context, orgID influxdb.ID) ([]influxdb.NotificationRule, error) {
+func (s *Service) getNotificationRules(ctx context.Context, orgID platform.ID) ([]influxdb.NotificationRule, error) {
 	filter := influxdb.NotificationRuleFilter{OrgID: &orgID}
 	const limit = 100
 
@@ -3409,15 +3412,15 @@ func (s *Service) getNotificationRules(ctx context.Context, orgID influxdb.ID) (
 
 }
 
-func (s *Service) getAllTasks(ctx context.Context, orgID influxdb.ID) ([]*influxdb.Task, error) {
+func (s *Service) getAllTasks(ctx context.Context, orgID platform.ID) ([]*taskmodel.Task, error) {
 	var (
-		out     []*influxdb.Task
-		afterID *influxdb.ID
+		out     []*taskmodel.Task
+		afterID *platform.ID
 	)
 	for {
-		f := influxdb.TaskFilter{
+		f := taskmodel.TaskFilter{
 			OrganizationID: &orgID,
-			Limit:          influxdb.TaskMaxPageSize,
+			Limit:          taskmodel.TaskMaxPageSize,
 		}
 		if afterID != nil {
 			f.After = afterID
@@ -3462,8 +3465,8 @@ func applyFailErr(method string, ident stateIdentity, err error) error {
 	return ierrors.Wrap(err, msg)
 }
 
-func getLabelIDMap(ctx context.Context, labelSVC influxdb.LabelService, labelNames []string) (map[influxdb.ID]bool, error) {
-	mLabelIDs := make(map[influxdb.ID]bool)
+func getLabelIDMap(ctx context.Context, labelSVC influxdb.LabelService, labelNames []string) (map[platform.ID]bool, error) {
+	mLabelIDs := make(map[platform.ID]bool)
 	for _, labelName := range labelNames {
 		iLabels, err := labelSVC.FindLabels(ctx, influxdb.LabelFilter{
 			Name: labelName,
@@ -3509,12 +3512,12 @@ type (
 
 	rollbacker struct {
 		resource string
-		fn       func(orgID influxdb.ID) error
+		fn       func(orgID platform.ID) error
 	}
 
 	creater struct {
 		entries int
-		fn      func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody
+		fn      func(ctx context.Context, i int, orgID, userID platform.ID) *applyErrBody
 	}
 )
 
@@ -3532,7 +3535,7 @@ func newRollbackCoordinator(logger *zap.Logger, reqLimit int) *rollbackCoordinat
 	}
 }
 
-func (r *rollbackCoordinator) runTilEnd(ctx context.Context, orgID, userID influxdb.ID, appliers ...applier) error {
+func (r *rollbackCoordinator) runTilEnd(ctx context.Context, orgID, userID platform.ID, appliers ...applier) error {
 	errStr := newErrStream(ctx)
 
 	wg := new(sync.WaitGroup)
@@ -3581,7 +3584,7 @@ func (r *rollbackCoordinator) runTilEnd(ctx context.Context, orgID, userID influ
 	return errStr.close()
 }
 
-func (r *rollbackCoordinator) rollback(l *zap.Logger, err *error, orgID influxdb.ID) {
+func (r *rollbackCoordinator) rollback(l *zap.Logger, err *error, orgID platform.ID) {
 	if *err == nil {
 		return
 	}
@@ -3679,14 +3682,14 @@ func validURLs(urls []string) error {
 	for _, u := range urls {
 		if _, err := url.Parse(u); err != nil {
 			msg := fmt.Sprintf("url invalid for entry %q", u)
-			return influxErr(influxdb.EInvalid, msg)
+			return influxErr(errors2.EInvalid, msg)
 		}
 	}
 	return nil
 }
 
-func isRestrictedTask(t *influxdb.Task) bool {
-	return t != nil && t.Type != influxdb.TaskSystemType
+func isRestrictedTask(t *taskmodel.Task) bool {
+	return t != nil && t.Type != taskmodel.TaskSystemType
 }
 
 func isSystemBucket(b *influxdb.Bucket) bool {
@@ -3705,18 +3708,18 @@ func failedValidationErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	return &influxdb.Error{Code: influxdb.EUnprocessableEntity, Err: err}
+	return &errors2.Error{Code: errors2.EUnprocessableEntity, Err: err}
 }
 
 func internalErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	return influxErr(influxdb.EInternal, err)
+	return influxErr(errors2.EInternal, err)
 }
 
-func influxErr(code string, errArg interface{}, rest ...interface{}) *influxdb.Error {
-	err := &influxdb.Error{
+func influxErr(code string, errArg interface{}, rest ...interface{}) *errors2.Error {
+	err := &errors2.Error{
 		Code: code,
 	}
 	for _, a := range append(rest, errArg) {

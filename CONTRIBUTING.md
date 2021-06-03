@@ -58,10 +58,6 @@ We really like to receive feature requests as it helps us prioritize our work.
 Please be clear about your requirements and goals, help us to understand what you would like to see added to InfluxD with examples and the reasons why it is important to you.
 If you find your feature request already exists as a Github issue please indicate your support for that feature by using the "thumbs up" reaction.
 
-## Contributing to the source code
-
-You should read our [coding guide](https://github.com/influxdata/influxdb/blob/master/DEVELOPMENT.md), to understand better how to write code for InfluxDB.
-
 ## Submitting a pull request
 To submit a pull request you should fork the InfluxDB repository, and make your change on a feature branch of your fork.
 Then generate a pull request from your branch against *master* of the InfluxDB repository.
@@ -119,30 +115,18 @@ Currently the project only depends on `git` and `bzr`.
 
 You need a recent stable version of Rust. We recommend using [rustup](https://rustup.rs/) to install Rust.
 
-You also need `clang`, `make`, `pkg-config`, `protobuf`, and `yarn` installed.
+You also need `clang`, `make`, `pkg-config`, and `protobuf` installed.
 
-- OSX: `brew install make pkg-config protobuf yarn`
-- Linux (Arch): `pacman -S clang make pkgconf protobuf yarn`
-- Linux (Ubuntu, RHEL): See below
-
-#### Ubuntu-specific instructions:
-
-For Ubuntu, you need to change the apt repository for `yarn`:
-
-```
-sudo apt remove yarn cmdtest
-wget -qO- https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
-sudo apt-add-repository "deb https://dl.yarnpkg.com/debian/ stable main"
-
-sudo apt install make clang pkg-config protobuf-compiler libprotobuf-dev yarn
-```
+- OSX: `brew install pkg-config protobuf`
+    - For OSX, you must have [HomeBrew](https://brew.sh) installed.
+    - You will also need the [Developer Tools](https://webkit.org/build-tools/), which includes `make`.
+- Linux (Arch): `pacman -S clang make pkgconf protobuf`
+- Linux (Ubuntu): `sudo apt install make clang pkg-config protobuf-compiler libprotobuf-dev`
+- Linux (RHEL): See below
 
 #### Redhat-specific instructions
 
-For RedHat, there are some extra steps:
-
-1. You must enable the [EPEL](https://fedoraproject.org/wiki/EPEL)
-2. You must add the `yarn` [repository](https://yarnpkg.com/lang/en/docs/install/#centos-stable)
+For RedHat, you must enable the [EPEL](https://fedoraproject.org/wiki/EPEL)
 
 ### Building with make
 
@@ -165,52 +149,12 @@ Logs to stdout by default:
 $ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd
 ```
 
-### Building with the go command
-
-The `Makefile` provides a wrapper around configuring the utilities for building influxdb. For those wanting to use the `go` command directly, one of two things can be done.
-
-First, the `env` script is located in the root of the repository. This script can be used to execute `go` commands with the appropriate environment configuration.
-
-```bash
-$ ./env go build ./cmd/influxd
-```
-
-Another method is to configure the `pkg-config` utility. Follow the instructions [here](https://github.com/influxdata/flux#getting-started) to install and configure `pkg-config` and then the normal go commands will work.
-
-You should have already installed the pkg-config commands when doing the regular 'make' build.
-
-Install the `pkg-config` wrapper utility of the same name to a different path that is earlier in the PATH.
-
-```bash
-# Install the pkg-config wrapper utility
-$ go build -o ~/go/bin/ github.com/influxdata/pkg-config
-# Ensure the GOBIN directory is on your PATH
-$ export PATH=$HOME/go/bin:${PATH}
-$ which -a pkg-config
-/home/user/go/bin/pkg-config
-/usr/bin/pkg-config
-```
-
-Then all `go` build commands should work.
-
-```bash
-$ go build ./cmd/influxd
-$ go test ./...
-```
-
-
 ### Testing
 
 This project is built from various languages. To run test for all langauges and components use:
 
 ```bash
 $ make test
-```
-
-To run tests for just the Javascript component use:
-
-```bash
-$ make test-js
 ```
 
 To run tests for just the Go/Rust components use:

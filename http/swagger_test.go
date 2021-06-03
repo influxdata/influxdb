@@ -9,6 +9,7 @@ import (
 )
 
 func TestValidSwagger(t *testing.T) {
+	t.Skip("swagger.yml no longer being served after migration to openapi repo: https://github.com/influxdata/influxdb/issues/21541")
 	data, err := ioutil.ReadFile("./swagger.yml")
 	if err != nil {
 		t.Fatalf("unable to read swagger specification: %v", err)

@@ -28,6 +28,7 @@
           "yTickStart": 0,
           "yTickStep": 100,
           "legendColorizeRows": true,
+          "legendHide": false,
           "legendOpacity": 1.0,
           "legendOrientationThreshold": 5,
           "queries": [

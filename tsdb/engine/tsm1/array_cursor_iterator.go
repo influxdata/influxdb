@@ -57,7 +57,7 @@ func (q *arrayCursorIterator) Next(ctx context.Context, r *tsdb.CursorRequest) (
 	var opt query.IteratorOptions
 	opt.Ascending = r.Ascending
 	opt.StartTime = r.StartTime
-	opt.EndTime = r.EndTime
+	opt.EndTime = r.EndTime // inclusive
 
 	// Return appropriate cursor based on type.
 	switch f.Type {

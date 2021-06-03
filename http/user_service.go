@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
@@ -16,7 +19,7 @@ import (
 // UserBackend is all services and associated parameters required to construct
 // the UserHandler.
 type UserBackend struct {
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log                     *zap.Logger
 	UserService             influxdb.UserService
 	UserOperationLogService influxdb.UserOperationLogService
@@ -37,7 +40,7 @@ func NewUserBackend(log *zap.Logger, b *APIBackend) *UserBackend {
 // UserHandler represents an HTTP API handler for users.
 type UserHandler struct {
 	*httprouter.Router
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log                     *zap.Logger
 	UserService             influxdb.UserService
 	UserOperationLogService influxdb.UserOperationLogService
@@ -90,17 +93,17 @@ func (h *UserHandler) handlePostUserPassword(w http.ResponseWriter, r *http.Requ
 	var body passwordSetRequest
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		h.HandleHTTPError(r.Context(), &influxdb.Error{
-			Code: influxdb.EInvalid,
+		h.HandleHTTPError(r.Context(), &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}, w)
 		return
 	}
 
 	params := httprouter.ParamsFromContext(r.Context())
-	userID, err := influxdb.IDFromString(params.ByName("id"))
+	userID, err := platform.IDFromString(params.ByName("id"))
 	if err != nil {
-		h.HandleHTTPError(r.Context(), &influxdb.Error{
+		h.HandleHTTPError(r.Context(), &errors.Error{
 			Msg: "invalid user ID provided in route",
 		}, w)
 		return
@@ -122,9 +125,9 @@ func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r 
 	}
 
 	params := httprouter.ParamsFromContext(r.Context())
-	userID, err := influxdb.IDFromString(params.ByName("id"))
+	userID, err := platform.IDFromString(params.ByName("id"))
 	if err != nil {
-		h.HandleHTTPError(r.Context(), &influxdb.Error{
+		h.HandleHTTPError(r.Context(), &errors.Error{
 			Msg: "invalid user ID provided in route",
 		}, w)
 		return
@@ -168,8 +171,8 @@ func decodePasswordResetRequest(r *http.Request) (*passwordResetRequest, error) 
 	pr := new(passwordResetRequestBody)
 	err := json.NewDecoder(r.Body).Decode(pr)
 	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -267,20 +270,20 @@ func (h *UserHandler) handleGetUser(w http.ResponseWriter, r *http.Request) {
 }
 
 type getUserRequest struct {
-	UserID influxdb.ID
+	UserID platform.ID
 }
 
 func decodeGetUserRequest(ctx context.Context, r *http.Request) (*getUserRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -311,20 +314,20 @@ func (h *UserHandler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 }
 
 type deleteUserRequest struct {
-	UserID influxdb.ID
+	UserID platform.ID
 }
 
 func decodeDeleteUserRequest(ctx context.Context, r *http.Request) (*deleteUserRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -385,7 +388,7 @@ func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, _, err := h.UserService.FindUsers(ctx, req.filter)
+	users, _, err := h.UserService.FindUsers(ctx, req.filter, req.opts)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -401,14 +404,22 @@ func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 
 type getUsersRequest struct {
 	filter influxdb.UserFilter
+	opts   influxdb.FindOptions
 }
 
 func decodeGetUsersRequest(ctx context.Context, r *http.Request) (*getUsersRequest, error) {
+	opts, err := influxdb.DecodeFindOptions(r)
+	if err != nil {
+		return nil, err
+	}
+
 	qp := r.URL.Query()
-	req := &getUsersRequest{}
+	req := &getUsersRequest{
+		opts: *opts,
+	}
 
 	if userID := qp.Get("id"); userID != "" {
-		id, err := influxdb.IDFromString(userID)
+		id, err := platform.IDFromString(userID)
 		if err != nil {
 			return nil, err
 		}
@@ -446,20 +457,20 @@ func (h *UserHandler) handlePatchUser(w http.ResponseWriter, r *http.Request) {
 
 type patchUserRequest struct {
 	Update influxdb.UserUpdate
-	UserID influxdb.ID
+	UserID platform.ID
 }
 
 func decodePatchUserRequest(ctx context.Context, r *http.Request) (*patchUserRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -487,7 +498,7 @@ type UserService struct {
 }
 
 // FindMe returns user information about the owner of the token
-func (s *UserService) FindMe(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+func (s *UserService) FindMe(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 	var res UserResponse
 	err := s.Client.
 		Get(prefixMe).
@@ -500,7 +511,7 @@ func (s *UserService) FindMe(ctx context.Context, id influxdb.ID) (*influxdb.Use
 }
 
 // FindUserByID returns a single user by ID.
-func (s *UserService) FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 	var res UserResponse
 	err := s.Client.
 		Get(prefixUsers, id.String()).
@@ -515,22 +526,22 @@ func (s *UserService) FindUserByID(ctx context.Context, id influxdb.ID) (*influx
 // FindUser returns the first user that matches filter.
 func (s *UserService) FindUser(ctx context.Context, filter influxdb.UserFilter) (*influxdb.User, error) {
 	if filter.ID == nil && filter.Name == nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  "user not found",
 		}
 	}
 	users, n, err := s.FindUsers(ctx, filter)
 	if err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Op:  s.OpPrefix + influxdb.OpFindUser,
 			Err: err,
 		}
 	}
 
 	if n == 0 {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Op:   s.OpPrefix + influxdb.OpFindUser,
 			Msg:  "no results found",
 		}
@@ -574,7 +585,7 @@ func (s *UserService) CreateUser(ctx context.Context, u *influxdb.User) error {
 
 // UpdateUser updates a single user with changeset.
 // Returns the new user state after update.
-func (s *UserService) UpdateUser(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
+func (s *UserService) UpdateUser(ctx context.Context, id platform.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
 	var res UserResponse
 	err := s.Client.
 		PatchJSON(upd, prefixUsers, id.String()).
@@ -587,7 +598,7 @@ func (s *UserService) UpdateUser(ctx context.Context, id influxdb.ID, upd influx
 }
 
 // DeleteUser removes a user by ID.
-func (s *UserService) DeleteUser(ctx context.Context, id influxdb.ID) error {
+func (s *UserService) DeleteUser(ctx context.Context, id platform.ID) error {
 	return s.Client.
 		Delete(prefixUsers, id.String()).
 		StatusFn(func(resp *http.Response) error {
@@ -596,9 +607,9 @@ func (s *UserService) DeleteUser(ctx context.Context, id influxdb.ID) error {
 		Do(ctx)
 }
 
-func (s *UserService) FindPermissionForUser(ctx context.Context, uid influxdb.ID) (influxdb.PermissionSet, error) {
-	return nil, &influxdb.Error{
-		Code: influxdb.EInternal,
+func (s *UserService) FindPermissionForUser(ctx context.Context, uid platform.ID) (influxdb.PermissionSet, error) {
+	return nil, &errors.Error{
+		Code: errors.EInternal,
 		Msg:  "not implemented",
 	}
 }
@@ -611,7 +622,7 @@ type PasswordService struct {
 var _ influxdb.PasswordsService = (*PasswordService)(nil)
 
 // SetPassword sets the user's password.
-func (s *PasswordService) SetPassword(ctx context.Context, userID influxdb.ID, password string) error {
+func (s *PasswordService) SetPassword(ctx context.Context, userID platform.ID, password string) error {
 	return s.Client.
 		PostJSON(passwordSetRequest{
 			Password: password,
@@ -620,12 +631,12 @@ func (s *PasswordService) SetPassword(ctx context.Context, userID influxdb.ID, p
 }
 
 // ComparePassword compares the user new password with existing. Note: is not implemented.
-func (s *PasswordService) ComparePassword(ctx context.Context, userID influxdb.ID, password string) error {
+func (s *PasswordService) ComparePassword(ctx context.Context, userID platform.ID, password string) error {
 	panic("not implemented")
 }
 
 // CompareAndSetPassword compares the old and new password and submits the new password if possible.
 // Note: is not implemented.
-func (s *PasswordService) CompareAndSetPassword(ctx context.Context, userID influxdb.ID, old string, new string) error {
+func (s *PasswordService) CompareAndSetPassword(ctx context.Context, userID platform.ID, old string, new string) error {
 	panic("not implemented")
 }

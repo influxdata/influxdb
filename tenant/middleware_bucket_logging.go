@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
@@ -36,7 +38,7 @@ func (l *BucketLogger) CreateBucket(ctx context.Context, u *influxdb.Bucket) (er
 	return l.bucketService.CreateBucket(ctx, u)
 }
 
-func (l *BucketLogger) FindBucketByID(ctx context.Context, id influxdb.ID) (u *influxdb.Bucket, err error) {
+func (l *BucketLogger) FindBucketByID(ctx context.Context, id platform.ID) (u *influxdb.Bucket, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -49,7 +51,7 @@ func (l *BucketLogger) FindBucketByID(ctx context.Context, id influxdb.ID) (u *i
 	return l.bucketService.FindBucketByID(ctx, id)
 }
 
-func (l *BucketLogger) FindBucketByName(ctx context.Context, orgID influxdb.ID, name string) (u *influxdb.Bucket, err error) {
+func (l *BucketLogger) FindBucketByName(ctx context.Context, orgID platform.ID, name string) (u *influxdb.Bucket, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -86,7 +88,7 @@ func (l *BucketLogger) FindBuckets(ctx context.Context, filter influxdb.BucketFi
 	return l.bucketService.FindBuckets(ctx, filter, opt...)
 }
 
-func (l *BucketLogger) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (u *influxdb.Bucket, err error) {
+func (l *BucketLogger) UpdateBucket(ctx context.Context, id platform.ID, upd influxdb.BucketUpdate) (u *influxdb.Bucket, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -98,7 +100,7 @@ func (l *BucketLogger) UpdateBucket(ctx context.Context, id influxdb.ID, upd inf
 	return l.bucketService.UpdateBucket(ctx, id, upd)
 }
 
-func (l *BucketLogger) DeleteBucket(ctx context.Context, id influxdb.ID) (err error) {
+func (l *BucketLogger) DeleteBucket(ctx context.Context, id platform.ID) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {

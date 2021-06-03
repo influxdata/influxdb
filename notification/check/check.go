@@ -6,21 +6,24 @@ import (
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/flux"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 )
 
 // Base will embed inside a check.
 type Base struct {
-	ID          influxdb.ID             `json:"id,omitempty"`
+	ID          platform.ID             `json:"id,omitempty"`
 	Name        string                  `json:"name"`
 	Description string                  `json:"description,omitempty"`
-	OwnerID     influxdb.ID             `json:"ownerID,omitempty"`
-	OrgID       influxdb.ID             `json:"orgID,omitempty"`
+	OwnerID     platform.ID             `json:"ownerID,omitempty"`
+	OrgID       platform.ID             `json:"orgID,omitempty"`
 	Query       influxdb.DashboardQuery `json:"query"`
 
 	// Care should be taken to prevent TaskID from being exposed publicly.
-	TaskID influxdb.ID `json:"taskID,omitempty"`
+	TaskID platform.ID `json:"taskID,omitempty"`
 	// } todo: separate these
 	// NonCustomCheckBase will embed inside non-custom checks.
 	// type NonCustomCheckBase struct {
@@ -36,52 +39,52 @@ type Base struct {
 }
 
 // Valid returns err if the check is invalid.
-func (b Base) Valid(lang influxdb.FluxLanguageService) error {
+func (b Base) Valid(lang fluxlang.FluxLanguageService) error {
 	if !b.ID.Valid() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Check ID is invalid",
 		}
 	}
 	if b.Name == "" {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Check Name can't be empty",
 		}
 	}
 	if !b.OwnerID.Valid() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Check OwnerID is invalid",
 		}
 	}
 	if !b.OrgID.Valid() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Check OrgID is invalid",
 		}
 	}
 	if b.Every == nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Check Every must exist",
 		}
 	}
 	if len(b.Every.Values) == 0 {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Check Every can't be empty",
 		}
 	}
 	if b.Offset != nil && len(b.Offset.Values) == 0 {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Check Offset can't be empty",
 		}
 	}
 	if b.Offset != nil && b.Offset.TimeDuration() >= b.Every.TimeDuration() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Offset should not be equal or greater than the interval",
 		}
 	}
@@ -132,22 +135,22 @@ func (b Base) generateFluxASTCheckDefinition(checkType string) ast.Statement {
 }
 
 // GetID implements influxdb.Getter interface.
-func (b Base) GetID() influxdb.ID {
+func (b Base) GetID() platform.ID {
 	return b.ID
 }
 
 // GetOrgID implements influxdb.Getter interface.
-func (b Base) GetOrgID() influxdb.ID {
+func (b Base) GetOrgID() platform.ID {
 	return b.OrgID
 }
 
 // GetOwnerID gets the ownerID associated with a Base.
-func (b Base) GetOwnerID() influxdb.ID {
+func (b Base) GetOwnerID() platform.ID {
 	return b.OwnerID
 }
 
 // GetTaskID retrieves the task ID for a check.
-func (b Base) GetTaskID() influxdb.ID {
+func (b Base) GetTaskID() platform.ID {
 	return b.TaskID
 }
 
@@ -167,12 +170,12 @@ func (b *Base) GetDescription() string {
 }
 
 // SetID will set the primary key.
-func (b *Base) SetID(id influxdb.ID) {
+func (b *Base) SetID(id platform.ID) {
 	b.ID = id
 }
 
 // SetOrgID will set the org key.
-func (b *Base) SetOrgID(id influxdb.ID) {
+func (b *Base) SetOrgID(id platform.ID) {
 	b.OrgID = id
 }
 
@@ -182,12 +185,12 @@ func (b *Base) ClearPrivateData() {
 }
 
 // SetTaskID sets the taskID for a check.
-func (b *Base) SetTaskID(id influxdb.ID) {
+func (b *Base) SetTaskID(id platform.ID) {
 	b.TaskID = id
 }
 
 // SetOwnerID sets the taskID for a check.
-func (b *Base) SetOwnerID(id influxdb.ID) {
+func (b *Base) SetOwnerID(id platform.ID) {
 	b.OwnerID = id
 }
 
@@ -213,14 +216,14 @@ func UnmarshalJSON(b []byte) (influxdb.Check, error) {
 		Type string `json:"type"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unable to detect the check type from json",
 		}
 	}
 	convertedFunc, ok := typeToCheck[raw.Type]
 	if !ok {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Msg: fmt.Sprintf("invalid check type %s", raw.Type),
 		}
 	}

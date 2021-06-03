@@ -6,6 +6,9 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	influxdb "github.com/influxdata/influxdb/v2"
@@ -17,15 +20,15 @@ import (
 )
 
 var (
-	oneID   = influxdb.ID(1)
-	twoID   = influxdb.ID(2)
-	threeID = influxdb.ID(3)
-	fourID  = influxdb.ID(4)
+	oneID   = platform.ID(1)
+	twoID   = platform.ID(2)
+	threeID = platform.ID(3)
+	fourID  = platform.ID(4)
 )
 
 // TelegrafConfigFields includes prepopulated data for mapping tests.
 type TelegrafConfigFields struct {
-	IDGenerator     influxdb.IDGenerator
+	IDGenerator     platform.IDGenerator
 	TelegrafConfigs []*influxdb.TelegrafConfig
 }
 
@@ -95,7 +98,7 @@ func CreateTelegrafConfig(
 ) {
 	type args struct {
 		telegrafConfig *influxdb.TelegrafConfig
-		userID         influxdb.ID
+		userID         platform.ID
 	}
 	type wants struct {
 		err       error
@@ -118,8 +121,8 @@ func CreateTelegrafConfig(
 				telegrafConfig: &influxdb.TelegrafConfig{},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EEmptyValue,
+				err: &errors.Error{
+					Code: errors.EEmptyValue,
 					Msg:  influxdb.ErrTelegrafConfigInvalidOrgID,
 				},
 			},
@@ -209,8 +212,8 @@ func CreateTelegrafConfig(
 			}
 
 			if err != nil && tt.wants.err != nil {
-				if influxdb.ErrorCode(err) != influxdb.ErrorCode(tt.wants.err) {
-					t.Fatalf("expected error messages to match '%v' got '%v'", influxdb.ErrorCode(tt.wants.err), influxdb.ErrorCode(err))
+				if errors.ErrorCode(err) != errors.ErrorCode(tt.wants.err) {
+					t.Fatalf("expected error messages to match '%v' got '%v'", errors.ErrorCode(tt.wants.err), errors.ErrorCode(err))
 				}
 			}
 
@@ -232,7 +235,7 @@ func FindTelegrafConfigByID(
 	t *testing.T,
 ) {
 	type args struct {
-		id influxdb.ID
+		id platform.ID
 	}
 	type wants struct {
 		err            error
@@ -266,7 +269,7 @@ func FindTelegrafConfigByID(
 				},
 			},
 			args: args{
-				id: influxdb.ID(0),
+				id: platform.ID(0),
 			},
 			wants: wants{
 				err: fmt.Errorf("provided telegraf configuration ID has invalid format"),
@@ -294,8 +297,8 @@ func FindTelegrafConfigByID(
 				id: threeID,
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "telegraf configuration not found",
 				},
 			},
@@ -603,8 +606,8 @@ func UpdateTelegrafConfig(
 	t *testing.T,
 ) {
 	type args struct {
-		userID         influxdb.ID
-		id             influxdb.ID
+		userID         platform.ID
+		id             platform.ID
 		telegrafConfig *influxdb.TelegrafConfig
 	}
 
@@ -645,8 +648,8 @@ func UpdateTelegrafConfig(
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  fmt.Sprintf("telegraf config with ID %v not found", fourID),
 				},
 			},
@@ -736,7 +739,7 @@ func UpdateTelegrafConfig(
 				t.Fatalf("expected errors to be nil got '%v'", err)
 			}
 			if err != nil && tt.wants.err != nil {
-				if influxdb.ErrorCode(err) != influxdb.ErrorCode(tt.wants.err) {
+				if errors.ErrorCode(err) != errors.ErrorCode(tt.wants.err) {
 					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 				}
 			}
@@ -754,7 +757,7 @@ func DeleteTelegrafConfig(
 	t *testing.T,
 ) {
 	type args struct {
-		id influxdb.ID
+		id platform.ID
 	}
 
 	type wants struct {
@@ -789,7 +792,7 @@ func DeleteTelegrafConfig(
 				},
 			},
 			args: args{
-				id: influxdb.ID(0),
+				id: platform.ID(0),
 			},
 			wants: wants{
 				err: fmt.Errorf("provided telegraf configuration ID has invalid format"),

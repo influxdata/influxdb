@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 var (
-	taskWith1Concurrency  = &influxdb.Task{ID: 1, Flux: `option task = {concurrency: 1, name:"x", every:1m} from(bucket:"b-src") |> range(start:-1m) |> to(bucket:"b-dst", org:"o")`}
-	taskWith10Concurrency = &influxdb.Task{ID: 1, Flux: `option task = {concurrency: 10, name:"x", every:1m} from(bucket:"b-src") |> range(start:-1m) |> to(bucket:"b-dst", org:"o")`}
+	taskWith1Concurrency  = &taskmodel.Task{ID: 1, Flux: `option task = {concurrency: 1, name:"x", every:1m} from(bucket:"b-src") |> range(start:-1m) |> to(bucket:"b-dst", org:"o")`}
+	taskWith10Concurrency = &taskmodel.Task{ID: 1, Flux: `option task = {concurrency: 10, name:"x", every:1m} from(bucket:"b-src") |> range(start:-1m) |> to(bucket:"b-dst", org:"o")`}
 )
 
 func TestTaskConcurrency(t *testing.T) {
@@ -30,7 +30,7 @@ func TestTaskConcurrency(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r4 := &influxdb.Run{
+	r4 := &taskmodel.Run{
 		ID:           3,
 		ScheduledFor: time.Now(),
 	}

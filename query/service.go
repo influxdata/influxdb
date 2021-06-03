@@ -8,8 +8,9 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/check"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 )
 
 // QueryService represents a type capable of performing queries.
@@ -44,10 +45,10 @@ type ProxyQueryService interface {
 // but it may be null if parsing didn't even occur.
 //
 // This will return an error if the FluxLanguageService is nil.
-func Parse(lang influxdb.FluxLanguageService, source string) (*ast.Package, error) {
+func Parse(lang fluxlang.FluxLanguageService, source string) (*ast.Package, error) {
 	if lang == nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInternal,
+		return nil, &errors.Error{
+			Code: errors.EInternal,
 			Msg:  "flux is not configured; cannot parse",
 		}
 	}
@@ -57,10 +58,10 @@ func Parse(lang influxdb.FluxLanguageService, source string) (*ast.Package, erro
 // EvalAST will evaluate and run an AST.
 //
 // This will return an error if the FluxLanguageService is nil.
-func EvalAST(ctx context.Context, lang influxdb.FluxLanguageService, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error) {
+func EvalAST(ctx context.Context, lang fluxlang.FluxLanguageService, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error) {
 	if lang == nil {
-		return nil, nil, &influxdb.Error{
-			Code: influxdb.EInternal,
+		return nil, nil, &errors.Error{
+			Code: errors.EInternal,
 			Msg:  "flux is not configured; cannot evaluate",
 		}
 	}
