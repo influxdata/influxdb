@@ -28,7 +28,7 @@ func (s *Store) Update(ctx context.Context, fn func(kv.Tx) error) error {
 	return s.UpdateFn(fn)
 }
 
-// Lock and Unlock are to satisfy the kv.Store interface
+// Lock and unlock methods are to satisfy the kv.Store interface
 func (s *Store) Lock() {}
 
 func (s *Store) Unlock() {}

@@ -102,7 +102,7 @@ func shardGroupToManifest(shardGroups []meta.ShardGroupInfo) []influxdb.ShardGro
 		truncatedAt := &s.TruncatedAt
 
 		// set deletedAt and truncatedAt to nil rather than their zero values so that the fields
-		// can be properly omitted form the JSON response if they are empty
+		// can be properly omitted from the JSON response if they are empty
 		if deletedAt.IsZero() {
 			deletedAt = nil
 		}
