@@ -265,7 +265,10 @@ fn needs_quotes_and_escaping(value: &str) -> bool {
 /// escape any characters in name as needed, otherwise return string as is
 fn quote_and_escape(value: &'_ str) -> Cow<'_, str> {
     if needs_quotes_and_escaping(value) {
-        Cow::Owned(format!("\"{}\"", value.replace("\"", "\\\"")))
+        Cow::Owned(format!(
+            "\"{}\"",
+            value.replace(r#"\"#, r#"\\"#).replace(r#"""#, r#"\""#)
+        ))
     } else {
         Cow::Borrowed(value)
     }
@@ -337,5 +340,18 @@ mod test {
     #[test]
     fn quote_and_escape_quoted_quotes() {
         assert_eq!(quote_and_escape("foo:\"bar\""), "\"foo:\\\"bar\\\"\"");
+    }
+
+    #[test]
+    fn quote_and_escape_nested_1() {
+        assert_eq!(quote_and_escape(r#"a "b" c"#), r#""a \"b\" c""#);
+    }
+
+    #[test]
+    fn quote_and_escape_nested_2() {
+        assert_eq!(
+            quote_and_escape(r#"a "0 \"1\" 2" c"#),
+            r#""a \"0 \\\"1\\\" 2\" c""#
+        );
     }
 }
