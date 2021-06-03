@@ -179,9 +179,9 @@ impl FloatEncoding {
     }
 
     /// The name of this encoding.
-    pub fn name(&self) -> &'static str {
+    pub fn name(&self) -> String {
         match self {
-            Self::F64(enc, _) => enc.name(),
+            Self::F64(_, name) => name.clone(),
         }
     }
 
@@ -206,18 +206,54 @@ impl std::fmt::Display for FloatEncoding {
 /// be reduced by 10%
 pub const MIN_RLE_SIZE_REDUCTION: f64 = 0.1; // 10%
 
+#[allow(clippy::float_cmp)]
+fn is_natural_number(v: f64) -> bool {
+    // if `v` can be round tripped to an `i64` and back to an `f64` without loss
+    // of precision then we can _potentially_ safely store it in 32-bits or
+    // less.
+    v == (v as i64) as f64
+}
+
 /// Converts a slice of `f64` values into a `FloatEncoding`.
 ///
-/// There are two possible encodings for &[f64]:
-///    * "None": effectively store the slice in a vector;
-///    * "RLE": for slices that have a sufficiently low cardinality they may
-///             benefit from being run-length encoded.
+/// There are four possible encodings for &[f64]:
+///
+///    * "FIXED":      Effectively store the slice in a vector as f64.
+///    * "BT_X-FIXED": Store floats as integers and trim them to a smaller
+///                    physical size (X).
+///    * "RLE":        If the data has sufficiently low cardinality they may
+///                    benefit from being run-length encoded.
+///    * "BT_X-RLE":   Convert to byte trimmed integers and then also RLE.
 ///
 /// The encoding is chosen based on the heuristics in the `From` implementation
 impl From<&[f64]> for FloatEncoding {
     fn from(arr: &[f64]) -> Self {
-        // The number of rows we would reduce the column by if we encoded it
-        // as RLE.
+        // Are:
+        //   * all the values natural numbers?
+        //   * all the values able to be represented in 32-bits or less?
+        //
+        // Yes to the above means we can convert the data to integers and then
+        // trim them, potentially applying RLE afterwards.
+        let mut min = arr[0];
+        let mut max = arr[0];
+        let all_z = arr.iter().all(|&v| {
+            min = min.min(v);
+            max = max.max(v);
+            is_natural_number(v)
+        });
+
+        // check they are all natural numbers that can be stored in 32 bits or
+        // less.
+        if all_z
+            && ((min >= 0.0 && max <= u32::MAX as f64)
+                || (min >= i32::MIN as f64 && max <= i32::MAX as f64))
+        {
+            return from_slice_with_byte_trimming(arr, (min, max));
+        }
+
+        // Store as f64, potentially with RLE.
+
+        // Check if we gain space savings by encoding as RLE.
         let base_size = arr.len() * size_of::<f64>();
         let rle_size = rle::estimate_rle_size(arr.iter().map(Some)); // size of a run length
         if (base_size as f64 - rle_size as f64) / base_size as f64 >= MIN_RLE_SIZE_REDUCTION {
@@ -234,6 +270,122 @@ impl From<&[f64]> for FloatEncoding {
         let name = enc.name();
         Self::F64(enc, name.to_owned())
     }
+}
+
+// Applies a heuristic to decide whether the input data should be encoded using
+// run-length encoding.
+fn should_rle_from_iter<T: PartialOrd>(len: usize, iter: impl Iterator<Item = Option<T>>) -> bool {
+    let base_size = len * size_of::<T>();
+    (base_size as f64 - rle::estimate_rle_size(iter) as f64) / base_size as f64
+        >= MIN_RLE_SIZE_REDUCTION
+}
+
+// Convert float data to byte-trimmed integers and potentially RLE. It is the
+// caller's responsibility to ensure all data are natural numbers that can be
+// round tripped from float to int and back without loss of precision.
+fn from_slice_with_byte_trimming(arr: &[f64], range: (f64, f64)) -> FloatEncoding {
+    // determine min and max values.
+    let min = range.0;
+    let max = range.1;
+
+    // If true then use RLE after byte trimming.
+    let rle = should_rle_from_iter(arr.len(), arr.iter().map(Some));
+
+    // This match is carefully ordered. It prioritises smaller physical
+    // datatypes that can correctly represent the provided logical data.
+    let transcoder = FloatByteTrimmer {};
+    let transcoder_name = format!("{}", &transcoder);
+    let (enc, name) = match (min, max) {
+        // encode as u8 values
+        (min, max) if min >= 0.0 && max <= u8::MAX as f64 => {
+            let arr = arr
+                .iter()
+                .map::<u8, _>(|v| transcoder.encode(*v))
+                .collect::<Vec<_>>();
+            let enc: Box<dyn ScalarEncoding<f64>> = if rle {
+                Box::new(RLE::new_from_iter(arr.into_iter(), transcoder))
+            } else {
+                Box::new(Fixed::new(arr, transcoder))
+            };
+            let name = enc.name();
+            (enc, format!("{}_U8-{}", transcoder_name, name))
+        }
+        // encode as i8 values
+        (min, max) if min >= i8::MIN as f64 && max <= i8::MAX as f64 => {
+            let arr = arr
+                .iter()
+                .map(|v| transcoder.encode(*v))
+                .collect::<Vec<i8>>();
+            let enc: Box<dyn ScalarEncoding<f64>> = if rle {
+                Box::new(RLE::new_from_iter(arr.into_iter(), transcoder))
+            } else {
+                Box::new(Fixed::new(arr, transcoder))
+            };
+            let name = enc.name();
+            (enc, format!("{}_I8-{}", transcoder_name, name))
+        }
+        // encode as u16 values
+        (min, max) if min >= 0.0 && max <= u16::MAX as f64 => {
+            let arr = arr
+                .iter()
+                .map::<u16, _>(|v| transcoder.encode(*v))
+                .collect::<Vec<u16>>();
+            let enc: Box<dyn ScalarEncoding<f64>> = if rle {
+                Box::new(RLE::new_from_iter(arr.into_iter(), transcoder))
+            } else {
+                Box::new(Fixed::new(arr, transcoder))
+            };
+            let name = enc.name();
+            (enc, format!("{}_U16-{}", transcoder_name, name))
+        }
+        // encode as i16 values
+        (min, max) if min >= i16::MIN as f64 && max <= i16::MAX as f64 => {
+            let arr = arr
+                .iter()
+                .map(|v| transcoder.encode(*v))
+                .collect::<Vec<i16>>();
+            let enc: Box<dyn ScalarEncoding<f64>> = if rle {
+                Box::new(RLE::new_from_iter(arr.into_iter(), transcoder))
+            } else {
+                Box::new(Fixed::new(arr, transcoder))
+            };
+            let name = enc.name();
+            (enc, format!("{}_I16-{}", transcoder_name, name))
+        }
+        // encode as u32 values
+        (min, max) if min >= 0.0 && max <= u32::MAX as f64 => {
+            let arr = arr
+                .iter()
+                .map(|v| transcoder.encode(*v))
+                .collect::<Vec<u32>>();
+            let enc: Box<dyn ScalarEncoding<f64>> = if rle {
+                Box::new(RLE::new_from_iter(arr.into_iter(), transcoder))
+            } else {
+                Box::new(Fixed::new(arr, transcoder))
+            };
+            let name = enc.name();
+            (enc, format!("{}_U32-{}", transcoder_name, name))
+        }
+        // encode as i32 values
+        (min, max) if min >= i32::MIN as f64 && max <= i32::MAX as f64 => {
+            let arr = arr
+                .iter()
+                .map(|v| transcoder.encode(*v))
+                .collect::<Vec<i32>>();
+            let enc: Box<dyn ScalarEncoding<f64>> = if rle {
+                Box::new(RLE::new_from_iter(arr.into_iter(), transcoder))
+            } else {
+                Box::new(Fixed::new(arr, transcoder))
+            };
+            let name = enc.name();
+            (enc, format!("{}_I32-{}", transcoder_name, name))
+        }
+        (_, _) => unreachable!(
+            "float column not byte trimmable: range [{:?}, {:?}]",
+            min, max
+        ),
+    };
+    FloatEncoding::F64(enc, name)
 }
 
 /// Converts an Arrow Float array into a `FloatEncoding`.
@@ -282,6 +434,45 @@ mod test {
     use super::*;
     use crate::column::encoding::scalar::{fixed, fixed_null, rle};
     use cmp::Operator;
+
+    #[test]
+    // Tests that input data with natural numbers gets byte trimmed correctly.
+    fn from_slice_f64() {
+        let cases = vec![
+            (vec![0.0, 2.0, 245.0, 3.0], "FBT_U8-FIXED"), // u8 fixed array
+            (vec![0.0, -120.0, 127.0, 3.0], "FBT_I8-FIXED"), // i8 fixed array
+            (vec![399.0, 2.0, 2452.0, 3.0], "FBT_U16-FIXED"), // u16 fixed array
+            (vec![-399.0, 2.0, 2452.0, 3.0], "FBT_I16-FIXED"), // i16 fixed array
+            (vec![u32::MAX as f64, 2.0, 245.0, 3.0], "FBT_U32-FIXED"), // u32 fixed array
+            (vec![u32::MAX as f64, 0.0], "FBT_U32-FIXED"), // u32 fixed array
+            (vec![i32::MIN as f64, i32::MAX as f64], "FBT_I32-FIXED"), // i32 fixed array
+            (vec![i32::MIN as f64, 2.0, 245.0, 3.0], "FBT_I32-FIXED"), // i32 fixed array
+            (vec![u32::MAX as f64 + 1.0, 2.0, 245.0, 3.0], "FIXED"), // f64 fixed array
+            (vec![u32::MAX as f64, -1.0], "FIXED"),       // can't byte trim due to range
+            (vec![i32::MAX as f64 + 1.0, -1.0], "FIXED"), // can't byte trim due to range
+            (vec![i32::MIN as f64 - 1.0, -1.0], "FIXED"), // can't byte trim due to range
+        ];
+
+        for (case, name) in cases.into_iter() {
+            let enc = FloatEncoding::from(case.as_slice());
+            assert_eq!(enc.name(), name, "failed: {:?}", enc);
+        }
+
+        // Verify RLE conversion
+        let input = vec![1_f64; 1000]
+            .into_iter()
+            .chain(vec![2_f64; 1000]) // 1,1,1,1,1,2,2,2,2,2,2....
+            .collect::<Vec<f64>>();
+        let enc = FloatEncoding::from(input.as_slice());
+        assert_eq!(enc.name(), "FBT_U8-RLE", "failed: {:?}", enc);
+
+        let input = vec![f64::MAX; 1000]
+            .into_iter()
+            .chain(vec![f64::MIN; 1000])
+            .collect::<Vec<f64>>();
+        let enc = FloatEncoding::from(input.as_slice());
+        assert_eq!(enc.name(), "RLE", "failed: {:?}", enc);
+    }
 
     #[test]
     fn from_arrow_array() {
