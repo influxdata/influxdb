@@ -122,12 +122,7 @@ where
             .and_then(TryInto::try_into)
             .map_err(|e| e.scope("rules"))?;
 
-        let server_id = match self.server.require_id().ok() {
-            Some(id) => id,
-            None => return Err(NotFound::default().into()),
-        };
-
-        match self.server.create_database(rules, server_id).await {
+        match self.server.create_database(rules).await {
             Ok(_) => Ok(Response::new(CreateDatabaseResponse {})),
             Err(Error::DatabaseAlreadyExists { db_name }) => {
                 return Err(AlreadyExists {
@@ -375,6 +370,15 @@ where
         let SetServingReadinessRequest { ready } = request.into_inner();
         self.serving_readiness.set(ready.into());
         Ok(Response::new(SetServingReadinessResponse {}))
+    }
+
+    async fn are_databases_loaded(
+        &self,
+        _request: Request<AreDatabasesLoadedRequest>,
+    ) -> Result<Response<AreDatabasesLoadedResponse>, Status> {
+        Ok(Response::new(AreDatabasesLoadedResponse {
+            databases_loaded: self.server.databases_loaded(),
+        }))
     }
 }
 

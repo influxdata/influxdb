@@ -25,6 +25,7 @@ async fn test_serving_readiness() {
         .update_server_id(42)
         .await
         .expect("set ID failed");
+    server_fixture.wait_dbs_loaded().await;
     mgmt_client
         .create_database(DatabaseRules {
             name: name.to_string(),

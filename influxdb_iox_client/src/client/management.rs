@@ -56,6 +56,10 @@ pub enum CreateDatabaseError {
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     InvalidArgument(tonic::Status),
 
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -76,6 +80,10 @@ pub enum UpdateDatabaseError {
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     InvalidArgument(tonic::Status),
 
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -84,6 +92,10 @@ pub enum UpdateDatabaseError {
 /// Errors returned by Client::list_databases
 #[derive(Debug, Error)]
 pub enum ListDatabaseError {
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -104,6 +116,10 @@ pub enum GetDatabaseError {
     #[error("Server returned an empty response")]
     EmptyResponse,
 
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -112,6 +128,10 @@ pub enum GetDatabaseError {
 /// Errors returned by Client::list_chunks
 #[derive(Debug, Error)]
 pub enum ListChunksError {
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -152,6 +172,10 @@ pub enum ListPartitionsError {
     #[error("Database not found")]
     DatabaseNotFound,
 
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -168,6 +192,10 @@ pub enum GetPartitionError {
     #[error("Partition not found")]
     PartitionNotFound,
 
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -176,6 +204,10 @@ pub enum GetPartitionError {
 /// Errors returned by Client::list_partition_chunks
 #[derive(Debug, Error)]
 pub enum ListPartitionChunksError {
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -187,6 +219,10 @@ pub enum NewPartitionChunkError {
     /// Database or partition not found
     #[error("{}", .0)]
     NotFound(String),
+
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
 
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
@@ -204,6 +240,18 @@ pub enum ClosePartitionChunkError {
     #[error("Server returned an empty response")]
     EmptyResponse,
 
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
+/// Errors returned by [`Client::are_databases_loaded`]
+#[derive(Debug, Error)]
+pub enum AreDatabasesLoadedError {
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -281,6 +329,17 @@ impl Client {
         Ok(id)
     }
 
+    /// Check if databases are loaded and ready for read and write.
+    pub async fn are_databases_loaded(&mut self) -> Result<bool, AreDatabasesLoadedError> {
+        let response = self
+            .inner
+            .are_databases_loaded(AreDatabasesLoadedRequest {})
+            .await
+            .map_err(AreDatabasesLoadedError::ServerError)?;
+
+        Ok(response.get_ref().databases_loaded)
+    }
+
     /// Set serving readiness.
     pub async fn set_serving_readiness(
         &mut self,
@@ -305,6 +364,7 @@ impl Client {
                 tonic::Code::AlreadyExists => CreateDatabaseError::DatabaseAlreadyExists,
                 tonic::Code::FailedPrecondition => CreateDatabaseError::NoServerId,
                 tonic::Code::InvalidArgument => CreateDatabaseError::InvalidArgument(status),
+                tonic::Code::Unavailable => CreateDatabaseError::Unavailable(status),
                 _ => CreateDatabaseError::ServerError(status),
             })?;
 
@@ -324,6 +384,7 @@ impl Client {
                 tonic::Code::NotFound => UpdateDatabaseError::DatabaseNotFound,
                 tonic::Code::FailedPrecondition => UpdateDatabaseError::NoServerId,
                 tonic::Code::InvalidArgument => UpdateDatabaseError::InvalidArgument(status),
+                tonic::Code::Unavailable => UpdateDatabaseError::Unavailable(status),
                 _ => UpdateDatabaseError::ServerError(status),
             })?;
 
@@ -336,7 +397,10 @@ impl Client {
             .inner
             .list_databases(ListDatabasesRequest {})
             .await
-            .map_err(ListDatabaseError::ServerError)?;
+            .map_err(|status| match status.code() {
+                tonic::Code::Unavailable => ListDatabaseError::Unavailable(status),
+                _ => ListDatabaseError::ServerError(status),
+            })?;
         Ok(response.into_inner().names)
     }
 
@@ -352,6 +416,7 @@ impl Client {
             .map_err(|status| match status.code() {
                 tonic::Code::NotFound => GetDatabaseError::DatabaseNotFound,
                 tonic::Code::FailedPrecondition => GetDatabaseError::NoServerId,
+                tonic::Code::Unavailable => GetDatabaseError::Unavailable(status),
                 _ => GetDatabaseError::ServerError(status),
             })?;
 
@@ -373,7 +438,10 @@ impl Client {
             .inner
             .list_chunks(ListChunksRequest { db_name })
             .await
-            .map_err(ListChunksError::ServerError)?;
+            .map_err(|status| match status.code() {
+                tonic::Code::Unavailable => ListChunksError::Unavailable(status),
+                _ => ListChunksError::ServerError(status),
+            })?;
         Ok(response.into_inner().chunks)
     }
 
@@ -426,6 +494,7 @@ impl Client {
             .await
             .map_err(|status| match status.code() {
                 tonic::Code::NotFound => ListPartitionsError::DatabaseNotFound,
+                tonic::Code::Unavailable => ListPartitionsError::Unavailable(status),
                 _ => ListPartitionsError::ServerError(status),
             })?;
 
@@ -452,6 +521,7 @@ impl Client {
             .await
             .map_err(|status| match status.code() {
                 tonic::Code::NotFound => GetPartitionError::DatabaseNotFound,
+                tonic::Code::Unavailable => GetPartitionError::Unavailable(status),
                 _ => GetPartitionError::ServerError(status),
             })?;
 
@@ -476,7 +546,10 @@ impl Client {
                 partition_key,
             })
             .await
-            .map_err(ListPartitionChunksError::ServerError)?;
+            .map_err(|status| match status.code() {
+                tonic::Code::Unavailable => ListPartitionChunksError::Unavailable(status),
+                _ => ListPartitionChunksError::ServerError(status),
+            })?;
         Ok(response.into_inner().chunks)
     }
 
@@ -502,6 +575,7 @@ impl Client {
                 tonic::Code::NotFound => {
                     NewPartitionChunkError::NotFound(status.message().to_string())
                 }
+                tonic::Code::Unavailable => NewPartitionChunkError::Unavailable(status),
                 _ => NewPartitionChunkError::ServerError(status),
             })?;
 
@@ -553,6 +627,7 @@ impl Client {
             .await
             .map_err(|status| match status.code() {
                 tonic::Code::NotFound => ClosePartitionChunkError::DatabaseNotFound,
+                tonic::Code::Unavailable => ClosePartitionChunkError::Unavailable(status),
                 _ => ClosePartitionChunkError::ServerError(status),
             })?;
 

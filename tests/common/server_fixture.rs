@@ -7,6 +7,7 @@ use std::{
         atomic::{AtomicUsize, Ordering::SeqCst},
         Weak,
     },
+    time::Instant,
 };
 
 use futures::prelude::*;
@@ -214,6 +215,19 @@ impl ServerFixture {
             grpc_channel,
         }
     }
+
+    /// Wait until server returns that databases are loaded.
+    pub async fn wait_dbs_loaded(&self) {
+        let mut client = self.management_client();
+        let t_0 = Instant::now();
+        loop {
+            if client.are_databases_loaded().await.unwrap() {
+                break;
+            }
+            assert!(t_0.elapsed() < Duration::from_secs(10));
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -402,6 +416,39 @@ impl TestServer {
                     .expect("set ID failed");
 
                 println!("Set writer_id to {:?}", id);
+
+                // if server ID was set, we can also wait until DBs are loaded
+                let check_dbs_loaded = async {
+                    let mut interval = tokio::time::interval(Duration::from_millis(500));
+
+                    loop {
+                        match management_client.are_databases_loaded().await {
+                            Ok(loaded) => {
+                                if loaded {
+                                    return;
+                                }
+                            }
+                            Err(e) => {
+                                println!("Waiting for databases being loaded: {}", e);
+                            }
+                        }
+                        interval.tick().await;
+                    }
+                };
+
+                let capped_check = tokio::time::timeout(Duration::from_secs(3), check_dbs_loaded);
+
+                match capped_check.await {
+                    Ok(_) => {
+                        println!("Databases loaded");
+                    }
+                    Err(e) => {
+                        // tell others that this server had some problem
+                        *ready = ServerState::Error;
+                        std::mem::drop(ready);
+                        panic!("Server did not load databases in required time: {}", e);
+                    }
+                }
             }
             InitialConfig::None => {}
         };

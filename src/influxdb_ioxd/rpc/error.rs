@@ -14,6 +14,9 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
             description: "Writer ID must be set".to_string(),
         }
         .into(),
+        Error::DatabasesNotLoaded => tonic::Status::unavailable(
+            "Server ID set but DBs not yet loaded. Server cannot accept reads/writes yet.",
+        ),
         Error::DatabaseNotFound { db_name } => NotFound {
             resource_type: "database".to_string(),
             resource_name: db_name,

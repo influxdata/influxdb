@@ -61,6 +61,9 @@ service ManagementService {
 
   // Close a chunk and move it to the read buffer
   rpc ClosePartitionChunk(ClosePartitionChunkRequest) returns (ClosePartitionChunkResponse);
+
+  // Checks if databases are loaded and server is ready for reads and writes.
+  rpc AreDatabasesLoaded(AreDatabasesLoadedRequest) returns (AreDatabasesLoadedResponse);
 }
 
 message GetServerIdRequest {}
@@ -234,4 +237,11 @@ message ClosePartitionChunkRequest {
 message ClosePartitionChunkResponse {
   // The operation that tracks the work for migrating the chunk
   google.longrunning.Operation operation = 1;
+}
+
+message AreDatabasesLoadedRequest {}
+
+message AreDatabasesLoadedResponse {
+  // Are DBs loaded?
+  bool databases_loaded = 1;
 }

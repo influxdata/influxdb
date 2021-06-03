@@ -68,6 +68,8 @@
 )]
 
 use std::convert::TryInto;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -92,6 +94,7 @@ use internal_types::once::OnceNonZeroU32;
 use metrics::{KeyValue, MetricObserverBuilder, MetricRegistry};
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, DatabaseStore};
+use tokio::sync::Semaphore;
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
 
 pub use crate::config::RemoteTemplate;
@@ -155,6 +158,11 @@ pub enum Error {
 
     #[snafu(display("unable to use server until id is set"))]
     IdNotSet,
+
+    #[snafu(display(
+        "server ID is set but DBs are not yet loaded. Server is not yet ready to read/write data."
+    ))]
+    DatabasesNotLoaded,
 
     #[snafu(display("error serializing database rules to protobuf: {}", source))]
     ErrorSerializingRulesProtobuf {
@@ -403,6 +411,12 @@ pub struct Server<M: ConnectionManager> {
     /// recording telemetry, but because the server hosts the /metric endpoint
     /// and populates the endpoint with this data.
     pub registry: Arc<metrics::MetricRegistry>,
+
+    /// Flags that databases are loaded and server is ready to read/write data.
+    databases_loaded: AtomicBool,
+
+    /// Semaphore that limits the number of jobs that load DBs when the serverID is set.
+    db_load_semaphore: Semaphore,
 }
 
 #[derive(Debug)]
@@ -443,6 +457,8 @@ impl<M: ConnectionManager> Server<M> {
             jobs,
             metrics: Arc::new(ServerMetrics::new(Arc::clone(&metric_registry))),
             registry: Arc::clone(&metric_registry),
+            databases_loaded: AtomicBool::new(false),
+            db_load_semaphore: Semaphore::new(1),
         }
     }
 
@@ -459,10 +475,29 @@ impl<M: ConnectionManager> Server<M> {
         self.id.get()
     }
 
+    /// Check if databases are loaded and server is ready to read/write.
+    pub fn databases_loaded(&self) -> bool {
+        // ordering here isn't that important since this method is not used to check-and-modify the flag
+        self.databases_loaded.load(Ordering::Relaxed)
+    }
+
+    /// Requires that databases are loaded and server is ready to read/write.
+    fn require_dbs_loaded(&self) -> Result<ServerId> {
+        // since a server ID is the pre-requirement for readyness, check this first
+        let server_id = self.require_id()?;
+
+        // ordering here isn't that important since this method is not used to check-and-modify the flag
+        if self.databases_loaded() {
+            Ok(server_id)
+        } else {
+            Err(Error::DatabasesNotLoaded)
+        }
+    }
+
     /// Tells the server the set of rules for a database.
-    pub async fn create_database(&self, rules: DatabaseRules, server_id: ServerId) -> Result<()> {
-        // Return an error if this server hasn't yet been setup with an id
-        self.require_id()?;
+    pub async fn create_database(&self, rules: DatabaseRules) -> Result<()> {
+        // Return an error if this server is not yet ready
+        let server_id = self.require_dbs_loaded()?;
 
         let preserved_catalog = load_or_create_preserved_catalog(
             rules.db_name(),
@@ -519,7 +554,22 @@ impl<M: ConnectionManager> Server<M> {
     /// Loads the database configurations based on the databases in the
     /// object store. Any databases in the config already won't be
     /// replaced.
-    pub async fn load_database_configs(&self) -> Result<()> {
+    ///
+    /// This requires the serverID to be set. It will be a no-op if the configs are already loaded and the server is ready.
+    pub async fn maybe_load_database_configs(&self) -> Result<()> {
+        let _guard = self
+            .db_load_semaphore
+            .acquire()
+            .await
+            .expect("semaphore should not be closed");
+
+        // Note that we use Acquire-Release ordering for the atomic within the semaphore to ensure that another thread
+        // that enters this semaphore after we've left actually sees the correct `is_ready` flag.
+        if self.databases_loaded.load(Ordering::Acquire) {
+            // already loaded, so do nothing
+            return Ok(());
+        }
+
         // get the database names from the object store prefixes
         // TODO: update object store to pull back all common prefixes by
         //       following the next tokens.
@@ -552,6 +602,10 @@ impl<M: ConnectionManager> Server<M> {
             .collect();
 
         futures::future::join_all(handles).await;
+
+        // mark as ready (use correct ordering for Acquire-Release)
+        self.databases_loaded.store(true, Ordering::Release);
+        info!("loaded databases, server is ready");
 
         Ok(())
     }
@@ -612,7 +666,8 @@ impl<M: ConnectionManager> Server<M> {
         lines: &[ParsedLine<'_>],
         default_time: i64,
     ) -> Result<()> {
-        self.require_id()?;
+        // Return an error if this server is not yet ready
+        self.require_dbs_loaded()?;
 
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
         let db = self
@@ -746,7 +801,8 @@ impl<M: ConnectionManager> Server<M> {
     }
 
     pub async fn write_entry(&self, db_name: &str, entry_bytes: Vec<u8>) -> Result<()> {
-        self.require_id()?;
+        // Return an error if this server is not yet ready
+        self.require_dbs_loaded()?;
 
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
         let db = self
@@ -895,6 +951,12 @@ impl<M: ConnectionManager> Server<M> {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
 
         while !shutdown.is_cancelled() {
+            if self.require_id().is_ok() {
+                if let Err(e) = self.maybe_load_database_configs().await {
+                    error!(%e, "error during DB loading");
+                }
+            }
+
             self.jobs.inner.lock().reclaim();
 
             tokio::select! {
@@ -953,7 +1015,7 @@ where
         let db = match self.db(&db_name) {
             Some(db) => db,
             None => {
-                self.create_database(DatabaseRules::new(db_name.clone()), self.require_id()?)
+                self.create_database(DatabaseRules::new(db_name.clone()))
                     .await?;
                 self.db(&db_name).expect("db not inserted")
             }
@@ -1112,7 +1174,11 @@ async fn get_database_config_bytes(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, convert::TryFrom, time::Duration};
+    use std::{
+        collections::BTreeMap,
+        convert::TryFrom,
+        time::{Duration, Instant},
+    };
 
     use async_trait::async_trait;
     use futures::TryStreamExt;
@@ -1195,6 +1261,7 @@ mod tests {
         let store = config.store();
         let server = Server::new(manager, config);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server.maybe_load_database_configs().await.unwrap();
 
         let name = DatabaseName::new("bananas").unwrap();
 
@@ -1211,7 +1278,7 @@ mod tests {
 
         // Create a database
         server
-            .create_database(rules.clone(), server.require_id().unwrap())
+            .create_database(rules.clone())
             .await
             .expect("failed to create database");
 
@@ -1236,10 +1303,7 @@ mod tests {
 
         let db2 = DatabaseName::new("db_awesome").unwrap();
         server
-            .create_database(
-                DatabaseRules::new(db2.clone()),
-                server.require_id().unwrap(),
-            )
+            .create_database(DatabaseRules::new(db2.clone()))
             .await
             .expect("failed to create 2nd db");
 
@@ -1250,7 +1314,7 @@ mod tests {
             .with_num_worker_threads(1);
         let server2 = Server::new(manager, config2);
         server2.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server2.load_database_configs().await.unwrap();
+        server2.maybe_load_database_configs().await.unwrap();
 
         let _ = server2.db(&db2).unwrap();
         let _ = server2.db(&name).unwrap();
@@ -1263,24 +1327,19 @@ mod tests {
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server.maybe_load_database_configs().await.unwrap();
 
         let name = DatabaseName::new("bananas").unwrap();
 
         // Create a database
         server
-            .create_database(
-                DatabaseRules::new(name.clone()),
-                server.require_id().unwrap(),
-            )
+            .create_database(DatabaseRules::new(name.clone()))
             .await
             .expect("failed to create database");
 
         // Then try and create another with the same name
         let got = server
-            .create_database(
-                DatabaseRules::new(name.clone()),
-                server.require_id().unwrap(),
-            )
+            .create_database(DatabaseRules::new(name.clone()))
             .await
             .unwrap_err();
 
@@ -1289,7 +1348,7 @@ mod tests {
         }
     }
 
-    async fn create_simple_database<M>(server: &Server<M>, name: impl Into<String>)
+    async fn create_simple_database<M>(server: &Server<M>, name: impl Into<String>) -> Result<()>
     where
         M: ConnectionManager,
     {
@@ -1307,10 +1366,7 @@ mod tests {
         };
 
         // Create a database
-        server
-            .create_database(rules.clone(), server.require_id().unwrap())
-            .await
-            .expect("failed to create database");
+        server.create_database(rules.clone()).await
     }
 
     #[tokio::test]
@@ -1322,8 +1378,10 @@ mod tests {
         let config = config_with_store(store);
         let server = Server::new(manager, config);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-
-        create_simple_database(&server, "bananas").await;
+        server.maybe_load_database_configs().await.unwrap();
+        create_simple_database(&server, "bananas")
+            .await
+            .expect("failed to create database");
 
         let mut rules_path = server.store.new_path();
         rules_path.push_all_dirs(&["1", "bananas"]);
@@ -1336,10 +1394,14 @@ mod tests {
         let config = config_with_store(store);
         let server = Server::new(manager, config);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server
+            .maybe_load_database_configs()
+            .await
+            .expect("load config");
 
-        server.load_database_configs().await.expect("load config");
-
-        create_simple_database(&server, "apples").await;
+        create_simple_database(&server, "apples")
+            .await
+            .expect("failed to create database");
 
         assert_eq!(server.db_names_sorted(), vec!["apples", "bananas"]);
 
@@ -1355,8 +1417,10 @@ mod tests {
         let config = config_with_store(store);
         let server = Server::new(manager, config);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-
-        server.load_database_configs().await.expect("load config");
+        server
+            .maybe_load_database_configs()
+            .await
+            .expect("load config");
 
         assert_eq!(server.db_names_sorted(), vec!["apples"]);
     }
@@ -1366,13 +1430,17 @@ mod tests {
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server
+            .maybe_load_database_configs()
+            .await
+            .expect("load config");
 
         let names = vec!["bar", "baz"];
 
         for name in &names {
             let name = DatabaseName::new(name.to_string()).unwrap();
             server
-                .create_database(DatabaseRules::new(name), server.require_id().unwrap())
+                .create_database(DatabaseRules::new(name))
                 .await
                 .expect("failed to create database");
         }
@@ -1386,10 +1454,11 @@ mod tests {
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server.maybe_load_database_configs().await.unwrap();
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
-            .create_database(DatabaseRules::new(name), server.require_id().unwrap())
+            .create_database(DatabaseRules::new(name))
             .await
             .unwrap();
 
@@ -1426,10 +1495,11 @@ mod tests {
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server.maybe_load_database_configs().await.unwrap();
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
-            .create_database(DatabaseRules::new(name), server.require_id().unwrap())
+            .create_database(DatabaseRules::new(name))
             .await
             .unwrap();
 
@@ -1512,13 +1582,11 @@ mod tests {
 
         let server = Server::new(manager, config());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server.maybe_load_database_configs().await.unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
         server
-            .create_database(
-                DatabaseRules::new(db_name.clone()),
-                server.require_id().unwrap(),
-            )
+            .create_database(DatabaseRules::new(db_name.clone()))
             .await
             .unwrap();
 
@@ -1595,13 +1663,11 @@ mod tests {
         let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
 
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server.maybe_load_database_configs().await.unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
         server
-            .create_database(
-                DatabaseRules::new(db_name.clone()),
-                server.require_id().unwrap(),
-            )
+            .create_database(DatabaseRules::new(db_name.clone()))
             .await
             .unwrap();
 
@@ -1759,10 +1825,11 @@ mod tests {
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server.maybe_load_database_configs().await.unwrap();
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
-            .create_database(DatabaseRules::new(name), server.require_id().unwrap())
+            .create_database(DatabaseRules::new(name))
             .await
             .unwrap();
 
@@ -1801,5 +1868,54 @@ mod tests {
         let entry_2 = &sharded_entries_2[0].entry;
         let res = server.write_entry("foo", entry_2.data().into()).await;
         assert!(matches!(res, Err(super::Error::HardLimitReached {})));
+    }
+
+    #[tokio::test]
+    async fn cannot_create_db_until_dbs_are_loaded() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let store = ObjectStore::new_file(object_store::disk::File::new(temp_dir.path()));
+        let manager = TestConnectionManager::new();
+        let config = config_with_store(store);
+        let server = Server::new(manager, config);
+
+        // calling before serverID set leads to `IdNotSet`
+        let err = create_simple_database(&server, "bananas")
+            .await
+            .unwrap_err();
+        assert!(matches!(err, Error::IdNotSet));
+
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        // do NOT call `server.maybe_load_database_configs` so DBs are not loaded and server is not ready
+
+        // calling with serverId but before loading is done leads to
+        let err = create_simple_database(&server, "bananas")
+            .await
+            .unwrap_err();
+        assert!(matches!(err, Error::DatabasesNotLoaded));
+    }
+
+    #[tokio::test]
+    async fn background_worker_eventually_loads_dbs() {
+        let manager = TestConnectionManager::new();
+        let server = Arc::new(Server::new(manager, config()));
+
+        let cancel_token = CancellationToken::new();
+        let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
+
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+
+        let t_0 = Instant::now();
+        loop {
+            if server.require_dbs_loaded().is_ok() {
+                break;
+            }
+            assert!(t_0.elapsed() < Duration::from_secs(10));
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        // ensure that we don't leave the server instance hanging around
+        cancel_token.cancel();
+        let _ = background_handle.await;
     }
 }
