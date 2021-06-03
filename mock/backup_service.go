@@ -65,6 +65,20 @@ func (mr *MockBackupServiceMockRecorder) BackupShard(ctx, w, shardID, since inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackupShard", reflect.TypeOf((*MockBackupService)(nil).BackupShard), ctx, w, shardID, since)
 }
 
+// CreateBucketManifests mocks base method.
+func (m *MockBackupService) CreateBucketManifests(ctx context.Context, w io.Writer) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateBucketManifests", ctx, w)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateBucketManifests indicates an expected call of CreateBucketManifests.
+func (mr *MockBackupServiceMockRecorder) CreateBucketManifests(ctx, w interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBucketManifests", reflect.TypeOf((*MockBackupService)(nil).CreateBucketManifests), ctx, w)
+}
+
 // LockKVStore mocks base method.
 func (m *MockBackupService) LockKVStore() {
 	m.ctrl.T.Helper()

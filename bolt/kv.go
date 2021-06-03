@@ -3,17 +3,22 @@ package bolt
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
+	"github.com/influxdata/influxdb/v2/tenant"
+	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
 )
@@ -212,6 +217,128 @@ func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
 		_, err := tx.WriteTo(w)
 		return err
 	})
+}
+
+// CreateBucketManifests writes an array of JSON objects describing the metadata of the
+// buckets relevant to the backup
+func (s *KVStore) CreateBucketManifests(ctx context.Context, w io.Writer) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	mc := meta.NewClient(meta.NewConfig(), s)
+	if err := mc.Open(); err != nil {
+		return err
+	}
+	defer mc.Close()
+
+	// start by getting a list of buckets
+	ts := tenant.NewService(tenant.NewStore(s))
+	buckets, _, err := ts.FindBuckets(ctx, influxdb.BucketFilter{})
+	if err != nil {
+		return err
+	}
+
+	bucketList := []influxdb.BucketMetadataManifest{}
+
+	for _, b := range buckets {
+		org, err := ts.OrganizationService.FindOrganizationByID(ctx, b.OrgID)
+		if err != nil {
+			return err
+		}
+
+		dbInfo := mc.Database(b.ID.String())
+
+		var m influxdb.BucketMetadataManifest
+		m.OrganizationID = b.OrgID
+		m.OrganizationName = org.Name
+		m.BucketID = b.ID
+		m.BucketName = b.Name
+		m.DefaultRetentionPolicy = dbInfo.DefaultRetentionPolicy
+		m.RetentionPolicies = retentionPolicyToManfiest(dbInfo.RetentionPolicies)
+
+		bucketList = append(bucketList, m)
+	}
+
+	// temp code to let me see what it looks like pretty
+	b, err := json.Marshal(bucketList)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	json.Indent(&out, b, "=", "  ")
+	out.WriteTo(os.Stdout)
+
+	// end temp code
+
+	return json.NewEncoder(w).Encode(&bucketList)
+}
+
+func retentionPolicyToManfiest(meta []meta.RetentionPolicyInfo) []influxdb.RetentionPolicyManifest {
+	ret := []influxdb.RetentionPolicyManifest{}
+
+	for _, m := range meta {
+		ret = append(ret, influxdb.RetentionPolicyManifest{
+			Name:               m.Name,
+			ReplicaN:           m.ReplicaN,
+			Duration:           m.Duration,
+			ShardGroupDuration: m.ShardGroupDuration,
+			ShardGroups:        shardGroupToManifest(m.ShardGroups),
+			Subscriptions:      subscriptionInfosToManfiest(m.Subscriptions),
+		})
+	}
+
+	return ret
+}
+
+func subscriptionInfosToManfiest(subInfos []meta.SubscriptionInfo) []influxdb.SubscriptionManifest {
+	ret := []influxdb.SubscriptionManifest{}
+
+	for _, s := range subInfos {
+		ret = append(ret, influxdb.SubscriptionManifest(s))
+	}
+
+	return ret
+}
+
+func shardGroupToManifest(shardGroups []meta.ShardGroupInfo) []influxdb.ShardGroupManifest {
+	ret := []influxdb.ShardGroupManifest{}
+
+	for _, s := range shardGroups {
+		ret = append(ret, influxdb.ShardGroupManifest{
+			ID:          s.ID,
+			StartTime:   s.StartTime,
+			EndTime:     s.EndTime,
+			DeletedAt:   s.DeletedAt,
+			TruncatedAt: s.TruncatedAt,
+			Shards:      shardInfosToManifest(s.Shards),
+		})
+	}
+
+	return ret
+}
+
+func shardInfosToManifest(shards []meta.ShardInfo) []influxdb.ShardManifest {
+	ret := []influxdb.ShardManifest{}
+
+	for _, s := range shards {
+		ret = append(ret, influxdb.ShardManifest{
+			ID:     s.ID,
+			Owners: shardOwnersToManifest(s.Owners),
+		})
+	}
+
+	return ret
+}
+
+func shardOwnersToManifest(shardOwners []meta.ShardOwner) []influxdb.ShardOwner {
+	ret := []influxdb.ShardOwner{}
+
+	for _, s := range shardOwners {
+		ret = append(ret, influxdb.ShardOwner(s))
+	}
+
+	return ret
 }
 
 // Restore replaces the underlying database with the data from r.

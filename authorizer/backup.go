@@ -44,6 +44,16 @@ func (b BackupService) BackupShard(ctx context.Context, w io.Writer, shardID uin
 	return b.s.BackupShard(ctx, w, shardID, since)
 }
 
+func (b BackupService) CreateBucketManifests(ctx context.Context, w io.Writer) error {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	if err := IsAllowedAll(ctx, influxdb.OperPermissions()); err != nil {
+		return err
+	}
+	return b.s.CreateBucketManifests(ctx, w)
+}
+
 // The Lock and Unlock methods below do not have authorization checks and should only be used
 // when appropriate authorization has already been confirmed, such as behind a middleware. They
 // are intended to be used for coordinating the locking and unlocking of the kv and sql metadata

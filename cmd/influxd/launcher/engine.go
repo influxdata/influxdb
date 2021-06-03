@@ -164,6 +164,10 @@ func (t *TemporaryEngine) BackupKVStore(ctx context.Context, w io.Writer) error 
 	return t.engine.BackupKVStore(ctx, w)
 }
 
+func (t *TemporaryEngine) CreateBucketManifests(ctx context.Context, w io.Writer) error {
+	return t.engine.CreateBucketManifests(ctx, w)
+}
+
 func (t *TemporaryEngine) LockKVStore() {
 	t.engine.LockKVStore()
 }

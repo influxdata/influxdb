@@ -20,6 +20,10 @@ type BackupService interface {
 	// BackupShard downloads a backup file for a single shard.
 	BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error
 
+	// CreateBucketManifests writes an array of JSON objects describing the metadata of the
+	// buckets relevant to the backup
+	CreateBucketManifests(ctx context.Context, w io.Writer) error
+
 	// LockKVStore locks the database.
 	LockKVStore()
 
@@ -52,6 +56,51 @@ type RestoreService interface {
 
 	// RestoreShard uploads a backup file for a single shard.
 	RestoreShard(ctx context.Context, shardID uint64, r io.Reader) error
+}
+
+// BucketMetadataManifest contains the information about a bucket for backup purposes.
+type BucketMetadataManifest struct {
+	OrganizationID         platform.ID
+	OrganizationName       string
+	BucketID               platform.ID
+	BucketName             string
+	DefaultRetentionPolicy string
+	RetentionPolicies      []RetentionPolicyManifest
+}
+
+// RetentionPolicyManifest is a copy of meta.RetentionPolicyInfo to avoid import cycle basically
+// so is everything else below this
+type RetentionPolicyManifest struct {
+	Name               string                 `json:"name"`
+	ReplicaN           int                    `json:"replicaN"`
+	Duration           time.Duration          `json:"duration"`
+	ShardGroupDuration time.Duration          `json:"shardGroupDuration"`
+	ShardGroups        []ShardGroupManifest   `json:"shardGroups"`
+	Subscriptions      []SubscriptionManifest `json:"subscriptions"`
+}
+
+type ShardGroupManifest struct {
+	ID          uint64          `json:"id"`
+	StartTime   time.Time       `json:"startTime"`
+	EndTime     time.Time       `json:"endTime"`
+	DeletedAt   time.Time       `json:"deletedAt"`
+	Shards      []ShardManifest `json:"shards"`
+	TruncatedAt time.Time       `json:"truncatedAt"`
+}
+
+type ShardManifest struct {
+	ID     uint64       `json:"id"`
+	Owners []ShardOwner `json:"owners"`
+}
+
+type ShardOwner struct {
+	NodeID uint64 `json:"nodeID"`
+}
+
+type SubscriptionManifest struct {
+	Name         string   `json:"name"`
+	Mode         string   `json:"mode"`
+	Destinations []string `json:"destinations"`
 }
 
 // Manifest lists the KV and shard file information contained in the backup.

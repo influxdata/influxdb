@@ -45,6 +45,10 @@ func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
 	panic("not implemented")
 }
 
+func (s *KVStore) CreateBucketManifests(ctx context.Context, w io.Writer) error {
+	panic("not implemented")
+}
+
 func (s *KVStore) Restore(ctx context.Context, r io.Reader) error {
 	panic("not implemented")
 }

@@ -1048,6 +1048,10 @@ func (c *Client) Backup(ctx context.Context, w io.Writer) error {
 	return c.store.Backup(ctx, w)
 }
 
+func (c *Client) CreateBucketManifests(ctx context.Context, w io.Writer) error {
+	return c.store.CreateBucketManifests(ctx, w)
+}
+
 func (c *Client) Restore(ctx context.Context, r io.Reader) error {
 	if err := c.store.Restore(ctx, r); err != nil {
 		return err
