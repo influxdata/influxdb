@@ -1745,6 +1745,7 @@ type writeRequest struct {
 }
 
 type MeasurementFieldSetWriter struct {
+	wg sync.WaitGroup
 	writeRequests chan writeRequest
 }
 
@@ -1759,6 +1760,7 @@ func (w *MeasurementFieldSetWriter) Close() {
 	if w != nil {
 		close(w.writeRequests)
 	}
+	w.wg.Wait()
 }
 
 func (fs *MeasurementFieldSet) Save() error {
@@ -1773,6 +1775,8 @@ func (w *MeasurementFieldSetWriter) RequestSave() error {
 }
 
 func (fs *MeasurementFieldSet) saveWriter() {
+	fs.writer.wg.Add(1)
+	defer fs.writer.wg.Done()
 	// Block until someone modifies the MeasurementFieldSet and
 	// it needs to be written to disk.
 	for req, ok := <-fs.writer.writeRequests; ok; req, ok = <-fs.writer.writeRequests {
