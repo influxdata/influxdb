@@ -170,7 +170,7 @@ func (h *BackupHandler) handleBackupMetadata(w http.ResponseWriter, r *http.Requ
 		},
 		{
 			"application/json; charset=utf-8",
-			fmt.Sprintf("inline; name=%q", "buckets"),
+			fmt.Sprintf("attachment; name=%q; filename=%q", "buckets", fmt.Sprintf("%s.json", baseName)),
 			func(fw io.Writer) error {
 				return h.BackupService.CreateBucketManifests(ctx, fw)
 			},
