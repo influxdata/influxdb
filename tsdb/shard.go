@@ -1655,6 +1655,12 @@ func NewMeasurementFieldSet(path string) (*MeasurementFieldSet, error) {
 	return fs, fs.load()
 }
 
+func (fs *MeasurementFieldSet) Close() {
+	if fs != nil && fs.writer != nil {
+		fs.writer.Close()
+	}
+}
+
 // Bytes estimates the memory footprint of this MeasurementFieldSet, in bytes.
 func (fs *MeasurementFieldSet) Bytes() int {
 	var b int
@@ -1734,15 +1740,25 @@ func (fs *MeasurementFieldSet) IsEmpty() bool {
 
 type errorChannel chan<- error
 
+type writeRequest struct {
+	done errorChannel
+}
+
 type MeasurementFieldSetWriter struct {
-	writeErrChannels chan errorChannel
+	writeRequests chan writeRequest
 }
 
 // SetMeasurementFieldSetWriter - initialize the queue for write requests
 // and start the background write process
 func (fs *MeasurementFieldSet) SetMeasurementFieldSetWriter(queueLength int) {
-	fs.writer = &MeasurementFieldSetWriter{writeErrChannels: make(chan errorChannel, queueLength)}
+	fs.writer = &MeasurementFieldSetWriter{writeRequests: make(chan writeRequest, queueLength)}
 	go fs.saveWriter()
+}
+
+func (w *MeasurementFieldSetWriter) Close() {
+	if w != nil {
+		close(w.writeRequests)
+	}
 }
 
 func (fs *MeasurementFieldSet) Save() error {
@@ -1751,28 +1767,31 @@ func (fs *MeasurementFieldSet) Save() error {
 
 func (w *MeasurementFieldSetWriter) RequestSave() error {
 	done := make(chan error)
-	w.writeErrChannels <- done
+	wr := writeRequest{done: done}
+	w.writeRequests <- wr
 	return <-done
 }
 
 func (fs *MeasurementFieldSet) saveWriter() {
-	for {
-		// Block until someone modifies the MeasurementFieldSet and
-		// it needs to be written to disk.
-		errorChannels, err := fs.writeToFile(<-fs.writer.writeErrChannels)
-		for _, c := range errorChannels {
-			c <- err
-			close(c)
-		}
+	// Block until someone modifies the MeasurementFieldSet and
+	// it needs to be written to disk.
+	for req, ok := <-fs.writer.writeRequests; ok; req, ok = <-fs.writer.writeRequests {
+		fs.writeToFile(req)
 	}
 }
 
 // writeToFile: Write the new index to a temp file and rename when it's sync'd
-func (fs *MeasurementFieldSet) writeToFile(first errorChannel) (errorChannels []errorChannel, err error) {
+func (fs *MeasurementFieldSet) writeToFile(first writeRequest) {
+	var err error
 	// Put the errorChannel on which we blocked into a slice to allow more invocations
 	// to share the return code from the file write
-	errorChannels = append(errorChannels, first)
-
+	errorChannels := []errorChannel{first.done}
+	defer func() {
+		for _, c := range errorChannels {
+			c <- err
+			close(c)
+		}
+	}()
 	// Do some blocking IO operations before marshalling the in-memory index
 	// to allow other changes to it to be queued up and be captured in one
 	// write operation, in case we are under heavy field creation load
@@ -1781,7 +1800,7 @@ func (fs *MeasurementFieldSet) writeToFile(first errorChannel) (errorChannels []
 	// Open the temp file
 	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL|os.O_SYNC, 0666)
 	if err != nil {
-		return errorChannels, err
+		return
 	}
 	// Ensure temp file is cleaned up
 	defer func() {
@@ -1804,8 +1823,8 @@ func (fs *MeasurementFieldSet) writeToFile(first errorChannel) (errorChannels []
 		// that will be captured in the marshaling of the in-memory copy
 		for {
 			select {
-			case ec := <-fs.writer.writeErrChannels:
-				errorChannels = append(errorChannels, ec)
+			case ec := <-fs.writer.writeRequests:
+				errorChannels = append(errorChannels, ec.done)
 				continue
 			default:
 			}
@@ -1825,12 +1844,10 @@ func (fs *MeasurementFieldSet) writeToFile(first errorChannel) (errorChannels []
 		}
 		return false, fd.Sync()
 	}()
-	if err != nil {
-		return errorChannels, err
-	} else if isEmpty {
-		return errorChannels, nil
+	if err != nil || isEmpty {
+		return
 	}
-	return errorChannels, fs.renameFile(path, err)
+	err = fs.renameFile(path, err)
 }
 
 // marshalMeasurementFieldSet: remove the fields.idx file if no fields
