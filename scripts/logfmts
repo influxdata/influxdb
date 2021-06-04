@@ -1,0 +1,26 @@
+#!/bin/bash
+
+#
+# Human readable logfmt timestamps (ts)
+#
+# Usage:
+#
+# kubectl logs deploy/iox-router-1000 -c iox -f | ./scripts/logfmts
+#
+#
+# If you want to render into UTC timestamps:
+#
+# kubectl logs deploy/iox-router-1000 -c iox -f | TZ=UTC ./scripts/logfmts
+#
+#
+
+set -eu -o pipefail
+
+if ! command -v gawk &> /dev/null; then
+  echo "GNU awk required"
+  echo "  brew install gawk"
+  echo "  apt-get install gawk"
+  echo "  ...."
+fi
+
+exec gawk -F"time=" '{print strftime("%Y-%m-%d %H:%M:%S", $2/1000000000), $1 }'
