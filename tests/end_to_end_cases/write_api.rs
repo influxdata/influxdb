@@ -148,7 +148,7 @@ async fn test_write_routed() {
         .update_server_id(TEST_ROUTER_ID)
         .await
         .expect("set ID failed");
-    router.wait_dbs_loaded().await;
+    router.wait_server_initialized().await;
 
     let target_1 = ServerFixture::create_single_use().await;
     let mut target_1_mgmt = target_1.management_client();
@@ -156,7 +156,7 @@ async fn test_write_routed() {
         .update_server_id(TEST_TARGET_ID_1)
         .await
         .expect("set ID failed");
-    target_1.wait_dbs_loaded().await;
+    target_1.wait_server_initialized().await;
 
     router_mgmt
         .update_remote(TEST_REMOTE_ID_1, target_1.grpc_base())
@@ -169,7 +169,7 @@ async fn test_write_routed() {
         .update_server_id(TEST_TARGET_ID_2)
         .await
         .expect("set ID failed");
-    target_2.wait_dbs_loaded().await;
+    target_2.wait_server_initialized().await;
 
     router_mgmt
         .update_remote(TEST_REMOTE_ID_2, target_2.grpc_base())
@@ -182,7 +182,7 @@ async fn test_write_routed() {
         .update_server_id(TEST_TARGET_ID_3)
         .await
         .expect("set ID failed");
-    target_3.wait_dbs_loaded().await;
+    target_3.wait_server_initialized().await;
 
     router_mgmt
         .update_remote(TEST_REMOTE_ID_3, target_3.grpc_base())
@@ -378,7 +378,7 @@ async fn test_write_routed_errors() {
         .update_server_id(TEST_ROUTER_ID)
         .await
         .expect("set ID failed");
-    router.wait_dbs_loaded().await;
+    router.wait_server_initialized().await;
 
     let db_name = rand_name();
     create_readable_database(&db_name, router.grpc_channel()).await;
@@ -454,7 +454,7 @@ async fn test_write_routed_no_shard() {
         .update_server_id(TEST_ROUTER_ID)
         .await
         .expect("set ID failed");
-    router.wait_dbs_loaded().await;
+    router.wait_server_initialized().await;
 
     let target_1 = ServerFixture::create_single_use().await;
     let mut target_1_mgmt = target_1.management_client();
@@ -462,7 +462,7 @@ async fn test_write_routed_no_shard() {
         .update_server_id(TEST_TARGET_ID_1)
         .await
         .expect("set ID failed");
-    target_1.wait_dbs_loaded().await;
+    target_1.wait_server_initialized().await;
 
     router_mgmt
         .update_remote(TEST_REMOTE_ID_1, target_1.grpc_base())
@@ -475,7 +475,7 @@ async fn test_write_routed_no_shard() {
         .update_server_id(TEST_TARGET_ID_2)
         .await
         .expect("set ID failed");
-    target_2.wait_dbs_loaded().await;
+    target_2.wait_server_initialized().await;
 
     router_mgmt
         .update_remote(TEST_REMOTE_ID_2, target_2.grpc_base())
@@ -488,7 +488,7 @@ async fn test_write_routed_no_shard() {
         .update_server_id(TEST_TARGET_ID_3)
         .await
         .expect("set ID failed");
-    target_3.wait_dbs_loaded().await;
+    target_3.wait_server_initialized().await;
 
     router_mgmt
         .update_remote(TEST_REMOTE_ID_3, target_3.grpc_base())

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use generated_types::{
     google::protobuf::{Duration, Empty},
     influxdata::iox::management::v1::{database_rules::RoutingRules, *},
@@ -25,7 +27,7 @@ async fn test_serving_readiness() {
         .update_server_id(42)
         .await
         .expect("set ID failed");
-    server_fixture.wait_dbs_loaded().await;
+    server_fixture.wait_server_initialized().await;
     mgmt_client
         .create_database(DatabaseRules {
             name: name.to_string(),
@@ -783,4 +785,51 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
             }
         })
         .collect::<Vec<_>>()
+}
+
+#[tokio::test]
+async fn test_get_server_status() {
+    let server_fixture = ServerFixture::create_single_use().await;
+    let mut client = server_fixture.management_client();
+
+    // not initalized
+    let status = client.get_server_status().await.unwrap();
+    assert!(!status.initialized);
+
+    // initialize
+    client.update_server_id(42).await.expect("set ID failed");
+    server_fixture.wait_server_initialized().await;
+
+    // now initalized
+    let status = client.get_server_status().await.unwrap();
+    assert!(status.initialized);
+
+    // create DBs
+    let db_name1 = rand_name();
+    let db_name2 = rand_name();
+    client
+        .create_database(DatabaseRules {
+            name: db_name1.clone(),
+            ..Default::default()
+        })
+        .await
+        .expect("create database failed");
+
+    client
+        .create_database(DatabaseRules {
+            name: db_name2.clone(),
+            ..Default::default()
+        })
+        .await
+        .expect("create database failed");
+
+    // databases are listed
+    let status = client.get_server_status().await.unwrap();
+    let names_actual: HashSet<_> = status
+        .database_statuses
+        .iter()
+        .map(|db_status| db_status.db_name.clone())
+        .collect();
+    let names_expected: HashSet<_> = [db_name1, db_name2].iter().cloned().collect();
+    assert_eq!(names_actual, names_expected);
 }

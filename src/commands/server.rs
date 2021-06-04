@@ -22,7 +22,7 @@ pub enum Error {
     ConnectionError(#[from] influxdb_iox_client::connection::Error),
 
     #[error("Error checking if databases are loded: {0}")]
-    AreDatabasesLoadedError(#[from] AreDatabasesLoadedError),
+    AreDatabasesLoadedError(#[from] GetServerStatusError),
 
     #[error("Timeout waiting for databases to be loaded")]
     TimeoutDatabasesLoaded,
@@ -45,8 +45,8 @@ enum Command {
     /// Get server ID
     Get,
 
-    /// Wait until databases are loaded
-    WaitDatabasesLoaded(WaitDatabasesLoaded),
+    /// Wait until server is initialized.
+    WaitServerInitialized(WaitSeverInitialized),
 
     Remote(crate::commands::server_remote::Config),
 }
@@ -58,9 +58,9 @@ struct Set {
     id: u32,
 }
 
-/// Wait until databases are loaded
+/// Wait until server is initialized.
 #[derive(Debug, StructOpt)]
-struct WaitDatabasesLoaded {
+struct WaitSeverInitialized {
     /// Timeout in seconds.
     #[structopt(short, default_value = "10")]
     timeout: u64,
@@ -83,11 +83,11 @@ pub async fn command(url: String, config: Config) -> Result<()> {
             println!("{}", id);
             Ok(())
         }
-        Command::WaitDatabasesLoaded(command) => {
+        Command::WaitServerInitialized(command) => {
             let end = Instant::now() + Duration::from_secs(command.timeout);
             loop {
-                if client.are_databases_loaded().await? {
-                    println!("Databases loaded.");
+                if client.get_server_status().await?.initialized {
+                    println!("Server initialized.");
                     return Ok(());
                 }
                 if Instant::now() >= end {

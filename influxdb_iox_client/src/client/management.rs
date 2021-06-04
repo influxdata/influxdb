@@ -249,9 +249,9 @@ pub enum ClosePartitionChunkError {
     ServerError(tonic::Status),
 }
 
-/// Errors returned by [`Client::are_databases_loaded`]
+/// Errors returned by [`Client::get_server_status`]
 #[derive(Debug, Error)]
-pub enum AreDatabasesLoadedError {
+pub enum GetServerStatusError {
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -330,14 +330,14 @@ impl Client {
     }
 
     /// Check if databases are loaded and ready for read and write.
-    pub async fn are_databases_loaded(&mut self) -> Result<bool, AreDatabasesLoadedError> {
+    pub async fn get_server_status(&mut self) -> Result<ServerStatus, GetServerStatusError> {
         let response = self
             .inner
-            .are_databases_loaded(AreDatabasesLoadedRequest {})
+            .get_server_status(GetServerStatusRequest {})
             .await
-            .map_err(AreDatabasesLoadedError::ServerError)?;
+            .map_err(GetServerStatusError::ServerError)?;
 
-        Ok(response.get_ref().databases_loaded)
+        Ok(response.into_inner())
     }
 
     /// Set serving readiness.

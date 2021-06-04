@@ -413,10 +413,10 @@ pub struct Server<M: ConnectionManager> {
     pub registry: Arc<metrics::MetricRegistry>,
 
     /// Flags that databases are loaded and server is ready to read/write data.
-    databases_loaded: AtomicBool,
+    initialized: AtomicBool,
 
     /// Semaphore that limits the number of jobs that load DBs when the serverID is set.
-    db_load_semaphore: Semaphore,
+    initialize_semaphore: Semaphore,
 }
 
 #[derive(Debug)]
@@ -457,8 +457,8 @@ impl<M: ConnectionManager> Server<M> {
             jobs,
             metrics: Arc::new(ServerMetrics::new(Arc::clone(&metric_registry))),
             registry: Arc::clone(&metric_registry),
-            databases_loaded: AtomicBool::new(false),
-            db_load_semaphore: Semaphore::new(1),
+            initialized: AtomicBool::new(false),
+            initialize_semaphore: Semaphore::new(1),
         }
     }
 
@@ -475,19 +475,19 @@ impl<M: ConnectionManager> Server<M> {
         self.id.get()
     }
 
-    /// Check if databases are loaded and server is ready to read/write.
-    pub fn databases_loaded(&self) -> bool {
+    /// Check if server is loaded. Databases are loaded and server is ready to read/write.
+    pub fn initialized(&self) -> bool {
         // ordering here isn't that important since this method is not used to check-and-modify the flag
-        self.databases_loaded.load(Ordering::Relaxed)
+        self.initialized.load(Ordering::Relaxed)
     }
 
-    /// Requires that databases are loaded and server is ready to read/write.
-    fn require_dbs_loaded(&self) -> Result<ServerId> {
-        // since a server ID is the pre-requirement for readyness, check this first
+    /// Require that server is loaded. Databases are loaded and server is ready to read/write.
+    fn require_initialized(&self) -> Result<ServerId> {
+        // since a server ID is the pre-requirement for init, check this first
         let server_id = self.require_id()?;
 
         // ordering here isn't that important since this method is not used to check-and-modify the flag
-        if self.databases_loaded() {
+        if self.initialized() {
             Ok(server_id)
         } else {
             Err(Error::DatabasesNotLoaded)
@@ -497,7 +497,7 @@ impl<M: ConnectionManager> Server<M> {
     /// Tells the server the set of rules for a database.
     pub async fn create_database(&self, rules: DatabaseRules) -> Result<()> {
         // Return an error if this server is not yet ready
-        let server_id = self.require_dbs_loaded()?;
+        let server_id = self.require_initialized()?;
 
         let preserved_catalog = load_or_create_preserved_catalog(
             rules.db_name(),
@@ -556,16 +556,16 @@ impl<M: ConnectionManager> Server<M> {
     /// replaced.
     ///
     /// This requires the serverID to be set. It will be a no-op if the configs are already loaded and the server is ready.
-    pub async fn maybe_load_database_configs(&self) -> Result<()> {
+    pub async fn maybe_initialize_server(&self) -> Result<()> {
         let _guard = self
-            .db_load_semaphore
+            .initialize_semaphore
             .acquire()
             .await
             .expect("semaphore should not be closed");
 
         // Note that we use Acquire-Release ordering for the atomic within the semaphore to ensure that another thread
         // that enters this semaphore after we've left actually sees the correct `is_ready` flag.
-        if self.databases_loaded.load(Ordering::Acquire) {
+        if self.initialized.load(Ordering::Acquire) {
             // already loaded, so do nothing
             return Ok(());
         }
@@ -604,8 +604,8 @@ impl<M: ConnectionManager> Server<M> {
         futures::future::join_all(handles).await;
 
         // mark as ready (use correct ordering for Acquire-Release)
-        self.databases_loaded.store(true, Ordering::Release);
-        info!("loaded databases, server is ready");
+        self.initialized.store(true, Ordering::Release);
+        info!("loaded databases, server is initalized");
 
         Ok(())
     }
@@ -667,7 +667,7 @@ impl<M: ConnectionManager> Server<M> {
         default_time: i64,
     ) -> Result<()> {
         // Return an error if this server is not yet ready
-        self.require_dbs_loaded()?;
+        self.require_initialized()?;
 
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
         let db = self
@@ -802,7 +802,7 @@ impl<M: ConnectionManager> Server<M> {
 
     pub async fn write_entry(&self, db_name: &str, entry_bytes: Vec<u8>) -> Result<()> {
         // Return an error if this server is not yet ready
-        self.require_dbs_loaded()?;
+        self.require_initialized()?;
 
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
         let db = self
@@ -952,7 +952,7 @@ impl<M: ConnectionManager> Server<M> {
 
         while !shutdown.is_cancelled() {
             if self.require_id().is_ok() {
-                if let Err(e) = self.maybe_load_database_configs().await {
+                if let Err(e) = self.maybe_initialize_server().await {
                     error!(%e, "error during DB loading");
                 }
             }
@@ -1261,7 +1261,7 @@ mod tests {
         let store = config.store();
         let server = Server::new(manager, config);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_load_database_configs().await.unwrap();
+        server.maybe_initialize_server().await.unwrap();
 
         let name = DatabaseName::new("bananas").unwrap();
 
@@ -1314,7 +1314,7 @@ mod tests {
             .with_num_worker_threads(1);
         let server2 = Server::new(manager, config2);
         server2.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server2.maybe_load_database_configs().await.unwrap();
+        server2.maybe_initialize_server().await.unwrap();
 
         let _ = server2.db(&db2).unwrap();
         let _ = server2.db(&name).unwrap();
@@ -1327,7 +1327,7 @@ mod tests {
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_load_database_configs().await.unwrap();
+        server.maybe_initialize_server().await.unwrap();
 
         let name = DatabaseName::new("bananas").unwrap();
 
@@ -1378,7 +1378,7 @@ mod tests {
         let config = config_with_store(store);
         let server = Server::new(manager, config);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_load_database_configs().await.unwrap();
+        server.maybe_initialize_server().await.unwrap();
         create_simple_database(&server, "bananas")
             .await
             .expect("failed to create database");
@@ -1394,10 +1394,7 @@ mod tests {
         let config = config_with_store(store);
         let server = Server::new(manager, config);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server
-            .maybe_load_database_configs()
-            .await
-            .expect("load config");
+        server.maybe_initialize_server().await.expect("load config");
 
         create_simple_database(&server, "apples")
             .await
@@ -1417,10 +1414,7 @@ mod tests {
         let config = config_with_store(store);
         let server = Server::new(manager, config);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server
-            .maybe_load_database_configs()
-            .await
-            .expect("load config");
+        server.maybe_initialize_server().await.expect("load config");
 
         assert_eq!(server.db_names_sorted(), vec!["apples"]);
     }
@@ -1430,10 +1424,7 @@ mod tests {
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server
-            .maybe_load_database_configs()
-            .await
-            .expect("load config");
+        server.maybe_initialize_server().await.expect("load config");
 
         let names = vec!["bar", "baz"];
 
@@ -1454,7 +1445,7 @@ mod tests {
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_load_database_configs().await.unwrap();
+        server.maybe_initialize_server().await.unwrap();
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
@@ -1495,7 +1486,7 @@ mod tests {
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_load_database_configs().await.unwrap();
+        server.maybe_initialize_server().await.unwrap();
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
@@ -1582,7 +1573,7 @@ mod tests {
 
         let server = Server::new(manager, config());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_load_database_configs().await.unwrap();
+        server.maybe_initialize_server().await.unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
         server
@@ -1663,7 +1654,7 @@ mod tests {
         let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
 
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_load_database_configs().await.unwrap();
+        server.maybe_initialize_server().await.unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
         server
@@ -1825,7 +1816,7 @@ mod tests {
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_load_database_configs().await.unwrap();
+        server.maybe_initialize_server().await.unwrap();
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
@@ -1907,7 +1898,7 @@ mod tests {
 
         let t_0 = Instant::now();
         loop {
-            if server.require_dbs_loaded().is_ok() {
+            if server.require_initialized().is_ok() {
                 break;
             }
             assert!(t_0.elapsed() < Duration::from_secs(10));

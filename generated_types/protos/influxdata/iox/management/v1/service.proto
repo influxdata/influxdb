@@ -62,8 +62,8 @@ service ManagementService {
   // Close a chunk and move it to the read buffer
   rpc ClosePartitionChunk(ClosePartitionChunkRequest) returns (ClosePartitionChunkResponse);
 
-  // Checks if databases are loaded and server is ready for reads and writes.
-  rpc AreDatabasesLoaded(AreDatabasesLoadedRequest) returns (AreDatabasesLoadedResponse);
+  // Get server status
+  rpc GetServerStatus(GetServerStatusRequest) returns (ServerStatus);
 }
 
 message GetServerIdRequest {}
@@ -239,9 +239,29 @@ message ClosePartitionChunkResponse {
   google.longrunning.Operation operation = 1;
 }
 
-message AreDatabasesLoadedRequest {}
+message GetServerStatusRequest {}
 
-message AreDatabasesLoadedResponse {
-  // Are DBs loaded?
-  bool databases_loaded = 1;
+message ServerStatus {
+  // Server is initialized, i.e. databases are loaded and accept read/write operations. Furthermore database rules can
+  // be updaded and new databases can be created.
+  bool initialized = 1;
+
+  // If present, the server reports a global error condition.
+  Error error = 2;
+
+  // If `initialized` is true, this contains a complete list of databases.
+  repeated DatabaseStatus database_statuses = 3;
+}
+
+message DatabaseStatus {
+  // The name of the database.
+  string db_name = 1;
+
+  // If present, the database reports an error condition.
+  Error error = 2;
+}
+
+message Error {
+  // Message descripting the error.
+  string message = 1;
 }

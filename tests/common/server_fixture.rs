@@ -216,12 +216,12 @@ impl ServerFixture {
         }
     }
 
-    /// Wait until server returns that databases are loaded.
-    pub async fn wait_dbs_loaded(&self) {
+    /// Wait until server is initialized. Databases should be loaded.
+    pub async fn wait_server_initialized(&self) {
         let mut client = self.management_client();
         let t_0 = Instant::now();
         loop {
-            if client.are_databases_loaded().await.unwrap() {
+            if client.get_server_status().await.unwrap().initialized {
                 break;
             }
             assert!(t_0.elapsed() < Duration::from_secs(10));
@@ -422,15 +422,13 @@ impl TestServer {
                     let mut interval = tokio::time::interval(Duration::from_millis(500));
 
                     loop {
-                        match management_client.are_databases_loaded().await {
-                            Ok(loaded) => {
-                                if loaded {
-                                    return;
-                                }
-                            }
-                            Err(e) => {
-                                println!("Waiting for databases being loaded: {}", e);
-                            }
+                        if management_client
+                            .get_server_status()
+                            .await
+                            .unwrap()
+                            .initialized
+                        {
+                            return;
                         }
                         interval.tick().await;
                     }

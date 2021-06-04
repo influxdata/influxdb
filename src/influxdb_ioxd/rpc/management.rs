@@ -372,12 +372,30 @@ where
         Ok(Response::new(SetServingReadinessResponse {}))
     }
 
-    async fn are_databases_loaded(
+    async fn get_server_status(
         &self,
-        _request: Request<AreDatabasesLoadedRequest>,
-    ) -> Result<Response<AreDatabasesLoadedResponse>, Status> {
-        Ok(Response::new(AreDatabasesLoadedResponse {
-            databases_loaded: self.server.databases_loaded(),
+        _request: Request<GetServerStatusRequest>,
+    ) -> Result<Response<ServerStatus>, Status> {
+        // TODO: wire up errors (https://github.com/influxdata/influxdb_iox/issues/1624)
+        let initialized = self.server.initialized();
+
+        let database_statuses: Vec<_> = if initialized {
+            self.server
+                .db_names_sorted()
+                .into_iter()
+                .map(|db_name| DatabaseStatus {
+                    db_name,
+                    error: None,
+                })
+                .collect()
+        } else {
+            Default::default()
+        };
+
+        Ok(Response::new(ServerStatus {
+            initialized,
+            error: None,
+            database_statuses,
         }))
     }
 }
