@@ -8,7 +8,6 @@ use read_filter::benchmark_read_filter;
 use read_group::benchmark_read_group;
 use tag_values::benchmark_tag_values;
 
-// criterion_group!(benches, benchmark_tag_values, benchmark_read_filter);
 criterion_group!(
     benches,
     benchmark_tag_values,
