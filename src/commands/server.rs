@@ -86,10 +86,16 @@ pub async fn command(url: String, config: Config) -> Result<()> {
         Command::WaitServerInitialized(command) => {
             let end = Instant::now() + Duration::from_secs(command.timeout);
             loop {
-                if client.get_server_status().await?.initialized {
+                let status = client.get_server_status().await?;
+                if status.initialized {
                     println!("Server initialized.");
+                    if let Some(err) = status.error {
+                        println!("WARNING: Server is in error state: {}", err.message);
+                    }
+
                     return Ok(());
                 }
+
                 if Instant::now() >= end {
                     eprintln!("timeout");
                     return Err(Error::TimeoutDatabasesLoaded);
