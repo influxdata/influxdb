@@ -99,8 +99,13 @@ func (t *testExecutor) Run(pkg *ast.Package) error {
 	}
 
 	// During the first execution, we are performing the writes
-	// that are in the testcase. We do not care about errors.
-	_ = t.executeWithOptions(bucketOpt, orgOpt, t.writeOptAST, pkg)
+	// that are in the testcase.
+	err := t.executeWithOptions(bucketOpt, orgOpt, t.writeOptAST, pkg)
+	if err != nil {
+		// Some test assertions can fail in the first pass, so those errors do not fail the test case.
+		// However those errors can be useful when the error is unexpected, therefore we simply log the error here.
+		fmt.Printf("Error from write pass: %s\n", err)
+	}
 
 	// Execute the read pass.
 	return t.executeWithOptions(bucketOpt, orgOpt, t.readOptAST, pkg)
