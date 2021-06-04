@@ -90,7 +90,7 @@ var notebooks = MakeBoolFlag(
 	"Notebooks",
 	"notebooks",
 	"Monitoring Team",
-	true,
+	false,
 	Temporary,
 	true,
 )

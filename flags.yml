@@ -63,6 +63,10 @@
   lifetime: temporary
   expose: true
 
+# This notebooksApi flag only controls the specific API calls that the frontend uses,
+# not if the notebooks button is enabled on the sidebar. The notebooks flag (above) controls
+# the display of the notebooks button on the sidebar. The notebooksAPI flag should be set to true
+# to ensure the UI sends requests that the OSS backend can handle.
 - name: Notebooks Service API
   description: Enable the Equivalent notebooksd Service API
   key: notebooksApi
