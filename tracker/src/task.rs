@@ -269,6 +269,11 @@ impl<T> TaskTracker<T> {
         }
     }
 
+    /// Returns the instant the tracker was created
+    pub fn start_instant(&self) -> Instant {
+        self.state.start_instant
+    }
+
     /// Returns if this tracker has been cancelled
     pub fn is_cancelled(&self) -> bool {
         self.state.cancel_token.is_cancelled()

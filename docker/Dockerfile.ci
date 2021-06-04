@@ -32,17 +32,29 @@ RUN apt-get update \
 	&& apt-get autoremove --yes \
 	&& rm -rf /var/lib/{apt,dpkg,cache,log}
 
-# Install bazel using the binary installer to enable building of flatc in the flatbuffers check
-RUN curl -Lo bazel-4.0.0-installer-linux-x86_64.sh https://github.com/bazelbuild/bazel/releases/download/4.0.0/bazel-4.0.0-installer-linux-x86_64.sh \
-  && chmod +x bazel-4.0.0-installer-linux-x86_64.sh \
-  && ./bazel-4.0.0-installer-linux-x86_64.sh \
-  && rm bazel-4.0.0-installer-linux-x86_64.sh
+ENV CURL_FLAGS="--proto =https --tlsv1.2 -sSf"
+
+# Install bazel using the installer script to enable building of flatc in the flatbuffers check
+ENV BAZEL_VERSION=4.0.0
+ENV BAZEL_DOWNLOAD_BASE="https://github.com/bazelbuild/bazel/releases/download"
+RUN curl ${CURL_FLAGS} https://bazel.build/bazel-release.pub.gpg | gpg --import - \
+    && curl ${CURL_FLAGS} -LO ${BAZEL_DOWNLOAD_BASE}/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh \
+    && curl ${CURL_FLAGS} -LO ${BAZEL_DOWNLOAD_BASE}/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh.sig \
+    && gpg --verify bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh.sig bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh \
+    && chmod +x bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh \
+    && ./bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh \
+    && rm bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh.sig
 
 # Install InfluxDB 2.0 OSS to enable integration tests of the influxdb2_client crate
-RUN curl -o influxdb2.tar.gz https://dl.influxdata.com/influxdb/releases/influxdb2-2.0.4-linux-amd64.tar.gz \
-  && tar xvzf influxdb2.tar.gz \
-  && sudo cp influxdb2-2.0.4-linux-amd64/influxd /usr/local/bin/ \
-  && rm -rf influxdb2-2.0.4-linux-amd64
+ENV INFLUXDB2_VERSION=2.0.4
+ENV INFLUXDB2_DOWNLOAD_BASE="https://dl.influxdata.com/influxdb/releases"
+RUN curl ${CURL_FLAGS} https://repos.influxdata.com/influxdb2.key | gpg --import - \
+    && curl ${CURL_FLAGS} -o influxdb2.tar.gz ${INFLUXDB2_DOWNLOAD_BASE}/influxdb2-${INFLUXDB2_VERSION}-linux-amd64.tar.gz \
+    && curl ${CURL_FLAGS} -O ${INFLUXDB2_DOWNLOAD_BASE}/influxdb2-${INFLUXDB2_VERSION}-linux-amd64.tar.gz.asc \
+    && gpg --verify influxdb2-${INFLUXDB2_VERSION}-linux-amd64.tar.gz.asc influxdb2.tar.gz \
+    && tar xvzf influxdb2.tar.gz \
+    && sudo cp influxdb2-${INFLUXDB2_VERSION}-linux-amd64/influxd /usr/local/bin/ \
+    && rm -rf influxdb2-${INFLUXDB2_VERSION}-linux-amd64 influxdb2-${INFLUXDB2_VERSION}-linux-amd64.tar.gz.asc
 
 # Set timezone to UTC by default
 RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
