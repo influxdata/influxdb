@@ -3,11 +3,12 @@ package inspect
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 )
 
 func TestInvalidChecksum(t *testing.T) {
@@ -117,7 +118,7 @@ func newChecksumTest(t *testing.T, withError bool) *Test {
 		t.Fatal(err)
 	}
 
-	f, err := ioutil.TempFile(dir, "verifytsmtest*" + "." + tsm1.TSMFileExtension)
+	f, err := ioutil.TempFile(dir, "verifytsmtest*"+"."+tsm1.TSMFileExtension)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,4 +195,3 @@ func (t *Test) assertError(err error) {
 		t.Fatal("expected error and got none")
 	}
 }
-

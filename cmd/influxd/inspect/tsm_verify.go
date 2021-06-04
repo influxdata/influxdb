@@ -1,14 +1,15 @@
 package inspect
 
 import (
-	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 	"hash/crc32"
 	"os"
 	"path/filepath"
 	"time"
 	"unicode/utf8"
+
+	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
 )
 
 var checkUTF8 bool
@@ -40,9 +41,9 @@ type verifyChecksums struct {
 
 func NewTSMVerifyCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: `verify-tsm`,
+		Use:   `verify-tsm`,
 		Short: `Verifies the integrity of TSM files`,
-		Args: cobra.NoArgs,
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var runner verifier
 			if checkUTF8 {
@@ -60,7 +61,7 @@ func NewTSMVerifyCommand() *cobra.Command {
 	return cmd
 }
 
-func (v *verifyUTF8) Run (cmd *cobra.Command, dataPath string) error {
+func (v *verifyUTF8) Run(cmd *cobra.Command, dataPath string) error {
 	if err := v.loadFiles(dataPath); err != nil {
 		return err
 	}
@@ -99,7 +100,7 @@ func (v *verifyUTF8) Run (cmd *cobra.Command, dataPath string) error {
 	return v.err
 }
 
-func (v *verifyChecksums) Run (cmd *cobra.Command, dataPath string) error {
+func (v *verifyChecksums) Run(cmd *cobra.Command, dataPath string) error {
 	if err := v.loadFiles(dataPath); err != nil {
 		return err
 	}
@@ -195,4 +196,3 @@ func (v *verifyTSM) Start() {
 func (v *verifyTSM) Elapsed() time.Duration {
 	return time.Since(v.start)
 }
-
