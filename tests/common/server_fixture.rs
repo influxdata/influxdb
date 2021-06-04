@@ -421,15 +421,11 @@ impl TestServer {
                 let check_dbs_loaded = async {
                     let mut interval = tokio::time::interval(Duration::from_millis(500));
 
-                    loop {
-                        if management_client
+                    while !management_client
                             .get_server_status()
                             .await
                             .unwrap()
-                            .initialized
-                        {
-                            return;
-                        }
+                            .initialized {
                         interval.tick().await;
                     }
                 };
