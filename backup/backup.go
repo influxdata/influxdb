@@ -42,7 +42,7 @@ func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) er
 		return err
 	}
 
-	l := []influxdb.BucketMetadataManifest{}
+	l := make([]influxdb.BucketMetadataManifest, 0, len(bkts))
 
 	for _, bkt := range bkts {
 		org, err := b.ts.OrganizationService.FindOrganizationByID(ctx, bkt.OrgID)
@@ -68,7 +68,7 @@ func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) er
 // retentionPolicyToManifest and the various similar functions that follow are for converting
 // from the structs in the meta package to the manifest structs
 func retentionPolicyToManifest(meta []meta.RetentionPolicyInfo) []influxdb.RetentionPolicyManifest {
-	r := []influxdb.RetentionPolicyManifest{}
+	r := make([]influxdb.RetentionPolicyManifest, 0, len(meta))
 
 	for _, m := range meta {
 		r = append(r, influxdb.RetentionPolicyManifest{
@@ -85,7 +85,7 @@ func retentionPolicyToManifest(meta []meta.RetentionPolicyInfo) []influxdb.Reten
 }
 
 func subscriptionInfosToManifest(subInfos []meta.SubscriptionInfo) []influxdb.SubscriptionManifest {
-	r := []influxdb.SubscriptionManifest{}
+	r := make([]influxdb.SubscriptionManifest, 0, len(subInfos))
 
 	for _, s := range subInfos {
 		r = append(r, influxdb.SubscriptionManifest(s))
@@ -95,7 +95,7 @@ func subscriptionInfosToManifest(subInfos []meta.SubscriptionInfo) []influxdb.Su
 }
 
 func shardGroupToManifest(shardGroups []meta.ShardGroupInfo) []influxdb.ShardGroupManifest {
-	r := []influxdb.ShardGroupManifest{}
+	r := make([]influxdb.ShardGroupManifest, 0, len(shardGroups))
 
 	for _, s := range shardGroups {
 		deletedAt := &s.DeletedAt
@@ -125,7 +125,7 @@ func shardGroupToManifest(shardGroups []meta.ShardGroupInfo) []influxdb.ShardGro
 }
 
 func shardInfosToManifest(shards []meta.ShardInfo) []influxdb.ShardManifest {
-	r := []influxdb.ShardManifest{}
+	r := make([]influxdb.ShardManifest, 0, len(shards))
 
 	for _, s := range shards {
 		r = append(r, influxdb.ShardManifest{
@@ -138,7 +138,7 @@ func shardInfosToManifest(shards []meta.ShardInfo) []influxdb.ShardManifest {
 }
 
 func shardOwnersToManifest(shardOwners []meta.ShardOwner) []influxdb.ShardOwner {
-	r := []influxdb.ShardOwner{}
+	r := make([]influxdb.ShardOwner, 0, len(shardOwners))
 
 	for _, s := range shardOwners {
 		r = append(r, influxdb.ShardOwner(s))
