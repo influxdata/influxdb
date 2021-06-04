@@ -340,7 +340,6 @@ jobs:
     resource_class: large
     environment:
       TMPDIR: /mnt/ramdisk
-      TEST_RESULTS: /tmp/test-results
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
@@ -349,7 +348,7 @@ jobs:
           name: Restore GOPATH/pkg/mod
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      - run: mkdir -p $TEST_RESULTS
+      - run: mkdir -p /tmp/test-results
       - install_core_deps
       - run:
           name: run parallel race tests
