@@ -965,7 +965,7 @@ impl Db {
                             debug!(?duration, "cleanup worker sleeps");
                             tokio::time::sleep(duration).await;
 
-                            if let Err(e) = cleanup_unreferenced_parquet_files(&self.catalog).await {
+                            if let Err(e) = cleanup_unreferenced_parquet_files(&self.catalog, 1_000).await {
                                 error!(%e, "error in background cleanup task");
                             }
                         } => {},
