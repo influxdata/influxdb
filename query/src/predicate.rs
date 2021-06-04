@@ -42,8 +42,8 @@ pub enum PredicateMatch {
     Unknown,
 }
 
-/// Represents a parsed predicate for evaluation by the
-/// TSDatabase InfluxDB IOx query engine.
+/// Represents a parsed predicate for evaluation by the InfluxDB IOx
+/// query engine.
 ///
 /// Note that the InfluxDB data model (e.g. ParsedLine's)
 /// distinguishes between some types of columns (tags and fields), and

@@ -15,7 +15,11 @@ use datafusion::{
 use internal_types::schema::{builder::SchemaMerger, Schema};
 use observability_deps::tracing::debug;
 
-use crate::{predicate::PredicateBuilder, util::project_schema, PartitionChunk};
+use crate::{
+    predicate::{Predicate, PredicateBuilder},
+    util::project_schema,
+    PartitionChunk,
+};
 
 use snafu::{ResultExt, Snafu};
 
@@ -41,6 +45,12 @@ pub enum Error {
         source: internal_types::schema::builder::Error,
     },
 
+    #[snafu(display(
+        "Internal error: no chunk pruner provided to builder for {}",
+        table_name,
+    ))]
+    InternalNoChunkPruner { table_name: String },
+
     #[snafu(display("Internal error: No rows found in table '{}'", table_name))]
     InternalNoRowsInTable { table_name: String },
 
@@ -51,6 +61,12 @@ pub enum Error {
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Something that can prune chunks based on their metadata
+pub trait ChunkPruner<C: PartitionChunk>: Sync + Send + std::fmt::Debug {
+    /// prune `chunks`, if possible, based on predicate.
+    fn prune_chunks(&self, chunks: Vec<Arc<C>>, predicate: &Predicate) -> Vec<Arc<C>>;
+}
+
 /// Builds a `ChunkTableProvider` from a series of `PartitionChunk`s
 /// and ensures the schema across the chunks is compatible and
 /// consistent.
@@ -58,35 +74,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct ProviderBuilder<C: PartitionChunk + 'static> {
     table_name: Arc<str>,
     schema_merger: SchemaMerger,
-    chunk_and_infos: Vec<ChunkInfo<C>>,
-}
-
-/// Holds the information needed to generate data for a specific chunk
-#[derive(Debug)]
-pub(crate) struct ChunkInfo<C>
-where
-    C: PartitionChunk + 'static,
-{
-    /// The schema of the table in just this chunk (the overall table
-    /// schema may have more columns if this chunk doesn't have
-    /// columns that are in other chunks)
-    chunk_table_schema: Schema,
-    chunk: Arc<C>,
-}
-
-// The #[derive(Clone)] clone was complaining about C not implementing
-// Clone, which didn't make sense
-// Tracked by https://github.com/rust-lang/rust/issues/26925
-impl<C> Clone for ChunkInfo<C>
-where
-    C: PartitionChunk + 'static,
-{
-    fn clone(&self) -> Self {
-        Self {
-            chunk_table_schema: self.chunk_table_schema.clone(),
-            chunk: Arc::clone(&self.chunk),
-        }
-    }
+    chunk_pruner: Option<Arc<dyn ChunkPruner<C>>>,
+    chunks: Vec<Arc<C>>,
 }
 
 impl<C: PartitionChunk> ProviderBuilder<C> {
@@ -94,7 +83,8 @@ impl<C: PartitionChunk> ProviderBuilder<C> {
         Self {
             table_name: Arc::from(table_name.as_ref()),
             schema_merger: SchemaMerger::new(),
-            chunk_and_infos: Vec::new(),
+            chunk_pruner: None,
+            chunks: Vec::new(),
         }
     }
 
@@ -103,34 +93,56 @@ impl<C: PartitionChunk> ProviderBuilder<C> {
         let Self {
             table_name,
             schema_merger,
-            mut chunk_and_infos,
+            chunk_pruner,
+            mut chunks,
         } = self;
 
         let schema_merger =
             schema_merger
-                .merge(chunk_table_schema.clone())
+                .merge(chunk_table_schema)
                 .context(ChunkSchemaNotCompatible {
                     table_name: table_name.as_ref(),
                 })?;
 
-        let chunk_info = ChunkInfo {
-            chunk_table_schema,
-            chunk,
-        };
-        chunk_and_infos.push(chunk_info);
+        chunks.push(chunk);
 
         Ok(Self {
             table_name,
             schema_merger,
-            chunk_and_infos,
+            chunk_pruner,
+            chunks,
         })
     }
 
+    /// Specify a `ChunkPruner` for the provider that will apply
+    /// additional chunk level pruning based on pushed down predicates
+    pub fn add_pruner(mut self, chunk_pruner: Arc<dyn ChunkPruner<C>>) -> Self {
+        assert!(
+            self.chunk_pruner.is_none(),
+            "Chunk pruner already specified"
+        );
+        self.chunk_pruner = Some(chunk_pruner);
+        self
+    }
+
+    /// Specify a `ChunkPruner` for the provider that does no
+    /// additional pruning based on pushed down predicates.
+    ///
+    /// Some planners, such as InfluxRPC which apply all predicates
+    /// when they get the initial list of chunks, do not need an
+    /// additional pass.
+    pub fn add_no_op_pruner(self) -> Self {
+        let chunk_pruner = Arc::new(NoOpPruner {});
+        self.add_pruner(chunk_pruner)
+    }
+
+    /// Create the Provider
     pub fn build(self) -> Result<ChunkTableProvider<C>> {
         let Self {
             table_name,
             schema_merger,
-            chunk_and_infos,
+            chunk_pruner,
+            chunks,
         } = self;
 
         let iox_schema = schema_merger
@@ -142,17 +154,28 @@ impl<C: PartitionChunk> ProviderBuilder<C> {
             .sort_fields_by_name();
 
         // if the table was reported to exist, it should not be empty
-        if chunk_and_infos.is_empty() {
+        if chunks.is_empty() {
             return InternalNoRowsInTable {
                 table_name: table_name.as_ref(),
             }
             .fail();
         }
 
+        let chunk_pruner = match chunk_pruner {
+            Some(chunk_pruner) => chunk_pruner,
+            None => {
+                return InternalNoChunkPruner {
+                    table_name: table_name.as_ref(),
+                }
+                .fail()
+            }
+        };
+
         Ok(ChunkTableProvider {
             table_name,
             iox_schema,
-            chunk_and_infos,
+            chunk_pruner,
+            chunks,
         })
     }
 }
@@ -166,8 +189,10 @@ pub struct ChunkTableProvider<C: PartitionChunk + 'static> {
     table_name: Arc<str>,
     /// The IOx schema (wrapper around Arrow Schemaref) for this table
     iox_schema: Schema,
-    // The chunks and their corresponding schema
-    chunk_and_infos: Vec<ChunkInfo<C>>,
+    /// Something that can prune chunks
+    chunk_pruner: Arc<dyn ChunkPruner<C>>,
+    // The chunks
+    chunks: Vec<Arc<C>>,
 }
 
 impl<C: PartitionChunk + 'static> ChunkTableProvider<C> {
@@ -208,15 +233,18 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
             .add_pushdown_exprs(filters)
             .build();
 
+        // Now we have a second attempt to prune out chunks based on
+        // metadata using the pushed down predicate (e.g. in SQL).
+        let chunks: Vec<Arc<C>> = self.chunks.to_vec();
+        let num_initial_chunks = chunks.len();
+        let chunks = self.chunk_pruner.prune_chunks(chunks, &predicate);
+        debug!(%predicate, num_initial_chunks, num_final_chunks=chunks.len(), "pruned with pushed down predicates");
+
         // Figure out the schema of the requested output
         let scan_schema = project_schema(self.arrow_schema(), projection);
 
-        let plan = IOxReadFilterNode::new(
-            Arc::clone(&self.table_name),
-            scan_schema,
-            self.chunk_and_infos.clone(),
-            predicate,
-        );
+        let plan =
+            IOxReadFilterNode::new(Arc::clone(&self.table_name), scan_schema, chunks, predicate);
 
         Ok(Arc::new(plan))
     }
@@ -231,5 +259,14 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
         _filter: &Expr,
     ) -> DataFusionResult<TableProviderFilterPushDown> {
         Ok(TableProviderFilterPushDown::Inexact)
+    }
+}
+
+#[derive(Debug)]
+/// A pruner that does not do pruning (suitable if no additional pruning is possible)
+struct NoOpPruner {}
+impl<C: PartitionChunk> ChunkPruner<C> for NoOpPruner {
+    fn prune_chunks(&self, chunks: Vec<Arc<C>>, _predicate: &Predicate) -> Vec<Arc<C>> {
+        chunks
     }
 }

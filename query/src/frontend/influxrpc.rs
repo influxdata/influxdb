@@ -1109,6 +1109,17 @@ impl InfluxRpcPlanner {
 
         // Prepare the scan of the table
         let mut builder = ProviderBuilder::new(table_name);
+
+        // Since the entire predicate is used in the call to
+        // `database.chunks()` there will not be any additional
+        // predicates that get pushed down here
+        //
+        // However, in the future if DataFusion adds extra synthetic
+        // predicates that could be pushed down and used for
+        // additional pruning we may want to add an extra layer of
+        // pruning here.
+        builder = builder.add_no_op_pruner();
+
         for chunk in chunks {
             let chunk_id = chunk.id();
 

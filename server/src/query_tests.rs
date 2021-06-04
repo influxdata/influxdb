@@ -6,6 +6,7 @@
 //! against it and verifying the same answer is produced in all scenarios
 
 pub mod influxrpc;
+pub mod pruning;
 pub mod scenarios;
 pub mod sql;
 pub mod table_schema;

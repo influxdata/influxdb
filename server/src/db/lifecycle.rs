@@ -284,7 +284,7 @@ impl ChunkMover for LifecycleManager {
     type Job = Job;
 
     fn buffer_size(&self) -> usize {
-        self.db.catalog.state().metrics().memory().total()
+        self.db.preserved_catalog.state().metrics().memory().total()
     }
 
     fn db_name(&self) -> &str {
@@ -296,7 +296,10 @@ impl ChunkMover for LifecycleManager {
     }
 
     fn chunks(&self, sort_order: &SortOrder) -> Vec<Arc<RwLock<Chunk>>> {
-        self.db.catalog.state().chunks_sorted_by(sort_order)
+        self.db
+            .preserved_catalog
+            .state()
+            .chunks_sorted_by(sort_order)
     }
 
     fn move_tracker(&self) -> Option<&TaskTracker<Job>> {

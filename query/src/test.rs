@@ -8,14 +8,14 @@ use arrow::{
     datatypes::{DataType, Int32Type, TimeUnit},
     record_batch::RecordBatch,
 };
-use data_types::chunk_metadata::ChunkSummary;
+use data_types::{chunk_metadata::ChunkSummary, partition_metadata::TableSummary};
 use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
 
-use crate::exec::Executor;
 use crate::{
     exec::stringset::{StringSet, StringSetRef},
     Database, DatabaseStore, PartitionChunk, Predicate, PredicateMatch,
 };
+use crate::{exec::Executor, pruning::Prunable};
 
 use internal_types::{
     schema::{
@@ -398,6 +398,19 @@ impl PartitionChunk for TestChunk {
         };
 
         Ok(column_names)
+    }
+}
+
+impl Prunable for TestChunk {
+    fn summary(&self) -> &TableSummary {
+        unimplemented!();
+    }
+
+    fn schema(&self) -> arrow::datatypes::SchemaRef {
+        self.table_schema
+            .as_ref()
+            .map(|s| s.as_arrow())
+            .expect("schema was set")
     }
 }
 

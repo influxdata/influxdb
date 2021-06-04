@@ -98,6 +98,13 @@ impl TableSummary {
         }
     }
 
+    /// Returns the total number of rows in the columns of this summary
+    pub fn count(&self) -> u64 {
+        // Assumes that all tables have the same number of rows, so
+        // pick the first one
+        self.columns.get(0).map(|c| c.count()).unwrap_or(0)
+    }
+
     pub fn size(&self) -> usize {
         // Total size of all ColumnSummaries that belong to this table which include
         // column names and their stats
