@@ -104,7 +104,7 @@ var notebooksApi = MakeBoolFlag(
 	"Notebooks Service API",
 	"notebooksApi",
 	"Edge Team",
-	false,
+	true,
 	Temporary,
 	true,
 )
