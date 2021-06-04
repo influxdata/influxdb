@@ -173,6 +173,22 @@ pub enum Error {
 
     #[snafu(display("Internal: Cannot parse datetime in serialized catalog: {}", source))]
     DateTimeParseError { source: TryFromIntError },
+
+    #[snafu(display(
+        "Internal: Cannot parse encoding in serialized catalog: {} is not a valid variant",
+        data
+    ))]
+    EncodingParseError { data: i32 },
+
+    #[snafu(display(
+        "Internal: Found wrong encoding in serialized catalog file: Expected {:?} but got {:?}",
+        expected,
+        actual
+    ))]
+    WrongEncodingError {
+        expected: proto::transaction::Encoding,
+        actual: proto::transaction::Encoding,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -693,6 +709,11 @@ fn parse_timestamp(
     Ok(ts)
 }
 
+/// Parse encoding from protobuf.
+fn parse_encoding(encoding: i32) -> Result<proto::transaction::Encoding> {
+    proto::transaction::Encoding::from_i32(encoding).context(EncodingParseError { data: encoding })
+}
+
 /// Key to address transactions.
 #[derive(Clone, Debug)]
 struct TransactionKey {
@@ -735,6 +756,7 @@ where
                 revision_counter,
                 previous_uuid,
                 start_timestamp: Some(Utc::now().into()),
+                encoding: proto::transaction::Encoding::Delta.into(),
             },
         }
     }
@@ -869,6 +891,13 @@ where
         }
         // verify we can parse the timestamp (checking that no error is raised)
         parse_timestamp(&proto.start_timestamp)?;
+        let encoding = parse_encoding(proto.encoding)?;
+        if encoding != proto::transaction::Encoding::Delta {
+            return Err(Error::WrongEncodingError {
+                actual: encoding,
+                expected: proto::transaction::Encoding::Delta,
+            });
+        }
 
         // apply
         for action in &proto.actions {
@@ -1771,6 +1800,68 @@ mod tests {
         assert_eq!(
             res.unwrap_err().to_string(),
             "Internal: Cannot parse datetime in serialized catalog: out of range integral type conversion attempted"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_broken_encoding() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+
+        // break transaction file
+        assert!(trace.tkeys.len() >= 2);
+        let tkey = &trace.tkeys[0];
+        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        proto.encoding = -1;
+        store_transaction_proto(&object_store, &path, &proto)
+            .await
+            .unwrap();
+
+        // loading catalog should fail now
+        let res = PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await;
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Internal: Cannot parse encoding in serialized catalog: -1 is not a valid variant"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_wrong_encoding() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+
+        // break transaction file
+        assert!(trace.tkeys.len() >= 2);
+        let tkey = &trace.tkeys[0];
+        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        proto.encoding = proto::transaction::Encoding::Full.into();
+        store_transaction_proto(&object_store, &path, &proto)
+            .await
+            .unwrap();
+
+        // loading catalog should fail now
+        let res = PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await;
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Internal: Found wrong encoding in serialized catalog file: Expected Delta but got Full"
         );
     }
 
