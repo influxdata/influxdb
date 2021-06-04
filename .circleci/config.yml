@@ -516,16 +516,16 @@ jobs:
       TMPDIR: /mnt/ramdisk
     steps:
       - checkout
-      - restore_cache:
-          name: Restore GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      - install_core_deps
       - run:
           name: Create RAM disk
           command: |
             mkdir -p ${TMPDIR}
             mount -t tmpfs -o size=4G tmpfs ${TMPDIR}
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
+      - install_core_deps
       - run_goreleaser:
           publish_release: false
       - run:
@@ -547,16 +547,16 @@ jobs:
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      - restore_cache:
-          name: Restore GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      - install_core_deps
       - run:
           name: Create RAM disk
           command: |
             mkdir -p ${TMPDIR}
             mount -t tmpfs -o size=4G tmpfs ${TMPDIR}
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
+      - install_core_deps
       - run_goreleaser:
           publish_release: true
       - persist_to_workspace:
