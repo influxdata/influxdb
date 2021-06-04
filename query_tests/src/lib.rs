@@ -5,9 +5,16 @@
 //! Immutable Buffer, and (eventually) Parquet files, running queries
 //! against it and verifying the same answer is produced in all scenarios
 
+// Actual tests
+
+#[cfg(test)]
 pub mod influxrpc;
+#[cfg(test)]
 pub mod pruning;
-pub mod scenarios;
+#[cfg(test)]
 pub mod sql;
+#[cfg(test)]
 pub mod table_schema;
-pub mod utils;
+
+// Used by the `server_benchmark` crate in addition to tests in this crate
+pub mod scenarios;

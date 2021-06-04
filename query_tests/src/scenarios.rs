@@ -5,11 +5,10 @@ use query::PartitionChunk;
 
 use async_trait::async_trait;
 
-use crate::{db::test_helpers::write_lp, Db};
-
-use super::utils::{
+use server::utils::{
     count_mutable_buffer_chunks, count_object_store_chunks, count_read_buffer_chunks, make_db,
 };
+use server::{db::test_helpers::write_lp, Db};
 
 /// Holds a database and a description of how its data was configured
 #[derive(Debug)]

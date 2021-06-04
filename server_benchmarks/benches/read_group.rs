@@ -7,10 +7,11 @@ use datafusion::{logical_plan::Expr, scalar::ScalarValue};
 use flate2::read::GzDecoder;
 use tokio::runtime::Runtime;
 
-use query::frontend::influxrpc::InfluxRpcPlanner;
 use query::predicate::PredicateBuilder;
 use query::{exec::Executor, predicate::Predicate};
-use server::{benchmarks::scenarios::DbScenario, db::Db};
+use query::{frontend::influxrpc::InfluxRpcPlanner, group_by::Aggregate};
+use query_tests::scenarios::DbScenario;
+use server::db::Db;
 
 // Uses the `query_tests` module to generate some chunk scenarios, specifically
 // the scenarios where there are:
@@ -25,14 +26,14 @@ use server::{benchmarks::scenarios::DbScenario, db::Db};
 // chunks held in different execution engines.
 //
 // These benchmarks use a synthetically generated set of line protocol using
-// `inch`. Each point is a new series containing 10 tag keys, which results in
-// ten columns in IOx. There is a single field column and a timestamp column.
+// `inch`. Each point is a new series containing 5 tag keys, which results in
+// five tag columns in IOx. There is a single field column and a timestamp column.
 //
 //   - tag0, cardinality 2.
 //   - tag1, cardinality 10.
 //   - tag2, cardinality 10.
 //   - tag3, cardinality 50.
-//   - tag4, cardinality 100.
+//   - tag4, cardinality 1.
 //
 // In total there are 10K rows. The timespan of the points in the line
 // protocol is around 1m of wall-clock time.
@@ -42,13 +43,12 @@ async fn setup_scenarios() -> Vec<DbScenario> {
     let mut lp = String::new();
     gz.read_to_string(&mut lp).unwrap();
 
-    let db =
-        server::benchmarks::scenarios::make_two_chunk_scenarios("2021-04-26T13", &lp, &lp).await;
+    let db = query_tests::scenarios::make_two_chunk_scenarios("2021-04-26T13", &lp, &lp).await;
     db
 }
 
-// Run all benchmarks for `read_filter`.
-pub fn benchmark_read_filter(c: &mut Criterion) {
+// Run all benchmarks for `read_group`.
+pub fn benchmark_read_group(c: &mut Criterion) {
     let scenarios = Runtime::new().unwrap().block_on(setup_scenarios());
     execute_benchmark_group(c, scenarios.as_slice());
 }
@@ -73,13 +73,17 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DbScenario]) {
 
     for scenario in scenarios {
         let DbScenario { scenario_name, db } = scenario;
-        let mut group = c.benchmark_group(format!("read_filter/{}", scenario_name));
+        let mut group = c.benchmark_group(format!("read_group/{}", scenario_name));
 
         for (predicate, pred_name) in &predicates {
-            let chunks = db.partition_chunk_summaries("2021-04-26T13").len();
             // The number of expected frames, based on the expected number of
-            // individual series keys.
-            let exp_data_frames = if predicate.is_empty() { 10000 } else { 200 } * chunks;
+            // individual series keys, which for grouping is the same no matter
+            // how many chunks we query over.
+            let exp_data_frames = if predicate.is_empty() {
+                10000 + 10 // 10 groups when grouping on `tag2`
+            } else {
+                200 + 10 // 10 groups when grouping on `tag2`
+            };
 
             group.bench_with_input(
                 BenchmarkId::from_parameter(pred_name),
@@ -92,6 +96,8 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DbScenario]) {
                             executor.as_ref(),
                             db,
                             predicate.clone(),
+                            Aggregate::Sum,
+                            &["tag2"],
                             exp_data_frames,
                         )
                     });
@@ -109,10 +115,12 @@ async fn build_and_execute_plan(
     executor: &Executor,
     db: &Db,
     predicate: Predicate,
-    exp_data_frames: usize,
+    agg: Aggregate,
+    group: &[&str],
+    exp_frames: usize,
 ) {
     let plan = planner
-        .read_filter(db, predicate)
+        .read_group(db, predicate, agg, group)
         .expect("built plan successfully");
 
     let results = executor
@@ -120,5 +128,5 @@ async fn build_and_execute_plan(
         .await
         .expect("Running series set plan");
 
-    assert_eq!(results.len(), exp_data_frames);
+    assert_eq!(results.len(), exp_frames);
 }

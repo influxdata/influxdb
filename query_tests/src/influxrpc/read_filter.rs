@@ -2,7 +2,7 @@
 #[cfg(test)]
 use super::util::run_series_set_plan;
 
-use crate::query_tests::scenarios::*;
+use crate::scenarios::*;
 use async_trait::async_trait;
 use datafusion::logical_plan::{col, lit};
 use query::{

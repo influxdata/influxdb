@@ -5,7 +5,7 @@ use query::{
     predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
 };
 
-use crate::query_tests::scenarios::*;
+use crate::scenarios::*;
 
 /// runs table_names(predicate) and compares it to the expected
 /// output

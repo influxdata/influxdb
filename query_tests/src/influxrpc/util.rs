@@ -10,8 +10,6 @@ use query::{
     plan::seriesset::SeriesSetPlans,
 };
 
-use tokio::sync::mpsc;
-
 /// Format the field indexes into strings
 pub fn dump_field_indexes(f: FieldIndexes) -> Vec<String> {
     f.as_slice()

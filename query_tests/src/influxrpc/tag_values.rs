@@ -5,7 +5,7 @@ use query::{
     predicate::PredicateBuilder,
 };
 
-use crate::query_tests::scenarios::*;
+use crate::scenarios::*;
 
 /// runs tag_value(predicate) and compares it to the expected
 /// output

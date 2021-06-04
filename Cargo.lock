@@ -3020,6 +3020,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "query_tests"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow_util",
+ "async-trait",
+ "data_types",
+ "datafusion 0.1.0",
+ "internal_types",
+ "metrics",
+ "object_store",
+ "query",
+ "server",
+ "test_helpers",
+ "tokio",
+]
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3699,13 +3717,11 @@ dependencies = [
  "cached",
  "chrono",
  "crc32fast",
- "criterion",
  "data_types",
  "datafusion 0.1.0",
  "datafusion_util",
  "entry",
  "flatbuffers",
- "flate2",
  "futures",
  "futures-util",
  "generated_types",
@@ -3735,6 +3751,21 @@ dependencies = [
  "tokio-util",
  "tracker",
  "uuid",
+]
+
+[[package]]
+name = "server_benchmarks"
+version = "0.1.0"
+dependencies = [
+ "arrow_util",
+ "criterion",
+ "datafusion 0.1.0",
+ "flate2",
+ "query",
+ "query_tests",
+ "server",
+ "test_helpers",
+ "tokio",
 ]
 
 [[package]]

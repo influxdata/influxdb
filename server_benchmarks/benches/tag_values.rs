@@ -10,7 +10,8 @@ use tokio::runtime::Runtime;
 use query::frontend::influxrpc::InfluxRpcPlanner;
 use query::predicate::PredicateBuilder;
 use query::{exec::Executor, predicate::Predicate};
-use server::{benchmarks::scenarios::DbScenario, db::Db};
+use query_tests::scenarios::DbScenario;
+use server::db::Db;
 
 // Uses the `query_tests` module to generate some chunk scenarios, specifically
 // the scenarios where there are:
@@ -40,8 +41,7 @@ async fn setup_scenarios() -> Vec<DbScenario> {
     let mut lp = String::new();
     gz.read_to_string(&mut lp).unwrap();
 
-    let db =
-        server::benchmarks::scenarios::make_two_chunk_scenarios("2021-04-12T17", &lp, &lp).await;
+    let db = query_tests::scenarios::make_two_chunk_scenarios("2021-04-12T17", &lp, &lp).await;
     db
 }
 

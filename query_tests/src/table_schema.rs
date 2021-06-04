@@ -1,13 +1,11 @@
 //! Tests for the table_names implementation
 
-#![allow(unused_imports, dead_code, unused_macros)]
-
 use arrow::datatypes::DataType;
 use internal_types::{schema::builder::SchemaBuilder, selection::Selection};
 use query::{Database, PartitionChunk};
 
 use super::scenarios::*;
-use query::predicate::{Predicate, PredicateBuilder};
+use query::predicate::PredicateBuilder;
 
 /// Creates and loads several database scenarios using the db_setup
 /// function.

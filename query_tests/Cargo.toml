@@ -1,0 +1,22 @@
+[package]
+name = "query_tests"
+version = "0.1.0"
+authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
+edition = "2018"
+description = "Tests of the query engine against different database configurations"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+arrow = { version = "4.0", features = ["prettyprint"] }
+arrow_util = { path = "../arrow_util" }
+async-trait = "0.1"
+datafusion = { path = "../datafusion" }
+data_types = { path = "../data_types" }
+internal_types = { path = "../internal_types" }
+metrics = { path = "../metrics" }
+object_store = { path = "../object_store" }
+query = { path = "../query" }
+server = { path = "../server" }
+test_helpers = { path = "../test_helpers" }
+tokio = { version = "1.0", features = ["macros", "time"] }

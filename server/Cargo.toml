@@ -50,15 +50,11 @@ uuid = { version = "0.8", features = ["serde", "v4"] }
 
 [dev-dependencies] # In alphabetical order
 arrow_util = { path = "../arrow_util" }
-criterion = { version = "0.3.4", features = ["async_tokio"] }
-flate2 = "1.0.20"
+datafusion = { path = "../datafusion" }
+tokio = { version = "1.0", features = ["macros", "time"] }
 test_helpers = { path = "../test_helpers" }
 
 [features]
 default = []
 # Enable features for benchmarking
 bench = ["mutable_buffer/nocache"]
-
-[[bench]]
-name = "influxrpc"
-harness = false

@@ -1,5 +1,5 @@
 //! Tests for the Influx gRPC queries
-use crate::query_tests::scenarios::*;
+use crate::scenarios::*;
 
 use arrow::util::pretty::pretty_format_batches;
 use async_trait::async_trait;

@@ -1318,7 +1318,7 @@ mod tests {
         *,
     };
     use crate::db::catalog::chunk::{ChunkStage, ChunkStageFrozenRepr};
-    use crate::query_tests::utils::{make_db, TestDb};
+    use crate::utils::{make_db, TestDb};
     use ::test_helpers::assert_contains;
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};

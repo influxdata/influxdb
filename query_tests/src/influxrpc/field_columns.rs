@@ -7,7 +7,7 @@ use query::{
     predicate::PredicateBuilder,
 };
 
-use crate::query_tests::scenarios::*;
+use crate::scenarios::*;
 
 /// Creates and loads several database scenarios using the db_setup
 /// function.

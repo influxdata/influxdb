@@ -71,7 +71,7 @@ fn system_clock_now() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query_tests::utils::TestDb;
+    use crate::utils::TestDb;
     use entry::test_helpers::lp_to_entry;
     use std::{sync::Arc, thread, time::Duration};
 

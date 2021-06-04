@@ -3,8 +3,6 @@
 //! wired all the pieces together (as well as ensure any particularly
 //! important SQL does not regress)
 
-#![allow(unused_imports, dead_code, unused_macros)]
-
 use super::scenarios::*;
 use arrow::record_batch::RecordBatch;
 use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};

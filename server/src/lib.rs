@@ -95,14 +95,12 @@ use query::{exec::Executor, DatabaseStore};
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
 
 pub use crate::config::RemoteTemplate;
-use crate::{
-    config::{
-        object_store_path_for_database_config, Config, GRpcConnectionString, DB_RULES_FILE_NAME,
-    },
-    db::Db,
+use crate::config::{
+    object_store_path_for_database_config, Config, GRpcConnectionString, DB_RULES_FILE_NAME,
 };
 use cached::Return;
 use data_types::database_rules::{NodeGroup, RoutingRules, Shard, ShardConfig, ShardId};
+pub use db::Db;
 use generated_types::database_rules::{decode_database_rules, encode_database_rules};
 use influxdb_iox_client::{connection::Builder, write};
 use rand::seq::SliceRandom;
@@ -111,13 +109,9 @@ use std::collections::HashMap;
 pub mod buffer;
 mod config;
 pub mod db;
-mod query_tests;
 
-// This module exposes `query_tests` outside of the crate so that it may be used
-// in benchmarks. Do not import this module for non-benchmark purposes!
-pub mod benchmarks {
-    pub use crate::query_tests::*;
-}
+/// Utility modules used by benchmarks and tests
+pub mod utils;
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -229,7 +223,7 @@ impl Default for JobRegistry {
 }
 
 impl JobRegistry {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Default::default()
     }
 
