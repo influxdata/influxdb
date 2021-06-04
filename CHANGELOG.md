@@ -1,11 +1,19 @@
 ## unreleased
 
+### SQLite Metadata Store
+
+This release adds an embedded SQLite database for storing metadata required by the latest UI features like Notebooks and Annotations.
+
 ### Features
 
 1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
 1. [21218](https://github.com/influxdata/influxdb/pull/21218): Add the properties of a static legend for line graphs and band plots.
 1. [21367](https://github.com/influxdata/influxdb/pull/21367): List users via the API now supports pagination
 1. [21531](https://github.com/influxdata/influxdb/pull/21531): Remove feature flags for permanent UI features
+1. [21543](https://github.com/influxdata/influxdb/pull/21543): Added `influxd` configuration flag `--sqlite-path` for specifying a user-defined path to the SQLite database file
+1. [21543](https://github.com/influxdata/influxdb/pull/21543): Updated `influxd` configuration flag `--store` to work with string values `disk` or `memory`. Memory continues to store metadata in-memory for testing; `disk` will persist metadata to disk via bolt and SQLite
+1. [21547](https://github.com/influxdata/influxdb/pull/21547): Allow hiding the tooltip independently of the static legend
+1. [21584](https://github.com/influxdata/influxdb/pull/21584): Added the `api/v2/backup/metadata` endpoint for backing up both KV and SQL metadata, and the `api/v2/restore/sql` for restoring SQL metadata.
 
 ### Bug Fixes
 
@@ -18,6 +26,8 @@
 1. [21481](https://github.com/influxdata/influxdb/pull/21481): Set last-modified time of empty shard directory to the directory's mod time instead of Unix epoch.
 1. [21486](https://github.com/influxdata/influxdb/pull/21486): chore: remove erroneous dependency on istio
 1. [21522](https://github.com/influxdata/influxdb/pull/21522): Replace telemetry file name with slug for `ttf`, `woff`, and `eot` files.
+1. [21540](https://github.com/influxdata/influxdb/pull/21540): Enable use of absolute path for `--upgrade-log` when running `influxd upgrade` on Windows.
+1. [21545](https://github.com/influxdata/influxdb/pull/21545): Make InfluxQL meta queries respect query timeouts.
 
 ## v2.0.6 [2021-04-29]
 

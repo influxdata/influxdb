@@ -12,8 +12,6 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
-	notebookSvc "github.com/influxdata/influxdb/v2/notebooks/service"
-	notebookMocks "github.com/influxdata/influxdb/v2/notebooks/service/mocks"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +29,7 @@ func Test_GetNotebook(t *testing.T) {
 		name          string
 		notebookOrg   *platform.ID
 		permissionOrg *platform.ID
-		wantRet       *notebookSvc.Notebook
+		wantRet       *influxdb.Notebook
 		wantErr       error
 	}{
 		{
@@ -56,7 +54,7 @@ func Test_GetNotebook(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrlr := gomock.NewController(t)
-			svc := notebookMocks.NewMockNotebookService(ctrlr)
+			svc := mock.NewMockNotebookService(ctrlr)
 			s := authorizer.NewNotebookService(svc)
 
 			svc.EXPECT().
@@ -81,7 +79,7 @@ func Test_CreateNotebook(t *testing.T) {
 		name          string
 		notebookOrg   *platform.ID
 		permissionOrg *platform.ID
-		wantRet       *notebookSvc.Notebook
+		wantRet       *influxdb.Notebook
 		wantErr       error
 	}{
 		{
@@ -106,7 +104,7 @@ func Test_CreateNotebook(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrlr := gomock.NewController(t)
-			svc := notebookMocks.NewMockNotebookService(ctrlr)
+			svc := mock.NewMockNotebookService(ctrlr)
 			s := authorizer.NewNotebookService(svc)
 
 			perm := newTestPermission(influxdb.WriteAction, tt.permissionOrg)
@@ -133,7 +131,7 @@ func Test_UpdateNotebook(t *testing.T) {
 		name          string
 		notebookOrg   *platform.ID
 		permissionOrg *platform.ID
-		wantRet       *notebookSvc.Notebook
+		wantRet       *influxdb.Notebook
 		wantErr       error
 	}{
 		{
@@ -158,7 +156,7 @@ func Test_UpdateNotebook(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrlr := gomock.NewController(t)
-			svc := notebookMocks.NewMockNotebookService(ctrlr)
+			svc := mock.NewMockNotebookService(ctrlr)
 			s := authorizer.NewNotebookService(svc)
 
 			svc.EXPECT().
@@ -211,7 +209,7 @@ func Test_DeleteNotebook(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrlr := gomock.NewController(t)
-			svc := notebookMocks.NewMockNotebookService(ctrlr)
+			svc := mock.NewMockNotebookService(ctrlr)
 			s := authorizer.NewNotebookService(svc)
 
 			svc.EXPECT().
@@ -240,14 +238,14 @@ func Test_ListNotebooks(t *testing.T) {
 		name          string
 		notebookOrg   *platform.ID
 		permissionOrg *platform.ID
-		wantRet       []*notebookSvc.Notebook
+		wantRet       []*influxdb.Notebook
 		wantErr       error
 	}{
 		{
 			"authorized to list notebooks for the specified org",
 			orgID1,
 			orgID1,
-			[]*notebookSvc.Notebook{},
+			[]*influxdb.Notebook{},
 			nil,
 		},
 		{
@@ -265,11 +263,11 @@ func Test_ListNotebooks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrlr := gomock.NewController(t)
-			svc := notebookMocks.NewMockNotebookService(ctrlr)
+			svc := mock.NewMockNotebookService(ctrlr)
 			s := authorizer.NewNotebookService(svc)
 
 			perm := newTestPermission(influxdb.ReadAction, tt.permissionOrg)
-			filter := notebookSvc.NotebookListFilter{OrgID: *tt.notebookOrg}
+			filter := influxdb.NotebookListFilter{OrgID: *tt.notebookOrg}
 
 			if tt.wantErr == nil {
 				svc.EXPECT().
@@ -285,22 +283,22 @@ func Test_ListNotebooks(t *testing.T) {
 	}
 }
 
-func newTestNotebook(orgID platform.ID) *notebookSvc.Notebook {
-	return &notebookSvc.Notebook{
+func newTestNotebook(orgID platform.ID) *influxdb.Notebook {
+	return &influxdb.Notebook{
 		OrgID: orgID,
 		ID:    *nbID,
 		Name:  "test notebook",
-		Spec: notebookSvc.NotebookSpec{
+		Spec: influxdb.NotebookSpec{
 			"hello": "goodbye",
 		},
 	}
 }
 
-func newTestReqBody(orgID platform.ID) *notebookSvc.NotebookReqBody {
-	return &notebookSvc.NotebookReqBody{
+func newTestReqBody(orgID platform.ID) *influxdb.NotebookReqBody {
+	return &influxdb.NotebookReqBody{
 		OrgID: orgID,
 		Name:  "testing",
-		Spec: notebookSvc.NotebookSpec{
+		Spec: influxdb.NotebookSpec{
 			"hello": "goodbye",
 		},
 	}

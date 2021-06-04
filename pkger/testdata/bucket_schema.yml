@@ -1,0 +1,17 @@
+apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name: explicit-11
+spec:
+  measurementSchemas:
+    - columns:
+        - name: time
+          type: timestamp
+        - name: host
+          type: tag
+        - dataType: float
+          name: usage_user
+          type: field
+      name: cpu
+  name: my_explicit
+  schemaType: explicit

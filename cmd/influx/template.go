@@ -1299,10 +1299,10 @@ func (b *cmdTemplateBuilder) printTemplateDiff(diff pkger.Diff) error {
 	}
 
 	if bkts := diff.Buckets; len(bkts) > 0 {
-		printer := diffPrinterGen("Buckets", []string{"Retention Period", "Description"})
+		printer := diffPrinterGen("Buckets", []string{"Retention Period", "Description", "Schema Type", "Num Measurements"})
 
 		appendValues := func(id pkger.SafeID, metaName string, v pkger.DiffBucketValues) []string {
-			return []string{metaName, id.String(), v.Name, v.RetentionRules.RP().String(), v.Description}
+			return []string{metaName, id.String(), v.Name, v.RetentionRules.RP().String(), v.Description, v.SchemaType, strconv.Itoa(len(v.MeasurementSchemas))}
 		}
 
 		for _, b := range bkts {
@@ -1603,7 +1603,7 @@ func (b *cmdTemplateBuilder) printTemplateSummary(stackID platform.ID, sum pkger
 	}
 
 	if buckets := sum.Buckets; len(buckets) > 0 {
-		headers := append(commonHeaders, "Retention", "Description")
+		headers := append(commonHeaders, "Retention", "Description", "Schema Type")
 		tablePrintFn("BUCKETS", headers, len(buckets), func(i int) []string {
 			bucket := buckets[i]
 			return []string{
@@ -1612,6 +1612,7 @@ func (b *cmdTemplateBuilder) printTemplateSummary(stackID platform.ID, sum pkger
 				bucket.Name,
 				formatDuration(bucket.RetentionPeriod),
 				bucket.Description,
+				bucket.SchemaType,
 			}
 		})
 	}

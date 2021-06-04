@@ -28,11 +28,11 @@ var (
 )
 
 type TSDBStore interface {
-	MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
+	MeasurementNames(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
 	ShardGroup(ids []uint64) tsdb.ShardGroup
 	Shards(ids []uint64) []*tsdb.Shard
-	TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
-	TagValues(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
+	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
+	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 }
 
 type MetaClient interface {
@@ -336,7 +336,7 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 
 	// TODO(jsternberg): Use a real authorizer.
 	auth := query.OpenAuthorizer
-	keys, err := s.TSDBStore.TagKeys(auth, shardIDs, expr)
+	keys, err := s.TSDBStore.TagKeys(ctx, auth, shardIDs, expr)
 	if err != nil {
 		return cursors.EmptyStringIterator, err
 	}
@@ -459,7 +459,7 @@ func (s *Store) tagValues(ctx context.Context, mqAttrs *metaqueryAttributes, tag
 
 	// TODO(jsternberg): Use a real authorizer.
 	auth := query.OpenAuthorizer
-	values, err := s.TSDBStore.TagValues(auth, shardIDs, mqAttrs.pred)
+	values, err := s.TSDBStore.TagValues(ctx, auth, shardIDs, mqAttrs.pred)
 	if err != nil {
 		return nil, err
 	}
@@ -491,7 +491,7 @@ func (s *Store) MeasurementNames(ctx context.Context, mqAttrs *metaqueryAttribut
 
 	// TODO(jsternberg): Use a real authorizer.
 	auth := query.OpenAuthorizer
-	values, err := s.TSDBStore.MeasurementNames(auth, mqAttrs.db, mqAttrs.pred)
+	values, err := s.TSDBStore.MeasurementNames(ctx, auth, mqAttrs.db, mqAttrs.pred)
 	if err != nil {
 		return nil, err
 	}

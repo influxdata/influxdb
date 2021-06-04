@@ -5,16 +5,17 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
-	"github.com/influxdata/influxdb/v2/notebooks/service"
 	"go.uber.org/zap"
 )
 
 const (
-	prefixNotebooks = "/api/v2private/notebooks"
+	prefixNotebooks     = "/api/v2private/notebooks"
+	allNotebooksJSONKey = "flows"
 )
 
 var (
@@ -36,12 +37,12 @@ type NotebookHandler struct {
 	log *zap.Logger
 	api *kithttp.API
 
-	notebookService service.NotebookService
+	notebookService influxdb.NotebookService
 }
 
 func NewNotebookHandler(
 	log *zap.Logger,
-	notebookService service.NotebookService,
+	notebookService influxdb.NotebookService,
 ) *NotebookHandler {
 	h := &NotebookHandler{
 		log:             log,
@@ -101,13 +102,17 @@ func (h *NotebookHandler) handleGetNotebooks(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	l, err := h.notebookService.ListNotebooks(ctx, service.NotebookListFilter{OrgID: *o})
+	l, err := h.notebookService.ListNotebooks(ctx, influxdb.NotebookListFilter{OrgID: *o})
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
-	h.api.Respond(w, r, http.StatusOK, l)
+	p := map[string][]*influxdb.Notebook{
+		allNotebooksJSONKey: l,
+	}
+
+	h.api.Respond(w, r, http.StatusOK, p)
 }
 
 // create a single notebook.
@@ -187,8 +192,8 @@ func (h *NotebookHandler) handleUpdateNotebook(w http.ResponseWriter, r *http.Re
 	h.api.Respond(w, r, http.StatusOK, u)
 }
 
-func (h *NotebookHandler) decodeNotebookReqBody(r *http.Request) (*service.NotebookReqBody, error) {
-	b := &service.NotebookReqBody{}
+func (h *NotebookHandler) decodeNotebookReqBody(r *http.Request) (*influxdb.NotebookReqBody, error) {
+	b := &influxdb.NotebookReqBody{}
 	if err := h.api.DecodeJSON(r.Body, b); err != nil {
 		return nil, err
 	}

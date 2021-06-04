@@ -88,7 +88,7 @@ func (p *SeriesPartition) Open() error {
 		p.index = NewSeriesIndex(p.IndexPath())
 		if err := p.index.Open(); err != nil {
 			return err
-		} else if p.index.Recover(p.segments); err != nil {
+		} else if err := p.index.Recover(p.segments); err != nil {
 			return err
 		}
 

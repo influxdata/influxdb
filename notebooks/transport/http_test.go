@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/notebooks/service"
-	"github.com/influxdata/influxdb/v2/notebooks/service/mocks"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -22,18 +22,18 @@ var (
 	orgID, _     = platform.IDFromString(orgStr)
 	idStr        = "4321432143214321"
 	id, _        = platform.IDFromString(idStr)
-	testNotebook = &service.Notebook{
+	testNotebook = &influxdb.Notebook{
 		OrgID: *orgID,
 		ID:    *id,
 		Name:  "test notebook",
-		Spec: service.NotebookSpec{
+		Spec: influxdb.NotebookSpec{
 			"hello": "goodbye",
 		},
 	}
-	testReqBody = &service.NotebookReqBody{
+	testReqBody = &influxdb.NotebookReqBody{
 		OrgID: *orgID,
 		Name:  "Test notebook",
-		Spec: service.NotebookSpec{
+		Spec: influxdb.NotebookSpec{
 			"hello": "goodbye",
 		},
 	}
@@ -53,15 +53,15 @@ func TestNotebookHandler(t *testing.T) {
 		req.URL.RawQuery = q.Encode()
 
 		svc.EXPECT().
-			ListNotebooks(gomock.Any(), service.NotebookListFilter{OrgID: *orgID}).
-			Return([]*service.Notebook{testNotebook}, nil)
+			ListNotebooks(gomock.Any(), influxdb.NotebookListFilter{OrgID: *orgID}).
+			Return([]*influxdb.Notebook{testNotebook}, nil)
 
 		res := doTestRequest(t, req, http.StatusOK, true)
 
-		got := []*service.Notebook{}
+		got := map[string][]*influxdb.Notebook{}
 		err := json.NewDecoder(res.Body).Decode(&got)
 		require.NoError(t, err)
-		require.Equal(t, got, []*service.Notebook{testNotebook})
+		require.Equal(t, got[allNotebooksJSONKey], []*influxdb.Notebook{testNotebook})
 	})
 
 	t.Run("create notebook happy path", func(t *testing.T) {
@@ -76,7 +76,7 @@ func TestNotebookHandler(t *testing.T) {
 
 		res := doTestRequest(t, req, http.StatusOK, true)
 
-		got := &service.Notebook{}
+		got := &influxdb.Notebook{}
 		err := json.NewDecoder(res.Body).Decode(got)
 		require.NoError(t, err)
 		require.Equal(t, got, testNotebook)
@@ -94,7 +94,7 @@ func TestNotebookHandler(t *testing.T) {
 
 		res := doTestRequest(t, req, http.StatusOK, true)
 
-		got := &service.Notebook{}
+		got := &influxdb.Notebook{}
 		err := json.NewDecoder(res.Body).Decode(got)
 		require.NoError(t, err)
 		require.Equal(t, got, testNotebook)
@@ -125,7 +125,7 @@ func TestNotebookHandler(t *testing.T) {
 
 		res := doTestRequest(t, req, http.StatusOK, true)
 
-		got := &service.Notebook{}
+		got := &influxdb.Notebook{}
 		err := json.NewDecoder(res.Body).Decode(got)
 		require.NoError(t, err)
 		require.Equal(t, got, testNotebook)
@@ -170,7 +170,7 @@ func TestNotebookHandler(t *testing.T) {
 	})
 
 	t.Run("invalid request body returns 400", func(t *testing.T) {
-		badBady := &service.NotebookReqBody{
+		badBady := &influxdb.NotebookReqBody{
 			OrgID: *orgID,
 		}
 
@@ -197,9 +197,9 @@ func TestNotebookHandler(t *testing.T) {
 
 // The svc generated is returned so that the caller can specify the expected
 // use of the mock service.
-func newTestServer(t *testing.T) (*httptest.Server, *mocks.MockNotebookService) {
+func newTestServer(t *testing.T) (*httptest.Server, *mock.MockNotebookService) {
 	ctrlr := gomock.NewController(t)
-	svc := mocks.NewMockNotebookService(ctrlr)
+	svc := mock.NewMockNotebookService(ctrlr)
 	// server needs to have a middleware to annotate the request context with the
 	// appropriate feature flags while notebooks is still behind a feature flag
 	server := annotatedTestServer(NewNotebookHandler(zaptest.NewLogger(t), svc))

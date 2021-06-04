@@ -128,7 +128,7 @@ func TestLauncher_BucketDelete(t *testing.T) {
 
 	// Verify the cardinality in the engine.
 	engine := l.Launcher.Engine()
-	if got, exp := engine.SeriesCardinality(l.Org.ID, l.Bucket.ID), int64(1); got != exp {
+	if got, exp := engine.SeriesCardinality(ctx, l.Bucket.ID), int64(1); got != exp {
 		t.Fatalf("got %d, exp %d", got, exp)
 	}
 
@@ -150,7 +150,7 @@ func TestLauncher_BucketDelete(t *testing.T) {
 	}
 
 	// Verify that the data has been removed from the storage engine.
-	if got, exp := engine.SeriesCardinality(l.Org.ID, l.Bucket.ID), int64(0); got != exp {
+	if got, exp := engine.SeriesCardinality(ctx, l.Bucket.ID), int64(0); got != exp {
 		t.Fatalf("after bucket delete got %d, exp %d", got, exp)
 	}
 }
