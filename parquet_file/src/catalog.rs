@@ -37,6 +37,9 @@ pub const TRANSACTION_VERSION: u32 = 2;
 /// File suffix for transaction files in object store.
 pub const TRANSACTION_FILE_SUFFIX: &str = "txn";
 
+/// File suffix for checkpoint files in object store.
+pub const CHECKPOINT_FILE_SUFFIX: &str = "ckpt";
+
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Error during serialization: {}", source))]
@@ -526,7 +529,7 @@ where
 /// ```text
 /// <server_id>/<db_name>/transactions/
 /// ```
-fn transactions_path(object_store: &ObjectStore, server_id: ServerId, db_name: &str) -> Path {
+fn catalog_path(object_store: &ObjectStore, server_id: ServerId, db_name: &str) -> Path {
     let mut path = object_store.new_path();
     path.push_dir(server_id.to_string());
     path.push_dir(db_name.to_string());
@@ -535,32 +538,53 @@ fn transactions_path(object_store: &ObjectStore, server_id: ServerId, db_name: &
     path
 }
 
-/// Creates object store path for given transaction.
+/// Type of catalog file.
+#[derive(Debug, Clone, Copy)]
+enum FileType {
+    /// Ordinary transaction with delta encoding.
+    Transaction,
+
+    /// Checkpoints with full state.
+    Checkpoint,
+}
+
+impl FileType {
+    /// Get file suffix for this file type.
+    fn suffix(&self) -> &'static str {
+        match self {
+            Self::Transaction => TRANSACTION_FILE_SUFFIX,
+            Self::Checkpoint => CHECKPOINT_FILE_SUFFIX,
+        }
+    }
+}
+
+/// Creates object store path for given transaction or checkpoint.
 ///
 /// The format is:
 ///
 /// ```text
-/// <server_id>/<db_name>/transactions/<revision_counter>/<uuid>.txn
+/// <server_id>/<db_name>/transactions/<revision_counter>/<uuid>.{txn,ckpt}
 /// ```
-fn transaction_path(
+fn file_path(
     object_store: &ObjectStore,
     server_id: ServerId,
     db_name: &str,
     tkey: &TransactionKey,
+    file_type: FileType,
 ) -> Path {
-    let mut path = transactions_path(object_store, server_id, db_name);
+    let mut path = catalog_path(object_store, server_id, db_name);
 
     // pad number: `u64::MAX.to_string().len()` is 20
     path.push_dir(format!("{:0>20}", tkey.revision_counter));
 
-    let file_name = format!("{}.{}", tkey.uuid, TRANSACTION_FILE_SUFFIX);
+    let file_name = format!("{}.{}", tkey.uuid, file_type.suffix());
     path.set_file_name(file_name);
 
     path
 }
 
-/// Extracts revision counter and UUID from transaction path
-fn parse_transaction_path(path: Path) -> Option<(u64, Uuid)> {
+/// Extracts revision counter and UUID from transaction or checkpoint path
+fn parse_file_path(path: Path, file_type: FileType) -> Option<(u64, Uuid)> {
     let parsed: DirsAndFileName = path.into();
     if parsed.directories.len() != 4 {
         return None;
@@ -575,7 +599,7 @@ fn parse_transaction_path(path: Path) -> Option<(u64, Uuid)> {
         .encoded()
         .split('.')
         .collect();
-    if (name_parts.len() != 2) || (name_parts[1] != TRANSACTION_FILE_SUFFIX) {
+    if (name_parts.len() != 2) || (name_parts[1] != file_type.suffix()) {
         return None;
     }
     let uuid = Uuid::parse_str(name_parts[0]);
@@ -594,7 +618,7 @@ async fn list_transaction_files(
     server_id: ServerId,
     db_name: &str,
 ) -> Result<Vec<(Path, u64, Uuid)>> {
-    let list_path = transactions_path(&object_store, server_id, &db_name);
+    let list_path = catalog_path(&object_store, server_id, &db_name);
     let paths = object_store
         .list(Some(&list_path))
         .await
@@ -603,7 +627,7 @@ async fn list_transaction_files(
             paths
                 .into_iter()
                 .filter_map(|path| {
-                    parse_transaction_path(path.clone())
+                    parse_file_path(path.clone(), FileType::Transaction)
                         .map(|(revision_counter, uuid)| (path, revision_counter, uuid))
                 })
                 .collect()
@@ -836,7 +860,13 @@ where
         server_id: ServerId,
         db_name: &str,
     ) -> Result<()> {
-        let path = transaction_path(object_store, server_id, db_name, &self.tkey());
+        let path = file_path(
+            object_store,
+            server_id,
+            db_name,
+            &self.tkey(),
+            FileType::Transaction,
+        );
         store_transaction_proto(object_store, &path, &self.proto).await?;
         Ok(())
     }
@@ -850,7 +880,13 @@ where
         last_tkey: &Option<TransactionKey>,
     ) -> Result<Self> {
         // recover state from store
-        let path = transaction_path(object_store, server_id, db_name, tkey);
+        let path = file_path(
+            object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let proto = load_transaction_proto(object_store, &path).await?;
 
         // sanity-check file content
@@ -1158,11 +1194,12 @@ pub mod test_helpers {
         S: CatalogState + Send + Sync,
     {
         let tkey = get_tkey(catalog);
-        let path = transaction_path(
+        let path = file_path(
             &catalog.object_store,
             catalog.server_id,
             &catalog.db_name,
             &tkey,
+            FileType::Transaction,
         );
         let mut proto = load_transaction_proto(&catalog.object_store, &path)
             .await
@@ -1279,38 +1316,38 @@ mod tests {
         let db_name = "db1".to_string();
 
         // wrong file extension
-        let mut path = transactions_path(&object_store, server_id, &db_name);
+        let mut path = catalog_path(&object_store, server_id, &db_name);
         path.push_dir("0");
         path.set_file_name(format!("{}.foo", Uuid::new_v4()));
         create_empty_file(&object_store, &path).await;
 
         // no file extension
-        let mut path = transactions_path(&object_store, server_id, &db_name);
+        let mut path = catalog_path(&object_store, server_id, &db_name);
         path.push_dir("0");
         path.set_file_name(Uuid::new_v4().to_string());
         create_empty_file(&object_store, &path).await;
 
         // broken UUID
-        let mut path = transactions_path(&object_store, server_id, &db_name);
+        let mut path = catalog_path(&object_store, server_id, &db_name);
         path.push_dir("0");
         path.set_file_name(format!("foo.{}", TRANSACTION_FILE_SUFFIX));
         create_empty_file(&object_store, &path).await;
 
         // broken revision counter
-        let mut path = transactions_path(&object_store, server_id, &db_name);
+        let mut path = catalog_path(&object_store, server_id, &db_name);
         path.push_dir("foo");
         path.set_file_name(format!("{}.{}", Uuid::new_v4(), TRANSACTION_FILE_SUFFIX));
         create_empty_file(&object_store, &path).await;
 
         // file is folder
-        let mut path = transactions_path(&object_store, server_id, &db_name);
+        let mut path = catalog_path(&object_store, server_id, &db_name);
         path.push_dir("0");
         path.push_dir(format!("{}.{}", Uuid::new_v4(), TRANSACTION_FILE_SUFFIX));
         path.set_file_name("foo");
         create_empty_file(&object_store, &path).await;
 
         // top-level file
-        let mut path = transactions_path(&object_store, server_id, &db_name);
+        let mut path = catalog_path(&object_store, server_id, &db_name);
         path.set_file_name(format!("{}.{}", Uuid::new_v4(), TRANSACTION_FILE_SUFFIX));
         create_empty_file(&object_store, &path).await;
 
@@ -1339,7 +1376,13 @@ mod tests {
         // remove transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         checked_delete(&object_store, &path).await;
 
         // loading catalog should fail now
@@ -1396,7 +1439,13 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
         proto.revision_counter = 42;
         store_transaction_proto(&object_store, &path, &proto)
@@ -1427,7 +1476,13 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
         let uuid_expected = Uuid::parse_str(&proto.uuid).unwrap();
         let uuid_actual = Uuid::nil();
@@ -1463,7 +1518,13 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
         proto.uuid = String::new();
         store_transaction_proto(&object_store, &path, &proto)
@@ -1494,7 +1555,13 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
         proto.uuid = "foo".to_string();
         store_transaction_proto(&object_store, &path, &proto)
@@ -1525,7 +1592,13 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
         proto.previous_uuid = Uuid::nil().to_string();
         store_transaction_proto(&object_store, &path, &proto)
@@ -1553,7 +1626,13 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[1];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
         proto.previous_uuid = Uuid::nil().to_string();
         store_transaction_proto(&object_store, &path, &proto)
@@ -1581,7 +1660,13 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
         proto.previous_uuid = "foo".to_string();
         store_transaction_proto(&object_store, &path, &proto)
@@ -1612,7 +1697,13 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let data = Bytes::from("foo");
         let len = data.len();
         object_store
@@ -1673,13 +1764,25 @@ mod tests {
         // re-create transaction file with different UUID
         assert!(trace.tkeys.len() >= 2);
         let mut tkey = trace.tkeys[1].clone();
-        let path = transaction_path(&object_store, server_id, db_name, &tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            &tkey,
+            FileType::Transaction,
+        );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
         let old_uuid = tkey.uuid;
 
         let new_uuid = Uuid::new_v4();
         tkey.uuid = new_uuid;
-        let path = transaction_path(&object_store, server_id, db_name, &tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            &tkey,
+            FileType::Transaction,
+        );
         proto.uuid = new_uuid.to_string();
         store_transaction_proto(&object_store, &path, &proto)
             .await
@@ -1711,7 +1814,13 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
         proto.actions.push(proto::transaction::Action {
             action: Some(proto::transaction::action::Action::Upgrade(
@@ -1748,7 +1857,13 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
         proto.start_timestamp = None;
         store_transaction_proto(&object_store, &path, &proto)
@@ -1779,7 +1894,13 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
         proto.start_timestamp = Some(generated_types::google::protobuf::Timestamp {
             seconds: 0,
@@ -1813,7 +1934,13 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
         proto.encoding = -1;
         store_transaction_proto(&object_store, &path, &proto)
@@ -1844,7 +1971,13 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
         proto.encoding = proto::transaction::Encoding::Full.into();
         store_transaction_proto(&object_store, &path, &proto)
@@ -2208,7 +2341,7 @@ mod tests {
         assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
 
         // create junk
-        let mut path = transactions_path(&object_store, server_id, &db_name);
+        let mut path = catalog_path(&object_store, server_id, &db_name);
         path.push_dir("0");
         path.set_file_name(format!("{}.foo", Uuid::new_v4()));
         create_empty_file(&object_store, &path).await;
@@ -2219,7 +2352,7 @@ mod tests {
             .unwrap();
 
         // check file is still there
-        let prefix = transactions_path(&object_store, server_id, &db_name);
+        let prefix = catalog_path(&object_store, server_id, &db_name);
         let files = object_store
             .list(Some(&prefix))
             .await
@@ -2319,7 +2452,13 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
         proto.start_timestamp = None;
         store_transaction_proto(&object_store, &path, &proto)
@@ -2359,7 +2498,13 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = &trace.tkeys[0];
-        let path = transaction_path(&object_store, server_id, db_name, tkey);
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
         let data = Bytes::from("foo");
         let len = data.len();
         object_store
