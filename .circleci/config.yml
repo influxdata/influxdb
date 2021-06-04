@@ -14,12 +14,6 @@ workflows:
       - tlstest:
           requires:
             - godeps
-      - influxql_validation:
-          requires:
-            - godeps
-      - influxql_integration:
-          requires:
-            - godeps
       - golint:
           requires:
             - godeps
@@ -71,12 +65,6 @@ workflows:
       - golint:
           requires:
             - godeps
-      - influxql_validation:
-          requires:
-            - godeps
-      - influxql_integration:
-          requires:
-            - godeps
       - fluxtest:
           requires:
             - godeps
@@ -87,8 +75,6 @@ workflows:
           requires:
             - gotest
             - golint
-            - influxql_validation
-            - influxql_integration
             - tlstest
           filters:
             branches:
@@ -354,7 +340,6 @@ jobs:
     resource_class: large
     environment:
       TMPDIR: /mnt/ramdisk
-      TEST_RESULTS: /tmp/test-results
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
@@ -363,7 +348,7 @@ jobs:
           name: Restore GOPATH/pkg/mod
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      - run: mkdir -p $TEST_RESULTS
+      - run: mkdir -p /tmp/test-results
       - install_core_deps
       - run:
           name: run parallel race tests
@@ -406,52 +391,6 @@ jobs:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - install_core_deps
       - run: make test-tls
-
-  influxql_validation:
-    docker:
-      - image: cimg/go:1.15.6
-    resource_class: large
-    environment:
-      TMPDIR: /mnt/ramdisk
-      TEST_RESULTS: /tmp/test-results
-    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
-    steps:
-      - checkout
-      - restore_cache:
-          name: Restore GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      - run: mkdir -p $TEST_RESULTS
-      - install_core_deps
-      - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-validation
-      - store_artifacts:
-          path: /tmp/test-results
-          destination: raw-test-output
-      - store_test_results:
-          path: /tmp/test-results
-
-  influxql_integration:
-    docker:
-      - image: cimg/go:1.15.6
-    resource_class: large
-    environment:
-      TMPDIR: /mnt/ramdisk
-      TEST_RESULTS: /tmp/test-results
-    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
-    steps:
-      - checkout
-      - restore_cache:
-          name: Restore GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      - run: mkdir -p $TEST_RESULTS
-      - install_core_deps
-      - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-integration
-      - store_artifacts:
-          path: /tmp/test-results
-          destination: raw-test-output
-      - store_test_results:
-          path: /tmp/test-results
 
   #####################################
   ### UI+backend build/release jobs ###
