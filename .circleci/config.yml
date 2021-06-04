@@ -281,7 +281,9 @@ commands:
                 command: |
                   echo -e "$GPG_PRIVATE_KEY" > private.key
                   gpg --batch --import private.key
-            - quay_login
+            - run:
+                name: Log in to Quay
+                command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - run:
           name: Set GOPATH
           # Machine executors use a different GOPATH from the cimg/go Docker executors.
@@ -386,7 +388,7 @@ jobs:
     docker:
       - image: cimg/go:1.16.5
     environment:
-      GOCACHE: /tmp/go-cache
+      TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -409,7 +411,7 @@ jobs:
     docker:
       - image: cimg/go:1.16.5
     environment:
-      GOCACHE: /tmp/go-cache
+      TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -441,17 +443,12 @@ jobs:
       - image: cimg/go:1.16.5
     resource_class: large
     environment:
-      GOCACHE: /tmp/go-cache
+      TMPDIR: /mnt/ramdisk
       TEST_RESULTS: /tmp/test-results
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
       - checkout
-      - restore_cache:
-          name: Restore GOCACHE
-          keys:
-            - influxdb-gotest-{{ .Branch }}-{{ .Revision }}
-            - influxdb-gotest-{{ .Branch }}-
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
@@ -464,11 +461,6 @@ jobs:
             GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml -- -p=4"
             TESTFILES=($(go list ./... | circleci tests split --split-by=timings))
             make GO_TEST_CMD="$GO_TEST_CMD" GO_TEST_PATHS="${TESTFILES[*]}" test-go-race
-      - save_cache:
-          name: Save GOCACHE
-          key: influxdb-gotest-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - /tmp/go-cache
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
@@ -479,7 +471,7 @@ jobs:
     docker:
       - image: cimg/go:1.16.5
     environment:
-      GOCACHE: /tmp/go-cache
+      TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -493,6 +485,8 @@ jobs:
   tlstest:
     docker:
       - image: cimg/go:1.16.5
+    environment:
+      TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -508,16 +502,11 @@ jobs:
       - image: cimg/go:1.15.6
     resource_class: large
     environment:
-      GOCACHE: /tmp/go-cache
+      TMPDIR: /mnt/ramdisk
       TEST_RESULTS: /tmp/test-results
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      - restore_cache:
-          name: Restore GOCACHE
-          keys:
-            - influxdb-iqlvalidation-{{ .Branch }}-{{ .Revision }}
-            - influxdb-iqlvalidation-{{ .Branch }}-
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
@@ -525,11 +514,6 @@ jobs:
       - run: mkdir -p $TEST_RESULTS
       - install_core_deps
       - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-validation
-      - save_cache:
-          name: Save GOCACHE
-          key: influxdb-iqlvalidation-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - /tmp/go-cache
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
@@ -541,16 +525,11 @@ jobs:
       - image: cimg/go:1.15.6
     resource_class: large
     environment:
-      GOCACHE: /tmp/go-cache
+      TMPDIR: /mnt/ramdisk
       TEST_RESULTS: /tmp/test-results
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      - restore_cache:
-          name: Restore GOCACHE
-          keys:
-            - influxdb-iqlintegration-{{ .Branch }}-{{ .Revision }}
-            - influxdb-iqlintegration-{{ .Branch }}-
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
@@ -558,11 +537,6 @@ jobs:
       - run: mkdir -p $TEST_RESULTS
       - install_core_deps
       - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-integration
-      - save_cache:
-          name: Save GOCACHE
-          key: influxdb-iqlintegration-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - /tmp/go-cache
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
@@ -578,7 +552,7 @@ jobs:
       - image: cimg/go:1.16.5-node
     resource_class: large
     environment:
-      GOCACHE: /tmp/go-cache
+      TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -586,24 +560,10 @@ jobs:
           name: Restore GOPATH/pkg/mod
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      - restore_cache:
-          name: Restore GOCACHE
-          keys:
-            - influxdb-build-{{ .Branch }}-{{ .Revision }}
-            - influxdb-build-{{ .Branch }}-
-      - restore_cache:
-          name: Restore Yarn Cache
-          keys:
-            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - install_core_deps
       - install_cross_bin_deps
       # Build the static binary for linux
       - run: goreleaser build --snapshot --single-target
-      - save_cache:
-          name: Save GOCACHE
-          key: influxdb-build-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - /tmp/go-cache
       - store_artifacts:
           path: dist
       - persist_to_workspace:
@@ -620,22 +580,18 @@ jobs:
       image: ubuntu-2004:202010-01
     resource_class: large
     environment:
-      GOCACHE: /tmp/go-cache
+      TMPDIR: /mnt/ramdisk
     steps:
       - checkout
+      - run:
+          name: Create RAM disk
+          command: |
+            sudo mkdir -p ${TMPDIR}
+            sudo mount -t tmpfs -o size=4G tmpfs ${TMPDIR}
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      - restore_cache:
-          name: Restore GOCACHE
-          keys:
-            - influxdb-cross-build-{{ .Branch }}-{{ .Revision }}
-            - influxdb-cross-build-{{ .Branch }}-
-      - restore_cache:
-          name: Restore Yarn Cache
-          keys:
-            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - install_core_deps
       - upgrade_go
       - run_goreleaser:
@@ -649,11 +605,6 @@ jobs:
             mv dist/influx* artifacts/
       - store_artifacts:
           path: artifacts
-      - save_cache:
-          name: Save GOCACHE
-          key: influxdb-cross-build-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - /tmp/go-cache
       - persist_to_workspace:
           root: .
           paths:
@@ -673,6 +624,7 @@ jobs:
           name: Run test in AWS instance
           no_output_timeout: 20m
           command: AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} scripts/ci/perf_test.sh
+
   aws_destroy_by_date:
     machine:
       enabled: true
@@ -705,6 +657,7 @@ jobs:
                 AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
               fi
             done
+
   aws_destroy_by_name:
     machine:
       enabled: true
@@ -730,19 +683,19 @@ jobs:
       image: ubuntu-2004:202010-01
     resource_class: large
     environment:
-      GOCACHE: /tmp/go-cache
+      TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
+      - run:
+          name: Create RAM disk
+          command: |
+            sudo mkdir -p ${TMPDIR}
+            sudo mount -t tmpfs -o size=4G tmpfs ${TMPDIR}
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      - restore_cache:
-          name: Restore GOCACHE
-          keys:
-            - influxdb-release-{{ .Branch }}-{{ .Revision }}
-            - influxdb-release-{{ .Branch }}-
       - restore_cache:
           name: Restore Yarn Cache
           keys:
@@ -751,11 +704,11 @@ jobs:
       - upgrade_go
       - run_goreleaser:
           publish_release: true
-      - save_cache:
-          name: Save GOCACHE
-          key: influxdb-nightly-{{ .Branch }}-{{ .Revision }}
+      - persist_to_workspace:
+          root: .
           paths:
-            - /tmp/go-cache
+            - etc/litmus_success_notify.sh
+            - etc/litmus_fail_notify.sh
 
   #################################
   ### e2e/integration test jobs ###
@@ -766,7 +719,7 @@ jobs:
       - image: cimg/go:1.16.5-browsers
     resource_class: large
     environment:
-      GOCACHE: /tmp/go-cache
+      TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - browser-tools/install-browser-tools
