@@ -6,7 +6,6 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -55,7 +54,6 @@ func NewNotebookHandler(
 		middleware.Recoverer,
 		middleware.RequestID,
 		middleware.RealIP,
-		h.mwNotebookFlag, // temporary, remove when feature flag for notebooks is removed
 	)
 
 	r.Route("/", func(r chi.Router) {
@@ -77,19 +75,6 @@ func NewNotebookHandler(
 
 func (h *NotebookHandler) Prefix() string {
 	return prefixNotebooks
-}
-
-func (h *NotebookHandler) mwNotebookFlag(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		flags := feature.FlagsFromContext(r.Context())
-
-		if !flags["notebooks"].(bool) || !flags["notebooksApi"].(bool) {
-			h.api.Respond(w, r, http.StatusNoContent, nil)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }
 
 // get a list of all notebooks for an org
