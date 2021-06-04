@@ -130,9 +130,6 @@ func (a *LocalShardMapping) FieldDimensions(ctx context.Context, m *influxql.Mea
 		return
 	}
 
-	fields = make(map[string]influxql.DataType)
-	dimensions = make(map[string]struct{})
-
 	var measurements []string
 	if m.Regex != nil {
 		measurements = sg.MeasurementsByRegex(m.Regex.Val)
@@ -144,13 +141,8 @@ func (a *LocalShardMapping) FieldDimensions(ctx context.Context, m *influxql.Mea
 	if err != nil {
 		return nil, nil, err
 	}
-	for k, typ := range f {
-		fields[k] = typ
-	}
-	for k := range d {
-		dimensions[k] = struct{}{}
-	}
-	return
+
+	return f, d, nil
 }
 
 func (a *LocalShardMapping) MapType(ctx context.Context, m *influxql.Measurement, field string) influxql.DataType {
