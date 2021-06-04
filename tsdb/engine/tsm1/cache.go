@@ -304,7 +304,7 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	store := c.store
 	c.mu.RUnlock()
 
-	// We'll optimistially set size here, and then decrement it for write errors.
+	// We'll optimistically set size here, and then decrement it for write errors.
 	c.increaseSize(addedSize)
 	for k, v := range values {
 		newKey, err := store.write([]byte(k), v)
