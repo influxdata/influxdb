@@ -23,7 +23,6 @@ const (
 
 // Ensure the server can query with default databases (via param) and default retention policy
 func TestServer_Query_DefaultDBAndRP(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -64,7 +63,6 @@ func TestServer_Query_DefaultDBAndRP(t *testing.T) {
 
 // Ensure the server can have a database with multiple measurements.
 func TestServer_Query_Multiple_Measurements(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -97,7 +95,6 @@ func TestServer_Query_Multiple_Measurements(t *testing.T) {
 
 // Ensure the server can query with relative time.
 func TestServer_Query_SelectRelativeTime(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -127,7 +124,6 @@ func TestServer_Query_SelectRelativeTime(t *testing.T) {
 }
 
 func TestServer_Query_Aggregates_IntMax(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -153,7 +149,6 @@ func TestServer_Query_Aggregates_IntMax(t *testing.T) {
 }
 
 func TestServer_Query_TimeZone(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -231,7 +226,6 @@ func TestServer_Query_TimeZone(t *testing.T) {
 
 // Ensure the server correctly supports data with identical tag values.
 func TestServer_Query_IdenticalTagValues(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -269,7 +263,6 @@ func TestServer_Query_IdenticalTagValues(t *testing.T) {
 
 // Ensure the server can handle a query that involves accessing no shards.
 func TestServer_Query_NoShards(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -294,7 +287,6 @@ func TestServer_Query_NoShards(t *testing.T) {
 
 // Ensure the server can query a non-existent field
 func TestServer_Query_NonExistent(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -324,7 +316,6 @@ func TestServer_Query_NonExistent(t *testing.T) {
 
 // Ensure the server can perform basic math
 func TestServer_Query_Math(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -403,7 +394,6 @@ func TestServer_Query_Math(t *testing.T) {
 
 // Ensure the server can handle various simple non_negative_derivative queries.
 func TestServer_Query_SelectRawNonNegativeDerivative(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -435,7 +425,6 @@ cpu value=20 1278010024000000000
 
 // Ensure the server can handle various group by time derivative queries.
 func TestServer_Query_SelectGroupByTimeDerivative(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -572,7 +561,6 @@ cpu0,host=server02 ticks=101,total=100 1278010023000000000
 
 // Ensure the server can query with the count aggregate function
 func TestServer_Query_Count(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -634,7 +622,6 @@ func TestServer_Query_Count(t *testing.T) {
 
 // Ensure the server can limit concurrent series.
 func TestServer_Query_MaxSelectSeriesN(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t, func(o *launcher.InfluxdOpts) {
 		o.CoordinatorConfig.MaxSelectSeriesN = 3
 	})
@@ -662,7 +649,6 @@ func TestServer_Query_MaxSelectSeriesN(t *testing.T) {
 
 // Ensure the server can query with Now().
 func TestServer_Query_Now(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -702,7 +688,6 @@ func TestServer_Query_Now(t *testing.T) {
 
 // Ensure the server can query with epoch precisions.
 func TestServer_Query_EpochPrecision(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -758,7 +743,6 @@ func TestServer_Query_EpochPrecision(t *testing.T) {
 
 // Ensure the server works with tag queries.
 func TestServer_Query_Tags(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -922,7 +906,6 @@ func TestServer_Query_Tags(t *testing.T) {
 
 // Ensure the server can handle various group by time moving average queries.
 func TestServer_Query_SelectGroupByTimeMovingAverage(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -996,7 +979,6 @@ cpu value=35 1278010025000000000
 
 // Ensure the server can handle various group by time moving average queries.
 func TestServer_Query_SelectGroupByTimeMovingAverageWithFill(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -1116,7 +1098,6 @@ cpu value=35 1278010025000000000
 	test.Run(ctx, t, s)
 } // Ensure the server correctly queries with an alias.
 func TestServer_Query_Alias(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -1178,7 +1159,6 @@ func TestServer_Query_Alias(t *testing.T) {
 
 // Ensure the server can handle various group by time cumulative sum queries.
 func TestServer_Query_SelectGroupByTimeCumulativeSum(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -1250,7 +1230,6 @@ cpu value=25 1278010023000000000
 
 // Ensure the server can handle various group by time cumulative sum queries with fill.
 func TestServer_Query_SelectGroupByTimeCumulativeSumWithFill(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -1369,7 +1348,6 @@ cpu value=20 1278010021000000000
 }
 
 func TestServer_Query_Aggregates_Int(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -1395,7 +1373,6 @@ func TestServer_Query_Aggregates_Int(t *testing.T) {
 }
 
 func TestServer_Query_MathWithFill(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -1425,7 +1402,6 @@ func TestServer_Query_MathWithFill(t *testing.T) {
 // mergeMany ensures that when merging many series together and some of them have a different number
 // of points than others in a group by interval the results are correct
 func TestServer_Query_MergeMany(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -1466,7 +1442,6 @@ func TestServer_Query_MergeMany(t *testing.T) {
 }
 
 func TestServer_Query_SelectGroupByTime_MultipleAggregates(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -1494,7 +1469,6 @@ test,t=b y=3i 3000000000
 }
 
 func TestServer_Query_Regex(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -1551,7 +1525,6 @@ func TestServer_Query_Regex(t *testing.T) {
 }
 
 func TestServer_Query_Aggregates_Load(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -1590,7 +1563,6 @@ func TestServer_Query_Aggregates_Load(t *testing.T) {
 }
 
 func TestServer_Query_SLimitAndSOffset(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -1628,7 +1600,6 @@ func TestServer_Query_SLimitAndSOffset(t *testing.T) {
 }
 
 func TestServer_Query_CumulativeCount(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -1656,7 +1627,6 @@ events signup=t 3838400000
 }
 
 func TestServer_Query_Aggregates_String(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -1719,7 +1689,6 @@ func TestServer_Query_Aggregates_String(t *testing.T) {
 }
 
 func TestServer_Query_AggregateSelectors(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -2011,7 +1980,6 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 }
 
 func TestServer_Query_Selectors(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -2070,7 +2038,6 @@ func TestServer_Query_Selectors(t *testing.T) {
 }
 
 func TestServer_Query_TopBottomInt(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -2304,7 +2271,6 @@ func TestServer_Query_TopBottomInt(t *testing.T) {
 }
 
 func TestServer_Query_ExactTimeRange(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -2339,7 +2305,6 @@ func TestServer_Query_ExactTimeRange(t *testing.T) {
 }
 
 func TestServer_Query_Aggregates_Math(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -2386,7 +2351,6 @@ func TestServer_Query_Aggregates_Math(t *testing.T) {
 }
 
 func TestServer_Query_Aggregates_CPU(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -2412,7 +2376,6 @@ func TestServer_Query_Aggregates_CPU(t *testing.T) {
 }
 
 func TestServer_Query_Aggregates_IntMany(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -2544,7 +2507,6 @@ func TestServer_Query_Aggregates_IntMany(t *testing.T) {
 }
 
 func TestServer_Query_Where_Fields(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -2744,7 +2706,6 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 }
 
 func TestServer_Query_Aggregates_IntMany_GroupBy(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -2824,7 +2785,6 @@ func TestServer_Query_Aggregates_IntMany_GroupBy(t *testing.T) {
 }
 
 func TestServer_Query_Aggregates_IntMany_OrderByDesc(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -2856,7 +2816,6 @@ func TestServer_Query_Aggregates_IntMany_OrderByDesc(t *testing.T) {
 }
 
 func TestServer_Query_Aggregates_IntOverlap(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -2909,7 +2868,6 @@ func TestServer_Query_Aggregates_IntOverlap(t *testing.T) {
 }
 
 func TestServer_Query_Aggregates_FloatSingle(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -2934,7 +2892,6 @@ func TestServer_Query_Aggregates_FloatSingle(t *testing.T) {
 }
 
 func TestServer_Query_LimitAndOffset(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -3030,7 +2987,6 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 }
 
 func TestServer_Query_Fill(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -3114,7 +3070,6 @@ func TestServer_Query_Fill(t *testing.T) {
 }
 
 func TestServer_Query_Aggregates_FloatMany(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -3240,7 +3195,6 @@ func TestServer_Query_Aggregates_FloatMany(t *testing.T) {
 }
 
 func TestServer_Query_ShowTagValues(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -3427,7 +3381,6 @@ func TestServer_Query_ShowTagValues(t *testing.T) {
 
 func TestServer_Query_ShowTagKeyCardinality(t *testing.T) {
 	t.Skip(NotSupported)
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -3608,7 +3561,6 @@ func TestServer_Query_ShowTagKeyCardinality(t *testing.T) {
 }
 
 func TestServer_Query_Aggregates_FloatOverlap(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -3661,7 +3613,6 @@ func TestServer_Query_Aggregates_FloatOverlap(t *testing.T) {
 
 func TestServer_Query_ShowFieldKeyCardinality(t *testing.T) {
 	t.Skip(NotSupported)
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -3724,7 +3675,6 @@ func TestServer_Query_ShowFieldKeyCardinality(t *testing.T) {
 }
 
 func TestServer_Query_ShowFieldKeys(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -3769,7 +3719,6 @@ func TestServer_Query_ShowFieldKeys(t *testing.T) {
 }
 
 func TestServer_Query_FieldWithMultiplePeriodsMeasurementPrefixMatch(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -3802,7 +3751,6 @@ func TestServer_Query_FieldWithMultiplePeriodsMeasurementPrefixMatch(t *testing.
 }
 
 func TestServer_Query_FieldWithMultiplePeriods(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -3835,7 +3783,6 @@ func TestServer_Query_FieldWithMultiplePeriods(t *testing.T) {
 }
 
 func TestServer_Query_Aggregates_GroupByOffset(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -3882,7 +3829,6 @@ func TestServer_Query_Aggregates_GroupByOffset(t *testing.T) {
 // This will test that when using a group by, that it observes the time you asked for
 // but will only put the values in the bucket that match the time range
 func TestServer_Query_GroupByTimeCutoffs(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -3943,7 +3889,6 @@ func TestServer_Query_GroupByTimeCutoffs(t *testing.T) {
 }
 
 func TestServer_Query_MapType(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -4000,7 +3945,6 @@ func TestServer_Query_MapType(t *testing.T) {
 }
 
 func TestServer_Query_Subqueries(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -4160,7 +4104,6 @@ func TestServer_Query_Subqueries(t *testing.T) {
 }
 
 func TestServer_Query_SubqueryWithGroupBy(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -4213,7 +4156,6 @@ func TestServer_Query_SubqueryWithGroupBy(t *testing.T) {
 }
 
 func TestServer_Query_SubqueryMath(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -4241,7 +4183,6 @@ func TestServer_Query_SubqueryMath(t *testing.T) {
 }
 
 func TestServer_Query_PercentileDerivative(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -4271,7 +4212,6 @@ func TestServer_Query_PercentileDerivative(t *testing.T) {
 }
 
 func TestServer_Query_UnderscoreMeasurement(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -4297,7 +4237,6 @@ func TestServer_Query_UnderscoreMeasurement(t *testing.T) {
 }
 
 func TestServer_Query_Wildcards(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -4393,7 +4332,6 @@ func TestServer_Query_Wildcards(t *testing.T) {
 }
 
 func TestServer_Query_WildcardExpansion(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -4452,7 +4390,6 @@ func TestServer_Query_WildcardExpansion(t *testing.T) {
 }
 
 func TestServer_Query_ShowQueries_Future(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -4505,7 +4442,6 @@ func TestServer_Query_ShowQueries_Future(t *testing.T) {
 
 func TestServer_Query_ShowSeries(t *testing.T) {
 	t.Skip(NotSupported)
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -4620,7 +4556,6 @@ func TestServer_Query_ShowSeriesCardinalityEstimation(t *testing.T) {
 	// if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
 	//   t.Skip("Skipping test in short, race and appveyor mode.")
 	// }
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -4654,7 +4589,6 @@ func TestServer_Query_ShowSeriesCardinalityEstimation(t *testing.T) {
 
 func TestServer_Query_ShowSeriesExactCardinality(t *testing.T) {
 	t.Skip(NotSupported)
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -4771,7 +4705,6 @@ func TestServer_Query_ShowSeriesExactCardinality(t *testing.T) {
 }
 
 func TestServer_Query_ShowMeasurements(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -4877,7 +4810,6 @@ func TestServer_Query_ShowMeasurementCardinalityEstimation(t *testing.T) {
 	//   t.Skip("Skipping test in short, race and appveyor mode.")
 	// }
 
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -4910,7 +4842,6 @@ func TestServer_Query_ShowMeasurementCardinalityEstimation(t *testing.T) {
 
 func TestServer_Query_ShowMeasurementExactCardinality(t *testing.T) {
 	t.Skip(NotSupported)
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5009,7 +4940,6 @@ func TestServer_Query_ShowMeasurementExactCardinality(t *testing.T) {
 }
 
 func TestServer_Query_ShowTagKeys(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5102,7 +5032,6 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 func TestServer_Query_LargeTimestamp(t *testing.T) {
 	// This test fails to build. The offending portions have been commented out.
 	t.Skip(NeedsReview)
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5142,7 +5071,6 @@ func TestServer_Query_LargeTimestamp(t *testing.T) {
 }
 
 func TestServer_Query_DotProduct(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5172,7 +5100,6 @@ func TestServer_Query_DotProduct(t *testing.T) {
 
 // Ensure time in where clause is inclusive
 func TestServer_WhereTimeInclusive(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5262,7 +5189,6 @@ func TestServer_WhereTimeInclusive(t *testing.T) {
 
 func TestServer_Query_ImplicitEndTime(t *testing.T) {
 	t.Skip(FlakyTest)
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5299,7 +5225,6 @@ func TestServer_Query_ImplicitEndTime(t *testing.T) {
 }
 
 func TestServer_Query_Sample_Wildcard(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5326,7 +5251,6 @@ func TestServer_Query_Sample_Wildcard(t *testing.T) {
 }
 
 func TestServer_Query_Sample_LimitOffset(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5368,7 +5292,6 @@ func TestServer_Query_Sample_LimitOffset(t *testing.T) {
 
 // Validate that nested aggregates don't panic
 func TestServer_NestedAggregateWithMathPanics(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5402,7 +5325,6 @@ func TestServer_NestedAggregateWithMathPanics(t *testing.T) {
 
 // Ensure the server will succeed and error for common scenarios.
 func TestServer_Query_Common(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5462,7 +5384,6 @@ func TestServer_Query_Common(t *testing.T) {
 
 // Ensure the server can query two points.
 func TestServer_Query_SelectTwoPoints(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5492,7 +5413,6 @@ func TestServer_Query_SelectTwoPoints(t *testing.T) {
 
 // Ensure the server can query two negative points.
 func TestServer_Query_SelectTwoNegativePoints(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5515,7 +5435,6 @@ func TestServer_Query_SelectTwoNegativePoints(t *testing.T) {
 
 // Ensure the server can handle various simple derivative queries.
 func TestServer_Query_SelectRawDerivative(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5543,7 +5462,6 @@ func TestServer_Query_SelectRawDerivative(t *testing.T) {
 
 // Ensure the server can handle various group by time derivative queries.
 func TestServer_Query_SelectGroupByTimeDerivativeWithFill(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5763,7 +5681,6 @@ cpu value=20 1278010021000000000
 
 // Ensure the server can handle various group by time difference queries.
 func TestServer_Query_SelectGroupByTimeDifference(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5835,7 +5752,6 @@ cpu value=25 1278010023000000000
 
 // Ensure the server can handle various group by time difference queries with fill.
 func TestServer_Query_SelectGroupByTimeDifferenceWithFill(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5955,7 +5871,6 @@ cpu value=20 1278010021000000000
 
 // Test various aggregates when different series only have data for the same timestamp.
 func TestServer_Query_Aggregates_IdenticalTime(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -5998,7 +5913,6 @@ func TestServer_Query_Aggregates_IdenticalTime(t *testing.T) {
 }
 
 func TestServer_Query_AcrossShardsAndFields(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -6051,7 +5965,6 @@ func TestServer_Query_AcrossShardsAndFields(t *testing.T) {
 }
 
 func TestServer_Query_OrderedAcrossShards(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -6100,7 +6013,6 @@ func TestServer_Query_OrderedAcrossShards(t *testing.T) {
 }
 
 func TestServer_Query_Where_With_Tags(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -6161,7 +6073,6 @@ func TestServer_Query_Where_With_Tags(t *testing.T) {
 }
 
 func TestServer_Query_With_EmptyTags(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -6243,7 +6154,6 @@ func TestServer_Query_With_EmptyTags(t *testing.T) {
 }
 
 func TestServer_Query_ImplicitFill(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t, func(o *launcher.InfluxdOpts) {
 		o.CoordinatorConfig.MaxSelectBucketsN = 5
 	})
@@ -6281,7 +6191,6 @@ func TestServer_Query_ImplicitFill(t *testing.T) {
 
 func TestServer_Query_MaxRowLimit(t *testing.T) {
 	t.Skip(NotSupported)
-	t.Parallel()
 	// config := NewConfig()
 	// config.HTTPD.MaxRowLimit = 10
 
@@ -6317,7 +6226,6 @@ func TestServer_Query_MaxRowLimit(t *testing.T) {
 }
 
 func TestServer_Query_EvilIdentifiers(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
@@ -6340,7 +6248,6 @@ func TestServer_Query_EvilIdentifiers(t *testing.T) {
 }
 
 func TestServer_Query_OrderByTime(t *testing.T) {
-	t.Parallel()
 	s := OpenServer(t)
 	defer s.Close()
 
