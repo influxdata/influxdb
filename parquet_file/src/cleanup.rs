@@ -82,6 +82,7 @@ where
     'outer: while let Some(paths) = stream.try_next().await.context(ReadError)? {
         for path in paths {
             if to_remove.len() >= max_files {
+                info!(%max_files, "reached limit of number of files to cleanup in one go");
                 break 'outer;
             }
             let path_parsed: DirsAndFileName = path.clone().into();
