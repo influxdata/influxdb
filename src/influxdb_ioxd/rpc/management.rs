@@ -375,7 +375,7 @@ where
     async fn get_server_status(
         &self,
         _request: Request<GetServerStatusRequest>,
-    ) -> Result<Response<ServerStatus>, Status> {
+    ) -> Result<Response<GetServerStatusResponse>, Status> {
         // TODO: wire up errors (https://github.com/influxdata/influxdb_iox/issues/1624)
         let initialized = self.server.initialized();
 
@@ -392,10 +392,12 @@ where
             Default::default()
         };
 
-        Ok(Response::new(ServerStatus {
-            initialized,
-            error: None,
-            database_statuses,
+        Ok(Response::new(GetServerStatusResponse {
+            server_status: Some(ServerStatus {
+                initialized,
+                error: None,
+                database_statuses,
+            }),
         }))
     }
 }

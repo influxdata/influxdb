@@ -252,6 +252,10 @@ pub enum ClosePartitionChunkError {
 /// Errors returned by [`Client::get_server_status`]
 #[derive(Debug, Error)]
 pub enum GetServerStatusError {
+    /// Response contained no payload
+    #[error("Server returned an empty response")]
+    EmptyResponse,
+
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -337,7 +341,11 @@ impl Client {
             .await
             .map_err(GetServerStatusError::ServerError)?;
 
-        Ok(response.into_inner())
+        let server_status = response
+            .into_inner()
+            .server_status
+            .ok_or(GetServerStatusError::EmptyResponse)?;
+        Ok(server_status)
     }
 
     /// Set serving readiness.

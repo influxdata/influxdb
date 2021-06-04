@@ -63,7 +63,7 @@ service ManagementService {
   rpc ClosePartitionChunk(ClosePartitionChunkRequest) returns (ClosePartitionChunkResponse);
 
   // Get server status
-  rpc GetServerStatus(GetServerStatusRequest) returns (ServerStatus);
+  rpc GetServerStatus(GetServerStatusRequest) returns (GetServerStatusResponse);
 }
 
 message GetServerIdRequest {}
@@ -240,6 +240,10 @@ message ClosePartitionChunkResponse {
 }
 
 message GetServerStatusRequest {}
+message GetServerStatusResponse {
+  // Server status.
+  ServerStatus server_status = 1;
+}
 
 message ServerStatus {
   // Server is initialized, i.e. databases are loaded and accept read/write operations. Furthermore database rules can
