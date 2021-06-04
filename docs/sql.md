@@ -215,6 +215,30 @@ ORDER BY total_rows DESC
 LIMIT 20;
 ```
 
+### Time range stored per table
+
+This query provides an estimate, by table, of how long of a time range 
+and the  estimated number of rows per second it holds in IOx
+(the `1,000,000,000` is the conversion from nanoseconds)
+
+```sql
+select table_name,
+1000000000.0 * total_rows / range as rows_per_sec,
+range / 1000000000.0 as range_sec,
+total_rows
+from
+(select table_name,
+        column_name,
+        sum(count) as total_rows,
+        max(cast(max_value as double)) - min(cast(min_value as double)) as range
+ from system.chunk_columns
+ where column_name = 'time'
+ group by table_name, column_name
+)
+where range > 0
+order by range_sec desc;
+```
+
 
 # SQL Reference
 
