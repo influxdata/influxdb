@@ -14,4 +14,4 @@ const (
 )
 
 // VeryVerbose when set to true, will enable very verbose logging of services.
-var VeryVerbose bool
+var VeryVerbose bool = true
