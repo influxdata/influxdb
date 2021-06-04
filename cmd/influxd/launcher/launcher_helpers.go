@@ -28,6 +28,7 @@ import (
 	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/restore"
+	"github.com/influxdata/influxdb/v2/sqlite"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
 	dto "github.com/prometheus/client_model/go"
@@ -125,6 +126,7 @@ func (tl *TestLauncher) Run(tb zaptest.TestingT, ctx context.Context, setters ..
 	}
 	opts.TestingAlwaysAllowSetup = true
 	opts.BoltPath = filepath.Join(tl.Path, bolt.DefaultFilename)
+	opts.SqLitePath = filepath.Join(tl.Path, sqlite.DefaultFilename)
 	opts.EnginePath = filepath.Join(tl.Path, "engine")
 	opts.HttpBindAddress = "127.0.0.1:0"
 	opts.LogLevel = zap.DebugLevel

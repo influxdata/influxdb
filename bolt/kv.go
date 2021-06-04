@@ -105,6 +105,16 @@ func (s *KVStore) Close() error {
 	return nil
 }
 
+// LockKVStore locks the database for reading during a backup.
+func (s *KVStore) Lock() {
+	s.mu.RLock()
+}
+
+// UnlockKVStore removes the read lock used during a backup.
+func (s *KVStore) Unlock() {
+	s.mu.RUnlock()
+}
+
 // DB returns a reference to the current Bolt database.
 func (s *KVStore) DB() *bolt.DB {
 	s.mu.RLock()

@@ -19,6 +19,31 @@ type BackupService interface {
 
 	// BackupShard downloads a backup file for a single shard.
 	BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error
+
+	// LockKVStore locks the database.
+	LockKVStore()
+
+	// UnlockKVStore unlocks the database.
+	UnlockKVStore()
+}
+
+// SqlBackupRestoreService represents the backup and restore functions for the sqlite database.
+type SqlBackupRestoreService interface {
+	// BackupSqlStore creates a live backup copy of the sqlite database.
+	BackupSqlStore(ctx context.Context, w io.Writer) error
+
+	// RestoreSqlStore restores & replaces the sqlite database.
+	RestoreSqlStore(ctx context.Context, r io.Reader) error
+
+	// LockSqlStore locks the database.
+	LockSqlStore()
+
+	// UnlockSqlStore unlocks the database.
+	UnlockSqlStore()
+}
+
+type BucketManifestWriter interface {
+	WriteManifest(ctx context.Context, w io.Writer) error
 }
 
 // RestoreService represents the data restore functions of InfluxDB.
@@ -31,6 +56,50 @@ type RestoreService interface {
 
 	// RestoreShard uploads a backup file for a single shard.
 	RestoreShard(ctx context.Context, shardID uint64, r io.Reader) error
+}
+
+// BucketMetadataManifest contains the information about a bucket for backup purposes.
+// It is composed of various nested structs below.
+type BucketMetadataManifest struct {
+	OrganizationID         platform.ID               `json:"organizationID"`
+	OrganizationName       string                    `json:"organizationName"`
+	BucketID               platform.ID               `json:"bucketID"`
+	BucketName             string                    `json:"bucketName"`
+	DefaultRetentionPolicy string                    `json:"defaultRetentionPolicy"`
+	RetentionPolicies      []RetentionPolicyManifest `json:"retentionPolicies"`
+}
+
+type RetentionPolicyManifest struct {
+	Name               string                 `json:"name"`
+	ReplicaN           int                    `json:"replicaN"`
+	Duration           time.Duration          `json:"duration"`
+	ShardGroupDuration time.Duration          `json:"shardGroupDuration"`
+	ShardGroups        []ShardGroupManifest   `json:"shardGroups"`
+	Subscriptions      []SubscriptionManifest `json:"subscriptions"`
+}
+
+type ShardGroupManifest struct {
+	ID          uint64          `json:"id"`
+	StartTime   time.Time       `json:"startTime"`
+	EndTime     time.Time       `json:"endTime"`
+	DeletedAt   *time.Time      `json:"deletedAt,omitempty"`   // use pointer to time.Time so that omitempty works
+	TruncatedAt *time.Time      `json:"truncatedAt,omitempty"` // use pointer to time.Time so that omitempty works
+	Shards      []ShardManifest `json:"shards"`
+}
+
+type ShardManifest struct {
+	ID          uint64       `json:"id"`
+	ShardOwners []ShardOwner `json:"shardOwners"`
+}
+
+type ShardOwner struct {
+	NodeID uint64 `json:"nodeID"`
+}
+
+type SubscriptionManifest struct {
+	Name         string   `json:"name"`
+	Mode         string   `json:"mode"`
+	Destinations []string `json:"destinations"`
 }
 
 // Manifest lists the KV and shard file information contained in the backup.

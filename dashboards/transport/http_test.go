@@ -507,6 +507,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 			"yTickStart": 0,
 			"yTickStep": 0,
 			"legendColorizeRows": false,
+			"legendHide": false,
 			"legendOpacity": 0,
 			"legendOrientationThreshold": 0
 	  },
@@ -1034,6 +1035,7 @@ func TestService_handlePostDashboard(t *testing.T) {
 								"yTickStep": 0,
 								"type": "xy",
 								"legendColorizeRows": false,
+								"legendHide": false,
 								"legendOpacity": 0,
 								"legendOrientationThreshold": 0
 							},

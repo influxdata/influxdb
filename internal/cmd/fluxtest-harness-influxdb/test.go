@@ -235,6 +235,7 @@ func main() {
 	c := cmd.TestCommand(NewTestExecutor)
 	c.Use = "fluxtest-harness-influxdb"
 	if err := tryExec(c); err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }

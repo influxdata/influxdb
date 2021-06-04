@@ -19,6 +19,7 @@ import (
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/authorizer"
+	"github.com/influxdata/influxdb/v2/backup"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/checks"
 	"github.com/influxdata/influxdb/v2/chronograf/server"
@@ -43,7 +44,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/label"
 	"github.com/influxdata/influxdb/v2/nats"
-	notebookSvc "github.com/influxdata/influxdb/v2/notebooks/service"
+	"github.com/influxdata/influxdb/v2/notebooks"
 	notebookTransport "github.com/influxdata/influxdb/v2/notebooks/transport"
 	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	ruleservice "github.com/influxdata/influxdb/v2/notification/rule/service"
@@ -57,6 +58,8 @@ import (
 	"github.com/influxdata/influxdb/v2/session"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/source"
+	"github.com/influxdata/influxdb/v2/sqlite"
+	sqliteMigrations "github.com/influxdata/influxdb/v2/sqlite/migrations"
 	"github.com/influxdata/influxdb/v2/storage"
 	storageflux "github.com/influxdata/influxdb/v2/storage/flux"
 	"github.com/influxdata/influxdb/v2/storage/readservice"
@@ -88,7 +91,9 @@ import (
 )
 
 const (
-	// BoltStore stores all REST resources in boltdb.
+	// DiskStore stores all REST resources to disk in boltdb and sqlite.
+	DiskStore = "disk"
+	// BoltStore also stores all REST resources to disk in boltdb and sqlite. Kept for backwards-compatibility.
 	BoltStore = "bolt"
 	// MemoryStore stores all REST resources in memory (useful for testing).
 	MemoryStore = "memory"
@@ -110,6 +115,7 @@ type Launcher struct {
 	boltClient *bolt.Client
 	kvStore    kv.SchemaStore
 	kvService  *kv.Service
+	sqlStore   *sqlite.SqlStore
 
 	// storage engine
 	engine Engine
@@ -182,6 +188,12 @@ func (m *Launcher) Shutdown(ctx context.Context) error {
 	m.log.Info("Stopping", zap.String("service", "bolt"))
 	if err := m.boltClient.Close(); err != nil {
 		m.log.Error("Failed closing bolt", zap.Error(err))
+		errs = append(errs, err.Error())
+	}
+
+	m.log.Info("Stopping", zap.String("service", "sqlite"))
+	if err := m.sqlStore.Close(); err != nil {
+		m.log.Error("Failed closing sqlite", zap.Error(err))
 		errs = append(errs, err.Error())
 	}
 
@@ -270,28 +282,51 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	var flushers flushers
 	switch opts.StoreType {
 	case BoltStore:
-		store := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), opts.BoltPath)
-		store.WithDB(m.boltClient.DB())
-		m.kvStore = store
+		m.log.Warn("Using --store=bolt is deprecated. Use --store=disk instead.")
+		fallthrough
+	case DiskStore:
+		kvStore := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), opts.BoltPath)
+		kvStore.WithDB(m.boltClient.DB())
+		m.kvStore = kvStore
+
+		// If a sqlite-path is not specified, store sqlite db in the same directory as bolt with the default filename.
+		if opts.SqLitePath == "" {
+			opts.SqLitePath = filepath.Dir(opts.BoltPath) + "/" + sqlite.DefaultFilename
+		}
+		sqlStore, err := sqlite.NewSqlStore(opts.SqLitePath, m.log.With(zap.String("service", "sqlite")))
+		if err != nil {
+			m.log.Error("Failed opening sqlite store", zap.Error(err))
+			return err
+		}
+		m.sqlStore = sqlStore
+
 		if opts.Testing {
-			flushers = append(flushers, store)
+			flushers = append(flushers, kvStore, sqlStore)
 		}
 
 	case MemoryStore:
-		store := inmem.NewKVStore()
-		m.kvStore = store
+		kvStore := inmem.NewKVStore()
+		m.kvStore = kvStore
+
+		sqlStore, err := sqlite.NewSqlStore(sqlite.InmemPath, m.log.With(zap.String("service", "sqlite")))
+		if err != nil {
+			m.log.Error("Failed opening sqlite store", zap.Error(err))
+			return err
+		}
+		m.sqlStore = sqlStore
+
 		if opts.Testing {
-			flushers = append(flushers, store)
+			flushers = append(flushers, kvStore, sqlStore)
 		}
 
 	default:
-		err := fmt.Errorf("unknown store type %s; expected bolt or memory", opts.StoreType)
-		m.log.Error("Failed opening bolt", zap.Error(err))
+		err := fmt.Errorf("unknown store type %s; expected disk or memory", opts.StoreType)
+		m.log.Error("Failed opening metadata store", zap.Error(err))
 		return err
 	}
 
-	migrator, err := migration.NewMigrator(
-		m.log.With(zap.String("service", "migrations")),
+	boltMigrator, err := migration.NewMigrator(
+		m.log.With(zap.String("service", "bolt migrations")),
 		m.kvStore,
 		all.Migrations[:]...,
 	)
@@ -300,9 +335,17 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		return err
 	}
 
-	// apply migrations to metadata store
-	if err := migrator.Up(ctx); err != nil {
-		m.log.Error("Failed to apply migrations", zap.Error(err))
+	// apply migrations to the bolt metadata store
+	if err := boltMigrator.Up(ctx); err != nil {
+		m.log.Error("Failed to apply bolt migrations", zap.Error(err))
+		return err
+	}
+
+	sqliteMigrator := sqlite.NewMigrator(m.sqlStore, m.log.With(zap.String("service", "sqlite migrations")))
+
+	// apply migrations to the sqlite metadata store
+	if err := sqliteMigrator.Up(ctx, &sqliteMigrations.All{}); err != nil {
+		m.log.Error("Failed to apply sqlite migrations", zap.Error(err))
 		return err
 	}
 
@@ -662,6 +705,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	ts.BucketService = storage.NewBucketService(m.log, ts.BucketService, m.engine)
 	ts.BucketService = dbrp.NewBucketService(m.log, ts.BucketService, dbrpSvc)
 
+	bucketManifestWriter := backup.NewBucketManifestWriter(ts, metaClient)
+
 	onboardingLogger := m.log.With(zap.String("handler", "onboard"))
 	onboardOpts := []tenant.OnboardServiceOptionFn{tenant.WithOnboardingLogger(onboardingLogger)}
 	if opts.TestingAlwaysAllowSetup {
@@ -729,12 +774,14 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			BucketFinder:  ts.BucketService,
 			LogBucketName: platform.MonitoringSystemBucketName,
 		},
-		DeleteService:          deleteService,
-		BackupService:          backupService,
-		RestoreService:         restoreService,
-		AuthorizationService:   authSvc,
-		AuthorizationV1Service: authSvcV1,
-		PasswordV1Service:      passwordV1,
+		DeleteService:           deleteService,
+		BackupService:           backupService,
+		SqlBackupRestoreService: m.sqlStore,
+		BucketManifestWriter:    bucketManifestWriter,
+		RestoreService:          restoreService,
+		AuthorizationService:    authSvc,
+		AuthorizationV1Service:  authSvcV1,
+		PasswordV1Service:       passwordV1,
 		AuthorizerV1: &authv1.Authorizer{
 			AuthV1:   authSvcV1,
 			AuthV2:   authSvc,
@@ -898,11 +945,10 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		)
 	}
 
-	notebookSvc, err := notebookSvc.NewService()
-	if err != nil {
-		m.log.Error("Failed to initialize notebook service", zap.Error(err))
-		return err
-	}
+	notebookSvc := notebooks.NewService(
+		m.log.With(zap.String("service", "notebooks")),
+		m.sqlStore,
+	)
 	notebookServer := notebookTransport.NewNotebookHandler(
 		m.log.With(zap.String("handler", "notebooks")),
 		authorizer.NewNotebookService(notebookSvc),

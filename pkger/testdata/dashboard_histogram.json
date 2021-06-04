@@ -19,6 +19,7 @@
           "position": "stacked",
           "binCount": 30,
           "legendColorizeRows": true,
+          "legendHide": false,
           "legendOpacity": 1.0,
           "legendOrientationThreshold": 5,
           "fillColumns": [
