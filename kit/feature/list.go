@@ -90,7 +90,7 @@ var notebooks = MakeBoolFlag(
 	"Notebooks",
 	"notebooks",
 	"Monitoring Team",
-	false,
+	true,
 	Temporary,
 	true,
 )
@@ -104,7 +104,7 @@ var notebooksApi = MakeBoolFlag(
 	"Notebooks Service API",
 	"notebooksApi",
 	"Edge Team",
-	false,
+	true,
 	Temporary,
 	true,
 )
