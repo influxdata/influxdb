@@ -1,5 +1,5 @@
 v1.9.2 [unreleased]
--	[#21592](https://github.com/influxdata/influxdb/pull/21592): fix: avoid rewriting fields.idx unnecessarily
+-	[#21609](https://github.com/influxdata/influxdb/pull/21609): fix: avoid rewriting fields.idx unnecessarily
 
 v1.9.1 [2021-06-03]
 
