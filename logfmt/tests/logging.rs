@@ -72,6 +72,18 @@ fn event_fields_strings() {
 }
 
 #[test]
+fn event_fields_strings_quoting() {
+    let capture = CapturedWriter::new();
+    info!(foo = r#"body: Body(Full(b"{\"error\": \"Internal error\"}"))"#,);
+
+    let expected = vec![
+        r#"level=info foo="body: Body(Full(b\"{\\\"error\\\": \\\"Internal error\\\"}\"))" target="logging" location="logfmt/tests/logging.rs:59" time=1612187170712973000"#,
+    ];
+
+    assert_logs!(capture, expected);
+}
+
+#[test]
 fn test_without_normalization() {
     let capture = CapturedWriter::new();
     info!(
