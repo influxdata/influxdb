@@ -45,7 +45,7 @@ enum Command {
     /// Get server ID
     Get,
 
-    /// Wait that databases are loaded
+    /// Wait until databases are loaded
     WaitDatabasesLoaded(WaitDatabasesLoaded),
 
     Remote(crate::commands::server_remote::Config),
@@ -58,7 +58,7 @@ struct Set {
     id: u32,
 }
 
-/// Wait that databases are loaded
+/// Wait until databases are loaded
 #[derive(Debug, StructOpt)]
 struct WaitDatabasesLoaded {
     /// Timeout in seconds.
