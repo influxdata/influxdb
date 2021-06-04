@@ -3,7 +3,6 @@ package v1tests
 import (
 	"context"
 	"encoding/json"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -14,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/tests"
 	"github.com/influxdata/influxdb/v2/tests/pipeline"
 	"github.com/stretchr/testify/assert"
