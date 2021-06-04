@@ -416,6 +416,12 @@ pub struct Server<M: ConnectionManager> {
     initialized: AtomicBool,
 
     /// Semaphore that limits the number of jobs that load DBs when the serverID is set.
+    ///
+    /// Note that this semaphore is more of a "lock" than an arbitrary semaphore. All the other sync structures (mutex,
+    /// rwlock) require something to be wrapped which we don't have in our case, so we're using a semaphore here. We
+    /// want exactly 1 background worker to mess with the server init / DB loading, otherwise everything in the critical
+    /// section (in [`maybe_initialize_server`](Self::maybe_initialize_server)) will break apart. So this semaphore
+    /// cannot be configured.
     initialize_semaphore: Semaphore,
 }
 
@@ -458,6 +464,7 @@ impl<M: ConnectionManager> Server<M> {
             metrics: Arc::new(ServerMetrics::new(Arc::clone(&metric_registry))),
             registry: Arc::clone(&metric_registry),
             initialized: AtomicBool::new(false),
+            // Always set semaphore permits to `1`, see design comments in `Server::initialize_semaphore`.
             initialize_semaphore: Semaphore::new(1),
         }
     }
