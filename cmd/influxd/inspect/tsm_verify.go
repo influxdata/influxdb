@@ -40,7 +40,7 @@ type verifyChecksums struct {
 
 func NewTSMVerifyCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: `tsm-verify`,
+		Use: `verify-tsm`,
 		Short: `Verifies the integrity of TSM files`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
