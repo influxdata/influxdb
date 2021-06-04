@@ -521,6 +521,11 @@ jobs:
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - install_core_deps
+      - run:
+          name: Create RAM disk
+          command: |
+            mkdir -p ${TMPDIR}
+            mount -t tmpfs -o size=4G tmpfs ${TMPDIR}
       - run_goreleaser:
           publish_release: false
       - run:
@@ -547,6 +552,11 @@ jobs:
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - install_core_deps
+      - run:
+          name: Create RAM disk
+          command: |
+            mkdir -p ${TMPDIR}
+            mount -t tmpfs -o size=4G tmpfs ${TMPDIR}
       - run_goreleaser:
           publish_release: true
       - persist_to_workspace:
