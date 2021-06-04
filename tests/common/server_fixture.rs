@@ -422,10 +422,11 @@ impl TestServer {
                     let mut interval = tokio::time::interval(Duration::from_millis(500));
 
                     while !management_client
-                            .get_server_status()
-                            .await
-                            .unwrap()
-                            .initialized {
+                        .get_server_status()
+                        .await
+                        .unwrap()
+                        .initialized
+                    {
                         interval.tick().await;
                     }
                 };
