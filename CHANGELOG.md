@@ -1,4 +1,13 @@
+[unreleased]
+
+### Bugfixes
+
+-	[#21609](https://github.com/influxdata/influxdb/pull/21609): fix: avoid rewriting fields.idx unnecessarily 
+
 v1.9.2 [unreleased]
+
+### Bugfixes
+
 -	[#21634](https://github.com/influxdata/influxdb/pull/21634): fix: group by returns multiple results per group in some circumstances
 
 v1.9.1 [unreleased]
