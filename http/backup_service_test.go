@@ -22,10 +22,12 @@ func TestBackupMetaService(t *testing.T) {
 	ctrlr := gomock.NewController(t)
 	backupSvc := mock.NewMockBackupService(ctrlr)
 	sqlBackupSvc := mock.NewMockSqlBackupRestoreService(ctrlr)
+	bucketManifestWriter := mock.NewMockBucketManifestWriter(ctrlr)
 
 	b := &BackupBackend{
 		BackupService:           backupSvc,
 		SqlBackupRestoreService: sqlBackupSvc,
+		BucketManifestWriter:    bucketManifestWriter,
 	}
 	h := NewBackupHandler(b)
 
@@ -53,6 +55,10 @@ func TestBackupMetaService(t *testing.T) {
 	sqlBackupSvc.EXPECT().
 		UnlockSqlStore()
 
+	bucketManifestWriter.EXPECT().
+		WriteManifest(gomock.Any(), gomock.Any()).
+		Return(nil)
+
 	h.handleBackupMetadata(rr, r)
 	rs := rr.Result()
 	require.Equal(t, rs.StatusCode, http.StatusOK)
@@ -67,14 +73,18 @@ func TestBackupMetaService(t *testing.T) {
 	// The file from the part could be read using something like ioutil.ReadAll, but for testing
 	// the contents of the part is not meaningful.
 	got := make(map[string]string)
-	for {
+	wantContentTypes := []string{"application/octet-stream", "application/octet-stream", "application/json; charset=utf-8"}
+	for i := 0; ; i++ {
 		p, err := mr.NextPart()
 		if err == io.EOF {
 			break
 		}
 		require.NoError(t, err)
-		require.Equal(t, "application/octet-stream", p.Header.Get("Content-Type"))
-		got[p.FormName()] = p.FileName()
+		require.Equal(t, wantContentTypes[i], p.Header.Get("Content-Type"))
+
+		_, params, err := mime.ParseMediaType(p.Header.Get("Content-Disposition"))
+		require.NoError(t, err)
+		got[params["name"]] = p.FileName()
 	}
 
 	// wants is a map of form names with the expected extension of the file for that part
