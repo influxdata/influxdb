@@ -3,7 +3,9 @@
 
 ### Bug Fixes
 
+1. [21748](https://github.com/influxdata/influxdb/pull/21748): rename arm rpms with yum-compatible names
 1. [21851](https://github.com/influxdata/influxdb/pull/21851): Upgrade to latest version of `influxdata/cron` so that tasks can be created with interval of `every: 1w`.
+1. [21610](https://github.com/influxdata/influxdb/pull/21610): Avoid rewriting `fields.idx` unnecessarily
 
 ## v2.0.7 [2021-06-04]
 ----------------------
@@ -28,7 +30,6 @@
 1. [21524](https://github.com/influxdata/influxdb/pull/21524): Replace telemetry file name with slug for `ttf`, `woff`, and `eot` files.
 1. [21549](https://github.com/influxdata/influxdb/pull/21549): Enable use of absolute path for `--upgrade-log` when running `influxd upgrade` on Windows.
 1. [21548](https://github.com/influxdata/influxdb/pull/21548): Make InfluxQL meta queries respect query timeouts.
-1. [21748](https://github.com/influxdata/influxdb/pull/21748): rename arm rpms with yum-compatible names
 
 ## v2.0.6 [2021-04-29]
 ----------------------
