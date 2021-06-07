@@ -19,7 +19,6 @@ members = [
     "influxdb_iox_client",
     "influxdb_line_protocol",
     "influxdb_tsm",
-    "ingest",
     "internal_types",
     "logfmt",
     "mem_qe",
@@ -53,7 +52,6 @@ influxdb_iox_client = { path = "influxdb_iox_client", features = ["format"] }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
 influxdb_tsm = { path = "influxdb_tsm" }
 internal_types = { path = "internal_types" }
-ingest = { path = "ingest" }
 logfmt = { path = "logfmt" }
 metrics = { path = "metrics" }
 mutable_buffer = { path = "mutable_buffer" }
@@ -139,10 +137,6 @@ harness = false
 
 [[bench]]
 name = "mapper"
-harness = false
-
-[[bench]]
-name = "line_protocol_to_parquet"
 harness = false
 
 [[bench]]

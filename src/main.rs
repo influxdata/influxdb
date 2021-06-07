@@ -7,31 +7,24 @@
     clippy::clone_on_ref_ptr
 )]
 
-use std::str::FromStr;
-
 use dotenv::dotenv;
 use structopt::StructOpt;
 use tokio::runtime::Runtime;
 
 use commands::tracing::{init_logs_and_tracing, init_simple_logs};
-use ingest::parquet::writer::CompressionLevel;
-use observability_deps::tracing::{debug, warn};
+use observability_deps::tracing::warn;
 
 use crate::commands::tracing::TracingGuard;
 use observability_deps::tracing::dispatcher::SetGlobalDefaultError;
 use tikv_jemallocator::Jemalloc;
 
 mod commands {
-    pub mod convert;
     pub mod database;
-    mod input;
-    pub mod meta;
     pub mod operations;
     pub mod run;
     pub mod server;
     pub mod server_remote;
     pub mod sql;
-    pub mod stats;
     pub mod tracing;
 }
 
@@ -125,30 +118,9 @@ struct Config {
 
 #[derive(Debug, StructOpt)]
 enum Command {
-    /// Convert one storage format to another
-    Convert {
-        /// The input files to read from
-        input: String,
-        /// The filename or directory to write the output
-        output: String,
-        /// How much to compress the output data. 'max' compresses the most;
-        /// 'compatibility' compresses in a manner more likely to be readable by
-        /// other tools.
-        #[structopt(
-        short, long, default_value = "compatibility",
-        possible_values = & ["max", "compatibility"])]
-        compression_level: String,
-    },
-
-    /// Print out metadata information about a storage file
-    Meta {
-        /// The input filename to read from
-        input: String,
-    },
     Database(commands::database::Config),
     // Clippy recommended boxing this variant because it's much larger than the others
     Run(Box<commands::run::Config>),
-    Stats(commands::stats::Config),
     Server(commands::server::Config),
     Operation(commands::operations::Config),
     Sql(commands::sql::Config),
@@ -176,41 +148,6 @@ fn main() -> Result<(), std::io::Error> {
         }
 
         match config.command {
-            Command::Convert {
-                input,
-                output,
-                compression_level,
-            } => {
-                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                let compression_level = CompressionLevel::from_str(&compression_level).unwrap();
-                match commands::convert::convert(&input, &output, compression_level) {
-                    Ok(()) => debug!("Conversion completed successfully"),
-                    Err(e) => {
-                        eprintln!("Conversion failed: {}", e);
-                        std::process::exit(ReturnCode::Failure as _)
-                    }
-                }
-            }
-            Command::Meta { input } => {
-                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                match commands::meta::dump_meta(&input) {
-                    Ok(()) => debug!("Metadata dump completed successfully"),
-                    Err(e) => {
-                        eprintln!("Metadata dump failed: {}", e);
-                        std::process::exit(ReturnCode::Failure as _)
-                    }
-                }
-            }
-            Command::Stats(config) => {
-                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                match commands::stats::stats(&config).await {
-                    Ok(()) => debug!("Storage statistics dump completed successfully"),
-                    Err(e) => {
-                        eprintln!("Stats dump failed: {}", e);
-                        std::process::exit(ReturnCode::Failure as _)
-                    }
-                }
-            }
             Command::Database(config) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 if let Err(e) = commands::database::command(host, config).await {
