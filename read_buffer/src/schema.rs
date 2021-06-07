@@ -103,38 +103,30 @@ impl TryFrom<&ResultSchema> for internal_types::schema::Schema {
         let mut builder = internal_types::schema::builder::SchemaBuilder::new();
         for (col_type, data_type) in &rs.select_columns {
             match col_type {
-                ColumnType::Tag(name) => builder = builder.tag(name.as_str()),
-                ColumnType::Field(name) => {
-                    builder = builder.influx_field(name.as_str(), data_type.into())
-                }
-                ColumnType::Timestamp(_) => builder = builder.timestamp(),
-                ColumnType::Other(name) => builder = builder.field(name.as_str(), data_type.into()),
-            }
+                ColumnType::Tag(name) => builder.tag(name.as_str()),
+                ColumnType::Field(name) => builder.influx_field(name.as_str(), data_type.into()),
+                ColumnType::Timestamp(_) => builder.timestamp(),
+                ColumnType::Other(name) => builder.field(name.as_str(), data_type.into()),
+            };
         }
 
         for (col_type, data_type) in &rs.group_columns {
             match col_type {
-                ColumnType::Tag(name) => builder = builder.tag(name.as_str()),
-                ColumnType::Field(name) => {
-                    builder = builder.influx_field(name.as_str(), data_type.into())
-                }
-                ColumnType::Timestamp(_) => builder = builder.timestamp(),
-                ColumnType::Other(name) => builder = builder.field(name.as_str(), data_type.into()),
-            }
+                ColumnType::Tag(name) => builder.tag(name.as_str()),
+                ColumnType::Field(name) => builder.influx_field(name.as_str(), data_type.into()),
+                ColumnType::Timestamp(_) => builder.timestamp(),
+                ColumnType::Other(name) => builder.field(name.as_str(), data_type.into()),
+            };
         }
 
         for (i, (col_type, _, data_type)) in rs.aggregate_columns.iter().enumerate() {
             let col_name = rs.aggregate_result_column_name(i);
 
             match col_type {
-                ColumnType::Field(_) => {
-                    builder = builder.influx_field(col_name.as_str(), data_type.into())
-                }
-                ColumnType::Other(_) => {
-                    builder = builder.field(col_name.as_str(), data_type.into())
-                }
+                ColumnType::Field(_) => builder.influx_field(col_name.as_str(), data_type.into()),
+                ColumnType::Other(_) => builder.field(col_name.as_str(), data_type.into()),
                 ct => unreachable!("not possible to aggregate {:?} columns", ct),
-            }
+            };
         }
 
         builder.build()

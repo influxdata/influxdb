@@ -172,8 +172,8 @@ fn create_column_tag(
     data: Vec<Vec<&str>>,
     arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
     summaries: &mut Vec<ColumnSummary>,
-    schema_builder: SchemaBuilder,
-) -> SchemaBuilder {
+    schema_builder: &mut SchemaBuilder,
+) {
     assert_eq!(data.len(), arrow_cols.len());
 
     for (arrow_cols_sub, data_sub) in arrow_cols.iter_mut().zip(data.iter()) {
@@ -193,7 +193,7 @@ fn create_column_tag(
         }),
     });
 
-    schema_builder.tag(name)
+    schema_builder.tag(name);
 }
 
 fn create_column_field_string(
@@ -201,8 +201,8 @@ fn create_column_field_string(
     data: Vec<Vec<&str>>,
     arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
     summaries: &mut Vec<ColumnSummary>,
-    schema_builder: SchemaBuilder,
-) -> SchemaBuilder {
+    schema_builder: &mut SchemaBuilder,
+) {
     create_column_field_generic::<StringArray, _, _>(
         name,
         data,
@@ -230,8 +230,8 @@ fn create_column_field_i64(
     data: Vec<Vec<i64>>,
     arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
     summaries: &mut Vec<ColumnSummary>,
-    schema_builder: SchemaBuilder,
-) -> SchemaBuilder {
+    schema_builder: &mut SchemaBuilder,
+) {
     create_column_field_generic::<Int64Array, _, _>(
         name,
         data,
@@ -247,8 +247,8 @@ fn create_column_field_u64(
     data: Vec<Vec<u64>>,
     arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
     summaries: &mut Vec<ColumnSummary>,
-    schema_builder: SchemaBuilder,
-) -> SchemaBuilder {
+    schema_builder: &mut SchemaBuilder,
+) {
     create_column_field_generic::<UInt64Array, _, _>(
         name,
         data,
@@ -264,8 +264,8 @@ fn create_column_field_f64(
     data: Vec<Vec<f64>>,
     arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
     summaries: &mut Vec<ColumnSummary>,
-    schema_builder: SchemaBuilder,
-) -> SchemaBuilder {
+    schema_builder: &mut SchemaBuilder,
+) {
     assert_eq!(data.len(), arrow_cols.len());
 
     let mut array_data_type = None;
@@ -296,7 +296,7 @@ fn create_column_field_f64(
         }),
     });
 
-    schema_builder.field(name, array_data_type.unwrap())
+    schema_builder.field(name, array_data_type.unwrap());
 }
 
 fn create_column_field_bool(
@@ -304,8 +304,8 @@ fn create_column_field_bool(
     data: Vec<Vec<bool>>,
     arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
     summaries: &mut Vec<ColumnSummary>,
-    schema_builder: SchemaBuilder,
-) -> SchemaBuilder {
+    schema_builder: &mut SchemaBuilder,
+) {
     create_column_field_generic::<BooleanArray, _, _>(
         name,
         data,
@@ -321,10 +321,9 @@ fn create_column_field_generic<A, T, F>(
     data: Vec<Vec<T>>,
     arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
     summaries: &mut Vec<ColumnSummary>,
-    schema_builder: SchemaBuilder,
+    schema_builder: &mut SchemaBuilder,
     f: F,
-) -> SchemaBuilder
-where
+) where
     A: 'static + Array,
     A: From<Vec<T>>,
     T: Clone + Ord,
@@ -350,15 +349,15 @@ where
         }),
     });
 
-    schema_builder.field(name, array_data_type.unwrap())
+    schema_builder.field(name, array_data_type.unwrap());
 }
 
 fn create_column_timestamp(
     data: Vec<Vec<i64>>,
     arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
     summaries: &mut Vec<ColumnSummary>,
-    schema_builder: SchemaBuilder,
-) -> SchemaBuilder {
+    schema_builder: &mut SchemaBuilder,
+) {
     assert_eq!(data.len(), arrow_cols.len());
 
     for (arrow_cols_sub, data_sub) in arrow_cols.iter_mut().zip(data.iter()) {
@@ -381,7 +380,7 @@ fn create_column_timestamp(
         }),
     });
 
-    schema_builder.timestamp()
+    schema_builder.timestamp();
 }
 
 /// Creates an Arrow RecordBatches with schema and IOx statistics.
@@ -400,60 +399,60 @@ pub fn make_record_batch(
     let mut schema_builder = SchemaBuilder::new();
 
     // tag
-    schema_builder = create_column_tag(
+    create_column_tag(
         &format!("{}_tag_nonempty", column_prefix),
         vec![vec!["foo"], vec!["bar"], vec!["baz", "foo"]],
         &mut arrow_cols,
         &mut summaries,
-        schema_builder,
+        &mut schema_builder,
     );
-    schema_builder = create_column_tag(
+    create_column_tag(
         &format!("{}_tag_empty", column_prefix),
         vec![vec![""], vec![""], vec!["", ""]],
         &mut arrow_cols,
         &mut summaries,
-        schema_builder,
+        &mut schema_builder,
     );
 
     // field: string
-    schema_builder = create_column_field_string(
+    create_column_field_string(
         &format!("{}_field_string_nonempty", column_prefix),
         vec![vec!["foo"], vec!["bar"], vec!["baz", "foo"]],
         &mut arrow_cols,
         &mut summaries,
-        schema_builder,
+        &mut schema_builder,
     );
-    schema_builder = create_column_field_string(
+    create_column_field_string(
         &format!("{}_field_string_empty", column_prefix),
         vec![vec![""], vec![""], vec!["", ""]],
         &mut arrow_cols,
         &mut summaries,
-        schema_builder,
+        &mut schema_builder,
     );
 
     // field: i64
-    schema_builder = create_column_field_i64(
+    create_column_field_i64(
         &format!("{}_field_i64_normal", column_prefix),
         vec![vec![-1], vec![2], vec![3, 4]],
         &mut arrow_cols,
         &mut summaries,
-        schema_builder,
+        &mut schema_builder,
     );
-    schema_builder = create_column_field_i64(
+    create_column_field_i64(
         &format!("{}_field_i64_range", column_prefix),
         vec![vec![i64::MIN], vec![i64::MAX], vec![i64::MIN, i64::MAX]],
         &mut arrow_cols,
         &mut summaries,
-        schema_builder,
+        &mut schema_builder,
     );
 
     // field: u64
-    schema_builder = create_column_field_u64(
+    create_column_field_u64(
         &format!("{}_field_u64_normal", column_prefix),
         vec![vec![1u64], vec![2], vec![3, 4]],
         &mut arrow_cols,
         &mut summaries,
-        schema_builder,
+        &mut schema_builder,
     );
     // TODO: broken due to https://github.com/apache/arrow-rs/issues/254
     // schema_builder = create_column_field_u64(
@@ -465,26 +464,26 @@ pub fn make_record_batch(
     // );
 
     // field: f64
-    schema_builder = create_column_field_f64(
+    create_column_field_f64(
         &format!("{}_field_f64_normal", column_prefix),
         vec![vec![10.1], vec![20.1], vec![30.1, 40.1]],
         &mut arrow_cols,
         &mut summaries,
-        schema_builder,
+        &mut schema_builder,
     );
-    schema_builder = create_column_field_f64(
+    create_column_field_f64(
         &format!("{}_field_f64_inf", column_prefix),
         vec![vec![0.0], vec![f64::INFINITY], vec![f64::NEG_INFINITY, 1.0]],
         &mut arrow_cols,
         &mut summaries,
-        schema_builder,
+        &mut schema_builder,
     );
-    schema_builder = create_column_field_f64(
+    create_column_field_f64(
         &format!("{}_field_f64_zero", column_prefix),
         vec![vec![0.0], vec![-0.0], vec![0.0, -0.0]],
         &mut arrow_cols,
         &mut summaries,
-        schema_builder,
+        &mut schema_builder,
     );
 
     // TODO: NaNs are broken until https://github.com/apache/arrow-rs/issues/255 is fixed
@@ -501,20 +500,20 @@ pub fn make_record_batch(
     // );
 
     // field: bool
-    schema_builder = create_column_field_bool(
+    create_column_field_bool(
         &format!("{}_field_bool", column_prefix),
         vec![vec![true], vec![false], vec![true, false]],
         &mut arrow_cols,
         &mut summaries,
-        schema_builder,
+        &mut schema_builder,
     );
 
     // time
-    let schema_builder = create_column_timestamp(
+    create_column_timestamp(
         vec![vec![1000], vec![2000], vec![3000, 4000]],
         &mut arrow_cols,
         &mut summaries,
-        schema_builder,
+        &mut schema_builder,
     );
 
     // build record batches
