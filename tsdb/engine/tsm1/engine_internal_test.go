@@ -1,6 +1,7 @@
 package tsm1
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -29,7 +30,7 @@ func TestEngine_ConcurrentShardSnapshots(t *testing.T) {
 	opts.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{})
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile, opts)
-	require.NoError(t, sh.Open(), "error opening shard")
+	require.NoError(t, sh.Open(context.Background()), "error opening shard")
 	defer sh.Close()
 
 	points := make([]models.Point, 0, 10000)
@@ -41,7 +42,7 @@ func TestEngine_ConcurrentShardSnapshots(t *testing.T) {
 			time.Unix(int64(i), 0),
 		))
 	}
-	err = sh.WritePoints(points)
+	err = sh.WritePoints(context.Background(), points)
 	require.NoError(t, err)
 
 	engineInterface, err := sh.Engine()

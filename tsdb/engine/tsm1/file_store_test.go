@@ -2362,7 +2362,7 @@ func TestFileStore_Open(t *testing.T) {
 	}
 
 	fs := tsm1.NewFileStore(dir)
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(context.Background()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 	defer fs.Close()
@@ -2393,7 +2393,7 @@ func TestFileStore_Remove(t *testing.T) {
 	}
 
 	fs := tsm1.NewFileStore(dir)
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(context.Background()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 	defer fs.Close()
@@ -2438,7 +2438,7 @@ func TestFileStore_Replace(t *testing.T) {
 	os.Rename(files[2], replacement)
 
 	fs := tsm1.NewFileStore(dir)
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(context.Background()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 	defer fs.Close()
@@ -2525,7 +2525,7 @@ func TestFileStore_Open_Deleted(t *testing.T) {
 	}
 
 	fs := tsm1.NewFileStore(dir)
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(context.Background()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 	defer fs.Close()
@@ -2539,7 +2539,7 @@ func TestFileStore_Open_Deleted(t *testing.T) {
 	}
 
 	fs2 := tsm1.NewFileStore(dir)
-	if err := fs2.Open(); err != nil {
+	if err := fs2.Open(context.Background()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 	defer fs2.Close()
@@ -2608,7 +2608,7 @@ func TestFileStore_Apply(t *testing.T) {
 	}
 
 	var n int64
-	if err := fs.Apply(func(r tsm1.TSMFile) error {
+	if err := fs.Apply(context.Background(), func(r tsm1.TSMFile) error {
 		atomic.AddInt64(&n, 1)
 		return nil
 	}); err != nil {
@@ -2637,7 +2637,7 @@ func TestFileStore_Stats(t *testing.T) {
 	}
 
 	fs := tsm1.NewFileStore(dir)
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(context.Background()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 	defer fs.Close()
@@ -2966,7 +2966,7 @@ func BenchmarkFileStore_Stats(b *testing.B) {
 	fs := tsm1.NewFileStore(dir)
 	fs.WithLogger(zaptest.NewLogger(b))
 
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(context.Background()); err != nil {
 		b.Fatalf("opening file store %v", err)
 	}
 	defer fs.Close()

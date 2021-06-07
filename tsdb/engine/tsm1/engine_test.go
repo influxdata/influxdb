@@ -46,7 +46,7 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 
 			// Remove series.
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %s", err.Error())
 			}
 
@@ -116,7 +116,7 @@ func TestEngine_DeleteSeriesAfterCacheSnapshot(t *testing.T) {
 				[]byte("cpu,host=B"),
 			},
 			}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %s", err.Error())
 			}
 
@@ -177,7 +177,7 @@ func TestEngine_Digest(t *testing.T) {
 	e := MustOpenEngine(t, tsi1.IndexName)
 	defer e.Close()
 
-	if err := e.Open(); err != nil {
+	if err := e.Open(context.Background()); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 
@@ -187,7 +187,7 @@ func TestEngine_Digest(t *testing.T) {
 		MustParsePointString("cpu,host=B value=1.2 2000000000"),
 	}
 
-	if err := e.WritePoints(points); err != nil {
+	if err := e.WritePoints(context.Background(), points); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -283,7 +283,7 @@ func TestEngine_Digest(t *testing.T) {
 		MustParsePointString("cpu,host=C value=1.1 3000000000"),
 	}
 
-	if err := e.WritePoints(points); err != nil {
+	if err := e.WritePoints(context.Background(), points); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -325,7 +325,7 @@ func TestEngine_Digest_Concurrent(t *testing.T) {
 	e := MustOpenEngine(t, tsi1.IndexName)
 	defer e.Close()
 
-	if err := e.Open(); err != nil {
+	if err := e.Open(context.Background()); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 
@@ -335,7 +335,7 @@ func TestEngine_Digest_Concurrent(t *testing.T) {
 		MustParsePointString("cpu,host=B value=1.2 2000000000"),
 	}
 
-	if err := e.WritePoints(points); err != nil {
+	if err := e.WritePoints(context.Background(), points); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -400,18 +400,18 @@ func TestEngine_Backup(t *testing.T) {
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
 
-	if err := e.Open(); err != nil {
+	if err := e.Open(context.Background()); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 
-	if err := e.WritePoints([]models.Point{p1}); err != nil {
+	if err := e.WritePoints(context.Background(), []models.Point{p1}); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 	if err := e.WriteSnapshot(); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
 
-	if err := e.WritePoints([]models.Point{p2}); err != nil {
+	if err := e.WritePoints(context.Background(), []models.Point{p2}); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -457,7 +457,7 @@ func TestEngine_Backup(t *testing.T) {
 	// so this test won't work properly unless the file is at least a second past the last one
 	time.Sleep(time.Second)
 
-	if err := e.WritePoints([]models.Point{p3}); err != nil {
+	if err := e.WritePoints(context.Background(), []models.Point{p3}); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -506,25 +506,25 @@ func TestEngine_Export(t *testing.T) {
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
 
-	if err := e.Open(); err != nil {
+	if err := e.Open(context.Background()); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 
-	if err := e.WritePoints([]models.Point{p1}); err != nil {
+	if err := e.WritePoints(context.Background(), []models.Point{p1}); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 	if err := e.WriteSnapshot(); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
 
-	if err := e.WritePoints([]models.Point{p2}); err != nil {
+	if err := e.WritePoints(context.Background(), []models.Point{p2}); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 	if err := e.WriteSnapshot(); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
 
-	if err := e.WritePoints([]models.Point{p3}); err != nil {
+	if err := e.WritePoints(context.Background(), []models.Point{p3}); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -1131,7 +1131,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 
 		// Drop all the series for the gpu measurement and they should no longer
 		// be in the series ID set.
-		if err := engine.DeleteMeasurement([]byte("gpu")); err != nil {
+		if err := engine.DeleteMeasurement(context.Background(), []byte("gpu")); err != nil {
 			return err
 		}
 
@@ -1145,7 +1145,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 
 		// Drop the specific mem series
 		ditr := &seriesIterator{keys: [][]byte{[]byte("mem,host=z")}}
-		if err := engine.DeleteSeriesRange(ditr, math.MinInt64, math.MaxInt64); err != nil {
+		if err := engine.DeleteSeriesRange(context.Background(), ditr, math.MinInt64, math.MaxInt64); err != nil {
 			return err
 		}
 
@@ -1204,7 +1204,7 @@ func TestEngine_DeleteSeries(t *testing.T) {
 
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
-			if err := e.Open(); err != nil {
+			if err := e.Open(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			defer e.Close()
@@ -1222,7 +1222,7 @@ func TestEngine_DeleteSeries(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1259,7 +1259,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
-			if err := e.Open(); err != nil {
+			if err := e.Open(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			defer e.Close()
@@ -1270,7 +1270,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 				}
 			}
 
-			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+			if err := e.WritePoints(context.Background(), []models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 			if err := e.WriteSnapshot(); err != nil {
@@ -1283,7 +1283,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C")}}
-			if err := e.DeleteSeriesRange(itr, 0, 3000000000); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, 0, 3000000000); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1326,7 +1326,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 
 			// Deleting remaining series should remove them from the series.
 			itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=B")}}
-			if err := e.DeleteSeriesRange(itr, 0, 9000000000); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, 0, 9000000000); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1369,7 +1369,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
-			if err := e.Open(); err != nil {
+			if err := e.Open(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			defer e.Close()
@@ -1380,7 +1380,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 				}
 			}
 
-			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+			if err := e.WritePoints(context.Background(), []models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 			if err := e.WriteSnapshot(); err != nil {
@@ -1406,7 +1406,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 				}
 				return math.MinInt64, math.MaxInt64, false
 			}
-			if err := e.DeleteSeriesRangeWithPredicate(itr, predicate); err != nil {
+			if err := e.DeleteSeriesRangeWithPredicate(context.Background(), itr, predicate); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1451,7 +1451,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 
 			// Deleting remaining series should remove them from the series.
 			itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=C")}}
-			if err := e.DeleteSeriesRange(itr, 0, 9000000000); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, 0, 9000000000); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1495,7 +1495,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_Nil(t *testing.T) {
 
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
-			if err := e.Open(); err != nil {
+			if err := e.Open(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			defer e.Close()
@@ -1506,7 +1506,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_Nil(t *testing.T) {
 				}
 			}
 
-			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+			if err := e.WritePoints(context.Background(), []models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 			if err := e.WriteSnapshot(); err != nil {
@@ -1519,7 +1519,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_Nil(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C"), []byte("mem,host=B"), []byte("mem,host=C")}}
-			if err := e.DeleteSeriesRangeWithPredicate(itr, nil); err != nil {
+			if err := e.DeleteSeriesRangeWithPredicate(context.Background(), itr, nil); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1581,7 +1581,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
-			if err := e.Open(); err != nil {
+			if err := e.Open(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			defer e.Close()
@@ -1592,7 +1592,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 				}
 			}
 
-			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+			if err := e.WritePoints(context.Background(), []models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 			if err := e.WriteSnapshot(); err != nil {
@@ -1619,7 +1619,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 				}
 				return math.MinInt64, math.MaxInt64, false
 			}
-			if err := e.DeleteSeriesRangeWithPredicate(itr, predicate); err != nil {
+			if err := e.DeleteSeriesRangeWithPredicate(context.Background(), itr, predicate); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1664,7 +1664,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 
 			// Deleting remaining series should remove them from the series.
 			itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=C")}}
-			if err := e.DeleteSeriesRange(itr, 0, 9000000000); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, 0, 9000000000); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1700,7 +1700,7 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
-			if err := e.Open(); err != nil {
+			if err := e.Open(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			defer e.Close()
@@ -1711,7 +1711,7 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 				}
 			}
 
-			if err := e.WritePoints([]models.Point{p1}); err != nil {
+			if err := e.WritePoints(context.Background(), []models.Point{p1}); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 			if err := e.WriteSnapshot(); err != nil {
@@ -1724,7 +1724,7 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, 0, 0); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, 0, 0); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1782,7 +1782,7 @@ func TestEngine_LastModified(t *testing.T) {
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
 			e.SetEnabled(false)
-			if err := e.Open(); err != nil {
+			if err := e.Open(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			defer e.Close()
@@ -1813,7 +1813,7 @@ func TestEngine_LastModified(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1847,7 +1847,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 	e.CompactionPlan = &mockPlanner{}
 
 	e.SetEnabled(false)
-	if err := e.Open(); err != nil {
+	if err := e.Open(context.Background()); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 
@@ -1874,7 +1874,7 @@ func TestEngine_ShouldCompactCache(t *testing.T) {
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
 	e.SetEnabled(false)
-	if err := e.Open(); err != nil {
+	if err := e.Open(context.Background()); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 
@@ -2183,7 +2183,7 @@ func TestEngine_Invalid_UTF8(t *testing.T) {
 
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
-			if err := e.Open(); err != nil {
+			if err := e.Open(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			defer e.Close()
@@ -2192,7 +2192,7 @@ func TestEngine_Invalid_UTF8(t *testing.T) {
 				t.Fatalf("create series index error: %v", err)
 			}
 
-			if err := e.WritePoints([]models.Point{p}); err != nil {
+			if err := e.WritePoints(context.Background(), []models.Point{p}); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 
@@ -2218,7 +2218,7 @@ func BenchmarkEngine_WritePoints(b *testing.B) {
 			b.Run(fmt.Sprintf("%s_%d", index, sz), func(b *testing.B) {
 				b.ReportAllocs()
 				for i := 0; i < b.N; i++ {
-					err := e.WritePoints(pp)
+					err := e.WritePoints(context.Background(), pp)
 					if err != nil {
 						b.Fatal(err)
 					}
@@ -2253,7 +2253,7 @@ func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 						go func(i int) {
 							defer wg.Done()
 							from, to := i*sz, (i+1)*sz
-							err := e.WritePoints(pp[from:to])
+							err := e.WritePoints(context.Background(), pp[from:to])
 							if err != nil {
 								errC <- err
 								return
@@ -2569,7 +2569,7 @@ func MustOpenEngine(tb testing.TB, index string) *Engine {
 		panic(err)
 	}
 
-	if err := e.Open(); err != nil {
+	if err := e.Open(context.Background()); err != nil {
 		panic(err)
 	}
 	return e
@@ -2624,7 +2624,7 @@ func (e *Engine) Reopen() error {
 	e.Engine = tsm1.NewEngine(1, e.index, filepath.Join(e.root, "data"), filepath.Join(e.root, "wal"), e.sfile, opt).(*tsm1.Engine)
 
 	// Reopen engine
-	if err := e.Engine.Open(); err != nil {
+	if err := e.Engine.Open(context.Background()); err != nil {
 		return err
 	}
 
@@ -2669,7 +2669,7 @@ func (e *Engine) writePoints(points ...models.Point) error {
 		}
 	}
 	// Write the points into the cache/wal.
-	return e.WritePoints(points)
+	return e.WritePoints(context.Background(), points)
 }
 
 // MustAddSeries calls AddSeries, panicking if there is an error.

@@ -40,7 +40,7 @@ func TestStore_DeleteRetentionPolicy(t *testing.T) {
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
-		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
+		if err := s.CreateShard(context.Background(), "db0", "rp0", 1, true); err != nil {
 			t.Fatal(err)
 		} else if sh := s.Shard(1); sh == nil {
 			t.Fatalf("expected shard")
@@ -48,7 +48,7 @@ func TestStore_DeleteRetentionPolicy(t *testing.T) {
 
 		// Create a new shard under the same retention policy,  and verify
 		// that it exists.
-		if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
+		if err := s.CreateShard(context.Background(), "db0", "rp0", 2, true); err != nil {
 			t.Fatal(err)
 		} else if sh := s.Shard(2); sh == nil {
 			t.Fatalf("expected shard")
@@ -56,7 +56,7 @@ func TestStore_DeleteRetentionPolicy(t *testing.T) {
 
 		// Create a new shard under a different retention policy, and
 		// verify that it exists.
-		if err := s.CreateShard("db0", "rp1", 3, true); err != nil {
+		if err := s.CreateShard(context.Background(), "db0", "rp1", 3, true); err != nil {
 			t.Fatal(err)
 		} else if sh := s.Shard(3); sh == nil {
 			t.Fatalf("expected shard")
@@ -115,14 +115,14 @@ func TestStore_CreateShard(t *testing.T) {
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
-		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
+		if err := s.CreateShard(context.Background(), "db0", "rp0", 1, true); err != nil {
 			t.Fatal(err)
 		} else if sh := s.Shard(1); sh == nil {
 			t.Fatalf("expected shard")
 		}
 
 		// Create another shard and verify that it exists.
-		if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
+		if err := s.CreateShard(context.Background(), "db0", "rp0", 2, true); err != nil {
 			t.Fatal(err)
 		} else if sh := s.Shard(2); sh == nil {
 			t.Fatalf("expected shard")
@@ -150,7 +150,7 @@ func TestStore_CreateMixedShards(t *testing.T) {
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
-		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
+		if err := s.CreateShard(context.Background(), "db0", "rp0", 1, true); err != nil {
 			t.Fatal(err)
 		} else if sh := s.Shard(1); sh == nil {
 			t.Fatalf("expected shard")
@@ -163,7 +163,7 @@ func TestStore_CreateMixedShards(t *testing.T) {
 		}
 
 		// Create another shard and verify that it exists.
-		if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
+		if err := s.CreateShard(context.Background(), "db0", "rp0", 2, true); err != nil {
 			t.Fatal(err)
 		} else if sh := s.Shard(2); sh == nil {
 			t.Fatalf("expected shard")
@@ -204,13 +204,13 @@ func TestStore_DropConcurrentWriteMultipleShards(t *testing.T) {
 		s := MustOpenStore(t, index)
 		defer s.Close()
 
-		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
+		if err := s.CreateShard(context.Background(), "db0", "rp0", 1, true); err != nil {
 			t.Fatal(err)
 		}
 
 		s.MustWriteToShardString(1, "mem,server=a v=1 10")
 
-		if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
+		if err := s.CreateShard(context.Background(), "db0", "rp0", 2, true); err != nil {
 			t.Fatal(err)
 		}
 
@@ -230,7 +230,7 @@ func TestStore_DropConcurrentWriteMultipleShards(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for i := 0; i < 50; i++ {
-				err := s.DeleteMeasurement("db0", "cpu")
+				err := s.DeleteMeasurement(context.Background(), "db0", "cpu")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -239,7 +239,7 @@ func TestStore_DropConcurrentWriteMultipleShards(t *testing.T) {
 
 		wg.Wait()
 
-		err := s.DeleteMeasurement("db0", "cpu")
+		err := s.DeleteMeasurement(context.Background(), "db0", "cpu")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -266,7 +266,7 @@ func TestStore_WriteMixedShards(t *testing.T) {
 		s := MustOpenStore(t, index1)
 		defer s.Close()
 
-		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
+		if err := s.CreateShard(context.Background(), "db0", "rp0", 1, true); err != nil {
 			t.Fatal(err)
 		}
 
@@ -278,7 +278,7 @@ func TestStore_WriteMixedShards(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
+		if err := s.CreateShard(context.Background(), "db0", "rp0", 2, true); err != nil {
 			t.Fatal(err)
 		}
 
@@ -338,7 +338,7 @@ func TestStore_DeleteSeries_NonExistentDB(t *testing.T) {
 		s := MustOpenStore(t, index)
 		defer s.Close()
 
-		if err := s.DeleteSeries("db0", nil, nil); err != nil {
+		if err := s.DeleteSeries(context.Background(), "db0", nil, nil); err != nil {
 			t.Fatal(err.Error())
 		}
 	}
@@ -356,21 +356,21 @@ func TestStore_DeleteShard(t *testing.T) {
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
-		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
+		if err := s.CreateShard(context.Background(), "db0", "rp0", 1, true); err != nil {
 			return err
 		} else if sh := s.Shard(1); sh == nil {
 			return fmt.Errorf("expected shard")
 		}
 
 		// Create another shard.
-		if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
+		if err := s.CreateShard(context.Background(), "db0", "rp0", 2, true); err != nil {
 			return err
 		} else if sh := s.Shard(2); sh == nil {
 			return fmt.Errorf("expected shard")
 		}
 
 		// and another, but in a different db.
-		if err := s.CreateShard("db1", "rp0", 3, true); err != nil {
+		if err := s.CreateShard(context.Background(), "db1", "rp0", 3, true); err != nil {
 			return err
 		} else if sh := s.Shard(3); sh == nil {
 			return fmt.Errorf("expected shard")
@@ -444,7 +444,7 @@ func TestStore_CreateShardSnapShot(t *testing.T) {
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
-		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
+		if err := s.CreateShard(context.Background(), "db0", "rp0", 1, true); err != nil {
 			t.Fatal(err)
 		} else if sh := s.Shard(1); sh == nil {
 			t.Fatalf("expected shard")
@@ -483,7 +483,7 @@ func TestStore_Open(t *testing.T) {
 		}
 
 		// Store should ignore shard since it does not have a numeric name.
-		if err := s.Open(); err != nil {
+		if err := s.Open(context.Background()); err != nil {
 			t.Fatal(err)
 		} else if n := len(s.Databases()); n != 2 {
 			t.Fatalf("unexpected database index count: %d", n)
@@ -518,7 +518,7 @@ func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
 		}
 
 		// Store should ignore database since it's a file.
-		if err := s.Open(); err != nil {
+		if err := s.Open(context.Background()); err != nil {
 			t.Fatal(err)
 		} else if n := len(s.Databases()); n != 0 {
 			t.Fatalf("unexpected database index count: %d", n)
@@ -546,7 +546,7 @@ func TestStore_Open_InvalidRetentionPolicy(t *testing.T) {
 
 		// Store should ignore retention policy since it's a file, and there should
 		// be no indices created.
-		if err := s.Open(); err != nil {
+		if err := s.Open(context.Background()); err != nil {
 			t.Fatal(err)
 		} else if n := len(s.Databases()); n != 0 {
 			t.Log(s.Databases())
@@ -574,7 +574,7 @@ func TestStore_Open_InvalidShard(t *testing.T) {
 		}
 
 		// Store should ignore shard since it does not have a numeric name.
-		if err := s.Open(); err != nil {
+		if err := s.Open(context.Background()); err != nil {
 			t.Fatal(err)
 		} else if n := len(s.Databases()); n != 0 {
 			t.Fatalf("unexpected database index count: %d", n)
@@ -696,10 +696,10 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 		}
 
 		// Create the shard on the other store and restore from buffer.
-		if err := s1.CreateShard("db0", "rp0", 100, true); err != nil {
+		if err := s1.CreateShard(context.Background(), "db0", "rp0", 100, true); err != nil {
 			t.Fatal(err)
 		}
-		if err := s1.RestoreShard(100, &buf); err != nil {
+		if err := s1.RestoreShard(context.Background(), 100, &buf); err != nil {
 			t.Fatal(err)
 		}
 
@@ -833,7 +833,7 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 	// Create requested number of shards in the store & write points across
 	// shards such that we never write the same series to multiple shards.
 	for shardID := 0; shardID < 4; shardID++ {
-		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+		if err := store.CreateShard(context.Background(), "db", "rp", uint64(shardID), true); err != nil {
 			t.Errorf("create shard: %s", err)
 		}
 
@@ -849,7 +849,7 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 	}
 
 	for _, name := range mnames {
-		if err := store.DeleteSeries("db", []influxql.Source{&influxql.Measurement{Name: string(name)}}, nil); err != nil {
+		if err := store.DeleteSeries(context.Background(), "db", []influxql.Source{&influxql.Measurement{Name: string(name)}}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -886,7 +886,7 @@ func TestStore_Cardinality_Tombstoning(t *testing.T) {
 
 	test := func(t *testing.T, index string) {
 		store := NewStore(t, index)
-		if err := store.Open(); err != nil {
+		if err := store.Open(context.Background()); err != nil {
 			panic(err)
 		}
 		defer store.Close()
@@ -911,7 +911,7 @@ func testStoreCardinalityUnique(t *testing.T, store *Store) {
 	// Create requested number of shards in the store & write points across
 	// shards such that we never write the same series to multiple shards.
 	for shardID := 0; shardID < 10; shardID++ {
-		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+		if err := store.CreateShard(context.Background(), "db", "rp", uint64(shardID), true); err != nil {
 			t.Fatalf("create shard: %s", err)
 		}
 		if err := store.BatchWrite(shardID, points[shardID*20000:(shardID+1)*20000]); err != nil {
@@ -950,7 +950,7 @@ func TestStore_Cardinality_Unique(t *testing.T) {
 
 	test := func(t *testing.T, index string) {
 		store := NewStore(t, index)
-		if err := store.Open(); err != nil {
+		if err := store.Open(context.Background()); err != nil {
 			panic(err)
 		}
 		defer store.Close()
@@ -976,7 +976,7 @@ func testStoreCardinalityDuplicates(t *testing.T, store *Store) {
 
 	// Create requested number of shards in the store & write points.
 	for shardID := 0; shardID < 10; shardID++ {
-		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+		if err := store.CreateShard(context.Background(), "db", "rp", uint64(shardID), true); err != nil {
 			t.Fatalf("create shard: %s", err)
 		}
 
@@ -1030,7 +1030,7 @@ func TestStore_Cardinality_Duplicates(t *testing.T) {
 
 	test := func(t *testing.T, index string) {
 		store := NewStore(t, index)
-		if err := store.Open(); err != nil {
+		if err := store.Open(context.Background()); err != nil {
 			panic(err)
 		}
 		defer store.Close()
@@ -1049,7 +1049,7 @@ func TestStore_MetaQuery_Timeout(t *testing.T) {
 
 	test := func(t *testing.T, index string) {
 		store := NewStore(t, index)
-		require.NoError(t, store.Open())
+		require.NoError(t, store.Open(context.Background()))
 		defer store.Close()
 		testStoreMetaQueryTimeout(t, store, index)
 	}
@@ -1159,7 +1159,7 @@ func testStoreMetaQuerySetup(t *testing.T, store *Store) []uint64 {
 	// shards such that we never write the same series to multiple shards.
 	shards := make([]uint64, len(points)/pointsPerShard)
 	for shardID := 0; shardID < len(points)/pointsPerShard; shardID++ {
-		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+		if err := store.CreateShard(context.Background(), "db", "rp", uint64(shardID), true); err != nil {
 			t.Fatalf("create shard: %s", err)
 		}
 		if err := store.BatchWrite(shardID, points[shardID*pointsPerShard:(shardID+1)*pointsPerShard]); err != nil {
@@ -1201,7 +1201,7 @@ func testStoreCardinalityCompactions(store *Store) error {
 	// Create requested number of shards in the store & write points across
 	// shards such that we never write the same series to multiple shards.
 	for shardID := 0; shardID < 2; shardID++ {
-		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+		if err := store.CreateShard(context.Background(), "db", "rp", uint64(shardID), true); err != nil {
 			return fmt.Errorf("create shard: %s", err)
 		}
 		if err := store.BatchWrite(shardID, points[shardID*468750:(shardID+1)*468750]); err != nil {
@@ -1240,7 +1240,7 @@ func TestStore_Cardinality_Compactions(t *testing.T) {
 
 	test := func(t *testing.T, index string) error {
 		store := NewStore(t, index)
-		if err := store.Open(); err != nil {
+		if err := store.Open(context.Background()); err != nil {
 			panic(err)
 		}
 		defer store.Close()
@@ -1315,7 +1315,7 @@ func TestStore_Sketches(t *testing.T) {
 		// Create requested number of shards in the store & write points across
 		// shards such that we never write the same series to multiple shards.
 		for shardID := 0; shardID < 4; shardID++ {
-			if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+			if err := store.CreateShard(context.Background(), "db", "rp", uint64(shardID), true); err != nil {
 				return fmt.Errorf("create shard: %s", err)
 			}
 
@@ -1346,7 +1346,7 @@ func TestStore_Sketches(t *testing.T) {
 		}
 
 		for _, name := range mnames[:len(mnames)/2] {
-			if err := store.DeleteSeries("db", []influxql.Source{&influxql.Measurement{Name: string(name)}}, nil); err != nil {
+			if err := store.DeleteSeries(context.Background(), "db", []influxql.Source{&influxql.Measurement{Name: string(name)}}, nil); err != nil {
 				return err
 			}
 		}
@@ -1566,7 +1566,7 @@ func TestStore_Measurements_Auth(t *testing.T) {
 			return err
 		}
 
-		if err := s.DeleteSeries("db0", nil, cond); err != nil {
+		if err := s.DeleteSeries(context.Background(), "db0", nil, cond); err != nil {
 			return err
 		}
 
@@ -1657,7 +1657,7 @@ func TestStore_TagKeys_Auth(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err := s.DeleteSeries("db0", nil, cond); err != nil {
+		if err := s.DeleteSeries(context.Background(), "db0", nil, cond); err != nil {
 			return err
 		}
 
@@ -1759,7 +1759,7 @@ func TestStore_TagValues_Auth(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err := s.DeleteSeries("db0", nil, cond); err != nil {
+		if err := s.DeleteSeries(context.Background(), "db0", nil, cond); err != nil {
 			return err
 		}
 
@@ -1867,7 +1867,7 @@ func TestStore_MeasurementNames_ConcurrentDropShard(t *testing.T) {
 							return
 						}
 						time.Sleep(500 * time.Microsecond)
-						if err := sh.Open(); err != nil {
+						if err := sh.Open(context.Background()); err != nil {
 							errC <- err
 							return
 						}
@@ -1952,7 +1952,7 @@ func TestStore_TagKeys_ConcurrentDropShard(t *testing.T) {
 							return
 						}
 						time.Sleep(500 * time.Microsecond)
-						if err := sh.Open(); err != nil {
+						if err := sh.Open(context.Background()); err != nil {
 							errC <- err
 							return
 						}
@@ -2043,7 +2043,7 @@ func TestStore_TagValues_ConcurrentDropShard(t *testing.T) {
 							return
 						}
 						time.Sleep(500 * time.Microsecond)
-						if err := sh.Open(); err != nil {
+						if err := sh.Open(context.Background()); err != nil {
 							errC <- err
 							return
 						}
@@ -2114,17 +2114,17 @@ func TestStore_TagValues_ConcurrentDropShard(t *testing.T) {
 func BenchmarkStore_SeriesCardinality_100_Shards(b *testing.B) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		store := NewStore(b, index)
-		if err := store.Open(); err != nil {
+		if err := store.Open(context.Background()); err != nil {
 			panic(err)
 		}
 
 		// Write a point to n shards.
 		for shardID := 0; shardID < 100; shardID++ {
-			if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+			if err := store.CreateShard(context.Background(), "db", "rp", uint64(shardID), true); err != nil {
 				b.Fatalf("create shard: %s", err)
 			}
 
-			err := store.WriteToShard(uint64(shardID), []models.Point{models.MustNewPoint("cpu", nil, map[string]interface{}{"value": 1.0}, time.Now())})
+			err := store.WriteToShard(context.Background(), uint64(shardID), []models.Point{models.MustNewPoint("cpu", nil, map[string]interface{}{"value": 1.0}, time.Now())})
 			if err != nil {
 				b.Fatalf("write: %s", err)
 			}
@@ -2160,7 +2160,7 @@ func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) 
 
 		// Create requested number of shards in the store & write points.
 		for shardID := 0; shardID < shardCnt; shardID++ {
-			if err := store.CreateShard("mydb", "myrp", uint64(shardID), true); err != nil {
+			if err := store.CreateShard(context.Background(), "mydb", "myrp", uint64(shardID), true); err != nil {
 				return fmt.Errorf("create shard: %s", err)
 			}
 			if err := store.BatchWrite(shardID, points); err != nil {
@@ -2177,7 +2177,7 @@ func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) 
 		b.Run(store.EngineOptions.IndexVersion, func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				store := tsdb.NewStore(store.Path())
-				if err := store.Open(); err != nil {
+				if err := store.Open(context.Background()); err != nil {
 					b.Fatalf("open store error: %s", err)
 				}
 
@@ -2216,7 +2216,7 @@ func BenchmarkStore_TagValues(b *testing.B) {
 
 	setup := func(shards, measurements, tagValues int, index string, useRandom bool) (*Store, []uint64) { // returns shard ids
 		s := NewStore(b, index)
-		if err := s.Open(); err != nil {
+		if err := s.Open(context.Background()); err != nil {
 			panic(err)
 		}
 
@@ -2344,7 +2344,7 @@ func MustOpenStore(tb testing.TB, index string) *Store {
 
 	s := NewStore(tb, index)
 
-	if err := s.Open(); err != nil {
+	if err := s.Open(context.Background()); err != nil {
 		panic(err)
 	}
 	return s
@@ -2364,7 +2364,7 @@ func (s *Store) Reopen(tb testing.TB) error {
 	s.EngineOptions.Config.TraceLoggingEnabled = true
 	s.WithLogger(zaptest.NewLogger(tb))
 
-	return s.Store.Open()
+	return s.Store.Open(context.Background())
 }
 
 // Close closes the store and removes the underlying data.
@@ -2375,7 +2375,7 @@ func (s *Store) Close() error {
 
 // MustCreateShardWithData creates a shard and writes line protocol data to it.
 func (s *Store) MustCreateShardWithData(db, rp string, shardID int, data ...string) {
-	if err := s.CreateShard(db, rp, uint64(shardID), true); err != nil {
+	if err := s.CreateShard(context.Background(), db, rp, uint64(shardID), true); err != nil {
 		panic(err)
 	}
 	s.MustWriteToShardString(shardID, data...)
@@ -2393,7 +2393,7 @@ func (s *Store) MustWriteToShardString(shardID int, data ...string) {
 		points = append(points, a...)
 	}
 
-	if err := s.WriteToShard(uint64(shardID), points); err != nil {
+	if err := s.WriteToShard(context.Background(), uint64(shardID), points); err != nil {
 		panic(err)
 	}
 }
@@ -2413,7 +2413,7 @@ func (s *Store) BatchWrite(shardID int, points []models.Point) error {
 			break
 		}
 
-		if err := s.WriteToShard(uint64(shardID), points[start:end]); err != nil {
+		if err := s.WriteToShard(context.Background(), uint64(shardID), points[start:end]); err != nil {
 			return err
 		}
 		start = end

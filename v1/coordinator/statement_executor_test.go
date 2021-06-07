@@ -466,7 +466,7 @@ type MockShard struct {
 	FieldDimensionsFn        func(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
 	FieldKeysByMeasurementFn func(name []byte) []string
 	CreateIteratorFn         func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error)
-	IteratorCostFn           func(m string, opt query.IteratorOptions) (query.IteratorCost, error)
+	IteratorCostFn           func(ctx context.Context, m string, opt query.IteratorOptions) (query.IteratorCost, error)
 	ExpandSourcesFn          func(sources influxql.Sources) (influxql.Sources, error)
 }
 
@@ -506,8 +506,8 @@ func (sh *MockShard) CreateIterator(ctx context.Context, measurement *influxql.M
 	return sh.CreateIteratorFn(ctx, measurement, opt)
 }
 
-func (sh *MockShard) IteratorCost(measurement string, opt query.IteratorOptions) (query.IteratorCost, error) {
-	return sh.IteratorCostFn(measurement, opt)
+func (sh *MockShard) IteratorCost(ctx context.Context, measurement string, opt query.IteratorOptions) (query.IteratorCost, error) {
+	return sh.IteratorCostFn(ctx, measurement, opt)
 }
 
 func (sh *MockShard) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {

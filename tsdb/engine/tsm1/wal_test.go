@@ -1,6 +1,7 @@
 package tsm1_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -38,7 +39,7 @@ func TestWALWriter_WriteMulti_Single(t *testing.T) {
 		"cpu,host=A#!~#unsigned": {p5},
 	}
 
-	_, err := w.WriteMulti(values)
+	_, err := w.WriteMulti(context.Background(), values)
 	require.NoError(t, err)
 
 	f, r := mustSegmentReader(t, w)
@@ -78,7 +79,7 @@ func TestWALWriter_WriteMulti_LargeBatch(t *testing.T) {
 		"mem,host=A,server=01,foo=bar,tag=really-long#!~#float": points,
 	}
 
-	_, err := w.WriteMulti(values)
+	_, err := w.WriteMulti(context.Background(), values)
 	require.NoError(t, err)
 
 	f, r := mustSegmentReader(t, w)
@@ -120,7 +121,7 @@ func TestWALWriter_WriteMulti_Multiple(t *testing.T) {
 	}
 
 	for _, v := range exp {
-		_, err := w.WriteMulti(map[string][]tsm1.Value{v.key: v.values})
+		_, err := w.WriteMulti(context.Background(), map[string][]tsm1.Value{v.key: v.values})
 		require.NoError(t, err)
 	}
 
@@ -158,7 +159,7 @@ func TestWALWriter_WriteDelete_Single(t *testing.T) {
 
 	keys := [][]byte{[]byte("cpu")}
 
-	_, err := w.Delete(keys)
+	_, err := w.Delete(context.Background(), keys)
 	require.NoError(t, err)
 
 	_, r := mustSegmentReader(t, w)
@@ -188,12 +189,12 @@ func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 		"cpu,host=A#!~#value": {p1},
 	}
 
-	_, err := w.WriteMulti(values)
+	_, err := w.WriteMulti(context.Background(), values)
 	require.NoError(t, err)
 
 	deleteKeys := [][]byte{[]byte("cpu,host=A#!~value")}
 
-	_, err = w.Delete(deleteKeys)
+	_, err = w.Delete(context.Background(), deleteKeys)
 	require.NoError(t, err)
 
 	_, r := mustSegmentReader(t, w)
@@ -243,14 +244,14 @@ func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
 		"cpu,host=A#!~#value": {p1, p2, p3},
 	}
 
-	_, err := w.WriteMulti(values)
+	_, err := w.WriteMulti(context.Background(), values)
 	require.NoError(t, err)
 
 	// Write the delete entry
 	deleteKeys := [][]byte{[]byte("cpu,host=A#!~value")}
 	deleteMin, deleteMax := int64(2), int64(3)
 
-	_, err = w.DeleteRange(deleteKeys, deleteMin, deleteMax)
+	_, err = w.DeleteRange(context.Background(), deleteKeys, deleteMin, deleteMax)
 	require.NoError(t, err)
 
 	_, r := mustSegmentReader(t, w)
@@ -299,7 +300,7 @@ func TestWAL_ClosedSegments(t *testing.T) {
 
 	require.Equal(t, len(files), 0)
 
-	_, err = w.WriteMulti(map[string][]tsm1.Value{
+	_, err = w.WriteMulti(context.Background(), map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {
 			tsm1.NewValue(1, 1.1),
 		},
@@ -331,7 +332,7 @@ func TestWAL_Delete(t *testing.T) {
 
 	require.Equal(t, len(files), 0)
 
-	_, err = w.Delete([][]byte{[]byte("cpu")})
+	_, err = w.Delete(context.Background(), [][]byte{[]byte("cpu")})
 	require.NoError(t, err)
 
 	require.NoError(t, w.Close())
@@ -445,7 +446,7 @@ func TestWALRollSegment(t *testing.T) {
 		"cpu,host=B#!~#value": {tsm1.NewValue(1, 1.0)},
 		"cpu,host=C#!~#value": {tsm1.NewValue(1, 1.0)},
 	}
-	_, err := w.WriteMulti(values)
+	_, err := w.WriteMulti(context.Background(), values)
 	require.NoError(t, err)
 
 	files, err := ioutil.ReadDir(w.Path())
@@ -455,7 +456,7 @@ func TestWALRollSegment(t *testing.T) {
 	encodeSize := files[0].Size()
 
 	for i := 0; i < 100; i++ {
-		_, err := w.WriteMulti(values)
+		_, err := w.WriteMulti(context.Background(), values)
 		require.NoError(t, err)
 	}
 	files, err = ioutil.ReadDir(w.Path())
@@ -525,7 +526,7 @@ func TestWAL_DiskSize(t *testing.T) {
 		"cpu,host=C#!~#value": {tsm1.NewValue(1, 1.0)},
 	}
 
-	_, err := w.WriteMulti(values)
+	_, err := w.WriteMulti(context.Background(), values)
 	require.NoError(t, err)
 
 	test(w, true, false)
@@ -533,7 +534,7 @@ func TestWAL_DiskSize(t *testing.T) {
 	// write some values, the total size of these values exceeds segSize(1024),
 	// so rollSegment will be triggered
 	for i := 0; i < 100; i++ {
-		_, err := w.WriteMulti(values)
+		_, err := w.WriteMulti(context.Background(), values)
 		require.NoError(t, err)
 	}
 
@@ -711,7 +712,7 @@ func BenchmarkWAL_WriteMulti_Concurrency(b *testing.B) {
 						case <-stop:
 							return
 						default:
-							_, err := w.WriteMulti(points)
+							_, err := w.WriteMulti(context.Background(), points)
 							require.NoError(b, err)
 
 							succeed <- struct{}{}
