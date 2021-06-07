@@ -18,13 +18,11 @@ var (
 	annID, _ = platform.IDFromString("2345678901234567")
 )
 
-func nowTime() time.Time {
+func nowFunc() time.Time {
 	return testTime
 }
 
 func TestAnnotationCreate(t *testing.T) {
-	timeFunc = nowTime
-
 	type tst struct {
 		name     string
 		input    AnnotationCreate
@@ -129,7 +127,7 @@ func TestAnnotationCreate(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := test.input.Validate()
+			err := test.input.Validate(nowFunc)
 			if test.err != nil {
 				require.Equal(t, test.err, err)
 				return
@@ -142,8 +140,6 @@ func TestAnnotationCreate(t *testing.T) {
 }
 
 func TestDeleteFilter(t *testing.T) {
-	timeFunc = nowTime
-
 	type tst struct {
 		name     string
 		input    AnnotationDeleteFilter
@@ -234,8 +230,6 @@ func TestDeleteFilter(t *testing.T) {
 }
 
 func TestAnnotationListFilter(t *testing.T) {
-	timeFunc = nowTime
-
 	type tst struct {
 		name       string
 		input      AnnotationListFilter
@@ -285,7 +279,7 @@ func TestAnnotationListFilter(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := test.input.Validate()
+			err := test.input.Validate(nowFunc)
 			if test.err != nil {
 				require.Equal(t, test.err, err)
 				return
@@ -302,8 +296,6 @@ func TestAnnotationListFilter(t *testing.T) {
 }
 
 func TestStreamListFilter(t *testing.T) {
-	timeFunc = nowTime
-
 	type tst struct {
 		name       string
 		input      StreamListFilter
@@ -353,7 +345,7 @@ func TestStreamListFilter(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := test.input.Validate()
+			err := test.input.Validate(nowFunc)
 			if test.err != nil {
 				require.Equal(t, test.err, err)
 				return
@@ -370,8 +362,6 @@ func TestStreamListFilter(t *testing.T) {
 }
 
 func TestStreamIsValid(t *testing.T) {
-	timeFunc = nowTime
-
 	type tst struct {
 		name  string
 		input Stream
@@ -418,8 +408,6 @@ func TestStreamIsValid(t *testing.T) {
 }
 
 func TestBasicStreamIsValid(t *testing.T) {
-	timeFunc = nowTime
-
 	type tst struct {
 		name     string
 		input    BasicStream

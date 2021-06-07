@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -89,17 +90,6 @@ type AnnotationService interface {
 	DeleteStreamByID(ctx context.Context, orgID, id platform.ID) error
 }
 
-// timeFunc and timeNow are used for running unit tests
-var timeFunc func() time.Time
-
-func timeNow() time.Time {
-	if timeFunc == nil {
-		return time.Now()
-	}
-
-	return timeFunc()
-}
-
 // AnnotationEvent contains fields for annotating an event.
 type AnnotationEvent struct {
 	ID               platform.ID `json:"id,omitempty"` // ID is the annotation ID.
@@ -131,32 +121,32 @@ type StoredAnnotation struct {
 }
 
 // Validate validates the creation object.
-func (a *AnnotationCreate) Validate() error {
-	switch s := len([]rune(a.Summary)); {
+func (a *AnnotationCreate) Validate(nowFunc func() time.Time) error {
+	switch s := utf8.RuneCountInString(a.Summary); {
 	case s <= 0:
 		return errEmptySummary
 	case s > 255:
 		return errSummaryTooLong
 	}
 
-	switch t := len([]rune(a.StreamTag)); {
+	switch t := utf8.RuneCountInString(a.StreamTag); {
 	case t == 0:
 		a.StreamTag = "default"
 	case t > 255:
 		return errStreamTagTooLong
 	}
 
-	if len([]rune(a.Message)) > 4096 {
+	if utf8.RuneCountInString(a.Message) > 4096 {
 		return errMsgTooLong
 	}
 
 	for k, v := range a.Stickers {
-		if len([]rune(k)) > 255 || len([]rune(v)) > 255 {
+		if utf8.RuneCountInString(k) > 255 || utf8.RuneCountInString(v) > 255 {
 			return errStickerTooLong
 		}
 	}
 
-	now := timeNow()
+	now := nowFunc()
 	if a.EndTime == nil {
 		a.EndTime = &now
 	}
@@ -267,8 +257,8 @@ type AnnotationListFilter struct {
 }
 
 // Validate validates the filter.
-func (f *AnnotationListFilter) Validate() error {
-	return f.BasicFilter.Validate()
+func (f *AnnotationListFilter) Validate(nowFunc func() time.Time) error {
+	return f.BasicFilter.Validate(nowFunc)
 }
 
 var re = regexp.MustCompile(`stickerIncludes\[(.*)\]`)
@@ -293,8 +283,8 @@ type StreamListFilter struct {
 }
 
 // Validate validates the filter.
-func (f *StreamListFilter) Validate() error {
-	return f.BasicFilter.Validate()
+func (f *StreamListFilter) Validate(nowFunc func() time.Time) error {
+	return f.BasicFilter.Validate(nowFunc)
 }
 
 // Stream defines the stream metadata. Used in create and update requests/responses. Delete requests will only require stream name.
@@ -314,7 +304,7 @@ type ReadStream struct {
 
 // IsValid validates the stream.
 func (s *Stream) Validate(strict bool) error {
-	switch nameChars := len([]rune(s.Name)); {
+	switch nameChars := utf8.RuneCountInString(s.Name); {
 	case nameChars <= 0:
 		if strict {
 			return errMissingStreamName
@@ -324,7 +314,7 @@ func (s *Stream) Validate(strict bool) error {
 		return errStreamNameTooLong
 	}
 
-	if len([]rune(s.Description)) > 1024 {
+	if utf8.RuneCountInString(s.Description) > 1024 {
 		return errStreamDescTooLong
 	}
 
@@ -368,8 +358,8 @@ type BasicFilter struct {
 }
 
 // Validate validates the basic filter options, setting sane defaults where appropriate.
-func (f *BasicFilter) Validate() error {
-	now := timeNow().UTC().Truncate(time.Second)
+func (f *BasicFilter) Validate(nowFunc func() time.Time) error {
+	now := nowFunc().UTC().Truncate(time.Second)
 	if f.EndTime == nil || f.EndTime.IsZero() {
 		f.EndTime = &now
 	}
