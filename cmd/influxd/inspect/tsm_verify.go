@@ -1,6 +1,7 @@
 package inspect
 
 import (
+	"fmt"
 	"hash/crc32"
 	"os"
 	"path/filepath"
@@ -12,19 +13,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var checkUTF8 bool
-var dir string
-var verbose bool
-
 type verifier interface {
-	Run(cmd *cobra.Command, dataPath string) error
+	Run(cmd *cobra.Command, dataPath string, verbose bool) error
 }
 
 type verifyTSM struct {
 	files []string
 	f     string
 	start time.Time
-	err   error
 }
 
 type verifyUTF8 struct {
@@ -40,6 +36,10 @@ type verifyChecksums struct {
 }
 
 func NewTSMVerifyCommand() *cobra.Command {
+	var checkUTF8 bool
+	var dir string
+	var verbose bool
+
 	cmd := &cobra.Command{
 		Use:   `verify-tsm`,
 		Short: `Verifies the integrity of TSM files`,
@@ -51,7 +51,7 @@ func NewTSMVerifyCommand() *cobra.Command {
 			} else {
 				runner = &verifyChecksums{}
 			}
-			err := runner.Run(cmd, dir)
+			err := runner.Run(cmd, dir, verbose)
 			return err
 		},
 	}
@@ -61,7 +61,7 @@ func NewTSMVerifyCommand() *cobra.Command {
 	return cmd
 }
 
-func (v *verifyUTF8) Run(cmd *cobra.Command, dataPath string) error {
+func (v *verifyUTF8) Run(cmd *cobra.Command, dataPath string, verbose bool) error {
 	if err := v.loadFiles(dataPath); err != nil {
 		return err
 	}
@@ -69,9 +69,12 @@ func (v *verifyUTF8) Run(cmd *cobra.Command, dataPath string) error {
 	v.Start()
 
 	for v.Next() {
-		f, reader := v.TSMReader()
-		if reader == nil {
-			break
+		reader, closer, err := v.TSMReader()
+		if err != nil {
+			if closer != nil {
+				go closer()
+			}
+			return err
 		}
 
 		n := reader.KeyCount()
@@ -83,24 +86,25 @@ func (v *verifyUTF8) Run(cmd *cobra.Command, dataPath string) error {
 				v.totalErrors++
 				fileErrors++
 				if verbose {
-					cmd.PrintErrf("%s: key #%d is not valid UTF-8\n", f, i)
+					cmd.PrintErrf("%s: key #%d is not valid UTF-8\n", v.f, i)
 				}
 			}
 		}
 		if fileErrors == 0 && verbose {
-			cmd.PrintErrf("%s: healthy\n", f)
+			cmd.PrintErrf("%s: healthy\n", v.f)
 		}
+		go closer()
 	}
 
 	cmd.PrintErrf("Invalid Keys: %d / %d, in %vs\n", v.totalErrors, v.total, v.Elapsed().Seconds())
-	if v.totalErrors > 0 && v.err == nil {
-		v.err = errors.New("check-utf8: failed")
+	if v.totalErrors > 0 {
+		return errors.New("check-utf8: failed")
 	}
 
-	return v.err
+	return nil
 }
 
-func (v *verifyChecksums) Run(cmd *cobra.Command, dataPath string) error {
+func (v *verifyChecksums) Run(cmd *cobra.Command, dataPath string, verbose bool) error {
 	if err := v.loadFiles(dataPath); err != nil {
 		return err
 	}
@@ -108,9 +112,12 @@ func (v *verifyChecksums) Run(cmd *cobra.Command, dataPath string) error {
 	v.Start()
 
 	for v.Next() {
-		f, reader := v.TSMReader()
-		if reader == nil {
-			break
+		reader, closer, err := v.TSMReader()
+		if err != nil {
+			if closer != nil {
+				go closer()
+			}
+			return err
 		}
 
 		blockItr := reader.BlockIterator()
@@ -123,26 +130,26 @@ func (v *verifyChecksums) Run(cmd *cobra.Command, dataPath string) error {
 				v.totalErrors++
 				fileErrors++
 				if verbose {
-					cmd.PrintErrf("%s: could not get checksum for key %v block %d due to error: %q\n", f, key, count, err)
+					cmd.PrintErrf("%s: could not get checksum for key %v block %d due to error: %q\n", v.f, key, count, err)
 				}
 			} else if expected := crc32.ChecksumIEEE(buf); checksum != expected {
 				v.totalErrors++
 				fileErrors++
 				if verbose {
-					cmd.PrintErrf("%s: got %d but expected %d for key %v, block %d\n", f, checksum, expected, key, count)
+					cmd.PrintErrf("%s: got %d but expected %d for key %v, block %d\n", v.f, checksum, expected, key, count)
 				}
 			}
 			count++
 		}
 		if fileErrors == 0 && verbose {
-			cmd.PrintErrf("%s: healthy\n", f)
+			cmd.PrintErrf("%s: healthy\n", v.f)
 		}
-		reader.Close()
+		go closer()
 	}
 
 	cmd.PrintErrf("Broken Blocks: %d / %d, in %vs\n", v.totalErrors, v.total, v.Elapsed().Seconds())
 
-	return v.err
+	return nil
 }
 
 func (v *verifyTSM) loadFiles(dataPath string) error {
@@ -157,7 +164,7 @@ func (v *verifyTSM) loadFiles(dataPath string) error {
 	})
 
 	if err != nil {
-		return errors.Wrap(err, "could not load storage files (use -dir for custom storage root)")
+		return fmt.Errorf("could not load storage files (use -dir for custom storage root): %w", err)
 	}
 
 	return nil
@@ -172,21 +179,25 @@ func (v *verifyTSM) Next() bool {
 	return true
 }
 
-func (v *verifyTSM) TSMReader() (string, *tsm1.TSMReader) {
+func (v *verifyTSM) TSMReader() (*tsm1.TSMReader, func(), error) {
 	file, err := os.OpenFile(v.f, os.O_RDONLY, 0600)
 	if err != nil {
-		v.err = err
-		return "", nil
+		return nil, nil, err
 	}
 
 	reader, err := tsm1.NewTSMReader(file)
 	if err != nil {
-		file.Close()
-		v.err = err
-		return "", nil
+		closer := func() {
+			file.Close()
+		}
+		return nil, closer, err
 	}
 
-	return v.f, reader
+	closer := func() {
+		file.Close()
+		reader.Close()
+	}
+	return reader, closer, nil
 }
 
 func (v *verifyTSM) Start() {
