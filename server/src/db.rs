@@ -1041,7 +1041,7 @@ impl Db {
 
         // We may have gotten here through `store_entry`, in which case this is checking the
         // configuration again unnecessarily, but we may have come here by consuming records from
-        // Kafka, so this check is necessary in that case.
+        // the write buffer, so this check is necessary in that case.
         if immutable {
             return DatabaseNotWriteable {}.fail();
         }
@@ -1406,8 +1406,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn write_kafka_and_mutable_buffer() {
-        // Writes should be forwarded to Kafka *and* the mutable buffer if both are configured.
+    async fn write_buffer_and_mutable_buffer() {
+        // Writes should be forwarded to the write buffer *and* the mutable buffer if both are
+        // configured.
         let write_buffer = Arc::new(MockBuffer::default());
         let test_db = TestDb::builder()
             .write_buffer(Arc::clone(&write_buffer) as _)
@@ -1435,7 +1436,7 @@ mod tests {
 
     #[tokio::test]
     async fn read_write() {
-        // This test also exercises the path without a Kafka write buffer.
+        // This test also exercises the path without a write buffer.
         let db = Arc::new(make_db().await.db);
         write_lp(&db, "cpu bar=1 10");
 
