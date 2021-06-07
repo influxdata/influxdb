@@ -1,6 +1,8 @@
 // Package limiter provides concurrency limiters.
 package limiter
 
+import "context"
+
 // Fixed is a simple channel-based concurrency limiter.  It uses a fixed
 // size channel to limit callers from proceeding until there is a value available
 // in the channel.  If all are in-use, the caller blocks until one is freed.
@@ -35,9 +37,15 @@ func (t Fixed) TryTake() bool {
 	}
 }
 
-// Take attempts to take a token and blocks until one is available.
-func (t Fixed) Take() {
-	t <- struct{}{}
+// Take attempts to take a token and blocks until one is available OR until the given context
+// is cancelled.
+func (t Fixed) Take(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case t <- struct{}{}:
+		return nil
+	}
 }
 
 // Release releases a token back to the limiter.
