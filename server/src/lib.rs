@@ -1167,7 +1167,7 @@ mod tests {
             lifecycle_rules: Default::default(),
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
-            kafka_write_buffer_connection_string: None,
+            write_buffer_connection_string: None,
         };
 
         // Create a database
@@ -1264,7 +1264,7 @@ mod tests {
             lifecycle_rules: Default::default(),
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
-            kafka_write_buffer_connection_string: None,
+            write_buffer_connection_string: None,
         };
 
         // Create a database

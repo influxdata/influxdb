@@ -151,8 +151,12 @@ impl Config {
             return;
         }
 
+        // Right now, `KafkaBuffer` is the only production implementation of the `WriteBuffer`
+        // trait, so always use `KafkaBuffer` when there is a write buffer connection string
+        // specified. If/when there are other kinds of write buffers, additional configuration will
+        // be needed to determine what kind of write buffer to use here.
         let write_buffer = rules
-            .kafka_write_buffer_connection_string
+            .write_buffer_connection_string
             .as_ref()
             .map(|conn| Arc::new(KafkaBuffer::new(conn)) as _);
 

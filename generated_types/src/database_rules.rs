@@ -23,8 +23,8 @@ impl From<DatabaseRules> for management::DatabaseRules {
             lifecycle_rules: Some(rules.lifecycle_rules.into()),
             routing_rules: rules.routing_rules.map(Into::into),
             worker_cleanup_avg_sleep: Some(rules.worker_cleanup_avg_sleep.into()),
-            kafka_write_buffer_connection_string: rules
-                .kafka_write_buffer_connection_string
+            write_buffer_connection_string: rules
+                .write_buffer_connection_string
                 .unwrap_or_default(),
         }
     }
@@ -56,8 +56,7 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             None => Duration::from_secs(500),
         };
 
-        let kafka_write_buffer_connection_string =
-            proto.kafka_write_buffer_connection_string.optional();
+        let write_buffer_connection_string = proto.write_buffer_connection_string.optional();
 
         Ok(Self {
             name,
@@ -65,7 +64,7 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             lifecycle_rules,
             routing_rules,
             worker_cleanup_avg_sleep,
-            kafka_write_buffer_connection_string,
+            write_buffer_connection_string,
         })
     }
 }

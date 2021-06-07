@@ -218,7 +218,7 @@ async fn test_create_get_update_database() {
             seconds: 2,
             nanos: 0,
         }),
-        kafka_write_buffer_connection_string: "".into(),
+        write_buffer_connection_string: "".into(),
     };
 
     client
