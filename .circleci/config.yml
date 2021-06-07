@@ -209,6 +209,7 @@ jobs:
   perf_image:
     docker:
       - image: quay.io/influxdb/rust:ci
+    resource_class: xlarge # use of a smaller executor tends crashes on link
     environment:
         # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
         CARGO_INCREMENTAL: "0"
