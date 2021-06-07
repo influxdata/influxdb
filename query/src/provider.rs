@@ -58,11 +58,6 @@ pub enum Error {
     InternalPushdownPredicate {
         source: datafusion::error::DataFusionError,
     },
-
-    #[snafu(display("Internal error while looking for overlapped chunks '{}'", source,))]
-    InternalSplitOvelappedChunks {
-        source: datafusion::error::DataFusionError,
-    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -349,8 +344,6 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         chunks: Vec<Arc<C>>,
         predicate: Predicate,
     ) -> Arc<dyn ExecutionPlan> {
-        //predicate: Predicate,) -> std::result::Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-
         //finding overlapped chunks and put them into the right group
         self.split_overlapped_chunks(chunks.to_vec());
 
@@ -403,7 +396,7 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         // There are still plan, add UnionExec
         if !plans.is_empty() {
             // final_plan = union_plan
-            // ....
+            panic!("Unexpected error: There should be only one output for scan plan");
         }
 
         final_plan

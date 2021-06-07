@@ -165,10 +165,6 @@ impl DbChunk {
         })
     }
 
-    pub fn primary_key(&self) -> Vec<String> {
-        self.meta.primary_key()
-    }
-
     /// Return the snapshot of the chunk with type ParquetFile
     /// This function should be only invoked when you know your chunk
     /// is ParquetFile type whose state is  WrittenToObjectStore. The

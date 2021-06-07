@@ -49,12 +49,6 @@ pub struct ChunkMetadata {
     pub schema: Arc<Schema>,
 }
 
-impl ChunkMetadata {
-    pub fn primary_key(&self) -> Vec<String> {
-        self.table_summary.primary_key()
-    }
-}
-
 /// Different memory representations of a frozen chunk.
 #[derive(Debug)]
 pub enum ChunkStageFrozenRepr {
