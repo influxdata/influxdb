@@ -1,10 +1,17 @@
 use entry::{Entry, Sequence};
 
+/// A Write Buffer takes an `Entry` and returns `Sequence` data that facilitates reading entries
+/// from the Write Buffer at a later time.
 pub trait WriteBuffer: Sync + Send + std::fmt::Debug + 'static {
+    /// Send an `Entry` to the write buffer and return information that can be used to restore
+    /// entries at a later time.
     fn store_entry(
         &self,
         entry: &Entry,
     ) -> Result<Sequence, Box<dyn std::error::Error + Sync + Send>>;
+
+    // TODO: interface for restoring, will look something like:
+    // fn restore_from(&self, sequence: &Sequence) -> Result<Stream<Entry>, Err>;
 }
 
 #[derive(Debug)]
