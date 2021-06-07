@@ -1,30 +1,15 @@
-use observability_deps::tracing::warn;
-use snafu::{OptionExt, ResultExt, Snafu};
-use std::{
-    collections::{HashMap, HashSet},
-    convert::TryInto,
-};
+use std::convert::TryInto;
 
 use arrow::datatypes::{DataType as ArrowDataType, Field as ArrowField};
+use snafu::{ResultExt, Snafu};
+
+use crate::schema::COLUMN_METADATA_KEY;
 
 use super::{InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME};
 
 /// Database schema creation / validation errors.
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("No measurement provided",))]
-    NoMeasurement {},
-
-    #[snafu(display(
-        "Multiple measurement names not supported. Old measurement '{}', new measurement '{}'",
-        old_measurement,
-        new_measurement
-    ))]
-    MultipleMeasurementNames {
-        old_measurement: String,
-        new_measurement: String,
-    },
-
     #[snafu(display("Error validating schema: {}", source))]
     ValidatingSchema { source: super::Error },
 
@@ -45,15 +30,6 @@ pub struct SchemaBuilder {
 
     /// The fields, in order
     fields: Vec<ArrowField>,
-
-    /// which columns represent tags
-    tag_cols: HashSet<String>,
-
-    /// which columns represent fields
-    field_cols: HashMap<String, InfluxColumnType>,
-
-    /// which field was the time column, if any
-    time_col: Option<String>,
 }
 
 impl SchemaBuilder {
@@ -64,7 +40,7 @@ impl SchemaBuilder {
     /// Add a new tag column to this schema. By default tags are
     /// potentially nullable as they are not guaranteed to be present
     /// for all rows
-    pub fn tag(self, column_name: &str) -> Self {
+    pub fn tag(&mut self, column_name: &str) -> &mut Self {
         let influxdb_column_type = InfluxColumnType::Tag;
         let arrow_type = (&influxdb_column_type).into();
 
@@ -73,7 +49,7 @@ impl SchemaBuilder {
 
     /// Add a new tag column to this schema that is known (somehow) to
     /// have no nulls for all rows
-    pub fn non_null_tag(self, column_name: &str) -> Self {
+    pub fn non_null_tag(&mut self, column_name: &str) -> &mut Self {
         let influxdb_column_type = InfluxColumnType::Tag;
         let arrow_type = (&influxdb_column_type).into();
 
@@ -81,7 +57,11 @@ impl SchemaBuilder {
     }
 
     /// Add a new field column with the specified InfluxDB data model type
-    pub fn influx_field(self, column_name: &str, influxdb_field_type: InfluxFieldType) -> Self {
+    pub fn influx_field(
+        &mut self,
+        column_name: &str,
+        influxdb_field_type: InfluxFieldType,
+    ) -> &mut Self {
         let arrow_type: ArrowDataType = influxdb_field_type.into();
         self.add_column(
             column_name,
@@ -92,7 +72,7 @@ impl SchemaBuilder {
     }
 
     /// Add a new field column with the specified InfluxDB data model type
-    pub fn influx_column(self, column_name: &str, column_type: InfluxColumnType) -> Self {
+    pub fn influx_column(&mut self, column_name: &str, column_type: InfluxColumnType) -> &mut Self {
         match column_type {
             InfluxColumnType::Tag => self.tag(column_name),
             InfluxColumnType::Field(field) => self.field(column_name, field.into()),
@@ -101,7 +81,7 @@ impl SchemaBuilder {
     }
 
     /// Add a new nullable field column with the specified Arrow datatype.
-    pub fn field(self, column_name: &str, arrow_type: ArrowDataType) -> Self {
+    pub fn field(&mut self, column_name: &str, arrow_type: ArrowDataType) -> &mut Self {
         let influxdb_column_type = arrow_type
             .clone()
             .try_into()
@@ -113,7 +93,7 @@ impl SchemaBuilder {
 
     /// Add a new field column with the specified Arrow datatype that can not be
     /// null
-    pub fn non_null_field(self, column_name: &str, arrow_type: ArrowDataType) -> Self {
+    pub fn non_null_field(&mut self, column_name: &str, arrow_type: ArrowDataType) -> &mut Self {
         let influxdb_column_type = arrow_type
             .clone()
             .try_into()
@@ -124,7 +104,7 @@ impl SchemaBuilder {
     }
 
     /// Add the InfluxDB data model timestamp column
-    pub fn timestamp(self) -> Self {
+    pub fn timestamp(&mut self) -> &mut Self {
         let influxdb_column_type = InfluxColumnType::Timestamp;
         let arrow_type = (&influxdb_column_type).into();
         self.add_column(
@@ -136,7 +116,7 @@ impl SchemaBuilder {
     }
 
     /// Set optional InfluxDB data model measurement name
-    pub fn measurement(mut self, measurement_name: impl Into<String>) -> Self {
+    pub fn measurement(&mut self, measurement_name: impl Into<String>) -> &mut Self {
         self.measurement = Some(measurement_name.into());
         self
     }
@@ -166,145 +146,30 @@ impl SchemaBuilder {
     /// assert_eq!(arrow_field.name(), "time");
     /// assert_eq!(influxdb_column_type, Some(InfluxColumnType::Timestamp));
     /// ```
-    pub fn build(self) -> Result<Schema> {
-        let Self {
-            measurement,
-            fields,
-            tag_cols,
-            field_cols,
-            time_col,
-        } = self;
-
-        Schema::new_from_parts(measurement, fields, tag_cols, field_cols, time_col)
+    pub fn build(&mut self) -> Result<Schema> {
+        Schema::new_from_parts(self.measurement.take(), std::mem::take(&mut self.fields))
             .context(ValidatingSchema)
     }
 
     /// Internal helper method to add a column definition
     fn add_column(
-        mut self,
+        &mut self,
         column_name: &str,
         nullable: bool,
         influxdb_column_type: Option<InfluxColumnType>,
         arrow_type: ArrowDataType,
-    ) -> Self {
-        self.fields
-            .push(ArrowField::new(column_name, arrow_type, nullable));
-
-        match &influxdb_column_type {
-            Some(InfluxColumnType::Tag) => {
-                self.tag_cols.insert(column_name.to_string());
-            }
-            Some(InfluxColumnType::Field(_)) => {
-                self.field_cols
-                    .insert(column_name.to_string(), influxdb_column_type.unwrap());
-            }
-            Some(InfluxColumnType::Timestamp) => {
-                self.time_col = Some(column_name.to_string());
-            }
-            None => {}
+    ) -> &mut Self {
+        let mut field = ArrowField::new(column_name, arrow_type, nullable);
+        if let Some(column_type) = influxdb_column_type {
+            field.set_metadata(Some(
+                vec![(COLUMN_METADATA_KEY.to_string(), column_type.to_string())]
+                    .into_iter()
+                    .collect(),
+            ))
         }
+
+        self.fields.push(field);
         self
-    }
-}
-
-/// Specialized Schema Builder for use building up am InfluxDB data
-/// model Schema while streaming line protocol through it.
-///
-/// Duplicated tag and field definitions are ignored, and the
-/// resulting schema always has puts tags as the initial columns (in the
-/// order of appearance) followed by fields (in order of appearance)
-/// and then timestamp
-#[derive(Debug, Default)]
-pub struct InfluxSchemaBuilder {
-    /// What tag names we have seen so far
-    tag_set: HashSet<String>,
-    /// What field names we have seen so far
-    field_set: HashMap<String, InfluxFieldType>,
-
-    /// Keep track of the tag_columns in order they were added
-    tag_list: Vec<String>,
-    /// Track the fields in order they were added
-    field_list: Vec<String>,
-
-    /// Keep The measurement name, if seen
-    measurement: Option<String>,
-}
-
-impl InfluxSchemaBuilder {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Set optional measurement name, erroring if previously specified
-    pub fn saw_measurement(mut self, measurement: impl Into<String>) -> Result<Self> {
-        let new_measurement = measurement.into();
-
-        if let Some(old_measurement) = &self.measurement {
-            if old_measurement != &new_measurement {
-                return MultipleMeasurementNames {
-                    old_measurement,
-                    new_measurement,
-                }
-                .fail();
-            }
-        } else {
-            self.measurement = Some(new_measurement)
-        }
-        Ok(self)
-    }
-
-    /// Add a new tag column to this schema, ignoring if the tag has already
-    /// been seen
-    pub fn saw_tag(mut self, column_name: &str) -> Self {
-        if !self.tag_set.contains(column_name) {
-            self.tag_set.insert(column_name.to_string());
-            self.tag_list.push(column_name.to_string());
-        };
-
-        self
-    }
-
-    /// Add a new field column with the specified InfluxDB data model
-    /// type, ignoring if that field has been seen TODO error if the
-    /// field is a different type (old implementation produces warn!
-    /// in this condition)
-    pub fn saw_influx_field(
-        mut self,
-        column_name: &str,
-        influxdb_field_type: InfluxFieldType,
-    ) -> Self {
-        if let Some(existing_influxdb_field_type) = self.field_set.get(column_name) {
-            if &influxdb_field_type != existing_influxdb_field_type {
-                warn!("Ignoring new type for field '{}': Previously it had type {:?}, attempted to set type {:?}.",
-                      column_name, existing_influxdb_field_type, influxdb_field_type);
-            }
-        } else {
-            self.field_set
-                .insert(column_name.to_string(), influxdb_field_type);
-            self.field_list.push(column_name.to_string())
-        }
-        self
-    }
-
-    /// Build a schema object from the collected schema
-    pub fn build(self) -> Result<Schema> {
-        let builder =
-            SchemaBuilder::new().measurement(self.measurement.as_ref().context(NoMeasurement)?);
-
-        // tags always first
-        let builder = self
-            .tag_list
-            .iter()
-            .fold(builder, |builder, tag_name| builder.tag(tag_name));
-
-        // then fields (in order they were added)
-        let builder = self.field_list.iter().fold(builder, |builder, field_name| {
-            let influxdb_field_type = self.field_set.get(field_name).unwrap();
-            builder.influx_field(field_name, *influxdb_field_type)
-        });
-
-        // and now timestamp
-        builder.timestamp().build()
     }
 }
 
@@ -355,11 +220,12 @@ impl SchemaMerger {
 
 #[cfg(test)]
 mod test {
+    use InfluxColumnType::*;
+    use InfluxFieldType::*;
+
     use crate::assert_column_eq;
 
     use super::*;
-    use InfluxColumnType::*;
-    use InfluxFieldType::*;
 
     #[test]
     fn test_builder_basic() {
@@ -512,76 +378,20 @@ mod test {
             .influx_field("the name", Integer)
             .build();
 
-        assert_eq!(res.unwrap_err().to_string(), "Error validating schema: Error validating schema: 'the name' is both a field and a tag");
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Error validating schema: Error: Duplicate column name found in schema: 'the name'"
+        );
     }
 
     #[test]
     fn test_builder_dupe_field_and_timestamp() {
         let res = SchemaBuilder::new().tag("time").timestamp().build();
 
-        assert_eq!(res.unwrap_err().to_string(), "Error validating schema: Duplicate column name: 'time' was specified to be Tag as well as timestamp");
-    }
-
-    #[test]
-    fn test_lp_builder_basic() {
-        let s = InfluxSchemaBuilder::new()
-            .saw_influx_field("the_field", Float)
-            .saw_tag("the_tag")
-            .saw_tag("the_tag")
-            .saw_influx_field("the_field", Float)
-            .saw_measurement("the_measurement")
-            .unwrap()
-            .saw_tag("the_tag")
-            .saw_tag("the_second_tag")
-            .saw_measurement("the_measurement")
-            .unwrap()
-            .build()
-            .unwrap();
-
-        assert_column_eq!(s, 0, Tag, "the_tag");
-        assert_column_eq!(s, 1, Tag, "the_second_tag");
-        assert_column_eq!(s, 2, Field(Float), "the_field");
-        assert_column_eq!(s, 3, Timestamp, "time");
-
-        assert_eq!(s.measurement().unwrap(), "the_measurement");
-        assert_eq!(s.len(), 4);
-    }
-
-    #[test]
-    fn test_lp_builder_no_measurement() {
-        let res = InfluxSchemaBuilder::new()
-            .saw_tag("the_tag")
-            .saw_influx_field("the_field", Float)
-            .build();
-
-        assert_eq!(res.unwrap_err().to_string(), "No measurement provided");
-    }
-
-    #[test]
-    fn test_lp_builder_different_measurement() {
-        let res = InfluxSchemaBuilder::new()
-            .saw_measurement("m1")
-            .unwrap()
-            .saw_measurement("m2");
-
-        assert_eq!(res.unwrap_err().to_string(), "Multiple measurement names not supported. Old measurement \'m1\', new measurement \'m2\'");
-    }
-
-    #[test]
-    fn test_lp_changed_field_type() {
-        let s = InfluxSchemaBuilder::new()
-            .saw_measurement("the_measurement")
-            .unwrap()
-            .saw_influx_field("the_field", Float)
-            // same field name seen again as a different type
-            .saw_influx_field("the_field", Integer)
-            .build()
-            .unwrap();
-
-        assert_column_eq!(s, 0, Field(Float), "the_field");
-        assert_column_eq!(s, 1, Timestamp, "time");
-
-        assert_eq!(s.len(), 2);
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Error validating schema: Error: Duplicate column name found in schema: 'time'"
+        );
     }
 
     #[test]

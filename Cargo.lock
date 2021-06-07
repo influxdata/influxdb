@@ -1673,7 +1673,6 @@ dependencies = [
  "influxdb_iox_client",
  "influxdb_line_protocol",
  "influxdb_tsm",
- "ingest",
  "internal_types",
  "itertools 0.9.0",
  "logfmt",
@@ -1761,23 +1760,6 @@ dependencies = [
  "rand 0.8.3",
  "snafu",
  "snap",
- "test_helpers",
-]
-
-[[package]]
-name = "ingest"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "flate2",
- "influxdb_line_protocol",
- "influxdb_tsm",
- "internal_types",
- "observability_deps",
- "packers",
- "parking_lot",
- "parquet",
- "snafu",
  "test_helpers",
 ]
 

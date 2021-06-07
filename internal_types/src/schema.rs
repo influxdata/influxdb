@@ -1,7 +1,7 @@
 //! This module contains the schema definiton for IOx
 use snafu::{ResultExt, Snafu};
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeSet, HashMap},
     convert::{TryFrom, TryInto},
     fmt,
     sync::Arc,
@@ -37,15 +37,12 @@ pub mod builder;
 /// Database schema creation / validation errors.
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Error validating schema: '{}' is both a field and a tag", column_name,))]
-    BothFieldAndTag { column_name: String },
-
     #[snafu(display("Error: Duplicate column name found in schema: '{}'", column_name,))]
     DuplicateColumnName { column_name: String },
 
     #[snafu(display(
-        "Error: Incompatible metadata type found in schema for column '{}'. Metadata specified {:?} which is incompatible with actual type {:?}",
-        column_name, influxdb_column_type, actual_type
+    "Error: Incompatible metadata type found in schema for column '{}'. Metadata specified {:?} which is incompatible with actual type {:?}",
+    column_name, influxdb_column_type, actual_type
     ))]
     IncompatibleMetadata {
         column_name: String,
@@ -54,18 +51,8 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Duplicate column name: '{}' was specified to be {:?} as well as timestamp",
-        column_name,
-        existing_type
-    ))]
-    InvalidTimestamp {
-        column_name: String,
-        existing_type: InfluxColumnType,
-    },
-
-    #[snafu(display(
-        "Schema Merge Error: Incompatible measurement names. Existing measurement name '{}', new measurement name '{}'",
-        existing_measurement, new_measurement
+    "Schema Merge Error: Incompatible measurement names. Existing measurement name '{}', new measurement name '{}'",
+    existing_measurement, new_measurement
     ))]
     TryMergeDifferentMeasurementNames {
         existing_measurement: String,
@@ -165,6 +152,7 @@ impl TryFrom<ArrowSchemaRef> for Schema {
 }
 
 const MEASUREMENT_METADATA_KEY: &str = "iox::measurement::name";
+const COLUMN_METADATA_KEY: &str = "iox::column::type";
 
 impl Schema {
     /// Create a new Schema wrapper over the schema
@@ -212,46 +200,11 @@ impl Schema {
     /// Create and validate a new Schema, creating metadata to
     /// represent the the various parts. This method is intended to be
     /// used only by the SchemaBuilder.
-    ///
-    /// fields: the column definitions, in order
-    ///
-    /// tag columns: names of any columns which are tags
-    ///
-    /// field columns: names of any columns which are fields, and
-    /// their associated InfluxDB data model types
     pub(crate) fn new_from_parts(
         measurement: Option<String>,
         fields: Vec<ArrowField>,
-        tag_cols: HashSet<String>,
-        field_cols: HashMap<String, InfluxColumnType>,
-        time_col: Option<String>,
     ) -> Result<Self> {
         let mut metadata = HashMap::new();
-
-        for tag_name in tag_cols.into_iter() {
-            metadata.insert(tag_name, InfluxColumnType::Tag.to_string());
-        }
-
-        // Ensure we don't have columns that were specified to be both fields and tags
-        for (column_name, influxdb_column_type) in field_cols.into_iter() {
-            if metadata.get(&column_name).is_some() {
-                return BothFieldAndTag { column_name }.fail();
-            }
-            metadata.insert(column_name, influxdb_column_type.to_string());
-        }
-
-        // Ensure we didn't ask the field to be both a timestamp and a field or tag
-        if let Some(column_name) = time_col {
-            if let Some(existing_type) = metadata.get(&column_name) {
-                let existing_type: InfluxColumnType = existing_type.as_str().try_into().unwrap();
-                return InvalidTimestamp {
-                    column_name,
-                    existing_type,
-                }
-                .fail();
-            }
-            metadata.insert(column_name, InfluxColumnType::Timestamp.to_string());
-        }
 
         if let Some(measurement) = measurement {
             metadata.insert(MEASUREMENT_METADATA_KEY.to_string(), measurement);
@@ -278,11 +231,10 @@ impl Schema {
 
         // Lookup and translate metadata type, if present
         // invalid metadata was detected and reported as part of the constructor
-        let influxdb_column_type = self
-            .inner
+        let influxdb_column_type: Option<InfluxColumnType> = field
             .metadata()
-            .get(field.name())
-            .and_then(|influxdb_column_type_str| influxdb_column_type_str.as_str().try_into().ok());
+            .as_ref()
+            .and_then(|metadata| metadata.get(COLUMN_METADATA_KEY)?.as_str().try_into().ok());
 
         (influxdb_column_type, field)
     }
@@ -400,7 +352,7 @@ impl Schema {
 
                     // for now, insist the types are exactly the same
                     // (e.g. None and Some(..) don't match). We could
-                    // consider relaxing this constrait
+                    // consider relaxing this constraint
                     if existing_influx_column_type != influx_column_type {
                         TryMergeBadColumnType {
                             field_name,
@@ -500,19 +452,14 @@ impl Schema {
 
     /// Returns the schema for a given set of column projects
     pub fn project(&self, projection: &[usize]) -> Self {
-        let mut metadata = HashMap::with_capacity(projection.len() + 1);
         let mut fields = Vec::with_capacity(projection.len());
-        let current_metadata = self.inner.metadata();
         for idx in projection {
-            let (_, field) = self.field(*idx);
+            let field = self.inner.field(*idx);
             fields.push(field.clone());
-
-            if let Some(value) = current_metadata.get(field.name()) {
-                metadata.insert(field.name().clone(), value.clone());
-            }
         }
 
-        if let Some(measurement) = current_metadata.get(MEASUREMENT_METADATA_KEY).cloned() {
+        let mut metadata = HashMap::with_capacity(1);
+        if let Some(measurement) = self.inner.metadata().get(MEASUREMENT_METADATA_KEY).cloned() {
             metadata.insert(MEASUREMENT_METADATA_KEY.to_string(), measurement);
         }
 
@@ -728,6 +675,21 @@ mod test {
     use InfluxColumnType::*;
     use InfluxFieldType::*;
 
+    fn make_field(
+        name: &str,
+        data_type: arrow::datatypes::DataType,
+        nullable: bool,
+        column_type: &str,
+    ) -> ArrowField {
+        let mut field = ArrowField::new(name, data_type, nullable);
+        field.set_metadata(Some(
+            vec![(COLUMN_METADATA_KEY.to_string(), column_type.to_string())]
+                .into_iter()
+                .collect(),
+        ));
+        field
+    }
+
     #[test]
     fn new_from_arrow_no_metadata() {
         let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(vec![
@@ -754,27 +716,55 @@ mod test {
     #[test]
     fn new_from_arrow_metadata_good() {
         let fields = vec![
-            ArrowField::new("tag_col", ArrowDataType::Utf8, false),
-            ArrowField::new("int_col", ArrowDataType::Int64, false),
-            ArrowField::new("uint_col", ArrowDataType::UInt64, false),
-            ArrowField::new("float_col", ArrowDataType::Float64, false),
-            ArrowField::new("str_col", ArrowDataType::Utf8, false),
-            ArrowField::new("bool_col", ArrowDataType::Boolean, false),
-            ArrowField::new("time_col", TIME_DATA_TYPE(), false),
+            make_field(
+                "tag_col",
+                ArrowDataType::Utf8,
+                false,
+                "iox::column_type::tag",
+            ),
+            make_field(
+                "int_col",
+                ArrowDataType::Int64,
+                false,
+                "iox::column_type::field::integer",
+            ),
+            make_field(
+                "uint_col",
+                ArrowDataType::UInt64,
+                false,
+                "iox::column_type::field::uinteger",
+            ),
+            make_field(
+                "float_col",
+                ArrowDataType::Float64,
+                false,
+                "iox::column_type::field::float",
+            ),
+            make_field(
+                "str_col",
+                ArrowDataType::Utf8,
+                false,
+                "iox::column_type::field::string",
+            ),
+            make_field(
+                "bool_col",
+                ArrowDataType::Boolean,
+                false,
+                "iox::column_type::field::boolean",
+            ),
+            make_field(
+                "time_col",
+                TIME_DATA_TYPE(),
+                false,
+                "iox::column_type::timestamp",
+            ),
         ];
 
-        let metadata: HashMap<_, _> = vec![
-            ("tag_col", "iox::column_type::tag"),
-            ("int_col", "iox::column_type::field::integer"),
-            ("uint_col", "iox::column_type::field::uinteger"),
-            ("float_col", "iox::column_type::field::float"),
-            ("str_col", "iox::column_type::field::string"),
-            ("bool_col", "iox::column_type::field::boolean"),
-            ("time_col", "iox::column_type::timestamp"),
-            ("iox::measurement::name", "the_measurement"),
-        ]
+        let metadata: HashMap<_, _> = vec![(
+            "iox::measurement::name".to_string(),
+            "the_measurement".to_string(),
+        )]
         .into_iter()
-        .map(|i| (i.0.to_string(), i.1.to_string()))
         .collect();
 
         let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new_with_metadata(fields, metadata));
@@ -795,21 +785,25 @@ mod test {
     #[test]
     fn new_from_arrow_metadata_extra() {
         let fields = vec![
-            ArrowField::new("tag_col", ArrowDataType::Utf8, false),
-            ArrowField::new("int_col", ArrowDataType::Int64, false),
+            make_field(
+                "tag_col",
+                ArrowDataType::Utf8,
+                false,
+                "something_other_than_iox",
+            ),
+            make_field(
+                "int_col",
+                ArrowDataType::Int64,
+                false,
+                "iox::column_type::field::some_new_exotic_type",
+            ),
         ];
 
         // This metadata models metadata that was not created by this
         // rust module itself
-        let metadata: HashMap<_, _> = vec![
-            ("tag_col", "something_other_than_iox"),
-            ("int_col", "iox::column_type::field::some_new_exotic_type"),
-            ("non_existent_col", "iox::column_type::field::float"),
-            ("iox::some::new::key", "foo"),
-        ]
-        .into_iter()
-        .map(|i| (i.0.to_string(), i.1.to_string()))
-        .collect();
+        let metadata: HashMap<_, _> = vec![("iox::some::new::key".to_string(), "foo".to_string())]
+            .into_iter()
+            .collect();
 
         let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new_with_metadata(fields, metadata));
 
@@ -829,18 +823,15 @@ mod test {
     #[test]
     fn new_from_arrow_metadata_mismatched_tag() {
         let fields = vec![
-            ArrowField::new("tag_col", ArrowDataType::Int64, false), // not a valid tag type
+            make_field(
+                "tag_col",
+                ArrowDataType::Int64,
+                false,
+                "iox::column_type::tag",
+            ), // not a valid tag type
         ];
 
-        let metadata: HashMap<_, _> = vec![
-            ("tag_col", "iox::column_type::tag"), /* claims that tag_col is a tag, but it is an
-                                                   * integer */
-        ]
-        .into_iter()
-        .map(|i| (i.0.to_string(), i.1.to_string()))
-        .collect();
-
-        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new_with_metadata(fields, metadata));
+        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
 
         let res = Schema::try_from_arrow(arrow_schema);
         assert_eq!(res.unwrap_err().to_string(), "Error: Incompatible metadata type found in schema for column 'tag_col'. Metadata specified Tag which is incompatible with actual type Int64");
@@ -849,16 +840,13 @@ mod test {
     // mismatched metadata / arrow types
     #[test]
     fn new_from_arrow_metadata_mismatched_field() {
-        let fields = vec![ArrowField::new("int_col", ArrowDataType::Int64, false)];
-
-        let metadata: HashMap<_, _> = vec![
-            ("int_col", "iox::column_type::field::float"), // metadata claims it is a float
-        ]
-        .into_iter()
-        .map(|i| (i.0.to_string(), i.1.to_string()))
-        .collect();
-
-        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new_with_metadata(fields, metadata));
+        let fields = vec![make_field(
+            "int_col",
+            ArrowDataType::Int64,
+            false,
+            "iox::column_type::field::float",
+        )];
+        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
 
         let res = Schema::try_from_arrow(arrow_schema);
         assert_eq!(res.unwrap_err().to_string(), "Error: Incompatible metadata type found in schema for column 'int_col'. Metadata specified Field(Float) which is incompatible with actual type Int64");
@@ -868,17 +856,15 @@ mod test {
     #[test]
     fn new_from_arrow_metadata_mismatched_timestamp() {
         let fields = vec![
-            ArrowField::new("time", ArrowDataType::Utf8, false), // timestamp can't be strings
+            make_field(
+                "time",
+                ArrowDataType::Utf8,
+                false,
+                "iox::column_type::timestamp",
+            ), // timestamp can't be strings
         ];
 
-        let metadata: HashMap<_, _> = vec![
-            ("time", "iox::column_type::timestamp"), // metadata claims it is a timstam
-        ]
-        .into_iter()
-        .map(|i| (i.0.to_string(), i.1.to_string()))
-        .collect();
-
-        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new_with_metadata(fields, metadata));
+        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
 
         let res = Schema::try_from_arrow(arrow_schema);
         assert_eq!(res.unwrap_err().to_string(), "Error: Incompatible metadata type found in schema for column 'time'. Metadata specified Timestamp which is incompatible with actual type Utf8");

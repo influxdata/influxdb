@@ -176,8 +176,7 @@ impl Table {
         let schema = match selection {
             Selection::All => {
                 for (column_name, column) in self.columns.iter() {
-                    schema_builder =
-                        schema_builder.influx_column(column_name, column.influx_type());
+                    schema_builder.influx_column(column_name, column.influx_type());
                 }
 
                 schema_builder
@@ -188,7 +187,7 @@ impl Table {
             Selection::Some(cols) => {
                 for col in cols {
                     let column = self.column(col)?;
-                    schema_builder = schema_builder.influx_column(col, column.influx_type());
+                    schema_builder.influx_column(col, column.influx_type());
                 }
                 schema_builder.build().context(InternalSchema)?
             }
