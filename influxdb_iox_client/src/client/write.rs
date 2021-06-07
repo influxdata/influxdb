@@ -80,7 +80,7 @@ impl Client {
     /// An Entry unit of write payload encoded as Flatbuffer structure
     /// and passed as a bytes field in the gRPC protobuf API.
     ///
-    /// [Entry]: https://github.com/influxdata/influxdb_iox/blob/main/generated_types/protos/influxdata/iox/write/v1/entry.fbs
+    /// [Entry]: https://github.com/influxdata/influxdb_iox/blob/main/entry/src/entry.fbs
     pub async fn write_entry(
         &mut self,
         db_name: impl Into<String>,

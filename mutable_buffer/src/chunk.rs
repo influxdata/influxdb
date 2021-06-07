@@ -1,11 +1,11 @@
-use std::{collections::BTreeSet, convert::TryFrom, sync::Arc};
+use std::{collections::BTreeSet, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
 use parking_lot::Mutex;
 use snafu::{ResultExt, Snafu};
 
-use data_types::{partition_metadata::TableSummary, server_id::ServerId};
-use entry::{ClockValue, TableBatch};
+use data_types::partition_metadata::TableSummary;
+use entry::TableBatch;
 use internal_types::selection::Selection;
 use metrics::GaugeValue;
 
@@ -93,8 +93,8 @@ impl Chunk {
     /// Panics if the batch specifies a different name for the table in this Chunk
     pub fn write_table_batch(
         &mut self,
-        clock_value: ClockValue,
-        server_id: ServerId,
+        sequencer_id: u32,
+        sequence_number: u64,
         batch: TableBatch<'_>,
     ) -> Result<()> {
         let table_name = batch.name();
@@ -106,7 +106,7 @@ impl Chunk {
 
         let columns = batch.columns();
         self.table
-            .write_columns(clock_value, server_id, columns)
+            .write_columns(sequencer_id, sequence_number, columns)
             .context(TableWrite { table_name })?;
 
         // Invalidate chunk snapshot
@@ -216,11 +216,7 @@ pub mod test_helpers {
             );
 
             for batch in table_batches {
-                chunk.write_table_batch(
-                    ClockValue::try_from(5).unwrap(),
-                    ServerId::try_from(1).unwrap(),
-                    batch,
-                )?;
+                chunk.write_table_batch(1, 5, batch)?;
             }
         }
 

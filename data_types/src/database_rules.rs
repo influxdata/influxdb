@@ -40,10 +40,6 @@ pub struct DatabaseRules {
     /// db
     pub partition_template: PartitionTemplate,
 
-    /// When set, this will buffer writes in memory based on the
-    /// configuration.
-    pub write_buffer_config: Option<WriteBufferConfig>,
-
     /// Configure how data flows through the system
     pub lifecycle_rules: LifecycleRules,
 
@@ -81,7 +77,6 @@ impl DatabaseRules {
         Self {
             name,
             partition_template: Default::default(),
-            write_buffer_config: None,
             lifecycle_rules: Default::default(),
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(500),
@@ -233,58 +228,6 @@ pub enum ColumnType {
 pub enum ColumnValue {
     Min,
     Max,
-}
-
-/// `WriteBufferConfig` defines the configuration for buffering data from writes
-/// in memory. This buffer is used for asynchronous replication and to collect
-/// segments before sending them to object storage.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct WriteBufferConfig {
-    /// The size the Write Buffer should be limited to. Once the buffer gets to
-    /// this size, it will drop old segments to remain below this size, but
-    /// still try to hold as much in memory as possible while remaining
-    /// below this threshold
-    pub buffer_size: usize,
-    /// Write Buffer segments become read-only after crossing over this size,
-    /// which means that segments will always be <= this size. When old segments
-    /// are dropped from of memory, at least this much space will be freed from
-    /// the buffer.
-    pub segment_size: usize,
-    /// What should happen if a write comes in that would exceed the Write
-    /// Buffer size and the oldest segment that could be dropped hasn't yet been
-    /// persisted to object storage. If the oldest segment has been persisted,
-    /// then it will be dropped from the buffer so that new writes can be
-    /// accepted. This option is only for defining the behaviour of what happens
-    /// if that segment hasn't been persisted. If set to return an error, new
-    /// writes will be rejected until the oldest segment has been persisted so
-    /// that it can be cleared from memory. Alternatively, this can be set so
-    /// that old segments are dropped even if they haven't been persisted. This
-    /// setting is also useful for cases where persistence isn't being used and
-    /// this is only for in-memory buffering.
-    pub buffer_rollover: WriteBufferRollover,
-    /// If set to true, buffer segments will be written to object storage.
-    pub store_segments: bool,
-    /// If set, segments will be rolled over after this period of time even
-    /// if they haven't hit the size threshold. This allows them to be written
-    /// out to object storage as they must be immutable first.
-    pub close_segment_after: Option<std::time::Duration>,
-}
-
-/// `WriteBufferRollover` defines the behavior of what should happen if a write
-/// comes in that would cause the buffer to exceed its max size AND the oldest
-/// segment can't be dropped because it has not yet been persisted.
-#[derive(Debug, Clone, Eq, PartialEq, Copy)]
-pub enum WriteBufferRollover {
-    /// Drop the old segment even though it hasn't been persisted. This part of
-    /// the Write Buffer will be lost on this server.
-    DropOldSegment,
-    /// Drop the incoming write and fail silently. This favors making sure that
-    /// older Write Buffer data will be backed up.
-    DropIncoming,
-    /// Reject the incoming write and return an error. The client may retry the
-    /// request, which will succeed once the oldest segment has been
-    /// persisted to object storage.
-    ReturnError,
 }
 
 /// `PartitionTemplate` is used to compute the partition key of each row that

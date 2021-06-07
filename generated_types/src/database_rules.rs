@@ -14,14 +14,12 @@ use crate::influxdata::iox::management::v1 as management;
 mod lifecycle;
 mod partition;
 mod shard;
-mod write_buffer;
 
 impl From<DatabaseRules> for management::DatabaseRules {
     fn from(rules: DatabaseRules) -> Self {
         Self {
             name: rules.name.into(),
             partition_template: Some(rules.partition_template.into()),
-            write_buffer_config: rules.write_buffer_config.map(Into::into),
             lifecycle_rules: Some(rules.lifecycle_rules.into()),
             routing_rules: rules.routing_rules.map(Into::into),
             worker_cleanup_avg_sleep: Some(rules.worker_cleanup_avg_sleep.into()),
@@ -34,8 +32,6 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
 
     fn try_from(proto: management::DatabaseRules) -> Result<Self, Self::Error> {
         let name = DatabaseName::new(proto.name.clone()).field("name")?;
-
-        let write_buffer_config = proto.write_buffer_config.optional("write_buffer_config")?;
 
         let lifecycle_rules = proto
             .lifecycle_rules
@@ -60,7 +56,6 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
         Ok(Self {
             name,
             partition_template,
-            write_buffer_config,
             lifecycle_rules,
             routing_rules,
             worker_cleanup_avg_sleep,
@@ -239,7 +234,6 @@ mod tests {
         assert_eq!(back.lifecycle_rules, Some(LifecycleRules::default().into()));
 
         // These should be none as preserved on non-protobuf DatabaseRules
-        assert!(back.write_buffer_config.is_none());
         assert!(back.routing_rules.is_none());
     }
 }

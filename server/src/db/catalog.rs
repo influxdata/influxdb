@@ -364,9 +364,7 @@ impl Catalog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::server_id::ServerId;
-    use entry::{test_helpers::lp_to_entry, ClockValue};
-    use std::convert::TryFrom;
+    use entry::test_helpers::lp_to_entry;
 
     fn create_open_chunk(partition: &Arc<RwLock<Partition>>, table: &str) {
         let entry = lp_to_entry(&format!("{} bar=1 10", table));
@@ -378,13 +376,7 @@ mod tests {
             mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
         );
 
-        mb_chunk
-            .write_table_batch(
-                ClockValue::try_from(5).unwrap(),
-                ServerId::try_from(1).unwrap(),
-                batch,
-            )
-            .unwrap();
+        mb_chunk.write_table_batch(1, 5, batch).unwrap();
 
         partition.create_open_chunk(mb_chunk).unwrap();
     }

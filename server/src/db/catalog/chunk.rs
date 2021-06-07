@@ -780,11 +780,8 @@ impl Chunk {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
-
     use super::*;
-    use data_types::server_id::ServerId;
-    use entry::{test_helpers::lp_to_entry, ClockValue};
+    use entry::test_helpers::lp_to_entry;
     use mutable_buffer::chunk::{Chunk as MBChunk, ChunkMetrics as MBChunkMetrics};
     use parquet_file::{
         chunk::Chunk as ParquetChunk,
@@ -793,13 +790,13 @@ mod tests {
 
     #[test]
     fn test_new_open() {
-        let server_id = ServerId::try_from(1).unwrap();
+        let sequencer_id = 1;
         let table_name = "table1";
         let partition_key = "part1";
         let chunk_id = 0;
 
         // works with non-empty MBChunk
-        let mb_chunk = make_mb_chunk(table_name, server_id);
+        let mb_chunk = make_mb_chunk(table_name, sequencer_id);
         let chunk = Chunk::new_open(
             chunk_id,
             partition_key,
@@ -882,14 +879,12 @@ mod tests {
         );
     }
 
-    fn make_mb_chunk(table_name: &str, server_id: ServerId) -> MBChunk {
+    fn make_mb_chunk(table_name: &str, sequencer_id: u32) -> MBChunk {
         let mut mb_chunk = MBChunk::new(table_name, MBChunkMetrics::new_unregistered());
         let entry = lp_to_entry(&format!("{} bar=1 10", table_name));
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
-        mb_chunk
-            .write_table_batch(ClockValue::try_from(1).unwrap(), server_id, batch)
-            .unwrap();
+        mb_chunk.write_table_batch(sequencer_id, 1, batch).unwrap();
         mb_chunk
     }
 
@@ -899,13 +894,13 @@ mod tests {
     }
 
     fn make_open_chunk() -> Chunk {
-        let server_id = ServerId::try_from(1).unwrap();
+        let sequencer_id = 1;
         let table_name = "table1";
         let partition_key = "part1";
         let chunk_id = 0;
 
         // assemble MBChunk
-        let mb_chunk = make_mb_chunk(table_name, server_id);
+        let mb_chunk = make_mb_chunk(table_name, sequencer_id);
 
         Chunk::new_open(
             chunk_id,
