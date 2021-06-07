@@ -999,9 +999,9 @@ impl Db {
             (Some(write_buffer), false) => {
                 // If using both write buffer and mutable buffer, we want to wait for the write
                 // buffer to return success before adding the entry to the mutable buffer.
-                let write_metadata = write_buffer.store_entry(&entry).context(WriteBufferError)?;
+                let sequence = write_buffer.store_entry(&entry).context(WriteBufferError)?;
                 let sequenced_entry = Arc::new(
-                    SequencedEntry::new_from_write_metadata(write_metadata, entry)
+                    SequencedEntry::new_from_sequence(sequence, entry)
                         .context(SequencedEntryError)?,
                 );
 

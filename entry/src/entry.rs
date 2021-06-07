@@ -1,12 +1,7 @@
 //! This module contains helper code for building `Entry` from line protocol and the
 //! `DatabaseRules` configuration.
 
-use std::{
-    collections::BTreeMap,
-    convert::{TryFrom, TryInto},
-    fmt::Formatter,
-    num::NonZeroU64,
-};
+use std::{collections::BTreeMap, convert::TryFrom, fmt::Formatter, num::NonZeroU64};
 
 use chrono::Utc;
 use flatbuffers::{FlatBufferBuilder, Follow, ForwardsUOffset, Vector, VectorIter, WIPOffset};
@@ -59,8 +54,6 @@ pub enum ColumnError {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 type ColumnResult<T, E = ColumnError> = std::result::Result<T, E>;
-
-pub type WriteMetadata = (i32, i64);
 
 /// Converts parsed line protocol into a collection of ShardedEntry with the
 /// underlying flatbuffers bytes generated.
@@ -1206,26 +1199,6 @@ pub enum SequencedEntryError {
     InvalidFlatbuffer {
         source: flatbuffers::InvalidFlatbuffer,
     },
-
-    #[snafu(display(
-        "Sequencer ID {} cannot be converted to a u32: {}",
-        sequencer_id,
-        source
-    ))]
-    SequencerIdOutOfBounds {
-        sequencer_id: i32,
-        source: std::num::TryFromIntError,
-    },
-
-    #[snafu(display(
-        "Sequence number {} cannot be converted to a u64: {}",
-        sequence_number,
-        source
-    ))]
-    SequenceNumberOutOfBounds {
-        sequence_number: i64,
-        source: std::num::TryFromIntError,
-    },
 }
 
 #[derive(Debug)]
@@ -1255,21 +1228,11 @@ impl SequencedEntry {
         })
     }
 
-    pub fn new_from_write_metadata(
-        (sequencer_id, sequence_number): WriteMetadata,
+    pub fn new_from_sequence(
+        sequence: Sequence,
         entry: Entry,
     ) -> Result<Self, SequencedEntryError> {
-        Ok(Self {
-            entry,
-            sequence: Sequence {
-                id: sequencer_id
-                    .try_into()
-                    .context(SequencerIdOutOfBounds { sequencer_id })?,
-                number: sequence_number
-                    .try_into()
-                    .context(SequenceNumberOutOfBounds { sequence_number })?,
-            },
-        })
+        Ok(Self { entry, sequence })
     }
 
     pub fn partition_writes(&self) -> Option<Vec<PartitionWrite<'_>>> {

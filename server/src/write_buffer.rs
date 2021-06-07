@@ -1,10 +1,10 @@
-use entry::{Entry, WriteMetadata};
+use entry::{Entry, Sequence};
 
 pub trait WriteBuffer: Sync + Send + std::fmt::Debug + 'static {
     fn store_entry(
         &self,
         entry: &Entry,
-    ) -> Result<WriteMetadata, Box<dyn std::error::Error + Sync + Send>>;
+    ) -> Result<Sequence, Box<dyn std::error::Error + Sync + Send>>;
 }
 
 #[derive(Debug)]
@@ -16,7 +16,7 @@ impl WriteBuffer for KafkaBuffer {
     fn store_entry(
         &self,
         _entry: &Entry,
-    ) -> Result<WriteMetadata, Box<dyn std::error::Error + Sync + Send>> {
+    ) -> Result<Sequence, Box<dyn std::error::Error + Sync + Send>> {
         unimplemented!()
     }
 }
@@ -40,11 +40,15 @@ pub mod test_helpers {
         fn store_entry(
             &self,
             entry: &Entry,
-        ) -> Result<WriteMetadata, Box<dyn std::error::Error + Sync + Send>> {
+        ) -> Result<Sequence, Box<dyn std::error::Error + Sync + Send>> {
             let mut entries = self.entries.lock().unwrap();
-            let offset = entries.len() as i64;
+            let offset = entries.len() as u64;
             entries.push(entry.clone());
-            Ok((0, offset))
+
+            Ok(Sequence {
+                id: 0,
+                number: offset,
+            })
         }
     }
 }
