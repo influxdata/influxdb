@@ -31,7 +31,7 @@ var (
 
 // Engine represents a swappable storage engine for the shard.
 type Engine interface {
-	Open() error
+	Open(ctx context.Context) error
 	Close() error
 	SetEnabled(enabled bool)
 	SetCompactionsEnabled(enabled bool)
@@ -51,12 +51,12 @@ type Engine interface {
 	CreateIterator(ctx context.Context, measurement string, opt query.IteratorOptions) (query.Iterator, error)
 	CreateCursorIterator(ctx context.Context) (CursorIterator, error)
 	IteratorCost(measurement string, opt query.IteratorOptions) (query.IteratorCost, error)
-	WritePoints(points []models.Point) error
+	WritePoints(ctx context.Context, points []models.Point) error
 
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
-	DeleteSeriesRange(itr SeriesIterator, min, max int64) error
-	DeleteSeriesRangeWithPredicate(itr SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error
+	DeleteSeriesRange(ctx context.Context, itr SeriesIterator, min, max int64) error
+	DeleteSeriesRangeWithPredicate(ctx context.Context, itr SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error
 
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
@@ -68,7 +68,7 @@ type Engine interface {
 	MeasurementFieldSet() *MeasurementFieldSet
 	MeasurementFields(measurement []byte) *MeasurementFields
 	ForEachMeasurementName(fn func(name []byte) error) error
-	DeleteMeasurement(name []byte) error
+	DeleteMeasurement(ctx context.Context, name []byte) error
 
 	HasTagKey(name, key []byte) (bool, error)
 	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)

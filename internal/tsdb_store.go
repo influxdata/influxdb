@@ -22,9 +22,9 @@ type TSDBStoreMock struct {
 	CreateShardSnapshotFn     func(id uint64) (string, error)
 	DatabasesFn               func() []string
 	DeleteDatabaseFn          func(name string) error
-	DeleteMeasurementFn       func(database, name string) error
+	DeleteMeasurementFn       func(ctx context.Context, database, name string) error
 	DeleteRetentionPolicyFn   func(database, name string) error
-	DeleteSeriesFn            func(database string, sources []influxql.Source, condition influxql.Expr) error
+	DeleteSeriesFn            func(ctx context.Context, database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShardFn             func(id uint64) error
 	DiskSizeFn                func() (int64, error)
 	ExpandSourcesFn           func(sources influxql.Sources) (influxql.Sources, error)
@@ -72,14 +72,14 @@ func (s *TSDBStoreMock) Databases() []string {
 func (s *TSDBStoreMock) DeleteDatabase(name string) error {
 	return s.DeleteDatabaseFn(name)
 }
-func (s *TSDBStoreMock) DeleteMeasurement(database string, name string) error {
-	return s.DeleteMeasurementFn(database, name)
+func (s *TSDBStoreMock) DeleteMeasurement(ctx context.Context, database string, name string) error {
+	return s.DeleteMeasurementFn(ctx, database, name)
 }
 func (s *TSDBStoreMock) DeleteRetentionPolicy(database string, name string) error {
 	return s.DeleteRetentionPolicyFn(database, name)
 }
-func (s *TSDBStoreMock) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error {
-	return s.DeleteSeriesFn(database, sources, condition)
+func (s *TSDBStoreMock) DeleteSeries(ctx context.Context, database string, sources []influxql.Source, condition influxql.Expr) error {
+	return s.DeleteSeriesFn(ctx, database, sources, condition)
 }
 func (s *TSDBStoreMock) DeleteShard(shardID uint64) error {
 	return s.DeleteShardFn(shardID)

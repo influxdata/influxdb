@@ -198,7 +198,7 @@ func (s *Store) Path() string { return s.path }
 
 // Open initializes the store, creating all necessary directories, loading all
 // shards as well as initializing periodic maintenance of them.
-func (s *Store) Open() error {
+func (s *Store) Open(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -217,7 +217,7 @@ func (s *Store) Open() error {
 		return err
 	}
 
-	if err := s.loadShards(); err != nil {
+	if err := s.loadShards(ctx); err != nil {
 		return err
 	}
 
@@ -234,7 +234,7 @@ func (s *Store) Open() error {
 	return nil
 }
 
-func (s *Store) loadShards() error {
+func (s *Store) loadShards(ctx context.Context) error {
 	// res holds the result from opening each shard in a goroutine
 	type res struct {
 		s   *Shard
@@ -353,23 +353,28 @@ func (s *Store) loadShards() error {
 
 				n++
 				go func(db, rp, sh string) {
-					t.Take()
+					path := filepath.Join(s.path, db, rp, sh)
+					walPath := filepath.Join(s.EngineOptions.Config.WALDir, db, rp, sh)
+
+					if err := t.Take(ctx); err != nil {
+						log.Error("failed to open shard at path", zap.String("path", path), zap.Error(err))
+						resC <- &res{err: fmt.Errorf("failed to open shard at path %q: %w", path, err)}
+						return
+					}
 					defer t.Release()
 
 					start := time.Now()
-					path := filepath.Join(s.path, db, rp, sh)
-					walPath := filepath.Join(s.EngineOptions.Config.WALDir, db, rp, sh)
 
 					// Shard file names are numeric shardIDs
 					shardID, err := strconv.ParseUint(sh, 10, 64)
 					if err != nil {
-						log.Info("invalid shard ID found at path", zap.String("path", path))
-						resC <- &res{err: fmt.Errorf("%s is not a valid ID. Skipping shard.", sh)}
+						log.Error("invalid shard ID found at path", zap.String("path", path))
+						resC <- &res{err: fmt.Errorf("%s is not a valid ID. Skipping shard", sh)}
 						return
 					}
 
 					if s.EngineOptions.ShardFilter != nil && !s.EngineOptions.ShardFilter(db, rp, shardID) {
-						log.Info("skipping shard", zap.String("path", path), logger.Shard(shardID))
+						log.Warn("skipping shard", zap.String("path", path), logger.Shard(shardID))
 						resC <- &res{}
 						return
 					}
@@ -388,7 +393,7 @@ func (s *Store) loadShards() error {
 					shard.CompactionDisabled = s.EngineOptions.CompactionDisabled
 					shard.WithLogger(s.baseLogger)
 
-					err = shard.Open()
+					err = shard.Open(ctx)
 					if err != nil {
 						log.Error("Failed to open shard", logger.Shard(shardID), zap.Error(err))
 						resC <- &res{err: fmt.Errorf("failed to open shard: %d: %s", shardID, err)}
@@ -561,7 +566,7 @@ func (s *Store) ShardDigest(id uint64) (io.ReadCloser, int64, error) {
 }
 
 // CreateShard creates a shard with the given id and retention policy on a database.
-func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, enabled bool) error {
+func (s *Store) CreateShard(ctx context.Context, database, retentionPolicy string, shardID uint64, enabled bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -608,7 +613,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 	shard.WithLogger(s.baseLogger)
 	shard.EnableOnOpen = enabled
 
-	if err := shard.Open(); err != nil {
+	if err := shard.Open(ctx); err != nil {
 		return err
 	}
 
@@ -859,7 +864,7 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 }
 
 // DeleteMeasurement removes a measurement and all associated series from a database.
-func (s *Store) DeleteMeasurement(database, name string) error {
+func (s *Store) DeleteMeasurement(ctx context.Context, database, name string) error {
 	s.mu.RLock()
 	if s.databases[database].hasMultipleIndexTypes() {
 		s.mu.RUnlock()
@@ -873,7 +878,9 @@ func (s *Store) DeleteMeasurement(database, name string) error {
 	// of series keys can be very memory intensive if run concurrently.
 	limit := limiter.NewFixed(1)
 	return s.walkShards(shards, func(sh *Shard) error {
-		limit.Take()
+		if err := limit.Take(ctx); err != nil {
+			return err
+		}
 		defer limit.Release()
 
 		// install our guard and wait for any prior deletes to finish. the
@@ -883,7 +890,7 @@ func (s *Store) DeleteMeasurement(database, name string) error {
 		waiter.Wait()
 		defer waiter.Done()
 
-		return sh.DeleteMeasurement([]byte(name))
+		return sh.DeleteMeasurement(ctx, []byte(name))
 	})
 }
 
@@ -1180,7 +1187,7 @@ func (s *Store) ExportShard(id uint64, start time.Time, end time.Time, w io.Writ
 
 // RestoreShard restores a backup from r to a given shard.
 // This will only overwrite files included in the backup.
-func (s *Store) RestoreShard(id uint64, r io.Reader) error {
+func (s *Store) RestoreShard(ctx context.Context, id uint64, r io.Reader) error {
 	shard := s.Shard(id)
 	if shard == nil {
 		return fmt.Errorf("shard %d doesn't exist on this server", id)
@@ -1191,7 +1198,7 @@ func (s *Store) RestoreShard(id uint64, r io.Reader) error {
 		return err
 	}
 
-	return shard.Restore(r, path)
+	return shard.Restore(ctx, r, path)
 }
 
 // ImportShard imports the contents of r to a given shard.
@@ -1224,7 +1231,7 @@ func (s *Store) ShardRelativePath(id uint64) (string, error) {
 
 // DeleteSeries loops through the local shards and deletes the series data for
 // the passed in series keys.
-func (s *Store) DeleteSeriesWithPredicate(database string, min, max int64, pred influxdb.Predicate) error {
+func (s *Store) DeleteSeriesWithPredicate(ctx context.Context, database string, min, max int64, pred influxdb.Predicate) error {
 	s.mu.RLock()
 	if s.databases[database].hasMultipleIndexTypes() {
 		s.mu.RUnlock()
@@ -1245,7 +1252,9 @@ func (s *Store) DeleteSeriesWithPredicate(database string, min, max int64, pred 
 	limit := limiter.NewFixed(1)
 
 	return s.walkShards(shards, func(sh *Shard) error {
-		limit.Take()
+		if err := limit.Take(ctx); err != nil {
+			return err
+		}
 		defer limit.Release()
 
 		// install our guard and wait for any prior deletes to finish. the
@@ -1284,7 +1293,7 @@ func (s *Store) DeleteSeriesWithPredicate(database string, min, max int64, pred 
 				defer sitr.Close()
 
 				itr := NewSeriesIteratorAdapter(sfile, NewPredicateSeriesIDIterator(sitr, sfile, pred))
-				return sh.DeleteSeriesRange(itr, min, max)
+				return sh.DeleteSeriesRange(ctx, itr, min, max)
 			}(); err != nil {
 				return err
 			}
@@ -1296,7 +1305,7 @@ func (s *Store) DeleteSeriesWithPredicate(database string, min, max int64, pred 
 
 // DeleteSeries loops through the local shards and deletes the series data for
 // the passed in series keys.
-func (s *Store) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error {
+func (s *Store) DeleteSeries(ctx context.Context, database string, sources []influxql.Source, condition influxql.Expr) error {
 	// Expand regex expressions in the FROM clause.
 	a, err := s.ExpandSources(sources)
 	if err != nil {
@@ -1361,7 +1370,9 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 		}
 		sort.Strings(names)
 
-		limit.Take()
+		if err := limit.Take(ctx); err != nil {
+			return err
+		}
 		defer limit.Release()
 
 		// install our guard and wait for any prior deletes to finish. the
@@ -1385,7 +1396,7 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 				continue
 			}
 			defer itr.Close()
-			if err := sh.DeleteSeriesRange(NewSeriesIteratorAdapter(sfile, itr), min, max); err != nil {
+			if err := sh.DeleteSeriesRange(ctx, NewSeriesIteratorAdapter(sfile, itr), min, max); err != nil {
 				return err
 			}
 
@@ -1406,7 +1417,7 @@ func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 }
 
 // WriteToShard writes a list of points to a shard identified by its ID.
-func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
+func (s *Store) WriteToShard(ctx context.Context, shardID uint64, points []models.Point) error {
 	s.mu.RLock()
 
 	select {
@@ -1443,7 +1454,7 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 		sh.SetCompactionsEnabled(true)
 	}
 
-	return sh.WritePoints(points)
+	return sh.WritePoints(ctx, points)
 }
 
 // MeasurementNames returns a slice of all measurements. Measurements accepts an

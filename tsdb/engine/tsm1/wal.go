@@ -3,6 +3,7 @@ package tsm1
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -315,12 +316,12 @@ func (l *WAL) sync() {
 // WriteMulti writes the given values to the WAL. It returns the WAL segment ID to
 // which the points were written. If an error is returned the segment ID should
 // be ignored.
-func (l *WAL) WriteMulti(values map[string][]Value) (int, error) {
+func (l *WAL) WriteMulti(ctx context.Context, values map[string][]Value) (int, error) {
 	entry := &WriteWALEntry{
 		Values: values,
 	}
 
-	id, err := l.writeToLog(entry)
+	id, err := l.writeToLog(ctx, entry)
 	if err != nil {
 		atomic.AddInt64(&l.stats.WriteErr, 1)
 		return -1, err
@@ -407,11 +408,13 @@ func (l *WAL) DiskSizeBytes() int64 {
 	return atomic.LoadInt64(&l.stats.OldBytes) + atomic.LoadInt64(&l.stats.CurrentBytes)
 }
 
-func (l *WAL) writeToLog(entry WALEntry) (int, error) {
+func (l *WAL) writeToLog(ctx context.Context, entry WALEntry) (int, error) {
 	// limit how many concurrent encodings can be in flight.  Since we can only
 	// write one at a time to disk, a slow disk can cause the allocations below
 	// to increase quickly.  If we're backed up, wait until others have completed.
-	l.limiter.Take()
+	if err := l.limiter.Take(ctx); err != nil {
+		return 0, err
+	}
 	defer l.limiter.Release()
 
 	bytes := bytesPool.Get(entry.MarshalSize())
@@ -507,7 +510,7 @@ func (l *WAL) CloseSegment() error {
 }
 
 // Delete deletes the given keys, returning the segment ID for the operation.
-func (l *WAL) Delete(keys [][]byte) (int, error) {
+func (l *WAL) Delete(ctx context.Context, keys [][]byte) (int, error) {
 	if len(keys) == 0 {
 		return 0, nil
 	}
@@ -515,7 +518,7 @@ func (l *WAL) Delete(keys [][]byte) (int, error) {
 		Keys: keys,
 	}
 
-	id, err := l.writeToLog(entry)
+	id, err := l.writeToLog(ctx, entry)
 	if err != nil {
 		return -1, err
 	}
@@ -524,7 +527,7 @@ func (l *WAL) Delete(keys [][]byte) (int, error) {
 
 // DeleteRange deletes the given keys within the given time range,
 // returning the segment ID for the operation.
-func (l *WAL) DeleteRange(keys [][]byte, min, max int64) (int, error) {
+func (l *WAL) DeleteRange(ctx context.Context, keys [][]byte, min, max int64) (int, error) {
 	if len(keys) == 0 {
 		return 0, nil
 	}
@@ -534,7 +537,7 @@ func (l *WAL) DeleteRange(keys [][]byte, min, max int64) (int, error) {
 		Max:  max,
 	}
 
-	id, err := l.writeToLog(entry)
+	id, err := l.writeToLog(ctx, entry)
 	if err != nil {
 		return -1, err
 	}

@@ -47,7 +47,7 @@ type Engine struct {
 	tsdbStore    *tsdb.Store
 	metaClient   MetaClient
 	pointsWriter interface {
-		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
+		WritePoints(ctx context.Context, database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
 		Close() error
 	}
 
@@ -90,8 +90,8 @@ type MetaClient interface {
 }
 
 type TSDBStore interface {
-	DeleteMeasurement(database, name string) error
-	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
+	DeleteMeasurement(ctx context.Context, database, name string) error
+	DeleteSeries(ctx context.Context, database string, sources []influxql.Source, condition influxql.Expr) error
 	MeasurementNames(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
 	ShardGroup(ids []uint64) tsdb.ShardGroup
 	Shards(ids []uint64) []*tsdb.Shard
@@ -177,7 +177,7 @@ func (e *Engine) Open(ctx context.Context) (err error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	if err := e.tsdbStore.Open(); err != nil {
+	if err := e.tsdbStore.Open(ctx); err != nil {
 		return err
 	}
 
@@ -260,7 +260,7 @@ func (e *Engine) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 		return ErrEngineClosed
 	}
 
-	return e.pointsWriter.WritePoints(bucketID.String(), meta.DefaultRetentionPolicyName, models.ConsistencyLevelAll, &meta.UserInfo{}, points)
+	return e.pointsWriter.WritePoints(ctx, bucketID.String(), meta.DefaultRetentionPolicyName, models.ConsistencyLevelAll, &meta.UserInfo{}, points)
 }
 
 func (e *Engine) CreateBucket(ctx context.Context, b *influxdb.Bucket) (err error) {
@@ -317,7 +317,7 @@ func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID
 	if e.closing == nil {
 		return ErrEngineClosed
 	}
-	return e.tsdbStore.DeleteSeriesWithPredicate(bucketID.String(), min, max, pred)
+	return e.tsdbStore.DeleteSeriesWithPredicate(ctx, bucketID.String(), min, max, pred)
 }
 
 // LockKVStore locks the KV store as well as the engine in preparation for doing a backup.
@@ -385,7 +385,7 @@ func (e *Engine) RestoreKVStore(ctx context.Context, r io.Reader) error {
 				}
 
 				for _, sh := range sgi.Shards {
-					if err := e.tsdbStore.CreateShard(dbi.Name, rpi.Name, sh.ID, true); err != nil {
+					if err := e.tsdbStore.CreateShard(ctx, dbi.Name, rpi.Name, sh.ID, true); err != nil {
 						return err
 					}
 				}
@@ -450,7 +450,7 @@ func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte) 
 		}
 
 		for _, sh := range sgi.Shards {
-			if err := e.tsdbStore.CreateShard(dbi.Name, rpi.Name, sh.ID, true); err != nil {
+			if err := e.tsdbStore.CreateShard(ctx, dbi.Name, rpi.Name, sh.ID, true); err != nil {
 				return nil, err
 			}
 		}
@@ -470,7 +470,7 @@ func (e *Engine) RestoreShard(ctx context.Context, shardID uint64, r io.Reader) 
 		return ErrEngineClosed
 	}
 
-	return e.tsdbStore.RestoreShard(shardID, r)
+	return e.tsdbStore.RestoreShard(ctx, shardID, r)
 }
 
 // SeriesCardinality returns the number of series in the engine.
