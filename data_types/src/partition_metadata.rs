@@ -98,6 +98,15 @@ impl TableSummary {
         }
     }
 
+    /// Returns the primary key of this table
+    pub fn primary_key(&self) -> Vec<String> {
+        self.columns
+            .iter()
+            .filter(|c| c.key_part())
+            .map(|c| c.name.clone())
+            .collect()
+    }
+
     /// Returns the total number of rows in the columns of this summary
     pub fn count(&self) -> u64 {
         // Assumes that all tables have the same number of rows, so
@@ -184,6 +193,15 @@ impl ColumnSummary {
     /// data type
     pub fn type_name(&self) -> &'static str {
         self.stats.type_name()
+    }
+
+    /// Return true if this column is a part of the primary key which
+    /// means it is either a tag or timestamp
+    pub fn key_part(&self) -> bool {
+        matches!(
+            self.influxdb_type,
+            Some(InfluxDbType::Tag) | Some(InfluxDbType::Timestamp)
+        )
     }
 
     /// Return size in bytes of this Column metadata (not the underlying column)
