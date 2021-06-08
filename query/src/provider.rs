@@ -321,38 +321,38 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
     /// The final UnionExec on top is to union the streams below. If there is only one stream, UnionExec
     ///   will not be added into the plan.
     /// ```text
-    ///                                      ┌─────────────────┐                                  
-    ///                                      │    UnionExec    │                                  
-    ///                                      │                 │                                  
-    ///                                      └─────────────────┘                                  
-    ///                                               ▲                                           
-    ///                                               │                                           
-    ///                        ┌──────────────────────┴───────────┬─────────────────────┐         
-    ///                        │                                  │                     │         
-    ///                        │                                  │                     │         
+    ///                                      ┌─────────────────┐
+    ///                                      │    UnionExec    │
+    ///                                      │                 │
+    ///                                      └─────────────────┘
+    ///                                               ▲
+    ///                                               │
+    ///                        ┌──────────────────────┴───────────┬─────────────────────┐
+    ///                        │                                  │                     │
+    ///                        │                                  │                     │
     ///               ┌─────────────────┐                ┌─────────────────┐   ┌─────────────────┐
     ///               │ DeduplicateExec │                │ DeduplicateExec │   │IOxReadFilterNode│
     ///               └─────────────────┘                └─────────────────┘   │    (Chunk 4)    │
     ///                        ▲                                  ▲            └─────────────────┘
-    ///                        │                                  │                               
-    ///            ┌───────────────────────┐                      │                               
-    ///            │SortPreservingMergeExec│                      │                               
-    ///            └───────────────────────┘                      │                               
+    ///                        │                                  │
+    ///            ┌───────────────────────┐                      │
+    ///            │SortPreservingMergeExec│                      │
+    ///            └───────────────────────┘                      │
     ///                       ▲                                   |
     ///                       │                                   |
-    ///           ┌───────────┴───────────┐                       │                               
-    ///           │                       │                       │                               
-    ///  ┌─────────────────┐     ┌─────────────────┐    ┌─────────────────┐                      
-    ///  │    SortExec     │     │    SortExec     │    │    SortExec     │                      
-    ///  │   (optional)    │     │   (optional)    │    │   (optional)    │                      
-    ///  └─────────────────┘     └─────────────────┘    └─────────────────┘                      
-    ///           ▲                       ▲                      ▲                               
-    ///           │                       │                      │                               
-    ///           │                       │                      │                               
-    ///  ┌─────────────────┐     ┌─────────────────┐    ┌─────────────────┐                      
-    ///  │IOxReadFilterNode│     │IOxReadFilterNode│    │IOxReadFilterNode│                      
-    ///  │    (Chunk 1)    │     │    (Chunk 2)    │    │    (Chunk 3)    │                      
-    ///  └─────────────────┘     └─────────────────┘    └─────────────────┘                      
+    ///           ┌───────────┴───────────┐                       │
+    ///           │                       │                       │
+    ///  ┌─────────────────┐     ┌─────────────────┐    ┌─────────────────┐
+    ///  │    SortExec     │     │    SortExec     │    │    SortExec     │
+    ///  │   (optional)    │     │   (optional)    │    │   (optional)    │
+    ///  └─────────────────┘     └─────────────────┘    └─────────────────┘
+    ///           ▲                       ▲                      ▲
+    ///           │                       │                      │
+    ///           │                       │                      │
+    ///  ┌─────────────────┐     ┌─────────────────┐    ┌─────────────────┐
+    ///  │IOxReadFilterNode│     │IOxReadFilterNode│    │IOxReadFilterNode│
+    ///  │    (Chunk 1)    │     │    (Chunk 2)    │    │    (Chunk 3)    │
+    ///  └─────────────────┘     └─────────────────┘    └─────────────────┘
     ///```
 
     fn build_scan_plan(
@@ -362,7 +362,7 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         chunks: Vec<Arc<C>>,
         predicate: Predicate,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        // findi overlapped chunks and put them into the right group
+        // find overlapped chunks and put them into the right group
         self.split_overlapped_chunks(chunks.to_vec())?;
 
         // TEMP until the rest of this module's code is complete:
@@ -459,29 +459,29 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
     /// Return deduplicate plan for the given overlapped chunks
     /// The plan will look like this
     /// ```text
-    ///               ┌─────────────────┐       
-    ///               │ DeduplicateExec │         
-    ///               └─────────────────┘        
-    ///                        ▲                            
-    ///                        │                                                                 
-    ///            ┌───────────────────────┐                                                   
-    ///            │SortPreservingMergeExec│                                                     
-    ///            └───────────────────────┘                                                    
-    ///                       ▲                                   
-    ///                       │                                   
-    ///           ┌───────────┴───────────┐                                                     
-    ///           │                       │                                                     
-    ///  ┌─────────────────┐        ┌─────────────────┐                        
-    ///  │    SortExec     │ ...    │    SortExec     │                        
-    ///  │   (optional)    │        │   (optional)    │                        
-    ///  └─────────────────┘        └─────────────────┘                      
-    ///           ▲                          ▲                                                  
-    ///           │          ...             │                                                   
-    ///           │                          │                                                 
-    ///  ┌─────────────────┐        ┌─────────────────┐                         
-    ///  │IOxReadFilterNode│        │IOxReadFilterNode│                        
-    ///  │    (Chunk 1)    │ ...    │    (Chunk n)    │                         
-    ///  └─────────────────┘        └─────────────────┘                          
+    ///               ┌─────────────────┐
+    ///               │ DeduplicateExec │
+    ///               └─────────────────┘
+    ///                        ▲
+    ///                        │
+    ///            ┌───────────────────────┐
+    ///            │SortPreservingMergeExec│
+    ///            └───────────────────────┘
+    ///                       ▲
+    ///                       │
+    ///           ┌───────────┴───────────┐
+    ///           │                       │
+    ///  ┌─────────────────┐        ┌─────────────────┐
+    ///  │    SortExec     │ ...    │    SortExec     │
+    ///  │   (optional)    │        │   (optional)    │
+    ///  └─────────────────┘        └─────────────────┘
+    ///           ▲                          ▲
+    ///           │          ...             │
+    ///           │                          │
+    ///  ┌─────────────────┐        ┌─────────────────┐
+    ///  │IOxReadFilterNode│        │IOxReadFilterNode│
+    ///  │    (Chunk 1)    │ ...    │    (Chunk n)    │
+    ///  └─────────────────┘        └─────────────────┘
     ///```
     fn build_deduplicate_plan_for_overlapped_chunks(
         table_name: Arc<str>,
@@ -502,22 +502,22 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
     /// Return deduplicate plan for a given chunk with duplicates
     /// The plan will look like this
     /// ```text
-    ///                ┌─────────────────┐   
-    ///                │ DeduplicateExec │   
-    ///                └─────────────────┘   
-    ///                        ▲             
-    ///                        │             
-    ///                ┌─────────────────┐   
-    ///                │    SortExec     │   
-    ///                │   (optional)    │   
-    ///                └─────────────────┘   
-    ///                          ▲           
-    ///                          │           
-    ///                          │           
-    ///                ┌─────────────────┐   
-    ///                │IOxReadFilterNode│   
-    ///                │    (Chunk)      │   
-    ///                └─────────────────┘   
+    ///                ┌─────────────────┐
+    ///                │ DeduplicateExec │
+    ///                └─────────────────┘
+    ///                        ▲
+    ///                        │
+    ///                ┌─────────────────┐
+    ///                │    SortExec     │
+    ///                │   (optional)    │
+    ///                └─────────────────┘
+    ///                          ▲
+    ///                          │
+    ///                          │
+    ///                ┌─────────────────┐
+    ///                │IOxReadFilterNode│
+    ///                │    (Chunk)      │
+    ///                └─────────────────┘
     ///```
     fn build_deduplicate_plan_for_chunk_with_duplicates(
         table_name: Arc<str>,
@@ -537,10 +537,10 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
 
     /// Return the simplest IOx scan plan of a given chunk which is IOxReadFilterNode
     /// ```text
-    ///                ┌─────────────────┐   
-    ///                │IOxReadFilterNode│   
-    ///                │    (Chunk)      │   
-    ///                └─────────────────┘   
+    ///                ┌─────────────────┐
+    ///                │IOxReadFilterNode│
+    ///                │    (Chunk)      │
+    ///                └─────────────────┘
     ///```
     fn build_plan_for_non_duplicates_chunk(
         table_name: Arc<str>,
@@ -558,10 +558,10 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
 
     /// Return the simplest IOx scan plan for many chunks which is IOxReadFilterNode
     /// ```text
-    ///                ┌─────────────────┐   
-    ///                │IOxReadFilterNode│   
-    ///                │    (Chunk)      │   
-    ///                └─────────────────┘   
+    ///                ┌─────────────────┐
+    ///                │IOxReadFilterNode│
+    ///                │    (Chunk)      │
+    ///                └─────────────────┘
     ///```
     fn build_plans_for_non_duplicates_chunk(
         table_name: Arc<str>,
