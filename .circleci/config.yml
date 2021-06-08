@@ -118,7 +118,7 @@ commands:
       - run:
           name: Install Rust toolchain
           command: |
-            curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+            ./scripts/ci/install-rust.sh
             echo 'export PATH=${HOME}/.cargo/bin:${PATH}' >> $BASH_ENV
 
   # Install dependencies for cross building binaries with goreleaser. Does not include Docker cross-builder.
