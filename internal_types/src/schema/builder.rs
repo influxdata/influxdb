@@ -23,7 +23,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Builder for a Schema
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct SchemaBuilder {
     /// Optional measurement name
     measurement: Option<String>,
@@ -121,9 +121,10 @@ impl SchemaBuilder {
         self
     }
 
-    /// Creates an Arrow schema with embedded metadata, consuming self. All
-    /// schema validation happens at this time.
-
+    /// Creates an Arrow schema with embedded metadata, resetting the
+    /// builder back to `default`. All schema validation happens at
+    /// this time.
+    ///
     /// ```
     /// use internal_types::schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType};
     ///

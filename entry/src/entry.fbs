@@ -1,7 +1,7 @@
 namespace influxdata.iox.write.v1;
 
 // Every modification to a database is represented as an entry. These can be forwarded
-// on to other IOx servers or to Kafka.
+// on to other IOx servers or to the write buffer.
 
 // An entry can only be one of these Operation types
 union Operation {

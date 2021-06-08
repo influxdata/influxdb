@@ -108,6 +108,7 @@ use std::collections::HashMap;
 
 mod config;
 pub mod db;
+mod write_buffer;
 
 /// Utility modules used by benchmarks and tests
 pub mod utils;
@@ -1166,6 +1167,7 @@ mod tests {
             lifecycle_rules: Default::default(),
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
+            write_buffer_connection_string: None,
         };
 
         // Create a database
@@ -1262,6 +1264,7 @@ mod tests {
             lifecycle_rules: Default::default(),
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
+            write_buffer_connection_string: None,
         };
 
         // Create a database
