@@ -3,7 +3,7 @@
 
 use self::access::QueryCatalogAccess;
 use self::catalog::TableNameFilter;
-use super::JobRegistry;
+use super::{write_buffer::WriteBuffer, JobRegistry};
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use async_trait::async_trait;
 use catalog::{chunk::Chunk as CatalogChunk, Catalog};
@@ -166,6 +166,11 @@ pub enum Error {
     #[snafu(display("Unknown Mutable Buffer Chunk {}", chunk_id))]
     UnknownMutableBufferChunk { chunk_id: u32 },
 
+    #[snafu(display("Error sending entry to write buffer"))]
+    WriteBufferError {
+        source: Box<dyn std::error::Error + Sync + Send>,
+    },
+
     #[snafu(display("Cannot write to this database: no mutable buffer configured"))]
     DatabaseNotWriteable {},
 
@@ -301,6 +306,9 @@ pub struct Db {
 
     /// Metric labels
     metric_labels: Vec<KeyValue>,
+
+    /// Optionally buffer writes
+    write_buffer: Option<Arc<dyn WriteBuffer>>,
 }
 
 /// Load preserved catalog state from store.
@@ -393,6 +401,7 @@ impl Db {
         exec: Arc<Executor>,
         jobs: Arc<JobRegistry>,
         preserved_catalog: PreservedCatalog<Catalog>,
+        write_buffer: Option<Arc<dyn WriteBuffer>>,
     ) -> Self {
         let db_name = rules.name.clone();
 
@@ -426,6 +435,7 @@ impl Db {
             worker_iterations_lifecycle: AtomicUsize::new(0),
             worker_iterations_cleanup: AtomicUsize::new(0),
             metric_labels,
+            write_buffer,
         }
     }
 
@@ -978,23 +988,44 @@ impl Db {
             rules.lifecycle_rules.immutable
         };
 
-        // If the database is immutable, we don't even need to build a `SequencedEntry`.
-        // There will be additional cases when we add the write buffer as the `SequencedEntry`
-        // will potentially need to be constructed from other values, like the Kafka partition
-        // and offset, instead of the process clock.
-        if immutable {
-            DatabaseNotWriteable {}.fail()
-        } else {
-            let sequenced_entry = Arc::new(
-                SequencedEntry::new_from_process_clock(
-                    self.process_clock.next(),
-                    self.server_id,
-                    entry.data(),
-                )
-                .context(SequencedEntryError)?,
-            );
+        match (self.write_buffer.as_ref(), immutable) {
+            (Some(write_buffer), true) => {
+                // If only the write buffer is configured, this is passing the data through to
+                // the write buffer, and it's not an error. We ignore the returned metadata; it
+                // will get picked up when data is read from the write buffer.
+                let _ = write_buffer.store_entry(&entry).context(WriteBufferError)?;
+                Ok(())
+            }
+            (Some(write_buffer), false) => {
+                // If using both write buffer and mutable buffer, we want to wait for the write
+                // buffer to return success before adding the entry to the mutable buffer.
+                let sequence = write_buffer.store_entry(&entry).context(WriteBufferError)?;
+                let sequenced_entry = Arc::new(
+                    SequencedEntry::new_from_sequence(sequence, entry)
+                        .context(SequencedEntryError)?,
+                );
 
-            self.store_sequenced_entry(sequenced_entry)
+                self.store_sequenced_entry(sequenced_entry)
+            }
+            (None, true) => {
+                // If no write buffer is configured and the database is immutable, trying to
+                // store an entry is an error and we don't need to build a `SequencedEntry`.
+                DatabaseNotWriteable {}.fail()
+            }
+            (None, false) => {
+                // If no write buffer is configured, use the process clock and send to the mutable
+                // buffer.
+                let sequenced_entry = Arc::new(
+                    SequencedEntry::new_from_process_clock(
+                        self.process_clock.next(),
+                        self.server_id,
+                        entry,
+                    )
+                    .context(SequencedEntryError)?,
+                );
+
+                self.store_sequenced_entry(sequenced_entry)
+            }
         }
     }
 
@@ -1010,7 +1041,7 @@ impl Db {
 
         // We may have gotten here through `store_entry`, in which case this is checking the
         // configuration again unnecessarily, but we may have come here by consuming records from
-        // Kafka, so this check is necessary in that case.
+        // the write buffer, so this check is necessary in that case.
         if immutable {
             return DatabaseNotWriteable {}.fail();
         }
@@ -1302,8 +1333,11 @@ mod tests {
         test_helpers::{try_write_lp, write_lp},
         *,
     };
-    use crate::db::catalog::chunk::{ChunkStage, ChunkStageFrozenRepr};
-    use crate::utils::{make_db, TestDb};
+    use crate::{
+        db::catalog::chunk::{ChunkStage, ChunkStageFrozenRepr},
+        utils::{make_db, TestDb},
+        write_buffer::test_helpers::MockBuffer,
+    };
     use ::test_helpers::assert_contains;
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
@@ -1353,7 +1387,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn write_with_write_buffer_no_mutable_buffer() {
+        // Writes should be forwarded to the write buffer and *not* rejected if the write buffer is
+        // configured and the mutable buffer isn't
+        let write_buffer = Arc::new(MockBuffer::default());
+        let test_db = TestDb::builder()
+            .write_buffer(Arc::clone(&write_buffer) as _)
+            .build()
+            .await
+            .db;
+
+        test_db.rules.write().lifecycle_rules.immutable = true;
+
+        let entry = lp_to_entry("cpu bar=1 10");
+        test_db.store_entry(entry).unwrap();
+
+        assert_eq!(write_buffer.entries.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn write_buffer_and_mutable_buffer() {
+        // Writes should be forwarded to the write buffer *and* the mutable buffer if both are
+        // configured.
+        let write_buffer = Arc::new(MockBuffer::default());
+        let test_db = TestDb::builder()
+            .write_buffer(Arc::clone(&write_buffer) as _)
+            .build()
+            .await
+            .db;
+
+        let entry = lp_to_entry("cpu bar=1 10");
+        test_db.store_entry(entry).unwrap();
+
+        assert_eq!(write_buffer.entries.lock().unwrap().len(), 1);
+
+        let db = Arc::new(test_db);
+        let batches = run_query(db, "select * from cpu").await;
+
+        let expected = vec![
+            "+-----+-------------------------------+",
+            "| bar | time                          |",
+            "+-----+-------------------------------+",
+            "| 1   | 1970-01-01 00:00:00.000000010 |",
+            "+-----+-------------------------------+",
+        ];
+        assert_batches_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
     async fn read_write() {
+        // This test also exercises the path without a write buffer.
         let db = Arc::new(make_db().await.db);
         write_lp(&db, "cpu bar=1 10");
 

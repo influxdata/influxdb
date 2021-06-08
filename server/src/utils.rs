@@ -9,6 +9,7 @@ use query::{exec::Executor, Database};
 
 use crate::{
     db::{load_or_create_preserved_catalog, Db},
+    write_buffer::WriteBuffer,
     JobRegistry,
 };
 use std::{borrow::Cow, convert::TryFrom, sync::Arc, time::Duration};
@@ -33,6 +34,7 @@ pub struct TestDbBuilder {
     object_store: Option<Arc<ObjectStore>>,
     db_name: Option<DatabaseName<'static>>,
     worker_cleanup_avg_sleep: Option<Duration>,
+    write_buffer: Option<Arc<dyn WriteBuffer>>,
 }
 
 impl TestDbBuilder {
@@ -79,6 +81,7 @@ impl TestDbBuilder {
                 exec,
                 Arc::new(JobRegistry::new()),
                 preserved_catalog,
+                self.write_buffer,
             ),
         }
     }
@@ -100,6 +103,11 @@ impl TestDbBuilder {
 
     pub fn worker_cleanup_avg_sleep(mut self, d: Duration) -> Self {
         self.worker_cleanup_avg_sleep = Some(d);
+        self
+    }
+
+    pub fn write_buffer(mut self, write_buffer: Arc<dyn WriteBuffer>) -> Self {
+        self.write_buffer = Some(write_buffer);
         self
     }
 }

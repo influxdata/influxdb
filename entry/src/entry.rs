@@ -290,7 +290,7 @@ pub struct ShardedEntry {
 /// Wrapper type for the flatbuffer Entry struct. Has convenience methods for
 /// iterating through the partitioned writes.
 #[self_referencing]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Entry {
     data: Vec<u8>,
     #[borrows(data)]
@@ -1201,13 +1201,9 @@ pub enum SequencedEntryError {
     },
 }
 
-#[self_referencing]
 #[derive(Debug)]
 pub struct SequencedEntry {
-    data: Vec<u8>,
-    #[borrows(data)]
-    #[covariant]
-    entry: entry_fb::Entry<'this>,
+    entry: Entry,
     sequence: Sequence,
 }
 
@@ -1221,33 +1217,30 @@ impl SequencedEntry {
     pub fn new_from_process_clock(
         process_clock: ClockValue,
         server_id: ServerId,
-        data: &[u8],
+        entry: Entry,
     ) -> Result<Self, SequencedEntryError> {
-        SequencedEntryTryBuilder {
-            data: data.to_vec(),
-            entry_builder: |data| {
-                flatbuffers::root::<entry_fb::Entry<'_>>(data).context(InvalidFlatbuffer)
-            },
+        Ok(Self {
+            entry,
             sequence: Sequence {
                 id: server_id.get_u32(),
                 number: process_clock.get_u64(),
             },
-        }
-        .try_build()
+        })
+    }
+
+    pub fn new_from_sequence(
+        sequence: Sequence,
+        entry: Entry,
+    ) -> Result<Self, SequencedEntryError> {
+        Ok(Self { entry, sequence })
     }
 
     pub fn partition_writes(&self) -> Option<Vec<PartitionWrite<'_>>> {
-        match self.borrow_entry().operation_as_write().as_ref() {
-            Some(w) => w
-                .partition_writes()
-                .as_ref()
-                .map(|w| w.iter().map(|fb| PartitionWrite { fb }).collect::<Vec<_>>()),
-            None => None,
-        }
+        self.entry.partition_writes()
     }
 
     pub fn sequence(&self) -> &Sequence {
-        self.borrow_sequence()
+        &self.sequence
     }
 }
 

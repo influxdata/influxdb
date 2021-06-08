@@ -8,7 +8,7 @@ use data_types::database_rules::{
 };
 use data_types::DatabaseName;
 
-use crate::google::{FieldViolation, FieldViolationExt, FromFieldOpt};
+use crate::google::{FieldViolation, FieldViolationExt, FromFieldOpt, FromFieldString};
 use crate::influxdata::iox::management::v1 as management;
 
 mod lifecycle;
@@ -23,6 +23,9 @@ impl From<DatabaseRules> for management::DatabaseRules {
             lifecycle_rules: Some(rules.lifecycle_rules.into()),
             routing_rules: rules.routing_rules.map(Into::into),
             worker_cleanup_avg_sleep: Some(rules.worker_cleanup_avg_sleep.into()),
+            write_buffer_connection_string: rules
+                .write_buffer_connection_string
+                .unwrap_or_default(),
         }
     }
 }
@@ -53,12 +56,15 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             None => Duration::from_secs(500),
         };
 
+        let write_buffer_connection_string = proto.write_buffer_connection_string.optional();
+
         Ok(Self {
             name,
             partition_template,
             lifecycle_rules,
             routing_rules,
             worker_cleanup_avg_sleep,
+            write_buffer_connection_string,
         })
     }
 }
