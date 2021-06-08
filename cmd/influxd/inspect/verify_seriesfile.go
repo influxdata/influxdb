@@ -47,13 +47,14 @@ func NewVerifySeriesfileCommand() *cobra.Command {
 			v.Logger = log
 			v.Concurrent = arguments.concurrent
 
+			var db string
 			if arguments.seriesFile != "" {
-				_, err := v.VerifySeriesFile(arguments.seriesFile)
-				return err
+				db = arguments.seriesFile
+			} else if arguments.db != "" {
+				db = filepath.Join(arguments.dir, arguments.db, "_series")
 			}
-
-			if arguments.db != "" {
-				_, err := v.VerifySeriesFile(filepath.Join(arguments.dir, arguments.db, "_series"))
+			if db != "" {
+				_, err := v.VerifySeriesFile(db)
 				return err
 			}
 
@@ -66,12 +67,15 @@ func NewVerifySeriesfileCommand() *cobra.Command {
 				if !db.IsDir() {
 					continue
 				}
-				_, err := v.VerifySeriesFile(filepath.Join(arguments.dir, db.Name(), "_series"))
-				if err != nil {
-					return err
+				_, errNew := v.VerifySeriesFile(filepath.Join(arguments.dir, db.Name(), "_series"))
+				if errNew != nil {
+					v.Logger.Error("Failed to verify series file",
+						zap.String("filename", fmt.Sprintf(filepath.Join(arguments.dir, db.Name(), "_series"))),
+						zap.Error(errNew))
+					err = errNew
 				}
 			}
-			return nil
+			return err
 		},
 	}
 

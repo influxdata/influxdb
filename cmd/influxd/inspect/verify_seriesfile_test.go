@@ -12,7 +12,7 @@ import (
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestVerifies_BasicCobra(t *testing.T) {
@@ -29,9 +29,8 @@ func TestVerifies_Valid(t *testing.T) {
 	defer os.RemoveAll(test.Path)
 
 	verify := NewVerify()
-	if testing.Verbose() {
-		verify.Logger, _ = zap.NewDevelopment()
-	}
+	verify.Logger = zaptest.NewLogger(t)
+
 	passed, err := verify.VerifySeriesFile(test.Path)
 	require.NoError(t, err)
 	require.True(t, passed)
