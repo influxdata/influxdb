@@ -66,6 +66,10 @@ pub trait PartitionChunk: Prunable + Debug + Send + Sync {
     /// Returns the name of the table stored in this chunk
     fn table_name(&self) -> &str;
 
+    /// Returns true if the chunk may contain a duplicate "primary
+    /// key" within itself
+    fn may_contain_pk_duplicates(&self) -> bool;
+
     /// Returns the result of applying the `predicate` to the chunk
     /// using an efficient, but inexact method, based on metadata.
     ///

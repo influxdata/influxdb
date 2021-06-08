@@ -217,6 +217,13 @@ impl PartitionChunk for DbChunk {
         self.table_name.as_ref()
     }
 
+    fn may_contain_pk_duplicates(&self) -> bool {
+        // Assume that the MUB can contain duplicates as it has the
+        // raw incoming stream of writes, but that all other types of
+        // chunks are deduplicated as part of creation
+        matches!(self.state, State::ReadBuffer { .. })
+    }
+
     fn apply_predicate(&self, predicate: &Predicate) -> Result<PredicateMatch> {
         if !predicate.should_include_table(self.table_name().as_ref()) {
             return Ok(PredicateMatch::Zero);
