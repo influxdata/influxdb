@@ -209,7 +209,7 @@ type Engine struct {
 func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Engine {
 	var wal *WAL
 	if opt.WALEnabled {
-		wal = NewWAL(walPath)
+		wal = NewWAL(walPath, opt.Config.WALMaxConcurrentWrites, opt.Config.WALMaxWriteDelay)
 		wal.syncDelay = time.Duration(opt.Config.WALFsyncDelay)
 	}
 

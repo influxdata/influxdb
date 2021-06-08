@@ -452,6 +452,17 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Desc:  "The amount of time that a write will wait before fsyncing. A duration greater than 0 can be used to batch up multiple fsync calls. This is useful for slower disks or when WAL write contention is seen.",
 		},
 		{
+			DestP: &o.StorageConfig.Data.WALMaxConcurrentWrites,
+			Flag: "storage-wal-max-concurrent-writes",
+			Desc: "The max number of writes that will attempt to write to the WAL at a time. (default <nprocs> * 2)",
+		},
+		{
+			DestP: &o.StorageConfig.Data.WALMaxWriteDelay,
+			Flag: "storage-wal-max-write-delay",
+			Default: o.StorageConfig.Data.WALMaxWriteDelay,
+			Desc: "The max amount of time a write will wait when the WAL already has `storage-wal-max-concurrent-writes` active writes. Set to 0 to disable the timeout.",
+		},
+		{
 			DestP: &o.StorageConfig.Data.ValidateKeys,
 			Flag:  "storage-validate-keys",
 			Desc:  "Validates incoming writes to ensure keys only have valid unicode characters.",

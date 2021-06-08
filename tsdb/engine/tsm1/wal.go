@@ -117,22 +117,31 @@ type WAL struct {
 
 	// limiter limits the max concurrency of waiting WAL writes.
 	limiter limiter.Fixed
+
+	// maxWriteWait sets the max duration the WAL will wait when limiter has no available
+	// values to take.
+	maxWriteWait time.Duration
 }
 
 // NewWAL initializes a new WAL at the given directory.
-func NewWAL(path string) *WAL {
+func NewWAL(path string, maxConcurrentWrites int, maxWriteDelay time.Duration) *WAL {
 	logger := zap.NewNop()
+	if maxConcurrentWrites == 0 {
+		maxConcurrentWrites = defaultWaitingWALWrites
+	}
+
 	return &WAL{
 		path: path,
 
 		// these options should be overridden by any options in the config
-		SegmentSize: DefaultSegmentSize,
-		closing:     make(chan struct{}),
-		syncWaiters: make(chan chan error, 1024),
-		stats:       &WALStatistics{},
-		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
-		logger:      logger,
-		traceLogger: logger,
+		SegmentSize:  DefaultSegmentSize,
+		closing:      make(chan struct{}),
+		syncWaiters:  make(chan chan error, 1024),
+		stats:        &WALStatistics{},
+		limiter:      limiter.NewFixed(maxConcurrentWrites),
+		maxWriteWait: maxWriteDelay,
+		logger:       logger,
+		traceLogger:  logger,
 	}
 }
 
@@ -412,10 +421,16 @@ func (l *WAL) writeToLog(ctx context.Context, entry WALEntry) (int, error) {
 	// limit how many concurrent encodings can be in flight.  Since we can only
 	// write one at a time to disk, a slow disk can cause the allocations below
 	// to increase quickly.  If we're backed up, wait until others have completed.
+	cancel := func() {}
+	if l.maxWriteWait > 0 {
+		ctx, cancel = context.WithTimeout(ctx, l.maxWriteWait)
+	}
 	if err := l.limiter.Take(ctx); err != nil {
+		cancel()
 		return 0, err
 	}
 	defer l.limiter.Release()
+	cancel()
 
 	bytes := bytesPool.Get(entry.MarshalSize())
 

@@ -80,6 +80,16 @@ type Config struct {
 	// General WAL configuration options
 	WALDir string `toml:"wal-dir"`
 
+	// WALMaxConcurrentWrites sets the max number of WAL writes that can be attempted at one time.
+	// In reality only one write to disk can run at a time, but we allow the preceding encoding steps
+	// to run concurrently. This can cause allocations to increase quickly when writing to a slow disk.
+	// Set to 0 to use the default (<nprocs> * 2).
+	WALMaxConcurrentWrites int `toml:"wal-max-concurrent-writes"`
+
+	// WALMaxWriteDelay is the max amount of time the WAL will wait to begin a write when there are
+	// already WALMaxConcurrentWrites in progress. A value of 0 disables any timeout.
+	WALMaxWriteDelay time.Duration `toml:"wal-max-write-delay"`
+
 	// WALFsyncDelay is the amount of time that a write will wait before fsyncing.  A duration
 	// greater than 0 can be used to batch up multiple fsync calls.  This is useful for slower
 	// disks or when WAL write contention is seen.  A value of 0 fsyncs every write to the WAL.
@@ -150,6 +160,8 @@ func NewConfig() Config {
 		CompactThroughputBurst:         toml.Size(DefaultCompactThroughputBurst),
 
 		MaxConcurrentCompactions: DefaultMaxConcurrentCompactions,
+
+		WALMaxWriteDelay: 10 * time.Minute,
 
 		MaxIndexLogFileSize:  toml.Size(DefaultMaxIndexLogFileSize),
 		SeriesIDSetCacheSize: DefaultSeriesIDSetCacheSize,

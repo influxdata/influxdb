@@ -21,7 +21,7 @@ import (
 func TestWALWriter_WriteMulti_Single(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
-	w := tsm1.NewWAL(dir)
+	w := tsm1.NewWAL(dir, 0, 0)
 	defer w.Close()
 	require.NoError(t, w.Open())
 
@@ -65,7 +65,7 @@ func TestWALWriter_WriteMulti_Single(t *testing.T) {
 func TestWALWriter_WriteMulti_LargeBatch(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
-	w := tsm1.NewWAL(dir)
+	w := tsm1.NewWAL(dir, 0, 0)
 	defer w.Close()
 	require.NoError(t, w.Open())
 
@@ -105,7 +105,7 @@ func TestWALWriter_WriteMulti_LargeBatch(t *testing.T) {
 func TestWALWriter_WriteMulti_Multiple(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
-	w := tsm1.NewWAL(dir)
+	w := tsm1.NewWAL(dir, 0, 0)
 	defer w.Close()
 	require.NoError(t, w.Open())
 
@@ -153,7 +153,7 @@ func TestWALWriter_WriteMulti_Multiple(t *testing.T) {
 func TestWALWriter_WriteDelete_Single(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
-	w := tsm1.NewWAL(dir)
+	w := tsm1.NewWAL(dir, 0, 0)
 	defer w.Close()
 	require.NoError(t, w.Open())
 
@@ -180,7 +180,7 @@ func TestWALWriter_WriteDelete_Single(t *testing.T) {
 func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
-	w := tsm1.NewWAL(dir)
+	w := tsm1.NewWAL(dir, 0, 0)
 	defer w.Close()
 	require.NoError(t, w.Open())
 
@@ -232,7 +232,7 @@ func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
-	w := tsm1.NewWAL(dir)
+	w := tsm1.NewWAL(dir, 0, 0)
 	defer w.Close()
 	require.NoError(t, w.Open())
 
@@ -292,7 +292,7 @@ func TestWAL_ClosedSegments(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	w := tsm1.NewWAL(dir)
+	w := tsm1.NewWAL(dir, 0, 0)
 	require.NoError(t, w.Open())
 
 	files, err := w.ClosedSegments()
@@ -310,7 +310,7 @@ func TestWAL_ClosedSegments(t *testing.T) {
 	require.NoError(t, w.Close())
 
 	// Re-open the WAL
-	w = tsm1.NewWAL(dir)
+	w = tsm1.NewWAL(dir, 0, 0)
 	defer w.Close()
 	require.NoError(t, w.Open())
 
@@ -323,7 +323,7 @@ func TestWAL_Delete(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	w := tsm1.NewWAL(dir)
+	w := tsm1.NewWAL(dir, 0, 0)
 	require.NoError(t, w.Open())
 
 	files, err := w.ClosedSegments()
@@ -338,7 +338,7 @@ func TestWAL_Delete(t *testing.T) {
 	require.NoError(t, w.Close())
 
 	// Re-open the WAL
-	w = tsm1.NewWAL(dir)
+	w = tsm1.NewWAL(dir, 0, 0)
 	defer w.Close()
 	require.NoError(t, w.Open())
 
@@ -436,7 +436,7 @@ func TestWALRollSegment(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	w := tsm1.NewWAL(dir)
+	w := tsm1.NewWAL(dir, 0, 0)
 	require.NoError(t, w.Open())
 	const segSize = 1024
 	w.SegmentSize = segSize
@@ -508,7 +508,7 @@ func TestWAL_DiskSize(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	w := tsm1.NewWAL(dir)
+	w := tsm1.NewWAL(dir, 0, 0)
 
 	const segSize = 1024
 	w.SegmentSize = segSize
@@ -689,7 +689,7 @@ func BenchmarkWAL_WriteMulti_Concurrency(b *testing.B) {
 			dir := MustTempDir()
 			defer os.RemoveAll(dir)
 
-			w := tsm1.NewWAL(dir)
+			w := tsm1.NewWAL(dir, 0, 0)
 			defer w.Close()
 			require.NoError(b, w.Open())
 
