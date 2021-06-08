@@ -70,8 +70,7 @@ func NewVerifySeriesfileCommand() *cobra.Command {
 					continue
 				}
 				filePath := filepath.Join(arguments.dir, db.Name(), "_series")
-				_, err := v.VerifySeriesFile(filePath)
-				if err != nil {
+				if _, err := v.VerifySeriesFile(filePath); err != nil {
 					v.Logger.Error("Failed to verify series file",
 						zap.String("filename", filePath),
 						zap.Error(err))
