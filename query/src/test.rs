@@ -224,7 +224,7 @@ impl TestChunk {
             .expect("had table summary")
             .columns
             .iter_mut()
-            .find(|c| &c.name == &column_name)
+            .find(|c| c.name == column_name)
             .expect("had column");
 
         column_summary.stats = Statistics::String(StatValues {

@@ -369,7 +369,7 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         // merge all plans into the same
         self.no_duplicates_chunks
             .append(&mut self.in_chunk_duplicates_chunks);
-        for mut group in self.overlapped_chunks_set.iter_mut() {
+        for mut group in &mut self.overlapped_chunks_set {
             self.no_duplicates_chunks.append(&mut group);
         }
         self.overlapped_chunks_set.clear();
