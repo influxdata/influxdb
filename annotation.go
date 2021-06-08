@@ -70,24 +70,24 @@ type AnnotationService interface {
 	// ListAnnotations lists all annotations matching the filter.
 	ListAnnotations(ctx context.Context, orgID platform.ID, filter AnnotationListFilter) (ReadAnnotations, error)
 	// GetAnnotation gets an annotation by id.
-	GetAnnotation(ctx context.Context, orgID, id platform.ID) (*AnnotationEvent, error)
+	GetAnnotation(ctx context.Context, id platform.ID) (*AnnotationEvent, error)
 	// DeleteAnnotations deletes annotations matching the filter.
 	DeleteAnnotations(ctx context.Context, orgID platform.ID, delete AnnotationDeleteFilter) error
 	// DeleteAnnotation deletes an annotation by id.
-	DeleteAnnotation(ctx context.Context, orgID, id platform.ID) error
+	DeleteAnnotation(ctx context.Context, id platform.ID) error
 	// UpdateAnnotation updates an annotation.
-	UpdateAnnotation(ctx context.Context, orgID, id platform.ID, update AnnotationCreate) (*AnnotationEvent, error)
+	UpdateAnnotation(ctx context.Context, id platform.ID, update AnnotationCreate) (*AnnotationEvent, error)
 
 	// ListStreams lists all streams matching the filter.
 	ListStreams(ctx context.Context, orgID platform.ID, filter StreamListFilter) ([]ReadStream, error)
 	// CreateOrUpdateStream creates or updates the matching stream by name.
-	CreateOrUpdateStream(ctx context.Context, orgID platform.ID, stream Stream) (*ReadStream, error)
+	CreateOrUpdateStream(ctx context.Context, stream Stream) (*ReadStream, error)
 	// UpdateStream updates the stream by the ID.
-	UpdateStream(ctx context.Context, orgID, id platform.ID, stream Stream) (*ReadStream, error)
+	UpdateStream(ctx context.Context, id platform.ID, stream Stream) (*ReadStream, error)
 	// DeleteStream deletes the stream metadata by name.
-	DeleteStream(ctx context.Context, orgID platform.ID, streamName string) error
+	DeleteStream(ctx context.Context, streamName string) error
 	// DeleteStreamByID deletes the stream metadata by id.
-	DeleteStreamByID(ctx context.Context, orgID, id platform.ID) error
+	DeleteStreamByID(ctx context.Context, id platform.ID) error
 }
 
 // AnnotationEvent contains fields for annotating an event.
