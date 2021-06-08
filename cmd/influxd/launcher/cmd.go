@@ -453,14 +453,14 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 		},
 		{
 			DestP: &o.StorageConfig.Data.WALMaxConcurrentWrites,
-			Flag: "storage-wal-max-concurrent-writes",
-			Desc: "The max number of writes that will attempt to write to the WAL at a time. (default <nprocs> * 2)",
+			Flag:  "storage-wal-max-concurrent-writes",
+			Desc:  "The max number of writes that will attempt to write to the WAL at a time. (default <nprocs> * 2)",
 		},
 		{
-			DestP: &o.StorageConfig.Data.WALMaxWriteDelay,
-			Flag: "storage-wal-max-write-delay",
+			DestP:   &o.StorageConfig.Data.WALMaxWriteDelay,
+			Flag:    "storage-wal-max-write-delay",
 			Default: o.StorageConfig.Data.WALMaxWriteDelay,
-			Desc: "The max amount of time a write will wait when the WAL already has `storage-wal-max-concurrent-writes` active writes. Set to 0 to disable the timeout.",
+			Desc:    "The max amount of time a write will wait when the WAL already has `storage-wal-max-concurrent-writes` active writes. Set to 0 to disable the timeout.",
 		},
 		{
 			DestP: &o.StorageConfig.Data.ValidateKeys,
