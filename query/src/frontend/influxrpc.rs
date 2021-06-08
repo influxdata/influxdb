@@ -1206,6 +1206,7 @@ impl ExpressionVisitor for SupportVisitor {
             Expr::BinaryExpr { op, .. } => {
                 match op {
                     Operator::Eq
+                    | Operator::NotEq
                     | Operator::Lt
                     | Operator::LtEq
                     | Operator::Gt
@@ -1217,7 +1218,7 @@ impl ExpressionVisitor for SupportVisitor {
                     | Operator::And
                     | Operator::Or => Ok(Recursion::Continue(self)),
                     // Unsupported (need to think about ramifications)
-                    Operator::NotEq | Operator::Modulus | Operator::Like | Operator::NotLike => {
+                    Operator::Modulus | Operator::Like | Operator::NotLike => {
                         Err(DataFusionError::NotImplemented(format!(
                             "Unsupported operator in gRPC: {:?} in expression {:?}",
                             op, expr
