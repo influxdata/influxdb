@@ -17,9 +17,14 @@ func TestInvalidChecksum(t *testing.T) {
 	defer os.RemoveAll(path)
 
 	verify := NewTSMVerifyCommand()
-	verify.SetOut(bytes.NewBufferString(""))
+	b := bytes.NewBufferString("")
+	verify.SetOut(b)
 	verify.SetArgs([]string{"--dir", path})
-	require.Error(t, verify.Execute())
+	require.NoError(t, verify.Execute())
+
+	out, err := ioutil.ReadAll(b)
+	require.NoError(t, err)
+	require.True(t, strings.Contains(string(out), "Broken Blocks: 1 / 1"))
 }
 
 func TestValidChecksum(t *testing.T) {
@@ -98,22 +103,21 @@ func newChecksumTest(t *testing.T, withError bool) string {
 
 	w, err := tsm1.NewTSMWriter(f)
 	require.NoError(t, err)
-	defer w.Close()
 
 	values := []tsm1.Value{tsm1.NewValue(0, "entry")}
 	require.NoError(t, w.Write([]byte("cpu"), values))
 
 	require.NoError(t, w.WriteIndex())
+	w.Close()
 
 	if withError {
 		fh, err := os.OpenFile(f.Name(), os.O_RDWR, 0)
 		require.NoError(t, err)
 		defer fh.Close()
 
-		_, err = fh.WriteAt([]byte("foobar"), 0)
+		written, err := fh.WriteAt([]byte("foob"), 5)
+		require.True(t, written == 4)
 		require.NoError(t, err)
-
-		require.NoError(t, w.WriteIndex())
 	}
 
 	return dir
