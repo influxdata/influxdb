@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
+// use data_types::partition_metadata::ColumnSummary;
 use datafusion::{
     datasource::{
         datasource::{Statistics, TableProviderFilterPushDown},
@@ -490,13 +491,162 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
     ) -> Arc<dyn ExecutionPlan> {
         //     // TODO
         //     // Currently return just like there are no overlaps, no duplicates
-        Arc::new(IOxReadFilterNode::new(
+
+        // Create the bottom node IOxRedFilterNode for this chunk
+        let input = Arc::new(IOxReadFilterNode::new(
             Arc::clone(&table_name),
             schema,
             vec![chunk],
             predicate,
-        ))
+        ));
+        
+
+        // Add the sort operator, SortExec, if needed
+        if !chunk.is_sorted() {
+            // Create SortExec plan
+            let input_schema = input.as_ref().schema();
+            //let key_summaries: Vec<ColumnSummary>; // Todo: waiting fro alamb to merge
+
+        }
+    
+        // Create DeduplicateExc
+
+        //
+        input
     }
+
+
+    //////////
+
+                    // let sort_expr = expr
+                //     .iter()
+                //     .map(|e| match e {
+                //         Expr::Sort {
+                //             expr,
+                //             asc,
+                //             nulls_first,
+                //         } => self.create_physical_sort_expr(
+                //             expr,
+                //             &input_schema,
+                //             SortOptions {
+                //                 descending: !*asc,
+                //                 nulls_first: *nulls_first,
+                //             },
+                //             ctx_state,
+                //         ),
+                //         _ => Err(DataFusionError::Plan(
+                //             "Sort only accepts sort expressions".to_string(),
+                //         )),
+                //     })
+                //     .collect::<Result<Vec<_>>>()?;
+
+                // Ok(Arc::new(SortExec::try_new(sort_expr, input)?))
+
+    ///////////
+    /////// TEST: create SortExec plan
+    // #[tokio::test]
+    // async fn test_lex_sort_by_float() -> Result<()> {
+    //     let schema = Arc::new(Schema::new(vec![
+    //         Field::new("a", DataType::Float32, true),
+    //         Field::new("b", DataType::Float64, true),
+    //     ]));
+
+    //     // define data.
+    //     let batch = RecordBatch::try_new(
+    //         schema.clone(),
+    //         vec![
+    //             Arc::new(Float32Array::from(vec![
+    //                 Some(f32::NAN),
+    //                 None,
+    //                 None,
+    //                 Some(f32::NAN),
+    //                 Some(1.0_f32),
+    //                 Some(1.0_f32),
+    //                 Some(2.0_f32),
+    //                 Some(3.0_f32),
+    //             ])),
+    //             Arc::new(Float64Array::from(vec![
+    //                 Some(200.0_f64),
+    //                 Some(20.0_f64),
+    //                 Some(10.0_f64),
+    //                 Some(100.0_f64),
+    //                 Some(f64::NAN),
+    //                 None,
+    //                 None,
+    //                 Some(f64::NAN),
+    //             ])),
+    //         ],
+    //     )?;
+
+    //     let sort_exec = Arc::new(SortExec::try_new(
+    //         vec![
+    //             PhysicalSortExpr {
+    //                 expr: col("a"),
+    //                 options: SortOptions {
+    //                     descending: true,
+    //                     nulls_first: true,
+    //                 },
+    //             },
+    //             PhysicalSortExpr {
+    //                 expr: col("b"),
+    //                 options: SortOptions {
+    //                     descending: false,
+    //                     nulls_first: false,
+    //                 },
+    //             },
+    //         ],
+    //         Arc::new(MemoryExec::try_new(&[vec![batch]], schema, None)?),
+    //     )?);
+
+    //     assert_eq!(DataType::Float32, *sort_exec.schema().field(0).data_type());
+    //     assert_eq!(DataType::Float64, *sort_exec.schema().field(1).data_type());
+
+    //     let result: Vec<RecordBatch> = collect(sort_exec.clone()).await?;
+    //     assert!(sort_exec.metrics().get("sortTime").unwrap().value() > 0);
+    //     assert_eq!(sort_exec.metrics().get("outputRows").unwrap().value(), 8);
+    //     assert_eq!(result.len(), 1);
+
+    //     let columns = result[0].columns();
+
+    //     assert_eq!(DataType::Float32, *columns[0].data_type());
+    //     assert_eq!(DataType::Float64, *columns[1].data_type());
+
+    //     let a = as_primitive_array::<Float32Type>(&columns[0]);
+    //     let b = as_primitive_array::<Float64Type>(&columns[1]);
+
+    //     // convert result to strings to allow comparing to expected result containing NaN
+    //     let result: Vec<(Option<String>, Option<String>)> = (0..result[0].num_rows())
+    //         .map(|i| {
+    //             let aval = if a.is_valid(i) {
+    //                 Some(a.value(i).to_string())
+    //             } else {
+    //                 None
+    //             };
+    //             let bval = if b.is_valid(i) {
+    //                 Some(b.value(i).to_string())
+    //             } else {
+    //                 None
+    //             };
+    //             (aval, bval)
+    //         })
+    //         .collect();
+
+    //     let expected: Vec<(Option<String>, Option<String>)> = vec![
+    //         (None, Some("10".to_owned())),
+    //         (None, Some("20".to_owned())),
+    //         (Some("NaN".to_owned()), Some("100".to_owned())),
+    //         (Some("NaN".to_owned()), Some("200".to_owned())),
+    //         (Some("3".to_owned()), Some("NaN".to_owned())),
+    //         (Some("2".to_owned()), None),
+    //         (Some("1".to_owned()), Some("NaN".to_owned())),
+    //         (Some("1".to_owned()), None),
+    //     ];
+
+    //     assert_eq!(expected, result);
+
+    //     Ok(())
+    // }
+    /////////////
 
     /// Return the simplest IOx scan plan of a given chunk which is IOxReadFilterNode
     /// ```text

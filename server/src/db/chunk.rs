@@ -442,6 +442,21 @@ impl PartitionChunk for DbChunk {
             }
         }
     }
+
+    fn has_duplicates(&self) -> bool {
+        match &self.state {
+            State::MutableBuffer { .. } => true,
+            State::ReadBuffer { .. } => true,  // TODO: should be false after compaction
+            State::ParquetFile { .. } => true, // TODO: should be false after compaction
+    }
+
+    // TODOs: return the right value. For now the chunk is assumed to be not sorted
+    fn is_sorted(&self) -> bool {
+        match &self.state {
+            State::MutableBuffer { .. } => false,
+            State::ReadBuffer { .. } => false, 
+            State::ParquetFile { .. } => false,
+    }
 }
 
 impl Prunable for DbChunk {

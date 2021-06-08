@@ -117,6 +117,12 @@ pub trait PartitionChunk: Prunable + Debug + Send + Sync {
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error>;
+
+    /// Returns true if this chunk has duplicates
+    fn has_duplicates(&self) -> bool;
+
+    /// Returns true if data of this chunk is sorted
+    fn is_sorted(&self) -> bool;
 }
 
 #[async_trait]
