@@ -1,4 +1,4 @@
-package seriesfile
+package inspect
 
 import (
 	"fmt"
@@ -9,9 +9,85 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
+
+type args struct {
+	dir        string
+	db         string
+	seriesFile string
+	verbose    bool
+	concurrent int
+}
+
+func NewVerifySeriesfileCommand() *cobra.Command {
+	var arguments args
+	cmd := &cobra.Command{
+		Use:   "verify-seriesfile",
+		Short: "Verifies the integrity of series files.",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.SetOut(os.Stdout)
+
+			config := logger.NewConfig()
+			config.Level = zapcore.WarnLevel
+			if arguments.verbose {
+				config.Level = zapcore.InfoLevel
+			}
+			log, err := config.New(os.Stderr)
+			if err != nil {
+				return err
+			}
+
+			v := NewVerify()
+			v.Logger = log
+			v.Concurrent = arguments.concurrent
+
+			if arguments.seriesFile != "" {
+				_, err := v.VerifySeriesFile(arguments.seriesFile)
+				return err
+			}
+
+			if arguments.db != "" {
+				_, err := v.VerifySeriesFile(filepath.Join(arguments.dir, arguments.db, "_series"))
+				return err
+			}
+
+			dbs, err := ioutil.ReadDir(arguments.dir)
+			if err != nil {
+				return err
+			}
+
+			for _, db := range dbs {
+				if !db.IsDir() {
+					continue
+				}
+				_, err := v.VerifySeriesFile(filepath.Join(arguments.dir, db.Name(), "_series"))
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&arguments.dir, "dir", filepath.Join(os.Getenv("HOME"), ".influxdbv2", "engine", "data"),
+		"Data Directory.")
+	cmd.Flags().StringVar(&arguments.db, "db", "",
+		"Only use this database inside of the data directory.")
+	cmd.Flags().StringVar(&arguments.seriesFile, "series-file", "",
+		"Path to a series file. This overrides --db and --dir.")
+	cmd.Flags().BoolVar(&arguments.verbose, "v", false,
+		"Verbose output.")
+	cmd.Flags().IntVar(&arguments.concurrent, "c", runtime.GOMAXPROCS(0),
+		"How many concurrent workers to run.")
+
+	return cmd
+}
 
 // verifyResult contains the result of a Verify... call
 type verifyResult struct {
