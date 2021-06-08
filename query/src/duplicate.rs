@@ -4,10 +4,8 @@
 //! DataModel have been written in via multiple distinct line protocol
 //! writes (and thus are stored in separate rows)
 
-use std::cmp::Ordering;
-
 use crate::pruning::Prunable;
-use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatOverlap, Statistics};
+use data_types::partition_metadata::{ColumnSummary, StatOverlap, Statistics};
 use snafu::Snafu;
 
 #[derive(Debug, Snafu)]
@@ -131,29 +129,7 @@ where
     /// Create a new view for the specified chunk at index `index`,
     /// computing the columns to be used in the primary key comparison
     pub fn new(index: usize, chunk: &'a C) -> Self {
-        use InfluxDbType::*;
-        let mut key_summaries: Vec<&'a ColumnSummary> = chunk
-            .summary()
-            .columns
-            .iter()
-            .filter(|s| match s.influxdb_type {
-                Some(Tag) => true,
-                Some(Field) => false,
-                Some(Timestamp) => true,
-                None => false,
-            })
-            .collect();
-
-        // Now, sort lexographically (but put timestamp last)
-        key_summaries.sort_by(
-            |a, b| match (a.influxdb_type.as_ref(), b.influxdb_type.as_ref()) {
-                (Some(Tag), Some(Tag)) => a.name.cmp(&b.name),
-                (Some(Timestamp), Some(Tag)) => Ordering::Greater,
-                (Some(Tag), Some(Timestamp)) => Ordering::Less,
-                (Some(Timestamp), Some(Timestamp)) => panic!("multiple timestamps in summary"),
-                _ => panic!("Unexpected types in key summary"),
-            },
-        );
+        let key_summaries = chunk.summary().primary_key_columns();
 
         Self {
             index,

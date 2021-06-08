@@ -1,7 +1,7 @@
 //! This module contains structs that describe the metadata for a partition
 //! including schema, summary statistics, and file locations in storage.
 
-use std::{borrow::Cow, mem};
+use std::{borrow::Cow, cmp::Ordering, mem};
 
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
@@ -79,8 +79,9 @@ pub struct UnaggregatedTableSummary {
     pub table: TableSummary,
 }
 
-/// Metadata and statistics information for a table, aggregated across
-/// chunks.
+/// Metadata and statistics information for a table. This can be
+/// either for the portion of a Table stored within a single chunk or
+/// aggregated across chunks.
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct TableSummary {
     /// Table name
@@ -140,6 +141,37 @@ impl TableSummary {
     /// Get the column summary by name.
     pub fn column(&self, name: &str) -> Option<&ColumnSummary> {
         self.columns.iter().find(|c| c.name == name)
+    }
+
+    /// Return the columns used for the "primary key" in this table.
+    ///
+    /// Currently this relies on the InfluxDB data model annotations
+    /// for what columns to include in the key columns
+    pub fn primary_key_columns(&self) -> Vec<&ColumnSummary> {
+        use InfluxDbType::*;
+        let mut key_summaries: Vec<&ColumnSummary> = self
+            .columns
+            .iter()
+            .filter(|s| match s.influxdb_type {
+                Some(Tag) => true,
+                Some(Field) => false,
+                Some(Timestamp) => true,
+                None => false,
+            })
+            .collect();
+
+        // Now, sort lexographically (but put timestamp last)
+        key_summaries.sort_by(
+            |a, b| match (a.influxdb_type.as_ref(), b.influxdb_type.as_ref()) {
+                (Some(Tag), Some(Tag)) => a.name.cmp(&b.name),
+                (Some(Timestamp), Some(Tag)) => Ordering::Greater,
+                (Some(Tag), Some(Timestamp)) => Ordering::Less,
+                (Some(Timestamp), Some(Timestamp)) => panic!("multiple timestamps in summary"),
+                _ => panic!("Unexpected types in key summary"),
+            },
+        );
+
+        key_summaries
     }
 }
 
