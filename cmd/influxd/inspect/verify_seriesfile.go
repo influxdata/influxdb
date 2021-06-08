@@ -1,6 +1,7 @@
 package inspect
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -69,19 +70,18 @@ func NewVerifySeriesfileCommand() *cobra.Command {
 					continue
 				}
 				filePath := filepath.Join(arguments.dir, db.Name(), "_series")
-				_, errNew := v.VerifySeriesFile(filePath)
-				if errNew != nil {
+				_, err := v.VerifySeriesFile(filePath)
+				if err != nil {
 					v.Logger.Error("Failed to verify series file",
 						zap.String("filename", filePath),
-						zap.Error(errNew))
+						zap.Error(err))
 					hasError = true
-					err = errNew
 				}
 			}
 			if hasError {
-				v.Logger.Info("Some files failed verification, see logs for details")
+				return errors.New("some files failed verification, see logs for details")
 			}
-			return err
+			return nil
 		},
 	}
 
