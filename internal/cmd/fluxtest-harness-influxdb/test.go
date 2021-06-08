@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/influxdata/flux"
@@ -21,6 +23,12 @@ import (
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/spf13/cobra"
 )
+
+type testFlags struct {
+	wait bool
+}
+
+var flags testFlags
 
 type testExecutor struct {
 	ctx         context.Context
@@ -99,11 +107,45 @@ func (t *testExecutor) Run(pkg *ast.Package) error {
 	}
 
 	// During the first execution, we are performing the writes
-	// that are in the testcase. We do not care about errors.
-	_ = t.executeWithOptions(bucketOpt, orgOpt, t.writeOptAST, pkg)
+	// that are in the testcase.
+	err := t.executeWithOptions(bucketOpt, orgOpt, t.writeOptAST, pkg)
+	if err != nil {
+		// Some test assertions can fail in the first pass, so those errors do not fail the test case.
+		// However those errors can be useful when the error is unexpected, therefore we simply log the error here.
+		fmt.Printf("Error from write pass: %s\n", err)
+	}
 
 	// Execute the read pass.
-	return t.executeWithOptions(bucketOpt, orgOpt, t.readOptAST, pkg)
+	err = t.executeWithOptions(bucketOpt, orgOpt, t.readOptAST, pkg)
+	if flags.wait {
+		// TODO(nathanielc): When the executor is given access to the test name,
+		// make the configName a function of the test name.
+		configName := "flux-test"
+		err := createInfluxDBConfig(t.ctx, configName, t.l.URL(), t.l.Org.Name, t.l.Auth.Token)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Use: `influx -c %s` to connect to the running test instance.\n", configName)
+		fmt.Printf("Test bucket is: %q\n", b.Name)
+		fmt.Println("Waiting, press enter to continue.")
+		wait := make(chan struct{})
+		go func() {
+			scanner := bufio.NewScanner(os.Stdin)
+			scanner.Scan()
+			close(wait)
+		}()
+
+		// wait for input on stdin or context cancelled
+		select {
+		case <-wait:
+		case <-t.ctx.Done():
+		}
+		err = rmInfluxDBConfig(t.ctx, configName)
+		if err != nil {
+			return err
+		}
+	}
+	return err
 }
 
 func (t *testExecutor) executeWithOptions(bucketOpt, orgOpt *ast.OptionStatement, optionsAST *ast.File, pkg *ast.Package) error {
@@ -234,8 +276,26 @@ func tryExec(cmd *cobra.Command) (err error) {
 func main() {
 	c := cmd.TestCommand(NewTestExecutor)
 	c.Use = "fluxtest-harness-influxdb"
+	c.Flags().BoolVarP(&flags.wait, "wait", "w", false, "Wait for a kill signal before shutting down the InfluxDB test instances.")
 	if err := tryExec(c); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+func createInfluxDBConfig(ctx context.Context, name, host, org, token string) error {
+	cmd := exec.CommandContext(ctx, "influx", "config", "create", "-n", name, "-u", host, "-o", org, "-t", token)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("Failed to create influx config. Error: %s Output: %s", err, string(out))
+	}
+	return nil
+}
+func rmInfluxDBConfig(ctx context.Context, name string) error {
+	cmd := exec.CommandContext(ctx, "influx", "config", "rm", name)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("Failed to remove influx config. Error: %s Output: %s", err, string(out))
+	}
+	return nil
 }

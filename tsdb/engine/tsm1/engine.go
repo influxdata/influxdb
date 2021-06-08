@@ -770,6 +770,7 @@ func (e *Engine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.done = nil // Ensures that the channel will not be closed again.
+	e.fieldset.Close()
 
 	if err := e.FileStore.Close(); err != nil {
 		return err
@@ -1997,7 +1998,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			level2Groups := e.CompactionPlan.PlanLevel(2)
 			level3Groups := e.CompactionPlan.PlanLevel(3)
 			level4Groups := e.CompactionPlan.Plan(e.LastModified())
-			atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, int64(len(level4Groups)))
+			atomic.StoreInt64(&e.stats.TSMFullCompactionsQueue, int64(len(level4Groups)))
 
 			// If no full compactions are need, see if an optimize is needed
 			if len(level4Groups) == 0 {
@@ -2020,15 +2021,15 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			if level, runnable := e.scheduler.next(); runnable {
 				switch level {
 				case 1:
-					if e.compactHiPriorityLevel(level1Groups[0], 1, false, wg) {
+					if e.compactLevel(level1Groups[0], 1, false, wg) {
 						level1Groups = level1Groups[1:]
 					}
 				case 2:
-					if e.compactHiPriorityLevel(level2Groups[0], 2, false, wg) {
+					if e.compactLevel(level2Groups[0], 2, false, wg) {
 						level2Groups = level2Groups[1:]
 					}
 				case 3:
-					if e.compactLoPriorityLevel(level3Groups[0], 3, true, wg) {
+					if e.compactLevel(level3Groups[0], 3, true, wg) {
 						level3Groups = level3Groups[1:]
 					}
 				case 4:
@@ -2047,15 +2048,14 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 	}
 }
 
-// compactHiPriorityLevel kicks off compactions using the high priority policy. It returns
+// compactLevel kicks off compactions using the level strategy. It returns
 // true if the compaction was started
-func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int, fast bool, wg *sync.WaitGroup) bool {
+func (e *Engine) compactLevel(grp CompactionGroup, level int, fast bool, wg *sync.WaitGroup) bool {
 	s := e.levelCompactionStrategy(grp, fast, level)
 	if s == nil {
 		return false
 	}
 
-	// Try hi priority limiter, otherwise steal a little from the low priority if we can.
 	if e.compactionLimiter.TryTake() {
 		atomic.AddInt64(&e.stats.TSMCompactionsActive[level-1], 1)
 
@@ -2073,31 +2073,6 @@ func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int, fast boo
 	}
 
 	// Return the unused plans
-	return false
-}
-
-// compactLoPriorityLevel kicks off compactions using the lo priority policy. It returns
-// the plans that were not able to be started
-func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level int, fast bool, wg *sync.WaitGroup) bool {
-	s := e.levelCompactionStrategy(grp, fast, level)
-	if s == nil {
-		return false
-	}
-
-	// Try the lo priority limiter, otherwise steal a little from the high priority if we can.
-	if e.compactionLimiter.TryTake() {
-		atomic.AddInt64(&e.stats.TSMCompactionsActive[level-1], 1)
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer atomic.AddInt64(&e.stats.TSMCompactionsActive[level-1], -1)
-			defer e.compactionLimiter.Release()
-			s.Apply()
-			// Release the files in the compaction plan
-			e.CompactionPlan.Release([]CompactionGroup{s.group})
-		}()
-		return true
-	}
 	return false
 }
 

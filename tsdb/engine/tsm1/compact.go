@@ -834,7 +834,7 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 	// Enable throttling if we have lower cardinality or snapshots are going fast.
 	throttle := card < 3e6 && c.snapshotLatencies.avg() < 15*time.Second
 
-	// Write snapshost concurrently if cardinality is relatively high.
+	// Write snapshot concurrently if cardinality is relatively high.
 	concurrency := card / 2e6
 	if concurrency < 1 {
 		concurrency = 1

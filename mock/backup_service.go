@@ -164,6 +164,43 @@ func (mr *MockSqlBackupRestoreServiceMockRecorder) UnlockSqlStore() *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnlockSqlStore", reflect.TypeOf((*MockSqlBackupRestoreService)(nil).UnlockSqlStore))
 }
 
+// MockBucketManifestWriter is a mock of BucketManifestWriter interface.
+type MockBucketManifestWriter struct {
+	ctrl     *gomock.Controller
+	recorder *MockBucketManifestWriterMockRecorder
+}
+
+// MockBucketManifestWriterMockRecorder is the mock recorder for MockBucketManifestWriter.
+type MockBucketManifestWriterMockRecorder struct {
+	mock *MockBucketManifestWriter
+}
+
+// NewMockBucketManifestWriter creates a new mock instance.
+func NewMockBucketManifestWriter(ctrl *gomock.Controller) *MockBucketManifestWriter {
+	mock := &MockBucketManifestWriter{ctrl: ctrl}
+	mock.recorder = &MockBucketManifestWriterMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockBucketManifestWriter) EXPECT() *MockBucketManifestWriterMockRecorder {
+	return m.recorder
+}
+
+// WriteManifest mocks base method.
+func (m *MockBucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteManifest", ctx, w)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteManifest indicates an expected call of WriteManifest.
+func (mr *MockBucketManifestWriterMockRecorder) WriteManifest(ctx, w interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteManifest", reflect.TypeOf((*MockBucketManifestWriter)(nil).WriteManifest), ctx, w)
+}
+
 // MockRestoreService is a mock of RestoreService interface.
 type MockRestoreService struct {
 	ctrl     *gomock.Controller

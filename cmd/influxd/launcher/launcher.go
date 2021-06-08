@@ -19,6 +19,7 @@ import (
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/authorizer"
+	"github.com/influxdata/influxdb/v2/backup"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/checks"
 	"github.com/influxdata/influxdb/v2/chronograf/server"
@@ -704,6 +705,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	ts.BucketService = storage.NewBucketService(m.log, ts.BucketService, m.engine)
 	ts.BucketService = dbrp.NewBucketService(m.log, ts.BucketService, dbrpSvc)
 
+	bucketManifestWriter := backup.NewBucketManifestWriter(ts, metaClient)
+
 	onboardingLogger := m.log.With(zap.String("handler", "onboard"))
 	onboardOpts := []tenant.OnboardServiceOptionFn{tenant.WithOnboardingLogger(onboardingLogger)}
 	if opts.TestingAlwaysAllowSetup {
@@ -774,6 +777,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		DeleteService:           deleteService,
 		BackupService:           backupService,
 		SqlBackupRestoreService: m.sqlStore,
+		BucketManifestWriter:    bucketManifestWriter,
 		RestoreService:          restoreService,
 		AuthorizationService:    authSvc,
 		AuthorizationV1Service:  authSvcV1,

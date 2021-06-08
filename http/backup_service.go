@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/authorizer"
@@ -27,6 +26,7 @@ type BackupBackend struct {
 
 	BackupService           influxdb.BackupService
 	SqlBackupRestoreService influxdb.SqlBackupRestoreService
+	BucketManifestWriter    influxdb.BucketManifestWriter
 }
 
 // NewBackupBackend returns a new instance of BackupBackend.
@@ -37,6 +37,7 @@ func NewBackupBackend(b *APIBackend) *BackupBackend {
 		HTTPErrorHandler:        b.HTTPErrorHandler,
 		BackupService:           b.BackupService,
 		SqlBackupRestoreService: b.SqlBackupRestoreService,
+		BucketManifestWriter:    b.BucketManifestWriter,
 	}
 }
 
@@ -48,6 +49,7 @@ type BackupHandler struct {
 
 	BackupService           influxdb.BackupService
 	SqlBackupRestoreService influxdb.SqlBackupRestoreService
+	BucketManifestWriter    influxdb.BucketManifestWriter
 }
 
 const (
@@ -67,6 +69,7 @@ func NewBackupHandler(b *BackupBackend) *BackupHandler {
 		Logger:                  b.Logger,
 		BackupService:           b.BackupService,
 		SqlBackupRestoreService: b.SqlBackupRestoreService,
+		BucketManifestWriter:    b.BucketManifestWriter,
 	}
 
 	h.HandlerFunc(http.MethodGet, backupKVStorePath, h.handleBackupKVStore)
@@ -151,42 +154,44 @@ func (h *BackupHandler) handleBackupMetadata(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Content-Type", "multipart/mixed; boundary="+dataWriter.Boundary())
 
 	parts := []struct {
-		fieldname string
-		filename  string
-		writeFn   func(io.Writer) error
+		contentType        string
+		contentDisposition string
+		writeFn            func(io.Writer) error
 	}{
 		{
-			"kv",
-			fmt.Sprintf("%s.bolt", baseName),
+			"application/octet-stream",
+			fmt.Sprintf("attachment; name=%q; filename=%q", "kv", fmt.Sprintf("%s.bolt", baseName)),
 			func(fw io.Writer) error {
 				return h.BackupService.BackupKVStore(ctx, fw)
 			},
 		},
 		{
-			"sql",
-			fmt.Sprintf("%s.sqlite", baseName),
+			"application/octet-stream",
+			fmt.Sprintf("attachment; name=%q; filename=%q", "sql", fmt.Sprintf("%s.sqlite", baseName)),
 			func(fw io.Writer) error {
 				return h.SqlBackupRestoreService.BackupSqlStore(ctx, fw)
 			},
 		},
 		{
-			"buckets",
-			fmt.Sprintf("%s.json", baseName),
+			"application/json; charset=utf-8",
+			fmt.Sprintf("attachment; name=%q; filename=%q", "buckets", fmt.Sprintf("%s.json", baseName)),
 			func(fw io.Writer) error {
-				_, err := io.Copy(fw, strings.NewReader("buckets json - to be implemented"))
-				return err
+				return h.BucketManifestWriter.WriteManifest(ctx, fw)
 			},
 		},
 	}
 
 	for _, p := range parts {
-		fw, err := dataWriter.CreateFormFile(p.fieldname, p.filename)
+		pw, err := dataWriter.CreatePart(map[string][]string{
+			"Content-Type":        {p.contentType},
+			"Content-Disposition": {p.contentDisposition},
+		})
 		if err != nil {
 			h.HandleHTTPError(ctx, err, w)
 			return
 		}
 
-		if err := p.writeFn(fw); err != nil {
+		if err := p.writeFn(pw); err != nil {
 			h.HandleHTTPError(ctx, err, w)
 			return
 		}

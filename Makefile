@@ -130,12 +130,6 @@ test-flux:
 test-tls:
 	@./etc/test-tls.sh
 
-test-influxql-integration:
-	$(GO_TEST) -mod=readonly ./influxql/_v1tests
-
-test-influxql-validation:
-	$(GO_TEST) -mod=readonly ./influxql/_v1validation
-
 test-integration: GO_TAGS=integration
 test-integration:
 	$(GO_TEST) -count=1 $(GO_TEST_PATHS)

@@ -112,7 +112,9 @@ type WAL struct {
 	SegmentSize int
 
 	// statistics for the WAL
-	stats   *WALStatistics
+	stats *WALStatistics
+
+	// limiter limits the max concurrency of waiting WAL writes.
 	limiter limiter.Fixed
 }
 
@@ -409,6 +411,9 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	// limit how many concurrent encodings can be in flight.  Since we can only
 	// write one at a time to disk, a slow disk can cause the allocations below
 	// to increase quickly.  If we're backed up, wait until others have completed.
+	l.limiter.Take()
+	defer l.limiter.Release()
+
 	bytes := bytesPool.Get(entry.MarshalSize())
 
 	b, err := entry.Encode(bytes)
