@@ -14,6 +14,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21543](https://github.com/influxdata/influxdb/pull/21543): Updated `influxd` configuration flag `--store` to work with string values `disk` or `memory`. Memory continues to store metadata in-memory for testing; `disk` will persist metadata to disk via bolt and SQLite
 1. [21547](https://github.com/influxdata/influxdb/pull/21547): Allow hiding the tooltip independently of the static legend
 1. [21584](https://github.com/influxdata/influxdb/pull/21584): Added the `api/v2/backup/metadata` endpoint for backing up both KV and SQL metadata, and the `api/v2/restore/sql` for restoring SQL metadata.
+1. [21635](https://github.com/influxdata/influxdb/pull/21635): Port `influxd inspect verify-seriesfile` to 2.x
 
 ### Bug Fixes
 

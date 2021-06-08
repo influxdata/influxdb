@@ -1,4 +1,4 @@
-package seriesfile_test
+package inspect
 
 import (
 	"fmt"
@@ -9,33 +9,40 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/cmd/influx_inspect/verify/seriesfile"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"
-	"go.uber.org/zap"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
+
+func TestVerifies_BasicCobra(t *testing.T) {
+	test := NewTest(t)
+	defer os.RemoveAll(test.Path)
+
+	verify := NewVerifySeriesfileCommand()
+	verify.SetArgs([]string{"--dir", test.Path})
+	require.NoError(t, verify.Execute())
+}
 
 func TestVerifies_Valid(t *testing.T) {
 	test := NewTest(t)
-	defer test.Close()
+	defer os.RemoveAll(test.Path)
 
-	verify := seriesfile.NewVerify()
-	if testing.Verbose() {
-		verify.Logger, _ = zap.NewDevelopment()
-	}
+	verify := NewVerify()
+	verify.Logger = zaptest.NewLogger(t)
+
 	passed, err := verify.VerifySeriesFile(test.Path)
-	test.AssertNoError(err)
-	test.Assert(passed)
+	require.NoError(t, err)
+	require.True(t, passed)
 }
 
 func TestVerifies_Invalid(t *testing.T) {
 	test := NewTest(t)
-	defer test.Close()
+	defer os.RemoveAll(test.Path)
 
-	test.AssertNoError(filepath.Walk(test.Path, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
+	require.NoError(t, filepath.Walk(test.Path, func(path string, info os.FileInfo, err error) error {
+		require.NoError(t, err)
+
 		if info.IsDir() {
 			return nil
 		}
@@ -44,24 +51,23 @@ func TestVerifies_Invalid(t *testing.T) {
 		defer test.Restore(path)
 
 		fh, err := os.OpenFile(path, os.O_RDWR, 0)
-		test.AssertNoError(err)
+		require.NoError(t, err)
 		defer fh.Close()
 
-		_, err = fh.WriteAt([]byte("BOGUS"), 0)
-		test.AssertNoError(err)
-		test.AssertNoError(fh.Close())
+		_, err = fh.WriteAt([]byte("foobar"), 0)
+		require.NoError(t, err)
+		require.NoError(t, fh.Close())
 
-		passed, err := seriesfile.NewVerify().VerifySeriesFile(test.Path)
-		test.AssertNoError(err)
-		test.Assert(!passed)
+		verify := NewVerify()
+		verify.Logger = zaptest.NewLogger(t)
+
+		passed, err := verify.VerifySeriesFile(test.Path)
+		require.NoError(t, err)
+		require.False(t, passed)
 
 		return nil
 	}))
 }
-
-//
-// helpers
-//
 
 type Test struct {
 	*testing.T
@@ -72,9 +78,7 @@ func NewTest(t *testing.T) *Test {
 	t.Helper()
 
 	dir, err := ioutil.TempDir("", "verify-seriesfile-")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// create a series file in the directory
 	err = func() error {
@@ -135,39 +139,21 @@ func NewTest(t *testing.T) *Test {
 	}
 }
 
-func (t *Test) Close() {
-	os.RemoveAll(t.Path)
-}
-
-func (t *Test) AssertNoError(err error) {
-	t.Helper()
-	if err != nil {
-		t.Fatal("unexpected error:", err)
-	}
-}
-
-func (t *Test) Assert(x bool) {
-	t.Helper()
-	if !x {
-		t.Fatal("unexpected condition")
-	}
-}
-
 // Backup makes a copy of the path for a later Restore.
 func (t *Test) Backup(path string) {
 	in, err := os.Open(path)
-	t.AssertNoError(err)
+	require.NoError(t.T, err)
 	defer in.Close()
 
 	out, err := os.Create(path + ".backup")
-	t.AssertNoError(err)
+	require.NoError(t.T, err)
 	defer out.Close()
 
 	_, err = io.Copy(out, in)
-	t.AssertNoError(err)
+	require.NoError(t.T, err)
 }
 
 // Restore restores the file at the path to the time when Backup was called last.
 func (t *Test) Restore(path string) {
-	t.AssertNoError(os.Rename(path+".backup", path))
+	require.NoError(t.T, os.Rename(path+".backup", path))
 }
