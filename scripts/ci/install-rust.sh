@@ -15,11 +15,11 @@ OUR_RUSTUP_SHA="40229562d4fa60e102646644e473575bae22ff56c3a706898a47d7241c9c031e
 
 # Download rustup script
 curl --proto '=https' --tlsv1.2 -sSf \
-  https://raw.githubusercontent.com/rust-lang/rustup/${RUSTUP_LATEST_VERSION}/rustup-init.sh -O && \
+  https://raw.githubusercontent.com/rust-lang/rustup/${RUSTUP_LATEST_VERSION}/rustup-init.sh -O
 
 # Verify checksum of rustup script. Exit with error if check fails.
 echo "${OUR_RUSTUP_SHA} rustup-init.sh" | sha256sum --check -- \
-    || { echo "Checksum problem!"; exit 1; } && \
+    || { echo "Checksum problem!"; exit 1; }
 
 # Run rustup.
 sh rustup-init.sh --default-toolchain "$RUST_LATEST_VERSION" -y
