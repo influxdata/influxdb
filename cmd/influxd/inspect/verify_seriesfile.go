@@ -63,17 +63,23 @@ func NewVerifySeriesfileCommand() *cobra.Command {
 				return err
 			}
 
+			var hasError bool
 			for _, db := range dbs {
 				if !db.IsDir() {
 					continue
 				}
-				_, errNew := v.VerifySeriesFile(filepath.Join(arguments.dir, db.Name(), "_series"))
+				filePath := filepath.Join(arguments.dir, db.Name(), "_series")
+				_, errNew := v.VerifySeriesFile(filePath)
 				if errNew != nil {
 					v.Logger.Error("Failed to verify series file",
-						zap.String("filename", fmt.Sprintf(filepath.Join(arguments.dir, db.Name(), "_series"))),
+						zap.String("filename", filePath),
 						zap.Error(errNew))
+					hasError = true
 					err = errNew
 				}
+			}
+			if hasError {
+				v.Logger.Info("Some files failed verification, see logs for details")
 			}
 			return err
 		},

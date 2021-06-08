@@ -58,7 +58,10 @@ func TestVerifies_Invalid(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, fh.Close())
 
-		passed, err := NewVerify().VerifySeriesFile(test.Path)
+		verify := NewVerify()
+		verify.Logger = zaptest.NewLogger(t)
+
+		passed, err := verify.VerifySeriesFile(test.Path)
 		require.NoError(t, err)
 		require.False(t, passed)
 
