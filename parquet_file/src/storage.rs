@@ -422,29 +422,13 @@ impl Storage {
 
         let (tx, rx) = tokio::sync::mpsc::channel(2);
 
-        // Do an an async dance here to make sure any error returned
+        // Run async dance here to make sure any error returned
         // `download_and_scan_parquet` is sent back to the reader and
         // not silently ignored
         tokio::task::spawn(async move {
-            // Channels to/from the parquet reader
-            let (parquet_tx, mut parquet_rx) = tokio::sync::mpsc::channel(2);
-
-            let download_future =
-                Self::download_and_scan_parquet(predicate, projection, path, store, parquet_tx);
-
-            // task whose only job in life is to shuffle messages from
-            // the parquet reader to the final output receiver
-            let captured_tx = tx.clone();
-            tokio::task::spawn(async move {
-                while let Some(msg) = parquet_rx.recv().await {
-                    if let Err(e) = captured_tx.send(msg).await {
-                        debug!(%e, "Receiver hung up on parquet writer");
-                    }
-                }
-            });
-
-            // in this task, wait for the future that is doing the actual work on this task
-            let download_result = download_future.await;
+            let download_result =
+                Self::download_and_scan_parquet(predicate, projection, path, store, tx.clone())
+                    .await;
 
             // If there was an error returned from download_and_scan_parquet send it back to the receiver.
             if let Err(e) = download_result {
