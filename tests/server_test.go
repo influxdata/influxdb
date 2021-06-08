@@ -35,6 +35,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Global server used by benchmarks
@@ -9962,6 +9963,36 @@ Table: keys: [_field, _measurement, k]
 	buf.Reset()
 	assert.EqualError(t, c.ExecuteFluxQuery(buf, `v1.databases()`), "{\"error\":\"error @1:1-1:3: undefined identifier v1\"}")
 	assert.Equal(t, "", buf.String())
+}
+
+func TestGroupByEndToEnd(t *testing.T) {
+	config := NewConfig()
+	config.HTTPD.FluxEnabled = true
+	s := OpenServer(config)
+	defer s.Close()
+
+	_, err := s.CreateDatabase(t.Name())
+	require.NoError(t, err)
+	defer s.DropDatabase(t.Name())
+
+	r := rand.New(rand.NewSource(1000))
+	abc := []string{"a", "b", "c"}
+	startDate := time.Date(2021, 5, 10, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2021, 5, 15, 0, 0, 0, 0, time.UTC)
+	buf := ""
+	for date := startDate; date.Before(endDate); date = date.Add(1 * time.Hour) {
+		line := fmt.Sprintf(`m0,tenant_id=t%s,env=e%s total_count=%d %d`,
+			abc[r.Intn(3)], abc[r.Intn(3)], 10+r.Intn(5), date.UnixNano())
+		buf += line + "\n"
+	}
+	points, err := models.ParsePointsString(buf)
+	require.NoError(t, err)
+	require.NoError(t, s.WritePoints(t.Name(), "autogen", models.ConsistencyLevelAny, nil, points))
+
+	results, err := s.QueryWithParams(`SELECT SUM(ncount) as scount FROM (SELECT NON_NEGATIVE_DIFFERENCE(total_count) as ncount FROM m0 WHERE time >= '2021-05-10T00:00:00Z' AND time <= '2021-05-15T23:59:59Z' AND tenant_id='tb' GROUP BY env) WHERE time >= '2021-05-10T00:00:00Z' AND time <= '2021-05-15T23:59:59Z' GROUP BY time(1d)`, url.Values{"db": []string{t.Name()}})
+	require.NoError(t, err)
+	// This tests a regression in 1.9.0 where this returned multiple rows for each day due to an incorrect attempted optimization of the merge sort iteration.
+	assert.Equal(t, `{"results":[{"statement_id":0,"series":[{"name":"m0","columns":["time","scount"],"values":[["2021-05-10T00:00:00Z",10],["2021-05-11T00:00:00Z",5],["2021-05-12T00:00:00Z",3],["2021-05-13T00:00:00Z",7],["2021-05-14T00:00:00Z",4],["2021-05-15T00:00:00Z",null]]}]}]}`, results)
 }
 
 func TestFluxBasicEndToEnd(t *testing.T) {
