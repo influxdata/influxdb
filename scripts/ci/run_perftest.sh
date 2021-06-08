@@ -1,12 +1,5 @@
 #!/usr/bin/sh -ex
 
-# NOTE: because this script is used as a template file by Terraform, variables
-# cannot be specified using braces, even in comments, as Terraform will
-# interpret these as interpolation strings. Variables must either lack braces,
-# or else use two $ symbols, e.g. $${my_non_template_interpolation_variable},
-# though this is not recommended, as the script will fail to work when run
-# locally
-
 # Install Telegraf
 wget -qO- https://repos.influxdata.com/influxdb.key | apt-key add -
 echo "deb https://repos.influxdata.com/ubuntu focal stable" | tee /etc/apt/sources.list.d/influxdb.list
@@ -80,15 +73,20 @@ for scale in 50 100 500; do
   # generate bulk data
   scale_string="scalevar-$scale"
   scale_seed_string="$scale_string-seed-$seed"
-  data_fname="influx-bulk-records-usecase-devops-$scale_seed_string.gz"
-  $GOPATH/bin/bulk_data_gen --seed=$seed --use-case=devops --scale-var=$scale --format=influx-bulk | gzip > $working_dir/$data_fname
+  data_fname="influx-bulk-records-usecase-devops-$scale_seed_string.txt"
+  $GOPATH/bin/bulk_data_gen --seed=$seed --use-case=devops --scale-var=$scale --format=influx-bulk > ${DATASET_DIR}/$data_fname
 
   # run ingest tests
   test_type=ingest
   for parseme in "5000:2" "5000:20" "15000:2" "15000:20"; do
     batch=$(echo $parseme | cut -d: -f1)
     workers=$(echo $parseme | cut -d: -f2)
-    cat $working_dir/$data_fname | gunzip | $GOPATH/bin/bulk_load_influx -batch-size=$batch -workers=$workers -urls=http://${NGINX_HOST}:8086 -do-abort-on-exist=false -do-db-create=true -backoff=1s -backoff-timeout=300m0s | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\"}" > $working_dir/test-$test_type-$scale_string-batchsize-$batch-workers-$workers.json
+    load_opts="-batch-size=$batch -workers=$workers -urls=http://${NGINX_HOST}:8086 -do-abort-on-exist=false -do-db-create=true -backoff=1s -backoff-timeout=300m0s"
+    if [ -z $INFLUXDB2 ] || [ $INFLUXDB2 = true ]; then
+      load_opts="$load_opts -organization=$TEST_ORG -token=$TEST_TOKEN"
+    fi
+
+    cat ${DATASET_DIR}/$data_fname | $GOPATH/bin/bulk_load_influx $load_opts | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\"}" > $working_dir/test-$test_type-$scale_string-batchsize-$batch-workers-$workers.json
   done
 done
 
