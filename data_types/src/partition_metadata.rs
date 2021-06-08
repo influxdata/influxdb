@@ -267,6 +267,17 @@ impl Statistics {
         }
     }
 
+    /// Returns true if both the min and max values are None (aka not known)
+    pub fn is_none(&self) -> bool {
+        match self {
+            Self::I64(v) => v.is_none(),
+            Self::U64(v) => v.is_none(),
+            Self::F64(v) => v.is_none(),
+            Self::Bool(v) => v.is_none(),
+            Self::String(v) => v.is_none(),
+        }
+    }
+
     /// Return the minimum value, if any, formatted as a string
     pub fn min_as_str(&self) -> Option<Cow<'_, str>> {
         match self {
@@ -391,6 +402,11 @@ where
             }
         };
     }
+
+    /// Returns true if both the min and max values are None (aka not known)
+    pub fn is_none(&self) -> bool {
+        self.min.is_none() && self.max.is_none()
+    }
 }
 
 impl<T> StatValues<T> {
@@ -433,6 +449,40 @@ impl StatValues<String> {
     pub fn string_size(&self) -> usize {
         self.min.as_ref().map(|x| x.len()).unwrap_or(0)
             + self.max.as_ref().map(|x| x.len()).unwrap_or(0)
+    }
+}
+
+/// Represents the result of comparing the min/max ranges of two [`StatValues`]
+#[derive(Debug, PartialEq)]
+pub enum StatOverlap {
+    /// There is at least one value that exists in both ranges
+    NonZero,
+
+    /// There are zero values that exists in both ranges
+    Zero,
+
+    /// It is not known if there are any intersections (e.g. because
+    /// one of the bounds is not Known / is None)
+    Unknown,
+}
+
+impl<T> StatValues<T>
+where
+    T: PartialOrd,
+{
+    /// returns information about the overlap between two `StatValues`
+    pub fn overlaps(&self, other: &Self) -> StatOverlap {
+        match (&self.min, &self.max, &other.min, &other.max) {
+            (Some(self_min), Some(self_max), Some(other_min), Some(other_max)) => {
+                if self_min <= other_max && self_max >= other_min {
+                    StatOverlap::NonZero
+                } else {
+                    StatOverlap::Zero
+                }
+            }
+            // At least one of the values was None
+            _ => StatOverlap::Unknown,
+        }
     }
 }
 
@@ -530,6 +580,116 @@ mod tests {
     }
 
     #[test]
+    fn statistics_is_none() {
+        let mut stat = StatValues::default();
+        assert!(stat.is_none());
+        stat.min = Some(0);
+        assert!(!stat.is_none());
+        stat.max = Some(1);
+        assert!(!stat.is_none());
+    }
+
+    #[test]
+    fn statistics_overlaps() {
+        let stat1 = StatValues {
+            min: Some(10),
+            max: Some(20),
+            ..Default::default()
+        };
+        assert_eq!(stat1.overlaps(&stat1), StatOverlap::NonZero);
+
+        //    [--stat1--]
+        // [--stat2--]
+        let stat2 = StatValues {
+            min: Some(5),
+            max: Some(15),
+            ..Default::default()
+        };
+        assert_eq!(stat1.overlaps(&stat2), StatOverlap::NonZero);
+        assert_eq!(stat2.overlaps(&stat1), StatOverlap::NonZero);
+
+        //    [--stat1--]
+        //        [--stat3--]
+        let stat3 = StatValues {
+            min: Some(15),
+            max: Some(25),
+            ..Default::default()
+        };
+        assert_eq!(stat1.overlaps(&stat3), StatOverlap::NonZero);
+        assert_eq!(stat3.overlaps(&stat1), StatOverlap::NonZero);
+
+        //    [--stat1--]
+        //                [--stat4--]
+        let stat4 = StatValues {
+            min: Some(25),
+            max: Some(35),
+            ..Default::default()
+        };
+        assert_eq!(stat1.overlaps(&stat4), StatOverlap::Zero);
+        assert_eq!(stat4.overlaps(&stat1), StatOverlap::Zero);
+
+        //              [--stat1--]
+        // [--stat5--]
+        let stat5 = StatValues {
+            min: Some(0),
+            max: Some(5),
+            ..Default::default()
+        };
+        assert_eq!(stat1.overlaps(&stat5), StatOverlap::Zero);
+        assert_eq!(stat5.overlaps(&stat1), StatOverlap::Zero);
+    }
+
+    #[test]
+    fn statistics_overlaps_none() {
+        let stat1 = StatValues {
+            min: Some(10),
+            max: Some(20),
+            ..Default::default()
+        };
+
+        let stat2 = StatValues {
+            min: None,
+            max: Some(20),
+            ..Default::default()
+        };
+        assert_eq!(stat1.overlaps(&stat2), StatOverlap::Unknown);
+        assert_eq!(stat2.overlaps(&stat1), StatOverlap::Unknown);
+
+        let stat3 = StatValues {
+            min: Some(10),
+            max: None,
+            ..Default::default()
+        };
+        assert_eq!(stat1.overlaps(&stat3), StatOverlap::Unknown);
+        assert_eq!(stat3.overlaps(&stat1), StatOverlap::Unknown);
+
+        let stat4 = StatValues {
+            min: None,
+            max: None,
+            ..Default::default()
+        };
+        assert_eq!(stat1.overlaps(&stat4), StatOverlap::Unknown);
+        assert_eq!(stat4.overlaps(&stat1), StatOverlap::Unknown);
+    }
+
+    #[test]
+    fn statistics_overlaps_mixed_none() {
+        let stat1 = StatValues {
+            min: Some(10),
+            max: None,
+            ..Default::default()
+        };
+
+        let stat2 = StatValues {
+            min: None,
+            max: Some(5),
+            ..Default::default()
+        };
+        assert_eq!(stat1.overlaps(&stat2), StatOverlap::Unknown);
+        assert_eq!(stat2.overlaps(&stat1), StatOverlap::Unknown);
+    }
+
+    #[test]
     fn update_string() {
         let mut stat = StatValues::new_with_value("bbb".to_string());
         assert_eq!(stat.min, Some("bbb".to_string()));
@@ -550,6 +710,18 @@ mod tests {
         assert_eq!(stat.min, Some("aaa".to_string()));
         assert_eq!(stat.max, Some("z".to_string()));
         assert_eq!(stat.count, 4);
+    }
+
+    #[test]
+    fn stats_is_none() {
+        let stat = Statistics::I64(StatValues::new(Some(-1), Some(100), 1));
+        assert!(!stat.is_none());
+
+        let stat = Statistics::I64(StatValues::new(None, Some(100), 1));
+        assert!(!stat.is_none());
+
+        let stat = Statistics::I64(StatValues::new(None, None, 0));
+        assert!(stat.is_none());
     }
 
     #[test]
