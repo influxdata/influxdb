@@ -8,7 +8,7 @@ use arrow::{
     datatypes::{DataType, Int32Type, TimeUnit},
     record_batch::RecordBatch,
 };
-use data_types::{chunk_metadata::ChunkSummary, partition_metadata::TableSummary};
+use data_types::{chunk_metadata::ChunkSummary, partition_metadata::{ColumnSummary, TableSummary}};
 use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
 
 use crate::{
@@ -333,6 +333,17 @@ impl PartitionChunk for TestChunk {
         let batches = self.table_data.clone();
         let stream = SizedRecordBatchStream::new(batches[0].schema(), batches);
         Ok(Box::pin(stream))
+    }
+    fn has_duplicates(&self) -> bool {
+        false
+    }
+
+    /// Returns true if data of this chunk is sorted
+    fn is_sorted(&self) -> bool {
+        false
+    }
+    fn primary_key_columns(&self) -> Vec<&ColumnSummary> {
+        vec![]
     }
 
     fn apply_predicate(&self, predicate: &Predicate) -> Result<PredicateMatch> {

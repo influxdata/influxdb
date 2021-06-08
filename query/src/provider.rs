@@ -2,17 +2,12 @@
 
 use std::sync::Arc;
 
-use arrow::datatypes::SchemaRef as ArrowSchemaRef;
+use arrow::{compute::SortOptions, datatypes::SchemaRef as ArrowSchemaRef};
 // use data_types::partition_metadata::ColumnSummary;
-use datafusion::{
-    datasource::{
+use datafusion::{datasource::{
         datasource::{Statistics, TableProviderFilterPushDown},
         TableProvider,
-    },
-    error::{DataFusionError, Result as DataFusionResult},
-    logical_plan::Expr,
-    physical_plan::ExecutionPlan,
-};
+    }, error::{DataFusionError, Result as DataFusionResult}, logical_plan::Expr, physical_plan::{ExecutionPlan, expressions::{PhysicalSortExpr, col}, sort::SortExec}};
 use internal_types::schema::{builder::SchemaMerger, Schema};
 use observability_deps::tracing::debug;
 
@@ -57,6 +52,11 @@ pub enum Error {
 
     #[snafu(display("Internal error: Cannot verify the push-down predicate '{}'", source,))]
     InternalPushdownPredicate {
+        source: datafusion::error::DataFusionError,
+    },
+
+    #[snafu(display("Internal error adding sort operator '{}'", source,))]
+    InternalSort {
         source: datafusion::error::DataFusionError,
     },
 }
@@ -489,29 +489,47 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         chunk: Arc<C>, // This chunk is identified having duplicates
         predicate: Predicate,
     ) -> Arc<dyn ExecutionPlan> {
-        //     // TODO
-        //     // Currently return just like there are no overlaps, no duplicates
 
         // Create the bottom node IOxRedFilterNode for this chunk
-        let input = Arc::new(IOxReadFilterNode::new(
+        let mut input: Arc<dyn ExecutionPlan>  = Arc::new(IOxReadFilterNode::new(
             Arc::clone(&table_name),
             schema,
-            vec![chunk],
+            vec![Arc::clone(&chunk)],
             predicate,
         ));
         
 
         // Add the sort operator, SortExec, if needed
         if !chunk.is_sorted() {
-            // Create SortExec plan
-            let input_schema = input.as_ref().schema();
-            //let key_summaries: Vec<ColumnSummary>; // Todo: waiting fro alamb to merge
 
+            let key_summaries = chunk.primary_key_columns();
+
+            // build sort expression
+            let mut sort_exprs = vec![];
+            for key in key_summaries {
+                sort_exprs.push(
+                    PhysicalSortExpr{
+                        expr: col(key.name.as_str()),
+                        options: SortOptions {
+                            descending: false,
+                            nulls_first: false,
+                        }
+                    }
+                );
+            }
+
+            // Create SortExec operator on top of the IOxReadFilterNode
+            let sort_exec = SortExec::try_new(sort_exprs, input);
+            let sort_exec = match sort_exec {
+                Ok(plan) => plan,
+                Err(e) => panic!("Internal error while adding SortExec: {}", e) // This should never happens 
+            };
+            input = Arc::new(sort_exec);
         }
     
         // Create DeduplicateExc
+        // TODO: Add DeuplicateExec here when it is implemented in https://github.com/influxdata/influxdb_iox/issues/1646
 
-        //
         input
     }
 
@@ -698,4 +716,10 @@ impl<C: PartitionChunk> ChunkPruner<C> for NoOpPruner {
     fn prune_chunks(&self, chunks: Vec<Arc<C>>, _predicate: &Predicate) -> Vec<Arc<C>> {
         chunks
     }
+}
+
+
+#[tokio::test]
+async fn test_sort() {
+    
 }

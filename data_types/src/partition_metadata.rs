@@ -250,12 +250,6 @@ impl ColumnSummary {
             (Statistics::String(_), _) => unreachable!(),
         }
     }
-
-    /// Returns true if this column is a part of the primary key which 
-    /// is either Tag or Timestamp
-    pub fn is_key_part(&self) -> bool {
-        matches!(self.influxdb_type, Some(InfluxDbType::Tag) | Some(InfluxDbType::Timestamp))
-    }
 }
 
 /// Column name, statistics which encode type information

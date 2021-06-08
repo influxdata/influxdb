@@ -7,7 +7,7 @@
 )]
 
 use async_trait::async_trait;
-use data_types::chunk_metadata::ChunkSummary;
+use data_types::{chunk_metadata::ChunkSummary, partition_metadata::ColumnSummary};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, Executor};
 use internal_types::{schema::Schema, selection::Selection};
@@ -124,6 +124,7 @@ pub trait PartitionChunk: Prunable + Debug + Send + Sync {
 
     /// Returns true if data of this chunk is sorted
     fn is_sorted(&self) -> bool;
+    fn primary_key_columns(&self) -> Vec<&ColumnSummary>;
 }
 
 #[async_trait]

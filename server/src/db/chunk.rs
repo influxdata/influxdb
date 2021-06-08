@@ -4,7 +4,7 @@ use std::{
 };
 
 use arrow::datatypes::SchemaRef;
-use data_types::partition_metadata;
+use data_types::partition_metadata::{self, ColumnSummary};
 use partition_metadata::TableSummary;
 use snafu::{ResultExt, Snafu};
 
@@ -448,6 +448,7 @@ impl PartitionChunk for DbChunk {
             State::MutableBuffer { .. } => true,
             State::ReadBuffer { .. } => true,  // TODO: should be false after compaction
             State::ParquetFile { .. } => true, // TODO: should be false after compaction
+        }
     }
 
     // TODOs: return the right value. For now the chunk is assumed to be not sorted
@@ -456,6 +457,10 @@ impl PartitionChunk for DbChunk {
             State::MutableBuffer { .. } => false,
             State::ReadBuffer { .. } => false, 
             State::ParquetFile { .. } => false,
+        }
+    }
+    fn primary_key_columns(&self) -> Vec<&ColumnSummary> {
+        self.meta.table_summary.primary_key_columns()
     }
 }
 
