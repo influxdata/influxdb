@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use arrow::datatypes::SchemaRef as ArrowSchemaRef;
+use arrow::{datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
 use datafusion::{
     datasource::{
         datasource::{Statistics, TableProviderFilterPushDown},
@@ -16,6 +16,7 @@ use internal_types::schema::{builder::SchemaMerger, Schema};
 use observability_deps::tracing::debug;
 
 use crate::{
+    duplicate::group_potential_duplicates,
     predicate::{Predicate, PredicateBuilder},
     util::project_schema,
     PartitionChunk,
@@ -58,8 +59,25 @@ pub enum Error {
     InternalPushdownPredicate {
         source: datafusion::error::DataFusionError,
     },
+
+    #[snafu(display("Internal error: Can not group chunks '{}'", source,))]
+    InternalChunkGrouping { source: crate::duplicate::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+impl From<Error> for ArrowError {
+    // Wrap an error into an arrow error
+    fn from(e: Error) -> Self {
+        Self::ExternalError(Box::new(e))
+    }
+}
+
+impl From<Error> for DataFusionError {
+    // Wrap an error into a datafusion error
+    fn from(e: Error) -> Self {
+        Self::ArrowError(e.into())
+    }
+}
 
 /// Something that can prune chunks based on their metadata
 pub trait ChunkPruner<C: PartitionChunk>: Sync + Send + std::fmt::Debug {
@@ -249,7 +267,7 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
             scan_schema,
             chunks,
             predicate,
-        );
+        )?;
 
         Ok(plan)
     }
@@ -303,38 +321,38 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
     /// The final UnionExec on top is to union the streams below. If there is only one stream, UnionExec
     ///   will not be added into the plan.
     /// ```text
-    ///                                      ┌─────────────────┐                                  
-    ///                                      │    UnionExec    │                                  
-    ///                                      │                 │                                  
-    ///                                      └─────────────────┘                                  
-    ///                                               ▲                                           
-    ///                                               │                                           
-    ///                        ┌──────────────────────┴───────────┬─────────────────────┐         
-    ///                        │                                  │                     │         
-    ///                        │                                  │                     │         
+    ///                                      ┌─────────────────┐
+    ///                                      │    UnionExec    │
+    ///                                      │                 │
+    ///                                      └─────────────────┘
+    ///                                               ▲
+    ///                                               │
+    ///                        ┌──────────────────────┴───────────┬─────────────────────┐
+    ///                        │                                  │                     │
+    ///                        │                                  │                     │
     ///               ┌─────────────────┐                ┌─────────────────┐   ┌─────────────────┐
     ///               │ DeduplicateExec │                │ DeduplicateExec │   │IOxReadFilterNode│
     ///               └─────────────────┘                └─────────────────┘   │    (Chunk 4)    │
     ///                        ▲                                  ▲            └─────────────────┘
-    ///                        │                                  │                               
-    ///            ┌───────────────────────┐                      │                               
-    ///            │SortPreservingMergeExec│                      │                               
-    ///            └───────────────────────┘                      │                               
+    ///                        │                                  │
+    ///            ┌───────────────────────┐                      │
+    ///            │SortPreservingMergeExec│                      │
+    ///            └───────────────────────┘                      │
     ///                       ▲                                   |
     ///                       │                                   |
-    ///           ┌───────────┴───────────┐                       │                               
-    ///           │                       │                       │                               
-    ///  ┌─────────────────┐     ┌─────────────────┐    ┌─────────────────┐                      
-    ///  │    SortExec     │     │    SortExec     │    │    SortExec     │                      
-    ///  │   (optional)    │     │   (optional)    │    │   (optional)    │                      
-    ///  └─────────────────┘     └─────────────────┘    └─────────────────┘                      
-    ///           ▲                       ▲                      ▲                               
-    ///           │                       │                      │                               
-    ///           │                       │                      │                               
-    ///  ┌─────────────────┐     ┌─────────────────┐    ┌─────────────────┐                      
-    ///  │IOxReadFilterNode│     │IOxReadFilterNode│    │IOxReadFilterNode│                      
-    ///  │    (Chunk 1)    │     │    (Chunk 2)    │    │    (Chunk 3)    │                      
-    ///  └─────────────────┘     └─────────────────┘    └─────────────────┘                      
+    ///           ┌───────────┴───────────┐                       │
+    ///           │                       │                       │
+    ///  ┌─────────────────┐     ┌─────────────────┐    ┌─────────────────┐
+    ///  │    SortExec     │     │    SortExec     │    │    SortExec     │
+    ///  │   (optional)    │     │   (optional)    │    │   (optional)    │
+    ///  └─────────────────┘     └─────────────────┘    └─────────────────┘
+    ///           ▲                       ▲                      ▲
+    ///           │                       │                      │
+    ///           │                       │                      │
+    ///  ┌─────────────────┐     ┌─────────────────┐    ┌─────────────────┐
+    ///  │IOxReadFilterNode│     │IOxReadFilterNode│    │IOxReadFilterNode│
+    ///  │    (Chunk 1)    │     │    (Chunk 2)    │    │    (Chunk 3)    │
+    ///  └─────────────────┘     └─────────────────┘    └─────────────────┘
     ///```
 
     fn build_scan_plan(
@@ -343,9 +361,18 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         schema: ArrowSchemaRef,
         chunks: Vec<Arc<C>>,
         predicate: Predicate,
-    ) -> Arc<dyn ExecutionPlan> {
-        //finding overlapped chunks and put them into the right group
-        self.split_overlapped_chunks(chunks.to_vec());
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        // findi overlapped chunks and put them into the right group
+        self.split_overlapped_chunks(chunks.to_vec())?;
+
+        // TEMP until the rest of this module's code is complete:
+        // merge all plans into the same
+        self.no_duplicates_chunks
+            .append(&mut self.in_chunk_duplicates_chunks);
+        for mut group in self.overlapped_chunks_set.iter_mut() {
+            self.no_duplicates_chunks.append(&mut group);
+        }
+        self.overlapped_chunks_set.clear();
 
         // Building plans
         let mut plans = vec![];
@@ -396,22 +423,32 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         // There are still plan, add UnionExec
         if !plans.is_empty() {
             // final_plan = union_plan
-            panic!("Unexpected error: There should be only one output for scan plan");
+            panic!("Unexpected error: There should be only one output for scan plan, but there were: {:#?}", plans);
         }
 
-        final_plan
+        Ok(final_plan)
     }
 
     /// discover overlaps and split them into three groups:
     ///  1. vector of vector of overlapped chunks
     ///  2. vector of non-overlapped chunks, each have duplicates in itself
     ///  3. vectors of non-overlapped chunks without duplicates
-    fn split_overlapped_chunks(&mut self, chunks: Vec<Arc<C>>) {
-        // TODO: need to discover overlaps and split them
-        // The current behavior is just like neither overlaps nor having duplicates in its own chunk
-        //self.overlapped_chunks_set = vec![];
-        //self.in_chunk_duplicates_chunks = vec![];
-        self.no_duplicates_chunks.append(&mut chunks.to_vec());
+    fn split_overlapped_chunks(&mut self, chunks: Vec<Arc<C>>) -> Result<()> {
+        // Find all groups based on statstics
+        let groups = group_potential_duplicates(chunks).context(InternalChunkGrouping)?;
+
+        for mut group in groups {
+            if group.len() == 1 {
+                if group[0].may_contain_pk_duplicates() {
+                    self.in_chunk_duplicates_chunks.append(&mut group);
+                } else {
+                    self.no_duplicates_chunks.append(&mut group);
+                }
+            } else {
+                self.overlapped_chunks_set.push(group)
+            }
+        }
+        Ok(())
     }
 
     /// Return true if all chunks are neither overlap nor has duplicates in itself
@@ -422,29 +459,29 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
     /// Return deduplicate plan for the given overlapped chunks
     /// The plan will look like this
     /// ```text
-    ///               ┌─────────────────┐       
-    ///               │ DeduplicateExec │         
-    ///               └─────────────────┘        
-    ///                        ▲                            
-    ///                        │                                                                 
-    ///            ┌───────────────────────┐                                                   
-    ///            │SortPreservingMergeExec│                                                     
-    ///            └───────────────────────┘                                                    
-    ///                       ▲                                   
-    ///                       │                                   
-    ///           ┌───────────┴───────────┐                                                     
-    ///           │                       │                                                     
-    ///  ┌─────────────────┐        ┌─────────────────┐                        
-    ///  │    SortExec     │ ...    │    SortExec     │                        
-    ///  │   (optional)    │        │   (optional)    │                        
-    ///  └─────────────────┘        └─────────────────┘                      
-    ///           ▲                          ▲                                                  
-    ///           │          ...             │                                                   
-    ///           │                          │                                                 
-    ///  ┌─────────────────┐        ┌─────────────────┐                         
-    ///  │IOxReadFilterNode│        │IOxReadFilterNode│                        
-    ///  │    (Chunk 1)    │ ...    │    (Chunk n)    │                         
-    ///  └─────────────────┘        └─────────────────┘                          
+    ///               ┌─────────────────┐
+    ///               │ DeduplicateExec │
+    ///               └─────────────────┘
+    ///                        ▲
+    ///                        │
+    ///            ┌───────────────────────┐
+    ///            │SortPreservingMergeExec│
+    ///            └───────────────────────┘
+    ///                       ▲
+    ///                       │
+    ///           ┌───────────┴───────────┐
+    ///           │                       │
+    ///  ┌─────────────────┐        ┌─────────────────┐
+    ///  │    SortExec     │ ...    │    SortExec     │
+    ///  │   (optional)    │        │   (optional)    │
+    ///  └─────────────────┘        └─────────────────┘
+    ///           ▲                          ▲
+    ///           │          ...             │
+    ///           │                          │
+    ///  ┌─────────────────┐        ┌─────────────────┐
+    ///  │IOxReadFilterNode│        │IOxReadFilterNode│
+    ///  │    (Chunk 1)    │ ...    │    (Chunk n)    │
+    ///  └─────────────────┘        └─────────────────┘
     ///```
     fn build_deduplicate_plan_for_overlapped_chunks(
         table_name: Arc<str>,
@@ -465,22 +502,22 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
     /// Return deduplicate plan for a given chunk with duplicates
     /// The plan will look like this
     /// ```text
-    ///                ┌─────────────────┐   
-    ///                │ DeduplicateExec │   
-    ///                └─────────────────┘   
-    ///                        ▲             
-    ///                        │             
-    ///                ┌─────────────────┐   
-    ///                │    SortExec     │   
-    ///                │   (optional)    │   
-    ///                └─────────────────┘   
-    ///                          ▲           
-    ///                          │           
-    ///                          │           
-    ///                ┌─────────────────┐   
-    ///                │IOxReadFilterNode│   
-    ///                │    (Chunk)      │   
-    ///                └─────────────────┘   
+    ///                ┌─────────────────┐
+    ///                │ DeduplicateExec │
+    ///                └─────────────────┘
+    ///                        ▲
+    ///                        │
+    ///                ┌─────────────────┐
+    ///                │    SortExec     │
+    ///                │   (optional)    │
+    ///                └─────────────────┘
+    ///                          ▲
+    ///                          │
+    ///                          │
+    ///                ┌─────────────────┐
+    ///                │IOxReadFilterNode│
+    ///                │    (Chunk)      │
+    ///                └─────────────────┘
     ///```
     fn build_deduplicate_plan_for_chunk_with_duplicates(
         table_name: Arc<str>,
@@ -500,10 +537,10 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
 
     /// Return the simplest IOx scan plan of a given chunk which is IOxReadFilterNode
     /// ```text
-    ///                ┌─────────────────┐   
-    ///                │IOxReadFilterNode│   
-    ///                │    (Chunk)      │   
-    ///                └─────────────────┘   
+    ///                ┌─────────────────┐
+    ///                │IOxReadFilterNode│
+    ///                │    (Chunk)      │
+    ///                └─────────────────┘
     ///```
     fn build_plan_for_non_duplicates_chunk(
         table_name: Arc<str>,
@@ -521,10 +558,10 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
 
     /// Return the simplest IOx scan plan for many chunks which is IOxReadFilterNode
     /// ```text
-    ///                ┌─────────────────┐   
-    ///                │IOxReadFilterNode│   
-    ///                │    (Chunk)      │   
-    ///                └─────────────────┘   
+    ///                ┌─────────────────┐
+    ///                │IOxReadFilterNode│
+    ///                │    (Chunk)      │
+    ///                └─────────────────┘
     ///```
     fn build_plans_for_non_duplicates_chunk(
         table_name: Arc<str>,
@@ -547,5 +584,60 @@ struct NoOpPruner {}
 impl<C: PartitionChunk> ChunkPruner<C> for NoOpPruner {
     fn prune_chunks(&self, chunks: Vec<Arc<C>>, _predicate: &Predicate) -> Vec<Arc<C>> {
         chunks
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::test::TestChunk;
+
+    use super::*;
+
+    #[test]
+    fn chunk_grouping() {
+        // This test just ensures that all the plumbing is connected
+        // for chunk grouping. The logic of the grouping is tested
+        // in the duplicate module
+
+        // c1: no overlaps
+        let c1 = Arc::new(TestChunk::new(1).with_tag_column_with_stats("t", "tag1", "a", "b"));
+
+        // c2: over lap with c3
+        let c2 = Arc::new(TestChunk::new(2).with_tag_column_with_stats("t", "tag1", "c", "d"));
+
+        // c3: overlap with c2
+        let c3 = Arc::new(TestChunk::new(3).with_tag_column_with_stats("t", "tag1", "c", "d"));
+
+        // c4: self overlap
+        let c4 = Arc::new(
+            TestChunk::new(4)
+                .with_tag_column_with_stats("t", "tag1", "e", "f")
+                .with_may_contain_pk_duplicates(true),
+        );
+
+        let mut deduplicator = Deduplicater::new();
+        deduplicator
+            .split_overlapped_chunks(vec![c1, c2, c3, c4])
+            .expect("split chunks");
+
+        assert_eq!(
+            chunk_group_ids(&deduplicator.overlapped_chunks_set),
+            vec!["Group 0: 2, 3"]
+        );
+        assert_eq!(chunk_ids(&deduplicator.in_chunk_duplicates_chunks), "4");
+        assert_eq!(chunk_ids(&deduplicator.no_duplicates_chunks), "1");
+    }
+
+    fn chunk_ids(group: &[Arc<TestChunk>]) -> String {
+        let ids = group.iter().map(|c| c.id().to_string()).collect::<Vec<_>>();
+        ids.join(", ")
+    }
+
+    fn chunk_group_ids(groups: &[Vec<Arc<TestChunk>>]) -> Vec<String> {
+        groups
+            .iter()
+            .enumerate()
+            .map(|(idx, group)| format!("Group {}: {}", idx, chunk_ids(group)))
+            .collect()
     }
 }
