@@ -160,6 +160,18 @@ async fn test_read_filter_data_filter() {
         "+------+-------+------+-------------------------------+",
     ];
 
+    run_read_filter_test_case!(
+        TwoMeasurementsMultiSeries {},
+        predicate,
+        expected_results.clone()
+    );
+
+    // Same results via a != predicate.
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(200, 300)
+        .add_expr(col("state").not_eq(lit("MA"))) // state=CA
+        .build();
+
     run_read_filter_test_case!(TwoMeasurementsMultiSeries {}, predicate, expected_results);
 }
 
