@@ -144,6 +144,14 @@ pub async fn main(config: Config) -> Result<()> {
         server_config
     };
 
+    if config.grpc_bind_address == config.http_bind_address {
+        error!(
+            "grpc and http bind addresses must differ; both are {:?}",
+            config.grpc_bind_address
+        );
+        std::process::exit(1);
+    }
+
     let connection_manager = ConnectionManager {};
     let app_server = Arc::new(AppServer::new(connection_manager, server_config));
 
