@@ -1649,7 +1649,7 @@ func NewMeasurementFieldSet(path string) (*MeasurementFieldSet, error) {
 		fields: make(map[string]*MeasurementFields),
 		path:   path,
 	}
-	fs.SetMeasurementFieldSetWriter(MaxCombinedWrites)
+	fs.SetMeasurementFieldSetWriter(100)
 	// If there is a load error, return the error and an empty set so
 	// it can be rebuild manually.
 	return fs, fs.load()
@@ -1853,7 +1853,7 @@ func (fs *MeasurementFieldSet) writeToFile(first writeRequest) {
 	if err != nil || isEmpty {
 		return
 	}
-	err = fs.renameFile(path)
+	err = fs.renameFile(path, err)
 }
 
 // marshalMeasurementFieldSet: remove the fields.idx file if no fields
@@ -1873,7 +1873,7 @@ func (fs *MeasurementFieldSet) marshalMeasurementFieldSet() ([]byte, error) {
 	return fs.marshalMeasurementFieldSetNoLock()
 }
 
-func (fs *MeasurementFieldSet) renameFile(path string) error {
+func (fs *MeasurementFieldSet) renameFile(path string, err error) error {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
@@ -1881,7 +1881,7 @@ func (fs *MeasurementFieldSet) renameFile(path string) error {
 		return err
 	}
 
-	if err := file.SyncDir(filepath.Dir(fs.path)); err != nil {
+	if err = file.SyncDir(filepath.Dir(fs.path)); err != nil {
 		return err
 	}
 
