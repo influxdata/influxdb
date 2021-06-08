@@ -1,8 +1,24 @@
 version: "2.1"
 
+parameters:
+  aws_teardown:
+    default: false
+    type: boolean
+  aws_teardown_branch:
+    default: "n/a"
+    type: string
+  aws_teardown_sha:
+    default: "n/a"
+    type: string
+  aws_teardown_datestring:
+    default: "n/a"
+    type: string
+
 workflows:
   version: 2
   build:
+    when:
+      not: << pipeline.parameters.aws_teardown >>
     jobs:
       - godeps
       - jsdeps
@@ -32,6 +48,13 @@ workflows:
           requires:
             - godeps
             - jsdeps
+      - perf_test:
+          requires:
+            - cross_build
+          filters:
+            branches:
+              only:
+                - "2.0"
       - e2e:
           requires:
             - build
@@ -47,6 +70,21 @@ workflows:
           filters:
             branches:
               only: "2.0"
+  aws_destroy_daily:
+    triggers:
+      - schedule:
+          # run every day at 10pm -- note: use spaces, not tabs
+          cron: "0 22 * * *"
+          filters:
+            branches:
+              only:
+                - "2.0"
+    jobs:
+      - aws_destroy_by_date
+  aws_destroy_callback:
+    when: << pipeline.parameters.aws_teardown >>
+    jobs:
+      - aws_destroy_by_name
 
   release:
     jobs:
@@ -607,6 +645,71 @@ jobs:
           key: influxdb-cross-build-{{ .Branch }}-{{ .Revision }}
           paths:
             - /tmp/go-cache
+      - persist_to_workspace:
+          root: .
+          paths:
+            - artifacts/*amd64.deb
+
+  perf_test:
+    machine:
+      image: ubuntu-2004:202010-01
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+            - "91:0a:5b:a7:f9:46:77:f3:5d:4a:cf:d2:44:c8:2c:5a"
+      - run:
+          name: Run test in AWS instance
+          no_output_timeout: 20m
+          command: AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} scripts/ci/perf_test.sh
+  aws_destroy_by_date:
+    machine:
+      enabled: true
+      docker_layer_caching: true
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+            - "91:0a:5b:a7:f9:46:77:f3:5d:4a:cf:d2:44:c8:2c:5a"
+      - run:
+          name: Destroy AWS instances with datestring more than a day old
+          no_output_timeout: 20m
+          command: |
+            set -x
+            yesterday_date=$(date --date "yesterday" +%Y%md)
+            today=$(date +%Y%m%d)
+            instance_info=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 describe-instances --filters "Name=tag:Name,Values=oss-perftest-*" --query "Reservations[].Instances[].[InstanceId, Tags[?Key==`Name`]]" --output text)
+            for info in $instance_info; do
+              name=$(echo $info | cut -d ' ' -f2)
+              date=$(echo $name | cut -d '-' -f3)
+              if [ $(expr $today - $yesterday_date) -gt 1 ]; then
+                instance_id=$(echo $info | cut -d ' ' -f1)
+                AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
+              fi
+            done
+  aws_destroy_by_name:
+    machine:
+      enabled: true
+      docker_layer_caching: true
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+            - "91:0a:5b:a7:f9:46:77:f3:5d:4a:cf:d2:44:c8:2c:5a"
+      - run:
+          name: Destroy AWS instances by constructing name from arguments
+          no_output_timeout: 20m
+          command: |
+            set -x
+            name=oss-perftest-<< pipeline.parameters.aws_teardown_datestring >>-<< pipeline.parameters.aws_teardown_branch >>-<< pipeline.parameters.aws_teardown_sha >>
+            instance_id=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 describe-instances --filters "Name=tag:Name,Values=$name" --query 'Reservations[].Instances[].InstanceId' --output text)
+            AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
 
   release:
     machine:
