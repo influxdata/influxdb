@@ -73,8 +73,8 @@ for scale in 50 100 500; do
   # generate bulk data
   scale_string="scalevar-$scale"
   scale_seed_string="$scale_string-seed-$seed"
-  data_fname="influx-bulk-records-usecase-devops-$scale_seed_string.gz"
-  $GOPATH/bin/bulk_data_gen --seed=$seed --use-case=devops --scale-var=$scale --format=influx-bulk > $working_dir/$data_fname
+  data_fname="influx-bulk-records-usecase-devops-$scale_seed_string.txt"
+  $GOPATH/bin/bulk_data_gen --seed=$seed --use-case=devops --scale-var=$scale --format=influx-bulk > ${DATASET_DIR}/$data_fname
 
   # run ingest tests
   test_type=ingest
@@ -86,7 +86,7 @@ for scale in 50 100 500; do
       load_opts="$load_opts -organization=$TEST_ORG -token=$TEST_TOKEN"
     fi
 
-    cat $working_dir/$data_fname | $GOPATH/bin/bulk_load_influx $load_opts | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\"}" > $working_dir/test-$test_type-$scale_string-batchsize-$batch-workers-$workers.json
+    cat ${DATASET_DIR}/$data_fname | $GOPATH/bin/bulk_load_influx $load_opts | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\"}" > $working_dir/test-$test_type-$scale_string-batchsize-$batch-workers-$workers.json
   done
 done
 
