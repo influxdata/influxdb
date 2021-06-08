@@ -70,10 +70,10 @@ func (v *verifyUTF8) Run(cmd *cobra.Command, dataPath string, verbose bool) erro
 
 	for v.Next() {
 		reader, closer, err := v.TSMReader()
+		if closer != nil {
+			defer closer()
+		}
 		if err != nil {
-			if closer != nil {
-				go closer()
-			}
 			return err
 		}
 
@@ -93,7 +93,6 @@ func (v *verifyUTF8) Run(cmd *cobra.Command, dataPath string, verbose bool) erro
 		if fileErrors == 0 && verbose {
 			cmd.PrintErrf("%s: healthy\n", v.f)
 		}
-		go closer()
 	}
 
 	cmd.PrintErrf("Invalid Keys: %d / %d, in %vs\n", v.totalErrors, v.total, v.Elapsed().Seconds())
@@ -113,10 +112,10 @@ func (v *verifyChecksums) Run(cmd *cobra.Command, dataPath string, verbose bool)
 
 	for v.Next() {
 		reader, closer, err := v.TSMReader()
+		if closer != nil {
+			defer closer()
+		}
 		if err != nil {
-			if closer != nil {
-				go closer()
-			}
 			return err
 		}
 
@@ -144,7 +143,6 @@ func (v *verifyChecksums) Run(cmd *cobra.Command, dataPath string, verbose bool)
 		if fileErrors == 0 && verbose {
 			cmd.PrintErrf("%s: healthy\n", v.f)
 		}
-		go closer()
 	}
 
 	cmd.PrintErrf("Broken Blocks: %d / %d, in %vs\n", v.totalErrors, v.total, v.Elapsed().Seconds())
