@@ -2,11 +2,6 @@
 
 set -ex
 
-# Install common packages
-apt-get update
-apt-get install --no-install-recommends -y clang musl-tools
-rm -rf /var/lib/apt/lists/*
-
 
 RUST_LATEST_VERSION=1.52.1
 # For security, we specify a particular rustup version and a SHA256 hash, computed
