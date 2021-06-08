@@ -292,10 +292,11 @@ jobs:
           name: Restore GOPATH/pkg/mod
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
-            - influxdb-gomod-sum-
-      - run:
-          name: Install Dependencies
-          command: go mod download -x
+      # NOTE: On go1.16 `go mod download` and `go mod tidy` no longer agree
+      # with each other. The Go team recommends using `go mod tidy` to download
+      # all the modules needed for build/test, so we check tidiness while we're
+      # at it. See https://github.com/golang/go/issues/43994#issuecomment-770053099
+      - run: make checktidy
       - save_cache:
           name: Save GOPATH/pkg/mod
           key: influxdb-gomod-sum-{{ checksum "go.sum" }}
@@ -329,7 +330,6 @@ jobs:
           command: ./scripts/ci/lint/flags.bash
       - run: make vet
       - run: make checkfmt
-      - run: make checktidy
       - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
       - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
       - run: GO111MODULE=on ./env staticcheck ./...
