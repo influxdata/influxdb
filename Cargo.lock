@@ -1784,6 +1784,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow_util",
+ "hashbrown 0.11.2",
  "observability_deps",
  "snafu",
 ]

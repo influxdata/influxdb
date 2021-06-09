@@ -1,6 +1,8 @@
 //! Implementation of command line option for manipulating and showing server
 //! config
 
+use std::time::{Duration, Instant};
+
 use crate::commands::server_remote;
 use structopt::StructOpt;
 use thiserror::Error;
@@ -18,6 +20,12 @@ pub enum Error {
 
     #[error("Error connecting to IOx: {0}")]
     ConnectionError(#[from] influxdb_iox_client::connection::Error),
+
+    #[error("Error checking if databases are loded: {0}")]
+    AreDatabasesLoadedError(#[from] GetServerStatusError),
+
+    #[error("Timeout waiting for databases to be loaded")]
+    TimeoutDatabasesLoaded,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -37,6 +45,9 @@ enum Command {
     /// Get server ID
     Get,
 
+    /// Wait until server is initialized.
+    WaitServerInitialized(WaitSeverInitialized),
+
     Remote(crate::commands::server_remote::Config),
 }
 
@@ -45,6 +56,14 @@ enum Command {
 struct Set {
     /// The server ID to set
     id: u32,
+}
+
+/// Wait until server is initialized.
+#[derive(Debug, StructOpt)]
+struct WaitSeverInitialized {
+    /// Timeout in seconds.
+    #[structopt(short, default_value = "10")]
+    timeout: u64,
 }
 
 use influxdb_iox_client::{connection::Builder, management::*};
@@ -63,6 +82,26 @@ pub async fn command(url: String, config: Config) -> Result<()> {
             let id = client.get_server_id().await?;
             println!("{}", id);
             Ok(())
+        }
+        Command::WaitServerInitialized(command) => {
+            let end = Instant::now() + Duration::from_secs(command.timeout);
+            loop {
+                let status = client.get_server_status().await?;
+                if status.initialized {
+                    println!("Server initialized.");
+                    if let Some(err) = status.error {
+                        println!("WARNING: Server is in error state: {}", err.message);
+                    }
+
+                    return Ok(());
+                }
+
+                if Instant::now() >= end {
+                    eprintln!("timeout");
+                    return Err(Error::TimeoutDatabasesLoaded);
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
         }
         Command::Remote(config) => Ok(server_remote::command(url, config).await?),
     }
