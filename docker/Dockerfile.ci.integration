@@ -1,0 +1,20 @@
+###
+# Dockerfile for integration tests that connect to Kafka
+# It expects to be run with `docker compose -f ci-kafka-docker-compose.yml`
+##
+
+# Reuse most of the configuration for the rest of the CI builds
+FROM quay.io/influxdb/rust:ci
+
+# Create a new directory that will contain the code checkout and be a shared volume from the CI
+# machine image to this container
+ADD . /home/rust/iox
+
+# Make the rust user the owner
+RUN sudo chown -R rust:rust /home/rust/iox
+
+# Work in this directory
+WORKDIR /home/rust/iox
+
+# Run the integration tests that connect to Kafka that will be running in another container
+CMD ["sh", "-c", "CARGO_INCREMENTAL=0 RUSTFLAGS=\"-C debuginfo=1\" TEST_INTEGRATION=1 KAFKA_CONNECT=kafka:9092 cargo test -p influxdb_iox --test end-to-end write_buffer"]

@@ -124,6 +124,15 @@ jobs:
           command: cargo test --workspace
       - cache_save
 
+  test_kafka_integration:
+    machine: true
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: Run integration tests with Docker Compose
+          command: docker-compose -f docker/ci-kafka-docker-compose.yml up --build --force-recreate --exit-code-from rust
+
   # Integration tests for the influxdb2_client crate against InfluxDB 2.0 OSS.
   test_influxdb2_client:
     docker:
@@ -278,6 +287,7 @@ workflows:
       - lint
       - protobuf-lint
       - test
+      - test_kafka_integration
       - test_influxdb2_client
       - build
       - check-flatbuffers
