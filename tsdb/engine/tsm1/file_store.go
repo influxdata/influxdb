@@ -402,7 +402,7 @@ func (f *FileStore) Delete(keys [][]byte) error {
 	return f.DeleteRange(keys, math.MinInt64, math.MaxInt64)
 }
 
-func (f *FileStore) Apply(fn func(r TSMFile) error) error {
+func (f *FileStore) Apply(ctx context.Context, fn func(r TSMFile) error) error {
 	// Limit apply fn to number of cores
 	limiter := limiter.NewFixed(runtime.GOMAXPROCS(0))
 
@@ -411,7 +411,10 @@ func (f *FileStore) Apply(fn func(r TSMFile) error) error {
 
 	for _, f := range f.files {
 		go func(r TSMFile) {
-			limiter.Take()
+			if err := limiter.Take(ctx); err != nil {
+				errC <- err
+				return
+			}
 			defer limiter.Release()
 
 			r.Ref()
@@ -472,7 +475,7 @@ func (f *FileStore) DeleteRange(keys [][]byte, min, max int64) error {
 }
 
 // Open loads all the TSM files in the configured directory.
-func (f *FileStore) Open() error {
+func (f *FileStore) Open(ctx context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -546,7 +549,11 @@ func (f *FileStore) Open() error {
 			// Ensure a limited number of TSM files are loaded at once.
 			// Systems which have very large datasets (1TB+) can have thousands
 			// of TSM files which can cause extremely long load times.
-			f.openLimiter.Take()
+			if err := f.openLimiter.Take(ctx); err != nil {
+				f.logger.Error("Failed to open tsm file", zap.String("path", file.Name()), zap.Error(err))
+				readerC <- &res{err: fmt.Errorf("failed to open tsm file %q: %w", file.Name(), err)}
+				return
+			}
 			defer f.openLimiter.Release()
 
 			start := time.Now()

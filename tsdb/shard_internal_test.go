@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -24,7 +25,7 @@ func TestShard_MapType(t *testing.T) {
 	setup := func(index string) {
 		sh = NewTempShard(t, index)
 
-		if err := sh.Open(); err != nil {
+		if err := sh.Open(context.Background()); err != nil {
 			t.Fatal(err)
 		}
 
@@ -156,7 +157,7 @@ func TestShard_MeasurementsByRegex(t *testing.T) {
 	var sh *TempShard
 	setup := func(index string) {
 		sh = NewTempShard(t, index)
-		if err := sh.Open(); err != nil {
+		if err := sh.Open(context.Background()); err != nil {
 			t.Fatal(err)
 		}
 
@@ -260,7 +261,7 @@ func (sh *TempShard) MustWritePointsString(s string) {
 		panic(err)
 	}
 
-	if err := sh.WritePoints(a); err != nil {
+	if err := sh.WritePoints(context.Background(), a); err != nil {
 		panic(err)
 	}
 }

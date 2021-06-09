@@ -297,7 +297,7 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 func (s *Shard) Path() string { return s.path }
 
 // Open initializes and opens the shard's store.
-func (s *Shard) Open() error {
+func (s *Shard) Open(ctx context.Context) error {
 	if err := func() error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -343,7 +343,7 @@ func (s *Shard) Open() error {
 		e.SetEnabled(false)
 
 		// Open engine.
-		if err := e.Open(); err != nil {
+		if err := e.Open(ctx); err != nil {
 			return err
 		}
 		if shouldReindex {
@@ -503,7 +503,7 @@ type FieldCreate struct {
 }
 
 // WritePoints will write the raw data points and any new metadata to the index in the shard.
-func (s *Shard) WritePoints(points []models.Point) error {
+func (s *Shard) WritePoints(ctx context.Context, points []models.Point) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -532,7 +532,7 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	}
 
 	// Write to the engine.
-	if err := engine.WritePoints(points); err != nil {
+	if err := engine.WritePoints(ctx, points); err != nil {
 		atomic.AddInt64(&s.stats.WritePointsErr, int64(len(points)))
 		atomic.AddInt64(&s.stats.WriteReqErr, 1)
 		return fmt.Errorf("engine: %s", err)
@@ -720,31 +720,35 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 }
 
 // DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
-func (s *Shard) DeleteSeriesRange(itr SeriesIterator, min, max int64) error {
+func (s *Shard) DeleteSeriesRange(ctx context.Context, itr SeriesIterator, min, max int64) error {
 	engine, err := s.Engine()
 	if err != nil {
 		return err
 	}
-	return engine.DeleteSeriesRange(itr, min, max)
+	return engine.DeleteSeriesRange(ctx, itr, min, max)
 }
 
 // DeleteSeriesRangeWithPredicate deletes all values from for seriesKeys between min and max (inclusive)
 // for which predicate() returns true. If predicate() is nil, then all values in range are deleted.
-func (s *Shard) DeleteSeriesRangeWithPredicate(itr SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error {
+func (s *Shard) DeleteSeriesRangeWithPredicate(
+	ctx context.Context,
+	itr SeriesIterator,
+	predicate func(name []byte, tags models.Tags) (int64, int64, bool),
+) error {
 	engine, err := s.Engine()
 	if err != nil {
 		return err
 	}
-	return engine.DeleteSeriesRangeWithPredicate(itr, predicate)
+	return engine.DeleteSeriesRangeWithPredicate(ctx, itr, predicate)
 }
 
 // DeleteMeasurement deletes a measurement and all underlying series.
-func (s *Shard) DeleteMeasurement(name []byte) error {
+func (s *Shard) DeleteMeasurement(ctx context.Context, name []byte) error {
 	engine, err := s.Engine()
 	if err != nil {
 		return err
 	}
-	return engine.DeleteMeasurement(name)
+	return engine.DeleteMeasurement(ctx, name)
 }
 
 // SeriesN returns the unique number of series in the shard.
@@ -1084,7 +1088,7 @@ func (s *Shard) Export(w io.Writer, basePath string, start time.Time, end time.T
 
 // Restore restores data to the underlying engine for the shard.
 // The shard is reopened after restore.
-func (s *Shard) Restore(r io.Reader, basePath string) error {
+func (s *Shard) Restore(ctx context.Context, r io.Reader, basePath string) error {
 	if err := func() error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -1108,7 +1112,7 @@ func (s *Shard) Restore(r io.Reader, basePath string) error {
 	}
 
 	// Reopen engine.
-	return s.Open()
+	return s.Open(ctx)
 }
 
 // Import imports data to the underlying engine for the shard. r should
@@ -1199,7 +1203,7 @@ type ShardGroup interface {
 	FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
 	MapType(measurement, field string) influxql.DataType
 	CreateIterator(ctx context.Context, measurement *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error)
-	IteratorCost(measurement string, opt query.IteratorOptions) (query.IteratorCost, error)
+	IteratorCost(ctx context.Context, measurement string, opt query.IteratorOptions) (query.IteratorCost, error)
 	ExpandSources(sources influxql.Sources) (influxql.Sources, error)
 }
 
@@ -1396,7 +1400,7 @@ func (a Shards) createSeriesIterator(ctx context.Context, opt query.IteratorOpti
 	return NewSeriesPointIterator(IndexSet{Indexes: idxs, SeriesFile: sfile}, opt)
 }
 
-func (a Shards) IteratorCost(measurement string, opt query.IteratorOptions) (query.IteratorCost, error) {
+func (a Shards) IteratorCost(ctx context.Context, measurement string, opt query.IteratorOptions) (query.IteratorCost, error) {
 	var costs query.IteratorCost
 	var costerr error
 	var mu sync.RWMutex
@@ -1412,11 +1416,12 @@ func (a Shards) IteratorCost(measurement string, opt query.IteratorOptions) (que
 	limit := limiter.NewFixed(runtime.GOMAXPROCS(0))
 	var wg sync.WaitGroup
 	for _, sh := range a {
-		limit.Take()
+		costerr = limit.Take(ctx)
 		wg.Add(1)
 
 		mu.RLock()
 		if costerr != nil {
+			limit.Release()
 			mu.RUnlock()
 			break
 		}

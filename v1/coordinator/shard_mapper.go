@@ -244,7 +244,7 @@ func (a *LocalShardMapping) IteratorCost(ctx context.Context, m *influxql.Measur
 		var costs query.IteratorCost
 		measurements := sg.MeasurementsByRegex(m.Regex.Val)
 		for _, measurement := range measurements {
-			cost, err := sg.IteratorCost(measurement, opt)
+			cost, err := sg.IteratorCost(ctx, measurement, opt)
 			if err != nil {
 				return query.IteratorCost{}, err
 			}
@@ -252,7 +252,7 @@ func (a *LocalShardMapping) IteratorCost(ctx context.Context, m *influxql.Measur
 		}
 		return costs, nil
 	}
-	return sg.IteratorCost(m.Name, opt)
+	return sg.IteratorCost(ctx, m.Name, opt)
 }
 
 // Close clears out the list of mapped shards.

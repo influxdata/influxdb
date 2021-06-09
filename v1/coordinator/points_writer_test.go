@@ -1,6 +1,7 @@
 package coordinator_test
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"sync"
@@ -319,7 +320,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		var mu sync.Mutex
 
 		store := &fakeStore{
-			WriteFn: func(shardID uint64, points []models.Point) error {
+			WriteFn: func(_ context.Context, shardID uint64, points []models.Point) error {
 				mu.Lock()
 				defer mu.Unlock()
 				return theTest.err[0]
@@ -346,7 +347,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		c.Open()
 		defer c.Close()
 
-		err := c.WritePointsPrivileged(pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points)
+		err := c.WritePointsPrivileged(context.Background(), pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points)
 		if err == nil && test.expErr != nil {
 			t.Errorf("PointsWriter.WritePointsPrivileged(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
 		}
@@ -395,7 +396,7 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 	var mu sync.Mutex
 
 	store := &fakeStore{
-		WriteFn: func(shardID uint64, points []models.Point) error {
+		WriteFn: func(_ context.Context, shardID uint64, points []models.Point) error {
 			mu.Lock()
 			defer mu.Unlock()
 			return nil
@@ -422,7 +423,7 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 	c.Open()
 	defer c.Close()
 
-	err := c.WritePointsPrivileged(pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points)
+	err := c.WritePointsPrivileged(context.Background(), pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points)
 	if _, ok := err.(tsdb.PartialWriteError); !ok {
 		t.Errorf("PointsWriter.WritePoints(): got %v, exp %v", err, tsdb.PartialWriteError{})
 	}
@@ -431,16 +432,16 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 var shardID uint64
 
 type fakeStore struct {
-	WriteFn       func(shardID uint64, points []models.Point) error
-	CreateShardfn func(database, retentionPolicy string, shardID uint64, enabled bool) error
+	WriteFn       func(ctx context.Context, shardID uint64, points []models.Point) error
+	CreateShardfn func(ctx context.Context, database, retentionPolicy string, shardID uint64, enabled bool) error
 }
 
-func (f *fakeStore) WriteToShard(shardID uint64, points []models.Point) error {
-	return f.WriteFn(shardID, points)
+func (f *fakeStore) WriteToShard(ctx context.Context, shardID uint64, points []models.Point) error {
+	return f.WriteFn(ctx, shardID, points)
 }
 
-func (f *fakeStore) CreateShard(database, retentionPolicy string, shardID uint64, enabled bool) error {
-	return f.CreateShardfn(database, retentionPolicy, shardID, enabled)
+func (f *fakeStore) CreateShard(ctx context.Context, database, retentionPolicy string, shardID uint64, enabled bool) error {
+	return f.CreateShardfn(ctx, database, retentionPolicy, shardID, enabled)
 }
 
 func NewPointsWriterMetaClient() *PointsWriterMetaClient {

@@ -15,6 +15,8 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21547](https://github.com/influxdata/influxdb/pull/21547): Allow hiding the tooltip independently of the static legend
 1. [21584](https://github.com/influxdata/influxdb/pull/21584): Added the `api/v2/backup/metadata` endpoint for backing up both KV and SQL metadata, and the `api/v2/restore/sql` for restoring SQL metadata.
 1. [21635](https://github.com/influxdata/influxdb/pull/21635): Port `influxd inspect verify-seriesfile` to 2.x
+1. [21621](https://github.com/influxdata/influxdb/pull/21621): Add `storage-wal-max-concurrent-writes` config option to `influxd` to enable tuning memory pressure under heavy write load.
+1. [21621](https://github.com/influxdata/influxdb/pull/21621): Add `storage-wal-max-write-delay` config option to `influxd` to prevent deadlocks when the WAL is overloaded with concurrent writes.
 
 ### Bug Fixes
 

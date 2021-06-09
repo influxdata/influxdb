@@ -209,7 +209,7 @@ type Engine struct {
 func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Engine {
 	var wal *WAL
 	if opt.WALEnabled {
-		wal = NewWAL(walPath)
+		wal = NewWAL(walPath, opt.Config.WALMaxConcurrentWrites, opt.Config.WALMaxWriteDelay)
 		wal.syncDelay = time.Duration(opt.Config.WALFsyncDelay)
 	}
 
@@ -716,8 +716,7 @@ func (e *Engine) DiskSize() int64 {
 }
 
 // Open opens and initializes the engine.
-// TODO(edd): plumb context
-func (e *Engine) Open() error {
+func (e *Engine) Open(ctx context.Context) error {
 	if err := os.MkdirAll(e.path, 0777); err != nil {
 		return err
 	}
@@ -743,7 +742,7 @@ func (e *Engine) Open() error {
 		}
 	}
 
-	if err := e.FileStore.Open(); err != nil {
+	if err := e.FileStore.Open(ctx); err != nil {
 		return err
 	}
 
@@ -1241,7 +1240,7 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 
 // WritePoints writes metadata and point data into the engine.
 // It returns an error if new points are added to an existing key.
-func (e *Engine) WritePoints(points []models.Point) error {
+func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
 	values := make(map[string][]Value, len(points))
 	var (
 		keyBuf    []byte
@@ -1337,7 +1336,7 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	}
 
 	if e.WALEnabled {
-		if _, err := e.WAL.WriteMulti(values); err != nil {
+		if _, err := e.WAL.WriteMulti(ctx, values); err != nil {
 			return err
 		}
 	}
@@ -1345,15 +1344,19 @@ func (e *Engine) WritePoints(points []models.Point) error {
 }
 
 // DeleteSeriesRange removes the values between min and max (inclusive) from all series
-func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) error {
-	return e.DeleteSeriesRangeWithPredicate(itr, func(name []byte, tags models.Tags) (int64, int64, bool) {
+func (e *Engine) DeleteSeriesRange(ctx context.Context, itr tsdb.SeriesIterator, min, max int64) error {
+	return e.DeleteSeriesRangeWithPredicate(ctx, itr, func(name []byte, tags models.Tags) (int64, int64, bool) {
 		return min, max, true
 	})
 }
 
 // DeleteSeriesRangeWithPredicate removes the values between min and max (inclusive) from all series
 // for which predicate() returns true. If predicate() is nil, then all values in range are removed.
-func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error {
+func (e *Engine) DeleteSeriesRangeWithPredicate(
+	ctx context.Context,
+	itr tsdb.SeriesIterator,
+	predicate func(name []byte, tags models.Tags) (int64, int64, bool),
+) error {
 	var disableOnce bool
 
 	// Ensure that the index does not compact away the measurement or series we're
@@ -1435,7 +1438,7 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 
 		if sz >= deleteFlushThreshold || flushBatch {
 			// Delete all matching batch.
-			if err := e.deleteSeriesRange(batch, min, max); err != nil {
+			if err := e.deleteSeriesRange(ctx, batch, min, max); err != nil {
 				return err
 			}
 			batch = batch[:0]
@@ -1454,7 +1457,7 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 
 	if len(batch) > 0 {
 		// Delete all matching batch.
-		if err := e.deleteSeriesRange(batch, min, max); err != nil {
+		if err := e.deleteSeriesRange(ctx, batch, min, max); err != nil {
 			return err
 		}
 	}
@@ -1465,7 +1468,7 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 // deleteSeriesRange removes the values between min and max (inclusive) from all series.  This
 // does not update the index or disable compactions.  This should mainly be called by DeleteSeriesRange
 // and not directly.
-func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
+func (e *Engine) deleteSeriesRange(ctx context.Context, seriesKeys [][]byte, min, max int64) error {
 	if len(seriesKeys) == 0 {
 		return nil
 	}
@@ -1480,7 +1483,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 
 	var overlapsTimeRangeMinMax bool
 	var overlapsTimeRangeMinMaxLock sync.Mutex
-	e.FileStore.Apply(func(r TSMFile) error {
+	e.FileStore.Apply(ctx, func(r TSMFile) error {
 		if r.OverlapsTimeRange(min, max) {
 			overlapsTimeRangeMinMaxLock.Lock()
 			overlapsTimeRangeMinMax = true
@@ -1503,7 +1506,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	}
 
 	// Run the delete on each TSM file in parallel
-	if err := e.FileStore.Apply(func(r TSMFile) error {
+	if err := e.FileStore.Apply(ctx, func(r TSMFile) error {
 		// See if this TSM file contains the keys and time range
 		minKey, maxKey := seriesKeys[0], seriesKeys[len(seriesKeys)-1]
 		tsmMin, tsmMax := r.KeyRange()
@@ -1568,7 +1571,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 
 	// delete from the WAL
 	if e.WALEnabled {
-		if _, err := e.WAL.DeleteRange(deleteKeys, min, max); err != nil {
+		if _, err := e.WAL.DeleteRange(ctx, deleteKeys, min, max); err != nil {
 			return err
 		}
 	}
@@ -1585,7 +1588,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 
 	// Apply runs this func concurrently.  The seriesKeys slice is mutated concurrently
 	// by different goroutines setting positions to nil.
-	if err := e.FileStore.Apply(func(r TSMFile) error {
+	if err := e.FileStore.Apply(ctx, func(r TSMFile) error {
 		n := r.KeyCount()
 		var j int
 
@@ -1770,7 +1773,7 @@ func (e *Engine) cleanupMeasurement(name []byte) error {
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
-func (e *Engine) DeleteMeasurement(name []byte) error {
+func (e *Engine) DeleteMeasurement(ctx context.Context, name []byte) error {
 	// Attempt to find the series keys.
 	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
 	itr, err := indexSet.MeasurementSeriesByExprIterator(name, nil)
@@ -1780,7 +1783,7 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 		return nil
 	}
 	defer itr.Close()
-	return e.DeleteSeriesRange(tsdb.NewSeriesIteratorAdapter(e.sfile, itr), math.MinInt64, math.MaxInt64)
+	return e.DeleteSeriesRange(ctx, tsdb.NewSeriesIteratorAdapter(e.sfile, itr), math.MinInt64, math.MaxInt64)
 }
 
 // ForEachMeasurementName iterates over each measurement name in the engine.

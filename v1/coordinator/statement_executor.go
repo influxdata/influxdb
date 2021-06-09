@@ -375,7 +375,7 @@ func (e *StatementExecutor) executeDeleteSeriesStatement(ctx context.Context, q 
 	// Convert "now()" to current time.
 	q.Condition = influxql.Reduce(q.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
 
-	return e.TSDBStore.DeleteSeries(mapping.BucketID.String(), q.Sources, q.Condition)
+	return e.TSDBStore.DeleteSeries(ctx, mapping.BucketID.String(), q.Sources, q.Condition)
 }
 
 func (e *StatementExecutor) executeDropMeasurementStatement(ctx context.Context, q *influxql.DropMeasurementStatement, database string, ectx *query.ExecutionContext) error {
@@ -383,7 +383,7 @@ func (e *StatementExecutor) executeDropMeasurementStatement(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	return e.TSDBStore.DeleteMeasurement(mapping.BucketID.String(), q.Name)
+	return e.TSDBStore.DeleteMeasurement(ctx, mapping.BucketID.String(), q.Name)
 }
 
 func (e *StatementExecutor) executeShowMeasurementsStatement(ctx context.Context, q *influxql.ShowMeasurementsStatement, ectx *query.ExecutionContext) error {
@@ -757,8 +757,8 @@ func (m mappings) DefaultRetentionPolicy(db string) string {
 
 // TSDBStore is an interface for accessing the time series data store.
 type TSDBStore interface {
-	DeleteMeasurement(database, name string) error
-	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
+	DeleteMeasurement(ctx context.Context, database, name string) error
+	DeleteSeries(ctx context.Context, database string, sources []influxql.Source, condition influxql.Expr) error
 	MeasurementNames(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
 	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
 	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
