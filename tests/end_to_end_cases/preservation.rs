@@ -18,6 +18,7 @@ async fn test_query_chunk_after_restart() {
         .update_server_id(server_id)
         .await
         .expect("set ID failed");
+    fixture.wait_server_initialized().await;
 
     // create DB and a RB chunk
     create_readable_database(&db_name, fixture.grpc_channel()).await;
@@ -46,9 +47,7 @@ async fn test_query_chunk_after_restart() {
 
     // restart server
     let fixture = fixture.restart_server().await;
-
-    // need to re-register the database
-    create_readable_database(&db_name, fixture.grpc_channel()).await;
+    fixture.wait_server_initialized().await;
 
     // query data after restart
     assert_chunk_query_works(&fixture, &db_name).await;
