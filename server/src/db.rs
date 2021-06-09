@@ -736,7 +736,7 @@ impl Db {
             transaction
                 .add_parquet(&path.into(), &parquet_metadata)
                 .context(TransactionError)?;
-            transaction.commit().await.context(TransactionError)?;
+            transaction.commit(false).await.context(TransactionError)?;
         }
 
         // We know this chunk is ParquetFile type
@@ -1289,6 +1289,15 @@ impl CatalogState for Catalog {
 
     fn remove(&self, _path: DirsAndFileName) -> parquet_file::catalog::Result<()> {
         unimplemented!("parquet files cannot be removed from the catalog for now")
+    }
+
+    fn files(
+        &self,
+    ) -> std::collections::HashMap<
+        DirsAndFileName,
+        Arc<datafusion::parquet::file::metadata::ParquetMetaData>,
+    > {
+        todo!("wire up catalog file tracking")
     }
 }
 

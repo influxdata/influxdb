@@ -235,6 +235,11 @@ pub trait CatalogState {
 
     /// Remove parquet file from state.
     fn remove(&self, path: DirsAndFileName) -> Result<()>;
+
+    /// List all Parquet files that are currently (i.e. by the current transaction) tracked by the catalog.
+    ///
+    /// If a file was once [added](Self::add) but later [removed](Self::remove) it MUST NOT appear in the result.
+    fn files(&self) -> HashMap<DirsAndFileName, Arc<ParquetMetaData>>;
 }
 
 /// Find last transaction-start-timestamp.
@@ -246,8 +251,8 @@ pub async fn find_last_transaction_timestamp(
     db_name: &str,
 ) -> Result<Option<DateTime<Utc>>> {
     let mut res = None;
-    for (path, _revision_counter, _uuid) in
-        list_transaction_files(object_store, server_id, db_name).await?
+    for (path, _file_type, _revision_counter, _uuid) in
+        list_files(object_store, server_id, db_name).await?
     {
         match load_transaction_proto(object_store, &path).await {
             Ok(proto) => match parse_timestamp(&proto.start_timestamp) {
@@ -316,7 +321,7 @@ where
         server_id: ServerId,
         db_name: &str,
     ) -> Result<bool> {
-        Ok(!list_transaction_files(object_store, server_id, db_name)
+        Ok(!list_files(object_store, server_id, db_name)
             .await?
             .is_empty())
     }
@@ -352,12 +357,15 @@ where
 
         // add empty transaction
         let transaction = catalog.open_transaction().await;
-        transaction.commit().await?;
+        transaction.commit(false).await?;
 
         Ok(catalog)
     }
 
     /// Load existing catalog from store, if it exists.
+    ///
+    /// Loading starts at the latest checkpoint or -- if none exists -- at transaction `0`. Transactions before that
+    /// point are neither verified nor are they required to exist.
     pub async fn load(
         object_store: Arc<ObjectStore>,
         server_id: ServerId,
@@ -367,8 +375,9 @@ where
         // parse all paths into revisions
         let mut transactions: HashMap<u64, Uuid> = HashMap::new();
         let mut max_revision = None;
-        for (_path, revision_counter, uuid) in
-            list_transaction_files(&object_store, server_id, &db_name).await?
+        let mut last_checkpoint = None;
+        for (_path, file_type, revision_counter, uuid) in
+            list_files(&object_store, server_id, &db_name).await?
         {
             // keep track of the max
             max_revision = Some(
@@ -376,6 +385,15 @@ where
                     .map(|m: u64| m.max(revision_counter))
                     .unwrap_or(revision_counter),
             );
+
+            // keep track of latest checkpoint
+            if matches!(file_type, FileType::Checkpoint) {
+                last_checkpoint = Some(
+                    last_checkpoint
+                        .map(|m: u64| m.max(revision_counter))
+                        .unwrap_or(revision_counter),
+                );
+            }
 
             // insert but check for duplicates
             match transactions.entry(revision_counter) {
@@ -387,12 +405,14 @@ where
                         (uuid, *o.get())
                     };
 
-                    Fork {
-                        revision_counter,
-                        uuid1,
-                        uuid2,
+                    if uuid1 != uuid2 {
+                        Fork {
+                            revision_counter,
+                            uuid1,
+                            uuid2,
+                        }
+                        .fail()?;
                     }
-                    .fail()?;
                 }
                 Vacant(v) => {
                     v.insert(uuid);
@@ -405,11 +425,18 @@ where
             return Ok(None);
         }
 
-        // read and replay revisions
-        let max_revision = max_revision.expect("transactions list is not empty here");
+        // setup empty state
         let mut state = Arc::new(CatalogState::new_empty(state_data));
         let mut last_tkey = None;
-        for rev in 0..=max_revision {
+
+        // detect replay start
+        let start_revision = last_checkpoint.unwrap_or(0);
+
+        // detect end of replay process
+        let max_revision = max_revision.expect("transactions list is not empty here");
+
+        // read and replay delta revisions
+        for rev in start_revision..=max_revision {
             let uuid = transactions.get(&rev).context(MissingTransaction {
                 revision_counter: rev,
             })?;
@@ -418,6 +445,11 @@ where
                 uuid: *uuid,
             };
             let tmp_state = S::clone_or_keep(&state);
+            let file_type = if (rev == start_revision) && last_checkpoint.is_some() {
+                FileType::Checkpoint
+            } else {
+                FileType::Transaction
+            };
             let transaction = OpenTransaction::load_and_apply(
                 &object_store,
                 server_id,
@@ -425,6 +457,7 @@ where
                 &tkey,
                 tmp_state,
                 &last_tkey,
+                file_type,
             )
             .await?;
             last_tkey = Some(tkey);
@@ -457,8 +490,8 @@ where
         server_id: ServerId,
         db_name: &str,
     ) -> Result<()> {
-        for (path, _revision_counter, _uuiud) in
-            list_transaction_files(object_store, server_id, db_name).await?
+        for (path, _file_type, _revision_counter, _uuid) in
+            list_files(object_store, server_id, db_name).await?
         {
             object_store.delete(&path).await.context(Write)?;
         }
@@ -556,6 +589,14 @@ impl FileType {
             Self::Checkpoint => CHECKPOINT_FILE_SUFFIX,
         }
     }
+
+    /// Get encoding that should be used for this file.
+    fn encoding(&self) -> proto::transaction::Encoding {
+        match self {
+            Self::Transaction => proto::transaction::Encoding::Delta,
+            Self::Checkpoint => proto::transaction::Encoding::Full,
+        }
+    }
 }
 
 /// Creates object store path for given transaction or checkpoint.
@@ -613,11 +654,11 @@ fn parse_file_path(path: Path, file_type: FileType) -> Option<(u64, Uuid)> {
 /// Load a list of all transaction file from object store. Also parse revision counter and transaction UUID.
 ///
 /// The files are in no particular order!
-async fn list_transaction_files(
+async fn list_files(
     object_store: &ObjectStore,
     server_id: ServerId,
     db_name: &str,
-) -> Result<Vec<(Path, u64, Uuid)>> {
+) -> Result<Vec<(Path, FileType, u64, Uuid)>> {
     let list_path = catalog_path(&object_store, server_id, &db_name);
     let paths = object_store
         .list(Some(&list_path))
@@ -628,7 +669,16 @@ async fn list_transaction_files(
                 .into_iter()
                 .filter_map(|path| {
                     parse_file_path(path.clone(), FileType::Transaction)
-                        .map(|(revision_counter, uuid)| (path, revision_counter, uuid))
+                        .map(|(revision_counter, uuid)| {
+                            (path.clone(), FileType::Transaction, revision_counter, uuid)
+                        })
+                        .or_else(|| {
+                            parse_file_path(path.clone(), FileType::Checkpoint).map(
+                                |(revision_counter, uuid)| {
+                                    (path, FileType::Checkpoint, revision_counter, uuid)
+                                },
+                            )
+                        })
                 })
                 .collect()
         })
@@ -851,10 +901,12 @@ where
         Ok(())
     }
 
-    fn commit(mut self, catalog_inner: &mut PreservedCatalogInner<S>) {
-        let tkey = self.tkey();
+    /// Commit to mutable catalog and return previous transaction key.
+    fn commit(mut self, catalog_inner: &mut PreservedCatalogInner<S>) -> Option<TransactionKey> {
+        let mut tkey = Some(self.tkey());
         std::mem::swap(&mut catalog_inner.state, &mut self.next_state);
-        catalog_inner.previous_tkey = Some(tkey);
+        std::mem::swap(&mut catalog_inner.previous_tkey, &mut tkey);
+        tkey
     }
 
     async fn store(
@@ -881,15 +933,10 @@ where
         tkey: &TransactionKey,
         state: Arc<S>,
         last_tkey: &Option<TransactionKey>,
+        file_type: FileType,
     ) -> Result<Self> {
         // recover state from store
-        let path = file_path(
-            object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
+        let path = file_path(object_store, server_id, db_name, tkey, file_type);
         let proto = load_transaction_proto(object_store, &path).await?;
 
         // sanity-check file content
@@ -918,23 +965,27 @@ where
             }
             .fail()?
         }
-        let last_uuid_actual = parse_uuid(&proto.previous_uuid)?;
-        let last_uuid_expected = last_tkey.as_ref().map(|tkey| tkey.uuid);
-        if last_uuid_actual != last_uuid_expected {
-            WrongTransactionLink {
-                revision_counter: tkey.revision_counter,
-                expected: last_uuid_expected,
-                actual: last_uuid_actual,
+        let encoding = file_type.encoding();
+        if encoding == proto::transaction::Encoding::Delta {
+            // only verify chain for delta encodings
+            let last_uuid_actual = parse_uuid(&proto.previous_uuid)?;
+            let last_uuid_expected = last_tkey.as_ref().map(|tkey| tkey.uuid);
+            if last_uuid_actual != last_uuid_expected {
+                WrongTransactionLink {
+                    revision_counter: tkey.revision_counter,
+                    expected: last_uuid_expected,
+                    actual: last_uuid_actual,
+                }
+                .fail()?;
             }
-            .fail()?;
         }
         // verify we can parse the timestamp (checking that no error is raised)
         parse_timestamp(&proto.start_timestamp)?;
-        let encoding = parse_encoding(proto.encoding)?;
-        if encoding != proto::transaction::Encoding::Delta {
+        let encoding_actual = parse_encoding(proto.encoding)?;
+        if encoding_actual != encoding {
             return Err(Error::WrongEncodingError {
-                actual: encoding,
-                expected: proto::transaction::Encoding::Delta,
+                actual: encoding_actual,
+                expected: encoding,
             });
         }
 
@@ -1016,26 +1067,109 @@ where
     }
 
     /// Write data to object store and commit transaction to underlying catalog.
-    pub async fn commit(mut self) -> Result<()> {
-        // write to object store
-        self.transaction
-            .as_mut()
-            .expect("No transaction in progress?")
-            .store(
-                &self.catalog.object_store,
-                self.catalog.server_id,
-                &self.catalog.db_name,
-            )
-            .await?;
-
-        // commit to catalog
+    ///
+    /// This will first commit to object store and then to the in-memory state.
+    ///
+    /// If `create_checkpoint` is set this will also create a checkpoint at the end of the commit. Note that if the
+    /// checkpoint creation fails, the commit will still be treated as completed since the checkpoint is a mere
+    /// optimization to speed up transaction replay and allow to prune the history.
+    pub async fn commit(mut self, create_checkpoint: bool) -> Result<()> {
         let t = std::mem::take(&mut self.transaction)
             .expect("calling .commit on a closed transaction?!");
         let tkey = t.tkey();
-        let mut inner_guard = self.catalog.inner.write();
-        t.commit(&mut inner_guard);
-        drop(inner_guard);
+
+        // write to object store
+        t.store(
+            &self.catalog.object_store,
+            self.catalog.server_id,
+            &self.catalog.db_name,
+        )
+        .await?;
+
+        // commit to catalog
+        let (previous_tkey, state) = self.commit_inner(t);
         info!(?tkey, "transaction committed");
+
+        // maybe create a checkpoint
+        // IMPORTANT: Create the checkpoint AFTER commiting the transaction to object store and to the in-memory state.
+        //            Checkpoints are an optional optimization and are not required to materialize a transaction.
+        if create_checkpoint {
+            // NOTE: `inner_guard` will not be re-used here since it is a strong write lock and the checkpoint creation
+            //       only needs a read lock.
+            self.create_checkpoint(tkey, previous_tkey, state).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Commit helper function.
+    ///
+    /// This function mostly exists for the following reasons:
+    ///
+    /// - the read-write guard for the inner catalog state should be limited in scope to avoid long write-locks
+    /// - rustc seems to fold the guard into the async generator state even when we `drop` it quickly, making the
+    ///   resulting future `!Send`. However tokio requires our futures to be `Send`.
+    fn commit_inner(&self, t: OpenTransaction<S>) -> (Option<TransactionKey>, Arc<S>) {
+        let mut inner_guard = self.catalog.inner.write();
+        let previous_tkey = t.commit(&mut inner_guard);
+        let state = Arc::clone(&inner_guard.state);
+
+        (previous_tkey, state)
+    }
+
+    async fn create_checkpoint(
+        &self,
+        tkey: TransactionKey,
+        previous_tkey: Option<TransactionKey>,
+        state: Arc<S>,
+    ) -> Result<()> {
+        let files = state.files();
+        let object_store = self.catalog.object_store();
+        let server_id = self.catalog.server_id();
+        let db_name = self.catalog.db_name();
+
+        // sort by key (= path) for deterministic output
+        let files = {
+            let mut tmp: Vec<_> = files.into_iter().collect();
+            tmp.sort_by_key(|(path, _metadata)| path.clone());
+            tmp
+        };
+
+        // create transaction to add parquet files
+        let actions: Result<Vec<_>, Error> = files
+            .into_iter()
+            .map(|(path, metadata)| {
+                Ok(proto::transaction::Action {
+                    action: Some(proto::transaction::action::Action::AddParquet(
+                        proto::AddParquet {
+                            path: Some(unparse_dirs_and_filename(&path)),
+                            metadata: parquet_metadata_to_thrift(&metadata)
+                                .context(MetadataEncodingFailed)?,
+                        },
+                    )),
+                })
+            })
+            .collect();
+        let actions = actions?;
+
+        // assemble and store checkpoint protobuf
+        let proto = proto::Transaction {
+            actions,
+            version: TRANSACTION_VERSION,
+            uuid: tkey.uuid.to_string(),
+            revision_counter: tkey.revision_counter,
+            previous_uuid: previous_tkey.map_or_else(String::new, |tkey| tkey.uuid.to_string()),
+            start_timestamp: Some(Utc::now().into()),
+            encoding: proto::transaction::Encoding::Full.into(),
+        };
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            &tkey,
+            FileType::Checkpoint,
+        );
+        store_transaction_proto(&object_store, &path, &proto).await?;
 
         Ok(())
     }
@@ -1180,6 +1314,12 @@ pub mod test_helpers {
             }
 
             Ok(())
+        }
+
+        fn files(&self) -> HashMap<DirsAndFileName, Arc<ParquetMetaData>> {
+            let guard = self.inner.lock();
+
+            guard.parquet_files.clone()
         }
     }
 
@@ -1758,7 +1898,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_fork() {
+    async fn test_fork_transaction() {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let db_name = "db1";
@@ -1787,6 +1927,57 @@ mod tests {
             FileType::Transaction,
         );
         proto.uuid = new_uuid.to_string();
+        store_transaction_proto(&object_store, &path, &proto)
+            .await
+            .unwrap();
+
+        // loading catalog should fail now
+        let res = PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await;
+        let (uuid1, uuid2) = if old_uuid < new_uuid {
+            (old_uuid, new_uuid)
+        } else {
+            (new_uuid, old_uuid)
+        };
+        assert_eq!(res.unwrap_err().to_string(), format!("Fork detected. Revision 1 has two UUIDs {} and {}. Maybe two writer instances with the same server ID were running in parallel?", uuid1, uuid2));
+    }
+
+    #[tokio::test]
+    async fn test_fork_checkpoint() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+
+        // create checkpoint file with different UUID
+        assert!(trace.tkeys.len() >= 2);
+        let mut tkey = trace.tkeys[1].clone();
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            &tkey,
+            FileType::Transaction,
+        );
+        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let old_uuid = tkey.uuid;
+
+        let new_uuid = Uuid::new_v4();
+        tkey.uuid = new_uuid;
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            &tkey,
+            FileType::Checkpoint,
+        );
+        proto.uuid = new_uuid.to_string();
+        proto.encoding = proto::transaction::Encoding::Full.into();
         store_transaction_proto(&object_store, &path, &proto)
             .await
             .unwrap();
@@ -1965,7 +2156,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_wrong_encoding() {
+    async fn test_wrong_encoding_in_transaction_file() {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let db_name = "db1";
@@ -1998,6 +2189,126 @@ mod tests {
         assert_eq!(
             res.unwrap_err().to_string(),
             "Internal: Found wrong encoding in serialized catalog file: Expected Delta but got Full"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_wrong_encoding_in_checkpoint_file() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+
+        // break transaction file
+        assert!(trace.tkeys.len() >= 2);
+        let tkey = &trace.tkeys[0];
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
+        let proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            &tkey,
+            FileType::Checkpoint,
+        );
+        store_transaction_proto(&object_store, &path, &proto)
+            .await
+            .unwrap();
+
+        // loading catalog should fail now
+        let res = PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await;
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Internal: Found wrong encoding in serialized catalog file: Expected Full but got Delta"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_checkpoint() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+        let (_, metadata) = make_metadata(&object_store, "foo", 1337).await;
+
+        // use common test as baseline
+        let mut trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+
+        // re-open catalog
+        let catalog = PreservedCatalog::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // create empty transaction w/ checkpoint (the delta transaction file is not required for catalog loading)
+        {
+            let transaction = catalog.open_transaction().await;
+            transaction.commit(true).await.unwrap();
+        }
+        trace.record(&catalog, false);
+
+        // create another transaction on-top that adds a file (this transaction will be required to load the full state)
+        {
+            let mut transaction = catalog.open_transaction().await;
+            transaction
+                .add_parquet(&parsed_path!("last_one"), &metadata)
+                .unwrap();
+            transaction.commit(true).await.unwrap();
+        }
+        trace.record(&catalog, false);
+
+        // close catalog again
+        drop(catalog);
+
+        // remove first transaction files (that is no longer required)
+        for i in 0..(trace.tkeys.len() - 1) {
+            if trace.aborted[i] {
+                continue;
+            }
+            let tkey = &trace.tkeys[i];
+            let path = file_path(
+                &object_store,
+                server_id,
+                db_name,
+                tkey,
+                FileType::Transaction,
+            );
+            checked_delete(&object_store, &path).await;
+        }
+
+        // load catalog from store and check replayed state
+        let catalog = PreservedCatalog::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            catalog.revision_counter(),
+            trace.tkeys.last().unwrap().revision_counter
+        );
+        assert_catalog_parquet_files(
+            &catalog,
+            &get_catalog_parquet_files(trace.states.last().unwrap()),
         );
     }
 
@@ -2076,9 +2387,17 @@ mod tests {
 
     /// Result of [`assert_single_catalog_inmem_works`].
     struct TestTrace {
+        /// Traces transaction keys for every (committed and aborted) transaction.
         tkeys: Vec<TransactionKey>,
+
+        /// Traces state after every (committed and aborted) transaction.
         states: Vec<TestCatalogState>,
+
+        /// Traces timestamp after every (committed and aborted) transaction.
         post_timestamps: Vec<DateTime<Utc>>,
+
+        /// Traces if an transaction was aborted.
+        aborted: Vec<bool>,
     }
 
     impl TestTrace {
@@ -2087,14 +2406,16 @@ mod tests {
                 tkeys: vec![],
                 states: vec![],
                 post_timestamps: vec![],
+                aborted: vec![],
             }
         }
 
-        fn record(&mut self, catalog: &PreservedCatalog<TestCatalogState>) {
+        fn record(&mut self, catalog: &PreservedCatalog<TestCatalogState>, aborted: bool) {
             self.tkeys
                 .push(catalog.inner.read().previous_tkey.clone().unwrap());
             self.states.push(catalog.state().deref().clone());
             self.post_timestamps.push(Utc::now());
+            self.aborted.push(aborted);
         }
     }
 
@@ -2122,7 +2443,7 @@ mod tests {
         // empty catalog has no data
         assert_eq!(catalog.revision_counter(), 0);
         assert_catalog_parquet_files(&catalog, &[]);
-        trace.record(&catalog);
+        trace.record(&catalog, false);
 
         // fill catalog with examples
         {
@@ -2136,7 +2457,7 @@ mod tests {
             t.add_parquet(&parsed_path!(["sub2"], "test1"), &metadata1)
                 .unwrap();
 
-            t.commit().await.unwrap();
+            t.commit(false).await.unwrap();
         }
         assert_eq!(catalog.revision_counter(), 1);
         assert_catalog_parquet_files(
@@ -2148,7 +2469,7 @@ mod tests {
                 ("test1".to_string(), metadata1.clone()),
             ],
         );
-        trace.record(&catalog);
+        trace.record(&catalog, false);
 
         // modify catalog with examples
         {
@@ -2166,7 +2487,7 @@ mod tests {
             t.remove_parquet(&parsed_path!("test1"))
                 .expect_err("removing twice should error");
 
-            t.commit().await.unwrap();
+            t.commit(false).await.unwrap();
         }
         assert_eq!(catalog.revision_counter(), 2);
         assert_catalog_parquet_files(
@@ -2178,7 +2499,7 @@ mod tests {
                 ("test4".to_string(), metadata1.clone()),
             ],
         );
-        trace.record(&catalog);
+        trace.record(&catalog, false);
 
         // uncommitted modifications have no effect
         {
@@ -2199,7 +2520,7 @@ mod tests {
                 ("test4".to_string(), metadata1.clone()),
             ],
         );
-        trace.record(&catalog);
+        trace.record(&catalog, true);
 
         trace
     }
@@ -2414,6 +2735,7 @@ mod tests {
             .unwrap();
 
         // last trace entry is an aborted transaction, so the valid transaction timestamp is the third last
+        assert!(trace.aborted[trace.aborted.len() - 1]);
         let second_last_committed_end_ts = trace.post_timestamps[trace.post_timestamps.len() - 3];
         assert!(
             ts > second_last_committed_end_ts,
@@ -2474,6 +2796,7 @@ mod tests {
             .unwrap();
 
         // last trace entry is an aborted transaction, so the valid transaction timestamp is the third last
+        assert!(trace.aborted[trace.aborted.len() - 1]);
         let second_last_committed_end_ts = trace.post_timestamps[trace.post_timestamps.len() - 3];
         assert!(
             ts > second_last_committed_end_ts,
@@ -2525,6 +2848,7 @@ mod tests {
             .unwrap();
 
         // last trace entry is an aborted transaction, so the valid transaction timestamp is the third last
+        assert!(trace.aborted[trace.aborted.len() - 1]);
         let second_last_committed_end_ts = trace.post_timestamps[trace.post_timestamps.len() - 3];
         assert!(
             ts > second_last_committed_end_ts,
@@ -2564,5 +2888,72 @@ mod tests {
             &catalog,
             &get_catalog_parquet_files(trace.states.last().unwrap()),
         );
+    }
+
+    #[tokio::test]
+    async fn test_exists_considers_checkpoints() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+
+        assert!(
+            !PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
+                .await
+                .unwrap()
+        );
+
+        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+
+        // delete transaction file
+        let tkey = catalog.inner.read().previous_tkey.clone().unwrap();
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            &tkey,
+            FileType::Transaction,
+        );
+        checked_delete(&object_store, &path).await;
+
+        // create empty transaction w/ checkpoint
+        {
+            let transaction = catalog.open_transaction().await;
+            transaction.commit(true).await.unwrap();
+        }
+
+        // delete transaction file
+        let tkey = catalog.inner.read().previous_tkey.clone().unwrap();
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            &tkey,
+            FileType::Transaction,
+        );
+        checked_delete(&object_store, &path).await;
+
+        drop(catalog);
+
+        assert!(
+            PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
+                .await
+                .unwrap()
+        );
+        assert!(PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            ()
+        )
+        .await
+        .unwrap()
+        .is_some());
     }
 }

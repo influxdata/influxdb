@@ -156,6 +156,13 @@ impl CatalogState for TracerCatalogState {
         // Do NOT remove the file since we still need it for time travel
         Ok(())
     }
+
+    fn files(
+        &self,
+    ) -> std::collections::HashMap<DirsAndFileName, Arc<parquet::file::metadata::ParquetMetaData>>
+    {
+        unimplemented!("File tracking not implemented for TracerCatalogState")
+    }
 }
 
 #[cfg(test)]
@@ -236,7 +243,7 @@ mod tests {
             let (path, _md) = make_metadata(&object_store, "foo", 3).await;
             paths_delete.push(path.display());
 
-            transaction.commit().await.unwrap();
+            transaction.commit(false).await.unwrap();
         }
 
         // run clean-up
@@ -278,7 +285,7 @@ mod tests {
                     let (path, md) = make_metadata(&object_store, "foo", i).await;
                     transaction.add_parquet(&path.clone().into(), &md).unwrap();
 
-                    transaction.commit().await.unwrap();
+                    transaction.commit(false).await.unwrap();
 
                     path.display()
                 },
