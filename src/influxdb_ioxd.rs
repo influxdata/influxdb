@@ -146,8 +146,9 @@ pub async fn main(config: Config) -> Result<()> {
 
     if config.grpc_bind_address == config.http_bind_address {
         error!(
-            "grpc and http bind addresses must differ; both are {:?}",
-            config.grpc_bind_address
+            %config.grpc_bind_address,
+            %config.http_bind_address,
+            "grpc and http bind addresses must differ",
         );
         std::process::exit(1);
     }
