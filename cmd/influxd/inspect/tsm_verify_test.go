@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"io/ioutil"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
@@ -24,7 +23,7 @@ func TestInvalidChecksum(t *testing.T) {
 
 	out, err := ioutil.ReadAll(b)
 	require.NoError(t, err)
-	require.True(t, strings.Contains(string(out), "Broken Blocks: 1 / 1"))
+	require.Contains(t, string(out), "Broken Blocks: 1 / 1")
 }
 
 func TestValidChecksum(t *testing.T) {
@@ -39,7 +38,7 @@ func TestValidChecksum(t *testing.T) {
 
 	out, err := ioutil.ReadAll(b)
 	require.NoError(t, err)
-	require.True(t, strings.Contains(string(out), "Broken Blocks: 0 / 1"))
+	require.Contains(t, string(out), "Broken Blocks: 0 / 1")
 }
 
 func TestInvalidUTF8(t *testing.T) {
@@ -64,7 +63,7 @@ func TestValidUTF8(t *testing.T) {
 
 	out, err := ioutil.ReadAll(b)
 	require.NoError(t, err)
-	require.True(t, strings.Contains(string(out), "Invalid Keys: 0 / 1"))
+	require.Contains(t, string(out), "Invalid Keys: 0 / 1")
 }
 
 func newUTFTest(t *testing.T, withError bool) string {
@@ -116,7 +115,7 @@ func newChecksumTest(t *testing.T, withError bool) string {
 		defer fh.Close()
 
 		written, err := fh.WriteAt([]byte("foob"), 5)
-		require.True(t, written == 4)
+		require.Equal(t, 4, written)
 		require.NoError(t, err)
 	}
 
