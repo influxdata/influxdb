@@ -1400,7 +1400,7 @@ func (a axes) hasAxes(expectedAxes ...string) []validationErr {
 type StaticLegend struct {
 	ColorizeRows         bool    `json:"colorizeRows,omitempty" yaml:"colorizeRows,omitempty"`
 	HeightRatio          float64 `json:"heightRatio,omitempty" yaml:"heightRatio,omitempty"`
-	Hide                 bool    `json:"hide,omitempty" yaml:"hide,omitempty"`
+	Show                 bool    `json:"show,omitempty" yaml:"show,omitempty"`
 	Opacity              float64 `json:"opacity,omitempty" yaml:"opacity,omitempty"`
 	OrientationThreshold int     `json:"orientationThreshold,omitempty" yaml:"orientationThreshold,omitempty"`
 	ValueAxis            string  `json:"valueAxis,omitempty" yaml:"valueAxis,omitempty"`
@@ -1410,7 +1410,7 @@ type StaticLegend struct {
 const (
 	fieldChartStaticLegendColorizeRows         = "colorizeRows"
 	fieldChartStaticLegendHeightRatio          = "heightRatio"
-	fieldChartStaticLegendHide                 = "hide"
+	fieldChartStaticLegendShow                 = "show"
 	fieldChartStaticLegendOpacity              = "opacity"
 	fieldChartStaticLegendOrientationThreshold = "orientationThreshold"
 	fieldChartStaticLegendValueAxis            = "valueAxis"
@@ -1421,7 +1421,7 @@ func (sl StaticLegend) influxStaticLegend() influxdb.StaticLegend {
 	return influxdb.StaticLegend{
 		ColorizeRows:         sl.ColorizeRows,
 		HeightRatio:          sl.HeightRatio,
-		Hide:                 sl.Hide,
+		Show:                 sl.Show,
 		Opacity:              sl.Opacity,
 		OrientationThreshold: sl.OrientationThreshold,
 		ValueAxis:            sl.ValueAxis,
