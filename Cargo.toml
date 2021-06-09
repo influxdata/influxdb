@@ -49,7 +49,6 @@ data_types = { path = "data_types" }
 generated_types = { path = "generated_types" }
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["format"] }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
-influxdb_tsm = { path = "influxdb_tsm" }
 internal_types = { path = "internal_types" }
 logfmt = { path = "logfmt" }
 metrics = { path = "metrics" }
@@ -57,7 +56,6 @@ mutable_buffer = { path = "mutable_buffer" }
 num_cpus = "1.13.0"
 object_store = { path = "object_store" }
 observability_deps = { path = "observability_deps" }
-packers = { path = "packers" }
 panic_logging = { path = "panic_logging" }
 query = { path = "query" }
 read_buffer = { path = "read_buffer" }
@@ -118,26 +116,9 @@ parking_lot = "0.11.1"
 
 # Crates.io dependencies, in alphabetical order
 assert_cmd = "1.0.0"
-criterion = "0.3"
 flate2 = "1.0"
 hex = "0.4.2"
 predicates = "1.0.4"
 rand = "0.8.3"
 reqwest = "0.11"
 tempfile = "3.1.0"
-
-[[bench]]
-name = "encoders"
-harness = false
-
-[[bench]]
-name = "line_parser"
-harness = false
-
-[[bench]]
-name = "mapper"
-harness = false
-
-[[bench]]
-name = "packers"
-harness = false

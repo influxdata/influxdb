@@ -3,6 +3,7 @@ name = "server_benchmarks"
 version = "0.1.0"
 authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2018"
+description = "Server related bechmarks, grouped into their own crate to minimize build dev build times"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,11 +12,17 @@ edition = "2018"
 
 [dev-dependencies] # In alphabetical order
 arrow_util = { path = "../arrow_util" }
+entry = { path = "../entry" }
 criterion = { version = "0.3.4", features = ["async_tokio"] }
 datafusion = { path = "../datafusion" }
 flate2 = "1.0.20"
+influxdb_tsm = { path = "../influxdb_tsm" }
+influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+mutable_buffer = { path = "../mutable_buffer" }
+packers = { path = "../packers" }
 query = { path = "../query" }
 query_tests = { path = "../query_tests" }
+rand = "0.8.3"
 server = { path = "../server" }
 test_helpers = { path = "../test_helpers" }
 tokio = { version = "1.0", features = ["macros", "time"] }
@@ -24,4 +31,30 @@ tokio = { version = "1.0", features = ["macros", "time"] }
 
 [[bench]]
 name = "influxrpc"
+harness = false
+
+
+[[bench]]
+name = "snapshot"
+harness = false
+
+[[bench]]
+name = "write"
+harness = false
+
+
+[[bench]]
+name = "encoders"
+harness = false
+
+[[bench]]
+name = "line_parser"
+harness = false
+
+[[bench]]
+name = "mapper"
+harness = false
+
+[[bench]]
+name = "packers"
 harness = false
