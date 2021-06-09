@@ -145,11 +145,11 @@ func WriteTombstoneHeader(t *testing.T, file *os.File, header uint32) {
 func WriteBadData(t *testing.T, file *os.File) {
 	t.Helper()
 
-	writer, err := os.OpenFile(file.Name(), os.O_RDWR, 0)
+	writer, err := os.OpenFile(file.Name(), os.O_APPEND|os.O_WRONLY, 0644)
 	require.NoError(t, err)
 	defer writer.Close()
 
-	written, err := writer.WriteAt([]byte("foobar"), 4)
+	written, err := writer.Write([]byte("foobar"))
 	require.NoError(t, err)
 	require.Equal(t, 6, written)
 }
