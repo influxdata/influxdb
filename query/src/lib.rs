@@ -7,7 +7,7 @@
 )]
 
 use async_trait::async_trait;
-use data_types::{chunk_metadata::ChunkSummary, partition_metadata::ColumnSummary};
+use data_types::chunk_metadata::ChunkSummary;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, Executor};
 use internal_types::{schema::Schema, selection::Selection};
@@ -66,6 +66,10 @@ pub trait PartitionChunk: Prunable + Debug + Send + Sync {
     /// Returns the name of the table stored in this chunk
     fn table_name(&self) -> &str;
 
+    /// Returns true if the chunk may contain a duplicate "primary
+    /// key" within itself
+    fn may_contain_pk_duplicates(&self) -> bool;
+
     /// Returns the result of applying the `predicate` to the chunk
     /// using an efficient, but inexact method, based on metadata.
     ///
@@ -119,12 +123,9 @@ pub trait PartitionChunk: Prunable + Debug + Send + Sync {
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error>;
 
-    /// Returns true if this chunk has duplicates
-    fn has_duplicates(&self) -> bool;
-
     /// Returns true if data of this chunk is sorted
     fn is_sorted(&self) -> bool;
-    fn primary_key_columns(&self) -> Vec<&ColumnSummary>;
+    //fn primary_key_columns(&self) -> Vec<&ColumnSummary>;
 }
 
 #[async_trait]

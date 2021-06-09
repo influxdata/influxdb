@@ -8,7 +8,10 @@ use arrow::{
     datatypes::{DataType, Int32Type, TimeUnit},
     record_batch::RecordBatch,
 };
-use data_types::{chunk_metadata::ChunkSummary, partition_metadata::{ColumnSummary, TableSummary}};
+use data_types::{
+    chunk_metadata::ChunkSummary,
+    partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
+};
 use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
 
 use crate::{
@@ -20,7 +23,7 @@ use crate::{exec::Executor, pruning::Prunable};
 use internal_types::{
     schema::{
         builder::{SchemaBuilder, SchemaMerger},
-        Schema,
+        InfluxColumnType, Schema,
     },
     selection::Selection,
 };
@@ -119,6 +122,9 @@ impl Database for TestDatabase {
 pub struct TestChunk {
     id: u32,
 
+    /// Set the flag if this chunk might contain duplicates
+    may_contain_pk_duplicates: bool,
+
     /// A copy of the captured predicates passed
     predicates: Mutex<Vec<Predicate>>,
 
@@ -136,6 +142,9 @@ pub struct TestChunk {
 
     /// Return value for apply_predicate, if desired
     predicate_match: Option<PredicateMatch>,
+
+    /// Return value for summary(), if desired
+    table_summary: Option<TableSummary>,
 }
 
 impl TestChunk {
@@ -173,6 +182,12 @@ impl TestChunk {
         self.with_tag_column(table_name, "dummy_col")
     }
 
+    /// Set the `may_contain_pk_duplicates` flag
+    pub fn with_may_contain_pk_duplicates(mut self, v: bool) -> Self {
+        self.may_contain_pk_duplicates = v;
+        self
+    }
+
     /// Register an tag column with the test chunk
     pub fn with_tag_column(
         self,
@@ -187,6 +202,38 @@ impl TestChunk {
         let new_column_schema = SchemaBuilder::new().tag(&column_name).build().unwrap();
 
         self.add_schema_to_table(table_name, new_column_schema)
+    }
+
+    /// Register an tag column with the test chunk
+    pub fn with_tag_column_with_stats(
+        self,
+        table_name: impl Into<String>,
+        column_name: impl Into<String>,
+        min: &str,
+        max: &str,
+    ) -> Self {
+        let table_name = table_name.into();
+        let column_name = column_name.into();
+
+        let mut new_self = self.with_tag_column(&table_name, &column_name);
+
+        // Now, find the appropriate column summary and update the stats
+        let column_summary: &mut ColumnSummary = new_self
+            .table_summary
+            .as_mut()
+            .expect("had table summary")
+            .columns
+            .iter_mut()
+            .find(|c| c.name == column_name)
+            .expect("had column");
+
+        column_summary.stats = Statistics::String(StatValues {
+            min: Some(min.to_string()),
+            max: Some(max.to_string()),
+            ..Default::default()
+        });
+
+        new_self
     }
 
     /// Register a timetamp column with the test chunk
@@ -226,7 +273,37 @@ impl TestChunk {
         if let Some(existing_name) = &self.table_name {
             assert_eq!(&table_name, existing_name);
         }
-        self.table_name = Some(table_name);
+        self.table_name = Some(table_name.clone());
+
+        // assume the new schema has exactly a single table
+        assert_eq!(new_column_schema.len(), 1);
+        let (col_type, new_field) = new_column_schema.field(0);
+
+        let influxdb_type = col_type.map(|t| match t {
+            InfluxColumnType::Tag => InfluxDbType::Tag,
+            InfluxColumnType::Field(_) => InfluxDbType::Field,
+            InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
+        });
+
+        let stats = match new_field.data_type() {
+            DataType::Boolean => Statistics::Bool(StatValues::default()),
+            DataType::Int64 => Statistics::I64(StatValues::default()),
+            DataType::UInt64 => Statistics::U64(StatValues::default()),
+            DataType::Utf8 => Statistics::String(StatValues::default()),
+            DataType::Dictionary(_, value_type) => {
+                assert!(matches!(**value_type, DataType::Utf8));
+                Statistics::String(StatValues::default())
+            }
+            DataType::Float64 => Statistics::String(StatValues::default()),
+            DataType::Timestamp(_, _) => Statistics::I64(StatValues::default()),
+            _ => panic!("Unsupported type in TestChunk: {:?}", new_field.data_type()),
+        };
+
+        let column_summary = ColumnSummary {
+            name: new_field.name().clone(),
+            influxdb_type,
+            stats,
+        };
 
         let mut merger = SchemaMerger::new().merge(new_column_schema).unwrap();
 
@@ -238,6 +315,14 @@ impl TestChunk {
         let new_schema = merger.build().unwrap();
 
         self.table_schema = Some(new_schema);
+
+        let mut table_summary = self
+            .table_summary
+            .take()
+            .unwrap_or_else(|| TableSummary::new(table_name));
+        table_summary.columns.push(column_summary);
+        self.table_summary = Some(table_summary);
+
         self
     }
 
@@ -278,6 +363,59 @@ impl TestChunk {
             .collect::<Vec<_>>();
 
         let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+        println!("TestChunk batch data: {:#?}", batch);
+
+        self.table_data.push(Arc::new(batch));
+        self
+    }
+
+    /// Prepares this chunk to return a specific record batch with five
+    /// rows of non null data that look like
+    ///   "+------+------+-----------+-------------------------------+",
+    ///   "| tag1 | tag2 | field_int | time                          |",
+    ///   "+------+------+-----------+-------------------------------+",
+    ///   "| MA   | MA   | 1000      | 1970-01-01 00:00:00.000001    |",
+    ///   "| MT   | MT   | 10        | 1970-01-01 00:00:00.000007    |",
+    ///   "| CT   | CT   | 70        | 1970-01-01 00:00:00.000000100 |",
+    ///   "| AL   | AL   | 100       | 1970-01-01 00:00:00.000000050 |",
+    ///   "| MT   | MT   | 5         | 1970-01-01 00:00:00.000005    |",
+    ///   "+------+------+-----------+-------------------------------+",
+    pub fn with_five_row_of_null_data(mut self, _table_name: impl Into<String>) -> Self {
+        //let table_name = table_name.into();
+        let schema = self
+            .table_schema
+            .as_ref()
+            .expect("table must exist in TestChunk");
+
+        // create arrays
+        let columns = schema
+            .iter()
+            .map(|(_influxdb_column_type, field)| match field.data_type() {
+                DataType::Int64 => {
+                    Arc::new(Int64Array::from(vec![1000, 10, 70, 100, 5])) as ArrayRef
+                }
+                DataType::Utf8 => {
+                    Arc::new(StringArray::from(vec!["MA", "MT", "CT", "AL", "MT"])) as ArrayRef
+                }
+                DataType::Timestamp(TimeUnit::Nanosecond, _) => Arc::new(
+                    TimestampNanosecondArray::from_vec(vec![1000, 7000, 100, 50, 5000], None),
+                ) as ArrayRef,
+                DataType::Dictionary(key, value)
+                    if key.as_ref() == &DataType::Int32 && value.as_ref() == &DataType::Utf8 =>
+                {
+                    let dict: DictionaryArray<Int32Type> =
+                        vec!["MA", "MT", "CT", "AL", "MT"].into_iter().collect();
+                    Arc::new(dict) as ArrayRef
+                }
+                _ => unimplemented!(
+                    "Unimplemented data type for test database: {:?}",
+                    field.data_type()
+                ),
+            })
+            .collect::<Vec<_>>();
+
+        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+        println!("TestChunk batch data: {:#?}", batch);
 
         self.table_data.push(Arc::new(batch));
         self
@@ -320,6 +458,10 @@ impl PartitionChunk for TestChunk {
         self.table_name.as_deref().unwrap()
     }
 
+    fn may_contain_pk_duplicates(&self) -> bool {
+        self.may_contain_pk_duplicates
+    }
+
     fn read_filter(
         &self,
         predicate: &Predicate,
@@ -334,16 +476,10 @@ impl PartitionChunk for TestChunk {
         let stream = SizedRecordBatchStream::new(batches[0].schema(), batches);
         Ok(Box::pin(stream))
     }
-    fn has_duplicates(&self) -> bool {
-        false
-    }
 
     /// Returns true if data of this chunk is sorted
     fn is_sorted(&self) -> bool {
         false
-    }
-    fn primary_key_columns(&self) -> Vec<&ColumnSummary> {
-        vec![]
     }
 
     fn apply_predicate(&self, predicate: &Predicate) -> Result<PredicateMatch> {
@@ -414,7 +550,9 @@ impl PartitionChunk for TestChunk {
 
 impl Prunable for TestChunk {
     fn summary(&self) -> &TableSummary {
-        unimplemented!();
+        self.table_summary
+            .as_ref()
+            .expect("Table summary not configured for TestChunk")
     }
 
     fn schema(&self) -> arrow::datatypes::SchemaRef {

@@ -4,7 +4,7 @@ use std::{
 };
 
 use arrow::datatypes::SchemaRef;
-use data_types::partition_metadata::{self, ColumnSummary};
+use data_types::partition_metadata;
 use partition_metadata::TableSummary;
 use snafu::{ResultExt, Snafu};
 
@@ -215,6 +215,13 @@ impl PartitionChunk for DbChunk {
 
     fn table_name(&self) -> &str {
         self.table_name.as_ref()
+    }
+
+    fn may_contain_pk_duplicates(&self) -> bool {
+        // Assume that the MUB can contain duplicates as it has the
+        // raw incoming stream of writes, but that all other types of
+        // chunks are deduplicated as part of creation
+        matches!(self.state, State::ReadBuffer { .. })
     }
 
     fn apply_predicate(&self, predicate: &Predicate) -> Result<PredicateMatch> {
@@ -443,24 +450,13 @@ impl PartitionChunk for DbChunk {
         }
     }
 
-    fn has_duplicates(&self) -> bool {
-        match &self.state {
-            State::MutableBuffer { .. } => true,
-            State::ReadBuffer { .. } => true,  // TODO: should be false after compaction
-            State::ParquetFile { .. } => true, // TODO: should be false after compaction
-        }
-    }
-
     // TODOs: return the right value. For now the chunk is assumed to be not sorted
     fn is_sorted(&self) -> bool {
         match &self.state {
             State::MutableBuffer { .. } => false,
-            State::ReadBuffer { .. } => false, 
+            State::ReadBuffer { .. } => false,
             State::ParquetFile { .. } => false,
         }
-    }
-    fn primary_key_columns(&self) -> Vec<&ColumnSummary> {
-        self.meta.table_summary.primary_key_columns()
     }
 }
 

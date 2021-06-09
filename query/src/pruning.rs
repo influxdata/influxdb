@@ -1,4 +1,6 @@
 //! Implementation of statistics based pruning
+use std::sync::Arc;
+
 use arrow::{array::ArrayRef, datatypes::SchemaRef};
 use data_types::partition_metadata::{ColumnSummary, Statistics, TableSummary};
 use datafusion::{
@@ -18,6 +20,19 @@ pub trait Prunable: Sized {
 
     /// return the schema of the data in this [`Prunable`]
     fn schema(&self) -> SchemaRef;
+}
+
+impl<P> Prunable for Arc<P>
+where
+    P: Prunable,
+{
+    fn summary(&self) -> &TableSummary {
+        self.as_ref().summary()
+    }
+
+    fn schema(&self) -> SchemaRef {
+        self.as_ref().schema()
+    }
 }
 
 /// Something that cares to be notified when pruning of chunks occurs

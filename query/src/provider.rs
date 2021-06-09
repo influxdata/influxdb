@@ -2,16 +2,26 @@
 
 use std::sync::Arc;
 
-use arrow::{compute::SortOptions, datatypes::SchemaRef as ArrowSchemaRef};
+use arrow::{compute::SortOptions, datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
 // use data_types::partition_metadata::ColumnSummary;
-use datafusion::{datasource::{
+use datafusion::{
+    datasource::{
         datasource::{Statistics, TableProviderFilterPushDown},
         TableProvider,
-    }, error::{DataFusionError, Result as DataFusionResult}, logical_plan::Expr, physical_plan::{ExecutionPlan, expressions::{PhysicalSortExpr, col}, sort::SortExec}};
+    },
+    error::{DataFusionError, Result as DataFusionResult},
+    logical_plan::Expr,
+    physical_plan::{
+        expressions::{col, PhysicalSortExpr},
+        sort::SortExec,
+        ExecutionPlan,
+    },
+};
 use internal_types::schema::{builder::SchemaMerger, Schema};
 use observability_deps::tracing::debug;
 
 use crate::{
+    duplicate::group_potential_duplicates,
     predicate::{Predicate, PredicateBuilder},
     util::project_schema,
     PartitionChunk,
@@ -59,8 +69,25 @@ pub enum Error {
     InternalSort {
         source: datafusion::error::DataFusionError,
     },
+
+    #[snafu(display("Internal error: Can not group chunks '{}'", source,))]
+    InternalChunkGrouping { source: crate::duplicate::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+impl From<Error> for ArrowError {
+    // Wrap an error into an arrow error
+    fn from(e: Error) -> Self {
+        Self::ExternalError(Box::new(e))
+    }
+}
+
+impl From<Error> for DataFusionError {
+    // Wrap an error into a datafusion error
+    fn from(e: Error) -> Self {
+        Self::ArrowError(e.into())
+    }
+}
 
 /// Something that can prune chunks based on their metadata
 pub trait ChunkPruner<C: PartitionChunk>: Sync + Send + std::fmt::Debug {
@@ -250,7 +277,7 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
             scan_schema,
             chunks,
             predicate,
-        );
+        )?;
 
         Ok(plan)
     }
@@ -344,9 +371,18 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         schema: ArrowSchemaRef,
         chunks: Vec<Arc<C>>,
         predicate: Predicate,
-    ) -> Arc<dyn ExecutionPlan> {
-        //finding overlapped chunks and put them into the right group
-        self.split_overlapped_chunks(chunks.to_vec());
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        // findi overlapped chunks and put them into the right group
+        self.split_overlapped_chunks(chunks.to_vec())?;
+
+        // TEMP until the rest of this module's code is complete:
+        // merge all plans into the same
+        self.no_duplicates_chunks
+            .append(&mut self.in_chunk_duplicates_chunks);
+        for mut group in &mut self.overlapped_chunks_set {
+            self.no_duplicates_chunks.append(&mut group);
+        }
+        self.overlapped_chunks_set.clear();
 
         // Building plans
         let mut plans = vec![];
@@ -377,7 +413,7 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
                     Arc::clone(&schema),
                     chunk_with_duplicates.to_owned(),
                     predicate.clone(),
-                ));
+                )?);
             }
 
             // Go over non_duplicates_chunks, build a plan for it
@@ -397,22 +433,32 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         // There are still plan, add UnionExec
         if !plans.is_empty() {
             // final_plan = union_plan
-            panic!("Unexpected error: There should be only one output for scan plan");
+            panic!("Unexpected error: There should be only one output for scan plan, but there were: {:#?}", plans);
         }
 
-        final_plan
+        Ok(final_plan)
     }
 
     /// discover overlaps and split them into three groups:
     ///  1. vector of vector of overlapped chunks
     ///  2. vector of non-overlapped chunks, each have duplicates in itself
     ///  3. vectors of non-overlapped chunks without duplicates
-    fn split_overlapped_chunks(&mut self, chunks: Vec<Arc<C>>) {
-        // TODO: need to discover overlaps and split them
-        // The current behavior is just like neither overlaps nor having duplicates in its own chunk
-        //self.overlapped_chunks_set = vec![];
-        //self.in_chunk_duplicates_chunks = vec![];
-        self.no_duplicates_chunks.append(&mut chunks.to_vec());
+    fn split_overlapped_chunks(&mut self, chunks: Vec<Arc<C>>) -> Result<()> {
+        // Find all groups based on statstics
+        let groups = group_potential_duplicates(chunks).context(InternalChunkGrouping)?;
+
+        for mut group in groups {
+            if group.len() == 1 {
+                if group[0].may_contain_pk_duplicates() {
+                    self.in_chunk_duplicates_chunks.append(&mut group);
+                } else {
+                    self.no_duplicates_chunks.append(&mut group);
+                }
+            } else {
+                self.overlapped_chunks_set.push(group)
+            }
+        }
+        Ok(())
     }
 
     /// Return true if all chunks are neither overlap nor has duplicates in itself
@@ -488,183 +534,55 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         schema: ArrowSchemaRef,
         chunk: Arc<C>, // This chunk is identified having duplicates
         predicate: Predicate,
-    ) -> Arc<dyn ExecutionPlan> {
-
+    ) -> Result<Arc<dyn ExecutionPlan>> {
         // Create the bottom node IOxRedFilterNode for this chunk
-        let mut input: Arc<dyn ExecutionPlan>  = Arc::new(IOxReadFilterNode::new(
+        let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
             Arc::clone(&table_name),
             schema,
             vec![Arc::clone(&chunk)],
             predicate,
         ));
-        
 
         // Add the sort operator, SortExec, if needed
-        if !chunk.is_sorted() {
+        //let plan = Self::build_sort_plan(chunk, input);
+        Self::build_sort_plan(chunk, input)
 
-            let key_summaries = chunk.primary_key_columns();
+        // Create DeduplicateExc
+        // TODO: Add DeuplicateExec here when it is implemented in https://github.com/influxdata/influxdb_iox/issues/1646
+        //plan = add_deduplicate_exec(plan);
+
+        //plan
+    }
+
+    /// Add SortExec operator on top of the input plan of the given chunk
+    /// The plan will be sorted on the chunk's primary key
+    fn build_sort_plan(
+        chunk: Arc<C>,
+        input: Arc<dyn ExecutionPlan>,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        if !chunk.is_sorted() {
+            let key_summaries = chunk.summary().primary_key_columns();
 
             // build sort expression
             let mut sort_exprs = vec![];
             for key in key_summaries {
-                sort_exprs.push(
-                    PhysicalSortExpr{
-                        expr: col(key.name.as_str()),
-                        options: SortOptions {
-                            descending: false,
-                            nulls_first: false,
-                        }
-                    }
-                );
+                sort_exprs.push(PhysicalSortExpr {
+                    expr: col(key.name.as_str()),
+                    options: SortOptions {
+                        descending: false,
+                        nulls_first: false,
+                    },
+                });
             }
 
-            // Create SortExec operator on top of the IOxReadFilterNode
-            let sort_exec = SortExec::try_new(sort_exprs, input);
-            let sort_exec = match sort_exec {
-                Ok(plan) => plan,
-                Err(e) => panic!("Internal error while adding SortExec: {}", e) // This should never happens 
-            };
-            input = Arc::new(sort_exec);
+            // Create SortExec operator
+            Ok(Arc::new(
+                SortExec::try_new(sort_exprs, input).context(InternalSort)?,
+            ))
+        } else {
+            Ok(input)
         }
-    
-        // Create DeduplicateExc
-        // TODO: Add DeuplicateExec here when it is implemented in https://github.com/influxdata/influxdb_iox/issues/1646
-
-        input
     }
-
-
-    //////////
-
-                    // let sort_expr = expr
-                //     .iter()
-                //     .map(|e| match e {
-                //         Expr::Sort {
-                //             expr,
-                //             asc,
-                //             nulls_first,
-                //         } => self.create_physical_sort_expr(
-                //             expr,
-                //             &input_schema,
-                //             SortOptions {
-                //                 descending: !*asc,
-                //                 nulls_first: *nulls_first,
-                //             },
-                //             ctx_state,
-                //         ),
-                //         _ => Err(DataFusionError::Plan(
-                //             "Sort only accepts sort expressions".to_string(),
-                //         )),
-                //     })
-                //     .collect::<Result<Vec<_>>>()?;
-
-                // Ok(Arc::new(SortExec::try_new(sort_expr, input)?))
-
-    ///////////
-    /////// TEST: create SortExec plan
-    // #[tokio::test]
-    // async fn test_lex_sort_by_float() -> Result<()> {
-    //     let schema = Arc::new(Schema::new(vec![
-    //         Field::new("a", DataType::Float32, true),
-    //         Field::new("b", DataType::Float64, true),
-    //     ]));
-
-    //     // define data.
-    //     let batch = RecordBatch::try_new(
-    //         schema.clone(),
-    //         vec![
-    //             Arc::new(Float32Array::from(vec![
-    //                 Some(f32::NAN),
-    //                 None,
-    //                 None,
-    //                 Some(f32::NAN),
-    //                 Some(1.0_f32),
-    //                 Some(1.0_f32),
-    //                 Some(2.0_f32),
-    //                 Some(3.0_f32),
-    //             ])),
-    //             Arc::new(Float64Array::from(vec![
-    //                 Some(200.0_f64),
-    //                 Some(20.0_f64),
-    //                 Some(10.0_f64),
-    //                 Some(100.0_f64),
-    //                 Some(f64::NAN),
-    //                 None,
-    //                 None,
-    //                 Some(f64::NAN),
-    //             ])),
-    //         ],
-    //     )?;
-
-    //     let sort_exec = Arc::new(SortExec::try_new(
-    //         vec![
-    //             PhysicalSortExpr {
-    //                 expr: col("a"),
-    //                 options: SortOptions {
-    //                     descending: true,
-    //                     nulls_first: true,
-    //                 },
-    //             },
-    //             PhysicalSortExpr {
-    //                 expr: col("b"),
-    //                 options: SortOptions {
-    //                     descending: false,
-    //                     nulls_first: false,
-    //                 },
-    //             },
-    //         ],
-    //         Arc::new(MemoryExec::try_new(&[vec![batch]], schema, None)?),
-    //     )?);
-
-    //     assert_eq!(DataType::Float32, *sort_exec.schema().field(0).data_type());
-    //     assert_eq!(DataType::Float64, *sort_exec.schema().field(1).data_type());
-
-    //     let result: Vec<RecordBatch> = collect(sort_exec.clone()).await?;
-    //     assert!(sort_exec.metrics().get("sortTime").unwrap().value() > 0);
-    //     assert_eq!(sort_exec.metrics().get("outputRows").unwrap().value(), 8);
-    //     assert_eq!(result.len(), 1);
-
-    //     let columns = result[0].columns();
-
-    //     assert_eq!(DataType::Float32, *columns[0].data_type());
-    //     assert_eq!(DataType::Float64, *columns[1].data_type());
-
-    //     let a = as_primitive_array::<Float32Type>(&columns[0]);
-    //     let b = as_primitive_array::<Float64Type>(&columns[1]);
-
-    //     // convert result to strings to allow comparing to expected result containing NaN
-    //     let result: Vec<(Option<String>, Option<String>)> = (0..result[0].num_rows())
-    //         .map(|i| {
-    //             let aval = if a.is_valid(i) {
-    //                 Some(a.value(i).to_string())
-    //             } else {
-    //                 None
-    //             };
-    //             let bval = if b.is_valid(i) {
-    //                 Some(b.value(i).to_string())
-    //             } else {
-    //                 None
-    //             };
-    //             (aval, bval)
-    //         })
-    //         .collect();
-
-    //     let expected: Vec<(Option<String>, Option<String>)> = vec![
-    //         (None, Some("10".to_owned())),
-    //         (None, Some("20".to_owned())),
-    //         (Some("NaN".to_owned()), Some("100".to_owned())),
-    //         (Some("NaN".to_owned()), Some("200".to_owned())),
-    //         (Some("3".to_owned()), Some("NaN".to_owned())),
-    //         (Some("2".to_owned()), None),
-    //         (Some("1".to_owned()), Some("NaN".to_owned())),
-    //         (Some("1".to_owned()), None),
-    //     ];
-
-    //     assert_eq!(expected, result);
-
-    //     Ok(())
-    // }
-    /////////////
 
     /// Return the simplest IOx scan plan of a given chunk which is IOxReadFilterNode
     /// ```text
@@ -718,8 +636,134 @@ impl<C: PartitionChunk> ChunkPruner<C> for NoOpPruner {
     }
 }
 
+#[cfg(test)]
+mod test {
+    use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+    use arrow_util::assert_batches_eq;
+    use datafusion::physical_plan::collect;
+    use internal_types::schema::TIME_COLUMN_NAME;
 
-#[tokio::test]
-async fn test_sort() {
-    
+    use crate::test::TestChunk;
+
+    use super::*;
+
+    #[test]
+    fn chunk_grouping() {
+        // This test just ensures that all the plumbing is connected
+        // for chunk grouping. The logic of the grouping is tested
+        // in the duplicate module
+
+        // c1: no overlaps
+        let c1 = Arc::new(TestChunk::new(1).with_tag_column_with_stats("t", "tag1", "a", "b"));
+
+        // c2: over lap with c3
+        let c2 = Arc::new(TestChunk::new(2).with_tag_column_with_stats("t", "tag1", "c", "d"));
+
+        // c3: overlap with c2
+        let c3 = Arc::new(TestChunk::new(3).with_tag_column_with_stats("t", "tag1", "c", "d"));
+
+        // c4: self overlap
+        let c4 = Arc::new(
+            TestChunk::new(4)
+                .with_tag_column_with_stats("t", "tag1", "e", "f")
+                .with_may_contain_pk_duplicates(true),
+        );
+
+        let mut deduplicator = Deduplicater::new();
+        deduplicator
+            .split_overlapped_chunks(vec![c1, c2, c3, c4])
+            .expect("split chunks");
+
+        assert_eq!(
+            chunk_group_ids(&deduplicator.overlapped_chunks_set),
+            vec!["Group 0: 2, 3"]
+        );
+        assert_eq!(chunk_ids(&deduplicator.in_chunk_duplicates_chunks), "4");
+        assert_eq!(chunk_ids(&deduplicator.no_duplicates_chunks), "1");
+    }
+
+    #[tokio::test]
+    async fn sort_planning() {
+        // Chunk 1 with 5 rows of data
+        let chunk = Arc::new(
+            TestChunk::new(1)
+                .with_time_column("t")
+                .with_int_field_column("t", "field_int")
+                .with_tag_column("t", "tag2")
+                .with_tag_column("t", "tag1")
+                .with_five_row_of_null_data("t"),
+        );
+
+        // Datafusion schema of the chunk
+        let schema = Arc::new(Schema::new(vec![
+            Field::new(
+                "tag1",
+                DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
+                true,
+            ),
+            Field::new(
+                "tag2",
+                DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
+                true,
+            ),
+            Field::new("field_int", DataType::Int64, true),
+            Field::new(
+                TIME_COLUMN_NAME,
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                true,
+            ),
+        ]));
+
+        // IOx scan operator
+        let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
+            Arc::from("t"),
+            schema,
+            vec![Arc::clone(&chunk)],
+            Predicate::default(),
+        ));
+        let batch = collect(Arc::clone(&input)).await.unwrap();
+        // data in its original non-sorted form
+        let expected = vec![
+            "+------+------+-----------+-------------------------------+",
+            "| tag1 | tag2 | field_int | time                          |",
+            "+------+------+-----------+-------------------------------+",
+            "| MA   | MA   | 1000      | 1970-01-01 00:00:00.000001    |",
+            "| MT   | MT   | 10        | 1970-01-01 00:00:00.000007    |",
+            "| CT   | CT   | 70        | 1970-01-01 00:00:00.000000100 |",
+            "| AL   | AL   | 100       | 1970-01-01 00:00:00.000000050 |",
+            "| MT   | MT   | 5         | 1970-01-01 00:00:00.000005    |",
+            "+------+------+-----------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
+
+        // Add Sort operator on top of IOx scan
+        let sort_plan = Deduplicater::build_sort_plan(chunk, input);
+        let batch = collect(sort_plan.unwrap()).await.unwrap();
+        // data is not sorted on primary key(tag1, tag2, time)
+        let expected = vec![
+            "+------+------+-----------+-------------------------------+",
+            "| tag1 | tag2 | field_int | time                          |",
+            "+------+------+-----------+-------------------------------+",
+            "| AL   | AL   | 100       | 1970-01-01 00:00:00.000000050 |",
+            "| CT   | CT   | 70        | 1970-01-01 00:00:00.000000100 |",
+            "| MA   | MA   | 1000      | 1970-01-01 00:00:00.000001    |",
+            "| MT   | MT   | 5         | 1970-01-01 00:00:00.000005    |",
+            "| MT   | MT   | 10        | 1970-01-01 00:00:00.000007    |",
+            "+------+------+-----------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
+    }
+
+    fn chunk_ids(group: &[Arc<TestChunk>]) -> String {
+        let ids = group.iter().map(|c| c.id().to_string()).collect::<Vec<_>>();
+        ids.join(", ")
+    }
+
+    fn chunk_group_ids(groups: &[Vec<Arc<TestChunk>>]) -> Vec<String> {
+        groups
+            .iter()
+            .enumerate()
+            .map(|(idx, group)| format!("Group {}: {}", idx, chunk_ids(group)))
+            .collect()
+    }
 }
