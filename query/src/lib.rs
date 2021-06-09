@@ -125,7 +125,6 @@ pub trait PartitionChunk: Prunable + Debug + Send + Sync {
 
     /// Returns true if data of this chunk is sorted
     fn is_sorted(&self) -> bool;
-    //fn primary_key_columns(&self) -> Vec<&ColumnSummary>;
 }
 
 #[async_trait]
