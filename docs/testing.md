@@ -39,3 +39,35 @@ integration tests against `influxd` running in a Docker container.
 If you do not want to use Docker locally, but you do have `influxd` for InfluxDB
 2.0 locally, you can use that instead by running the tests with the environment variable
 `INFLUXDB_IOX_INTEGRATION_LOCAL=1`.
+
+## Kafka Write Buffer
+
+If you want to run integration tests with a Kafka instance serving as a write buffer, you will need
+to set `TEST_INTEGRATION=1`.
+
+You will also need to set `KAFKA_CONNECT` to the host and port where the tests can connect to a
+running Kafka instance.
+
+There is a Docker Compose file for running Kafka and Zookeeper using Docker in
+`docker/ci-kafka-docker-compose.yml` that CI also uses to run the integration tests.
+
+If you want to compile the tests and run `cargo test` on your local machine (as opposed to another
+Docker container, which is what CI does), you can start Kafka using the Docker Compose file with:
+
+```
+$ docker compose -f docker/ci-kafka-docker-compose.yml up kafka
+```
+
+You can then run the tests with `KAFKA_CONNECT=localhost:9093`. To run just the Kafka integration
+tests, the full command would then be:
+
+```
+TEST_INTEGRATION=1 KAFKA_CONNECT=localhost:9093 cargo test -p influxdb_iox --test end-to-end write_buffer
+```
+
+Alternatively, you can compile the tests and run `cargo test` in a Docker container as well, by
+running this Docker Compose command that uses `docker/Dockerfile.ci.integration`:
+
+```
+docker-compose -f docker/ci-kafka-docker-compose.yml up --build --force-recreate --exit-code-from rust
+```
