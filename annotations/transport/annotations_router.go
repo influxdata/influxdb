@@ -41,13 +41,13 @@ func (h *AnnotationHandler) handleCreateAnnotations(w http.ResponseWriter, r *ht
 		return
 	}
 
-	created, err := h.annotationService.CreateAnnotations(ctx, *o, c)
+	l, err := h.annotationService.CreateAnnotations(ctx, *o, c)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
-	h.api.Respond(w, r, http.StatusOK, created)
+	h.api.Respond(w, r, http.StatusOK, l)
 }
 
 func (h *AnnotationHandler) handleGetAnnotations(w http.ResponseWriter, r *http.Request) {
@@ -157,18 +157,18 @@ func (h *AnnotationHandler) handleUpdateAnnotation(w http.ResponseWriter, r *htt
 }
 
 func decodeCreateAnnotationsRequest(r *http.Request) ([]influxdb.AnnotationCreate, error) {
-	creates := []influxdb.AnnotationCreate{}
-	if err := json.NewDecoder(r.Body).Decode(&creates); err != nil {
+	cs := []influxdb.AnnotationCreate{}
+	if err := json.NewDecoder(r.Body).Decode(&cs); err != nil {
 		return nil, err
 	}
 
-	for _, c := range creates {
+	for _, c := range cs {
 		if err := c.Validate(time.Now); err != nil {
 			return nil, err
 		}
 	}
 
-	return creates, nil
+	return cs, nil
 }
 
 func decodeListAnnotationsRequest(r *http.Request) (*influxdb.AnnotationListFilter, error) {

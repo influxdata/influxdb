@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	// this is the base api prefix, since the annotations service mounts handlers at
+	// this is the base api prefix, since the annotations system mounts handlers at
 	// both the ../annotations and ../streams paths.
 	prefixAnnotations = "/api/v2private"
 )
@@ -50,10 +50,7 @@ type AnnotationHandler struct {
 	annotationService influxdb.AnnotationService
 }
 
-func NewAnnotationHandler(
-	log *zap.Logger,
-	annotationService influxdb.AnnotationService,
-) *AnnotationHandler {
+func NewAnnotationHandler(log *zap.Logger, annotationService influxdb.AnnotationService) *AnnotationHandler {
 	h := &AnnotationHandler{
 		log:               log,
 		api:               kithttp.NewAPI(kithttp.WithLog(log)),
@@ -78,6 +75,8 @@ func (h *AnnotationHandler) Prefix() string {
 	return prefixAnnotations
 }
 
+// tFromReq and tStringToPointer are used in handlers to extract time values from query parameters.
+// pointers to time.Time structs are used, since the JSON responses may omit empty (nil pointer) times.
 func tFromReq(r *http.Request) (*time.Time, *time.Time, error) {
 	st, err := tStringToPointer(r.URL.Query().Get("startTime"))
 	if err != nil {
