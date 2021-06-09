@@ -8,20 +8,12 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	orgStr   = "1234123412341234"
-	orgID, _ = platform.IDFromString(orgStr)
-	idStr    = "4321432143214321"
-	id, _    = platform.IDFromString(idStr)
-	now      = time.Now().UTC().Truncate(time.Second)
-	later    = now.Add(5 * time.Minute)
-
-	testCreate = influxdb.AnnotationCreate{
+	testCreateAnnotation = influxdb.AnnotationCreate{
 		StreamTag: "sometag",
 		Summary:   "testing the api",
 		EndTime:   &now,
@@ -30,33 +22,30 @@ var (
 
 	testEvent = influxdb.AnnotationEvent{
 		ID:               *id,
-		AnnotationCreate: testCreate,
+		AnnotationCreate: testCreateAnnotation,
 	}
 
-	testRead1 = influxdb.ReadAnnotation{
+	testReadAnnotation1 = influxdb.ReadAnnotation{
 		ID: *influxdbtesting.IDPtr(1),
 	}
 
-	testRead2 = influxdb.ReadAnnotation{
+	testReadAnnotation2 = influxdb.ReadAnnotation{
 		ID: *influxdbtesting.IDPtr(2),
 	}
 )
 
-func TestAnnotationHandler(t *testing.T) {
+func TestAnnotationRouter(t *testing.T) {
 	t.Parallel()
 
 	t.Run("get annotations happy path", func(t *testing.T) {
 		ts, svc := newTestServer(t)
 		defer ts.Close()
 
-		now := time.Now().UTC().Truncate(time.Second)
-
 		req := newTestRequest(t, "GET", ts.URL+"/annotations", nil)
 
 		q := req.URL.Query()
 		q.Add("orgID", orgStr)
 		q.Add("endTime", now.Format(time.RFC3339))
-		// the remaining query params are not necessary for this test, but intended as a reference for usage
 		q.Add("stickerIncludes[product]", "oss")
 		q.Add("stickerIncludes[env]", "dev")
 		q.Add("streamIncludes", "stream1")
@@ -66,11 +55,11 @@ func TestAnnotationHandler(t *testing.T) {
 		want := []influxdb.AnnotationList{
 			{
 				StreamTag:   "stream1",
-				Annotations: []influxdb.ReadAnnotation{testRead1},
+				Annotations: []influxdb.ReadAnnotation{testReadAnnotation1},
 			},
 			{
 				StreamTag:   "stream2",
-				Annotations: []influxdb.ReadAnnotation{testRead2},
+				Annotations: []influxdb.ReadAnnotation{testReadAnnotation2},
 			},
 		}
 
@@ -84,8 +73,8 @@ func TestAnnotationHandler(t *testing.T) {
 				},
 			}).
 			Return(influxdb.ReadAnnotations{
-				"stream1": []influxdb.ReadAnnotation{testRead1},
-				"stream2": []influxdb.ReadAnnotation{testRead2},
+				"stream1": []influxdb.ReadAnnotation{testReadAnnotation1},
+				"stream2": []influxdb.ReadAnnotation{testReadAnnotation2},
 			}, nil)
 
 		res := doTestRequest(t, req, http.StatusOK, true)
@@ -100,7 +89,7 @@ func TestAnnotationHandler(t *testing.T) {
 		ts, svc := newTestServer(t)
 		defer ts.Close()
 
-		createAnnotations := []influxdb.AnnotationCreate{testCreate}
+		createAnnotations := []influxdb.AnnotationCreate{testCreateAnnotation}
 
 		req := newTestRequest(t, "POST", ts.URL+"/annotations", createAnnotations)
 
@@ -181,10 +170,10 @@ func TestAnnotationHandler(t *testing.T) {
 		ts, svc := newTestServer(t)
 		defer ts.Close()
 
-		req := newTestRequest(t, "PUT", ts.URL+"/annotations/"+idStr, testCreate)
+		req := newTestRequest(t, "PUT", ts.URL+"/annotations/"+idStr, testCreateAnnotation)
 
 		svc.EXPECT().
-			UpdateAnnotation(gomock.Any(), *id, testCreate).
+			UpdateAnnotation(gomock.Any(), *id, testCreateAnnotation).
 			Return(&testEvent, nil)
 
 		res := doTestRequest(t, req, http.StatusOK, true)

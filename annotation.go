@@ -84,8 +84,8 @@ type AnnotationService interface {
 	CreateOrUpdateStream(ctx context.Context, stream Stream) (*ReadStream, error)
 	// UpdateStream updates the stream by the ID.
 	UpdateStream(ctx context.Context, id platform.ID, stream Stream) (*ReadStream, error)
-	// DeleteStream deletes the stream metadata by name.
-	DeleteStream(ctx context.Context, streamName string) error
+	// DeleteStreams deletes one or more streams by name.
+	DeleteStreams(ctx context.Context, delete BasicStream) error
 	// DeleteStreamByID deletes the stream metadata by id.
 	DeleteStreamByID(ctx context.Context, id platform.ID) error
 }

@@ -94,20 +94,6 @@ func (mr *MockAnnotationServiceMockRecorder) DeleteAnnotations(ctx, orgID, delet
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAnnotations", reflect.TypeOf((*MockAnnotationService)(nil).DeleteAnnotations), ctx, orgID, delete)
 }
 
-// DeleteStream mocks base method.
-func (m *MockAnnotationService) DeleteStream(ctx context.Context, streamName string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteStream", ctx, streamName)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteStream indicates an expected call of DeleteStream.
-func (mr *MockAnnotationServiceMockRecorder) DeleteStream(ctx, streamName interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStream", reflect.TypeOf((*MockAnnotationService)(nil).DeleteStream), ctx, streamName)
-}
-
 // DeleteStreamByID mocks base method.
 func (m *MockAnnotationService) DeleteStreamByID(ctx context.Context, id platform.ID) error {
 	m.ctrl.T.Helper()
@@ -120,6 +106,20 @@ func (m *MockAnnotationService) DeleteStreamByID(ctx context.Context, id platfor
 func (mr *MockAnnotationServiceMockRecorder) DeleteStreamByID(ctx, id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStreamByID", reflect.TypeOf((*MockAnnotationService)(nil).DeleteStreamByID), ctx, id)
+}
+
+// DeleteStreams mocks base method.
+func (m *MockAnnotationService) DeleteStreams(ctx context.Context, delete influxdb.BasicStream) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteStreams", ctx, delete)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteStreams indicates an expected call of DeleteStreams.
+func (mr *MockAnnotationServiceMockRecorder) DeleteStreams(ctx, delete interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStreams", reflect.TypeOf((*MockAnnotationService)(nil).DeleteStreams), ctx, delete)
 }
 
 // GetAnnotation mocks base method.

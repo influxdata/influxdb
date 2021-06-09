@@ -6,11 +6,22 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
+)
+
+var (
+	orgStr   = "1234123412341234"
+	orgID, _ = platform.IDFromString(orgStr)
+	idStr    = "4321432143214321"
+	id, _    = platform.IDFromString(idStr)
+	now      = time.Now().UTC().Truncate(time.Second)
+	later    = now.Add(5 * time.Minute)
 )
 
 func newTestServer(t *testing.T) (*httptest.Server, *mock.MockAnnotationService) {

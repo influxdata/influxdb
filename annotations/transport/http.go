@@ -33,6 +33,11 @@ var (
 		Code: errors.EInvalid,
 		Msg:  "stream id is invalid",
 	}
+
+	errBadStreamName = &errors.Error{
+		Code: errors.EInvalid,
+		Msg:  "invalid stream name",
+	}
 )
 
 // AnnotationsHandler is the handler for the annotation service
