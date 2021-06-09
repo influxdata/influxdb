@@ -1,4 +1,6 @@
 //! Implementation of statistics based pruning
+use std::sync::Arc;
+
 use arrow::{array::ArrayRef, datatypes::SchemaRef};
 use data_types::partition_metadata::{ColumnSummary, Statistics, TableSummary};
 use datafusion::{
@@ -18,6 +20,19 @@ pub trait Prunable: Sized {
 
     /// return the schema of the data in this [`Prunable`]
     fn schema(&self) -> SchemaRef;
+}
+
+impl<P> Prunable for Arc<P>
+where
+    P: Prunable,
+{
+    fn summary(&self) -> &TableSummary {
+        self.as_ref().summary()
+    }
+
+    fn schema(&self) -> SchemaRef {
+        self.as_ref().schema()
+    }
 }
 
 /// Something that cares to be notified when pruning of chunks occurs
@@ -249,20 +264,16 @@ mod test {
     }
 
     #[test]
-    // Ignore tests as the pruning predicate can't be created. DF
-    // doesn't support boolean predicates:
-    // https://github.com/apache/arrow-datafusion/issues/490
-    #[ignore]
     fn test_pruned_bool() {
         test_helpers::maybe_start_logging();
         // column1 where
-        //   c1: [false, true] --> pruned
+        //   c1: [false, false] --> pruned
 
         let observer = TestObserver::new();
         let c1 = Arc::new(TestPrunable::new("chunk1").with_bool_column(
             "column1",
             Some(false),
-            Some(true),
+            Some(false),
         ));
 
         let predicate = PredicateBuilder::new().add_expr(col("column1")).build();
@@ -355,20 +366,16 @@ mod test {
     }
 
     #[test]
-    // Ignore tests as the pruning predicate can't be created. DF
-    // doesn't support boolean predicates:
-    // https://github.com/apache/arrow-datafusion/issues/490
-    #[ignore]
     fn test_not_pruned_bool() {
         test_helpers::maybe_start_logging();
         // column1
-        //   c1: [false, false] --> pruned
+        //   c1: [false, true] --> not pruned
 
         let observer = TestObserver::new();
         let c1 = Arc::new(TestPrunable::new("chunk1").with_bool_column(
             "column1",
             Some(false),
-            Some(false),
+            Some(true),
         ));
 
         let predicate = PredicateBuilder::new().add_expr(col("column1")).build();

@@ -1,7 +1,7 @@
 //! This module contains the schema definiton for IOx
-use snafu::{ResultExt, Snafu};
+use snafu::Snafu;
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeSet, HashMap},
     convert::{TryFrom, TryInto},
     fmt,
     sync::Arc,
@@ -33,19 +33,17 @@ pub fn TIME_DATA_TYPE() -> ArrowDataType {
 }
 
 pub mod builder;
+pub mod merge;
 
 /// Database schema creation / validation errors.
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Error validating schema: '{}' is both a field and a tag", column_name,))]
-    BothFieldAndTag { column_name: String },
-
     #[snafu(display("Error: Duplicate column name found in schema: '{}'", column_name,))]
     DuplicateColumnName { column_name: String },
 
     #[snafu(display(
-        "Error: Incompatible metadata type found in schema for column '{}'. Metadata specified {:?} which is incompatible with actual type {:?}",
-        column_name, influxdb_column_type, actual_type
+    "Error: Incompatible metadata type found in schema for column '{}'. Metadata specified {:?} which is incompatible with actual type {:?}",
+    column_name, influxdb_column_type, actual_type
     ))]
     IncompatibleMetadata {
         column_name: String,
@@ -53,72 +51,8 @@ pub enum Error {
         actual_type: ArrowDataType,
     },
 
-    #[snafu(display(
-        "Duplicate column name: '{}' was specified to be {:?} as well as timestamp",
-        column_name,
-        existing_type
-    ))]
-    InvalidTimestamp {
-        column_name: String,
-        existing_type: InfluxColumnType,
-    },
-
-    #[snafu(display(
-        "Schema Merge Error: Incompatible measurement names. Existing measurement name '{}', new measurement name '{}'",
-        existing_measurement, new_measurement
-    ))]
-    TryMergeDifferentMeasurementNames {
-        existing_measurement: String,
-        new_measurement: String,
-    },
-
-    #[snafu(display(
-        "Schema Merge Error: Incompatible column type for '{}'. Existing type {:?}, new type {:?}",
-        field_name,
-        influx_column_type,
-        existing_influx_column_type
-    ))]
-    TryMergeBadColumnType {
-        field_name: String,
-        existing_influx_column_type: Option<InfluxColumnType>,
-        influx_column_type: Option<InfluxColumnType>,
-    },
-
-    #[snafu(display(
-        "Schema Merge Error: Incompatible data type for '{}'. Existing type {:?}, new type {:?}",
-        field_name,
-        existing_data_type,
-        new_data_type
-    ))]
-    TryMergeBadArrowType {
-        field_name: String,
-        existing_data_type: ArrowDataType,
-        new_data_type: ArrowDataType,
-    },
-
-    #[snafu(display(
-        "Schema Merge Error: Incompatible nullability for '{}'. Existing field {}, new field {}",
-        field_name, nullable_to_str(*existing_nullability), nullable_to_str(*new_nullability)
-    ))]
-    TryMergeBadNullability {
-        field_name: String,
-        existing_nullability: bool,
-        new_nullability: bool,
-    },
-
-    #[snafu(display("Schema Merge: Error merging underlying schema: {}", source))]
-    MergingSchemas { source: arrow::error::ArrowError },
-
     #[snafu(display("Column not found '{}'", column_name))]
     ColumnNotFound { column_name: String },
-}
-
-fn nullable_to_str(nullability: bool) -> &'static str {
-    if nullability {
-        "can be null"
-    } else {
-        "can not be null"
-    }
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -165,6 +99,7 @@ impl TryFrom<ArrowSchemaRef> for Schema {
 }
 
 const MEASUREMENT_METADATA_KEY: &str = "iox::measurement::name";
+const COLUMN_METADATA_KEY: &str = "iox::column::type";
 
 impl Schema {
     /// Create a new Schema wrapper over the schema
@@ -212,46 +147,11 @@ impl Schema {
     /// Create and validate a new Schema, creating metadata to
     /// represent the the various parts. This method is intended to be
     /// used only by the SchemaBuilder.
-    ///
-    /// fields: the column definitions, in order
-    ///
-    /// tag columns: names of any columns which are tags
-    ///
-    /// field columns: names of any columns which are fields, and
-    /// their associated InfluxDB data model types
     pub(crate) fn new_from_parts(
         measurement: Option<String>,
         fields: Vec<ArrowField>,
-        tag_cols: HashSet<String>,
-        field_cols: HashMap<String, InfluxColumnType>,
-        time_col: Option<String>,
     ) -> Result<Self> {
         let mut metadata = HashMap::new();
-
-        for tag_name in tag_cols.into_iter() {
-            metadata.insert(tag_name, InfluxColumnType::Tag.to_string());
-        }
-
-        // Ensure we don't have columns that were specified to be both fields and tags
-        for (column_name, influxdb_column_type) in field_cols.into_iter() {
-            if metadata.get(&column_name).is_some() {
-                return BothFieldAndTag { column_name }.fail();
-            }
-            metadata.insert(column_name, influxdb_column_type.to_string());
-        }
-
-        // Ensure we didn't ask the field to be both a timestamp and a field or tag
-        if let Some(column_name) = time_col {
-            if let Some(existing_type) = metadata.get(&column_name) {
-                let existing_type: InfluxColumnType = existing_type.as_str().try_into().unwrap();
-                return InvalidTimestamp {
-                    column_name,
-                    existing_type,
-                }
-                .fail();
-            }
-            metadata.insert(column_name, InfluxColumnType::Timestamp.to_string());
-        }
 
         if let Some(measurement) = measurement {
             metadata.insert(MEASUREMENT_METADATA_KEY.to_string(), measurement);
@@ -278,11 +178,10 @@ impl Schema {
 
         // Lookup and translate metadata type, if present
         // invalid metadata was detected and reported as part of the constructor
-        let influxdb_column_type = self
-            .inner
+        let influxdb_column_type: Option<InfluxColumnType> = field
             .metadata()
-            .get(field.name())
-            .and_then(|influxdb_column_type_str| influxdb_column_type_str.as_str().try_into().ok());
+            .as_ref()
+            .and_then(|metadata| metadata.get(COLUMN_METADATA_KEY)?.as_str().try_into().ok());
 
         (influxdb_column_type, field)
     }
@@ -351,110 +250,7 @@ impl Schema {
         })
     }
 
-    /// Merges any new columns from new_schema, consuming self. If the
-    /// column already exists, self is unchanged. If the column
-    /// definition conflicts with a prior definition, an error is
-    /// returned.
-    pub fn try_merge(self, other: Self) -> Result<Self> {
-        // Optimize for the common case of the same schema
-        let mut need_merge = false;
-
-        // Do our own pre-checks of the new fields to make nicer error messages
-        if let (Some(existing_measurement), Some(new_measurement)) =
-            (self.measurement(), other.measurement())
-        {
-            if existing_measurement != new_measurement {
-                return TryMergeDifferentMeasurementNames {
-                    existing_measurement,
-                    new_measurement,
-                }
-                .fail();
-            }
-        }
-
-        // if one side has a measurement and the other doesn't need to merge
-        if self.measurement() != other.measurement() {
-            need_merge = true;
-        }
-
-        other
-            .iter()
-            .filter_map(|(influx_column_type, field)| {
-                if let Some(idx) = self.find_index_of(field.name()) {
-                    let (existing_influx_column_type, existing_field) = self.field(idx);
-                    Some((
-                        existing_influx_column_type,
-                        existing_field,
-                        influx_column_type,
-                        field,
-                    ))
-                } else {
-                    // new field
-                    need_merge = true;
-                    None
-                }
-            })
-            .try_for_each(
-                |(existing_influx_column_type, existing_field, influx_column_type, field)| {
-                    let field_name = field.name();
-
-                    // for now, insist the types are exactly the same
-                    // (e.g. None and Some(..) don't match). We could
-                    // consider relaxing this constrait
-                    if existing_influx_column_type != influx_column_type {
-                        TryMergeBadColumnType {
-                            field_name,
-                            existing_influx_column_type,
-                            influx_column_type,
-                        }
-                        .fail()
-                    } else if field.data_type() != existing_field.data_type() {
-                        TryMergeBadArrowType {
-                            field_name,
-                            existing_data_type: existing_field.data_type().clone(),
-                            new_data_type: field.data_type().clone(),
-                        }
-                        .fail()
-                    } else if field.is_nullable() != existing_field.is_nullable() {
-                        TryMergeBadNullability {
-                            field_name,
-                            existing_nullability: existing_field.is_nullable(),
-                            new_nullability: field.is_nullable(),
-                        }
-                        .fail()
-                    } else {
-                        Ok(())
-                    }
-                },
-            )?;
-
-        let new_self = if need_merge {
-            // Delegate the rest of the actual work to arrow schema
-            let new_schema = ArrowSchema::try_merge(vec![
-                self.unwrap_to_inner_owned(),
-                other.unwrap_to_inner_owned(),
-            ])
-            .context(MergingSchemas)?;
-            Self {
-                inner: Arc::new(new_schema),
-            }
-        } else {
-            self
-        };
-
-        Ok(new_self)
-    }
-
-    fn unwrap_to_inner_owned(self) -> ArrowSchema {
-        // try and avoid a clone if possible, but it might be required if the Arc is
-        // shared
-        match Arc::try_unwrap(self.inner) {
-            Ok(schema) => schema,
-            Err(schema_arc) => schema_arc.as_ref().clone(),
-        }
-    }
-
-    /// Resort order of our columns lexographically by name
+    /// Resort order of our columns lexicographically by name
     pub fn sort_fields_by_name(self) -> Self {
         // pairs of (orig_index, field_ref)
         let mut sorted_fields: Vec<(usize, &ArrowField)> =
@@ -500,19 +296,14 @@ impl Schema {
 
     /// Returns the schema for a given set of column projects
     pub fn project(&self, projection: &[usize]) -> Self {
-        let mut metadata = HashMap::with_capacity(projection.len() + 1);
         let mut fields = Vec::with_capacity(projection.len());
-        let current_metadata = self.inner.metadata();
         for idx in projection {
-            let (_, field) = self.field(*idx);
+            let field = self.inner.field(*idx);
             fields.push(field.clone());
-
-            if let Some(value) = current_metadata.get(field.name()) {
-                metadata.insert(field.name().clone(), value.clone());
-            }
         }
 
-        if let Some(measurement) = current_metadata.get(MEASUREMENT_METADATA_KEY).cloned() {
+        let mut metadata = HashMap::with_capacity(1);
+        if let Some(measurement) = self.inner.metadata().get(MEASUREMENT_METADATA_KEY).cloned() {
             metadata.insert(MEASUREMENT_METADATA_KEY.to_string(), measurement);
         }
 
@@ -728,6 +519,21 @@ mod test {
     use InfluxColumnType::*;
     use InfluxFieldType::*;
 
+    fn make_field(
+        name: &str,
+        data_type: arrow::datatypes::DataType,
+        nullable: bool,
+        column_type: &str,
+    ) -> ArrowField {
+        let mut field = ArrowField::new(name, data_type, nullable);
+        field.set_metadata(Some(
+            vec![(COLUMN_METADATA_KEY.to_string(), column_type.to_string())]
+                .into_iter()
+                .collect(),
+        ));
+        field
+    }
+
     #[test]
     fn new_from_arrow_no_metadata() {
         let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(vec![
@@ -754,27 +560,55 @@ mod test {
     #[test]
     fn new_from_arrow_metadata_good() {
         let fields = vec![
-            ArrowField::new("tag_col", ArrowDataType::Utf8, false),
-            ArrowField::new("int_col", ArrowDataType::Int64, false),
-            ArrowField::new("uint_col", ArrowDataType::UInt64, false),
-            ArrowField::new("float_col", ArrowDataType::Float64, false),
-            ArrowField::new("str_col", ArrowDataType::Utf8, false),
-            ArrowField::new("bool_col", ArrowDataType::Boolean, false),
-            ArrowField::new("time_col", TIME_DATA_TYPE(), false),
+            make_field(
+                "tag_col",
+                ArrowDataType::Utf8,
+                false,
+                "iox::column_type::tag",
+            ),
+            make_field(
+                "int_col",
+                ArrowDataType::Int64,
+                false,
+                "iox::column_type::field::integer",
+            ),
+            make_field(
+                "uint_col",
+                ArrowDataType::UInt64,
+                false,
+                "iox::column_type::field::uinteger",
+            ),
+            make_field(
+                "float_col",
+                ArrowDataType::Float64,
+                false,
+                "iox::column_type::field::float",
+            ),
+            make_field(
+                "str_col",
+                ArrowDataType::Utf8,
+                false,
+                "iox::column_type::field::string",
+            ),
+            make_field(
+                "bool_col",
+                ArrowDataType::Boolean,
+                false,
+                "iox::column_type::field::boolean",
+            ),
+            make_field(
+                "time_col",
+                TIME_DATA_TYPE(),
+                false,
+                "iox::column_type::timestamp",
+            ),
         ];
 
-        let metadata: HashMap<_, _> = vec![
-            ("tag_col", "iox::column_type::tag"),
-            ("int_col", "iox::column_type::field::integer"),
-            ("uint_col", "iox::column_type::field::uinteger"),
-            ("float_col", "iox::column_type::field::float"),
-            ("str_col", "iox::column_type::field::string"),
-            ("bool_col", "iox::column_type::field::boolean"),
-            ("time_col", "iox::column_type::timestamp"),
-            ("iox::measurement::name", "the_measurement"),
-        ]
+        let metadata: HashMap<_, _> = vec![(
+            "iox::measurement::name".to_string(),
+            "the_measurement".to_string(),
+        )]
         .into_iter()
-        .map(|i| (i.0.to_string(), i.1.to_string()))
         .collect();
 
         let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new_with_metadata(fields, metadata));
@@ -795,21 +629,25 @@ mod test {
     #[test]
     fn new_from_arrow_metadata_extra() {
         let fields = vec![
-            ArrowField::new("tag_col", ArrowDataType::Utf8, false),
-            ArrowField::new("int_col", ArrowDataType::Int64, false),
+            make_field(
+                "tag_col",
+                ArrowDataType::Utf8,
+                false,
+                "something_other_than_iox",
+            ),
+            make_field(
+                "int_col",
+                ArrowDataType::Int64,
+                false,
+                "iox::column_type::field::some_new_exotic_type",
+            ),
         ];
 
         // This metadata models metadata that was not created by this
         // rust module itself
-        let metadata: HashMap<_, _> = vec![
-            ("tag_col", "something_other_than_iox"),
-            ("int_col", "iox::column_type::field::some_new_exotic_type"),
-            ("non_existent_col", "iox::column_type::field::float"),
-            ("iox::some::new::key", "foo"),
-        ]
-        .into_iter()
-        .map(|i| (i.0.to_string(), i.1.to_string()))
-        .collect();
+        let metadata: HashMap<_, _> = vec![("iox::some::new::key".to_string(), "foo".to_string())]
+            .into_iter()
+            .collect();
 
         let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new_with_metadata(fields, metadata));
 
@@ -829,18 +667,15 @@ mod test {
     #[test]
     fn new_from_arrow_metadata_mismatched_tag() {
         let fields = vec![
-            ArrowField::new("tag_col", ArrowDataType::Int64, false), // not a valid tag type
+            make_field(
+                "tag_col",
+                ArrowDataType::Int64,
+                false,
+                "iox::column_type::tag",
+            ), // not a valid tag type
         ];
 
-        let metadata: HashMap<_, _> = vec![
-            ("tag_col", "iox::column_type::tag"), /* claims that tag_col is a tag, but it is an
-                                                   * integer */
-        ]
-        .into_iter()
-        .map(|i| (i.0.to_string(), i.1.to_string()))
-        .collect();
-
-        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new_with_metadata(fields, metadata));
+        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
 
         let res = Schema::try_from_arrow(arrow_schema);
         assert_eq!(res.unwrap_err().to_string(), "Error: Incompatible metadata type found in schema for column 'tag_col'. Metadata specified Tag which is incompatible with actual type Int64");
@@ -849,16 +684,13 @@ mod test {
     // mismatched metadata / arrow types
     #[test]
     fn new_from_arrow_metadata_mismatched_field() {
-        let fields = vec![ArrowField::new("int_col", ArrowDataType::Int64, false)];
-
-        let metadata: HashMap<_, _> = vec![
-            ("int_col", "iox::column_type::field::float"), // metadata claims it is a float
-        ]
-        .into_iter()
-        .map(|i| (i.0.to_string(), i.1.to_string()))
-        .collect();
-
-        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new_with_metadata(fields, metadata));
+        let fields = vec![make_field(
+            "int_col",
+            ArrowDataType::Int64,
+            false,
+            "iox::column_type::field::float",
+        )];
+        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
 
         let res = Schema::try_from_arrow(arrow_schema);
         assert_eq!(res.unwrap_err().to_string(), "Error: Incompatible metadata type found in schema for column 'int_col'. Metadata specified Field(Float) which is incompatible with actual type Int64");
@@ -868,17 +700,15 @@ mod test {
     #[test]
     fn new_from_arrow_metadata_mismatched_timestamp() {
         let fields = vec![
-            ArrowField::new("time", ArrowDataType::Utf8, false), // timestamp can't be strings
+            make_field(
+                "time",
+                ArrowDataType::Utf8,
+                false,
+                "iox::column_type::timestamp",
+            ), // timestamp can't be strings
         ];
 
-        let metadata: HashMap<_, _> = vec![
-            ("time", "iox::column_type::timestamp"), // metadata claims it is a timstam
-        ]
-        .into_iter()
-        .map(|i| (i.0.to_string(), i.1.to_string()))
-        .collect();
-
-        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new_with_metadata(fields, metadata));
+        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
 
         let res = Schema::try_from_arrow(arrow_schema);
         assert_eq!(res.unwrap_err().to_string(), "Error: Incompatible metadata type found in schema for column 'time'. Metadata specified Timestamp which is incompatible with actual type Utf8");
@@ -1009,191 +839,6 @@ mod test {
         assert_eq!(iter.next().unwrap().name(), "time");
         assert_eq!(iter.next(), None);
         assert_eq!(iter.next(), None);
-    }
-
-    #[test]
-    fn test_merge_compatible_schema() {
-        let schema1 = SchemaBuilder::new()
-            .tag("the_tag")
-            .influx_field("int_field", Integer)
-            .build()
-            .unwrap();
-
-        // has some of the same and some new, different fields
-        let schema2 = SchemaBuilder::new()
-            .measurement("my_measurement")
-            .tag("the_other_tag")
-            .influx_field("int_field", Integer)
-            .influx_field("another_field", Integer)
-            .build()
-            .unwrap();
-
-        let merged_schema = schema1.try_merge(schema2).unwrap();
-
-        let expected_schema = SchemaBuilder::new()
-            .measurement("my_measurement")
-            .tag("the_tag")
-            .influx_field("int_field", Integer)
-            .tag("the_other_tag")
-            .influx_field("another_field", Integer)
-            .build()
-            .unwrap();
-
-        assert_eq!(
-            expected_schema, merged_schema,
-            "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema, merged_schema
-        );
-    }
-
-    #[test]
-    fn test_merge_compatible_schema_no_names() {
-        let schema1 = SchemaBuilder::new().tag("the_tag").build().unwrap();
-
-        // has some of the same and some new, different fields
-        let schema2 = SchemaBuilder::new().tag("the_other_tag").build().unwrap();
-
-        // ensure the merge is not optimized away
-        let merged_schema = schema1.try_merge(schema2).unwrap();
-
-        let expected_schema = SchemaBuilder::new()
-            .tag("the_tag")
-            .tag("the_other_tag")
-            .build()
-            .unwrap();
-
-        assert_eq!(
-            expected_schema, merged_schema,
-            "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema, merged_schema
-        );
-    }
-
-    #[test]
-    fn test_merge_compatible_schema_only_measurement() {
-        let schema1 = SchemaBuilder::new()
-            .tag("the_tag")
-            .measurement("the_measurement")
-            .build()
-            .unwrap();
-
-        // schema has same fields but not measurement name
-        let schema2 = SchemaBuilder::new().tag("the_tag").build().unwrap();
-
-        // ensure the merge is not optimized away
-        let merged_schema = schema1.try_merge(schema2).unwrap();
-
-        let expected_schema = SchemaBuilder::new()
-            .tag("the_tag")
-            .measurement("the_measurement")
-            .build()
-            .unwrap();
-
-        assert_eq!(
-            expected_schema, merged_schema,
-            "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema, merged_schema
-        );
-    }
-
-    #[test]
-    fn test_merge_measurement_names() {
-        let schema1 = SchemaBuilder::new().tag("the_tag").build().unwrap();
-
-        // has some of the same and some different fields
-        let schema2 = SchemaBuilder::new()
-            .measurement("my_measurement")
-            .build()
-            .unwrap();
-
-        let merged_schema = schema1.try_merge(schema2).unwrap();
-
-        let expected_schema = SchemaBuilder::new()
-            .measurement("my_measurement")
-            .tag("the_tag")
-            .build()
-            .unwrap();
-
-        assert_eq!(
-            expected_schema, merged_schema,
-            "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema, merged_schema
-        );
-    }
-
-    #[test]
-    fn test_merge_incompatible_schema_measurement_names() {
-        let schema1 = SchemaBuilder::new()
-            .tag("the_tag")
-            .measurement("measurement1")
-            .build()
-            .unwrap();
-
-        // different measurement name, same otherwise
-        let schema2 = SchemaBuilder::new()
-            .tag("the_tag")
-            .measurement("measurement2")
-            .build()
-            .unwrap();
-
-        let merged_schema_error = schema1.try_merge(schema2).unwrap_err();
-
-        assert_eq!(
-            merged_schema_error.to_string(),
-            "Schema Merge Error: Incompatible measurement names. Existing measurement name 'measurement1', new measurement name 'measurement2'"
-        );
-    }
-
-    #[test]
-    fn test_merge_incompatible_data_types() {
-        // same field name with different type
-        let schema1 = SchemaBuilder::new()
-            .field("the_field", ArrowDataType::Int16)
-            .build()
-            .unwrap();
-
-        // same field name with different type
-        let schema2 = SchemaBuilder::new()
-            .field("the_field", ArrowDataType::Int8)
-            .build()
-            .unwrap();
-
-        let merged_schema_error = schema1.try_merge(schema2).unwrap_err();
-
-        assert_eq!(merged_schema_error.to_string(), "Schema Merge Error: Incompatible data type for 'the_field'. Existing type Int16, new type Int8");
-    }
-
-    #[test]
-    fn test_merge_incompatible_column_types() {
-        let schema1 = SchemaBuilder::new().tag("the_tag").build().unwrap();
-
-        // same field name with different type
-        let schema2 = SchemaBuilder::new()
-            .influx_field("the_tag", Integer)
-            .build()
-            .unwrap();
-
-        let merged_schema_error = schema1.try_merge(schema2).unwrap_err();
-
-        assert_eq!(merged_schema_error.to_string(), "Schema Merge Error: Incompatible column type for 'the_tag'. Existing type Some(Field(Integer)), new type Some(Tag)");
-    }
-
-    #[test]
-    fn test_merge_incompatible_schema_nullability() {
-        let schema1 = SchemaBuilder::new()
-            .non_null_field("int_field", ArrowDataType::Int64)
-            .build()
-            .unwrap();
-
-        // same field name with different nullability
-        let schema2 = SchemaBuilder::new()
-            .field("int_field", ArrowDataType::Int64)
-            .build()
-            .unwrap();
-
-        let merged_schema_error = schema1.try_merge(schema2).unwrap_err();
-
-        assert_eq!(merged_schema_error.to_string(), "Schema Merge Error: Incompatible nullability for 'int_field'. Existing field can not be null, new field can be null");
     }
 
     #[test]

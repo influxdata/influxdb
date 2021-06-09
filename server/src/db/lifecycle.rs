@@ -284,7 +284,7 @@ impl ChunkMover for LifecycleManager {
     type Job = Job;
 
     fn buffer_size(&self) -> usize {
-        self.db.catalog.state().metrics().memory().total()
+        self.db.preserved_catalog.state().metrics().memory().total()
     }
 
     fn db_name(&self) -> &str {
@@ -296,7 +296,10 @@ impl ChunkMover for LifecycleManager {
     }
 
     fn chunks(&self, sort_order: &SortOrder) -> Vec<Arc<RwLock<Chunk>>> {
-        self.db.catalog.state().chunks_sorted_by(sort_order)
+        self.db
+            .preserved_catalog
+            .state()
+            .chunks_sorted_by(sort_order)
     }
 
     fn move_tracker(&self) -> Option<&TaskTracker<Job>> {
@@ -386,13 +389,10 @@ fn can_move(rules: &LifecycleRules, chunk: &Chunk, now: DateTime<Utc>) -> bool {
 mod tests {
     use super::*;
     use crate::db::catalog::chunk::ChunkMetrics;
-    use data_types::{partition_metadata::TableSummary, server_id::ServerId};
-    use entry::{test_helpers::lp_to_entry, ClockValue};
+    use data_types::partition_metadata::TableSummary;
+    use entry::test_helpers::lp_to_entry;
     use object_store::{memory::InMemory, parsed_path, ObjectStore};
-    use std::{
-        convert::TryFrom,
-        num::{NonZeroU32, NonZeroUsize},
-    };
+    use std::num::{NonZeroU32, NonZeroUsize};
     use tracker::{TaskRegistration, TaskRegistry};
 
     fn from_secs(secs: i64) -> DateTime<Utc> {
@@ -411,13 +411,7 @@ mod tests {
             "table1",
             mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
         );
-        mb_chunk
-            .write_table_batch(
-                ClockValue::try_from(5).unwrap(),
-                ServerId::try_from(1).unwrap(),
-                batch,
-            )
-            .unwrap();
+        mb_chunk.write_table_batch(1, 5, batch).unwrap();
 
         let mut chunk =
             Chunk::new_open(id, "", mb_chunk, ChunkMetrics::new_unregistered()).unwrap();

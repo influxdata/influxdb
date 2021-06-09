@@ -13,7 +13,7 @@ use crate::{predicate::Predicate, PartitionChunk};
 
 use async_trait::async_trait;
 
-use super::{adapter::SchemaAdapterStream, ChunkInfo};
+use super::adapter::SchemaAdapterStream;
 
 /// Implements the DataFusion physical plan interface
 #[derive(Debug)]
@@ -22,7 +22,7 @@ pub(crate) struct IOxReadFilterNode<C: PartitionChunk + 'static> {
     /// The desired output schema (includes selection_
     /// note that the chunk may not have all these columns.
     schema: SchemaRef,
-    chunk_and_infos: Vec<ChunkInfo<C>>,
+    chunks: Vec<Arc<C>>,
     predicate: Predicate,
 }
 
@@ -30,13 +30,13 @@ impl<C: PartitionChunk + 'static> IOxReadFilterNode<C> {
     pub fn new(
         table_name: Arc<str>,
         schema: SchemaRef,
-        chunk_and_infos: Vec<ChunkInfo<C>>,
+        chunks: Vec<Arc<C>>,
         predicate: Predicate,
     ) -> Self {
         Self {
             table_name,
             schema,
-            chunk_and_infos,
+            chunks,
             predicate,
         }
     }
@@ -53,7 +53,7 @@ impl<C: PartitionChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
     }
 
     fn output_partitioning(&self) -> Partitioning {
-        Partitioning::UnknownPartitioning(self.chunk_and_infos.len())
+        Partitioning::UnknownPartitioning(self.chunks.len())
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
@@ -67,12 +67,14 @@ impl<C: PartitionChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
     ) -> datafusion::error::Result<Arc<dyn ExecutionPlan>> {
         assert!(children.is_empty(), "no children expected in iox plan");
 
+        let chunks: Vec<Arc<C>> = self.chunks.to_vec();
+
         // For some reason when I used an automatically derived `Clone` implementation
         // the compiler didn't recognize the trait implementation
         let new_self = Self {
             table_name: Arc::clone(&self.table_name),
             schema: Arc::clone(&self.schema),
-            chunk_and_infos: self.chunk_and_infos.clone(),
+            chunks,
             predicate: self.predicate.clone(),
         };
 
@@ -86,10 +88,11 @@ impl<C: PartitionChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
         let fields = self.schema.fields();
         let selection_cols = fields.iter().map(|f| f.name() as &str).collect::<Vec<_>>();
 
-        let ChunkInfo {
-            chunk,
-            chunk_table_schema,
-        } = &self.chunk_and_infos[partition];
+        let chunk = Arc::clone(&self.chunks[partition]);
+
+        let chunk_table_schema = chunk
+            .table_schema(Selection::All)
+            .expect("can get table schema");
 
         // The output selection is all the columns in the schema.
         //
@@ -118,12 +121,11 @@ impl<C: PartitionChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match t {
             DisplayFormatType::Default => {
-                // Note Predicate doesn't implement Display so punt on showing that now
                 write!(
                     f,
                     "IOxReadFilterNode: table_name={}, chunks={} predicate={}",
                     self.table_name,
-                    self.chunk_and_infos.len(),
+                    self.chunks.len(),
                     self.predicate,
                 )
             }

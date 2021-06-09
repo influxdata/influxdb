@@ -12,6 +12,7 @@ use super::scenario::{
     create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
 };
 use crate::common::server_fixture::ServerFixture;
+use std::time::Instant;
 use tonic::Code;
 
 #[tokio::test]
@@ -207,16 +208,6 @@ async fn test_create_get_update_database() {
                 part: Some(partition_template::part::Part::Table(Empty {})),
             }],
         }),
-        write_buffer_config: Some(WriteBufferConfig {
-            buffer_size: 24,
-            segment_size: 2,
-            buffer_rollover: write_buffer_config::Rollover::DropIncoming as _,
-            persist_segments: true,
-            close_segment_after: Some(Duration {
-                seconds: 324,
-                nanos: 2,
-            }),
-        }),
         lifecycle_rules: Some(LifecycleRules {
             buffer_size_hard: 553,
             sort_order: Some(lifecycle_rules::SortOrder {
@@ -230,6 +221,7 @@ async fn test_create_get_update_database() {
             seconds: 2,
             nanos: 0,
         }),
+        write_buffer_connection_string: "".into(),
     };
 
     client
@@ -747,15 +739,24 @@ async fn test_chunk_lifecycle() {
     assert_eq!(chunks.len(), 1);
     assert_eq!(chunks[0].storage, ChunkStorage::OpenMutableBuffer as i32);
 
-    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    let start = Instant::now();
+    loop {
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
-    let chunks = management_client
-        .list_chunks(&db_name)
-        .await
-        .expect("listing chunks");
+        let chunks = management_client
+            .list_chunks(&db_name)
+            .await
+            .expect("listing chunks");
 
-    assert_eq!(chunks.len(), 1);
-    assert_eq!(chunks[0].storage, ChunkStorage::ReadBuffer as i32);
+        assert_eq!(chunks.len(), 1);
+        if chunks[0].storage == ChunkStorage::ReadBuffer as i32 {
+            break;
+        }
+
+        if start.elapsed().as_secs_f64() > 10. {
+            panic!("chunk failed to transition to read buffer after 10 seconds")
+        }
+    }
 }
 
 /// Normalizes a set of Chunks for comparison by removing timestamps

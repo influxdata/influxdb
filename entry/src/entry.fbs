@@ -1,20 +1,7 @@
 namespace influxdata.iox.write.v1;
 
 // Every modification to a database is represented as an entry. These can be forwarded
-// on to other IOx servers or can be wrapped with a logical clock value and server id
-// for ordering in a buffer or to subscribers. An Entry is what gets sent from the
-// routing layer to the write buffer layer. The write buffer layer uses seqenced entries
-// to replicate to its peers and to send to downstream subscribers.
-//
-// Take the example of sharding, where an IOx server is configured to split an
-// incoming write into shards and send the write onto other servers. The batch of line protocol
-// written in a request will be split up so that each shard with data will have a
-// single Entry that will be sent to it. If the server that is doing the
-// sharding is not generating partition keys, the key in partition write won't be
-// present. It can be generated downstream. Although it's better to have the sharding
-// layer generate the partition keys while it's at the job of parsing and validating
-// the line protocol. This will save the downstream stateful layers from doing
-// extra work.
+// on to other IOx servers or to the write buffer.
 
 // An entry can only be one of these Operation types
 union Operation {
@@ -120,44 +107,4 @@ table BytesValues {
 
 table BytesValue {
   data: [ubyte];
-}
-
-// The following definitions are for the write buffer and for downstream subscribers to
-// the buffer.
-
-// Segment is a collection of Entries. It is the payload of a Write Buffer
-// segment file. Because Write Buffer servers can replicate data with peers,
-// entries in the collection may come from different server ids. Entries within
-// a segment should be ordered by ascending order by the clock value then server id.
-table Segment {
-  // the segment number
-  id: uint64;
-  // the id of the server that persisted this segment
-  server_id: uint32;
-  // this is the clock value that the server has verified with its peers that
-  // entries are ordered and consistent up to. If the server has no peers this
-  // value will just be the clock value for the last sequenced entry in this segment.
-  // This value could be lower than the first clock value in the segment if a
-  // consistency check has not occured since this segment was started. Or, if
-  // a consistency check has occured in a segment following this one, but before
-  // this segment has been persisted, the clock value could be higher than the last
-  // entry in the segment. This latter condition indicates that all entries in the
-  // segment are properly ordered and consistent with other write buffer peers.
-  consistency_high_water_clock: uint64;
-  // the raw entry data along with their sequence numbers
-  entries: [SequencedEntry];
-}
-
-// SequencedEntry are what get inserted into a Write Buffer. These are
-// what Write Buffer servers replicate to their peers and what go out to
-// downstream subscribers of the Buffer. The clock values can be used to order
-// the entries from a Buffer server. They are guaranteed to never go backwards.
-table SequencedEntry {
-  clock_value: uint64;
-  server_id: uint32;
-  // The raw bytes for an Entry flatbuffers. Because we can't build the SequencedEntry
-  // Flatbuffers from the bytes of an Entry, we do this to avoid reconstructing the
-  // whole thing. See for the examples and a little context on it:
-  // https://github.com/influxdata/influxdb_iox/pull/1149
-  entry_bytes: [ubyte];
 }

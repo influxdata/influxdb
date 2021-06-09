@@ -71,8 +71,7 @@ fn system_clock_now() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query_tests::utils::TestDb;
-    use entry::test_helpers::lp_to_entry;
+    use crate::utils::TestDb;
     use std::{sync::Arc, thread, time::Duration};
 
     #[tokio::test]
@@ -99,58 +98,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn process_clock_incremented_and_set_on_sequenced_entry() {
-        let before = system_clock_now();
-        let before = ClockValue::try_from(before).unwrap();
-
-        let db = Arc::new(TestDb::builder().write_buffer(true).build().await.db);
-
-        let entry = lp_to_entry("cpu bar=1 10");
-        db.store_entry(entry).unwrap();
-
-        let between = system_clock_now();
-        let between = ClockValue::try_from(between).unwrap();
-
-        let entry = lp_to_entry("cpu foo=2 10");
-        db.store_entry(entry).unwrap();
-
-        let after = system_clock_now();
-        let after = ClockValue::try_from(after).unwrap();
-
-        let sequenced_entries = db
-            .write_buffer
-            .as_ref()
-            .unwrap()
-            .lock()
-            .writes_since(before);
-        assert_eq!(sequenced_entries.len(), 2);
-
-        assert!(
-            sequenced_entries[0].clock_value() < between,
-            "expected {:?} to be before {:?}",
-            sequenced_entries[0].clock_value(),
-            between
-        );
-
-        assert!(
-            between < sequenced_entries[1].clock_value(),
-            "expected {:?} to be before {:?}",
-            between,
-            sequenced_entries[1].clock_value(),
-        );
-
-        assert!(
-            sequenced_entries[1].clock_value() < after,
-            "expected {:?} to be before {:?}",
-            sequenced_entries[1].clock_value(),
-            after
-        );
-    }
-
-    #[tokio::test]
     async fn next_process_clock_always_increments() {
         // Process clock defaults to the current time
-        let db = Arc::new(TestDb::builder().write_buffer(true).build().await.db);
+        let db = Arc::new(TestDb::builder().build().await.db);
 
         // Set the process clock value to a time in the future, so that when compared to the
         // current time, the process clock value will be greater

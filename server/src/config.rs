@@ -12,6 +12,7 @@ use query::exec::Executor;
 /// This module contains code for managing the configuration of the server.
 use crate::{
     db::{catalog::Catalog, Db},
+    write_buffer::KafkaBuffer,
     Error, JobRegistry, Result,
 };
 use observability_deps::tracing::{self, error, info, warn, Instrument};
@@ -150,18 +151,23 @@ impl Config {
             return;
         }
 
+        // Right now, `KafkaBuffer` is the only production implementation of the `WriteBuffer`
+        // trait, so always use `KafkaBuffer` when there is a write buffer connection string
+        // specified. If/when there are other kinds of write buffers, additional configuration will
+        // be needed to determine what kind of write buffer to use here.
         let write_buffer = rules
-            .write_buffer_config
+            .write_buffer_connection_string
             .as_ref()
-            .map(|config| crate::buffer::Buffer::new_from_config(config, server_id));
+            .map(|conn| Arc::new(KafkaBuffer::new(conn)) as _);
+
         let db = Arc::new(Db::new(
             rules,
             server_id,
             object_store,
             exec,
-            write_buffer,
             Arc::clone(&self.jobs),
             preserved_catalog,
+            write_buffer,
         ));
 
         let shutdown = self.shutdown.child_token();

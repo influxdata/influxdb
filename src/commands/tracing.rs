@@ -63,9 +63,16 @@ pub fn init_logs_and_tracing(
         match traces_layer_otel {
             Some(_) => (None, None, None, None, None),
             None => {
+                // Note: Use LineWriter to ensure each log line is
+                // written as a unit and avoid interleaving
+                // see https://github.com/influxdata/influxdb_iox/issues/1615
                 let log_writer = match config.log_destination {
-                    LogDestination::Stdout => fmt::writer::BoxMakeWriter::new(std::io::stdout),
-                    LogDestination::Stderr => fmt::writer::BoxMakeWriter::new(std::io::stderr),
+                    LogDestination::Stdout => fmt::writer::BoxMakeWriter::new(|| {
+                        std::io::LineWriter::new(std::io::stdout())
+                    }),
+                    LogDestination::Stderr => fmt::writer::BoxMakeWriter::new(|| {
+                        std::io::LineWriter::new(std::io::stderr())
+                    }),
                 };
                 let (log_format_full, log_format_pretty, log_format_json, log_format_logfmt) =
                     match config.log_format {

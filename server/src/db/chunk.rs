@@ -3,6 +3,9 @@ use std::{
     sync::Arc,
 };
 
+use arrow::datatypes::SchemaRef;
+use data_types::partition_metadata;
+use partition_metadata::TableSummary;
 use snafu::{ResultExt, Snafu};
 
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -15,6 +18,7 @@ use parquet_file::chunk::Chunk as ParquetChunk;
 use query::{
     exec::stringset::StringSet,
     predicate::{Predicate, PredicateMatch},
+    pruning::Prunable,
     PartitionChunk,
 };
 use read_buffer::Chunk as ReadBufferChunk;
@@ -211,6 +215,13 @@ impl PartitionChunk for DbChunk {
 
     fn table_name(&self) -> &str {
         self.table_name.as_ref()
+    }
+
+    fn may_contain_pk_duplicates(&self) -> bool {
+        // Assume that the MUB can contain duplicates as it has the
+        // raw incoming stream of writes, but that all other types of
+        // chunks are deduplicated as part of creation
+        matches!(self.state, State::ReadBuffer { .. })
     }
 
     fn apply_predicate(&self, predicate: &Predicate) -> Result<PredicateMatch> {
@@ -437,5 +448,15 @@ impl PartitionChunk for DbChunk {
                 Ok(None)
             }
         }
+    }
+}
+
+impl Prunable for DbChunk {
+    fn summary(&self) -> &TableSummary {
+        self.meta.table_summary.as_ref()
+    }
+
+    fn schema(&self) -> SchemaRef {
+        self.meta.schema.as_arrow()
     }
 }

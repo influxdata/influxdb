@@ -4,11 +4,7 @@ use arrow::record_batch::RecordBatch;
 use hashbrown::HashMap;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
-use data_types::{
-    partition_metadata::{ColumnSummary, InfluxDbType},
-    server_id::ServerId,
-};
-use entry::{self, ClockValue};
+use data_types::partition_metadata::{ColumnSummary, InfluxDbType};
 use internal_types::{
     schema::{builder::SchemaBuilder, InfluxColumnType, Schema},
     selection::Selection,
@@ -93,8 +89,8 @@ impl Table {
     /// the associated columns in the table and updates summary statistics.
     pub fn write_columns(
         &mut self,
-        _clock_value: ClockValue,
-        _server_id: ServerId,
+        _sequencer_id: u32,
+        _sequence_number: u64,
         columns: Vec<entry::Column<'_>>,
     ) -> Result<()> {
         let row_count_before_insert = self.row_count();
@@ -180,8 +176,7 @@ impl Table {
         let schema = match selection {
             Selection::All => {
                 for (column_name, column) in self.columns.iter() {
-                    schema_builder =
-                        schema_builder.influx_column(column_name, column.influx_type());
+                    schema_builder.influx_column(column_name, column.influx_type());
                 }
 
                 schema_builder
@@ -192,7 +187,7 @@ impl Table {
             Selection::Some(cols) => {
                 for col in cols {
                     let column = self.column(col)?;
-                    schema_builder = schema_builder.influx_column(col, column.influx_type());
+                    schema_builder.influx_column(col, column.influx_type());
                 }
                 schema_builder.build().context(InternalSchema)?
             }
@@ -224,8 +219,6 @@ impl Table {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
-
     use arrow::datatypes::DataType as ArrowDataType;
 
     use entry::test_helpers::lp_to_entry;
@@ -311,15 +304,15 @@ mod tests {
     #[test]
     fn write_columns_validates_schema() {
         let mut table = Table::new(Arc::from("foo"));
-        let server_id = ServerId::try_from(1).unwrap();
-        let clock_value = ClockValue::try_from(5).unwrap();
+        let sequencer_id = 1;
+        let sequence_number = 5;
 
         let lp = "foo,t1=asdf iv=1i,uv=1u,fv=1.0,bv=true,sv=\"hi\" 1";
         let entry = lp_to_entry(&lp);
         table
             .write_columns(
-                clock_value,
-                server_id,
+                sequencer_id,
+                sequence_number,
                 entry
                     .partition_writes()
                     .unwrap()
@@ -336,8 +329,8 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                clock_value,
-                server_id,
+                sequencer_id,
+                sequence_number,
                 entry
                     .partition_writes()
                     .unwrap()
@@ -369,8 +362,8 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                clock_value,
-                server_id,
+                sequencer_id,
+                sequence_number,
                 entry
                     .partition_writes()
                     .unwrap()
@@ -402,8 +395,8 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                clock_value,
-                server_id,
+                sequencer_id,
+                sequence_number,
                 entry
                     .partition_writes()
                     .unwrap()
@@ -435,8 +428,8 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                clock_value,
-                server_id,
+                sequencer_id,
+                sequence_number,
                 entry
                     .partition_writes()
                     .unwrap()
@@ -468,8 +461,8 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                clock_value,
-                server_id,
+                sequencer_id,
+                sequence_number,
                 entry
                     .partition_writes()
                     .unwrap()
@@ -501,8 +494,8 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                clock_value,
-                server_id,
+                sequencer_id,
+                sequence_number,
                 entry
                     .partition_writes()
                     .unwrap()
@@ -543,13 +536,7 @@ mod tests {
             .unwrap()
             .table_batches()
         {
-            table
-                .write_columns(
-                    ClockValue::try_from(5).unwrap(),
-                    ServerId::try_from(1).unwrap(),
-                    batch.columns(),
-                )
-                .unwrap();
+            table.write_columns(1, 5, batch.columns()).unwrap();
         }
     }
 }

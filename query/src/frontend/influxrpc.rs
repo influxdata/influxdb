@@ -1109,6 +1109,17 @@ impl InfluxRpcPlanner {
 
         // Prepare the scan of the table
         let mut builder = ProviderBuilder::new(table_name);
+
+        // Since the entire predicate is used in the call to
+        // `database.chunks()` there will not be any additional
+        // predicates that get pushed down here
+        //
+        // However, in the future if DataFusion adds extra synthetic
+        // predicates that could be pushed down and used for
+        // additional pruning we may want to add an extra layer of
+        // pruning here.
+        builder.add_no_op_pruner();
+
         for chunk in chunks {
             let chunk_id = chunk.id();
 
@@ -1128,7 +1139,7 @@ impl InfluxRpcPlanner {
                     chunk_id,
                 })?;
 
-            builder = builder
+            builder
                 .add_chunk(chunk, chunk_table_schema)
                 .context(CreatingProvider { table_name })?;
         }
@@ -1195,6 +1206,7 @@ impl ExpressionVisitor for SupportVisitor {
             Expr::BinaryExpr { op, .. } => {
                 match op {
                     Operator::Eq
+                    | Operator::NotEq
                     | Operator::Lt
                     | Operator::LtEq
                     | Operator::Gt
@@ -1206,7 +1218,7 @@ impl ExpressionVisitor for SupportVisitor {
                     | Operator::And
                     | Operator::Or => Ok(Recursion::Continue(self)),
                     // Unsupported (need to think about ramifications)
-                    Operator::NotEq | Operator::Modulus | Operator::Like | Operator::NotLike => {
+                    Operator::Modulus | Operator::Like | Operator::NotLike => {
                         Err(DataFusionError::NotImplemented(format!(
                             "Unsupported operator in gRPC: {:?} in expression {:?}",
                             op, expr

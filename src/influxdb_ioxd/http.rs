@@ -98,9 +98,6 @@ pub enum ApplicationError {
     WritingPoints {
         org: String,
         bucket_name: String,
-        tables: Vec<String>,
-        num_lines: usize,
-        body_size: usize,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
@@ -541,20 +538,11 @@ where
                 server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
                     name: db_name.to_string(),
                 },
-                _ => {
-                    let tables = lines
-                        .iter()
-                        .map(|i| i.series.measurement.to_string())
-                        .collect();
-                    ApplicationError::WritingPoints {
-                        org: write_info.org.clone(),
-                        bucket_name: write_info.bucket.clone(),
-                        tables,
-                        num_lines: lines.len(),
-                        body_size: body.len(),
-                        source: Box::new(e),
-                    }
-                }
+                _ => ApplicationError::WritingPoints {
+                    org: write_info.org.clone(),
+                    bucket_name: write_info.bucket.clone(),
+                    source: Box::new(e),
+                },
             }
         })?;
 

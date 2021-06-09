@@ -12,9 +12,11 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, Executor};
 use internal_types::{schema::Schema, selection::Selection};
 use predicate::PredicateMatch;
+use pruning::Prunable;
 
 use std::{fmt::Debug, sync::Arc};
 
+pub mod duplicate;
 pub mod exec;
 pub mod frontend;
 pub mod func;
@@ -46,7 +48,7 @@ pub trait Database: Debug + Send + Sync {
 
     /// Returns a set of chunks within the partition with data that may match
     /// the provided predicate. If possible, chunks which have no rows that can
-    /// possibly match the predicate are omitted.
+    /// possibly match the predicate may be omitted.
     fn chunks(&self, predicate: &Predicate) -> Vec<Arc<Self::Chunk>>;
 
     /// Return a summary of all chunks in this database, in all partitions
@@ -54,7 +56,7 @@ pub trait Database: Debug + Send + Sync {
 }
 
 /// Collection of data that shares the same partition key
-pub trait PartitionChunk: Debug + Send + Sync {
+pub trait PartitionChunk: Prunable + Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// returns the Id of this chunk. Ids are unique within a
@@ -63,6 +65,10 @@ pub trait PartitionChunk: Debug + Send + Sync {
 
     /// Returns the name of the table stored in this chunk
     fn table_name(&self) -> &str;
+
+    /// Returns true if the chunk may contain a duplicate "primary
+    /// key" within itself
+    fn may_contain_pk_duplicates(&self) -> bool;
 
     /// Returns the result of applying the `predicate` to the chunk
     /// using an efficient, but inexact method, based on metadata.

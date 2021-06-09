@@ -1,5 +1,5 @@
 //! This module contains the implementation of the InfluxDB IOx Metadata catalog
-use std::{any::Any, collections::BTreeSet};
+use std::collections::BTreeSet;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     sync::Arc,
@@ -9,21 +9,13 @@ use snafu::{OptionExt, Snafu};
 
 use crate::db::catalog::metrics::CatalogMetrics;
 use chunk::Chunk;
-use data_types::error::ErrorLogger;
 use data_types::partition_metadata::PartitionSummary;
 use data_types::{chunk_metadata::ChunkSummary, partition_metadata::UnaggregatedPartitionSummary};
 use data_types::{
     chunk_metadata::DetailedChunkSummary,
     database_rules::{Order, Sort, SortOrder},
 };
-use datafusion::{catalog::schema::SchemaProvider, datasource::TableProvider};
-use internal_types::selection::Selection;
 use partition::Partition;
-use query::{
-    exec::stringset::StringSet,
-    provider::{self, ProviderBuilder},
-    PartitionChunk,
-};
 use tracker::RwLock;
 
 pub mod chunk;
@@ -350,18 +342,9 @@ impl Catalog {
         chunks
     }
 
-    pub fn metrics(&self) -> &CatalogMetrics {
-        &self.metrics
-    }
-}
-
-impl SchemaProvider for Catalog {
-    fn as_any(&self) -> &dyn Any {
-        self as &dyn Any
-    }
-
-    fn table_names(&self) -> Vec<String> {
-        let mut names = StringSet::new();
+    /// Return a list of all table names in the catalog
+    pub fn table_names(&self) -> Vec<String> {
+        let mut names = BTreeSet::new();
 
         self.partitions().for_each(|partition| {
             let partition = partition.read();
@@ -373,45 +356,15 @@ impl SchemaProvider for Catalog {
         names.into_iter().collect()
     }
 
-    fn table(&self, table_name: &str) -> Option<Arc<dyn TableProvider>> {
-        let mut builder = ProviderBuilder::new(table_name);
-        let partitions = self.partitions.read();
-
-        for partition in partitions.values() {
-            let partition = partition.read();
-            for chunk in partition.chunks() {
-                let chunk = chunk.read();
-
-                if chunk.table_name().as_ref() == table_name {
-                    let chunk = super::DbChunk::snapshot(&chunk);
-
-                    // This should only fail if the table doesn't exist which isn't possible
-                    let schema = chunk.table_schema(Selection::All).expect("cannot fail");
-
-                    // This is unfortunate - a table with incompatible chunks ceases to
-                    // be visible to the query engine
-                    builder = builder
-                        .add_chunk(chunk, schema)
-                        .log_if_error("Adding chunks to table")
-                        .ok()?
-                }
-            }
-        }
-
-        match builder.build() {
-            Ok(provider) => Some(Arc::new(provider)),
-            Err(provider::Error::InternalNoChunks { .. }) => None,
-            Err(e) => panic!("unexpected error: {:?}", e),
-        }
+    pub fn metrics(&self) -> &CatalogMetrics {
+        &self.metrics
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::server_id::ServerId;
-    use entry::{test_helpers::lp_to_entry, ClockValue};
-    use std::convert::TryFrom;
+    use entry::test_helpers::lp_to_entry;
 
     fn create_open_chunk(partition: &Arc<RwLock<Partition>>, table: &str) {
         let entry = lp_to_entry(&format!("{} bar=1 10", table));
@@ -423,13 +376,7 @@ mod tests {
             mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
         );
 
-        mb_chunk
-            .write_table_batch(
-                ClockValue::try_from(5).unwrap(),
-                ServerId::try_from(1).unwrap(),
-                batch,
-            )
-            .unwrap();
+        mb_chunk.write_table_batch(1, 5, batch).unwrap();
 
         partition.create_open_chunk(mb_chunk).unwrap();
     }
