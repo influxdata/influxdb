@@ -1,6 +1,6 @@
 module github.com/influxdata/influxdb/v2
 
-go 1.15
+go 1.16
 
 require (
 	github.com/BurntSushi/toml v0.3.1
@@ -54,7 +54,6 @@ require (
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
-	github.com/k0kubun/colorstring v0.0.0-20150214042306-9440f1994b88 // indirect
 	github.com/kevinburke/go-bindata v3.11.0+incompatible
 	github.com/lib/pq v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.12
@@ -110,7 +109,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
 	honnef.co/go/tools v0.0.1-2020.1.4
 	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
-	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
 
 // Arrow has been taking too long to merge our PR that addresses some checkptr fixes.

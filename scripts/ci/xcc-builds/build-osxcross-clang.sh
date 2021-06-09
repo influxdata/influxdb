@@ -5,7 +5,7 @@ declare -r SCRIPT_DIR=$(cd $(dirname ${0}) >/dev/null 2>&1 && pwd)
 declare -r OUT_DIR=${SCRIPT_DIR}/out
 
 declare -r BUILD_IMAGE=ubuntu:20.04
-declare -r OSXCROSS_VERSION=c2ad5e859d12a295c3f686a15bd7181a165bfa82
+declare -r OSXCROSS_VERSION=5771a847950abefed9a37e2d16ee10e0dd90c641
 
 docker run --rm -i -v ${OUT_DIR}:/out -w /tmp ${BUILD_IMAGE} bash <<EOF
   set -euo pipefail
@@ -32,7 +32,7 @@ docker run --rm -i -v ${OUT_DIR}:/out -w /tmp ${BUILD_IMAGE} bash <<EOF
   git clone https://github.com/tpoechtrager/osxcross.git /usr/local/osxcross && \
     cd /usr/local/osxcross && \
     git checkout ${OSXCROSS_VERSION} && \
-    curl -L -o ./tarballs/MacOSX10.11.sdk.tar.xz https://macos-sdks.s3.amazonaws.com/MacOSX10.11.sdk.tar.xz && \
+    curl -L -o ./tarballs/MacOSX10.12.sdk.tar.xz https://storage.googleapis.com/influxdata-team-flux/macos-sdks/MacOSX10.12.sdk.tar.xz && \
     UNATTENDED=1 PORTABLE=true OCDEBUG=1 ./build.sh && \
     rm -rf .git build tarballs && \
     cd /tmp

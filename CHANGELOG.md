@@ -1,6 +1,14 @@
 ## v2.0.8 [unreleased]
 ----------------------
 
+### Go Version
+
+This release upgrades the project to `go` version 1.16.
+
+#### Minimum macOS Version
+
+Because of the version bump to `go`, the macOS build for this release requires at least version 10.12 Sierra to run.
+
 ### Bug Fixes
 
 1. [21748](https://github.com/influxdata/influxdb/pull/21748): rename arm rpms with yum-compatible names.
