@@ -22,6 +22,7 @@ func NewCommand(v *viper.Viper) (*cobra.Command, error) {
 	}
 	base.AddCommand(exportLp)
 	base.AddCommand(NewExportIndexCommand())
+	base.AddCommand(NewTSMVerifyCommand())
 
 	base.AddCommand(NewVerifySeriesfileCommand())
 
