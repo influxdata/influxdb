@@ -687,8 +687,8 @@ mod test {
         let chunk = Arc::new(
             TestChunk::new(1)
                 .with_time_column("t")
-                .with_int_field_column("t", "field_int")
                 .with_tag_column("t", "tag1")
+                .with_int_field_column("t", "field_int")
                 .with_five_rows_of_data("t"),
         );
 
@@ -740,10 +740,10 @@ mod test {
         // Chunk 1 with 5 rows of data
         let chunk = Arc::new(
             TestChunk::new(1)
-                .with_time_column("t")
-                .with_int_field_column("t", "field_int")
-                .with_tag_column("t", "tag2")
                 .with_tag_column("t", "tag1")
+                .with_tag_column("t", "tag2")
+                .with_int_field_column("t", "field_int")
+                .with_time_column("t")
                 .with_five_rows_of_data("t"),
         );
 
