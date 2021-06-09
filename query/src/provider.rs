@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use arrow::{compute::SortOptions, datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
-// use data_types::partition_metadata::ColumnSummary;
 use datafusion::{
     datasource::{
         datasource::{Statistics, TableProviderFilterPushDown},
