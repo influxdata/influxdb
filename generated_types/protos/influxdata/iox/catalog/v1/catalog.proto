@@ -79,12 +79,14 @@ message Transaction {
 
     // Definition of how this transaction relates to previous transaction and how it should be processed.
     enum Encoding {
+        ENCODING_UNSPECIFIED = 0;
+
         // The actions in this message only encode changes to the previous transactions which must be processed
         // beforehand. This is the default for "ordinary" transactions.
-        DELTA = 0;
+        ENCODING_DELTA = 1;
 
         // The actions in this message contain the full state of the catalog at this point in time. This is used for checkpoints.
-        FULL = 1;
+        ENCODING_FULL = 2;
     }
 
     // Definition on how this transaction is encoded.

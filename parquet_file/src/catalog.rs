@@ -178,7 +178,7 @@ pub enum Error {
     DateTimeParseError { source: TryFromIntError },
 
     #[snafu(display(
-        "Internal: Cannot parse encoding in serialized catalog: {} is not a valid variant",
+        "Internal: Cannot parse encoding in serialized catalog: {} is not a valid, specified variant",
         data
     ))]
     EncodingParseError { data: i32 },
@@ -785,7 +785,13 @@ fn parse_timestamp(
 
 /// Parse encoding from protobuf.
 fn parse_encoding(encoding: i32) -> Result<proto::transaction::Encoding> {
-    proto::transaction::Encoding::from_i32(encoding).context(EncodingParseError { data: encoding })
+    let parsed = proto::transaction::Encoding::from_i32(encoding)
+        .context(EncodingParseError { data: encoding })?;
+    if parsed == proto::transaction::Encoding::Unspecified {
+        Err(Error::EncodingParseError { data: encoding })
+    } else {
+        Ok(parsed)
+    }
 }
 
 /// Key to address transactions.
@@ -2151,7 +2157,7 @@ mod tests {
         .await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Internal: Cannot parse encoding in serialized catalog: -1 is not a valid variant"
+            "Internal: Cannot parse encoding in serialized catalog: -1 is not a valid, specified variant"
         );
     }
 
@@ -2189,6 +2195,43 @@ mod tests {
         assert_eq!(
             res.unwrap_err().to_string(),
             "Internal: Found wrong encoding in serialized catalog file: Expected Delta but got Full"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_missing_encoding_in_transaction_file() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+
+        // break transaction file
+        assert!(trace.tkeys.len() >= 2);
+        let tkey = &trace.tkeys[0];
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            tkey,
+            FileType::Transaction,
+        );
+        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        proto.encoding = 0;
+        store_transaction_proto(&object_store, &path, &proto)
+            .await
+            .unwrap();
+
+        // loading catalog should fail now
+        let res = PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await;
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Internal: Cannot parse encoding in serialized catalog: 0 is not a valid, specified variant"
         );
     }
 
