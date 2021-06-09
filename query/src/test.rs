@@ -361,6 +361,79 @@ impl TestChunk {
             .collect::<Vec<_>>();
 
         let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+        println!("TestChunk batch data: {:#?}", batch);
+
+        self.table_data.push(Arc::new(batch));
+        self
+    }
+
+    /// Prepares this chunk to return a specific record batch with five
+    /// rows of non null data that look like
+    ///   "+------+------+-----------+-------------------------------+",
+    ///   "| tag1 | tag2 | field_int | time                          |",
+    ///   "+------+------+-----------+-------------------------------+",
+    ///   "| MA   | MA   | 1000      | 1970-01-01 00:00:00.000001    |",
+    ///   "| MT   | MT   | 10        | 1970-01-01 00:00:00.000007    |",
+    ///   "| CT   | CT   | 70        | 1970-01-01 00:00:00.000000100 |",
+    ///   "| AL   | AL   | 100       | 1970-01-01 00:00:00.000000050 |",
+    ///   "| MT   | MT   | 5         | 1970-01-01 00:00:00.000005    |",
+    ///   "+------+------+-----------+-------------------------------+",
+    pub fn with_five_rows_of_data(mut self, _table_name: impl Into<String>) -> Self {
+        //let table_name = table_name.into();
+        let schema = self
+            .table_schema
+            .as_ref()
+            .expect("table must exist in TestChunk");
+
+        // create arrays
+        let columns = schema
+            .iter()
+            .map(|(_influxdb_column_type, field)| match field.data_type() {
+                DataType::Int64 => {
+                    Arc::new(Int64Array::from(vec![1000, 10, 70, 100, 5])) as ArrayRef
+                }
+                DataType::Utf8 => {
+                    match field.name().as_str() {
+                        "tag1" => Arc::new(StringArray::from(vec!["MT", "MT", "CT", "AL", "MT"]))
+                            as ArrayRef,
+                        "tag2" => Arc::new(StringArray::from(vec!["CT", "AL", "CT", "MA", "AL"]))
+                            as ArrayRef,
+                        _ => Arc::new(StringArray::from(vec!["CT", "MT", "AL", "AL", "MT"]))
+                            as ArrayRef,
+                    }
+                }
+                DataType::Timestamp(TimeUnit::Nanosecond, _) => Arc::new(
+                    TimestampNanosecondArray::from_vec(vec![1000, 7000, 100, 50, 5000], None),
+                ) as ArrayRef,
+                DataType::Dictionary(key, value)
+                    if key.as_ref() == &DataType::Int32 && value.as_ref() == &DataType::Utf8 =>
+                {
+                    match field.name().as_str() {
+                        "tag1" => Arc::new(
+                            vec!["MT", "MT", "CT", "AL", "MT"]
+                                .into_iter()
+                                .collect::<DictionaryArray<Int32Type>>(),
+                        ) as ArrayRef,
+                        "tag2" => Arc::new(
+                            vec!["CT", "AL", "CT", "MA", "AL"]
+                                .into_iter()
+                                .collect::<DictionaryArray<Int32Type>>(),
+                        ) as ArrayRef,
+                        _ => Arc::new(
+                            vec!["CT", "MT", "AL", "AL", "MT"]
+                                .into_iter()
+                                .collect::<DictionaryArray<Int32Type>>(),
+                        ) as ArrayRef,
+                    }
+                }
+                _ => unimplemented!(
+                    "Unimplemented data type for test database: {:?}",
+                    field.data_type()
+                ),
+            })
+            .collect::<Vec<_>>();
+
+        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
 
         self.table_data.push(Arc::new(batch));
         self
@@ -420,6 +493,11 @@ impl PartitionChunk for TestChunk {
         let batches = self.table_data.clone();
         let stream = SizedRecordBatchStream::new(batches[0].schema(), batches);
         Ok(Box::pin(stream))
+    }
+
+    /// Returns true if data of this chunk is sorted
+    fn is_sorted_on_pk(&self) -> bool {
+        false
     }
 
     fn apply_predicate(&self, predicate: &Predicate) -> Result<PredicateMatch> {

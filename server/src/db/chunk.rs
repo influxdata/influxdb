@@ -449,6 +449,15 @@ impl PartitionChunk for DbChunk {
             }
         }
     }
+
+    // TODOs: return the right value. For now the chunk is assumed to be not sorted
+    fn is_sorted_on_pk(&self) -> bool {
+        match &self.state {
+            State::MutableBuffer { .. } => false,
+            State::ReadBuffer { .. } => false,
+            State::ParquetFile { .. } => false,
+        }
+    }
 }
 
 impl Prunable for DbChunk {
