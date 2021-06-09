@@ -203,7 +203,7 @@ pub struct CatalogParquetInfo {
     pub path: DirsAndFileName,
 
     /// Associated parquet metadata.
-    pub metadata: ParquetMetaData,
+    pub metadata: Arc<ParquetMetaData>,
 }
 
 /// Abstraction over how the in-memory state of the catalog works.
@@ -815,8 +815,11 @@ where
             }
             proto::transaction::action::Action::AddParquet(a) => {
                 let path = parse_dirs_and_filename(&a.path)?;
+
                 let metadata =
                     thrift_to_parquet_metadata(&a.metadata).context(MetadataDecodingFailed)?;
+                let metadata = Arc::new(metadata);
+
                 state.add(
                     Arc::clone(object_store),
                     server_id,
@@ -1116,7 +1119,7 @@ pub mod test_helpers {
     #[derive(Clone, Debug)]
     pub struct TestCatalogStateInner {
         /// Map of all parquet files that are currently registered.
-        pub parquet_files: HashMap<DirsAndFileName, ParquetMetaData>,
+        pub parquet_files: HashMap<DirsAndFileName, Arc<ParquetMetaData>>,
     }
 
     /// In-memory catalog state, for testing.
@@ -2005,7 +2008,7 @@ mod tests {
         let mut files: Vec<(String, ParquetMetaData)> = guard
             .parquet_files
             .iter()
-            .map(|(path, md)| (path.display(), md.clone()))
+            .map(|(path, md)| (path.display(), md.as_ref().clone()))
             .collect();
         files.sort_by_key(|(path, _)| path.clone());
         files
