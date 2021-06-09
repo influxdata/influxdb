@@ -34,9 +34,9 @@ const (
 func NewVerifyTombstoneCommand() *cobra.Command {
 	var arguments argsTomb
 	cmd := &cobra.Command{
-		Use: "verify-tombstone",
+		Use:   "verify-tombstone",
 		Short: "Verify the integrity of tombstone files",
-		Args: cobra.NoArgs,
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runner := verifierTomb{path: arguments.dir}
 			if arguments.vvv {
