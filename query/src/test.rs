@@ -380,7 +380,7 @@ impl TestChunk {
     ///   "| AL   | AL   | 100       | 1970-01-01 00:00:00.000000050 |",
     ///   "| MT   | MT   | 5         | 1970-01-01 00:00:00.000005    |",
     ///   "+------+------+-----------+-------------------------------+",
-    pub fn with_five_row_of_null_data(mut self, _table_name: impl Into<String>) -> Self {
+    pub fn with_five_rows_of_data(mut self, _table_name: impl Into<String>) -> Self {
         //let table_name = table_name.into();
         let schema = self
             .table_schema
@@ -395,7 +395,14 @@ impl TestChunk {
                     Arc::new(Int64Array::from(vec![1000, 10, 70, 100, 5])) as ArrayRef
                 }
                 DataType::Utf8 => {
-                    Arc::new(StringArray::from(vec!["MA", "MT", "CT", "AL", "MT"])) as ArrayRef
+                    match field.name().as_str() {
+                        "tag1" => Arc::new(StringArray::from(vec!["MT", "MT", "CT", "AL", "MT"]))
+                            as ArrayRef,
+                        "tag2" => Arc::new(StringArray::from(vec!["CT", "AL", "CT", "MA", "AL"]))
+                            as ArrayRef,
+                        _ => Arc::new(StringArray::from(vec!["CT", "MT", "AL", "AL", "MT"]))
+                            as ArrayRef,
+                    }
                 }
                 DataType::Timestamp(TimeUnit::Nanosecond, _) => Arc::new(
                     TimestampNanosecondArray::from_vec(vec![1000, 7000, 100, 50, 5000], None),
@@ -403,9 +410,23 @@ impl TestChunk {
                 DataType::Dictionary(key, value)
                     if key.as_ref() == &DataType::Int32 && value.as_ref() == &DataType::Utf8 =>
                 {
-                    let dict: DictionaryArray<Int32Type> =
-                        vec!["MA", "MT", "CT", "AL", "MT"].into_iter().collect();
-                    Arc::new(dict) as ArrayRef
+                    match field.name().as_str() {
+                        "tag1" => Arc::new(
+                            vec!["MT", "MT", "CT", "AL", "MT"]
+                                .into_iter()
+                                .collect::<DictionaryArray<Int32Type>>(),
+                        ) as ArrayRef,
+                        "tag2" => Arc::new(
+                            vec!["CT", "AL", "CT", "MA", "AL"]
+                                .into_iter()
+                                .collect::<DictionaryArray<Int32Type>>(),
+                        ) as ArrayRef,
+                        _ => Arc::new(
+                            vec!["CT", "MT", "AL", "AL", "MT"]
+                                .into_iter()
+                                .collect::<DictionaryArray<Int32Type>>(),
+                        ) as ArrayRef,
+                    }
                 }
                 _ => unimplemented!(
                     "Unimplemented data type for test database: {:?}",
@@ -415,7 +436,6 @@ impl TestChunk {
             .collect::<Vec<_>>();
 
         let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
-        println!("TestChunk batch data: {:#?}", batch);
 
         self.table_data.push(Arc::new(batch));
         self
@@ -478,7 +498,7 @@ impl PartitionChunk for TestChunk {
     }
 
     /// Returns true if data of this chunk is sorted
-    fn is_sorted(&self) -> bool {
+    fn is_sorted_on_pk(&self) -> bool {
         false
     }
 
