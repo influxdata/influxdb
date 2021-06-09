@@ -14,11 +14,24 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21543](https://github.com/influxdata/influxdb/pull/21543): Updated `influxd` configuration flag `--store` to work with string values `disk` or `memory`. Memory continues to store metadata in-memory for testing; `disk` will persist metadata to disk via bolt and SQLite
 1. [21547](https://github.com/influxdata/influxdb/pull/21547): Allow hiding the tooltip independently of the static legend
 1. [21584](https://github.com/influxdata/influxdb/pull/21584): Added the `api/v2/backup/metadata` endpoint for backing up both KV and SQL metadata, and the `api/v2/restore/sql` for restoring SQL metadata.
+1. [21635](https://github.com/influxdata/influxdb/pull/21635): Port `influxd inspect verify-seriesfile` to 2.x
 1. [21621](https://github.com/influxdata/influxdb/pull/21621): Add `storage-wal-max-concurrent-writes` config option to `influxd` to enable tuning memory pressure under heavy write load.
 1. [21621](https://github.com/influxdata/influxdb/pull/21621): Add `storage-wal-max-write-delay` config option to `influxd` to prevent deadlocks when the WAL is overloaded with concurrent writes.
 
 ### Bug Fixes
 
+1. [21610](https://github.com/influxdata/influxdb/pull/21610): Avoid rewriting `fields.idx` unnecessarily.
+
+## v2.0.7 [2021-06-04]
+
+### Features
+
+1. [21539](https://github.com/influxdata/influxdb/pull/21539): Upgrade Flux to v0.117.0.
+1. [21519](https://github.com/influxdata/influxdb/pull/21519): Optimize `table.fill()` execution within Flux aggregate windows.
+
+### Bug Fixes
+
+1. [21318](https://github.com/influxdata/influxdb/pull/21318): Fix off-by-one error in query range calculation over partially compacted data.
 1. [21345](https://github.com/influxdata/influxdb/pull/21345): Deprecate the unsupported `PostSetupUser` API.
 1. [21356](https://github.com/influxdata/influxdb/pull/21356): Disable MergeFiltersRule until it is more stable.
 1. [21369](https://github.com/influxdata/influxdb/pull/21369): Add limits to the `/api/v2/delete` endpoint for start and stop times with error messages.
@@ -26,11 +39,10 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21477](https://github.com/influxdata/influxdb/pull/21477): Accept `--input` instead of a positional arg in `influx restore`.
 1. [21477](https://github.com/influxdata/influxdb/pull/21477): Print error instead of panicking when `influx restore` fails to find backup manifests.
 1. [21481](https://github.com/influxdata/influxdb/pull/21481): Set last-modified time of empty shard directory to the directory's mod time instead of Unix epoch.
-1. [21486](https://github.com/influxdata/influxdb/pull/21486): chore: remove erroneous dependency on istio
+1. [21486](https://github.com/influxdata/influxdb/pull/21486): Remove erroneous dependency on istio.
 1. [21522](https://github.com/influxdata/influxdb/pull/21522): Replace telemetry file name with slug for `ttf`, `woff`, and `eot` files.
 1. [21540](https://github.com/influxdata/influxdb/pull/21540): Enable use of absolute path for `--upgrade-log` when running `influxd upgrade` on Windows.
 1. [21545](https://github.com/influxdata/influxdb/pull/21545): Make InfluxQL meta queries respect query timeouts.
-1. [21610](https://github.com/influxdata/influxdb/pull/21610): Avoid rewriting `fields.idx` unnecessarily
 
 ## v2.0.6 [2021-04-29]
 
