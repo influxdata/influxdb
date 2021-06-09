@@ -21,10 +21,7 @@ use crate::{
 use crate::{exec::Executor, pruning::Prunable};
 
 use internal_types::{
-    schema::{
-        builder::{SchemaBuilder, SchemaMerger},
-        InfluxColumnType, Schema,
-    },
+    schema::{builder::SchemaBuilder, merge::SchemaMerger, InfluxColumnType, Schema},
     selection::Selection,
 };
 
@@ -305,14 +302,15 @@ impl TestChunk {
             stats,
         };
 
-        let mut merger = SchemaMerger::new().merge(new_column_schema).unwrap();
+        let mut merger = SchemaMerger::new();
+        merger.merge(&new_column_schema).unwrap();
 
-        if let Some(existing_schema) = self.table_schema.take() {
-            merger = merger
+        if let Some(existing_schema) = self.table_schema.as_ref() {
+            merger
                 .merge(existing_schema)
                 .expect("merging was successful");
         }
-        let new_schema = merger.build().unwrap();
+        let new_schema = merger.build();
 
         self.table_schema = Some(new_schema);
 

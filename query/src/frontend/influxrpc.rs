@@ -1118,7 +1118,7 @@ impl InfluxRpcPlanner {
         // predicates that could be pushed down and used for
         // additional pruning we may want to add an extra layer of
         // pruning here.
-        builder = builder.add_no_op_pruner();
+        builder.add_no_op_pruner();
 
         for chunk in chunks {
             let chunk_id = chunk.id();
@@ -1139,7 +1139,7 @@ impl InfluxRpcPlanner {
                     chunk_id,
                 })?;
 
-            builder = builder
+            builder
                 .add_chunk(chunk, chunk_table_schema)
                 .context(CreatingProvider { table_name })?;
         }
