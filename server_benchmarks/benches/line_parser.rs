@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use std::time::Duration;
 
-static LINES: &str = include_str!("../tests/fixtures/lineproto/prometheus.lp");
+static LINES: &str = include_str!("../../tests/fixtures/lineproto/prometheus.lp");
 
 fn line_parser(c: &mut Criterion) {
     let mut group = c.benchmark_group("line_parser");

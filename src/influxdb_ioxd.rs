@@ -68,9 +68,6 @@ pub enum Error {
     // don't return `Result`.
     #[snafu(display("Amazon S3 configuration was invalid: {}", source))]
     InvalidS3Config { source: object_store::aws::Error },
-
-    #[snafu(display("cannot load database config: {}", source))]
-    LoadDatabaseConfig { source: server::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -144,6 +141,15 @@ pub async fn main(config: Config) -> Result<()> {
         server_config
     };
 
+    if config.grpc_bind_address == config.http_bind_address {
+        error!(
+            %config.grpc_bind_address,
+            %config.http_bind_address,
+            "grpc and http bind addresses must differ",
+        );
+        std::process::exit(1);
+    }
+
     let connection_manager = ConnectionManager {};
     let app_server = Arc::new(AppServer::new(connection_manager, server_config));
 
@@ -151,10 +157,6 @@ pub async fn main(config: Config) -> Result<()> {
     // call
     if let Some(id) = config.server_id {
         app_server.set_id(id).expect("server id already set");
-        app_server
-            .load_database_configs()
-            .await
-            .context(LoadDatabaseConfig)?;
     } else {
         warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID config or API before writing or querying data.");
     }

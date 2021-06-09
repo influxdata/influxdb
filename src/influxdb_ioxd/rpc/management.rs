@@ -122,12 +122,7 @@ where
             .and_then(TryInto::try_into)
             .map_err(|e| e.scope("rules"))?;
 
-        let server_id = match self.server.require_id().ok() {
-            Some(id) => id,
-            None => return Err(NotFound::default().into()),
-        };
-
-        match self.server.create_database(rules, server_id).await {
+        match self.server.create_database(rules).await {
             Ok(_) => Ok(Response::new(CreateDatabaseResponse {})),
             Err(Error::DatabaseAlreadyExists { db_name }) => {
                 return Err(AlreadyExists {
@@ -375,6 +370,35 @@ where
         let SetServingReadinessRequest { ready } = request.into_inner();
         self.serving_readiness.set(ready.into());
         Ok(Response::new(SetServingReadinessResponse {}))
+    }
+
+    async fn get_server_status(
+        &self,
+        _request: Request<GetServerStatusRequest>,
+    ) -> Result<Response<GetServerStatusResponse>, Status> {
+        // TODO: wire up errors (https://github.com/influxdata/influxdb_iox/issues/1624)
+        let initialized = self.server.initialized();
+
+        let database_statuses: Vec<_> = if initialized {
+            self.server
+                .db_names_sorted()
+                .into_iter()
+                .map(|db_name| DatabaseStatus {
+                    db_name,
+                    error: None,
+                })
+                .collect()
+        } else {
+            Default::default()
+        };
+
+        Ok(Response::new(GetServerStatusResponse {
+            server_status: Some(ServerStatus {
+                initialized,
+                error: None,
+                database_statuses,
+            }),
+        }))
     }
 }
 

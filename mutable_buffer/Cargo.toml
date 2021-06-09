@@ -30,18 +30,8 @@ tokio = { version = "1.0", features = ["macros"] }
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }
-criterion = "0.3"
-flate2 = "1.0.20"
 
 [features]
 default = []
 # Disables snapshot caching
 nocache = []
-
-[[bench]]
-name = "snapshot"
-harness = false
-
-[[bench]]
-name = "write"
-harness = false
