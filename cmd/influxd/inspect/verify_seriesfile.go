@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-type args struct {
+type argsSeries struct {
 	dir        string
 	db         string
 	seriesFile string
@@ -26,7 +26,7 @@ type args struct {
 }
 
 func NewVerifySeriesfileCommand() *cobra.Command {
-	var arguments args
+	var arguments argsSeries
 	cmd := &cobra.Command{
 		Use:   "verify-seriesfile",
 		Short: "Verifies the integrity of series files.",
