@@ -50,7 +50,6 @@ func NewVerifyTombstoneCommand() *cobra.Command {
 		},
 	}
 
-	// TODO Make sure this is where tombstones default to when made
 	cmd.Flags().StringVar(&arguments.dir, "dir", filepath.Join(os.Getenv("HOME"), ".influxdbv2"),
 		"Path to find tombstone files.")
 	cmd.Flags().BoolVar(&arguments.v, "v", false,
