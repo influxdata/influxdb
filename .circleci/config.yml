@@ -130,8 +130,8 @@ commands:
             MUSL_BUILD_TIME: 20210108172549
             MUSL_CROSS_MAKE_VERSION: 0.9.9
             MUSL_CROSS_ARM64_BUILD_TIME: 20210108174735
-            OSXCROSS_VERSION: c2ad5e859d12a295c3f686a15bd7181a165bfa82
-            OSXCROSS_BUILD_TIME: 20210108174800
+            OSXCROSS_VERSION: 5771a847950abefed9a37e2d16ee10e0dd90c641
+            OSXCROSS_BUILD_TIME: 20210608175207
           command: |
             MUSL_ARCHIVE=musl-${MUSL_VERSION}-${MUSL_BUILD_TIME}.tar.gz
             curl https://dl.influxdata.com/influxdb-ci/musl/${MUSL_VERSION}/${MUSL_ARCHIVE} -O && \
@@ -146,7 +146,7 @@ commands:
             echo 'export PATH=/usr/local/musl-cross/bin:${PATH}' >> $BASH_ENV
 
             OSXCROSS_ARCHIVE=osxcross-${OSXCROSS_VERSION}-${OSXCROSS_BUILD_TIME}.tar.gz
-            curl https://dl.influxdata.com/influxdb-ci/osxcross/${OSXCROSS_VERSION}/${OSXCROSS_ARCHIVE} -O && \
+            curl https://edge-xcc-archives.s3-us-west-2.amazonaws.com/${OSXCROSS_ARCHIVE} -O && \
               sudo tar xzf ${OSXCROSS_ARCHIVE} -C /usr/local && \
               rm ${OSXCROSS_ARCHIVE}
             echo 'export PATH=/usr/local/osxcross/target/bin:${PATH}' >> $BASH_ENV
@@ -164,7 +164,7 @@ commands:
               x86_64-pc-windows-gnu
             echo 'export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/musl/bin/musl-gcc' >> $BASH_ENV
             echo 'export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/musl-cross/bin/aarch64-unknown-linux-musl-gcc' >> $BASH_ENV
-            echo 'export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/usr/local/osxcross/target/bin/x86_64-apple-darwin15-clang' >> $BASH_ENV
+            echo 'export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/usr/local/osxcross/target/bin/x86_64-apple-darwin16-clang' >> $BASH_ENV
             echo 'export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=/usr/bin/x86_64-w64-mingw32-gcc' >> $BASH_ENV
       - run:
           name: Install goreleaser
@@ -282,7 +282,7 @@ jobs:
 
   godeps:
     docker:
-      - image: cimg/go:1.15.6
+      - image: cimg/go:1.16.5
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -292,10 +292,11 @@ jobs:
           name: Restore GOPATH/pkg/mod
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
-            - influxdb-gomod-sum-
-      - run:
-          name: Install Dependencies
-          command: go mod download -x
+      # NOTE: On go1.16 `go mod download` and `go mod tidy` no longer agree
+      # with each other. The Go team recommends using `go mod tidy` to download
+      # all the modules needed for build/test, so we check tidiness while we're
+      # at it. See https://github.com/golang/go/issues/43994#issuecomment-770053099
+      - run: make checktidy
       - save_cache:
           name: Save GOPATH/pkg/mod
           key: influxdb-gomod-sum-{{ checksum "go.sum" }}
@@ -304,7 +305,7 @@ jobs:
 
   golint:
     docker:
-      - image: cimg/go:1.15.6
+      - image: cimg/go:1.16.5
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -329,14 +330,13 @@ jobs:
           command: ./scripts/ci/lint/flags.bash
       - run: make vet
       - run: make checkfmt
-      - run: make checktidy
       - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
       - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
       - run: GO111MODULE=on ./env staticcheck ./...
 
   gotest:
     docker:
-      - image: cimg/go:1.15.6
+      - image: cimg/go:1.16.5
     resource_class: large
     environment:
       TMPDIR: /mnt/ramdisk
@@ -364,7 +364,7 @@ jobs:
 
   fluxtest:
     docker:
-      - image: cimg/go:1.15.6
+      - image: cimg/go:1.16.5
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -379,7 +379,7 @@ jobs:
 
   tlstest:
     docker:
-      - image: cimg/go:1.15.6
+      - image: cimg/go:1.16.5
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -398,7 +398,7 @@ jobs:
 
   build:
     docker:
-      - image: cimg/go:1.15.6
+      - image: cimg/go:1.16.5
     resource_class: large
     environment:
       TMPDIR: /mnt/ramdisk
@@ -510,7 +510,7 @@ jobs:
 
   e2e-monitor-ci:
     docker:
-      - image: cimg/go:1.15.6
+      - image: cimg/go:1.16.5
     steps:
       - checkout
       - run:

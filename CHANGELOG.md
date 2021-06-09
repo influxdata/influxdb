@@ -1,5 +1,13 @@
 ## unreleased
 
+### Go Version
+
+This release upgrades the project to `go` version 1.16.
+
+#### Minimum macOS Version
+
+Because of the version bump to `go`, the macOS build for this release requires at least version 10.12 Sierra to run.
+
 ### SQLite Metadata Store
 
 This release adds an embedded SQLite database for storing metadata required by the latest UI features like Notebooks and Annotations.
