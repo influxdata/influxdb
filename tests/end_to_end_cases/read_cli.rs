@@ -13,6 +13,7 @@ pub async fn test() {
     let addr = server_fixture.grpc_base();
 
     set_server_id(addr).await;
+    wait_server_initialized(addr).await;
     create_database(&db_name, addr).await;
     test_read_default(&db_name, addr).await;
     test_read_format_pretty(&db_name, addr).await;
@@ -32,6 +33,18 @@ async fn set_server_id(addr: &str) {
         .assert()
         .success()
         .stdout(predicate::str::contains("Ok"));
+}
+
+async fn wait_server_initialized(addr: &str) {
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("server")
+        .arg("wait-server-initialized")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Server initialized."));
 }
 
 async fn create_database(db_name: &str, addr: &str) {

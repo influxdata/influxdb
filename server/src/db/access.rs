@@ -251,8 +251,8 @@ impl SchemaProvider for DbSchemaProvider {
 
     /// Create a table provider for the named table
     fn table(&self, table_name: &str) -> Option<Arc<dyn TableProvider>> {
-        let mut builder = ProviderBuilder::new(table_name)
-            .add_pruner(Arc::clone(&self.chunk_access) as Arc<dyn ChunkPruner<DbChunk>>);
+        let mut builder = ProviderBuilder::new(table_name);
+        builder.add_pruner(Arc::clone(&self.chunk_access) as Arc<dyn ChunkPruner<DbChunk>>);
 
         let predicate = PredicateBuilder::new().table(table_name).build();
 
@@ -262,7 +262,10 @@ impl SchemaProvider for DbSchemaProvider {
 
             // This is unfortunate - a table with incompatible chunks ceases to
             // be visible to the query engine
-            builder = builder
+            //
+            // It is also potentially ill-formed as continuing to use the builder
+            // after it has errored may not yield entirely sensible results
+            builder
                 .add_chunk(chunk, schema)
                 .log_if_error("Adding chunks to table")
                 .ok()?;
@@ -270,7 +273,7 @@ impl SchemaProvider for DbSchemaProvider {
 
         match builder.build() {
             Ok(provider) => Some(Arc::new(provider)),
-            Err(provider::Error::InternalNoChunks { .. }) => None,
+            Err(provider::Error::InternalNoRowsInTable { .. }) => None,
             Err(e) => panic!("unexpected error: {:?}", e),
         }
     }
