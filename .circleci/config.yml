@@ -186,6 +186,16 @@ commands:
             curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
             echo 'export PATH=${HOME}/.cargo/bin:${PATH}' >> $BASH_ENV
 
+  upgrade_go:
+    steps:
+      - run:
+          name: Upgrade Go
+          command: |
+            mkdir -p ${HOME}/.tools
+            wget https://golang.org/dl/go1.16.5.linux-amd64.tar.gz
+            tar -C ${HOME}/.tools -xzf go1.16.5.linux-amd64.tar.gz
+            echo 'export PATH=${HOME}/.tools/go/bin:${PATH}' >> $BASH_ENV
+
   # Run goreleaser to cross-build or cross-publish influxd
   run_goreleaser:
     parameters:
@@ -629,6 +639,7 @@ jobs:
           keys:
             - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - install_core_deps
+      - upgrade_go
       - run_goreleaser:
           publish_release: false
       - run:
@@ -739,6 +750,7 @@ jobs:
           keys:
             - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - install_core_deps
+      - upgrade_go
       - run_goreleaser:
           publish_release: true
       - save_cache:
