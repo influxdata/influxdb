@@ -21,6 +21,7 @@ use tikv_jemallocator::Jemalloc;
 
 mod commands {
     pub mod database;
+    pub mod layered_tracing;
     pub mod operations;
     pub mod run;
     pub mod server;
