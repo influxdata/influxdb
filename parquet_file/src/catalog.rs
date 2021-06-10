@@ -445,7 +445,7 @@ where
                 uuid: *uuid,
             };
             let tmp_state = S::clone_or_keep(&state);
-            let file_type = if (rev == start_revision) && last_checkpoint.is_some() {
+            let file_type = if Some(rev) == last_checkpoint {
                 FileType::Checkpoint
             } else {
                 FileType::Transaction
