@@ -6,12 +6,18 @@ use std::hash::Hash;
 
 /// A wrapper around a TaskRegistry that automatically retains a history
 #[derive(Debug)]
-pub struct TaskRegistryWithHistory<T> {
+pub struct TaskRegistryWithHistory<T>
+where
+    T: Send + Sync,
+{
     registry: TaskRegistry<T>,
     history: SizeLimitedHashMap<TaskId, TaskTracker<T>>,
 }
 
-impl<T: std::fmt::Debug> TaskRegistryWithHistory<T> {
+impl<T: std::fmt::Debug> TaskRegistryWithHistory<T>
+where
+    T: Send + Sync,
+{
     pub fn new(capacity: usize) -> Self {
         Self {
             history: SizeLimitedHashMap::new(capacity),

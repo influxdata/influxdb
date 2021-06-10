@@ -5,18 +5,17 @@ use std::{borrow::Cow, cmp::Ordering, mem};
 
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
+use std::iter::FromIterator;
 use std::num::NonZeroU64;
 
 /// Describes the aggregated (across all chunks) summary
-/// statistics for each column in each table in a partition
+/// statistics for each column in a partition
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct PartitionSummary {
     /// The identifier for the partition, the partition key computed from
     /// PartitionRules
     pub key: String,
-
-    /// The tables in this partition
-    pub tables: Vec<TableSummary>,
+    pub table: TableSummary,
 }
 
 impl PartitionSummary {
@@ -28,55 +27,34 @@ impl PartitionSummary {
         key: impl Into<String>,
         summaries: impl IntoIterator<Item = TableSummary>,
     ) -> Self {
-        let mut summaries: Vec<_> = summaries.into_iter().collect();
-        summaries.sort_by(|a, b| a.name.cmp(&b.name));
-
-        let mut tables = Vec::with_capacity(summaries.len());
-
-        let mut summaries = summaries.into_iter();
-
-        if let Some(mut table) = summaries.next() {
-            for t in summaries {
-                if table.name != t.name {
-                    tables.push(table);
-                    table = t;
-                } else {
-                    table.update_from(&t);
-                }
-            }
-
-            tables.push(table);
-        }
-
         Self {
             key: key.into(),
-            tables,
+            table: TableSummary::from_iter(summaries),
         }
     }
-
-    /// Returns the table summary for the table name
-    pub fn table(&self, name: &str) -> Option<&TableSummary> {
-        self.tables.iter().find(|t| t.name == name)
-    }
-}
-
-/// Describes the (unaggregated) summary statistics for
-/// each column in each table in each chunk of a Partition.
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
-pub struct UnaggregatedPartitionSummary {
-    /// The identifier for the partition, the partition key computed from
-    /// PartitionRules
-    pub key: String,
-
-    /// The chunks of the tables in this partition
-    pub tables: Vec<UnaggregatedTableSummary>,
 }
 
 /// Metadata and statistics for a Chunk *within* a partition
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub struct UnaggregatedTableSummary {
+pub struct PartitionChunkSummary {
     pub chunk_id: u32,
     pub table: TableSummary,
+}
+
+impl FromIterator<TableSummary> for TableSummary {
+    fn from_iter<T: IntoIterator<Item = TableSummary>>(iter: T) -> Self {
+        let mut iter = iter.into_iter();
+        let first = iter.next().expect("must contain at least one element");
+        let mut s = Self {
+            name: first.name,
+            columns: first.columns,
+        };
+
+        for other in iter {
+            s.update_from(&other)
+        }
+        s
+    }
 }
 
 /// Metadata and statistics information for a table. This can be
@@ -125,6 +103,8 @@ impl TableSummary {
     /// on that column. Columns that only exist in the other are cloned into
     /// this table summary.
     pub fn update_from(&mut self, other: &Self) {
+        assert_eq!(self.name, other.name);
+
         for col in &mut self.columns {
             if let Some(other_col) = other.column(&col.name) {
                 col.update_from(other_col);
@@ -945,31 +925,12 @@ mod tests {
             influxdb_type: None,
             stats: Statistics::I64(StatValues::new_with_value(10)),
         };
-        let table_b = TableSummary {
-            name: "b".to_string(),
-            columns: vec![int_col.clone()],
-        };
-
         let table_a_2 = TableSummary {
             name: "a".to_string(),
             columns: vec![int_col],
         };
-
-        let int_col = ColumnSummary {
-            name: "int".to_string(),
-            influxdb_type: None,
-            stats: Statistics::I64(StatValues::new_with_value(203)),
-        };
-        let table_b_2 = TableSummary {
-            name: "b".to_string(),
-            columns: vec![int_col],
-        };
-
-        let partition = PartitionSummary::from_table_summaries(
-            "key",
-            vec![table_b_2, table_a, table_b, table_a_2],
-        );
-        let t = partition.table("a").unwrap();
+        let partition = PartitionSummary::from_table_summaries("key", vec![table_a, table_a_2]);
+        let t = partition.table;
         let col = t.column("string").unwrap();
         assert_eq!(
             col.stats,
@@ -983,12 +944,6 @@ mod tests {
         assert_eq!(
             col.stats,
             Statistics::I64(StatValues::new(Some(1), Some(10), 3))
-        );
-        let t = partition.table("b").unwrap();
-        let col = t.column("int").unwrap();
-        assert_eq!(
-            col.stats,
-            Statistics::I64(StatValues::new(Some(10), Some(203), 2))
         );
     }
 

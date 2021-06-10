@@ -415,7 +415,7 @@ impl Client {
     /// Get database configuration
     pub async fn get_database(
         &mut self,
-        name: impl Into<String>,
+        name: impl Into<String> + Send,
     ) -> Result<DatabaseRules, GetDatabaseError> {
         let response = self
             .inner
@@ -438,7 +438,7 @@ impl Client {
     /// List chunks in a database.
     pub async fn list_chunks(
         &mut self,
-        db_name: impl Into<String>,
+        db_name: impl Into<String> + Send,
     ) -> Result<Vec<Chunk>, ListChunksError> {
         let db_name = db_name.into();
 
@@ -467,7 +467,7 @@ impl Client {
     pub async fn update_remote(
         &mut self,
         id: u32,
-        connection_string: impl Into<String>,
+        connection_string: impl Into<String> + Send,
     ) -> Result<(), UpdateRemoteError> {
         self.inner
             .update_remote(UpdateRemoteRequest {
@@ -493,7 +493,7 @@ impl Client {
     /// List all partitions of the database
     pub async fn list_partitions(
         &mut self,
-        db_name: impl Into<String>,
+        db_name: impl Into<String> + Send,
     ) -> Result<Vec<Partition>, ListPartitionsError> {
         let db_name = db_name.into();
         let response = self
@@ -514,8 +514,8 @@ impl Client {
     /// Get details about a specific partition
     pub async fn get_partition(
         &mut self,
-        db_name: impl Into<String>,
-        partition_key: impl Into<String>,
+        db_name: impl Into<String> + Send,
+        partition_key: impl Into<String> + Send,
     ) -> Result<Partition, GetPartitionError> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
@@ -541,8 +541,8 @@ impl Client {
     /// List chunks in a partition
     pub async fn list_partition_chunks(
         &mut self,
-        db_name: impl Into<String>,
-        partition_key: impl Into<String>,
+        db_name: impl Into<String> + Send,
+        partition_key: impl Into<String> + Send,
     ) -> Result<Vec<Chunk>, ListPartitionChunksError> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
@@ -561,12 +561,12 @@ impl Client {
         Ok(response.into_inner().chunks)
     }
 
-    /// Create a new chunk in a partittion
+    /// Create a new chunk in a partition
     pub async fn new_partition_chunk(
         &mut self,
-        db_name: impl Into<String>,
-        partition_key: impl Into<String>,
-        table_name: impl Into<String>,
+        db_name: impl Into<String> + Send,
+        table_name: impl Into<String> + Send,
+        partition_key: impl Into<String> + Send,
     ) -> Result<(), NewPartitionChunkError> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
@@ -615,9 +615,9 @@ impl Client {
     /// Returns the job tracking the data's movement
     pub async fn close_partition_chunk(
         &mut self,
-        db_name: impl Into<String>,
-        partition_key: impl Into<String>,
-        table_name: impl Into<String>,
+        db_name: impl Into<String> + Send,
+        table_name: impl Into<String> + Send,
+        partition_key: impl Into<String> + Send,
         chunk_id: u32,
     ) -> Result<Operation, ClosePartitionChunkError> {
         let db_name = db_name.into();

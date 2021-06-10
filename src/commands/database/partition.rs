@@ -179,7 +179,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
 
             // Ignore response for now
             client
-                .new_partition_chunk(db_name, partition_key, table_name)
+                .new_partition_chunk(db_name, table_name, partition_key)
                 .await?;
             println!("Ok");
         }
@@ -192,7 +192,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
             } = close_chunk;
 
             let operation: Operation = client
-                .close_partition_chunk(db_name, partition_key, table_name, chunk_id)
+                .close_partition_chunk(db_name, table_name, partition_key, chunk_id)
                 .await?
                 .try_into()?;
 

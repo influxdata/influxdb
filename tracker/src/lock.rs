@@ -1,11 +1,16 @@
-use lock_api::RawRwLock;
 use metrics::{KeyValue, MetricObserver, MetricObserverBuilder};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+type RawRwLock = InstrumentRawRwLock<parking_lot::RawRwLock>;
+
 /// An instrumented Read-Write Lock
-pub type RwLock<T> = lock_api::RwLock<InstrumentRawRwLock<parking_lot::RawRwLock>, T>;
+pub type RwLock<T> = lock_api::RwLock<RawRwLock, T>;
+pub type RwLockReadGuard<'a, T> = lock_api::RwLockReadGuard<'a, RawRwLock, T>;
+pub type RwLockWriteGuard<'a, T> = lock_api::RwLockWriteGuard<'a, RawRwLock, T>;
+pub type MappedRwLockReadGuard<'a, T> = lock_api::MappedRwLockReadGuard<'a, RawRwLock, T>;
+pub type MappedRwLockWriteGuard<'a, T> = lock_api::MappedRwLockWriteGuard<'a, RawRwLock, T>;
 
 /// A Lock tracker can be used to create instrumented read-write locks
 /// that will record contention metrics
@@ -16,6 +21,7 @@ pub struct LockTracker {
 
 impl LockTracker {
     pub fn new_lock<T>(&self, t: T) -> RwLock<T> {
+        use lock_api::RawRwLock;
         RwLock::const_new(
             InstrumentRawRwLock {
                 inner: parking_lot::RawRwLock::INIT,
@@ -119,7 +125,7 @@ pub struct InstrumentRawRwLock<R: Sized> {
 /// exists.
 ///
 /// This is done by delegating to the wrapped RawRwLock implementation
-unsafe impl<R: RawRwLock + Sized> lock_api::RawRwLock for InstrumentRawRwLock<R> {
+unsafe impl<R: lock_api::RawRwLock + Sized> lock_api::RawRwLock for InstrumentRawRwLock<R> {
     const INIT: Self = Self {
         inner: R::INIT,
         shared: None,

@@ -8,7 +8,7 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
     use server::Error;
 
     match error {
-        Error::IdNotSet => PreconditionViolation {
+        Error::GetIdError { .. } => PreconditionViolation {
             category: "Writer ID".to_string(),
             subject: "influxdata.com/iox".to_string(),
             description: "Writer ID must be set".to_string(),
@@ -56,35 +56,28 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
 pub fn default_catalog_error_handler(error: server::db::catalog::Error) -> tonic::Status {
     use server::db::catalog::Error;
     match error {
-        Error::UnknownPartition { partition_key } => NotFound {
-            resource_type: "partition".to_string(),
-            resource_name: partition_key,
-            ..Default::default()
-        }
-        .into(),
-        Error::UnknownTable {
-            partition_key,
-            table_name,
-        } => NotFound {
+        Error::TableNotFound { table } => NotFound {
             resource_type: "table".to_string(),
-            resource_name: format!("{}:{}", partition_key, table_name),
+            resource_name: table,
             ..Default::default()
         }
         .into(),
-        Error::UnknownChunk {
-            partition_key,
-            table_name,
+        Error::PartitionNotFound { partition, table } => NotFound {
+            resource_type: "partition".to_string(),
+            resource_name: format!("{}:{}", table, partition),
+            ..Default::default()
+        }
+        .into(),
+        Error::ChunkNotFound {
             chunk_id,
+            partition,
+            table,
         } => NotFound {
             resource_type: "chunk".to_string(),
-            resource_name: format!("{}:{}:{}", partition_key, table_name, chunk_id),
+            resource_name: format!("{}:{}:{}", table, partition, chunk_id),
             ..Default::default()
         }
         .into(),
-        error => {
-            error!(?error, "Unexpected error");
-            InternalError {}.into()
-        }
     }
 }
 
@@ -98,7 +91,7 @@ pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
             description: "Cannot write to database: no mutable buffer configured".to_string(),
         }
         .into(),
-        Error::RollingOverPartition { source, .. } => default_catalog_error_handler(source),
+        Error::CatalogError { source } => default_catalog_error_handler(source),
         error => {
             error!(?error, "Unexpected error");
             InternalError {}.into()

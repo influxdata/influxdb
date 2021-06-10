@@ -54,7 +54,7 @@ impl Planner {
     pub async fn sql<D: CatalogProvider + 'static>(
         &self,
         database: Arc<D>,
-        query: impl Into<String>,
+        query: impl Into<String> + Send,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let planner = SqlQueryPlanner::new();
         let q_executor = Arc::clone(&self.exec);
@@ -115,7 +115,7 @@ impl Planner {
     pub async fn tag_values<D>(
         &self,
         database: Arc<D>,
-        tag_name: impl Into<String>,
+        tag_name: impl Into<String> + Send,
         predicate: Predicate,
     ) -> Result<StringSetPlan>
     where

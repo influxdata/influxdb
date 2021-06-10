@@ -15,14 +15,14 @@ use arrow::{
         UInt32Array, UInt32Builder, UInt64Array, UInt64Builder,
     },
     datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit},
-    error::{ArrowError, Result},
+    error::Result,
     record_batch::RecordBatch,
 };
 use data_types::{
     chunk_metadata::{ChunkSummary, DetailedChunkSummary},
     error::ErrorLogger,
     job::Job,
-    partition_metadata::{PartitionSummary, UnaggregatedPartitionSummary},
+    partition_metadata::PartitionSummary,
 };
 use datafusion::{
     catalog::schema::SchemaProvider,
@@ -34,6 +34,7 @@ use tracker::TaskTracker;
 
 use super::catalog::Catalog;
 use crate::JobRegistry;
+use data_types::partition_metadata::TableSummary;
 
 // The IOx system schema
 pub const SYSTEM_SCHEMA: &str = "system";
@@ -286,17 +287,16 @@ fn from_partition_summaries(
     // tables with no columns: There are other tables to list tables
     // and columns
     for partition in partitions {
-        for table in partition.tables {
-            for column in table.columns {
-                partition_key.append_value(&partition.key)?;
-                table_name.append_value(&table.name)?;
-                column_name.append_value(&column.name)?;
-                column_type.append_value(column.type_name())?;
-                if let Some(t) = &column.influxdb_type {
-                    influxdb_type.append_value(t.as_str())?;
-                } else {
-                    influxdb_type.append_null()?;
-                }
+        let table = partition.table;
+        for column in table.columns {
+            partition_key.append_value(&partition.key)?;
+            table_name.append_value(&table.name)?;
+            column_name.append_value(&column.name)?;
+            column_type.append_value(column.type_name())?;
+            if let Some(t) = &column.influxdb_type {
+                influxdb_type.append_value(t.as_str())?;
+            } else {
+                influxdb_type.append_null()?;
             }
         }
     }
@@ -335,12 +335,8 @@ impl IoxSystemTable for ChunkColumnsTable {
     }
 
     fn batch(&self) -> Result<RecordBatch> {
-        assemble_chunk_columns(
-            self.schema(),
-            self.catalog.unaggregated_partition_summaries(),
-            self.catalog.detailed_chunk_summaries(),
-        )
-        .log_if_error("system.column_chunks table")
+        assemble_chunk_columns(self.schema(), self.catalog.detailed_chunk_summaries())
+            .log_if_error("system.column_chunks table")
     }
 }
 
@@ -360,22 +356,8 @@ fn chunk_columns_schema() -> SchemaRef {
 
 fn assemble_chunk_columns(
     schema: SchemaRef,
-    partitions: Vec<UnaggregatedPartitionSummary>,
-    chunk_summaries: Vec<DetailedChunkSummary>,
+    chunk_summaries: Vec<(Arc<TableSummary>, DetailedChunkSummary)>,
 ) -> Result<RecordBatch> {
-    // maps (partition_key, chunk_id, table_name) --> DetailedChunkSummary
-    let chunk_summary_map: HashMap<_, _> = chunk_summaries
-        .iter()
-        .map(|chunk_summary| {
-            let key = (
-                chunk_summary.inner.partition_key.as_ref(),
-                chunk_summary.inner.id,
-                chunk_summary.inner.table_name.as_ref(),
-            );
-            (key, chunk_summary)
-        })
-        .collect();
-
     /// Builds an index from column_name -> size
     fn make_column_index(summary: &DetailedChunkSummary) -> HashMap<&str, u64> {
         summary
@@ -390,8 +372,8 @@ fn assemble_chunk_columns(
             .collect()
     }
 
-    // Assume each partition has roughly 5 tables with 5 columns
-    let row_estimate = partitions.len() * 25;
+    // Assume each chunk has roughly 5 columns
+    let row_estimate = chunk_summaries.len() * 5;
 
     let mut partition_key = StringBuilder::new(row_estimate);
     let mut chunk_id = UInt32Builder::new(row_estimate);
@@ -403,63 +385,34 @@ fn assemble_chunk_columns(
     let mut max_values = StringBuilder::new(row_estimate);
     let mut estimated_bytes = UInt64Builder::new(row_estimate);
 
-    // Note no rows are produced for partitions with no tables, or
-    // tables with no columns: There are other tables to list tables
+    // Note no rows are produced for partitions with no chunks, or
+    // tables with no partitions: There are other tables to list tables
     // and columns
-    for partition in partitions {
-        for chunk_table in partition.tables {
-            let table = &chunk_table.table;
-            let key = (
-                partition.key.as_str(),
-                chunk_table.chunk_id,
-                table.name.as_str(),
-            );
+    for (table_summary, chunk_summary) in chunk_summaries {
+        let mut column_index = make_column_index(&chunk_summary);
+        let storage_value = chunk_summary.inner.storage.as_str();
 
-            let chunk_summary = chunk_summary_map.get(&key).ok_or_else(|| {
-                ArrowError::ComputeError(format!(
-                    "IOx internal error: Can not find summary for {:?}",
-                    key
-                ))
-            })?;
-
-            let mut column_index = make_column_index(chunk_summary);
-            let storage_value = chunk_summary.inner.storage.as_str();
-
-            for column in &table.columns {
-                partition_key.append_value(&partition.key)?;
-                chunk_id.append_value(chunk_table.chunk_id)?;
-                table_name.append_value(&table.name)?;
-                column_name.append_value(&column.name)?;
-                storage.append_value(storage_value)?;
-                count.append_value(column.count())?;
-                if let Some(v) = column.stats.min_as_str() {
-                    min_values.append_value(v)?;
-                } else {
-                    min_values.append(false)?;
-                }
-                if let Some(v) = column.stats.max_as_str() {
-                    max_values.append_value(v)?;
-                } else {
-                    max_values.append(false)?;
-                }
-
-                let size = column_index.remove(column.name.as_str());
-
-                estimated_bytes.append_option(size)?;
-            }
-
-            // now, if there are any left over (special columns, like __dictionary), add them too
-            for (name, size) in column_index {
-                partition_key.append_value(&partition.key)?;
-                chunk_id.append_value(chunk_table.chunk_id)?;
-                table_name.append_value(&table.name)?;
-                column_name.append_value(name)?;
-                storage.append_value(storage_value)?;
-                count.append_null()?;
+        for column in &table_summary.columns {
+            partition_key.append_value(chunk_summary.inner.partition_key.as_ref())?;
+            chunk_id.append_value(chunk_summary.inner.id)?;
+            table_name.append_value(&chunk_summary.inner.table_name)?;
+            column_name.append_value(&column.name)?;
+            storage.append_value(storage_value)?;
+            count.append_value(column.count())?;
+            if let Some(v) = column.stats.min_as_str() {
+                min_values.append_value(v)?;
+            } else {
                 min_values.append(false)?;
-                max_values.append(false)?;
-                estimated_bytes.append_value(size)?;
             }
+            if let Some(v) = column.stats.max_as_str() {
+                max_values.append_value(v)?;
+            } else {
+                max_values.append(false)?;
+            }
+
+            let size = column_index.remove(column.name.as_str());
+
+            estimated_bytes.append_option(size)?;
         }
     }
 
@@ -608,10 +561,7 @@ mod tests {
     use chrono::NaiveDateTime;
     use data_types::{
         chunk_metadata::{ChunkColumnSummary, ChunkStorage},
-        partition_metadata::{
-            ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
-            UnaggregatedTableSummary,
-        },
+        partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     };
 
     #[test]
@@ -666,7 +616,7 @@ mod tests {
         let partitions = vec![
             PartitionSummary {
                 key: "p1".to_string(),
-                tables: vec![TableSummary {
+                table: TableSummary {
                     name: "t1".to_string(),
                     columns: vec![
                         ColumnSummary {
@@ -692,18 +642,14 @@ mod tests {
                             stats: Statistics::I64(StatValues::new_with_value(43)),
                         },
                     ],
-                }],
-            },
-            PartitionSummary {
-                key: "p2".to_string(),
-                tables: vec![],
+                },
             },
             PartitionSummary {
                 key: "p3".to_string(),
-                tables: vec![TableSummary {
+                table: TableSummary {
                     name: "t1".to_string(),
                     columns: vec![],
-                }],
+                },
             },
         ];
 
@@ -804,128 +750,105 @@ mod tests {
 
     #[test]
     fn test_assemble_chunk_columns() {
-        let partitions = vec![
-            UnaggregatedPartitionSummary {
-                key: "p1".to_string(),
-                tables: vec![UnaggregatedTableSummary {
-                    chunk_id: 42,
-                    table: TableSummary {
-                        name: "t1".to_string(),
-                        columns: vec![
-                            ColumnSummary {
-                                name: "c1".to_string(),
-                                influxdb_type: Some(InfluxDbType::Field),
-                                stats: Statistics::String(StatValues::new(
-                                    Some("bar".to_string()),
-                                    Some("foo".to_string()),
-                                    55,
-                                )),
-                            },
-                            ColumnSummary {
-                                name: "c2".to_string(),
-                                influxdb_type: Some(InfluxDbType::Field),
-                                stats: Statistics::F64(StatValues::new(Some(11.0), Some(43.0), 66)),
-                            },
-                        ],
-                    },
-                }],
-            },
-            // other partition has different columns
-            UnaggregatedPartitionSummary {
-                key: "p2".to_string(),
-                tables: vec![
-                    UnaggregatedTableSummary {
-                        chunk_id: 43,
-                        table: TableSummary {
-                            name: "t1".to_string(),
-                            columns: vec![ColumnSummary {
-                                name: "c2".to_string(),
-                                influxdb_type: Some(InfluxDbType::Field),
-                                stats: Statistics::F64(StatValues::new(
-                                    Some(110.0),
-                                    Some(430.0),
-                                    667,
-                                )),
-                            }],
+        let summaries = vec![
+            (
+                Arc::new(TableSummary {
+                    name: "t1".to_string(),
+                    columns: vec![
+                        ColumnSummary {
+                            name: "c1".to_string(),
+                            influxdb_type: Some(InfluxDbType::Field),
+                            stats: Statistics::String(StatValues::new(
+                                Some("bar".to_string()),
+                                Some("foo".to_string()),
+                                55,
+                            )),
                         },
-                    },
-                    UnaggregatedTableSummary {
-                        chunk_id: 44,
-                        table: TableSummary {
-                            name: "t2".to_string(),
-                            columns: vec![ColumnSummary {
-                                name: "c3".to_string(),
-                                influxdb_type: Some(InfluxDbType::Field),
-                                stats: Statistics::F64(StatValues::new(Some(-1.0), Some(2.0), 4)),
-                            }],
+                        ColumnSummary {
+                            name: "c2".to_string(),
+                            influxdb_type: Some(InfluxDbType::Field),
+                            stats: Statistics::F64(StatValues::new(Some(11.0), Some(43.0), 66)),
                         },
+                    ],
+                }),
+                DetailedChunkSummary {
+                    inner: ChunkSummary {
+                        partition_key: "p1".into(),
+                        table_name: "t1".into(),
+                        id: 42,
+                        storage: ChunkStorage::ReadBuffer,
+                        estimated_bytes: 23754,
+                        row_count: 11,
+                        time_of_first_write: None,
+                        time_of_last_write: None,
+                        time_closed: None,
                     },
-                ],
-            },
-        ];
-
-        let chunk_summaries = vec![
-            DetailedChunkSummary {
-                inner: ChunkSummary {
-                    partition_key: "p1".into(),
-                    table_name: "t1".into(),
-                    id: 42,
-                    storage: ChunkStorage::ReadBuffer,
-                    estimated_bytes: 23754,
-                    row_count: 11,
-                    time_of_first_write: None,
-                    time_of_last_write: None,
-                    time_closed: None,
+                    columns: vec![
+                        ChunkColumnSummary {
+                            name: "c1".into(),
+                            estimated_bytes: 11,
+                        },
+                        ChunkColumnSummary {
+                            name: "c2".into(),
+                            estimated_bytes: 12,
+                        },
+                    ],
                 },
-                columns: vec![
-                    ChunkColumnSummary {
+            ),
+            (
+                Arc::new(TableSummary {
+                    name: "t1".to_string(),
+                    columns: vec![ColumnSummary {
+                        name: "c1".to_string(),
+                        influxdb_type: Some(InfluxDbType::Field),
+                        stats: Statistics::F64(StatValues::new(Some(110.0), Some(430.0), 667)),
+                    }],
+                }),
+                DetailedChunkSummary {
+                    inner: ChunkSummary {
+                        partition_key: "p2".into(),
+                        table_name: "t1".into(),
+                        id: 43,
+                        storage: ChunkStorage::OpenMutableBuffer,
+                        estimated_bytes: 23754,
+                        row_count: 11,
+                        time_of_first_write: None,
+                        time_of_last_write: None,
+                        time_closed: None,
+                    },
+                    columns: vec![ChunkColumnSummary {
                         name: "c1".into(),
-                        estimated_bytes: 11,
-                    },
-                    ChunkColumnSummary {
-                        name: "c2".into(),
-                        estimated_bytes: 12,
-                    },
-                    ChunkColumnSummary {
-                        name: "__other".into(),
-                        estimated_bytes: 13,
-                    },
-                ],
-            },
-            DetailedChunkSummary {
-                inner: ChunkSummary {
-                    partition_key: "p2".into(),
-                    table_name: "t1".into(),
-                    id: 43,
-                    storage: ChunkStorage::OpenMutableBuffer,
-                    estimated_bytes: 23754,
-                    row_count: 11,
-                    time_of_first_write: None,
-                    time_of_last_write: None,
-                    time_closed: None,
+                        estimated_bytes: 100,
+                    }],
                 },
-                columns: vec![ChunkColumnSummary {
-                    name: "c1".into(),
-                    estimated_bytes: 100,
-                }],
-            },
-            DetailedChunkSummary {
-                inner: ChunkSummary {
-                    partition_key: "p2".into(),
-                    table_name: "t2".into(),
-                    id: 44,
-                    storage: ChunkStorage::OpenMutableBuffer,
-                    estimated_bytes: 23754,
-                    row_count: 11,
-                    time_of_first_write: None,
-                    time_of_last_write: None,
-                    time_closed: None,
+            ),
+            (
+                Arc::new(TableSummary {
+                    name: "t2".to_string(),
+                    columns: vec![ColumnSummary {
+                        name: "c3".to_string(),
+                        influxdb_type: Some(InfluxDbType::Field),
+                        stats: Statistics::F64(StatValues::new(Some(-1.0), Some(2.0), 4)),
+                    }],
+                }),
+                DetailedChunkSummary {
+                    inner: ChunkSummary {
+                        partition_key: "p2".into(),
+                        table_name: "t2".into(),
+                        id: 44,
+                        storage: ChunkStorage::OpenMutableBuffer,
+                        estimated_bytes: 23754,
+                        row_count: 11,
+                        time_of_first_write: None,
+                        time_of_last_write: None,
+                        time_closed: None,
+                    },
+                    columns: vec![ChunkColumnSummary {
+                        name: "c3".into(),
+                        estimated_bytes: 200,
+                    }],
                 },
-                columns: vec![ChunkColumnSummary {
-                    name: "c3".into(),
-                    estimated_bytes: 200,
-                }],
-            },
+            ),
         ];
 
         let expected = vec![
@@ -934,15 +857,12 @@ mod tests {
             "+---------------+----------+------------+-------------+-------------------+-------+-----------+-----------+-----------------+",
             "| p1            | 42       | t1         | c1          | ReadBuffer        | 55    | bar       | foo       | 11              |",
             "| p1            | 42       | t1         | c2          | ReadBuffer        | 66    | 11        | 43        | 12              |",
-            "| p1            | 42       | t1         | __other     | ReadBuffer        |       |           |           | 13              |",
-            "| p2            | 43       | t1         | c2          | OpenMutableBuffer | 667   | 110       | 430       |                 |",
-            "| p2            | 43       | t1         | c1          | OpenMutableBuffer |       |           |           | 100             |",
+            "| p2            | 43       | t1         | c1          | OpenMutableBuffer | 667   | 110       | 430       | 100             |",
             "| p2            | 44       | t2         | c3          | OpenMutableBuffer | 4     | -1        | 2         | 200             |",
             "+---------------+----------+------------+-------------+-------------------+-------+-----------+-----------+-----------------+",
         ];
 
-        let batch =
-            assemble_chunk_columns(chunk_columns_schema(), partitions, chunk_summaries).unwrap();
+        let batch = assemble_chunk_columns(chunk_columns_schema(), summaries).unwrap();
         assert_batches_eq!(&expected, &[batch]);
     }
 }

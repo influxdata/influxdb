@@ -28,7 +28,7 @@ async fn test_operations() {
 
     // Move the chunk to read buffer
     let operation = management_client
-        .close_partition_chunk(&db_name1, partition_key, table_name, 0)
+        .close_partition_chunk(&db_name1, table_name, partition_key, 0)
         .await
         .expect("new partition chunk");
 

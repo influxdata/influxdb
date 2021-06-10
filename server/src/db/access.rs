@@ -141,7 +141,7 @@ impl ChunkAccess {
         // Apply initial partition key / table name pruning
         let chunks = self
             .catalog
-            .filtered_chunks(partition_key, table_names, DbChunk::snapshot);
+            .filtered_chunks(table_names, partition_key, DbChunk::snapshot);
 
         self.prune_chunks(chunks, predicate)
     }
@@ -191,7 +191,7 @@ impl Database for QueryCatalogAccess {
     }
 
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
-        Ok(self.catalog.partition_keys())
+        Ok(self.catalog.partition_keys().into_iter().collect())
     }
 
     fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>> {

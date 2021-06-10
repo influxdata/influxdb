@@ -14,7 +14,7 @@ impl Client {
         &self,
         org: &str,
         bucket: &str,
-        body: impl Into<Body>,
+        body: impl Into<Body> + Send,
     ) -> Result<(), RequestError> {
         let body = body.into();
         let write_url = format!("{}/api/v2/write", self.url);

@@ -99,8 +99,8 @@ pub async fn rebuild_catalog<S, N>(
     ignore_metadata_read_failure: bool,
 ) -> Result<PreservedCatalog<S>>
 where
-    S: CatalogState,
-    N: Into<String>,
+    S: CatalogState + Send + Sync,
+    N: Into<String> + Send,
 {
     // collect all revisions from parquet files
     let revisions =
@@ -130,12 +130,12 @@ where
                         .add_parquet(&path, metadata)
                         .context(FileRecordFailure)?;
                 }
-                transaction.commit().await.context(CommitFailure)?;
+                transaction.commit(false).await.context(CommitFailure)?;
             } else {
                 // we do not have any files for this transaction (there might have been other actions though or it was
                 // an empty transaction) => create new empty transaction
                 let transaction = catalog.open_transaction().await;
-                transaction.commit().await.context(CommitFailure)?;
+                transaction.commit(false).await.context(CommitFailure)?;
             }
         }
     }
@@ -299,12 +299,12 @@ mod tests {
             .await;
             transaction.add_parquet(&path, &md).unwrap();
 
-            transaction.commit().await.unwrap();
+            transaction.commit(false).await.unwrap();
         }
         {
             // empty transaction
             let transaction = catalog.open_transaction().await;
-            transaction.commit().await.unwrap();
+            transaction.commit(false).await.unwrap();
         }
         {
             let mut transaction = catalog.open_transaction().await;
@@ -320,19 +320,17 @@ mod tests {
             .await;
             transaction.add_parquet(&path, &md).unwrap();
 
-            transaction.commit().await.unwrap();
+            transaction.commit(false).await.unwrap();
         }
 
         // store catalog state
-        let mut paths_expected: Vec<_> = catalog
-            .state()
-            .inner
-            .borrow()
-            .parquet_files
-            .keys()
-            .cloned()
-            .collect();
-        paths_expected.sort();
+        let paths_expected = {
+            let state = catalog.state();
+            let guard = state.inner.lock();
+            let mut tmp: Vec<_> = guard.parquet_files.keys().cloned().collect();
+            tmp.sort();
+            tmp
+        };
 
         // wipe catalog
         drop(catalog);
@@ -354,15 +352,13 @@ mod tests {
         .unwrap();
 
         // check match
-        let mut paths_actual: Vec<_> = catalog
-            .state()
-            .inner
-            .borrow()
-            .parquet_files
-            .keys()
-            .cloned()
-            .collect();
-        paths_actual.sort();
+        let paths_actual = {
+            let state = catalog.state();
+            let guard = state.inner.lock();
+            let mut tmp: Vec<_> = guard.parquet_files.keys().cloned().collect();
+            tmp.sort();
+            tmp
+        };
         assert_eq!(paths_actual, paths_expected);
         assert_eq!(catalog.revision_counter(), 3);
     }
@@ -403,7 +399,9 @@ mod tests {
         .unwrap();
 
         // check match
-        assert!(catalog.state().inner.borrow().parquet_files.is_empty());
+        let state = catalog.state();
+        let guard = state.inner.lock();
+        assert!(guard.parquet_files.is_empty());
         assert_eq!(catalog.revision_counter(), 0);
     }
 
@@ -488,7 +486,7 @@ mod tests {
             )
             .await;
 
-            transaction.commit().await.unwrap();
+            transaction.commit(false).await.unwrap();
         }
 
         // wipe catalog
@@ -562,7 +560,9 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(catalog.state().inner.borrow().parquet_files.is_empty());
+        let state = catalog.state();
+        let guard = state.inner.lock();
+        assert!(guard.parquet_files.is_empty());
         assert_eq!(catalog.revision_counter(), 0);
     }
 

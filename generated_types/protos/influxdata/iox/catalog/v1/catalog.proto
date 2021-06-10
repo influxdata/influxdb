@@ -64,7 +64,7 @@ message Transaction {
 
     // Revision counter, must by "previous revision" + 1 or 0 for the first transaction.
     uint64 revision_counter = 3;
-    
+
     // UUID unique to this transaction. Used to detect concurrent transactions. For the first transaction this field is
     // empty.
     string uuid = 4;
@@ -76,4 +76,21 @@ message Transaction {
     //
     // Timestamp of the start of the transaction.
     google.protobuf.Timestamp start_timestamp = 6;
+
+    // Definition of how this transaction relates to previous transaction and how it should be processed.
+    enum Encoding {
+        // Unspecified encoding, will lead to an controlled error. Every transaction object MUST decide if the encoding
+        // is "delta" or "full".
+        ENCODING_UNSPECIFIED = 0;
+
+        // The actions in this message only encode changes to the previous transactions which must be processed
+        // beforehand. This is the default for "ordinary" transactions.
+        ENCODING_DELTA = 1;
+
+        // The actions in this message contain the full state of the catalog at this point in time. This is used for checkpoints.
+        ENCODING_FULL = 2;
+    }
+
+    // Definition on how this transaction is encoded.
+    Encoding encoding = 7;
 }

@@ -24,11 +24,11 @@ async fn setup() -> TestDb {
 
     let partition_key = "1970-01-01T00";
     let mb_chunk = db
-        .rollover_partition(partition_key, "cpu")
+        .rollover_partition("cpu", partition_key)
         .await
         .unwrap()
         .unwrap();
-    db.load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id(), &Default::default())
+    db.load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id(), &Default::default())
         .await
         .unwrap();
 
@@ -39,11 +39,11 @@ async fn setup() -> TestDb {
 
     let partition_key = "1970-01-01T00";
     let mb_chunk = db
-        .rollover_partition(partition_key, "cpu")
+        .rollover_partition("cpu", partition_key)
         .await
         .unwrap()
         .unwrap();
-    db.load_chunk_to_read_buffer(partition_key, "cpu", mb_chunk.id(), &Default::default())
+    db.load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id(), &Default::default())
         .await
         .unwrap();
 
