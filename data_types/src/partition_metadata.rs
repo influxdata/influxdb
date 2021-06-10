@@ -1,6 +1,9 @@
 //! This module contains structs that describe the metadata for a partition
 //! including schema, summary statistics, and file locations in storage.
 
+use datafusion::arrow::compute::SortOptions;
+use datafusion::physical_plan::expressions::{col, PhysicalSortExpr};
+
 use std::{borrow::Cow, cmp::Ordering, mem};
 
 use serde::{Deserialize, Serialize};
@@ -173,6 +176,25 @@ impl TableSummary {
 
         key_summaries
     }
+
+    /// Returns the pk in arrow's expression used for data sorting
+    pub fn arrow_pk_sort_exprs(key_summaries: Vec<&ColumnSummary>) -> Vec<PhysicalSortExpr> {
+        //let key_summaries = self.primary_key_columns();
+
+        // build sort expression
+        let mut sort_exprs = vec![];
+        for key in key_summaries {
+            sort_exprs.push(PhysicalSortExpr {
+                expr: col(key.name.as_str()),
+                options: SortOptions {
+                    descending: false,
+                    nulls_first: false,
+                },
+            });
+        }
+
+        sort_exprs
+    }
 }
 
 // Replicate this enum here as it can't be derived from the existing statistics
@@ -202,7 +224,7 @@ pub struct ColumnSummary {
     /// Column's Influx data model type (if any)
     pub influxdb_type: Option<InfluxDbType>,
 
-    /// Per column statistics
+    /// Per column
     pub stats: Statistics,
 }
 
