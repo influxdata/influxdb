@@ -22,7 +22,7 @@ type DigestOptions struct {
 
 // DigestWithOptions writes a digest of dir to w using options to filter by
 // time and key range.
-func DigestWithOptions(dir string, files []string, opts DigestOptions, w io.WriteCloser) error {
+func DigestWithOptions(dir string, files []string, opts DigestOptions, w io.WriteCloser) (err error) {
 	manifest, err := NewDigestManifest(dir, files)
 	if err != nil {
 		return err
@@ -31,7 +31,9 @@ func DigestWithOptions(dir string, files []string, opts DigestOptions, w io.Writ
 	tsmFiles := make([]TSMFile, 0, len(files))
 	defer func() {
 		for _, r := range tsmFiles {
-			r.Close()
+			if e := r.Close(); e != nil && err == nil {
+				err = e
+			}
 		}
 	}()
 
@@ -54,7 +56,11 @@ func DigestWithOptions(dir string, files []string, opts DigestOptions, w io.Writ
 	if err != nil {
 		return err
 	}
-	defer dw.Close()
+	defer func() {
+		if e := dw.Close(); e != nil && err == nil {
+			err = e
+		}
+	}()
 
 	// Write the manifest.
 	if err := dw.WriteManifest(manifest); err != nil {
@@ -106,7 +112,7 @@ func DigestWithOptions(dir string, files []string, opts DigestOptions, w io.Writ
 			return err
 		}
 	}
-	return dw.Close()
+	return nil
 }
 
 // Digest writes a digest of dir to w of a full shard dir.
