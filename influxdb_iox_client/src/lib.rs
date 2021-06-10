@@ -9,7 +9,8 @@
     missing_docs,
     clippy::todo,
     clippy::dbg_macro,
-    clippy::clone_on_ref_ptr
+    clippy::clone_on_ref_ptr,
+    clippy::future_not_send
 )]
 #![allow(clippy::missing_docs_in_private_items)]
 

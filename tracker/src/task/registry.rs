@@ -26,12 +26,18 @@ impl ToString for TaskId {
 ///
 /// Additionally can trigger graceful cancellation of registered futures
 #[derive(Debug)]
-pub struct TaskRegistry<T> {
+pub struct TaskRegistry<T>
+where
+    T: Send + Sync,
+{
     next_id: usize,
     tasks: HashMap<TaskId, TaskTracker<T>>,
 }
 
-impl<T> Default for TaskRegistry<T> {
+impl<T> Default for TaskRegistry<T>
+where
+    T: Send + Sync,
+{
     fn default() -> Self {
         Self {
             next_id: 0,
@@ -40,7 +46,10 @@ impl<T> Default for TaskRegistry<T> {
     }
 }
 
-impl<T> TaskRegistry<T> {
+impl<T> TaskRegistry<T>
+where
+    T: Send + Sync,
+{
     pub fn new() -> Self {
         Default::default()
     }
