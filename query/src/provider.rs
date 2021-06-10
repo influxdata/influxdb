@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use arrow::{datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
+use arrow::{compute::SortOptions, datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
 use datafusion::{
     datasource::{
         datasource::{Statistics, TableProviderFilterPushDown},
@@ -10,7 +10,11 @@ use datafusion::{
     },
     error::{DataFusionError, Result as DataFusionResult},
     logical_plan::Expr,
-    physical_plan::ExecutionPlan,
+    physical_plan::{
+        expressions::{col, PhysicalSortExpr},
+        sort::SortExec,
+        ExecutionPlan,
+    },
 };
 use internal_types::schema::{merge::SchemaMerger, Schema};
 use observability_deps::tracing::debug;
@@ -47,6 +51,11 @@ pub enum Error {
 
     #[snafu(display("Internal error: Cannot verify the push-down predicate '{}'", source,))]
     InternalPushdownPredicate {
+        source: datafusion::error::DataFusionError,
+    },
+
+    #[snafu(display("Internal error adding sort operator '{}'", source,))]
+    InternalSort {
         source: datafusion::error::DataFusionError,
     },
 
@@ -374,7 +383,7 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
                     Arc::clone(&schema),
                     chunk_with_duplicates.to_owned(),
                     predicate.clone(),
-                ));
+                )?);
             }
 
             // Go over non_duplicates_chunks, build a plan for it
@@ -495,14 +504,54 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         schema: ArrowSchemaRef,
         chunk: Arc<C>, // This chunk is identified having duplicates
         predicate: Predicate,
-    ) -> Arc<dyn ExecutionPlan> {
-        //     // TODO
-        //     // Currently return just like there are no overlaps, no duplicates
-        Arc::new(IOxReadFilterNode::new(
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        // Create the bottom node IOxReadFilterNode for this chunk
+        let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
             Arc::clone(&table_name),
             schema,
-            vec![chunk],
+            vec![Arc::clone(&chunk)],
             predicate,
+        ));
+
+        // Add the sort operator, SortExec, if needed
+        //let plan = Self::build_sort_plan(chunk, input);
+        Self::build_sort_plan(chunk, input)
+
+        // Create DeduplicateExc
+        // TODO: Add DeuplicateExec here when it is implemented in https://github.com/influxdata/influxdb_iox/issues/1646
+        //plan = add_deduplicate_exec(plan);
+
+        //plan
+    }
+
+    /// Add SortExec operator on top of the input plan of the given chunk
+    /// The plan will be sorted on the chunk's primary key
+    fn build_sort_plan(
+        chunk: Arc<C>,
+        input: Arc<dyn ExecutionPlan>,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        if chunk.is_sorted_on_pk() {
+            return Ok(input);
+        }
+
+        // Sort the chunk on pk
+        let key_summaries = chunk.summary().primary_key_columns();
+
+        // build sort expression
+        let mut sort_exprs = vec![];
+        for key in key_summaries {
+            sort_exprs.push(PhysicalSortExpr {
+                expr: col(key.name.as_str()),
+                options: SortOptions {
+                    descending: false,
+                    nulls_first: false,
+                },
+            });
+        }
+
+        // Create SortExec operator
+        Ok(Arc::new(
+            SortExec::try_new(sort_exprs, input).context(InternalSort)?,
         ))
     }
 
@@ -560,6 +609,10 @@ impl<C: PartitionChunk> ChunkPruner<C> for NoOpPruner {
 
 #[cfg(test)]
 mod test {
+    use arrow_util::assert_batches_eq;
+    use datafusion::physical_plan::collect;
+    use internal_types::selection::Selection;
+
     use crate::test::TestChunk;
 
     use super::*;
@@ -597,6 +650,115 @@ mod test {
         );
         assert_eq!(chunk_ids(&deduplicator.in_chunk_duplicates_chunks), "4");
         assert_eq!(chunk_ids(&deduplicator.no_duplicates_chunks), "1");
+    }
+
+    #[tokio::test]
+    async fn sort_planning_one_tag_with_time() {
+        // Chunk 1 with 5 rows of data
+        let chunk = Arc::new(
+            TestChunk::new(1)
+                .with_time_column("t")
+                .with_tag_column("t", "tag1")
+                .with_int_field_column("t", "field_int")
+                .with_five_rows_of_data("t"),
+        );
+
+        // Datafusion schema of the chunk
+        let schema = chunk.table_schema(Selection::All).unwrap().as_arrow();
+
+        // IOx scan operator
+        let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
+            Arc::from("t"),
+            schema,
+            vec![Arc::clone(&chunk)],
+            Predicate::default(),
+        ));
+        let batch = collect(Arc::clone(&input)).await.unwrap();
+        // data in its original non-sorted form
+        let expected = vec![
+            "+-----------+------+-------------------------------+",
+            "| field_int | tag1 | time                          |",
+            "+-----------+------+-------------------------------+",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000005    |",
+            "+-----------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
+
+        // Add Sort operator on top of IOx scan
+        let sort_plan = Deduplicater::build_sort_plan(chunk, input);
+        let batch = collect(sort_plan.unwrap()).await.unwrap();
+        // data is not sorted on primary key(tag1, tag2, time)
+        let expected = vec![
+            "+-----------+------+-------------------------------+",
+            "| field_int | tag1 | time                          |",
+            "+-----------+------+-------------------------------+",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000005    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "+-----------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
+    }
+
+    #[tokio::test]
+    async fn sort_planning_two_tags_with_time() {
+        // Chunk 1 with 5 rows of data
+        let chunk = Arc::new(
+            TestChunk::new(1)
+                .with_time_column("t")
+                .with_tag_column("t", "tag1")
+                .with_tag_column("t", "tag2")
+                .with_int_field_column("t", "field_int")
+                .with_five_rows_of_data("t"),
+        );
+
+        // Datafusion schema of the chunk
+        let schema = chunk.table_schema(Selection::All).unwrap().as_arrow();
+
+        // IOx scan operator
+        let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
+            Arc::from("t"),
+            schema,
+            vec![Arc::clone(&chunk)],
+            Predicate::default(),
+        ));
+        let batch = collect(Arc::clone(&input)).await.unwrap();
+        // data in its original non-sorted form
+        let expected = vec![
+            "+-----------+------+------+-------------------------------+",
+            "| field_int | tag1 | tag2 | time                          |",
+            "+-----------+------+------+-------------------------------+",
+            "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | AL   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | MA   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | AL   | 1970-01-01 00:00:00.000005    |",
+            "+-----------+------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
+
+        // Add Sort operator on top of IOx scan
+        let sort_plan = Deduplicater::build_sort_plan(chunk, input);
+        let batch = collect(sort_plan.unwrap()).await.unwrap();
+        // data is not sorted on primary key(tag1, tag2, time)
+        let expected = vec![
+            "+-----------+------+------+-------------------------------+",
+            "| field_int | tag1 | tag2 | time                          |",
+            "+-----------+------+------+-------------------------------+",
+            "| 100       | AL   | MA   | 1970-01-01 00:00:00.000000050 |",
+            "| 70        | CT   | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 5         | MT   | AL   | 1970-01-01 00:00:00.000005    |",
+            "| 10        | MT   | AL   | 1970-01-01 00:00:00.000007    |",
+            "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
+            "+-----------+------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
     }
 
     fn chunk_ids(group: &[Arc<TestChunk>]) -> String {
