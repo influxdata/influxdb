@@ -67,7 +67,7 @@ impl Config {
         db_name: DatabaseName<'static>,
     ) -> Result<CreateDatabaseHandle<'_>> {
         let mut state = self.state.write().expect("mutex poisoned");
-        if state.reservations.contains(&db_name) || state.databases.contains_key(&db_name) {
+        if state.reservations.contains(&db_name) {
             return Err(Error::DatabaseAlreadyExists {
                 db_name: db_name.to_string(),
             });
@@ -87,7 +87,7 @@ impl Config {
 
     pub(crate) fn db_names_sorted(&self) -> Vec<DatabaseName<'static>> {
         let state = self.state.read().expect("mutex poisoned");
-        state.databases.keys().cloned().collect()
+        state.reservations.iter().cloned().collect()
     }
 
     pub(crate) fn update_db_rules<F, E>(
@@ -144,10 +144,7 @@ impl Config {
         preserved_catalog: PreservedCatalog<Catalog>,
     ) {
         let mut state = self.state.write().expect("mutex poisoned");
-        let name = state
-            .reservations
-            .take(&rules.name)
-            .expect("reservation doesn't exist");
+        let name = rules.name.clone();
 
         if self.shutdown.is_cancelled() {
             error!("server is shutting down");
@@ -335,6 +332,7 @@ impl<'a> CreateDatabaseHandle<'a> {
     ) -> Result<()> {
         let db_name = self.db_name.take().expect("not committed");
         if db_name != rules.name {
+            self.config.rollback(&db_name);
             return Err(Error::RulesDatabaseNameMismatch {
                 actual: rules.name.to_string(),
                 expected: db_name.to_string(),
@@ -345,6 +343,10 @@ impl<'a> CreateDatabaseHandle<'a> {
             .commit(rules, server_id, object_store, exec, preserved_catalog);
 
         Ok(())
+    }
+
+    pub(crate) fn abort_without_rollback(mut self) {
+        self.db_name.take();
     }
 }
 

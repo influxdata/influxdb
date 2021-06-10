@@ -1,25 +1,30 @@
 //! Routines to initialize a server.
-use data_types::{server_id::ServerId, DatabaseName};
+use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
 use futures::TryStreamExt;
 use generated_types::database_rules::decode_database_rules;
 use internal_types::once::OnceNonZeroU32;
+use metrics::MetricRegistry;
 use object_store::{
     path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
 use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::Mutex;
+use parquet_file::catalog::PreservedCatalog;
 use query::exec::Executor;
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
 use tokio::sync::Semaphore;
 
 use crate::{
     config::{Config, DB_RULES_FILE_NAME},
-    db::load_or_create_preserved_catalog,
+    db::{catalog::Catalog, load_or_create_preserved_catalog},
     DatabaseError,
 };
 
@@ -94,6 +99,9 @@ pub struct InitStatus {
 
     /// Error occurred during generic server init (e.g. listing store content).
     error_generic: Mutex<Option<Arc<Error>>>,
+
+    /// Errors that occurred during some DB init.
+    errors_databases: Arc<Mutex<HashMap<String, Arc<Error>>>>,
 }
 
 impl InitStatus {
@@ -105,6 +113,7 @@ impl InitStatus {
             // Always set semaphore permits to `1`, see design comments in `Server::initialize_semaphore`.
             initialize_semaphore: Semaphore::new(1),
             error_generic: Default::default(),
+            errors_databases: Default::default(),
         }
     }
 
@@ -127,6 +136,20 @@ impl InitStatus {
     pub fn error_generic(&self) -> Option<Arc<Error>> {
         let guard = self.error_generic.lock();
         guard.clone()
+    }
+
+    /// List all databases with errors in sorted order.
+    pub fn databases_with_errors(&self) -> Vec<String> {
+        let guard = self.errors_databases.lock();
+        let mut names: Vec<_> = guard.keys().cloned().collect();
+        names.sort();
+        names
+    }
+
+    /// Error that occurred during initialization of a specific database.
+    pub fn error_database(&self, db_name: &str) -> Option<Arc<Error>> {
+        let guard = self.errors_databases.lock();
+        guard.get(db_name).cloned()
     }
 
     /// Loads the database configurations based on the databases in the
@@ -203,20 +226,39 @@ impl InitStatus {
         let handles: Vec<_> = list_result
             .common_prefixes
             .into_iter()
-            .map(|mut path| {
+            .filter_map(|mut path| {
                 let store = Arc::clone(&store);
                 let config = Arc::clone(&config);
                 let exec = Arc::clone(&exec);
+                let errors_databases = Arc::clone(&self.errors_databases);
 
                 path.set_file_name(DB_RULES_FILE_NAME);
 
-                tokio::task::spawn(async move {
-                    if let Err(e) =
-                        Self::load_database_config(server_id, store, config, exec, path).await
-                    {
-                        error!(%e, "cannot load database");
+                match db_name_from_rules_path(&path) {
+                    Ok(db_name) => {
+                        let handle = tokio::task::spawn(async move {
+                            if let Err(e) = Self::load_database_config(
+                                server_id,
+                                store,
+                                config,
+                                exec,
+                                path,
+                                db_name.clone(),
+                            )
+                            .await
+                            {
+                                error!(%e, "cannot load database");
+                                let mut guard = errors_databases.lock();
+                                guard.insert(db_name.to_string(), Arc::new(e));
+                            }
+                        });
+                        Some(handle)
                     }
-                })
+                    Err(e) => {
+                        error!(%e, "invalid database path");
+                        None
+                    }
+                }
             })
             .collect();
 
@@ -231,28 +273,59 @@ impl InitStatus {
         config: Arc<Config>,
         exec: Arc<Executor>,
         path: Path,
+        db_name: DatabaseName<'static>,
     ) -> Result<()> {
-        // Parse DB name from path before doing anything else, so we can already reserve the DB name. That way the name
-        // stays reserved even when we cannot decode the rules file (e.g. due to a broken IO).
-        let path_parsed: DirsAndFileName = path.clone().into();
-        let db_name = path_parsed
-            .directories
-            .last()
-            .map(|part| part.encoded().to_string())
-            .unwrap_or_else(String::new);
-        let db_name = DatabaseName::new(db_name).context(DatabaseNameError)?;
+        // Reserve name before expensive IO (e.g. loading the preserved catalog)
         let handle = config
             .create_db(db_name)
             .map_err(Box::new)
             .context(CreateDbError)?;
 
+        let metrics_registry = config.metrics_registry();
+
+        match Self::load_database_config_with_handle(
+            server_id,
+            Arc::clone(&store),
+            metrics_registry,
+            path,
+        )
+        .await
+        {
+            Ok(Some((rules, preserved_catalog))) => {
+                // successfully loaded
+                handle
+                    .commit(server_id, store, exec, preserved_catalog, rules)
+                    .map_err(Box::new)
+                    .context(CreateDbError)?;
+
+                Ok(())
+            }
+            Ok(None) => {
+                // no DB there, drop handle to initiate rollback
+                drop(handle);
+                Ok(())
+            }
+            Err(e) => {
+                // abort transaction but keep DB registered
+                handle.abort_without_rollback();
+                Err(e)
+            }
+        }
+    }
+
+    async fn load_database_config_with_handle(
+        server_id: ServerId,
+        store: Arc<ObjectStore>,
+        metrics_registry: Arc<MetricRegistry>,
+        path: Path,
+    ) -> Result<Option<(DatabaseRules, PreservedCatalog<Catalog>)>> {
         let serialized_rules = loop {
             match get_database_config_bytes(&path, &store).await {
                 Ok(data) => break data,
                 Err(e) => {
                     if let Error::NoDatabaseConfigError { location } = &e {
                         warn!(?location, "{}", e);
-                        return Ok(());
+                        return Ok(None);
                     }
                     error!(
                         "error getting database config {:?} from object store: {}",
@@ -270,18 +343,13 @@ impl InitStatus {
             rules.db_name(),
             Arc::clone(&store),
             server_id,
-            config.metrics_registry(),
+            metrics_registry,
         )
         .await
         .map_err(|e| Box::new(e) as _)
         .context(CatalogLoadError)?;
 
-        handle
-            .commit(server_id, store, exec, preserved_catalog, rules)
-            .map_err(Box::new)
-            .context(CreateDbError)?;
-
-        Ok(())
+        Ok(Some((rules, preserved_catalog)))
     }
 }
 
@@ -319,6 +387,17 @@ async fn get_database_config_bytes(
         .fail();
     }
     get_store_bytes(location, store).await
+}
+
+/// Helper to extract the DB name from the rules file path.
+fn db_name_from_rules_path(path: &Path) -> Result<DatabaseName<'static>> {
+    let path_parsed: DirsAndFileName = path.clone().into();
+    let db_name = path_parsed
+        .directories
+        .last()
+        .map(|part| part.encoded().to_string())
+        .unwrap_or_else(String::new);
+    DatabaseName::new(db_name).context(DatabaseNameError)
 }
 
 #[cfg(test)]

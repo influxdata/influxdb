@@ -449,6 +449,16 @@ where
         self.init_status.error_generic()
     }
 
+    /// List all databases with errors in sorted order.
+    pub fn databases_with_errors(&self) -> Vec<String> {
+        self.init_status.databases_with_errors()
+    }
+
+    /// Error that occurred during initialization of a specific database.
+    pub fn error_database(&self, db_name: &str) -> Option<Arc<crate::init::Error>> {
+        self.init_status.error_database(db_name)
+    }
+
     /// Require that server is loaded. Databases are loaded and server is ready to read/write.
     fn require_initialized(&self) -> Result<ServerId> {
         // since a server ID is the pre-requirement for init, check this first
@@ -983,10 +993,12 @@ mod tests {
     use std::{
         collections::BTreeMap,
         convert::TryFrom,
+        sync::Arc,
         time::{Duration, Instant},
     };
 
     use async_trait::async_trait;
+    use bytes::Bytes;
     use futures::TryStreamExt;
     use generated_types::database_rules::decode_database_rules;
     use snafu::Snafu;
@@ -1734,10 +1746,89 @@ mod tests {
 
         let manager = TestConnectionManager::new();
         let config = config_with_store(store);
-        let server = Arc::new(Server::new(manager, config));
+        let server = Server::new(manager, config);
 
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.maybe_initialize_server().await;
         assert!(dbg!(server.error_generic().unwrap().to_string()).starts_with("store error:"));
+    }
+
+    #[tokio::test]
+    async fn init_error_database() {
+        let store = ObjectStore::new_in_memory(InMemory::new());
+        let server_id = ServerId::try_from(1).unwrap();
+
+        // Create temporary server to create single database
+        let manager = TestConnectionManager::new();
+        let config = config_with_store(store);
+        let store = config.store();
+
+        let server = Server::new(manager, config);
+        server.set_id(server_id).unwrap();
+        server.maybe_initialize_server().await;
+
+        create_simple_database(&server, "foo")
+            .await
+            .expect("failed to create database");
+        let root = server.init_status.root_path(&store).unwrap();
+        server.config.drain().await;
+        drop(server);
+
+        // tamper store
+        let path = object_store_path_for_database_config(&root, &DatabaseName::new("bar").unwrap());
+        let data = Bytes::from("x");
+        let len = data.len();
+        store
+            .put(
+                &path,
+                futures::stream::once(async move { Ok(data) }),
+                Some(len),
+            )
+            .await
+            .unwrap();
+
+        // start server
+        let store = Arc::try_unwrap(store).unwrap();
+        store.get(&path).await.unwrap();
+        let manager = TestConnectionManager::new();
+        let config = config_with_store(store);
+
+        let server = Server::new(manager, config);
+        server.set_id(server_id).unwrap();
+        server.maybe_initialize_server().await;
+
+        // generic error MUST NOT be set
+        assert!(server.error_generic().is_none());
+
+        // server is initialized
+        assert!(server.initialized());
+
+        // DB-specific error is set for `bar` but not for `foo`
+        assert_eq!(server.databases_with_errors(), vec!["bar".to_string()]);
+        assert!(dbg!(server.error_database("foo")).is_none());
+        assert!(dbg!(server.error_database("bar").unwrap().to_string())
+            .starts_with("error deserializing database rules from protobuf:"));
+
+        // DB names contain all DBs
+        assert_eq!(
+            server.db_names_sorted(),
+            vec!["bar".to_string(), "foo".to_string()]
+        );
+
+        // can only write to successfully created DBs
+        let lines = parsed_lines("cpu foo=1 10");
+        server
+            .write_lines("foo", &lines, ARBITRARY_DEFAULT_TIME)
+            .await
+            .unwrap();
+        let err = server
+            .write_lines("bar", &lines, ARBITRARY_DEFAULT_TIME)
+            .await
+            .unwrap_err();
+        assert_eq!(err.to_string(), "database not found: bar");
+
+        // creating failed DBs does not work
+        let err = create_simple_database(&server, "bar").await.unwrap_err();
+        assert_eq!(err.to_string(), "database already exists");
     }
 }
