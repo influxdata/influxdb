@@ -122,6 +122,9 @@ pub trait PartitionChunk: Prunable + Debug + Send + Sync {
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error>;
+
+    /// Returns true if data of this chunk is sorted
+    fn is_sorted_on_pk(&self) -> bool;
 }
 
 #[async_trait]

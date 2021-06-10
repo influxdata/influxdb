@@ -138,30 +138,95 @@ where
         }
     }
 
-    /// Returns true if the chunk has a potential primary key overlap with the other chunk
+    /// Returns true if the chunk has a potential primary key overlap
+    /// with the other chunk.
+    ///
+    /// This this algorithm is O(2^N) in the worst case. However, the
+    /// pathological case is where two chunks each have a large
+    /// numbers of tags that have no overlap, which seems unlikely in
+    /// the real world.
+    ///
+    /// Note this algoritm is quite conservative (in that it will
+    /// assume that any column can contain nulls) and thus can match
+    /// with chunks that do not have that column.   for example
+    ///
+    /// Chunk 1: tag_a
+    /// Chunk 2: tag_a, tag_b
+    ///
+    /// In this case Chunk 2 has values for tag_b but Chunk 1
+    /// doesn't have any values in tag_b (its values are implicitly
+    /// null)
+    ///
+    /// If Chunk 2 has any null values in the tag_b column, it could
+    /// overlap with Chunk 1 (as logically there can be rows with
+    /// (tag_a = NULL, tag_b = NULL) in both chunks
+    ///
+    /// We could make this algorithm significantly less conservative
+    /// if we stored the Null count in the ColumnSummary (and thus
+    /// could rule out matches with columns that were not present) if
+    /// there were no NULLs
     fn potential_overlap(&self, other: &Self) -> Result<bool> {
-        // in order to have overlap, *all* the columns in the sort order
-        // need to be the same. Note gaps in the sort order mean they
-        // are for different parts of the keyspace
-        if self.key_summaries.len() != other.key_summaries.len() {
-            // Short circuit on different lengths
-            return Ok(false);
-        }
+        // This algorithm assumes that the keys are sorted by name (so
+        // they can't appear in different orders on the two sides)
+        debug_assert!(self
+            .key_summaries
+            .windows(2)
+            .all(|s| s[0].name <= s[1].name));
+        debug_assert!(other
+            .key_summaries
+            .windows(2)
+            .all(|s| s[0].name <= s[1].name));
+        self.potential_overlap_impl(0, other, 0)
+    }
 
-        let iter = self.key_summaries.iter().zip(other.key_summaries.iter());
-        for (s1, s2) in iter {
-            if s1.name != s2.name || !Self::columns_might_overlap(s1, s2)? {
-                return Ok(false);
+    // Checks the remainder of self.columns[self_idx..] and
+    // other.columns[..other_idx] if they are compatible
+    fn potential_overlap_impl(
+        &self,
+        mut self_idx: usize,
+        other: &Self,
+        mut other_idx: usize,
+    ) -> Result<bool> {
+        loop {
+            let s1 = self.key_summaries.get(self_idx);
+            let s2 = other.key_summaries.get(other_idx);
+
+            if let (Some(s1), Some(s2)) = (s1, s2) {
+                if s1.name == s2.name {
+                    // pk matched in this position, so check values. If we
+                    // find no overlap, know this is false, otherwise need to keep checking
+                    if Self::columns_might_overlap(s1, s2)? {
+                        self_idx += 1;
+                        other_idx += 1;
+                    } else {
+                        return Ok(false);
+                    }
+                } else {
+                    // name didn't match, so try and find the next
+                    // place it does.  Since there may be missing keys
+                    // in each side, need to check each in turn
+                    //
+                    // Note this will result in O(num_tags) stack
+                    // frames in the worst case, but we expect the
+                    // number of tags to be relatively small (~20 at
+                    // the time of this writing)
+                    return Ok(self.potential_overlap_impl(self_idx + 1, other, other_idx)?
+                        || self.potential_overlap_impl(self_idx, other, other_idx + 1)?);
+                }
+            } else {
+                // ran out of columns to check on one side, assume the
+                // other could have nulls all the way down (due to null
+                // assumption)
+                return Ok(true);
             }
         }
-
-        Ok(true)
     }
 
     /// Returns true if the two columns MAY overlap other, based on
     /// statistics
     pub fn columns_might_overlap(s1: &ColumnSummary, s2: &ColumnSummary) -> Result<bool> {
         use Statistics::*;
+
         let overlap = match (&s1.stats, &s2.stats) {
             (I64(s1), I64(s2)) => s1.overlaps(s2),
             (U64(s1), U64(s2)) => s1.overlaps(s2),
@@ -176,14 +241,15 @@ where
             }
         };
 
-        // If either column has no min/max, treat the column as
-        // being entirely null
+        // If either column has no min/max, treat the column as being
+        // entirely null, meaning that it could overlap the other
+        // stats if it had nulls.
         let is_none = s1.stats.is_none() || s2.stats.is_none();
 
         match overlap {
             StatOverlap::NonZero => Ok(true),
             StatOverlap::Zero => Ok(false),
-            StatOverlap::Unknown if is_none => Ok(false), // no stats means no values
+            StatOverlap::Unknown if is_none => Ok(true),
             // This case means there some stats, but not all.
             // Unclear how this could happen, so throw an error for now
             StatOverlap::Unknown => InternalPartialStatistics {
@@ -313,7 +379,27 @@ mod test {
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
-        let expected = vec!["Group 0: [chunk1]", "Group 1: [chunk2]"];
+        // the overlap could come when (tag1 = NULL, tag2=NULL) which
+        // could exist in either chunk
+        let expected = vec!["Group 0: [chunk1, chunk2]"];
+        assert_groups_eq!(expected, groups);
+    }
+
+    #[test]
+    fn different_tag_names_multi_tags() {
+        // check that if chunks overlap but in different tag names
+        let c1 = TestChunk::new("chunk1")
+            .with_tag("tag1", Some("aaa"), Some("bbb"))
+            .with_tag("tag2", Some("aaa"), Some("bbb"));
+
+        let c2 = TestChunk::new("chunk2")
+            .with_tag("tag2", Some("aaa"), Some("bbb"))
+            .with_tag("tag3", Some("aaa"), Some("bbb"));
+
+        let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
+
+        // the overlap could come when  (tag1 = NULL, tag2, tag3=NULL)
+        let expected = vec!["Group 0: [chunk1, chunk2]"];
         assert_groups_eq!(expected, groups);
     }
 
@@ -370,12 +456,13 @@ mod test {
 
         let c2 = TestChunk::new("chunk2")
             // tag1 and timestamp overlap, but no tag2 (aka it is all null)
+            // so it could overlap if there was a null tag2 value in chunk1
             .with_tag("tag1", Some("aaa"), Some("bbb"))
             .with_timestamp(500, 1000);
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
-        let expected = vec!["Group 0: [chunk1]", "Group 1: [chunk2]"];
+        let expected = vec!["Group 0: [chunk1, chunk2]"];
         assert_groups_eq!(expected, groups);
     }
 
@@ -387,15 +474,15 @@ mod test {
             .with_timestamp(0, 1000);
 
         let c2 = TestChunk::new("chunk2")
-            // tag1 and timestamp overlap, tag2 has no stats (null)
-            // so we say they can't overlap
+            // tag1 and timestamp overlap, tag2 has no stats (is all null)
+            // so they might overlap if chunk1 had a null in tag 2
             .with_tag("tag1", Some("aaa"), Some("bbb"))
             .with_tag("tag2", None, None)
             .with_timestamp(500, 1000);
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
-        let expected = vec!["Group 0: [chunk1]", "Group 1: [chunk2]"];
+        let expected = vec!["Group 0: [chunk1, chunk2]"];
         assert_groups_eq!(expected, groups);
     }
 
@@ -445,7 +532,7 @@ mod test {
 
     #[test]
     fn mismatched_types() {
-        // Test if same column has different types in different
+        // When the same column has different types in different
         // chunks; this will likely cause errors elsewhere in practice
         // as the schemas are incompatible (and can't be merged)
         let c1 = TestChunk::new("chunk1")
@@ -454,14 +541,14 @@ mod test {
 
         let c2 = TestChunk::new("chunk2")
             // tag1 column is actually a field is different in chunk
-            // 2, so even though the timestamps overlap these chunks
-            // don't have duplicates
+            // 2, so since the timestamps overlap these chunks
+            // might also have duplicates (if tag1 was null in c1)
             .with_int_field("tag1", Some(100), Some(200))
             .with_timestamp(0, 1000);
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
-        let expected = vec!["Group 0: [chunk1]", "Group 1: [chunk2]"];
+        let expected = vec!["Group 0: [chunk1, chunk2]"];
         assert_groups_eq!(expected, groups);
     }
 
@@ -477,7 +564,7 @@ mod test {
     }
 
     /// Mocked out prunable provider to use testing overlaps
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     struct TestChunk {
         // The name of this chunk
         name: String,
