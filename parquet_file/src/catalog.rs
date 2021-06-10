@@ -32,7 +32,7 @@ use uuid::Uuid;
 /// Current version for serialized transactions.
 ///
 /// For breaking changes, this will change.
-pub const TRANSACTION_VERSION: u32 = 2;
+pub const TRANSACTION_VERSION: u32 = 3;
 
 /// File suffix for transaction files in object store.
 pub const TRANSACTION_FILE_SUFFIX: &str = "txn";
