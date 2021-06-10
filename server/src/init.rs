@@ -1,10 +1,10 @@
 //! Routines to initialize a server.
-use data_types::server_id::ServerId;
+use data_types::{server_id::ServerId, DatabaseName};
 use futures::TryStreamExt;
 use generated_types::database_rules::decode_database_rules;
 use internal_types::once::OnceNonZeroU32;
 use object_store::{
-    path::{ObjectStorePath, Path},
+    path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
 use observability_deps::tracing::{debug, error, info, warn};
@@ -52,6 +52,11 @@ pub enum Error {
 
     #[snafu(display("Cannot create DB: {}", source))]
     CreateDbError { source: Box<crate::Error> },
+
+    #[snafu(display("Cannot parse DB name: {}", source))]
+    DatabaseNameError {
+        source: data_types::DatabaseNameError,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -227,6 +232,20 @@ impl InitStatus {
         exec: Arc<Executor>,
         path: Path,
     ) -> Result<()> {
+        // Parse DB name from path before doing anything else, so we can already reserve the DB name. That way the name
+        // stays reserved even when we cannot decode the rules file (e.g. due to a broken IO).
+        let path_parsed: DirsAndFileName = path.clone().into();
+        let db_name = path_parsed
+            .directories
+            .last()
+            .map(|part| part.encoded().to_string())
+            .unwrap_or_else(String::new);
+        let db_name = DatabaseName::new(db_name).context(DatabaseNameError)?;
+        let handle = config
+            .create_db(db_name)
+            .map_err(Box::new)
+            .context(CreateDbError)?;
+
         let serialized_rules = loop {
             match get_database_config_bytes(&path, &store).await {
                 Ok(data) => break data,
@@ -257,10 +276,6 @@ impl InitStatus {
         .map_err(|e| Box::new(e) as _)
         .context(CatalogLoadError)?;
 
-        let handle = config
-            .create_db(rules.name.clone())
-            .map_err(Box::new)
-            .context(CreateDbError)?;
         handle
             .commit(server_id, store, exec, preserved_catalog, rules)
             .map_err(Box::new)

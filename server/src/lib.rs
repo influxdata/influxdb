@@ -467,6 +467,10 @@ where
         // Return an error if this server is not yet ready
         let server_id = self.require_initialized()?;
 
+        // Reserve name before expensive IO (e.g. loading the preserved catalog)
+        let db_reservation = self.config.create_db(rules.name.clone())?;
+        self.persist_database_rules(rules.clone()).await?;
+
         let preserved_catalog = load_or_create_preserved_catalog(
             rules.db_name(),
             Arc::clone(&self.store),
@@ -477,8 +481,6 @@ where
         .map_err(|e| Box::new(e) as _)
         .context(CatalogLoadError)?;
 
-        let db_reservation = self.config.create_db(rules.name.clone())?;
-        self.persist_database_rules(rules.clone()).await?;
         db_reservation.commit(
             server_id,
             Arc::clone(&self.store),
