@@ -182,13 +182,19 @@ impl TaskStatus {
 
 /// A Tracker can be used to monitor/cancel/wait for a set of associated futures
 #[derive(Debug)]
-pub struct TaskTracker<T> {
+pub struct TaskTracker<T>
+where
+    T: Send + Sync,
+{
     id: TaskId,
     state: Arc<TrackerState>,
     metadata: Arc<T>,
 }
 
-impl<T> Clone for TaskTracker<T> {
+impl<T> Clone for TaskTracker<T>
+where
+    T: Send + Sync,
+{
     fn clone(&self) -> Self {
         Self {
             id: self.id,
@@ -198,7 +204,10 @@ impl<T> Clone for TaskTracker<T> {
     }
 }
 
-impl<T> TaskTracker<T> {
+impl<T> TaskTracker<T>
+where
+    T: Send + Sync,
+{
     /// Creates a new task tracker from the provided registration
     pub fn new(id: TaskId, registration: &TaskRegistration, metadata: T) -> Self {
         Self {
@@ -347,7 +356,10 @@ impl TaskRegistration {
     }
 
     /// Converts the registration into a tracker with id 0 and specified metadata
-    pub fn into_tracker<T>(self, metadata: T) -> TaskTracker<T> {
+    pub fn into_tracker<T>(self, metadata: T) -> TaskTracker<T>
+    where
+        T: Send + Sync,
+    {
         TaskTracker::new(TaskId(0), &self, metadata)
     }
 }
