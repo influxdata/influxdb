@@ -3746,6 +3746,7 @@ dependencies = [
  "influxdb_line_protocol",
  "influxdb_tsm",
  "mutable_buffer",
+ "object_store",
  "packers",
  "query",
  "query_tests",

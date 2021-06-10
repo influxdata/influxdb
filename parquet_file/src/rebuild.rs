@@ -130,12 +130,12 @@ where
                         .add_parquet(&path, metadata)
                         .context(FileRecordFailure)?;
                 }
-                transaction.commit().await.context(CommitFailure)?;
+                transaction.commit(false).await.context(CommitFailure)?;
             } else {
                 // we do not have any files for this transaction (there might have been other actions though or it was
                 // an empty transaction) => create new empty transaction
                 let transaction = catalog.open_transaction().await;
-                transaction.commit().await.context(CommitFailure)?;
+                transaction.commit(false).await.context(CommitFailure)?;
             }
         }
     }
@@ -299,12 +299,12 @@ mod tests {
             .await;
             transaction.add_parquet(&path, &md).unwrap();
 
-            transaction.commit().await.unwrap();
+            transaction.commit(false).await.unwrap();
         }
         {
             // empty transaction
             let transaction = catalog.open_transaction().await;
-            transaction.commit().await.unwrap();
+            transaction.commit(false).await.unwrap();
         }
         {
             let mut transaction = catalog.open_transaction().await;
@@ -320,7 +320,7 @@ mod tests {
             .await;
             transaction.add_parquet(&path, &md).unwrap();
 
-            transaction.commit().await.unwrap();
+            transaction.commit(false).await.unwrap();
         }
 
         // store catalog state
@@ -486,7 +486,7 @@ mod tests {
             )
             .await;
 
-            transaction.commit().await.unwrap();
+            transaction.commit(false).await.unwrap();
         }
 
         // wipe catalog
