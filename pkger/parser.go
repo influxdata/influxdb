@@ -1536,7 +1536,7 @@ func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*c
 		if staticLeg, ok := ifaceToResource(r[fieldChartStaticLegend]); ok {
 			c.StaticLegend.ColorizeRows = staticLeg.boolShort(fieldChartStaticLegendColorizeRows)
 			c.StaticLegend.HeightRatio = staticLeg.float64Short(fieldChartStaticLegendHeightRatio)
-			c.StaticLegend.Hide = staticLeg.boolShort(fieldChartStaticLegendHide)
+			c.StaticLegend.Show = staticLeg.boolShort(fieldChartStaticLegendShow)
 			c.StaticLegend.Opacity = staticLeg.float64Short(fieldChartStaticLegendOpacity)
 			c.StaticLegend.OrientationThreshold = staticLeg.intShort(fieldChartStaticLegendOrientationThreshold)
 			c.StaticLegend.ValueAxis = staticLeg.stringShort(fieldChartStaticLegendValueAxis)
