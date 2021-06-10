@@ -151,6 +151,9 @@ pub struct LifecycleRules {
     /// If the background worker doesn't find anything to do it
     /// will sleep for this many milliseconds before looking again
     pub worker_backoff_millis: Option<NonZeroU64>,
+
+    /// After how many transactions should IOx write a new checkpoint?
+    pub catalog_checkpoint_interval: Option<NonZeroU64>,
 }
 
 /// This struct specifies the rules for the order to sort partitions

@@ -35,6 +35,9 @@ impl From<LifecycleRules> for management::LifecycleRules {
             persist: config.persist,
             immutable: config.immutable,
             worker_backoff_millis: config.worker_backoff_millis.map_or(0, NonZeroU64::get),
+            catalog_checkpoint_interval: config
+                .catalog_checkpoint_interval
+                .map_or(0, NonZeroU64::get),
         }
     }
 }
@@ -54,6 +57,7 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
             persist: proto.persist,
             immutable: proto.immutable,
             worker_backoff_millis: NonZeroU64::new(proto.worker_backoff_millis),
+            catalog_checkpoint_interval: NonZeroU64::new(proto.catalog_checkpoint_interval),
         })
     }
 }
@@ -141,6 +145,7 @@ mod tests {
             persist: true,
             immutable: true,
             worker_backoff_millis: 1000,
+            catalog_checkpoint_interval: 10,
         };
 
         let config: LifecycleRules = protobuf.clone().try_into().unwrap();

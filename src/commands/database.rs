@@ -113,6 +113,12 @@ struct Create {
     /// Do not allow writing new data to this database
     #[structopt(long)]
     immutable: bool,
+
+    /// After how many transactions should IOx write a new checkpoint?
+    ///
+    /// If 0, no checkpoints will be written.
+    #[structopt(long, default_value = "100")]
+    catalog_checkpoint_interval: u64,
 }
 
 /// Get list of databases
@@ -181,6 +187,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                     persist: command.persist,
                     immutable: command.immutable,
                     worker_backoff_millis: Default::default(),
+                    catalog_checkpoint_interval: command.catalog_checkpoint_interval,
                 }),
 
                 // Default to hourly partitions
