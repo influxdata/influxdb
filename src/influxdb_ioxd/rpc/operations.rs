@@ -110,7 +110,7 @@ pub fn encode_tracker(tracker: TaskTracker<Job>) -> Result<Operation, tonic::Sta
 
 fn get_tracker<M>(server: &Server<M>, tracker: String) -> Result<TaskTracker<Job>, tonic::Status>
 where
-    M: ConnectionManager,
+    M: ConnectionManager + Send + Sync,
 {
     let tracker_id = tracker.parse::<TaskId>().map_err(|e| FieldViolation {
         field: "name".to_string(),

@@ -64,7 +64,8 @@
     missing_debug_implementations,
     clippy::explicit_iter_loop,
     clippy::use_self,
-    clippy::clone_on_ref_ptr
+    clippy::clone_on_ref_ptr,
+    clippy::future_not_send
 )]
 
 use std::convert::TryInto;
@@ -386,7 +387,10 @@ impl<E> From<Error> for UpdateError<E> {
     }
 }
 
-impl<M: ConnectionManager> Server<M> {
+impl<M> Server<M>
+where
+    M: ConnectionManager + Send + Sync,
+{
     pub fn new(connection_manager: M, config: ServerConfig) -> Self {
         let jobs = Arc::new(JobRegistry::new());
 
@@ -724,7 +728,7 @@ impl<M: ConnectionManager> Server<M> {
         update: F,
     ) -> std::result::Result<DatabaseRules, UpdateError<E>>
     where
-        F: FnOnce(DatabaseRules) -> Result<DatabaseRules, E>,
+        F: FnOnce(DatabaseRules) -> Result<DatabaseRules, E> + Send,
     {
         let rules = self
             .config
@@ -1141,9 +1145,12 @@ mod tests {
         }
     }
 
-    async fn create_simple_database<M>(server: &Server<M>, name: impl Into<String>) -> Result<()>
+    async fn create_simple_database<M>(
+        server: &Server<M>,
+        name: impl Into<String> + Send,
+    ) -> Result<()>
     where
-        M: ConnectionManager,
+        M: ConnectionManager + Send + Sync,
     {
         let name = DatabaseName::new(name.into()).unwrap();
 
