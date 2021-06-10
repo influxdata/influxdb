@@ -76,7 +76,7 @@ use bytes::BytesMut;
 use cached::proc_macro::cached;
 use db::load_or_create_preserved_catalog;
 use init::InitStatus;
-use observability_deps::tracing::{debug, error, info, warn};
+use observability_deps::tracing::{debug, info, warn};
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 
@@ -437,6 +437,11 @@ where
         self.init_status.initialized()
     }
 
+    /// Error occurred during generic server init (e.g. listing store content).
+    pub fn error_generic(&self) -> Option<Arc<crate::init::Error>> {
+        self.init_status.error_generic()
+    }
+
     /// Require that server is loaded. Databases are loaded and server is ready to read/write.
     fn require_initialized(&self) -> Result<ServerId> {
         // since a server ID is the pre-requirement for init, check this first
@@ -510,17 +515,13 @@ where
     ///
     /// This requires the serverID to be set. It will be a no-op if the configs are already loaded and the server is ready.
     pub async fn maybe_initialize_server(&self) {
-        if let Err(e) = self
-            .init_status
+        self.init_status
             .maybe_initialize_server(
                 Arc::clone(&self.store),
                 Arc::clone(&self.config),
                 Arc::clone(&self.exec),
             )
-            .await
-        {
-            error!(%e, "error during DB loading");
-        }
+            .await;
     }
 
     /// `write_lines` takes in raw line protocol and converts it to a collection
@@ -808,10 +809,7 @@ where
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
 
         while !shutdown.is_cancelled() {
-            if self.require_id().is_ok() {
-                self.maybe_initialize_server().await;
-            }
-
+            self.maybe_initialize_server().await;
             self.jobs.inner.lock().reclaim();
 
             tokio::select! {
@@ -1708,5 +1706,29 @@ mod tests {
         // ensure that we don't leave the server instance hanging around
         cancel_token.cancel();
         let _ = background_handle.await;
+    }
+
+    #[tokio::test]
+    async fn init_error_generic() {
+        // use an object store that will hopefully fail to read
+        let store = ObjectStore::new_amazon_s3(
+            object_store::aws::AmazonS3::new(
+                Some("foo".to_string()),
+                Some("bar".to_string()),
+                "us-east-1".to_string(),
+                "bucket".to_string(),
+                None as Option<String>,
+                None as Option<String>,
+            )
+            .unwrap(),
+        );
+
+        let manager = TestConnectionManager::new();
+        let config = config_with_store(store);
+        let server = Arc::new(Server::new(manager, config));
+
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server.maybe_initialize_server().await;
+        assert!(dbg!(server.error_generic().unwrap().to_string()).starts_with("store error:"));
     }
 }

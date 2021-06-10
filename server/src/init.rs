@@ -7,7 +7,8 @@ use object_store::{
     path::{ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
-use observability_deps::tracing::{error, info, warn};
+use observability_deps::tracing::{debug, error, info, warn};
+use parking_lot::Mutex;
 use query::exec::Executor;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::sync::{
@@ -85,6 +86,9 @@ pub struct InitStatus {
     /// section (in [`maybe_initialize_server`](Self::maybe_initialize_server)) will break apart. So this semaphore
     /// cannot be configured.
     initialize_semaphore: Semaphore,
+
+    /// Error occurred during generic server init (e.g. listing store content).
+    error_generic: Mutex<Option<Arc<Error>>>,
 }
 
 impl InitStatus {
@@ -95,6 +99,7 @@ impl InitStatus {
             initialized: AtomicBool::new(false),
             // Always set semaphore permits to `1`, see design comments in `Server::initialize_semaphore`.
             initialize_semaphore: Semaphore::new(1),
+            error_generic: Default::default(),
         }
     }
 
@@ -113,17 +118,33 @@ impl InitStatus {
         self.initialized.load(Ordering::Relaxed)
     }
 
+    /// Error occurred during generic server init (e.g. listing store content).
+    pub fn error_generic(&self) -> Option<Arc<Error>> {
+        let guard = self.error_generic.lock();
+        guard.clone()
+    }
+
     /// Loads the database configurations based on the databases in the
     /// object store. Any databases in the config already won't be
     /// replaced.
     ///
-    /// This requires the serverID to be set. It will be a no-op if the configs are already loaded and the server is ready.
+    /// This requires the serverID to be set (will be a no-op otherwise).
+    ///
+    /// It will be a no-op if the configs are already loaded and the server is ready.
     pub(crate) async fn maybe_initialize_server(
         &self,
         store: Arc<ObjectStore>,
         config: Arc<Config>,
         exec: Arc<Executor>,
-    ) -> Result<()> {
+    ) {
+        let server_id = match self.server_id.get() {
+            Ok(id) => id,
+            Err(e) => {
+                debug!(%e, "cannot initialize server because cannot get serverID");
+                return;
+            }
+        };
+
         let _guard = self
             .initialize_semaphore
             .acquire()
@@ -134,9 +155,38 @@ impl InitStatus {
         // that enters this semaphore after we've left actually sees the correct `is_ready` flag.
         if self.initialized.load(Ordering::Acquire) {
             // already loaded, so do nothing
-            return Ok(());
+            return;
         }
 
+        // Check if there was a previous failed attempt
+        if self.error_generic().is_some() {
+            return;
+        }
+
+        match self
+            .maybe_initialize_server_inner(store, config, exec, server_id)
+            .await
+        {
+            Ok(_) => {
+                // mark as ready (use correct ordering for Acquire-Release)
+                self.initialized.store(true, Ordering::Release);
+                info!("loaded databases, server is initalized");
+            }
+            Err(e) => {
+                error!(%e, "error during server init");
+                let mut guard = self.error_generic.lock();
+                *guard = Some(Arc::new(e));
+            }
+        }
+    }
+
+    async fn maybe_initialize_server_inner(
+        &self,
+        store: Arc<ObjectStore>,
+        config: Arc<Config>,
+        exec: Arc<Executor>,
+        server_id: ServerId,
+    ) -> Result<()> {
         // get the database names from the object store prefixes
         // TODO: update object store to pull back all common prefixes by
         //       following the next tokens.
@@ -144,8 +194,6 @@ impl InitStatus {
             .list_with_delimiter(&self.root_path(&store)?)
             .await
             .context(StoreError)?;
-
-        let server_id = self.server_id.get()?;
 
         let handles: Vec<_> = list_result
             .common_prefixes
@@ -168,10 +216,6 @@ impl InitStatus {
             .collect();
 
         futures::future::join_all(handles).await;
-
-        // mark as ready (use correct ordering for Acquire-Release)
-        self.initialized.store(true, Ordering::Release);
-        info!("loaded databases, server is initalized");
 
         Ok(())
     }
