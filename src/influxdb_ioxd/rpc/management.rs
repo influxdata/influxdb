@@ -71,7 +71,7 @@ where
 
         match self.server.set_id(id) {
             Ok(_) => Ok(Response::new(UpdateServerIdResponse {})),
-            Err(e @ Error::IdAlreadySet { .. }) => {
+            Err(e @ Error::SetIdError { .. }) => {
                 return Err(FieldViolation {
                     field: "id".to_string(),
                     description: e.to_string(),
