@@ -44,7 +44,7 @@ impl Client {
     }
 
     /// Returns `Ok()` if the corresponding service is serving
-    pub async fn check(&mut self, service: impl Into<String>) -> Result<()> {
+    pub async fn check(&mut self, service: impl Into<String> + Send) -> Result<()> {
         use health_check_response::ServingStatus;
 
         let status = self

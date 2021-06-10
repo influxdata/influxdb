@@ -61,8 +61,8 @@ impl Client {
     /// [LineProtocol]: https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/#data-types-and-format
     pub async fn write(
         &mut self,
-        db_name: impl Into<String>,
-        lp_data: impl Into<String>,
+        db_name: impl Into<String> + Send,
+        lp_data: impl Into<String> + Send,
     ) -> Result<usize, WriteError> {
         let db_name = db_name.into();
         let lp_data = lp_data.into();
@@ -83,8 +83,8 @@ impl Client {
     /// [Entry]: https://github.com/influxdata/influxdb_iox/blob/main/entry/src/entry.fbs
     pub async fn write_entry(
         &mut self,
-        db_name: impl Into<String>,
-        entry: impl Into<Vec<u8>>,
+        db_name: impl Into<String> + Send,
+        entry: impl Into<Vec<u8>> + Send,
     ) -> Result<(), WriteError> {
         let db_name = db_name.into();
         let entry = entry.into();

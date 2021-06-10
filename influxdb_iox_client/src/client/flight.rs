@@ -94,8 +94,8 @@ impl Client {
     /// [`PerformQuery`] instance that streams Arrow `RecordBatch` results.
     pub async fn perform_query(
         &mut self,
-        database_name: impl Into<String>,
-        sql_query: impl Into<String>,
+        database_name: impl Into<String> + Send,
+        sql_query: impl Into<String> + Send,
     ) -> Result<PerformQuery, Error> {
         PerformQuery::new(self, database_name.into(), sql_query.into()).await
     }

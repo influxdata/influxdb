@@ -69,7 +69,7 @@ impl Builder {
     /// Construct the [`Connection`] instance using the specified base URL.
     pub async fn build<D>(self, dst: D) -> Result<Connection>
     where
-        D: TryInto<Uri, Error = InvalidUri>,
+        D: TryInto<Uri, Error = InvalidUri> + Send,
     {
         let endpoint = Endpoint::from(dst.try_into()?)
             .user_agent(self.user_agent)?
