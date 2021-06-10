@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use arrow::{datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
-use data_types::partition_metadata::TableSummary;
 use datafusion::{
     datasource::{
         datasource::{Statistics, TableProviderFilterPushDown},
@@ -22,7 +21,7 @@ use observability_deps::tracing::debug;
 use crate::{
     duplicate::group_potential_duplicates,
     predicate::{Predicate, PredicateBuilder},
-    util::project_schema,
+    util::{arrow_pk_sort_exprs, project_schema},
     PartitionChunk,
 };
 
@@ -475,16 +474,17 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         predicate: Predicate,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         // Build sort plan for each chunk
-        let mut sorted_chunk_plans: Vec<Arc<dyn ExecutionPlan>> = vec![];
-
-        for chunk in &chunks {
-            sorted_chunk_plans.push(Self::build_sort_plan_for_read_filter(
-                Arc::clone(&table_name),
-                Arc::clone(&schema),
-                Arc::clone(&chunk),
-                predicate.clone(),
-            )?);
-        }
+        let sorted_chunk_plans: Result<Vec<Arc<dyn ExecutionPlan>>> = chunks
+            .iter()
+            .map(|chunk| {
+                Self::build_sort_plan_for_read_filter(
+                    Arc::clone(&table_name),
+                    Arc::clone(&schema),
+                    Arc::clone(&chunk),
+                    predicate.clone(),
+                )
+            })
+            .collect();
 
         // TODOs: build primary key by accumulating unique key columns from each chunk's table summary
         // use the one of the first chunk for now
@@ -493,10 +493,10 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         // Union the plans
         // The UnionExec operator only streams all chunks (aka partitions in Datafusion) and
         // keep them in separate chunks which exactly what we need here
-        let plan = UnionExec::new(sorted_chunk_plans);
+        let plan = UnionExec::new(sorted_chunk_plans?);
 
         // Now (sort) merge the already sorted chunks
-        let sort_exprs = TableSummary::arrow_pk_sort_exprs(key_summaries);
+        let sort_exprs = arrow_pk_sort_exprs(key_summaries);
         let plan = Arc::new(SortPreservingMergeExec::new(
             sort_exprs.clone(),
             Arc::new(plan),
@@ -544,7 +544,7 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         // Add DeduplicateExc
         // Sort exprs for the deduplication
         let key_summaries = chunk.summary().primary_key_columns();
-        let sort_exprs = TableSummary::arrow_pk_sort_exprs(key_summaries);
+        let sort_exprs = arrow_pk_sort_exprs(key_summaries);
         Self::add_deduplicate_node(sort_exprs, plan)
     }
 
@@ -604,7 +604,7 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         }
 
         let key_summaries = chunk.summary().primary_key_columns();
-        let sort_exprs = TableSummary::arrow_pk_sort_exprs(key_summaries);
+        let sort_exprs = arrow_pk_sort_exprs(key_summaries);
 
         // Create SortExec operator
         Ok(Arc::new(
