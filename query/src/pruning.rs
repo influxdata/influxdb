@@ -77,9 +77,11 @@ where
         .filter(|c| must_keep(observer, c.as_ref(), &filter_expr))
         .collect();
 
+    let num_remaining_chunks = pruned_summaries.len();
     debug!(
         num_chunks,
-        num_pruned_chunks = pruned_summaries.len(),
+        num_pruned_chunks = num_chunks - num_remaining_chunks,
+        num_remaining_chunks,
         "Pruned chunks"
     );
     pruned_summaries
