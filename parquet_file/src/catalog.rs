@@ -236,7 +236,7 @@ pub trait CatalogState {
     /// Remove parquet file from state.
     fn remove(&self, path: DirsAndFileName) -> Result<()>;
 
-    /// List all Parquet files that are currently (i.e. by the current transaction) tracked by the catalog.
+    /// List all Parquet files that are currently (i.e. by the current version) tracked by the catalog.
     ///
     /// If a file was once [added](Self::add) but later [removed](Self::remove) it MUST NOT appear in the result.
     fn files(&self) -> HashMap<DirsAndFileName, Arc<ParquetMetaData>>;
