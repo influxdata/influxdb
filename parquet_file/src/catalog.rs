@@ -624,8 +624,8 @@ fn file_path(
     path
 }
 
-/// Extracts revision counter and UUID from transaction or checkpoint path
-fn parse_file_path(path: Path, file_type: FileType) -> Option<(u64, Uuid)> {
+/// Extracts revision counter, UUID, and file type from transaction or checkpoint path.
+fn parse_file_path(path: Path) -> Option<(u64, Uuid, FileType)> {
     let parsed: DirsAndFileName = path.into();
     if parsed.directories.len() != 4 {
         return None;
@@ -640,13 +640,22 @@ fn parse_file_path(path: Path, file_type: FileType) -> Option<(u64, Uuid)> {
         .encoded()
         .split('.')
         .collect();
-    if (name_parts.len() != 2) || (name_parts[1] != file_type.suffix()) {
+    if name_parts.len() != 2 {
         return None;
     }
     let uuid = Uuid::parse_str(name_parts[0]);
 
     match (revision_counter, uuid) {
-        (Ok(revision_counter), Ok(uuid)) => Some((revision_counter, uuid)),
+        (Ok(revision_counter), Ok(uuid)) => {
+            for file_type in
+                std::array::IntoIter::new([FileType::Checkpoint, FileType::Transaction])
+            {
+                if name_parts[1] == file_type.suffix() {
+                    return Some((revision_counter, uuid, file_type));
+                }
+            }
+            None
+        }
         _ => None,
     }
 }
@@ -668,17 +677,9 @@ async fn list_files(
             paths
                 .into_iter()
                 .filter_map(|path| {
-                    parse_file_path(path.clone(), FileType::Transaction)
-                        .map(|(revision_counter, uuid)| {
-                            (path.clone(), FileType::Transaction, revision_counter, uuid)
-                        })
-                        .or_else(|| {
-                            parse_file_path(path.clone(), FileType::Checkpoint).map(
-                                |(revision_counter, uuid)| {
-                                    (path, FileType::Checkpoint, revision_counter, uuid)
-                                },
-                            )
-                        })
+                    parse_file_path(path.clone()).map(|(revision_counter, uuid, file_type)| {
+                        (path.clone(), file_type, revision_counter, uuid)
+                    })
                 })
                 .collect()
         })
