@@ -182,7 +182,7 @@ pub struct ColumnSummary {
     /// Column's Influx data model type (if any)
     pub influxdb_type: Option<InfluxDbType>,
 
-    /// Per column statistics
+    /// Per column
     pub stats: Statistics,
 }
 

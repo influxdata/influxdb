@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use arrow::{compute::SortOptions, datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
+use arrow::{datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
 use datafusion::{
     datasource::{
         datasource::{Statistics, TableProviderFilterPushDown},
@@ -11,9 +11,8 @@ use datafusion::{
     error::{DataFusionError, Result as DataFusionResult},
     logical_plan::Expr,
     physical_plan::{
-        expressions::{col, PhysicalSortExpr},
-        sort::SortExec,
-        ExecutionPlan,
+        expressions::PhysicalSortExpr, sort::SortExec,
+        sort_preserving_merge::SortPreservingMergeExec, union::UnionExec, ExecutionPlan,
     },
 };
 use internal_types::schema::{merge::SchemaMerger, Schema};
@@ -22,7 +21,7 @@ use observability_deps::tracing::debug;
 use crate::{
     duplicate::group_potential_duplicates,
     predicate::{Predicate, PredicateBuilder},
-    util::project_schema,
+    util::{arrow_pk_sort_exprs, project_schema},
     PartitionChunk,
 };
 
@@ -373,7 +372,7 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
                     Arc::clone(&schema),
                     overlapped_chunks.to_owned(),
                     predicate.clone(),
-                ));
+                )?);
             }
 
             // Go over each in_chunk_duplicates_chunks, build deduplicate plan for each
@@ -447,6 +446,11 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
     ///            ┌───────────────────────┐
     ///            │SortPreservingMergeExec│
     ///            └───────────────────────┘
+    ///                        ▲
+    ///                        │
+    ///            ┌───────────────────────┐
+    ///            │       UnionExec       │
+    ///            └───────────────────────┘
     ///                       ▲
     ///                       │
     ///           ┌───────────┴───────────┐
@@ -468,15 +472,39 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         schema: ArrowSchemaRef,
         chunks: Vec<Arc<C>>, // These chunks are identified overlapped
         predicate: Predicate,
-    ) -> Arc<dyn ExecutionPlan> {
-        // TODO
-        // Currently return just like there are no overlaps, no duplicates
-        Arc::new(IOxReadFilterNode::new(
-            Arc::clone(&table_name),
-            schema,
-            chunks,
-            predicate,
-        ))
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        // Build sort plan for each chunk
+        let sorted_chunk_plans: Result<Vec<Arc<dyn ExecutionPlan>>> = chunks
+            .iter()
+            .map(|chunk| {
+                Self::build_sort_plan_for_read_filter(
+                    Arc::clone(&table_name),
+                    Arc::clone(&schema),
+                    Arc::clone(&chunk),
+                    predicate.clone(),
+                )
+            })
+            .collect();
+
+        // TODOs: build primary key by accumulating unique key columns from each chunk's table summary
+        // use the one of the first chunk for now
+        let key_summaries = chunks[0].summary().primary_key_columns();
+
+        // Union the plans
+        // The UnionExec operator only streams all chunks (aka partitions in Datafusion) and
+        // keep them in separate chunks which exactly what we need here
+        let plan = UnionExec::new(sorted_chunk_plans?);
+
+        // Now (sort) merge the already sorted chunks
+        let sort_exprs = arrow_pk_sort_exprs(key_summaries);
+        let plan = Arc::new(SortPreservingMergeExec::new(
+            sort_exprs.clone(),
+            Arc::new(plan),
+            1024,
+        ));
+
+        // Add DeduplicateExc
+        Self::add_deduplicate_node(sort_exprs, Ok(plan))
     }
 
     /// Return deduplicate plan for a given chunk with duplicates
@@ -505,6 +533,54 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         chunk: Arc<C>, // This chunk is identified having duplicates
         predicate: Predicate,
     ) -> Result<Arc<dyn ExecutionPlan>> {
+        // Create the 2 bottom nodes IOxReadFilterNode and SortExec
+        let plan = Self::build_sort_plan_for_read_filter(
+            table_name,
+            schema,
+            Arc::clone(&chunk),
+            predicate,
+        );
+
+        // Add DeduplicateExc
+        // Sort exprs for the deduplication
+        let key_summaries = chunk.summary().primary_key_columns();
+        let sort_exprs = arrow_pk_sort_exprs(key_summaries);
+        Self::add_deduplicate_node(sort_exprs, plan)
+    }
+
+    // Hooks DeduplicateExec on top of the given input plan
+    fn add_deduplicate_node(
+        _sort_exprs: Vec<PhysicalSortExpr>,
+        input: Result<Arc<dyn ExecutionPlan>>,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        // TODOS when DeduplicateExec is build
+        // Ticket https://github.com/influxdata/influxdb_iox/issues/1646
+
+        // Currently simply return the input plan
+        input
+    }
+
+    /// Return a sort plan for for a given chunk
+    /// The plan will look like this
+    /// ```text
+    ///                ┌─────────────────┐
+    ///                │    SortExec     │
+    ///                │   (optional)    │
+    ///                └─────────────────┘
+    ///                          ▲
+    ///                          │
+    ///                          │
+    ///                ┌─────────────────┐
+    ///                │IOxReadFilterNode│
+    ///                │    (Chunk)      │
+    ///                └─────────────────┘
+    ///```
+    fn build_sort_plan_for_read_filter(
+        table_name: Arc<str>,
+        schema: ArrowSchemaRef,
+        chunk: Arc<C>, // This chunk is identified having duplicates
+        predicate: Predicate,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
         // Create the bottom node IOxReadFilterNode for this chunk
         let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
             Arc::clone(&table_name),
@@ -514,14 +590,7 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         ));
 
         // Add the sort operator, SortExec, if needed
-        //let plan = Self::build_sort_plan(chunk, input);
         Self::build_sort_plan(chunk, input)
-
-        // Create DeduplicateExc
-        // TODO: Add DeuplicateExec here when it is implemented in https://github.com/influxdata/influxdb_iox/issues/1646
-        //plan = add_deduplicate_exec(plan);
-
-        //plan
     }
 
     /// Add SortExec operator on top of the input plan of the given chunk
@@ -534,20 +603,8 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
             return Ok(input);
         }
 
-        // Sort the chunk on pk
         let key_summaries = chunk.summary().primary_key_columns();
-
-        // build sort expression
-        let mut sort_exprs = vec![];
-        for key in key_summaries {
-            sort_exprs.push(PhysicalSortExpr {
-                expr: col(key.name.as_str()),
-                options: SortOptions {
-                    descending: false,
-                    nulls_first: false,
-                },
-            });
-        }
+        let sort_exprs = arrow_pk_sort_exprs(key_summaries);
 
         // Create SortExec operator
         Ok(Arc::new(
@@ -580,7 +637,7 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
     /// ```text
     ///                ┌─────────────────┐
     ///                │IOxReadFilterNode│
-    ///                │    (Chunk)      │
+    ///                │ (Many Chunks)   │
     ///                └─────────────────┘
     ///```
     fn build_plans_for_non_duplicates_chunk(
@@ -755,6 +812,98 @@ mod test {
             "| 70        | CT   | CT   | 1970-01-01 00:00:00.000000100 |",
             "| 5         | MT   | AL   | 1970-01-01 00:00:00.000005    |",
             "| 10        | MT   | AL   | 1970-01-01 00:00:00.000007    |",
+            "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
+            "+-----------+------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
+    }
+
+    #[tokio::test]
+    async fn sort_read_filter_plan_for_two_tags_with_time() {
+        // Chunk 1 with 5 rows of data
+        let chunk = Arc::new(
+            TestChunk::new(1)
+                .with_time_column("t")
+                .with_tag_column("t", "tag1")
+                .with_tag_column("t", "tag2")
+                .with_int_field_column("t", "field_int")
+                .with_five_rows_of_data("t"),
+        );
+
+        // Datafusion schema of the chunk
+        let schema = chunk.table_schema(Selection::All).unwrap().as_arrow();
+
+        let sort_plan = Deduplicater::build_sort_plan_for_read_filter(
+            Arc::from("t"),
+            schema,
+            Arc::clone(&chunk),
+            Predicate::default(),
+        );
+        let batch = collect(sort_plan.unwrap()).await.unwrap();
+        // data is not sorted on primary key(tag1, tag2, time)
+        let expected = vec![
+            "+-----------+------+------+-------------------------------+",
+            "| field_int | tag1 | tag2 | time                          |",
+            "+-----------+------+------+-------------------------------+",
+            "| 100       | AL   | MA   | 1970-01-01 00:00:00.000000050 |",
+            "| 70        | CT   | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 5         | MT   | AL   | 1970-01-01 00:00:00.000005    |",
+            "| 10        | MT   | AL   | 1970-01-01 00:00:00.000007    |",
+            "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
+            "+-----------+------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
+    }
+
+    #[tokio::test]
+    async fn deduplicate_plan_for_overlapped_chunks() {
+        // Chunk 1 with 5 rows of data on 2 tags
+        let chunk1 = Arc::new(
+            TestChunk::new(1)
+                .with_time_column("t")
+                .with_tag_column("t", "tag1")
+                .with_tag_column("t", "tag2")
+                .with_int_field_column("t", "field_int")
+                .with_five_rows_of_data("t"),
+        );
+
+        // Chunk 2 exactly the same with Chunk 1
+        let chunk2 = Arc::new(
+            TestChunk::new(1)
+                .with_time_column("t")
+                .with_tag_column("t", "tag1")
+                .with_tag_column("t", "tag2")
+                .with_int_field_column("t", "field_int")
+                .with_five_rows_of_data("t"),
+        );
+
+        // Datafusion schema of the chunk
+        // the same for 2 chunks
+        let schema = chunk1.table_schema(Selection::All).unwrap().as_arrow();
+
+        let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
+            Arc::from("t"),
+            schema,
+            vec![chunk1, chunk2],
+            Predicate::default(),
+        );
+        let batch = collect(sort_plan.unwrap()).await.unwrap();
+        // data is not sorted on primary key(tag1, tag2, time)
+
+        // NOTE: When the full deduplication is done, the duplciates will be removed from this output
+        let expected = vec![
+            "+-----------+------+------+-------------------------------+",
+            "| field_int | tag1 | tag2 | time                          |",
+            "+-----------+------+------+-------------------------------+",
+            "| 100       | AL   | MA   | 1970-01-01 00:00:00.000000050 |",
+            "| 100       | AL   | MA   | 1970-01-01 00:00:00.000000050 |",
+            "| 70        | CT   | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 70        | CT   | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 5         | MT   | AL   | 1970-01-01 00:00:00.000005    |",
+            "| 5         | MT   | AL   | 1970-01-01 00:00:00.000005    |",
+            "| 10        | MT   | AL   | 1970-01-01 00:00:00.000007    |",
+            "| 10        | MT   | AL   | 1970-01-01 00:00:00.000007    |",
+            "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
             "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
             "+-----------+------+------+-------------------------------+",
         ];

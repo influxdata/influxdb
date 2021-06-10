@@ -3,14 +3,17 @@
 use std::{collections::HashSet, sync::Arc};
 
 use arrow::{
+    compute::SortOptions,
     datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef},
     record_batch::RecordBatch,
 };
 
+use data_types::partition_metadata::ColumnSummary;
 use datafusion::{
     error::DataFusionError,
     logical_plan::{Expr, LogicalPlan, LogicalPlanBuilder},
     optimizer::utils::expr_to_column_names,
+    physical_plan::expressions::{col as physical_col, PhysicalSortExpr},
 };
 use internal_types::schema::Schema;
 
@@ -53,6 +56,22 @@ pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
     predicate_columns
         .into_iter()
         .all(|col_name| schema.find_index_of(&col_name).is_some())
+}
+
+/// Returns the pk in arrow's expression used for data sorting
+pub fn arrow_pk_sort_exprs(key_summaries: Vec<&ColumnSummary>) -> Vec<PhysicalSortExpr> {
+    let mut sort_exprs = vec![];
+    for key in key_summaries {
+        sort_exprs.push(PhysicalSortExpr {
+            expr: physical_col(key.name.as_str()),
+            options: SortOptions {
+                descending: false,
+                nulls_first: false,
+            },
+        });
+    }
+
+    sort_exprs
 }
 
 #[cfg(test)]
