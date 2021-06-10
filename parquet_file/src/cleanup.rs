@@ -45,7 +45,7 @@ pub async fn cleanup_unreferenced_parquet_files<S>(
     max_files: usize,
 ) -> Result<()>
 where
-    S: CatalogState,
+    S: CatalogState + Send + Sync,
 {
     // Create a transaction to prevent parallel modifications of the catalog. This avoids that we delete files there
     // that are about to get added to the catalog.

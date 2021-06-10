@@ -34,7 +34,7 @@ where
 // A stream fully buffered by a backing store..
 pub struct BufferedStream<R>
 where
-    R: AsyncRead + AsyncWrite + AsyncSeek + Unpin,
+    R: AsyncRead + AsyncWrite + AsyncSeek + Send + Unpin,
 {
     size: usize,
     inner: ReaderStream<R>,
@@ -42,7 +42,7 @@ where
 
 impl<R> BufferedStream<R>
 where
-    R: AsyncRead + AsyncWrite + AsyncSeek + Unpin,
+    R: AsyncRead + AsyncWrite + AsyncSeek + Send + Unpin,
 {
     /// Consumes the bytes stream fully and writes its content into file.
     /// It returns a Stream implementation that reads the same content from the
@@ -71,7 +71,7 @@ where
 
 impl<R> Stream for BufferedStream<R>
 where
-    R: AsyncRead + AsyncWrite + AsyncSeek + Unpin,
+    R: AsyncRead + AsyncWrite + AsyncSeek + Send + Unpin,
 {
     type Item = Result<Bytes>;
 
@@ -98,7 +98,7 @@ mod tests {
 
     async fn check_stream<R>(buf_stream: BufferedStream<R>)
     where
-        R: AsyncRead + AsyncWrite + AsyncSeek + Unpin,
+        R: AsyncRead + AsyncWrite + AsyncSeek + Send + Unpin,
     {
         assert_eq!(buf_stream.size(), 9);
         assert_eq!(buf_stream.size_hint(), (9, Some(9)));
