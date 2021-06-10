@@ -307,7 +307,7 @@ async fn test_sql_observer_operations() {
     let table_name = "cpu";
     // Move the chunk to read buffer
     let operation = management_client
-        .close_partition_chunk(&db_name, partition_key, table_name, 0)
+        .close_partition_chunk(&db_name, table_name, partition_key, 0)
         .await
         .expect("new partition chunk");
 

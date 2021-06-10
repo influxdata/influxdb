@@ -543,7 +543,7 @@ async fn test_new_partition_chunk() {
 
     // Rollover the a second chunk
     management_client
-        .new_partition_chunk(&db_name, partition_key, table_name)
+        .new_partition_chunk(&db_name, table_name, partition_key)
         .await
         .expect("new partition chunk");
 
@@ -554,7 +554,7 @@ async fn test_new_partition_chunk() {
     write_client
         .write(&db_name, lp_lines.join("\n"))
         .await
-        .expect("write succeded");
+        .expect("write succeeded");
 
     let chunks = management_client
         .list_chunks(&db_name)
@@ -573,23 +573,23 @@ async fn test_new_partition_chunk() {
 
     // Rollover a (currently non existent) partition which is not OK
     let err = management_client
-        .new_partition_chunk(&db_name, "non_existent_partition", table_name)
+        .new_partition_chunk(&db_name, table_name, "non_existent_partition")
         .await
         .expect_err("new partition chunk");
 
     assert_eq!(
-        "Resource partition/non_existent_partition not found",
+        "Resource partition/cpu:non_existent_partition not found",
         err.to_string()
     );
 
     // Rollover a (currently non existent) table in an existing partition which is not OK
     let err = management_client
-        .new_partition_chunk(&db_name, partition_key, "non_existing_table")
+        .new_partition_chunk(&db_name, "non_existing_table", partition_key)
         .await
         .expect_err("new partition chunk");
 
     assert_eq!(
-        "Resource table/cpu:non_existing_table not found",
+        "Resource table/non_existing_table not found",
         err.to_string()
     );
 }
@@ -602,8 +602,8 @@ async fn test_new_partition_chunk_error() {
     let err = management_client
         .new_partition_chunk(
             "this database does not exist",
-            "nor_does_this_partition",
             "nor_does_this_table",
+            "nor_does_this_partition",
         )
         .await
         .expect_err("expected error");
@@ -647,7 +647,7 @@ async fn test_close_partition_chunk() {
 
     // Move the chunk to read buffer
     let operation = management_client
-        .close_partition_chunk(&db_name, partition_key, table_name, 0)
+        .close_partition_chunk(&db_name, table_name, partition_key, 0)
         .await
         .expect("new partition chunk");
 
@@ -693,8 +693,8 @@ async fn test_close_partition_chunk_error() {
     let err = management_client
         .close_partition_chunk(
             "this database does not exist",
-            "nor_does_this_partition",
             "nor_does_this_table",
+            "nor_does_this_partition",
             0,
         )
         .await

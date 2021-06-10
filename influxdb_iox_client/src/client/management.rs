@@ -561,12 +561,12 @@ impl Client {
         Ok(response.into_inner().chunks)
     }
 
-    /// Create a new chunk in a partittion
+    /// Create a new chunk in a partition
     pub async fn new_partition_chunk(
         &mut self,
         db_name: impl Into<String> + Send,
-        partition_key: impl Into<String> + Send,
         table_name: impl Into<String> + Send,
+        partition_key: impl Into<String> + Send,
     ) -> Result<(), NewPartitionChunkError> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
@@ -616,8 +616,8 @@ impl Client {
     pub async fn close_partition_chunk(
         &mut self,
         db_name: impl Into<String> + Send,
-        partition_key: impl Into<String> + Send,
         table_name: impl Into<String> + Send,
+        partition_key: impl Into<String> + Send,
         chunk_id: u32,
     ) -> Result<Operation, ClosePartitionChunkError> {
         let db_name = db_name.into();

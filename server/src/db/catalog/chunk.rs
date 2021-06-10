@@ -1,19 +1,82 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
+use snafu::Snafu;
+
 use data_types::{
     chunk_metadata::{ChunkColumnSummary, ChunkStorage, ChunkSummary, DetailedChunkSummary},
     partition_metadata::TableSummary,
 };
 use internal_types::schema::Schema;
+use metrics::{Counter, Histogram, KeyValue};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, Chunk as MBChunk};
 use parquet_file::chunk::Chunk as ParquetChunk;
 use read_buffer::Chunk as ReadBufferChunk;
-
-use super::{ChunkIsEmpty, Error, InternalChunkState, Result};
-use metrics::{Counter, Histogram, KeyValue};
-use snafu::ensure;
 use tracker::{TaskRegistration, TaskTracker};
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display(
+        "Internal Error: unexpected chunk state for {}:{}:{}  during {}. Expected {}, got {}",
+        partition_key,
+        table_name,
+        chunk_id,
+        operation,
+        expected,
+        actual
+    ))]
+    InternalChunkState {
+        partition_key: String,
+        table_name: String,
+        chunk_id: u32,
+        operation: String,
+        expected: String,
+        actual: String,
+    },
+
+    #[snafu(display(
+        "Internal Error: A lifecycle action '{}' is already in progress for  {}:{}:{}",
+        lifecycle_action,
+        partition_key,
+        table_name,
+        chunk_id,
+    ))]
+    LifecycleActionAlreadyInProgress {
+        partition_key: String,
+        table_name: String,
+        chunk_id: u32,
+        lifecycle_action: String,
+    },
+
+    #[snafu(display(
+        "Internal Error: Unexpected chunk state for {}:{}:{}. Expected {}, got {}",
+        partition_key,
+        table_name,
+        chunk_id,
+        expected,
+        actual
+    ))]
+    UnexpectedLifecycleAction {
+        partition_key: String,
+        table_name: String,
+        chunk_id: u32,
+        expected: String,
+        actual: String,
+    },
+
+    #[snafu(display(
+        "Internal Error: Cannot clear a lifecycle action '{}' for chunk {}:{} that is still running",
+        action,
+        partition_key,
+        chunk_id
+    ))]
+    IncompleteLifecycleAction {
+        partition_key: String,
+        chunk_id: u32,
+        action: String,
+    },
+}
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Any lifecycle action currently in progress for this chunk
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -230,15 +293,8 @@ impl Chunk {
         partition_key: impl AsRef<str>,
         chunk: mutable_buffer::chunk::Chunk,
         metrics: ChunkMetrics,
-    ) -> Result<Self> {
-        ensure!(
-            chunk.rows() > 0,
-            ChunkIsEmpty {
-                partition_key: partition_key.as_ref(),
-                table_name: chunk.table_name().as_ref(),
-                chunk_id,
-            }
-        );
+    ) -> Self {
+        assert!(chunk.rows() > 0, "chunk must not be empty");
 
         let table_name = Arc::clone(&chunk.table_name());
         let stage = ChunkStage::Open { mb_chunk: chunk };
@@ -259,7 +315,7 @@ impl Chunk {
             time_closed: None,
         };
         chunk.record_write();
-        Ok(chunk)
+        chunk
     }
 
     /// Creates a new chunk that is only registered via an object store reference (= only exists in parquet).
@@ -780,13 +836,14 @@ impl Chunk {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use entry::test_helpers::lp_to_entry;
     use mutable_buffer::chunk::{Chunk as MBChunk, ChunkMetrics as MBChunkMetrics};
     use parquet_file::{
         chunk::Chunk as ParquetChunk,
         test_utils::{make_chunk as make_parquet_chunk_with_store, make_object_store},
     };
+
+    use super::*;
 
     #[test]
     fn test_new_open() {
@@ -802,23 +859,16 @@ mod tests {
             partition_key,
             mb_chunk,
             ChunkMetrics::new_unregistered(),
-        )
-        .unwrap();
-        assert!(matches!(chunk.stage(), &ChunkStage::Open { .. }));
-
-        // fails with empty MBChunk
-        let mb_chunk = MBChunk::new(table_name, MBChunkMetrics::new_unregistered());
-        assert_eq!(
-            Chunk::new_open(
-                chunk_id,
-                partition_key,
-                mb_chunk,
-                ChunkMetrics::new_unregistered(),
-            )
-            .unwrap_err()
-            .to_string(),
-            "Cannot add an empty chunk to the catalog part1:table1:0"
         );
+        assert!(matches!(chunk.stage(), &ChunkStage::Open { .. }));
+    }
+
+    #[test]
+    #[should_panic(expected = "chunk must not be empty")]
+    fn test_new_open_empty() {
+        // fails with empty MBChunk
+        let mb_chunk = MBChunk::new("t1", MBChunkMetrics::new_unregistered());
+        Chunk::new_open(0, "p1", mb_chunk, ChunkMetrics::new_unregistered());
     }
 
     #[tokio::test]
@@ -908,7 +958,6 @@ mod tests {
             mb_chunk,
             ChunkMetrics::new_unregistered(),
         )
-        .unwrap()
     }
 
     async fn make_persisted_chunk() -> Chunk {

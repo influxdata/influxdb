@@ -773,8 +773,8 @@ where
     pub fn close_chunk(
         &self,
         db_name: DatabaseName<'_>,
-        partition_key: impl Into<String>,
         table_name: impl Into<String>,
+        partition_key: impl Into<String>,
         chunk_id: u32,
     ) -> Result<TaskTracker<Job>> {
         let db_name = db_name.to_string();
@@ -788,7 +788,7 @@ where
             .db(&name)
             .context(DatabaseNotFound { db_name: &db_name })?;
 
-        Ok(db.load_chunk_to_read_buffer_in_background(partition_key, table_name, chunk_id))
+        Ok(db.load_chunk_to_read_buffer_in_background(table_name, partition_key, chunk_id))
     }
 
     /// Returns a list of all jobs tracked by this server
@@ -1474,7 +1474,7 @@ mod tests {
         let table_name = "cpu";
         let db_name_string = db_name.to_string();
         let tracker = server
-            .close_chunk(db_name, partition_key, table_name, 0)
+            .close_chunk(db_name, table_name, partition_key, 0)
             .unwrap();
 
         let metadata = tracker.metadata();

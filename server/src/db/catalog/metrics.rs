@@ -1,32 +1,22 @@
 use crate::db::catalog::chunk::ChunkMetrics;
 use metrics::{Counter, GaugeValue, Histogram, KeyValue};
+use std::sync::Arc;
 use tracker::{LockTracker, RwLock};
 
 #[derive(Debug)]
 pub struct CatalogMetrics {
     /// Metrics domain
-    metrics_domain: metrics::Domain,
+    metrics_domain: Arc<metrics::Domain>,
 
     /// Memory registries
     memory_metrics: MemoryMetrics,
-
-    /// Lock tracker for partition-level locks
-    lock_tracker: LockTracker,
 }
 
 impl CatalogMetrics {
     pub fn new(metrics_domain: metrics::Domain) -> Self {
-        let lock_tracker = Default::default();
-        metrics_domain.register_observer(
-            None,
-            &[KeyValue::new("lock", "partition")],
-            &lock_tracker,
-        );
-
         Self {
             memory_metrics: MemoryMetrics::new(&metrics_domain),
-            metrics_domain,
-            lock_tracker,
+            metrics_domain: Arc::new(metrics_domain),
         }
     }
 
@@ -35,22 +25,53 @@ impl CatalogMetrics {
         &self.memory_metrics
     }
 
-    pub(super) fn new_lock<T>(&self, t: T) -> RwLock<T> {
-        self.lock_tracker.new_lock(t)
-    }
+    pub(super) fn new_table_metrics(&self, table_name: &str) -> TableMetrics {
+        let chunk_lock_tracker = Default::default();
+        let partition_lock_tracker = Default::default();
 
-    pub(super) fn new_partition_metrics(&self, partition_key: impl ToString) -> PartitionMetrics {
-        // Lock tracker for chunk-level locks
-        let lock_tracker = Default::default();
+        self.metrics_domain.register_observer(
+            None,
+            &[
+                KeyValue::new("lock", "partition"),
+                KeyValue::new("table", table_name.to_string()),
+            ],
+            &partition_lock_tracker,
+        );
+
         self.metrics_domain.register_observer(
             None,
             &[
                 KeyValue::new("lock", "chunk"),
-                KeyValue::new("partition", partition_key.to_string()),
+                KeyValue::new("table", table_name.to_string()),
             ],
-            &lock_tracker,
+            &chunk_lock_tracker,
         );
 
+        TableMetrics {
+            metrics_domain: Arc::clone(&self.metrics_domain),
+            partition_lock_tracker,
+            chunk_lock_tracker,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct TableMetrics {
+    /// Metrics domain
+    metrics_domain: Arc<metrics::Domain>,
+
+    /// Lock tracker for partition-level locks
+    partition_lock_tracker: LockTracker,
+    chunk_lock_tracker: LockTracker,
+}
+
+impl TableMetrics {
+    pub(super) fn new_partition_lock<T>(&self, t: T) -> RwLock<T> {
+        self.partition_lock_tracker.new_lock(t)
+    }
+
+    pub(super) fn new_partition_metrics(&self) -> PartitionMetrics {
+        // Lock tracker for chunk-level locks
         PartitionMetrics {
             chunk_state: self.metrics_domain.register_counter_metric_with_labels(
                 "chunks",
@@ -67,7 +88,7 @@ impl CatalogMetrics {
                     "The new size of an immutable chunk",
                 )
                 .init(),
-            lock_tracker,
+            chunk_lock_tracker: self.chunk_lock_tracker.clone(),
         }
     }
 }
@@ -79,12 +100,12 @@ pub struct PartitionMetrics {
     immutable_chunk_size: Histogram,
 
     /// Lock Tracker for chunk-level locks
-    lock_tracker: LockTracker,
+    chunk_lock_tracker: LockTracker,
 }
 
 impl PartitionMetrics {
-    pub(super) fn new_lock<T>(&self, t: T) -> RwLock<T> {
-        self.lock_tracker.new_lock(t)
+    pub(super) fn new_chunk_lock<T>(&self, t: T) -> RwLock<T> {
+        self.chunk_lock_tracker.new_lock(t)
     }
 
     pub(super) fn new_chunk_metrics(&self) -> ChunkMetrics {

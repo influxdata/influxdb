@@ -1,129 +1,49 @@
 //! This module contains the implementation of the InfluxDB IOx Metadata catalog
 use std::collections::BTreeSet;
-use std::{
-    collections::{btree_map::Entry, BTreeMap},
-    sync::Arc,
-};
+use std::sync::Arc;
 
-use snafu::{OptionExt, Snafu};
+use hashbrown::{HashMap, HashSet};
 
-use crate::db::catalog::metrics::CatalogMetrics;
-use chunk::Chunk;
-use data_types::partition_metadata::PartitionSummary;
-use data_types::{chunk_metadata::ChunkSummary, partition_metadata::UnaggregatedPartitionSummary};
+use data_types::chunk_metadata::ChunkSummary;
+use data_types::partition_metadata::{PartitionSummary, TableSummary};
 use data_types::{
     chunk_metadata::DetailedChunkSummary,
     database_rules::{Order, Sort, SortOrder},
 };
-use partition::Partition;
-use tracker::RwLock;
+use snafu::Snafu;
+use tracker::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
+
+use self::chunk::Chunk;
+use self::metrics::CatalogMetrics;
+use self::partition::Partition;
+use self::table::Table;
 
 pub mod chunk;
 mod metrics;
 pub mod partition;
+pub mod table;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("unknown partition: {}", partition_key))]
-    UnknownPartition { partition_key: String },
+    #[snafu(display("table '{}' not found", table))]
+    TableNotFound { table: String },
 
-    #[snafu(display("unknown table: {}:{}", partition_key, table_name))]
-    UnknownTable {
-        partition_key: String,
-        table_name: String,
-    },
-
-    #[snafu(display("unknown chunk: {}:{}:{}", partition_key, table_name, chunk_id))]
-    UnknownChunk {
-        partition_key: String,
-        table_name: String,
-        chunk_id: u32,
-    },
+    #[snafu(display("partition '{}' not found in table '{}'", partition, table))]
+    PartitionNotFound { partition: String, table: String },
 
     #[snafu(display(
-        "Internal Error: unexpected chunk state for {}:{}:{}  during {}. Expected {}, got {}",
-        partition_key,
-        table_name,
+        "chunk: {} not found in partition '{}' and table '{}'",
         chunk_id,
-        operation,
-        expected,
-        actual
+        partition,
+        table
     ))]
-    InternalChunkState {
-        partition_key: String,
-        table_name: String,
+    ChunkNotFound {
         chunk_id: u32,
-        operation: String,
-        expected: String,
-        actual: String,
-    },
-
-    #[snafu(display(
-        "Internal Error: A lifecycle action '{}' is already in progress for  {}:{}:{}",
-        lifecycle_action,
-        partition_key,
-        table_name,
-        chunk_id,
-    ))]
-    LifecycleActionAlreadyInProgress {
-        partition_key: String,
-        table_name: String,
-        chunk_id: u32,
-        lifecycle_action: String,
-    },
-
-    #[snafu(display(
-        "Internal Error: Unexpected chunk state for {}:{}:{}. Expected {}, got {}",
-        partition_key,
-        table_name,
-        chunk_id,
-        expected,
-        actual
-    ))]
-    UnexpectedLifecycleAction {
-        partition_key: String,
-        table_name: String,
-        chunk_id: u32,
-        expected: String,
-        actual: String,
-    },
-
-    #[snafu(display(
-        "Cannot clear a lifecycle action '{}' for chunk {}:{} that is still running",
-        action,
-        partition_key,
-        chunk_id
-    ))]
-    IncompleteLifecycleAction {
-        partition_key: String,
-        chunk_id: u32,
-        action: String,
-    },
-
-    #[snafu(display(
-        "Cannot add an empty chunk to the catalog {}:{}:{}",
-        partition_key,
-        table_name,
-        chunk_id
-    ))]
-    ChunkIsEmpty {
-        partition_key: String,
-        table_name: String,
-        chunk_id: u32,
-    },
-
-    #[snafu(display(
-        "Can not add already existing chunk to catalog {}:{}:{}",
-        partition_key,
-        table_name,
-        chunk_id
-    ))]
-    ChunkAlreadyExists {
-        partition_key: String,
-        table_name: String,
-        chunk_id: u32,
+        partition: String,
+        table: String,
     },
 }
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Specify which tables are to be matched when filtering
@@ -163,8 +83,10 @@ impl<'a> From<Option<&'a BTreeSet<String>>> for TableNameFilter<'a> {
 /// information
 #[derive(Debug)]
 pub struct Catalog {
-    /// key is partition_key
-    partitions: RwLock<BTreeMap<String, Arc<RwLock<Partition>>>>,
+    /// key is table name
+    ///
+    /// TODO: Remove this unnecessary additional layer of locking
+    tables: RwLock<HashMap<Arc<str>, Table>>,
 
     metrics: CatalogMetrics,
 
@@ -187,7 +109,7 @@ impl Catalog {
         let metrics = CatalogMetrics::new(metrics_domain);
 
         Self {
-            partitions: Default::default(),
+            tables: Default::default(),
             metrics,
             metrics_registry,
             metric_labels,
@@ -195,94 +117,134 @@ impl Catalog {
     }
 
     /// List all partitions in this database
-    pub fn partitions(&self) -> impl Iterator<Item = Arc<RwLock<Partition>>> {
-        let partitions = self.partitions.read();
-        partitions.values().cloned().collect::<Vec<_>>().into_iter()
+    pub fn partitions(&self) -> Vec<Arc<RwLock<Partition>>> {
+        self.tables
+            .read()
+            .values()
+            .flat_map(|table| table.partitions().cloned())
+            .collect()
     }
 
-    /// Get a specific partition by name, returning `None` if there is no such
-    /// partition
-    pub fn partition(&self, partition_key: impl AsRef<str>) -> Option<Arc<RwLock<Partition>>> {
+    /// Get a specific table by name, returning `None` if there is no such table
+    pub fn table(&self, table_name: impl AsRef<str>) -> Result<MappedRwLockReadGuard<'_, Table>> {
+        let table_name = table_name.as_ref();
+        RwLockReadGuard::try_map(self.tables.read(), |tables| tables.get(table_name)).map_err(
+            |_| Error::TableNotFound {
+                table: table_name.to_string(),
+            },
+        )
+    }
+
+    /// Get a specific partition by name, returning an error if it can't be found
+    pub fn partition(
+        &self,
+        table_name: impl AsRef<str>,
+        partition_key: impl AsRef<str>,
+    ) -> Result<Arc<RwLock<Partition>>> {
+        let table_name = table_name.as_ref();
         let partition_key = partition_key.as_ref();
-        let partitions = self.partitions.read();
-        partitions.get(partition_key).cloned()
+
+        self.table(table_name)?
+            .partition(partition_key)
+            .cloned()
+            .ok_or_else(|| Error::PartitionNotFound {
+                partition: partition_key.to_string(),
+                table: table_name.to_string(),
+            })
+    }
+
+    /// Get a specific chunk returning an error if it can't be found
+    pub fn chunk(
+        &self,
+        table_name: impl AsRef<str>,
+        partition_key: impl AsRef<str>,
+        chunk_id: u32,
+    ) -> Result<Arc<RwLock<Chunk>>> {
+        let table_name = table_name.as_ref();
+        let partition_key = partition_key.as_ref();
+
+        self.partition(table_name, partition_key)?
+            .read()
+            .chunk(chunk_id)
+            .cloned()
+            .ok_or_else(|| Error::ChunkNotFound {
+                partition: partition_key.to_string(),
+                table: table_name.to_string(),
+                chunk_id,
+            })
     }
 
     /// List all partition keys in this database
-    pub fn partition_keys(&self) -> Vec<String> {
-        self.partitions.read().keys().cloned().collect()
+    pub fn partition_keys(&self) -> HashSet<String> {
+        let mut set = HashSet::new();
+        let tables = self.tables.read();
+        for table in tables.values() {
+            for partition in table.partition_keys() {
+                set.get_or_insert_with(partition.as_ref(), ToString::to_string);
+            }
+        }
+        set
     }
 
     /// Gets or creates a new partition in the catalog and returns
     /// a reference to it
     pub fn get_or_create_partition(
         &self,
-        partition_key: impl Into<String>,
+        table_name: impl AsRef<str>,
+        partition_key: impl AsRef<str>,
     ) -> Arc<RwLock<Partition>> {
-        let partition_key = partition_key.into();
+        let mut tables = self.tables.write();
+        let (_, table) = tables
+            .raw_entry_mut()
+            .from_key(table_name.as_ref())
+            .or_insert_with(|| {
+                let table_name = Arc::from(table_name.as_ref());
+                let table = Table::new(
+                    Arc::clone(&table_name),
+                    self.metrics.new_table_metrics(table_name.as_ref()),
+                );
 
-        let mut partitions = self.partitions.write();
-        let entry = partitions.entry(partition_key);
-        match entry {
-            Entry::Vacant(entry) => {
-                let partition_metrics = self.metrics.new_partition_metrics(entry.key().to_string());
-                let partition = Partition::new(entry.key(), partition_metrics);
-                let partition = Arc::new(self.metrics.new_lock(partition));
-                entry.insert(Arc::clone(&partition));
-                partition
-            }
-            Entry::Occupied(entry) => Arc::clone(entry.get()),
-        }
-    }
+                (table_name, table)
+            });
 
-    /// Return the specified partition or an error if there is no such
-    /// partition
-    pub fn valid_partition(&self, partition_key: &str) -> Result<Arc<RwLock<Partition>>> {
-        let partitions = self.partitions.read();
-        partitions
-            .get(partition_key)
-            .cloned()
-            .context(UnknownPartition { partition_key })
+        let partition = table.get_or_create_partition(partition_key);
+        Arc::clone(&partition)
     }
 
     /// Returns a list of summaries for each partition.
     pub fn partition_summaries(&self) -> Vec<PartitionSummary> {
-        self.partitions
+        self.tables
             .read()
             .values()
-            .map(|partition| partition.read().summary())
-            .collect()
-    }
-
-    /// Returns a list of unaggregated summaries for each partition.
-    pub fn unaggregated_partition_summaries(&self) -> Vec<UnaggregatedPartitionSummary> {
-        self.partitions
-            .read()
-            .values()
-            .map(|partition| partition.read().unaggregated_summary())
+            .flat_map(|table| table.partition_summaries())
             .collect()
     }
 
     pub fn chunk_summaries(&self) -> Vec<ChunkSummary> {
         let partition_key = None;
         let table_names = TableNameFilter::AllTables;
-        self.filtered_chunks(partition_key, table_names, Chunk::summary)
+        self.filtered_chunks(table_names, partition_key, Chunk::summary)
     }
 
-    pub fn detailed_chunk_summaries(&self) -> Vec<DetailedChunkSummary> {
+    pub fn detailed_chunk_summaries(&self) -> Vec<(Arc<TableSummary>, DetailedChunkSummary)> {
         let partition_key = None;
         let table_names = TableNameFilter::AllTables;
-        self.filtered_chunks(partition_key, table_names, Chunk::detailed_summary)
+        // TODO: Having two summaries with overlapping information seems unfortunate
+        self.filtered_chunks(table_names, partition_key, |chunk| {
+            (chunk.table_summary(), chunk.detailed_summary())
+        })
     }
 
     /// Returns all chunks within the catalog in an arbitrary order
     pub fn chunks(&self) -> Vec<Arc<RwLock<Chunk>>> {
         let mut chunks = Vec::new();
-        let partitions = self.partitions.read();
+        let tables = self.tables.read();
 
-        for partition in partitions.values() {
-            let partition = partition.read();
-            chunks.extend(partition.chunks().cloned())
+        for table in tables.values() {
+            for partition in table.partitions() {
+                let partition = partition.read();
+                chunks.extend(partition.chunks().cloned())
+            }
         }
         chunks
     }
@@ -310,31 +272,39 @@ impl Catalog {
     /// Calls `map` with every chunk and returns a collection of the results
     ///
     /// If `partition_key` is Some(partition_key) only returns chunks
-    /// from the specified partiton.
+    /// from the specified partition.
     ///
     /// `table_names` specifies which tables to include
     pub fn filtered_chunks<F, C>(
         &self,
-        partition_key: Option<&str>,
         table_names: TableNameFilter<'_>,
+        partition_key: Option<&str>,
         map: F,
     ) -> Vec<C>
     where
         F: Fn(&Chunk) -> C + Copy,
     {
-        let mut chunks = Vec::new();
-        let partitions = self.partitions.read();
-
-        let partitions = match partition_key {
-            None => itertools::Either::Left(partitions.values()),
-            Some(partition_key) => {
-                itertools::Either::Right(partitions.get(partition_key).into_iter())
-            }
+        let tables = self.tables.read();
+        let tables = match table_names {
+            TableNameFilter::AllTables => itertools::Either::Left(tables.values()),
+            TableNameFilter::NamedTables(named_tables) => itertools::Either::Right(
+                named_tables
+                    .iter()
+                    .flat_map(|table_name| tables.get(table_name.as_str()).into_iter()),
+            ),
         };
 
+        let partitions = tables.flat_map(|table| match partition_key {
+            Some(partition_key) => {
+                itertools::Either::Left(table.partition(partition_key).into_iter())
+            }
+            None => itertools::Either::Right(table.partitions()),
+        });
+
+        let mut chunks = Vec::with_capacity(partitions.size_hint().1.unwrap_or_default());
         for partition in partitions {
             let partition = partition.read();
-            chunks.extend(partition.filtered_chunks(table_names).map(|chunk| {
+            chunks.extend(partition.chunks().map(|chunk| {
                 let chunk = chunk.read();
                 map(&chunk)
             }))
@@ -344,16 +314,7 @@ impl Catalog {
 
     /// Return a list of all table names in the catalog
     pub fn table_names(&self) -> Vec<String> {
-        let mut names = BTreeSet::new();
-
-        self.partitions().for_each(|partition| {
-            let partition = partition.read();
-            partition.chunks().for_each(|chunk| {
-                names.insert(chunk.read().table_name().to_string());
-            })
-        });
-
-        names.into_iter().collect()
+        self.tables.read().keys().map(ToString::to_string).collect()
     }
 
     pub fn metrics(&self) -> &CatalogMetrics {
@@ -363,14 +324,17 @@ impl Catalog {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use entry::test_helpers::lp_to_entry;
 
-    fn create_open_chunk(partition: &Arc<RwLock<Partition>>, table: &str) {
+    use super::*;
+
+    fn create_open_chunk(partition: &Arc<RwLock<Partition>>) {
+        let mut partition = partition.write();
+        let table = partition.table_name();
         let entry = lp_to_entry(&format!("{} bar=1 10", table));
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
-        let mut partition = partition.write();
+
         let mut mb_chunk = mutable_buffer::chunk::Chunk::new(
             batch.name(),
             mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
@@ -378,37 +342,38 @@ mod tests {
 
         mb_chunk.write_table_batch(1, 5, batch).unwrap();
 
-        partition.create_open_chunk(mb_chunk).unwrap();
+        partition.create_open_chunk(mb_chunk);
     }
 
     #[test]
     fn partition_get() {
         let catalog = Catalog::test();
-        catalog.get_or_create_partition("p1");
-        catalog.get_or_create_partition("p2");
+        catalog.get_or_create_partition("foo", "p1");
+        catalog.get_or_create_partition("foo", "p2");
 
-        let p1 = catalog.partition("p1").unwrap();
+        let p1 = catalog.partition("foo", "p1").unwrap();
         assert_eq!(p1.read().key(), "p1");
 
-        let p2 = catalog.partition("p2").unwrap();
+        let p2 = catalog.partition("foo", "p2").unwrap();
         assert_eq!(p2.read().key(), "p2");
 
-        let p3 = catalog.partition("p3");
-        assert!(p3.is_none());
+        let err = catalog.partition("foo", "p3").unwrap_err();
+        assert_eq!(err.to_string(), "partition 'p3' not found in table 'foo'");
     }
 
     #[test]
     fn partition_list() {
         let catalog = Catalog::test();
 
-        assert_eq!(catalog.partitions().count(), 0);
+        assert_eq!(catalog.partitions().len(), 0);
 
-        catalog.get_or_create_partition("p1");
-        catalog.get_or_create_partition("p2");
-        catalog.get_or_create_partition("p3");
+        catalog.get_or_create_partition("t1", "p1");
+        catalog.get_or_create_partition("t2", "p2");
+        catalog.get_or_create_partition("t1", "p3");
 
         let mut partition_keys: Vec<String> = catalog
             .partitions()
+            .into_iter()
             .map(|p| p.read().key().into())
             .collect();
         partition_keys.sort_unstable();
@@ -419,47 +384,46 @@ mod tests {
     #[test]
     fn chunk_create() {
         let catalog = Catalog::test();
-        let p1 = catalog.get_or_create_partition("p1");
+        let p1 = catalog.get_or_create_partition("t1", "p1");
+        let p2 = catalog.get_or_create_partition("t2", "p2");
 
-        create_open_chunk(&p1, "table1");
-        create_open_chunk(&p1, "table1");
-        create_open_chunk(&p1, "table2");
+        create_open_chunk(&p1);
+        create_open_chunk(&p1);
+        create_open_chunk(&p2);
 
         let p1 = p1.write();
+        let p2 = p2.write();
 
-        let c1_0 = p1.chunk("table1", 0).unwrap();
-        assert_eq!(c1_0.read().table_name().as_ref(), "table1");
+        let c1_0 = p1.chunk(0).unwrap();
+        assert_eq!(c1_0.read().table_name().as_ref(), "t1");
         assert_eq!(c1_0.read().key(), "p1");
         assert_eq!(c1_0.read().id(), 0);
 
-        let c1_1 = p1.chunk("table1", 1).unwrap();
-        assert_eq!(c1_1.read().table_name().as_ref(), "table1");
+        let c1_1 = p1.chunk(1).unwrap();
+        assert_eq!(c1_1.read().table_name().as_ref(), "t1");
         assert_eq!(c1_1.read().key(), "p1");
         assert_eq!(c1_1.read().id(), 1);
 
-        let c2_0 = p1.chunk("table2", 0).unwrap();
-        assert_eq!(c2_0.read().table_name().as_ref(), "table2");
-        assert_eq!(c2_0.read().key(), "p1");
+        let c2_0 = p2.chunk(0).unwrap();
+        assert_eq!(c2_0.read().table_name().as_ref(), "t2");
+        assert_eq!(c2_0.read().key(), "p2");
         assert_eq!(c2_0.read().id(), 0);
 
-        let err = p1.chunk("table1", 100).unwrap_err();
-        assert_eq!(err.to_string(), "unknown chunk: p1:table1:100");
-
-        let err = p1.chunk("table3", 0).unwrap_err();
-        assert_eq!(err.to_string(), "unknown table: p1:table3");
+        assert!(p1.chunk(100).is_none());
     }
 
     #[test]
     fn chunk_list() {
         let catalog = Catalog::test();
 
-        let p1 = catalog.get_or_create_partition("p1");
-        create_open_chunk(&p1, "table1");
-        create_open_chunk(&p1, "table1");
-        create_open_chunk(&p1, "table2");
+        let p1 = catalog.get_or_create_partition("table1", "p1");
+        let p2 = catalog.get_or_create_partition("table2", "p1");
+        create_open_chunk(&p1);
+        create_open_chunk(&p1);
+        create_open_chunk(&p2);
 
-        let p2 = catalog.get_or_create_partition("p2");
-        create_open_chunk(&p2, "table1");
+        let p3 = catalog.get_or_create_partition("table1", "p2");
+        create_open_chunk(&p3);
 
         assert_eq!(
             chunk_strings(&catalog),
@@ -470,24 +434,12 @@ mod tests {
                 "Chunk p2:table1:0"
             ]
         );
-
-        assert_eq!(
-            partition_chunk_strings(&catalog, "p1"),
-            vec![
-                "Chunk p1:table1:0",
-                "Chunk p1:table1:1",
-                "Chunk p1:table2:0"
-            ]
-        );
-        assert_eq!(
-            partition_chunk_strings(&catalog, "p2"),
-            vec!["Chunk p2:table1:0"]
-        );
     }
 
     fn chunk_strings(catalog: &Catalog) -> Vec<String> {
         let mut chunks: Vec<String> = catalog
             .partitions()
+            .into_iter()
             .flat_map(|p| {
                 let p = p.read();
                 p.chunks()
@@ -504,54 +456,39 @@ mod tests {
         chunks
     }
 
-    fn partition_chunk_strings(catalog: &Catalog, partition_key: &str) -> Vec<String> {
-        let p = catalog.partition(partition_key).unwrap();
-        let p = p.read();
-
-        let mut chunks: Vec<String> = p
-            .chunks()
-            .map(|c| {
-                let c = c.read();
-                format!("Chunk {}:{}:{}", c.key(), c.table_name(), c.id())
-            })
-            .collect();
-
-        chunks.sort_unstable();
-        chunks
-    }
-
     #[test]
     fn chunk_drop() {
         let catalog = Catalog::test();
 
-        let p1 = catalog.get_or_create_partition("p1");
-        create_open_chunk(&p1, "table1");
-        create_open_chunk(&p1, "table1");
-        create_open_chunk(&p1, "table2");
+        let p1 = catalog.get_or_create_partition("p1", "table1");
+        let p2 = catalog.get_or_create_partition("p1", "table2");
+        create_open_chunk(&p1);
+        create_open_chunk(&p1);
+        create_open_chunk(&p2);
 
-        let p2 = catalog.get_or_create_partition("p2");
-        create_open_chunk(&p2, "table1");
+        let p3 = catalog.get_or_create_partition("p2", "table1");
+        create_open_chunk(&p3);
 
         assert_eq!(chunk_strings(&catalog).len(), 4);
 
         {
-            let mut p1 = p1.write();
-            p1.drop_chunk("table2", 0).unwrap();
-            p1.chunk("table2", 0).unwrap_err(); // chunk is gone
+            let mut p2 = p2.write();
+            p2.drop_chunk(0).unwrap();
+            assert!(p2.chunk(0).is_none()); // chunk is gone
         }
         assert_eq!(chunk_strings(&catalog).len(), 3);
 
         {
             let mut p1 = p1.write();
-            p1.drop_chunk("table1", 1).unwrap();
-            p1.chunk("table1", 1).unwrap_err(); // chunk is gone
+            p1.drop_chunk(1).unwrap();
+            assert!(p1.chunk(1).is_none()); // chunk is gone
         }
         assert_eq!(chunk_strings(&catalog).len(), 2);
 
         {
-            let mut p2 = p1.write();
-            p2.drop_chunk("table1", 0).unwrap();
-            p2.chunk("table1", 0).unwrap_err(); // chunk is gone
+            let mut p1 = p1.write();
+            p1.drop_chunk(0).unwrap();
+            assert!(p1.chunk(0).is_none()); // chunk is gone
         }
         assert_eq!(chunk_strings(&catalog).len(), 1);
     }
@@ -559,25 +496,21 @@ mod tests {
     #[test]
     fn chunk_drop_non_existent_chunk() {
         let catalog = Catalog::test();
-        let p3 = catalog.get_or_create_partition("p3");
-        create_open_chunk(&p3, "table1");
+        let p3 = catalog.get_or_create_partition("table1", "p3");
+        create_open_chunk(&p3);
 
         let mut p3 = p3.write();
 
-        let err = p3.drop_chunk("table2", 0).unwrap_err();
-        assert_eq!(err.to_string(), "unknown table: p3:table2");
-
-        let err = p3.drop_chunk("table1", 1).unwrap_err();
-        assert_eq!(err.to_string(), "unknown chunk: p3:table1:1");
+        assert!(p3.drop_chunk(2).is_none());
     }
 
     #[test]
     fn chunk_recreate_dropped() {
         let catalog = Catalog::test();
 
-        let p1 = catalog.get_or_create_partition("p1");
-        create_open_chunk(&p1, "table1");
-        create_open_chunk(&p1, "table1");
+        let p1 = catalog.get_or_create_partition("table1", "p1");
+        create_open_chunk(&p1);
+        create_open_chunk(&p1);
         assert_eq!(
             chunk_strings(&catalog),
             vec!["Chunk p1:table1:0", "Chunk p1:table1:1"]
@@ -585,12 +518,12 @@ mod tests {
 
         {
             let mut p1 = p1.write();
-            p1.drop_chunk("table1", 0).unwrap();
+            p1.drop_chunk(0).unwrap();
         }
         assert_eq!(chunk_strings(&catalog), vec!["Chunk p1:table1:1"]);
 
         // should be ok to "re-create", it gets another chunk_id though
-        create_open_chunk(&p1, "table1");
+        create_open_chunk(&p1);
         assert_eq!(
             chunk_strings(&catalog),
             vec!["Chunk p1:table1:1", "Chunk p1:table1:2"]
@@ -602,19 +535,20 @@ mod tests {
         use TableNameFilter::*;
         let catalog = Catalog::test();
 
-        let p1 = catalog.get_or_create_partition("p1");
-        let p2 = catalog.get_or_create_partition("p2");
-        create_open_chunk(&p1, "table1");
-        create_open_chunk(&p1, "table2");
-        create_open_chunk(&p2, "table2");
+        let p1 = catalog.get_or_create_partition("table1", "p1");
+        let p2 = catalog.get_or_create_partition("table2", "p1");
+        let p3 = catalog.get_or_create_partition("table2", "p2");
+        create_open_chunk(&p1);
+        create_open_chunk(&p2);
+        create_open_chunk(&p3);
 
-        let a = catalog.filtered_chunks(None, AllTables, |_| ());
+        let a = catalog.filtered_chunks(AllTables, None, |_| ());
 
-        let b = catalog.filtered_chunks(None, NamedTables(&make_set("table1")), |_| ());
+        let b = catalog.filtered_chunks(NamedTables(&make_set("table1")), None, |_| ());
 
-        let c = catalog.filtered_chunks(None, NamedTables(&make_set("table2")), |_| ());
+        let c = catalog.filtered_chunks(NamedTables(&make_set("table2")), None, |_| ());
 
-        let d = catalog.filtered_chunks(Some("p2"), NamedTables(&make_set("table2")), |_| ());
+        let d = catalog.filtered_chunks(NamedTables(&make_set("table2")), Some("p2"), |_| ());
 
         assert_eq!(a.len(), 3);
         assert_eq!(b.len(), 1);

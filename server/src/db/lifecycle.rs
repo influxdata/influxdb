@@ -81,21 +81,21 @@ trait ChunkMover {
     /// Starts an operation to move a chunk to the read buffer
     fn move_to_read_buffer(
         &mut self,
-        partition_key: String,
         table_name: String,
+        partition_key: String,
         chunk_id: u32,
     ) -> TaskTracker<Self::Job>;
 
     /// Starts an operation to write a chunk to the object store
     fn write_to_object_store(
         &mut self,
-        partition_key: String,
         table_name: String,
+        partition_key: String,
         chunk_id: u32,
     ) -> TaskTracker<Self::Job>;
 
     /// Drops a chunk from the database
-    fn drop_chunk(&mut self, partition_key: String, table_name: String, chunk_id: u32);
+    fn drop_chunk(&mut self, table_name: String, partition_key: String, chunk_id: u32);
 
     /// The core policy logic
     ///
@@ -158,7 +158,7 @@ trait ChunkMover {
                         std::mem::drop(chunk_guard);
 
                         move_tracker =
-                            Some(self.move_to_read_buffer(partition_key, table_name, chunk_id));
+                            Some(self.move_to_read_buffer(table_name, partition_key, chunk_id));
                     }
                 }
                 ChunkStage::Frozen { representation, .. } => match &representation {
@@ -170,7 +170,7 @@ trait ChunkMover {
                         std::mem::drop(chunk_guard);
 
                         move_tracker =
-                            Some(self.move_to_read_buffer(partition_key, table_name, chunk_id));
+                            Some(self.move_to_read_buffer(table_name, partition_key, chunk_id));
                     }
                     ChunkStageFrozenRepr::ReadBuffer { .. } if would_write => {
                         let partition_key = chunk_guard.key().to_string();
@@ -180,7 +180,7 @@ trait ChunkMover {
                         std::mem::drop(chunk_guard);
 
                         write_tracker =
-                            Some(self.write_to_object_store(partition_key, table_name, chunk_id));
+                            Some(self.write_to_object_store(table_name, partition_key, chunk_id));
                     }
                     _ => {}
                 },
@@ -229,7 +229,7 @@ trait ChunkMover {
                                       "dropping chunk from partition containing open chunk. Consider increasing the soft buffer limit");
                             }
 
-                            self.drop_chunk(partition_key, table_name, chunk_id)
+                            self.drop_chunk(table_name, partition_key, chunk_id)
                         }
                     }
                     None => {
@@ -312,14 +312,14 @@ impl ChunkMover for LifecycleManager {
 
     fn move_to_read_buffer(
         &mut self,
-        partition_key: String,
         table_name: String,
+        partition_key: String,
         chunk_id: u32,
     ) -> TaskTracker<Self::Job> {
         info!(%partition_key, %chunk_id, "moving chunk to read buffer");
         let tracker =
             self.db
-                .load_chunk_to_read_buffer_in_background(partition_key, table_name, chunk_id);
+                .load_chunk_to_read_buffer_in_background(table_name, partition_key, chunk_id);
         self.move_task = Some(tracker.clone());
         tracker
     }
@@ -333,7 +333,7 @@ impl ChunkMover for LifecycleManager {
         info!(%partition_key, %chunk_id, "write chunk to object store");
         let tracker =
             self.db
-                .write_chunk_to_object_store_in_background(partition_key, table_name, chunk_id);
+                .write_chunk_to_object_store_in_background(table_name, partition_key, chunk_id);
         self.write_task = Some(tracker.clone());
         tracker
     }
@@ -342,7 +342,7 @@ impl ChunkMover for LifecycleManager {
         info!(%partition_key, %chunk_id, "dropping chunk");
         let _ = self
             .db
-            .drop_chunk(&partition_key, &table_name, chunk_id)
+            .drop_chunk(&table_name, &partition_key, chunk_id)
             .log_if_error("dropping chunk to free up memory");
     }
 }
@@ -413,8 +413,7 @@ mod tests {
         );
         mb_chunk.write_table_batch(1, 5, batch).unwrap();
 
-        let mut chunk =
-            Chunk::new_open(id, "", mb_chunk, ChunkMetrics::new_unregistered()).unwrap();
+        let mut chunk = Chunk::new_open(id, "", mb_chunk, ChunkMetrics::new_unregistered());
         chunk.set_timestamps(
             time_of_first_write.map(from_secs),
             time_of_last_write.map(from_secs),
@@ -546,8 +545,8 @@ mod tests {
 
         fn move_to_read_buffer(
             &mut self,
-            _partition_key: String,
             _table_name: String,
+            _partition_key: String,
             chunk_id: u32,
         ) -> TaskTracker<Self::Job> {
             let chunk = self
@@ -564,8 +563,8 @@ mod tests {
 
         fn write_to_object_store(
             &mut self,
-            _partition_key: String,
             _table_name: String,
+            _partition_key: String,
             chunk_id: u32,
         ) -> TaskTracker<Self::Job> {
             let chunk = self
@@ -583,7 +582,7 @@ mod tests {
             tracker
         }
 
-        fn drop_chunk(&mut self, _partition_key: String, _table_name: String, chunk_id: u32) {
+        fn drop_chunk(&mut self, _table_name: String, _partition_key: String, chunk_id: u32) {
             self.chunks = self
                 .chunks
                 .drain(..)

@@ -332,7 +332,7 @@ where
             ..Default::default()
         })?;
 
-        db.rollover_partition(&partition_key, &table_name)
+        db.rollover_partition(&table_name, &partition_key)
             .await
             .map_err(default_db_error_handler)?;
 
@@ -355,7 +355,7 @@ where
 
         let tracker = self
             .server
-            .close_chunk(db_name, partition_key, table_name, chunk_id)
+            .close_chunk(db_name, table_name, partition_key, chunk_id)
             .map_err(default_server_error_handler)?;
 
         let operation = Some(super::operations::encode_tracker(tracker)?);

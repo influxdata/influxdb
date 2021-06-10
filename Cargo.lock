@@ -3706,6 +3706,7 @@ dependencies = [
  "futures",
  "futures-util",
  "generated_types",
+ "hashbrown 0.11.2",
  "influxdb_iox_client",
  "influxdb_line_protocol",
  "internal_types",
