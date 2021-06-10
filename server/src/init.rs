@@ -258,10 +258,13 @@ impl InitStatus {
         .context(CatalogLoadError)?;
 
         let handle = config
-            .create_db(rules)
+            .create_db(rules.name.clone())
             .map_err(Box::new)
             .context(CreateDbError)?;
-        handle.commit(server_id, store, exec, preserved_catalog);
+        handle
+            .commit(server_id, store, exec, preserved_catalog, rules)
+            .map_err(Box::new)
+            .context(CreateDbError)?;
 
         Ok(())
     }

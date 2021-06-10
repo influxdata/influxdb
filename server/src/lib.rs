@@ -161,6 +161,13 @@ pub enum Error {
     #[snafu(display("database already exists"))]
     DatabaseAlreadyExists { db_name: String },
 
+    #[snafu(display(
+        "Database names in deserialized rules ({}) does not match expected value ({})",
+        actual,
+        expected
+    ))]
+    RulesDatabaseNameMismatch { actual: String, expected: String },
+
     #[snafu(display("error converting line protocol to flatbuffers: {}", source))]
     LineConversion { source: entry::Error },
 
@@ -470,15 +477,15 @@ where
         .map_err(|e| Box::new(e) as _)
         .context(CatalogLoadError)?;
 
-        let db_reservation = self.config.create_db(rules)?;
-        self.persist_database_rules(db_reservation.rules().clone())
-            .await?;
+        let db_reservation = self.config.create_db(rules.name.clone())?;
+        self.persist_database_rules(rules.clone()).await?;
         db_reservation.commit(
             server_id,
             Arc::clone(&self.store),
             Arc::clone(&self.exec),
             preserved_catalog,
-        );
+            rules,
+        )?;
 
         Ok(())
     }
