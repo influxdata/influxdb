@@ -70,7 +70,7 @@ type AnnotationService interface {
 	// ListAnnotations lists all annotations matching the filter.
 	ListAnnotations(ctx context.Context, orgID platform.ID, filter AnnotationListFilter) (ReadAnnotations, error)
 	// GetAnnotation gets an annotation by id.
-	GetAnnotation(ctx context.Context, id platform.ID) (*AnnotationEvent, error)
+	GetAnnotation(ctx context.Context, id platform.ID) (*StoredAnnotation, error)
 	// DeleteAnnotations deletes annotations matching the filter.
 	DeleteAnnotations(ctx context.Context, orgID platform.ID, delete AnnotationDeleteFilter) error
 	// DeleteAnnotation deletes an annotation by id.
@@ -81,11 +81,14 @@ type AnnotationService interface {
 	// ListStreams lists all streams matching the filter.
 	ListStreams(ctx context.Context, orgID platform.ID, filter StreamListFilter) ([]ReadStream, error)
 	// CreateOrUpdateStream creates or updates the matching stream by name.
-	CreateOrUpdateStream(ctx context.Context, stream Stream) (*ReadStream, error)
+	CreateOrUpdateStream(ctx context.Context, orgID platform.ID, stream Stream) (*ReadStream, error)
+	// GetStream gets a stream by id. Currently this is only used for authorization, and there are no
+	// API routes for getting a single stream by ID.
+	GetStream(ctx context.Context, id platform.ID) (*StoredStream, error)
 	// UpdateStream updates the stream by the ID.
 	UpdateStream(ctx context.Context, id platform.ID, stream Stream) (*ReadStream, error)
 	// DeleteStreams deletes one or more streams by name.
-	DeleteStreams(ctx context.Context, delete BasicStream) error
+	DeleteStreams(ctx context.Context, orgID platform.ID, delete BasicStream) error
 	// DeleteStreamByID deletes the stream metadata by id.
 	DeleteStreamByID(ctx context.Context, id platform.ID) error
 }
@@ -116,7 +119,7 @@ type StoredAnnotation struct {
 	Message   string      `db:"message"`   // Message is a longer description of the annotated event.
 	Stickers  []string    `db:"stickers"`  // Stickers are additional labels to group annotations by.
 	Duration  string      `db:"duration"`  // Duration is the time range (with zone) of an annotated event.
-	Lower     string      `db:"lower"`     // Lower is the time an annotated event beings.
+	Lower     string      `db:"lower"`     // Lower is the time an annotated event begins.
 	Upper     string      `db:"upper"`     // Upper is the time an annotated event ends.
 }
 

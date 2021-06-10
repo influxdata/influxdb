@@ -6,37 +6,36 @@ package mock
 
 import (
 	context "context"
-	reflect "reflect"
-
 	gomock "github.com/golang/mock/gomock"
 	influxdb "github.com/influxdata/influxdb/v2"
 	platform "github.com/influxdata/influxdb/v2/kit/platform"
+	reflect "reflect"
 )
 
-// MockAnnotationService is a mock of AnnotationService interface.
+// MockAnnotationService is a mock of AnnotationService interface
 type MockAnnotationService struct {
 	ctrl     *gomock.Controller
 	recorder *MockAnnotationServiceMockRecorder
 }
 
-// MockAnnotationServiceMockRecorder is the mock recorder for MockAnnotationService.
+// MockAnnotationServiceMockRecorder is the mock recorder for MockAnnotationService
 type MockAnnotationServiceMockRecorder struct {
 	mock *MockAnnotationService
 }
 
-// NewMockAnnotationService creates a new mock instance.
+// NewMockAnnotationService creates a new mock instance
 func NewMockAnnotationService(ctrl *gomock.Controller) *MockAnnotationService {
 	mock := &MockAnnotationService{ctrl: ctrl}
 	mock.recorder = &MockAnnotationServiceMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use.
+// EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockAnnotationService) EXPECT() *MockAnnotationServiceMockRecorder {
 	return m.recorder
 }
 
-// CreateAnnotations mocks base method.
+// CreateAnnotations mocks base method
 func (m *MockAnnotationService) CreateAnnotations(ctx context.Context, orgID platform.ID, create []influxdb.AnnotationCreate) ([]influxdb.AnnotationEvent, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateAnnotations", ctx, orgID, create)
@@ -45,99 +44,13 @@ func (m *MockAnnotationService) CreateAnnotations(ctx context.Context, orgID pla
 	return ret0, ret1
 }
 
-// CreateAnnotations indicates an expected call of CreateAnnotations.
+// CreateAnnotations indicates an expected call of CreateAnnotations
 func (mr *MockAnnotationServiceMockRecorder) CreateAnnotations(ctx, orgID, create interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAnnotations", reflect.TypeOf((*MockAnnotationService)(nil).CreateAnnotations), ctx, orgID, create)
 }
 
-// CreateOrUpdateStream mocks base method.
-func (m *MockAnnotationService) CreateOrUpdateStream(ctx context.Context, stream influxdb.Stream) (*influxdb.ReadStream, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOrUpdateStream", ctx, stream)
-	ret0, _ := ret[0].(*influxdb.ReadStream)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CreateOrUpdateStream indicates an expected call of CreateOrUpdateStream.
-func (mr *MockAnnotationServiceMockRecorder) CreateOrUpdateStream(ctx, stream interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateStream", reflect.TypeOf((*MockAnnotationService)(nil).CreateOrUpdateStream), ctx, stream)
-}
-
-// DeleteAnnotation mocks base method.
-func (m *MockAnnotationService) DeleteAnnotation(ctx context.Context, id platform.ID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteAnnotation", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteAnnotation indicates an expected call of DeleteAnnotation.
-func (mr *MockAnnotationServiceMockRecorder) DeleteAnnotation(ctx, id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAnnotation", reflect.TypeOf((*MockAnnotationService)(nil).DeleteAnnotation), ctx, id)
-}
-
-// DeleteAnnotations mocks base method.
-func (m *MockAnnotationService) DeleteAnnotations(ctx context.Context, orgID platform.ID, delete influxdb.AnnotationDeleteFilter) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteAnnotations", ctx, orgID, delete)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteAnnotations indicates an expected call of DeleteAnnotations.
-func (mr *MockAnnotationServiceMockRecorder) DeleteAnnotations(ctx, orgID, delete interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAnnotations", reflect.TypeOf((*MockAnnotationService)(nil).DeleteAnnotations), ctx, orgID, delete)
-}
-
-// DeleteStreamByID mocks base method.
-func (m *MockAnnotationService) DeleteStreamByID(ctx context.Context, id platform.ID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteStreamByID", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteStreamByID indicates an expected call of DeleteStreamByID.
-func (mr *MockAnnotationServiceMockRecorder) DeleteStreamByID(ctx, id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStreamByID", reflect.TypeOf((*MockAnnotationService)(nil).DeleteStreamByID), ctx, id)
-}
-
-// DeleteStreams mocks base method.
-func (m *MockAnnotationService) DeleteStreams(ctx context.Context, delete influxdb.BasicStream) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteStreams", ctx, delete)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteStreams indicates an expected call of DeleteStreams.
-func (mr *MockAnnotationServiceMockRecorder) DeleteStreams(ctx, delete interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStreams", reflect.TypeOf((*MockAnnotationService)(nil).DeleteStreams), ctx, delete)
-}
-
-// GetAnnotation mocks base method.
-func (m *MockAnnotationService) GetAnnotation(ctx context.Context, id platform.ID) (*influxdb.AnnotationEvent, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAnnotation", ctx, id)
-	ret0, _ := ret[0].(*influxdb.AnnotationEvent)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAnnotation indicates an expected call of GetAnnotation.
-func (mr *MockAnnotationServiceMockRecorder) GetAnnotation(ctx, id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAnnotation", reflect.TypeOf((*MockAnnotationService)(nil).GetAnnotation), ctx, id)
-}
-
-// ListAnnotations mocks base method.
+// ListAnnotations mocks base method
 func (m *MockAnnotationService) ListAnnotations(ctx context.Context, orgID platform.ID, filter influxdb.AnnotationListFilter) (influxdb.ReadAnnotations, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListAnnotations", ctx, orgID, filter)
@@ -146,28 +59,56 @@ func (m *MockAnnotationService) ListAnnotations(ctx context.Context, orgID platf
 	return ret0, ret1
 }
 
-// ListAnnotations indicates an expected call of ListAnnotations.
+// ListAnnotations indicates an expected call of ListAnnotations
 func (mr *MockAnnotationServiceMockRecorder) ListAnnotations(ctx, orgID, filter interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAnnotations", reflect.TypeOf((*MockAnnotationService)(nil).ListAnnotations), ctx, orgID, filter)
 }
 
-// ListStreams mocks base method.
-func (m *MockAnnotationService) ListStreams(ctx context.Context, orgID platform.ID, filter influxdb.StreamListFilter) ([]influxdb.ReadStream, error) {
+// GetAnnotation mocks base method
+func (m *MockAnnotationService) GetAnnotation(ctx context.Context, id platform.ID) (*influxdb.StoredAnnotation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListStreams", ctx, orgID, filter)
-	ret0, _ := ret[0].([]influxdb.ReadStream)
+	ret := m.ctrl.Call(m, "GetAnnotation", ctx, id)
+	ret0, _ := ret[0].(*influxdb.StoredAnnotation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ListStreams indicates an expected call of ListStreams.
-func (mr *MockAnnotationServiceMockRecorder) ListStreams(ctx, orgID, filter interface{}) *gomock.Call {
+// GetAnnotation indicates an expected call of GetAnnotation
+func (mr *MockAnnotationServiceMockRecorder) GetAnnotation(ctx, id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListStreams", reflect.TypeOf((*MockAnnotationService)(nil).ListStreams), ctx, orgID, filter)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAnnotation", reflect.TypeOf((*MockAnnotationService)(nil).GetAnnotation), ctx, id)
 }
 
-// UpdateAnnotation mocks base method.
+// DeleteAnnotations mocks base method
+func (m *MockAnnotationService) DeleteAnnotations(ctx context.Context, orgID platform.ID, delete influxdb.AnnotationDeleteFilter) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAnnotations", ctx, orgID, delete)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAnnotations indicates an expected call of DeleteAnnotations
+func (mr *MockAnnotationServiceMockRecorder) DeleteAnnotations(ctx, orgID, delete interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAnnotations", reflect.TypeOf((*MockAnnotationService)(nil).DeleteAnnotations), ctx, orgID, delete)
+}
+
+// DeleteAnnotation mocks base method
+func (m *MockAnnotationService) DeleteAnnotation(ctx context.Context, id platform.ID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAnnotation", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAnnotation indicates an expected call of DeleteAnnotation
+func (mr *MockAnnotationServiceMockRecorder) DeleteAnnotation(ctx, id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAnnotation", reflect.TypeOf((*MockAnnotationService)(nil).DeleteAnnotation), ctx, id)
+}
+
+// UpdateAnnotation mocks base method
 func (m *MockAnnotationService) UpdateAnnotation(ctx context.Context, id platform.ID, update influxdb.AnnotationCreate) (*influxdb.AnnotationEvent, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateAnnotation", ctx, id, update)
@@ -176,13 +117,58 @@ func (m *MockAnnotationService) UpdateAnnotation(ctx context.Context, id platfor
 	return ret0, ret1
 }
 
-// UpdateAnnotation indicates an expected call of UpdateAnnotation.
+// UpdateAnnotation indicates an expected call of UpdateAnnotation
 func (mr *MockAnnotationServiceMockRecorder) UpdateAnnotation(ctx, id, update interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAnnotation", reflect.TypeOf((*MockAnnotationService)(nil).UpdateAnnotation), ctx, id, update)
 }
 
-// UpdateStream mocks base method.
+// ListStreams mocks base method
+func (m *MockAnnotationService) ListStreams(ctx context.Context, orgID platform.ID, filter influxdb.StreamListFilter) ([]influxdb.ReadStream, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListStreams", ctx, orgID, filter)
+	ret0, _ := ret[0].([]influxdb.ReadStream)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListStreams indicates an expected call of ListStreams
+func (mr *MockAnnotationServiceMockRecorder) ListStreams(ctx, orgID, filter interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListStreams", reflect.TypeOf((*MockAnnotationService)(nil).ListStreams), ctx, orgID, filter)
+}
+
+// CreateOrUpdateStream mocks base method
+func (m *MockAnnotationService) CreateOrUpdateStream(ctx context.Context, orgID platform.ID, stream influxdb.Stream) (*influxdb.ReadStream, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateOrUpdateStream", ctx, orgID, stream)
+	ret0, _ := ret[0].(*influxdb.ReadStream)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateOrUpdateStream indicates an expected call of CreateOrUpdateStream
+func (mr *MockAnnotationServiceMockRecorder) CreateOrUpdateStream(ctx, orgID, stream interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateStream", reflect.TypeOf((*MockAnnotationService)(nil).CreateOrUpdateStream), ctx, orgID, stream)
+}
+
+// GetStream mocks base method
+func (m *MockAnnotationService) GetStream(ctx context.Context, id platform.ID) (*influxdb.StoredStream, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStream", ctx, id)
+	ret0, _ := ret[0].(*influxdb.StoredStream)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetStream indicates an expected call of GetStream
+func (mr *MockAnnotationServiceMockRecorder) GetStream(ctx, id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStream", reflect.TypeOf((*MockAnnotationService)(nil).GetStream), ctx, id)
+}
+
+// UpdateStream mocks base method
 func (m *MockAnnotationService) UpdateStream(ctx context.Context, id platform.ID, stream influxdb.Stream) (*influxdb.ReadStream, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateStream", ctx, id, stream)
@@ -191,8 +177,36 @@ func (m *MockAnnotationService) UpdateStream(ctx context.Context, id platform.ID
 	return ret0, ret1
 }
 
-// UpdateStream indicates an expected call of UpdateStream.
+// UpdateStream indicates an expected call of UpdateStream
 func (mr *MockAnnotationServiceMockRecorder) UpdateStream(ctx, id, stream interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStream", reflect.TypeOf((*MockAnnotationService)(nil).UpdateStream), ctx, id, stream)
+}
+
+// DeleteStreams mocks base method
+func (m *MockAnnotationService) DeleteStreams(ctx context.Context, orgID platform.ID, delete influxdb.BasicStream) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteStreams", ctx, orgID, delete)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteStreams indicates an expected call of DeleteStreams
+func (mr *MockAnnotationServiceMockRecorder) DeleteStreams(ctx, orgID, delete interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStreams", reflect.TypeOf((*MockAnnotationService)(nil).DeleteStreams), ctx, orgID, delete)
+}
+
+// DeleteStreamByID mocks base method
+func (m *MockAnnotationService) DeleteStreamByID(ctx context.Context, id platform.ID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteStreamByID", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteStreamByID indicates an expected call of DeleteStreamByID
+func (mr *MockAnnotationServiceMockRecorder) DeleteStreamByID(ctx, id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStreamByID", reflect.TypeOf((*MockAnnotationService)(nil).DeleteStreamByID), ctx, id)
 }

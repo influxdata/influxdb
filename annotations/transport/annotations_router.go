@@ -3,6 +3,7 @@ package transport
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -106,13 +107,19 @@ func (h *AnnotationHandler) handleGetAnnotation(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	a, err := h.annotationService.GetAnnotation(ctx, *id)
+	s, err := h.annotationService.GetAnnotation(ctx, *id)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
-	h.api.Respond(w, r, http.StatusOK, a)
+	c, err := storedAnnotationToEvent(s)
+	if err != nil {
+		h.api.Err(w, r, err)
+		return
+	}
+
+	h.api.Respond(w, r, http.StatusOK, c)
 }
 
 func (h *AnnotationHandler) handleDeleteAnnotation(w http.ResponseWriter, r *http.Request) {
@@ -233,4 +240,43 @@ func decodeUpdateAnnotationRequest(r *http.Request) (*influxdb.AnnotationCreate,
 	}
 
 	return u, nil
+}
+
+func storedAnnotationToEvent(s *influxdb.StoredAnnotation) (*influxdb.AnnotationEvent, error) {
+	st, err := tStringToPointer(s.Lower)
+	if err != nil {
+		return nil, err
+	}
+
+	et, err := tStringToPointer(s.Upper)
+	if err != nil {
+		return nil, err
+	}
+
+	return &influxdb.AnnotationEvent{
+		ID: s.ID,
+		AnnotationCreate: influxdb.AnnotationCreate{
+			StreamTag: s.StreamTag,
+			Summary:   s.Summary,
+			Message:   s.Message,
+			Stickers:  stickerSliceToMap(s.Stickers),
+			EndTime:   et,
+			StartTime: st,
+		},
+	}, nil
+
+}
+
+func stickerSliceToMap(stickers []string) map[string]string {
+	stickerMap := map[string]string{}
+
+	for i := range stickers {
+		sticks := strings.SplitN(stickers[i], "=", 2)
+		if len(sticks) < 2 {
+			continue
+		}
+		stickerMap[sticks[0]] = sticks[1]
+	}
+
+	return stickerMap
 }

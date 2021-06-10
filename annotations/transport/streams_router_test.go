@@ -46,7 +46,7 @@ func TestStreamsRouter(t *testing.T) {
 		req.URL.RawQuery = q.Encode()
 
 		svc.EXPECT().
-			CreateOrUpdateStream(gomock.Any(), testCreateStream).
+			CreateOrUpdateStream(gomock.Any(), *orgID, testCreateStream).
 			Return(testReadStream1, nil)
 
 		res := doTestRequest(t, req, http.StatusOK, true)
@@ -96,12 +96,13 @@ func TestStreamsRouter(t *testing.T) {
 
 		req := newTestRequest(t, "DELETE", ts.URL+"/streams", nil)
 		q := req.URL.Query()
+		q.Add("orgID", orgStr)
 		q.Add("stream", "stream1")
 		q.Add("stream", "stream2")
 		req.URL.RawQuery = q.Encode()
 
 		svc.EXPECT().
-			DeleteStreams(gomock.Any(), influxdb.BasicStream{
+			DeleteStreams(gomock.Any(), *orgID, influxdb.BasicStream{
 				Names: []string{"stream1", "stream2"},
 			}).
 			Return(nil)
@@ -141,7 +142,7 @@ func TestStreamsRouter(t *testing.T) {
 	})
 
 	t.Run("invalid org ids return 400 when required", func(t *testing.T) {
-		methods := []string{"GET"}
+		methods := []string{"GET", "PUT", "DELETE"}
 
 		for _, m := range methods {
 			t.Run(m, func(t *testing.T) {

@@ -28,13 +28,19 @@ func (h *AnnotationHandler) streamsRouter() http.Handler {
 func (h *AnnotationHandler) handleCreateOrUpdateStream(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	o, err := platform.IDFromString(r.URL.Query().Get("orgID"))
+	if err != nil {
+		h.api.Err(w, r, errBadOrg)
+		return
+	}
+
 	u, err := decodeCreateOrUpdateStreamRequest(r)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
-	s, err := h.annotationService.CreateOrUpdateStream(ctx, *u)
+	s, err := h.annotationService.CreateOrUpdateStream(ctx, *o, *u)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -71,6 +77,12 @@ func (h *AnnotationHandler) handleGetStreams(w http.ResponseWriter, r *http.Requ
 func (h *AnnotationHandler) handleDeleteStreams(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	o, err := platform.IDFromString(r.URL.Query().Get("orgID"))
+	if err != nil {
+		h.api.Err(w, r, errBadOrg)
+		return
+	}
+
 	f, err := decodeDeleteStreamsRequest(r)
 	if err != nil {
 		h.api.Err(w, r, err)
@@ -79,7 +91,7 @@ func (h *AnnotationHandler) handleDeleteStreams(w http.ResponseWriter, r *http.R
 
 	// delete all of the streams according to the filter. annotations associated with the stream
 	// will be deleted by the ON DELETE CASCADE relationship between streams and annotations.
-	if err = h.annotationService.DeleteStreams(ctx, *f); err != nil {
+	if err = h.annotationService.DeleteStreams(ctx, *o, *f); err != nil {
 		h.api.Err(w, r, err)
 		return
 	}

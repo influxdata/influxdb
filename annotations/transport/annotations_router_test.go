@@ -16,6 +16,8 @@ var (
 	testCreateAnnotation = influxdb.AnnotationCreate{
 		StreamTag: "sometag",
 		Summary:   "testing the api",
+		Message:   "stored annotation message",
+		Stickers:  map[string]string{"val1": "sticker1", "val2": "sticker2"},
 		EndTime:   &now,
 		StartTime: &now,
 	}
@@ -31,6 +33,18 @@ var (
 
 	testReadAnnotation2 = influxdb.ReadAnnotation{
 		ID: *influxdbtesting.IDPtr(2),
+	}
+
+	testStoredAnnotation = influxdb.StoredAnnotation{
+		ID:        *id,
+		OrgID:     *orgID,
+		StreamID:  *influxdbtesting.IDPtr(3),
+		StreamTag: "sometag",
+		Summary:   "testing the api",
+		Message:   "stored annotation message",
+		Stickers:  []string{"val1=sticker1", "val2=sticker2"},
+		Lower:     now.Format(time.RFC3339),
+		Upper:     now.Format(time.RFC3339),
 	}
 )
 
@@ -143,7 +157,7 @@ func TestAnnotationRouter(t *testing.T) {
 
 		svc.EXPECT().
 			GetAnnotation(gomock.Any(), *id).
-			Return(&testEvent, nil)
+			Return(&testStoredAnnotation, nil)
 
 		res := doTestRequest(t, req, http.StatusOK, true)
 
@@ -215,4 +229,12 @@ func TestAnnotationRouter(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestStoredAnnotationToEvent(t *testing.T) {
+	t.Parallel()
+
+	got, err := storedAnnotationToEvent(&testStoredAnnotation)
+	require.NoError(t, err)
+	require.Equal(t, got, &testEvent)
 }
