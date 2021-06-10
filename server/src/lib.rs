@@ -1657,7 +1657,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cannot_create_db_until_dbs_are_loaded() {
+    async fn cannot_create_db_until_server_is_initialized() {
         let temp_dir = TempDir::new().unwrap();
 
         let store = ObjectStore::new_file(object_store::disk::File::new(temp_dir.path()));
@@ -1687,7 +1687,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn background_worker_eventually_loads_dbs() {
+    async fn background_worker_eventually_inits_server() {
         let manager = TestConnectionManager::new();
         let server = Arc::new(Server::new(manager, config()));
 
