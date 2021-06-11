@@ -41,7 +41,7 @@ use parquet_file::{
 };
 use query::{exec::Executor, predicate::Predicate, Database};
 use rand_distr::{Distribution, Poisson};
-use read_buffer::{Chunk as ReadBufferChunk, ChunkMetrics as ReadBufferChunkMetrics};
+use read_buffer::{ChunkMetrics as ReadBufferChunkMetrics, RBChunk};
 use snafu::{ResultExt, Snafu};
 use std::{
     any::Any,
@@ -527,7 +527,7 @@ impl Db {
         let metrics = self
             .metrics_registry
             .register_domain_with_labels("read_buffer", self.metric_labels.clone());
-        let mut rb_chunk = ReadBufferChunk::new(ReadBufferChunkMetrics::new(
+        let mut rb_chunk = RBChunk::new(ReadBufferChunkMetrics::new(
             &metrics,
             self.preserved_catalog
                 .state()

@@ -6,8 +6,6 @@ use observability_deps::tracing::{info, warn};
 
 use data_types::{database_rules::LifecycleRules, error::ErrorLogger, job::Job};
 
-use tracker::{RwLock, TaskTracker};
-
 use super::{
     catalog::chunk::{Chunk, ChunkStage, ChunkStageFrozenRepr},
     Db,
@@ -16,6 +14,7 @@ use data_types::database_rules::SortOrder;
 use futures::future::BoxFuture;
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
+use tracker::{RwLock, TaskTracker};
 
 pub const DEFAULT_LIFECYCLE_BACKOFF: Duration = Duration::from_secs(1);
 /// Number of seconds to wait before retying a failed lifecycle action
@@ -392,6 +391,7 @@ mod tests {
     use data_types::partition_metadata::TableSummary;
     use entry::test_helpers::lp_to_entry;
     use object_store::{memory::InMemory, parsed_path, ObjectStore};
+    use read_buffer::RBChunk;
     use std::num::{NonZeroU32, NonZeroUsize};
     use tracker::{TaskRegistration, TaskRegistry};
 
@@ -429,7 +429,7 @@ mod tests {
     }
 
     /// Transitions a new ("open") chunk into the "moved" state.
-    fn transition_to_moved(mut chunk: Chunk, rb: &Arc<read_buffer::Chunk>) -> Chunk {
+    fn transition_to_moved(mut chunk: Chunk, rb: &Arc<RBChunk>) -> Chunk {
         chunk = transition_to_moving(chunk);
         chunk.set_moved(Arc::clone(&rb)).unwrap();
         chunk
@@ -437,10 +437,7 @@ mod tests {
 
     /// Transitions a new ("open") chunk into the "writing to object store"
     /// state.
-    fn transition_to_writing_to_object_store(
-        mut chunk: Chunk,
-        rb: &Arc<read_buffer::Chunk>,
-    ) -> Chunk {
+    fn transition_to_writing_to_object_store(mut chunk: Chunk, rb: &Arc<RBChunk>) -> Chunk {
         chunk = transition_to_moved(chunk, rb);
         chunk
             .set_writing_to_object_store(&Default::default())
@@ -450,10 +447,7 @@ mod tests {
 
     /// Transitions a new ("open") chunk into the "written to object store"
     /// state.
-    fn transition_to_written_to_object_store(
-        mut chunk: Chunk,
-        rb: &Arc<read_buffer::Chunk>,
-    ) -> Chunk {
+    fn transition_to_written_to_object_store(mut chunk: Chunk, rb: &Arc<RBChunk>) -> Chunk {
         chunk = transition_to_writing_to_object_store(chunk, rb);
         let parquet_chunk = new_parquet_chunk(&chunk);
         chunk
@@ -783,9 +777,7 @@ mod tests {
             ..Default::default()
         };
 
-        let rb = Arc::new(read_buffer::Chunk::new(
-            read_buffer::ChunkMetrics::new_unregistered(),
-        ));
+        let rb = Arc::new(RBChunk::new(read_buffer::ChunkMetrics::new_unregistered()));
 
         let chunks = vec![new_chunk(0, Some(0), Some(0))];
 
@@ -826,9 +818,7 @@ mod tests {
             ..Default::default()
         };
 
-        let rb = Arc::new(read_buffer::Chunk::new(
-            read_buffer::ChunkMetrics::new_unregistered(),
-        ));
+        let rb = Arc::new(RBChunk::new(read_buffer::ChunkMetrics::new_unregistered()));
 
         let chunks = vec![new_chunk(0, Some(0), Some(0))];
 
@@ -879,9 +869,7 @@ mod tests {
             ..Default::default()
         };
 
-        let rb = Arc::new(read_buffer::Chunk::new(
-            read_buffer::ChunkMetrics::new_unregistered(),
-        ));
+        let rb = Arc::new(RBChunk::new(read_buffer::ChunkMetrics::new_unregistered()));
 
         let chunks = vec![
             // still moving => cannot write

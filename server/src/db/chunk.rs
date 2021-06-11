@@ -21,7 +21,7 @@ use query::{
     pruning::Prunable,
     PartitionChunk,
 };
-use read_buffer::Chunk as ReadBufferChunk;
+use read_buffer::RBChunk;
 
 use super::{
     catalog::chunk::ChunkMetadata, pred::to_read_buffer_predicate, streams::ReadFilterResultsStream,
@@ -94,7 +94,7 @@ enum State {
         chunk: Arc<ChunkSnapshot>,
     },
     ReadBuffer {
-        chunk: Arc<ReadBufferChunk>,
+        chunk: Arc<RBChunk>,
         partition_key: Arc<str>,
     },
     ParquetFile {
