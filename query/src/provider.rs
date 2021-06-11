@@ -351,7 +351,6 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         // find overlapped chunks and put them into the right group
         self.split_overlapped_chunks(chunks.to_vec())?;
 
-        // TODO: remove this parameter when #1682 and #1683 are done
         // TEMP until the rest of this module's code is complete:
         // merge all plans into the same
         if !for_testing {
@@ -1034,8 +1033,7 @@ mod test {
             true,
         );
         let batch = collect(plan.unwrap()).await.unwrap();
-        // 2 overlapped chunks will be sort merged and dupplicates removed
-        // Data must be sorted and duplicates removed
+        // Two overlapped chunks will be sort merged with dupplicates removed
         // TODO: it is just sorted for now. When https://github.com/influxdata/influxdb_iox/issues/1646
         //   is done, duplicates will be removed
         let expected = vec![

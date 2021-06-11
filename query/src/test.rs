@@ -235,7 +235,7 @@ impl TestChunk {
         new_self
     }
 
-    /// Register a timetamp column with the test chunk
+    /// Register a timestamp column with the test chunk
     pub fn with_time_column(self, table_name: impl Into<String>) -> Self {
         let table_name = table_name.into();
 
@@ -246,7 +246,7 @@ impl TestChunk {
         self.add_schema_to_table(table_name, new_column_schema)
     }
 
-    /// Register a timetamp column with the test chunk
+    /// Register a timestamp column with the test chunk
     pub fn with_time_column_with_stats(
         self,
         table_name: impl Into<String>,
@@ -462,7 +462,7 @@ impl TestChunk {
         self
     }
 
-    /// Prepares this chunk to return a specific record batch with three
+    /// Prepares this chunk to return a specific record batch with four
     /// rows of non null data that look like, duplicates within
     ///   "+------+------+-----------+-------------------------------+",
     ///   "| tag1 | tag2 | field_int | time                          |",
