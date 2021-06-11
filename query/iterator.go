@@ -51,17 +51,14 @@ func (a Iterators) Stats() IteratorStats {
 // unhappy.
 func (a Iterators) Close() (err error) {
 	err = nil
-	if a != nil {
-		for _, itr := range a {
-			if itr != nil {
-				if e := itr.Close(); e != nil && err == nil {
-					err = e
-				}
+	for _, itr := range a {
+		if itr != nil {
+			if e := itr.Close(); e != nil && err == nil {
+				err = e
 			}
 		}
-		return err
 	}
-	return nil
+	return err
 }
 
 // filterNonNil returns a slice of iterators that removes all nil iterators.
