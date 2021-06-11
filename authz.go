@@ -212,7 +212,7 @@ func (t ResourceType) Valid() (err error) {
 	case ChecksResourceType: // 16
 	case DBRPResourceType: // 17
 	case NotebooksResourceType: // 18
-	case AnnotationsResourceType: // 18
+	case AnnotationsResourceType: // 19
 	default:
 		err = ErrInvalidResourceType
 	}
