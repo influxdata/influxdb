@@ -45,7 +45,7 @@ fn benchmark_catalog_persistence(c: &mut Criterion) {
                 let table_name = "cpu";
                 let chunk_id = 0;
                 assert!(db
-                    .table_summary(partition_key, table_name, chunk_id)
+                    .table_summary(table_name, partition_key, chunk_id)
                     .is_some());
             },
             BatchSize::SmallInput,
@@ -70,23 +70,23 @@ async fn setup(object_store: Arc<ObjectStore>, done: &Mutex<bool>) {
         let table_names = write_lp(&db, &lp);
 
         for table_name in &table_names {
-            db.rollover_partition(partition_key, &table_name)
+            db.rollover_partition(&table_name, partition_key)
                 .await
                 .unwrap();
 
-            db.load_chunk_to_read_buffer(partition_key, &table_name, chunk_id, &Default::default())
+            db.load_chunk_to_read_buffer(&table_name, partition_key, chunk_id, &Default::default())
                 .await
                 .unwrap();
             db.write_chunk_to_object_store(
-                partition_key,
                 &table_name,
+                partition_key,
                 chunk_id,
                 &Default::default(),
             )
             .await
             .unwrap();
 
-            db.unload_read_buffer(partition_key, &table_name, chunk_id)
+            db.unload_read_buffer(&table_name, partition_key, chunk_id)
                 .await
                 .unwrap();
         }
