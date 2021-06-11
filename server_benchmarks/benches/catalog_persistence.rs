@@ -1,15 +1,21 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, SamplingMode};
 use object_store::{memory::InMemory, throttle::ThrottledStore, ObjectStore};
 use server::{db::test_helpers::write_lp, utils::TestDb};
-use std::{sync::Arc, time::Duration};
+use std::{convert::TryFrom, num::NonZeroU64, sync::Arc, time::Duration};
 use tokio::{
     runtime::{Handle, Runtime},
     sync::Mutex,
     task::block_in_place,
 };
 
+/// Checkpoint interval for preserved catalog.
+const CHECKPOINT_INTERVAL: u64 = 10;
+
 /// Number of chunks simulated for persistence.
-const N_CHUNKS: u32 = 100;
+///
+/// Ideally this value is NOT divisible by [`CHECKPOINT_INTERVAL`], so that there are some transactions after the last
+/// checkpoint.
+const N_CHUNKS: u32 = 109;
 
 /// Number of tags for the test table.
 const N_TAGS: usize = 10;
@@ -98,7 +104,11 @@ async fn setup(object_store: Arc<ObjectStore>, done: &Mutex<bool>) {
 /// Create a persisted database and load its catalog.
 #[inline(never)]
 async fn create_persisted_db(object_store: Arc<ObjectStore>) -> TestDb {
-    TestDb::builder().object_store(object_store).build().await
+    TestDb::builder()
+        .object_store(object_store)
+        .catalog_checkpoint_interval(NonZeroU64::try_from(CHECKPOINT_INTERVAL).unwrap())
+        .build()
+        .await
 }
 
 /// Create line protocol for a single entry with `n_tags` tags and `n_fields` fields.
