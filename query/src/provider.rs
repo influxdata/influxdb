@@ -246,7 +246,7 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
             scan_schema,
             chunks,
             predicate,
-            false
+            false,
         )?;
 
         Ok(plan)
@@ -354,7 +354,7 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         // TODO: remove this parameter when #1682 and #1683 are done
         // TEMP until the rest of this module's code is complete:
         // merge all plans into the same
-        if for_testing {
+        if !for_testing {
             self.no_duplicates_chunks
                 .append(&mut self.in_chunk_duplicates_chunks);
             for mut group in &mut self.overlapped_chunks_set {
@@ -440,7 +440,7 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         Ok(())
     }
 
-    /// Return true if all chunks are neither overlap nor has duplicates in itself
+    /// Return true if all chunks neither overlap nor have duplicates in itself
     fn no_duplicates(&self) -> bool {
         self.overlapped_chunks_set.is_empty() && self.in_chunk_duplicates_chunks.is_empty()
     }
@@ -939,7 +939,7 @@ mod test {
             schema,
             vec![Arc::clone(&chunk)],
             Predicate::default(),
-            true
+            true,
         );
         let batch = collect(plan.unwrap()).await.unwrap();
         // No duplicates so no sort at all. The data will stay in their original order
@@ -978,7 +978,7 @@ mod test {
             schema,
             vec![Arc::clone(&chunk)],
             Predicate::default(),
-            true
+            true,
         );
         let batch = collect(plan.unwrap()).await.unwrap();
         // Data must be sorted and duplicates removed
@@ -1031,7 +1031,7 @@ mod test {
             schema,
             vec![Arc::clone(&chunk1), Arc::clone(&chunk2)],
             Predicate::default(),
-            true
+            true,
         );
         let batch = collect(plan.unwrap()).await.unwrap();
         // 2 overlapped chunks will be sort merged and dupplicates removed
@@ -1115,14 +1115,14 @@ mod test {
                 Arc::clone(&chunk4),
             ],
             Predicate::default(),
-            true
+            true,
         );
         let batch = collect(plan.unwrap()).await.unwrap();
         // Final data will be partially sorted and duplicates removed. Detailed:
         //   . chunk1 and chunk2 will be sorted merged and deduplicated (rows 8-32)
         //   . chunk3 will stay in its original (rows 1-3)
         //   . chunk4 will be sorted and deduplicated (rows 4-7)
-        // TODO: data is only partially sorted for now. The deduplicated will happen when When https://github.com/influxdata/influxdb_iox/issues/1646
+        // TODO: data is only partially sorted for now. The deduplication will happen when When https://github.com/influxdata/influxdb_iox/issues/1646
         //   is done
         let expected = vec![
             "+-----------+------+-------------------------------+",
