@@ -326,8 +326,8 @@ impl ChunkMover for LifecycleManager {
 
     fn write_to_object_store(
         &mut self,
-        partition_key: String,
         table_name: String,
+        partition_key: String,
         chunk_id: u32,
     ) -> TaskTracker<Self::Job> {
         info!(%partition_key, %chunk_id, "write chunk to object store");
@@ -338,7 +338,7 @@ impl ChunkMover for LifecycleManager {
         tracker
     }
 
-    fn drop_chunk(&mut self, partition_key: String, table_name: String, chunk_id: u32) {
+    fn drop_chunk(&mut self, table_name: String, partition_key: String, chunk_id: u32) {
         info!(%partition_key, %chunk_id, "dropping chunk");
         let _ = self
             .db
