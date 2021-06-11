@@ -10,6 +10,15 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
+type tableInfo struct {
+	Cid        int         `db:"cid"`
+	Name       string      `db:"name"`
+	Db_type    string      `db:"type"`
+	Notnull    int         `db:"notnull"`
+	Dflt_value interface{} `db:"dflt_value"`
+	Pk         int         `db:"pk"`
+}
+
 func TestUp(t *testing.T) {
 	t.Parallel()
 
@@ -23,12 +32,26 @@ func TestUp(t *testing.T) {
 	require.Equal(t, 0, v)
 
 	migrator := NewMigrator(store, zaptest.NewLogger(t))
-	migrator.Up(ctx, &test_migrations.All{})
+	migrator.Up(ctx, test_migrations.All)
 
 	// user_version should now be 3 after applying the migrations
 	v, err = store.userVersion()
 	require.NoError(t, err)
 	require.Equal(t, 3, v)
+
+	// make sure that test_table_1 had the "id" column renamed to "org_id"
+	table1Info := []*tableInfo{}
+	err = store.DB.Select(&table1Info, "PRAGMA table_info(test_table_1)")
+	require.NoError(t, err)
+	require.Len(t, table1Info, 3)
+	require.Equal(t, "org_id", table1Info[0].Name)
+
+	// make sure that test_table_2 was created correctly
+	table2Info := []*tableInfo{}
+	err = store.DB.Select(&table2Info, "PRAGMA table_info(test_table_2)")
+	require.NoError(t, err)
+	require.Len(t, table2Info, 3)
+	require.Equal(t, "user_id", table2Info[0].Name)
 }
 
 func TestScriptVersion(t *testing.T) {

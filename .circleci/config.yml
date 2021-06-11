@@ -107,6 +107,16 @@ commands:
             ./scripts/ci/install-rust.sh
             echo 'export PATH=${HOME}/.cargo/bin:${PATH}' >> $BASH_ENV
 
+  upgrade_go:
+    steps:
+      - run:
+          name: Upgrade Go
+          command: |
+            mkdir -p ${HOME}/.tools
+            wget https://golang.org/dl/go1.16.5.linux-amd64.tar.gz
+            tar -C ${HOME}/.tools -xzf go1.16.5.linux-amd64.tar.gz
+            echo 'export PATH=${HOME}/.tools/go/bin:${PATH}' >> $BASH_ENV
+
   # Install dependencies for cross building binaries with goreleaser. Does not include Docker cross-builder.
   install_cross_bin_deps:
     steps:
@@ -465,6 +475,7 @@ jobs:
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - install_core_deps
+      - upgrade_go
       - run_goreleaser:
           publish_release: false
       - run:
@@ -496,6 +507,7 @@ jobs:
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - install_core_deps
+      - upgrade_go
       - run_goreleaser:
           publish_release: true
       - persist_to_workspace:

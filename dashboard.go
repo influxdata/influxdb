@@ -1186,7 +1186,7 @@ type ViewColor struct {
 type StaticLegend struct {
 	ColorizeRows         bool    `json:"colorizeRows,omitempty"`
 	HeightRatio          float64 `json:"heightRatio,omitempty"`
-	Hide                 bool    `json:"hide,omitempty"`
+	Show                 bool    `json:"show,omitempty"`
 	Opacity              float64 `json:"opacity,omitempty"`
 	OrientationThreshold int     `json:"orientationThreshold,omitempty"`
 	ValueAxis            string  `json:"valueAxis,omitempty"`

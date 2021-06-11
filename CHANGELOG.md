@@ -30,6 +30,8 @@ This release adds an embedded SQLite database for storing metadata required by t
 ### Bug Fixes
 
 1. [21610](https://github.com/influxdata/influxdb/pull/21610): Avoid rewriting `fields.idx` unnecessarily.
+1. [21648](https://github.com/influxdata/influxdb/pull/21648): Change static legend's `hide` to `show` to let users decide if they want it.
+1. [21662](https://github.com/influxdata/influxdb/pull/21662): Do not close connection twice in DigestWithOptions
 
 ## v2.0.7 [2021-06-04]
 
