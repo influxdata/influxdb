@@ -551,7 +551,7 @@ mod tests {
 
         // step 1: read back schema
         let schema_actual = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
-        let schema_expected = chunk.table_schema(Selection::All).unwrap();
+        let schema_expected = chunk.schema(Selection::All).unwrap();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: read back statistics
@@ -574,7 +574,7 @@ mod tests {
 
         // step 1: read back schema
         let schema_actual = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
-        let schema_expected = chunk.table_schema(Selection::All).unwrap();
+        let schema_expected = chunk.schema(Selection::All).unwrap();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: read back statistics
@@ -595,7 +595,7 @@ mod tests {
 
         // step 1: read back schema
         let schema_actual = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
-        let schema_expected = chunk.table_schema(Selection::All).unwrap();
+        let schema_expected = chunk.schema(Selection::All).unwrap();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: reading back statistics fails
@@ -618,7 +618,7 @@ mod tests {
 
         // step 1: read back schema
         let schema_actual = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
-        let schema_expected = chunk.table_schema(Selection::All).unwrap();
+        let schema_expected = chunk.schema(Selection::All).unwrap();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: reading back statistics fails

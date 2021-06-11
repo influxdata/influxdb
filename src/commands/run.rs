@@ -245,6 +245,32 @@ pub struct Config {
     )]
     pub traces_exporter_jaeger_agent_port: NonZeroU16,
 
+    /// Tracing: Jaeger service name.
+    ///
+    /// Only used if `--traces-exporter` is "jaeger".
+    #[structopt(
+        long = "--traces-exporter-jaeger-service-name",
+        env = "TRACES_EXPORTER_JAEGER_SERVICE_NAME",
+        default_value = "iox"
+    )]
+    pub traces_exporter_jaeger_service_name: String,
+
+    /// Tracing: Jaeger max UDP packet size
+    ///
+    /// Default to 1300, which is a safe MTU.
+    ///
+    /// You can increase it to 65000 if the target is a jaeger collector
+    /// on localhost. If so, the batching exporter will be enabled for
+    /// extra efficiency. Otherwise an UDP packet will be sent for each exported span.
+    ///
+    /// Only used if `--traces-exporter` is "jaeger".
+    #[structopt(
+        long = "--traces-exporter-jaeger-max-packet-size",
+        env = "TRACES_EXPORTER_JAEGER_MAX_PACKET_SIZE",
+        default_value = "1300"
+    )]
+    pub traces_exporter_jaeger_max_packet_size: usize,
+
     /// The identifier for the server.
     ///
     /// Used for writing to object storage and as an identifier that is added to

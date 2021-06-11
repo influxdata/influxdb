@@ -1461,7 +1461,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 759;
+        let expected_parquet_size = 647;
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1616).unwrap();
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(
@@ -1817,7 +1817,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2375.0)
+            .sample_sum_eq(2263.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1925,7 +1925,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2375.0)
+            .sample_sum_eq(2263.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -1953,7 +1953,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(759.0)
+            .sample_sum_eq(647.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -2342,7 +2342,7 @@ mod tests {
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
-                2373, // size of RB and OS chunks
+                2261, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2402,7 +2402,7 @@ mod tests {
                 .memory()
                 .parquet()
                 .get_total(),
-            759
+            647
         );
     }
 
@@ -2864,7 +2864,7 @@ mod tests {
             let chunk = db.chunk(table_name, partition_key, *chunk_id).unwrap();
             let chunk = chunk.read();
             if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
-                paths_expected.push(parquet.table_path().display());
+                paths_expected.push(parquet.path().display());
             } else {
                 panic!("Wrong chunk state.");
             }
@@ -2944,7 +2944,7 @@ mod tests {
             let chunk = db.chunk(&table_name, &partition_key, chunk_id).unwrap();
             let chunk = chunk.read();
             if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
-                paths_keep.push(parquet.table_path());
+                paths_keep.push(parquet.path());
             } else {
                 panic!("Wrong chunk state.");
             }

@@ -160,13 +160,25 @@ fn construct_opentelemetry_tracer(config: &crate::commands::run::Config) -> Opti
                 config.traces_exporter_jaeger_agent_port
             );
             opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
-            Some(
-                opentelemetry_jaeger::new_pipeline()
+            Some({
+                let builder = opentelemetry_jaeger::new_pipeline()
                     .with_trace_config(trace_config)
                     .with_agent_endpoint(agent_endpoint)
-                    .install_batch(opentelemetry::runtime::Tokio)
-                    .unwrap(),
-            )
+                    .with_service_name(&config.traces_exporter_jaeger_service_name)
+                    .with_max_packet_size(config.traces_exporter_jaeger_max_packet_size);
+
+                // Batching is hard to tune because the max batch size
+                // is not currently exposed as a tunable from the trace config, and even then
+                // it's defined in terms of max number of spans, and not their size in bytes.
+                // Thus we enable batching only when the MTU size is 65000 which is the value suggested
+                // by jaeger when exporting to localhost.
+                if config.traces_exporter_jaeger_max_packet_size >= 65_000 {
+                    builder.install_batch(opentelemetry::runtime::Tokio)
+                } else {
+                    builder.install_simple()
+                }
+                .unwrap()
+            })
         }
 
         TracesExporter::Otlp => {

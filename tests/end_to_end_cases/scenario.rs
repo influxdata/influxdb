@@ -316,6 +316,43 @@ pub async fn create_readable_database(
         .expect("create database failed");
 }
 
+/// given a channel to talk with the management api, create a new
+/// database with the specified name that will aggressively try and
+/// persist all data quickly
+pub async fn create_quickly_persisting_database(
+    db_name: impl Into<String>,
+    channel: tonic::transport::Channel,
+) {
+    let db_name = db_name.into();
+
+    let mut management_client = influxdb_iox_client::management::Client::new(channel);
+    let rules = DatabaseRules {
+        name: db_name.clone(),
+        partition_template: Some(PartitionTemplate {
+            parts: vec![partition_template::Part {
+                part: Some(partition_template::part::Part::Time(
+                    "%Y-%m-%d %H:00:00".into(),
+                )),
+            }],
+        }),
+        lifecycle_rules: Some(LifecycleRules {
+            mutable_linger_seconds: 1,
+            mutable_size_threshold: 100,
+            buffer_size_soft: 1024 * 1024,
+            buffer_size_hard: 1024 * 1024,
+            persist: true,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    management_client
+        .create_database(rules.clone())
+        .await
+        .expect("create database failed");
+    println!("Created quickly persisting database {}", db_name);
+}
+
 /// given a channel to talk with the managment api, create a new
 /// database with no mutable buffer configured, no partitioning rules
 pub async fn create_unreadable_database(
