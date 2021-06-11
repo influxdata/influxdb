@@ -1,7 +1,11 @@
+use parquet::file::metadata::ParquetMetaData;
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, sync::Arc};
 
-use crate::storage::Storage;
+use crate::{
+    metadata::{read_schema_from_parquet_metadata, read_statistics_from_parquet_metadata},
+    storage::Storage,
+};
 use data_types::{
     partition_metadata::{Statistics, TableSummary},
     timestamp::TimestampRange,
@@ -28,6 +32,24 @@ pub enum Error {
     #[snafu(display("Failed to select columns: {}", source))]
     SelectColumns {
         source: internal_types::schema::Error,
+    },
+
+    #[snafu(
+        display("Cannot read schema from {:?}: {}", path, source),
+        visibility(pub)
+    )]
+    SchemaReadFailed {
+        source: crate::metadata::Error,
+        path: Path,
+    },
+
+    #[snafu(
+        display("Cannot read statistics from {:?}: {}", path, source),
+        visibility(pub)
+    )]
+    StatisticsReadFailed {
+        source: crate::metadata::Error,
+        path: Path,
     },
 }
 
@@ -78,27 +100,64 @@ pub struct Chunk {
     /// id>/<tablename>.parquet
     object_store_path: Path,
 
+    /// Parquet metadata that can be used checkpoint the catalog state.
+    parquet_metadata: Arc<ParquetMetaData>,
+
     metrics: ChunkMetrics,
 }
 
 impl Chunk {
+    /// Creates new chunk from given parquet metadata.
     pub fn new(
         part_key: impl Into<String>,
-        table_summary: TableSummary,
         file_location: Path,
         store: Arc<ObjectStore>,
-        schema: Schema,
+        parquet_metadata: Arc<ParquetMetaData>,
+        table_name: &str,
+        metrics: ChunkMetrics,
+    ) -> Result<Self> {
+        let schema =
+            read_schema_from_parquet_metadata(&parquet_metadata).context(SchemaReadFailed {
+                path: file_location.clone(),
+            })?;
+        let table_summary =
+            read_statistics_from_parquet_metadata(&parquet_metadata, &schema, table_name).context(
+                StatisticsReadFailed {
+                    path: file_location.clone(),
+                },
+            )?;
+
+        Ok(Self::new_from_parts(
+            part_key,
+            Arc::new(table_summary),
+            Arc::new(schema),
+            file_location,
+            store,
+            parquet_metadata,
+            metrics,
+        ))
+    }
+
+    /// Creates a new chunk from given parts w/o parsing anything from the provided parquet metadata.
+    pub(crate) fn new_from_parts(
+        part_key: impl Into<String>,
+        table_summary: Arc<TableSummary>,
+        schema: Arc<Schema>,
+        file_location: Path,
+        store: Arc<ObjectStore>,
+        parquet_metadata: Arc<ParquetMetaData>,
         metrics: ChunkMetrics,
     ) -> Self {
         let timestamp_range = extract_range(&table_summary);
 
         let mut chunk = Self {
             partition_key: part_key.into(),
-            table_summary: Arc::new(table_summary),
-            schema: Arc::new(schema),
+            table_summary,
+            schema,
             timestamp_range,
             object_store: store,
             object_store_path: file_location,
+            parquet_metadata,
             metrics,
         };
 
@@ -134,6 +193,7 @@ impl Chunk {
             + self.table_summary.size()
             + mem::size_of_val(&self.schema.as_ref())
             + mem::size_of_val(&self.object_store_path)
+            + mem::size_of_val(&self.parquet_metadata)
     }
 
     /// Return possibly restricted Schema for this chunk
@@ -201,6 +261,11 @@ impl Chunk {
     pub fn rows(&self) -> usize {
         // All columns have the same rows, so return get row count of the first column
         self.table_summary.columns[0].count() as usize
+    }
+
+    /// Parquet metadata from the underlying file.
+    pub fn parquet_metadata(&self) -> Arc<ParquetMetaData> {
+        Arc::clone(&self.parquet_metadata)
     }
 }
 

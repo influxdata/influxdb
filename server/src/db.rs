@@ -30,13 +30,12 @@ use mutable_buffer::chunk::{
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
+use parquet_file::catalog::ChunkCreationFailed;
 use parquet_file::{
     catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
     chunk::{Chunk as ParquetChunk, ChunkMetrics as ParquetChunkMetrics},
     cleanup::cleanup_unreferenced_parquet_files,
-    metadata::{
-        read_schema_from_parquet_metadata, read_statistics_from_parquet_metadata, IoxMetadata,
-    },
+    metadata::IoxMetadata,
     storage::Storage,
 };
 use query::{exec::Executor, predicate::Predicate, Database};
@@ -1101,9 +1100,7 @@ impl CatalogState for Catalog {
         db_name: &str,
         info: CatalogParquetInfo,
     ) -> parquet_file::catalog::Result<()> {
-        use parquet_file::catalog::{
-            CatalogStateFailure, PathParseFailed, SchemaReadFailed, StatisticsReadFailed,
-        };
+        use parquet_file::catalog::{CatalogStateFailure, PathParseFailed};
 
         // extract all relevant bits for the in-memory catalog
         let storage = Storage::new(Arc::clone(&object_store), server_id, db_name.to_string());
@@ -1113,16 +1110,6 @@ impl CatalogState for Catalog {
             .context(PathParseFailed {
                 path: info.path.clone(),
             })?;
-        let schema =
-            read_schema_from_parquet_metadata(&info.metadata).context(SchemaReadFailed {
-                path: info.path.clone(),
-            })?;
-        let table_summary =
-            read_statistics_from_parquet_metadata(&info.metadata, &schema, &table_name).context(
-                StatisticsReadFailed {
-                    path: info.path.clone(),
-                },
-            )?;
 
         // Create a parquet chunk for this chunk
         let metrics = self
@@ -1132,12 +1119,15 @@ impl CatalogState for Catalog {
         let metrics = ParquetChunkMetrics::new(&metrics, self.metrics().memory().parquet());
         let parquet_chunk = ParquetChunk::new(
             &partition_key,
-            table_summary,
             object_store.path_from_dirs_and_filename(info.path.clone()),
             object_store,
-            schema,
+            info.metadata,
+            &table_name,
             metrics,
-        );
+        )
+        .context(ChunkCreationFailed {
+            path: info.path.clone(),
+        })?;
         let parquet_chunk = Arc::new(parquet_chunk);
 
         // Get partition from the catalog
@@ -1461,7 +1451,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 647;
+        let expected_parquet_size = 663;
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1616).unwrap();
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(
@@ -1817,7 +1807,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2263.0)
+            .sample_sum_eq(2279.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1925,7 +1915,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2263.0)
+            .sample_sum_eq(2279.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -1953,7 +1943,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(647.0)
+            .sample_sum_eq(663.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -2342,7 +2332,7 @@ mod tests {
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
-                2261, // size of RB and OS chunks
+                2277, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2402,7 +2392,7 @@ mod tests {
                 .memory()
                 .parquet()
                 .get_total(),
-            647
+            663
         );
     }
 

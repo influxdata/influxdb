@@ -142,20 +142,11 @@ pub enum Error {
     },
 
     #[snafu(
-        display("Cannot read schema from {:?}: {}", path, source),
+        display("Cannot create parquet chunk from {:?}: {}", path, source),
         visibility(pub)
     )]
-    SchemaReadFailed {
-        source: crate::metadata::Error,
-        path: DirsAndFileName,
-    },
-
-    #[snafu(
-        display("Cannot read statistics from {:?}: {}", path, source),
-        visibility(pub)
-    )]
-    StatisticsReadFailed {
-        source: crate::metadata::Error,
+    ChunkCreationFailed {
+        source: crate::chunk::Error,
         path: DirsAndFileName,
     },
 

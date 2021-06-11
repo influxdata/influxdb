@@ -146,7 +146,7 @@ pub async fn make_chunk_given_record_batch(
         transaction_revision_counter: 0,
         transaction_uuid: Uuid::nil(),
     };
-    let (path, _metadata) = storage
+    let (path, parquet_metadata) = storage
         .write_to_object_store(
             part_key.to_string(),
             chunk_id,
@@ -157,12 +157,13 @@ pub async fn make_chunk_given_record_batch(
         .await
         .unwrap();
 
-    Chunk::new(
+    Chunk::new_from_parts(
         part_key,
-        table_summary,
+        Arc::new(table_summary),
+        Arc::new(schema),
         path,
         Arc::clone(&store),
-        schema,
+        Arc::new(parquet_metadata),
         ChunkMetrics::new_unregistered(),
     )
 }
