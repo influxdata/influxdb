@@ -43,9 +43,23 @@ func (a Iterators) Stats() IteratorStats {
 }
 
 // Close closes all iterators.
-func (a Iterators) Close() error {
-	for _, itr := range a {
-		itr.Close()
+// We are seeing an occasional panic in this function
+// which looks like a nil reference from one
+// itr.Close() call, thus we check for nil elements
+// in the slice a.  This is often called as error
+// clean-up, so the state of the iterators may be
+// unhappy.
+func (a Iterators) Close() (err error) {
+	err = nil
+	if a != nil {
+		for _, itr := range a {
+			if itr != nil {
+				if e := itr.Close(); e != nil && err == nil {
+					err = e
+				}
+			}
+		}
+		return err
 	}
 	return nil
 }
