@@ -1265,3 +1265,16 @@ async fn sql_deduplicate_4() {
     ];
     run_sql_explain_test_case!(OneMeasurementThreeChunksWithDuplicates {}, sql, &expected);
 }
+
+#[tokio::test]
+async fn sql_select_non_keys() {
+    let expected = vec![
+        "+------+", "| temp |", "+------+", "|      |", "|      |", "| 53.4 |", "| 70.4 |",
+        "+------+",
+    ];
+    run_sql_test_case!(
+        OneMeasurementTwoChunksDifferentTagSet {},
+        "SELECT temp from h2o",
+        &expected
+    );
+}

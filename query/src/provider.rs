@@ -240,6 +240,10 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
         // Figure out the schema of the requested output
         let scan_schema = project_schema(self.arrow_schema(), projection);
 
+        // This debug shows the self.arrow_schema() includes all columns in all chunks
+        // which means the schema of all chunks are merged before invoking this scan
+        debug!("all chunks schema: {:#?}", self.arrow_schema());
+
         let mut deduplicate = Deduplicater::new();
         let plan = deduplicate.build_scan_plan(
             Arc::clone(&self.table_name),

@@ -328,6 +328,45 @@ impl DbSetup for TwoMeasurementsManyFieldsTwoChunks {
 }
 
 #[derive(Debug)]
+/// This has two chunks with different tag/key sets for queries whose columns not include keys
+pub struct OneMeasurementTwoChunksDifferentTagSet {}
+#[async_trait]
+impl DbSetup for OneMeasurementTwoChunksDifferentTagSet {
+    async fn make(&self) -> Vec<DbScenario> {
+        let db = make_db().await.db;
+
+        let partition_key = "1970-01-01T00";
+
+        // tag: state
+        let lp_lines = vec![
+            "h2o,state=MA temp=70.4 50",
+            "h2o,state=MA other_temp=70.4 250",
+        ];
+        write_lp(&db, &lp_lines.join("\n"));
+        db.rollover_partition("h2o", partition_key).await.unwrap();
+        db.load_chunk_to_read_buffer("h2o", partition_key, 0, &Default::default())
+            .await
+            .unwrap();
+
+        // tag: city
+        let lp_lines = vec![
+            "h2o,city=Boston other_temp=72.4 350",
+            "h2o,city=Boston temp=53.4,reading=51 50",
+        ];
+        write_lp(&db, &lp_lines.join("\n"));
+        db.rollover_partition("h2o", partition_key).await.unwrap();
+        db.load_chunk_to_read_buffer("h2o", partition_key, 1, &Default::default())
+            .await
+            .unwrap();
+
+        vec![DbScenario {
+            scenario_name: "2 chunks in read buffer".into(),
+            db,
+        }]
+    }
+}
+
+#[derive(Debug)]
 /// Setup for four chunks with duplicates for deduplicate tests
 pub struct OneMeasurementThreeChunksWithDuplicates {}
 #[async_trait]
