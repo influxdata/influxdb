@@ -11,7 +11,7 @@ use internal_types::schema::Schema;
 use metrics::{Counter, Histogram, KeyValue};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, Chunk as MBChunk};
 use parquet_file::chunk::Chunk as ParquetChunk;
-use read_buffer::Chunk as ReadBufferChunk;
+use read_buffer::RBChunk;
 use tracker::{TaskRegistration, TaskTracker};
 
 #[derive(Debug, Snafu)]
@@ -121,7 +121,7 @@ pub enum ChunkStageFrozenRepr {
     MutableBufferSnapshot(Arc<MBChunkSnapshot>),
 
     /// Read Buffer that is optimized for in-memory data processing.
-    ReadBuffer(Arc<ReadBufferChunk>),
+    ReadBuffer(Arc<RBChunk>),
 }
 
 /// Represents the current lifecycle stage a chunk is in.
@@ -187,7 +187,7 @@ pub enum ChunkStage {
         parquet: Arc<ParquetChunk>,
 
         /// In-memory version of the parquet data.
-        read_buffer: Option<Arc<ReadBufferChunk>>,
+        read_buffer: Option<Arc<RBChunk>>,
     },
 }
 
@@ -612,7 +612,7 @@ impl Chunk {
     /// Set the chunk in the Moved state, setting the underlying
     /// storage handle to db, and discarding the underlying mutable buffer
     /// storage.
-    pub fn set_moved(&mut self, chunk: Arc<ReadBufferChunk>) -> Result<()> {
+    pub fn set_moved(&mut self, chunk: Arc<RBChunk>) -> Result<()> {
         match &mut self.stage {
             ChunkStage::Frozen { representation, .. } => match &representation {
                 ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
@@ -649,7 +649,7 @@ impl Chunk {
     pub fn set_writing_to_object_store(
         &mut self,
         registration: &TaskRegistration,
-    ) -> Result<Arc<ReadBufferChunk>> {
+    ) -> Result<Arc<RBChunk>> {
         match &self.stage {
             ChunkStage::Frozen { representation, .. } => {
                 match &representation {
@@ -737,7 +737,7 @@ impl Chunk {
         }
     }
 
-    pub fn set_unload_from_read_buffer(&mut self) -> Result<Arc<ReadBufferChunk>> {
+    pub fn set_unload_from_read_buffer(&mut self) -> Result<Arc<RBChunk>> {
         match &mut self.stage {
             ChunkStage::Persisted {
                 parquet,

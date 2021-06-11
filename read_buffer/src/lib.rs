@@ -9,7 +9,7 @@ mod table;
 mod value;
 
 // Identifiers that are exported as part of the public API.
-pub use chunk::{Chunk, ChunkMetrics, Error};
+pub use chunk::{Chunk as RBChunk, ChunkMetrics, Error};
 pub use row_group::{BinaryExpr, Predicate};
 pub use schema::*;
 pub use table::ReadFilterResults;
@@ -29,11 +29,11 @@ pub mod benchmarks {
         Column, RowIDs,
     };
     pub use crate::row_group::{ColumnType, RowGroup};
-    use crate::Chunk;
+    use crate::RBChunk;
 
     // Allow external benchmarks to use this crate-only test method
     pub fn upsert_table_with_row_group(
-        chunk: &mut Chunk,
+        chunk: &mut RBChunk,
         table_name: impl Into<String>,
         row_group: RowGroup,
     ) {
