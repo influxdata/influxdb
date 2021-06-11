@@ -28,13 +28,19 @@ func (h *AnnotationHandler) streamsRouter() http.Handler {
 func (h *AnnotationHandler) handleCreateOrUpdateStream(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	o, err := platform.IDFromString(r.URL.Query().Get("orgID"))
+	if err != nil {
+		h.api.Err(w, r, errBadOrg)
+		return
+	}
+
 	u, err := decodeCreateOrUpdateStreamRequest(r)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
-	s, err := h.annotationService.CreateOrUpdateStream(ctx, *u)
+	s, err := h.annotationService.CreateOrUpdateStream(ctx, *o, *u)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -58,18 +64,24 @@ func (h *AnnotationHandler) handleGetStreams(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	l, err := h.annotationService.ListStreams(ctx, *o, *f)
+	s, err := h.annotationService.ListStreams(ctx, *o, *f)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
-	h.api.Respond(w, r, http.StatusOK, l)
+	h.api.Respond(w, r, http.StatusOK, storedStreamsToReadStreams(s))
 }
 
 // Delete stream(s) by name, capable of handling a list of names
 func (h *AnnotationHandler) handleDeleteStreams(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	o, err := platform.IDFromString(r.URL.Query().Get("orgID"))
+	if err != nil {
+		h.api.Err(w, r, errBadOrg)
+		return
+	}
 
 	f, err := decodeDeleteStreamsRequest(r)
 	if err != nil {
@@ -79,7 +91,7 @@ func (h *AnnotationHandler) handleDeleteStreams(w http.ResponseWriter, r *http.R
 
 	// delete all of the streams according to the filter. annotations associated with the stream
 	// will be deleted by the ON DELETE CASCADE relationship between streams and annotations.
-	if err = h.annotationService.DeleteStreams(ctx, *f); err != nil {
+	if err = h.annotationService.DeleteStreams(ctx, *o, *f); err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
@@ -175,4 +187,20 @@ func decodeDeleteStreamsRequest(r *http.Request) (*influxdb.BasicStream, error) 
 	}
 
 	return f, nil
+}
+
+func storedStreamsToReadStreams(stored []influxdb.StoredStream) []influxdb.ReadStream {
+	r := make([]influxdb.ReadStream, 0, len(stored))
+
+	for _, s := range stored {
+		r = append(r, influxdb.ReadStream{
+			ID:          s.ID,
+			Name:        s.Name,
+			Description: s.Description,
+			CreatedAt:   s.CreatedAt,
+			UpdatedAt:   s.UpdatedAt,
+		})
+	}
+
+	return r
 }

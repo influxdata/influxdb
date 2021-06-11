@@ -61,7 +61,7 @@ func Test_GetNotebook(t *testing.T) {
 				GetNotebook(gomock.Any(), *nbID).
 				Return(newTestNotebook(*orgID1), nil)
 
-			perm := newTestPermission(influxdb.ReadAction, tt.permissionOrg)
+			perm := newTestNotebooksPermission(influxdb.ReadAction, tt.permissionOrg)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{perm}))
@@ -107,7 +107,7 @@ func Test_CreateNotebook(t *testing.T) {
 			svc := mock.NewMockNotebookService(ctrlr)
 			s := authorizer.NewNotebookService(svc)
 
-			perm := newTestPermission(influxdb.WriteAction, tt.permissionOrg)
+			perm := newTestNotebooksPermission(influxdb.WriteAction, tt.permissionOrg)
 			nb := newTestReqBody(*tt.notebookOrg)
 
 			if tt.wantErr == nil {
@@ -163,7 +163,7 @@ func Test_UpdateNotebook(t *testing.T) {
 				GetNotebook(gomock.Any(), *nbID).
 				Return(newTestNotebook(*tt.notebookOrg), nil)
 
-			perm := newTestPermission(influxdb.WriteAction, tt.permissionOrg)
+			perm := newTestNotebooksPermission(influxdb.WriteAction, tt.permissionOrg)
 			nb := newTestReqBody(*tt.notebookOrg)
 
 			if tt.wantErr == nil {
@@ -216,7 +216,7 @@ func Test_DeleteNotebook(t *testing.T) {
 				GetNotebook(gomock.Any(), *nbID).
 				Return(newTestNotebook(*tt.notebookOrg), nil)
 
-			perm := newTestPermission(influxdb.WriteAction, tt.permissionOrg)
+			perm := newTestNotebooksPermission(influxdb.WriteAction, tt.permissionOrg)
 
 			if tt.wantErr == nil {
 				svc.EXPECT().
@@ -266,7 +266,7 @@ func Test_ListNotebooks(t *testing.T) {
 			svc := mock.NewMockNotebookService(ctrlr)
 			s := authorizer.NewNotebookService(svc)
 
-			perm := newTestPermission(influxdb.ReadAction, tt.permissionOrg)
+			perm := newTestNotebooksPermission(influxdb.ReadAction, tt.permissionOrg)
 			filter := influxdb.NotebookListFilter{OrgID: *tt.notebookOrg}
 
 			if tt.wantErr == nil {
@@ -304,7 +304,7 @@ func newTestReqBody(orgID platform.ID) *influxdb.NotebookReqBody {
 	}
 }
 
-func newTestPermission(action influxdb.Action, orgID *platform.ID) influxdb.Permission {
+func newTestNotebooksPermission(action influxdb.Action, orgID *platform.ID) influxdb.Permission {
 	return influxdb.Permission{
 		Action: action,
 		Resource: influxdb.Resource{

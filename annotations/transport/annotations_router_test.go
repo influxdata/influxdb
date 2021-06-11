@@ -16,6 +16,8 @@ var (
 	testCreateAnnotation = influxdb.AnnotationCreate{
 		StreamTag: "sometag",
 		Summary:   "testing the api",
+		Message:   "stored annotation message",
+		Stickers:  map[string]string{"val1": "sticker1", "val2": "sticker2"},
 		EndTime:   &now,
 		StartTime: &now,
 	}
@@ -31,6 +33,31 @@ var (
 
 	testReadAnnotation2 = influxdb.ReadAnnotation{
 		ID: *influxdbtesting.IDPtr(2),
+	}
+
+	testStoredAnnotation = influxdb.StoredAnnotation{
+		ID:        *id,
+		OrgID:     *orgID,
+		StreamID:  *influxdbtesting.IDPtr(3),
+		StreamTag: "sometag",
+		Summary:   "testing the api",
+		Message:   "stored annotation message",
+		Stickers:  []string{"val1=sticker1", "val2=sticker2"},
+		Lower:     now.Format(time.RFC3339),
+		Upper:     now.Format(time.RFC3339),
+	}
+
+	testReadAnnotations = influxdb.ReadAnnotations{
+		"sometag": []influxdb.ReadAnnotation{
+			{
+				ID:        testStoredAnnotation.ID,
+				Summary:   testStoredAnnotation.Summary,
+				Message:   testStoredAnnotation.Message,
+				Stickers:  map[string]string{"val1": "sticker1", "val2": "sticker2"},
+				EndTime:   testStoredAnnotation.Lower,
+				StartTime: testStoredAnnotation.Upper,
+			},
+		},
 	}
 )
 
@@ -72,9 +99,15 @@ func TestAnnotationRouter(t *testing.T) {
 					EndTime:   &now,
 				},
 			}).
-			Return(influxdb.ReadAnnotations{
-				"stream1": []influxdb.ReadAnnotation{testReadAnnotation1},
-				"stream2": []influxdb.ReadAnnotation{testReadAnnotation2},
+			Return([]influxdb.StoredAnnotation{
+				{
+					ID:        testReadAnnotation1.ID,
+					StreamTag: "stream1",
+				},
+				{
+					ID:        testReadAnnotation2.ID,
+					StreamTag: "stream2",
+				},
 			}, nil)
 
 		res := doTestRequest(t, req, http.StatusOK, true)
@@ -143,7 +176,7 @@ func TestAnnotationRouter(t *testing.T) {
 
 		svc.EXPECT().
 			GetAnnotation(gomock.Any(), *id).
-			Return(&testEvent, nil)
+			Return(&testStoredAnnotation, nil)
 
 		res := doTestRequest(t, req, http.StatusOK, true)
 
@@ -215,4 +248,56 @@ func TestAnnotationRouter(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestStoredAnnotationsToReadAnnotations(t *testing.T) {
+	t.Parallel()
+
+	got, err := storedAnnotationsToReadAnnotations([]influxdb.StoredAnnotation{testStoredAnnotation})
+	require.NoError(t, err)
+	require.Equal(t, got, testReadAnnotations)
+}
+
+func TestStoredAnnotationToEvent(t *testing.T) {
+	t.Parallel()
+
+	got, err := storedAnnotationToEvent(&testStoredAnnotation)
+	require.NoError(t, err)
+	require.Equal(t, got, &testEvent)
+}
+
+func TestStickerSliceToMap(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		stickers []string
+		want     map[string]string
+		wantErr  error
+	}{
+		{
+			"good stickers",
+			[]string{"good1=val1", "good2=val2"},
+			map[string]string{"good1": "val1", "good2": "val2"},
+			nil,
+		},
+		{
+			"bad stickers",
+			[]string{"this is an invalid sticker", "shouldbe=likethis"},
+			nil,
+			invalidStickerError("this is an invalid sticker"),
+		},
+		{
+			"no stickers",
+			[]string{},
+			map[string]string{},
+			nil,
+		},
+	}
+
+	for _, tt := range tests {
+		got, err := stickerSliceToMap(tt.stickers)
+		require.Equal(t, tt.want, got)
+		require.Equal(t, tt.wantErr, err)
+	}
 }

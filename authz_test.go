@@ -325,7 +325,8 @@ func TestPermissionAllResources_Valid(t *testing.T) {
 		platform.BucketsResourceType,
 		platform.DashboardsResourceType,
 		platform.SourcesResourceType,
-		platform.DashboardsResourceType,
+		platform.NotebooksResourceType,
+		platform.AnnotationsResourceType,
 	}
 
 	for _, rt := range resources {

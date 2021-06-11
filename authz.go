@@ -137,6 +137,8 @@ const (
 	DBRPResourceType = ResourceType("dbrp") // 17
 	// NotebooksResourceType gives permission to one or more notebooks.
 	NotebooksResourceType = ResourceType("notebooks") // 18
+	// AnnotationsResourceType gives permission to one or more annotations.
+	AnnotationsResourceType = ResourceType("annotations") // 19
 )
 
 // AllResourceTypes is the list of all known resource types.
@@ -160,6 +162,7 @@ var AllResourceTypes = []ResourceType{
 	ChecksResourceType,               // 16
 	DBRPResourceType,                 // 17
 	NotebooksResourceType,            // 18
+	AnnotationsResourceType,          // 19
 	// NOTE: when modifying this list, please update the swagger for components.schemas.Permission resource enum.
 }
 
@@ -179,6 +182,7 @@ var OrgResourceTypes = []ResourceType{
 	ChecksResourceType,               // 16
 	DBRPResourceType,                 // 17
 	NotebooksResourceType,            // 18
+	AnnotationsResourceType,          // 19
 }
 
 // Valid checks if the resource type is a member of the ResourceType enum.
@@ -208,6 +212,7 @@ func (t ResourceType) Valid() (err error) {
 	case ChecksResourceType: // 16
 	case DBRPResourceType: // 17
 	case NotebooksResourceType: // 18
+	case AnnotationsResourceType: // 19
 	default:
 		err = ErrInvalidResourceType
 	}
