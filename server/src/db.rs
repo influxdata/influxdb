@@ -30,9 +30,9 @@ use mutable_buffer::chunk::{
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
-use parquet_file::catalog::ChunkCreationFailed;
+use parquet::file::metadata::ParquetMetaData;
 use parquet_file::{
-    catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
+    catalog::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
     chunk::{Chunk as ParquetChunk, ChunkMetrics as ParquetChunkMetrics},
     cleanup::cleanup_unreferenced_parquet_files,
     metadata::IoxMetadata,
@@ -42,6 +42,7 @@ use query::{exec::Executor, predicate::Predicate, Database};
 use rand_distr::{Distribution, Poisson};
 use read_buffer::{ChunkMetrics as ReadBufferChunkMetrics, RBChunk};
 use snafu::{ResultExt, Snafu};
+use std::collections::HashMap;
 use std::{
     any::Any,
     num::NonZeroUsize,
@@ -651,7 +652,18 @@ impl Db {
             transaction
                 .add_parquet(&path.into(), &parquet_metadata)
                 .context(TransactionError)?;
-            transaction.commit(false).await.context(TransactionError)?;
+            let create_checkpoint = self
+                .rules
+                .read()
+                .lifecycle_rules
+                .catalog_checkpoint_interval
+                .map_or(false, |interval| {
+                    transaction.revision_counter() % interval.get() == 0
+                });
+            transaction
+                .commit(create_checkpoint)
+                .await
+                .context(TransactionError)?;
         }
 
         // We know this chunk is ParquetFile type
@@ -1168,13 +1180,18 @@ impl CatalogState for Catalog {
         unimplemented!("parquet files cannot be removed from the catalog for now")
     }
 
-    fn files(
-        &self,
-    ) -> std::collections::HashMap<
-        DirsAndFileName,
-        Arc<datafusion::parquet::file::metadata::ParquetMetaData>,
-    > {
-        todo!("wire up catalog file tracking")
+    fn files(&self) -> HashMap<DirsAndFileName, Arc<ParquetMetaData>> {
+        let mut files = HashMap::new();
+
+        for chunk in self.chunks() {
+            let guard = chunk.read();
+            if let catalog::chunk::ChunkStage::Persisted { parquet, .. } = guard.stage() {
+                let path: DirsAndFileName = parquet.path().into();
+                files.insert(path, parquet.parquet_metadata());
+            }
+        }
+
+        files
     }
 }
 
@@ -1250,7 +1267,7 @@ mod tests {
         collections::HashSet,
         convert::TryFrom,
         iter::Iterator,
-        num::NonZeroUsize,
+        num::{NonZeroU64, NonZeroUsize},
         str,
         time::{Duration, Instant},
     };
@@ -2996,6 +3013,84 @@ mod tests {
         for path in &paths_keep {
             assert!(all_files.contains(&path.display()));
         }
+    }
+
+    #[tokio::test]
+    async fn checkpointing() {
+        // Test that the preserved catalog creates checkpoints
+
+        // ==================== setup ====================
+        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let server_id = ServerId::try_from(1).unwrap();
+        let db_name = "preserved_catalog_test";
+
+        // ==================== do: create DB ====================
+        // Create a DB given a server id, an object store and a db name
+        let test_db = TestDb::builder()
+            .object_store(Arc::clone(&object_store))
+            .server_id(server_id)
+            .db_name(db_name)
+            .catalog_checkpoint_interval(NonZeroU64::try_from(2).unwrap())
+            .build()
+            .await;
+        let db = Arc::new(test_db.db);
+
+        // ==================== do: write data to parquet ====================
+        // create two chunks within the same table (to better test "new chunk ID" and "new table" during transaction
+        // replay)
+        let mut chunks = vec![];
+        for _ in 0..2 {
+            chunks.push(create_parquet_chunk(db.as_ref()).await);
+        }
+
+        // ==================== do: remove .txn files ====================
+        drop(db);
+        let files = object_store
+            .list(None)
+            .await
+            .unwrap()
+            .try_concat()
+            .await
+            .unwrap();
+        let mut deleted_one = false;
+        for file in files {
+            let parsed: DirsAndFileName = file.clone().into();
+            if parsed
+                .file_name
+                .map_or(false, |part| part.encoded().ends_with(".txn"))
+            {
+                object_store.delete(&file).await.unwrap();
+                deleted_one = true;
+            }
+        }
+        assert!(deleted_one);
+
+        // ==================== do: re-load DB ====================
+        // Re-create database with same store, serverID, and DB name
+        let test_db = TestDb::builder()
+            .object_store(Arc::clone(&object_store))
+            .server_id(server_id)
+            .db_name(db_name)
+            .build()
+            .await;
+        let db = Arc::new(test_db.db);
+
+        // ==================== check: DB state ====================
+        // Re-created DB should have an "object store only"-chunk
+        for (table_name, partition_key, chunk_id) in &chunks {
+            let chunk = db.chunk(table_name, partition_key, *chunk_id).unwrap();
+            let chunk = chunk.read();
+            assert!(matches!(
+                chunk.stage(),
+                ChunkStage::Persisted {
+                    read_buffer: None,
+                    ..
+                }
+            ));
+        }
+
+        // ==================== check: DB still writable ====================
+        write_lp(db.as_ref(), "cpu bar=1 10");
     }
 
     async fn create_parquet_chunk(db: &Db) -> (String, String, u32) {
