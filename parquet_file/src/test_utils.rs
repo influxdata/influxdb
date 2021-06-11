@@ -66,7 +66,7 @@ pub async fn load_parquet_from_store_for_chunk(
     chunk: &Chunk,
     store: Arc<ObjectStore>,
 ) -> Result<(String, Vec<u8>)> {
-    let path = chunk.table_path();
+    let path = chunk.path();
     let table_name = chunk.table_name().to_string();
     Ok((
         table_name,
@@ -584,7 +584,7 @@ pub async fn make_metadata(
         .await
         .unwrap();
     (
-        chunk.table_path(),
+        chunk.path(),
         read_parquet_metadata_from_file(parquet_data).unwrap(),
     )
 }

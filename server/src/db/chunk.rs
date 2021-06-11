@@ -195,7 +195,7 @@ impl DbChunk {
     /// persisted, if any
     pub fn object_store_path(&self) -> Option<Path> {
         match &self.state {
-            State::ParquetFile { chunk } => Some(chunk.table_path()),
+            State::ParquetFile { chunk } => Some(chunk.path()),
             _ => None,
         }
     }
