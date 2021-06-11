@@ -162,6 +162,8 @@ func TestOnboardAuth(t *testing.T) {
 		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DBRPResourceType}},
 		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.NotebooksResourceType}},
 		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.NotebooksResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.AnnotationsResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.AnnotationsResourceType}},
 		{Action: influxdb.ReadAction, Resource: influxdb.Resource{ID: &onboard.User.ID, Type: influxdb.UsersResourceType}},
 		{Action: influxdb.WriteAction, Resource: influxdb.Resource{ID: &onboard.User.ID, Type: influxdb.UsersResourceType}},
 	}
