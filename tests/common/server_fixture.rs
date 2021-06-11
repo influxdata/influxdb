@@ -451,7 +451,7 @@ impl TestServer {
     }
 }
 
-/// Create a connection channel for the gRPR endpoint
+/// Create a connection channel for the gRPC endpoint
 pub async fn grpc_channel(
     addrs: &BindAddresses,
 ) -> influxdb_iox_client::connection::Result<tonic::transport::Channel> {
