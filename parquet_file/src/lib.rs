@@ -14,7 +14,6 @@ pub mod cleanup;
 pub mod metadata;
 pub mod rebuild;
 pub mod storage;
-pub mod table;
 pub mod test_utils;
 
 mod storage_testing;

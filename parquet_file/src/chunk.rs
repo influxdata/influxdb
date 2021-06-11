@@ -1,10 +1,16 @@
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, sync::Arc};
 
-use crate::table::Table;
-use data_types::{partition_metadata::TableSummary, timestamp::TimestampRange};
+use crate::storage::Storage;
+use data_types::{
+    partition_metadata::{Statistics, TableSummary},
+    timestamp::TimestampRange,
+};
 use datafusion::physical_plan::SendableRecordBatchStream;
-use internal_types::{schema::Schema, selection::Selection};
+use internal_types::{
+    schema::{Schema, TIME_COLUMN_NAME},
+    selection::Selection,
+};
 use object_store::{path::Path, ObjectStore};
 use query::predicate::Predicate;
 
@@ -13,25 +19,15 @@ use std::mem;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Error writing table '{}': {}", table_name, source))]
-    TableWrite {
-        table_name: String,
-        source: crate::table::Error,
-    },
-
-    #[snafu(display("Table Error in '{}': {}", table_name, source))]
-    NamedTableError {
-        table_name: String,
-        source: crate::table::Error,
-    },
-
     #[snafu(display("Table '{}' not found in chunk", table_name))]
     NamedTableNotFoundInChunk { table_name: String },
 
-    #[snafu(display("Error read parquet file for table '{}'", table_name,))]
-    ReadParquet {
-        table_name: String,
-        source: crate::table::Error,
+    #[snafu(display("Failed to read parquet: {}", source))]
+    ReadParquet { source: crate::storage::Error },
+
+    #[snafu(display("Failed to select columns: {}", source))]
+    SelectColumns {
+        source: internal_types::schema::Error,
     },
 }
 
@@ -64,8 +60,23 @@ pub struct Chunk {
     /// Partition this chunk belongs to
     partition_key: String,
 
-    /// The table in chunk
-    table: Table,
+    /// Meta data of the table
+    table_summary: Arc<TableSummary>,
+
+    /// Schema that goes with this table's parquet file
+    schema: Arc<Schema>,
+
+    /// Timestamp range of this table's parquet file
+    /// (extracted from TableSummary)
+    timestamp_range: Option<TimestampRange>,
+
+    /// Object store of the above relative path to open and read the file
+    object_store: Arc<ObjectStore>,
+
+    /// Path in the object store. Format:
+    ///  <writer id>/<database>/data/<partition key>/<chunk
+    /// id>/<tablename>.parquet
+    object_store_path: Path,
 
     metrics: ChunkMetrics,
 }
@@ -79,11 +90,15 @@ impl Chunk {
         schema: Schema,
         metrics: ChunkMetrics,
     ) -> Self {
-        let table = Table::new(table_summary, file_location, store, schema);
+        let timestamp_range = extract_range(&table_summary);
 
         let mut chunk = Self {
             partition_key: part_key.into(),
-            table,
+            table_summary: Arc::new(table_summary),
+            schema: Arc::new(schema),
+            timestamp_range,
+            object_store: store,
+            object_store_path: file_location,
             metrics,
         };
 
@@ -97,64 +112,109 @@ impl Chunk {
     }
 
     /// Return object store path for this chunk
-    pub fn table_path(&self) -> Path {
-        self.table.path()
+    pub fn path(&self) -> Path {
+        self.object_store_path.clone()
     }
 
     /// Returns the summary statistics for this chunk
     pub fn table_summary(&self) -> &Arc<TableSummary> {
-        self.table.table_summary()
+        &self.table_summary
     }
 
     /// Returns the name of the table this chunk holds
     pub fn table_name(&self) -> &str {
-        self.table.name()
+        &self.table_summary.name
     }
 
     /// Return the approximate memory size of the chunk, in bytes including the
     /// dictionary, tables, and their rows.
     pub fn size(&self) -> usize {
-        self.table.size() + self.partition_key.len() + mem::size_of::<Self>()
+        mem::size_of::<Self>()
+            + self.partition_key.len()
+            + self.table_summary.size()
+            + mem::size_of_val(&self.schema.as_ref())
+            + mem::size_of_val(&self.object_store_path)
     }
 
-    /// Return possibly restricted Schema for the table in this chunk
-    pub fn table_schema(&self, selection: Selection<'_>) -> Result<Schema> {
-        self.table.schema(selection).context(NamedTableError {
-            table_name: self.table_name(),
+    /// Return possibly restricted Schema for this chunk
+    pub fn schema(&self, selection: Selection<'_>) -> Result<Schema> {
+        Ok(match selection {
+            Selection::All => self.schema.as_ref().clone(),
+            Selection::Some(columns) => {
+                let columns = self.schema.select(columns).context(SelectColumns)?;
+                self.schema.project(&columns)
+            }
         })
     }
 
     /// Infallably return the full schema (for all columns) for this chunk
     pub fn full_schema(&self) -> Arc<Schema> {
-        self.table.full_schema()
+        Arc::clone(&self.schema)
     }
 
-    // Return true if the table in this chunk contains values within the time range
+    // Return true if this chunk contains values within the time range
     pub fn has_timerange(&self, timestamp_range: Option<&TimestampRange>) -> bool {
-        self.table.matches_predicate(timestamp_range)
+        match (self.timestamp_range, timestamp_range) {
+            (Some(a), Some(b)) => !a.disjoint(b),
+            (None, Some(_)) => false, /* If this chunk doesn't have a time column it can't match */
+            // the predicate
+            (_, None) => true,
+        }
     }
 
     // Return the columns names that belong to the given column
     // selection
     pub fn column_names(&self, selection: Selection<'_>) -> Option<BTreeSet<String>> {
-        self.table.column_names(selection)
+        let fields = self.schema.inner().fields().iter();
+
+        Some(match selection {
+            Selection::Some(cols) => fields
+                .filter_map(|x| {
+                    if cols.contains(&x.name().as_str()) {
+                        Some(x.name().clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            Selection::All => fields.map(|x| x.name().clone()).collect(),
+        })
     }
 
-    /// Return stream of data read from parquet file of the given table
+    /// Return stream of data read from parquet file
     pub fn read_filter(
         &self,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream> {
-        self.table
-            .read_filter(predicate, selection)
-            .context(ReadParquet {
-                table_name: self.table_name(),
-            })
+        Storage::read_filter(
+            predicate,
+            selection,
+            Arc::clone(&self.schema.as_arrow()),
+            self.object_store_path.clone(),
+            Arc::clone(&self.object_store),
+        )
+        .context(ReadParquet)
     }
 
-    /// The total number of rows in all row groups in all tables in this chunk.
+    /// The total number of rows in all row groups in this chunk.
     pub fn rows(&self) -> usize {
-        self.table.rows()
+        // All columns have the same rows, so return get row count of the first column
+        self.table_summary.columns[0].count() as usize
     }
+}
+
+/// Extracts min/max values of the timestamp column, from the TableSummary, if possible
+fn extract_range(table_summary: &TableSummary) -> Option<TimestampRange> {
+    table_summary
+        .column(TIME_COLUMN_NAME)
+        .map(|c| {
+            if let Statistics::I64(s) = &c.stats {
+                if let (Some(min), Some(max)) = (s.min, s.max) {
+                    return Some(TimestampRange::new(min, max));
+                }
+            }
+            None
+        })
+        .flatten()
 }
