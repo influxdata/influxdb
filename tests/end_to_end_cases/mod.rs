@@ -4,6 +4,7 @@ pub mod management_api;
 pub mod management_cli;
 pub mod operations_api;
 pub mod operations_cli;
+mod persistence;
 pub mod preservation;
 pub mod read_api;
 pub mod read_cli;
