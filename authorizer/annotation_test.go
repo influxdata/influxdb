@@ -416,16 +416,6 @@ func Test_GetStream(t *testing.T) {
 	}
 }
 
-func newTestAnnotationsPermission(action influxdb.Action, orgID *platform.ID) influxdb.Permission {
-	return influxdb.Permission{
-		Action: action,
-		Resource: influxdb.Resource{
-			Type:  influxdb.AnnotationsResourceType,
-			OrgID: orgID,
-		},
-	}
-}
-
 func Test_CreateOrUpdateStream(t *testing.T) {
 	t.Parallel()
 
@@ -436,8 +426,8 @@ func Test_CreateOrUpdateStream(t *testing.T) {
 		}
 	)
 
-	// this set of tests does not actually test any authorization logic since the
-	// implementing code calls other methods, depending on the result of ListStreams.
+	// this set of tests does not actually test any authorization since the
+	// implementing code calls other methods because of ListStreams returning a zero-length slice.
 	// so these tests are to make sure that the branch logic and resulting calls work correctly.
 	t.Run("updating a stream", func(t *testing.T) {
 		tests := []struct {
@@ -487,7 +477,7 @@ func Test_CreateOrUpdateStream(t *testing.T) {
 			},
 		}
 
-		// this set of tests will verify the AuthorizeCreate works correctly when
+		// this set of tests will verify that AuthorizeCreate works correctly when
 		// creating a new stream
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -722,5 +712,15 @@ func Test_DeleteStreamByID(t *testing.T) {
 			err := s.DeleteStreamByID(ctx, *rID)
 			require.Equal(t, tt.wantErr, err)
 		})
+	}
+}
+
+func newTestAnnotationsPermission(action influxdb.Action, orgID *platform.ID) influxdb.Permission {
+	return influxdb.Permission{
+		Action: action,
+		Resource: influxdb.Resource{
+			Type:  influxdb.AnnotationsResourceType,
+			OrgID: orgID,
+		},
 	}
 }

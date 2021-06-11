@@ -125,6 +125,8 @@ func (s *AnnotationService) CreateOrUpdateStream(ctx context.Context, orgID plat
 			return nil, err
 		}
 
+		// returning here means that the storage service implementation of CreateOrUpdateStream only
+		// needs to handle creating a new stream.
 		return s.s.UpdateStream(ctx, st.ID, stream)
 	}
 
