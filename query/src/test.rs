@@ -21,7 +21,9 @@ use crate::{
 use crate::{exec::Executor, pruning::Prunable};
 
 use internal_types::{
-    schema::{builder::SchemaBuilder, merge::SchemaMerger, InfluxColumnType, Schema},
+    schema::{
+        builder::SchemaBuilder, merge::SchemaMerger, InfluxColumnType, Schema, TIME_COLUMN_NAME,
+    },
     selection::Selection,
 };
 
@@ -244,6 +246,36 @@ impl TestChunk {
         self.add_schema_to_table(table_name, new_column_schema)
     }
 
+    /// Register a timetamp column with the test chunk
+    pub fn with_time_column_with_stats(
+        self,
+        table_name: impl Into<String>,
+        min: &str,
+        max: &str,
+    ) -> Self {
+        let table_name = table_name.into();
+
+        let mut new_self = self.with_time_column(&table_name);
+
+        // Now, find the appropriate column summary and update the stats
+        let column_summary: &mut ColumnSummary = new_self
+            .table_summary
+            .as_mut()
+            .expect("had table summary")
+            .columns
+            .iter_mut()
+            .find(|c| c.name == TIME_COLUMN_NAME)
+            .expect("had column");
+
+        column_summary.stats = Statistics::String(StatValues {
+            min: Some(min.to_string()),
+            max: Some(max.to_string()),
+            ..Default::default()
+        });
+
+        new_self
+    }
+
     /// Register an int field column with the test chunk
     pub fn with_int_field_column(
         self,
@@ -367,19 +399,146 @@ impl TestChunk {
         self
     }
 
-    /// Prepares this chunk to return a specific record batch with five
-    /// rows of non null data that look like
+    /// Prepares this chunk to return a specific record batch with three
+    /// rows of non null data that look like, no duplicates within
     ///   "+------+------+-----------+-------------------------------+",
     ///   "| tag1 | tag2 | field_int | time                          |",
     ///   "+------+------+-----------+-------------------------------+",
-    ///   "| MA   | MA   | 1000      | 1970-01-01 00:00:00.000001    |",
-    ///   "| MT   | MT   | 10        | 1970-01-01 00:00:00.000007    |",
-    ///   "| CT   | CT   | 70        | 1970-01-01 00:00:00.000000100 |",
-    ///   "| AL   | AL   | 100       | 1970-01-01 00:00:00.000000050 |",
-    ///   "| MT   | MT   | 5         | 1970-01-01 00:00:00.000005    |",
+    ///   "| WA   | SC   | 1000      | 1970-01-01 00:00:00.000008    |",
+    ///   "| VT   | NC   | 10        | 1970-01-01 00:00:00.000010    |",
+    ///   "| UT   | RI   | 70        | 1970-01-01 00:00:00.000020    |",
     ///   "+------+------+-----------+-------------------------------+",
+    /// Stats(min, max) : tag1(UT, WA), tag2(RI, SC), time(8000, 20000)
+    pub fn with_three_rows_of_data(mut self, _table_name: impl Into<String>) -> Self {
+        let schema = self
+            .table_schema
+            .as_ref()
+            .expect("table must exist in TestChunk");
+
+        // create arrays
+        let columns = schema
+            .iter()
+            .map(|(_influxdb_column_type, field)| match field.data_type() {
+                DataType::Int64 => Arc::new(Int64Array::from(vec![1000, 10, 70])) as ArrayRef,
+                DataType::Utf8 => match field.name().as_str() {
+                    "tag1" => Arc::new(StringArray::from(vec!["WA", "VT", "UT"])) as ArrayRef,
+                    "tag2" => Arc::new(StringArray::from(vec!["SC", "NC", "RI"])) as ArrayRef,
+                    _ => Arc::new(StringArray::from(vec!["TX", "PR", "OR"])) as ArrayRef,
+                },
+                DataType::Timestamp(TimeUnit::Nanosecond, _) => Arc::new(
+                    TimestampNanosecondArray::from_vec(vec![8000, 10000, 20000], None),
+                ) as ArrayRef,
+                DataType::Dictionary(key, value)
+                    if key.as_ref() == &DataType::Int32 && value.as_ref() == &DataType::Utf8 =>
+                {
+                    match field.name().as_str() {
+                        "tag1" => Arc::new(
+                            vec!["WA", "VT", "UT"]
+                                .into_iter()
+                                .collect::<DictionaryArray<Int32Type>>(),
+                        ) as ArrayRef,
+                        "tag2" => Arc::new(
+                            vec!["SC", "NC", "RI"]
+                                .into_iter()
+                                .collect::<DictionaryArray<Int32Type>>(),
+                        ) as ArrayRef,
+                        _ => Arc::new(
+                            vec!["TX", "PR", "OR"]
+                                .into_iter()
+                                .collect::<DictionaryArray<Int32Type>>(),
+                        ) as ArrayRef,
+                    }
+                }
+                _ => unimplemented!(
+                    "Unimplemented data type for test database: {:?}",
+                    field.data_type()
+                ),
+            })
+            .collect::<Vec<_>>();
+
+        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+
+        self.table_data.push(Arc::new(batch));
+        self
+    }
+
+    /// Prepares this chunk to return a specific record batch with three
+    /// rows of non null data that look like, duplicates within
+    ///   "+------+------+-----------+-------------------------------+",
+    ///   "| tag1 | tag2 | field_int | time                          |",
+    ///   "+------+------+-----------+-------------------------------+",
+    ///   "| WA   | SC   | 1000      | 1970-01-01 00:00:00.000028    |",
+    ///   "| VT   | NC   | 10        | 1970-01-01 00:00:00.000210    |", (1)
+    ///   "| UT   | RI   | 70        | 1970-01-01 00:00:00.000220    |",
+    ///   "| VT   | NC   | 50        | 1970-01-01 00:00:00.000210    |", // duplicate of (1)
+    ///   "+------+------+-----------+-------------------------------+",
+    /// Stats(min, max) : tag1(UT, WA), tag2(RI, SC), time(28000, 220000)
+    pub fn with_four_rows_of_data(mut self, _table_name: impl Into<String>) -> Self {
+        let schema = self
+            .table_schema
+            .as_ref()
+            .expect("table must exist in TestChunk");
+
+        // create arrays
+        let columns = schema
+            .iter()
+            .map(|(_influxdb_column_type, field)| match field.data_type() {
+                DataType::Int64 => Arc::new(Int64Array::from(vec![1000, 10, 70, 50])) as ArrayRef,
+                DataType::Utf8 => match field.name().as_str() {
+                    "tag1" => Arc::new(StringArray::from(vec!["WA", "VT", "UT", "VT"])) as ArrayRef,
+                    "tag2" => Arc::new(StringArray::from(vec!["SC", "NC", "RI", "NC"])) as ArrayRef,
+                    _ => Arc::new(StringArray::from(vec!["TX", "PR", "OR", "AL"])) as ArrayRef,
+                },
+                DataType::Timestamp(TimeUnit::Nanosecond, _) => Arc::new(
+                    TimestampNanosecondArray::from_vec(vec![8000, 10000, 20000, 10000], None),
+                ) as ArrayRef,
+                DataType::Dictionary(key, value)
+                    if key.as_ref() == &DataType::Int32 && value.as_ref() == &DataType::Utf8 =>
+                {
+                    match field.name().as_str() {
+                        "tag1" => Arc::new(
+                            vec!["WA", "VT", "UT", "VT"]
+                                .into_iter()
+                                .collect::<DictionaryArray<Int32Type>>(),
+                        ) as ArrayRef,
+                        "tag2" => Arc::new(
+                            vec!["SC", "NC", "RI", "NC"]
+                                .into_iter()
+                                .collect::<DictionaryArray<Int32Type>>(),
+                        ) as ArrayRef,
+                        _ => Arc::new(
+                            vec!["TX", "PR", "OR", "AL"]
+                                .into_iter()
+                                .collect::<DictionaryArray<Int32Type>>(),
+                        ) as ArrayRef,
+                    }
+                }
+                _ => unimplemented!(
+                    "Unimplemented data type for test database: {:?}",
+                    field.data_type()
+                ),
+            })
+            .collect::<Vec<_>>();
+
+        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+
+        self.table_data.push(Arc::new(batch));
+        self
+    }
+
+    /// Prepares this chunk to return a specific record batch with five
+    /// rows of non null data that look like, no duplicates within
+    ///   "+------+------+-----------+-------------------------------+",
+    ///   "| tag1 | tag2 | field_int | time                          |",
+    ///   "+------+------+-----------+-------------------------------+",
+    ///   "| MT   | CT   | 1000      | 1970-01-01 00:00:00.000001    |",
+    ///   "| MT   | AL   | 10        | 1970-01-01 00:00:00.000007    |",
+    ///   "| CT   | CT   | 70        | 1970-01-01 00:00:00.000000100 |",
+    ///   "| AL   | MA   | 100       | 1970-01-01 00:00:00.000000050 |",
+    ///   "| MT   | AL   | 5         | 1970-01-01 00:00:00.000005    |",
+    ///   "+------+------+-----------+-------------------------------+",
+    /// Stats(min, max) : tag1(AL, MT), tag2(AL, MA), time(5, 7000)
     pub fn with_five_rows_of_data(mut self, _table_name: impl Into<String>) -> Self {
-        //let table_name = table_name.into();
         let schema = self
             .table_schema
             .as_ref()
@@ -421,6 +580,88 @@ impl TestChunk {
                         ) as ArrayRef,
                         _ => Arc::new(
                             vec!["CT", "MT", "AL", "AL", "MT"]
+                                .into_iter()
+                                .collect::<DictionaryArray<Int32Type>>(),
+                        ) as ArrayRef,
+                    }
+                }
+                _ => unimplemented!(
+                    "Unimplemented data type for test database: {:?}",
+                    field.data_type()
+                ),
+            })
+            .collect::<Vec<_>>();
+
+        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+
+        self.table_data.push(Arc::new(batch));
+        self
+    }
+
+    /// Prepares this chunk to return a specific record batch with ten
+    /// rows of non null data that look like, duplicates within
+    ///   "+------+------+-----------+-------------------------------+",
+    ///   "| tag1 | tag2 | field_int | time                          |",
+    ///   "+------+------+-----------+-------------------------------+",
+    ///   "| MT   | CT   | 1000      | 1970-01-01 00:00:00.000001    |",
+    ///   "| MT   | AL   | 10        | 1970-01-01 00:00:00.000007    |", (1)
+    ///   "| CT   | CT   | 70        | 1970-01-01 00:00:00.000000100 |",
+    ///   "| AL   | MA   | 100       | 1970-01-01 00:00:00.000000050 |", (2)
+    ///   "| MT   | AL   | 5         | 1970-01-01 00:00:00.000005    |", (3)
+    ///   "| MT   | CT   | 1000      | 1970-01-01 00:00:00.000002    |",
+    ///   "| MT   | AL   | 20        | 1970-01-01 00:00:00.000007    |",  // Duplicate with (1)
+    ///   "| CT   | CT   | 70        | 1970-01-01 00:00:00.000000500 |",
+    ///   "| AL   | MA   | 10        | 1970-01-01 00:00:00.000000050 |",  // Duplicate with (2)
+    ///   "| MT   | AL   | 30        | 1970-01-01 00:00:00.000005    |",  // Duplicate with (3)
+    ///   "+------+------+-----------+-------------------------------+",
+    /// Stats(min, max) : tag1(AL, MT), tag2(AL, MA), time(5, 7000)
+    pub fn with_ten_rows_of_data_some_duplicates(mut self, _table_name: impl Into<String>) -> Self {
+        //let table_name = table_name.into();
+        let schema = self
+            .table_schema
+            .as_ref()
+            .expect("table must exist in TestChunk");
+
+        // create arrays
+        let columns = schema
+            .iter()
+            .map(|(_influxdb_column_type, field)| match field.data_type() {
+                DataType::Int64 => Arc::new(Int64Array::from(vec![
+                    1000, 10, 70, 100, 5, 1000, 20, 70, 10, 30,
+                ])) as ArrayRef,
+                DataType::Utf8 => match field.name().as_str() {
+                    "tag1" => Arc::new(StringArray::from(vec![
+                        "MT", "MT", "CT", "AL", "MT", "MT", "MT", "CT", "AL", "MT",
+                    ])) as ArrayRef,
+                    "tag2" => Arc::new(StringArray::from(vec![
+                        "CT", "AL", "CT", "MA", "AL", "CT", "AL", "CT", "MA", "AL",
+                    ])) as ArrayRef,
+                    _ => Arc::new(StringArray::from(vec![
+                        "CT", "MT", "AL", "AL", "MT", "CT", "MT", "AL", "AL", "MT",
+                    ])) as ArrayRef,
+                },
+                DataType::Timestamp(TimeUnit::Nanosecond, _) => {
+                    Arc::new(TimestampNanosecondArray::from_vec(
+                        vec![1000, 7000, 100, 50, 5, 2000, 7000, 500, 50, 5],
+                        None,
+                    )) as ArrayRef
+                }
+                DataType::Dictionary(key, value)
+                    if key.as_ref() == &DataType::Int32 && value.as_ref() == &DataType::Utf8 =>
+                {
+                    match field.name().as_str() {
+                        "tag1" => Arc::new(
+                            vec!["MT", "MT", "CT", "AL", "MT", "MT", "MT", "CT", "AL", "MT"]
+                                .into_iter()
+                                .collect::<DictionaryArray<Int32Type>>(),
+                        ) as ArrayRef,
+                        "tag2" => Arc::new(
+                            vec!["CT", "AL", "CT", "MA", "AL", "CT", "AL", "CT", "MA", "AL"]
+                                .into_iter()
+                                .collect::<DictionaryArray<Int32Type>>(),
+                        ) as ArrayRef,
+                        _ => Arc::new(
+                            vec!["CT", "MT", "AL", "AL", "MT", "CT", "MT", "AL", "AL", "MT"]
                                 .into_iter()
                                 .collect::<DictionaryArray<Int32Type>>(),
                         ) as ArrayRef,
