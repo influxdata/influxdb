@@ -344,7 +344,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	sqliteMigrator := sqlite.NewMigrator(m.sqlStore, m.log.With(zap.String("service", "sqlite migrations")))
 
 	// apply migrations to the sqlite metadata store
-	if err := sqliteMigrator.Up(ctx, &sqliteMigrations.All{}); err != nil {
+	if err := sqliteMigrator.Up(ctx, sqliteMigrations.All); err != nil {
 		m.log.Error("Failed to apply sqlite migrations", zap.Error(err))
 		return err
 	}

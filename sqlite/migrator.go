@@ -2,17 +2,13 @@ package sqlite
 
 import (
 	"context"
+	"embed"
 	"sort"
 	"strconv"
 	"strings"
 
 	"go.uber.org/zap"
 )
-
-type MigrationSource interface {
-	ListNames() []string
-	MustAssetString(string) string
-}
 
 type Migrator struct {
 	store *SqlStore
@@ -26,22 +22,44 @@ func NewMigrator(store *SqlStore, log *zap.Logger) *Migrator {
 	}
 }
 
-func (m *Migrator) Up(ctx context.Context, source MigrationSource) error {
+func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
+	list, err := source.ReadDir(".")
+	if err != nil {
+		return err
+	}
+	// sort the list according to the version number to ensure the migrations are applied in the correct order
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].Name() < list[j].Name()
+	})
+
 	// get the current value for user_version from the database
-	c, err := m.store.userVersion()
+	current, err := m.store.userVersion()
 	if err != nil {
 		return err
 	}
 
-	list := source.ListNames()
-	// sort the list according to the version number to ensure the migrations are applied in the correct order
-	sort.Strings(list)
+	// get the migration number of the latest migration for logging purposes
+	final, err := scriptVersion(list[len(list)-1].Name())
+	if err != nil {
+		return err
+	}
 
-	m.log.Info("Bringing up metadata migrations", zap.Int("migration_count", len(list)))
+	// log this message only if there are migrations to run
+	if final > current {
+		m.log.Info("Bringing up metadata migrations", zap.Int("migration_count", final-current))
+	}
 
-	for _, n := range list {
+	for _, f := range list {
+		n := f.Name()
 		// get the version of this migration script
 		v, err := scriptVersion(n)
+		if err != nil {
+			return err
+		}
+
+		// get the current value for user_version from the database. this is done in the loop as well to ensure
+		// that if for some reason the migrations are out of order, newer migrations are not applied after older ones.
+		c, err := m.store.userVersion()
 		if err != nil {
 			return err
 		}
@@ -50,9 +68,12 @@ func (m *Migrator) Up(ctx context.Context, source MigrationSource) error {
 		// execute the script to apply the migration
 		if v > c {
 			m.log.Debug("Executing metadata migration", zap.String("migration_name", n))
-			stmt := source.MustAssetString(n)
-			err := m.store.execTrans(ctx, stmt)
+			mBytes, err := source.ReadFile(n)
 			if err != nil {
+				return err
+			}
+
+			if err := m.store.execTrans(ctx, string(mBytes)); err != nil {
 				return err
 			}
 		}
