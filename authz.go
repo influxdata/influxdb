@@ -182,7 +182,7 @@ var OrgResourceTypes = []ResourceType{
 	ChecksResourceType,               // 16
 	DBRPResourceType,                 // 17
 	NotebooksResourceType,            // 18
-	AnnotationsResourceType,          // 18
+	AnnotationsResourceType,          // 19
 }
 
 // Valid checks if the resource type is a member of the ResourceType enum.
