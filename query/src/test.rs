@@ -250,8 +250,8 @@ impl TestChunk {
     pub fn with_time_column_with_stats(
         self,
         table_name: impl Into<String>,
-        min: &str,
-        max: &str,
+        min: i64,
+        max: i64,
     ) -> Self {
         let table_name = table_name.into();
 
@@ -267,9 +267,9 @@ impl TestChunk {
             .find(|c| c.name == TIME_COLUMN_NAME)
             .expect("had column");
 
-        column_summary.stats = Statistics::String(StatValues {
-            min: Some(min.to_string()),
-            max: Some(max.to_string()),
+        column_summary.stats = Statistics::I64(StatValues {
+            min: Some(min),
+            max: Some(max),
             ..Default::default()
         });
 

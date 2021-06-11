@@ -923,7 +923,7 @@ mod test {
         // Test no duplicate at all
         let chunk = Arc::new(
             TestChunk::new(1)
-                .with_time_column_with_stats("t", "5", "7000")
+                .with_time_column_with_stats("t", 5, 7000)
                 .with_tag_column_with_stats("t", "tag1", "AL", "MT")
                 .with_int_field_column("t", "field_int")
                 .with_five_rows_of_data("t"),
@@ -961,7 +961,7 @@ mod test {
         // Test one chunk with duplicate within
         let chunk = Arc::new(
             TestChunk::new(1)
-                .with_time_column_with_stats("t", "5", "7000")
+                .with_time_column_with_stats("t", 5, 7000)
                 .with_tag_column_with_stats("t", "tag1", "AL", "MT")
                 .with_int_field_column("t", "field_int")
                 .with_may_contain_pk_duplicates(true)
@@ -1007,7 +1007,7 @@ mod test {
         // test overlapped chunks
         let chunk1 = Arc::new(
             TestChunk::new(1)
-                .with_time_column_with_stats("t", "5", "7000")
+                .with_time_column_with_stats("t", 5, 7000)
                 .with_tag_column_with_stats("t", "tag1", "AL", "MT")
                 .with_int_field_column("t", "field_int")
                 .with_ten_rows_of_data_some_duplicates("t"),
@@ -1015,7 +1015,7 @@ mod test {
 
         let chunk2 = Arc::new(
             TestChunk::new(1)
-                .with_time_column_with_stats("t", "5", "7000")
+                .with_time_column_with_stats("t", 5, 7000)
                 .with_tag_column_with_stats("t", "tag1", "AL", "MT")
                 .with_int_field_column("t", "field_int")
                 .with_five_rows_of_data("t"),
@@ -1065,7 +1065,7 @@ mod test {
         // This test covers all kind of chunks: overlap, non-overlap without duplicates within, non-overlap with duplicates within
         let chunk1 = Arc::new(
             TestChunk::new(1)
-                .with_time_column_with_stats("t", "5", "7000")
+                .with_time_column_with_stats("t", 5, 7000)
                 .with_tag_column_with_stats("t", "tag1", "AL", "MT")
                 .with_int_field_column("t", "field_int")
                 .with_ten_rows_of_data_some_duplicates("t"),
@@ -1074,7 +1074,7 @@ mod test {
         // chunk2 overlaps with chunk 1
         let chunk2 = Arc::new(
             TestChunk::new(1)
-                .with_time_column_with_stats("t", "5", "7000")
+                .with_time_column_with_stats("t", 5, 7000)
                 .with_tag_column_with_stats("t", "tag1", "AL", "MT")
                 .with_int_field_column("t", "field_int")
                 .with_five_rows_of_data("t"),
@@ -1083,7 +1083,7 @@ mod test {
         // chunk3 no overlap, no duplicates within
         let chunk3 = Arc::new(
             TestChunk::new(1)
-                .with_time_column_with_stats("t", "8000", "20000")
+                .with_time_column_with_stats("t", 8000, 20000)
                 .with_tag_column_with_stats("t", "tag1", "UT", "WA")
                 .with_int_field_column("t", "field_int")
                 .with_three_rows_of_data("t"),
@@ -1092,7 +1092,7 @@ mod test {
         // chunk3 no overlap, duplicates within
         let chunk4 = Arc::new(
             TestChunk::new(1)
-                .with_time_column_with_stats("t", "28000", "220000")
+                .with_time_column_with_stats("t", 28000, 220000)
                 .with_tag_column_with_stats("t", "tag1", "UT", "WA")
                 .with_int_field_column("t", "field_int")
                 .with_may_contain_pk_duplicates(true)
