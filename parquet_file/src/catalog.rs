@@ -2910,6 +2910,70 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn test_find_last_transaction_timestamp_checkpoints_only() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+        let mut trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+
+        let catalog = PreservedCatalog::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // create empty transaction w/ checkpoint
+        {
+            let transaction = catalog.open_transaction().await;
+            transaction.commit(true).await.unwrap();
+        }
+        trace.record(&catalog, false);
+
+        // delete transaction files
+        for (aborted, tkey) in trace.aborted.iter().zip(trace.tkeys.iter()) {
+            if *aborted {
+                continue;
+            }
+            let path = file_path(
+                &object_store,
+                server_id,
+                db_name,
+                tkey,
+                FileType::Transaction,
+            );
+            checked_delete(&object_store, &path).await;
+        }
+        drop(catalog);
+
+        let ts = find_last_transaction_timestamp(&object_store, server_id, db_name)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // check timestamps
+        assert!(!trace.aborted[trace.aborted.len() - 1]);
+        let second_last_end_ts = trace.post_timestamps[trace.post_timestamps.len() - 2];
+        assert!(
+            ts > second_last_end_ts,
+            "failed: last start ts ({}) > second last committed end ts ({})",
+            ts,
+            second_last_end_ts
+        );
+
+        let last_end_ts = trace.post_timestamps[trace.post_timestamps.len() - 1];
+        assert!(
+            ts < last_end_ts,
+            "failed: last start ts ({}) < last committed end ts ({})",
+            ts,
+            last_end_ts
+        );
+    }
+
     async fn assert_catalog_roundtrip_works(
         object_store: &Arc<ObjectStore>,
         server_id: ServerId,
