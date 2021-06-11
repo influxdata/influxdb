@@ -138,7 +138,7 @@ const (
 	// NotebooksResourceType gives permission to one or more notebooks.
 	NotebooksResourceType = ResourceType("notebooks") // 18
 	// AnnotationsResourceType gives permission to one or more annotations.
-	AnnotationsResourceType = ResourceType("annotations") // 18
+	AnnotationsResourceType = ResourceType("annotations") // 19
 )
 
 // AllResourceTypes is the list of all known resource types.
