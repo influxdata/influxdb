@@ -30,6 +30,24 @@ var (
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
+
+	testStoredStream1 = influxdb.StoredStream{
+		ID:          testReadStream1.ID,
+		OrgID:       *orgID,
+		Name:        testReadStream1.Name,
+		Description: testReadStream1.Description,
+		CreatedAt:   testReadStream1.CreatedAt,
+		UpdatedAt:   testReadStream1.UpdatedAt,
+	}
+
+	testStoredStream2 = influxdb.StoredStream{
+		ID:          testReadStream2.ID,
+		OrgID:       *orgID,
+		Name:        testReadStream2.Name,
+		Description: testReadStream2.Description,
+		CreatedAt:   testReadStream2.CreatedAt,
+		UpdatedAt:   testReadStream2.UpdatedAt,
+	}
 )
 
 func TestStreamsRouter(t *testing.T) {
@@ -70,8 +88,6 @@ func TestStreamsRouter(t *testing.T) {
 		q.Add("streamIncludes", "stream2")
 		req.URL.RawQuery = q.Encode()
 
-		want := []influxdb.ReadStream{*testReadStream1, *testReadStream2}
-
 		svc.EXPECT().
 			ListStreams(gomock.Any(), *orgID, influxdb.StreamListFilter{
 				StreamIncludes: []string{"stream1", "stream2"},
@@ -80,14 +96,14 @@ func TestStreamsRouter(t *testing.T) {
 					EndTime:   &now,
 				},
 			}).
-			Return(want, nil)
+			Return([]influxdb.StoredStream{testStoredStream1, testStoredStream2}, nil)
 
 		res := doTestRequest(t, req, http.StatusOK, true)
 
 		got := []influxdb.ReadStream{}
 		err := json.NewDecoder(res.Body).Decode(&got)
 		require.NoError(t, err)
-		require.ElementsMatch(t, want, got)
+		require.ElementsMatch(t, []influxdb.ReadStream{*testReadStream1, *testReadStream2}, got)
 	})
 
 	t.Run("delete streams (by name) happy path", func(t *testing.T) {
@@ -172,4 +188,11 @@ func TestStreamsRouter(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestStoredStreamsToReadStreams(t *testing.T) {
+	t.Parallel()
+
+	got := storedStreamsToReadStreams([]influxdb.StoredStream{testStoredStream1, testStoredStream2})
+	require.Equal(t, got, []influxdb.ReadStream{*testReadStream1, *testReadStream2})
 }

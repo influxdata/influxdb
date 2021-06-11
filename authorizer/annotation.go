@@ -34,12 +34,19 @@ func (s *AnnotationService) CreateAnnotations(ctx context.Context, orgID platfor
 }
 
 // ListAnnotations checks to see if the authorizer on context has read access for annotations for the provided orgID
-func (s *AnnotationService) ListAnnotations(ctx context.Context, orgID platform.ID, filter influxdb.AnnotationListFilter) (influxdb.ReadAnnotations, error) {
+// and then filters the list down to only the resources that are authorized
+func (s *AnnotationService) ListAnnotations(ctx context.Context, orgID platform.ID, filter influxdb.AnnotationListFilter) ([]influxdb.StoredAnnotation, error) {
 	if _, _, err := AuthorizeOrgReadResource(ctx, influxdb.AnnotationsResourceType, orgID); err != nil {
 		return nil, err
 	}
 
-	return s.s.ListAnnotations(ctx, orgID, filter)
+	as, err := s.s.ListAnnotations(ctx, orgID, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	as, _, err = AuthorizeFindAnnotations(ctx, as)
+	return as, err
 }
 
 // GetAnnotation checks to see if the authorizer on context has read access to the requested annotation
@@ -87,12 +94,19 @@ func (s *AnnotationService) UpdateAnnotation(ctx context.Context, id platform.ID
 }
 
 // ListStreams checks to see if the authorizer on context has read access for streams for the provided orgID
-func (s *AnnotationService) ListStreams(ctx context.Context, orgID platform.ID, filter influxdb.StreamListFilter) ([]influxdb.ReadStream, error) {
+// and then filters the list down to only the resources that are authorized
+func (s *AnnotationService) ListStreams(ctx context.Context, orgID platform.ID, filter influxdb.StreamListFilter) ([]influxdb.StoredStream, error) {
 	if _, _, err := AuthorizeOrgReadResource(ctx, influxdb.AnnotationsResourceType, orgID); err != nil {
 		return nil, err
 	}
 
-	return s.s.ListStreams(ctx, orgID, filter)
+	ss, err := s.s.ListStreams(ctx, orgID, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	ss, _, err = AuthorizeFindStreams(ctx, ss)
+	return ss, err
 }
 
 // GetStream checks to see if the authorizer on context has read access to the requested stream

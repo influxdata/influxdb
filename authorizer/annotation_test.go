@@ -74,12 +74,12 @@ func Test_ListAnnotations(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		wantRet influxdb.ReadAnnotations
+		wantRet []influxdb.StoredAnnotation
 		wantErr error
 	}{
 		{
 			"authorized to list annotations for the specified org",
-			influxdb.ReadAnnotations{},
+			[]influxdb.StoredAnnotation{},
 			nil,
 		},
 		{
@@ -323,12 +323,12 @@ func Test_ListStreams(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		wantRet []influxdb.ReadStream
+		wantRet []influxdb.StoredStream
 		wantErr error
 	}{
 		{
 			"authorized to list streams for the specified org",
-			[]influxdb.ReadStream{},
+			[]influxdb.StoredStream{},
 			nil,
 		},
 		{
@@ -430,7 +430,7 @@ func Test_CreateOrUpdateStream(t *testing.T) {
 		tests := []struct {
 			name            string
 			permissionOrg   *platform.ID
-			existingStreams []influxdb.ReadStream
+			existingStreams []influxdb.StoredStream
 			getStreamRet    *influxdb.StoredStream
 			wantRet         *influxdb.ReadStream
 			wantErr         error
@@ -438,7 +438,7 @@ func Test_CreateOrUpdateStream(t *testing.T) {
 			{
 				"authorized to update an existing stream",
 				annOrgID1,
-				[]influxdb.ReadStream{{ID: *rID}},
+				[]influxdb.StoredStream{{ID: *rID, OrgID: *annOrgID1}},
 				&influxdb.StoredStream{ID: *rID, OrgID: *annOrgID1},
 				&influxdb.ReadStream{ID: *rID},
 				nil,
@@ -446,7 +446,7 @@ func Test_CreateOrUpdateStream(t *testing.T) {
 			{
 				"not authorized to update an existing stream",
 				annOrgID2,
-				[]influxdb.ReadStream{{ID: *rID}},
+				[]influxdb.StoredStream{{ID: *rID, OrgID: *annOrgID1}},
 				&influxdb.StoredStream{ID: *rID, OrgID: *annOrgID1},
 				nil,
 				&errors.Error{
@@ -490,19 +490,19 @@ func Test_CreateOrUpdateStream(t *testing.T) {
 	t.Run("creating a stream", func(t *testing.T) {
 		tests := []struct {
 			name            string
-			existingStreams []influxdb.ReadStream
+			existingStreams []influxdb.StoredStream
 			wantRet         *influxdb.ReadStream
 			wantErr         error
 		}{
 			{
 				"authorized to create a stream with the specified org",
-				[]influxdb.ReadStream{},
+				[]influxdb.StoredStream{},
 				&influxdb.ReadStream{},
 				nil,
 			},
 			{
 				"not authorized to create a stream with the specified org",
-				[]influxdb.ReadStream{},
+				[]influxdb.StoredStream{},
 				nil,
 				&errors.Error{
 					Msg:  fmt.Sprintf("write:orgs/%s/annotations is unauthorized", annOrgID1),
@@ -550,7 +550,7 @@ func Test_CreateOrUpdateStream(t *testing.T) {
 			ListStreams(gomock.Any(), *annOrgID1, influxdb.StreamListFilter{
 				StreamIncludes: []string{testStreamName},
 			}).
-			Return([]influxdb.ReadStream{{Name: testStreamName}, {Name: testStreamName}}, nil)
+			Return([]influxdb.StoredStream{{Name: testStreamName}, {Name: testStreamName}}, nil)
 
 		wantErr := &errors.Error{
 			Code: errors.EInternal,

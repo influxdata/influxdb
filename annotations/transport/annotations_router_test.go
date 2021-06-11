@@ -46,6 +46,19 @@ var (
 		Lower:     now.Format(time.RFC3339),
 		Upper:     now.Format(time.RFC3339),
 	}
+
+	testReadAnnotations = influxdb.ReadAnnotations{
+		"sometag": []influxdb.ReadAnnotation{
+			{
+				ID:        testStoredAnnotation.ID,
+				Summary:   testStoredAnnotation.Summary,
+				Message:   testStoredAnnotation.Message,
+				Stickers:  map[string]string{"val1": "sticker1", "val2": "sticker2"},
+				EndTime:   testStoredAnnotation.Lower,
+				StartTime: testStoredAnnotation.Upper,
+			},
+		},
+	}
 )
 
 func TestAnnotationRouter(t *testing.T) {
@@ -86,9 +99,15 @@ func TestAnnotationRouter(t *testing.T) {
 					EndTime:   &now,
 				},
 			}).
-			Return(influxdb.ReadAnnotations{
-				"stream1": []influxdb.ReadAnnotation{testReadAnnotation1},
-				"stream2": []influxdb.ReadAnnotation{testReadAnnotation2},
+			Return([]influxdb.StoredAnnotation{
+				{
+					ID:        testReadAnnotation1.ID,
+					StreamTag: "stream1",
+				},
+				{
+					ID:        testReadAnnotation2.ID,
+					StreamTag: "stream2",
+				},
 			}, nil)
 
 		res := doTestRequest(t, req, http.StatusOK, true)
@@ -229,6 +248,14 @@ func TestAnnotationRouter(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestStoredAnnotationsToReadAnnotations(t *testing.T) {
+	t.Parallel()
+
+	got, err := storedAnnotationsToReadAnnotations([]influxdb.StoredAnnotation{testStoredAnnotation})
+	require.NoError(t, err)
+	require.Equal(t, got, testReadAnnotations)
 }
 
 func TestStoredAnnotationToEvent(t *testing.T) {

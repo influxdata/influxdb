@@ -51,10 +51,10 @@ func (mr *MockAnnotationServiceMockRecorder) CreateAnnotations(ctx, orgID, creat
 }
 
 // ListAnnotations mocks base method
-func (m *MockAnnotationService) ListAnnotations(ctx context.Context, orgID platform.ID, filter influxdb.AnnotationListFilter) (influxdb.ReadAnnotations, error) {
+func (m *MockAnnotationService) ListAnnotations(ctx context.Context, orgID platform.ID, filter influxdb.AnnotationListFilter) ([]influxdb.StoredAnnotation, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListAnnotations", ctx, orgID, filter)
-	ret0, _ := ret[0].(influxdb.ReadAnnotations)
+	ret0, _ := ret[0].([]influxdb.StoredAnnotation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -124,10 +124,10 @@ func (mr *MockAnnotationServiceMockRecorder) UpdateAnnotation(ctx, id, update in
 }
 
 // ListStreams mocks base method
-func (m *MockAnnotationService) ListStreams(ctx context.Context, orgID platform.ID, filter influxdb.StreamListFilter) ([]influxdb.ReadStream, error) {
+func (m *MockAnnotationService) ListStreams(ctx context.Context, orgID platform.ID, filter influxdb.StreamListFilter) ([]influxdb.StoredStream, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListStreams", ctx, orgID, filter)
-	ret0, _ := ret[0].([]influxdb.ReadStream)
+	ret0, _ := ret[0].([]influxdb.StoredStream)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

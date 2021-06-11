@@ -66,7 +66,13 @@ func (h *AnnotationHandler) handleGetAnnotations(w http.ResponseWriter, r *http.
 		return
 	}
 
-	l, err := h.annotationService.ListAnnotations(ctx, *o, *f)
+	s, err := h.annotationService.ListAnnotations(ctx, *o, *f)
+	if err != nil {
+		h.api.Err(w, r, err)
+		return
+	}
+
+	l, err := storedAnnotationsToReadAnnotations(s)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -242,6 +248,28 @@ func decodeUpdateAnnotationRequest(r *http.Request) (*influxdb.AnnotationCreate,
 	return u, nil
 }
 
+func storedAnnotationsToReadAnnotations(s []influxdb.StoredAnnotation) (influxdb.ReadAnnotations, error) {
+	r := influxdb.ReadAnnotations{}
+
+	for _, val := range s {
+		stickers, err := stickerSliceToMap(val.Stickers)
+		if err != nil {
+			return nil, err
+		}
+
+		r[val.StreamTag] = append(r[val.StreamTag], influxdb.ReadAnnotation{
+			ID:        val.ID,
+			Summary:   val.Summary,
+			Message:   val.Message,
+			Stickers:  stickers,
+			StartTime: val.Lower,
+			EndTime:   val.Upper,
+		})
+	}
+
+	return r, nil
+}
+
 func storedAnnotationToEvent(s *influxdb.StoredAnnotation) (*influxdb.AnnotationEvent, error) {
 	st, err := tStringToPointer(s.Lower)
 	if err != nil {
@@ -269,7 +297,6 @@ func storedAnnotationToEvent(s *influxdb.StoredAnnotation) (*influxdb.Annotation
 			StartTime: st,
 		},
 	}, nil
-
 }
 
 func stickerSliceToMap(stickers []string) (map[string]string, error) {

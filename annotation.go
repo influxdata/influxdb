@@ -68,7 +68,7 @@ type AnnotationService interface {
 	// CreateAnnotations creates annotations.
 	CreateAnnotations(ctx context.Context, orgID platform.ID, create []AnnotationCreate) ([]AnnotationEvent, error)
 	// ListAnnotations lists all annotations matching the filter.
-	ListAnnotations(ctx context.Context, orgID platform.ID, filter AnnotationListFilter) (ReadAnnotations, error)
+	ListAnnotations(ctx context.Context, orgID platform.ID, filter AnnotationListFilter) ([]StoredAnnotation, error)
 	// GetAnnotation gets an annotation by id.
 	GetAnnotation(ctx context.Context, id platform.ID) (*StoredAnnotation, error)
 	// DeleteAnnotations deletes annotations matching the filter.
@@ -79,7 +79,7 @@ type AnnotationService interface {
 	UpdateAnnotation(ctx context.Context, id platform.ID, update AnnotationCreate) (*AnnotationEvent, error)
 
 	// ListStreams lists all streams matching the filter.
-	ListStreams(ctx context.Context, orgID platform.ID, filter StreamListFilter) ([]ReadStream, error)
+	ListStreams(ctx context.Context, orgID platform.ID, filter StreamListFilter) ([]StoredStream, error)
 	// CreateOrUpdateStream creates or updates the matching stream by name.
 	CreateOrUpdateStream(ctx context.Context, orgID platform.ID, stream Stream) (*ReadStream, error)
 	// GetStream gets a stream by id. Currently this is only used for authorization, and there are no
