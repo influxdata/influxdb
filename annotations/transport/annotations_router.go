@@ -253,13 +253,18 @@ func storedAnnotationToEvent(s *influxdb.StoredAnnotation) (*influxdb.Annotation
 		return nil, err
 	}
 
+	stickers, err := stickerSliceToMap(s.Stickers)
+	if err != nil {
+		return nil, err
+	}
+
 	return &influxdb.AnnotationEvent{
 		ID: s.ID,
 		AnnotationCreate: influxdb.AnnotationCreate{
 			StreamTag: s.StreamTag,
 			Summary:   s.Summary,
 			Message:   s.Message,
-			Stickers:  stickerSliceToMap(s.Stickers),
+			Stickers:  stickers,
 			EndTime:   et,
 			StartTime: st,
 		},
@@ -267,16 +272,16 @@ func storedAnnotationToEvent(s *influxdb.StoredAnnotation) (*influxdb.Annotation
 
 }
 
-func stickerSliceToMap(stickers []string) map[string]string {
+func stickerSliceToMap(stickers []string) (map[string]string, error) {
 	stickerMap := map[string]string{}
 
 	for i := range stickers {
 		sticks := strings.SplitN(stickers[i], "=", 2)
 		if len(sticks) < 2 {
-			continue
+			return nil, invalidStickerError(stickers[i])
 		}
 		stickerMap[sticks[0]] = sticks[1]
 	}
 
-	return stickerMap
+	return stickerMap, nil
 }

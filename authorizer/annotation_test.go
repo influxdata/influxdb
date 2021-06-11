@@ -426,16 +426,12 @@ func Test_CreateOrUpdateStream(t *testing.T) {
 		}
 	)
 
-	// this set of tests does not actually test any authorization since the
-	// implementing code calls other methods because of ListStreams returning a zero-length slice.
-	// so these tests are to make sure that the branch logic and resulting calls work correctly.
 	t.Run("updating a stream", func(t *testing.T) {
 		tests := []struct {
 			name            string
 			permissionOrg   *platform.ID
 			existingStreams []influxdb.ReadStream
 			getStreamRet    *influxdb.StoredStream
-			getStreamErr    error
 			wantRet         *influxdb.ReadStream
 			wantErr         error
 		}{
@@ -444,41 +440,22 @@ func Test_CreateOrUpdateStream(t *testing.T) {
 				annOrgID1,
 				[]influxdb.ReadStream{{ID: *rID}},
 				&influxdb.StoredStream{ID: *rID, OrgID: *annOrgID1},
-				nil,
-				&influxdb.ReadStream{},
+				&influxdb.ReadStream{ID: *rID},
 				nil,
 			},
 			{
-				"not authorized to update an existing stream - no read access",
-				annOrgID2,
-				[]influxdb.ReadStream{{ID: *rID}},
-				nil,
-				&errors.Error{
-					Msg:  fmt.Sprintf("read:orgs/%s/annotations/%s is unauthorized", annOrgID2, rID),
-					Code: errors.EUnauthorized,
-				},
-				nil,
-				&errors.Error{
-					Msg:  fmt.Sprintf("read:orgs/%s/annotations/%s is unauthorized", annOrgID2, rID),
-					Code: errors.EUnauthorized,
-				},
-			},
-			{
-				"not authorized to update an existing stream - read access but no write access",
+				"not authorized to update an existing stream",
 				annOrgID2,
 				[]influxdb.ReadStream{{ID: *rID}},
 				&influxdb.StoredStream{ID: *rID, OrgID: *annOrgID1},
 				nil,
-				nil,
 				&errors.Error{
-					Msg:  fmt.Sprintf("write:orgs/%s/annotations/%s is unauthorized", annOrgID2, rID),
+					Msg:  fmt.Sprintf("write:orgs/%s/annotations/%s is unauthorized", annOrgID1, rID),
 					Code: errors.EUnauthorized,
 				},
 			},
 		}
 
-		// this set of tests will verify that AuthorizeCreate works correctly when
-		// creating a new stream
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				ctrlr := gomock.NewController(t)
@@ -493,15 +470,16 @@ func Test_CreateOrUpdateStream(t *testing.T) {
 
 				svc.EXPECT().
 					GetStream(gomock.Any(), tt.existingStreams[0].ID).
-					Return(tt.getStreamRet, tt.getStreamErr)
+					Return(tt.getStreamRet, nil)
 
-				if tt.getStreamErr == nil {
+				if tt.wantErr == nil {
 					svc.EXPECT().
-						UpdateStream(gomock.Any(), tt.getStreamRet.ID, testStream).
+						UpdateStream(gomock.Any(), tt.existingStreams[0].ID, testStream).
 						Return(tt.wantRet, tt.wantErr)
 				}
 
-				ctx := context.Background()
+				perm := newTestAnnotationsPermission(influxdb.WriteAction, tt.permissionOrg)
+				ctx := influxdbcontext.SetAuthorizer(context.Background(), mock.NewMockAuthorizer(false, []influxdb.Permission{perm}))
 				got, err := s.CreateOrUpdateStream(ctx, *tt.permissionOrg, testStream)
 				require.Equal(t, tt.wantErr, err)
 				require.Equal(t, tt.wantRet, got)
@@ -561,6 +539,27 @@ func Test_CreateOrUpdateStream(t *testing.T) {
 				require.Equal(t, tt.wantRet, got)
 			})
 		}
+	})
+
+	t.Run("stream list longer than 1 returns a server error", func(t *testing.T) {
+		ctrlr := gomock.NewController(t)
+		svc := mock.NewMockAnnotationService(ctrlr)
+		s := authorizer.NewAnnotationService(svc)
+
+		svc.EXPECT().
+			ListStreams(gomock.Any(), *annOrgID1, influxdb.StreamListFilter{
+				StreamIncludes: []string{testStreamName},
+			}).
+			Return([]influxdb.ReadStream{{Name: testStreamName}, {Name: testStreamName}}, nil)
+
+		wantErr := &errors.Error{
+			Code: errors.EInternal,
+			Msg:  fmt.Sprintf("more than one stream named %q for org %q", testStreamName, annOrgID1),
+		}
+
+		got, err := s.CreateOrUpdateStream(context.Background(), *annOrgID1, testStream)
+		require.Nil(t, got)
+		require.Equal(t, err, wantErr)
 	})
 }
 

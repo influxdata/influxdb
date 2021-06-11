@@ -238,3 +238,39 @@ func TestStoredAnnotationToEvent(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, got, &testEvent)
 }
+
+func TestStickerSliceToMap(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		stickers []string
+		want     map[string]string
+		wantErr  error
+	}{
+		{
+			"good stickers",
+			[]string{"good1=val1", "good2=val2"},
+			map[string]string{"good1": "val1", "good2": "val2"},
+			nil,
+		},
+		{
+			"bad stickers",
+			[]string{"this is an invalid sticker", "shouldbe=likethis"},
+			nil,
+			invalidStickerError("this is an invalid sticker"),
+		},
+		{
+			"no stickers",
+			[]string{},
+			map[string]string{},
+			nil,
+		},
+	}
+
+	for _, tt := range tests {
+		got, err := stickerSliceToMap(tt.stickers)
+		require.Equal(t, tt.want, got)
+		require.Equal(t, tt.wantErr, err)
+	}
+}

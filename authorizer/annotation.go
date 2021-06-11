@@ -2,9 +2,11 @@ package authorizer
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 var _ influxdb.AnnotationService = (*AnnotationService)(nil)
@@ -118,24 +120,26 @@ func (s *AnnotationService) CreateOrUpdateStream(ctx context.Context, orgID plat
 		return nil, err
 	}
 
-	// for updating an existing stream, we need to get the stream ID before calling the UpdateStream method
-	if len(streams) != 0 {
-		st, err := s.s.GetStream(ctx, streams[0].ID)
-		if err != nil {
+	// update an already existing stream
+	if len(streams) == 1 {
+		return s.UpdateStream(ctx, streams[0].ID, stream)
+	}
+
+	// create a new stream if one doesn't already exist
+	if len(streams) == 0 {
+		if _, _, err := AuthorizeCreate(ctx, influxdb.AnnotationsResourceType, orgID); err != nil {
 			return nil, err
 		}
 
-		// returning here means that the storage service implementation of CreateOrUpdateStream only
-		// needs to handle creating a new stream.
-		return s.s.UpdateStream(ctx, st.ID, stream)
+		return s.s.CreateOrUpdateStream(ctx, orgID, stream)
 	}
 
-	// for creating a new stream, first verify the permissions of the context for the provided orgID
-	if _, _, err := AuthorizeCreate(ctx, influxdb.AnnotationsResourceType, orgID); err != nil {
-		return nil, err
+	// if multiple streams were returned somehow, return an error
+	// this should never happen, so return a server error
+	return nil, &errors.Error{
+		Code: errors.EInternal,
+		Msg:  fmt.Sprintf("more than one stream named %q for org %q", streams[0].Name, orgID),
 	}
-
-	return s.s.CreateOrUpdateStream(ctx, orgID, stream)
 }
 
 // UpdateStream checks to see if the authorizer on context has write access to the requested stream
