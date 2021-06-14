@@ -1,15 +1,21 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, SamplingMode};
 use object_store::{memory::InMemory, throttle::ThrottledStore, ObjectStore};
 use server::{db::test_helpers::write_lp, utils::TestDb};
-use std::{sync::Arc, time::Duration};
+use std::{convert::TryFrom, num::NonZeroU64, sync::Arc, time::Duration};
 use tokio::{
     runtime::{Handle, Runtime},
     sync::Mutex,
     task::block_in_place,
 };
 
+/// Checkpoint interval for preserved catalog.
+const CHECKPOINT_INTERVAL: u64 = 10;
+
 /// Number of chunks simulated for persistence.
-const N_CHUNKS: u32 = 100;
+///
+/// Ideally this value is NOT divisible by [`CHECKPOINT_INTERVAL`], so that there are some transactions after the last
+/// checkpoint.
+const N_CHUNKS: u32 = 109;
 
 /// Number of tags for the test table.
 const N_TAGS: usize = 10;
@@ -45,7 +51,7 @@ fn benchmark_catalog_persistence(c: &mut Criterion) {
                 let table_name = "cpu";
                 let chunk_id = 0;
                 assert!(db
-                    .table_summary(partition_key, table_name, chunk_id)
+                    .table_summary(table_name, partition_key, chunk_id)
                     .is_some());
             },
             BatchSize::SmallInput,
@@ -70,23 +76,23 @@ async fn setup(object_store: Arc<ObjectStore>, done: &Mutex<bool>) {
         let table_names = write_lp(&db, &lp);
 
         for table_name in &table_names {
-            db.rollover_partition(partition_key, &table_name)
+            db.rollover_partition(&table_name, partition_key)
                 .await
                 .unwrap();
 
-            db.load_chunk_to_read_buffer(partition_key, &table_name, chunk_id, &Default::default())
+            db.load_chunk_to_read_buffer(&table_name, partition_key, chunk_id, &Default::default())
                 .await
                 .unwrap();
             db.write_chunk_to_object_store(
-                partition_key,
                 &table_name,
+                partition_key,
                 chunk_id,
                 &Default::default(),
             )
             .await
             .unwrap();
 
-            db.unload_read_buffer(partition_key, &table_name, chunk_id)
+            db.unload_read_buffer(&table_name, partition_key, chunk_id)
                 .await
                 .unwrap();
         }
@@ -98,7 +104,11 @@ async fn setup(object_store: Arc<ObjectStore>, done: &Mutex<bool>) {
 /// Create a persisted database and load its catalog.
 #[inline(never)]
 async fn create_persisted_db(object_store: Arc<ObjectStore>) -> TestDb {
-    TestDb::builder().object_store(object_store).build().await
+    TestDb::builder()
+        .object_store(object_store)
+        .catalog_transactions_until_checkpoint(NonZeroU64::try_from(CHECKPOINT_INTERVAL).unwrap())
+        .build()
+        .await
 }
 
 /// Create line protocol for a single entry with `n_tags` tags and `n_fields` fields.

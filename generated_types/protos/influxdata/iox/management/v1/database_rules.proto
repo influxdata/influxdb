@@ -110,6 +110,11 @@ message LifecycleRules {
   // If 0, the default backoff is used
   // See server::db::lifecycle::DEFAULT_LIFECYCLE_BACKOFF
   uint64 worker_backoff_millis = 10;
+
+  // After how many transactions should IOx write a new checkpoint?
+  //
+  // If 0 / absent, this default to 100.
+  uint64 catalog_transactions_until_checkpoint = 11;
 }
 
 message DatabaseRules {

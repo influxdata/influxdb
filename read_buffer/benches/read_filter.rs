@@ -8,7 +8,7 @@ use internal_types::selection::Selection;
 use packers::{sorter, Packers};
 use read_buffer::{
     benchmarks::{Column, ColumnType, RowGroup},
-    Chunk,
+    RBChunk,
 };
 use read_buffer::{BinaryExpr, Predicate};
 
@@ -17,7 +17,7 @@ const ONE_MS: i64 = 1_000_000;
 pub fn read_filter(c: &mut Criterion) {
     let mut rng = rand::thread_rng();
 
-    let mut chunk = Chunk::new(read_buffer::ChunkMetrics::new_unregistered());
+    let mut chunk = RBChunk::new(read_buffer::ChunkMetrics::new_unregistered());
     let row_group = generate_row_group(200_000, &mut rng);
     read_buffer::benchmarks::upsert_table_with_row_group(&mut chunk, "table", row_group);
 
@@ -27,7 +27,7 @@ pub fn read_filter(c: &mut Criterion) {
 
 // These benchmarks track the performance of read_filter without any predicate
 // but varying the size of projection (columns) requested
-fn read_filter_no_pred_vary_proj(c: &mut Criterion, chunk: &Chunk) {
+fn read_filter_no_pred_vary_proj(c: &mut Criterion, chunk: &RBChunk) {
     let mut group = c.benchmark_group("read_filter/no_pred");
 
     // All these projections involve the same number of rows but with varying
@@ -63,7 +63,7 @@ fn read_filter_no_pred_vary_proj(c: &mut Criterion, chunk: &Chunk) {
 }
 
 // These benchmarks track the performance of read_filter with different predicates
-fn read_filter_with_pred_vary_proj(c: &mut Criterion, chunk: &Chunk) {
+fn read_filter_with_pred_vary_proj(c: &mut Criterion, chunk: &RBChunk) {
     let mut group = c.benchmark_group("read_filter/with_pred");
 
     // these predicates vary the number of rows returned

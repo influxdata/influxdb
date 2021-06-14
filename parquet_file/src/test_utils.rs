@@ -66,7 +66,7 @@ pub async fn load_parquet_from_store_for_chunk(
     chunk: &Chunk,
     store: Arc<ObjectStore>,
 ) -> Result<(String, Vec<u8>)> {
-    let path = chunk.table_path();
+    let path = chunk.path();
     let table_name = chunk.table_name().to_string();
     Ok((
         table_name,
@@ -146,7 +146,7 @@ pub async fn make_chunk_given_record_batch(
         transaction_revision_counter: 0,
         transaction_uuid: Uuid::nil(),
     };
-    let (path, _metadata) = storage
+    let (path, parquet_metadata) = storage
         .write_to_object_store(
             part_key.to_string(),
             chunk_id,
@@ -157,12 +157,13 @@ pub async fn make_chunk_given_record_batch(
         .await
         .unwrap();
 
-    Chunk::new(
+    Chunk::new_from_parts(
         part_key,
-        table_summary,
+        Arc::new(table_summary),
+        Arc::new(schema),
         path,
         Arc::clone(&store),
-        schema,
+        Arc::new(parquet_metadata),
         ChunkMetrics::new_unregistered(),
     )
 }
@@ -584,7 +585,7 @@ pub async fn make_metadata(
         .await
         .unwrap();
     (
-        chunk.table_path(),
+        chunk.path(),
         read_parquet_metadata_from_file(parquet_data).unwrap(),
     )
 }

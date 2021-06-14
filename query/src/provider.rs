@@ -240,12 +240,17 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
         // Figure out the schema of the requested output
         let scan_schema = project_schema(self.arrow_schema(), projection);
 
+        // This debug shows the self.arrow_schema() includes all columns in all chunks
+        // which means the schema of all chunks are merged before invoking this scan
+        debug!("all chunks schema: {:#?}", self.arrow_schema());
+
         let mut deduplicate = Deduplicater::new();
         let plan = deduplicate.build_scan_plan(
             Arc::clone(&self.table_name),
             scan_schema,
             chunks,
             predicate,
+            false,
         )?;
 
         Ok(plan)
@@ -317,6 +322,11 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
     ///            ┌───────────────────────┐                      │
     ///            │SortPreservingMergeExec│                      │
     ///            └───────────────────────┘                      │
+    ///                        ▲                                  │
+    ///                        │                                  │
+    ///            ┌───────────────────────┐                      │
+    ///            │       UnionExec       │                      │
+    ///            └───────────────────────┘                      │
     ///                       ▲                                   |
     ///                       │                                   |
     ///           ┌───────────┴───────────┐                       │
@@ -340,18 +350,21 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         schema: ArrowSchemaRef,
         chunks: Vec<Arc<C>>,
         predicate: Predicate,
+        for_testing: bool, // TODO: remove this parameter when #1682 and #1683 are done
     ) -> Result<Arc<dyn ExecutionPlan>> {
         // find overlapped chunks and put them into the right group
         self.split_overlapped_chunks(chunks.to_vec())?;
 
         // TEMP until the rest of this module's code is complete:
         // merge all plans into the same
-        self.no_duplicates_chunks
-            .append(&mut self.in_chunk_duplicates_chunks);
-        for mut group in &mut self.overlapped_chunks_set {
-            self.no_duplicates_chunks.append(&mut group);
+        if !for_testing {
+            self.no_duplicates_chunks
+                .append(&mut self.in_chunk_duplicates_chunks);
+            for mut group in &mut self.overlapped_chunks_set {
+                self.no_duplicates_chunks.append(&mut group);
+            }
+            self.overlapped_chunks_set.clear();
         }
-        self.overlapped_chunks_set.clear();
 
         // Building plans
         let mut plans = vec![];
@@ -396,16 +409,16 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
             }
         }
 
-        let final_plan = plans.remove(0);
-
-        // TODO
-        // There are still plan, add UnionExec
-        if !plans.is_empty() {
-            // final_plan = union_plan
-            panic!("Unexpected error: There should be only one output for scan plan, but there were: {:#?}", plans);
+        match plans.len() {
+            // No plan generated. Something must go wrong
+            // Even if the chunks are empty, IOxReadFilterNode is still created
+            0 => panic!("Internal error generating deduplicate plan"),
+            // Only one plan, no need to add union node
+            // Return the plan itself
+            1 => Ok(plans.remove(0)),
+            // Has many plans and need to union them
+            _ => Ok(Arc::new(UnionExec::new(plans))),
         }
-
-        Ok(final_plan)
     }
 
     /// discover overlaps and split them into three groups:
@@ -430,7 +443,7 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         Ok(())
     }
 
-    /// Return true if all chunks are neither overlap nor has duplicates in itself
+    /// Return true if all chunks neither overlap nor have duplicates in itself
     fn no_duplicates(&self) -> bool {
         self.overlapped_chunks_set.is_empty() && self.in_chunk_duplicates_chunks.is_empty()
     }
@@ -888,9 +901,8 @@ mod test {
             Predicate::default(),
         );
         let batch = collect(sort_plan.unwrap()).await.unwrap();
-        // data is not sorted on primary key(tag1, tag2, time)
-
-        // NOTE: When the full deduplication is done, the duplciates will be removed from this output
+        // data is sorted on primary key(tag1, tag2, time)
+        // NOTE: When the full deduplication is done, the duplicates will be removed from this output
         let expected = vec![
             "+-----------+------+------+-------------------------------+",
             "| field_int | tag1 | tag2 | time                          |",
@@ -906,6 +918,241 @@ mod test {
             "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
             "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
             "+-----------+------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
+    }
+
+    #[tokio::test]
+    async fn scan_plan_with_one_chunk_no_duplicates() {
+        // Test no duplicate at all
+        let chunk = Arc::new(
+            TestChunk::new(1)
+                .with_time_column_with_stats("t", 5, 7000)
+                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
+                .with_int_field_column("t", "field_int")
+                .with_five_rows_of_data("t"),
+        );
+
+        // Datafusion schema of the chunk
+        let schema = chunk.table_schema(Selection::All).unwrap().as_arrow();
+
+        let mut deduplicator = Deduplicater::new();
+        let plan = deduplicator.build_scan_plan(
+            Arc::from("t"),
+            schema,
+            vec![Arc::clone(&chunk)],
+            Predicate::default(),
+            true,
+        );
+        let batch = collect(plan.unwrap()).await.unwrap();
+        // No duplicates so no sort at all. The data will stay in their original order
+        let expected = vec![
+            "+-----------+------+-------------------------------+",
+            "| field_int | tag1 | time                          |",
+            "+-----------+------+-------------------------------+",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000005    |",
+            "+-----------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
+    }
+
+    #[tokio::test]
+    async fn scan_plan_with_one_chunk_with_duplicates() {
+        // Test one chunk with duplicate within
+        let chunk = Arc::new(
+            TestChunk::new(1)
+                .with_time_column_with_stats("t", 5, 7000)
+                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
+                .with_int_field_column("t", "field_int")
+                .with_may_contain_pk_duplicates(true)
+                .with_ten_rows_of_data_some_duplicates("t"),
+        );
+
+        // Datafusion schema of the chunk
+        let schema = chunk.table_schema(Selection::All).unwrap().as_arrow();
+
+        let mut deduplicator = Deduplicater::new();
+        let plan = deduplicator.build_scan_plan(
+            Arc::from("t"),
+            schema,
+            vec![Arc::clone(&chunk)],
+            Predicate::default(),
+            true,
+        );
+        let batch = collect(plan.unwrap()).await.unwrap();
+        // Data must be sorted and duplicates removed
+        // TODO: it is just sorted for now. When https://github.com/influxdata/influxdb_iox/issues/1646
+        //   is done, duplicates will be removed
+        let expected = vec![
+            "+-----------+------+-------------------------------+",
+            "| field_int | tag1 | time                          |",
+            "+-----------+------+-------------------------------+",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 10        | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000500 |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000000005 |",
+            "| 30        | MT   | 1970-01-01 00:00:00.000000005 |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000002    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 20        | MT   | 1970-01-01 00:00:00.000007    |",
+            "+-----------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
+    }
+
+    #[tokio::test]
+    async fn scan_plan_with_two_overlapped_chunks_with_duplicates() {
+        // test overlapped chunks
+        let chunk1 = Arc::new(
+            TestChunk::new(1)
+                .with_time_column_with_stats("t", 5, 7000)
+                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
+                .with_int_field_column("t", "field_int")
+                .with_ten_rows_of_data_some_duplicates("t"),
+        );
+
+        let chunk2 = Arc::new(
+            TestChunk::new(1)
+                .with_time_column_with_stats("t", 5, 7000)
+                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
+                .with_int_field_column("t", "field_int")
+                .with_five_rows_of_data("t"),
+        );
+
+        // Datafusion schema of the chunk
+        let schema = chunk1.table_schema(Selection::All).unwrap().as_arrow();
+
+        let mut deduplicator = Deduplicater::new();
+        let plan = deduplicator.build_scan_plan(
+            Arc::from("t"),
+            schema,
+            vec![Arc::clone(&chunk1), Arc::clone(&chunk2)],
+            Predicate::default(),
+            true,
+        );
+        let batch = collect(plan.unwrap()).await.unwrap();
+        // Two overlapped chunks will be sort merged with dupplicates removed
+        // TODO: it is just sorted for now. When https://github.com/influxdata/influxdb_iox/issues/1646
+        //   is done, duplicates will be removed
+        let expected = vec![
+            "+-----------+------+-------------------------------+",
+            "| field_int | tag1 | time                          |",
+            "+-----------+------+-------------------------------+",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 10        | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000500 |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000000005 |",
+            "| 30        | MT   | 1970-01-01 00:00:00.000000005 |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000002    |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000005    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 20        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "+-----------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
+    }
+
+    #[tokio::test]
+    async fn scan_plan_with_four_chunks() {
+        // This test covers all kind of chunks: overlap, non-overlap without duplicates within, non-overlap with duplicates within
+        let chunk1 = Arc::new(
+            TestChunk::new(1)
+                .with_time_column_with_stats("t", 5, 7000)
+                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
+                .with_int_field_column("t", "field_int")
+                .with_ten_rows_of_data_some_duplicates("t"),
+        );
+
+        // chunk2 overlaps with chunk 1
+        let chunk2 = Arc::new(
+            TestChunk::new(1)
+                .with_time_column_with_stats("t", 5, 7000)
+                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
+                .with_int_field_column("t", "field_int")
+                .with_five_rows_of_data("t"),
+        );
+
+        // chunk3 no overlap, no duplicates within
+        let chunk3 = Arc::new(
+            TestChunk::new(1)
+                .with_time_column_with_stats("t", 8000, 20000)
+                .with_tag_column_with_stats("t", "tag1", "UT", "WA")
+                .with_int_field_column("t", "field_int")
+                .with_three_rows_of_data("t"),
+        );
+
+        // chunk3 no overlap, duplicates within
+        let chunk4 = Arc::new(
+            TestChunk::new(1)
+                .with_time_column_with_stats("t", 28000, 220000)
+                .with_tag_column_with_stats("t", "tag1", "UT", "WA")
+                .with_int_field_column("t", "field_int")
+                .with_may_contain_pk_duplicates(true)
+                .with_four_rows_of_data("t"),
+        );
+
+        // Datafusion schema of the chunk
+        let schema = chunk1.table_schema(Selection::All).unwrap().as_arrow();
+
+        let mut deduplicator = Deduplicater::new();
+        let plan = deduplicator.build_scan_plan(
+            Arc::from("t"),
+            schema,
+            vec![
+                Arc::clone(&chunk1),
+                Arc::clone(&chunk2),
+                Arc::clone(&chunk3),
+                Arc::clone(&chunk4),
+            ],
+            Predicate::default(),
+            true,
+        );
+        let batch = collect(plan.unwrap()).await.unwrap();
+        // Final data will be partially sorted and duplicates removed. Detailed:
+        //   . chunk1 and chunk2 will be sorted merged and deduplicated (rows 8-32)
+        //   . chunk3 will stay in its original (rows 1-3)
+        //   . chunk4 will be sorted and deduplicated (rows 4-7)
+        // TODO: data is only partially sorted for now. The deduplication will happen when When https://github.com/influxdata/influxdb_iox/issues/1646
+        //   is done
+        let expected = vec![
+            "+-----------+------+-------------------------------+",
+            "| field_int | tag1 | time                          |",
+            "+-----------+------+-------------------------------+",
+            "| 1000      | WA   | 1970-01-01 00:00:00.000008    |",
+            "| 10        | VT   | 1970-01-01 00:00:00.000010    |",
+            "| 70        | UT   | 1970-01-01 00:00:00.000020    |",
+            "| 70        | UT   | 1970-01-01 00:00:00.000020    |",
+            "| 10        | VT   | 1970-01-01 00:00:00.000010    |",
+            "| 50        | VT   | 1970-01-01 00:00:00.000010    |",
+            "| 1000      | WA   | 1970-01-01 00:00:00.000008    |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 10        | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000500 |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000000005 |",
+            "| 30        | MT   | 1970-01-01 00:00:00.000000005 |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000002    |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000005    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 20        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "+-----------+------+-------------------------------+",
         ];
         assert_batches_eq!(&expected, &batch);
     }

@@ -35,6 +35,9 @@ impl From<LifecycleRules> for management::LifecycleRules {
             persist: config.persist,
             immutable: config.immutable,
             worker_backoff_millis: config.worker_backoff_millis.map_or(0, NonZeroU64::get),
+            catalog_transactions_until_checkpoint: config
+                .catalog_transactions_until_checkpoint
+                .map_or(100, NonZeroU64::get),
         }
     }
 }
@@ -54,6 +57,9 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
             persist: proto.persist,
             immutable: proto.immutable,
             worker_backoff_millis: NonZeroU64::new(proto.worker_backoff_millis),
+            catalog_transactions_until_checkpoint: NonZeroU64::new(
+                proto.catalog_transactions_until_checkpoint,
+            ),
         })
     }
 }
@@ -141,6 +147,7 @@ mod tests {
             persist: true,
             immutable: true,
             worker_backoff_millis: 1000,
+            catalog_transactions_until_checkpoint: 10,
         };
 
         let config: LifecycleRules = protobuf.clone().try_into().unwrap();

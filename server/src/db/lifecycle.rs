@@ -6,8 +6,6 @@ use observability_deps::tracing::{info, warn};
 
 use data_types::{database_rules::LifecycleRules, error::ErrorLogger, job::Job};
 
-use tracker::{RwLock, TaskTracker};
-
 use super::{
     catalog::chunk::{Chunk, ChunkStage, ChunkStageFrozenRepr},
     Db,
@@ -16,6 +14,7 @@ use data_types::database_rules::SortOrder;
 use futures::future::BoxFuture;
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
+use tracker::{RwLock, TaskTracker};
 
 pub const DEFAULT_LIFECYCLE_BACKOFF: Duration = Duration::from_secs(1);
 /// Number of seconds to wait before retying a failed lifecycle action
@@ -389,9 +388,10 @@ fn can_move(rules: &LifecycleRules, chunk: &Chunk, now: DateTime<Utc>) -> bool {
 mod tests {
     use super::*;
     use crate::db::catalog::chunk::ChunkMetrics;
-    use data_types::partition_metadata::TableSummary;
     use entry::test_helpers::lp_to_entry;
-    use object_store::{memory::InMemory, parsed_path, ObjectStore};
+    use object_store::{memory::InMemory, ObjectStore};
+    use parquet_file::test_utils::make_chunk as make_parquet_chunk;
+    use read_buffer::RBChunk;
     use std::num::{NonZeroU32, NonZeroUsize};
     use tracker::{TaskRegistration, TaskRegistry};
 
@@ -429,7 +429,7 @@ mod tests {
     }
 
     /// Transitions a new ("open") chunk into the "moved" state.
-    fn transition_to_moved(mut chunk: Chunk, rb: &Arc<read_buffer::Chunk>) -> Chunk {
+    fn transition_to_moved(mut chunk: Chunk, rb: &Arc<RBChunk>) -> Chunk {
         chunk = transition_to_moving(chunk);
         chunk.set_moved(Arc::clone(&rb)).unwrap();
         chunk
@@ -437,10 +437,7 @@ mod tests {
 
     /// Transitions a new ("open") chunk into the "writing to object store"
     /// state.
-    fn transition_to_writing_to_object_store(
-        mut chunk: Chunk,
-        rb: &Arc<read_buffer::Chunk>,
-    ) -> Chunk {
+    fn transition_to_writing_to_object_store(mut chunk: Chunk, rb: &Arc<RBChunk>) -> Chunk {
         chunk = transition_to_moved(chunk, rb);
         chunk
             .set_writing_to_object_store(&Default::default())
@@ -450,37 +447,20 @@ mod tests {
 
     /// Transitions a new ("open") chunk into the "written to object store"
     /// state.
-    fn transition_to_written_to_object_store(
-        mut chunk: Chunk,
-        rb: &Arc<read_buffer::Chunk>,
-    ) -> Chunk {
+    async fn transition_to_written_to_object_store(mut chunk: Chunk, rb: &Arc<RBChunk>) -> Chunk {
         chunk = transition_to_writing_to_object_store(chunk, rb);
-        let parquet_chunk = new_parquet_chunk(&chunk);
+        let parquet_chunk = new_parquet_chunk(&chunk).await;
         chunk
             .set_written_to_object_store(Arc::new(parquet_chunk))
             .unwrap();
         chunk
     }
 
-    fn new_parquet_chunk(chunk: &Chunk) -> parquet_file::chunk::Chunk {
+    async fn new_parquet_chunk(chunk: &Chunk) -> parquet_file::chunk::Chunk {
         let in_memory = InMemory::new();
-
-        let schema = internal_types::schema::builder::SchemaBuilder::new()
-            .tag("foo")
-            .build()
-            .unwrap();
-
         let object_store = Arc::new(ObjectStore::new_in_memory(in_memory));
-        let path = object_store.path_from_dirs_and_filename(parsed_path!("foo"));
 
-        parquet_file::chunk::Chunk::new(
-            chunk.key(),
-            TableSummary::new("my_awesome_table"),
-            path,
-            object_store,
-            schema,
-            parquet_file::chunk::ChunkMetrics::new_unregistered(),
-        )
+        make_parquet_chunk(object_store, "foo", chunk.id()).await
     }
 
     #[derive(Debug, Eq, PartialEq)]
@@ -771,8 +751,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_buffer_size_soft_drop_non_persisted() {
+    #[tokio::test]
+    async fn test_buffer_size_soft_drop_non_persisted() {
         // test that chunk mover only drops moved and written chunks
 
         // IMPORTANT: the lifecycle rules have the default `persist` flag (false) so NOT
@@ -783,9 +763,7 @@ mod tests {
             ..Default::default()
         };
 
-        let rb = Arc::new(read_buffer::Chunk::new(
-            read_buffer::ChunkMetrics::new_unregistered(),
-        ));
+        let rb = Arc::new(RBChunk::new(read_buffer::ChunkMetrics::new_unregistered()));
 
         let chunks = vec![new_chunk(0, Some(0), Some(0))];
 
@@ -803,7 +781,7 @@ mod tests {
             // "writing" chunk => cannot be drop while write is in-progress
             transition_to_writing_to_object_store(new_chunk(3, Some(0), Some(0)), &rb),
             // "written" chunk => can be dropped
-            transition_to_written_to_object_store(new_chunk(4, Some(0), Some(0)), &rb),
+            transition_to_written_to_object_store(new_chunk(4, Some(0), Some(0)), &rb).await,
         ];
 
         let mut mover = DummyMover::new(rules, chunks);
@@ -815,8 +793,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_buffer_size_soft_dont_drop_non_persisted() {
+    #[tokio::test]
+    async fn test_buffer_size_soft_dont_drop_non_persisted() {
         // test that chunk mover only drops written chunks
 
         // IMPORTANT: the lifecycle rules have the default `persist` flag (false) so NOT
@@ -826,9 +804,7 @@ mod tests {
             ..Default::default()
         };
 
-        let rb = Arc::new(read_buffer::Chunk::new(
-            read_buffer::ChunkMetrics::new_unregistered(),
-        ));
+        let rb = Arc::new(RBChunk::new(read_buffer::ChunkMetrics::new_unregistered()));
 
         let chunks = vec![new_chunk(0, Some(0), Some(0))];
 
@@ -846,7 +822,7 @@ mod tests {
             // "writing" chunk => cannot be drop while write is in-progess
             transition_to_writing_to_object_store(new_chunk(3, Some(0), Some(0)), &rb),
             // "written" chunk => can be dropped
-            transition_to_written_to_object_store(new_chunk(4, Some(0), Some(0)), &rb),
+            transition_to_written_to_object_store(new_chunk(4, Some(0), Some(0)), &rb).await,
         ];
 
         let mut mover = DummyMover::new(rules, chunks);
@@ -879,9 +855,7 @@ mod tests {
             ..Default::default()
         };
 
-        let rb = Arc::new(read_buffer::Chunk::new(
-            read_buffer::ChunkMetrics::new_unregistered(),
-        ));
+        let rb = Arc::new(RBChunk::new(read_buffer::ChunkMetrics::new_unregistered()));
 
         let chunks = vec![
             // still moving => cannot write

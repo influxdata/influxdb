@@ -1701,6 +1701,7 @@ dependencies = [
  "server",
  "snafu",
  "structopt",
+ "synchronized-writer",
  "tempfile",
  "test_helpers",
  "thiserror",
@@ -3717,6 +3718,7 @@ dependencies = [
  "object_store",
  "observability_deps",
  "parking_lot",
+ "parquet",
  "parquet_file",
  "query",
  "rand 0.8.3",
@@ -4036,6 +4038,12 @@ dependencies = [
  "quote",
  "unicode-xid",
 ]
+
+[[package]]
+name = "synchronized-writer"
+version = "1.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f886607578031fffb0996a24a5e5b73313f36dca63416b9d1c1004f7cb6084d"
 
 [[package]]
 name = "synstructure"
