@@ -81,7 +81,6 @@ func (h *RestoreHandler) handleRestoreKVStore(w http.ResponseWriter, r *http.Req
 	defer span.Finish()
 
 	ctx := r.Context()
-	defer r.Body.Close()
 
 	var kvBytes io.Reader = r.Body
 	if r.Header.Get("Content-Encoding") == "gzip" {
@@ -109,7 +108,6 @@ func (h *RestoreHandler) handleRestoreSqlStore(w http.ResponseWriter, r *http.Re
 	defer span.Finish()
 
 	ctx := r.Context()
-	defer r.Body.Close()
 
 	var sqlBytes io.Reader = r.Body
 	if r.Header.Get("Content-Encoding") == "gzip" {
@@ -137,7 +135,6 @@ func (h *RestoreHandler) handleRestoreBucket(w http.ResponseWriter, r *http.Requ
 	defer span.Finish()
 
 	ctx := r.Context()
-	defer r.Body.Close()
 
 	// Read bucket ID.
 	bucketID, err := decodeIDFromCtx(r.Context(), "bucketID")
@@ -170,7 +167,6 @@ func (h *RestoreHandler) handleRestoreShard(w http.ResponseWriter, r *http.Reque
 	defer span.Finish()
 
 	ctx := r.Context()
-	defer r.Body.Close()
 
 	params := httprouter.ParamsFromContext(ctx)
 	shardID, err := strconv.ParseUint(params.ByName("shardID"), 10, 64)
