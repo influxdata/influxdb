@@ -1783,6 +1783,9 @@ dependencies = [
  "arrow",
  "arrow_util",
  "hashbrown 0.11.2",
+ "indexmap",
+ "itertools 0.9.0",
+ "observability_deps",
  "snafu",
 ]
 
