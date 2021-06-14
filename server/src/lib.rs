@@ -714,7 +714,7 @@ where
 
     pub async fn write_entry_local(&self, db_name: &str, db: &Db, entry: Entry) -> Result<()> {
         let bytes = entry.data().len() as u64;
-        db.store_entry(entry).map_err(|e| {
+        db.store_entry(entry).await.map_err(|e| {
             self.metrics.ingest_entries_bytes_total.add_with_labels(
                 bytes,
                 &[

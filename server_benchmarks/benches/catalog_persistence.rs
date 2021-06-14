@@ -73,7 +73,7 @@ async fn setup(object_store: Arc<ObjectStore>, done: &Mutex<bool>) {
     let partition_key = "1970-01-01T00";
 
     for chunk_id in 0..N_CHUNKS {
-        let table_names = write_lp(&db, &lp);
+        let table_names = write_lp(&db, &lp).await;
 
         for table_name in &table_names {
             db.rollover_partition(&table_name, partition_key)

@@ -1,17 +1,19 @@
+use async_trait::async_trait;
 use entry::{Entry, Sequence};
 
 /// A Write Buffer takes an `Entry` and returns `Sequence` data that facilitates reading entries
 /// from the Write Buffer at a later time.
+#[async_trait]
 pub trait WriteBuffer: Sync + Send + std::fmt::Debug + 'static {
     /// Send an `Entry` to the write buffer and return information that can be used to restore
     /// entries at a later time.
-    fn store_entry(
+    async fn store_entry(
         &self,
         entry: &Entry,
     ) -> Result<Sequence, Box<dyn std::error::Error + Sync + Send>>;
 
     // TODO: interface for restoring, will look something like:
-    // fn restore_from(&self, sequence: &Sequence) -> Result<Stream<Entry>, Err>;
+    // async fn restore_from(&self, sequence: &Sequence) -> Result<Stream<Entry>, Err>;
 }
 
 #[derive(Debug)]
@@ -19,8 +21,9 @@ pub struct KafkaBuffer {
     conn: String,
 }
 
+#[async_trait]
 impl WriteBuffer for KafkaBuffer {
-    fn store_entry(
+    async fn store_entry(
         &self,
         _entry: &Entry,
     ) -> Result<Sequence, Box<dyn std::error::Error + Sync + Send>> {
@@ -43,8 +46,9 @@ pub mod test_helpers {
         pub entries: Arc<Mutex<Vec<Entry>>>,
     }
 
+    #[async_trait]
     impl WriteBuffer for MockBuffer {
-        fn store_entry(
+        async fn store_entry(
             &self,
             entry: &Entry,
         ) -> Result<Sequence, Box<dyn std::error::Error + Sync + Send>> {
