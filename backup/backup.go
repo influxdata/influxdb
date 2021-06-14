@@ -58,11 +58,11 @@ func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) er
 		}
 
 		l = append(l, influxdb.BucketMetadataManifest{
-			OrganizationID:   bkt.OrgID,
-			OrganizationName: org.Name,
-			BucketID:         bkt.ID,
-			BucketName:       bkt.Name,
-			Description:      description,
+			OrganizationID:         bkt.OrgID,
+			OrganizationName:       org.Name,
+			BucketID:               bkt.ID,
+			BucketName:             bkt.Name,
+			Description:            description,
 			DefaultRetentionPolicy: dbInfo.DefaultRetentionPolicy,
 			RetentionPolicies:      retentionPolicyToManifest(dbInfo.RetentionPolicies),
 		})
