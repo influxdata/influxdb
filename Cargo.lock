@@ -2125,6 +2125,7 @@ dependencies = [
  "arrow",
  "arrow_util",
  "async-trait",
+ "chrono",
  "data_types",
  "entry",
  "hashbrown 0.11.2",
