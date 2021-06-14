@@ -10,10 +10,7 @@ mod tests {
     use data_types::partition_metadata::TableSummary;
 
     use crate::{
-        metadata::{
-            read_parquet_metadata_from_file, read_schema_from_parquet_metadata,
-            read_statistics_from_parquet_metadata,
-        },
+        metadata::IoxParquetMetaData,
         test_utils::{
             load_parquet_from_store, make_chunk_given_record_batch, make_object_store,
             make_record_batch, read_data_from_parquet_data,
@@ -55,10 +52,10 @@ mod tests {
         let (_read_table, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(&store))
             .await
             .unwrap();
-        let parquet_metadata = read_parquet_metadata_from_file(parquet_data.clone()).unwrap();
+        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
         //
         // 1. Check metadata at file level: Everything is correct
-        let schema_actual = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
+        let schema_actual = parquet_metadata.read_schema().unwrap();
         assert_eq!(schema.clone(), schema_actual);
         assert_eq!(
             key_value_metadata.clone(),
@@ -66,9 +63,9 @@ mod tests {
         );
 
         // 2. Check statistics
-        let table_summary_actual =
-            read_statistics_from_parquet_metadata(&parquet_metadata, &schema_actual, &table)
-                .unwrap();
+        let table_summary_actual = parquet_metadata
+            .read_statistics(&schema_actual, &table)
+            .unwrap();
         assert_eq!(table_summary_actual, table_summary);
 
         // 3. Check data
