@@ -1109,18 +1109,17 @@ impl CatalogState for Catalog {
     fn add(
         &self,
         object_store: Arc<ObjectStore>,
-        server_id: ServerId,
-        db_name: &str,
+        _server_id: ServerId,
+        _db_name: &str,
         info: CatalogParquetInfo,
     ) -> parquet_file::catalog::Result<()> {
-        use parquet_file::catalog::{CatalogStateFailure, PathParseFailed};
+        use parquet_file::catalog::{CatalogStateFailure, MetadataExtractFailed};
 
-        // extract all relevant bits for the in-memory catalog
-        let storage = Storage::new(Arc::clone(&object_store), server_id, db_name.to_string());
-        // this is temporary until https://github.com/influxdata/influxdb_iox/issues/1506 is fixed.
-        let (partition_key, chunk_id, table_name) = storage
-            .parse_location(info.path.clone())
-            .context(PathParseFailed {
+        // extract relevant bits from parquet file metadata
+        let iox_md = info
+            .metadata
+            .read_iox_metadata()
+            .context(MetadataExtractFailed {
                 path: info.path.clone(),
             })?;
 
@@ -1131,11 +1130,9 @@ impl CatalogState for Catalog {
 
         let metrics = ParquetChunkMetrics::new(&metrics, self.metrics().memory().parquet());
         let parquet_chunk = ParquetChunk::new(
-            &partition_key,
             object_store.path_from_dirs_and_filename(info.path.clone()),
             object_store,
             info.metadata,
-            &table_name,
             metrics,
         )
         .context(ChunkCreationFailed {
@@ -1145,11 +1142,11 @@ impl CatalogState for Catalog {
 
         // Get partition from the catalog
         // Note that the partition might not exist yet if the chunk is loaded from an existing preserved catalog.
-        let partition = self.get_or_create_partition(&table_name, &partition_key);
+        let partition = self.get_or_create_partition(&iox_md.table_name, &iox_md.partition_key);
         let partition_guard = partition.read();
 
         // Get the chunk from the catalog
-        match partition_guard.chunk(chunk_id) {
+        match partition_guard.chunk(iox_md.chunk_id) {
             Some(chunk) => {
                 // Chunk exists => should be in frozen stage and will transition from there
 
@@ -1162,15 +1159,15 @@ impl CatalogState for Catalog {
                     .set_written_to_object_store(parquet_chunk)
                     .map_err(|e| Box::new(e) as _)
                     .context(CatalogStateFailure { path: info.path })?;
-                debug!(%table_name, %partition_key, %chunk_id, "chunk marked WRITTEN. Persisting to object store complete");
+                debug!(table_name = %iox_md.table_name, partition_key = %iox_md.partition_key, chunk_id = %iox_md.chunk_id, "chunk marked WRITTEN. Persisting to object store complete");
             }
             None => {
                 // table unknown => that's ok, create chunk in "object store only" stage which will also create the table
                 // table chunk, but table already known => that's ok, create chunk in "object store only" stage
                 drop(partition_guard);
                 let mut partition_guard = partition.write();
-                partition_guard.insert_object_store_only_chunk(chunk_id, parquet_chunk);
-                debug!(%table_name, %partition_key, %chunk_id, "recovered chunk from persisted catalog");
+                partition_guard.insert_object_store_only_chunk(iox_md.chunk_id, parquet_chunk);
+                debug!(table_name = %iox_md.table_name, partition_key = %iox_md.partition_key, chunk_id = %iox_md.chunk_id, "recovered chunk from persisted catalog");
             }
         }
 

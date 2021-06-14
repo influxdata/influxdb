@@ -31,6 +31,15 @@ pub enum Error {
     },
 
     #[snafu(
+        display("Cannot read IOx metadata from {:?}: {}", path, source),
+        visibility(pub)
+    )]
+    IoxMetadataReadFailed {
+        source: crate::metadata::Error,
+        path: Path,
+    },
+
+    #[snafu(
         display("Cannot read schema from {:?}: {}", path, source),
         visibility(pub)
     )]
@@ -105,24 +114,27 @@ pub struct Chunk {
 impl Chunk {
     /// Creates new chunk from given parquet metadata.
     pub fn new(
-        part_key: impl Into<String>,
         file_location: Path,
         store: Arc<ObjectStore>,
         parquet_metadata: Arc<IoxParquetMetaData>,
-        table_name: &str,
         metrics: ChunkMetrics,
     ) -> Result<Self> {
+        let iox_md = parquet_metadata
+            .read_iox_metadata()
+            .context(IoxMetadataReadFailed {
+                path: file_location.clone(),
+            })?;
         let schema = parquet_metadata.read_schema().context(SchemaReadFailed {
             path: file_location.clone(),
         })?;
         let table_summary = parquet_metadata
-            .read_statistics(&schema, table_name)
+            .read_statistics(&schema, &iox_md.table_name)
             .context(StatisticsReadFailed {
                 path: file_location.clone(),
             })?;
 
         Ok(Self::new_from_parts(
-            part_key,
+            iox_md.partition_key,
             Arc::new(table_summary),
             Arc::new(schema),
             file_location,

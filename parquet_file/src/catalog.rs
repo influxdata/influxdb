@@ -134,9 +134,12 @@ pub enum Error {
     #[snafu(display("Cannot decode parquet metadata: {}", source))]
     MetadataDecodingFailed { source: crate::metadata::Error },
 
-    #[snafu(display("Cannot parse path {:?}: {}", path, source), visibility(pub))]
-    PathParseFailed {
-        source: crate::storage::Error,
+    #[snafu(
+        display("Cannot extract metadata from {:?}: {}", path, source),
+        visibility(pub)
+    )]
+    MetadataExtractFailed {
+        source: crate::metadata::Error,
         path: DirsAndFileName,
     },
 
