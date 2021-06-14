@@ -17,7 +17,7 @@ use data_types::{
 use internal_types::schema::{Schema, TIME_COLUMN_NAME};
 use internal_types::selection::Selection;
 
-use super::Chunk;
+use super::MBChunk;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -43,7 +43,7 @@ pub struct ChunkSnapshot {
 }
 
 impl ChunkSnapshot {
-    pub(crate) fn new(chunk: &Chunk, memory: metrics::GaugeValue) -> Self {
+    pub(crate) fn new(chunk: &MBChunk, memory: metrics::GaugeValue) -> Self {
         let schema = chunk
             .schema(Selection::All)
             .log_if_error("ChunkSnapshot getting table schema")

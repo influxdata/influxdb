@@ -99,7 +99,7 @@ impl Partition {
     /// Returns an error if the chunk is empty.
     pub fn create_open_chunk(
         &mut self,
-        chunk: mutable_buffer::chunk::Chunk,
+        chunk: mutable_buffer::chunk::MBChunk,
     ) -> Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name().as_ref(), self.table_name.as_ref());
 

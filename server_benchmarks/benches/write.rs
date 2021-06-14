@@ -1,13 +1,13 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use entry::{test_helpers::lp_to_entries, Entry};
 use flate2::read::GzDecoder;
-use mutable_buffer::chunk::{Chunk, ChunkMetrics};
+use mutable_buffer::chunk::{ChunkMetrics, MBChunk};
 use std::io::Read;
 
 #[inline]
 fn write_chunk(count: usize, entries: &[Entry]) {
     // m0 is hard coded into tag_values.lp.gz
-    let mut chunk = Chunk::new("m0", ChunkMetrics::new_unregistered());
+    let mut chunk = MBChunk::new("m0", ChunkMetrics::new_unregistered());
 
     for _ in 0..count {
         for entry in entries {

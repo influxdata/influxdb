@@ -72,7 +72,7 @@ impl ChunkMetrics {
 /// Represents a Chunk of data (a horizontal subset of a table) in
 /// the mutable store.
 #[derive(Debug)]
-pub struct Chunk {
+pub struct MBChunk {
     /// The name of this table
     table_name: Arc<str>,
 
@@ -89,7 +89,7 @@ pub struct Chunk {
     snapshot: Mutex<Option<Arc<ChunkSnapshot>>>,
 }
 
-impl Chunk {
+impl MBChunk {
     pub fn new(table_name: impl AsRef<str>, metrics: ChunkMetrics) -> Self {
         let table_name = Arc::from(table_name.as_ref());
 
@@ -341,7 +341,7 @@ pub mod test_helpers {
     /// A helper that will write line protocol string to the passed in Chunk.
     /// All data will be under a single partition with a clock value and
     /// server id of 1.
-    pub fn write_lp_to_chunk(lp: &str, chunk: &mut Chunk) -> Result<()> {
+    pub fn write_lp_to_chunk(lp: &str, chunk: &mut MBChunk) -> Result<()> {
         let entry = lp_to_entry(lp);
 
         for w in entry.partition_writes().unwrap() {
@@ -382,7 +382,7 @@ mod tests {
 
     #[test]
     fn writes_table_batches() {
-        let mut chunk = Chunk::new("cpu", ChunkMetrics::new_unregistered());
+        let mut chunk = MBChunk::new("cpu", ChunkMetrics::new_unregistered());
 
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
 
@@ -403,7 +403,7 @@ mod tests {
 
     #[test]
     fn writes_table_3_batches() {
-        let mut chunk = Chunk::new("cpu", ChunkMetrics::new_unregistered());
+        let mut chunk = MBChunk::new("cpu", ChunkMetrics::new_unregistered());
 
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
 
@@ -434,7 +434,7 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let mut chunk = Chunk::new("cpu", ChunkMetrics::new_unregistered());
+        let mut chunk = MBChunk::new("cpu", ChunkMetrics::new_unregistered());
         let lp = r#"
             cpu,host=a val=23 1
             cpu,host=b,env=prod val=2 1
@@ -497,7 +497,7 @@ mod tests {
     #[test]
     #[cfg(not(feature = "nocache"))]
     fn test_snapshot() {
-        let mut chunk = Chunk::new("cpu", ChunkMetrics::new_unregistered());
+        let mut chunk = MBChunk::new("cpu", ChunkMetrics::new_unregistered());
 
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
 
@@ -514,13 +514,13 @@ mod tests {
         assert_eq!(Arc::as_ptr(&s3), Arc::as_ptr(&s4));
     }
 
-    fn chunk_to_batches(chunk: &Chunk) -> Vec<RecordBatch> {
+    fn chunk_to_batches(chunk: &MBChunk) -> Vec<RecordBatch> {
         vec![chunk.to_arrow(Selection::All).unwrap()]
     }
 
     #[test]
     fn table_size() {
-        let mut table = Chunk::new("table_name", ChunkMetrics::new_unregistered());
+        let mut table = MBChunk::new("table_name", ChunkMetrics::new_unregistered());
 
         let lp_lines = vec![
             "h2o,state=MA,city=Boston temp=70.4 100",
@@ -542,7 +542,7 @@ mod tests {
 
     #[test]
     fn test_to_arrow_schema_all() {
-        let mut table = Chunk::new("table_name", ChunkMetrics::new_unregistered());
+        let mut table = MBChunk::new("table_name", ChunkMetrics::new_unregistered());
 
         let lp_lines = vec![
             "h2o,state=MA,city=Boston float_field=70.4,int_field=8i,uint_field=42u,bool_field=t,string_field=\"foo\" 100",
@@ -573,7 +573,7 @@ mod tests {
 
     #[test]
     fn test_to_arrow_schema_subset() {
-        let mut table = Chunk::new("table_name", ChunkMetrics::new_unregistered());
+        let mut table = MBChunk::new("table_name", ChunkMetrics::new_unregistered());
 
         let lp_lines = vec!["h2o,state=MA,city=Boston float_field=70.4 100"];
 
@@ -595,7 +595,7 @@ mod tests {
 
     #[test]
     fn write_columns_validates_schema() {
-        let mut table = Chunk::new("table_name", ChunkMetrics::new_unregistered());
+        let mut table = MBChunk::new("table_name", ChunkMetrics::new_unregistered());
         let sequencer_id = 1;
         let sequence_number = 5;
 
@@ -817,7 +817,7 @@ mod tests {
     }
 
     ///  Insert the line protocol lines in `lp_lines` into this table
-    fn write_lines_to_table(table: &mut Chunk, lp_lines: Vec<&str>) {
+    fn write_lines_to_table(table: &mut MBChunk, lp_lines: Vec<&str>) {
         let lp_data = lp_lines.join("\n");
         let entry = lp_to_entry(&lp_data);
 
