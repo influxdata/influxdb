@@ -44,23 +44,23 @@ pub struct ChunkSnapshot {
 
 impl ChunkSnapshot {
     pub(crate) fn new(chunk: &Chunk, memory: metrics::GaugeValue) -> Self {
-        let table = &chunk.table;
-
-        let schema = table
+        let schema = chunk
             .schema(Selection::All)
             .log_if_error("ChunkSnapshot getting table schema")
             .unwrap();
 
-        let batch = table
+        let batch = chunk
             .to_arrow(Selection::All)
             .log_if_error("ChunkSnapshot converting table to arrow")
             .unwrap();
+
+        let summary = chunk.table_summary();
 
         let mut s = Self {
             schema: Arc::new(schema),
             batch,
             table_name: Arc::clone(&chunk.table_name),
-            stats: table.stats(),
+            stats: summary.columns,
             memory,
         };
         s.memory.set(s.size());
