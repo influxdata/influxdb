@@ -708,19 +708,24 @@ mod tests {
         transaction_uuid: Uuid,
         chunk_id: u32,
     ) -> (DirsAndFileName, IoxParquetMetaData) {
+        let partition_key = "part1";
+        let table_name = "table1";
         let (record_batches, _schema, _column_summaries, _num_rows) = make_record_batch("foo");
 
         let storage = Storage::new(Arc::clone(object_store), server_id, db_name.to_string());
         let metadata = IoxMetadata {
             transaction_revision_counter,
             transaction_uuid,
+            table_name: table_name.to_string(),
+            partition_key: partition_key.to_string(),
+            chunk_id,
         };
         let stream: SendableRecordBatchStream = Box::pin(MemoryStream::new(record_batches));
         let (path, parquet_md) = storage
             .write_to_object_store(
-                "part1".to_string(),
+                partition_key.to_string(),
                 chunk_id,
-                "table1".to_string(),
+                table_name.to_string(),
                 stream,
                 metadata,
             )

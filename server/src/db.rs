@@ -635,6 +635,9 @@ impl Db {
             let metadata = IoxMetadata {
                 transaction_revision_counter: transaction.revision_counter(),
                 transaction_uuid: transaction.uuid(),
+                table_name: table_name.to_string(),
+                partition_key: partition_key.to_string(),
+                chunk_id,
             };
             let (path, parquet_metadata) = storage
                 .write_to_object_store(

@@ -124,7 +124,7 @@ pub async fn make_chunk_given_record_batch(
 ) -> Chunk {
     let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
     let db_name = "db1";
-    let part_key = "part1";
+    let partition_key = "part1";
     let table_name = table;
 
     let storage = Storage::new(Arc::clone(&store), server_id, db_name.to_string());
@@ -142,10 +142,13 @@ pub async fn make_chunk_given_record_batch(
     let metadata = IoxMetadata {
         transaction_revision_counter: 0,
         transaction_uuid: Uuid::nil(),
+        table_name: table_name.to_string(),
+        partition_key: partition_key.to_string(),
+        chunk_id,
     };
     let (path, parquet_metadata) = storage
         .write_to_object_store(
-            part_key.to_string(),
+            partition_key.to_string(),
             chunk_id,
             table_name.to_string(),
             stream,
@@ -155,7 +158,7 @@ pub async fn make_chunk_given_record_batch(
         .unwrap();
 
     Chunk::new_from_parts(
-        part_key,
+        partition_key,
         Arc::new(table_summary),
         Arc::new(schema),
         path,

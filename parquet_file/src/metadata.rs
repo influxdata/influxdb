@@ -219,6 +219,15 @@ pub struct IoxMetadata {
 
     /// UUID of the transaction during which the Parquet file was created.
     pub transaction_uuid: Uuid,
+
+    /// Table that holds this parquet file.
+    pub table_name: String,
+
+    /// Partition key of the partition that holds this parquet file.
+    pub partition_key: String,
+
+    /// Chunk ID.
+    pub chunk_id: u32,
 }
 
 /// Parquet metadata with IOx-specific wrapper.

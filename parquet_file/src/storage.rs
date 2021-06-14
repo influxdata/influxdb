@@ -525,6 +525,9 @@ mod tests {
         let metadata = IoxMetadata {
             transaction_revision_counter: 42,
             transaction_uuid: Uuid::new_v4(),
+            table_name: "table1".to_string(),
+            partition_key: "part1".to_string(),
+            chunk_id: 1337,
         };
 
         // create parquet file
@@ -644,6 +647,9 @@ mod tests {
         let metadata = IoxMetadata {
             transaction_revision_counter: 42,
             transaction_uuid: Uuid::new_v4(),
+            table_name: "table1".to_string(),
+            partition_key: "part1".to_string(),
+            chunk_id: 1337,
         };
 
         let (path, _) = storage
