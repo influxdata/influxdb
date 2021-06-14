@@ -38,6 +38,51 @@ async fn test_chunk_is_persisted_automatically() {
 }
 
 #[tokio::test]
+async fn test_chunk_are_removed_from_memory_when_soft_limit_is_hit() {
+    let fixture = ServerFixture::create_shared().await;
+    let mut write_client = fixture.write_client();
+
+    let db_name = rand_name();
+    create_quickly_persisting_database(&db_name, fixture.grpc_channel()).await;
+
+    // write in more chunks that exceed the soft limit (512K) and
+    // expect that at least one ends up on object store but not in memory
+
+    // (as of time of writing, 10 chunks took up ~800K)
+    let num_chunks = 10;
+    for _ in 0..num_chunks {
+        let lp_lines: Vec<_> = (0..1_000)
+            .map(|i| format!("data,tag1=val{} x={} {}", i, i * 10, i))
+            .collect();
+        let num_lines_written = write_client
+            .write(&db_name, lp_lines.join("\n"))
+            .await
+            .expect("successful write");
+        assert_eq!(num_lines_written, 1000);
+    }
+
+    // make sure that at least one is in object store
+    wait_for_chunk(
+        &fixture,
+        &db_name,
+        ChunkStorage::ObjectStoreOnly,
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+
+    // Also ensure that all 10 chunks are still there
+    let chunks = list_chunks(&fixture, &db_name).await;
+    assert_eq!(
+        num_chunks,
+        chunks.len(),
+        "expected {} chunks but had {}: {:#?}",
+        num_chunks,
+        chunks.len(),
+        chunks
+    );
+}
+
+#[tokio::test]
 async fn test_query_chunk_after_restart() {
     // fixtures
     let fixture = ServerFixture::create_single_use().await;

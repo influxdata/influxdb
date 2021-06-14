@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
-use observability_deps::tracing::{info, warn};
+use observability_deps::tracing::{debug, info, warn};
 
 use data_types::{database_rules::LifecycleRules, error::ErrorLogger, job::Job};
 
@@ -58,7 +58,8 @@ impl LifecycleManager {
 trait ChunkMover {
     type Job: Send + Sync + 'static;
 
-    /// Return the in-memory size of the database
+    /// Return the in-memory size of the database. We expect this
+    /// to change from call to call as chunks are dropped
     fn buffer_size(&self) -> usize;
 
     /// Return the name of the database
@@ -96,6 +97,14 @@ trait ChunkMover {
     /// Drops a chunk from the database
     fn drop_chunk(&mut self, table_name: String, partition_key: String, chunk_id: u32);
 
+    /// Remove the copy of the Chunk's data from the read buffer.
+    ///
+    /// Note that this can only be called for persisted chunks
+    /// (otherwise the read buffer may contain the *only* copy of this
+    /// chunk's data). In order to drop un-persisted chunks,
+    /// [`drop_chunk`](Self::drop_chunk) must be used.
+    fn unload_read_buffer(&mut self, table_name: String, partition_key: String, chunk_id: u32);
+
     /// The core policy logic
     ///
     /// Returns a future that resolves when this method should be called next
@@ -105,6 +114,9 @@ trait ChunkMover {
         now_instant: Instant,
     ) -> BoxFuture<'static, ()> {
         let rules = self.rules();
+
+        // NB the rules for "which to drop/unload first" are defined
+        // by rules.sort_order
         let chunks = self.chunks(&rules.sort_order);
 
         let mut open_partitions: HashSet<String> = HashSet::new();
@@ -122,10 +134,8 @@ trait ChunkMover {
         let mut move_tracker = self.move_tracker().filter(|x| !x.is_complete()).cloned();
         let mut write_tracker = self.write_tracker().filter(|x| !x.is_complete()).cloned();
 
-        // Iterate through the chunks to determine
-        // - total memory consumption
-        // - any chunks to move
-
+        // Loop 1: Determine which chunks need to be driven though the
+        // persistence lifecycle to ulitimately be persisted to object storage
         for chunk in &chunks {
             let chunk_guard = chunk.read();
 
@@ -183,52 +193,78 @@ trait ChunkMover {
                     }
                     _ => {}
                 },
-                // TODO: unload read buffer (https://github.com/influxdata/influxdb_iox/issues/1400)
-                _ => {}
+                ChunkStage::Persisted { .. } => {
+                    // Chunk is already persisted, no additional work needed to persist it
+                }
             }
         }
 
+        // Loop 2: Determine which chunks to clear from memory when
+        // the overall database buffer size is exceeded
         if let Some(soft_limit) = rules.buffer_size_soft {
             let mut chunks = chunks.iter();
 
             loop {
                 let buffer_size = self.buffer_size();
                 if buffer_size < soft_limit.get() {
+                    debug!(buffer_size, %soft_limit, "memory use under soft limit");
                     break;
                 }
+                debug!(buffer_size, %soft_limit, "memory use over soft limit");
 
-                // Dropping chunks that are kept in memory by queries frees no memory
-                // TODO: LRU drop policy
+                // Dropping chunks that are currently in use by
+                // queries frees no memory until the query completes
                 match chunks.next() {
                     Some(chunk) => {
                         let chunk_guard = chunk.read();
                         if chunk_guard.lifecycle_action().is_some() {
-                            // Cannot drop chunk with in-progress lifecycle action
+                            debug!(table_name=%chunk_guard.table_name(), partition_key=%chunk_guard.key(),
+                                   chunk_id=%chunk_guard.id(), lifecycle_action=?chunk_guard.lifecycle_action(),
+                                   "can not drop chunk with in-progress lifecycle action");
                             continue;
                         }
 
-                        if (rules.drop_non_persisted
-                            && matches!(
-                                chunk_guard.stage(),
-                                ChunkStage::Frozen {
-                                    representation: ChunkStageFrozenRepr::ReadBuffer(_),
-                                    ..
-                                }
-                            ))
-                            || matches!(chunk_guard.stage(), ChunkStage::Persisted { .. })
-                        {
-                            let partition_key = chunk_guard.key().to_string();
-                            let table_name = chunk_guard.table_name().to_string();
-                            let chunk_id = chunk_guard.id();
+                        enum Action {
+                            Drop,
+                            Unload,
+                        }
 
-                            std::mem::drop(chunk_guard);
-
-                            if open_partitions.contains(&partition_key) {
-                                warn!(db_name=self.db_name(), %partition_key, chunk_id, soft_limit, buffer_size,
-                                      "dropping chunk from partition containing open chunk. Consider increasing the soft buffer limit");
+                        // Figure out if we can drop or unload this chunk
+                        let action = match chunk_guard.stage() {
+                            ChunkStage::Frozen { .. } if rules.drop_non_persisted => {
+                                // Chunk isn't yet persisted but we have
+                                // hit the limit so we need to drop it
+                                Action::Drop
                             }
+                            ChunkStage::Persisted { read_buffer, .. } => {
+                                // Chunk is persisted, so try and clear it from in memory buffers
+                                if read_buffer.is_some() {
+                                    Action::Unload
+                                } else {
+                                    // can't free any memory
+                                    continue;
+                                }
+                            }
+                            ChunkStage::Open { .. } | ChunkStage::Frozen { .. } => continue,
+                        };
 
-                            self.drop_chunk(table_name, partition_key, chunk_id)
+                        let partition_key = chunk_guard.key().to_string();
+                        let table_name = chunk_guard.table_name().to_string();
+                        let chunk_id = chunk_guard.id();
+                        std::mem::drop(chunk_guard);
+
+                        match action {
+                            Action::Drop => {
+                                if open_partitions.contains(&partition_key) {
+                                    warn!(db_name=self.db_name(), %partition_key, chunk_id, soft_limit, buffer_size,
+                                          "dropping chunk prior to persistence. Consider increasing the soft buffer limit");
+                                }
+
+                                self.drop_chunk(table_name, partition_key, chunk_id)
+                            }
+                            Action::Unload => {
+                                self.unload_read_buffer(table_name, partition_key, chunk_id)
+                            }
                         }
                     }
                     None => {
@@ -236,7 +272,7 @@ trait ChunkMover {
                               "soft limited exceeded, but no chunks found that can be evicted. Check lifecycle rules");
                         break;
                     }
-                }
+                };
             }
         }
 
@@ -343,6 +379,14 @@ impl ChunkMover for LifecycleManager {
             .db
             .drop_chunk(&table_name, &partition_key, chunk_id)
             .log_if_error("dropping chunk to free up memory");
+    }
+
+    fn unload_read_buffer(&mut self, table_name: String, partition_key: String, chunk_id: u32) {
+        info!(%partition_key, %chunk_id, "unloading from readbuffer");
+        let _ = self
+            .db
+            .unload_read_buffer(&table_name, &partition_key, chunk_id)
+            .log_if_error("unloading from read buffer to free up memory");
     }
 }
 
@@ -474,6 +518,7 @@ mod tests {
         Move(u32),
         Write(u32),
         Drop(u32),
+        Unload(u32),
     }
 
     /// A dummy mover that is used to test the policy
@@ -575,6 +620,23 @@ mod tests {
                 .filter(|x| x.read().id() != chunk_id)
                 .collect();
             self.events.push(MoverEvents::Drop(chunk_id))
+        }
+
+        fn unload_read_buffer(
+            &mut self,
+            _table_name: String,
+            _partition_key: String,
+            chunk_id: u32,
+        ) {
+            let chunk = self
+                .chunks
+                .iter()
+                .find(|x| x.read().id() == chunk_id)
+                .unwrap();
+
+            chunk.write().set_unload_from_read_buffer().unwrap();
+
+            self.events.push(MoverEvents::Unload(chunk_id))
         }
     }
 
@@ -759,7 +821,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_buffer_size_soft_drop_non_persisted() {
-        // test that chunk mover only drops moved and written chunks
+        // test that chunk mover can drop non persisted chunks
+        // if limit has been exceeded
 
         // IMPORTANT: the lifecycle rules have the default `persist` flag (false) so NOT
         // "write" events will be triggered
@@ -784,9 +847,9 @@ mod tests {
             new_chunk(1, Some(0), Some(0)),
             // "moved" chunk => can be dropped because `drop_non_persistent=true`
             transition_to_moved(new_chunk(2, Some(0), Some(0)), &rb),
-            // "writing" chunk => cannot be drop while write is in-progress
+            // "writing" chunk => cannot be unloaded while write is in-progress
             transition_to_writing_to_object_store(new_chunk(3, Some(0), Some(0)), &rb),
-            // "written" chunk => can be dropped
+            // "written" chunk => can be unloaded
             transition_to_written_to_object_store(new_chunk(4, Some(0), Some(0)), &rb).await,
         ];
 
@@ -795,13 +858,14 @@ mod tests {
         mover.check_for_work(from_secs(10), Instant::now());
         assert_eq!(
             mover.events,
-            vec![MoverEvents::Drop(2), MoverEvents::Drop(4)]
+            vec![MoverEvents::Drop(2), MoverEvents::Unload(4)]
         );
     }
 
     #[tokio::test]
     async fn test_buffer_size_soft_dont_drop_non_persisted() {
-        // test that chunk mover only drops written chunks
+        // test that chunk mover unloads written chunks and can't drop
+        // unpersisted chunks when the persist flag is false
 
         // IMPORTANT: the lifecycle rules have the default `persist` flag (false) so NOT
         // "write" events will be triggered
@@ -809,6 +873,7 @@ mod tests {
             buffer_size_soft: Some(NonZeroUsize::new(5).unwrap()),
             ..Default::default()
         };
+        assert!(!rules.drop_non_persisted);
 
         let rb = Arc::new(RBChunk::new(read_buffer::ChunkMetrics::new_unregistered()));
 
@@ -827,14 +892,14 @@ mod tests {
             transition_to_moved(new_chunk(2, Some(0), Some(0)), &rb),
             // "writing" chunk => cannot be drop while write is in-progess
             transition_to_writing_to_object_store(new_chunk(3, Some(0), Some(0)), &rb),
-            // "written" chunk => can be dropped
+            // "written" chunk => can be unloaded
             transition_to_written_to_object_store(new_chunk(4, Some(0), Some(0)), &rb).await,
         ];
 
         let mut mover = DummyMover::new(rules, chunks);
 
         mover.check_for_work(from_secs(10), Instant::now());
-        assert_eq!(mover.events, vec![MoverEvents::Drop(4)]);
+        assert_eq!(mover.events, vec![MoverEvents::Unload(4)]);
     }
 
     #[test]

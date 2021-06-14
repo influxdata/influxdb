@@ -627,7 +627,6 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
             .await
             .unwrap();
         db.unload_read_buffer(&table_name, partition_key, 0)
-            .await
             .unwrap();
     }
     let scenario5 = DbScenario {
@@ -780,10 +779,8 @@ pub async fn make_two_chunk_scenarios(
             .await
             .unwrap();
         db.unload_read_buffer(&table_name, partition_key, 0)
-            .await
             .unwrap();
         db.unload_read_buffer(&table_name, partition_key, 1)
-            .await
             .unwrap();
     }
     let scenario6 = DbScenario {
@@ -844,7 +841,6 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
             .await
             .unwrap();
         db.unload_read_buffer(&table_name, partition_key, 0)
-            .await
             .unwrap();
     }
     let scenario2 = DbScenario {

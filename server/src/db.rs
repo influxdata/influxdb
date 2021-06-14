@@ -672,7 +672,7 @@ impl Db {
     }
 
     /// Unload chunk from read buffer but keep it in object store
-    pub async fn unload_read_buffer(
+    pub fn unload_read_buffer(
         &self,
         table_name: &str,
         partition_key: &str,
@@ -1475,9 +1475,7 @@ mod tests {
         )
         .unwrap(); // TODO: #1311
 
-        db.unload_read_buffer("cpu", "1970-01-01T00", 0)
-            .await
-            .unwrap();
+        db.unload_read_buffer("cpu", "1970-01-01T00", 0).unwrap();
 
         // A chunk is now now in the "os-only" state.
         test_db
@@ -1935,7 +1933,6 @@ mod tests {
         // Unload RB chunk but keep it in OS
         let pq_chunk = db
             .unload_read_buffer("cpu", partition_key, mb_chunk.id())
-            .await
             .unwrap();
 
         // still should be the same chunk!
@@ -2958,7 +2955,6 @@ mod tests {
 
             if i == 1 {
                 db.unload_read_buffer(&table_name, &partition_key, chunk_id)
-                    .await
                     .unwrap();
             }
             if i == 2 {
