@@ -680,14 +680,19 @@ jobs:
           no_output_timeout: 20m
           command: |
             set -x
-            yesterday_date=$(date --date "yesterday" +%Y%md)
-            today=$(date +%Y%m%d)
-            instance_info=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 describe-instances --filters "Name=tag:Name,Values=oss-perftest-*" --query "Reservations[].Instances[].[InstanceId, Tags[?Key==`Name`]]" --output text)
-            for info in $instance_info; do
-              name=$(echo $info | cut -d ' ' -f2)
+            yesterday_date=$(date --date "yesterday" +%Y%m%d)
+            instance_info=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} \
+              AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} \
+              aws --region us-west-2 ec2 describe-instances \
+                --filters "Name=tag:Name,Values=oss-perftest-*" \
+                --query "Reservations[].Instances[].[InstanceId, Tags[?Key=='Name']|[0].Value]" \
+                --output text)
+            while [ -n "$instance_info" ]; do
+              instance_id=$(echo $instance_info | tr -s ' ' | cut -d ' ' -f1)
+              name=$(echo $instance_info | tr -s ' ' | cut -d ' ' -f2)
+              instance_info=$(echo $instance_info | tr -s ' ' | cut -d ' ' -f3-)
               date=$(echo $name | cut -d '-' -f3)
-              if [ $(expr $today - $yesterday_date) -gt 1 ]; then
-                instance_id=$(echo $info | cut -d ' ' -f1)
+              if [ $date -le $yesterday_date ]; then
                 AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
               fi
             done
