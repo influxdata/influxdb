@@ -1,17 +1,17 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use entry::test_helpers::lp_to_entries;
 use flate2::read::GzDecoder;
-use mutable_buffer::chunk::{Chunk, ChunkMetrics};
+use mutable_buffer::chunk::{ChunkMetrics, MBChunk};
 use std::io::Read;
 
 #[inline]
-fn snapshot_chunk(chunk: &Chunk) {
+fn snapshot_chunk(chunk: &MBChunk) {
     let _ = chunk.snapshot();
 }
 
-fn chunk(count: usize) -> Chunk {
+fn chunk(count: usize) -> MBChunk {
     // m0 is hard coded into tag_values.lp.gz
-    let mut chunk = Chunk::new("m0", ChunkMetrics::new_unregistered());
+    let mut chunk = MBChunk::new("m0", ChunkMetrics::new_unregistered());
 
     let raw = include_bytes!("../../tests/fixtures/lineproto/tag_values.lp.gz");
     let mut gz = GzDecoder::new(&raw[..]);

@@ -7,7 +7,7 @@ use super::{write_buffer::WriteBuffer, JobRegistry};
 use crate::db::catalog::partition::Partition;
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use async_trait::async_trait;
-use catalog::{chunk::Chunk as CatalogChunk, Catalog};
+use catalog::{chunk::CatalogChunk, Catalog};
 pub(crate) use chunk::DbChunk;
 use data_types::{
     chunk_metadata::ChunkSummary,
@@ -24,13 +24,11 @@ use entry::{Entry, SequencedEntry};
 use internal_types::{arrow::sort::sort_record_batch, selection::Selection};
 use lifecycle::LifecycleManager;
 use metrics::{KeyValue, MetricRegistry};
-use mutable_buffer::chunk::{
-    Chunk as MutableBufferChunk, ChunkMetrics as MutableBufferChunkMetrics,
-};
+use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
-use parquet::file::metadata::ParquetMetaData;
+use parquet_file::metadata::IoxParquetMetaData;
 use parquet_file::{
     catalog::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
     chunk::{Chunk as ParquetChunk, ChunkMetrics as ParquetChunkMetrics},
@@ -672,7 +670,7 @@ impl Db {
     }
 
     /// Unload chunk from read buffer but keep it in object store
-    pub async fn unload_read_buffer(
+    pub fn unload_read_buffer(
         &self,
         table_name: &str,
         partition_key: &str,
@@ -1002,7 +1000,7 @@ impl Db {
                                 "mutable_buffer",
                                 self.metric_labels.clone(),
                             );
-                            let mut mb_chunk = MutableBufferChunk::new(
+                            let mut mb_chunk = MBChunk::new(
                                 table_batch.name(),
                                 MutableBufferChunkMetrics::new(
                                     &metrics,
@@ -1180,7 +1178,7 @@ impl CatalogState for Catalog {
         unimplemented!("parquet files cannot be removed from the catalog for now")
     }
 
-    fn files(&self) -> HashMap<DirsAndFileName, Arc<ParquetMetaData>> {
+    fn files(&self) -> HashMap<DirsAndFileName, Arc<IoxParquetMetaData>> {
         let mut files = HashMap::new();
 
         for chunk in self.chunks() {
@@ -1258,10 +1256,7 @@ mod tests {
         path::{parts::PathPart, ObjectStorePath, Path},
         ObjectStore, ObjectStoreApi,
     };
-    use parquet_file::{
-        metadata::{read_parquet_metadata_from_file, read_schema_from_parquet_metadata},
-        test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
-    };
+    use parquet_file::test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data};
     use query::{frontend::sql::SqlQueryPlanner, Database, PartitionChunk};
     use std::{
         collections::HashSet,
@@ -1478,9 +1473,7 @@ mod tests {
         )
         .unwrap(); // TODO: #1311
 
-        db.unload_read_buffer("cpu", "1970-01-01T00", 0)
-            .await
-            .unwrap();
+        db.unload_read_buffer("cpu", "1970-01-01T00", 0).unwrap();
 
         // A chunk is now now in the "os-only" state.
         test_db
@@ -1852,9 +1845,9 @@ mod tests {
         let parquet_data = load_parquet_from_store_for_path(&path_list[0], object_store)
             .await
             .unwrap();
-        let parquet_metadata = read_parquet_metadata_from_file(parquet_data.clone()).unwrap();
+        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
         // Read metadata at file level
-        let schema = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
+        let schema = parquet_metadata.read_schema().unwrap();
         // Read data
         let record_batches =
             read_data_from_parquet_data(Arc::clone(&schema.as_arrow()), parquet_data);
@@ -1938,7 +1931,6 @@ mod tests {
         // Unload RB chunk but keep it in OS
         let pq_chunk = db
             .unload_read_buffer("cpu", partition_key, mb_chunk.id())
-            .await
             .unwrap();
 
         // still should be the same chunk!
@@ -1980,9 +1972,9 @@ mod tests {
         let parquet_data = load_parquet_from_store_for_path(&path_list[0], object_store)
             .await
             .unwrap();
-        let parquet_metadata = read_parquet_metadata_from_file(parquet_data.clone()).unwrap();
+        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
         // Read metadata at file level
-        let schema = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
+        let schema = parquet_metadata.read_schema().unwrap();
         // Read data
         let record_batches =
             read_data_from_parquet_data(Arc::clone(&schema.as_arrow()), parquet_data);
@@ -2961,7 +2953,6 @@ mod tests {
 
             if i == 1 {
                 db.unload_read_buffer(&table_name, &partition_key, chunk_id)
-                    .await
                     .unwrap();
             }
             if i == 2 {

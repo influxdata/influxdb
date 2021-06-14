@@ -41,8 +41,8 @@ pub struct PartitionChunkSummary {
     pub table: TableSummary,
 }
 
-impl FromIterator<TableSummary> for TableSummary {
-    fn from_iter<T: IntoIterator<Item = TableSummary>>(iter: T) -> Self {
+impl FromIterator<Self> for TableSummary {
+    fn from_iter<T: IntoIterator<Item = Self>>(iter: T) -> Self {
         let mut iter = iter.into_iter();
         let first = iter.next().expect("must contain at least one element");
         let mut s = Self {

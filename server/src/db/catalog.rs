@@ -13,7 +13,7 @@ use data_types::{
 use snafu::Snafu;
 use tracker::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 
-use self::chunk::Chunk;
+use self::chunk::CatalogChunk;
 use self::metrics::CatalogMetrics;
 use self::partition::Partition;
 use self::table::Table;
@@ -159,7 +159,7 @@ impl Catalog {
         table_name: impl AsRef<str>,
         partition_key: impl AsRef<str>,
         chunk_id: u32,
-    ) -> Result<Arc<RwLock<Chunk>>> {
+    ) -> Result<Arc<RwLock<CatalogChunk>>> {
         let table_name = table_name.as_ref();
         let partition_key = partition_key.as_ref();
 
@@ -223,7 +223,7 @@ impl Catalog {
     pub fn chunk_summaries(&self) -> Vec<ChunkSummary> {
         let partition_key = None;
         let table_names = TableNameFilter::AllTables;
-        self.filtered_chunks(table_names, partition_key, Chunk::summary)
+        self.filtered_chunks(table_names, partition_key, CatalogChunk::summary)
     }
 
     pub fn detailed_chunk_summaries(&self) -> Vec<(Arc<TableSummary>, DetailedChunkSummary)> {
@@ -236,7 +236,7 @@ impl Catalog {
     }
 
     /// Returns all chunks within the catalog in an arbitrary order
-    pub fn chunks(&self) -> Vec<Arc<RwLock<Chunk>>> {
+    pub fn chunks(&self) -> Vec<Arc<RwLock<CatalogChunk>>> {
         let mut chunks = Vec::new();
         let tables = self.tables.read();
 
@@ -250,7 +250,7 @@ impl Catalog {
     }
 
     /// Returns the chunks in the requested sort order
-    pub fn chunks_sorted_by(&self, sort_rules: &SortOrder) -> Vec<Arc<RwLock<Chunk>>> {
+    pub fn chunks_sorted_by(&self, sort_rules: &SortOrder) -> Vec<Arc<RwLock<CatalogChunk>>> {
         let mut chunks = self.chunks();
 
         match &sort_rules.sort {
@@ -282,7 +282,7 @@ impl Catalog {
         map: F,
     ) -> Vec<C>
     where
-        F: Fn(&Chunk) -> C + Copy,
+        F: Fn(&CatalogChunk) -> C + Copy,
     {
         let tables = self.tables.read();
         let tables = match table_names {
@@ -335,7 +335,7 @@ mod tests {
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
 
-        let mut mb_chunk = mutable_buffer::chunk::Chunk::new(
+        let mut mb_chunk = mutable_buffer::chunk::MBChunk::new(
             batch.name(),
             mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
         );

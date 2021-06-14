@@ -1,11 +1,7 @@
-use parquet::file::metadata::ParquetMetaData;
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, sync::Arc};
 
-use crate::{
-    metadata::{read_schema_from_parquet_metadata, read_statistics_from_parquet_metadata},
-    storage::Storage,
-};
+use crate::{metadata::IoxParquetMetaData, storage::Storage};
 use data_types::{
     partition_metadata::{Statistics, TableSummary},
     timestamp::TimestampRange,
@@ -101,7 +97,7 @@ pub struct Chunk {
     object_store_path: Path,
 
     /// Parquet metadata that can be used checkpoint the catalog state.
-    parquet_metadata: Arc<ParquetMetaData>,
+    parquet_metadata: Arc<IoxParquetMetaData>,
 
     metrics: ChunkMetrics,
 }
@@ -112,20 +108,18 @@ impl Chunk {
         part_key: impl Into<String>,
         file_location: Path,
         store: Arc<ObjectStore>,
-        parquet_metadata: Arc<ParquetMetaData>,
+        parquet_metadata: Arc<IoxParquetMetaData>,
         table_name: &str,
         metrics: ChunkMetrics,
     ) -> Result<Self> {
-        let schema =
-            read_schema_from_parquet_metadata(&parquet_metadata).context(SchemaReadFailed {
+        let schema = parquet_metadata.read_schema().context(SchemaReadFailed {
+            path: file_location.clone(),
+        })?;
+        let table_summary = parquet_metadata
+            .read_statistics(&schema, table_name)
+            .context(StatisticsReadFailed {
                 path: file_location.clone(),
             })?;
-        let table_summary =
-            read_statistics_from_parquet_metadata(&parquet_metadata, &schema, table_name).context(
-                StatisticsReadFailed {
-                    path: file_location.clone(),
-                },
-            )?;
 
         Ok(Self::new_from_parts(
             part_key,
@@ -145,7 +139,7 @@ impl Chunk {
         schema: Arc<Schema>,
         file_location: Path,
         store: Arc<ObjectStore>,
-        parquet_metadata: Arc<ParquetMetaData>,
+        parquet_metadata: Arc<IoxParquetMetaData>,
         metrics: ChunkMetrics,
     ) -> Self {
         let timestamp_range = extract_range(&table_summary);
@@ -264,7 +258,7 @@ impl Chunk {
     }
 
     /// Parquet metadata from the underlying file.
-    pub fn parquet_metadata(&self) -> Arc<ParquetMetaData> {
+    pub fn parquet_metadata(&self) -> Arc<IoxParquetMetaData> {
         Arc::clone(&self.parquet_metadata)
     }
 }
