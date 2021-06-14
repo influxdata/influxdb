@@ -26,6 +26,8 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
+
+use observability_deps::tracing::debug;
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
 use tokio::sync::mpsc::error::SendError;
@@ -275,6 +277,7 @@ impl SeriesSetConverter {
                 for row in 1..num_rows {
                     let next_val = get_key(row);
                     if next_val != current_val {
+                        debug!(?current_val, ?next_val, ?col_idx, ?row, "value transition");
                         bitmap.add(row as u32);
                         current_val = next_val;
                     }
@@ -290,6 +293,11 @@ impl SeriesSetConverter {
         // for now, always treat the last row as ending a series
         bitmap.add(num_rows as u32);
 
+        debug!(
+            rows = ?bitmap.to_vec(),
+            ?col_idx,
+            "row transitions for results"
+        );
         bitmap
     }
 
