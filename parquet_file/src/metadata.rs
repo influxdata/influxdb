@@ -156,11 +156,11 @@ pub enum Error {
     StatisticsMissing { row_group: usize, column: String },
 
     #[snafu(display(
-        "Statistics for column {} in row group {} do not set min/max values",
+        "Statistics for column {} in row group {} contain deprecated and potentially wrong min/max values",
         column,
         row_group
     ))]
-    StatisticsMinMaxMissing { row_group: usize, column: String },
+    StatisticsMinMaxDeprecated { row_group: usize, column: String },
 
     #[snafu(display(
         "Statistics for column {} in row group {} have wrong type: expected {:?} but got {}",
@@ -402,8 +402,9 @@ fn read_statistics_from_parquet_row_group(
                     column: field.name().clone(),
                 })?;
 
-            if !parquet_stats.has_min_max_set() || parquet_stats.is_min_max_deprecated() {
-                StatisticsMinMaxMissing {
+            let min_max_set = parquet_stats.has_min_max_set();
+            if min_max_set && parquet_stats.is_min_max_deprecated() {
+                StatisticsMinMaxDeprecated {
                     row_group: row_group_idx,
                     column: field.name().clone(),
                 }
@@ -415,6 +416,7 @@ fn read_statistics_from_parquet_row_group(
 
             let stats = extract_iox_statistics(
                 parquet_stats,
+                min_max_set,
                 iox_type,
                 count,
                 row_group_idx,
@@ -446,6 +448,7 @@ fn read_statistics_from_parquet_row_group(
 /// parquet statistics back to arrow or Rust native types.
 fn extract_iox_statistics(
     parquet_stats: &ParquetStatistics,
+    min_max_set: bool,
     iox_type: InfluxColumnType,
     count: u64,
     row_group_idx: usize,
@@ -454,8 +457,8 @@ fn extract_iox_statistics(
     match (parquet_stats, iox_type) {
         (ParquetStatistics::Boolean(stats), InfluxColumnType::Field(InfluxFieldType::Boolean)) => {
             Ok(Statistics::Bool(StatValues {
-                min: Some(*stats.min()),
-                max: Some(*stats.max()),
+                min: min_max_set.then(|| *stats.min()),
+                max: min_max_set.then(|| *stats.max()),
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
@@ -464,8 +467,8 @@ fn extract_iox_statistics(
         }
         (ParquetStatistics::Int64(stats), InfluxColumnType::Field(InfluxFieldType::Integer)) => {
             Ok(Statistics::I64(StatValues {
-                min: Some(*stats.min()),
-                max: Some(*stats.max()),
+                min: min_max_set.then(|| *stats.min()),
+                max: min_max_set.then(|| *stats.max()),
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
@@ -473,11 +476,9 @@ fn extract_iox_statistics(
             }))
         }
         (ParquetStatistics::Int64(stats), InfluxColumnType::Field(InfluxFieldType::UInteger)) => {
-            // TODO: Likely incorrect for large values until
-            // https://github.com/apache/arrow-rs/issues/254
             Ok(Statistics::U64(StatValues {
-                min: Some(*stats.min() as u64),
-                max: Some(*stats.max() as u64),
+                min: min_max_set.then(|| *stats.min() as u64),
+                max: min_max_set.then(|| *stats.max() as u64),
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
@@ -486,8 +487,8 @@ fn extract_iox_statistics(
         }
         (ParquetStatistics::Double(stats), InfluxColumnType::Field(InfluxFieldType::Float)) => {
             Ok(Statistics::F64(StatValues {
-                min: Some(*stats.min()),
-                max: Some(*stats.max()),
+                min: min_max_set.then(|| *stats.min()),
+                max: min_max_set.then(|| *stats.max()),
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
@@ -507,26 +508,30 @@ fn extract_iox_statistics(
         (ParquetStatistics::ByteArray(stats), InfluxColumnType::Tag)
         | (ParquetStatistics::ByteArray(stats), InfluxColumnType::Field(InfluxFieldType::String)) => {
             Ok(Statistics::String(StatValues {
-                min: Some(
-                    stats
-                        .min()
-                        .as_utf8()
-                        .context(StatisticsUtf8Error {
-                            row_group: row_group_idx,
-                            column: column_name.to_string(),
-                        })?
-                        .to_string(),
-                ),
-                max: Some(
-                    stats
-                        .max()
-                        .as_utf8()
-                        .context(StatisticsUtf8Error {
-                            row_group: row_group_idx,
-                            column: column_name.to_string(),
-                        })?
-                        .to_string(),
-                ),
+                min: min_max_set
+                    .then(|| {
+                        stats
+                            .min()
+                            .as_utf8()
+                            .context(StatisticsUtf8Error {
+                                row_group: row_group_idx,
+                                column: column_name.to_string(),
+                            })
+                            .map(|x| x.to_string())
+                    })
+                    .transpose()?,
+                max: min_max_set
+                    .then(|| {
+                        stats
+                            .max()
+                            .as_utf8()
+                            .context(StatisticsUtf8Error {
+                                row_group: row_group_idx,
+                                column: column_name.to_string(),
+                            })
+                            .map(|x| x.to_string())
+                    })
+                    .transpose()?,
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
@@ -671,7 +676,7 @@ mod tests {
         let n_rows = parquet_metadata.md.file_metadata().num_rows() as u64;
         assert!(n_rows >= parquet_metadata.md.num_row_groups() as u64);
         for summary in &chunk.table_summary().columns {
-            assert_eq!(summary.count(), n_rows);
+            assert!(summary.count() <= n_rows);
         }
 
         // check column names
