@@ -12,7 +12,7 @@ use tracker::RwLock;
 
 use crate::db::catalog::metrics::PartitionMetrics;
 
-use super::chunk::{Chunk, ChunkStage};
+use super::chunk::{CatalogChunk, ChunkStage};
 use data_types::chunk_metadata::ChunkSummary;
 
 /// IOx Catalog Partition
@@ -27,7 +27,7 @@ pub struct Partition {
     table_name: Arc<str>,
 
     /// The chunks that make up this partition, indexed by id
-    chunks: BTreeMap<u32, Arc<RwLock<Chunk>>>,
+    chunks: BTreeMap<u32, Arc<RwLock<CatalogChunk>>>,
 
     /// When this partition was created
     created_at: DateTime<Utc>,
@@ -97,7 +97,10 @@ impl Partition {
     /// combination.
     ///
     /// Returns an error if the chunk is empty.
-    pub fn create_open_chunk(&mut self, chunk: mutable_buffer::chunk::Chunk) -> Arc<RwLock<Chunk>> {
+    pub fn create_open_chunk(
+        &mut self,
+        chunk: mutable_buffer::chunk::Chunk,
+    ) -> Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name().as_ref(), self.table_name.as_ref());
 
         let chunk_id = self.next_chunk_id;
@@ -107,7 +110,7 @@ impl Partition {
 
         self.next_chunk_id += 1;
 
-        let chunk = Arc::new(self.metrics.new_chunk_lock(Chunk::new_open(
+        let chunk = Arc::new(self.metrics.new_chunk_lock(CatalogChunk::new_open(
             chunk_id,
             &self.partition_key,
             chunk,
@@ -132,15 +135,18 @@ impl Partition {
         &mut self,
         chunk_id: u32,
         chunk: Arc<parquet_file::chunk::Chunk>,
-    ) -> Arc<RwLock<Chunk>> {
+    ) -> Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name(), self.table_name.as_ref());
 
-        let chunk = Arc::new(self.metrics.new_chunk_lock(Chunk::new_object_store_only(
-            chunk_id,
-            &self.partition_key,
-            chunk,
-            self.metrics.new_chunk_metrics(),
-        )));
+        let chunk = Arc::new(
+            self.metrics
+                .new_chunk_lock(CatalogChunk::new_object_store_only(
+                    chunk_id,
+                    &self.partition_key,
+                    chunk,
+                    self.metrics.new_chunk_metrics(),
+                )),
+        );
 
         self.next_chunk_id = self.next_chunk_id.max(chunk_id + 1);
         match self.chunks.entry(chunk_id) {
@@ -150,12 +156,12 @@ impl Partition {
     }
 
     /// Drop the specified chunk
-    pub fn drop_chunk(&mut self, chunk_id: u32) -> Option<Arc<RwLock<Chunk>>> {
+    pub fn drop_chunk(&mut self, chunk_id: u32) -> Option<Arc<RwLock<CatalogChunk>>> {
         self.chunks.remove(&chunk_id)
     }
 
     /// return the first currently open chunk, if any
-    pub fn open_chunk(&self) -> Option<Arc<RwLock<Chunk>>> {
+    pub fn open_chunk(&self) -> Option<Arc<RwLock<CatalogChunk>>> {
         self.chunks
             .values()
             .find(|chunk| {
@@ -166,12 +172,12 @@ impl Partition {
     }
 
     /// Return an immutable chunk reference by chunk id
-    pub fn chunk(&self, chunk_id: u32) -> Option<&Arc<RwLock<Chunk>>> {
+    pub fn chunk(&self, chunk_id: u32) -> Option<&Arc<RwLock<CatalogChunk>>> {
         self.chunks.get(&chunk_id)
     }
 
     /// Return a iterator over chunks in this partition
-    pub fn chunks(&self) -> impl Iterator<Item = &Arc<RwLock<Chunk>>> {
+    pub fn chunks(&self) -> impl Iterator<Item = &Arc<RwLock<CatalogChunk>>> {
         self.chunks.values()
     }
 
