@@ -214,6 +214,7 @@ async fn test_create_get_update_database() {
                 order: Order::Asc as _,
                 sort: Some(lifecycle_rules::sort_order::Sort::CreatedAtTime(Empty {})),
             }),
+            catalog_checkpoint_interval: 13,
             ..Default::default()
         }),
         routing_rules: None,

@@ -37,7 +37,7 @@ impl From<LifecycleRules> for management::LifecycleRules {
             worker_backoff_millis: config.worker_backoff_millis.map_or(0, NonZeroU64::get),
             catalog_checkpoint_interval: config
                 .catalog_checkpoint_interval
-                .map_or(0, NonZeroU64::get),
+                .map_or(100, NonZeroU64::get),
         }
     }
 }

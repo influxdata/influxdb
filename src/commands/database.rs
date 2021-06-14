@@ -1,5 +1,5 @@
 //! This module implements the `database` CLI command
-use std::{fs::File, io::Read, path::PathBuf, str::FromStr};
+use std::{fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr};
 
 use influxdb_iox_client::{
     connection::Builder,
@@ -115,10 +115,8 @@ struct Create {
     immutable: bool,
 
     /// After how many transactions should IOx write a new checkpoint?
-    ///
-    /// If 0, no checkpoints will be written.
-    #[structopt(long, default_value = "100")]
-    catalog_checkpoint_interval: u64,
+    #[structopt(long, default_value = "100", parse(try_from_str))]
+    catalog_checkpoint_interval: NonZeroU64,
 }
 
 /// Get list of databases
@@ -187,7 +185,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                     persist: command.persist,
                     immutable: command.immutable,
                     worker_backoff_millis: Default::default(),
-                    catalog_checkpoint_interval: command.catalog_checkpoint_interval,
+                    catalog_checkpoint_interval: command.catalog_checkpoint_interval.get(),
                 }),
 
                 // Default to hourly partitions
