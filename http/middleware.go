@@ -147,6 +147,7 @@ var blacklistEndpoints = map[string]isValidMethodFn{
 	prefixNotificationEndpoints:      ignoreMethod("POST"),
 	notificationEndpointsIDPath:      ignoreMethod("PUT"),
 	restoreKVPath:                    ignoreMethod(),
+	restoreSqlPath:                   ignoreMethod(),
 	restoreBucketPath:                ignoreMethod(),
 	restoreShardPath:                 ignoreMethod(),
 }

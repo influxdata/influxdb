@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -81,7 +82,22 @@ func (h *RestoreHandler) handleRestoreKVStore(w http.ResponseWriter, r *http.Req
 
 	ctx := r.Context()
 
-	if err := h.RestoreService.RestoreKVStore(ctx, r.Body); err != nil {
+	var kvBytes io.Reader = r.Body
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		gzr, err := gzip.NewReader(kvBytes)
+		if err != nil {
+			err = &errors.Error{
+				Code: errors.EInvalid,
+				Msg:  "failed to decode gzip request body",
+				Err:  err,
+			}
+			h.HandleHTTPError(ctx, err, w)
+		}
+		defer gzr.Close()
+		kvBytes = gzr
+	}
+
+	if err := h.RestoreService.RestoreKVStore(ctx, kvBytes); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -93,7 +109,22 @@ func (h *RestoreHandler) handleRestoreSqlStore(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
-	if err := h.SqlBackupRestoreService.RestoreSqlStore(ctx, r.Body); err != nil {
+	var sqlBytes io.Reader = r.Body
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		gzr, err := gzip.NewReader(sqlBytes)
+		if err != nil {
+			err = &errors.Error{
+				Code: errors.EInvalid,
+				Msg:  "failed to decode gzip request body",
+				Err:  err,
+			}
+			h.HandleHTTPError(ctx, err, w)
+		}
+		defer gzr.Close()
+		sqlBytes = gzr
+	}
+
+	if err := h.SqlBackupRestoreService.RestoreSqlStore(ctx, sqlBytes); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -144,7 +175,22 @@ func (h *RestoreHandler) handleRestoreShard(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := h.RestoreService.RestoreShard(ctx, shardID, r.Body); err != nil {
+	var tsmBytes io.Reader = r.Body
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		gzr, err := gzip.NewReader(tsmBytes)
+		if err != nil {
+			err = &errors.Error{
+				Code: errors.EInvalid,
+				Msg:  "failed to decode gzip request body",
+				Err:  err,
+			}
+			h.HandleHTTPError(ctx, err, w)
+		}
+		defer gzr.Close()
+		tsmBytes = gzr
+	}
+
+	if err := h.RestoreService.RestoreShard(ctx, shardID, tsmBytes); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
