@@ -457,8 +457,8 @@ fn extract_iox_statistics(
     match (parquet_stats, iox_type) {
         (ParquetStatistics::Boolean(stats), InfluxColumnType::Field(InfluxFieldType::Boolean)) => {
             Ok(Statistics::Bool(StatValues {
-                min: Some(*stats.min()),
-                max: Some(*stats.max()),
+                min: min_max_set.then(|| *stats.min()),
+                max: min_max_set.then(|| *stats.max()),
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
@@ -467,8 +467,8 @@ fn extract_iox_statistics(
         }
         (ParquetStatistics::Int64(stats), InfluxColumnType::Field(InfluxFieldType::Integer)) => {
             Ok(Statistics::I64(StatValues {
-                min: Some(*stats.min()),
-                max: Some(*stats.max()),
+                min: min_max_set.then(|| *stats.min()),
+                max: min_max_set.then(|| *stats.max()),
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
@@ -477,8 +477,8 @@ fn extract_iox_statistics(
         }
         (ParquetStatistics::Int64(stats), InfluxColumnType::Field(InfluxFieldType::UInteger)) => {
             Ok(Statistics::U64(StatValues {
-                min: Some(*stats.min() as u64),
-                max: Some(*stats.max() as u64),
+                min: min_max_set.then(|| *stats.min() as u64),
+                max: min_max_set.then(|| *stats.max() as u64),
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
@@ -508,26 +508,30 @@ fn extract_iox_statistics(
         (ParquetStatistics::ByteArray(stats), InfluxColumnType::Tag)
         | (ParquetStatistics::ByteArray(stats), InfluxColumnType::Field(InfluxFieldType::String)) => {
             Ok(Statistics::String(StatValues {
-                min: Some(
-                    stats
-                        .min()
-                        .as_utf8()
-                        .context(StatisticsUtf8Error {
-                            row_group: row_group_idx,
-                            column: column_name.to_string(),
-                        })?
-                        .to_string(),
-                ),
-                max: Some(
-                    stats
-                        .max()
-                        .as_utf8()
-                        .context(StatisticsUtf8Error {
-                            row_group: row_group_idx,
-                            column: column_name.to_string(),
-                        })?
-                        .to_string(),
-                ),
+                min: min_max_set
+                    .then(|| {
+                        stats
+                            .min()
+                            .as_utf8()
+                            .context(StatisticsUtf8Error {
+                                row_group: row_group_idx,
+                                column: column_name.to_string(),
+                            })
+                            .map(|x| x.to_string())
+                    })
+                    .transpose()?,
+                max: min_max_set
+                    .then(|| {
+                        stats
+                            .max()
+                            .as_utf8()
+                            .context(StatisticsUtf8Error {
+                                row_group: row_group_idx,
+                                column: column_name.to_string(),
+                            })
+                            .map(|x| x.to_string())
+                    })
+                    .transpose()?,
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
