@@ -11,7 +11,6 @@ pub mod stringset;
 mod task;
 pub use context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
 use futures::{future, Future};
-use observability_deps::tracing::debug;
 
 use std::sync::Arc;
 
@@ -191,40 +190,6 @@ impl Executor {
             results.extend(handle?.into_iter());
         }
 
-        // TEMP(edd): attempting to get more insight into series frame
-        // construction.
-        //
-        // Consider removing as very noisy
-        //
-        for (i, result) in results.iter().enumerate() {
-            if let SeriesSetItem::Data(item) = result {
-                if i == 0 {
-                    // emit batch used across the series set.
-                    //
-                    // TEMP(edd): clones record batch.
-                    //
-                    if let Ok(rb) =
-                        arrow::util::pretty::pretty_format_batches(&[item.batch.clone()])
-                    {
-                        debug!("record batch {}", rb);
-                    }
-                }
-
-                let tags = item
-                    .tags
-                    .iter()
-                    .map(|(k, v)| format!("  ({}, {})", k, v))
-                    .collect::<Vec<_>>();
-                debug!(
-                    table_name = item.table_name.as_ref(),
-                    ?tags,
-                    start_row = item.start_row,
-                    num_rows = item.num_rows,
-                    "series set item"
-                );
-            }
-        }
-        //
         Ok(results)
     }
 
