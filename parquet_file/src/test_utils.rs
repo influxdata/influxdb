@@ -452,14 +452,13 @@ pub fn make_record_batch(
         &mut summaries,
         &mut schema_builder,
     );
-    // TODO: broken due to https://github.com/apache/arrow-rs/issues/254
-    // schema_builder = create_column_field_u64(
-    //     "field_u64_range",
-    //     vec![vec![u64::MIN, u64::MAX], vec![u64::MIN], vec![u64::MAX]],
-    //     &mut arrow_cols,
-    //     &mut summaries,
-    //     schema_builder,
-    // );
+    create_column_field_u64(
+        &format!("{}_field_u64_range", column_prefix),
+        vec![vec![u64::MIN], vec![u64::MAX], vec![u64::MIN, u64::MAX]],
+        &mut arrow_cols,
+        &mut summaries,
+        &mut schema_builder,
+    );
 
     // field: f64
     create_column_field_f64(

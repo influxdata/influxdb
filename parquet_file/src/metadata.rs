@@ -473,8 +473,6 @@ fn extract_iox_statistics(
             }))
         }
         (ParquetStatistics::Int64(stats), InfluxColumnType::Field(InfluxFieldType::UInteger)) => {
-            // TODO: Likely incorrect for large values until
-            // https://github.com/apache/arrow-rs/issues/254
             Ok(Statistics::U64(StatValues {
                 min: Some(*stats.min() as u64),
                 max: Some(*stats.max() as u64),
