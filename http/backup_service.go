@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/NYTimes/gziphandler"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
@@ -72,9 +73,10 @@ func NewBackupHandler(b *BackupBackend) *BackupHandler {
 		BucketManifestWriter:    b.BucketManifestWriter,
 	}
 
-	h.HandlerFunc(http.MethodGet, backupKVStorePath, h.handleBackupKVStore)
-	h.HandlerFunc(http.MethodGet, backupShardPath, h.handleBackupShard)
-	h.HandlerFunc(http.MethodGet, backupMetadataPath, h.requireOperPermissions(http.HandlerFunc(h.handleBackupMetadata)))
+	h.HandlerFunc(http.MethodGet, backupKVStorePath, h.handleBackupKVStore) // Deprecated
+
+	h.Handler(http.MethodGet, backupShardPath, gziphandler.GzipHandler(http.HandlerFunc(h.handleBackupShard)))
+	h.Handler(http.MethodGet, backupMetadataPath, gziphandler.GzipHandler(h.requireOperPermissions(http.HandlerFunc(h.handleBackupMetadata))))
 
 	return h
 }
