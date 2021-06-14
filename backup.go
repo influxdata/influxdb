@@ -65,6 +65,7 @@ type BucketMetadataManifest struct {
 	OrganizationName       string                    `json:"organizationName"`
 	BucketID               platform.ID               `json:"bucketID"`
 	BucketName             string                    `json:"bucketName"`
+	Description            *string                   `json:"description,omitempty"`
 	DefaultRetentionPolicy string                    `json:"defaultRetentionPolicy"`
 	RetentionPolicies      []RetentionPolicyManifest `json:"retentionPolicies"`
 }

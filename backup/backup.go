@@ -52,11 +52,17 @@ func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) er
 
 		dbInfo := b.mc.Database(bkt.ID.String())
 
+		var description *string
+		if bkt.Description != "" {
+			description = &bkt.Description
+		}
+
 		l = append(l, influxdb.BucketMetadataManifest{
 			OrganizationID:         bkt.OrgID,
 			OrganizationName:       org.Name,
 			BucketID:               bkt.ID,
 			BucketName:             bkt.Name,
+			Description:            description,
 			DefaultRetentionPolicy: dbInfo.DefaultRetentionPolicy,
 			RetentionPolicies:      retentionPolicyToManifest(dbInfo.RetentionPolicies),
 		})
