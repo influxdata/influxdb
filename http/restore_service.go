@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -80,8 +81,24 @@ func (h *RestoreHandler) handleRestoreKVStore(w http.ResponseWriter, r *http.Req
 	defer span.Finish()
 
 	ctx := r.Context()
+	defer r.Body.Close()
 
-	if err := h.RestoreService.RestoreKVStore(ctx, r.Body); err != nil {
+	var kvBytes io.Reader = r.Body
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		gzr, err := gzip.NewReader(kvBytes)
+		if err != nil {
+			err = &errors.Error{
+				Code: errors.EInvalid,
+				Msg:  "failed to decode gzip request body",
+				Err:  err,
+			}
+			h.HandleHTTPError(ctx, err, w)
+		}
+		defer gzr.Close()
+		kvBytes = gzr
+	}
+
+	if err := h.RestoreService.RestoreKVStore(ctx, kvBytes); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -92,8 +109,24 @@ func (h *RestoreHandler) handleRestoreSqlStore(w http.ResponseWriter, r *http.Re
 	defer span.Finish()
 
 	ctx := r.Context()
+	defer r.Body.Close()
 
-	if err := h.SqlBackupRestoreService.RestoreSqlStore(ctx, r.Body); err != nil {
+	var sqlBytes io.Reader = r.Body
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		gzr, err := gzip.NewReader(sqlBytes)
+		if err != nil {
+			err = &errors.Error{
+				Code: errors.EInvalid,
+				Msg:  "failed to decode gzip request body",
+				Err:  err,
+			}
+			h.HandleHTTPError(ctx, err, w)
+		}
+		defer gzr.Close()
+		sqlBytes = gzr
+	}
+
+	if err := h.SqlBackupRestoreService.RestoreSqlStore(ctx, sqlBytes); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -104,6 +137,7 @@ func (h *RestoreHandler) handleRestoreBucket(w http.ResponseWriter, r *http.Requ
 	defer span.Finish()
 
 	ctx := r.Context()
+	defer r.Body.Close()
 
 	// Read bucket ID.
 	bucketID, err := decodeIDFromCtx(r.Context(), "bucketID")
@@ -136,6 +170,7 @@ func (h *RestoreHandler) handleRestoreShard(w http.ResponseWriter, r *http.Reque
 	defer span.Finish()
 
 	ctx := r.Context()
+	defer r.Body.Close()
 
 	params := httprouter.ParamsFromContext(ctx)
 	shardID, err := strconv.ParseUint(params.ByName("shardID"), 10, 64)
@@ -144,7 +179,22 @@ func (h *RestoreHandler) handleRestoreShard(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := h.RestoreService.RestoreShard(ctx, shardID, r.Body); err != nil {
+	var tsmBytes io.Reader = r.Body
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		gzr, err := gzip.NewReader(tsmBytes)
+		if err != nil {
+			err = &errors.Error{
+				Code: errors.EInvalid,
+				Msg:  "failed to decode gzip request body",
+				Err:  err,
+			}
+			h.HandleHTTPError(ctx, err, w)
+		}
+		defer gzr.Close()
+		tsmBytes = gzr
+	}
+
+	if err := h.RestoreService.RestoreShard(ctx, shardID, tsmBytes); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
