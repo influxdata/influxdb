@@ -208,8 +208,8 @@ impl Domain {
         Self {
             name,
             meter,
-            observers,
             default_labels,
+            observers,
             gauges,
         }
     }
