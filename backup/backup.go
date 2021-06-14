@@ -63,13 +63,6 @@ func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) er
 			BucketID:         bkt.ID,
 			BucketName:       bkt.Name,
 			Description:      description,
-			RetentionRules: []influxdb.RetentionRuleManifest{
-				{
-					Type:                      "expire",
-					EverySeconds:              int64(bkt.RetentionPeriod.Round(time.Second).Seconds()),
-					ShardGroupDurationSeconds: int64(bkt.ShardGroupDuration.Round(time.Second).Seconds()),
-				},
-			},
 			DefaultRetentionPolicy: dbInfo.DefaultRetentionPolicy,
 			RetentionPolicies:      retentionPolicyToManifest(dbInfo.RetentionPolicies),
 		})

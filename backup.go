@@ -66,15 +66,8 @@ type BucketMetadataManifest struct {
 	BucketID               platform.ID               `json:"bucketID"`
 	BucketName             string                    `json:"bucketName"`
 	Description            *string                   `json:"description,omitempty"`
-	RetentionRules         []RetentionRuleManifest   `json:"retentionRules"`
 	DefaultRetentionPolicy string                    `json:"defaultRetentionPolicy"`
 	RetentionPolicies      []RetentionPolicyManifest `json:"retentionPolicies"`
-}
-
-type RetentionRuleManifest struct {
-	Type                      string `json:"type"`
-	EverySeconds              int64  `json:"everySeconds"`
-	ShardGroupDurationSeconds int64  `json:"shardGroupDurationSeconds"`
 }
 
 type RetentionPolicyManifest struct {
