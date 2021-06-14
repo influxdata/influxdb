@@ -51,8 +51,12 @@ type RestoreService interface {
 	// RestoreKVStore restores & replaces metadata database.
 	RestoreKVStore(ctx context.Context, r io.Reader) error
 
-	// RestoreKVStore restores the metadata database.
-	RestoreBucket(ctx context.Context, id platform.ID, rpiData []byte) (shardIDMap map[uint64]uint64, err error)
+	// RestoreBucket restores storage metadata for a bucket.
+	// TODO(danmoran): As far as I can tell, dbInfo is typed as a []byte because typing it as
+	//  a meta.DatabaseInfo introduces a circular dependency between the root package and `meta`.
+	//  We should refactor to make this signature easier to use. It might be easier to wait
+	//  until we're ready to delete the 2.0.x restore APIs before refactoring.
+	RestoreBucket(ctx context.Context, id platform.ID, dbInfo []byte) (shardIDMap map[uint64]uint64, err error)
 
 	// RestoreShard uploads a backup file for a single shard.
 	RestoreShard(ctx context.Context, shardID uint64, r io.Reader) error
@@ -125,6 +129,17 @@ type ManifestEntry struct {
 type ManifestKVEntry struct {
 	FileName string `json:"fileName"`
 	Size     int64  `json:"size"`
+}
+
+type RestoredBucketMappings struct {
+	ID            platform.ID            `json:"id"`
+	Name          string                 `json:"name"`
+	ShardMappings []RestoredShardMapping `json:"shardMappings"`
+}
+
+type RestoredShardMapping struct {
+	OldId uint64 `json:"oldId"`
+	NewId uint64 `json:"newId"`
 }
 
 // Size returns the size of the manifest.
