@@ -153,7 +153,7 @@ pub struct LifecycleRules {
     pub worker_backoff_millis: Option<NonZeroU64>,
 
     /// After how many transactions should IOx write a new checkpoint?
-    pub catalog_checkpoint_interval: Option<NonZeroU64>,
+    pub catalog_transactions_until_checkpoint: Option<NonZeroU64>,
 }
 
 /// This struct specifies the rules for the order to sort partitions

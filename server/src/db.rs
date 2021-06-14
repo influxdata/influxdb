@@ -656,7 +656,7 @@ impl Db {
                 .rules
                 .read()
                 .lifecycle_rules
-                .catalog_checkpoint_interval
+                .catalog_transactions_until_checkpoint
                 .map_or(false, |interval| {
                     transaction.revision_counter() % interval.get() == 0
                 });
@@ -3030,7 +3030,7 @@ mod tests {
             .object_store(Arc::clone(&object_store))
             .server_id(server_id)
             .db_name(db_name)
-            .catalog_checkpoint_interval(NonZeroU64::try_from(2).unwrap())
+            .catalog_transactions_until_checkpoint(NonZeroU64::try_from(2).unwrap())
             .build()
             .await;
         let db = Arc::new(test_db.db);

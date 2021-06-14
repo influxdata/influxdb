@@ -35,7 +35,7 @@ pub struct TestDbBuilder {
     db_name: Option<DatabaseName<'static>>,
     worker_cleanup_avg_sleep: Option<Duration>,
     write_buffer: Option<Arc<dyn WriteBuffer>>,
-    catalog_checkpoint_interval: Option<NonZeroU64>,
+    catalog_transactions_until_checkpoint: Option<NonZeroU64>,
 }
 
 impl TestDbBuilder {
@@ -74,7 +74,8 @@ impl TestDbBuilder {
             .unwrap_or_else(|| Duration::from_secs(1));
 
         // enable checkpointing
-        rules.lifecycle_rules.catalog_checkpoint_interval = self.catalog_checkpoint_interval;
+        rules.lifecycle_rules.catalog_transactions_until_checkpoint =
+            self.catalog_transactions_until_checkpoint;
 
         TestDb {
             metric_registry: metrics::TestMetricRegistry::new(metrics_registry),
@@ -115,8 +116,8 @@ impl TestDbBuilder {
         self
     }
 
-    pub fn catalog_checkpoint_interval(mut self, interval: NonZeroU64) -> Self {
-        self.catalog_checkpoint_interval = Some(interval);
+    pub fn catalog_transactions_until_checkpoint(mut self, interval: NonZeroU64) -> Self {
+        self.catalog_transactions_until_checkpoint = Some(interval);
         self
     }
 }

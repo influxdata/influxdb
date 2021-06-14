@@ -116,7 +116,7 @@ struct Create {
 
     /// After how many transactions should IOx write a new checkpoint?
     #[structopt(long, default_value = "100", parse(try_from_str))]
-    catalog_checkpoint_interval: NonZeroU64,
+    catalog_transactions_until_checkpoint: NonZeroU64,
 }
 
 /// Get list of databases
@@ -185,7 +185,9 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                     persist: command.persist,
                     immutable: command.immutable,
                     worker_backoff_millis: Default::default(),
-                    catalog_checkpoint_interval: command.catalog_checkpoint_interval.get(),
+                    catalog_transactions_until_checkpoint: command
+                        .catalog_transactions_until_checkpoint
+                        .get(),
                 }),
 
                 // Default to hourly partitions

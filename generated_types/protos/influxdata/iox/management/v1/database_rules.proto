@@ -114,7 +114,7 @@ message LifecycleRules {
   // After how many transactions should IOx write a new checkpoint?
   //
   // If 0 / absent, this default to 100.
-  uint64 catalog_checkpoint_interval = 11;
+  uint64 catalog_transactions_until_checkpoint = 11;
 }
 
 message DatabaseRules {
