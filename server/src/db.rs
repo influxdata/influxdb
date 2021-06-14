@@ -30,19 +30,19 @@ use mutable_buffer::chunk::{
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
+use parquet::file::metadata::ParquetMetaData;
 use parquet_file::{
-    catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
+    catalog::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
     chunk::{Chunk as ParquetChunk, ChunkMetrics as ParquetChunkMetrics},
     cleanup::cleanup_unreferenced_parquet_files,
-    metadata::{
-        read_schema_from_parquet_metadata, read_statistics_from_parquet_metadata, IoxMetadata,
-    },
+    metadata::IoxMetadata,
     storage::Storage,
 };
 use query::{exec::Executor, predicate::Predicate, Database};
 use rand_distr::{Distribution, Poisson};
 use read_buffer::{ChunkMetrics as ReadBufferChunkMetrics, RBChunk};
 use snafu::{ResultExt, Snafu};
+use std::collections::HashMap;
 use std::{
     any::Any,
     num::NonZeroUsize,
@@ -652,7 +652,18 @@ impl Db {
             transaction
                 .add_parquet(&path.into(), &parquet_metadata)
                 .context(TransactionError)?;
-            transaction.commit(false).await.context(TransactionError)?;
+            let create_checkpoint = self
+                .rules
+                .read()
+                .lifecycle_rules
+                .catalog_transactions_until_checkpoint
+                .map_or(false, |interval| {
+                    transaction.revision_counter() % interval.get() == 0
+                });
+            transaction
+                .commit(create_checkpoint)
+                .await
+                .context(TransactionError)?;
         }
 
         // We know this chunk is ParquetFile type
@@ -1101,9 +1112,7 @@ impl CatalogState for Catalog {
         db_name: &str,
         info: CatalogParquetInfo,
     ) -> parquet_file::catalog::Result<()> {
-        use parquet_file::catalog::{
-            CatalogStateFailure, PathParseFailed, SchemaReadFailed, StatisticsReadFailed,
-        };
+        use parquet_file::catalog::{CatalogStateFailure, PathParseFailed};
 
         // extract all relevant bits for the in-memory catalog
         let storage = Storage::new(Arc::clone(&object_store), server_id, db_name.to_string());
@@ -1113,16 +1122,6 @@ impl CatalogState for Catalog {
             .context(PathParseFailed {
                 path: info.path.clone(),
             })?;
-        let schema =
-            read_schema_from_parquet_metadata(&info.metadata).context(SchemaReadFailed {
-                path: info.path.clone(),
-            })?;
-        let table_summary =
-            read_statistics_from_parquet_metadata(&info.metadata, &schema, &table_name).context(
-                StatisticsReadFailed {
-                    path: info.path.clone(),
-                },
-            )?;
 
         // Create a parquet chunk for this chunk
         let metrics = self
@@ -1132,12 +1131,15 @@ impl CatalogState for Catalog {
         let metrics = ParquetChunkMetrics::new(&metrics, self.metrics().memory().parquet());
         let parquet_chunk = ParquetChunk::new(
             &partition_key,
-            table_summary,
             object_store.path_from_dirs_and_filename(info.path.clone()),
             object_store,
-            schema,
+            info.metadata,
+            &table_name,
             metrics,
-        );
+        )
+        .context(ChunkCreationFailed {
+            path: info.path.clone(),
+        })?;
         let parquet_chunk = Arc::new(parquet_chunk);
 
         // Get partition from the catalog
@@ -1178,13 +1180,18 @@ impl CatalogState for Catalog {
         unimplemented!("parquet files cannot be removed from the catalog for now")
     }
 
-    fn files(
-        &self,
-    ) -> std::collections::HashMap<
-        DirsAndFileName,
-        Arc<datafusion::parquet::file::metadata::ParquetMetaData>,
-    > {
-        todo!("wire up catalog file tracking")
+    fn files(&self) -> HashMap<DirsAndFileName, Arc<ParquetMetaData>> {
+        let mut files = HashMap::new();
+
+        for chunk in self.chunks() {
+            let guard = chunk.read();
+            if let catalog::chunk::ChunkStage::Persisted { parquet, .. } = guard.stage() {
+                let path: DirsAndFileName = parquet.path().into();
+                files.insert(path, parquet.parquet_metadata());
+            }
+        }
+
+        files
     }
 }
 
@@ -1260,7 +1267,7 @@ mod tests {
         collections::HashSet,
         convert::TryFrom,
         iter::Iterator,
-        num::NonZeroUsize,
+        num::{NonZeroU64, NonZeroUsize},
         str,
         time::{Duration, Instant},
     };
@@ -1461,7 +1468,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 647;
+        let expected_parquet_size = 663;
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1616).unwrap();
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(
@@ -1817,7 +1824,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2263.0)
+            .sample_sum_eq(2279.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1925,7 +1932,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2263.0)
+            .sample_sum_eq(2279.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -1953,7 +1960,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(647.0)
+            .sample_sum_eq(663.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -2342,7 +2349,7 @@ mod tests {
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
-                2261, // size of RB and OS chunks
+                2277, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2402,7 +2409,7 @@ mod tests {
                 .memory()
                 .parquet()
                 .get_total(),
-            647
+            663
         );
     }
 
@@ -3006,6 +3013,84 @@ mod tests {
         for path in &paths_keep {
             assert!(all_files.contains(&path.display()));
         }
+    }
+
+    #[tokio::test]
+    async fn checkpointing() {
+        // Test that the preserved catalog creates checkpoints
+
+        // ==================== setup ====================
+        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let server_id = ServerId::try_from(1).unwrap();
+        let db_name = "preserved_catalog_test";
+
+        // ==================== do: create DB ====================
+        // Create a DB given a server id, an object store and a db name
+        let test_db = TestDb::builder()
+            .object_store(Arc::clone(&object_store))
+            .server_id(server_id)
+            .db_name(db_name)
+            .catalog_transactions_until_checkpoint(NonZeroU64::try_from(2).unwrap())
+            .build()
+            .await;
+        let db = Arc::new(test_db.db);
+
+        // ==================== do: write data to parquet ====================
+        // create two chunks within the same table (to better test "new chunk ID" and "new table" during transaction
+        // replay)
+        let mut chunks = vec![];
+        for _ in 0..2 {
+            chunks.push(create_parquet_chunk(db.as_ref()).await);
+        }
+
+        // ==================== do: remove .txn files ====================
+        drop(db);
+        let files = object_store
+            .list(None)
+            .await
+            .unwrap()
+            .try_concat()
+            .await
+            .unwrap();
+        let mut deleted_one = false;
+        for file in files {
+            let parsed: DirsAndFileName = file.clone().into();
+            if parsed
+                .file_name
+                .map_or(false, |part| part.encoded().ends_with(".txn"))
+            {
+                object_store.delete(&file).await.unwrap();
+                deleted_one = true;
+            }
+        }
+        assert!(deleted_one);
+
+        // ==================== do: re-load DB ====================
+        // Re-create database with same store, serverID, and DB name
+        let test_db = TestDb::builder()
+            .object_store(Arc::clone(&object_store))
+            .server_id(server_id)
+            .db_name(db_name)
+            .build()
+            .await;
+        let db = Arc::new(test_db.db);
+
+        // ==================== check: DB state ====================
+        // Re-created DB should have an "object store only"-chunk
+        for (table_name, partition_key, chunk_id) in &chunks {
+            let chunk = db.chunk(table_name, partition_key, *chunk_id).unwrap();
+            let chunk = chunk.read();
+            assert!(matches!(
+                chunk.stage(),
+                ChunkStage::Persisted {
+                    read_buffer: None,
+                    ..
+                }
+            ));
+        }
+
+        // ==================== check: DB still writable ====================
+        write_lp(db.as_ref(), "cpu bar=1 10");
     }
 
     async fn create_parquet_chunk(db: &Db) -> (String, String, u32) {
