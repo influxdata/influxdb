@@ -459,6 +459,7 @@ impl BlockData {
     /// overwrites previous values. Therefore, in order to have "last write
     /// wins" semantics it is important that the provided vector of blocks
     /// is ordered by the wall-clock time the blocks were created.
+    #[allow(clippy::manual_flatten)]
     pub fn merge(mut blocks: Vec<Self>) -> Self {
         if blocks.is_empty() {
             panic!("merge called with zero blocks");

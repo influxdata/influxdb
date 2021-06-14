@@ -11,7 +11,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::metadata::{parquet_metadata_to_thrift, thrift_to_parquet_metadata};
+use crate::metadata::IoxParquetMetaData;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use data_types::server_id::ServerId;
@@ -23,7 +23,6 @@ use object_store::{
 };
 use observability_deps::tracing::{info, warn};
 use parking_lot::RwLock;
-use parquet::file::metadata::ParquetMetaData;
 use prost::{DecodeError, EncodeError, Message};
 use snafu::{OptionExt, ResultExt, Snafu};
 use tokio::sync::{Semaphore, SemaphorePermit};
@@ -142,20 +141,11 @@ pub enum Error {
     },
 
     #[snafu(
-        display("Cannot read schema from {:?}: {}", path, source),
+        display("Cannot create parquet chunk from {:?}: {}", path, source),
         visibility(pub)
     )]
-    SchemaReadFailed {
-        source: crate::metadata::Error,
-        path: DirsAndFileName,
-    },
-
-    #[snafu(
-        display("Cannot read statistics from {:?}: {}", path, source),
-        visibility(pub)
-    )]
-    StatisticsReadFailed {
-        source: crate::metadata::Error,
+    ChunkCreationFailed {
+        source: crate::chunk::Error,
         path: DirsAndFileName,
     },
 
@@ -203,7 +193,7 @@ pub struct CatalogParquetInfo {
     pub path: DirsAndFileName,
 
     /// Associated parquet metadata.
-    pub metadata: Arc<ParquetMetaData>,
+    pub metadata: Arc<IoxParquetMetaData>,
 }
 
 /// Abstraction over how the in-memory state of the catalog works.
@@ -239,7 +229,7 @@ pub trait CatalogState {
     /// List all Parquet files that are currently (i.e. by the current version) tracked by the catalog.
     ///
     /// If a file was once [added](Self::add) but later [removed](Self::remove) it MUST NOT appear in the result.
-    fn files(&self) -> HashMap<DirsAndFileName, Arc<ParquetMetaData>>;
+    fn files(&self) -> HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>;
 }
 
 /// Find last transaction-start-timestamp.
@@ -874,7 +864,7 @@ where
                 let path = parse_dirs_and_filename(&a.path)?;
 
                 let metadata =
-                    thrift_to_parquet_metadata(&a.metadata).context(MetadataDecodingFailed)?;
+                    IoxParquetMetaData::from_thrift(&a.metadata).context(MetadataDecodingFailed)?;
                 let metadata = Arc::new(metadata);
 
                 state.add(
@@ -1150,8 +1140,7 @@ where
                     action: Some(proto::transaction::action::Action::AddParquet(
                         proto::AddParquet {
                             path: Some(unparse_dirs_and_filename(&path)),
-                            metadata: parquet_metadata_to_thrift(&metadata)
-                                .context(MetadataEncodingFailed)?,
+                            metadata: metadata.to_thrift().context(MetadataEncodingFailed)?,
                         },
                     )),
                 })
@@ -1192,7 +1181,7 @@ where
     pub fn add_parquet(
         &mut self,
         path: &DirsAndFileName,
-        metadata: &ParquetMetaData,
+        metadata: &IoxParquetMetaData,
     ) -> Result<()> {
         self.transaction
             .as_mut()
@@ -1200,8 +1189,7 @@ where
             .handle_action_and_record(
                 proto::transaction::action::Action::AddParquet(proto::AddParquet {
                     path: Some(unparse_dirs_and_filename(path)),
-                    metadata: parquet_metadata_to_thrift(metadata)
-                        .context(MetadataEncodingFailed)?,
+                    metadata: metadata.to_thrift().context(MetadataEncodingFailed)?,
                 }),
                 &self.catalog.object_store,
                 self.catalog.server_id,
@@ -1260,7 +1248,7 @@ pub mod test_helpers {
     #[derive(Clone, Debug)]
     pub struct TestCatalogStateInner {
         /// Map of all parquet files that are currently registered.
-        pub parquet_files: HashMap<DirsAndFileName, Arc<ParquetMetaData>>,
+        pub parquet_files: HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>,
     }
 
     /// In-memory catalog state, for testing.
@@ -1323,7 +1311,7 @@ pub mod test_helpers {
             Ok(())
         }
 
-        fn files(&self) -> HashMap<DirsAndFileName, Arc<ParquetMetaData>> {
+        fn files(&self) -> HashMap<DirsAndFileName, Arc<IoxParquetMetaData>> {
             let guard = self.inner.lock();
 
             guard.parquet_files.clone()
@@ -1378,10 +1366,7 @@ pub mod test_helpers {
 mod tests {
     use std::{num::NonZeroU32, ops::Deref};
 
-    use crate::{
-        metadata::{read_schema_from_parquet_metadata, read_statistics_from_parquet_metadata},
-        test_utils::{make_metadata, make_object_store},
-    };
+    use crate::test_utils::{make_metadata, make_object_store};
     use object_store::parsed_path;
 
     use super::test_helpers::{break_catalog_with_weird_version, TestCatalogState};
@@ -2357,10 +2342,10 @@ mod tests {
     }
 
     /// Get sorted list of catalog files from state
-    fn get_catalog_parquet_files(state: &TestCatalogState) -> Vec<(String, ParquetMetaData)> {
+    fn get_catalog_parquet_files(state: &TestCatalogState) -> Vec<(String, IoxParquetMetaData)> {
         let guard = state.inner.lock();
 
-        let mut files: Vec<(String, ParquetMetaData)> = guard
+        let mut files: Vec<(String, IoxParquetMetaData)> = guard
             .parquet_files
             .iter()
             .map(|(path, md)| (path.display(), md.as_ref().clone()))
@@ -2372,7 +2357,7 @@ mod tests {
     /// Assert that set of parquet files tracked by a catalog are identical to the given sorted list.
     fn assert_catalog_parquet_files(
         catalog: &PreservedCatalog<TestCatalogState>,
-        expected: &[(String, ParquetMetaData)],
+        expected: &[(String, IoxParquetMetaData)],
     ) {
         let actual = get_catalog_parquet_files(&catalog.state());
         for ((actual_path, actual_md), (expected_path, expected_md)) in
@@ -2380,17 +2365,16 @@ mod tests {
         {
             assert_eq!(actual_path, expected_path);
 
-            let actual_schema = read_schema_from_parquet_metadata(actual_md).unwrap();
-            let expected_schema = read_schema_from_parquet_metadata(expected_md).unwrap();
+            let actual_schema = actual_md.read_schema().unwrap();
+            let expected_schema = expected_md.read_schema().unwrap();
             assert_eq!(actual_schema, expected_schema);
 
             // NOTE: the actual table name is not important here as long as it is the same for both calls, since it is
             // only used to generate out statistics struct (not to read / dispatch anything).
-            let actual_stats =
-                read_statistics_from_parquet_metadata(actual_md, &actual_schema, "foo").unwrap();
-            let expected_stats =
-                read_statistics_from_parquet_metadata(expected_md, &expected_schema, "foo")
-                    .unwrap();
+            let actual_stats = actual_md.read_statistics(&actual_schema, "foo").unwrap();
+            let expected_stats = expected_md
+                .read_statistics(&expected_schema, "foo")
+                .unwrap();
             assert_eq!(actual_stats, expected_stats);
         }
     }
@@ -2907,6 +2891,70 @@ mod tests {
             "failed: last start ts ({}) < last committed end ts ({})",
             ts,
             last_committed_end_ts
+        );
+    }
+
+    #[tokio::test]
+    async fn test_find_last_transaction_timestamp_checkpoints_only() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+        let mut trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+
+        let catalog = PreservedCatalog::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // create empty transaction w/ checkpoint
+        {
+            let transaction = catalog.open_transaction().await;
+            transaction.commit(true).await.unwrap();
+        }
+        trace.record(&catalog, false);
+
+        // delete transaction files
+        for (aborted, tkey) in trace.aborted.iter().zip(trace.tkeys.iter()) {
+            if *aborted {
+                continue;
+            }
+            let path = file_path(
+                &object_store,
+                server_id,
+                db_name,
+                tkey,
+                FileType::Transaction,
+            );
+            checked_delete(&object_store, &path).await;
+        }
+        drop(catalog);
+
+        let ts = find_last_transaction_timestamp(&object_store, server_id, db_name)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // check timestamps
+        assert!(!trace.aborted[trace.aborted.len() - 1]);
+        let second_last_end_ts = trace.post_timestamps[trace.post_timestamps.len() - 2];
+        assert!(
+            ts > second_last_end_ts,
+            "failed: last start ts ({}) > second last committed end ts ({})",
+            ts,
+            second_last_end_ts
+        );
+
+        let last_end_ts = trace.post_timestamps[trace.post_timestamps.len() - 1];
+        assert!(
+            ts < last_end_ts,
+            "failed: last start ts ({}) < last committed end ts ({})",
+            ts,
+            last_end_ts
         );
     }
 

@@ -1,10 +1,15 @@
 //! Methods to cleanup the object store.
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
 
+use crate::{
+    catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
+    metadata::IoxParquetMetaData,
+    storage::data_location,
+};
 use data_types::server_id::ServerId;
 use futures::TryStreamExt;
 use object_store::{
@@ -14,10 +19,6 @@ use object_store::{
 use observability_deps::tracing::info;
 use snafu::{ResultExt, Snafu};
 
-use crate::{
-    catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
-    storage::data_location,
-};
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Error from read operation while cleaning object store: {}", source))]
@@ -157,10 +158,7 @@ impl CatalogState for TracerCatalogState {
         Ok(())
     }
 
-    fn files(
-        &self,
-    ) -> std::collections::HashMap<DirsAndFileName, Arc<parquet::file::metadata::ParquetMetaData>>
-    {
+    fn files(&self) -> HashMap<DirsAndFileName, Arc<IoxParquetMetaData>> {
         unimplemented!("File tracking not implemented for TracerCatalogState")
     }
 }

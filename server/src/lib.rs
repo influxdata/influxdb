@@ -988,7 +988,7 @@ mod tests {
 
     use arrow_util::assert_batches_eq;
     use data_types::database_rules::{
-        HashRing, PartitionTemplate, ShardConfig, TemplatePart, NO_SHARD_CONFIG,
+        HashRing, LifecycleRules, PartitionTemplate, ShardConfig, TemplatePart, NO_SHARD_CONFIG,
     };
     use influxdb_line_protocol::parse_lines;
     use metrics::MetricRegistry;
@@ -1067,7 +1067,10 @@ mod tests {
             partition_template: PartitionTemplate {
                 parts: vec![TemplatePart::TimeFormat("YYYY-MM".to_string())],
             },
-            lifecycle_rules: Default::default(),
+            lifecycle_rules: LifecycleRules {
+                catalog_transactions_until_checkpoint: Some(13.try_into().unwrap()),
+                ..Default::default()
+            },
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
             write_buffer_connection_string: None,

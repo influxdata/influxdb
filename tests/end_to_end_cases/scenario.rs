@@ -338,8 +338,8 @@ pub async fn create_quickly_persisting_database(
         lifecycle_rules: Some(LifecycleRules {
             mutable_linger_seconds: 1,
             mutable_size_threshold: 100,
-            buffer_size_soft: 1024 * 1024,
-            buffer_size_hard: 1024 * 1024,
+            buffer_size_soft: 512 * 1024,  // 512K
+            buffer_size_hard: 1024 * 1024, // 1MB
             persist: true,
             ..Default::default()
         }),

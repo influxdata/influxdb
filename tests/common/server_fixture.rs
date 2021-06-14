@@ -305,8 +305,8 @@ impl TestServer {
         Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("run")
-            // Can enable for debugging
-            //.arg("-vv")
+            // Run in high verbosity debugging
+            .arg("-vv")
             .env("INFLUXDB_IOX_OBJECT_STORE", "file")
             .env("INFLUXDB_IOX_DB_DIR", dir.path())
             .env("INFLUXDB_IOX_BIND_ADDR", &addrs.http_bind_addr)

@@ -42,12 +42,9 @@ pub fn regex_match_expr(input: Expr, pattern: String, matches: bool) -> Expr {
         let results = input_arr
             .iter()
             .map(|row| {
-                match row {
-                    // in arrow, any value can be null.
-                    // Here we decide to make our UDF to return null when either base or exponent is null.
-                    Some(v) => Some(pattern.is_match(v) == matches),
-                    None => None,
-                }
+                // in arrow, any value can be null.
+                // Here we decide to make our UDF to return null when either base or exponent is null.
+                row.map(|v| pattern.is_match(v) == matches)
             })
             .collect::<BooleanArray>();
 

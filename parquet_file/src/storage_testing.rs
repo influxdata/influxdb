@@ -10,10 +10,7 @@ mod tests {
     use data_types::partition_metadata::TableSummary;
 
     use crate::{
-        metadata::{
-            read_parquet_metadata_from_file, read_schema_from_parquet_metadata,
-            read_statistics_from_parquet_metadata,
-        },
+        metadata::IoxParquetMetaData,
         test_utils::{
             load_parquet_from_store, make_chunk_given_record_batch, make_object_store,
             make_record_batch, read_data_from_parquet_data,
@@ -55,10 +52,10 @@ mod tests {
         let (_read_table, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(&store))
             .await
             .unwrap();
-        let parquet_metadata = read_parquet_metadata_from_file(parquet_data.clone()).unwrap();
+        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
         //
         // 1. Check metadata at file level: Everything is correct
-        let schema_actual = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
+        let schema_actual = parquet_metadata.read_schema().unwrap();
         assert_eq!(schema.clone(), schema_actual);
         assert_eq!(
             key_value_metadata.clone(),
@@ -66,9 +63,9 @@ mod tests {
         );
 
         // 2. Check statistics
-        let table_summary_actual =
-            read_statistics_from_parquet_metadata(&parquet_metadata, &schema_actual, &table)
-                .unwrap();
+        let table_summary_actual = parquet_metadata
+            .read_statistics(&schema_actual, &table)
+            .unwrap();
         assert_eq!(table_summary_actual, table_summary);
 
         // 3. Check data
@@ -90,14 +87,14 @@ mod tests {
         // Now verify return results. This assert_batches_eq still works correctly without the metadata
         // We might modify it to make it include checking metadata or add a new comparison checking macro that prints out the metadata too
         let expected = vec![
-            "+------------------+---------------+---------------------------+------------------------+----------------------+----------------------+----------------------+----------------------+-------------------+--------------------+----------------+----------------------------+",
-            "| foo_tag_nonempty | foo_tag_empty | foo_field_string_nonempty | foo_field_string_empty | foo_field_i64_normal | foo_field_i64_range  | foo_field_u64_normal | foo_field_f64_normal | foo_field_f64_inf | foo_field_f64_zero | foo_field_bool | time                       |",
-            "+------------------+---------------+---------------------------+------------------------+----------------------+----------------------+----------------------+----------------------+-------------------+--------------------+----------------+----------------------------+",
-            "| foo              |               | foo                       |                        | -1                   | -9223372036854775808 | 1                    | 10.1                 | 0                 | 0                  | true           | 1970-01-01 00:00:00.000001 |",
-            "| bar              |               | bar                       |                        | 2                    | 9223372036854775807  | 2                    | 20.1                 | inf               | 0                  | false          | 1970-01-01 00:00:00.000002 |",
-            "| baz              |               | baz                       |                        | 3                    | -9223372036854775808 | 3                    | 30.1                 | -inf              | 0                  | true           | 1970-01-01 00:00:00.000003 |",
-            "| foo              |               | foo                       |                        | 4                    | 9223372036854775807  | 4                    | 40.1                 | 1                 | 0                  | false          | 1970-01-01 00:00:00.000004 |",
-            "+------------------+---------------+---------------------------+------------------------+----------------------+----------------------+----------------------+----------------------+-------------------+--------------------+----------------+----------------------------+",
+             "+----------------+---------------+-------------------+------------------+-------------------------+------------------------+----------------------------+---------------------------+----------------------+----------------------+-------------------------+------------------------+----------------------+----------------------+-------------------------+------------------------+----------------------+-------------------+--------------------+------------------------+-----------------------+-------------------------+------------------------+-----------------------+--------------------------+-------------------------+----------------------------+",
+             "| foo_tag_normal | foo_tag_empty | foo_tag_null_some | foo_tag_null_all | foo_field_string_normal | foo_field_string_empty | foo_field_string_null_some | foo_field_string_null_all | foo_field_i64_normal | foo_field_i64_range  | foo_field_i64_null_some | foo_field_i64_null_all | foo_field_u64_normal | foo_field_u64_range  | foo_field_u64_null_some | foo_field_u64_null_all | foo_field_f64_normal | foo_field_f64_inf | foo_field_f64_zero | foo_field_f64_nan_some | foo_field_f64_nan_all | foo_field_f64_null_some | foo_field_f64_null_all | foo_field_bool_normal | foo_field_bool_null_some | foo_field_bool_null_all | time                       |",
+             "+----------------+---------------+-------------------+------------------+-------------------------+------------------------+----------------------------+---------------------------+----------------------+----------------------+-------------------------+------------------------+----------------------+----------------------+-------------------------+------------------------+----------------------+-------------------+--------------------+------------------------+-----------------------+-------------------------+------------------------+-----------------------+--------------------------+-------------------------+----------------------------+",
+             "| foo            |               |                   |                  | foo                     |                        |                            |                           | -1                   | -9223372036854775808 |                         |                        | 1                    | 0                    |                         |                        | 10.1                 | 0                 | 0                  | NaN                    | NaN                   |                         |                        | true                  |                          |                         | 1970-01-01 00:00:00.000001 |",
+             "| bar            |               | bar               |                  | bar                     |                        | bar                        |                           | 2                    | 9223372036854775807  | 2                       |                        | 2                    | 18446744073709551615 | 2                       |                        | 20.1                 | inf               | 0                  | 2                      | NaN                   | 20.1                    |                        | false                 | false                    |                         | 1970-01-01 00:00:00.000002 |",
+             "| baz            |               | baz               |                  | baz                     |                        | baz                        |                           | 3                    | -9223372036854775808 | 3                       |                        | 3                    | 0                    | 3                       |                        | 30.1                 | -inf              | 0                  | 1                      | NaN                   | 30.1                    |                        | true                  | true                     |                         | 1970-01-01 00:00:00.000003 |",
+             "| foo            |               |                   |                  | foo                     |                        |                            |                           | 4                    | 9223372036854775807  |                         |                        | 4                    | 18446744073709551615 |                         |                        | 40.1                 | 1                 | 0                  | NaN                    | NaN                   |                         |                        | false                 |                          |                         | 1970-01-01 00:00:00.000004 |",
+             "+----------------+---------------+-------------------+------------------+-------------------------+------------------------+----------------------------+---------------------------+----------------------+----------------------+-------------------------+------------------------+----------------------+----------------------+-------------------------+------------------------+----------------------+-------------------+--------------------+------------------------+-----------------------+-------------------------+------------------------+-----------------------+--------------------------+-------------------------+----------------------------+",
         ];
         assert_eq!(num_rows, actual_num_rows);
         assert_batches_eq!(expected.clone(), &record_batches);

@@ -12,7 +12,7 @@ use crate::{
     write_buffer::WriteBuffer,
     JobRegistry,
 };
-use std::{borrow::Cow, convert::TryFrom, sync::Arc, time::Duration};
+use std::{borrow::Cow, convert::TryFrom, num::NonZeroU64, sync::Arc, time::Duration};
 
 // A wrapper around a Db and a metrics registry allowing for isolated testing
 // of a Db and its metrics.
@@ -35,6 +35,7 @@ pub struct TestDbBuilder {
     db_name: Option<DatabaseName<'static>>,
     worker_cleanup_avg_sleep: Option<Duration>,
     write_buffer: Option<Arc<dyn WriteBuffer>>,
+    catalog_transactions_until_checkpoint: Option<NonZeroU64>,
 }
 
 impl TestDbBuilder {
@@ -72,6 +73,10 @@ impl TestDbBuilder {
             .worker_cleanup_avg_sleep
             .unwrap_or_else(|| Duration::from_secs(1));
 
+        // enable checkpointing
+        rules.lifecycle_rules.catalog_transactions_until_checkpoint =
+            self.catalog_transactions_until_checkpoint;
+
         TestDb {
             metric_registry: metrics::TestMetricRegistry::new(metrics_registry),
             db: Db::new(
@@ -108,6 +113,11 @@ impl TestDbBuilder {
 
     pub fn write_buffer(mut self, write_buffer: Arc<dyn WriteBuffer>) -> Self {
         self.write_buffer = Some(write_buffer);
+        self
+    }
+
+    pub fn catalog_transactions_until_checkpoint(mut self, interval: NonZeroU64) -> Self {
+        self.catalog_transactions_until_checkpoint = Some(interval);
         self
     }
 }
