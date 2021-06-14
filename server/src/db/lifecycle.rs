@@ -7,7 +7,7 @@ use observability_deps::tracing::{info, warn};
 use data_types::{database_rules::LifecycleRules, error::ErrorLogger, job::Job};
 
 use super::{
-    catalog::chunk::{Chunk, ChunkStage, ChunkStageFrozenRepr},
+    catalog::chunk::{CatalogChunk, ChunkStage, ChunkStageFrozenRepr},
     Db,
 };
 use data_types::database_rules::SortOrder;
@@ -69,7 +69,7 @@ trait ChunkMover {
 
     /// Returns a list of chunks sorted in the order
     /// they should prioritised
-    fn chunks(&self, order: &SortOrder) -> Vec<Arc<RwLock<Chunk>>>;
+    fn chunks(&self, order: &SortOrder) -> Vec<Arc<RwLock<CatalogChunk>>>;
 
     /// Returns a tracker for the running move task if any
     fn move_tracker(&self) -> Option<&TaskTracker<Self::Job>>;
@@ -294,7 +294,7 @@ impl ChunkMover for LifecycleManager {
         self.db.rules.read().lifecycle_rules.clone()
     }
 
-    fn chunks(&self, sort_order: &SortOrder) -> Vec<Arc<RwLock<Chunk>>> {
+    fn chunks(&self, sort_order: &SortOrder) -> Vec<Arc<RwLock<CatalogChunk>>> {
         self.db
             .preserved_catalog
             .state()
@@ -361,7 +361,7 @@ fn elapsed_seconds(a: DateTime<Utc>, b: DateTime<Utc>) -> u32 {
 /// Returns if the chunk is sufficiently cold and old to move
 ///
 /// Note: Does not check the chunk is the correct state
-fn can_move(rules: &LifecycleRules, chunk: &Chunk, now: DateTime<Utc>) -> bool {
+fn can_move(rules: &LifecycleRules, chunk: &CatalogChunk, now: DateTime<Utc>) -> bool {
     match (rules.mutable_linger_seconds, chunk.time_of_last_write()) {
         (Some(linger), Some(last_write)) if elapsed_seconds(now, last_write) >= linger.get() => {
             match (
@@ -403,7 +403,7 @@ mod tests {
         id: u32,
         time_of_first_write: Option<i64>,
         time_of_last_write: Option<i64>,
-    ) -> Chunk {
+    ) -> CatalogChunk {
         let entry = lp_to_entry("table1 bar=10 10");
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
@@ -413,7 +413,7 @@ mod tests {
         );
         mb_chunk.write_table_batch(1, 5, batch).unwrap();
 
-        let mut chunk = Chunk::new_open(id, "", mb_chunk, ChunkMetrics::new_unregistered());
+        let mut chunk = CatalogChunk::new_open(id, "", mb_chunk, ChunkMetrics::new_unregistered());
         chunk.set_timestamps(
             time_of_first_write.map(from_secs),
             time_of_last_write.map(from_secs),
@@ -422,14 +422,14 @@ mod tests {
     }
 
     /// Transitions a new ("open") chunk into the "moving" state.
-    fn transition_to_moving(mut chunk: Chunk) -> Chunk {
+    fn transition_to_moving(mut chunk: CatalogChunk) -> CatalogChunk {
         chunk.freeze().unwrap();
         chunk.set_moving(&Default::default()).unwrap();
         chunk
     }
 
     /// Transitions a new ("open") chunk into the "moved" state.
-    fn transition_to_moved(mut chunk: Chunk, rb: &Arc<RBChunk>) -> Chunk {
+    fn transition_to_moved(mut chunk: CatalogChunk, rb: &Arc<RBChunk>) -> CatalogChunk {
         chunk = transition_to_moving(chunk);
         chunk.set_moved(Arc::clone(&rb)).unwrap();
         chunk
@@ -437,7 +437,10 @@ mod tests {
 
     /// Transitions a new ("open") chunk into the "writing to object store"
     /// state.
-    fn transition_to_writing_to_object_store(mut chunk: Chunk, rb: &Arc<RBChunk>) -> Chunk {
+    fn transition_to_writing_to_object_store(
+        mut chunk: CatalogChunk,
+        rb: &Arc<RBChunk>,
+    ) -> CatalogChunk {
         chunk = transition_to_moved(chunk, rb);
         chunk
             .set_writing_to_object_store(&Default::default())
@@ -447,7 +450,10 @@ mod tests {
 
     /// Transitions a new ("open") chunk into the "written to object store"
     /// state.
-    async fn transition_to_written_to_object_store(mut chunk: Chunk, rb: &Arc<RBChunk>) -> Chunk {
+    async fn transition_to_written_to_object_store(
+        mut chunk: CatalogChunk,
+        rb: &Arc<RBChunk>,
+    ) -> CatalogChunk {
         chunk = transition_to_writing_to_object_store(chunk, rb);
         let parquet_chunk = new_parquet_chunk(&chunk).await;
         chunk
@@ -456,7 +462,7 @@ mod tests {
         chunk
     }
 
-    async fn new_parquet_chunk(chunk: &Chunk) -> parquet_file::chunk::Chunk {
+    async fn new_parquet_chunk(chunk: &CatalogChunk) -> parquet_file::chunk::Chunk {
         let in_memory = InMemory::new();
         let object_store = Arc::new(ObjectStore::new_in_memory(in_memory));
 
@@ -476,12 +482,12 @@ mod tests {
         rules: LifecycleRules,
         move_tracker: Option<TaskTracker<()>>,
         write_tracker: Option<TaskTracker<()>>,
-        chunks: Vec<Arc<RwLock<Chunk>>>,
+        chunks: Vec<Arc<RwLock<CatalogChunk>>>,
         events: Vec<MoverEvents>,
     }
 
     impl DummyMover {
-        fn new(rules: LifecycleRules, chunks: Vec<Chunk>) -> Self {
+        fn new(rules: LifecycleRules, chunks: Vec<CatalogChunk>) -> Self {
             Self {
                 rules,
                 chunks: chunks
@@ -511,7 +517,7 @@ mod tests {
             self.rules.clone()
         }
 
-        fn chunks(&self, _: &SortOrder) -> Vec<Arc<RwLock<Chunk>>> {
+        fn chunks(&self, _: &SortOrder) -> Vec<Arc<RwLock<CatalogChunk>>> {
             self.chunks.clone()
         }
 

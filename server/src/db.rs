@@ -7,7 +7,7 @@ use super::{write_buffer::WriteBuffer, JobRegistry};
 use crate::db::catalog::partition::Partition;
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use async_trait::async_trait;
-use catalog::{chunk::Chunk as CatalogChunk, Catalog};
+use catalog::{chunk::CatalogChunk, Catalog};
 pub(crate) use chunk::DbChunk;
 use data_types::{
     chunk_metadata::ChunkSummary,
