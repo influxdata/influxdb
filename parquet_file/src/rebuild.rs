@@ -63,6 +63,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Users are required to [wipe](crate::catalog::PreservedCatalog::wipe) the existing catalog before running this
 /// procedure (**after creating a backup!**).
 ///
+/// This will create a catalog checkpoint for the very last transaction.
+///
 /// # Limitations
 /// Compared to an intact catalog, wiping a catalog and rebuilding it from Parquet files has the following drawbacks:
 ///
@@ -117,6 +119,7 @@ where
                 revision_counter,
                 "revision counter during transaction simulation out-of-sync"
             );
+            let create_checkpoint = revision_counter == *max_revision;
 
             if let Some((uuid, entries)) = revisions.get(&revision_counter) {
                 // we have files for this particular transaction
@@ -127,12 +130,18 @@ where
                         .add_parquet(&path, metadata)
                         .context(FileRecordFailure)?;
                 }
-                transaction.commit(false).await.context(CommitFailure)?;
+                transaction
+                    .commit(create_checkpoint)
+                    .await
+                    .context(CommitFailure)?;
             } else {
                 // we do not have any files for this transaction (there might have been other actions though or it was
                 // an empty transaction) => create new empty transaction
                 let transaction = catalog.open_transaction().await;
-                transaction.commit(false).await.context(CommitFailure)?;
+                transaction
+                    .commit(create_checkpoint)
+                    .await
+                    .context(CommitFailure)?;
             }
         }
     }
@@ -562,6 +571,128 @@ mod tests {
         let guard = state.inner.lock();
         assert!(guard.parquet_files.is_empty());
         assert_eq!(catalog.revision_counter(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_rebuild_creates_file_checkpoint() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let db_name = "db1";
+
+        // build catalog with some data (2 transactions + initial empty one)
+        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+            Arc::clone(&object_store),
+            server_id,
+            db_name,
+            (),
+        )
+        .await
+        .unwrap();
+        {
+            let mut transaction = catalog.open_transaction().await;
+
+            let (path, md) = create_parquet_file(
+                &object_store,
+                server_id,
+                db_name,
+                transaction.revision_counter(),
+                transaction.uuid(),
+                0,
+            )
+            .await;
+            transaction.add_parquet(&path, &md).unwrap();
+
+            transaction.commit(false).await.unwrap();
+        }
+        {
+            let mut transaction = catalog.open_transaction().await;
+
+            let (path, md) = create_parquet_file(
+                &object_store,
+                server_id,
+                db_name,
+                transaction.revision_counter(),
+                transaction.uuid(),
+                2,
+            )
+            .await;
+            transaction.add_parquet(&path, &md).unwrap();
+
+            transaction.commit(false).await.unwrap();
+        }
+        assert_eq!(catalog.revision_counter(), 2);
+
+        // store catalog state
+        let paths_expected = {
+            let state = catalog.state();
+            let guard = state.inner.lock();
+            let mut tmp: Vec<_> = guard.parquet_files.keys().cloned().collect();
+            tmp.sort();
+            tmp
+        };
+
+        // wipe catalog
+        drop(catalog);
+        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
+
+        // rebuild
+        let path = object_store.new_path();
+        let catalog = rebuild_catalog::<TestCatalogState, _>(
+            Arc::clone(&object_store),
+            &path,
+            server_id,
+            db_name,
+            (),
+            false,
+        )
+        .await
+        .unwrap();
+        drop(catalog);
+
+        // delete transaction files
+        let paths = object_store
+            .list(None)
+            .await
+            .unwrap()
+            .try_concat()
+            .await
+            .unwrap();
+        let mut deleted = false;
+        for path in paths {
+            let parsed: DirsAndFileName = path.clone().into();
+            if parsed
+                .file_name
+                .map_or(false, |part| part.encoded().ends_with(".txn"))
+            {
+                object_store.delete(&path).await.unwrap();
+                deleted = true;
+            }
+        }
+        assert!(deleted);
+
+        // load catalog
+        let catalog = PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // check match
+        let paths_actual = {
+            let state = catalog.state();
+            let guard = state.inner.lock();
+            let mut tmp: Vec<_> = guard.parquet_files.keys().cloned().collect();
+            tmp.sort();
+            tmp
+        };
+        assert_eq!(paths_actual, paths_expected);
+        assert_eq!(catalog.revision_counter(), 2);
     }
 
     /// Creates new test server ID
