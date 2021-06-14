@@ -128,8 +128,10 @@ impl InitStatus {
 
     /// Check if server is loaded. Databases are loaded and server is ready to read/write.
     pub fn initialized(&self) -> bool {
-        // ordering here isn't that important since this method is not used to check-and-modify the flag
-        self.initialized.load(Ordering::Relaxed)
+        // Need `Acquire` ordering because IF we a `true` here, this thread will likely also read data that
+        // `maybe_initialize_server` wrote before toggling the flag with `Release`. The `Acquire` flag here ensures that
+        // every data acccess AFTER the following line will also stay AFTER this line.
+        self.initialized.load(Ordering::Acquire)
     }
 
     /// Error occurred during generic server init (e.g. listing store content).
