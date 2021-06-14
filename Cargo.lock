@@ -3718,7 +3718,6 @@ dependencies = [
  "object_store",
  "observability_deps",
  "parking_lot",
- "parquet",
  "parquet_file",
  "query",
  "rand 0.8.3",

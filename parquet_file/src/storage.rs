@@ -21,11 +21,7 @@ use observability_deps::tracing::debug;
 use parquet::{
     self,
     arrow::ArrowWriter,
-    file::{
-        metadata::{KeyValue, ParquetMetaData},
-        properties::WriterProperties,
-        writer::TryClone,
-    },
+    file::{metadata::KeyValue, properties::WriterProperties, writer::TryClone},
 };
 use query::predicate::Predicate;
 
@@ -41,7 +37,7 @@ use std::{
 };
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::metadata::{read_parquet_metadata_from_file, IoxMetadata, METADATA_KEY};
+use crate::metadata::{IoxMetadata, IoxParquetMetaData, METADATA_KEY};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -244,7 +240,7 @@ impl Storage {
         table_name: String,
         stream: SendableRecordBatchStream,
         metadata: IoxMetadata,
-    ) -> Result<(Path, ParquetMetaData)> {
+    ) -> Result<(Path, IoxParquetMetaData)> {
         // Create full path location of this file in object store
         let path = self.location(partition_key, chunk_id, table_name);
 
@@ -252,7 +248,7 @@ impl Storage {
         let data = Self::parquet_stream_to_bytes(stream, schema, metadata).await?;
         // TODO: make this work w/o cloning the byte vector (https://github.com/influxdata/influxdb_iox/issues/1504)
         let md =
-            read_parquet_metadata_from_file(data.clone()).context(ExtractingMetadataFailure)?;
+            IoxParquetMetaData::from_file_bytes(data.clone()).context(ExtractingMetadataFailure)?;
         self.to_object_store(data, &path).await?;
 
         Ok((path.clone(), md))
@@ -543,18 +539,10 @@ mod tests {
                 .unwrap();
 
         // extract metadata
-        let md = read_parquet_metadata_from_file(bytes).unwrap();
-        let kv_vec = md.file_metadata().key_value_metadata().as_ref().unwrap();
-
-        // filter out relevant key
-        let kv = kv_vec
-            .iter()
-            .find(|kv| kv.key == METADATA_KEY)
-            .cloned()
-            .unwrap();
+        let md = IoxParquetMetaData::from_file_bytes(bytes).unwrap();
+        let metadata_roundtrip = md.read_iox_metadata().unwrap();
 
         // compare with input
-        let metadata_roundtrip: IoxMetadata = serde_json::from_str(&kv.value.unwrap()).unwrap();
         assert_eq!(metadata_roundtrip, metadata);
     }
 

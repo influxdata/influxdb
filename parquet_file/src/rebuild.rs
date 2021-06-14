@@ -11,15 +11,12 @@ use object_store::{
     ObjectStore, ObjectStoreApi,
 };
 use observability_deps::tracing::error;
-use parquet::file::metadata::ParquetMetaData;
 use snafu::{ResultExt, Snafu};
 use uuid::Uuid;
 
 use crate::{
     catalog::{CatalogState, PreservedCatalog},
-    metadata::{
-        read_iox_metadata_from_parquet_metadata, read_parquet_metadata_from_file, IoxMetadata,
-    },
+    metadata::{IoxMetadata, IoxParquetMetaData},
 };
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -152,14 +149,14 @@ async fn collect_revisions(
     object_store: &ObjectStore,
     search_location: &Path,
     ignore_metadata_read_failure: bool,
-) -> Result<HashMap<u64, (Uuid, Vec<(Path, ParquetMetaData)>)>> {
+) -> Result<HashMap<u64, (Uuid, Vec<(Path, IoxParquetMetaData)>)>> {
     let mut stream = object_store
         .list(Some(search_location))
         .await
         .context(ReadFailure)?;
 
     // revision -> (uuid, [file])
-    let mut revisions: HashMap<u64, (Uuid, Vec<(Path, ParquetMetaData)>)> = HashMap::new();
+    let mut revisions: HashMap<u64, (Uuid, Vec<(Path, IoxParquetMetaData)>)> = HashMap::new();
 
     while let Some(paths) = stream.try_next().await.context(ReadFailure)? {
         for path in paths.into_iter().filter(is_parquet) {
@@ -225,7 +222,7 @@ fn is_parquet(path: &Path) -> bool {
 async fn read_parquet(
     object_store: &ObjectStore,
     path: &Path,
-) -> Result<(IoxMetadata, ParquetMetaData)> {
+) -> Result<(IoxMetadata, IoxParquetMetaData)> {
     let data = object_store
         .get(path)
         .await
@@ -235,9 +232,10 @@ async fn read_parquet(
         .await
         .context(ReadFailure)?;
 
-    let parquet_metadata = read_parquet_metadata_from_file(data)
+    let parquet_metadata = IoxParquetMetaData::from_file_bytes(data)
         .context(MetadataReadFailure { path: path.clone() })?;
-    let iox_metadata = read_iox_metadata_from_parquet_metadata(&parquet_metadata)
+    let iox_metadata = parquet_metadata
+        .read_iox_metadata()
         .context(MetadataReadFailure { path: path.clone() })?;
     Ok((iox_metadata, parquet_metadata))
 }
@@ -578,7 +576,7 @@ mod tests {
         transaction_revision_counter: u64,
         transaction_uuid: Uuid,
         chunk_id: u32,
-    ) -> (DirsAndFileName, ParquetMetaData) {
+    ) -> (DirsAndFileName, IoxParquetMetaData) {
         let (record_batches, _schema, _column_summaries, _num_rows) = make_record_batch("foo");
 
         let storage = Storage::new(Arc::clone(object_store), server_id, db_name.to_string());
@@ -607,7 +605,7 @@ mod tests {
         server_id: ServerId,
         db_name: &str,
         chunk_id: u32,
-    ) -> (DirsAndFileName, ParquetMetaData) {
+    ) -> (DirsAndFileName, IoxParquetMetaData) {
         let (record_batches, schema, _column_summaries, _num_rows) = make_record_batch("foo");
         let mut stream: SendableRecordBatchStream = Box::pin(MemoryStream::new(record_batches));
 
@@ -623,7 +621,7 @@ mod tests {
         } // drop the reference to the MemWriter that the SerializedFileWriter has
 
         let data = mem_writer.into_inner().unwrap();
-        let md = read_parquet_metadata_from_file(data.clone()).unwrap();
+        let md = IoxParquetMetaData::from_file_bytes(data.clone()).unwrap();
         let storage = Storage::new(Arc::clone(object_store), server_id, db_name.to_string());
         let path = storage.location("part1".to_string(), chunk_id, "table1".to_string());
         storage.to_object_store(data, &path).await.unwrap();

@@ -30,7 +30,7 @@ use mutable_buffer::chunk::{
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
-use parquet::file::metadata::ParquetMetaData;
+use parquet_file::metadata::IoxParquetMetaData;
 use parquet_file::{
     catalog::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
     chunk::{Chunk as ParquetChunk, ChunkMetrics as ParquetChunkMetrics},
@@ -1180,7 +1180,7 @@ impl CatalogState for Catalog {
         unimplemented!("parquet files cannot be removed from the catalog for now")
     }
 
-    fn files(&self) -> HashMap<DirsAndFileName, Arc<ParquetMetaData>> {
+    fn files(&self) -> HashMap<DirsAndFileName, Arc<IoxParquetMetaData>> {
         let mut files = HashMap::new();
 
         for chunk in self.chunks() {
@@ -1258,10 +1258,7 @@ mod tests {
         path::{parts::PathPart, ObjectStorePath, Path},
         ObjectStore, ObjectStoreApi,
     };
-    use parquet_file::{
-        metadata::{read_parquet_metadata_from_file, read_schema_from_parquet_metadata},
-        test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
-    };
+    use parquet_file::test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data};
     use query::{frontend::sql::SqlQueryPlanner, Database, PartitionChunk};
     use std::{
         collections::HashSet,
@@ -1852,9 +1849,9 @@ mod tests {
         let parquet_data = load_parquet_from_store_for_path(&path_list[0], object_store)
             .await
             .unwrap();
-        let parquet_metadata = read_parquet_metadata_from_file(parquet_data.clone()).unwrap();
+        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
         // Read metadata at file level
-        let schema = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
+        let schema = parquet_metadata.read_schema().unwrap();
         // Read data
         let record_batches =
             read_data_from_parquet_data(Arc::clone(&schema.as_arrow()), parquet_data);
@@ -1980,9 +1977,9 @@ mod tests {
         let parquet_data = load_parquet_from_store_for_path(&path_list[0], object_store)
             .await
             .unwrap();
-        let parquet_metadata = read_parquet_metadata_from_file(parquet_data.clone()).unwrap();
+        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
         // Read metadata at file level
-        let schema = read_schema_from_parquet_metadata(&parquet_metadata).unwrap();
+        let schema = parquet_metadata.read_schema().unwrap();
         // Read data
         let record_batches =
             read_data_from_parquet_data(Arc::clone(&schema.as_arrow()), parquet_data);
