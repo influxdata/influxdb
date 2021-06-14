@@ -292,8 +292,8 @@ impl SeriesSetConverter {
                         //
                         if let (Some(curr), Some(next)) = (current_val, next_val) {
                             if values.value(curr as usize) == values.value(next as usize) {
-                                // these values are different even though they
-                                // have the same encoded key.
+                                // these logical values are the same even though
+                                // they have different encoded keys.
                                 continue;
                             }
                         }
