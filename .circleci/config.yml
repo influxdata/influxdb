@@ -50,14 +50,10 @@ jobs:
           root: .
           paths:
             - packages/*.deb
-  # Note: command-level insertion of AWS environment variables is required to
-  # shadow separate legacy credentials used for dl.influxdata.com s3 bucket in
-  # other CI for this repo
-  # see the following known issue for more info: https://support.circleci.com/hc/en-us/articles/360021415793-Wrong-AWS-credentials-being-used
+
   perf_test:
     machine:
-      enabled: true
-      docker_layer_caching: true
+      image: ubuntu-2004:202010-01
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -68,62 +64,7 @@ jobs:
       - run:
           name: Run test in AWS instance
           no_output_timeout: 20m
-          command: |
-            set -x
-
-            # get latest ubuntu 20.04 ami for us-west-2
-            ami_id=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ssm get-parameters --names /aws/service/canonical/ubuntu/server/20.04/stable/current/amd64/hvm/ebs-gp2/ami-id --query 'Parameters[0].[Value]' --output text)
-
-            # launch ec2 instance
-            instance_type="m5.large"
-            datestring=$(date +%Y%m%d)
-            instance_info=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 run-instances \
-              --image-id $ami_id \
-              --instance-type $instance_type \
-              --block-device-mappings DeviceName=/dev/sda1,Ebs={VolumeSize=100} \
-              --key-name circleci-oss-test \
-              --security-group-ids sg-03004366a38eccc97 \
-              --subnet-id subnet-0c079d746f27ede5e \
-              --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=oss-perftest-$datestring-${CIRCLE_BRANCH}-${CIRCLE_SHA1}}]")
-
-            # get instance info
-            ec2_instance_id=$(echo $instance_info | jq -r .Instances[].InstanceId)
-            sleep 60
-
-            ec2_ip=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws \
-              --region us-west-2 \
-              ec2 describe-instances \
-                --instance-ids $ec2_instance_id \
-                --query "Reservations[].Instances[].PublicIpAddress" \
-                --output text)
-
-            while [ -z $ec2_ip ]; do
-              sleep 5
-              ec2_ip=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws \
-                --region us-west-2 \
-                ec2 describe-instances \
-                  --instance-ids $ec2_instance_id \
-                  --query "Reservations[].Instances[].PublicIpAddress" \
-                  --output text)
-            done
-
-            # push binary and script to instance
-            debname=$(find /tmp/workspace/packages/influxdb*amd64.deb)
-            base_debname=$(basename $debname)
-
-            scp $debname ubuntu@$ec2_ip:/home/ubuntu/$base_debname
-            scp run_perftest.sh ubuntu@$ec2_ip:/home/ubuntu/run_perftest.sh
-
-            # run scripts
-            ssh ubuntu@$ec2_ip \<< EOF
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install --assume-yes /home/ubuntu/$base_debname
-            sudo systemctl unmask influxdb.service
-            sudo systemctl start influxdb
-            EOF
-
-            ssh ubuntu@$ec2_ip \<< EOF
-            nohup sudo CIRCLE_TEARDOWN=true CIRCLE_TOKEN=${CIRCLE_API_CALLBACK_TOKEN}  CLOUD2_BUCKET=${CLOUD2_PERFTEST_BUCKET} CLOUD2_ORG=${CLOUD2_PERFTEST_ORG} DATA_I_TYPE=m5.large DB_TOKEN=${CLOUD2_PERFTEST_TOKEN} INFLUXDB_VERSION=${CIRCLE_BRANCH} NGINX_HOST=localhost TEST_COMMIT=${CIRCLE_SHA1} CIRCLE_TEARDOWN_DATESTRING=$datestring ./run_perftest.sh > /home/ubuntu/perftest_log.txt 2>&1 &
-            EOF
+          command: AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} scripts/ci/perf_test.sh
   aws_destroy_by_date:
     machine:
       enabled: true
@@ -190,7 +131,6 @@ workflows:
             branches:
               only:
                 - "1.8"
-                - "perftests-1.8"
   aws_destroy_daily:
     triggers:
       - schedule:
