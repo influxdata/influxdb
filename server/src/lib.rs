@@ -76,7 +76,7 @@ use bytes::BytesMut;
 use cached::proc_macro::cached;
 use db::load_or_create_preserved_catalog;
 use init::InitStatus;
-use observability_deps::tracing::{debug, error, info, warn};
+use observability_deps::tracing::{debug, info, warn};
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 
@@ -160,6 +160,13 @@ pub enum Error {
 
     #[snafu(display("database already exists"))]
     DatabaseAlreadyExists { db_name: String },
+
+    #[snafu(display(
+        "Database names in deserialized rules ({}) does not match expected value ({})",
+        actual,
+        expected
+    ))]
+    RulesDatabaseNameMismatch { actual: String, expected: String },
 
     #[snafu(display("error converting line protocol to flatbuffers: {}", source))]
     LineConversion { source: entry::Error },
@@ -437,6 +444,21 @@ where
         self.init_status.initialized()
     }
 
+    /// Error occurred during generic server init (e.g. listing store content).
+    pub fn error_generic(&self) -> Option<Arc<crate::init::Error>> {
+        self.init_status.error_generic()
+    }
+
+    /// List all databases with errors in sorted order.
+    pub fn databases_with_errors(&self) -> Vec<String> {
+        self.init_status.databases_with_errors()
+    }
+
+    /// Error that occurred during initialization of a specific database.
+    pub fn error_database(&self, db_name: &str) -> Option<Arc<crate::init::Error>> {
+        self.init_status.error_database(db_name)
+    }
+
     /// Require that server is loaded. Databases are loaded and server is ready to read/write.
     fn require_initialized(&self) -> Result<ServerId> {
         // since a server ID is the pre-requirement for init, check this first
@@ -455,6 +477,10 @@ where
         // Return an error if this server is not yet ready
         let server_id = self.require_initialized()?;
 
+        // Reserve name before expensive IO (e.g. loading the preserved catalog)
+        let db_reservation = self.config.create_db(rules.name.clone())?;
+        self.persist_database_rules(rules.clone()).await?;
+
         let preserved_catalog = load_or_create_preserved_catalog(
             rules.db_name(),
             Arc::clone(&self.store),
@@ -465,15 +491,13 @@ where
         .map_err(|e| Box::new(e) as _)
         .context(CatalogLoadError)?;
 
-        let db_reservation = self.config.create_db(rules)?;
-        self.persist_database_rules(db_reservation.rules().clone())
-            .await?;
         db_reservation.commit(
             server_id,
             Arc::clone(&self.store),
             Arc::clone(&self.exec),
             preserved_catalog,
-        );
+            rules,
+        )?;
 
         Ok(())
     }
@@ -510,17 +534,13 @@ where
     ///
     /// This requires the serverID to be set. It will be a no-op if the configs are already loaded and the server is ready.
     pub async fn maybe_initialize_server(&self) {
-        if let Err(e) = self
-            .init_status
+        self.init_status
             .maybe_initialize_server(
                 Arc::clone(&self.store),
                 Arc::clone(&self.config),
                 Arc::clone(&self.exec),
             )
-            .await
-        {
-            error!(%e, "error during DB loading");
-        }
+            .await;
     }
 
     /// `write_lines` takes in raw line protocol and converts it to a collection
@@ -808,10 +828,7 @@ where
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
 
         while !shutdown.is_cancelled() {
-            if self.require_id().is_ok() {
-                self.maybe_initialize_server().await;
-            }
-
+            self.maybe_initialize_server().await;
             self.jobs.inner.lock().reclaim();
 
             tokio::select! {
@@ -976,10 +993,12 @@ mod tests {
     use std::{
         collections::BTreeMap,
         convert::TryFrom,
+        sync::Arc,
         time::{Duration, Instant},
     };
 
     use async_trait::async_trait;
+    use bytes::Bytes;
     use futures::TryStreamExt;
     use generated_types::database_rules::decode_database_rules;
     use snafu::Snafu;
@@ -1657,7 +1676,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cannot_create_db_until_dbs_are_loaded() {
+    async fn cannot_create_db_until_server_is_initialized() {
         let temp_dir = TempDir::new().unwrap();
 
         let store = ObjectStore::new_file(object_store::disk::File::new(temp_dir.path()));
@@ -1687,7 +1706,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn background_worker_eventually_loads_dbs() {
+    async fn background_worker_eventually_inits_server() {
         let manager = TestConnectionManager::new();
         let server = Arc::new(Server::new(manager, config()));
 
@@ -1708,5 +1727,108 @@ mod tests {
         // ensure that we don't leave the server instance hanging around
         cancel_token.cancel();
         let _ = background_handle.await;
+    }
+
+    #[tokio::test]
+    async fn init_error_generic() {
+        // use an object store that will hopefully fail to read
+        let store = ObjectStore::new_amazon_s3(
+            object_store::aws::AmazonS3::new(
+                Some("foo".to_string()),
+                Some("bar".to_string()),
+                "us-east-1".to_string(),
+                "bucket".to_string(),
+                None as Option<String>,
+                None as Option<String>,
+            )
+            .unwrap(),
+        );
+
+        let manager = TestConnectionManager::new();
+        let config = config_with_store(store);
+        let server = Server::new(manager, config);
+
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server.maybe_initialize_server().await;
+        assert!(dbg!(server.error_generic().unwrap().to_string()).starts_with("store error:"));
+    }
+
+    #[tokio::test]
+    async fn init_error_database() {
+        let store = ObjectStore::new_in_memory(InMemory::new());
+        let server_id = ServerId::try_from(1).unwrap();
+
+        // Create temporary server to create single database
+        let manager = TestConnectionManager::new();
+        let config = config_with_store(store);
+        let store = config.store();
+
+        let server = Server::new(manager, config);
+        server.set_id(server_id).unwrap();
+        server.maybe_initialize_server().await;
+
+        create_simple_database(&server, "foo")
+            .await
+            .expect("failed to create database");
+        let root = server.init_status.root_path(&store).unwrap();
+        server.config.drain().await;
+        drop(server);
+
+        // tamper store
+        let path = object_store_path_for_database_config(&root, &DatabaseName::new("bar").unwrap());
+        let data = Bytes::from("x");
+        let len = data.len();
+        store
+            .put(
+                &path,
+                futures::stream::once(async move { Ok(data) }),
+                Some(len),
+            )
+            .await
+            .unwrap();
+
+        // start server
+        let store = Arc::try_unwrap(store).unwrap();
+        store.get(&path).await.unwrap();
+        let manager = TestConnectionManager::new();
+        let config = config_with_store(store);
+
+        let server = Server::new(manager, config);
+        server.set_id(server_id).unwrap();
+        server.maybe_initialize_server().await;
+
+        // generic error MUST NOT be set
+        assert!(server.error_generic().is_none());
+
+        // server is initialized
+        assert!(server.initialized());
+
+        // DB-specific error is set for `bar` but not for `foo`
+        assert_eq!(server.databases_with_errors(), vec!["bar".to_string()]);
+        assert!(dbg!(server.error_database("foo")).is_none());
+        assert!(dbg!(server.error_database("bar").unwrap().to_string())
+            .starts_with("error deserializing database rules from protobuf:"));
+
+        // DB names contain all DBs
+        assert_eq!(
+            server.db_names_sorted(),
+            vec!["bar".to_string(), "foo".to_string()]
+        );
+
+        // can only write to successfully created DBs
+        let lines = parsed_lines("cpu foo=1 10");
+        server
+            .write_lines("foo", &lines, ARBITRARY_DEFAULT_TIME)
+            .await
+            .unwrap();
+        let err = server
+            .write_lines("bar", &lines, ARBITRARY_DEFAULT_TIME)
+            .await
+            .unwrap_err();
+        assert_eq!(err.to_string(), "database not found: bar");
+
+        // creating failed DBs does not work
+        let err = create_simple_database(&server, "bar").await.unwrap_err();
+        assert_eq!(err.to_string(), "database already exists");
     }
 }

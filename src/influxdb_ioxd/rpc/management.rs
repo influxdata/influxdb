@@ -6,7 +6,7 @@ use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseNam
 use generated_types::google::{
     AlreadyExists, FieldViolation, FieldViolationExt, FromFieldOpt, InternalError, NotFound,
 };
-use generated_types::influxdata::iox::management::v1::*;
+use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
 use observability_deps::tracing::info;
 use query::{Database, DatabaseStore};
 use server::{ConnectionManager, Error, Server};
@@ -376,16 +376,18 @@ where
         &self,
         _request: Request<GetServerStatusRequest>,
     ) -> Result<Response<GetServerStatusResponse>, Status> {
-        // TODO: wire up errors (https://github.com/influxdata/influxdb_iox/issues/1624)
         let initialized = self.server.initialized();
 
         let database_statuses: Vec<_> = if initialized {
             self.server
                 .db_names_sorted()
                 .into_iter()
-                .map(|db_name| DatabaseStatus {
-                    db_name,
-                    error: None,
+                .map(|db_name| {
+                    let error = self.server.error_database(&db_name).map(|e| ProtobufError {
+                        message: e.to_string(),
+                    });
+
+                    DatabaseStatus { db_name, error }
                 })
                 .collect()
         } else {
@@ -395,7 +397,9 @@ where
         Ok(Response::new(GetServerStatusResponse {
             server_status: Some(ServerStatus {
                 initialized,
-                error: None,
+                error: self.server.error_generic().map(|e| ProtobufError {
+                    message: e.to_string(),
+                }),
                 database_statuses,
             }),
         }))
