@@ -1,0 +1,21 @@
+[package]
+name = "trogging"
+version = "0.1.0"
+authors = ["Marko Mikulicic <mkm@influxdata.com>"]
+edition = "2018"
+description = "(TR)acing and l(OGGING) configuration"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+logfmt = { path = "../logfmt" }
+observability_deps = { path = "../observability_deps" }
+opentelemetry-jaeger = { version = "0.12", features = ["tokio"] }
+opentelemetry-otlp = "0.6"
+thiserror = "1.0.23"
+tracing-opentelemetry = { version = "0.12", default-features = false }
+
+[dev-dependencies]
+synchronized-writer = "1"
+regex = "1"
+

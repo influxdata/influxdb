@@ -16,7 +16,6 @@ use commands::tracing::{init_logs_and_tracing, init_simple_logs};
 use observability_deps::tracing::warn;
 
 use crate::commands::tracing::TracingGuard;
-use observability_deps::tracing::dispatcher::SetGlobalDefaultError;
 use tikv_jemallocator::Jemalloc;
 
 mod commands {
@@ -139,7 +138,7 @@ fn main() -> Result<(), std::io::Error> {
         let host = config.host;
         let log_verbose_count = config.log_verbose_count;
 
-        fn handle_init_logs(r: Result<TracingGuard, SetGlobalDefaultError>) -> TracingGuard {
+        fn handle_init_logs(r: Result<TracingGuard, trogging::Error>) -> TracingGuard {
             match r {
                 Ok(guard) => guard,
                 Err(e) => {
