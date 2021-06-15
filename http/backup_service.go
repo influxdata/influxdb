@@ -150,8 +150,6 @@ func (h *BackupHandler) handleBackupMetadata(w http.ResponseWriter, r *http.Requ
 	h.SqlBackupRestoreService.LockSqlStore()
 	defer h.SqlBackupRestoreService.UnlockSqlStore()
 
-	baseName := time.Now().UTC().Format(influxdb.BackupFilenamePattern)
-
 	dataWriter := multipart.NewWriter(w)
 	w.Header().Set("Content-Type", "multipart/mixed; boundary="+dataWriter.Boundary())
 
@@ -162,21 +160,21 @@ func (h *BackupHandler) handleBackupMetadata(w http.ResponseWriter, r *http.Requ
 	}{
 		{
 			"application/octet-stream",
-			fmt.Sprintf("attachment; name=%q; filename=%q", "kv", fmt.Sprintf("%s.bolt", baseName)),
+			fmt.Sprintf("attachment; name=%q", "kv"),
 			func(fw io.Writer) error {
 				return h.BackupService.BackupKVStore(ctx, fw)
 			},
 		},
 		{
 			"application/octet-stream",
-			fmt.Sprintf("attachment; name=%q; filename=%q", "sql", fmt.Sprintf("%s.sqlite", baseName)),
+			fmt.Sprintf("attachment; name=%q", "sql"),
 			func(fw io.Writer) error {
 				return h.SqlBackupRestoreService.BackupSqlStore(ctx, fw)
 			},
 		},
 		{
 			"application/json; charset=utf-8",
-			fmt.Sprintf("attachment; name=%q; filename=%q", "buckets", fmt.Sprintf("%s.json", baseName)),
+			fmt.Sprintf("attachment; name=%q", "buckets"),
 			func(fw io.Writer) error {
 				return h.BucketManifestWriter.WriteManifest(ctx, fw)
 			},
