@@ -2,6 +2,7 @@
 //! instances of the mutable buffer, read buffer, and object store
 
 use self::access::QueryCatalogAccess;
+use self::catalog::chunk::ChunkStage;
 use self::catalog::TableNameFilter;
 use super::{write_buffer::WriteBuffer, JobRegistry};
 use crate::db::catalog::partition::Partition;
@@ -1153,6 +1154,13 @@ impl CatalogState for Catalog {
                 // to modify the chunk state while we were moving it
                 let mut chunk = chunk.write();
 
+                // check if chunk already exists
+                if matches!(chunk.stage(), &ChunkStage::Persisted { .. }) {
+                    return Err(parquet_file::catalog::Error::ParquetFileAlreadyExists {
+                        path: info.path,
+                    });
+                }
+
                 // update the catalog to say we are done processing
                 chunk
                     .set_written_to_object_store(parquet_chunk)
@@ -1173,8 +1181,34 @@ impl CatalogState for Catalog {
         Ok(())
     }
 
-    fn remove(&self, _path: DirsAndFileName) -> parquet_file::catalog::Result<()> {
-        unimplemented!("parquet files cannot be removed from the catalog for now")
+    fn remove(&self, path: DirsAndFileName) -> parquet_file::catalog::Result<()> {
+        let mut deleted = false;
+
+        for partition in self.partitions() {
+            let mut partition = partition.write();
+
+            let mut to_delete = vec![];
+            for chunk in partition.chunks() {
+                let chunk = chunk.read();
+                if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
+                    let chunk_path: DirsAndFileName = parquet.path().into();
+                    if path == chunk_path {
+                        to_delete.push(chunk.id());
+                    }
+                }
+            }
+
+            for chunk_id in to_delete {
+                partition.drop_chunk(chunk_id);
+                deleted = true;
+            }
+        }
+
+        if deleted {
+            Ok(())
+        } else {
+            Err(parquet_file::catalog::Error::ParquetFileDoesNotExist { path })
+        }
     }
 
     fn files(&self) -> HashMap<DirsAndFileName, Arc<IoxParquetMetaData>> {
@@ -1255,7 +1289,10 @@ mod tests {
         path::{parts::PathPart, ObjectStorePath, Path},
         ObjectStore, ObjectStoreApi,
     };
-    use parquet_file::test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data};
+    use parquet_file::{
+        catalog::test_helpers::assert_catalog_state_implementation,
+        test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
+    };
     use query::{frontend::sql::SqlQueryPlanner, Database, PartitionChunk};
     use std::{
         collections::HashSet,
@@ -3081,6 +3118,17 @@ mod tests {
 
         // ==================== check: DB still writable ====================
         write_lp(db.as_ref(), "cpu bar=1 10");
+    }
+
+    #[tokio::test]
+    async fn test_catalog_state() {
+        let metrics_registry = Arc::new(::metrics::MetricRegistry::new());
+        let empty_input = CatalogEmptyInput {
+            domain: metrics_registry.register_domain("catalog"),
+            metrics_registry,
+            metric_labels: vec![],
+        };
+        assert_catalog_state_implementation::<Catalog>(empty_input, false).await;
     }
 
     async fn create_parquet_chunk(db: &Db) -> (String, String, u32) {
