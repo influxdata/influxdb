@@ -21,6 +21,7 @@ members = [
     "influxdb_tsm",
     "internal_types",
     "logfmt",
+    "lifecycle",
     "mem_qe",
     "mutable_buffer",
     "object_store",

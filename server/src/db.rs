@@ -5,7 +5,6 @@ use self::access::QueryCatalogAccess;
 use self::catalog::TableNameFilter;
 use super::{write_buffer::WriteBuffer, JobRegistry};
 use crate::db::catalog::partition::Partition;
-use crate::db::lifecycle::{ArcDb, LifecyclePolicy};
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use async_trait::async_trait;
 use catalog::{chunk::CatalogChunk, Catalog};
@@ -851,8 +850,8 @@ impl Db {
             // lifecycle policy loop
             async {
                 // TODO: Remove this newtype hack
-                let arc_db = ArcDb(Arc::clone(&self));
-                let mut policy = LifecyclePolicy::new(Arc::new(arc_db));
+                let arc_db = lifecycle::ArcDb(Arc::clone(&self));
+                let mut policy = ::lifecycle::LifecyclePolicy::new(Arc::new(arc_db));
 
                 while !shutdown.is_cancelled() {
                     self.worker_iterations_lifecycle

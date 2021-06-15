@@ -1,0 +1,17 @@
+[package]
+name = "lifecycle"
+version = "0.1.0"
+authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
+edition = "2018"
+description = "Implements the IOx data lifecycle"
+
+[dependencies]
+chrono = "0.4"
+data_types = { path = "../data_types" }
+futures = "0.3"
+hashbrown = "0.11"
+observability_deps = { path = "../observability_deps" }
+tokio = { version = "1.0", features = ["macros", "time"] }
+tracker = { path = "../tracker" }
+[dev-dependencies]
+

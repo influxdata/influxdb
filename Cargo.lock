@@ -1900,6 +1900,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7d73b3f436185384286bd8098d17ec07c9a7d2388a6599f824d8502b529702a"
 
 [[package]]
+name = "lifecycle"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "data_types",
+ "futures",
+ "hashbrown 0.11.2",
+ "observability_deps",
+ "tokio",
+ "tracker",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3716,6 +3729,7 @@ dependencies = [
  "influxdb_line_protocol",
  "internal_types",
  "itertools 0.9.0",
+ "lifecycle",
  "metrics",
  "mutable_buffer",
  "num_cpus",

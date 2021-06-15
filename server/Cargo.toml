@@ -27,6 +27,7 @@ influxdb_iox_client = { path = "../influxdb_iox_client" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 internal_types = { path = "../internal_types" }
 itertools = "0.9.0"
+lifecycle = { path = "../lifecycle" }
 metrics = { path = "../metrics" }
 mutable_buffer = { path = "../mutable_buffer" }
 num_cpus = "1.13.0"
