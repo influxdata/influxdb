@@ -42,7 +42,7 @@ builds:
         goarch: arm64
     main: ./cmd/influxd/
     flags:
-      - -tags=assets{{if eq .Os "linux"}},osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
+      - -tags=assets,sqlite_foreign_keys,sqlite_json{{if eq .Os "linux"}},osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
       - -buildmode={{if eq .Os "windows"}}exe{{else}}pie{{end}}
     env:
       - GO111MODULE=on

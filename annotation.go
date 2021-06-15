@@ -137,7 +137,7 @@ type StoredAnnotation struct {
 	ID        platform.ID        `db:"id"`        // ID is the annotation's id.
 	OrgID     platform.ID        `db:"org_id"`    // OrgID is the annotations's owning organization.
 	StreamID  platform.ID        `db:"stream_id"` // StreamID is the id of a stream.
-	StreamTag string             `db:"name"`      // StreamTag is the name of a stream (when selecting with join of streams).
+	StreamTag string             `db:"stream"`    // StreamTag is the name of a stream (when selecting with join of streams).
 	Summary   string             `db:"summary"`   // Summary is the summary of the annotated event.
 	Message   string             `db:"message"`   // Message is a longer description of the annotated event.
 	Stickers  AnnotationStickers `db:"stickers"`  // Stickers are additional labels to group annotations by.
@@ -205,8 +205,16 @@ func (a AnnotationStickers) Value() (driver.Value, error) {
 // Scan implements the database/sql Scanner interface for retrieving AnnotationStickers from the database
 // The string is decoded into a slice of strings, which are then converted back into a map
 func (a *AnnotationStickers) Scan(value interface{}) error {
+	vString, ok := value.(string)
+	if !ok {
+		return &errors.Error{
+			Code: errors.EInternal,
+			Msg:  "could not load stickers from sqlite",
+		}
+	}
+
 	var stickSlice []string
-	if err := json.NewDecoder(strings.NewReader(value.(string))).Decode(&stickSlice); err != nil {
+	if err := json.NewDecoder(strings.NewReader(vString)).Decode(&stickSlice); err != nil {
 		return err
 	}
 

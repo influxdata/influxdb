@@ -14,12 +14,15 @@ CREATE TABLE streams (
   PRIMARY KEY ("org_id", "name")
 );
 
+-- Create an index on stream id to support fast queries on streams by id
+CREATE INDEX idx_stream_id ON streams (id);
+
 -- Create the initial table to store annotations
 CREATE TABLE annotations (
   id VARCHAR(16) UNIQUE NOT NULL,
   org_id VARCHAR(16) NOT NULL,
   stream_id VARCHAR(16) NOT NULL,
-  name TEXT NOT NULL,
+  stream TEXT NOT NULL,
   summary TEXT NOT NULL,
   message TEXT NOT NULL,
   stickers TEXT NOT NULL,

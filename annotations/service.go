@@ -92,7 +92,7 @@ func (s *Service) CreateAnnotations(ctx context.Context, orgID platform.ID, crea
 	// bulk insert for the creates. this also is unlikely to offer much performance benefit, but since the query
 	// is only used here it is easy enough to form to bulk query.
 	q := sq.Insert("annotations").
-		Columns("id", "org_id", "stream_id", "name", "summary", "message", "stickers", "duration", "lower", "upper").
+		Columns("id", "org_id", "stream_id", "stream", "summary", "message", "stickers", "duration", "lower", "upper").
 		Suffix("RETURNING *")
 
 	for _, create := range creates {
@@ -139,8 +139,8 @@ func (s *Service) CreateAnnotations(ctx context.Context, orgID platform.ID, crea
 // ListAnnotations returns a list of annotations from the database matching the filter
 // For time range matching, sqlite is able to compare times with millisecond accuracy
 func (s *Service) ListAnnotations(ctx context.Context, orgID platform.ID, filter influxdb.AnnotationListFilter) ([]influxdb.StoredAnnotation, error) {
-	// we need to explicitly format time strings here and elsewhere to ensure they are `
-	// by the database consistently
+	// we need to explicitly format time strings here and elsewhere to ensure they are
+	// interpreted by the database consistently
 	sf := filter.StartTime.Format(time.RFC3339Nano)
 	ef := filter.EndTime.Format(time.RFC3339Nano)
 
@@ -153,7 +153,7 @@ func (s *Service) ListAnnotations(ctx context.Context, orgID platform.ID, filter
 
 	// Add stream name filters to the query
 	if len(filter.StreamIncludes) > 0 {
-		q = q.Where(sq.Eq{"name": filter.StreamIncludes})
+		q = q.Where(sq.Eq{"stream": filter.StreamIncludes})
 	}
 
 	// Add sticker filters to the query
@@ -216,7 +216,7 @@ func (s *Service) DeleteAnnotations(ctx context.Context, orgID platform.ID, dele
 
 	// Add the stream name filter to the subquery (if present)
 	if len(delete.StreamTag) > 0 {
-		subQ = subQ.Where(sq.Eq{"name": delete.StreamTag})
+		subQ = subQ.Where(sq.Eq{"stream": delete.StreamTag})
 	}
 
 	// Add the stream ID filter to the subquery (if present)
@@ -290,7 +290,7 @@ func (s *Service) UpdateAnnotation(ctx context.Context, id platform.ID, update i
 
 	q := sq.Update("annotations").
 		SetMap(sq.Eq{
-			"name":     update.StreamTag,
+			"stream":   update.StreamTag,
 			"summary":  update.Summary,
 			"message":  update.Message,
 			"stickers": update.Stickers,
