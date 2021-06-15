@@ -71,9 +71,17 @@ pub struct CurrentServerId(OnceNonZeroU32);
 
 impl CurrentServerId {
     pub fn set(&self, id: ServerId) -> Result<()> {
-        self.0.set(id.get()).map_err(|id| Error::IdAlreadySet {
-            id: ServerId::new(id),
-        })
+        let id = id.get();
+
+        match self.0.set(id) {
+            Ok(()) => {
+                info!(server_id = id, "server ID set");
+                Ok(())
+            }
+            Err(id) => Err(Error::IdAlreadySet {
+                id: ServerId::new(id),
+            }),
+        }
     }
 
     pub fn get(&self) -> Result<ServerId> {

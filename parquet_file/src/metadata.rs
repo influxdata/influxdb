@@ -210,6 +210,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// This will serialized as [JSON] into the file-level key-value Parquet metadata (under [`METADATA_KEY`]).
 ///
+/// **Important: When changing this structure, consider bumping the
+///   [catalog transaction version](crate::catalog::TRANSACTION_VERSION)!**
+///
 /// [JSON]: https://www.json.org/
 #[allow(missing_copy_implementations)] // we want to extend this type in the future
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
@@ -219,6 +222,15 @@ pub struct IoxMetadata {
 
     /// UUID of the transaction during which the Parquet file was created.
     pub transaction_uuid: Uuid,
+
+    /// Table that holds this parquet file.
+    pub table_name: String,
+
+    /// Partition key of the partition that holds this parquet file.
+    pub partition_key: String,
+
+    /// Chunk ID.
+    pub chunk_id: u32,
 }
 
 /// Parquet metadata with IOx-specific wrapper.

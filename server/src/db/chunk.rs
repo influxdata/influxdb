@@ -14,7 +14,7 @@ use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::snapshot::ChunkSnapshot;
 use object_store::path::Path;
 use observability_deps::tracing::debug;
-use parquet_file::chunk::Chunk as ParquetChunk;
+use parquet_file::chunk::ParquetChunk;
 use query::{
     exec::stringset::StringSet,
     predicate::{Predicate, PredicateMatch},

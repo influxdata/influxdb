@@ -32,7 +32,7 @@ use crate::{
     metadata::{IoxMetadata, IoxParquetMetaData},
 };
 use crate::{
-    chunk::{self, Chunk},
+    chunk::{self, ParquetChunk},
     storage::Storage,
 };
 use snafu::{ResultExt, Snafu};
@@ -53,14 +53,14 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Load parquet from store and return table name and parquet bytes.
 // This function is for test only
 pub async fn load_parquet_from_store(
-    chunk: &Chunk,
+    chunk: &ParquetChunk,
     store: Arc<ObjectStore>,
 ) -> Result<(String, Vec<u8>)> {
     load_parquet_from_store_for_chunk(chunk, store).await
 }
 
 pub async fn load_parquet_from_store_for_chunk(
-    chunk: &Chunk,
+    chunk: &ParquetChunk,
     store: Arc<ObjectStore>,
 ) -> Result<(String, Vec<u8>)> {
     let path = chunk.path();
@@ -88,7 +88,11 @@ pub async fn load_parquet_from_store_for_path(
 }
 
 /// Same as [`make_chunk`] but parquet file does not contain any row group.
-pub async fn make_chunk(store: Arc<ObjectStore>, column_prefix: &str, chunk_id: u32) -> Chunk {
+pub async fn make_chunk(
+    store: Arc<ObjectStore>,
+    column_prefix: &str,
+    chunk_id: u32,
+) -> ParquetChunk {
     let (record_batches, schema, column_summaries, _num_rows) = make_record_batch(column_prefix);
     make_chunk_given_record_batch(
         store,
@@ -106,7 +110,7 @@ pub async fn make_chunk_no_row_group(
     store: Arc<ObjectStore>,
     column_prefix: &str,
     chunk_id: u32,
-) -> Chunk {
+) -> ParquetChunk {
     let (_, schema, column_summaries, _num_rows) = make_record_batch(column_prefix);
     make_chunk_given_record_batch(store, vec![], schema, "table1", column_summaries, chunk_id).await
 }
@@ -121,10 +125,10 @@ pub async fn make_chunk_given_record_batch(
     table: &str,
     column_summaries: Vec<ColumnSummary>,
     chunk_id: u32,
-) -> Chunk {
+) -> ParquetChunk {
     let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
     let db_name = "db1";
-    let part_key = "part1";
+    let partition_key = "part1";
     let table_name = table;
 
     let storage = Storage::new(Arc::clone(&store), server_id, db_name.to_string());
@@ -142,10 +146,13 @@ pub async fn make_chunk_given_record_batch(
     let metadata = IoxMetadata {
         transaction_revision_counter: 0,
         transaction_uuid: Uuid::nil(),
+        table_name: table_name.to_string(),
+        partition_key: partition_key.to_string(),
+        chunk_id,
     };
     let (path, parquet_metadata) = storage
         .write_to_object_store(
-            part_key.to_string(),
+            partition_key.to_string(),
             chunk_id,
             table_name.to_string(),
             stream,
@@ -154,8 +161,8 @@ pub async fn make_chunk_given_record_batch(
         .await
         .unwrap();
 
-    Chunk::new_from_parts(
-        part_key,
+    ParquetChunk::new_from_parts(
+        partition_key,
         Arc::new(table_summary),
         Arc::new(schema),
         path,
