@@ -1715,6 +1715,7 @@ dependencies = [
  "tonic-reflection",
  "tracing-opentelemetry",
  "tracker",
+ "trogging",
 ]
 
 [[package]]
@@ -4555,6 +4556,20 @@ name = "treeline"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7f741b240f1a48843f9b8e0444fb55fb2a4ff67293b50a9179dfd5ea67f8d41"
+
+[[package]]
+name = "trogging"
+version = "0.1.0"
+dependencies = [
+ "logfmt",
+ "observability_deps",
+ "opentelemetry-jaeger",
+ "opentelemetry-otlp",
+ "regex",
+ "synchronized-writer",
+ "thiserror",
+ "tracing-opentelemetry",
+]
 
 [[package]]
 name = "try-lock"

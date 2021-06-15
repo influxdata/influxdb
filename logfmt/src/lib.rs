@@ -23,6 +23,7 @@ use std::{io::Write, time::SystemTime};
 /// [logfmt]: https://brandur.org/logfmt
 pub struct LogFmtLayer<W: MakeWriter> {
     writer: W,
+    display_target: bool,
 }
 
 impl<W: MakeWriter> LogFmtLayer<W> {
@@ -50,7 +51,20 @@ impl<W: MakeWriter> LogFmtLayer<W> {
     ///    .init();
     /// ```
     pub fn new(writer: W) -> Self {
-        Self { writer }
+        Self {
+            writer,
+            display_target: true,
+        }
+    }
+
+    /// Control whether target and location attributes are displayed (on by default).
+    ///
+    /// Note: this API mimics that of other fmt layers in tracing-subscriber crate.
+    pub fn with_target(self, display_target: bool) -> Self {
+        Self {
+            display_target,
+            ..self
+        }
     }
 }
 
@@ -69,7 +83,7 @@ where
     fn new_span(&self, attrs: &tracing::span::Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
         let writer = self.writer.make_writer();
         let metadata = ctx.metadata(id).expect("span should have metadata");
-        let mut p = FieldPrinter::new(writer, metadata.level());
+        let mut p = FieldPrinter::new(writer, metadata.level(), self.display_target);
         p.write_span_name(metadata.name());
         attrs.record(&mut p);
         p.write_span_id(id);
@@ -82,7 +96,7 @@ where
 
     fn on_event(&self, event: &tracing::Event<'_>, ctx: Context<'_, S>) {
         let writer = self.writer.make_writer();
-        let mut p = FieldPrinter::new(writer, event.metadata().level());
+        let mut p = FieldPrinter::new(writer, event.metadata().level(), self.display_target);
         // record fields
         event.record(&mut p);
         if let Some(span) = ctx.lookup_current() {
@@ -98,10 +112,11 @@ where
 /// a writer
 struct FieldPrinter<W: Write> {
     writer: W,
+    display_target: bool,
 }
 
 impl<W: Write> FieldPrinter<W> {
-    fn new(mut writer: W, level: &Level) -> Self {
+    fn new(mut writer: W, level: &Level, display_target: bool) -> Self {
         let level_str = match *level {
             Level::TRACE => "trace",
             Level::DEBUG => "debug",
@@ -112,7 +127,10 @@ impl<W: Write> FieldPrinter<W> {
 
         write!(writer, r#"level={}"#, level_str).ok();
 
-        Self { writer }
+        Self {
+            writer,
+            display_target,
+        }
     }
 
     fn write_span_name(&mut self, value: &str) {
@@ -120,6 +138,10 @@ impl<W: Write> FieldPrinter<W> {
     }
 
     fn write_source_info(&mut self, event: &tracing::Event<'_>) {
+        if !self.display_target {
+            return;
+        }
+
         let metadata = event.metadata();
         write!(
             self.writer,
