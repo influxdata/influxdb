@@ -146,7 +146,7 @@ func (s *Service) ListAnnotations(ctx context.Context, orgID platform.ID, filter
 
 	q := sq.Select("annotations.*").
 		Distinct().
-		From("annotations, json_each(stickers) AS json").
+		From("annotations, json_each(annotations.stickers) AS json").
 		Where(sq.Eq{"org_id": orgID}).
 		Where(sq.GtOrEq{"lower": sf}).
 		Where(sq.LtOrEq{"upper": ef})
@@ -209,7 +209,7 @@ func (s *Service) DeleteAnnotations(ctx context.Context, orgID platform.ID, dele
 	// A subquery is used because the json_each virtual table can only be used in a SELECT
 	subQ := sq.Select("annotations.id").
 		Distinct().
-		From("annotations, json_each(stickers) AS json").
+		From("annotations, json_each(annotations.stickers) AS json").
 		Where(sq.Eq{"org_id": orgID}).
 		Where(sq.GtOrEq{"lower": sf}).
 		Where(sq.LtOrEq{"upper": ef})
