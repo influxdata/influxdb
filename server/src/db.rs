@@ -708,9 +708,9 @@ impl Db {
         partition_key: String,
         chunk_id: u32,
     ) -> TaskTracker<Job> {
-        let name = self.rules.read().name.clone();
+        let db_name = self.rules.read().name.clone();
         let (tracker, registration) = self.jobs.register(Job::CloseChunk {
-            db_name: name.to_string(),
+            db_name: db_name.to_string(),
             partition_key: partition_key.clone(),
             table_name: table_name.clone(),
             chunk_id,
@@ -719,7 +719,7 @@ impl Db {
         let captured_registration = registration.clone();
         let captured_db = Arc::clone(&self);
         let task = async move {
-            debug!(%name, %table_name, %partition_key, %chunk_id, "background task loading chunk to read buffer");
+            debug!(%db_name, %table_name, %partition_key, %chunk_id, "background task loading chunk to read buffer");
             let result = captured_db
                 .load_chunk_to_read_buffer(
                     &table_name,
@@ -730,11 +730,11 @@ impl Db {
                 .await;
 
             if let Err(e) = result {
-                info!(?e, %name, %partition_key, %chunk_id, "background task error loading read buffer chunk");
+                info!(%e, %db_name, %table_name, %partition_key, %chunk_id, "background task error loading read buffer chunk");
                 return Err(e);
             }
 
-            debug!(%name, %table_name, %partition_key, %chunk_id, "background task completed loading chunk to read buffer");
+            debug!(%db_name, %table_name, %partition_key, %chunk_id, "background task completed loading chunk to read buffer");
 
             Ok(())
         };
@@ -752,9 +752,9 @@ impl Db {
         partition_key: String,
         chunk_id: u32,
     ) -> TaskTracker<Job> {
-        let name = self.rules.read().name.clone();
+        let db_name = self.rules.read().name.clone();
         let (tracker, registration) = self.jobs.register(Job::WriteChunk {
-            db_name: name.to_string(),
+            db_name: db_name.to_string(),
             partition_key: partition_key.clone(),
             table_name: table_name.clone(),
             chunk_id,
@@ -763,7 +763,7 @@ impl Db {
         let captured_registration = registration.clone();
         let captured_db = Arc::clone(&self);
         let task = async move {
-            debug!(%name, %table_name, %partition_key, %chunk_id, "background task loading chunk to object store");
+            debug!(%db_name, %table_name, %partition_key, %chunk_id, "background task loading chunk to object store");
             let result = captured_db
                 .write_chunk_to_object_store(
                     &table_name,
@@ -774,11 +774,11 @@ impl Db {
                 .await;
 
             if let Err(e) = result {
-                info!(?e, %name, %partition_key, %chunk_id, "background task error loading object store chunk");
+                info!(%e, %db_name, %table_name, %partition_key, %chunk_id, "background task error loading object store chunk");
                 return Err(e);
             }
 
-            debug!(%name, %table_name, %partition_key, %chunk_id, "background task completed writing chunk to object store");
+            debug!(%db_name, %table_name, %partition_key, %chunk_id, "background task completed writing chunk to object store");
 
             Ok(())
         };
