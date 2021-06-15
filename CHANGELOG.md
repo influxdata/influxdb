@@ -3,6 +3,7 @@
 ### Bugfixes
 
 -	[#21609](https://github.com/influxdata/influxdb/pull/21609): fix: avoid rewriting fields.idx unnecessarily 
+-	[#21695](https://github.com/influxdata/influxdb/pull/21695): fix: Do not close connection twice in DigestWithOptions
 
 v1.9.2 [unreleased]
 
