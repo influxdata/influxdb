@@ -58,10 +58,14 @@ func (s *Service) CreateAnnotations(ctx context.Context, orgID platform.ID, crea
 
 	// store a unique list of stream names first. the invalid ID is a placeholder for the real id,
 	// which will be obtained separately
-	streams := make(map[string]platform.ID)
+	streamNamesIDs := make(map[string]platform.ID)
 	for _, c := range creates {
-		streams[c.StreamTag] = platform.InvalidID()
+		streamNamesIDs[c.StreamTag] = platform.InvalidID()
 	}
+
+	// streamIDsNames is used for re-populating the resulting list of annotations with the stream names
+	// from the stream IDs returned from the database
+	streamIDsNames := make(map[platform.ID]string)
 
 	tx, err := s.store.DB.BeginTxx(ctx, nil)
 	if err != nil {
@@ -73,7 +77,7 @@ func (s *Service) CreateAnnotations(ctx context.Context, orgID platform.ID, crea
 	// it is unlikely that this would offer much benefit since there is currently no mechanism for creating large numbers
 	// of annotations simultaneously
 	now := time.Now()
-	for name := range streams {
+	for name := range streamNamesIDs {
 		query, args, err := newUpsertStreamQuery(orgID, s.idGenerator.ID(), now, influxdb.Stream{Name: name})
 		if err != nil {
 			tx.Rollback()
@@ -86,18 +90,19 @@ func (s *Service) CreateAnnotations(ctx context.Context, orgID platform.ID, crea
 			return nil, err
 		}
 
-		streams[name] = streamID
+		streamNamesIDs[name] = streamID
+		streamIDsNames[streamID] = name
 	}
 
 	// bulk insert for the creates. this also is unlikely to offer much performance benefit, but since the query
 	// is only used here it is easy enough to form to bulk query.
 	q := sq.Insert("annotations").
-		Columns("id", "org_id", "stream_id", "stream", "summary", "message", "stickers", "duration", "lower", "upper").
+		Columns("id", "org_id", "stream_id", "summary", "message", "stickers", "duration", "lower", "upper").
 		Suffix("RETURNING *")
 
 	for _, create := range creates {
 		// double check that we have a valid name for this stream tag - error if we don't. this should never be an error.
-		streamID, ok := streams[create.StreamTag]
+		streamID, ok := streamNamesIDs[create.StreamTag]
 		if !ok {
 			tx.Rollback()
 			return nil, &ierrors.Error{
@@ -111,7 +116,7 @@ func (s *Service) CreateAnnotations(ctx context.Context, orgID platform.ID, crea
 		lower := create.StartTime.Format(time.RFC3339Nano)
 		upper := create.EndTime.Format(time.RFC3339Nano)
 		duration := timesToDuration(*create.StartTime, *create.EndTime)
-		q = q.Values(newID, orgID, streamID, create.StreamTag, create.Summary, create.Message, create.Stickers, duration, lower, upper)
+		q = q.Values(newID, orgID, streamID, create.Summary, create.Message, create.Stickers, duration, lower, upper)
 	}
 
 	// get the query string and args list for the bulk insert
@@ -122,7 +127,7 @@ func (s *Service) CreateAnnotations(ctx context.Context, orgID platform.ID, crea
 	}
 
 	// run the bulk insert and store the result
-	var res []influxdb.StoredAnnotation
+	var res []*influxdb.StoredAnnotation
 	if err := tx.SelectContext(ctx, &res, query, args...); err != nil {
 		tx.Rollback()
 		return nil, err
@@ -130,6 +135,11 @@ func (s *Service) CreateAnnotations(ctx context.Context, orgID platform.ID, crea
 
 	if err = tx.Commit(); err != nil {
 		return nil, err
+	}
+
+	// add the stream names to the list of results
+	for _, a := range res {
+		a.StreamTag = streamIDsNames[a.StreamID]
 	}
 
 	// convert the StoredAnnotation structs to AnnotationEvent structs before returning
@@ -144,10 +154,11 @@ func (s *Service) ListAnnotations(ctx context.Context, orgID platform.ID, filter
 	sf := filter.StartTime.Format(time.RFC3339Nano)
 	ef := filter.EndTime.Format(time.RFC3339Nano)
 
-	q := sq.Select("annotations.*").
+	q := sq.Select("annotations.*", "streams.name AS stream").
 		Distinct().
 		From("annotations, json_each(annotations.stickers) AS json").
-		Where(sq.Eq{"org_id": orgID}).
+		InnerJoin("streams ON annotations.stream_id = streams.id").
+		Where(sq.Eq{"annotations.org_id": orgID}).
 		Where(sq.GtOrEq{"lower": sf}).
 		Where(sq.LtOrEq{"upper": ef})
 
@@ -176,9 +187,10 @@ func (s *Service) ListAnnotations(ctx context.Context, orgID platform.ID, filter
 
 // GetAnnotation gets a single annotation by ID
 func (s *Service) GetAnnotation(ctx context.Context, id platform.ID) (*influxdb.StoredAnnotation, error) {
-	q := sq.Select("*").
+	q := sq.Select("annotations.*, streams.name AS stream").
 		From("annotations").
-		Where(sq.Eq{"id": id})
+		InnerJoin("streams ON annotations.stream_id = streams.id").
+		Where(sq.Eq{"annotations.id": id})
 
 	query, args, err := q.ToSql()
 	if err != nil {
@@ -210,13 +222,14 @@ func (s *Service) DeleteAnnotations(ctx context.Context, orgID platform.ID, dele
 	subQ := sq.Select("annotations.id").
 		Distinct().
 		From("annotations, json_each(annotations.stickers) AS json").
-		Where(sq.Eq{"org_id": orgID}).
+		InnerJoin("streams ON annotations.stream_id = streams.id").
+		Where(sq.Eq{"annotations.org_id": orgID}).
 		Where(sq.GtOrEq{"lower": sf}).
 		Where(sq.LtOrEq{"upper": ef})
 
 	// Add the stream name filter to the subquery (if present)
 	if len(delete.StreamTag) > 0 {
-		subQ = subQ.Where(sq.Eq{"stream": delete.StreamTag})
+		subQ = subQ.Where(sq.Eq{"streams.name": delete.StreamTag})
 	}
 
 	// Add the stream ID filter to the subquery (if present)
@@ -283,38 +296,74 @@ func (s *Service) DeleteAnnotation(ctx context.Context, id platform.ID) error {
 	return nil
 }
 
-// UpdateAnnotation updates a single annotation by ID.
+// UpdateAnnotation updates a single annotation by ID
+// In a similar fashion as CreateAnnotations, if the StreamTag in the update request does not exist,
+// a stream will be created as part of a transaction with the update operation
 func (s *Service) UpdateAnnotation(ctx context.Context, id platform.ID, update influxdb.AnnotationCreate) (*influxdb.AnnotationEvent, error) {
+	// get the full data for this annotation first so we can get its orgID
+	// this will ensure that the annotation already exists before starting the transaction
+	ann, err := s.GetAnnotation(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+
+	// get a write lock on the database before starting the transaction to create/update the stream
+	// while simultaneously updating the annotation
 	s.store.Mu.Lock()
 	defer s.store.Mu.Unlock()
 
+	tx, err := s.store.DB.BeginTxx(ctx, nil)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	query, args, err := newUpsertStreamQuery(ann.OrgID, s.idGenerator.ID(), now, influxdb.Stream{Name: update.StreamTag})
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	var streamID platform.ID
+	if err = tx.GetContext(ctx, &streamID, query, args...); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
 	q := sq.Update("annotations").
 		SetMap(sq.Eq{
-			"stream":   update.StreamTag,
-			"summary":  update.Summary,
-			"message":  update.Message,
-			"stickers": update.Stickers,
-			"duration": timesToDuration(*update.StartTime, *update.EndTime),
-			"lower":    update.StartTime.Format(time.RFC3339Nano),
-			"upper":    update.EndTime.Format(time.RFC3339Nano),
+			"stream_id": streamID,
+			"summary":   update.Summary,
+			"message":   update.Message,
+			"stickers":  update.Stickers,
+			"duration":  timesToDuration(*update.StartTime, *update.EndTime),
+			"lower":     update.StartTime.Format(time.RFC3339Nano),
+			"upper":     update.EndTime.Format(time.RFC3339Nano),
 		}).
 		Where(sq.Eq{"id": id}).
 		Suffix("RETURNING *")
 
-	query, args, err := q.ToSql()
+	query, args, err = q.ToSql()
 	if err != nil {
 		return nil, err
 	}
 
 	var st influxdb.StoredAnnotation
-	err = s.store.DB.GetContext(ctx, &st, query, args...)
+	err = tx.GetContext(ctx, &st, query, args...)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, errAnnotationNotFound
-		}
-
+		tx.Rollback()
 		return nil, err
 	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	// add the stream name to the result. we know that this StreamTag value was updated to the
+	// stream via the transaction having completed successfully.
+	st.StreamTag = update.StreamTag
 
 	return st.ToEvent()
 }
@@ -507,7 +556,7 @@ func (s *Service) getReadStream(ctx context.Context, id platform.ID) (*influxdb.
 	return r, nil
 }
 
-func storedAnnotationsToEvents(stored []influxdb.StoredAnnotation) ([]influxdb.AnnotationEvent, error) {
+func storedAnnotationsToEvents(stored []*influxdb.StoredAnnotation) ([]influxdb.AnnotationEvent, error) {
 	events := make([]influxdb.AnnotationEvent, 0, len(stored))
 	for _, s := range stored {
 		c, err := s.ToCreate()

@@ -708,6 +708,58 @@ func TestAnnotationsCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []influxdb.StoredAnnotation{*s1}, remaining)
 	})
+
+	t.Run("renamed streams are reflected in subsequent annotation queries", func(t *testing.T) {
+		svc, clean := newTestService(t)
+		defer clean(t)
+
+		ctx := context.Background()
+		populateAnnotationsData(t, svc)
+
+		// get all the annotations with the tag "stream2"
+		f := influxdb.AnnotationListFilter{StreamIncludes: []string{"stream2"}}
+		f.Validate(time.Now)
+		originalList, err := svc.ListAnnotations(ctx, orgID, f)
+		require.NoError(t, err)
+		assertStoredAnnotations(t, []influxdb.StoredAnnotation{s2, s3}, originalList)
+
+		// check that the original list has the right stream tag for all annotations
+		for _, a := range originalList {
+			require.Equal(t, "stream2", a.StreamTag)
+		}
+
+		// update the name for stream2
+		streamID := originalList[0].StreamID
+		_, err = svc.UpdateStream(ctx, streamID, influxdb.Stream{Name: "new name", Description: "new desc"})
+		require.NoError(t, err)
+
+		// get all the annotations with the new tag
+		f = influxdb.AnnotationListFilter{StreamIncludes: []string{"new name"}}
+		f.Validate(time.Now)
+		newList, err := svc.ListAnnotations(ctx, orgID, f)
+		require.NoError(t, err)
+
+		// check that the new list has the right stream tag for all annotations
+		for _, a := range newList {
+			require.Equal(t, "new name", a.StreamTag)
+		}
+
+		// verify that the new list of annotations is the same as the original except for the stream name change
+		require.Equal(t, len(originalList), len(newList))
+
+		sort.Slice(originalList, func(i, j int) bool {
+			return originalList[i].ID < originalList[j].ID
+		})
+
+		sort.Slice(newList, func(i, j int) bool {
+			return originalList[i].ID < originalList[j].ID
+		})
+
+		for i := range newList {
+			originalList[i].StreamTag = "new name"
+			require.Equal(t, originalList[i], newList[i])
+		}
+	})
 }
 
 func TestStreamsCRUDSingle(t *testing.T) {

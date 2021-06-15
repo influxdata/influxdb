@@ -19,7 +19,6 @@ CREATE TABLE annotations (
   id VARCHAR(16) PRIMARY KEY,
   org_id VARCHAR(16) NOT NULL,
   stream_id VARCHAR(16) NOT NULL,
-  stream TEXT NOT NULL,
   summary TEXT NOT NULL,
   message TEXT NOT NULL,
   stickers TEXT NOT NULL,
