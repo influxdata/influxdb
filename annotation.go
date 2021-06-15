@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -63,6 +64,27 @@ var (
 		Msg:  "start time must be set",
 	}
 )
+
+func invalidStickerError(s string) error {
+	return &errors.Error{
+		Code: errors.EInternal,
+		Msg:  fmt.Sprintf("invalid sticker: %q", s),
+	}
+}
+
+func stickerSliceToMap(stickers []string) (map[string]string, error) {
+	stickerMap := map[string]string{}
+
+	for i := range stickers {
+		sticks := strings.SplitN(stickers[i], "=", 2)
+		if len(sticks) < 2 {
+			return nil, invalidStickerError(stickers[i])
+		}
+		stickerMap[sticks[0]] = sticks[1]
+	}
+
+	return stickerMap, nil
+}
 
 // Service is the service contract for Annotations
 type AnnotationService interface {
@@ -161,7 +183,13 @@ type AnnotationStickers map[string]string
 
 // Value implements the database/sql Valuer interface for adding AnnotationStickers to the database.
 func (a AnnotationStickers) Value() (driver.Value, error) {
-	sticks, err := json.Marshal(a)
+	stickSlice := make([]string, 0, len(a))
+
+	for k, v := range a {
+		stickSlice = append(stickSlice, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	sticks, err := json.Marshal(stickSlice)
 	if err != nil {
 		return nil, err
 	}
@@ -171,12 +199,17 @@ func (a AnnotationStickers) Value() (driver.Value, error) {
 
 // Scan implements the database/sql Scanner interface for retrieving AnnotationStickers from the database.
 func (a *AnnotationStickers) Scan(value interface{}) error {
-	var sticks AnnotationStickers
-	if err := json.NewDecoder(strings.NewReader(value.(string))).Decode(&sticks); err != nil {
+	var stickSlice []string
+	if err := json.NewDecoder(strings.NewReader(value.(string))).Decode(&stickSlice); err != nil {
 		return err
 	}
 
-	*a = sticks
+	stickMap, err := stickerSliceToMap(stickSlice)
+	if err != nil {
+		return nil
+	}
+
+	*a = stickMap
 	return nil
 }
 

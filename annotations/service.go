@@ -158,7 +158,7 @@ func (s *Service) ListAnnotations(ctx context.Context, orgID platform.ID, filter
 
 	// Add sticker filters to the query
 	for k, v := range filter.StickerIncludes {
-		q = q.Where(sq.And{sq.Eq{"json.key": k}, sq.Eq{"json.value": v}})
+		q = q.Where(sq.And{sq.Eq{"json.value": fmt.Sprintf("%s=%s", k, v)}})
 	}
 
 	sql, args, err := q.ToSql()
@@ -226,7 +226,7 @@ func (s *Service) DeleteAnnotations(ctx context.Context, orgID platform.ID, dele
 
 	// Add any sticker filters to the subquery
 	for k, v := range delete.Stickers {
-		subQ = subQ.Where(sq.And{sq.Eq{"json.key": k}, sq.Eq{"json.value": v}})
+		subQ = subQ.Where(sq.And{sq.Eq{"json.value": fmt.Sprintf("%s=%s", k, v)}})
 	}
 
 	// Parse the subquery into a string and list of args
