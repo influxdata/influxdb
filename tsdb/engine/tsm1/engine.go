@@ -778,6 +778,7 @@ func (e *Engine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.done = nil // Ensures that the channel will not be closed again.
+	e.fieldset.Close()
 
 	if err := e.FileStore.Close(); err != nil {
 		return err
