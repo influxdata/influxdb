@@ -4,22 +4,20 @@ PRAGMA user_version=2;
 
 -- Create the initial table to store streams
 CREATE TABLE streams (
-  id VARCHAR(16) UNIQUE NOT NULL,
+  id VARCHAR(16) PRIMARY KEY,
   org_id VARCHAR(16) NOT NULL,
   name TEXT NOT NULL,
   description TEXT NOT NULL,
   created_at TIMESTAMP NOT NULL,
   updated_at TIMESTAMP NOT NULL,
 
-  PRIMARY KEY ("org_id", "name")
+  PRIMARY KEY ("id"),
+  CONSTRAINT streams_uniq_orgid_name UNIQUE (org_id, name)
 );
-
--- Create an index on stream id to support fast queries on streams by id
-CREATE INDEX idx_stream_id ON streams (id);
 
 -- Create the initial table to store annotations
 CREATE TABLE annotations (
-  id VARCHAR(16) UNIQUE NOT NULL,
+  id VARCHAR(16) PRIMARY KEY,
   org_id VARCHAR(16) NOT NULL,
   stream_id VARCHAR(16) NOT NULL,
   stream TEXT NOT NULL,
@@ -29,8 +27,7 @@ CREATE TABLE annotations (
   duration TEXT NOT NULL,
   lower TIMESTAMP NOT NULL,
   upper TIMESTAMP NOT NULL,
-    
-  PRIMARY KEY ("id", "org_id"),
+
   FOREIGN KEY (stream_id) REFERENCES streams(id) ON DELETE CASCADE
 );
 
