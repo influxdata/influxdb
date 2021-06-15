@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
@@ -82,6 +83,7 @@ func TestStreamsRouter(t *testing.T) {
 
 		q := req.URL.Query()
 		q.Add("orgID", orgStr)
+		q.Add("endTime", now.Format(time.RFC3339))
 		q.Add("streamIncludes", "stream1")
 		q.Add("streamIncludes", "stream2")
 		req.URL.RawQuery = q.Encode()
@@ -89,6 +91,10 @@ func TestStreamsRouter(t *testing.T) {
 		svc.EXPECT().
 			ListStreams(gomock.Any(), *orgID, influxdb.StreamListFilter{
 				StreamIncludes: []string{"stream1", "stream2"},
+				BasicFilter: influxdb.BasicFilter{
+					StartTime: &time.Time{},
+					EndTime:   &now,
+				},
 			}).
 			Return([]influxdb.StoredStream{testStoredStream1, testStoredStream2}, nil)
 

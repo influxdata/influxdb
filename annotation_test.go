@@ -295,6 +295,72 @@ func TestAnnotationListFilter(t *testing.T) {
 	}
 }
 
+func TestStreamListFilter(t *testing.T) {
+	type tst struct {
+		name       string
+		input      StreamListFilter
+		expected   StreamListFilter
+		checkValue bool
+		err        *errors.Error
+	}
+
+	tests := []tst{
+		{
+			name: "minimum valid",
+			input: StreamListFilter{
+				BasicFilter: BasicFilter{
+					EndTime:   &testTime,
+					StartTime: &testTime,
+				},
+			},
+			expected: StreamListFilter{
+				BasicFilter: BasicFilter{
+					EndTime:   &testTime,
+					StartTime: &testTime,
+				},
+			},
+		},
+		{
+			name:  "empty valid",
+			input: StreamListFilter{},
+			expected: StreamListFilter{
+				BasicFilter: BasicFilter{
+					EndTime:   &testTime,
+					StartTime: &testTime,
+				},
+			},
+			checkValue: true,
+		},
+		{
+			name: "invalid due to reversed times",
+			input: StreamListFilter{
+				BasicFilter: BasicFilter{
+					EndTime:   &testTime,
+					StartTime: &testTime2,
+				},
+			},
+			err: errReversedTimes,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.input.Validate(nowFunc)
+			if test.err != nil {
+				require.Equal(t, test.err, err)
+				return
+			}
+
+			require.NoError(t, err)
+			if test.checkValue {
+				require.Equal(t, *test.expected.BasicFilter.StartTime, *test.expected.BasicFilter.EndTime)
+			} else {
+				require.Equal(t, test.expected, test.input)
+			}
+		})
+	}
+}
+
 func TestStreamIsValid(t *testing.T) {
 	type tst struct {
 		name  string

@@ -146,6 +146,7 @@ type StoredAnnotation struct {
 	Upper     string             `db:"upper"`     // Upper is the time an annotated event ends.
 }
 
+// ToCreate is a utility method for converting a StoredAnnotation to an AnnotationCreate type
 func (s StoredAnnotation) ToCreate() (*AnnotationCreate, error) {
 	et, err := time.Parse(time.RFC3339Nano, s.Upper)
 	if err != nil {
@@ -167,6 +168,7 @@ func (s StoredAnnotation) ToCreate() (*AnnotationCreate, error) {
 	}, nil
 }
 
+// ToEvent is a utility method for converting a StoredAnnotation to an AnnotationEvent type
 func (s StoredAnnotation) ToEvent() (*AnnotationEvent, error) {
 	c, err := s.ToCreate()
 	if err != nil {
@@ -181,7 +183,10 @@ func (s StoredAnnotation) ToEvent() (*AnnotationEvent, error) {
 
 type AnnotationStickers map[string]string
 
-// Value implements the database/sql Valuer interface for adding AnnotationStickers to the database.
+// Value implements the database/sql Valuer interface for adding AnnotationStickers to the database
+// Stickers are stored in the database as a slice of strings like "[key=val]"
+// They are encoded into a JSON string for storing into the database, and the JSON sqlite extension is
+// able to manipulate them like an object.
 func (a AnnotationStickers) Value() (driver.Value, error) {
 	stickSlice := make([]string, 0, len(a))
 
@@ -197,7 +202,8 @@ func (a AnnotationStickers) Value() (driver.Value, error) {
 	return string(sticks), nil
 }
 
-// Scan implements the database/sql Scanner interface for retrieving AnnotationStickers from the database.
+// Scan implements the database/sql Scanner interface for retrieving AnnotationStickers from the database
+// The string is decoded into a slice of strings, which are then converted back into a map
 func (a *AnnotationStickers) Scan(value interface{}) error {
 	var stickSlice []string
 	if err := json.NewDecoder(strings.NewReader(value.(string))).Decode(&stickSlice); err != nil {
@@ -372,6 +378,12 @@ func (f *AnnotationListFilter) SetStickerIncludes(vals map[string][]string) {
 // StreamListFilter is a selection filter for listing streams. Streams are not considered first class resources, but depend on an annotation using them.
 type StreamListFilter struct {
 	StreamIncludes []string `json:"streamIncludes,omitempty"` // StreamIncludes allows the user to filter streams returned.
+	BasicFilter
+}
+
+// Validate validates the filter.
+func (f *StreamListFilter) Validate(nowFunc func() time.Time) error {
+	return f.BasicFilter.Validate(nowFunc)
 }
 
 // Stream defines the stream metadata. Used in create and update requests/responses. Delete requests will only require stream name.

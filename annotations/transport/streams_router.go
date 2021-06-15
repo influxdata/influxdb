@@ -3,6 +3,7 @@ package transport
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb/v2"
@@ -57,7 +58,11 @@ func (h *AnnotationHandler) handleGetStreams(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	f := decodeListStreamsRequest(r)
+	f, err := decodeListStreamsRequest(r)
+	if err != nil {
+		h.api.Err(w, r, err)
+		return
+	}
 
 	s, err := h.annotationService.ListStreams(ctx, *o, *f)
 	if err != nil {
@@ -152,11 +157,24 @@ func decodeCreateOrUpdateStreamRequest(r *http.Request) (*influxdb.Stream, error
 	return &s, nil
 }
 
-func decodeListStreamsRequest(r *http.Request) *influxdb.StreamListFilter {
+func decodeListStreamsRequest(r *http.Request) (*influxdb.StreamListFilter, error) {
+	startTime, endTime, err := tFromReq(r)
+	if err != nil {
+		return nil, err
+	}
+
 	f := &influxdb.StreamListFilter{
 		StreamIncludes: r.URL.Query()["streamIncludes"],
+		BasicFilter: influxdb.BasicFilter{
+			EndTime:   endTime,
+			StartTime: startTime,
+		},
 	}
-	return f
+
+	if err := f.Validate(time.Now); err != nil {
+		return nil, err
+	}
+	return f, nil
 }
 
 func decodeDeleteStreamsRequest(r *http.Request) (*influxdb.BasicStream, error) {
