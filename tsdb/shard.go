@@ -1762,8 +1762,8 @@ func (fs *MeasurementFieldSet) SetMeasurementFieldSetWriter(queueLength int) {
 func (w *MeasurementFieldSetWriter) Close() {
 	if w != nil {
 		close(w.writeRequests)
+		w.wg.Wait()
 	}
-	w.wg.Wait()
 }
 
 func (fs *MeasurementFieldSet) Save() error {
