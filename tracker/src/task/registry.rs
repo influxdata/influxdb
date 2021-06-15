@@ -5,7 +5,7 @@ use std::str::FromStr;
 /// Every future registered with a `TaskRegistry` is assigned a unique
 /// `TaskId`
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TaskId(pub(super) usize);
+pub struct TaskId(pub usize);
 
 impl FromStr for TaskId {
     type Err = std::num::ParseIntError;

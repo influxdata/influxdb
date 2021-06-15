@@ -5,6 +5,7 @@ use self::access::QueryCatalogAccess;
 use self::catalog::TableNameFilter;
 use super::{write_buffer::WriteBuffer, JobRegistry};
 use crate::db::catalog::partition::Partition;
+use crate::db::lifecycle::{ArcDb, LifecyclePolicy};
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use async_trait::async_trait;
 use catalog::{chunk::CatalogChunk, Catalog};
@@ -22,7 +23,6 @@ use datafusion::{
 };
 use entry::{Entry, SequencedEntry};
 use internal_types::{arrow::sort::sort_record_batch, selection::Selection};
-use lifecycle::LifecycleManager;
 use metrics::{KeyValue, MetricRegistry};
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
@@ -848,15 +848,17 @@ impl Db {
         info!("started background worker");
 
         tokio::join!(
-            // lifecycle manager loop
+            // lifecycle policy loop
             async {
-                let mut lifecycle_manager = LifecycleManager::new(Arc::clone(&self));
+                // TODO: Remove this newtype hack
+                let arc_db = ArcDb(Arc::clone(&self));
+                let mut policy = LifecyclePolicy::new(Arc::new(arc_db));
 
                 while !shutdown.is_cancelled() {
                     self.worker_iterations_lifecycle
                         .fetch_add(1, Ordering::Relaxed);
                     tokio::select! {
-                        _ = lifecycle_manager.check_for_work() => {},
+                        _ = policy.check_for_work(chrono::Utc::now(), std::time::Instant::now()) => {},
                         _ = shutdown.cancelled() => break,
                     }
                 }

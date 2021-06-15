@@ -217,6 +217,15 @@ where
         }
     }
 
+    /// Consumes this `TaskTracker` and produces a new one with the provided metadata
+    pub fn with_metadata<U: Send + Sync>(self, metadata: U) -> TaskTracker<U> {
+        TaskTracker {
+            id: self.id,
+            state: self.state,
+            metadata: Arc::new(metadata),
+        }
+    }
+
     /// Returns a complete task tracker
     pub fn complete(metadata: T) -> Self {
         let registration = TaskRegistration::new();
