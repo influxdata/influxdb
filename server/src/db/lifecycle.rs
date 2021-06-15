@@ -506,7 +506,7 @@ mod tests {
         chunk
     }
 
-    async fn new_parquet_chunk(chunk: &CatalogChunk) -> parquet_file::chunk::Chunk {
+    async fn new_parquet_chunk(chunk: &CatalogChunk) -> parquet_file::chunk::ParquetChunk {
         let in_memory = InMemory::new();
         let object_store = Arc::new(ObjectStore::new_in_memory(in_memory));
 

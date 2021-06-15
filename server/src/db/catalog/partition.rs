@@ -134,7 +134,7 @@ impl Partition {
     pub fn insert_object_store_only_chunk(
         &mut self,
         chunk_id: u32,
-        chunk: Arc<parquet_file::chunk::Chunk>,
+        chunk: Arc<parquet_file::chunk::ParquetChunk>,
     ) -> Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name(), self.table_name.as_ref());
 

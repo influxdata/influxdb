@@ -10,7 +10,7 @@ use data_types::{
 use internal_types::schema::Schema;
 use metrics::{Counter, Histogram, KeyValue};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
-use parquet_file::chunk::Chunk as ParquetChunk;
+use parquet_file::chunk::ParquetChunk;
 use read_buffer::RBChunk;
 use tracker::{TaskRegistration, TaskTracker};
 
@@ -324,7 +324,7 @@ impl CatalogChunk {
     pub(crate) fn new_object_store_only(
         chunk_id: u32,
         partition_key: impl AsRef<str>,
-        chunk: Arc<parquet_file::chunk::Chunk>,
+        chunk: Arc<parquet_file::chunk::ParquetChunk>,
         metrics: ChunkMetrics,
     ) -> Self {
         let table_name = Arc::from(chunk.table_name());
@@ -839,7 +839,7 @@ mod tests {
     use entry::test_helpers::lp_to_entry;
     use mutable_buffer::chunk::{ChunkMetrics as MBChunkMetrics, MBChunk};
     use parquet_file::{
-        chunk::Chunk as ParquetChunk,
+        chunk::ParquetChunk,
         test_utils::{make_chunk as make_parquet_chunk_with_store, make_object_store},
     };
 

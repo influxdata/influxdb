@@ -83,7 +83,7 @@ impl ChunkMetrics {
 }
 
 #[derive(Debug)]
-pub struct Chunk {
+pub struct ParquetChunk {
     /// Partition this chunk belongs to
     partition_key: String,
 
@@ -111,7 +111,7 @@ pub struct Chunk {
     metrics: ChunkMetrics,
 }
 
-impl Chunk {
+impl ParquetChunk {
     /// Creates new chunk from given parquet metadata.
     pub fn new(
         file_location: Path,

@@ -31,7 +31,7 @@ use parking_lot::RwLock;
 use parquet_file::metadata::IoxParquetMetaData;
 use parquet_file::{
     catalog::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
-    chunk::{Chunk as ParquetChunk, ChunkMetrics as ParquetChunkMetrics},
+    chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
     cleanup::cleanup_unreferenced_parquet_files,
     metadata::IoxMetadata,
     storage::Storage,
