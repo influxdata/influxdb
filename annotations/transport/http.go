@@ -1,7 +1,6 @@
 package transport
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
@@ -40,13 +39,6 @@ var (
 		Msg:  "invalid stream name",
 	}
 )
-
-func invalidStickerError(s string) error {
-	return &errors.Error{
-		Code: errors.EInternal,
-		Msg:  fmt.Sprintf("invalid sticker: %q", s),
-	}
-}
 
 // AnnotationsHandler is the handler for the annotation service
 type AnnotationHandler struct {

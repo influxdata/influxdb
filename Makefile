@@ -30,8 +30,11 @@ else
 	GO_BUILD_TAGS := assets,noasm
 endif
 
-GO_TEST_ARGS := -tags '$(GO_TEST_TAGS)'
-GO_BUILD_ARGS := -tags '$(GO_BUILD_TAGS)'
+# Tags used for builds and tests on all architectures
+COMMON_TAGS := sqlite_foreign_keys,sqlite_json
+
+GO_TEST_ARGS := -tags '$(COMMON_TAGS),$(GO_TEST_TAGS)'
+GO_BUILD_ARGS := -tags '$(COMMON_TAGS),$(GO_BUILD_TAGS)'
 
 ifeq ($(OS), Windows_NT)
 	VERSION := $(shell git describe --exact-match --tags 2>nil)
