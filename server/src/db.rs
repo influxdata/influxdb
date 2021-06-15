@@ -2928,8 +2928,7 @@ mod tests {
             .unwrap();
         let paths_actual = {
             let state = preserved_catalog.state();
-            let guard = state.inner.lock();
-            let mut tmp: Vec<String> = guard.parquet_files.keys().map(|p| p.display()).collect();
+            let mut tmp: Vec<String> = state.parquet_files.keys().map(|p| p.display()).collect();
             tmp.sort();
             tmp
         };

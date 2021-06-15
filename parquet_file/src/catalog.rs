@@ -1283,31 +1283,23 @@ where
 
 pub mod test_helpers {
     use object_store::parsed_path;
-    use parking_lot::Mutex;
 
     use crate::test_utils::{make_metadata, make_object_store};
 
     use super::*;
     use std::{convert::TryFrom, ops::Deref};
 
-    /// Part that actually holds the data of [`TestCatalogState`].
+    /// In-memory catalog state, for testing.
     #[derive(Clone, Debug)]
-    pub struct TestCatalogStateInner {
+    pub struct TestCatalogState {
         /// Map of all parquet files that are currently registered.
         pub parquet_files: HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>,
-    }
-
-    /// In-memory catalog state, for testing.
-    #[derive(Debug)]
-    pub struct TestCatalogState {
-        /// Inner mutable state.
-        pub inner: Mutex<TestCatalogStateInner>,
     }
 
     #[derive(Debug)]
     pub struct TState {
         old: Arc<TestCatalogState>,
-        new: Arc<TestCatalogState>,
+        new: TestCatalogState,
     }
 
     impl CatalogState for TestCatalogState {
@@ -1315,9 +1307,7 @@ pub mod test_helpers {
 
         fn new_empty(_data: Self::EmptyInput) -> Self {
             Self {
-                inner: Mutex::new(TestCatalogStateInner {
-                    parquet_files: HashMap::new(),
-                }),
+                parquet_files: HashMap::new(),
             }
         }
 
@@ -1326,14 +1316,14 @@ pub mod test_helpers {
         fn transaction_begin(origin: &Arc<Self>) -> Self::TransactionState {
             Self::TransactionState {
                 old: Arc::clone(origin),
-                new: Arc::new(origin.deref().clone()),
+                new: origin.deref().clone(),
             }
         }
 
         fn transaction_end(tstate: Self::TransactionState, how: TransactionEnd) -> Arc<Self> {
             match how {
                 TransactionEnd::Abort => tstate.old,
-                TransactionEnd::Commit => tstate.new,
+                TransactionEnd::Commit => Arc::new(tstate.new),
             }
         }
 
@@ -1342,9 +1332,7 @@ pub mod test_helpers {
             _object_store: Arc<ObjectStore>,
             info: CatalogParquetInfo,
         ) -> Result<()> {
-            let mut guard = tstate.new.inner.lock();
-
-            match guard.parquet_files.entry(info.path) {
+            match tstate.new.parquet_files.entry(info.path) {
                 Occupied(o) => {
                     return Err(Error::ParquetFileAlreadyExists {
                         path: o.key().clone(),
@@ -1359,9 +1347,7 @@ pub mod test_helpers {
         }
 
         fn remove(tstate: &mut Self::TransactionState, path: DirsAndFileName) -> Result<()> {
-            let mut guard = tstate.new.inner.lock();
-
-            match guard.parquet_files.entry(path) {
+            match tstate.new.parquet_files.entry(path) {
                 Occupied(o) => {
                     o.remove();
                 }
@@ -1374,17 +1360,7 @@ pub mod test_helpers {
         }
 
         fn files(&self) -> HashMap<DirsAndFileName, Arc<IoxParquetMetaData>> {
-            let guard = self.inner.lock();
-
-            guard.parquet_files.clone()
-        }
-    }
-
-    impl Clone for TestCatalogState {
-        fn clone(&self) -> Self {
-            let guard = self.inner.lock();
-            let inner = Mutex::new(guard.clone());
-            Self { inner }
+            self.parquet_files.clone()
         }
     }
 
@@ -2656,9 +2632,7 @@ mod tests {
 
     /// Get sorted list of catalog files from state
     fn get_catalog_parquet_files(state: &TestCatalogState) -> Vec<(String, IoxParquetMetaData)> {
-        let guard = state.inner.lock();
-
-        let mut files: Vec<(String, IoxParquetMetaData)> = guard
+        let mut files: Vec<(String, IoxParquetMetaData)> = state
             .parquet_files
             .iter()
             .map(|(path, md)| (path.display(), md.as_ref().clone()))

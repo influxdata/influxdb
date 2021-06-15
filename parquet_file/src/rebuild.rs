@@ -333,8 +333,7 @@ mod tests {
         // store catalog state
         let paths_expected = {
             let state = catalog.state();
-            let guard = state.inner.lock();
-            let mut tmp: Vec<_> = guard.parquet_files.keys().cloned().collect();
+            let mut tmp: Vec<_> = state.parquet_files.keys().cloned().collect();
             tmp.sort();
             tmp
         };
@@ -361,8 +360,7 @@ mod tests {
         // check match
         let paths_actual = {
             let state = catalog.state();
-            let guard = state.inner.lock();
-            let mut tmp: Vec<_> = guard.parquet_files.keys().cloned().collect();
+            let mut tmp: Vec<_> = state.parquet_files.keys().cloned().collect();
             tmp.sort();
             tmp
         };
@@ -407,8 +405,7 @@ mod tests {
 
         // check match
         let state = catalog.state();
-        let guard = state.inner.lock();
-        assert!(guard.parquet_files.is_empty());
+        assert!(state.parquet_files.is_empty());
         assert_eq!(catalog.revision_counter(), 0);
     }
 
@@ -568,8 +565,7 @@ mod tests {
         .await
         .unwrap();
         let state = catalog.state();
-        let guard = state.inner.lock();
-        assert!(guard.parquet_files.is_empty());
+        assert!(state.parquet_files.is_empty());
         assert_eq!(catalog.revision_counter(), 0);
     }
 
@@ -625,8 +621,7 @@ mod tests {
         // store catalog state
         let paths_expected = {
             let state = catalog.state();
-            let guard = state.inner.lock();
-            let mut tmp: Vec<_> = guard.parquet_files.keys().cloned().collect();
+            let mut tmp: Vec<_> = state.parquet_files.keys().cloned().collect();
             tmp.sort();
             tmp
         };
@@ -686,8 +681,7 @@ mod tests {
         // check match
         let paths_actual = {
             let state = catalog.state();
-            let guard = state.inner.lock();
-            let mut tmp: Vec<_> = guard.parquet_files.keys().cloned().collect();
+            let mut tmp: Vec<_> = state.parquet_files.keys().cloned().collect();
             tmp.sort();
             tmp
         };
