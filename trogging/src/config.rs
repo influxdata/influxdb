@@ -1,3 +1,5 @@
+use std::num::NonZeroU16;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogFormat {
     Full,
@@ -134,4 +136,16 @@ impl std::fmt::Display for TracesSampler {
             Self::ParentBasedTraceIdRatio => write!(f, "parentbased_traceidratio"),
         }
     }
+}
+
+pub struct JaegerConfig {
+    pub agent_host: String,
+    pub agent_port: NonZeroU16,
+    pub service_name: String,
+    pub max_packet_size: usize,
+}
+
+pub struct OtlpConfig {
+    pub host: String,
+    pub port: NonZeroU16,
 }

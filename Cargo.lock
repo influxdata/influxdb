@@ -4579,6 +4579,7 @@ dependencies = [
  "opentelemetry-jaeger",
  "opentelemetry-otlp",
  "regex",
+ "structopt",
  "synchronized-writer",
  "thiserror",
  "tracing-opentelemetry",
