@@ -11,7 +11,6 @@ CREATE TABLE streams (
   created_at TIMESTAMP NOT NULL,
   updated_at TIMESTAMP NOT NULL,
 
-  PRIMARY KEY ("id"),
   CONSTRAINT streams_uniq_orgid_name UNIQUE (org_id, name)
 );
 
