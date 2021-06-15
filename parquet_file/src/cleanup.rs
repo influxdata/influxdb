@@ -10,7 +10,6 @@ use crate::{
     metadata::IoxParquetMetaData,
     storage::data_location,
 };
-use data_types::server_id::ServerId;
 use futures::TryStreamExt;
 use object_store::{
     path::{parsed::DirsAndFileName, ObjectStorePath},
@@ -142,8 +141,6 @@ impl CatalogState for TracerCatalogState {
     fn add(
         &self,
         _object_store: Arc<ObjectStore>,
-        _server_id: ServerId,
-        _db_name: &str,
         info: CatalogParquetInfo,
     ) -> crate::catalog::Result<()> {
         self.files

@@ -218,13 +218,7 @@ pub trait CatalogState {
     fn clone_or_keep(origin: &Arc<Self>) -> Arc<Self>;
 
     /// Add parquet file to state.
-    fn add(
-        &self,
-        object_store: Arc<ObjectStore>,
-        server_id: ServerId,
-        db_name: &str,
-        info: CatalogParquetInfo,
-    ) -> Result<()>;
+    fn add(&self, object_store: Arc<ObjectStore>, info: CatalogParquetInfo) -> Result<()>;
 
     /// Remove parquet file from state.
     fn remove(&self, path: DirsAndFileName) -> Result<()>;
@@ -853,8 +847,6 @@ where
         state: &S,
         action: &proto::transaction::action::Action,
         object_store: &Arc<ObjectStore>,
-        server_id: ServerId,
-        db_name: &str,
     ) -> Result<()> {
         match action {
             proto::transaction::action::Action::Upgrade(u) => {
@@ -872,8 +864,6 @@ where
 
                 state.add(
                     Arc::clone(object_store),
-                    server_id,
-                    db_name,
                     CatalogParquetInfo { path, metadata },
                 )?;
             }
@@ -891,10 +881,8 @@ where
         &mut self,
         action: proto::transaction::action::Action,
         object_store: &Arc<ObjectStore>,
-        server_id: ServerId,
-        db_name: &str,
     ) -> Result<()> {
-        Self::handle_action(&self.next_state, &action, object_store, server_id, db_name)?;
+        Self::handle_action(&self.next_state, &action, object_store)?;
         self.proto.actions.push(proto::transaction::Action {
             action: Some(action),
         });
@@ -992,7 +980,7 @@ where
         // apply
         for action in &proto.actions {
             if let Some(action) = action.action.as_ref() {
-                Self::handle_action(&state, action, object_store, server_id, db_name)?;
+                Self::handle_action(&state, action, object_store)?;
             }
         }
 
@@ -1195,8 +1183,6 @@ where
                     metadata: metadata.to_thrift().context(MetadataEncodingFailed)?,
                 }),
                 &self.catalog.object_store,
-                self.catalog.server_id,
-                &self.catalog.db_name,
             )
     }
 
@@ -1212,8 +1198,6 @@ where
                     path: Some(unparse_dirs_and_filename(path)),
                 }),
                 &self.catalog.object_store,
-                self.catalog.server_id,
-                &self.catalog.db_name,
             )
     }
 }
@@ -1276,13 +1260,7 @@ pub mod test_helpers {
             Arc::new(origin.deref().clone())
         }
 
-        fn add(
-            &self,
-            _object_store: Arc<ObjectStore>,
-            _server_id: ServerId,
-            _db_name: &str,
-            info: CatalogParquetInfo,
-        ) -> Result<()> {
+        fn add(&self, _object_store: Arc<ObjectStore>, info: CatalogParquetInfo) -> Result<()> {
             let mut guard = self.inner.lock();
 
             match guard.parquet_files.entry(info.path) {

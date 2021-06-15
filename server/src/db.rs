@@ -1109,8 +1109,6 @@ impl CatalogState for Catalog {
     fn add(
         &self,
         object_store: Arc<ObjectStore>,
-        _server_id: ServerId,
-        _db_name: &str,
         info: CatalogParquetInfo,
     ) -> parquet_file::catalog::Result<()> {
         use parquet_file::catalog::{CatalogStateFailure, MetadataExtractFailed};
