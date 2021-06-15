@@ -62,17 +62,20 @@ impl Config {
         }
     }
 
-    pub(crate) fn create_db(&self, rules: DatabaseRules) -> Result<CreateDatabaseHandle<'_>> {
+    pub(crate) fn create_db(
+        &self,
+        db_name: DatabaseName<'static>,
+    ) -> Result<CreateDatabaseHandle<'_>> {
         let mut state = self.state.write().expect("mutex poisoned");
-        if state.reservations.contains(&rules.name) || state.databases.contains_key(&rules.name) {
+        if state.reservations.contains(&db_name) {
             return Err(Error::DatabaseAlreadyExists {
-                db_name: rules.name.to_string(),
+                db_name: db_name.to_string(),
             });
         }
 
-        state.reservations.insert(rules.name.clone());
+        state.reservations.insert(db_name.clone());
         Ok(CreateDatabaseHandle {
-            rules: Some(rules),
+            db_name: Some(db_name),
             config: &self,
         })
     }
@@ -84,7 +87,7 @@ impl Config {
 
     pub(crate) fn db_names_sorted(&self) -> Vec<DatabaseName<'static>> {
         let state = self.state.read().expect("mutex poisoned");
-        state.databases.keys().cloned().collect()
+        state.reservations.iter().cloned().collect()
     }
 
     pub(crate) fn update_db_rules<F, E>(
@@ -141,10 +144,7 @@ impl Config {
         preserved_catalog: PreservedCatalog<Catalog>,
     ) {
         let mut state = self.state.write().expect("mutex poisoned");
-        let name = state
-            .reservations
-            .take(&rules.name)
-            .expect("reservation doesn't exist");
+        let name = rules.name.clone();
 
         if self.shutdown.is_cancelled() {
             error!("server is shutting down");
@@ -317,7 +317,7 @@ impl Drop for DatabaseState {
 pub(crate) struct CreateDatabaseHandle<'a> {
     /// Partial moves aren't supported on structures that implement Drop
     /// so use Option to allow taking DatabaseRules out in `commit`
-    rules: Option<DatabaseRules>,
+    db_name: Option<DatabaseName<'static>>,
     config: &'a Config,
 }
 
@@ -328,25 +328,32 @@ impl<'a> CreateDatabaseHandle<'a> {
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
         preserved_catalog: PreservedCatalog<Catalog>,
-    ) {
-        self.config.commit(
-            self.rules.take().unwrap(),
-            server_id,
-            object_store,
-            exec,
-            preserved_catalog,
-        )
+        rules: DatabaseRules,
+    ) -> Result<()> {
+        let db_name = self.db_name.take().expect("not committed");
+        if db_name != rules.name {
+            self.config.rollback(&db_name);
+            return Err(Error::RulesDatabaseNameMismatch {
+                actual: rules.name.to_string(),
+                expected: db_name.to_string(),
+            });
+        }
+
+        self.config
+            .commit(rules, server_id, object_store, exec, preserved_catalog);
+
+        Ok(())
     }
 
-    pub(crate) fn rules(&self) -> &DatabaseRules {
-        self.rules.as_ref().unwrap()
+    pub(crate) fn abort_without_rollback(mut self) {
+        self.db_name.take();
     }
 }
 
 impl<'a> Drop for CreateDatabaseHandle<'a> {
     fn drop(&mut self) {
-        if let Some(rules) = self.rules.take() {
-            self.config.rollback(&rules.name)
+        if let Some(db_name) = self.db_name.take() {
+            self.config.rollback(&db_name)
         }
     }
 }
@@ -371,15 +378,13 @@ mod test {
             Arc::clone(&metric_registry),
             None,
         );
-        let rules = DatabaseRules::new(name.clone());
 
         {
-            let _db_reservation = config.create_db(rules.clone()).unwrap();
-            let err = config.create_db(rules.clone()).unwrap_err();
+            let _db_reservation = config.create_db(name.clone()).unwrap();
+            let err = config.create_db(name.clone()).unwrap_err();
             assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
         }
 
-        let db_reservation = config.create_db(rules).unwrap();
         let server_id = ServerId::try_from(1).unwrap();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let exec = Arc::new(Executor::new(1));
@@ -391,7 +396,34 @@ mod test {
         )
         .await
         .unwrap();
-        db_reservation.commit(server_id, store, exec, preserved_catalog);
+        let rules = DatabaseRules::new(name.clone());
+
+        {
+            let db_reservation = config.create_db(DatabaseName::new("bar").unwrap()).unwrap();
+            let err = db_reservation
+                .commit(
+                    server_id,
+                    Arc::clone(&store),
+                    Arc::clone(&exec),
+                    preserved_catalog,
+                    rules.clone(),
+                )
+                .unwrap_err();
+            assert!(matches!(err, Error::RulesDatabaseNameMismatch { .. }));
+        }
+
+        let preserved_catalog = load_or_create_preserved_catalog(
+            &name,
+            Arc::clone(&store),
+            server_id,
+            config.metrics_registry(),
+        )
+        .await
+        .unwrap();
+        let db_reservation = config.create_db(name.clone()).unwrap();
+        db_reservation
+            .commit(server_id, store, exec, preserved_catalog, rules)
+            .unwrap();
         assert!(config.db(&name).is_some());
         assert_eq!(config.db_names_sorted(), vec![name.clone()]);
 
@@ -426,7 +458,7 @@ mod test {
         );
         let rules = DatabaseRules::new(name.clone());
 
-        let db_reservation = config.create_db(rules).unwrap();
+        let db_reservation = config.create_db(name.clone()).unwrap();
         let server_id = ServerId::try_from(1).unwrap();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let exec = Arc::new(Executor::new(1));
@@ -438,7 +470,9 @@ mod test {
         )
         .await
         .unwrap();
-        db_reservation.commit(server_id, store, exec, preserved_catalog);
+        db_reservation
+            .commit(server_id, store, exec, preserved_catalog, rules)
+            .unwrap();
 
         let token = config
             .state

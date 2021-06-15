@@ -1,11 +1,11 @@
-use super::{InfluxColumnType, Schema};
-use crate::schema::builder::set_field_metadata;
-use crate::schema::MEASUREMENT_METADATA_KEY;
-use arrow::datatypes::{DataType as ArrowDataType, Field, Schema as ArrowSchema};
+use arrow::datatypes::{DataType as ArrowDataType, Field};
 use hashbrown::hash_map::RawEntryMut;
 use hashbrown::HashMap;
 use snafu::Snafu;
-use std::sync::Arc;
+
+use crate::schema::sort::SortKey;
+
+use super::{InfluxColumnType, Schema};
 
 /// Database schema creation / validation errors.
 #[derive(Debug, Snafu)]
@@ -169,39 +169,34 @@ impl SchemaMerger {
         Ok(self)
     }
 
-    /// Returns the schema that was built the columns are always sorted in lexicographic order
+    /// Returns the schema that was built, the columns are always sorted in lexicographic order
     pub fn build(&mut self) -> Schema {
+        self.build_with_sort_key(&Default::default())
+    }
+
+    /// Returns the schema that was built, the columns are always sorted in lexicographic order
+    ///
+    /// Additionally specifies a sort key for the data
+    pub fn build_with_sort_key(&mut self, sort_key: &SortKey<'_>) -> Schema {
         assert!(!self.finished, "build called multiple times");
         self.finished = true;
 
-        let mut metadata: std::collections::HashMap<_, _> = Default::default();
-        if let Some(measurement) = self.measurement.take() {
-            metadata.insert(MEASUREMENT_METADATA_KEY.to_string(), measurement);
-        }
-
-        let mut fields: Vec<_> = self
-            .fields
-            .drain()
-            .map(|(_, (mut field, column_type))| {
-                set_field_metadata(&mut field, column_type);
-                field
-            })
-            .collect();
-
-        fields.sort_by(|a, b| a.name().cmp(b.name()));
-
-        let schema = ArrowSchema::new_with_metadata(fields, metadata);
-        Schema {
-            inner: Arc::new(schema),
-        }
+        Schema::new_from_parts(
+            self.measurement.take(),
+            self.fields.drain().map(|x| x.1),
+            sort_key,
+            true,
+        )
+        .expect("failed to build merged schema")
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::schema::builder::SchemaBuilder;
     use crate::schema::InfluxFieldType::Integer;
+
+    use super::*;
 
     #[test]
     fn test_merge_same_schema() {

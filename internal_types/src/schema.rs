@@ -1,7 +1,6 @@
 //! This module contains the schema definiton for IOx
-use snafu::Snafu;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::HashMap,
     convert::{TryFrom, TryInto},
     fmt,
     sync::Arc,
@@ -11,6 +10,10 @@ use arrow::datatypes::{
     DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema,
     SchemaRef as ArrowSchemaRef, TimeUnit,
 };
+use snafu::Snafu;
+
+use crate::schema::sort::{ColumnSort, SortKey};
+use hashbrown::HashSet;
 
 /// The name of the timestamp column in the InfluxDB datamodel
 pub const TIME_COLUMN_NAME: &str = "time";
@@ -34,6 +37,7 @@ pub fn TIME_DATA_TYPE() -> ArrowDataType {
 
 pub mod builder;
 pub mod merge;
+pub mod sort;
 
 /// Database schema creation / validation errors.
 #[derive(Debug, Snafu)]
@@ -53,6 +57,9 @@ pub enum Error {
 
     #[snafu(display("Column not found '{}'", column_name))]
     ColumnNotFound { column_name: String },
+
+    #[snafu(display("Sort column not found '{}'", column_name))]
+    SortColumnNotFound { column_name: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -100,43 +107,43 @@ impl TryFrom<ArrowSchemaRef> for Schema {
 
 const MEASUREMENT_METADATA_KEY: &str = "iox::measurement::name";
 const COLUMN_METADATA_KEY: &str = "iox::column::type";
+const COLUMN_SORT_METADATA_KEY: &str = "iox::column::sort";
 
 impl Schema {
     /// Create a new Schema wrapper over the schema
     ///
     /// All metadata validation is done on creation (todo maybe offer
-    /// a fallable version where the checks are done on access)?
+    /// a fallible version where the checks are done on access)?
     fn try_from_arrow(inner: ArrowSchemaRef) -> Result<Self> {
-        // All column names must be unique
-        let mut field_names = BTreeSet::new();
-        for f in inner.fields() {
-            if field_names.contains(f.name()) {
-                return DuplicateColumnName {
-                    column_name: f.name(),
+        // Validate fields
+        {
+            // All column names must be unique
+            let mut field_names = HashSet::with_capacity(inner.fields().len());
+
+            for field in inner.fields() {
+                let column_name = field.name();
+                if !field_names.insert(column_name.as_str()) {
+                    return Err(Error::DuplicateColumnName {
+                        column_name: column_name.to_string(),
+                    });
                 }
-                .fail();
-            }
-            field_names.insert(f.name());
-        }
 
-        let schema = Self { inner };
-
-        // for each field, ensure any type specified by the metadata
-        // is compatible with the actual type of the field
-        for (influxdb_column_type, field) in schema.iter() {
-            if let Some(influxdb_column_type) = influxdb_column_type {
-                let actual_type = field.data_type();
-                if !influxdb_column_type.valid_arrow_type(actual_type) {
-                    return IncompatibleMetadata {
-                        column_name: field.name(),
-                        influxdb_column_type,
-                        actual_type: actual_type.clone(),
+                // for each field, ensure any type specified by the metadata
+                // is compatible with the actual type of the field
+                if let Some(influxdb_column_type) = get_influx_type(field) {
+                    let actual_type = field.data_type();
+                    if !influxdb_column_type.valid_arrow_type(actual_type) {
+                        return Err(Error::IncompatibleMetadata {
+                            column_name: column_name.to_string(),
+                            influxdb_column_type,
+                            actual_type: actual_type.clone(),
+                        });
                     }
-                    .fail();
                 }
             }
         }
-        Ok(schema)
+
+        Ok(Self { inner })
     }
 
     /// Return a valid Arrow `SchemaRef` representing this `Schema`
@@ -149,7 +156,9 @@ impl Schema {
     /// used only by the SchemaBuilder.
     pub(crate) fn new_from_parts(
         measurement: Option<String>,
-        fields: Vec<ArrowField>,
+        fields: impl Iterator<Item = (ArrowField, Option<InfluxColumnType>)>,
+        sort_key: &SortKey<'_>,
+        sort_columns: bool,
     ) -> Result<Self> {
         let mut metadata = HashMap::new();
 
@@ -157,9 +166,52 @@ impl Schema {
             metadata.insert(MEASUREMENT_METADATA_KEY.to_string(), measurement);
         }
 
+        let mut sort_ordinals = Vec::with_capacity(sort_key.len());
+
+        let mut fields: Vec<ArrowField> = fields
+            .map(|(mut field, column_type)| {
+                match sort_key.get(field.name()) {
+                    Some(sort) => {
+                        sort_ordinals.push(sort.sort_ordinal);
+                        set_field_metadata(&mut field, column_type, Some(sort))
+                    }
+                    None => set_field_metadata(&mut field, column_type, None),
+                }
+                field
+            })
+            .collect();
+
+        if sort_columns {
+            fields.sort_unstable_by(|a, b| a.name().cmp(b.name()));
+        }
+
         // Call new_from_arrow to do normal, additional validation
         // (like dupe column detection)
-        ArrowSchemaRef::new(ArrowSchema::new_with_metadata(fields, metadata)).try_into()
+        let record =
+            ArrowSchemaRef::new(ArrowSchema::new_with_metadata(fields, metadata)).try_into()?;
+
+        // This must be after validation in case of duplicate columns
+        sort_ordinals.sort_unstable();
+
+        for (idx, ordinal) in sort_ordinals.iter().enumerate() {
+            if idx != *ordinal {
+                return Err(Error::SortColumnNotFound {
+                    column_name: sort_key.get_index(idx).unwrap().0.to_string(),
+                });
+            }
+        }
+
+        if sort_ordinals.len() != sort_key.len() {
+            return Err(Error::SortColumnNotFound {
+                column_name: sort_key
+                    .get_index(sort_ordinals.len())
+                    .unwrap()
+                    .0
+                    .to_string(),
+            });
+        }
+
+        Ok(record)
     }
 
     /// Provide a reference to the underlying Arrow Schema object
@@ -175,15 +227,7 @@ impl Schema {
     /// returns None for the influxdb_column_type
     pub fn field(&self, idx: usize) -> (Option<InfluxColumnType>, &ArrowField) {
         let field = self.inner.field(idx);
-
-        // Lookup and translate metadata type, if present
-        // invalid metadata was detected and reported as part of the constructor
-        let influxdb_column_type: Option<InfluxColumnType> = field
-            .metadata()
-            .as_ref()
-            .and_then(|metadata| metadata.get(COLUMN_METADATA_KEY)?.as_str().try_into().ok());
-
-        (influxdb_column_type, field)
+        (get_influx_type(field), field)
     }
 
     /// Find the index of the column with the given name, if any.
@@ -311,6 +355,76 @@ impl Schema {
             inner: Arc::new(ArrowSchema::new_with_metadata(fields, metadata)),
         }
     }
+
+    /// Returns the sort key if any
+    pub fn sort_key(&self) -> Option<SortKey<'_>> {
+        // Find all the sorted columns
+        let mut columns: Vec<_> = self
+            .inner
+            .fields()
+            .iter()
+            .enumerate()
+            .flat_map(|(idx, field)| Some((idx, get_sort(field)?)))
+            .collect();
+
+        columns.sort_unstable_by_key(|(_, sort)| sort.sort_ordinal);
+
+        let mut sort_key = SortKey::with_capacity(columns.len());
+        for (idx, (column_idx, sort)) in columns.into_iter().enumerate() {
+            // If the schema has been projected with only some of the columns
+            // the sort key may be truncated
+            if sort.sort_ordinal != idx {
+                break;
+            }
+
+            sort_key.push(self.inner.field(column_idx).name().as_str(), sort.options)
+        }
+
+        if !sort_key.is_empty() {
+            return Some(sort_key);
+        }
+        None
+    }
+}
+
+/// Gets the influx type for a field
+pub(crate) fn get_influx_type(field: &ArrowField) -> Option<InfluxColumnType> {
+    field
+        .metadata()
+        .as_ref()?
+        .get(COLUMN_METADATA_KEY)?
+        .as_str()
+        .try_into()
+        .ok()
+}
+
+/// Gets the column sort for a field
+pub(crate) fn get_sort(field: &ArrowField) -> Option<ColumnSort> {
+    field
+        .metadata()
+        .as_ref()?
+        .get(COLUMN_SORT_METADATA_KEY)?
+        .parse()
+        .ok()
+}
+
+/// Sets the metadata for a field - replacing any existing metadata
+pub(crate) fn set_field_metadata(
+    field: &mut ArrowField,
+    column_type: Option<InfluxColumnType>,
+    sort: Option<ColumnSort>,
+) {
+    let mut metadata = std::collections::BTreeMap::new();
+
+    if let Some(column_type) = column_type {
+        metadata.insert(COLUMN_METADATA_KEY.to_string(), column_type.to_string());
+    }
+
+    if let Some(sort) = sort {
+        metadata.insert(COLUMN_SORT_METADATA_KEY.to_string(), sort.to_string());
+    }
+
+    field.set_metadata(Some(metadata))
 }
 
 /// Valid types for InfluxDB data model, as defined in [the documentation]
@@ -515,9 +629,12 @@ macro_rules! assert_column_eq {
 
 #[cfg(test)]
 mod test {
-    use super::{builder::SchemaBuilder, *};
     use InfluxColumnType::*;
     use InfluxFieldType::*;
+
+    use super::{builder::SchemaBuilder, *};
+    use crate::schema::merge::SchemaMerger;
+    use crate::schema::sort::SortOptions;
 
     fn make_field(
         name: &str,
@@ -936,5 +1053,108 @@ mod test {
             get_type(&schema3, TIME_COLUMN_NAME),
             InfluxColumnType::Timestamp
         );
+    }
+
+    #[test]
+    fn test_sort() {
+        let mut sort_key = SortKey::with_capacity(3);
+        sort_key.push("tag4", Default::default());
+        sort_key.push("tag3", Default::default());
+        sort_key.push("tag2", Default::default());
+        sort_key.push("tag1", Default::default());
+        sort_key.push(TIME_COLUMN_NAME, Default::default());
+
+        let schema1 = SchemaBuilder::new()
+            .influx_field("the_field", String)
+            .tag("tag1")
+            .tag("tag2")
+            .tag("tag3")
+            .tag("tag4")
+            .timestamp()
+            .measurement("the_measurement")
+            .build_with_sort_key(&sort_key)
+            .unwrap();
+
+        let projected = schema1.project(
+            schema1
+                .select(&["tag4", "tag2", "tag3", "time"])
+                .unwrap()
+                .as_slice(),
+        );
+
+        let projected_key: Vec<_> = projected.sort_key().unwrap().iter().map(|x| *x.0).collect();
+
+        let m1 = SchemaMerger::new().merge(&schema1).unwrap().build();
+
+        let m2 = SchemaMerger::new()
+            .merge(&schema1)
+            .unwrap()
+            .build_with_sort_key(&sort_key);
+
+        assert_eq!(schema1.sort_key().unwrap(), sort_key);
+        assert_eq!(m1.sort_key(), None);
+        assert_eq!(m2.sort_key().unwrap(), sort_key);
+        assert_eq!(projected_key, vec!["tag4", "tag3", "tag2"])
+    }
+
+    #[test]
+    fn test_sort_missing_column() {
+        let mut sort_key = SortKey::with_capacity(3);
+        sort_key.push(
+            "the_field",
+            SortOptions {
+                descending: true,
+                nulls_first: false,
+            },
+        );
+        sort_key.push("a", Default::default());
+        sort_key.push(TIME_COLUMN_NAME, Default::default());
+
+        // Verify missing columns are detected
+        let err = SchemaBuilder::new()
+            .influx_field("the_field", String)
+            .measurement("the_measurement")
+            .build_with_sort_key(&sort_key)
+            .unwrap_err();
+
+        assert!(matches!(
+            err,
+            builder::Error::ValidatingSchema {
+                source: Error::SortColumnNotFound {
+                    column_name
+                }
+            } if &column_name == "a"
+        ));
+
+        // Verify duplicate columns don't break truncation
+        let err = SchemaBuilder::new()
+            .influx_field("the_field", String)
+            .influx_field("a", String)
+            .timestamp()
+            .timestamp()
+            .measurement("the_measurement")
+            .build_with_sort_key(&sort_key)
+            .unwrap_err();
+
+        assert!(matches!(
+            err,
+            builder::Error::ValidatingSchema {
+                source: Error::DuplicateColumnName { .. }
+            }
+        ));
+
+        // Verify sort key gaps are detected
+        let err = SchemaBuilder::new()
+            .influx_field("a", String)
+            .influx_field("the_field", String)
+            .measurement("the_measurement")
+            .build_with_sort_key(&sort_key)
+            .unwrap_err();
+
+        assert!(matches!(err, builder::Error::ValidatingSchema {
+            source: Error::SortColumnNotFound {
+                column_name
+            }
+        } if &column_name == "time" ));
     }
 }

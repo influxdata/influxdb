@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use arrow::datatypes::{DataType as ArrowDataType, Field as ArrowField};
 use snafu::{ResultExt, Snafu};
 
-use crate::schema::COLUMN_METADATA_KEY;
+use crate::schema::sort::SortKey;
 
 use super::{InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME};
 
@@ -23,7 +23,7 @@ pub struct SchemaBuilder {
     measurement: Option<String>,
 
     /// The fields, in order
-    fields: Vec<ArrowField>,
+    fields: Vec<(ArrowField, Option<InfluxColumnType>)>,
 
     /// If the builder has been consumed
     finished: bool,
@@ -118,10 +118,8 @@ impl SchemaBuilder {
         self
     }
 
-    /// Creates an Arrow schema with embedded metadata, resetting the
-    /// builder back to `default`. All schema validation happens at
-    /// this time.
-    ///
+    /// Creates an Arrow schema with embedded metadata.
+    /// All schema validation happens at this time.
     /// ```
     /// use internal_types::schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType};
     ///
@@ -145,11 +143,20 @@ impl SchemaBuilder {
     /// assert_eq!(influxdb_column_type, Some(InfluxColumnType::Timestamp));
     /// ```
     pub fn build(&mut self) -> Result<Schema> {
+        self.build_with_sort_key(&Default::default())
+    }
+
+    pub fn build_with_sort_key(&mut self, sort_key: &SortKey<'_>) -> Result<Schema> {
         assert!(!self.finished, "build called multiple times");
         self.finished = true;
 
-        Schema::new_from_parts(self.measurement.take(), std::mem::take(&mut self.fields))
-            .context(ValidatingSchema)
+        Schema::new_from_parts(
+            self.measurement.take(),
+            self.fields.drain(..),
+            sort_key,
+            false,
+        )
+        .context(ValidatingSchema)
     }
 
     /// Internal helper method to add a column definition
@@ -157,23 +164,12 @@ impl SchemaBuilder {
         &mut self,
         column_name: &str,
         nullable: bool,
-        influxdb_column_type: Option<InfluxColumnType>,
+        column_type: Option<InfluxColumnType>,
         arrow_type: ArrowDataType,
     ) -> &mut Self {
-        let mut field = ArrowField::new(column_name, arrow_type, nullable);
-        set_field_metadata(&mut field, influxdb_column_type);
-        self.fields.push(field);
+        let field = ArrowField::new(column_name, arrow_type, nullable);
+        self.fields.push((field, column_type));
         self
-    }
-}
-
-pub(super) fn set_field_metadata(field: &mut ArrowField, column_type: Option<InfluxColumnType>) {
-    if let Some(column_type) = column_type {
-        field.set_metadata(Some(
-            vec![(COLUMN_METADATA_KEY.to_string(), column_type.to_string())]
-                .into_iter()
-                .collect(),
-        ))
     }
 }
 

@@ -24,7 +24,7 @@ use generated_types::{
     TimestampRange,
 };
 use metrics::KeyValue;
-use observability_deps::tracing::{debug, error, info};
+use observability_deps::tracing::{error, info};
 use query::{
     exec::fieldlist::FieldList, exec::seriesset::Error as SeriesSetError,
     predicate::PredicateBuilder, DatabaseStore,
@@ -251,7 +251,6 @@ where
             .map(Ok)
             .collect::<Vec<_>>();
 
-        debug!(?results, "read_filter response");
         ob.ok_with_labels(labels);
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
