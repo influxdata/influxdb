@@ -99,7 +99,7 @@ func TestServer_Query_ComplexGroupby(t *testing.T) {
 	abc := []string{"a", "b", "c"}
 	startDate := time.Date(2021, 5, 10, 0, 0, 0, 0, time.UTC)
 	endDate := time.Date(2021, 5, 15, 0, 0, 0, 0, time.UTC)
-	writes := make([]string,0)
+	writes := make([]string, 0)
 	for date := startDate; date.Before(endDate); date = date.Add(1 * time.Hour) {
 		line := fmt.Sprintf(`m0,tenant_id=t%s,env=e%s total_count=%d %d`,
 			abc[r.Intn(3)], abc[r.Intn(3)], 10+r.Intn(5), date.UnixNano())
@@ -126,7 +126,6 @@ func TestServer_Query_ComplexGroupby(t *testing.T) {
 	ctx := context.Background()
 	test.Run(ctx, t, s)
 }
-
 
 func TestServer_Query_ShowDatabases(t *testing.T) {
 	t.Parallel()
