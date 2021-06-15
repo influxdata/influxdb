@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
+    catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog, TransactionEnd},
     metadata::IoxParquetMetaData,
     storage::data_location,
 };
@@ -133,24 +133,35 @@ impl CatalogState for TracerCatalogState {
         }
     }
 
-    fn clone_or_keep(origin: &Arc<Self>) -> Arc<Self> {
+    type TransactionState = Arc<Self>;
+
+    fn transaction_begin(origin: &Arc<Self>) -> Self::TransactionState {
         // no copy
         Arc::clone(origin)
     }
 
+    fn transaction_end(tstate: Self::TransactionState, _how: TransactionEnd) -> Arc<Self> {
+        // we don't care about aborts because they are not during clean-up
+        tstate
+    }
+
     fn add(
-        &self,
+        tstate: &mut Self::TransactionState,
         _object_store: Arc<ObjectStore>,
         info: CatalogParquetInfo,
     ) -> crate::catalog::Result<()> {
-        self.files
+        tstate
+            .files
             .lock()
             .expect("lock poissened?")
             .insert(info.path);
         Ok(())
     }
 
-    fn remove(&self, _path: DirsAndFileName) -> crate::catalog::Result<()> {
+    fn remove(
+        _tstate: &mut Self::TransactionState,
+        _path: DirsAndFileName,
+    ) -> crate::catalog::Result<()> {
         // Do NOT remove the file since we still need it for time travel
         Ok(())
     }

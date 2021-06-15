@@ -28,6 +28,7 @@ use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
+use parquet_file::catalog::TransactionEnd;
 use parquet_file::metadata::IoxParquetMetaData;
 use parquet_file::{
     catalog::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
@@ -1103,13 +1104,20 @@ impl CatalogState for Catalog {
         Self::new(data.domain, data.metrics_registry, data.metric_labels)
     }
 
-    fn clone_or_keep(origin: &Arc<Self>) -> Arc<Self> {
+    type TransactionState = Arc<Self>;
+
+    fn transaction_begin(origin: &Arc<Self>) -> Self::TransactionState {
         // no copy semantics
         Arc::clone(origin)
     }
 
+    fn transaction_end(tstate: Self::TransactionState, _how: TransactionEnd) -> Arc<Self> {
+        // no abort handling for now
+        tstate
+    }
+
     fn add(
-        &self,
+        tstate: &mut Self::TransactionState,
         object_store: Arc<ObjectStore>,
         info: CatalogParquetInfo,
     ) -> parquet_file::catalog::Result<()> {
@@ -1124,11 +1132,11 @@ impl CatalogState for Catalog {
             })?;
 
         // Create a parquet chunk for this chunk
-        let metrics = self
+        let metrics = tstate
             .metrics_registry
-            .register_domain_with_labels("parquet", self.metric_labels.clone());
+            .register_domain_with_labels("parquet", tstate.metric_labels.clone());
 
-        let metrics = ParquetChunkMetrics::new(&metrics, self.metrics().memory().parquet());
+        let metrics = ParquetChunkMetrics::new(&metrics, tstate.metrics().memory().parquet());
         let parquet_chunk = ParquetChunk::new(
             object_store.path_from_dirs_and_filename(info.path.clone()),
             object_store,
@@ -1142,7 +1150,7 @@ impl CatalogState for Catalog {
 
         // Get partition from the catalog
         // Note that the partition might not exist yet if the chunk is loaded from an existing preserved catalog.
-        let partition = self.get_or_create_partition(&iox_md.table_name, &iox_md.partition_key);
+        let partition = tstate.get_or_create_partition(&iox_md.table_name, &iox_md.partition_key);
         let partition_guard = partition.read();
 
         // Get the chunk from the catalog
@@ -1181,10 +1189,13 @@ impl CatalogState for Catalog {
         Ok(())
     }
 
-    fn remove(&self, path: DirsAndFileName) -> parquet_file::catalog::Result<()> {
+    fn remove(
+        tstate: &mut Self::TransactionState,
+        path: DirsAndFileName,
+    ) -> parquet_file::catalog::Result<()> {
         let mut deleted = false;
 
-        for partition in self.partitions() {
+        for partition in tstate.partitions() {
             let mut partition = partition.write();
 
             let mut to_delete = vec![];
