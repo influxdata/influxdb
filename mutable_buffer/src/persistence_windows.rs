@@ -2,7 +2,7 @@
 use entry::Sequence;
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, VecDeque},
     time::{Duration, Instant},
 };
 
@@ -33,7 +33,7 @@ const CLOSED_WINDOW_PERIOD: Duration = Duration::from_secs(30);
 #[derive(Debug, Clone)]
 pub struct PersistenceWindows {
     persistable: Option<Window>,
-    closed: Vec<Window>,
+    closed: VecDeque<Window>,
     open: Option<Window>,
     late_arrival_period: Duration,
 }
@@ -52,9 +52,10 @@ impl PersistenceWindows {
 
         let closed_window_count = late_arrival_seconds / closed_window_seconds;
 
+        println!("closed window count: {}", closed_window_count);
         Ok(Self {
             persistable: None,
-            closed: Vec::with_capacity(closed_window_count as usize),
+            closed: VecDeque::with_capacity(closed_window_count as usize),
             open: None,
             late_arrival_period,
         })
@@ -129,19 +130,18 @@ impl PersistenceWindows {
             .unwrap_or(false);
 
         if rotate {
-            self.closed.push(self.open.take().unwrap())
+            self.closed.push_back(self.open.take().unwrap())
         }
 
-        let mut i = 0;
-        while i != self.closed.len() {
-            if now.duration_since(self.closed[i].created_at) >= self.late_arrival_period {
-                let closed = self.closed.remove(i);
+        while let Some(w) = self.closed.pop_front() {
+            if now.duration_since(w.created_at) >= self.late_arrival_period {
                 match self.persistable.as_mut() {
-                    Some(w) => w.add_window(closed),
-                    None => self.persistable = Some(closed),
+                    Some(persistable_window) => persistable_window.add_window(w),
+                    None => self.persistable = Some(w),
                 }
             } else {
-                i += 1;
+                self.closed.push_front(w);
+                break;
             }
         }
     }
@@ -173,7 +173,7 @@ impl PersistenceWindows {
             return Some(w.sequencer_numbers.clone());
         }
 
-        if let Some(w) = self.closed.first() {
+        if let Some(w) = self.closed.get(0) {
             return Some(w.sequencer_numbers.clone());
         }
 
@@ -187,13 +187,13 @@ impl PersistenceWindows {
 
 #[derive(Debug, Clone)]
 struct Window {
-    // The server time when this window was created. Used to determine how long data in this
-    // window has been sitting in memory.
+    /// The server time when this window was created. Used to determine how long data in this
+    /// window has been sitting in memory.
     created_at: Instant,
     row_count: usize,
     min_time: DateTime<Utc>, // min time value for data in the window
     max_time: DateTime<Utc>, // max time value for data in the window
-    // maps sequencer_id to the minimum and maximum sequence numbers seen
+    /// maps sequencer_id to the minimum and maximum sequence numbers seen
     sequencer_numbers: BTreeMap<u32, MinMaxSequence>,
 }
 
@@ -230,8 +230,8 @@ impl Window {
         }
     }
 
-    // Updates the window with the passed in range. This function assumes that sequence numbers
-    // are always increasing.
+    /// Updates the window with the passed in range. This function assumes that sequence numbers
+    /// are always increasing.
     fn add_range(
         &mut self,
         sequence: Sequence,
@@ -247,7 +247,10 @@ impl Window {
             self.max_time = max_time;
         }
         match self.sequencer_numbers.get_mut(&sequence.id) {
-            Some(n) => n.max = sequence.number,
+            Some(n) => {
+                assert!(sequence.number > n.max);
+                n.max = sequence.number;
+            }
             None => {
                 self.sequencer_numbers.insert(
                     sequence.id,
@@ -260,7 +263,7 @@ impl Window {
         }
     }
 
-    // Add one window to another. Used to collapse closed windows into persisted.
+    /// Add one window to another. Used to collapse closed windows into persisted.
     fn add_window(&mut self, other: Self) {
         self.row_count += other.row_count;
         if self.min_time > other.min_time {
@@ -271,7 +274,10 @@ impl Window {
         }
         for (sequencer_id, other_n) in other.sequencer_numbers {
             match self.sequencer_numbers.get_mut(&sequencer_id) {
-                Some(n) => n.max = other_n.max,
+                Some(n) => {
+                    assert!(other_n.max > n.max);
+                    n.max = other_n.max;
+                }
                 None => {
                     self.sequencer_numbers.insert(sequencer_id, other_n);
                 }
@@ -287,7 +293,6 @@ mod tests {
     #[test]
     fn starts_open_window() {
         let mut w = PersistenceWindows::new(Duration::from_secs(60)).unwrap();
-        assert_eq!(w.closed.capacity(), 2);
 
         let i = Instant::now();
         let start_time = Utc::now();
@@ -367,7 +372,7 @@ mod tests {
 
         assert_eq!(w.persistable_row_count(), 0);
 
-        let closed = w.closed.first().unwrap();
+        let closed = w.closed.get(0).unwrap();
         assert_eq!(
             closed.sequencer_numbers.get(&1).unwrap(),
             &MinMaxSequence { min: 2, max: 3 }
@@ -751,6 +756,7 @@ mod tests {
             third_created_at,
         );
 
+        // this should rotate the first window into persistable
         w.rotate(end_at);
 
         let max_time = w.max_persistable_timestamp().unwrap();
@@ -763,6 +769,9 @@ mod tests {
 
         let mins = w.persistable.as_ref().unwrap().sequencer_numbers.clone();
         assert_eq!(mins, w.minimum_unpersisted_sequence().unwrap());
+
+        // after flush we should see no more persistable window and the closed and open windows
+        // should have min timestamps equal to the previous flush end.
         w.flush();
         assert!(w.persistable.is_none());
         let mins = w.closed[0].sequencer_numbers.clone();
