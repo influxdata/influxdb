@@ -12,6 +12,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+	"go.uber.org/zap"
 )
 
 //  Tests compacting a Cache snapshot into a single TSM file
@@ -39,7 +40,7 @@ func TestCompactor_Snapshot(t *testing.T) {
 	compactor.Dir = dir
 	compactor.FileStore = &fakeFileStore{}
 
-	files, err := compactor.WriteSnapshot(c)
+	files, err := compactor.WriteSnapshot(c, zap.NewNop())
 	if err == nil {
 		t.Fatalf("expected error writing snapshot: %v", err)
 	}
@@ -50,7 +51,7 @@ func TestCompactor_Snapshot(t *testing.T) {
 
 	compactor.Open()
 
-	files, err = compactor.WriteSnapshot(c)
+	files, err = compactor.WriteSnapshot(c, zap.NewNop())
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
@@ -119,7 +120,7 @@ func TestCompactor_CompactFullLastTimestamp(t *testing.T) {
 	compactor.FileStore = fs
 	compactor.Open()
 
-	files, err := compactor.CompactFull([]string{f1, f2})
+	files, err := compactor.CompactFull([]string{f1, f2}, zap.NewNop())
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %#v", err)
 	}
@@ -175,7 +176,7 @@ func TestCompactor_CompactFull(t *testing.T) {
 	compactor.Dir = dir
 	compactor.FileStore = fs
 
-	files, err := compactor.CompactFull([]string{f1, f2, f3})
+	files, err := compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop())
 	if err == nil {
 		t.Fatalf("expected error writing snapshot: %v", err)
 	}
@@ -186,7 +187,7 @@ func TestCompactor_CompactFull(t *testing.T) {
 
 	compactor.Open()
 
-	files, err = compactor.CompactFull([]string{f1, f2, f3})
+	files, err = compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop())
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
@@ -285,7 +286,7 @@ func TestCompactor_DecodeError(t *testing.T) {
 	compactor.Dir = dir
 	compactor.FileStore = fs
 
-	files, err := compactor.CompactFull([]string{f1, f2, f3})
+	files, err := compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop())
 	if err == nil {
 		t.Fatalf("expected error writing snapshot: %v", err)
 	}
@@ -296,9 +297,7 @@ func TestCompactor_DecodeError(t *testing.T) {
 
 	compactor.Open()
 
-	_, err = compactor.CompactFull([]string{f1, f2, f3})
-	if err == nil ||
-		!strings.Contains(err.Error(), "decode error: unable to decompress block type float for key 'cpu,host=A#!~#value': unpackBlock: not enough data for timestamp") {
+	if _, err = compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop()); err == nil || !strings.Contains(err.Error(), "decode error: unable to decompress block type float for key 'cpu,host=A#!~#value': unpackBlock: not enough data for timestamp") {
 		t.Fatalf("expected error writing snapshot: %v", err)
 	}
 }
@@ -336,7 +335,7 @@ func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
 
 	compactor.Open()
 
-	files, err := compactor.CompactFast([]string{f1, f3})
+	files, err := compactor.CompactFast([]string{f1, f3}, zap.NewNop())
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
@@ -416,7 +415,7 @@ func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
 
 	compactor.Open()
 
-	files, err := compactor.CompactFast([]string{f1, f2, f3})
+	files, err := compactor.CompactFast([]string{f1, f2, f3}, zap.NewNop())
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
@@ -484,7 +483,7 @@ func TestCompactor_Compact_UnsortedBlocks(t *testing.T) {
 
 	compactor.Open()
 
-	files, err := compactor.CompactFast([]string{f1, f2})
+	files, err := compactor.CompactFast([]string{f1, f2}, zap.NewNop())
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
@@ -558,7 +557,7 @@ func TestCompactor_Compact_UnsortedBlocksOverlapping(t *testing.T) {
 
 	compactor.Open()
 
-	files, err := compactor.CompactFast([]string{f1, f2, f3})
+	files, err := compactor.CompactFast([]string{f1, f2, f3}, zap.NewNop())
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
@@ -629,7 +628,7 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 	compactor.Size = 2
 	compactor.Open()
 
-	files, err := compactor.CompactFull([]string{f1, f2, f3})
+	files, err := compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop())
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
@@ -731,7 +730,7 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 	compactor.Size = 2
 	compactor.Open()
 
-	files, err := compactor.CompactFull([]string{f1, f2, f3})
+	files, err := compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop())
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
@@ -834,7 +833,7 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 	compactor.Size = 2
 	compactor.Open()
 
-	files, err := compactor.CompactFull([]string{f1, f2, f3})
+	files, err := compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop())
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
@@ -942,7 +941,7 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 	compactor.Size = 2
 	compactor.Open()
 
-	files, err := compactor.CompactFull([]string{f1, f2, f3})
+	files, err := compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop())
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
@@ -1058,7 +1057,7 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 	compactor.Open()
 
 	// Compact both files, should get 2 files back
-	files, err := compactor.CompactFull([]string{f1Name, f2Name})
+	files, err := compactor.CompactFull([]string{f1Name, f2Name}, zap.NewNop())
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
