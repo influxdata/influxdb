@@ -6,7 +6,7 @@ use data_types::server_id::ServerId;
 use std::{net::SocketAddr, net::ToSocketAddrs, path::PathBuf};
 use structopt::StructOpt;
 use thiserror::Error;
-use trogging::cli::TracingConfig;
+use trogging::cli::{LoggingConfig, TracingConfig};
 
 /// The default bind address for the HTTP API.
 pub const DEFAULT_API_BIND_ADDR: &str = "127.0.0.1:8080";
@@ -42,7 +42,11 @@ Configuration is loaded from the following sources (highest precedence first):
         - pre-configured default values"
 )]
 pub struct Config {
-    // logging and tracing options
+    // logging options
+    #[structopt(flatten)]
+    pub(crate) logging_config: LoggingConfig,
+
+    // tracing options
     #[structopt(flatten)]
     pub(crate) tracing_config: TracingConfig,
 

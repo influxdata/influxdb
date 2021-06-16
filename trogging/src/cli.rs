@@ -4,9 +4,9 @@ use observability_deps::tracing_subscriber::fmt::{writer::BoxMakeWriter, MakeWri
 use std::num::NonZeroU16;
 use structopt::StructOpt;
 
-/// CLI config for the logging+tracing related subset of options.
+/// CLI config for the logging related subset of options.
 #[derive(Debug, StructOpt, Clone)]
-pub struct TracingConfig {
+pub struct LoggingConfig {
     /// Logs: filter directive
     ///
     /// Configures log severity level filter, by target.
@@ -97,7 +97,49 @@ pub struct TracingConfig {
     ///   level=trace msg="This is a trace message" target="logging" location="logfmt/tests/logging.rs:38" time=1612181556329634000
     #[structopt(long = "--log-format", env = "LOG_FORMAT", default_value = "full", verbatim_doc_comment)]
     pub log_format: LogFormat,
+}
 
+impl LoggingConfig {
+    pub fn to_builder(&self) -> Builder<BoxMakeWriter> {
+        self.with_builder(Builder::new())
+    }
+
+    pub fn with_builder<W>(&self, builder: Builder<W>) -> Builder<BoxMakeWriter>
+    where
+        W: MakeWriter + Send + Sync + Clone + 'static,
+    {
+        builder
+            .with_log_filter(&self.log_filter)
+            // with_verbose_count goes after with_log_filter because our CLI flag state
+            // that --v overrides --log-filter.
+            .with_log_verbose_count(self.log_verbose_count)
+            .with_log_destination(self.log_destination)
+            .with_log_format(self.log_format)
+    }
+
+    pub fn install_global_subscriber(&self) -> Result<TracingGuard> {
+        self.to_builder().install_global()
+    }
+}
+
+/// Extends the trogging [`crate::Builder`] API.
+pub trait LoggingConfigBuilderExt {
+    /// Applies all config entries from a [`LoggingConfig`] to a [`crate::Builder`].
+    fn with_logging_config(self, config: &LoggingConfig) -> Builder<BoxMakeWriter>;
+}
+
+impl<W> LoggingConfigBuilderExt for Builder<W>
+where
+    W: MakeWriter + Send + Sync + Clone + 'static,
+{
+    fn with_logging_config(self, config: &LoggingConfig) -> Builder<BoxMakeWriter> {
+        config.with_builder(self)
+    }
+}
+
+/// CLI config for the logging+tracing related subset of options.
+#[derive(Debug, StructOpt, Clone)]
+pub struct TracingConfig {
     /// Tracing: exporter type
     ///
     /// Can be one of: none, jaeger, otlp
@@ -240,21 +282,15 @@ pub struct TracingConfig {
 }
 
 impl TracingConfig {
-    pub fn to_builder(&self) -> Builder<BoxMakeWriter> {
+    pub fn to_builder(&self) -> Builder {
         self.with_builder(Builder::new())
     }
 
-    pub fn with_builder<W>(&self, builder: Builder<W>) -> Builder<BoxMakeWriter>
+    pub fn with_builder<W>(&self, builder: Builder<W>) -> Builder<W>
     where
         W: MakeWriter + Send + Sync + Clone + 'static,
     {
         builder
-            .with_log_filter(&self.log_filter)
-            // with_verbose_count goes after with_log_filter because our CLI flag state
-            // that --v overrides --log-filter.
-            .with_log_verbose_count(self.log_verbose_count)
-            .with_log_destination(self.log_destination)
-            .with_log_format(self.log_format)
             .with_traces_filter(&self.traces_filter)
             .with_traces_exporter(self.traces_exporter)
             .with_traces_sampler(self.traces_sampler, self.traces_sampler_arg)
@@ -276,21 +312,27 @@ impl TracingConfig {
 }
 
 /// Extends the trogging [`crate::Builder`] API.
-pub trait TracingConfigBuilderExt {
+pub trait TracingConfigBuilderExt<W> {
     /// Applies all config entries from a [`TracingConfig`] to a [`crate::Builder`].
-    fn with_config(self, config: &TracingConfig) -> Builder<BoxMakeWriter>;
+    fn with_tracing_config(self, config: &TracingConfig) -> Builder<W>;
 }
 
-impl<W> TracingConfigBuilderExt for Builder<W>
+impl<W> TracingConfigBuilderExt<W> for Builder<W>
 where
     W: MakeWriter + Send + Sync + Clone + 'static,
 {
-    fn with_config(self, config: &TracingConfig) -> Builder<BoxMakeWriter> {
+    fn with_tracing_config(self, config: &TracingConfig) -> Builder<W> {
         config.with_builder(self)
     }
 }
 
-impl From<TracingConfig> for Builder<BoxMakeWriter> {
+impl From<LoggingConfig> for Builder<BoxMakeWriter> {
+    fn from(config: LoggingConfig) -> Self {
+        config.to_builder()
+    }
+}
+
+impl From<TracingConfig> for Builder {
     fn from(config: TracingConfig) -> Self {
         config.to_builder()
     }
@@ -307,7 +349,7 @@ mod tests {
 
     #[test]
     fn test_log_verbose_count() {
-        let cfg = TracingConfig::from_iter_safe(to_vec(&["cli"])).unwrap();
+        let cfg = LoggingConfig::from_iter_safe(to_vec(&["cli"])).unwrap();
         assert_eq!(cfg.log_verbose_count, 0);
 
         assert_eq!(
@@ -319,7 +361,7 @@ WARN woo
             .trim_start(),
         );
 
-        let cfg = TracingConfig::from_iter_safe(to_vec(&["cli", "-v"])).unwrap();
+        let cfg = LoggingConfig::from_iter_safe(to_vec(&["cli", "-v"])).unwrap();
         assert_eq!(cfg.log_verbose_count, 1);
 
         assert_eq!(
@@ -332,7 +374,7 @@ INFO bar
             .trim_start(),
         );
 
-        let cfg = TracingConfig::from_iter_safe(to_vec(&["cli", "-vv"])).unwrap();
+        let cfg = LoggingConfig::from_iter_safe(to_vec(&["cli", "-vv"])).unwrap();
         assert_eq!(cfg.log_verbose_count, 2);
 
         assert_eq!(
@@ -346,7 +388,7 @@ DEBUG baz
             .trim_start(),
         );
 
-        let cfg = TracingConfig::from_iter_safe(to_vec(&["cli", "-vvv"])).unwrap();
+        let cfg = LoggingConfig::from_iter_safe(to_vec(&["cli", "-vvv"])).unwrap();
         assert_eq!(cfg.log_verbose_count, 3);
 
         assert_eq!(
@@ -364,13 +406,13 @@ TRACE trax
 
     #[test]
     fn test_custom_default_log_level() {
-        let cfg = TracingConfig::from_iter_safe(to_vec(&["cli"])).unwrap();
+        let cfg = LoggingConfig::from_iter_safe(to_vec(&["cli"])).unwrap();
 
         assert_eq!(
             simple_test(
                 Builder::new()
                     .with_default_log_filter("debug")
-                    .with_config(&cfg)
+                    .with_logging_config(&cfg)
             )
             .without_timestamps(),
             r#"
@@ -382,13 +424,13 @@ DEBUG baz
             .trim_start(),
         );
 
-        let cfg = TracingConfig::from_iter_safe(to_vec(&["cli", "--log-filter=info"])).unwrap();
+        let cfg = LoggingConfig::from_iter_safe(to_vec(&["cli", "--log-filter=info"])).unwrap();
 
         assert_eq!(
             simple_test(
                 Builder::new()
                     .with_default_log_filter("debug")
-                    .with_config(&cfg)
+                    .with_logging_config(&cfg)
             )
             .without_timestamps(),
             r#"
