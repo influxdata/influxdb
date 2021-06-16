@@ -17,6 +17,8 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/dependencies/testing"
 	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/annotations"
+	annotationTransport "github.com/influxdata/influxdb/v2/annotations/transport"
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	"github.com/influxdata/influxdb/v2/backup"
@@ -954,6 +956,15 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		authorizer.NewNotebookService(notebookSvc),
 	)
 
+	annotationSvc := annotations.NewService(
+		m.log.With(zap.String("service", "annotations")),
+		m.sqlStore,
+	)
+	annotationServer := annotationTransport.NewAnnotationHandler(
+		m.log.With(zap.String("handler", "annotations")),
+		authorizer.NewAnnotationService(annotationSvc),
+	)
+
 	platformHandler := http.NewPlatformHandler(
 		m.apibackend,
 		http.WithResourceHandler(stacksHTTPServer),
@@ -970,6 +981,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		http.WithResourceHandler(v1AuthHTTPServer),
 		http.WithResourceHandler(dashboardServer),
 		http.WithResourceHandler(notebookServer),
+		http.WithResourceHandler(annotationServer),
 	)
 
 	httpLogger := m.log.With(zap.String("service", "http"))
