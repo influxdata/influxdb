@@ -6,7 +6,6 @@ import (
 	"container/heap"
 	"io"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -374,7 +373,6 @@ func (itr *{{$k.name}}SortedMergeIterator) pop() (*{{$k.Name}}Point, error) {
 			}
 			itr.heap.items = append(itr.heap.items, item)
 		}
-		itr.heap.detectFast()
 		heap.Init(itr.heap)
 		itr.init = true
 	}
@@ -412,57 +410,11 @@ func (itr *{{$k.name}}SortedMergeIterator) pop() (*{{$k.Name}}Point, error) {
 type {{$k.name}}SortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*{{$k.name}}SortedMergeHeapItem
-	// if each input comes from a unique single time series, we can make a shortcut.
-	// detection of the shortcut introduces some overhead but it gets significant
-	// performance improvement in cases like SELECT * FROM m GROUP BY *
-	fast bool
-}
-
-func (h *{{$k.name}}SortedMergeHeap) detectFast() {
-	for _, item := range h.items {
-		if item.itr.Stats().SeriesN != 1 {
-			return
-		}
-	}
-
-	hasDup := false
-	s := make([]*{{$k.name}}SortedMergeHeapItem, len(h.items))
-	copy(s, h.items)
-
-	less := func(i, j int) bool {
-		x, y := s[i].point, s[j].point
-		ret := strings.Compare(x.Name, y.Name)
-		if ret == 0 {
-			ret = strings.Compare(x.Tags.ID(), y.Tags.ID())
-		}
-		if ret != 0 {
-			// TT
-			// ret | == -1 | h.opt.Ascending | result
-			//  1  | false |  false          | true
-			// -1  | true  |  false          | false
-			//  1  | false |  true           | false
-			// -1  | true  |  true           | true
-			return ret == -1 == h.opt.Ascending
-		}
-		hasDup = true
-		return false
-	}
-	sort.Slice(s, less)
-	if !hasDup {
-		h.fast = true
-		for i, item := range s {
-			item.fastIdx = i
-		}
-	}
 }
 
 func (h *{{$k.name}}SortedMergeHeap) Len() int      { return len(h.items) }
 func (h *{{$k.name}}SortedMergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
 func (h *{{$k.name}}SortedMergeHeap) Less(i, j int) bool {
-	if h.fast {
-		return h.items[i].fastIdx < h.items[j].fastIdx
-	}
-
 	x, y := h.items[i].point, h.items[j].point
 
 	if h.opt.Ascending {
@@ -536,8 +488,6 @@ type {{$k.name}}SortedMergeHeapItem struct {
 	point     *{{$k.Name}}Point
 	err       error
 	itr       {{$k.Name}}Iterator
-	// index for fast shortcut
-	fastIdx int
 }
 
 // {{$k.name}}IteratorScanner scans the results of a {{$k.Name}}Iterator into a map.
