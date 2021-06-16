@@ -73,8 +73,13 @@ TEST_INTEGRATION=1 KAFKA_CONNECT=localhost:9093 cargo test -p influxdb_iox --tes
 ### Running `cargo test` in a Docker container
 
 Alternatively, you can do what CI does by compiling the tests and running `cargo test` in a Docker
-container as well, by running this Docker Compose command that uses
-`docker/Dockerfile.ci.integration`:
+container as well. First, make sure you have the latest `rust:ci` image by running:
+
+```
+docker image pull quay.io/influxdb/rust:ci
+```
+
+Then run this Docker Compose command that uses `docker/Dockerfile.ci.integration`:
 
 ```
 docker-compose -f docker/ci-kafka-docker-compose.yml up --build --force-recreate --exit-code-from rust
