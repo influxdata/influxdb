@@ -15,5 +15,10 @@ RUN sudo chown -R rust:rust /home/rust/iox
 # Work in this directory
 WORKDIR /home/rust/iox
 
+ENV CARGO_INCREMENTAL=0
+ENV RUSTFLAGS="-C debuginfo=1"
+ENV TEST_INTEGRATION=1
+ENV KAFKA_CONNECT=kafka:9092
+
 # Run the integration tests that connect to Kafka that will be running in another container
-CMD ["sh", "-c", "CARGO_INCREMENTAL=0 RUSTFLAGS=\"-C debuginfo=1\" TEST_INTEGRATION=1 KAFKA_CONNECT=kafka:9092 cargo test -p influxdb_iox --test end-to-end write_buffer"]
+CMD ["sh", "-c", "cargo test -p influxdb_iox --test end-to-end write_buffer"]
