@@ -5,6 +5,7 @@ v1.9.3 [unreleased]
 -	[#21592](https://github.com/influxdata/influxdb/pull/21592): fix: avoid rewriting fields.idx unnecessarily
 -	[#21659](https://github.com/influxdata/influxdb/pull/21659): fix: do not close connection twice in DigestWithOptions
 -	[#21666](https://github.com/influxdata/influxdb/pull/21666): fix: do not panic on cleaning up failed iterators
+-	[#21707](https://github.com/influxdata/influxdb/pull/21707): chore: add logging to compaction
 
 v1.9.2 [unreleased]
 -	[#21631](https://github.com/influxdata/influxdb/pull/21631): fix: group by returns multiple results per group in some circumstances
