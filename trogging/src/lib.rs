@@ -39,7 +39,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Builder for tracing and logging.
 pub struct Builder<W = fn() -> io::Stdout> {
     log_format: LogFormat,
-    log_filter: EnvFilter,
+    log_filter: Option<EnvFilter>,
+    // used when log_filter is none.
+    default_log_filter: EnvFilter,
     traces_filter: Option<EnvFilter>,
     traces_exporter: TracesExporter,
     traces_sampler: TracesSampler,
@@ -55,7 +57,8 @@ impl Default for Builder {
     fn default() -> Self {
         Self {
             log_format: LogFormat::Full,
-            log_filter: EnvFilter::try_new(Self::DEFAULT_LOG_FILTER).unwrap(),
+            log_filter: None,
+            default_log_filter: EnvFilter::try_new(Self::DEFAULT_LOG_FILTER).unwrap(),
             traces_filter: None,
             traces_exporter: TracesExporter::None,
             traces_sampler: TracesSampler::ParentBasedTraceIdRatio,
@@ -86,6 +89,7 @@ impl<W> Builder<W> {
             // cannot use `..self` because W type parameter changes
             log_format: self.log_format,
             log_filter: self.log_filter,
+            default_log_filter: self.default_log_filter,
             traces_filter: self.traces_filter,
             traces_exporter: self.traces_exporter,
             traces_sampler: self.traces_sampler,
@@ -103,7 +107,7 @@ impl<W> Builder<W>
 where
     W: MakeWriter + Send + Sync + 'static,
 {
-    const DEFAULT_LOG_FILTER: &'static str = "warn";
+    pub const DEFAULT_LOG_FILTER: &'static str = "warn";
 
     /// Set log_filter using a simple numeric "verbosity level".
     ///
@@ -111,16 +115,26 @@ where
     pub fn with_log_verbose_count(self, log_verbose_count: u8) -> Self {
         let log_filter = match log_verbose_count {
             0 => self.log_filter,
-            1 => EnvFilter::try_new("info").unwrap(),
-            2 => EnvFilter::try_new("debug,hyper::proto::h1=info,h2=info").unwrap(),
-            _ => EnvFilter::try_new("trace,hyper::proto::h1=info,h2=info").unwrap(),
+            1 => Some(EnvFilter::try_new("info").unwrap()),
+            2 => Some(EnvFilter::try_new("debug,hyper::proto::h1=info,h2=info").unwrap()),
+            _ => Some(EnvFilter::try_new("trace,hyper::proto::h1=info,h2=info").unwrap()),
         };
         Self { log_filter, ..self }
     }
 
-    pub fn with_log_filter(self, log_filter: impl AsRef<str>) -> Self {
-        let log_filter = EnvFilter::try_new(log_filter).unwrap();
+    pub fn with_log_filter(self, log_filter: &Option<String>) -> Self {
+        let log_filter = log_filter
+            .as_ref()
+            .map(|log_filter| EnvFilter::try_new(log_filter).unwrap());
         Self { log_filter, ..self }
+    }
+
+    pub fn with_default_log_filter(self, default_log_filter: impl AsRef<str>) -> Self {
+        let default_log_filter = EnvFilter::try_new(default_log_filter).unwrap();
+        Self {
+            default_log_filter,
+            ..self
+        }
     }
 
     pub fn with_log_format(self, log_format: LogFormat) -> Self {
@@ -141,6 +155,7 @@ where
             // cannot use `..self` because W type parameter changes
             log_format: self.log_format,
             log_filter: self.log_filter,
+            default_log_filter: self.default_log_filter,
             traces_filter: self.traces_filter,
             traces_exporter: self.traces_exporter,
             traces_sampler: self.traces_sampler,
@@ -354,7 +369,7 @@ where
             };
 
         let subscriber = tracing_subscriber::Registry::default()
-            .with(self.log_filter)
+            .with(self.log_filter.unwrap_or(self.default_log_filter))
             .with(log_format_full)
             .with(log_format_pretty)
             .with(log_format_json)
@@ -539,6 +554,39 @@ WARN woo
 INFO bar
 DEBUG baz
 TRACE trax
+"#
+            .trim_start(),
+        );
+    }
+
+    #[test]
+    fn test_override_default_log_filter() {
+        const DEFAULT_LOG_FILTER: &str = "error";
+
+        assert_eq!(
+            simple_test(
+                Builder::new()
+                    .with_default_log_filter(DEFAULT_LOG_FILTER)
+                    .with_log_verbose_count(0)
+            )
+            .without_timestamps(),
+            r#"
+ERROR foo
+"#
+            .trim_start(),
+        );
+
+        assert_eq!(
+            simple_test(
+                Builder::new()
+                    .with_default_log_filter(DEFAULT_LOG_FILTER)
+                    .with_log_verbose_count(1)
+            )
+            .without_timestamps(),
+            r#"
+ERROR foo
+WARN woo
+INFO bar
 "#
             .trim_start(),
         );
