@@ -1,6 +1,7 @@
 //! Log and trace initialization and setup
 
 use std::cmp::max;
+use trogging::cli::{LoggingConfigBuilderExt, TracingConfigBuilderExt};
 pub use trogging::config::*;
 pub use trogging::TracingGuard;
 
@@ -16,11 +17,15 @@ pub fn init_logs_and_tracing(
     log_verbose_count: u8,
     config: &crate::commands::run::Config,
 ) -> Result<TracingGuard, trogging::Error> {
-    let mut config = config.tracing_config.clone();
+    let tracing_config = &config.tracing_config;
+    let mut logging_config = config.logging_config.clone();
 
     // Handle the case if -v/-vv is specified both before and after the server
     // command
-    config.log_verbose_count = max(config.log_verbose_count, log_verbose_count);
+    logging_config.log_verbose_count = max(logging_config.log_verbose_count, log_verbose_count);
 
-    config.to_builder().install_global()
+    trogging::Builder::new()
+        .with_tracing_config(tracing_config)
+        .with_logging_config(&logging_config)
+        .install_global()
 }
