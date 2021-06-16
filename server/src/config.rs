@@ -255,7 +255,7 @@ impl Config {
         let write_buffer = rules
             .write_buffer_connection_string
             .as_ref()
-            .map(|conn| Arc::new(KafkaBuffer::new(conn)) as _);
+            .map(|conn| Arc::new(KafkaBuffer::new(conn, &name)) as _);
 
         let db = Arc::new(Db::new(
             rules,

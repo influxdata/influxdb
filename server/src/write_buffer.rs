@@ -19,6 +19,7 @@ pub trait WriteBuffer: Sync + Send + std::fmt::Debug + 'static {
 #[derive(Debug)]
 pub struct KafkaBuffer {
     conn: String,
+    database_name: String,
 }
 
 #[async_trait]
@@ -32,8 +33,11 @@ impl WriteBuffer for KafkaBuffer {
 }
 
 impl KafkaBuffer {
-    pub fn new(conn: impl Into<String>) -> Self {
-        Self { conn: conn.into() }
+    pub fn new(conn: impl Into<String>, database_name: impl Into<String>) -> Self {
+        Self {
+            conn: conn.into(),
+            database_name: database_name.into(),
+        }
     }
 }
 
