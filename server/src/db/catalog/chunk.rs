@@ -352,6 +352,12 @@ impl CatalogChunk {
         self.lifecycle_action.as_ref()
     }
 
+    pub fn is_in_lifecycle(&self, lifecycle_action: ChunkLifecycleAction) -> bool {
+        self.lifecycle_action
+            .as_ref()
+            .map_or(false, |action| action.metadata() == &lifecycle_action)
+    }
+
     pub fn time_of_first_write(&self) -> Option<DateTime<Utc>> {
         self.time_of_first_write
     }
