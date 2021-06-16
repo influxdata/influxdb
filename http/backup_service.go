@@ -56,8 +56,6 @@ const (
 	backupKVStorePath  = prefixBackup + "/kv"
 	backupShardPath    = prefixBackup + "/shards/:shardID"
 	backupMetadataPath = prefixBackup + "/metadata"
-
-	httpClientTimeout = time.Hour
 )
 
 // NewBackupHandler creates a new handler at /api/v2/backup to receive backup requests.
