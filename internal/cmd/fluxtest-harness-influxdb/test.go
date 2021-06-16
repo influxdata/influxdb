@@ -121,7 +121,7 @@ func (t *testExecutor) Run(pkg *ast.Package) error {
 		// TODO(nathanielc): When the executor is given access to the test name,
 		// make the configName a function of the test name.
 		configName := "flux-test"
-		err := createInfluxDBConfig(t.ctx, configName, t.l.URL(), t.l.Org.Name, t.l.Auth.Token)
+		err := createInfluxDBConfig(t.ctx, configName, t.l.URL().String(), t.l.Org.Name, t.l.Auth.Token)
 		if err != nil {
 			return err
 		}

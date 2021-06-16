@@ -22,7 +22,7 @@ require (
 	github.com/editorconfig-checker/editorconfig-checker v0.0.0-20190819115812-1474bdeaf2a2
 	github.com/elazarl/go-bindata-assetfs v1.0.0
 	github.com/fatih/color v1.9.0
-	github.com/fujiwara/shapeio v0.0.0-20170602072123-c073257dd745
+	github.com/fujiwara/shapeio v1.0.0
 	github.com/getkin/kin-openapi v0.53.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
@@ -31,11 +31,11 @@ require (
 	github.com/go-stack/stack v1.8.0
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/gddo v0.0.0-20181116215533-9bd4a3295021
-	github.com/golang/mock v1.4.4
+	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.3.3
 	github.com/golang/snappy v0.0.1
 	github.com/google/btree v1.0.0
-	github.com/google/go-cmp v0.5.4
+	github.com/google/go-cmp v0.5.5
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/google/go-jsonnet v0.14.0
 	github.com/google/go-querystring v1.0.0 // indirect
@@ -48,6 +48,7 @@ require (
 	github.com/influxdata/cron v0.0.0-20191203200038-ded12750aac6
 	github.com/influxdata/flux v0.118.1
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
+	github.com/influxdata/influx-cli/v2 v2.0.0-20210616152201-0ee555c6a73e
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/pkg-config v0.2.7
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
@@ -99,16 +100,16 @@ require (
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
-	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
+	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	golang.org/x/sys v0.0.0-20210124154548-22da62e12c0c
 	golang.org/x/text v0.3.5
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
-	golang.org/x/tools v0.0.0-20200721032237-77f530d86f9a
+	golang.org/x/tools v0.1.0
 	google.golang.org/api v0.17.0
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
 	gopkg.in/yaml.v2 v2.3.0
 	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
-	honnef.co/go/tools v0.0.1-2020.1.4
+	honnef.co/go/tools v0.1.3
 	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
 )
 
