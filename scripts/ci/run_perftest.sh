@@ -97,7 +97,7 @@ done
 echo "Using Telegraph to report results from the following files:"
 ls $working_dir
 
-telegraf --once
+telegraf --debug --once
 
 if [ "${CIRCLE_TEARDOWN}" = "true" ]; then
   curl --request POST \
