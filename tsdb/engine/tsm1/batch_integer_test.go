@@ -910,9 +910,8 @@ func TestIntegerArrayDecodeAll_MinMax(t *testing.T) {
 
 func TestIntegerArrayDecodeAll_Quick(t *testing.T) {
 	quick.Check(func(values []int64) bool {
-		exp := values
 		if values == nil {
-			exp = []int64{} // is this really expected?
+			values = []int64{} // is this really expected?
 		}
 
 		// Write values to encoder.
@@ -933,8 +932,8 @@ func TestIntegerArrayDecodeAll_Quick(t *testing.T) {
 			t.Fatalf("unexpected decode error %q", err)
 		}
 
-		if !cmp.Equal(got, exp) {
-			t.Fatalf("unexpected values: -got/+exp\n%s", cmp.Diff(got, exp))
+		if !cmp.Equal(got, values) {
+			t.Fatalf("unexpected values: -got/+exp\n%s", cmp.Diff(got, values))
 		}
 
 		return true

@@ -92,9 +92,8 @@ func Test_StringEncoder_Multi_Compressed(t *testing.T) {
 
 func Test_StringEncoder_Quick(t *testing.T) {
 	quick.Check(func(values []string) bool {
-		expected := values
 		if values == nil {
-			expected = []string{}
+			values = []string{}
 		}
 		// Write values to encoder.
 		enc := NewStringEncoder(1024)
@@ -122,8 +121,8 @@ func Test_StringEncoder_Quick(t *testing.T) {
 		}
 
 		// Verify that input and output values match.
-		if !reflect.DeepEqual(expected, got) {
-			t.Fatalf("mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", expected, got)
+		if !reflect.DeepEqual(values, got) {
+			t.Fatalf("mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", values, got)
 		}
 
 		return true
