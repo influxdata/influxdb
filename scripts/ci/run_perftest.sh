@@ -5,7 +5,10 @@ wget -qO- https://repos.influxdata.com/influxdb.key | apt-key add -
 echo "deb https://repos.influxdata.com/ubuntu focal stable" | tee /etc/apt/sources.list.d/influxdb.list
 
 DEBIAN_FRONTEND=noninteractive apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y git jq telegraf
+DEBIAN_FRONTEND=noninteractive apt-get install -y git jq telegraf awscli
+
+root_branch="$(echo "${INFLUXDB_VERSION}" | rev | cut -d '-' -f1 | rev)"
+trap "aws s3 cp /home/ubuntu/perftest_log.txt s3://perftest-logs-influxdb/oss/$root_branch/${TEST_COMMIT}-$(date +%Y%m%d%H%M%S).log" EXIT KILL
 
 working_dir=$(mktemp -d)
 mkdir -p /etc/telegraf
@@ -31,7 +34,8 @@ cat << EOF > /etc/telegraf/telegraf.conf
   json_time_format = "unix"
   tag_keys = [
     "i_type",
-    "branch"
+    "branch",
+    "commit"
   ]
 EOF
 systemctl restart telegraf
@@ -89,6 +93,9 @@ for scale in 50 100 500; do
     cat ${DATASET_DIR}/$data_fname | $GOPATH/bin/bulk_load_influx $load_opts | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\"}" > $working_dir/test-$test_type-$scale_string-batchsize-$batch-workers-$workers.json
   done
 done
+
+echo "Using Telegraph to report results from the following files:"
+ls $working_dir
 
 telegraf --once
 
