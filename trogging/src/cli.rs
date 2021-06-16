@@ -1,6 +1,6 @@
 ///! Common CLI flags for logging and tracing
 use crate::{config::*, Builder, Result, TracingGuard};
-use observability_deps::tracing_subscriber::fmt::writer::BoxMakeWriter;
+use observability_deps::tracing_subscriber::fmt::{writer::BoxMakeWriter, MakeWriter};
 use std::num::NonZeroU16;
 use structopt::StructOpt;
 
@@ -20,8 +20,13 @@ pub struct TracingConfig {
     ///
     /// Extended syntax provided by `tracing-subscriber` includes span/field
     /// filters. See <https://docs.rs/tracing-subscriber/0.2.17/tracing_subscriber/filter/struct.EnvFilter.html> for more details.
-    #[structopt(long = "--log-filter", env = "LOG_FILTER", default_value = "warn")]
-    pub log_filter: String,
+    ///
+    /// Overridden by `-v`.
+    ///
+    /// If None, [`crate::Builder`] sets a default, by default [`crate::Builder::DEFAULT_LOG_FILTER`],
+    /// but overrideable with [`crate::Builder::with_default_log_filter`].
+    #[structopt(long = "--log-filter", env = "LOG_FILTER")]
+    pub log_filter: Option<String>,
 
     /// Logs: filter short-hand
     ///
@@ -236,7 +241,14 @@ pub struct TracingConfig {
 
 impl TracingConfig {
     pub fn to_builder(&self) -> Builder<BoxMakeWriter> {
-        Builder::new()
+        self.with_builder(Builder::new())
+    }
+
+    pub fn with_builder<W>(&self, builder: Builder<W>) -> Builder<BoxMakeWriter>
+    where
+        W: MakeWriter + Send + Sync + Clone + 'static,
+    {
+        builder
             .with_log_filter(&self.log_filter)
             // with_verbose_count goes after with_log_filter because our CLI flag state
             // that --v overrides --log-filter.
@@ -260,6 +272,21 @@ impl TracingConfig {
 
     pub fn install_global_subscriber(&self) -> Result<TracingGuard> {
         self.to_builder().install_global()
+    }
+}
+
+/// Extends the trogging [`crate::Builder`] API.
+pub trait TracingConfigBuilderExt {
+    /// Applies all config entries from a [`TracingConfig`] to a [`crate::Builder`].
+    fn with_config(self, config: &TracingConfig) -> Builder<BoxMakeWriter>;
+}
+
+impl<W> TracingConfigBuilderExt for Builder<W>
+where
+    W: MakeWriter + Send + Sync + Clone + 'static,
+{
+    fn with_config(self, config: &TracingConfig) -> Builder<BoxMakeWriter> {
+        config.with_builder(self)
     }
 }
 
@@ -330,6 +357,44 @@ WARN woo
 INFO bar
 DEBUG baz
 TRACE trax
+"#
+            .trim_start(),
+        );
+    }
+
+    #[test]
+    fn test_custom_default_log_level() {
+        let cfg = TracingConfig::from_iter_safe(to_vec(&["cli"])).unwrap();
+
+        assert_eq!(
+            simple_test(
+                Builder::new()
+                    .with_default_log_filter("debug")
+                    .with_config(&cfg)
+            )
+            .without_timestamps(),
+            r#"
+ERROR foo
+WARN woo
+INFO bar
+DEBUG baz
+"#
+            .trim_start(),
+        );
+
+        let cfg = TracingConfig::from_iter_safe(to_vec(&["cli", "--log-filter=info"])).unwrap();
+
+        assert_eq!(
+            simple_test(
+                Builder::new()
+                    .with_default_log_filter("debug")
+                    .with_config(&cfg)
+            )
+            .without_timestamps(),
+            r#"
+ERROR foo
+WARN woo
+INFO bar
 "#
             .trim_start(),
         );
