@@ -51,11 +51,16 @@ running Kafka instance.
 There is a Docker Compose file for running Kafka and Zookeeper using Docker in
 `docker/ci-kafka-docker-compose.yml` that CI also uses to run the integration tests.
 
-If you want to compile the tests and run `cargo test` on your local machine (as opposed to another
-Docker container, which is what CI does), you can start Kafka using the Docker Compose file with:
+You have two options for running `cargo test`: on your local (host) machine (likely what you
+normally do with tests), or within another Docker container (what CI does).
+
+### Running `cargo test` on the host machine
+
+If you want to compile the tests and run `cargo test` on your local machine, you can start Kafka
+using the Docker Compose file with:
 
 ```
-$ docker compose -f docker/ci-kafka-docker-compose.yml up kafka
+$ docker-compose -f docker/ci-kafka-docker-compose.yml up kafka
 ```
 
 You can then run the tests with `KAFKA_CONNECT=localhost:9093`. To run just the Kafka integration
@@ -65,9 +70,15 @@ tests, the full command would then be:
 TEST_INTEGRATION=1 KAFKA_CONNECT=localhost:9093 cargo test -p influxdb_iox --test end-to-end write_buffer
 ```
 
-Alternatively, you can compile the tests and run `cargo test` in a Docker container as well, by
-running this Docker Compose command that uses `docker/Dockerfile.ci.integration`:
+### Running `cargo test` in a Docker container
+
+Alternatively, you can do what CI does by compiling the tests and running `cargo test` in a Docker
+container as well, by running this Docker Compose command that uses
+`docker/Dockerfile.ci.integration`:
 
 ```
 docker-compose -f docker/ci-kafka-docker-compose.yml up --build --force-recreate --exit-code-from rust
 ```
+
+Because the `rust` service depends on the `kafka` service in the Docker Compose file, you don't
+need to start the `kafka` service separately.
