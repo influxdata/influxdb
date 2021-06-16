@@ -1,6 +1,9 @@
 //! Log and trace initialization and setup
 
+#[cfg(feature = "structopt")]
+pub mod cli;
 pub mod config;
+
 pub use config::*;
 
 use observability_deps::{
@@ -17,7 +20,6 @@ use observability_deps::{
     },
 };
 use std::io;
-use std::num::NonZeroU16;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -32,7 +34,7 @@ pub enum Error {
     SetGlobalDefaultError(#[from] tracing::dispatcher::SetGlobalDefaultError),
 }
 
-type Result<T, E = Error> = std::result::Result<T, E>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Builder for tracing and logging.
 pub struct Builder<W = fn() -> io::Stdout> {
@@ -47,18 +49,6 @@ pub struct Builder<W = fn() -> io::Stdout> {
     with_ansi: bool,
     jaeger_config: Option<JaegerConfig>,
     otlp_config: Option<OtlpConfig>,
-}
-
-pub struct JaegerConfig {
-    pub agent_host: String,
-    pub agent_port: NonZeroU16,
-    pub service_name: String,
-    pub max_packet_size: usize,
-}
-
-pub struct OtlpConfig {
-    pub host: String,
-    pub port: NonZeroU16,
 }
 
 impl Default for Builder {
@@ -451,19 +441,19 @@ pub mod test_util {
         }
     }
 
-    /// This is a test helper that creates a builder with a few test-friendly parameters
-    /// such as disabled ANSI escape sequences. The caller provides a function to further customize
-    /// the builder. This helper then emits a few logs of different verbosity levels and compares the output
-    /// with the provided `want` string.
-    pub fn simple_test<F, W>(setup: F, want: impl AsRef<str>)
+    /// This is a test helper that sets a few  test-friendly parameters
+    /// such as disabled ANSI escape sequences on the provided builder.
+    /// This helper then emits a few logs of different verbosity levels
+    /// and returns the captured output.
+    pub fn simple_test<W>(builder: Builder<W>) -> Captured
     where
-        F: FnOnce(Builder) -> Builder<W>,
         W: MakeWriter + Send + Sync + 'static,
     {
         let (writer, output) = TestWriter::new();
-        let builder = Builder::new().with_target(false).with_ansi(false);
-        let subscriber = setup(builder)
+        let subscriber = builder
             .with_writer(writer)
+            .with_target(false)
+            .with_ansi(false)
             .build()
             .expect("subscriber");
 
@@ -475,8 +465,7 @@ pub mod test_util {
             trace!("trax");
         });
 
-        let want = want.as_ref();
-        assert_eq!(output.without_timestamps(), want);
+        output
     }
 }
 
@@ -488,8 +477,8 @@ mod tests {
 
     #[test]
     fn simple_logging() {
-        simple_test(
-            |builder| builder,
+        assert_eq!(
+            simple_test(Builder::new()).without_timestamps(),
             r#"
 ERROR foo
 WARN woo
@@ -500,8 +489,8 @@ WARN woo
 
     #[test]
     fn simple_logging_logfmt() {
-        simple_test(
-            |builder| builder.with_log_format(LogFormat::Logfmt),
+        assert_eq!(
+            simple_test(Builder::new().with_log_format(LogFormat::Logfmt)).without_timestamps(),
             r#"
 level=error msg=foo
 level=warn msg=woo
@@ -512,8 +501,8 @@ level=warn msg=woo
 
     #[test]
     fn verbose_count() {
-        simple_test(
-            |builder| builder.with_log_verbose_count(0),
+        assert_eq!(
+            simple_test(Builder::new().with_log_verbose_count(0)).without_timestamps(),
             r#"
 ERROR foo
 WARN woo
@@ -521,8 +510,8 @@ WARN woo
             .trim_start(),
         );
 
-        simple_test(
-            |builder| builder.with_log_verbose_count(1),
+        assert_eq!(
+            simple_test(Builder::new().with_log_verbose_count(1)).without_timestamps(),
             r#"
 ERROR foo
 WARN woo
@@ -531,8 +520,8 @@ INFO bar
             .trim_start(),
         );
 
-        simple_test(
-            |builder| builder.with_log_verbose_count(2),
+        assert_eq!(
+            simple_test(Builder::new().with_log_verbose_count(2)).without_timestamps(),
             r#"
 ERROR foo
 WARN woo
@@ -542,8 +531,8 @@ DEBUG baz
             .trim_start(),
         );
 
-        simple_test(
-            |builder| builder.with_log_verbose_count(3),
+        assert_eq!(
+            simple_test(Builder::new().with_log_verbose_count(3)).without_timestamps(),
             r#"
 ERROR foo
 WARN woo

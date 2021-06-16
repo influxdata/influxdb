@@ -63,7 +63,7 @@ query = { path = "query" }
 read_buffer = { path = "read_buffer" }
 server = { path = "server" }
 tracker = { path = "tracker" }
-trogging = { path = "trogging" }
+trogging = { path = "trogging", features = ["structopt"] }
 
 # Crates.io dependencies, in alphabetical order
 arrow = { version = "4.0", features = ["prettyprint"] }

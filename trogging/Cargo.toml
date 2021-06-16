@@ -14,6 +14,7 @@ opentelemetry-jaeger = { version = "0.12", features = ["tokio"] }
 opentelemetry-otlp = "0.6"
 thiserror = "1.0.23"
 tracing-opentelemetry = { version = "0.12", default-features = false }
+structopt = { version = "0.3.21", optional = true }
 
 [dev-dependencies]
 synchronized-writer = "1"
