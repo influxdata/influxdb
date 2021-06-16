@@ -189,8 +189,6 @@ func (s *Service) ListAnnotations(ctx context.Context, orgID platform.ID, filter
 
 	ans := []influxdb.StoredAnnotation{}
 	if err := s.store.DB.SelectContext(ctx, &ans, sql, args...); err != nil {
-		fmt.Println("got this as the error")
-		fmt.Println(err)
 		return nil, err
 	}
 
