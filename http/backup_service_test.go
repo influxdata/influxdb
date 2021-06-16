@@ -7,7 +7,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -69,11 +68,9 @@ func TestBackupMetaService(t *testing.T) {
 	require.NoError(t, err)
 	mr := multipart.NewReader(rs.Body, params["boundary"])
 
-	// Go through the parts of the response and collect the form and file names.
-	// The file from the part could be read using something like ioutil.ReadAll, but for testing
-	// the contents of the part is not meaningful.
-	got := make(map[string]string)
+	// Go through the parts of the response and verify the part names appear in the correct order
 	wantContentTypes := []string{"application/octet-stream", "application/octet-stream", "application/json; charset=utf-8"}
+	wantPartNames := []string{"kv", "sql", "buckets"}
 	for i := 0; ; i++ {
 		p, err := mr.NextPart()
 		if err == io.EOF {
@@ -84,23 +81,7 @@ func TestBackupMetaService(t *testing.T) {
 
 		_, params, err := mime.ParseMediaType(p.Header.Get("Content-Disposition"))
 		require.NoError(t, err)
-		got[params["name"]] = p.FileName()
-	}
-
-	// wants is a map of form names with the expected extension of the file for that part
-	wants := map[string]string{
-		"kv":      ".bolt",
-		"sql":     ".sqlite",
-		"buckets": ".json",
-	}
-
-	// make sure all of the parts that we want are present in the parsed response
-	for formName, ext := range wants {
-		gotFile, ok := got[formName]
-		require.True(t, ok)
-
-		gotExt := filepath.Ext(gotFile)
-		require.Equal(t, ext, gotExt)
+		require.Equal(t, wantPartNames[i], params["name"])
 	}
 }
 

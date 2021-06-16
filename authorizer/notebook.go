@@ -73,5 +73,11 @@ func (s *NotebookService) ListNotebooks(ctx context.Context, filter influxdb.Not
 		return nil, err
 	}
 
-	return s.s.ListNotebooks(ctx, filter)
+	ns, err := s.s.ListNotebooks(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	ns, _, err = AuthorizeFindNotebooks(ctx, ns)
+	return ns, err
 }

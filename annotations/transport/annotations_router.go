@@ -3,7 +3,6 @@ package transport
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -252,16 +251,11 @@ func storedAnnotationsToReadAnnotations(s []influxdb.StoredAnnotation) (influxdb
 	r := influxdb.ReadAnnotations{}
 
 	for _, val := range s {
-		stickers, err := stickerSliceToMap(val.Stickers)
-		if err != nil {
-			return nil, err
-		}
-
 		r[val.StreamTag] = append(r[val.StreamTag], influxdb.ReadAnnotation{
 			ID:        val.ID,
 			Summary:   val.Summary,
 			Message:   val.Message,
-			Stickers:  stickers,
+			Stickers:  val.Stickers,
 			StartTime: val.Lower,
 			EndTime:   val.Upper,
 		})
@@ -281,34 +275,15 @@ func storedAnnotationToEvent(s *influxdb.StoredAnnotation) (*influxdb.Annotation
 		return nil, err
 	}
 
-	stickers, err := stickerSliceToMap(s.Stickers)
-	if err != nil {
-		return nil, err
-	}
-
 	return &influxdb.AnnotationEvent{
 		ID: s.ID,
 		AnnotationCreate: influxdb.AnnotationCreate{
 			StreamTag: s.StreamTag,
 			Summary:   s.Summary,
 			Message:   s.Message,
-			Stickers:  stickers,
+			Stickers:  s.Stickers,
 			EndTime:   et,
 			StartTime: st,
 		},
 	}, nil
-}
-
-func stickerSliceToMap(stickers []string) (map[string]string, error) {
-	stickerMap := map[string]string{}
-
-	for i := range stickers {
-		sticks := strings.SplitN(stickers[i], "=", 2)
-		if len(sticks) < 2 {
-			return nil, invalidStickerError(stickers[i])
-		}
-		stickerMap[sticks[0]] = sticks[1]
-	}
-
-	return stickerMap, nil
 }

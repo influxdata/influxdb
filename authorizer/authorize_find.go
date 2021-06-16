@@ -128,6 +128,24 @@ func AuthorizeFindStreams(ctx context.Context, rs []influxdb.StoredStream) ([]in
 	return rrs, len(rrs), nil
 }
 
+// AuthorizeFindNotebooks takes the given items and returns only the ones that the user is authorized to read.
+func AuthorizeFindNotebooks(ctx context.Context, rs []*influxdb.Notebook) ([]*influxdb.Notebook, int, error) {
+	// This filters without allocating
+	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
+	rrs := rs[:0]
+	for _, r := range rs {
+		_, _, err := AuthorizeRead(ctx, influxdb.NotebooksResourceType, r.ID, r.OrgID)
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
+			return nil, 0, err
+		}
+		if errors.ErrorCode(err) == errors.EUnauthorized {
+			continue
+		}
+		rrs = append(rrs, r)
+	}
+	return rrs, len(rrs), nil
+}
+
 // AuthorizeFindOrganizations takes the given items and returns only the ones that the user is authorized to read.
 func AuthorizeFindOrganizations(ctx context.Context, rs []*influxdb.Organization) ([]*influxdb.Organization, int, error) {
 	// This filters without allocating
