@@ -156,20 +156,30 @@ func (s *Service) ListAnnotations(ctx context.Context, orgID platform.ID, filter
 
 	q := sq.Select("annotations.*", "streams.name AS stream").
 		Distinct().
-		From("annotations, json_each(annotations.stickers) AS json").
 		InnerJoin("streams ON annotations.stream_id = streams.id").
 		Where(sq.Eq{"annotations.org_id": orgID}).
 		Where(sq.GtOrEq{"lower": sf}).
 		Where(sq.LtOrEq{"upper": ef})
 
+	// If the filter contains stickers, use the json_each table value function to break out
+	// rows with the sticker array values. If the filter does not contain stickers, using
+	// the json_each TVF would exclude annotations with an empty array of stickers, so select
+	// from the annotations table only. This allows a filter with no sticker constraints to
+	// return annotations that don't have any stickers.
+	if len(filter.StickerIncludes) > 0 {
+		q = q.From("annotations, json_each(annotations.stickers) AS json")
+
+		// Add sticker filters to the query
+		for k, v := range filter.StickerIncludes {
+			q = q.Where(sq.And{sq.Eq{"json.value": fmt.Sprintf("%s=%s", k, v)}})
+		}
+	} else {
+		q = q.From("annotations")
+	}
+
 	// Add stream name filters to the query
 	if len(filter.StreamIncludes) > 0 {
 		q = q.Where(sq.Eq{"stream": filter.StreamIncludes})
-	}
-
-	// Add sticker filters to the query
-	for k, v := range filter.StickerIncludes {
-		q = q.Where(sq.And{sq.Eq{"json.value": fmt.Sprintf("%s=%s", k, v)}})
 	}
 
 	sql, args, err := q.ToSql()
@@ -221,11 +231,26 @@ func (s *Service) DeleteAnnotations(ctx context.Context, orgID platform.ID, dele
 	// A subquery is used because the json_each virtual table can only be used in a SELECT
 	subQ := sq.Select("annotations.id").
 		Distinct().
-		From("annotations, json_each(annotations.stickers) AS json").
 		InnerJoin("streams ON annotations.stream_id = streams.id").
 		Where(sq.Eq{"annotations.org_id": orgID}).
 		Where(sq.GtOrEq{"lower": sf}).
 		Where(sq.LtOrEq{"upper": ef})
+
+	// If the filter contains stickers, use the json_each table value function to break out
+	// rows with the sticker array values. If the filter does not contain stickers, using
+	// the json_each TVF would exclude annotations with an empty array of stickers, so select
+	// from the annotations table only. This allows a filter with no sticker constraints to
+	// delete annotations that don't have any stickers.
+	if len(delete.Stickers) > 0 {
+		subQ = subQ.From("annotations, json_each(annotations.stickers) AS json")
+
+		// Add sticker filters to the subquery
+		for k, v := range delete.Stickers {
+			subQ = subQ.Where(sq.And{sq.Eq{"json.value": fmt.Sprintf("%s=%s", k, v)}})
+		}
+	} else {
+		subQ = subQ.From("annotations")
+	}
 
 	// Add the stream name filter to the subquery (if present)
 	if len(delete.StreamTag) > 0 {
@@ -237,16 +262,12 @@ func (s *Service) DeleteAnnotations(ctx context.Context, orgID platform.ID, dele
 		subQ = subQ.Where(sq.Eq{"stream_id": delete.StreamID})
 	}
 
-	// Add any sticker filters to the subquery
-	for k, v := range delete.Stickers {
-		subQ = subQ.Where(sq.And{sq.Eq{"json.value": fmt.Sprintf("%s=%s", k, v)}})
-	}
-
 	// Parse the subquery into a string and list of args
 	subQuery, subArgs, err := subQ.ToSql()
 	if err != nil {
 		return err
 	}
+
 	// Convert the subquery into a sq.Sqlizer so that it can be used in the actual DELETE
 	// operation. This is a bit of a hack since squirrel doesn't have great support for subqueries
 	// outside of SELECT statements

@@ -35,6 +35,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 	//          st1    et1
 	//      st2    et2
 	//  st3     et3
+	//  st4     et4
 
 	et1 := time.Now().UTC()
 	st1 := et1.Add(-10 * time.Minute)
@@ -44,6 +45,9 @@ func TestAnnotationsCRUD(t *testing.T) {
 
 	et3 := et1.Add(-10 * time.Minute)
 	st3 := et2.Add(-15 * time.Minute)
+
+	et4 := et3
+	st4 := st3
 
 	// used for tests involving time filters
 	earlierEt1 := et1.Add(-1 * time.Millisecond)
@@ -97,18 +101,34 @@ func TestAnnotationsCRUD(t *testing.T) {
 	c3, err := s3.ToCreate()
 	require.NoError(t, err)
 
+	// s4 is an annotation without any stickers, with the same start/end time as s3
+	s4 := influxdb.StoredAnnotation{
+		OrgID:     orgID,
+		StreamTag: "stream4",
+		Summary:   "summary4",
+		Message:   "message4",
+		Stickers:  map[string]string{},
+		Duration:  timesToDuration(st4, et4),
+		Lower:     st3.Format(time.RFC3339Nano),
+		Upper:     et3.Format(time.RFC3339Nano),
+	}
+
+	c4, err := s4.ToCreate()
+	require.NoError(t, err)
+
 	// helper function for setting up the database with data that can be used for tests
 	// that involve querying the database. uses the annotations objects initialized above
 	// via the closure.
 	populateAnnotationsData := func(t *testing.T, svc *Service) []influxdb.AnnotationEvent {
 		t.Helper()
 
-		got, err := svc.CreateAnnotations(ctx, orgID, []influxdb.AnnotationCreate{*c1, *c2, *c3})
+		got, err := svc.CreateAnnotations(ctx, orgID, []influxdb.AnnotationCreate{*c1, *c2, *c3, *c4})
 		require.NoError(t, err)
 		assertAnnotationEvents(t, got, []influxdb.AnnotationEvent{
 			{AnnotationCreate: *c1},
 			{AnnotationCreate: *c2},
 			{AnnotationCreate: *c3},
+			{AnnotationCreate: *c4},
 		})
 
 		return got
@@ -130,19 +150,22 @@ func TestAnnotationsCRUD(t *testing.T) {
 			},
 			{
 				"creates annotations successfully",
-				[]influxdb.AnnotationCreate{*c1, *c2, *c3},
+				[]influxdb.AnnotationCreate{*c1, *c2, *c3, *c4},
 				[]influxdb.AnnotationEvent{
 					{AnnotationCreate: *c1},
 					{AnnotationCreate: *c2},
 					{AnnotationCreate: *c3},
+					{AnnotationCreate: *c4},
 				},
 			},
 		}
 
 		for _, tt := range tests {
-			got, err := svc.CreateAnnotations(ctx, orgID, tt.creates)
-			require.NoError(t, err)
-			assertAnnotationEvents(t, got, tt.want)
+			t.Run(tt.name, func(t *testing.T) {
+				got, err := svc.CreateAnnotations(ctx, orgID, tt.creates)
+				require.NoError(t, err)
+				assertAnnotationEvents(t, got, tt.want)
+			})
 		}
 	})
 
@@ -166,7 +189,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 						EndTime:   &et1,
 					},
 				},
-				[]influxdb.StoredAnnotation{s1, s2, s3},
+				[]influxdb.StoredAnnotation{s1, s2, s3, s4},
 			},
 			{
 				"doesn't get results for other org",
@@ -188,7 +211,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 						EndTime:   &earlierEt1,
 					},
 				},
-				[]influxdb.StoredAnnotation{s2, s3},
+				[]influxdb.StoredAnnotation{s2, s3, s4},
 			},
 			{
 				"start time will filter out annotations",
@@ -432,11 +455,11 @@ func TestAnnotationsCRUD(t *testing.T) {
 					get, getErr := svc.GetAnnotation(ctx, tt.id)
 
 					if tt.shouldDelete {
-						require.Equal(t, 2, len(list))
+						require.Equal(t, 3, len(list))
 						require.Nil(t, get)
 						require.Equal(t, errAnnotationNotFound, getErr)
 					} else {
-						require.Equal(t, 3, len(list))
+						require.Equal(t, 4, len(list))
 						require.NoError(t, getErr)
 						require.Equal(t, *get, ans[0])
 					}
@@ -463,7 +486,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 						StartTime: &st1,
 						EndTime:   &earlierEt1,
 					},
-					[]influxdb.StoredAnnotation{s1, s2, s3},
+					[]influxdb.StoredAnnotation{s1, s2, s3, s4},
 				},
 				{
 					"matches stream tag and time range",
@@ -473,7 +496,17 @@ func TestAnnotationsCRUD(t *testing.T) {
 						StartTime: &st1,
 						EndTime:   &et1,
 					},
-					[]influxdb.StoredAnnotation{s2, s3},
+					[]influxdb.StoredAnnotation{s2, s3, s4},
+				},
+				{
+					"matches stream tag and time range for item with no stickers",
+					orgID,
+					influxdb.AnnotationDeleteFilter{
+						StreamTag: "stream4",
+						StartTime: &st4,
+						EndTime:   &et4,
+					},
+					[]influxdb.StoredAnnotation{s1, s2, s3},
 				},
 				{
 					"matches stream tag for multiple",
@@ -483,7 +516,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 						StartTime: &st3,
 						EndTime:   &et1,
 					},
-					[]influxdb.StoredAnnotation{s1},
+					[]influxdb.StoredAnnotation{s1, s4},
 				},
 				{
 					"matches stream tag but wrong org",
@@ -493,7 +526,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 						StartTime: &st1,
 						EndTime:   &et1,
 					},
-					[]influxdb.StoredAnnotation{s1, s2, s3},
+					[]influxdb.StoredAnnotation{s1, s2, s3, s4},
 				},
 
 				{
@@ -504,7 +537,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 						StartTime: &st1,
 						EndTime:   &earlierEt1,
 					},
-					[]influxdb.StoredAnnotation{s1, s2, s3},
+					[]influxdb.StoredAnnotation{s1, s2, s3, s4},
 				},
 				{
 					"matches stickers and time range",
@@ -514,7 +547,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 						StartTime: &st1,
 						EndTime:   &et1,
 					},
-					[]influxdb.StoredAnnotation{s2, s3},
+					[]influxdb.StoredAnnotation{s2, s3, s4},
 				},
 				{
 					"matches stickers for multiple",
@@ -524,7 +557,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 						StartTime: &st2,
 						EndTime:   &et1,
 					},
-					[]influxdb.StoredAnnotation{s3},
+					[]influxdb.StoredAnnotation{s3, s4},
 				},
 				{
 					"matches stickers but wrong org",
@@ -534,7 +567,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 						StartTime: &st1,
 						EndTime:   &et1,
 					},
-					[]influxdb.StoredAnnotation{s1, s2, s3},
+					[]influxdb.StoredAnnotation{s1, s2, s3, s4},
 				},
 			}
 
@@ -551,7 +584,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 					f.Validate(time.Now)
 					list, err := svc.ListAnnotations(ctx, orgID, f)
 					require.NoError(t, err)
-					assertStoredAnnotations(t, tt.wantList, list)
+					assertStoredAnnotations(t, list, tt.wantList)
 				})
 			}
 		})
@@ -697,8 +730,10 @@ func TestAnnotationsCRUD(t *testing.T) {
 		err = svc.DeleteStreamByID(ctx, streamID)
 		require.NoError(t, err)
 
-		// s1 should still be there
+		// s1 and s4 should still be there
 		s1, err := svc.GetAnnotation(ctx, ans[0].ID)
+		require.NoError(t, err)
+		s4, err := svc.GetAnnotation(ctx, ans[3].ID)
 		require.NoError(t, err)
 
 		// both s2 and s3 should now be deleted
@@ -706,7 +741,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 		f.Validate(time.Now)
 		remaining, err := svc.ListAnnotations(ctx, orgID, f)
 		require.NoError(t, err)
-		require.Equal(t, []influxdb.StoredAnnotation{*s1}, remaining)
+		require.Equal(t, []influxdb.StoredAnnotation{*s1, *s4}, remaining)
 	})
 
 	t.Run("renamed streams are reflected in subsequent annotation queries", func(t *testing.T) {
