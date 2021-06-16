@@ -12,7 +12,6 @@ import (
 	"context"
 	"io"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -376,7 +375,6 @@ func (itr *floatSortedMergeIterator) pop() (*FloatPoint, error) {
 			}
 			itr.heap.items = append(itr.heap.items, item)
 		}
-		itr.heap.detectFast()
 		heap.Init(itr.heap)
 		itr.init = true
 	}
@@ -414,57 +412,11 @@ func (itr *floatSortedMergeIterator) pop() (*FloatPoint, error) {
 type floatSortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*floatSortedMergeHeapItem
-	// if each input comes from a unique single time series, we can make a shortcut.
-	// detection of the shortcut introduces some overhead but it gets significant
-	// performance improvement in cases like SELECT * FROM m GROUP BY *
-	fast bool
-}
-
-func (h *floatSortedMergeHeap) detectFast() {
-	for _, item := range h.items {
-		if item.itr.Stats().SeriesN != 1 {
-			return
-		}
-	}
-
-	hasDup := false
-	s := make([]*floatSortedMergeHeapItem, len(h.items))
-	copy(s, h.items)
-
-	less := func(i, j int) bool {
-		x, y := s[i].point, s[j].point
-		ret := strings.Compare(x.Name, y.Name)
-		if ret == 0 {
-			ret = strings.Compare(x.Tags.ID(), y.Tags.ID())
-		}
-		if ret != 0 {
-			// TT
-			// ret | == -1 | h.opt.Ascending | result
-			//  1  | false |  false          | true
-			// -1  | true  |  false          | false
-			//  1  | false |  true           | false
-			// -1  | true  |  true           | true
-			return ret == -1 == h.opt.Ascending
-		}
-		hasDup = true
-		return false
-	}
-	sort.Slice(s, less)
-	if !hasDup {
-		h.fast = true
-		for i, item := range s {
-			item.fastIdx = i
-		}
-	}
 }
 
 func (h *floatSortedMergeHeap) Len() int      { return len(h.items) }
 func (h *floatSortedMergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
 func (h *floatSortedMergeHeap) Less(i, j int) bool {
-	if h.fast {
-		return h.items[i].fastIdx < h.items[j].fastIdx
-	}
-
 	x, y := h.items[i].point, h.items[j].point
 
 	if h.opt.Ascending {
@@ -538,8 +490,6 @@ type floatSortedMergeHeapItem struct {
 	point *FloatPoint
 	err   error
 	itr   FloatIterator
-	// index for fast shortcut
-	fastIdx int
 }
 
 // floatIteratorScanner scans the results of a FloatIterator into a map.
@@ -3089,7 +3039,6 @@ func (itr *integerSortedMergeIterator) pop() (*IntegerPoint, error) {
 			}
 			itr.heap.items = append(itr.heap.items, item)
 		}
-		itr.heap.detectFast()
 		heap.Init(itr.heap)
 		itr.init = true
 	}
@@ -3127,57 +3076,11 @@ func (itr *integerSortedMergeIterator) pop() (*IntegerPoint, error) {
 type integerSortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*integerSortedMergeHeapItem
-	// if each input comes from a unique single time series, we can make a shortcut.
-	// detection of the shortcut introduces some overhead but it gets significant
-	// performance improvement in cases like SELECT * FROM m GROUP BY *
-	fast bool
-}
-
-func (h *integerSortedMergeHeap) detectFast() {
-	for _, item := range h.items {
-		if item.itr.Stats().SeriesN != 1 {
-			return
-		}
-	}
-
-	hasDup := false
-	s := make([]*integerSortedMergeHeapItem, len(h.items))
-	copy(s, h.items)
-
-	less := func(i, j int) bool {
-		x, y := s[i].point, s[j].point
-		ret := strings.Compare(x.Name, y.Name)
-		if ret == 0 {
-			ret = strings.Compare(x.Tags.ID(), y.Tags.ID())
-		}
-		if ret != 0 {
-			// TT
-			// ret | == -1 | h.opt.Ascending | result
-			//  1  | false |  false          | true
-			// -1  | true  |  false          | false
-			//  1  | false |  true           | false
-			// -1  | true  |  true           | true
-			return ret == -1 == h.opt.Ascending
-		}
-		hasDup = true
-		return false
-	}
-	sort.Slice(s, less)
-	if !hasDup {
-		h.fast = true
-		for i, item := range s {
-			item.fastIdx = i
-		}
-	}
 }
 
 func (h *integerSortedMergeHeap) Len() int      { return len(h.items) }
 func (h *integerSortedMergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
 func (h *integerSortedMergeHeap) Less(i, j int) bool {
-	if h.fast {
-		return h.items[i].fastIdx < h.items[j].fastIdx
-	}
-
 	x, y := h.items[i].point, h.items[j].point
 
 	if h.opt.Ascending {
@@ -3251,8 +3154,6 @@ type integerSortedMergeHeapItem struct {
 	point *IntegerPoint
 	err   error
 	itr   IntegerIterator
-	// index for fast shortcut
-	fastIdx int
 }
 
 // integerIteratorScanner scans the results of a IntegerIterator into a map.
@@ -5802,7 +5703,6 @@ func (itr *unsignedSortedMergeIterator) pop() (*UnsignedPoint, error) {
 			}
 			itr.heap.items = append(itr.heap.items, item)
 		}
-		itr.heap.detectFast()
 		heap.Init(itr.heap)
 		itr.init = true
 	}
@@ -5840,57 +5740,11 @@ func (itr *unsignedSortedMergeIterator) pop() (*UnsignedPoint, error) {
 type unsignedSortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*unsignedSortedMergeHeapItem
-	// if each input comes from a unique single time series, we can make a shortcut.
-	// detection of the shortcut introduces some overhead but it gets significant
-	// performance improvement in cases like SELECT * FROM m GROUP BY *
-	fast bool
-}
-
-func (h *unsignedSortedMergeHeap) detectFast() {
-	for _, item := range h.items {
-		if item.itr.Stats().SeriesN != 1 {
-			return
-		}
-	}
-
-	hasDup := false
-	s := make([]*unsignedSortedMergeHeapItem, len(h.items))
-	copy(s, h.items)
-
-	less := func(i, j int) bool {
-		x, y := s[i].point, s[j].point
-		ret := strings.Compare(x.Name, y.Name)
-		if ret == 0 {
-			ret = strings.Compare(x.Tags.ID(), y.Tags.ID())
-		}
-		if ret != 0 {
-			// TT
-			// ret | == -1 | h.opt.Ascending | result
-			//  1  | false |  false          | true
-			// -1  | true  |  false          | false
-			//  1  | false |  true           | false
-			// -1  | true  |  true           | true
-			return ret == -1 == h.opt.Ascending
-		}
-		hasDup = true
-		return false
-	}
-	sort.Slice(s, less)
-	if !hasDup {
-		h.fast = true
-		for i, item := range s {
-			item.fastIdx = i
-		}
-	}
 }
 
 func (h *unsignedSortedMergeHeap) Len() int      { return len(h.items) }
 func (h *unsignedSortedMergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
 func (h *unsignedSortedMergeHeap) Less(i, j int) bool {
-	if h.fast {
-		return h.items[i].fastIdx < h.items[j].fastIdx
-	}
-
 	x, y := h.items[i].point, h.items[j].point
 
 	if h.opt.Ascending {
@@ -5964,8 +5818,6 @@ type unsignedSortedMergeHeapItem struct {
 	point *UnsignedPoint
 	err   error
 	itr   UnsignedIterator
-	// index for fast shortcut
-	fastIdx int
 }
 
 // unsignedIteratorScanner scans the results of a UnsignedIterator into a map.
@@ -8515,7 +8367,6 @@ func (itr *stringSortedMergeIterator) pop() (*StringPoint, error) {
 			}
 			itr.heap.items = append(itr.heap.items, item)
 		}
-		itr.heap.detectFast()
 		heap.Init(itr.heap)
 		itr.init = true
 	}
@@ -8553,57 +8404,11 @@ func (itr *stringSortedMergeIterator) pop() (*StringPoint, error) {
 type stringSortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*stringSortedMergeHeapItem
-	// if each input comes from a unique single time series, we can make a shortcut.
-	// detection of the shortcut introduces some overhead but it gets significant
-	// performance improvement in cases like SELECT * FROM m GROUP BY *
-	fast bool
-}
-
-func (h *stringSortedMergeHeap) detectFast() {
-	for _, item := range h.items {
-		if item.itr.Stats().SeriesN != 1 {
-			return
-		}
-	}
-
-	hasDup := false
-	s := make([]*stringSortedMergeHeapItem, len(h.items))
-	copy(s, h.items)
-
-	less := func(i, j int) bool {
-		x, y := s[i].point, s[j].point
-		ret := strings.Compare(x.Name, y.Name)
-		if ret == 0 {
-			ret = strings.Compare(x.Tags.ID(), y.Tags.ID())
-		}
-		if ret != 0 {
-			// TT
-			// ret | == -1 | h.opt.Ascending | result
-			//  1  | false |  false          | true
-			// -1  | true  |  false          | false
-			//  1  | false |  true           | false
-			// -1  | true  |  true           | true
-			return ret == -1 == h.opt.Ascending
-		}
-		hasDup = true
-		return false
-	}
-	sort.Slice(s, less)
-	if !hasDup {
-		h.fast = true
-		for i, item := range s {
-			item.fastIdx = i
-		}
-	}
 }
 
 func (h *stringSortedMergeHeap) Len() int      { return len(h.items) }
 func (h *stringSortedMergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
 func (h *stringSortedMergeHeap) Less(i, j int) bool {
-	if h.fast {
-		return h.items[i].fastIdx < h.items[j].fastIdx
-	}
-
 	x, y := h.items[i].point, h.items[j].point
 
 	if h.opt.Ascending {
@@ -8677,8 +8482,6 @@ type stringSortedMergeHeapItem struct {
 	point *StringPoint
 	err   error
 	itr   StringIterator
-	// index for fast shortcut
-	fastIdx int
 }
 
 // stringIteratorScanner scans the results of a StringIterator into a map.
@@ -11214,7 +11017,6 @@ func (itr *booleanSortedMergeIterator) pop() (*BooleanPoint, error) {
 			}
 			itr.heap.items = append(itr.heap.items, item)
 		}
-		itr.heap.detectFast()
 		heap.Init(itr.heap)
 		itr.init = true
 	}
@@ -11252,57 +11054,11 @@ func (itr *booleanSortedMergeIterator) pop() (*BooleanPoint, error) {
 type booleanSortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*booleanSortedMergeHeapItem
-	// if each input comes from a unique single time series, we can make a shortcut.
-	// detection of the shortcut introduces some overhead but it gets significant
-	// performance improvement in cases like SELECT * FROM m GROUP BY *
-	fast bool
-}
-
-func (h *booleanSortedMergeHeap) detectFast() {
-	for _, item := range h.items {
-		if item.itr.Stats().SeriesN != 1 {
-			return
-		}
-	}
-
-	hasDup := false
-	s := make([]*booleanSortedMergeHeapItem, len(h.items))
-	copy(s, h.items)
-
-	less := func(i, j int) bool {
-		x, y := s[i].point, s[j].point
-		ret := strings.Compare(x.Name, y.Name)
-		if ret == 0 {
-			ret = strings.Compare(x.Tags.ID(), y.Tags.ID())
-		}
-		if ret != 0 {
-			// TT
-			// ret | == -1 | h.opt.Ascending | result
-			//  1  | false |  false          | true
-			// -1  | true  |  false          | false
-			//  1  | false |  true           | false
-			// -1  | true  |  true           | true
-			return ret == -1 == h.opt.Ascending
-		}
-		hasDup = true
-		return false
-	}
-	sort.Slice(s, less)
-	if !hasDup {
-		h.fast = true
-		for i, item := range s {
-			item.fastIdx = i
-		}
-	}
 }
 
 func (h *booleanSortedMergeHeap) Len() int      { return len(h.items) }
 func (h *booleanSortedMergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
 func (h *booleanSortedMergeHeap) Less(i, j int) bool {
-	if h.fast {
-		return h.items[i].fastIdx < h.items[j].fastIdx
-	}
-
 	x, y := h.items[i].point, h.items[j].point
 
 	if h.opt.Ascending {
@@ -11376,8 +11132,6 @@ type booleanSortedMergeHeapItem struct {
 	point *BooleanPoint
 	err   error
 	itr   BooleanIterator
-	// index for fast shortcut
-	fastIdx int
 }
 
 // booleanIteratorScanner scans the results of a BooleanIterator into a map.
