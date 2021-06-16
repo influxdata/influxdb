@@ -1,5 +1,10 @@
 use async_trait::async_trait;
 use entry::{Entry, Sequence};
+use rdkafka::{
+    producer::{FutureProducer, FutureRecord},
+    ClientConfig,
+};
+use std::convert::TryInto;
 
 pub type WriteBufferError = Box<dyn std::error::Error + Sync + Send>;
 
@@ -15,24 +20,65 @@ pub trait WriteBuffer: Sync + Send + std::fmt::Debug + 'static {
     // async fn restore_from(&self, sequence: &Sequence) -> Result<Stream<Entry>, Err>;
 }
 
-#[derive(Debug)]
 pub struct KafkaBuffer {
     conn: String,
     database_name: String,
+    producer: FutureProducer,
+}
+
+// Needed because rdkafka's FutureProducer doesn't impl Debug
+impl std::fmt::Debug for KafkaBuffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KafkaBuffer")
+            .field("conn", &self.conn)
+            .field("database_name", &self.database_name)
+            .finish()
+    }
 }
 
 #[async_trait]
 impl WriteBuffer for KafkaBuffer {
-    async fn store_entry(&self, _entry: &Entry) -> Result<Sequence, WriteBufferError> {
-        unimplemented!()
+    /// Send an `Entry` to Kafka and return the partition ID as the sequencer ID and the offset
+    /// as the sequence number.
+    async fn store_entry(&self, entry: &Entry) -> Result<Sequence, WriteBufferError> {
+        // This type annotation is necessary because `FutureRecord` is generic over key type, but
+        // key is optional and we're not setting a key. `String` is arbitrary.
+        let record: FutureRecord<'_, String, _> =
+            FutureRecord::to(&self.database_name).payload(entry.data());
+
+        // Can't use `?` here because `send_result` returns `Err((E: Error, original_msg))` so we
+        // have to extract the actual error out with a `match`.
+        let (partition, offset) = match self.producer.send_result(record) {
+            // Same error structure on the result of the future, need to `match`
+            Ok(delivery_future) => match delivery_future.await? {
+                Ok((partition, offset)) => (partition, offset),
+                Err((e, _returned_record)) => return Err(Box::new(e)),
+            },
+            Err((e, _returned_record)) => return Err(Box::new(e)),
+        };
+
+        Ok(Sequence {
+            id: partition.try_into()?,
+            number: offset.try_into()?,
+        })
     }
 }
 
 impl KafkaBuffer {
     pub fn new(conn: impl Into<String>, database_name: impl Into<String>) -> Self {
+        let conn = conn.into();
+        let database_name = database_name.into();
+
+        let mut cfg = ClientConfig::new();
+        cfg.set("bootstrap.servers", &conn);
+        cfg.set("message.timeout.ms", "5000");
+
+        let producer: FutureProducer = cfg.create().unwrap();
+
         Self {
-            conn: conn.into(),
-            database_name: database_name.into(),
+            conn,
+            database_name,
+            producer,
         }
     }
 }
