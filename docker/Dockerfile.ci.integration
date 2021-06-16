@@ -6,8 +6,7 @@
 # Reuse most of the configuration for the rest of the CI builds
 FROM quay.io/influxdb/rust:ci
 
-# Create a new directory that will contain the code checkout and be a shared volume from the CI
-# machine image to this container
+# Create a new directory that will contain the code checkout
 ADD . /home/rust/iox
 
 # Make the rust user the owner
