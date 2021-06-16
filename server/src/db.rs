@@ -633,6 +633,11 @@ impl Db {
             let mut transaction = self.preserved_catalog.open_transaction().await;
 
             // Write this table data into the object store
+            //
+            // IMPORTANT: Writing needs to take place during a transaction, otherwise the background cleanup task might
+            //            delete the just written parquet parquet file. Furthermore, the parquet files contains
+            //            information about the transaction (like revision counter and UUID) that are only available
+            //            once the transaction has started.
             let metadata = IoxMetadata {
                 transaction_revision_counter: transaction.revision_counter(),
                 transaction_uuid: transaction.uuid(),
