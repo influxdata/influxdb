@@ -3303,7 +3303,7 @@ mod tests {
             metrics_registry,
             metric_labels: vec![],
         };
-        assert_catalog_state_implementation::<Catalog>(empty_input, false).await;
+        assert_catalog_state_implementation::<Catalog>(empty_input).await;
     }
 
     async fn create_parquet_chunk(db: &Db) -> (String, String, u32) {

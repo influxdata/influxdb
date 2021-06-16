@@ -1400,7 +1400,7 @@ pub mod test_helpers {
     }
 
     /// Torture-test implementations for [`CatalogState`].
-    pub async fn assert_catalog_state_implementation<S>(state_data: S::EmptyInput, test_abort: bool)
+    pub async fn assert_catalog_state_implementation<S>(state_data: S::EmptyInput)
     where
         S: CatalogState + Send + Sync,
     {
@@ -1564,32 +1564,30 @@ pub mod test_helpers {
         assert_files_eq(&catalog.state().files(), &expected);
 
         // transaction aborting
-        if test_abort {
-            {
-                let mut transaction = catalog.open_transaction().await;
+        {
+            let mut transaction = catalog.open_transaction().await;
 
-                // add
-                let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
-                let (_, metadata) = make_metadata(&object_store, "ok", chunk_id_watermark).await;
-                transaction.add_parquet(&path, &metadata).unwrap();
-                chunk_id_watermark += 1;
+            // add
+            let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
+            let (_, metadata) = make_metadata(&object_store, "ok", chunk_id_watermark).await;
+            transaction.add_parquet(&path, &metadata).unwrap();
+            chunk_id_watermark += 1;
 
-                // remove
-                let path = parsed_path!("chunk_4");
-                transaction.remove_parquet(&path).unwrap();
+            // remove
+            let path = parsed_path!("chunk_4");
+            transaction.remove_parquet(&path).unwrap();
 
-                // add and remove
-                let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
-                let (_, metadata) = make_metadata(&object_store, "ok", chunk_id_watermark).await;
-                transaction.add_parquet(&path, &metadata).unwrap();
-                transaction.remove_parquet(&path).unwrap();
-                chunk_id_watermark += 1;
-            }
-            assert_files_eq(&catalog.state().files(), &expected);
+            // add and remove
+            let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
+            let (_, metadata) = make_metadata(&object_store, "ok", chunk_id_watermark).await;
+            transaction.add_parquet(&path, &metadata).unwrap();
+            transaction.remove_parquet(&path).unwrap();
+            chunk_id_watermark += 1;
         }
+        assert_files_eq(&catalog.state().files(), &expected);
 
         // transaction aborting w/ errors
-        if test_abort {
+        {
             let mut transaction = catalog.open_transaction().await;
 
             // already exists (should also not change the metadata)
@@ -3338,6 +3336,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_catalog_state() {
-        assert_catalog_state_implementation::<TestCatalogState>((), true).await;
+        assert_catalog_state_implementation::<TestCatalogState>(()).await;
     }
 }
