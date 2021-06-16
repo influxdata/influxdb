@@ -33,11 +33,11 @@ macro_rules! maybe_skip_integration {
                 panic!(
                     "TEST_INTEGRATION is set which requires running integration tests, but \
                      KAFKA_CONNECT is not set. Please run Kafka, perhaps by using the command \
-                     `docker compose -f docker/ci-kafka-docker-compose.yml up kafka`, then \
+                     `docker-compose -f docker/ci-kafka-docker-compose.yml up kafka`, then \
                      set KAFKA_CONNECT to the host and port where Kafka is accessible. If \
-                     running the `docker compose` command and the Rust tests on the host, the \
+                     running the `docker-compose` command and the Rust tests on the host, the \
                      value for `KAFKA_CONNECT` should be `localhost:9093`. If running the Rust \
-                     tests in another container in the `docker compose` network as on CI, \
+                     tests in another container in the `docker-compose` network as on CI, \
                      `KAFKA_CONNECT` should be `kafka:9092`."
                 )
             }

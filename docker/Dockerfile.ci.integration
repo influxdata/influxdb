@@ -1,6 +1,6 @@
 ###
 # Dockerfile for integration tests that connect to Kafka
-# It expects to be run with `docker compose -f ci-kafka-docker-compose.yml`
+# It expects to be run with `docker-compose -f ci-kafka-docker-compose.yml`
 ##
 
 # Reuse most of the configuration for the rest of the CI builds
