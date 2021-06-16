@@ -1,5 +1,9 @@
 v1.9.3 [unreleased]
 
+### Features
+
+-	[#21710](https://github.com/influxdata/influxdb/pull/21710): chore: add logging to compaction
+
 ### Bugfixes
 
 -	[#21609](https://github.com/influxdata/influxdb/pull/21609): fix: avoid rewriting fields.idx unnecessarily 
