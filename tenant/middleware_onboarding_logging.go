@@ -48,16 +48,3 @@ func (l *OnboardingLogger) OnboardInitialUser(ctx context.Context, req *influxdb
 	}(time.Now())
 	return l.onboardingService.OnboardInitialUser(ctx, req)
 }
-
-func (l *OnboardingLogger) OnboardUser(ctx context.Context, req *influxdb.OnboardingRequest) (res *influxdb.OnboardingResults, err error) {
-	defer func(start time.Time) {
-		dur := zap.Duration("took", time.Since(start))
-		if err != nil {
-			msg := fmt.Sprintf("failed to onboard user %s", req.User)
-			l.logger.Error(msg, zap.Error(err), dur)
-			return
-		}
-		l.logger.Debug("onboard user", dur)
-	}(time.Now())
-	return l.onboardingService.OnboardUser(ctx, req)
-}

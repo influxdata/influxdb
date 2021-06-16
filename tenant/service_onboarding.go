@@ -83,13 +83,6 @@ func (s *OnboardService) OnboardInitialUser(ctx context.Context, req *influxdb.O
 	return s.onboardUser(ctx, req, func(platform.ID, platform.ID) []influxdb.Permission { return influxdb.OperPermissions() })
 }
 
-// OnboardUser allows us to onboard a new user if is onboarding is allowed
-func (s *OnboardService) OnboardUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
-	return s.onboardUser(ctx, req, func(orgID, userID platform.ID) []influxdb.Permission {
-		return append(influxdb.OwnerPermissions(orgID), influxdb.MePermissions(userID)...)
-	})
-}
-
 // onboardUser allows us to onboard new users.
 func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.OnboardingRequest, permFn func(orgID, userID platform.ID) []influxdb.Permission) (*influxdb.OnboardingResults, error) {
 	if req == nil || req.User == "" || req.Org == "" || req.Bucket == "" {

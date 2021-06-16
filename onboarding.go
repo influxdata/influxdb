@@ -12,11 +12,8 @@ type OnboardingService interface {
 	// IsOnboarding determine if onboarding request is allowed.
 	IsOnboarding(ctx context.Context) (bool, error)
 
-	// OnboardInitialUser OnboardingResults.
+	// OnboardInitialUser creates the initial org/user/bucket in the DB.
 	OnboardInitialUser(ctx context.Context, req *OnboardingRequest) (*OnboardingResults, error)
-
-	// OnboardUser creates a new user/org/buckets
-	OnboardUser(ctx context.Context, req *OnboardingRequest) (*OnboardingResults, error)
 }
 
 // OnboardingResults is a group of elements required for first run.

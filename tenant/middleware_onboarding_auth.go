@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/authorizer"
 )
 
 var _ influxdb.OnboardingService = (*AuthedOnboardSvc)(nil)
@@ -32,18 +31,4 @@ func (s *AuthedOnboardSvc) IsOnboarding(ctx context.Context) (bool, error) {
 // OnboardInitialUser pass through. this is handled by the underlying service layer
 func (s *AuthedOnboardSvc) OnboardInitialUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
 	return s.s.OnboardInitialUser(ctx, req)
-}
-
-// OnboardUser needs to confirm this user has access to do global create for multiple resources
-func (s *AuthedOnboardSvc) OnboardUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
-	if _, _, err := authorizer.AuthorizeWriteGlobal(ctx, influxdb.OrgsResourceType); err != nil {
-		return nil, err
-	}
-	if _, _, err := authorizer.AuthorizeWriteGlobal(ctx, influxdb.UsersResourceType); err != nil {
-		return nil, err
-	}
-	if _, _, err := authorizer.AuthorizeWriteGlobal(ctx, influxdb.BucketsResourceType); err != nil {
-		return nil, err
-	}
-	return s.s.OnboardUser(ctx, req)
 }

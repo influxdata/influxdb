@@ -43,8 +43,3 @@ func (s *OnboardingService) IsOnboarding(ctx context.Context) (bool, error) {
 func (s *OnboardingService) OnboardInitialUser(ctx context.Context, req *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
 	return s.OnboardInitialUserFn(ctx, req)
 }
-
-// OnboardUser OnboardingResults.
-func (s *OnboardingService) OnboardUser(ctx context.Context, req *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
-	return s.OnboardUserFn(ctx, req)
-}
