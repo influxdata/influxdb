@@ -1,13 +1,12 @@
 //! Methods to cleanup the object store.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     sync::{Arc, Mutex},
 };
 
 use crate::{
     catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog, TransactionEnd},
-    metadata::IoxParquetMetaData,
     storage::data_location,
 };
 use futures::TryStreamExt;
@@ -165,10 +164,6 @@ impl CatalogState for TracerCatalogState {
         // Do NOT remove the file since we still need it for time travel
         Ok(())
     }
-
-    fn files(&self) -> HashMap<DirsAndFileName, Arc<IoxParquetMetaData>> {
-        unimplemented!("File tracking not implemented for TracerCatalogState")
-    }
 }
 
 #[cfg(test)]
@@ -249,7 +244,7 @@ mod tests {
             let (path, _md) = make_metadata(&object_store, "foo", chunk_addr(3)).await;
             paths_delete.push(path.display());
 
-            transaction.commit(false).await.unwrap();
+            transaction.commit(None).await.unwrap();
         }
 
         // run clean-up
@@ -291,7 +286,7 @@ mod tests {
                     let (path, md) = make_metadata(&object_store, "foo", chunk_addr(i)).await;
                     transaction.add_parquet(&path.clone().into(), &md).unwrap();
 
-                    transaction.commit(false).await.unwrap();
+                    transaction.commit(None).await.unwrap();
 
                     path.display()
                 },

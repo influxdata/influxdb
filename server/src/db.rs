@@ -30,8 +30,7 @@ use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::RwLock;
-use parquet_file::catalog::TransactionEnd;
-use parquet_file::metadata::IoxParquetMetaData;
+use parquet_file::catalog::{CheckpointData, TransactionEnd};
 use parquet_file::{
     catalog::{
         wipe as wipe_preserved_catalog, CatalogParquetInfo, CatalogState, ChunkCreationFailed,
@@ -701,18 +700,28 @@ impl Db {
                     )
                     .await
                     .context(WritingToObjectStore)?;
+                let path: DirsAndFileName = path.into();
 
                 transaction
-                    .add_parquet(&path.into(), &parquet_metadata)
+                    .add_parquet(&path, &parquet_metadata)
                     .context(TransactionError)?;
 
                 let create_checkpoint = catalog_transactions_until_checkpoint
                     .map_or(false, |interval| {
                         transaction.revision_counter() % interval.get() == 0
                     });
+                let checkpoint_data = create_checkpoint.then(|| {
+                    let mut checkpoint_data =
+                        checkpoint_data_from_catalog(&transaction.tstate().catalog);
+                    // don't forget the file that we've just added
+                    checkpoint_data
+                        .files
+                        .insert(path, Arc::new(parquet_metadata));
+                    checkpoint_data
+                });
 
                 transaction
-                    .commit(create_checkpoint)
+                    .commit(checkpoint_data)
                     .await
                     .context(TransactionError)?;
             }
@@ -1349,20 +1358,20 @@ impl CatalogState for Catalog {
             Ok(())
         }
     }
+}
 
-    fn files(&self) -> HashMap<DirsAndFileName, Arc<IoxParquetMetaData>> {
-        let mut files = HashMap::new();
+fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData {
+    let mut files = HashMap::new();
 
-        for chunk in self.chunks() {
-            let guard = chunk.read();
-            if let catalog::chunk::ChunkStage::Persisted { parquet, .. } = guard.stage() {
-                let path: DirsAndFileName = parquet.path().into();
-                files.insert(path, parquet.parquet_metadata());
-            }
+    for chunk in catalog.chunks() {
+        let guard = chunk.read();
+        if let catalog::chunk::ChunkStage::Persisted { parquet, .. } = guard.stage() {
+            let path: DirsAndFileName = parquet.path().into();
+            files.insert(path, parquet.parquet_metadata());
         }
-
-        files
     }
+
+    CheckpointData { files }
 }
 
 pub mod test_helpers {
@@ -1430,6 +1439,7 @@ mod tests {
     };
     use parquet_file::{
         catalog::test_helpers::assert_catalog_state_implementation,
+        metadata::IoxParquetMetaData,
         test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
     use query::{frontend::sql::SqlQueryPlanner, QueryChunk, QueryDatabase};
@@ -3251,7 +3261,11 @@ mod tests {
             metrics_registry,
             metric_labels: vec![],
         };
-        assert_catalog_state_implementation::<Catalog>(empty_input).await;
+        assert_catalog_state_implementation::<Catalog, _>(
+            empty_input,
+            checkpoint_data_from_catalog,
+        )
+        .await;
     }
 
     async fn create_parquet_chunk(db: &Db) -> (String, String, u32) {

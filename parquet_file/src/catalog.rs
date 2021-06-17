@@ -254,11 +254,6 @@ pub trait CatalogState {
 
     /// Remove parquet file from state.
     fn remove(tstate: &mut Self::TransactionState, path: DirsAndFileName) -> Result<()>;
-
-    /// List all Parquet files that are currently (i.e. by the current version) tracked by the catalog.
-    ///
-    /// If a file was once [added](Self::add) but later [removed](Self::remove) it MUST NOT appear in the result.
-    fn files(&self) -> HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>;
 }
 
 /// Find last transaction-start-timestamp.
@@ -393,7 +388,7 @@ where
 
         // add empty transaction
         let transaction = catalog.open_transaction().await;
-        transaction.commit(false).await?;
+        transaction.commit(None).await?;
 
         Ok(catalog)
     }
@@ -1026,6 +1021,18 @@ where
     }
 }
 
+/// Structure that holds all information required to create a checkpoint.
+///
+/// Note that while checkpoint are addressed using the same schema as we use for transaction (revision counter, UUID),
+/// they contain the changes at the end (aka including) the transaction they refer.
+#[derive(Debug)]
+pub struct CheckpointData {
+    /// List of all Parquet files that are currently (i.e. by the current version) tracked by the catalog.
+    ///
+    /// If a file was once added but later removed it MUST NOT appear in the result.
+    pub files: HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>,
+}
+
 /// Handle for an open uncommitted transaction.
 ///
 /// Dropping this object w/o calling [`commit`](Self::commit) will issue a warning.
@@ -1071,6 +1078,15 @@ where
         }
     }
 
+    /// Get current transaction state.
+    pub fn tstate(&self) -> &S::TransactionState {
+        &self
+            .transaction
+            .as_ref()
+            .expect("No transaction in progress?")
+            .tstate
+    }
+
     /// Get revision counter for this transaction.
     pub fn revision_counter(&self) -> u64 {
         self.transaction
@@ -1093,10 +1109,13 @@ where
     ///
     /// This will first commit to object store and then to the in-memory state.
     ///
-    /// If `create_checkpoint` is set this will also create a checkpoint at the end of the commit. Note that if the
+    /// # Checkpointing
+    /// If `checkpoint_data` is passed this will also create a checkpoint at the end of the commit. Note that if the
     /// checkpoint creation fails, the commit will still be treated as completed since the checkpoint is a mere
     /// optimization to speed up transaction replay and allow to prune the history.
-    pub async fn commit(mut self, create_checkpoint: bool) -> Result<()> {
+    ///
+    /// Note that `checkpoint_data` must contain the state INCLUDING the to-be-commited transaction.
+    pub async fn commit(mut self, checkpoint_data: Option<CheckpointData>) -> Result<()> {
         let t = std::mem::take(&mut self.transaction)
             .expect("calling .commit on a closed transaction?!");
         let tkey = t.tkey();
@@ -1112,16 +1131,17 @@ where
         {
             Ok(()) => {
                 // commit to catalog
-                let (previous_tkey, state) = self.commit_inner(t);
+                let previous_tkey = self.commit_inner(t);
                 info!(?tkey, "transaction committed");
 
                 // maybe create a checkpoint
                 // IMPORTANT: Create the checkpoint AFTER commiting the transaction to object store and to the in-memory state.
                 //            Checkpoints are an optional optimization and are not required to materialize a transaction.
-                if create_checkpoint {
+                if let Some(checkpoint_data) = checkpoint_data {
                     // NOTE: `inner_guard` will not be re-used here since it is a strong write lock and the checkpoint creation
                     //       only needs a read lock.
-                    self.create_checkpoint(tkey, previous_tkey, state).await?;
+                    self.create_checkpoint(tkey, previous_tkey, checkpoint_data)
+                        .await?;
                 }
 
                 Ok(())
@@ -1141,12 +1161,9 @@ where
     /// - the read-write guard for the inner catalog state should be limited in scope to avoid long write-locks
     /// - rustc seems to fold the guard into the async generator state even when we `drop` it quickly, making the
     ///   resulting future `!Send`. However tokio requires our futures to be `Send`.
-    fn commit_inner(&self, t: OpenTransaction<S>) -> (Option<TransactionKey>, Arc<S>) {
+    fn commit_inner(&self, t: OpenTransaction<S>) -> Option<TransactionKey> {
         let mut inner_guard = self.catalog.inner.write();
-        let previous_tkey = t.commit(&mut inner_guard);
-        let state = Arc::clone(&inner_guard.state);
-
-        (previous_tkey, state)
+        t.commit(&mut inner_guard)
     }
 
     fn abort_inner(&self, t: OpenTransaction<S>) {
@@ -1158,16 +1175,15 @@ where
         &self,
         tkey: TransactionKey,
         previous_tkey: Option<TransactionKey>,
-        state: Arc<S>,
+        checkpoint_data: CheckpointData,
     ) -> Result<()> {
-        let files = state.files();
         let object_store = self.catalog.object_store();
         let server_id = self.catalog.server_id();
         let db_name = self.catalog.db_name();
 
         // sort by key (= path) for deterministic output
         let files = {
-            let mut tmp: Vec<_> = files.into_iter().collect();
+            let mut tmp: Vec<_> = checkpoint_data.files.into_iter().collect();
             tmp.sort_by_key(|(path, _metadata)| path.clone());
             tmp
         };
@@ -1292,10 +1308,19 @@ pub mod test_helpers {
         pub parquet_files: HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>,
     }
 
+    impl TestCatalogState {
+        /// Simple way to create [`CheckpointData`].
+        pub fn checkpoint_data(&self) -> CheckpointData {
+            CheckpointData {
+                files: self.parquet_files.clone(),
+            }
+        }
+    }
+
     #[derive(Debug)]
     pub struct TState {
-        old: Arc<TestCatalogState>,
-        new: TestCatalogState,
+        pub old: Arc<TestCatalogState>,
+        pub new: TestCatalogState,
     }
 
     impl CatalogState for TestCatalogState {
@@ -1354,10 +1379,6 @@ pub mod test_helpers {
 
             Ok(())
         }
-
-        fn files(&self) -> HashMap<DirsAndFileName, Arc<IoxParquetMetaData>> {
-            self.parquet_files.clone()
-        }
     }
 
     /// Break preserved catalog by moving one of the transaction files into a weird unknown version.
@@ -1396,9 +1417,12 @@ pub mod test_helpers {
     }
 
     /// Torture-test implementations for [`CatalogState`].
-    pub async fn assert_catalog_state_implementation<S>(state_data: S::EmptyInput)
+    ///
+    /// A function to extract [`CheckpointData`] from the [`CatalogState`] must be provided.
+    pub async fn assert_catalog_state_implementation<S, F>(state_data: S::EmptyInput, f: F)
     where
         S: CatalogState + Send + Sync,
+        F: Fn(&S) -> CheckpointData + Send,
     {
         // empty state
         let object_store = make_object_store();
@@ -1411,7 +1435,7 @@ pub mod test_helpers {
         .await
         .unwrap();
         let mut expected = HashMap::new();
-        assert_files_eq(&catalog.state().files(), &expected);
+        assert_checkpoint(catalog.state().as_ref(), &f, &expected);
 
         // add files
         let mut chunk_id_watermark = 5;
@@ -1425,9 +1449,9 @@ pub mod test_helpers {
                 expected.insert(path, Arc::new(metadata));
             }
 
-            transaction.commit(true).await.unwrap();
+            transaction.commit(None).await.unwrap();
         }
-        assert_files_eq(&catalog.state().files(), &expected);
+        assert_checkpoint(catalog.state().as_ref(), &f, &expected);
 
         // remove files
         {
@@ -1437,9 +1461,9 @@ pub mod test_helpers {
             transaction.remove_parquet(&path).unwrap();
             expected.remove(&path);
 
-            transaction.commit(true).await.unwrap();
+            transaction.commit(None).await.unwrap();
         }
-        assert_files_eq(&catalog.state().files(), &expected);
+        assert_checkpoint(catalog.state().as_ref(), &f, &expected);
 
         // add and remove in the same transaction
         {
@@ -1452,9 +1476,9 @@ pub mod test_helpers {
             transaction.remove_parquet(&path).unwrap();
             chunk_id_watermark += 1;
 
-            transaction.commit(true).await.unwrap();
+            transaction.commit(None).await.unwrap();
         }
-        assert_files_eq(&catalog.state().files(), &expected);
+        assert_checkpoint(catalog.state().as_ref(), &f, &expected);
 
         // remove and add in the same transaction
         {
@@ -1465,9 +1489,9 @@ pub mod test_helpers {
             transaction.remove_parquet(&path).unwrap();
             transaction.add_parquet(&path, &metadata).unwrap();
 
-            transaction.commit(true).await.unwrap();
+            transaction.commit(None).await.unwrap();
         }
-        assert_files_eq(&catalog.state().files(), &expected);
+        assert_checkpoint(catalog.state().as_ref(), &f, &expected);
 
         // add, remove, add in the same transaction
         {
@@ -1482,9 +1506,9 @@ pub mod test_helpers {
             expected.insert(path, Arc::new(metadata));
             chunk_id_watermark += 1;
 
-            transaction.commit(true).await.unwrap();
+            transaction.commit(None).await.unwrap();
         }
-        assert_files_eq(&catalog.state().files(), &expected);
+        assert_checkpoint(catalog.state().as_ref(), &f, &expected);
 
         // remove, add, remove in same transaction
         {
@@ -1497,9 +1521,9 @@ pub mod test_helpers {
             transaction.remove_parquet(&path).unwrap();
             expected.remove(&path);
 
-            transaction.commit(true).await.unwrap();
+            transaction.commit(None).await.unwrap();
         }
-        assert_files_eq(&catalog.state().files(), &expected);
+        assert_checkpoint(catalog.state().as_ref(), &f, &expected);
 
         // error handling, no real opt
         {
@@ -1517,9 +1541,9 @@ pub mod test_helpers {
             assert!(matches!(err, Error::ParquetFileDoesNotExist { .. }));
             chunk_id_watermark += 1;
 
-            transaction.commit(true).await.unwrap();
+            transaction.commit(None).await.unwrap();
         }
-        assert_files_eq(&catalog.state().files(), &expected);
+        assert_checkpoint(catalog.state().as_ref(), &f, &expected);
 
         // error handling, still something works
         {
@@ -1558,9 +1582,9 @@ pub mod test_helpers {
             let err = transaction.remove_parquet(&path).unwrap_err();
             assert!(matches!(err, Error::ParquetFileDoesNotExist { .. }));
 
-            transaction.commit(true).await.unwrap();
+            transaction.commit(None).await.unwrap();
         }
-        assert_files_eq(&catalog.state().files(), &expected);
+        assert_checkpoint(catalog.state().as_ref(), &f, &expected);
 
         // transaction aborting
         {
@@ -1585,7 +1609,7 @@ pub mod test_helpers {
             transaction.remove_parquet(&path).unwrap();
             chunk_id_watermark += 1;
         }
-        assert_files_eq(&catalog.state().files(), &expected);
+        assert_checkpoint(catalog.state().as_ref(), &f, &expected);
 
         // transaction aborting w/ errors
         {
@@ -1609,17 +1633,22 @@ pub mod test_helpers {
     }
 
     /// Assert that tracked files and their linked metadata are equal.
-    fn assert_files_eq(
-        actual: &HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>,
-        expected: &HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>,
-    ) {
-        let sorted_keys_actual = get_sorted_keys(actual);
-        let sorted_keys_expected = get_sorted_keys(expected);
+    fn assert_checkpoint<S, F>(
+        state: &S,
+        f: &F,
+        expected_files: &HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>,
+    ) where
+        F: Fn(&S) -> CheckpointData,
+    {
+        let actual_files = f(state).files;
+
+        let sorted_keys_actual = get_sorted_keys(&actual_files);
+        let sorted_keys_expected = get_sorted_keys(expected_files);
         assert_eq!(sorted_keys_actual, sorted_keys_expected);
 
         for k in sorted_keys_actual {
-            let md_actual = &actual[&k];
-            let md_expected = &expected[&k];
+            let md_actual = &actual_files[&k];
+            let md_expected = &expected_files[&k];
 
             let iox_md_actual = md_actual.read_iox_metadata().unwrap();
             let iox_md_expected = md_expected.read_iox_metadata().unwrap();
@@ -2564,7 +2593,7 @@ mod tests {
         let mut trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
 
         // re-open catalog
-        let catalog = PreservedCatalog::load(
+        let catalog = PreservedCatalog::<TestCatalogState>::load(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2577,7 +2606,8 @@ mod tests {
         // create empty transaction w/ checkpoint (the delta transaction file is not required for catalog loading)
         {
             let transaction = catalog.open_transaction().await;
-            transaction.commit(true).await.unwrap();
+            let checkpoint_data = Some(transaction.tstate().new.checkpoint_data());
+            transaction.commit(checkpoint_data).await.unwrap();
         }
         trace.record(&catalog, false);
 
@@ -2587,7 +2617,8 @@ mod tests {
             transaction
                 .add_parquet(&parsed_path!("last_one"), &metadata)
                 .unwrap();
-            transaction.commit(true).await.unwrap();
+            let checkpoint_data = Some(transaction.tstate().new.checkpoint_data());
+            transaction.commit(checkpoint_data).await.unwrap();
         }
         trace.record(&catalog, false);
 
@@ -2772,7 +2803,7 @@ mod tests {
             t.add_parquet(&parsed_path!(["sub2"], "test1"), &metadata1)
                 .unwrap();
 
-            t.commit(false).await.unwrap();
+            t.commit(None).await.unwrap();
         }
         assert_eq!(catalog.revision_counter(), 1);
         assert_catalog_parquet_files(
@@ -2802,7 +2833,7 @@ mod tests {
             t.remove_parquet(&parsed_path!("test1"))
                 .expect_err("removing twice should error");
 
-            t.commit(false).await.unwrap();
+            t.commit(None).await.unwrap();
         }
         assert_eq!(catalog.revision_counter(), 2);
         assert_catalog_parquet_files(
@@ -3180,7 +3211,7 @@ mod tests {
         let db_name = "db1";
         let mut trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
 
-        let catalog = PreservedCatalog::load(
+        let catalog = PreservedCatalog::<TestCatalogState>::load(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -3193,7 +3224,8 @@ mod tests {
         // create empty transaction w/ checkpoint
         {
             let transaction = catalog.open_transaction().await;
-            transaction.commit(true).await.unwrap();
+            let checkpoint_data = Some(transaction.tstate().new.checkpoint_data());
+            transaction.commit(checkpoint_data).await.unwrap();
         }
         trace.record(&catalog, false);
 
@@ -3296,7 +3328,8 @@ mod tests {
         // create empty transaction w/ checkpoint
         {
             let transaction = catalog.open_transaction().await;
-            transaction.commit(true).await.unwrap();
+            let checkpoint_data = Some(transaction.tstate().new.checkpoint_data());
+            transaction.commit(checkpoint_data).await.unwrap();
         }
 
         // delete transaction file
@@ -3330,6 +3363,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_catalog_state() {
-        assert_catalog_state_implementation::<TestCatalogState>(()).await;
+        assert_catalog_state_implementation::<TestCatalogState, _>(
+            (),
+            TestCatalogState::checkpoint_data,
+        )
+        .await;
     }
 }
