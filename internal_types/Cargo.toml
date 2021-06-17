@@ -10,7 +10,7 @@ readme = "README.md"
 arrow = { version = "4.0", features = ["prettyprint"] }
 hashbrown = "0.11"
 indexmap = "1.6"
-itertools = "0.9"
+itertools = "0.10.1"
 observability_deps = { path = "../observability_deps" }
 snafu = "0.6"
 

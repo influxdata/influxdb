@@ -19,7 +19,7 @@ datafusion = { path = "../datafusion" }
 either = "1.6.1"
 hashbrown = "0.11"
 internal_types = { path = "../internal_types" }
-itertools = "0.9.0"
+itertools = "0.10.1"
 metrics = { path = "../metrics" }
 observability_deps = { path = "../observability_deps" }
 packers = { path = "../packers" }
