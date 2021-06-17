@@ -11,7 +11,7 @@ use query::{exec::Executor, QueryDatabase};
 
 use crate::{
     db::{load::load_or_create_preserved_catalog, DatabaseToCommit, Db},
-    write_buffer::WriteBuffer,
+    write_buffer::WriteBufferWriting,
     JobRegistry,
 };
 
@@ -35,7 +35,7 @@ pub struct TestDbBuilder {
     object_store: Option<Arc<ObjectStore>>,
     db_name: Option<DatabaseName<'static>>,
     worker_cleanup_avg_sleep: Option<Duration>,
-    write_buffer: Option<Arc<dyn WriteBuffer>>,
+    write_buffer: Option<Arc<dyn WriteBufferWriting>>,
     catalog_transactions_until_checkpoint: Option<NonZeroU64>,
     partition_template: Option<PartitionTemplate>,
 }
@@ -127,7 +127,7 @@ impl TestDbBuilder {
         self
     }
 
-    pub fn write_buffer(mut self, write_buffer: Arc<dyn WriteBuffer>) -> Self {
+    pub fn write_buffer(mut self, write_buffer: Arc<dyn WriteBufferWriting>) -> Self {
         self.write_buffer = Some(write_buffer);
         self
     }

@@ -10,10 +10,10 @@ use std::{convert::TryInto, sync::Arc};
 
 pub type WriteBufferError = Box<dyn std::error::Error + Sync + Send>;
 
-pub fn new(rules: &DatabaseRules) -> Result<Option<Arc<dyn WriteBuffer>>, WriteBufferError> {
+pub fn new(rules: &DatabaseRules) -> Result<Option<Arc<dyn WriteBufferWriting>>, WriteBufferError> {
     let name = rules.db_name();
 
-    // Right now, `KafkaBuffer` is the only production implementation of the `WriteBuffer`
+    // Right now, `KafkaBuffer` is the only production implementation of the `WriteBufferWriting`
     // trait, so always use `KafkaBuffer` when there is a write buffer connection string
     // specified. If/when there are other kinds of write buffers, additional configuration will
     // be needed to determine what kind of write buffer to use here.
@@ -30,7 +30,7 @@ pub fn new(rules: &DatabaseRules) -> Result<Option<Arc<dyn WriteBuffer>>, WriteB
 /// A Write Buffer takes an `Entry` and returns `Sequence` data that facilitates reading entries
 /// from the Write Buffer at a later time.
 #[async_trait]
-pub trait WriteBuffer: Sync + Send + std::fmt::Debug + 'static {
+pub trait WriteBufferWriting: Sync + Send + std::fmt::Debug + 'static {
     /// Send an `Entry` to the write buffer and return information that can be used to restore
     /// entries at a later time.
     async fn store_entry(&self, entry: &Entry) -> Result<Sequence, WriteBufferError>;
@@ -56,7 +56,7 @@ impl std::fmt::Debug for KafkaBuffer {
 }
 
 #[async_trait]
-impl WriteBuffer for KafkaBuffer {
+impl WriteBufferWriting for KafkaBuffer {
     /// Send an `Entry` to Kafka and return the partition ID as the sequencer ID and the offset
     /// as the sequence number.
     async fn store_entry(&self, entry: &Entry) -> Result<Sequence, WriteBufferError> {
@@ -115,7 +115,7 @@ pub mod test_helpers {
     }
 
     #[async_trait]
-    impl WriteBuffer for MockBuffer {
+    impl WriteBufferWriting for MockBuffer {
         async fn store_entry(&self, entry: &Entry) -> Result<Sequence, WriteBufferError> {
             let mut entries = self.entries.lock().unwrap();
             let offset = entries.len() as u64;

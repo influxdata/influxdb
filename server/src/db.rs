@@ -11,7 +11,7 @@ use crate::{
         catalog::{chunk::CatalogChunk, partition::Partition, Catalog, TableNameFilter},
         lifecycle::{LockableCatalogChunk, LockableCatalogPartition},
     },
-    write_buffer::WriteBuffer,
+    write_buffer::WriteBufferWriting,
     JobRegistry,
 };
 use ::lifecycle::{LockableChunk, LockablePartition};
@@ -230,7 +230,7 @@ pub struct Db {
     metric_labels: Vec<KeyValue>,
 
     /// Optionally buffer writes
-    write_buffer: Option<Arc<dyn WriteBuffer>>,
+    write_buffer: Option<Arc<dyn WriteBufferWriting>>,
 
     /// Lock that prevents the cleanup job from deleting files that are written but not yet added to the preserved
     /// catalog.
@@ -249,7 +249,7 @@ pub(crate) struct DatabaseToCommit {
     pub(crate) preserved_catalog: PreservedCatalog,
     pub(crate) catalog: Catalog,
     pub(crate) rules: DatabaseRules,
-    pub(crate) write_buffer: Option<Arc<dyn WriteBuffer>>,
+    pub(crate) write_buffer: Option<Arc<dyn WriteBufferWriting>>,
 }
 
 impl Db {

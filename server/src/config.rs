@@ -15,7 +15,7 @@ use query::exec::Executor;
 /// This module contains code for managing the configuration of the server.
 use crate::{
     db::{catalog::Catalog, DatabaseToCommit, Db},
-    write_buffer::WriteBuffer,
+    write_buffer::WriteBufferWriting,
     Error, JobRegistry, Result,
 };
 use observability_deps::tracing::{self, error, info, warn, Instrument};
@@ -628,7 +628,7 @@ impl<'a> DatabaseHandle<'a> {
         &mut self,
         preserved_catalog: PreservedCatalog,
         catalog: Catalog,
-        write_buffer: Option<Arc<dyn WriteBuffer>>,
+        write_buffer: Option<Arc<dyn WriteBufferWriting>>,
     ) -> Result<()> {
         match self.state().as_ref() {
             DatabaseState::RulesLoaded {
