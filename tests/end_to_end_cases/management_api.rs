@@ -225,7 +225,7 @@ async fn test_create_get_update_database() {
             seconds: 2,
             nanos: 0,
         }),
-        write_buffer_connection: "".into(),
+        write_buffer_connection: None,
     };
 
     client

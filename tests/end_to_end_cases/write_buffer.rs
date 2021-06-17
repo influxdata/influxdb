@@ -3,6 +3,7 @@ use crate::{
     end_to_end_cases::scenario::{create_readable_database_plus, rand_name},
 };
 use entry::Entry;
+use generated_types::influxdata::iox::management::v1::database_rules::WriteBufferConnection;
 use rdkafka::{
     consumer::{Consumer, StreamConsumer},
     ClientConfig, Message, Offset, TopicPartitionList,
@@ -60,9 +61,9 @@ async fn writes_go_to_kafka() {
     // set up a database with a write buffer pointing at kafka
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
-    let write_buffer_connection = kafka_connection.to_string();
+    let write_buffer_connection = WriteBufferConnection::Writing(kafka_connection.to_string());
     create_readable_database_plus(&db_name, server.grpc_channel(), |mut rules| {
-        rules.write_buffer_connection = write_buffer_connection;
+        rules.write_buffer_connection = Some(write_buffer_connection);
         rules
     })
     .await;

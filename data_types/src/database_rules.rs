@@ -54,8 +54,14 @@ pub struct DatabaseRules {
     /// Defaults to 500 seconds.
     pub worker_cleanup_avg_sleep: Duration,
 
-    /// An optional connection string to a write buffer.
-    pub write_buffer_connection: Option<String>,
+    /// An optional connection string to a write buffer for either writing or reading.
+    pub write_buffer_connection: Option<WriteBufferConnection>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum WriteBufferConnection {
+    Writing(String),
+    Reading(String),
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]

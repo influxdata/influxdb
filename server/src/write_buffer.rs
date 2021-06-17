@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use data_types::database_rules::DatabaseRules;
+use data_types::database_rules::{DatabaseRules, WriteBufferConnection};
 use entry::{Entry, Sequence};
 use rdkafka::{
     error::KafkaError,
@@ -14,15 +14,16 @@ pub fn new(rules: &DatabaseRules) -> Result<Option<Arc<dyn WriteBufferWriting>>,
     let name = rules.db_name();
 
     // Right now, `KafkaBuffer` is the only production implementation of the `WriteBufferWriting`
-    // trait, so always use `KafkaBuffer` when there is a write buffer connection string
+    // trait, so always use `KafkaBuffer` when there is a write buffer writing connection string
     // specified. If/when there are other kinds of write buffers, additional configuration will
     // be needed to determine what kind of write buffer to use here.
     match rules.write_buffer_connection.as_ref() {
-        Some(conn) => {
+        Some(WriteBufferConnection::Writing(conn)) => {
             let kafka_buffer = KafkaBuffer::new(conn, name)?;
 
             Ok(Some(Arc::new(kafka_buffer) as _))
         }
+        Some(WriteBufferConnection::Reading(_)) => unimplemented!(),
         None => Ok(None),
     }
 }
