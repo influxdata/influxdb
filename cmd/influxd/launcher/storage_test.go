@@ -172,7 +172,7 @@ func TestLauncher_DeleteWithPredicate(t *testing.T) {
 
 	// Execute single write against the server.
 	s := http.DeleteService{
-		Addr:  l.URL(),
+		Addr:  l.URL().String(),
 		Token: l.Auth.Token,
 	}
 	if err := s.DeleteBucketRangePredicate(context.Background(), http.DeleteRequest{
