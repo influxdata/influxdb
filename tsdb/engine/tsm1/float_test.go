@@ -212,10 +212,8 @@ func TestFloatEncoder_Empty(t *testing.T) {
 
 func Test_FloatEncoder_Quick(t *testing.T) {
 	quick.Check(func(values []float64) bool {
-
-		expected := values
 		if values == nil {
-			expected = []float64{}
+			values = []float64{}
 		}
 
 		// Write values to encoder.
@@ -241,8 +239,8 @@ func Test_FloatEncoder_Quick(t *testing.T) {
 		}
 
 		// Verify that input and output values match.
-		if !reflect.DeepEqual(expected, got) {
-			t.Fatalf("mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", expected, got)
+		if !reflect.DeepEqual(values, got) {
+			t.Fatalf("mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", values, got)
 		}
 
 		return true

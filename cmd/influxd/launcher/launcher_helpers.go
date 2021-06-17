@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	nethttp "net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -15,8 +16,11 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/influx-cli/v2/api"
+	"github.com/influxdata/influx-cli/v2/clients"
+	clibackup "github.com/influxdata/influx-cli/v2/clients/backup"
+	clirestore "github.com/influxdata/influx-cli/v2/clients/restore"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/backup"
 	"github.com/influxdata/influxdb/v2/bolt"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
 	dashboardTransport "github.com/influxdata/influxdb/v2/dashboards/transport"
@@ -27,7 +31,6 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/influxdata/influxdb/v2/query"
-	"github.com/influxdata/influxdb/v2/restore"
 	"github.com/influxdata/influxdb/v2/tenant"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -51,6 +54,7 @@ type TestLauncher struct {
 	Auth   *influxdb.Authorization
 
 	httpClient *httpc.Client
+	apiClient  *api.APIClient
 
 	// Flag to act as standard server: disk store, no-e2e testing flag
 	realServer bool
@@ -93,12 +97,15 @@ func NewTestLauncherServer() *TestLauncher {
 }
 
 // URL returns the URL to connect to the HTTP server.
-func (tl *TestLauncher) URL() string {
-	transport := "http"
-	if tl.Launcher.tlsEnabled {
-		transport = "https"
+func (tl *TestLauncher) URL() *url.URL {
+	u := url.URL{
+		Host:   fmt.Sprintf("127.0.0.1:%d", tl.Launcher.httpPort),
+		Scheme: "http",
 	}
-	return fmt.Sprintf("%s://127.0.0.1:%d", transport, tl.Launcher.httpPort)
+	if tl.Launcher.tlsEnabled {
+		u.Scheme = "https"
+	}
+	return &u
 }
 
 type OptSetter = func(o *InfluxdOpts)
@@ -351,33 +358,29 @@ func (tl *TestLauncher) QueryFlux(tb testing.TB, org *influxdb.Organization, tok
 	return string(b[:len(b)-1])
 }
 
-func (tl *TestLauncher) BackupOrFail(tb testing.TB, ctx context.Context, req backup.Request) {
+func (tl *TestLauncher) BackupOrFail(tb testing.TB, ctx context.Context, req clibackup.Params) {
 	tb.Helper()
 	require.NoError(tb, tl.Backup(tb, ctx, req))
 }
 
-func (tl *TestLauncher) Backup(tb testing.TB, ctx context.Context, req backup.Request) error {
+func (tl *TestLauncher) Backup(tb testing.TB, ctx context.Context, req clibackup.Params) error {
 	tb.Helper()
-	return backup.RunBackup(ctx, req, tl.BackupService(tb), tl.log)
+	return tl.BackupService(tb).Backup(ctx, &req)
 }
 
-func (tl *TestLauncher) RestoreOrFail(tb testing.TB, ctx context.Context, req restore.Request) {
+func (tl *TestLauncher) RestoreOrFail(tb testing.TB, ctx context.Context, req clirestore.Params) {
 	tb.Helper()
 	require.NoError(tb, tl.Restore(tb, ctx, req))
 }
 
-func (tl *TestLauncher) Restore(tb testing.TB, ctx context.Context, req restore.Request) error {
+func (tl *TestLauncher) Restore(tb testing.TB, ctx context.Context, req clirestore.Params) error {
 	tb.Helper()
-	return restore.RunRestore(ctx, req, restore.Services{
-		RestoreService: tl.RestoreService(tb),
-		BucketService:  tl.BucketService(tb),
-		OrgService:     tl.OrgService(tb),
-	}, tl.log)
+	return tl.RestoreService(tb).Restore(ctx, &req)
 }
 
 // MustNewHTTPRequest returns a new nethttp.Request with base URL and auth attached. Fail on error.
 func (tl *TestLauncher) MustNewHTTPRequest(method, rawurl, body string) *nethttp.Request {
-	req, err := nethttp.NewRequest(method, tl.URL()+rawurl, strings.NewReader(body))
+	req, err := nethttp.NewRequest(method, tl.URL().String()+rawurl, strings.NewReader(body))
 	if err != nil {
 		panic(err)
 	}
@@ -388,7 +391,7 @@ func (tl *TestLauncher) MustNewHTTPRequest(method, rawurl, body string) *nethttp
 
 // NewHTTPRequest returns a new nethttp.Request with base URL and auth attached.
 func (tl *TestLauncher) NewHTTPRequest(method, rawurl, token string, body string) (*nethttp.Request, error) {
-	req, err := nethttp.NewRequest(method, tl.URL()+rawurl, strings.NewReader(body))
+	req, err := nethttp.NewRequest(method, tl.URL().String()+rawurl, strings.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -409,11 +412,11 @@ func (tl *TestLauncher) NewHTTPRequestOrFail(tb testing.TB, method, rawurl, toke
 // Services
 
 func (tl *TestLauncher) FluxService() *http.FluxService {
-	return &http.FluxService{Addr: tl.URL(), Token: tl.Auth.Token}
+	return &http.FluxService{Addr: tl.URL().String(), Token: tl.Auth.Token}
 }
 
 func (tl *TestLauncher) FluxQueryService() *http.FluxQueryService {
-	return &http.FluxQueryService{Addr: tl.URL(), Token: tl.Auth.Token}
+	return &http.FluxQueryService{Addr: tl.URL().String(), Token: tl.Auth.Token}
 }
 
 func (tl *TestLauncher) BucketService(tb testing.TB) *tenant.BucketClientService {
@@ -474,14 +477,62 @@ func (tl *TestLauncher) TaskService(tb testing.TB) influxdb.TaskService {
 	return &http.TaskService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) BackupService(tb testing.TB) influxdb.BackupService {
+func (tl *TestLauncher) BackupService(tb testing.TB) *clibackup.Client {
 	tb.Helper()
-	return &http.BackupService{Addr: tl.URL(), Token: tl.Auth.Token}
+	client := tl.APIClient(tb)
+	return &clibackup.Client{
+		CLI:       clients.CLI{},
+		BackupApi: client.BackupApi,
+		HealthApi: tl.HealthService(tb),
+	}
 }
 
-func (tl *TestLauncher) RestoreService(tb testing.TB) influxdb.RestoreService {
+func (tl *TestLauncher) RestoreService(tb testing.TB) *clirestore.Client {
 	tb.Helper()
-	return &http.RestoreService{Addr: tl.URL(), Token: tl.Auth.Token}
+	client := tl.APIClient(tb)
+	return &clirestore.Client{
+		CLI:              clients.CLI{},
+		RestoreApi:       client.RestoreApi,
+		OrganizationsApi: client.OrganizationsApi,
+		BucketsApi:       client.BucketsApi,
+		HealthApi:        tl.HealthService(tb),
+	}
+}
+
+func (tl *TestLauncher) HealthService(tb testing.TB) api.HealthApi {
+	tb.Helper()
+	return &versionAdaptingHealthApi{tl.APIClient(tb).HealthApi}
+}
+
+// versionAdaptingHealthApi wraps the health API to ensure that versions returned by our health-check
+// are prefixed with '2.0.0'. This is required for the version-detection in our CLI to function properly.
+type versionAdaptingHealthApi struct {
+	underlying api.HealthApi
+}
+
+func (va versionAdaptingHealthApi) GetHealth(ctx context.Context) api.ApiGetHealthRequest {
+	req := va.underlying.GetHealth(ctx)
+	req.ApiService = va
+	return req
+}
+
+var testVersion = "2.0.0-SNAPSHOT"
+
+func (va versionAdaptingHealthApi) GetHealthExecute(req api.ApiGetHealthRequest) (api.HealthCheck, error) {
+	check, err := va.underlying.GetHealthExecute(req)
+	if err != nil {
+		return check, err
+	}
+	check.Version = &testVersion
+	return check, nil
+}
+
+func (va versionAdaptingHealthApi) OnlyOSS() api.HealthApi {
+	return &versionAdaptingHealthApi{va.underlying.OnlyOSS()}
+}
+
+func (va versionAdaptingHealthApi) OnlyCloud() api.HealthApi {
+	return &versionAdaptingHealthApi{va.underlying.OnlyCloud()}
 }
 
 func (tl *TestLauncher) HTTPClient(tb testing.TB) *httpc.Client {
@@ -492,13 +543,29 @@ func (tl *TestLauncher) HTTPClient(tb testing.TB) *httpc.Client {
 		if tl.Auth != nil {
 			token = tl.Auth.Token
 		}
-		client, err := http.NewHTTPClient(tl.URL(), token, false)
+		client, err := http.NewHTTPClient(tl.URL().String(), token, false)
 		if err != nil {
 			tb.Fatal(err)
 		}
 		tl.httpClient = client
 	}
 	return tl.httpClient
+}
+
+func (tl *TestLauncher) APIClient(tb testing.TB) *api.APIClient {
+	tb.Helper()
+
+	if tl.apiClient == nil {
+		params := api.ConfigParams{
+			Host: tl.URL(),
+		}
+		if tl.Auth != nil {
+			params.Token = &tl.Auth.Token
+		}
+		tl.apiClient = api.NewAPIClient(api.NewAPIConfig(params))
+	}
+
+	return tl.apiClient
 }
 
 func (tl *TestLauncher) Metrics(tb testing.TB) (metrics map[string]*dto.MetricFamily) {

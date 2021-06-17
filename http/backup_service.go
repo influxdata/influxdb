@@ -1,11 +1,7 @@
 package http
 
 import (
-	"context"
-	"fmt"
-	"io"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -47,8 +43,6 @@ const (
 	prefixBackup      = "/api/v2/backup"
 	backupKVStorePath = prefixBackup + "/kv"
 	backupShardPath   = prefixBackup + "/shards/:shardID"
-
-	httpClientTimeout = time.Hour
 )
 
 // NewBackupHandler creates a new handler at /api/v2/backup to receive backup requests.
@@ -103,82 +97,4 @@ func (h *BackupHandler) handleBackupShard(w http.ResponseWriter, r *http.Request
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-}
-
-// BackupService is the client implementation of influxdb.BackupService.
-type BackupService struct {
-	Addr               string
-	Token              string
-	InsecureSkipVerify bool
-}
-
-func (s *BackupService) BackupKVStore(ctx context.Context, w io.Writer) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	u, err := NewURL(s.Addr, prefixBackup+"/kv")
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
-	if err != nil {
-		return err
-	}
-	SetToken(s.Token, req)
-	req = req.WithContext(ctx)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-	hc.Timeout = httpClientTimeout
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return err
-	}
-
-	if _, err := io.Copy(w, resp.Body); err != nil {
-		return err
-	}
-	return resp.Body.Close()
-}
-
-func (s *BackupService) BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	u, err := NewURL(s.Addr, fmt.Sprintf(prefixBackup+"/shards/%d", shardID))
-	if err != nil {
-		return err
-	}
-	if !since.IsZero() {
-		u.RawQuery = (url.Values{"since": {since.UTC().Format(time.RFC3339)}}).Encode()
-	}
-
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
-	if err != nil {
-		return err
-	}
-	SetToken(s.Token, req)
-	req = req.WithContext(ctx)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-	hc.Timeout = httpClientTimeout
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return err
-	}
-
-	if _, err := io.Copy(w, resp.Body); err != nil {
-		return err
-	}
-	return resp.Body.Close()
 }
