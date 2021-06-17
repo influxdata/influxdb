@@ -597,6 +597,7 @@ async fn test_wipe_persisted_catalog() {
             .arg(&db_name)
             .arg("--host")
             .arg(addr)
+            .arg("--force")
             .assert()
             .success()
             .get_output()
@@ -615,7 +616,26 @@ async fn test_wipe_persisted_catalog() {
 }
 
 #[tokio::test]
-async fn test_wipe_persisted_catalog_error() {
+async fn test_wipe_persisted_catalog_error_force() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("catalog")
+        .arg("wipe")
+        .arg(&db_name)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Need to pass `--force`"));
+}
+
+#[tokio::test]
+async fn test_wipe_persisted_catalog_error_db_exists() {
     let server_fixture = ServerFixture::create_shared().await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
@@ -630,6 +650,7 @@ async fn test_wipe_persisted_catalog_error() {
         .arg(&db_name)
         .arg("--host")
         .arg(addr)
+        .arg("--force")
         .assert()
         .failure()
         .stderr(predicate::str::contains("Database already exists"));
