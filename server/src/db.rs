@@ -274,6 +274,7 @@ pub async fn load_or_create_preserved_catalog(
     object_store: Arc<ObjectStore>,
     server_id: ServerId,
     metrics_registry: Arc<MetricRegistry>,
+    wipe_on_error: bool,
 ) -> std::result::Result<PreservedCatalog<Catalog>, parquet_file::catalog::Error> {
     let metric_labels = vec![
         KeyValue::new("db_name", db_name.to_string()),
@@ -323,25 +324,29 @@ pub async fn load_or_create_preserved_catalog(
             .await
         }
         Err(e) => {
-            // https://github.com/influxdata/influxdb_iox/issues/1522)
-            // broken => wipe for now (at least during early iterations)
-            error!("cannot load catalog, so wipe it: {}", e);
-            wipe_preserved_catalog(&object_store, server_id, db_name).await?;
+            if wipe_on_error {
+                // https://github.com/influxdata/influxdb_iox/issues/1522)
+                // broken => wipe for now (at least during early iterations)
+                error!("cannot load catalog, so wipe it: {}", e);
+                wipe_preserved_catalog(&object_store, server_id, db_name).await?;
 
-            let metrics_domain =
-                metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
+                let metrics_domain =
+                    metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
 
-            PreservedCatalog::new_empty(
-                Arc::clone(&object_store),
-                server_id,
-                db_name.to_string(),
-                CatalogEmptyInput {
-                    domain: metrics_domain,
-                    metrics_registry: Arc::clone(&metrics_registry),
-                    metric_labels: metric_labels.clone(),
-                },
-            )
-            .await
+                PreservedCatalog::new_empty(
+                    Arc::clone(&object_store),
+                    server_id,
+                    db_name.to_string(),
+                    CatalogEmptyInput {
+                        domain: metrics_domain,
+                        metrics_registry: Arc::clone(&metrics_registry),
+                        metric_labels: metric_labels.clone(),
+                    },
+                )
+                .await
+            } else {
+                Err(e)
+            }
         }
     }
 }
@@ -3034,7 +3039,7 @@ mod tests {
             .await;
 
         let metrics_registry = Arc::new(metrics::MetricRegistry::new());
-        load_or_create_preserved_catalog(db_name, object_store, server_id, metrics_registry)
+        load_or_create_preserved_catalog(db_name, object_store, server_id, metrics_registry, true)
             .await
             .unwrap();
     }
