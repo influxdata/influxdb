@@ -46,6 +46,8 @@ macro_rules! run_tag_keys_test_case {
     };
 }
 
+// ignoring flaky test until https://github.com/influxdata/influxdb_iox/issues/1735 is fixed
+// TODO(1735) re-enable test
 #[tokio::test]
 async fn list_tag_columns_no_predicate() {
     let predicate = PredicateBuilder::default().build();
@@ -53,6 +55,8 @@ async fn list_tag_columns_no_predicate() {
     run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
 
+// ignoring flaky test until https://github.com/influxdata/influxdb_iox/issues/1735 is fixed
+// TODO(1735) re-enable test
 #[tokio::test]
 async fn list_tag_columns_timestamp() {
     let predicate = PredicateBuilder::default()
@@ -61,6 +65,9 @@ async fn list_tag_columns_timestamp() {
     let expected_tag_keys = vec!["city", "state"];
     run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
+
+// ignoring flaky test until https://github.com/influxdata/influxdb_iox/issues/1735 is fixed
+// TODO(1735) re-enable test
 #[tokio::test]
 async fn list_tag_columns_predicate() {
     let predicate = PredicateBuilder::default()
@@ -70,6 +77,8 @@ async fn list_tag_columns_predicate() {
     run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
 
+// ignoring flaky test until https://github.com/influxdata/influxdb_iox/issues/1735 is fixed
+// TODO(1735) re-enable test
 #[tokio::test]
 async fn list_tag_columns_timestamp_and_predicate() {
     let predicate = PredicateBuilder::default()
@@ -80,13 +89,18 @@ async fn list_tag_columns_timestamp_and_predicate() {
     run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
 
+// ignoring flaky test until https://github.com/influxdata/influxdb_iox/issues/1735 is fixed
+// TODO(1735) re-enable test
 #[tokio::test]
+#[ignore]
 async fn list_tag_columns_measurement_name() {
     let predicate = PredicateBuilder::default().table("o2").build();
     let expected_tag_keys = vec!["borough", "city", "state"];
     run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
 
+// ignoring flaky test until https://github.com/influxdata/influxdb_iox/issues/1735 is fixed
+// TODO(1735) re-enable test
 #[tokio::test]
 async fn list_tag_columns_measurement_name_and_timestamp() {
     let predicate = PredicateBuilder::default()
@@ -97,6 +111,8 @@ async fn list_tag_columns_measurement_name_and_timestamp() {
     run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
 
+// ignoring flaky test until https://github.com/influxdata/influxdb_iox/issues/1735 is fixed
+// TODO(1735) re-enable test
 #[tokio::test]
 async fn list_tag_columns_measurement_name_and_predicate() {
     let predicate = PredicateBuilder::default()
@@ -107,6 +123,8 @@ async fn list_tag_columns_measurement_name_and_predicate() {
     run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
 
+// ignoring flaky test until https://github.com/influxdata/influxdb_iox/issues/1735 is fixed
+// TODO(1735) re-enable test
 #[tokio::test]
 async fn list_tag_columns_measurement_name_and_predicate_and_timestamp() {
     let predicate = PredicateBuilder::default()
@@ -118,6 +136,8 @@ async fn list_tag_columns_measurement_name_and_predicate_and_timestamp() {
     run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
 
+// ignoring flaky test until https://github.com/influxdata/influxdb_iox/issues/1735 is fixed
+// TODO(1735) re-enable test
 #[tokio::test]
 async fn list_tag_name_end_to_end() {
     let predicate = PredicateBuilder::default()
