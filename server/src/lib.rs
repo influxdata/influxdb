@@ -73,7 +73,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
-use cached::proc_macro::cached;
 use db::load_or_create_preserved_catalog;
 use init::InitStatus;
 use observability_deps::tracing::{debug, info, warn};
@@ -95,7 +94,7 @@ use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, Tr
 
 pub use crate::config::RemoteTemplate;
 use crate::config::{object_store_path_for_database_config, Config, GRpcConnectionString};
-use cached::Return;
+use cache_loader_async::cache_api::LoadingCache;
 use data_types::database_rules::{NodeGroup, RoutingRules, Shard, ShardConfig, ShardId};
 pub use db::Db;
 use generated_types::database_rules::encode_database_rules;
@@ -936,7 +935,43 @@ pub trait RemoteServer {
 
 /// The connection manager maps a host identifier to a remote server.
 #[derive(Debug)]
-pub struct ConnectionManagerImpl {}
+pub struct ConnectionManagerImpl {
+    cache: LoadingCache<String, Arc<RemoteServerImpl>, CacheFillError>,
+}
+
+// Error must be Clone because LoadingCache requires so.
+#[derive(Debug, Snafu, Clone)]
+pub enum CacheFillError {
+    #[snafu(display("gRPC error: {}", source))]
+    GrpcError {
+        source: Arc<dyn std::error::Error + Send + Sync + 'static>,
+    },
+}
+
+impl ConnectionManagerImpl {
+    pub fn new() -> Self {
+        let (cache, _) = LoadingCache::new(Self::cached_remote_server);
+        Self { cache }
+    }
+
+    async fn cached_remote_server(
+        connect: String,
+    ) -> Result<Arc<RemoteServerImpl>, CacheFillError> {
+        let connection = Builder::default()
+            .build(&connect)
+            .await
+            .map_err(|e| Arc::new(e) as _)
+            .context(GrpcError)?;
+        let client = write::Client::new(connection);
+        Ok(Arc::new(RemoteServerImpl { client }))
+    }
+}
+
+impl Default for ConnectionManagerImpl {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[async_trait]
 impl ConnectionManager for ConnectionManagerImpl {
@@ -946,25 +981,15 @@ impl ConnectionManager for ConnectionManagerImpl {
         &self,
         connect: &str,
     ) -> Result<Arc<Self::RemoteServer>, ConnectionManagerError> {
-        let ret = cached_remote_server(connect.to_string()).await?;
-        debug!(was_cached=%ret.was_cached, %connect, "getting remote connection");
-        Ok(ret.value)
+        let ret = self
+            .cache
+            .get_with_meta(connect.to_string())
+            .await
+            .map_err(|e| Box::new(e) as _)
+            .context(RemoteServerConnectError)?;
+        debug!(was_cached=%ret.cached, %connect, "getting remote connection");
+        Ok(ret.result)
     }
-}
-
-// cannot be an associated function
-// argument need to have static lifetime because they become caching keys
-#[cached(result = true, with_cached_flag = true)]
-async fn cached_remote_server(
-    connect: String,
-) -> Result<Return<Arc<RemoteServerImpl>>, ConnectionManagerError> {
-    let connection = Builder::default()
-        .build(&connect)
-        .await
-        .map_err(|e| Box::new(e) as _)
-        .context(RemoteServerConnectError)?;
-    let client = write::Client::new(connection);
-    Ok(Return::new(Arc::new(RemoteServerImpl { client })))
 }
 
 /// An implementation for communicating with other IOx servers. This should
