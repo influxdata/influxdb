@@ -276,7 +276,8 @@ jobs:
           echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
       - run: |
           COMMIT_SHA=$(git rev-parse --short HEAD)
-          docker build -t quay.io/influxdb/rust:$COMMIT_SHA -f docker/Dockerfile.ci --build-arg RUST_VERSION=$(cat rust-toolchain) .
+          RUST_VERSION=$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)
+          docker build -t quay.io/influxdb/rust:$COMMIT_SHA -f docker/Dockerfile.ci --build-arg RUST_VERSION=$RUST_VERSION .
           docker tag quay.io/influxdb/rust:$COMMIT_SHA quay.io/influxdb/rust:ci
           docker push quay.io/influxdb/rust:$COMMIT_SHA
           docker push quay.io/influxdb/rust:ci
