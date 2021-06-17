@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -345,8 +344,8 @@ func TestUpgradeRealDB(t *testing.T) {
 }
 
 func mustRunQuery(t *testing.T, tl *launcher.TestLauncher, db, rawQ, token string) string {
-	queryUrl, err := url.Parse(tl.URL() + "/query")
-	require.Nil(t, err)
+	queryUrl := *tl.URL()
+	queryUrl.Path = "/query"
 
 	params := queryUrl.Query()
 	params.Set("db", db)

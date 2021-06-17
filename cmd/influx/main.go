@@ -322,7 +322,6 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 	builder := newInfluxCmdBuilder(opts...)
 	return builder.cmd(
 		cmdAuth,
-		cmdBackup,
 		cmdBucket,
 		cmdConfig,
 		cmdDashboard,
@@ -331,7 +330,6 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 		cmdOrganization,
 		cmdPing,
 		cmdQuery,
-		cmdRestore,
 		cmdSecret,
 		cmdSetup,
 		cmdStack,

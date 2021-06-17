@@ -254,9 +254,8 @@ func TestStringArrayDecodeAll_Multi_Compressed(t *testing.T) {
 
 func TestStringArrayDecodeAll_Quick(t *testing.T) {
 	quick.Check(func(values []string) bool {
-		exp := values
 		if values == nil {
-			exp = []string{}
+			values = []string{}
 		}
 		// Write values to encoder.
 		enc := NewStringEncoder(1024)
@@ -276,8 +275,8 @@ func TestStringArrayDecodeAll_Quick(t *testing.T) {
 			t.Fatalf("unexpected error creating string decoder: %v", err)
 		}
 
-		if !cmp.Equal(got, exp) {
-			t.Fatalf("unexpected value: -got/+exp\n%s", cmp.Diff(got, exp))
+		if !cmp.Equal(got, values) {
+			t.Fatalf("unexpected value: -got/+exp\n%s", cmp.Diff(got, values))
 		}
 
 		return true
