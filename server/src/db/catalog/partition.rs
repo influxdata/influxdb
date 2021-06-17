@@ -13,13 +13,15 @@ use tracker::RwLock;
 use crate::db::catalog::metrics::PartitionMetrics;
 
 use super::chunk::{CatalogChunk, ChunkStage};
-use data_types::chunk_metadata::ChunkSummary;
+use data_types::chunk_metadata::{ChunkAddr, ChunkSummary};
 
 /// IOx Catalog Partition
 ///
 /// A partition contains multiple Chunks for a given table
 #[derive(Debug)]
 pub struct Partition {
+    /// Database name
+    db_name: Arc<str>,
     /// The partition key
     partition_key: Arc<str>,
 
@@ -49,13 +51,15 @@ impl Partition {
     /// This function is not pub because `Partition`s should be
     /// created using the interfaces on [`Catalog`](crate::db::catalog::Catalog) and not
     /// instantiated directly.
-    pub(crate) fn new(
+    pub(super) fn new(
+        db_name: Arc<str>,
         partition_key: Arc<str>,
         table_name: Arc<str>,
         metrics: PartitionMetrics,
     ) -> Self {
         let now = Utc::now();
         Self {
+            db_name,
             partition_key,
             table_name,
             chunks: Default::default(),
@@ -110,9 +114,15 @@ impl Partition {
 
         self.next_chunk_id += 1;
 
-        let chunk = Arc::new(self.metrics.new_chunk_lock(CatalogChunk::new_open(
+        let addr = ChunkAddr {
+            db_name: Arc::clone(&self.db_name),
+            table_name: Arc::clone(&self.table_name),
+            partition_key: Arc::clone(&self.partition_key),
             chunk_id,
-            &self.partition_key,
+        };
+
+        let chunk = Arc::new(self.metrics.new_chunk_lock(CatalogChunk::new_open(
+            addr,
             chunk,
             self.metrics.new_chunk_metrics(),
         )));
@@ -138,11 +148,17 @@ impl Partition {
     ) -> Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name(), self.table_name.as_ref());
 
+        let addr = ChunkAddr {
+            db_name: Arc::clone(&self.db_name),
+            table_name: Arc::clone(&self.table_name),
+            partition_key: Arc::clone(&self.partition_key),
+            chunk_id,
+        };
+
         let chunk = Arc::new(
             self.metrics
                 .new_chunk_lock(CatalogChunk::new_object_store_only(
-                    chunk_id,
-                    &self.partition_key,
+                    addr,
                     chunk,
                     self.metrics.new_chunk_metrics(),
                 )),

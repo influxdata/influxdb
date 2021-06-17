@@ -127,7 +127,7 @@ struct TracerCatalogState {
 impl CatalogState for TracerCatalogState {
     type EmptyInput = ();
 
-    fn new_empty(_data: Self::EmptyInput) -> Self {
+    fn new_empty(_db_name: &str, _data: Self::EmptyInput) -> Self {
         Self {
             files: Default::default(),
         }
@@ -182,7 +182,7 @@ mod tests {
     use super::*;
     use crate::{
         catalog::test_helpers::TestCatalogState,
-        test_utils::{make_metadata, make_object_store},
+        test_utils::{chunk_addr, db_name, make_metadata, make_object_store},
     };
 
     #[tokio::test]
@@ -210,7 +210,7 @@ mod tests {
     async fn test_cleanup_rules() {
         let object_store = make_object_store();
         let server_id = make_server_id();
-        let db_name = "db1";
+        let db_name = db_name();
 
         let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
             Arc::clone(&object_store),
@@ -228,12 +228,12 @@ mod tests {
             let mut transaction = catalog.open_transaction().await;
 
             // an ordinary tracked parquet file => keep
-            let (path, md) = make_metadata(&object_store, "foo", 1).await;
+            let (path, md) = make_metadata(&object_store, "foo", chunk_addr(1)).await;
             transaction.add_parquet(&path.clone().into(), &md).unwrap();
             paths_keep.push(path.display());
 
             // another ordinary tracked parquet file that was added and removed => keep (for time travel)
-            let (path, md) = make_metadata(&object_store, "foo", 2).await;
+            let (path, md) = make_metadata(&object_store, "foo", chunk_addr(2)).await;
             transaction.add_parquet(&path.clone().into(), &md).unwrap();
             transaction.remove_parquet(&path.clone().into()).unwrap();
             paths_keep.push(path.display());
@@ -246,7 +246,7 @@ mod tests {
             paths_keep.push(path.display());
 
             // an untracked parquet file => delete
-            let (path, _md) = make_metadata(&object_store, "foo", 3).await;
+            let (path, _md) = make_metadata(&object_store, "foo", chunk_addr(3)).await;
             paths_delete.push(path.display());
 
             transaction.commit(false).await.unwrap();
@@ -271,7 +271,7 @@ mod tests {
     async fn test_cleanup_with_parallel_transaction() {
         let object_store = make_object_store();
         let server_id = make_server_id();
-        let db_name = "db1";
+        let db_name = db_name();
 
         let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
             Arc::clone(&object_store),
@@ -288,7 +288,7 @@ mod tests {
                 async {
                     let mut transaction = catalog.open_transaction().await;
 
-                    let (path, md) = make_metadata(&object_store, "foo", i).await;
+                    let (path, md) = make_metadata(&object_store, "foo", chunk_addr(i)).await;
                     transaction.add_parquet(&path.clone().into(), &md).unwrap();
 
                     transaction.commit(false).await.unwrap();
@@ -311,7 +311,7 @@ mod tests {
     async fn test_cleanup_max_files() {
         let object_store = make_object_store();
         let server_id = make_server_id();
-        let db_name = "db1";
+        let db_name = db_name();
 
         let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
             Arc::clone(&object_store),
@@ -325,7 +325,7 @@ mod tests {
         // create some files
         let mut to_remove: HashSet<String> = Default::default();
         for chunk_id in 0..3 {
-            let (path, _md) = make_metadata(&object_store, "foo", chunk_id).await;
+            let (path, _md) = make_metadata(&object_store, "foo", chunk_addr(chunk_id)).await;
             to_remove.insert(path.display());
         }
 

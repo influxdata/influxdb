@@ -12,7 +12,7 @@ mod tests {
     use crate::{
         metadata::IoxParquetMetaData,
         test_utils::{
-            load_parquet_from_store, make_chunk_given_record_batch, make_object_store,
+            chunk_addr, load_parquet_from_store, make_chunk_given_record_batch, make_object_store,
             make_record_batch, read_data_from_parquet_data,
         },
     };
@@ -21,10 +21,10 @@ mod tests {
     async fn test_write_read() {
         ////////////////////
         // Create test data which is also the expected data
-        let table = "table1";
-        let chunk_id = 1;
+        let addr = chunk_addr(1);
+        let table = Arc::clone(&addr.table_name);
         let (record_batches, schema, column_summaries, num_rows) = make_record_batch("foo");
-        let mut table_summary = TableSummary::new(table);
+        let mut table_summary = TableSummary::new(table.to_string());
         table_summary.columns = column_summaries.clone();
         let record_batch = record_batches[0].clone(); // Get the first one to compare key-value meta data that would be the same for all batches
         let key_value_metadata = record_batch.schema().metadata().clone();
@@ -40,9 +40,8 @@ mod tests {
             Arc::clone(&store),
             record_batches.clone(),
             schema.clone(),
-            table,
+            addr,
             column_summaries.clone(),
-            chunk_id,
         )
         .await;
 

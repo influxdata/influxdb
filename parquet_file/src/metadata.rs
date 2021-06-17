@@ -566,14 +566,14 @@ mod tests {
     use internal_types::{schema::TIME_COLUMN_NAME, selection::Selection};
 
     use crate::test_utils::{
-        load_parquet_from_store, make_chunk, make_chunk_no_row_group, make_object_store,
+        chunk_addr, load_parquet_from_store, make_chunk, make_chunk_no_row_group, make_object_store,
     };
 
     #[tokio::test]
     async fn test_restore_from_file() {
         // setup: preserve chunk to object store
         let store = make_object_store();
-        let chunk = make_chunk(Arc::clone(&store), "foo", 1).await;
+        let chunk = make_chunk(Arc::clone(&store), "foo", chunk_addr(1)).await;
         let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
 
@@ -594,7 +594,7 @@ mod tests {
     async fn test_restore_from_thrift() {
         // setup: write chunk to object store and only keep thrift-encoded metadata
         let store = make_object_store();
-        let chunk = make_chunk(Arc::clone(&store), "foo", 1).await;
+        let chunk = make_chunk(Arc::clone(&store), "foo", chunk_addr(1)).await;
         let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
         let data = parquet_metadata.to_thrift().unwrap();
@@ -617,7 +617,7 @@ mod tests {
     async fn test_restore_from_file_no_row_group() {
         // setup: preserve chunk to object store
         let store = make_object_store();
-        let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo", 1).await;
+        let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo", chunk_addr(1)).await;
         let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
 
@@ -638,7 +638,7 @@ mod tests {
     async fn test_restore_from_thrift_no_row_group() {
         // setup: write chunk to object store and only keep thrift-encoded metadata
         let store = make_object_store();
-        let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo", 1).await;
+        let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo", chunk_addr(1)).await;
         let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
         let data = parquet_metadata.to_thrift().unwrap();
@@ -660,7 +660,7 @@ mod tests {
     #[tokio::test]
     async fn test_make_chunk() {
         let store = make_object_store();
-        let chunk = make_chunk(Arc::clone(&store), "foo", 1).await;
+        let chunk = make_chunk(Arc::clone(&store), "foo", chunk_addr(1)).await;
         let (_, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
 
@@ -700,7 +700,7 @@ mod tests {
     #[tokio::test]
     async fn test_make_chunk_no_row_group() {
         let store = make_object_store();
-        let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo", 1).await;
+        let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo", chunk_addr(1)).await;
         let (_, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
 

@@ -83,6 +83,8 @@ impl<'a> From<Option<&'a BTreeSet<String>>> for TableNameFilter<'a> {
 /// information
 #[derive(Debug)]
 pub struct Catalog {
+    db_name: Arc<str>,
+
     /// key is table name
     ///
     /// TODO: Remove this unnecessary additional layer of locking
@@ -98,10 +100,16 @@ impl Catalog {
     #[cfg(test)]
     fn test() -> Self {
         let registry = Arc::new(::metrics::MetricRegistry::new());
-        Self::new(registry.register_domain("catalog"), registry, vec![])
+        Self::new(
+            Arc::from("test"),
+            registry.register_domain("catalog"),
+            registry,
+            vec![],
+        )
     }
 
     pub fn new(
+        db_name: Arc<str>,
         metrics_domain: ::metrics::Domain,
         metrics_registry: Arc<::metrics::MetricRegistry>,
         metric_labels: Vec<::metrics::KeyValue>,
@@ -109,6 +117,7 @@ impl Catalog {
         let metrics = CatalogMetrics::new(metrics_domain);
 
         Self {
+            db_name,
             tables: Default::default(),
             metrics,
             metrics_registry,
@@ -200,6 +209,7 @@ impl Catalog {
             .or_insert_with(|| {
                 let table_name = Arc::from(table_name.as_ref());
                 let table = Table::new(
+                    Arc::clone(&self.db_name),
                     Arc::clone(&table_name),
                     self.metrics.new_table_metrics(table_name.as_ref()),
                 );

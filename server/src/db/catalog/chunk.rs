@@ -3,6 +3,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use snafu::Snafu;
 
+use data_types::chunk_metadata::ChunkAddr;
 use data_types::{
     chunk_metadata::{ChunkColumnSummary, ChunkStorage, ChunkSummary, DetailedChunkSummary},
     partition_metadata::TableSummary,
@@ -18,64 +19,47 @@ use tracker::{TaskRegistration, TaskTracker};
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display(
-        "Internal Error: unexpected chunk state for {}:{}:{}  during {}. Expected {}, got {}",
-        partition_key,
-        table_name,
-        chunk_id,
+        "Internal Error: unexpected chunk state for {} during {}. Expected {}, got {}",
+        chunk,
         operation,
         expected,
         actual
     ))]
     InternalChunkState {
-        partition_key: String,
-        table_name: String,
-        chunk_id: u32,
+        chunk: ChunkAddr,
         operation: String,
         expected: String,
         actual: String,
     },
 
     #[snafu(display(
-        "Internal Error: A lifecycle action '{}' is already in progress for  {}:{}:{}",
+        "Internal Error: A lifecycle action '{}' is already in progress for {}",
         lifecycle_action,
-        partition_key,
-        table_name,
-        chunk_id,
+        chunk,
     ))]
     LifecycleActionAlreadyInProgress {
-        partition_key: String,
-        table_name: String,
-        chunk_id: u32,
+        chunk: ChunkAddr,
         lifecycle_action: String,
     },
 
     #[snafu(display(
-        "Internal Error: Unexpected chunk state for {}:{}:{}. Expected {}, got {}",
-        partition_key,
-        table_name,
-        chunk_id,
+        "Internal Error: Unexpected chunk state for {}. Expected {}, got {}",
+        chunk,
         expected,
         actual
     ))]
     UnexpectedLifecycleAction {
-        partition_key: String,
-        table_name: String,
-        chunk_id: u32,
+        chunk: ChunkAddr,
         expected: String,
         actual: String,
     },
 
     #[snafu(display(
-        "Internal Error: Cannot clear a lifecycle action '{}' for chunk {}:{} that is still running",
+        "Internal Error: Cannot clear a lifecycle action '{}' for chunk {} that is still running",
         action,
-        partition_key,
-        chunk_id
+        chunk
     ))]
-    IncompleteLifecycleAction {
-        partition_key: String,
-        chunk_id: u32,
-        action: String,
-    },
+    IncompleteLifecycleAction { chunk: ChunkAddr, action: String },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -190,14 +174,7 @@ impl ChunkStage {
 /// _representation_ (e.g. a persisted chunk may have data cached in-memory).
 #[derive(Debug)]
 pub struct CatalogChunk {
-    /// What partition does the chunk belong to?
-    partition_key: Arc<str>,
-
-    /// What table does the chunk belong to?
-    table_name: Arc<str>,
-
-    /// The ID of the chunk
-    id: u32,
+    addr: ChunkAddr,
 
     /// The lifecycle stage this chunk is in.
     stage: ChunkStage,
@@ -229,9 +206,7 @@ pub struct CatalogChunk {
 macro_rules! unexpected_state {
     ($SELF: expr, $OP: expr, $EXPECTED: expr, $STATE: expr) => {
         InternalChunkState {
-            partition_key: $SELF.partition_key.as_ref(),
-            table_name: $SELF.table_name.as_ref(),
-            chunk_id: $SELF.id,
+            chunk: $SELF.addr.clone(),
             operation: $OP,
             expected: $EXPECTED,
             actual: $STATE.name(),
@@ -266,15 +241,13 @@ impl CatalogChunk {
     /// current time.
     ///
     /// Apart from [`new_object_store_only`](Self::new_object_store_only) this is the only way to create new chunks.
-    pub(crate) fn new_open(
-        chunk_id: u32,
-        partition_key: impl AsRef<str>,
+    pub(super) fn new_open(
+        addr: ChunkAddr,
         chunk: mutable_buffer::chunk::MBChunk,
         metrics: ChunkMetrics,
     ) -> Self {
         assert!(chunk.rows() > 0, "chunk must not be empty");
-
-        let table_name = Arc::clone(&chunk.table_name());
+        assert_eq!(chunk.table_name(), &addr.table_name);
         let stage = ChunkStage::Open { mb_chunk: chunk };
 
         metrics
@@ -282,9 +255,7 @@ impl CatalogChunk {
             .inc_with_labels(&[KeyValue::new("state", "open")]);
 
         let mut chunk = Self {
-            partition_key: Arc::from(partition_key.as_ref()),
-            table_name,
-            id: chunk_id,
+            addr,
             stage,
             lifecycle_action: None,
             metrics,
@@ -299,13 +270,12 @@ impl CatalogChunk {
     /// Creates a new chunk that is only registered via an object store reference (= only exists in parquet).
     ///
     /// Apart from [`new_open`](Self::new_open) this is the only way to create new chunks.
-    pub(crate) fn new_object_store_only(
-        chunk_id: u32,
-        partition_key: impl AsRef<str>,
+    pub(super) fn new_object_store_only(
+        addr: ChunkAddr,
         chunk: Arc<parquet_file::chunk::ParquetChunk>,
         metrics: ChunkMetrics,
     ) -> Self {
-        let table_name = Arc::from(chunk.table_name());
+        assert_eq!(chunk.table_name(), addr.table_name.as_ref());
 
         // Cache table summary + schema
         let meta = Arc::new(ChunkMetadata {
@@ -320,9 +290,7 @@ impl CatalogChunk {
         };
 
         Self {
-            partition_key: Arc::from(partition_key.as_ref()),
-            table_name,
-            id: chunk_id,
+            addr,
             stage,
             lifecycle_action: None,
             metrics,
@@ -332,16 +300,20 @@ impl CatalogChunk {
         }
     }
 
+    pub fn addr(&self) -> &ChunkAddr {
+        &self.addr
+    }
+
     pub fn id(&self) -> u32 {
-        self.id
+        self.addr.chunk_id
     }
 
     pub fn key(&self) -> &str {
-        self.partition_key.as_ref()
+        self.addr.partition_key.as_ref()
     }
 
     pub fn table_name(&self) -> Arc<str> {
-        Arc::clone(&self.table_name)
+        Arc::clone(&self.addr.table_name)
     }
 
     pub fn stage(&self) -> &ChunkStage {
@@ -412,9 +384,9 @@ impl CatalogChunk {
         let (row_count, storage) = self.storage();
 
         ChunkSummary {
-            partition_key: Arc::clone(&self.partition_key),
-            table_name: Arc::clone(&self.table_name),
-            id: self.id,
+            partition_key: Arc::clone(&self.addr.partition_key),
+            table_name: Arc::clone(&self.addr.table_name),
+            id: self.addr.chunk_id,
             storage,
             estimated_bytes: self.size(),
             row_count,
@@ -441,11 +413,11 @@ impl CatalogChunk {
                 ChunkStageFrozenRepr::MutableBufferSnapshot(repr) => {
                     repr.column_sizes().map(to_summary).collect()
                 }
-                ChunkStageFrozenRepr::ReadBuffer(repr) => repr.column_sizes(&self.table_name),
+                ChunkStageFrozenRepr::ReadBuffer(repr) => repr.column_sizes(&self.addr.table_name),
             },
             ChunkStage::Persisted { read_buffer, .. } => {
                 if let Some(read_buffer) = &read_buffer {
-                    read_buffer.column_sizes(&self.table_name)
+                    read_buffer.column_sizes(&self.addr.table_name)
                 } else {
                     // TODO parquet statistics
                     vec![]
@@ -572,9 +544,7 @@ impl CatalogChunk {
                     Ok(chunk)
                 }
                 ChunkStageFrozenRepr::ReadBuffer(_) => InternalChunkState {
-                    partition_key: self.partition_key.as_ref(),
-                    table_name: self.table_name.as_ref(),
-                    chunk_id: self.id,
+                    chunk: self.addr.clone(),
                     operation: "setting moving",
                     expected: "Frozen with MutableBufferSnapshot",
                     actual: "Frozen with ReadBuffer",
@@ -608,9 +578,7 @@ impl CatalogChunk {
                     Ok(())
                 }
                 ChunkStageFrozenRepr::ReadBuffer(_) => InternalChunkState {
-                    partition_key: self.partition_key.as_ref(),
-                    table_name: self.table_name.as_ref(),
-                    chunk_id: self.id,
+                    chunk: self.addr.clone(),
                     operation: "setting moved",
                     expected: "Frozen with MutableBufferSnapshot",
                     actual: "Frozen with ReadBuffer",
@@ -634,9 +602,7 @@ impl CatalogChunk {
                     ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
                         // TODO: ideally we would support all Frozen representations
                         InternalChunkState {
-                            partition_key: self.partition_key.as_ref(),
-                            table_name: self.table_name.as_ref(),
-                            chunk_id: self.id,
+                            chunk: self.addr.clone(),
                             operation: "setting object store",
                             expected: "Frozen with ReadBuffer",
                             actual: "Frozen with MutableBufferSnapshot",
@@ -673,9 +639,7 @@ impl CatalogChunk {
                     ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
                         // TODO: ideally we would support all Frozen representations
                         InternalChunkState {
-                            partition_key: self.partition_key.as_ref(),
-                            table_name: self.table_name.as_ref(),
-                            chunk_id: self.id,
+                            chunk: self.addr.clone(),
                             operation: "setting object store",
                             expected: "Frozen with ReadBuffer",
                             actual: "Frozen with MutableBufferSnapshot",
@@ -738,9 +702,7 @@ impl CatalogChunk {
                 } else {
                     // TODO: do we really need to error here or should unloading an unloaded chunk be a no-op?
                     InternalChunkState {
-                        partition_key: self.partition_key.as_ref(),
-                        table_name: self.table_name.as_ref(),
-                        chunk_id: self.id,
+                        chunk: self.addr.clone(),
                         operation: "setting unload",
                         expected: "Persisted with ReadBuffer",
                         actual: "Persisted without ReadBuffer",
@@ -762,9 +724,7 @@ impl CatalogChunk {
     ) -> Result<()> {
         if let Some(lifecycle_action) = &self.lifecycle_action {
             return Err(Error::LifecycleActionAlreadyInProgress {
-                partition_key: self.partition_key.to_string(),
-                table_name: self.table_name.to_string(),
-                chunk_id: self.id,
+                chunk: self.addr.clone(),
                 lifecycle_action: lifecycle_action.metadata().name().to_string(),
             });
         }
@@ -778,9 +738,7 @@ impl CatalogChunk {
             Some(actual) if actual.metadata() == &lifecycle_action => {}
             actual => {
                 return Err(Error::UnexpectedLifecycleAction {
-                    partition_key: self.partition_key.to_string(),
-                    table_name: self.table_name.to_string(),
-                    chunk_id: self.id,
+                    chunk: self.addr.clone(),
                     expected: lifecycle_action.name().to_string(),
                     actual: actual
                         .as_ref()
@@ -801,8 +759,7 @@ impl CatalogChunk {
         if let Some(tracker) = &self.lifecycle_action {
             if !tracker.is_complete() {
                 return Err(Error::IncompleteLifecycleAction {
-                    partition_key: self.partition_key.to_string(),
-                    chunk_id: self.id,
+                    chunk: self.addr.clone(),
                     action: tracker.metadata().name().to_string(),
                 });
             }
@@ -826,27 +783,21 @@ mod tests {
     #[test]
     fn test_new_open() {
         let sequencer_id = 1;
-        let table_name = "table1";
-        let partition_key = "part1";
-        let chunk_id = 0;
+        let addr = chunk_addr();
 
         // works with non-empty MBChunk
-        let mb_chunk = make_mb_chunk(table_name, sequencer_id);
-        let chunk = CatalogChunk::new_open(
-            chunk_id,
-            partition_key,
-            mb_chunk,
-            ChunkMetrics::new_unregistered(),
-        );
+        let mb_chunk = make_mb_chunk(&addr.table_name, sequencer_id);
+        let chunk = CatalogChunk::new_open(addr, mb_chunk, ChunkMetrics::new_unregistered());
         assert!(matches!(chunk.stage(), &ChunkStage::Open { .. }));
     }
 
     #[test]
     #[should_panic(expected = "chunk must not be empty")]
     fn test_new_open_empty() {
+        let addr = chunk_addr();
         // fails with empty MBChunk
-        let mb_chunk = MBChunk::new("t1", MBChunkMetrics::new_unregistered());
-        CatalogChunk::new_open(0, "p1", mb_chunk, ChunkMetrics::new_unregistered());
+        let mb_chunk = MBChunk::new(&addr.table_name, MBChunkMetrics::new_unregistered());
+        CatalogChunk::new_open(addr, mb_chunk, ChunkMetrics::new_unregistered());
     }
 
     #[tokio::test]
@@ -863,7 +814,7 @@ mod tests {
 
         // closing a chunk in persisted state will fail
         let mut chunk = make_persisted_chunk().await;
-        assert_eq!(chunk.freeze().unwrap_err().to_string(), "Internal Error: unexpected chunk state for part1:table1:0  during setting closed. Expected Open or Frozen, got Persisted");
+        assert_eq!(chunk.freeze().unwrap_err().to_string(), "Internal Error: unexpected chunk state for Chunk('db':'table1':'part1':0) during setting closed. Expected Open or Frozen, got Persisted");
     }
 
     #[test]
@@ -884,10 +835,10 @@ mod tests {
         );
 
         // setting an action while there is one running fails
-        assert_eq!(chunk.set_lifecycle_action(ChunkLifecycleAction::Moving, &registration).unwrap_err().to_string(), "Internal Error: A lifecycle action \'Moving to the Read Buffer\' is already in progress for  part1:table1:0");
+        assert_eq!(chunk.set_lifecycle_action(ChunkLifecycleAction::Moving, &registration).unwrap_err().to_string(), "Internal Error: A lifecycle action \'Moving to the Read Buffer\' is already in progress for Chunk('db':'table1':'part1':0)");
 
         // finishing the wrong action fails
-        assert_eq!(chunk.finish_lifecycle_action(ChunkLifecycleAction::Compacting).unwrap_err().to_string(), "Internal Error: Unexpected chunk state for part1:table1:0. Expected Compacting, got Moving to the Read Buffer");
+        assert_eq!(chunk.finish_lifecycle_action(ChunkLifecycleAction::Compacting).unwrap_err().to_string(), "Internal Error: Unexpected chunk state for Chunk('db':'table1':'part1':0). Expected Compacting, got Moving to the Read Buffer");
 
         // finish some action
         chunk
@@ -895,7 +846,7 @@ mod tests {
             .unwrap();
 
         // finishing w/o any action in progress will fail
-        assert_eq!(chunk.finish_lifecycle_action(ChunkLifecycleAction::Moving).unwrap_err().to_string(), "Internal Error: Unexpected chunk state for part1:table1:0. Expected Moving to the Read Buffer, got None");
+        assert_eq!(chunk.finish_lifecycle_action(ChunkLifecycleAction::Moving).unwrap_err().to_string(), "Internal Error: Unexpected chunk state for Chunk('db':'table1':'part1':0). Expected Moving to the Read Buffer, got None");
 
         // now we can set another action
         chunk
@@ -916,38 +867,37 @@ mod tests {
         mb_chunk
     }
 
-    async fn make_parquet_chunk(chunk_id: u32) -> ParquetChunk {
+    async fn make_parquet_chunk(addr: ChunkAddr) -> ParquetChunk {
         let object_store = make_object_store();
-        make_parquet_chunk_with_store(object_store, "foo", chunk_id).await
+        make_parquet_chunk_with_store(object_store, "foo", addr).await
+    }
+
+    fn chunk_addr() -> ChunkAddr {
+        ChunkAddr {
+            db_name: Arc::from("db"),
+            table_name: Arc::from("table1"),
+            partition_key: Arc::from("part1"),
+            chunk_id: 0,
+        }
     }
 
     fn make_open_chunk() -> CatalogChunk {
         let sequencer_id = 1;
-        let table_name = "table1";
-        let partition_key = "part1";
-        let chunk_id = 0;
+        let addr = chunk_addr();
 
         // assemble MBChunk
-        let mb_chunk = make_mb_chunk(table_name, sequencer_id);
+        let mb_chunk = make_mb_chunk(&addr.table_name, sequencer_id);
 
-        CatalogChunk::new_open(
-            chunk_id,
-            partition_key,
-            mb_chunk,
-            ChunkMetrics::new_unregistered(),
-        )
+        CatalogChunk::new_open(addr, mb_chunk, ChunkMetrics::new_unregistered())
     }
 
     async fn make_persisted_chunk() -> CatalogChunk {
-        let partition_key = "part1";
-        let chunk_id = 0;
-
+        let addr = chunk_addr();
         // assemble ParquetChunk
-        let parquet_chunk = make_parquet_chunk(chunk_id).await;
+        let parquet_chunk = make_parquet_chunk(addr.clone()).await;
 
         CatalogChunk::new_object_store_only(
-            chunk_id,
-            partition_key,
+            addr,
             Arc::new(parquet_chunk),
             ChunkMetrics::new_unregistered(),
         )

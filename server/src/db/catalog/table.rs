@@ -8,6 +8,8 @@ use tracker::RwLock;
 /// A `Table` is a collection of `Partition` each of which is a collection of `Chunk`
 #[derive(Debug)]
 pub struct Table {
+    /// Database name
+    db_name: Arc<str>,
     /// Table name
     table_name: Arc<str>,
     /// key is partition key
@@ -22,8 +24,9 @@ impl Table {
     /// This function is not pub because `Table`s should be
     /// created using the interfaces on [`Catalog`](crate::db::catalog::Catalog) and not
     /// instantiated directly.
-    pub(crate) fn new(table_name: Arc<str>, metrics: TableMetrics) -> Self {
+    pub(super) fn new(db_name: Arc<str>, table_name: Arc<str>, metrics: TableMetrics) -> Self {
         Self {
+            db_name,
             table_name,
             partitions: Default::default(),
             metrics,
@@ -43,6 +46,7 @@ impl Table {
         partition_key: impl AsRef<str>,
     ) -> &Arc<RwLock<Partition>> {
         let metrics = &self.metrics;
+        let db_name = &self.db_name;
         let table_name = &self.table_name;
         let (_, partition) = self
             .partitions
@@ -52,6 +56,7 @@ impl Table {
                 let partition_key = Arc::from(partition_key.as_ref());
                 let partition_metrics = metrics.new_partition_metrics();
                 let partition = Partition::new(
+                    Arc::clone(&db_name),
                     Arc::clone(&partition_key),
                     Arc::clone(&table_name),
                     partition_metrics,

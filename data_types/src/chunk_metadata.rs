@@ -4,6 +4,32 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+/// Address of the chunk within the catalog
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ChunkAddr {
+    /// Database name
+    pub db_name: Arc<str>,
+
+    /// What table does the chunk belong to?
+    pub table_name: Arc<str>,
+
+    /// What partition does the chunk belong to?
+    pub partition_key: Arc<str>,
+
+    /// The ID of the chunk
+    pub chunk_id: u32,
+}
+
+impl std::fmt::Display for ChunkAddr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Chunk('{}':'{}':'{}':{})",
+            self.db_name, self.table_name, self.partition_key, self.chunk_id
+        )
+    }
+}
+
 /// Which storage system is a chunk located in?
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize, Deserialize)]
 pub enum ChunkStorage {

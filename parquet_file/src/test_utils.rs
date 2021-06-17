@@ -35,6 +35,7 @@ use crate::{
     chunk::{self, ParquetChunk},
     storage::Storage,
 };
+use data_types::chunk_metadata::ChunkAddr;
 use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -87,32 +88,39 @@ pub async fn load_parquet_from_store_for_path(
     Ok(parquet_data)
 }
 
+/// The db name to use for testing
+pub fn db_name() -> &'static str {
+    "db1"
+}
+
+/// Creates a test chunk address for a given chunk id
+pub fn chunk_addr(id: u32) -> ChunkAddr {
+    ChunkAddr {
+        db_name: Arc::from(db_name()),
+        table_name: Arc::from("table1"),
+        partition_key: Arc::from("part1"),
+        chunk_id: id,
+    }
+}
+
 /// Same as [`make_chunk`] but parquet file does not contain any row group.
 pub async fn make_chunk(
     store: Arc<ObjectStore>,
     column_prefix: &str,
-    chunk_id: u32,
+    addr: ChunkAddr,
 ) -> ParquetChunk {
     let (record_batches, schema, column_summaries, _num_rows) = make_record_batch(column_prefix);
-    make_chunk_given_record_batch(
-        store,
-        record_batches,
-        schema,
-        "table1",
-        column_summaries,
-        chunk_id,
-    )
-    .await
+    make_chunk_given_record_batch(store, record_batches, schema, addr, column_summaries).await
 }
 
 /// Same as [`make_chunk`] but parquet file does not contain any row group.
 pub async fn make_chunk_no_row_group(
     store: Arc<ObjectStore>,
     column_prefix: &str,
-    chunk_id: u32,
+    addr: ChunkAddr,
 ) -> ParquetChunk {
     let (_, schema, column_summaries, _num_rows) = make_record_batch(column_prefix);
-    make_chunk_given_record_batch(store, vec![], schema, "table1", column_summaries, chunk_id).await
+    make_chunk_given_record_batch(store, vec![], schema, addr, column_summaries).await
 }
 
 /// Create a test chunk by writing data to object store.
@@ -122,14 +130,14 @@ pub async fn make_chunk_given_record_batch(
     store: Arc<ObjectStore>,
     record_batches: Vec<RecordBatch>,
     schema: Schema,
-    table: &str,
+    addr: ChunkAddr,
     column_summaries: Vec<ColumnSummary>,
-    chunk_id: u32,
 ) -> ParquetChunk {
     let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
-    let db_name = "db1";
-    let partition_key = "part1";
-    let table_name = table;
+    let db_name = &addr.db_name;
+    let partition_key = &addr.partition_key;
+    let table_name = &addr.table_name;
+    let chunk_id = addr.chunk_id;
 
     let storage = Storage::new(Arc::clone(&store), server_id, db_name.to_string());
 
@@ -162,7 +170,7 @@ pub async fn make_chunk_given_record_batch(
         .unwrap();
 
     ParquetChunk::new_from_parts(
-        partition_key,
+        partition_key.to_string(),
         Arc::new(table_summary),
         Arc::new(schema),
         path,
@@ -732,9 +740,9 @@ pub fn read_data_from_parquet_data(schema: SchemaRef, parquet_data: Vec<u8>) -> 
 pub async fn make_metadata(
     object_store: &Arc<ObjectStore>,
     column_prefix: &str,
-    chunk_id: u32,
+    addr: ChunkAddr,
 ) -> (Path, IoxParquetMetaData) {
-    let chunk = make_chunk(Arc::clone(object_store), column_prefix, chunk_id).await;
+    let chunk = make_chunk(Arc::clone(object_store), column_prefix, addr).await;
     let (_, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(object_store))
         .await
         .unwrap();

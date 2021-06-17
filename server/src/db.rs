@@ -1146,8 +1146,13 @@ pub struct TransactionState {
 impl CatalogState for Catalog {
     type EmptyInput = CatalogEmptyInput;
 
-    fn new_empty(data: Self::EmptyInput) -> Self {
-        Self::new(data.domain, data.metrics_registry, data.metric_labels)
+    fn new_empty(db_name: &str, data: Self::EmptyInput) -> Self {
+        Self::new(
+            Arc::from(db_name),
+            data.domain,
+            data.metrics_registry,
+            data.metric_labels,
+        )
     }
 
     type TransactionState = TransactionState;
@@ -1298,9 +1303,7 @@ impl CatalogState for Catalog {
                     return Err(parquet_file::catalog::Error::CatalogStateFailure {
                         source: Box::new(
                             crate::db::catalog::chunk::Error::UnexpectedLifecycleAction {
-                                partition_key: iox_md.partition_key,
-                                table_name: iox_md.table_name,
-                                chunk_id: iox_md.chunk_id,
+                                chunk: chunk.addr().clone(),
                                 expected: "persisting".to_string(),
                                 actual: chunk
                                     .lifecycle_action()
