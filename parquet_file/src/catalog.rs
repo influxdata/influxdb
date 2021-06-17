@@ -199,6 +199,20 @@ pub struct CatalogParquetInfo {
     pub metadata: Arc<IoxParquetMetaData>,
 }
 
+/// How a transaction ends.
+#[derive(Clone, Copy, Debug)]
+pub enum TransactionEnd {
+    /// Successful commit.
+    ///
+    /// All buffered/prepared actions must be materialized.
+    Commit,
+
+    /// Abort.
+    ///
+    /// All eagerly applied action must be rolled back.
+    Abort,
+}
+
 /// Abstraction over how the in-memory state of the catalog works.
 pub trait CatalogState {
     /// Input to create a new empty instance.
@@ -209,19 +223,37 @@ pub trait CatalogState {
     /// Create empty state w/o any known files.
     fn new_empty(data: Self::EmptyInput) -> Self;
 
-    /// Opens a new state.
+    /// Helper struct that can be used to remember/cache actions that happened during a transaction.
     ///
-    /// Depending if the state implements full copy-on-write semantics, do one of the following:
+    /// This can be useful to implement one of the following systems to handle commits and aborts:
+    /// - **copy semantic:** the entire inner state is copied during transaction start and is committed at the end. This
+    ///   is esp. useful when state-copies are simple
+    /// - **action preperation:** Actions are prepared during the transaction, checked for validity, and are simply
+    ///   executed on commit.
+    /// - **action rollback:** Actions are eagerly executed during transaction and are rolled back when the transaction
+    ///   aborts.
     ///
-    /// - clone state
-    /// - return a pointer to self (e.g. using an [`Arc`](std::sync::Arc))
-    fn clone_or_keep(origin: &Arc<Self>) -> Arc<Self>;
+    /// This type is created by [`transaction_begin`](Self::transaction_begin), will be modified by the actions, and
+    /// will be consumed by [`transaction_end`](Self::transaction_end).
+    type TransactionState: Send + Sync;
+
+    /// Hook that will be called at transaction start.
+    fn transaction_begin(origin: &Arc<Self>) -> Self::TransactionState;
+
+    /// Hook that will be called at transaction end.
+    ///
+    /// Note that this hook will be called for both successful commits and aborts.
+    fn transaction_end(tstate: Self::TransactionState, how: TransactionEnd) -> Arc<Self>;
 
     /// Add parquet file to state.
-    fn add(&self, object_store: Arc<ObjectStore>, info: CatalogParquetInfo) -> Result<()>;
+    fn add(
+        tstate: &mut Self::TransactionState,
+        object_store: Arc<ObjectStore>,
+        info: CatalogParquetInfo,
+    ) -> Result<()>;
 
     /// Remove parquet file from state.
-    fn remove(&self, path: DirsAndFileName) -> Result<()>;
+    fn remove(tstate: &mut Self::TransactionState, path: DirsAndFileName) -> Result<()>;
 
     /// List all Parquet files that are currently (i.e. by the current version) tracked by the catalog.
     ///
@@ -431,24 +463,22 @@ where
                 revision_counter: rev,
                 uuid: *uuid,
             };
-            let tmp_state = S::clone_or_keep(&state);
             let file_type = if Some(rev) == last_checkpoint {
                 FileType::Checkpoint
             } else {
                 FileType::Transaction
             };
-            let transaction = OpenTransaction::load_and_apply(
+            state = OpenTransaction::load_and_apply(
                 &object_store,
                 server_id,
                 &db_name,
                 &tkey,
-                tmp_state,
+                &state,
                 &last_tkey,
                 file_type,
             )
             .await?;
             last_tkey = Some(tkey);
-            state = transaction.next_state;
         }
 
         let inner = PreservedCatalogInner {
@@ -800,7 +830,7 @@ struct OpenTransaction<S>
 where
     S: CatalogState + Send + Sync,
 {
-    next_state: Arc<S>,
+    tstate: S::TransactionState,
     proto: proto::Transaction,
 }
 
@@ -816,7 +846,7 @@ where
         };
 
         Self {
-            next_state: S::clone_or_keep(&catalog_inner.state),
+            tstate: S::transaction_begin(&catalog_inner.state),
             proto: proto::Transaction {
                 actions: vec![],
                 version: TRANSACTION_VERSION,
@@ -844,7 +874,7 @@ where
     /// current transaction. If you also want to store the given action (e.g. during an in-progress transaction), use
     /// [`handle_action_and_record`](Self::handle_action_and_record).
     fn handle_action(
-        state: &S,
+        tstate: &mut S::TransactionState,
         action: &proto::transaction::action::Action,
         object_store: &Arc<ObjectStore>,
     ) -> Result<()> {
@@ -862,14 +892,15 @@ where
                     IoxParquetMetaData::from_thrift(&a.metadata).context(MetadataDecodingFailed)?;
                 let metadata = Arc::new(metadata);
 
-                state.add(
+                S::add(
+                    tstate,
                     Arc::clone(object_store),
                     CatalogParquetInfo { path, metadata },
                 )?;
             }
             proto::transaction::action::Action::RemoveParquet(a) => {
                 let path = parse_dirs_and_filename(&a.path)?;
-                state.remove(path)?;
+                S::remove(tstate, path)?;
             }
         };
         Ok(())
@@ -882,7 +913,7 @@ where
         action: proto::transaction::action::Action,
         object_store: &Arc<ObjectStore>,
     ) -> Result<()> {
-        Self::handle_action(&self.next_state, &action, object_store)?;
+        Self::handle_action(&mut self.tstate, &action, object_store)?;
         self.proto.actions.push(proto::transaction::Action {
             action: Some(action),
         });
@@ -890,11 +921,16 @@ where
     }
 
     /// Commit to mutable catalog and return previous transaction key.
-    fn commit(mut self, catalog_inner: &mut PreservedCatalogInner<S>) -> Option<TransactionKey> {
+    fn commit(self, catalog_inner: &mut PreservedCatalogInner<S>) -> Option<TransactionKey> {
         let mut tkey = Some(self.tkey());
-        std::mem::swap(&mut catalog_inner.state, &mut self.next_state);
+        catalog_inner.state = S::transaction_end(self.tstate, TransactionEnd::Commit);
         std::mem::swap(&mut catalog_inner.previous_tkey, &mut tkey);
         tkey
+    }
+
+    /// Abort transaction
+    fn abort(self, catalog_inner: &mut PreservedCatalogInner<S>) {
+        catalog_inner.state = S::transaction_end(self.tstate, TransactionEnd::Abort);
     }
 
     async fn store(
@@ -919,10 +955,10 @@ where
         server_id: ServerId,
         db_name: &str,
         tkey: &TransactionKey,
-        state: Arc<S>,
+        state: &Arc<S>,
         last_tkey: &Option<TransactionKey>,
         file_type: FileType,
-    ) -> Result<Self> {
+    ) -> Result<Arc<S>> {
         // recover state from store
         let path = file_path(object_store, server_id, db_name, tkey, file_type);
         let proto = load_transaction_proto(object_store, &path).await?;
@@ -977,17 +1013,20 @@ where
             });
         }
 
+        // start transaction
+        let mut tstate = S::transaction_begin(state);
+
         // apply
         for action in &proto.actions {
             if let Some(action) = action.action.as_ref() {
-                Self::handle_action(&state, action, object_store)?;
+                Self::handle_action(&mut tstate, action, object_store)?;
             }
         }
 
-        Ok(Self {
-            proto,
-            next_state: state,
-        })
+        // commit
+        let state = S::transaction_end(tstate, TransactionEnd::Commit);
+
+        Ok(state)
     }
 }
 
@@ -1067,27 +1106,36 @@ where
         let tkey = t.tkey();
 
         // write to object store
-        t.store(
-            &self.catalog.object_store,
-            self.catalog.server_id,
-            &self.catalog.db_name,
-        )
-        .await?;
+        match t
+            .store(
+                &self.catalog.object_store,
+                self.catalog.server_id,
+                &self.catalog.db_name,
+            )
+            .await
+        {
+            Ok(()) => {
+                // commit to catalog
+                let (previous_tkey, state) = self.commit_inner(t);
+                info!(?tkey, "transaction committed");
 
-        // commit to catalog
-        let (previous_tkey, state) = self.commit_inner(t);
-        info!(?tkey, "transaction committed");
+                // maybe create a checkpoint
+                // IMPORTANT: Create the checkpoint AFTER commiting the transaction to object store and to the in-memory state.
+                //            Checkpoints are an optional optimization and are not required to materialize a transaction.
+                if create_checkpoint {
+                    // NOTE: `inner_guard` will not be re-used here since it is a strong write lock and the checkpoint creation
+                    //       only needs a read lock.
+                    self.create_checkpoint(tkey, previous_tkey, state).await?;
+                }
 
-        // maybe create a checkpoint
-        // IMPORTANT: Create the checkpoint AFTER commiting the transaction to object store and to the in-memory state.
-        //            Checkpoints are an optional optimization and are not required to materialize a transaction.
-        if create_checkpoint {
-            // NOTE: `inner_guard` will not be re-used here since it is a strong write lock and the checkpoint creation
-            //       only needs a read lock.
-            self.create_checkpoint(tkey, previous_tkey, state).await?;
+                Ok(())
+            }
+            Err(e) => {
+                warn!(?tkey, "failure while writing transaction, aborting");
+                self.abort_inner(t);
+                Err(e)
+            }
         }
-
-        Ok(())
     }
 
     /// Commit helper function.
@@ -1103,6 +1151,11 @@ where
         let state = Arc::clone(&inner_guard.state);
 
         (previous_tkey, state)
+    }
+
+    fn abort_inner(&self, t: OpenTransaction<S>) {
+        let mut inner_guard = self.catalog.inner.write();
+        t.abort(&mut inner_guard);
     }
 
     async fn create_checkpoint(
@@ -1163,7 +1216,9 @@ where
 
     /// Abort transaction w/o commit.
     pub fn abort(mut self) {
-        self.transaction = None;
+        let t = std::mem::take(&mut self.transaction)
+            .expect("calling .commit on a closed transaction?!");
+        self.abort_inner(t);
     }
 
     /// Add a new parquet file to the catalog.
@@ -1219,30 +1274,32 @@ where
     S: CatalogState + Send + Sync,
 {
     fn drop(&mut self) {
-        if self.transaction.is_some() {
-            warn!(?self, "dropped uncommitted transaction");
+        if let Some(t) = self.transaction.take() {
+            warn!(?self, "dropped uncommitted transaction, calling abort");
+            self.abort_inner(t);
         }
     }
 }
 
 pub mod test_helpers {
-    use parking_lot::Mutex;
+    use object_store::parsed_path;
+
+    use crate::test_utils::{make_metadata, make_object_store};
 
     use super::*;
-    use std::ops::Deref;
+    use std::{convert::TryFrom, ops::Deref};
 
-    /// Part that actually holds the data of [`TestCatalogState`].
+    /// In-memory catalog state, for testing.
     #[derive(Clone, Debug)]
-    pub struct TestCatalogStateInner {
+    pub struct TestCatalogState {
         /// Map of all parquet files that are currently registered.
         pub parquet_files: HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>,
     }
 
-    /// In-memory catalog state, for testing.
     #[derive(Debug)]
-    pub struct TestCatalogState {
-        /// Inner mutable state.
-        pub inner: Mutex<TestCatalogStateInner>,
+    pub struct TState {
+        old: Arc<TestCatalogState>,
+        new: TestCatalogState,
     }
 
     impl CatalogState for TestCatalogState {
@@ -1250,20 +1307,32 @@ pub mod test_helpers {
 
         fn new_empty(_data: Self::EmptyInput) -> Self {
             Self {
-                inner: Mutex::new(TestCatalogStateInner {
-                    parquet_files: HashMap::new(),
-                }),
+                parquet_files: HashMap::new(),
             }
         }
 
-        fn clone_or_keep(origin: &Arc<Self>) -> Arc<Self> {
-            Arc::new(origin.deref().clone())
+        type TransactionState = TState;
+
+        fn transaction_begin(origin: &Arc<Self>) -> Self::TransactionState {
+            Self::TransactionState {
+                old: Arc::clone(origin),
+                new: origin.deref().clone(),
+            }
         }
 
-        fn add(&self, _object_store: Arc<ObjectStore>, info: CatalogParquetInfo) -> Result<()> {
-            let mut guard = self.inner.lock();
+        fn transaction_end(tstate: Self::TransactionState, how: TransactionEnd) -> Arc<Self> {
+            match how {
+                TransactionEnd::Abort => tstate.old,
+                TransactionEnd::Commit => Arc::new(tstate.new),
+            }
+        }
 
-            match guard.parquet_files.entry(info.path) {
+        fn add(
+            tstate: &mut Self::TransactionState,
+            _object_store: Arc<ObjectStore>,
+            info: CatalogParquetInfo,
+        ) -> Result<()> {
+            match tstate.new.parquet_files.entry(info.path) {
                 Occupied(o) => {
                     return Err(Error::ParquetFileAlreadyExists {
                         path: o.key().clone(),
@@ -1277,10 +1346,8 @@ pub mod test_helpers {
             Ok(())
         }
 
-        fn remove(&self, path: DirsAndFileName) -> Result<()> {
-            let mut guard = self.inner.lock();
-
-            match guard.parquet_files.entry(path) {
+        fn remove(tstate: &mut Self::TransactionState, path: DirsAndFileName) -> Result<()> {
+            match tstate.new.parquet_files.entry(path) {
                 Occupied(o) => {
                     o.remove();
                 }
@@ -1293,17 +1360,7 @@ pub mod test_helpers {
         }
 
         fn files(&self) -> HashMap<DirsAndFileName, Arc<IoxParquetMetaData>> {
-            let guard = self.inner.lock();
-
-            guard.parquet_files.clone()
-        }
-    }
-
-    impl Clone for TestCatalogState {
-        fn clone(&self) -> Self {
-            let guard = self.inner.lock();
-            let inner = Mutex::new(guard.clone());
-            Self { inner }
+            self.parquet_files.clone()
         }
     }
 
@@ -1341,6 +1398,253 @@ pub mod test_helpers {
             .expect("should have at least a single transaction")
             .clone()
     }
+
+    /// Torture-test implementations for [`CatalogState`].
+    pub async fn assert_catalog_state_implementation<S>(state_data: S::EmptyInput)
+    where
+        S: CatalogState + Send + Sync,
+    {
+        // empty state
+        let object_store = make_object_store();
+        let catalog = PreservedCatalog::<S>::new_empty(
+            Arc::clone(&object_store),
+            ServerId::try_from(1).unwrap(),
+            "db1".to_string(),
+            state_data,
+        )
+        .await
+        .unwrap();
+        let mut expected = HashMap::new();
+        assert_files_eq(&catalog.state().files(), &expected);
+
+        // add files
+        let mut chunk_id_watermark = 5;
+        {
+            let mut transaction = catalog.open_transaction().await;
+
+            for chunk_id in 0..chunk_id_watermark {
+                let path = parsed_path!(format!("chunk_{}", chunk_id).as_ref());
+                let (_, metadata) = make_metadata(&object_store, "ok", chunk_id).await;
+                transaction.add_parquet(&path, &metadata).unwrap();
+                expected.insert(path, Arc::new(metadata));
+            }
+
+            transaction.commit(true).await.unwrap();
+        }
+        assert_files_eq(&catalog.state().files(), &expected);
+
+        // remove files
+        {
+            let mut transaction = catalog.open_transaction().await;
+
+            let path = parsed_path!("chunk_1");
+            transaction.remove_parquet(&path).unwrap();
+            expected.remove(&path);
+
+            transaction.commit(true).await.unwrap();
+        }
+        assert_files_eq(&catalog.state().files(), &expected);
+
+        // add and remove in the same transaction
+        {
+            let mut transaction = catalog.open_transaction().await;
+
+            let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
+            let (_, metadata) = make_metadata(&object_store, "ok", chunk_id_watermark).await;
+            transaction.add_parquet(&path, &metadata).unwrap();
+            transaction.remove_parquet(&path).unwrap();
+            chunk_id_watermark += 1;
+
+            transaction.commit(true).await.unwrap();
+        }
+        assert_files_eq(&catalog.state().files(), &expected);
+
+        // remove and add in the same transaction
+        {
+            let mut transaction = catalog.open_transaction().await;
+
+            let path = parsed_path!("chunk_2");
+            let (_, metadata) = make_metadata(&object_store, "ok", 2).await;
+            transaction.remove_parquet(&path).unwrap();
+            transaction.add_parquet(&path, &metadata).unwrap();
+
+            transaction.commit(true).await.unwrap();
+        }
+        assert_files_eq(&catalog.state().files(), &expected);
+
+        // add, remove, add in the same transaction
+        {
+            let mut transaction = catalog.open_transaction().await;
+
+            let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
+            let (_, metadata) = make_metadata(&object_store, "ok", chunk_id_watermark).await;
+            transaction.add_parquet(&path, &metadata).unwrap();
+            transaction.remove_parquet(&path).unwrap();
+            transaction.add_parquet(&path, &metadata).unwrap();
+            expected.insert(path, Arc::new(metadata));
+            chunk_id_watermark += 1;
+
+            transaction.commit(true).await.unwrap();
+        }
+        assert_files_eq(&catalog.state().files(), &expected);
+
+        // remove, add, remove in same transaction
+        {
+            let mut transaction = catalog.open_transaction().await;
+
+            let path = parsed_path!("chunk_2");
+            let (_, metadata) = make_metadata(&object_store, "ok", 2).await;
+            transaction.remove_parquet(&path).unwrap();
+            transaction.add_parquet(&path, &metadata).unwrap();
+            transaction.remove_parquet(&path).unwrap();
+            expected.remove(&path);
+
+            transaction.commit(true).await.unwrap();
+        }
+        assert_files_eq(&catalog.state().files(), &expected);
+
+        // error handling, no real opt
+        {
+            let mut transaction = catalog.open_transaction().await;
+
+            // already exists (should also not change the metadata)
+            let path = parsed_path!("chunk_0");
+            let (_, metadata) = make_metadata(&object_store, "fail", 0).await;
+            let err = transaction.add_parquet(&path, &metadata).unwrap_err();
+            assert!(matches!(err, Error::ParquetFileAlreadyExists { .. }));
+
+            // does not exist
+            let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
+            let err = transaction.remove_parquet(&path).unwrap_err();
+            assert!(matches!(err, Error::ParquetFileDoesNotExist { .. }));
+            chunk_id_watermark += 1;
+
+            transaction.commit(true).await.unwrap();
+        }
+        assert_files_eq(&catalog.state().files(), &expected);
+
+        // error handling, still something works
+        {
+            let mut transaction = catalog.open_transaction().await;
+
+            // already exists (should also not change the metadata)
+            let path = parsed_path!("chunk_0");
+            let (_, metadata) = make_metadata(&object_store, "fail", 0).await;
+            let err = transaction.add_parquet(&path, &metadata).unwrap_err();
+            assert!(matches!(err, Error::ParquetFileAlreadyExists { .. }));
+
+            // this transaction will still work
+            let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
+            let (_, metadata) = make_metadata(&object_store, "ok", chunk_id_watermark).await;
+            transaction.add_parquet(&path, &metadata).unwrap();
+            expected.insert(path.clone(), Arc::new(metadata.clone()));
+            chunk_id_watermark += 1;
+
+            // recently added
+            let err = transaction.add_parquet(&path, &metadata).unwrap_err();
+            assert!(matches!(err, Error::ParquetFileAlreadyExists { .. }));
+
+            // does not exist
+            let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
+            let err = transaction.remove_parquet(&path).unwrap_err();
+            assert!(matches!(err, Error::ParquetFileDoesNotExist { .. }));
+            chunk_id_watermark += 1;
+
+            // this still works
+            let path = parsed_path!("chunk_3");
+            transaction.remove_parquet(&path).unwrap();
+            expected.remove(&path);
+
+            // recently removed
+            let err = transaction.remove_parquet(&path).unwrap_err();
+            assert!(matches!(err, Error::ParquetFileDoesNotExist { .. }));
+
+            transaction.commit(true).await.unwrap();
+        }
+        assert_files_eq(&catalog.state().files(), &expected);
+
+        // transaction aborting
+        {
+            let mut transaction = catalog.open_transaction().await;
+
+            // add
+            let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
+            let (_, metadata) = make_metadata(&object_store, "ok", chunk_id_watermark).await;
+            transaction.add_parquet(&path, &metadata).unwrap();
+            chunk_id_watermark += 1;
+
+            // remove
+            let path = parsed_path!("chunk_4");
+            transaction.remove_parquet(&path).unwrap();
+
+            // add and remove
+            let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
+            let (_, metadata) = make_metadata(&object_store, "ok", chunk_id_watermark).await;
+            transaction.add_parquet(&path, &metadata).unwrap();
+            transaction.remove_parquet(&path).unwrap();
+            chunk_id_watermark += 1;
+        }
+        assert_files_eq(&catalog.state().files(), &expected);
+
+        // transaction aborting w/ errors
+        {
+            let mut transaction = catalog.open_transaction().await;
+
+            // already exists (should also not change the metadata)
+            let path = parsed_path!("chunk_0");
+            let (_, metadata) = make_metadata(&object_store, "fail", 0).await;
+            let err = transaction.add_parquet(&path, &metadata).unwrap_err();
+            assert!(matches!(err, Error::ParquetFileAlreadyExists { .. }));
+
+            // does not exist
+            let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
+            let err = transaction.remove_parquet(&path).unwrap_err();
+            assert!(matches!(err, Error::ParquetFileDoesNotExist { .. }));
+            chunk_id_watermark += 1;
+        }
+
+        // consume variable so that we can easily add tests w/o re-adding the final modification
+        println!("{}", chunk_id_watermark);
+    }
+
+    /// Assert that tracked files and their linked metadata are equal.
+    fn assert_files_eq(
+        actual: &HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>,
+        expected: &HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>,
+    ) {
+        let sorted_keys_actual = get_sorted_keys(actual);
+        let sorted_keys_expected = get_sorted_keys(expected);
+        assert_eq!(sorted_keys_actual, sorted_keys_expected);
+
+        for k in sorted_keys_actual {
+            let md_actual = &actual[&k];
+            let md_expected = &expected[&k];
+
+            let iox_md_actual = md_actual.read_iox_metadata().unwrap();
+            let iox_md_expected = md_expected.read_iox_metadata().unwrap();
+            assert_eq!(iox_md_actual, iox_md_expected);
+
+            let schema_actual = md_actual.read_schema().unwrap();
+            let schema_expected = md_expected.read_schema().unwrap();
+            assert_eq!(schema_actual, schema_expected);
+
+            let stats_actual = md_actual.read_statistics(&schema_actual, "foo").unwrap();
+            let stats_expected = md_expected
+                .read_statistics(&schema_expected, "foo")
+                .unwrap();
+            assert_eq!(stats_actual, stats_expected);
+        }
+    }
+
+    /// Get a sorted list of keys from `HashMap`.
+    fn get_sorted_keys<K, V>(map: &HashMap<K, V>) -> Vec<K>
+    where
+        K: Clone + Ord,
+    {
+        let mut keys: Vec<K> = map.keys().cloned().collect();
+        keys.sort();
+        keys
+    }
 }
 
 #[cfg(test)]
@@ -1350,7 +1654,9 @@ mod tests {
     use crate::test_utils::{make_metadata, make_object_store};
     use object_store::parsed_path;
 
-    use super::test_helpers::{break_catalog_with_weird_version, TestCatalogState};
+    use super::test_helpers::{
+        assert_catalog_state_implementation, break_catalog_with_weird_version, TestCatalogState,
+    };
     use super::*;
 
     #[tokio::test]
@@ -2324,9 +2630,7 @@ mod tests {
 
     /// Get sorted list of catalog files from state
     fn get_catalog_parquet_files(state: &TestCatalogState) -> Vec<(String, IoxParquetMetaData)> {
-        let guard = state.inner.lock();
-
-        let mut files: Vec<(String, IoxParquetMetaData)> = guard
+        let mut files: Vec<(String, IoxParquetMetaData)> = state
             .parquet_files
             .iter()
             .map(|(path, md)| (path.display(), md.as_ref().clone()))
@@ -3028,5 +3332,10 @@ mod tests {
         .await
         .unwrap()
         .is_some());
+    }
+
+    #[tokio::test]
+    async fn test_catalog_state() {
+        assert_catalog_state_implementation::<TestCatalogState>(()).await;
     }
 }
