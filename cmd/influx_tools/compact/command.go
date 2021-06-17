@@ -229,7 +229,7 @@ func (sc *shardCompactor) CompactShard() (err error) {
 	c.FileStore = sc
 	c.Open()
 
-	tsmFiles, err := c.CompactFull(sc.tsm)
+	tsmFiles, err := c.CompactFull(sc.tsm, sc.logger)
 	if err == nil {
 		sc.newTSM, err = sc.replace(tsmFiles)
 	}
