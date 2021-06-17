@@ -36,8 +36,8 @@ use datafusion::{
     error::{DataFusionError as Error, Result},
     logical_plan::{self, DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
     physical_plan::{
-        common::SizedRecordBatchStream, Distribution, ExecutionPlan, Partitioning,
-        SendableRecordBatchStream,
+        common::SizedRecordBatchStream, DisplayFormatType, Distribution, ExecutionPlan,
+        Partitioning, SendableRecordBatchStream,
     },
 };
 
@@ -279,6 +279,14 @@ impl ExecutionPlan for SchemaPivotExec {
             self.schema(),
             batches,
         )))
+    }
+
+    fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match t {
+            DisplayFormatType::Default => {
+                write!(f, "SchemaPivotExec")
+            }
+        }
     }
 }
 
