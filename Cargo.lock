@@ -3005,6 +3005,7 @@ dependencies = [
  "datafusion 0.1.0",
  "datafusion_util",
  "futures",
+ "hashbrown 0.11.2",
  "internal_types",
  "libc",
  "metrics",

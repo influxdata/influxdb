@@ -28,8 +28,9 @@ use crate::{
 use snafu::{ResultExt, Snafu};
 
 mod adapter;
+mod deduplicate;
 mod physical;
-use self::physical::IOxReadFilterNode;
+use self::{deduplicate::DeduplicateExec, physical::IOxReadFilterNode};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -517,7 +518,8 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
         ));
 
         // Add DeduplicateExc
-        Self::add_deduplicate_node(sort_exprs, Ok(plan))
+        let plan = Self::add_deduplicate_node(sort_exprs, plan);
+        Ok(plan)
     }
 
     /// Return deduplicate plan for a given chunk with duplicates
@@ -552,25 +554,22 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
             schema,
             Arc::clone(&chunk),
             predicate,
-        );
+        )?;
 
         // Add DeduplicateExc
         // Sort exprs for the deduplication
         let key_summaries = chunk.summary().primary_key_columns();
         let sort_exprs = arrow_pk_sort_exprs(key_summaries);
-        Self::add_deduplicate_node(sort_exprs, plan)
+        let plan = Self::add_deduplicate_node(sort_exprs, plan);
+        Ok(plan)
     }
 
     // Hooks DeduplicateExec on top of the given input plan
     fn add_deduplicate_node(
-        _sort_exprs: Vec<PhysicalSortExpr>,
-        input: Result<Arc<dyn ExecutionPlan>>,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
-        // TODOS when DeduplicateExec is build
-        // Ticket https://github.com/influxdata/influxdb_iox/issues/1646
-
-        // Currently simply return the input plan
-        input
+        sort_exprs: Vec<PhysicalSortExpr>,
+        input: Arc<dyn ExecutionPlan>,
+    ) -> Arc<dyn ExecutionPlan> {
+        Arc::new(DeduplicateExec::new(input, sort_exprs))
     }
 
     /// Return a sort plan for for a given chunk
@@ -902,20 +901,14 @@ mod test {
         );
         let batch = collect(sort_plan.unwrap()).await.unwrap();
         // data is sorted on primary key(tag1, tag2, time)
-        // NOTE: When the full deduplication is done, the duplicates will be removed from this output
         let expected = vec![
             "+-----------+------+------+-------------------------------+",
             "| field_int | tag1 | tag2 | time                          |",
             "+-----------+------+------+-------------------------------+",
             "| 100       | AL   | MA   | 1970-01-01 00:00:00.000000050 |",
-            "| 100       | AL   | MA   | 1970-01-01 00:00:00.000000050 |",
-            "| 70        | CT   | CT   | 1970-01-01 00:00:00.000000100 |",
             "| 70        | CT   | CT   | 1970-01-01 00:00:00.000000100 |",
             "| 5         | MT   | AL   | 1970-01-01 00:00:00.000005    |",
-            "| 5         | MT   | AL   | 1970-01-01 00:00:00.000005    |",
             "| 10        | MT   | AL   | 1970-01-01 00:00:00.000007    |",
-            "| 10        | MT   | AL   | 1970-01-01 00:00:00.000007    |",
-            "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
             "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
             "+-----------+------+------+-------------------------------+",
         ];
@@ -985,21 +978,16 @@ mod test {
         );
         let batch = collect(plan.unwrap()).await.unwrap();
         // Data must be sorted and duplicates removed
-        // TODO: it is just sorted for now. When https://github.com/influxdata/influxdb_iox/issues/1646
-        //   is done, duplicates will be removed
         let expected = vec![
             "+-----------+------+-------------------------------+",
             "| field_int | tag1 | time                          |",
             "+-----------+------+-------------------------------+",
-            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
             "| 10        | AL   | 1970-01-01 00:00:00.000000050 |",
             "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
             "| 70        | CT   | 1970-01-01 00:00:00.000000500 |",
-            "| 5         | MT   | 1970-01-01 00:00:00.000000005 |",
             "| 30        | MT   | 1970-01-01 00:00:00.000000005 |",
             "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
             "| 1000      | MT   | 1970-01-01 00:00:00.000002    |",
-            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
             "| 20        | MT   | 1970-01-01 00:00:00.000007    |",
             "+-----------+------+-------------------------------+",
         ];
@@ -1038,26 +1026,17 @@ mod test {
         );
         let batch = collect(plan.unwrap()).await.unwrap();
         // Two overlapped chunks will be sort merged with dupplicates removed
-        // TODO: it is just sorted for now. When https://github.com/influxdata/influxdb_iox/issues/1646
-        //   is done, duplicates will be removed
         let expected = vec![
             "+-----------+------+-------------------------------+",
             "| field_int | tag1 | time                          |",
             "+-----------+------+-------------------------------+",
             "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
-            "| 10        | AL   | 1970-01-01 00:00:00.000000050 |",
-            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
-            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
             "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
             "| 70        | CT   | 1970-01-01 00:00:00.000000500 |",
-            "| 5         | MT   | 1970-01-01 00:00:00.000000005 |",
             "| 30        | MT   | 1970-01-01 00:00:00.000000005 |",
-            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
             "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
             "| 1000      | MT   | 1970-01-01 00:00:00.000002    |",
             "| 5         | MT   | 1970-01-01 00:00:00.000005    |",
-            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
-            "| 20        | MT   | 1970-01-01 00:00:00.000007    |",
             "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
             "+-----------+------+-------------------------------+",
         ];
@@ -1124,8 +1103,6 @@ mod test {
         //   . chunk1 and chunk2 will be sorted merged and deduplicated (rows 8-32)
         //   . chunk3 will stay in its original (rows 1-3)
         //   . chunk4 will be sorted and deduplicated (rows 4-7)
-        // TODO: data is only partially sorted for now. The deduplication will happen when When https://github.com/influxdata/influxdb_iox/issues/1646
-        //   is done
         let expected = vec![
             "+-----------+------+-------------------------------+",
             "| field_int | tag1 | time                          |",
@@ -1134,23 +1111,15 @@ mod test {
             "| 10        | VT   | 1970-01-01 00:00:00.000010    |",
             "| 70        | UT   | 1970-01-01 00:00:00.000020    |",
             "| 70        | UT   | 1970-01-01 00:00:00.000020    |",
-            "| 10        | VT   | 1970-01-01 00:00:00.000010    |",
             "| 50        | VT   | 1970-01-01 00:00:00.000010    |",
             "| 1000      | WA   | 1970-01-01 00:00:00.000008    |",
             "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
-            "| 10        | AL   | 1970-01-01 00:00:00.000000050 |",
-            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
-            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
             "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
             "| 70        | CT   | 1970-01-01 00:00:00.000000500 |",
-            "| 5         | MT   | 1970-01-01 00:00:00.000000005 |",
             "| 30        | MT   | 1970-01-01 00:00:00.000000005 |",
-            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
             "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
             "| 1000      | MT   | 1970-01-01 00:00:00.000002    |",
             "| 5         | MT   | 1970-01-01 00:00:00.000005    |",
-            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
-            "| 20        | MT   | 1970-01-01 00:00:00.000007    |",
             "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
             "+-----------+------+-------------------------------+",
         ];
