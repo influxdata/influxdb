@@ -60,3 +60,5 @@
 pub mod chunk;
 mod column;
 mod dictionary;
+#[allow(dead_code)]
+mod persistence_windows;
