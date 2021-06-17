@@ -55,7 +55,7 @@ pub struct DatabaseRules {
     pub worker_cleanup_avg_sleep: Duration,
 
     /// An optional connection string to a write buffer.
-    pub write_buffer_connection_string: Option<String>,
+    pub write_buffer_connection: Option<String>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -86,7 +86,7 @@ impl DatabaseRules {
             lifecycle_rules: Default::default(),
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(500),
-            write_buffer_connection_string: None,
+            write_buffer_connection: None,
         }
     }
 

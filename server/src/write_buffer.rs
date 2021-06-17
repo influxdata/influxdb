@@ -17,7 +17,7 @@ pub fn new(rules: &DatabaseRules) -> Result<Option<Arc<dyn WriteBuffer>>, WriteB
     // trait, so always use `KafkaBuffer` when there is a write buffer connection string
     // specified. If/when there are other kinds of write buffers, additional configuration will
     // be needed to determine what kind of write buffer to use here.
-    match rules.write_buffer_connection_string.as_ref() {
+    match rules.write_buffer_connection.as_ref() {
         Some(conn) => {
             let kafka_buffer = KafkaBuffer::new(conn, name)?;
 
