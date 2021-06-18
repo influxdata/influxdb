@@ -19,7 +19,7 @@ use query::{
     exec::stringset::StringSet,
     predicate::{Predicate, PredicateMatch},
     pruning::Prunable,
-    PartitionChunk,
+    QueryChunk,
 };
 use read_buffer::RBChunk;
 
@@ -206,7 +206,7 @@ impl DbChunk {
     }
 }
 
-impl PartitionChunk for DbChunk {
+impl QueryChunk for DbChunk {
     type Error = Error;
 
     fn id(&self) -> u32 {

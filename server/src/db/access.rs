@@ -23,13 +23,13 @@ use query::{
     predicate::{Predicate, PredicateBuilder},
     provider::{self, ChunkPruner, ProviderBuilder},
     pruning::Prunable,
-    PartitionChunk, DEFAULT_SCHEMA,
+    QueryChunk, DEFAULT_SCHEMA,
 };
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
 
 use query::{
     pruning::{prune_chunks, PruningObserver},
-    Database,
+    QueryDatabase,
 };
 
 /// Metrics related to chunk access (pruning specifically)
@@ -181,7 +181,7 @@ impl PruningObserver for ChunkAccess {
 }
 
 #[async_trait]
-impl Database for QueryCatalogAccess {
+impl QueryDatabase for QueryCatalogAccess {
     type Error = Error;
     type Chunk = DbChunk;
 

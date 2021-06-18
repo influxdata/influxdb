@@ -5,7 +5,7 @@ use data_types::{
     DatabaseName,
 };
 use object_store::{memory::InMemory, ObjectStore};
-use query::{exec::Executor, Database};
+use query::{exec::Executor, QueryDatabase};
 
 use crate::{
     db::{load_or_create_preserved_catalog, Db},

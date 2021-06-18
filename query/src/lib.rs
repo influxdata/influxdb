@@ -40,9 +40,9 @@ use self::predicate::Predicate;
 ///
 /// TODO: Move all Query and Line Protocol specific things out of this
 /// trait and into the various query planners.
-pub trait Database: Debug + Send + Sync {
+pub trait QueryDatabase: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
-    type Chunk: PartitionChunk;
+    type Chunk: QueryChunk;
 
     /// Return the partition keys for data in this DB
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;
@@ -57,7 +57,7 @@ pub trait Database: Debug + Send + Sync {
 }
 
 /// Collection of data that shares the same partition key
-pub trait PartitionChunk: Prunable + Debug + Send + Sync {
+pub trait QueryChunk: Prunable + Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// returns the Id of this chunk. Ids are unique within a
@@ -105,7 +105,7 @@ pub trait PartitionChunk: Prunable + Debug + Send + Sync {
     /// selection refers to columns that do not exist.
     fn table_schema(&self, selection: Selection<'_>) -> Result<Schema, Self::Error>;
 
-    /// Provides access to raw `PartitionChunk` data as an
+    /// Provides access to raw `QueryChunk` data as an
     /// asynchronous stream of `RecordBatch`es filtered by a *required*
     /// predicate. Note that not all chunks can evaluate all types of
     /// predicates and this function will return an error
@@ -117,7 +117,7 @@ pub trait PartitionChunk: Prunable + Debug + Send + Sync {
     /// directly is that the data for a particular Table lives in
     /// several chunks within a partition, so there needs to be an
     /// implementation of `TableProvider` that stitches together the
-    /// streams from several different `PartitionChunks`.
+    /// streams from several different `QueryChunk`s.
     fn read_filter(
         &self,
         predicate: &Predicate,
@@ -132,7 +132,7 @@ pub trait PartitionChunk: Prunable + Debug + Send + Sync {
 /// Storage for `Databases` which can be retrieved by name
 pub trait DatabaseStore: Debug + Send + Sync {
     /// The type of database that is stored by this DatabaseStore
-    type Database: Database;
+    type Database: QueryDatabase;
 
     /// The type of error this DataBase store generates
     type Error: std::error::Error + Send + Sync + 'static;

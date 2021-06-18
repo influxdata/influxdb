@@ -9,7 +9,7 @@ use datafusion::{
 };
 use internal_types::{schema::Schema, selection::Selection};
 
-use crate::{predicate::Predicate, PartitionChunk};
+use crate::{predicate::Predicate, QueryChunk};
 
 use async_trait::async_trait;
 
@@ -17,7 +17,7 @@ use super::adapter::SchemaAdapterStream;
 
 /// Implements the DataFusion physical plan interface
 #[derive(Debug)]
-pub(crate) struct IOxReadFilterNode<C: PartitionChunk + 'static> {
+pub(crate) struct IOxReadFilterNode<C: QueryChunk + 'static> {
     table_name: Arc<str>,
     /// The desired output schema (includes selection_
     /// note that the chunk may not have all these columns.
@@ -26,7 +26,7 @@ pub(crate) struct IOxReadFilterNode<C: PartitionChunk + 'static> {
     predicate: Predicate,
 }
 
-impl<C: PartitionChunk + 'static> IOxReadFilterNode<C> {
+impl<C: QueryChunk + 'static> IOxReadFilterNode<C> {
     pub fn new(
         table_name: Arc<str>,
         schema: SchemaRef,
@@ -43,7 +43,7 @@ impl<C: PartitionChunk + 'static> IOxReadFilterNode<C> {
 }
 
 #[async_trait]
-impl<C: PartitionChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
+impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

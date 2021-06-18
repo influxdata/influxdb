@@ -2,7 +2,7 @@
 
 use arrow::datatypes::DataType;
 use internal_types::{schema::builder::SchemaBuilder, selection::Selection};
-use query::{Database, PartitionChunk};
+use query::{QueryChunk, QueryDatabase};
 
 use super::scenarios::*;
 use query::predicate::PredicateBuilder;

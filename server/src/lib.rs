@@ -1012,7 +1012,7 @@ mod tests {
     use influxdb_line_protocol::parse_lines;
     use metrics::MetricRegistry;
     use object_store::{memory::InMemory, path::ObjectStorePath};
-    use query::{frontend::sql::SqlQueryPlanner, Database};
+    use query::{frontend::sql::SqlQueryPlanner, QueryDatabase};
 
     use super::*;
     use std::sync::atomic::{AtomicBool, Ordering};

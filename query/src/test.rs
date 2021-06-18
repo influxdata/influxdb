@@ -16,7 +16,7 @@ use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBa
 
 use crate::{
     exec::stringset::{StringSet, StringSetRef},
-    Database, DatabaseStore, PartitionChunk, Predicate, PredicateMatch,
+    DatabaseStore, Predicate, PredicateMatch, QueryChunk, QueryDatabase,
 };
 use crate::{exec::Executor, pruning::Prunable};
 
@@ -92,7 +92,7 @@ impl TestDatabase {
     }
 }
 
-impl Database for TestDatabase {
+impl QueryDatabase for TestDatabase {
     type Error = TestError;
     type Chunk = TestChunk;
 
@@ -706,7 +706,7 @@ impl TestChunk {
     }
 }
 
-impl PartitionChunk for TestChunk {
+impl QueryChunk for TestChunk {
     type Error = TestError;
 
     fn id(&self) -> u32 {
