@@ -33,7 +33,7 @@ use crate::{
     predicate::{Predicate, PredicateMatch},
     provider::ProviderBuilder,
     util::schema_has_all_expr_columns,
-    Database, PartitionChunk,
+    QueryChunk, QueryChunkMeta, QueryDatabase,
 };
 
 #[derive(Debug, Snafu)]
@@ -95,18 +95,6 @@ pub enum Error {
     #[snafu(display("gRPC planner got error building plan: {}", source))]
     BuildingPlan {
         source: datafusion::error::DataFusionError,
-    },
-
-    #[snafu(display(
-        "gRPC planner got error getting table schema for table '{}' in chunk {}: {}",
-        table_name,
-        chunk_id,
-        source
-    ))]
-    GettingTableSchema {
-        table_name: String,
-        chunk_id: u32,
-        source: Box<dyn std::error::Error + Send + Sync>,
     },
 
     #[snafu(display("gRPC planner error: unsupported predicate: {}", source))]
@@ -191,7 +179,7 @@ impl InfluxRpcPlanner {
     /// conditions listed on `predicate`
     pub fn table_names<D>(&self, database: &D, predicate: Predicate) -> Result<StringSetPlan>
     where
-        D: Database + 'static,
+        D: QueryDatabase + 'static,
     {
         let mut builder = StringSetPlanBuilder::new();
 
@@ -233,7 +221,7 @@ impl InfluxRpcPlanner {
     /// conditions specified by `predicate`.
     pub fn tag_keys<D>(&self, database: &D, predicate: Predicate) -> Result<StringSetPlan>
     where
-        D: Database + 'static,
+        D: QueryDatabase + 'static,
     {
         debug!(predicate=?predicate, "planning tag_keys");
 
@@ -267,13 +255,7 @@ impl InfluxRpcPlanner {
             debug!(table_name, chunk_id, "finding columns in table");
 
             // get only tag columns from metadata
-            let schema = chunk
-                .table_schema(Selection::All)
-                .map_err(|e| Box::new(e) as _)
-                .context(GettingTableSchema {
-                    table_name,
-                    chunk_id,
-                })?;
+            let schema = chunk.schema();
 
             let column_names: Vec<&str> = schema
                 .tags_iter()
@@ -346,7 +328,7 @@ impl InfluxRpcPlanner {
         predicate: Predicate,
     ) -> Result<StringSetPlan>
     where
-        D: Database + 'static,
+        D: QueryDatabase + 'static,
     {
         debug!(predicate=?predicate, tag_name, "planning tag_values");
 
@@ -381,13 +363,7 @@ impl InfluxRpcPlanner {
             debug!(table_name, chunk_id, "finding columns in table");
 
             // use schema to validate column type
-            let schema = chunk
-                .table_schema(Selection::All)
-                .map_err(|e| Box::new(e) as _)
-                .context(GettingTableSchema {
-                    table_name,
-                    chunk_id,
-                })?;
+            let schema = chunk.schema();
 
             // Skip this table if the tag_name is not a column in this table
             let idx = if let Some(idx) = schema.find_index_of(tag_name) {
@@ -495,7 +471,7 @@ impl InfluxRpcPlanner {
     /// specified by `predicate`.
     pub fn field_columns<D>(&self, database: &D, predicate: Predicate) -> Result<FieldListPlan>
     where
-        D: Database + 'static,
+        D: QueryDatabase + 'static,
     {
         debug!(predicate=?predicate, "planning field_columns");
 
@@ -539,7 +515,7 @@ impl InfluxRpcPlanner {
     /// same) occur together in the plan
     pub fn read_filter<D>(&self, database: &D, predicate: Predicate) -> Result<SeriesSetPlans>
     where
-        D: Database + 'static,
+        D: QueryDatabase + 'static,
     {
         debug!(predicate=?predicate, "planning read_filter");
 
@@ -575,7 +551,7 @@ impl InfluxRpcPlanner {
         group_columns: &[impl AsRef<str>],
     ) -> Result<SeriesSetPlans>
     where
-        D: Database + 'static,
+        D: QueryDatabase + 'static,
     {
         debug!(predicate=?predicate, agg=?agg, "planning read_group");
 
@@ -615,7 +591,7 @@ impl InfluxRpcPlanner {
         offset: WindowDuration,
     ) -> Result<SeriesSetPlans>
     where
-        D: Database + 'static,
+        D: QueryDatabase + 'static,
     {
         debug!(predicate=?predicate, "planning read_window_aggregate");
 
@@ -644,7 +620,7 @@ impl InfluxRpcPlanner {
         chunks: Vec<Arc<C>>,
     ) -> Result<BTreeMap<String, Vec<Arc<C>>>>
     where
-        C: PartitionChunk + 'static,
+        C: QueryChunk + 'static,
     {
         let mut table_chunks = BTreeMap::new();
         for chunk in chunks {
@@ -691,7 +667,7 @@ impl InfluxRpcPlanner {
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<StringSetPlan>>
     where
-        C: PartitionChunk + 'static,
+        C: QueryChunk + 'static,
     {
         let scan_and_filter = self.scan_and_filter(table_name, predicate, chunks)?;
 
@@ -753,7 +729,7 @@ impl InfluxRpcPlanner {
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<LogicalPlan>>
     where
-        C: PartitionChunk + 'static,
+        C: QueryChunk + 'static,
     {
         let scan_and_filter = self.scan_and_filter(table_name, predicate, chunks)?;
         let TableScanAndFilter {
@@ -804,7 +780,7 @@ impl InfluxRpcPlanner {
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<SeriesSetPlan>>
     where
-        C: PartitionChunk + 'static,
+        C: QueryChunk + 'static,
     {
         let table_name = table_name.as_ref();
         let scan_and_filter = self.scan_and_filter(table_name, predicate, chunks)?;
@@ -925,7 +901,7 @@ impl InfluxRpcPlanner {
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<SeriesSetPlan>>
     where
-        C: PartitionChunk + 'static,
+        C: QueryChunk + 'static,
     {
         let table_name = table_name.into();
         let scan_and_filter = self.scan_and_filter(&table_name, predicate, chunks)?;
@@ -1016,7 +992,7 @@ impl InfluxRpcPlanner {
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<SeriesSetPlan>>
     where
-        C: PartitionChunk + 'static,
+        C: QueryChunk + 'static,
     {
         let table_name = table_name.into();
         let scan_and_filter = self.scan_and_filter(&table_name, predicate, chunks)?;
@@ -1100,12 +1076,11 @@ impl InfluxRpcPlanner {
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<TableScanAndFilter>>
     where
-        C: PartitionChunk + 'static,
+        C: QueryChunk + 'static,
     {
         // Scan all columns to begin with (DataFusion projection
         // push-down optimization will prune out unneeded columns later)
         let projection = None;
-        let selection = Selection::All;
 
         // Prepare the scan of the table
         let mut builder = ProviderBuilder::new(table_name);
@@ -1121,8 +1096,6 @@ impl InfluxRpcPlanner {
         builder.add_no_op_pruner();
 
         for chunk in chunks {
-            let chunk_id = chunk.id();
-
             // check that it is consistent with this table_name
             assert_eq!(
                 chunk.table_name(),
@@ -1131,16 +1104,8 @@ impl InfluxRpcPlanner {
                 chunk.id(),
             );
 
-            let chunk_table_schema = chunk
-                .table_schema(selection)
-                .map_err(|e| Box::new(e) as _)
-                .context(GettingTableSchema {
-                    table_name,
-                    chunk_id,
-                })?;
-
             builder
-                .add_chunk(chunk, chunk_table_schema)
+                .add_chunk(chunk)
                 .context(CreatingProvider { table_name })?;
         }
 

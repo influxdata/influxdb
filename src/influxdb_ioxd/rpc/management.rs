@@ -8,7 +8,7 @@ use generated_types::google::{
 };
 use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
 use observability_deps::tracing::info;
-use query::{Database, DatabaseStore};
+use query::{DatabaseStore, QueryDatabase};
 use server::{ConnectionManager, Error, Server};
 use tonic::{Request, Response, Status};
 

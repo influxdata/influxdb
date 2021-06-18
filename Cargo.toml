@@ -83,7 +83,7 @@ once_cell = { version = "1.4.0", features = ["parking_lot"] }
 opentelemetry-jaeger = { version = "0.12", features = ["tokio"] }
 opentelemetry-otlp = "0.6"
 parking_lot = "0.11.1"
-itertools = "0.9.0"
+itertools = "0.10.1"
 parquet = "4.0"
 # used by arrow/datafusion anyway
 prettytable-rs = "0.8"

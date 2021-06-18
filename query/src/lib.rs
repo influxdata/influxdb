@@ -8,12 +8,11 @@
 )]
 
 use async_trait::async_trait;
-use data_types::chunk_metadata::ChunkSummary;
+use data_types::{chunk_metadata::ChunkSummary, partition_metadata::TableSummary};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, Executor};
 use internal_types::{schema::Schema, selection::Selection};
 use predicate::PredicateMatch;
-use pruning::Prunable;
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -32,6 +31,16 @@ pub use exec::context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
 
 use self::predicate::Predicate;
 
+/// Trait for an object (designed to be a Chunk) which can provide
+/// metadata
+pub trait QueryChunkMeta: Sized {
+    /// Return a reference to the summary of the data
+    fn summary(&self) -> &TableSummary;
+
+    /// return a reference to the summary of the data held in this chunk
+    fn schema(&self) -> Arc<Schema>;
+}
+
 /// A `Database` is the main trait implemented by the IOx subsystems
 /// that store actual data.
 ///
@@ -40,9 +49,9 @@ use self::predicate::Predicate;
 ///
 /// TODO: Move all Query and Line Protocol specific things out of this
 /// trait and into the various query planners.
-pub trait Database: Debug + Send + Sync {
+pub trait QueryDatabase: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
-    type Chunk: PartitionChunk;
+    type Chunk: QueryChunk;
 
     /// Return the partition keys for data in this DB
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;
@@ -57,7 +66,7 @@ pub trait Database: Debug + Send + Sync {
 }
 
 /// Collection of data that shares the same partition key
-pub trait PartitionChunk: Prunable + Debug + Send + Sync {
+pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// returns the Id of this chunk. Ids are unique within a
@@ -100,12 +109,7 @@ pub trait PartitionChunk: Prunable + Debug + Send + Sync {
         predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error>;
 
-    /// Returns the Schema for a table in this chunk, with the
-    /// specified column selection. An error is returned if the
-    /// selection refers to columns that do not exist.
-    fn table_schema(&self, selection: Selection<'_>) -> Result<Schema, Self::Error>;
-
-    /// Provides access to raw `PartitionChunk` data as an
+    /// Provides access to raw `QueryChunk` data as an
     /// asynchronous stream of `RecordBatch`es filtered by a *required*
     /// predicate. Note that not all chunks can evaluate all types of
     /// predicates and this function will return an error
@@ -117,7 +121,7 @@ pub trait PartitionChunk: Prunable + Debug + Send + Sync {
     /// directly is that the data for a particular Table lives in
     /// several chunks within a partition, so there needs to be an
     /// implementation of `TableProvider` that stitches together the
-    /// streams from several different `PartitionChunks`.
+    /// streams from several different `QueryChunk`s.
     fn read_filter(
         &self,
         predicate: &Predicate,
@@ -132,7 +136,7 @@ pub trait PartitionChunk: Prunable + Debug + Send + Sync {
 /// Storage for `Databases` which can be retrieved by name
 pub trait DatabaseStore: Debug + Send + Sync {
     /// The type of database that is stored by this DatabaseStore
-    type Database: Database;
+    type Database: QueryDatabase;
 
     /// The type of error this DataBase store generates
     type Error: std::error::Error + Send + Sync + 'static;
@@ -151,6 +155,20 @@ pub trait DatabaseStore: Debug + Send + Sync {
     /// Provide a query executor to use for running queries on
     /// databases in this `DatabaseStore`
     fn executor(&self) -> Arc<Executor>;
+}
+
+/// Implement ChunkMeta for something wrapped in an Arc (like Chunks often are)
+impl<P> QueryChunkMeta for Arc<P>
+where
+    P: QueryChunkMeta,
+{
+    fn summary(&self) -> &TableSummary {
+        self.as_ref().summary()
+    }
+
+    fn schema(&self) -> Arc<Schema> {
+        self.as_ref().schema()
+    }
 }
 
 // Note: I would like to compile this module only in the 'test' cfg,

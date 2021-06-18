@@ -1,4 +1,4 @@
-//! Implementation of a DataFusion `TableProvider` in terms of `PartitionChunk`s
+//! Implementation of a DataFusion `TableProvider` in terms of `QueryChunk`s
 
 use std::sync::Arc;
 
@@ -22,7 +22,7 @@ use crate::{
     duplicate::group_potential_duplicates,
     predicate::{Predicate, PredicateBuilder},
     util::{arrow_pk_sort_exprs, project_schema},
-    PartitionChunk,
+    QueryChunk,
 };
 
 use snafu::{ResultExt, Snafu};
@@ -79,16 +79,16 @@ impl From<Error> for DataFusionError {
 }
 
 /// Something that can prune chunks based on their metadata
-pub trait ChunkPruner<C: PartitionChunk>: Sync + Send + std::fmt::Debug {
+pub trait ChunkPruner<C: QueryChunk>: Sync + Send + std::fmt::Debug {
     /// prune `chunks`, if possible, based on predicate.
     fn prune_chunks(&self, chunks: Vec<Arc<C>>, predicate: &Predicate) -> Vec<Arc<C>>;
 }
 
-/// Builds a `ChunkTableProvider` from a series of `PartitionChunk`s
+/// Builds a `ChunkTableProvider` from a series of `QueryChunk`s
 /// and ensures the schema across the chunks is compatible and
 /// consistent.
 #[derive(Debug)]
-pub struct ProviderBuilder<C: PartitionChunk + 'static> {
+pub struct ProviderBuilder<C: QueryChunk + 'static> {
     table_name: Arc<str>,
     schema_merger: SchemaMerger,
     chunk_pruner: Option<Arc<dyn ChunkPruner<C>>>,
@@ -98,7 +98,7 @@ pub struct ProviderBuilder<C: PartitionChunk + 'static> {
     finished: bool,
 }
 
-impl<C: PartitionChunk> ProviderBuilder<C> {
+impl<C: QueryChunk> ProviderBuilder<C> {
     pub fn new(table_name: impl AsRef<str>) -> Self {
         Self {
             table_name: Arc::from(table_name.as_ref()),
@@ -110,9 +110,11 @@ impl<C: PartitionChunk> ProviderBuilder<C> {
     }
 
     /// Add a new chunk to this provider
-    pub fn add_chunk(&mut self, chunk: Arc<C>, chunk_table_schema: Schema) -> Result<&mut Self> {
+    pub fn add_chunk(&mut self, chunk: Arc<C>) -> Result<&mut Self> {
+        let chunk_table_schema = chunk.schema();
+
         self.schema_merger
-            .merge(&chunk_table_schema)
+            .merge(&chunk_table_schema.as_ref())
             .context(ChunkSchemaNotCompatible {
                 table_name: self.table_name.as_ref(),
             })?;
@@ -178,12 +180,12 @@ impl<C: PartitionChunk> ProviderBuilder<C> {
     }
 }
 
-/// Implementation of a DataFusion TableProvider in terms of PartitionChunks
+/// Implementation of a DataFusion TableProvider in terms of QueryChunks
 ///
 /// This allows DataFusion to see data from Chunks as a single table, as well as
 /// push predicates and selections down to chunks
 #[derive(Debug)]
-pub struct ChunkTableProvider<C: PartitionChunk + 'static> {
+pub struct ChunkTableProvider<C: QueryChunk + 'static> {
     table_name: Arc<str>,
     /// The IOx schema (wrapper around Arrow Schemaref) for this table
     iox_schema: Schema,
@@ -193,7 +195,7 @@ pub struct ChunkTableProvider<C: PartitionChunk + 'static> {
     chunks: Vec<Arc<C>>,
 }
 
-impl<C: PartitionChunk + 'static> ChunkTableProvider<C> {
+impl<C: QueryChunk + 'static> ChunkTableProvider<C> {
     /// Return the IOx schema view for the data provided by this provider
     pub fn iox_schema(&self) -> Schema {
         self.iox_schema.clone()
@@ -205,7 +207,7 @@ impl<C: PartitionChunk + 'static> ChunkTableProvider<C> {
     }
 }
 
-impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
+impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -272,7 +274,7 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
 
 #[derive(Clone, Debug, Default)]
 /// A deduplicater that deduplicate the duplicated data during scan execution
-pub(crate) struct Deduplicater<C: PartitionChunk + 'static> {
+pub(crate) struct Deduplicater<C: QueryChunk + 'static> {
     // a vector of a vector of overlapped chunks
     pub overlapped_chunks_set: Vec<Vec<Arc<C>>>,
 
@@ -283,7 +285,7 @@ pub(crate) struct Deduplicater<C: PartitionChunk + 'static> {
     pub no_duplicates_chunks: Vec<Arc<C>>,
 }
 
-impl<C: PartitionChunk + 'static> Deduplicater<C> {
+impl<C: QueryChunk + 'static> Deduplicater<C> {
     fn new() -> Self {
         Self {
             overlapped_chunks_set: vec![],
@@ -670,7 +672,7 @@ impl<C: PartitionChunk + 'static> Deduplicater<C> {
 #[derive(Debug)]
 /// A pruner that does not do pruning (suitable if no additional pruning is possible)
 struct NoOpPruner {}
-impl<C: PartitionChunk> ChunkPruner<C> for NoOpPruner {
+impl<C: QueryChunk> ChunkPruner<C> for NoOpPruner {
     fn prune_chunks(&self, chunks: Vec<Arc<C>>, _predicate: &Predicate) -> Vec<Arc<C>> {
         chunks
     }
@@ -680,9 +682,8 @@ impl<C: PartitionChunk> ChunkPruner<C> for NoOpPruner {
 mod test {
     use arrow_util::assert_batches_eq;
     use datafusion::physical_plan::collect;
-    use internal_types::selection::Selection;
 
-    use crate::test::TestChunk;
+    use crate::{test::TestChunk, QueryChunkMeta};
 
     use super::*;
 
@@ -733,7 +734,7 @@ mod test {
         );
 
         // Datafusion schema of the chunk
-        let schema = chunk.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk.schema().as_arrow();
 
         // IOx scan operator
         let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
@@ -788,7 +789,7 @@ mod test {
         );
 
         // Datafusion schema of the chunk
-        let schema = chunk.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk.schema().as_arrow();
 
         // IOx scan operator
         let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
@@ -843,11 +844,11 @@ mod test {
         );
 
         // Datafusion schema of the chunk
-        let schema = chunk.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk.schema();
 
         let sort_plan = Deduplicater::build_sort_plan_for_read_filter(
             Arc::from("t"),
-            schema,
+            schema.as_arrow(),
             Arc::clone(&chunk),
             Predicate::default(),
         );
@@ -891,11 +892,11 @@ mod test {
 
         // Datafusion schema of the chunk
         // the same for 2 chunks
-        let schema = chunk1.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk1.schema();
 
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
             Arc::from("t"),
-            schema,
+            schema.as_arrow(),
             vec![chunk1, chunk2],
             Predicate::default(),
         );
@@ -927,12 +928,12 @@ mod test {
         );
 
         // Datafusion schema of the chunk
-        let schema = chunk.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk.schema();
 
         let mut deduplicator = Deduplicater::new();
         let plan = deduplicator.build_scan_plan(
             Arc::from("t"),
-            schema,
+            schema.as_arrow(),
             vec![Arc::clone(&chunk)],
             Predicate::default(),
             true,
@@ -966,12 +967,12 @@ mod test {
         );
 
         // Datafusion schema of the chunk
-        let schema = chunk.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk.schema();
 
         let mut deduplicator = Deduplicater::new();
         let plan = deduplicator.build_scan_plan(
             Arc::from("t"),
-            schema,
+            schema.as_arrow(),
             vec![Arc::clone(&chunk)],
             Predicate::default(),
             true,
@@ -1014,12 +1015,12 @@ mod test {
         );
 
         // Datafusion schema of the chunk
-        let schema = chunk1.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk1.schema();
 
         let mut deduplicator = Deduplicater::new();
         let plan = deduplicator.build_scan_plan(
             Arc::from("t"),
-            schema,
+            schema.as_arrow(),
             vec![Arc::clone(&chunk1), Arc::clone(&chunk2)],
             Predicate::default(),
             true,
@@ -1083,12 +1084,12 @@ mod test {
         );
 
         // Datafusion schema of the chunk
-        let schema = chunk1.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk1.schema();
 
         let mut deduplicator = Deduplicater::new();
         let plan = deduplicator.build_scan_plan(
             Arc::from("t"),
-            schema,
+            schema.as_arrow(),
             vec![
                 Arc::clone(&chunk1),
                 Arc::clone(&chunk2),

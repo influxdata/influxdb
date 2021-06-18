@@ -1,7 +1,7 @@
 //! This module contains testing scenarios for Db
 
 #[allow(unused_imports, dead_code, unused_macros)]
-use query::PartitionChunk;
+use query::QueryChunk;
 
 use async_trait::async_trait;
 

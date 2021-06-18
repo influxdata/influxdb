@@ -7,7 +7,7 @@ use query::{
     exec::stringset::StringSet,
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
     predicate::PredicateBuilder,
-    PartitionChunk,
+    QueryChunk,
 };
 
 use server::db::test_helpers::write_lp;

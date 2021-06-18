@@ -8,7 +8,7 @@ use query::{
     group_by::{Aggregate, WindowDuration},
     plan::{fieldlist::FieldListPlan, seriesset::SeriesSetPlans, stringset::StringSetPlan},
     predicate::Predicate,
-    Database,
+    QueryDatabase,
 };
 use snafu::{ResultExt, Snafu};
 
@@ -78,7 +78,7 @@ impl Planner {
         predicate: Predicate,
     ) -> Result<StringSetPlan>
     where
-        D: Database + 'static,
+        D: QueryDatabase + 'static,
     {
         let planner = InfluxRpcPlanner::new();
 
@@ -96,7 +96,7 @@ impl Planner {
     /// [`InfluxRpcPlanner::tag_keys`], on a separate threadpool
     pub async fn tag_keys<D>(&self, database: Arc<D>, predicate: Predicate) -> Result<StringSetPlan>
     where
-        D: Database + 'static,
+        D: QueryDatabase + 'static,
     {
         let planner = InfluxRpcPlanner::new();
 
@@ -119,7 +119,7 @@ impl Planner {
         predicate: Predicate,
     ) -> Result<StringSetPlan>
     where
-        D: Database + 'static,
+        D: QueryDatabase + 'static,
     {
         let tag_name = tag_name.into();
         let planner = InfluxRpcPlanner::new();
@@ -142,7 +142,7 @@ impl Planner {
         predicate: Predicate,
     ) -> Result<FieldListPlan>
     where
-        D: Database + 'static,
+        D: QueryDatabase + 'static,
     {
         let planner = InfluxRpcPlanner::new();
 
@@ -164,7 +164,7 @@ impl Planner {
         predicate: Predicate,
     ) -> Result<SeriesSetPlans>
     where
-        D: Database + 'static,
+        D: QueryDatabase + 'static,
     {
         let planner = InfluxRpcPlanner::new();
 
@@ -188,7 +188,7 @@ impl Planner {
         group_columns: Vec<String>,
     ) -> Result<SeriesSetPlans>
     where
-        D: Database + 'static,
+        D: QueryDatabase + 'static,
     {
         let planner = InfluxRpcPlanner::new();
 
@@ -213,7 +213,7 @@ impl Planner {
         offset: WindowDuration,
     ) -> Result<SeriesSetPlans>
     where
-        D: Database + 'static,
+        D: QueryDatabase + 'static,
     {
         let planner = InfluxRpcPlanner::new();
 

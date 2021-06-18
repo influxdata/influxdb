@@ -3,7 +3,6 @@ use std::{
     sync::Arc,
 };
 
-use arrow::datatypes::SchemaRef;
 use data_types::partition_metadata;
 use partition_metadata::TableSummary;
 use snafu::{ResultExt, Snafu};
@@ -18,8 +17,7 @@ use parquet_file::chunk::ParquetChunk;
 use query::{
     exec::stringset::StringSet,
     predicate::{Predicate, PredicateMatch},
-    pruning::Prunable,
-    PartitionChunk,
+    QueryChunk, QueryChunkMeta,
 };
 use read_buffer::RBChunk;
 
@@ -66,11 +64,6 @@ pub enum Error {
     #[snafu(display("internal error creating plan: {}", source))]
     InternalPlanCreation {
         source: datafusion::error::DataFusionError,
-    },
-
-    #[snafu(display("Failed to select columns: {}", source))]
-    SelectColumns {
-        source: internal_types::schema::Error,
     },
 
     #[snafu(display("arrow conversion error: {}", source))]
@@ -206,7 +199,7 @@ impl DbChunk {
     }
 }
 
-impl PartitionChunk for DbChunk {
+impl QueryChunk for DbChunk {
     type Error = Error;
 
     fn id(&self) -> u32 {
@@ -286,16 +279,6 @@ impl PartitionChunk for DbChunk {
         };
 
         Ok(pred_result)
-    }
-
-    fn table_schema(&self, selection: Selection<'_>) -> Result<Schema, Self::Error> {
-        Ok(match selection {
-            Selection::All => self.meta.schema.as_ref().clone(),
-            Selection::Some(columns) => {
-                let columns = self.meta.schema.select(columns).context(SelectColumns)?;
-                self.meta.schema.project(&columns)
-            }
-        })
     }
 
     fn read_filter(
@@ -460,12 +443,12 @@ impl PartitionChunk for DbChunk {
     }
 }
 
-impl Prunable for DbChunk {
+impl QueryChunkMeta for DbChunk {
     fn summary(&self) -> &TableSummary {
         self.meta.table_summary.as_ref()
     }
 
-    fn schema(&self) -> SchemaRef {
-        self.meta.schema.as_arrow()
+    fn schema(&self) -> Arc<Schema> {
+        Arc::clone(&self.meta.schema)
     }
 }

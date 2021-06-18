@@ -14,11 +14,11 @@ use data_types::{
 };
 use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
 
+use crate::exec::Executor;
 use crate::{
     exec::stringset::{StringSet, StringSetRef},
-    Database, DatabaseStore, PartitionChunk, Predicate, PredicateMatch,
+    DatabaseStore, Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
 };
-use crate::{exec::Executor, pruning::Prunable};
 
 use internal_types::{
     schema::{
@@ -29,7 +29,7 @@ use internal_types::{
 
 use async_trait::async_trait;
 use parking_lot::Mutex;
-use snafu::{OptionExt, Snafu};
+use snafu::Snafu;
 use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Debug, Default)]
@@ -92,7 +92,7 @@ impl TestDatabase {
     }
 }
 
-impl Database for TestDatabase {
+impl QueryDatabase for TestDatabase {
     type Error = TestError;
     type Chunk = TestChunk;
 
@@ -706,7 +706,7 @@ impl TestChunk {
     }
 }
 
-impl PartitionChunk for TestChunk {
+impl QueryChunk for TestChunk {
     type Error = TestError;
 
     fn id(&self) -> u32 {
@@ -768,16 +768,6 @@ impl PartitionChunk for TestChunk {
         Ok(predicate_match)
     }
 
-    fn table_schema(&self, selection: Selection<'_>) -> Result<Schema, Self::Error> {
-        if !matches!(selection, Selection::All) {
-            unimplemented!("Selection in TestChunk::table_schema");
-        }
-
-        self.table_schema.as_ref().cloned().context(General {
-            message: "TestChunk had no schema".to_string(),
-        })
-    }
-
     fn column_values(
         &self,
         _column_name: &str,
@@ -807,17 +797,17 @@ impl PartitionChunk for TestChunk {
     }
 }
 
-impl Prunable for TestChunk {
+impl QueryChunkMeta for TestChunk {
     fn summary(&self) -> &TableSummary {
         self.table_summary
             .as_ref()
             .expect("Table summary not configured for TestChunk")
     }
 
-    fn schema(&self) -> arrow::datatypes::SchemaRef {
+    fn schema(&self) -> Arc<Schema> {
         self.table_schema
             .as_ref()
-            .map(|s| s.as_arrow())
+            .map(|s| Arc::new(s.clone()))
             .expect("schema was set")
     }
 }

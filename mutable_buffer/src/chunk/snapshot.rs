@@ -77,8 +77,11 @@ impl ChunkSnapshot {
         Ok(match selection {
             Selection::All => self.schema.as_ref().clone(),
             Selection::Some(columns) => {
-                let columns = self.schema.select(columns).context(SelectColumns)?;
-                self.schema.project(&columns)
+                let columns = self
+                    .schema
+                    .select_indicies(columns)
+                    .context(SelectColumns)?;
+                self.schema.project_indices(&columns)
             }
         })
     }
@@ -102,8 +105,11 @@ impl ChunkSnapshot {
         Ok(match selection {
             Selection::All => self.batch.clone(),
             Selection::Some(columns) => {
-                let projection = self.schema.select(columns).context(SelectColumns)?;
-                let schema = self.schema.project(&projection).into();
+                let projection = self
+                    .schema
+                    .select_indicies(columns)
+                    .context(SelectColumns)?;
+                let schema = self.schema.project_indices(&projection).into();
                 let columns = projection
                     .into_iter()
                     .map(|x| Arc::clone(self.batch.column(x)))

@@ -37,7 +37,7 @@ use parquet_file::{
     metadata::IoxMetadata,
     storage::Storage,
 };
-use query::{exec::Executor, predicate::Predicate, Database};
+use query::{exec::Executor, predicate::Predicate, QueryDatabase};
 use rand_distr::{Distribution, Poisson};
 use read_buffer::{ChunkMetrics as ReadBufferChunkMetrics, RBChunk};
 use snafu::{ResultExt, Snafu};
@@ -1060,7 +1060,7 @@ fn check_chunk_closed(chunk: &mut CatalogChunk, mutable_size_threshold: Option<N
 /// Convenience implementation of `Database` so the rest of the code
 /// can just use Db as a `Database` even though the implementation
 /// lives in `catalog_access`
-impl Database for Db {
+impl QueryDatabase for Db {
     type Error = Error;
     type Chunk = DbChunk;
 
@@ -1477,7 +1477,7 @@ mod tests {
         catalog::test_helpers::assert_catalog_state_implementation,
         test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
-    use query::{frontend::sql::SqlQueryPlanner, Database, PartitionChunk};
+    use query::{frontend::sql::SqlQueryPlanner, QueryChunk, QueryDatabase};
     use std::{
         collections::HashSet,
         convert::TryFrom,
