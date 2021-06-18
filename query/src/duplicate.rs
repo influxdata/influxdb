@@ -4,9 +4,10 @@
 //! DataModel have been written in via multiple distinct line protocol
 //! writes (and thus are stored in separate rows)
 
-use crate::pruning::Prunable;
 use data_types::partition_metadata::{ColumnSummary, StatOverlap, Statistics};
 use snafu::Snafu;
+
+use crate::QueryChunkMeta;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -29,7 +30,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Groups [`Prunable`] objects into disjoint sets using values of
+/// Groups [`QueryChunkMeta`] objects into disjoint sets using values of
 /// min/max statistics. The groups are formed such that each group
 /// *may* contain InfluxDB data model primary key duplicates with
 /// others in that set.
@@ -47,7 +48,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// any overlap)
 pub fn group_potential_duplicates<C>(chunks: Vec<C>) -> Result<Vec<Vec<C>>>
 where
-    C: Prunable,
+    C: QueryChunkMeta,
 {
     let mut groups: Vec<Vec<KeyStats<'_, _>>> = vec![];
 
@@ -109,7 +110,7 @@ where
 #[derive(Debug)]
 struct KeyStats<'a, C>
 where
-    C: Prunable,
+    C: QueryChunkMeta,
 {
     /// The index of the chunk
     index: usize,
@@ -124,7 +125,7 @@ where
 
 impl<'a, C> KeyStats<'a, C>
 where
-    C: Prunable,
+    C: QueryChunkMeta,
 {
     /// Create a new view for the specified chunk at index `index`,
     /// computing the columns to be used in the primary key comparison
@@ -264,11 +265,11 @@ where
 
 #[cfg(test)]
 mod test {
-    use arrow::datatypes::SchemaRef;
     use data_types::partition_metadata::{
         ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
     };
-    use internal_types::schema::{builder::SchemaBuilder, TIME_COLUMN_NAME};
+    use internal_types::schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME};
+    use std::sync::Arc;
 
     use super::*;
 
@@ -572,7 +573,7 @@ mod test {
         builder: SchemaBuilder,
     }
 
-    /// Implementation of creating a new column with statitics for TestPrunable
+    /// Implementation of creating a new column with statitics for TestChunkMeta
     macro_rules! make_stats {
         ($MIN:expr, $MAX:expr, $STAT_TYPE:ident) => {{
             Statistics::$STAT_TYPE(StatValues {
@@ -653,18 +654,19 @@ mod test {
         }
     }
 
-    impl Prunable for TestChunk {
+    impl QueryChunkMeta for TestChunk {
         fn summary(&self) -> &TableSummary {
             &self.summary
         }
 
-        fn schema(&self) -> SchemaRef {
-            self.builder
+        fn schema(&self) -> Arc<Schema> {
+            let schema = self
+                .builder
                 // need to clone because `build` resets builder state
                 .clone()
                 .build()
-                .expect("created schema")
-                .as_arrow()
+                .expect("created schema");
+            Arc::new(schema)
         }
     }
 }

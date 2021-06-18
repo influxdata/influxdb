@@ -1,7 +1,6 @@
 //! Implementation of statistics based pruning
-use std::sync::Arc;
 
-use arrow::{array::ArrayRef, datatypes::SchemaRef};
+use arrow::array::ArrayRef;
 use data_types::partition_metadata::{ColumnSummary, Statistics, TableSummary};
 use datafusion::{
     logical_plan::Expr,
@@ -10,30 +9,7 @@ use datafusion::{
 };
 use observability_deps::tracing::{debug, trace};
 
-use crate::predicate::Predicate;
-
-/// Trait for an object (designed to be a Chunk) which can provide
-/// sufficient information to prune
-pub trait Prunable: Sized {
-    /// Return a summary of the data in this [`Prunable`]
-    fn summary(&self) -> &TableSummary;
-
-    /// return the schema of the data in this [`Prunable`]
-    fn schema(&self) -> SchemaRef;
-}
-
-impl<P> Prunable for Arc<P>
-where
-    P: Prunable,
-{
-    fn summary(&self) -> &TableSummary {
-        self.as_ref().summary()
-    }
-
-    fn schema(&self) -> SchemaRef {
-        self.as_ref().schema()
-    }
-}
+use crate::{predicate::Predicate, QueryChunkMeta};
 
 /// Something that cares to be notified when pruning of chunks occurs
 pub trait PruningObserver {
@@ -54,7 +30,7 @@ pub trait PruningObserver {
 pub fn prune_chunks<C, P, O>(observer: &O, summaries: Vec<C>, predicate: &Predicate) -> Vec<C>
 where
     C: AsRef<P>,
-    P: Prunable,
+    P: QueryChunkMeta,
     O: PruningObserver<Observed = P>,
 {
     let num_chunks = summaries.len();
@@ -90,12 +66,13 @@ where
 /// returns true if rows in chunk may pass the predicate
 fn must_keep<P, O>(observer: &O, chunk: &P, filter_expr: &Expr) -> bool
 where
-    P: Prunable,
+    P: QueryChunkMeta,
     O: PruningObserver<Observed = P>,
 {
     trace!(?filter_expr, schema=?chunk.schema(), "creating pruning predicate");
 
-    let pruning_predicate = match PruningPredicate::try_new(filter_expr, chunk.schema()) {
+    let pruning_predicate = match PruningPredicate::try_new(filter_expr, chunk.schema().as_arrow())
+    {
         Ok(p) => p,
         Err(e) => {
             observer.could_not_prune_chunk(chunk, "Can not create pruning predicate");
@@ -104,7 +81,7 @@ where
         }
     };
 
-    let statistics = PrunableStats {
+    let statistics = ChunkMetaStats {
         summary: chunk.summary(),
     };
 
@@ -112,7 +89,7 @@ where
         Ok(results) => {
             // Boolean array for each row in stats, false if the
             // stats could not pass the predicate
-            let must_keep = results[0]; // 0 as PrunableStats returns a single row
+            let must_keep = results[0]; // 0 as ChunkMetaStats returns a single row
             if !must_keep {
                 observer.was_pruned(chunk)
             }
@@ -127,10 +104,10 @@ where
 }
 
 // struct to implement pruning
-struct PrunableStats<'a> {
+struct ChunkMetaStats<'a> {
     summary: &'a TableSummary,
 }
-impl<'a> PrunableStats<'a> {
+impl<'a> ChunkMetaStats<'a> {
     fn column_summary(&self, column: &str) -> Option<&ColumnSummary> {
         self.summary.columns.iter().find(|c| c.name == column)
     }
@@ -158,7 +135,7 @@ fn max_to_scalar(stats: &Statistics) -> Option<ScalarValue> {
     }
 }
 
-impl<'a> PruningStatistics for PrunableStats<'a> {
+impl<'a> PruningStatistics for ChunkMetaStats<'a> {
     fn min_values(&self, column: &str) -> Option<ArrayRef> {
         self.column_summary(column)
             .and_then(|c| min_to_scalar(&c.stats))
@@ -181,21 +158,21 @@ impl<'a> PruningStatistics for PrunableStats<'a> {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use std::{cell::RefCell, fmt, sync::Arc};
 
-    use arrow::datatypes::{DataType, Field, Schema};
+    use arrow::datatypes::DataType;
     use data_types::partition_metadata::{ColumnSummary, StatValues, Statistics};
     use datafusion::logical_plan::{col, lit};
+    use internal_types::schema::{builder::SchemaBuilder, merge::SchemaMerger, Schema};
 
     use crate::predicate::PredicateBuilder;
-
-    use super::*;
 
     #[test]
     fn test_empty() {
         test_helpers::maybe_start_logging();
         let observer = TestObserver::new();
-        let c1 = Arc::new(TestPrunable::new("chunk1"));
+        let c1 = Arc::new(TestChunkMeta::new("chunk1"));
 
         let predicate = PredicateBuilder::new().build();
         let pruned = prune_chunks(&observer, vec![c1], &predicate);
@@ -213,8 +190,11 @@ mod test {
         // column1 > 100.0 where
         //   c1: [0.0, 10.0] --> pruned
         let observer = TestObserver::new();
-        let c1 =
-            Arc::new(TestPrunable::new("chunk1").with_f64_column("column1", Some(0.0), Some(10.0)));
+        let c1 = Arc::new(TestChunkMeta::new("chunk1").with_f64_column(
+            "column1",
+            Some(0.0),
+            Some(10.0),
+        ));
 
         let predicate = PredicateBuilder::new()
             .add_expr(col("column1").gt(lit(100.0)))
@@ -233,7 +213,7 @@ mod test {
 
         let observer = TestObserver::new();
         let c1 =
-            Arc::new(TestPrunable::new("chunk1").with_i64_column("column1", Some(0), Some(10)));
+            Arc::new(TestChunkMeta::new("chunk1").with_i64_column("column1", Some(0), Some(10)));
 
         let predicate = PredicateBuilder::new()
             .add_expr(col("column1").gt(lit(100)))
@@ -253,7 +233,7 @@ mod test {
 
         let observer = TestObserver::new();
         let c1 =
-            Arc::new(TestPrunable::new("chunk1").with_u64_column("column1", Some(0), Some(10)));
+            Arc::new(TestChunkMeta::new("chunk1").with_u64_column("column1", Some(0), Some(10)));
 
         let predicate = PredicateBuilder::new()
             .add_expr(col("column1").gt(lit(100)))
@@ -272,7 +252,7 @@ mod test {
         //   c1: [false, false] --> pruned
 
         let observer = TestObserver::new();
-        let c1 = Arc::new(TestPrunable::new("chunk1").with_bool_column(
+        let c1 = Arc::new(TestChunkMeta::new("chunk1").with_bool_column(
             "column1",
             Some(false),
             Some(false),
@@ -293,7 +273,7 @@ mod test {
         //   c1: ["a", "q"] --> pruned
 
         let observer = TestObserver::new();
-        let c1 = Arc::new(TestPrunable::new("chunk1").with_string_column(
+        let c1 = Arc::new(TestChunkMeta::new("chunk1").with_string_column(
             "column1",
             Some("a"),
             Some("q"),
@@ -315,8 +295,11 @@ mod test {
         // column1 < 100.0 where
         //   c1: [0.0, 10.0] --> not pruned
         let observer = TestObserver::new();
-        let c1 =
-            Arc::new(TestPrunable::new("chunk1").with_f64_column("column1", Some(0.0), Some(10.0)));
+        let c1 = Arc::new(TestChunkMeta::new("chunk1").with_f64_column(
+            "column1",
+            Some(0.0),
+            Some(10.0),
+        ));
 
         let predicate = PredicateBuilder::new()
             .add_expr(col("column1").lt(lit(100.0)))
@@ -335,7 +318,7 @@ mod test {
 
         let observer = TestObserver::new();
         let c1 =
-            Arc::new(TestPrunable::new("chunk1").with_i64_column("column1", Some(0), Some(10)));
+            Arc::new(TestChunkMeta::new("chunk1").with_i64_column("column1", Some(0), Some(10)));
 
         let predicate = PredicateBuilder::new()
             .add_expr(col("column1").lt(lit(100)))
@@ -355,7 +338,7 @@ mod test {
 
         let observer = TestObserver::new();
         let c1 =
-            Arc::new(TestPrunable::new("chunk1").with_u64_column("column1", Some(0), Some(10)));
+            Arc::new(TestChunkMeta::new("chunk1").with_u64_column("column1", Some(0), Some(10)));
 
         let predicate = PredicateBuilder::new()
             .add_expr(col("column1").lt(lit(100)))
@@ -374,7 +357,7 @@ mod test {
         //   c1: [false, true] --> not pruned
 
         let observer = TestObserver::new();
-        let c1 = Arc::new(TestPrunable::new("chunk1").with_bool_column(
+        let c1 = Arc::new(TestChunkMeta::new("chunk1").with_bool_column(
             "column1",
             Some(false),
             Some(true),
@@ -395,7 +378,7 @@ mod test {
         //   c1: ["a", "q"] --> not pruned
 
         let observer = TestObserver::new();
-        let c1 = Arc::new(TestPrunable::new("chunk1").with_string_column(
+        let c1 = Arc::new(TestChunkMeta::new("chunk1").with_string_column(
             "column1",
             Some("a"),
             Some("q"),
@@ -421,13 +404,13 @@ mod test {
         //   c4: Null --> not pruned (no statistics at all)
 
         let observer = TestObserver::new();
-        let c1 = Arc::new(TestPrunable::new("chunk1").with_i64_column("column1", None, Some(10)));
+        let c1 = Arc::new(TestChunkMeta::new("chunk1").with_i64_column("column1", None, Some(10)));
 
-        let c2 = Arc::new(TestPrunable::new("chunk2").with_i64_column("column1", Some(0), None));
+        let c2 = Arc::new(TestChunkMeta::new("chunk2").with_i64_column("column1", Some(0), None));
 
-        let c3 = Arc::new(TestPrunable::new("chunk3").with_i64_column("column1", None, None));
+        let c3 = Arc::new(TestChunkMeta::new("chunk3").with_i64_column("column1", None, None));
 
-        let c4 = Arc::new(TestPrunable::new("chunk4").with_i64_column_no_stats("column1"));
+        let c4 = Arc::new(TestChunkMeta::new("chunk4").with_i64_column_no_stats("column1"));
 
         let predicate = PredicateBuilder::new()
             .add_expr(col("column1").gt(lit(100)))
@@ -452,19 +435,19 @@ mod test {
 
         let observer = TestObserver::new();
         let c1 =
-            Arc::new(TestPrunable::new("chunk1").with_i64_column("column1", Some(0), Some(10)));
+            Arc::new(TestChunkMeta::new("chunk1").with_i64_column("column1", Some(0), Some(10)));
 
         let c2 =
-            Arc::new(TestPrunable::new("chunk2").with_i64_column("column1", Some(0), Some(1000)));
+            Arc::new(TestChunkMeta::new("chunk2").with_i64_column("column1", Some(0), Some(1000)));
 
         let c3 =
-            Arc::new(TestPrunable::new("chunk3").with_i64_column("column1", Some(10), Some(20)));
+            Arc::new(TestChunkMeta::new("chunk3").with_i64_column("column1", Some(10), Some(20)));
 
-        let c4 = Arc::new(TestPrunable::new("chunk4").with_i64_column("column1", None, None));
+        let c4 = Arc::new(TestChunkMeta::new("chunk4").with_i64_column("column1", None, None));
 
-        let c5 = Arc::new(TestPrunable::new("chunk5").with_i64_column("column1", Some(10), None));
+        let c5 = Arc::new(TestChunkMeta::new("chunk5").with_i64_column("column1", Some(10), None));
 
-        let c6 = Arc::new(TestPrunable::new("chunk6").with_i64_column("column1", None, Some(20)));
+        let c6 = Arc::new(TestChunkMeta::new("chunk6").with_i64_column("column1", None, Some(20)));
 
         let predicate = PredicateBuilder::new()
             .add_expr(col("column1").gt(lit(100)))
@@ -488,18 +471,19 @@ mod test {
         //   c3: None, column2 [0, 4] --> not pruned (no stats for column1)
         let observer = TestObserver::new();
         let c1 = Arc::new(
-            TestPrunable::new("chunk1")
+            TestChunkMeta::new("chunk1")
                 .with_i64_column("column1", Some(0), Some(100))
                 .with_i64_column("column2", Some(0), Some(4)),
         );
 
         let c2 = Arc::new(
-            TestPrunable::new("chunk2")
+            TestChunkMeta::new("chunk2")
                 .with_i64_column("column1", Some(0), Some(1000))
                 .with_i64_column("column2", Some(0), Some(4)),
         );
 
-        let c3 = Arc::new(TestPrunable::new("chunk3").with_i64_column("column2", Some(0), Some(4)));
+        let c3 =
+            Arc::new(TestChunkMeta::new("chunk3").with_i64_column("column2", Some(0), Some(4)));
 
         let predicate = PredicateBuilder::new()
             .add_expr(col("column1").gt(lit(100)))
@@ -530,37 +514,37 @@ mod test {
 
         let observer = TestObserver::new();
         let c1 = Arc::new(
-            TestPrunable::new("chunk1")
+            TestChunkMeta::new("chunk1")
                 .with_i64_column("column1", Some(0), Some(1000))
                 .with_i64_column("column2", Some(0), Some(4)),
         );
 
         let c2 = Arc::new(
-            TestPrunable::new("chunk2")
+            TestChunkMeta::new("chunk2")
                 .with_i64_column("column1", Some(0), Some(10))
                 .with_i64_column("column2", Some(0), Some(4)),
         );
 
         let c3 = Arc::new(
-            TestPrunable::new("chunk3")
+            TestChunkMeta::new("chunk3")
                 .with_i64_column("column1", Some(0), Some(10))
                 .with_i64_column("column2", Some(5), Some(10)),
         );
 
         let c4 = Arc::new(
-            TestPrunable::new("chunk4")
+            TestChunkMeta::new("chunk4")
                 .with_i64_column("column1", Some(1000), Some(2000))
                 .with_i64_column("column2", Some(0), Some(4)),
         );
 
         let c5 = Arc::new(
-            TestPrunable::new("chunk5")
+            TestChunkMeta::new("chunk5")
                 .with_i64_column("column1", Some(0), Some(10))
                 .with_i64_column_no_stats("column2"),
         );
 
         let c6 = Arc::new(
-            TestPrunable::new("chunk6")
+            TestChunkMeta::new("chunk6")
                 .with_i64_column_no_stats("column1")
                 .with_i64_column("column2", Some(0), Some(4)),
         );
@@ -590,19 +574,19 @@ mod test {
         //   c3: column1 [1000, 2000] --> pruned (types are correct)
 
         let observer = TestObserver::new();
-        let c1 = Arc::new(TestPrunable::new("chunk1").with_string_column(
+        let c1 = Arc::new(TestChunkMeta::new("chunk1").with_string_column(
             "column1",
             Some("0"),
             Some("9"),
         ));
 
-        let c2 = Arc::new(TestPrunable::new("chunk2").with_string_column(
+        let c2 = Arc::new(TestChunkMeta::new("chunk2").with_string_column(
             "column1",
             Some("1000"),
             Some("2000"),
         ));
 
-        let c3 = Arc::new(TestPrunable::new("chunk3").with_i64_column(
+        let c3 = Arc::new(TestChunkMeta::new("chunk3").with_i64_column(
             "column1",
             Some(1000),
             Some(2000),
@@ -639,18 +623,18 @@ mod test {
 
         let observer = TestObserver::new();
         let c1 =
-            Arc::new(TestPrunable::new("chunk1").with_i64_column("column1", Some(0), Some(1000)));
+            Arc::new(TestChunkMeta::new("chunk1").with_i64_column("column1", Some(0), Some(1000)));
 
         let c2 =
-            Arc::new(TestPrunable::new("chunk2").with_u64_column("column1", Some(0), Some(1000)));
+            Arc::new(TestChunkMeta::new("chunk2").with_u64_column("column1", Some(0), Some(1000)));
 
-        let c3 = Arc::new(TestPrunable::new("chunk3").with_i64_column(
+        let c3 = Arc::new(TestChunkMeta::new("chunk3").with_i64_column(
             "column1",
             Some(1000),
             Some(2000),
         ));
 
-        let c4 = Arc::new(TestPrunable::new("chunk4").with_u64_column(
+        let c4 = Arc::new(TestChunkMeta::new("chunk4").with_u64_column(
             "column1",
             Some(1000),
             Some(2000),
@@ -666,7 +650,7 @@ mod test {
         assert_eq!(names(&pruned), vec!["chunk1", "chunk2"]);
     }
 
-    fn names(pruned: &[Arc<TestPrunable>]) -> Vec<&str> {
+    fn names(pruned: &[Arc<TestChunkMeta>]) -> Vec<&str> {
         pruned.iter().map(|p| p.name.as_str()).collect()
     }
 
@@ -686,7 +670,7 @@ mod test {
     }
 
     impl PruningObserver for TestObserver {
-        type Observed = TestPrunable;
+        type Observed = TestChunkMeta;
 
         fn was_pruned(&self, chunk: &Self::Observed) {
             self.events.borrow_mut().push(format!("{}: Pruned", chunk))
@@ -706,13 +690,13 @@ mod test {
     }
 
     #[derive(Debug, Clone)]
-    struct TestPrunable {
+    struct TestChunkMeta {
         name: String,
         summary: TableSummary,
-        schema: SchemaRef,
+        schema: Arc<Schema>,
     }
 
-    /// Implementation of creating a new column with statitics for TestPrunable
+    /// Implementation of creating a new column with statitics for TestChunkMeta
     macro_rules! impl_with_column {
         ($SELF:expr, $COLUMN_NAME:expr, $MIN:expr, $MAX:expr, $DATA_TYPE:ident, $STAT_TYPE:ident) => {{
             let Self {
@@ -739,11 +723,11 @@ mod test {
         }};
     }
 
-    impl TestPrunable {
+    impl TestChunkMeta {
         fn new(name: impl Into<String>) -> Self {
             let name = name.into();
             let summary = TableSummary::new(&name);
-            let schema = Arc::new(Schema::new(vec![]));
+            let schema = Arc::new(SchemaBuilder::new().build().unwrap());
             Self {
                 name,
                 summary,
@@ -820,18 +804,22 @@ mod test {
 
         fn add_field_to_schema(
             column_name: &str,
-            schema: SchemaRef,
+            schema: Arc<Schema>,
             data_type: DataType,
-        ) -> SchemaRef {
-            let new_field = Field::new(column_name, data_type, true);
-            let fields: Vec<_> = schema
-                .fields()
-                .iter()
-                .cloned()
-                .chain(std::iter::once(new_field))
-                .collect();
+        ) -> Arc<Schema> {
+            let new_schema = SchemaBuilder::new()
+                .field(column_name, data_type)
+                .build()
+                .expect("built new field schema");
 
-            Arc::new(Schema::new(fields))
+            let new_schema = SchemaMerger::new()
+                .merge(schema.as_ref())
+                .expect("merged existing schema")
+                .merge(&new_schema)
+                .expect("merged new schema")
+                .build();
+
+            Arc::new(new_schema)
         }
 
         fn add_column_to_summary(
@@ -849,18 +837,18 @@ mod test {
         }
     }
 
-    impl fmt::Display for TestPrunable {
+    impl fmt::Display for TestChunkMeta {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "{}", self.name)
         }
     }
 
-    impl Prunable for TestPrunable {
+    impl QueryChunkMeta for TestChunkMeta {
         fn summary(&self) -> &TableSummary {
             &self.summary
         }
 
-        fn schema(&self) -> SchemaRef {
+        fn schema(&self) -> Arc<Schema> {
             Arc::clone(&self.schema)
         }
     }

@@ -22,8 +22,7 @@ use observability_deps::tracing::debug;
 use query::{
     predicate::{Predicate, PredicateBuilder},
     provider::{self, ChunkPruner, ProviderBuilder},
-    pruning::Prunable,
-    QueryChunk, DEFAULT_SCHEMA,
+    QueryChunk, QueryChunkMeta, DEFAULT_SCHEMA,
 };
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
 

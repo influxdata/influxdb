@@ -8,12 +8,11 @@
 )]
 
 use async_trait::async_trait;
-use data_types::chunk_metadata::ChunkSummary;
+use data_types::{chunk_metadata::ChunkSummary, partition_metadata::TableSummary};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, Executor};
 use internal_types::{schema::Schema, selection::Selection};
 use predicate::PredicateMatch;
-use pruning::Prunable;
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -31,6 +30,16 @@ pub mod util;
 pub use exec::context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
 
 use self::predicate::Predicate;
+
+/// Trait for an object (designed to be a Chunk) which can provide
+/// metadata
+pub trait QueryChunkMeta: Sized {
+    /// Return a reference to the summary of the data
+    fn summary(&self) -> &TableSummary;
+
+    /// return a reference to the summary of the data held in this chunk
+    fn schema(&self) -> Arc<Schema>;
+}
 
 /// A `Database` is the main trait implemented by the IOx subsystems
 /// that store actual data.
@@ -57,7 +66,7 @@ pub trait QueryDatabase: Debug + Send + Sync {
 }
 
 /// Collection of data that shares the same partition key
-pub trait QueryChunk: Prunable + Debug + Send + Sync {
+pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// returns the Id of this chunk. Ids are unique within a
@@ -151,6 +160,20 @@ pub trait DatabaseStore: Debug + Send + Sync {
     /// Provide a query executor to use for running queries on
     /// databases in this `DatabaseStore`
     fn executor(&self) -> Arc<Executor>;
+}
+
+/// Implement ChunkMeta for something wrapped in an Arc (like Chunks often are)
+impl<P> QueryChunkMeta for Arc<P>
+where
+    P: QueryChunkMeta,
+{
+    fn summary(&self) -> &TableSummary {
+        self.as_ref().summary()
+    }
+
+    fn schema(&self) -> Arc<Schema> {
+        self.as_ref().schema()
+    }
 }
 
 // Note: I would like to compile this module only in the 'test' cfg,

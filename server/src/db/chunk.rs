@@ -3,7 +3,6 @@ use std::{
     sync::Arc,
 };
 
-use arrow::datatypes::SchemaRef;
 use data_types::partition_metadata;
 use partition_metadata::TableSummary;
 use snafu::{ResultExt, Snafu};
@@ -18,8 +17,7 @@ use parquet_file::chunk::ParquetChunk;
 use query::{
     exec::stringset::StringSet,
     predicate::{Predicate, PredicateMatch},
-    pruning::Prunable,
-    QueryChunk,
+    QueryChunk, QueryChunkMeta,
 };
 use read_buffer::RBChunk;
 
@@ -460,12 +458,12 @@ impl QueryChunk for DbChunk {
     }
 }
 
-impl Prunable for DbChunk {
+impl QueryChunkMeta for DbChunk {
     fn summary(&self) -> &TableSummary {
         self.meta.table_summary.as_ref()
     }
 
-    fn schema(&self) -> SchemaRef {
-        self.meta.schema.as_arrow()
+    fn schema(&self) -> Arc<Schema> {
+        Arc::clone(&self.meta.schema)
     }
 }

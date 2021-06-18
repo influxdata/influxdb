@@ -14,11 +14,11 @@ use data_types::{
 };
 use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
 
+use crate::exec::Executor;
 use crate::{
     exec::stringset::{StringSet, StringSetRef},
-    DatabaseStore, Predicate, PredicateMatch, QueryChunk, QueryDatabase,
+    DatabaseStore, Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
 };
-use crate::{exec::Executor, pruning::Prunable};
 
 use internal_types::{
     schema::{
@@ -807,17 +807,17 @@ impl QueryChunk for TestChunk {
     }
 }
 
-impl Prunable for TestChunk {
+impl QueryChunkMeta for TestChunk {
     fn summary(&self) -> &TableSummary {
         self.table_summary
             .as_ref()
             .expect("Table summary not configured for TestChunk")
     }
 
-    fn schema(&self) -> arrow::datatypes::SchemaRef {
+    fn schema(&self) -> Arc<Schema> {
         self.table_schema
             .as_ref()
-            .map(|s| s.as_arrow())
+            .map(|s| Arc::new(s.clone()))
             .expect("schema was set")
     }
 }
