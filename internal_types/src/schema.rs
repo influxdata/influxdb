@@ -12,7 +12,10 @@ use arrow::datatypes::{
 };
 use snafu::Snafu;
 
-use crate::schema::sort::{ColumnSort, SortKey};
+use crate::{
+    schema::sort::{ColumnSort, SortKey},
+    selection::Selection,
+};
 use hashbrown::HashSet;
 
 /// The name of the timestamp column in the InfluxDB datamodel
@@ -323,10 +326,23 @@ impl Schema {
         }
     }
 
+    /// Returns a Schema that represents selecting some of the columns
+    /// in this schema. An error is returned if the selection refers to
+    /// columns that do not exist.
+    pub fn select(&self, selection: Selection<'_>) -> Result<Self> {
+        Ok(match selection {
+            Selection::All => self.clone(),
+            Selection::Some(columns) => {
+                let columns = self.select_indicies(columns)?;
+                self.project_indices(&columns)
+            }
+        })
+    }
+
     /// Returns the field indexes for a given selection
     ///
     /// Returns an error if a corresponding column isn't found
-    pub fn select(&self, columns: &[&str]) -> Result<Vec<usize>> {
+    pub fn select_indicies(&self, columns: &[&str]) -> Result<Vec<usize>> {
         columns
             .iter()
             .map(|column_name| {
@@ -339,7 +355,7 @@ impl Schema {
     }
 
     /// Returns the schema for a given set of column projects
-    pub fn project(&self, projection: &[usize]) -> Self {
+    pub fn project_indices(&self, projection: &[usize]) -> Self {
         let mut fields = Vec::with_capacity(projection.len());
         for idx in projection {
             let field = self.inner.field(*idx);
@@ -1011,9 +1027,9 @@ mod test {
             .build()
             .unwrap();
 
-        let projection = schema1.select(&[TIME_COLUMN_NAME]).unwrap();
+        let projection = schema1.select_indicies(&[TIME_COLUMN_NAME]).unwrap();
 
-        let schema2 = schema1.project(&projection);
+        let schema2 = schema1.project_indices(&projection);
         let schema3 = Schema::try_from_arrow(Arc::clone(&schema2.inner)).unwrap();
 
         assert_eq!(schema1.measurement(), schema2.measurement());
@@ -1075,9 +1091,9 @@ mod test {
             .build_with_sort_key(&sort_key)
             .unwrap();
 
-        let projected = schema1.project(
+        let projected = schema1.project_indices(
             schema1
-                .select(&["tag4", "tag2", "tag3", "time"])
+                .select_indicies(&["tag4", "tag2", "tag3", "time"])
                 .unwrap()
                 .as_slice(),
         );

@@ -33,7 +33,7 @@ use crate::{
     predicate::{Predicate, PredicateMatch},
     provider::ProviderBuilder,
     util::schema_has_all_expr_columns,
-    QueryChunk, QueryDatabase,
+    QueryChunk, QueryChunkMeta, QueryDatabase,
 };
 
 #[derive(Debug, Snafu)]
@@ -95,18 +95,6 @@ pub enum Error {
     #[snafu(display("gRPC planner got error building plan: {}", source))]
     BuildingPlan {
         source: datafusion::error::DataFusionError,
-    },
-
-    #[snafu(display(
-        "gRPC planner got error getting table schema for table '{}' in chunk {}: {}",
-        table_name,
-        chunk_id,
-        source
-    ))]
-    GettingTableSchema {
-        table_name: String,
-        chunk_id: u32,
-        source: Box<dyn std::error::Error + Send + Sync>,
     },
 
     #[snafu(display("gRPC planner error: unsupported predicate: {}", source))]
@@ -267,13 +255,7 @@ impl InfluxRpcPlanner {
             debug!(table_name, chunk_id, "finding columns in table");
 
             // get only tag columns from metadata
-            let schema = chunk
-                .table_schema(Selection::All)
-                .map_err(|e| Box::new(e) as _)
-                .context(GettingTableSchema {
-                    table_name,
-                    chunk_id,
-                })?;
+            let schema = chunk.schema();
 
             let column_names: Vec<&str> = schema
                 .tags_iter()
@@ -381,13 +363,7 @@ impl InfluxRpcPlanner {
             debug!(table_name, chunk_id, "finding columns in table");
 
             // use schema to validate column type
-            let schema = chunk
-                .table_schema(Selection::All)
-                .map_err(|e| Box::new(e) as _)
-                .context(GettingTableSchema {
-                    table_name,
-                    chunk_id,
-                })?;
+            let schema = chunk.schema();
 
             // Skip this table if the tag_name is not a column in this table
             let idx = if let Some(idx) = schema.find_index_of(tag_name) {
@@ -1105,7 +1081,6 @@ impl InfluxRpcPlanner {
         // Scan all columns to begin with (DataFusion projection
         // push-down optimization will prune out unneeded columns later)
         let projection = None;
-        let selection = Selection::All;
 
         // Prepare the scan of the table
         let mut builder = ProviderBuilder::new(table_name);
@@ -1121,8 +1096,6 @@ impl InfluxRpcPlanner {
         builder.add_no_op_pruner();
 
         for chunk in chunks {
-            let chunk_id = chunk.id();
-
             // check that it is consistent with this table_name
             assert_eq!(
                 chunk.table_name(),
@@ -1131,16 +1104,8 @@ impl InfluxRpcPlanner {
                 chunk.id(),
             );
 
-            let chunk_table_schema = chunk
-                .table_schema(selection)
-                .map_err(|e| Box::new(e) as _)
-                .context(GettingTableSchema {
-                    table_name,
-                    chunk_id,
-                })?;
-
             builder
-                .add_chunk(chunk, chunk_table_schema)
+                .add_chunk(chunk)
                 .context(CreatingProvider { table_name })?;
         }
 

@@ -66,11 +66,6 @@ pub enum Error {
         source: datafusion::error::DataFusionError,
     },
 
-    #[snafu(display("Failed to select columns: {}", source))]
-    SelectColumns {
-        source: internal_types::schema::Error,
-    },
-
     #[snafu(display("arrow conversion error: {}", source))]
     ArrowConversion { source: arrow::error::ArrowError },
 }
@@ -284,16 +279,6 @@ impl QueryChunk for DbChunk {
         };
 
         Ok(pred_result)
-    }
-
-    fn table_schema(&self, selection: Selection<'_>) -> Result<Schema, Self::Error> {
-        Ok(match selection {
-            Selection::All => self.meta.schema.as_ref().clone(),
-            Selection::Some(columns) => {
-                let columns = self.meta.schema.select(columns).context(SelectColumns)?;
-                self.meta.schema.project(&columns)
-            }
-        })
     }
 
     fn read_filter(

@@ -207,8 +207,11 @@ impl ParquetChunk {
         Ok(match selection {
             Selection::All => self.schema.as_ref().clone(),
             Selection::Some(columns) => {
-                let columns = self.schema.select(columns).context(SelectColumns)?;
-                self.schema.project(&columns)
+                let columns = self
+                    .schema
+                    .select_indicies(columns)
+                    .context(SelectColumns)?;
+                self.schema.project_indices(&columns)
             }
         })
     }

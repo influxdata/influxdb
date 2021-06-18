@@ -29,7 +29,7 @@ use internal_types::{
 
 use async_trait::async_trait;
 use parking_lot::Mutex;
-use snafu::{OptionExt, Snafu};
+use snafu::Snafu;
 use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Debug, Default)]
@@ -766,16 +766,6 @@ impl QueryChunk for TestChunk {
             .unwrap_or(PredicateMatch::Unknown);
 
         Ok(predicate_match)
-    }
-
-    fn table_schema(&self, selection: Selection<'_>) -> Result<Schema, Self::Error> {
-        if !matches!(selection, Selection::All) {
-            unimplemented!("Selection in TestChunk::table_schema");
-        }
-
-        self.table_schema.as_ref().cloned().context(General {
-            message: "TestChunk had no schema".to_string(),
-        })
     }
 
     fn column_values(

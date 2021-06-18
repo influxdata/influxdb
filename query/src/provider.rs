@@ -110,9 +110,11 @@ impl<C: QueryChunk> ProviderBuilder<C> {
     }
 
     /// Add a new chunk to this provider
-    pub fn add_chunk(&mut self, chunk: Arc<C>, chunk_table_schema: Schema) -> Result<&mut Self> {
+    pub fn add_chunk(&mut self, chunk: Arc<C>) -> Result<&mut Self> {
+        let chunk_table_schema = chunk.schema();
+
         self.schema_merger
-            .merge(&chunk_table_schema)
+            .merge(&chunk_table_schema.as_ref())
             .context(ChunkSchemaNotCompatible {
                 table_name: self.table_name.as_ref(),
             })?;
@@ -680,9 +682,8 @@ impl<C: QueryChunk> ChunkPruner<C> for NoOpPruner {
 mod test {
     use arrow_util::assert_batches_eq;
     use datafusion::physical_plan::collect;
-    use internal_types::selection::Selection;
 
-    use crate::test::TestChunk;
+    use crate::{test::TestChunk, QueryChunkMeta};
 
     use super::*;
 
@@ -733,7 +734,7 @@ mod test {
         );
 
         // Datafusion schema of the chunk
-        let schema = chunk.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk.schema().as_arrow();
 
         // IOx scan operator
         let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
@@ -788,7 +789,7 @@ mod test {
         );
 
         // Datafusion schema of the chunk
-        let schema = chunk.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk.schema().as_arrow();
 
         // IOx scan operator
         let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
@@ -843,11 +844,11 @@ mod test {
         );
 
         // Datafusion schema of the chunk
-        let schema = chunk.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk.schema();
 
         let sort_plan = Deduplicater::build_sort_plan_for_read_filter(
             Arc::from("t"),
-            schema,
+            schema.as_arrow(),
             Arc::clone(&chunk),
             Predicate::default(),
         );
@@ -891,11 +892,11 @@ mod test {
 
         // Datafusion schema of the chunk
         // the same for 2 chunks
-        let schema = chunk1.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk1.schema();
 
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
             Arc::from("t"),
-            schema,
+            schema.as_arrow(),
             vec![chunk1, chunk2],
             Predicate::default(),
         );
@@ -927,12 +928,12 @@ mod test {
         );
 
         // Datafusion schema of the chunk
-        let schema = chunk.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk.schema();
 
         let mut deduplicator = Deduplicater::new();
         let plan = deduplicator.build_scan_plan(
             Arc::from("t"),
-            schema,
+            schema.as_arrow(),
             vec![Arc::clone(&chunk)],
             Predicate::default(),
             true,
@@ -966,12 +967,12 @@ mod test {
         );
 
         // Datafusion schema of the chunk
-        let schema = chunk.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk.schema();
 
         let mut deduplicator = Deduplicater::new();
         let plan = deduplicator.build_scan_plan(
             Arc::from("t"),
-            schema,
+            schema.as_arrow(),
             vec![Arc::clone(&chunk)],
             Predicate::default(),
             true,
@@ -1014,12 +1015,12 @@ mod test {
         );
 
         // Datafusion schema of the chunk
-        let schema = chunk1.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk1.schema();
 
         let mut deduplicator = Deduplicater::new();
         let plan = deduplicator.build_scan_plan(
             Arc::from("t"),
-            schema,
+            schema.as_arrow(),
             vec![Arc::clone(&chunk1), Arc::clone(&chunk2)],
             Predicate::default(),
             true,
@@ -1083,12 +1084,12 @@ mod test {
         );
 
         // Datafusion schema of the chunk
-        let schema = chunk1.table_schema(Selection::All).unwrap().as_arrow();
+        let schema = chunk1.schema();
 
         let mut deduplicator = Deduplicater::new();
         let plan = deduplicator.build_scan_plan(
             Arc::from("t"),
-            schema,
+            schema.as_arrow(),
             vec![
                 Arc::clone(&chunk1),
                 Arc::clone(&chunk2),

@@ -90,9 +90,7 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
 
         let chunk = Arc::clone(&self.chunks[partition]);
 
-        let chunk_table_schema = chunk
-            .table_schema(Selection::All)
-            .expect("can get table schema");
+        let chunk_table_schema = chunk.schema();
 
         // The output selection is all the columns in the schema.
         //

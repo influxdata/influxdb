@@ -109,11 +109,6 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
         predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error>;
 
-    /// Returns the Schema for a table in this chunk, with the
-    /// specified column selection. An error is returned if the
-    /// selection refers to columns that do not exist.
-    fn table_schema(&self, selection: Selection<'_>) -> Result<Schema, Self::Error>;
-
     /// Provides access to raw `QueryChunk` data as an
     /// asynchronous stream of `RecordBatch`es filtered by a *required*
     /// predicate. Note that not all chunks can evaluate all types of

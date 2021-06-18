@@ -16,7 +16,6 @@ use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     datasource::TableProvider,
 };
-use internal_types::selection::Selection;
 use metrics::{Counter, KeyValue, MetricRegistry};
 use observability_deps::tracing::debug;
 use query::{
@@ -256,16 +255,13 @@ impl SchemaProvider for DbSchemaProvider {
         let predicate = PredicateBuilder::new().table(table_name).build();
 
         for chunk in self.chunk_access.candidate_chunks(&predicate) {
-            // This should only fail if the table doesn't exist which isn't possible
-            let schema = chunk.table_schema(Selection::All).expect("cannot fail");
-
             // This is unfortunate - a table with incompatible chunks ceases to
             // be visible to the query engine
             //
             // It is also potentially ill-formed as continuing to use the builder
             // after it has errored may not yield entirely sensible results
             builder
-                .add_chunk(chunk, schema)
+                .add_chunk(chunk)
                 .log_if_error("Adding chunks to table")
                 .ok()?;
         }
