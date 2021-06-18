@@ -265,7 +265,7 @@ impl IoxParquetMetaData {
     }
 
     /// Read IOx schema from parquet metadata.
-    pub fn read_schema(&self) -> Result<Schema> {
+    pub fn read_schema(&self) -> Result<Arc<Schema>> {
         let file_metadata = self.md.file_metadata();
 
         let arrow_schema = parquet_to_arrow_schema(
@@ -279,7 +279,7 @@ impl IoxParquetMetaData {
         let schema: Schema = arrow_schema_ref
             .try_into()
             .context(IoxFromArrowFailure {})?;
-        Ok(schema)
+        Ok(Arc::new(schema))
     }
 
     /// Read IOx statistics (including timestamp range) from parquet metadata.
@@ -563,7 +563,7 @@ fn extract_iox_statistics(
 mod tests {
     use super::*;
 
-    use internal_types::{schema::TIME_COLUMN_NAME, selection::Selection};
+    use internal_types::schema::TIME_COLUMN_NAME;
 
     use crate::test_utils::{
         chunk_addr, load_parquet_from_store, make_chunk, make_chunk_no_row_group, make_object_store,
@@ -579,7 +579,7 @@ mod tests {
 
         // step 1: read back schema
         let schema_actual = parquet_metadata.read_schema().unwrap();
-        let schema_expected = chunk.schema(Selection::All).unwrap();
+        let schema_expected = chunk.schema();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: read back statistics
@@ -602,7 +602,7 @@ mod tests {
 
         // step 1: read back schema
         let schema_actual = parquet_metadata.read_schema().unwrap();
-        let schema_expected = chunk.schema(Selection::All).unwrap();
+        let schema_expected = chunk.schema();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: read back statistics
@@ -623,7 +623,7 @@ mod tests {
 
         // step 1: read back schema
         let schema_actual = parquet_metadata.read_schema().unwrap();
-        let schema_expected = chunk.schema(Selection::All).unwrap();
+        let schema_expected = chunk.schema();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: reading back statistics fails
@@ -646,7 +646,7 @@ mod tests {
 
         // step 1: read back schema
         let schema_actual = parquet_metadata.read_schema().unwrap();
-        let schema_expected = chunk.schema(Selection::All).unwrap();
+        let schema_expected = chunk.schema();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: reading back statistics fails

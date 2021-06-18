@@ -136,7 +136,7 @@ impl ParquetChunk {
         Ok(Self::new_from_parts(
             iox_md.partition_key,
             Arc::new(table_summary),
-            Arc::new(schema),
+            schema,
             file_location,
             store,
             parquet_metadata,
@@ -202,22 +202,8 @@ impl ParquetChunk {
             + mem::size_of_val(&self.parquet_metadata)
     }
 
-    /// Return possibly restricted Schema for this chunk
-    pub fn schema(&self, selection: Selection<'_>) -> Result<Schema> {
-        Ok(match selection {
-            Selection::All => self.schema.as_ref().clone(),
-            Selection::Some(columns) => {
-                let columns = self
-                    .schema
-                    .select_indicies(columns)
-                    .context(SelectColumns)?;
-                self.schema.project_indices(&columns)
-            }
-        })
-    }
-
     /// Infallably return the full schema (for all columns) for this chunk
-    pub fn full_schema(&self) -> Arc<Schema> {
+    pub fn schema(&self) -> Arc<Schema> {
         Arc::clone(&self.schema)
     }
 

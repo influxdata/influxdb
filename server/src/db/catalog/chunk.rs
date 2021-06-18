@@ -280,7 +280,7 @@ impl CatalogChunk {
         // Cache table summary + schema
         let meta = Arc::new(ChunkMetadata {
             table_summary: Arc::clone(chunk.table_summary()),
-            schema: chunk.full_schema(),
+            schema: chunk.schema(),
         });
 
         let stage = ChunkStage::Persisted {

@@ -55,7 +55,7 @@ mod tests {
         //
         // 1. Check metadata at file level: Everything is correct
         let schema_actual = parquet_metadata.read_schema().unwrap();
-        assert_eq!(schema.clone(), schema_actual);
+        assert_eq!(Arc::new(schema.clone()), schema_actual);
         assert_eq!(
             key_value_metadata.clone(),
             schema_actual.as_arrow().metadata().clone()
