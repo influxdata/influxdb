@@ -504,7 +504,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
 
         // TODOs: build primary key by accumulating unique key columns from each chunk's table summary
         // use the one of the first chunk for now
-        let key_summaries = chunks[0].summary().primary_key_columns();
+        let schema = chunks[0].schema();
 
         // Union the plans
         // The UnionExec operator only streams all chunks (aka partitions in Datafusion) and
@@ -512,7 +512,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let plan = UnionExec::new(sorted_chunk_plans?);
 
         // Now (sort) merge the already sorted chunks
-        let sort_exprs = arrow_pk_sort_exprs(key_summaries);
+        let sort_exprs = arrow_pk_sort_exprs(schema.primary_key());
         let plan = Arc::new(SortPreservingMergeExec::new(
             sort_exprs.clone(),
             Arc::new(plan),
@@ -560,8 +560,8 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
 
         // Add DeduplicateExc
         // Sort exprs for the deduplication
-        let key_summaries = chunk.summary().primary_key_columns();
-        let sort_exprs = arrow_pk_sort_exprs(key_summaries);
+        let schema = chunk.schema();
+        let sort_exprs = arrow_pk_sort_exprs(schema.primary_key());
         let plan = Self::add_deduplicate_node(sort_exprs, plan);
         Ok(plan)
     }
@@ -617,8 +617,9 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             return Ok(input);
         }
 
-        let key_summaries = chunk.summary().primary_key_columns();
-        let sort_exprs = arrow_pk_sort_exprs(key_summaries);
+        let schema = chunk.schema();
+        let key_columns = schema.primary_key();
+        let sort_exprs = arrow_pk_sort_exprs(key_columns);
 
         // Create SortExec operator
         Ok(Arc::new(

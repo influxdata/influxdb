@@ -130,7 +130,18 @@ where
     /// Create a new view for the specified chunk at index `index`,
     /// computing the columns to be used in the primary key comparison
     pub fn new(index: usize, chunk: &'a C) -> Self {
-        let key_summaries = chunk.summary().primary_key_columns();
+        // find summaries for each primary key column:
+        let key_summaries = chunk
+            .schema()
+            .primary_key()
+            .into_iter()
+            .map(|key_name| {
+                chunk
+                    .summary()
+                    .column(key_name)
+                    .expect("can not find column in chunk summary")
+            })
+            .collect();
 
         Self {
             index,

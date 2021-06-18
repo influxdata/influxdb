@@ -1,5 +1,6 @@
 //! This module contains the schema definiton for IOx
 use std::{
+    cmp::Ordering,
     collections::HashMap,
     convert::{TryFrom, TryInto},
     fmt,
@@ -400,6 +401,40 @@ impl Schema {
             return Some(sort_key);
         }
         None
+    }
+
+    /// Return columns used for the "primary key" in this table.
+    ///
+    /// Currently this relies on the InfluxDB data model annotations
+    /// for what columns to include in the key columns
+    pub fn primary_key(&self) -> Vec<&str> {
+        use InfluxColumnType::*;
+        let mut primary_keys: Vec<_> = self
+            .iter()
+            .filter_map(|(column_type, field)| match column_type {
+                Some(Tag) => Some((Tag, field)),
+                Some(Field(_)) => None,
+                Some(Timestamp) => Some((Timestamp, field)),
+                None => None,
+            })
+            .collect();
+
+        // Now, sort lexographically (but put timestamp last)
+        primary_keys.sort_by(|(a_column_type, a), (b_column_type, b)| {
+            match (a_column_type, b_column_type) {
+                (Tag, Tag) => a.name().cmp(&b.name()),
+                (Timestamp, Tag) => Ordering::Greater,
+                (Tag, Timestamp) => Ordering::Less,
+                (Timestamp, Timestamp) => panic!("multiple timestamps in summary"),
+                _ => panic!("Unexpected types in key summary"),
+            }
+        });
+
+        // Take just the names
+        primary_keys
+            .into_iter()
+            .map(|(_column_type, field)| field.name().as_str())
+            .collect()
     }
 }
 

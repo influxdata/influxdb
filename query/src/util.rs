@@ -8,7 +8,6 @@ use arrow::{
     record_batch::RecordBatch,
 };
 
-use data_types::partition_metadata::ColumnSummary;
 use datafusion::{
     error::DataFusionError,
     logical_plan::{Expr, LogicalPlan, LogicalPlanBuilder},
@@ -59,11 +58,11 @@ pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
 }
 
 /// Returns the pk in arrow's expression used for data sorting
-pub fn arrow_pk_sort_exprs(key_summaries: Vec<&ColumnSummary>) -> Vec<PhysicalSortExpr> {
+pub fn arrow_pk_sort_exprs(key_columns: Vec<&str>) -> Vec<PhysicalSortExpr> {
     let mut sort_exprs = vec![];
-    for key in key_summaries {
+    for key in key_columns {
         sort_exprs.push(PhysicalSortExpr {
-            expr: physical_col(key.name.as_str()),
+            expr: physical_col(key),
             options: SortOptions {
                 descending: false,
                 nulls_first: false,
