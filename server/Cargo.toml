@@ -10,7 +10,7 @@ arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 bytes = { version = "1.0" }
 chrono = "0.4"
-cached = "0.23.0"
+cache_loader_async = {version  = "0.1.0", features = ["ttl-cache"] }
 crc32fast = "1.2.0"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }

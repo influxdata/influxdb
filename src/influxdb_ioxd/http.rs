@@ -884,7 +884,7 @@ mod tests {
     #[tokio::test]
     async fn test_health() {
         let (_, config) = config();
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl::new(), config));
         let server_url = test_server(Arc::clone(&app_server));
 
         let client = Client::new();
@@ -897,7 +897,7 @@ mod tests {
     #[tokio::test]
     async fn test_write() {
         let (_, config) = config();
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl::new(), config));
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.maybe_initialize_server().await;
         app_server
@@ -945,7 +945,7 @@ mod tests {
     #[tokio::test]
     async fn test_write_metrics() {
         let (metrics_registry, config) = config();
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl::new(), config));
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.maybe_initialize_server().await;
         app_server
@@ -1035,7 +1035,7 @@ mod tests {
     /// endpoint
     async fn setup_test_data() -> (Client, String) {
         let (_, config) = config();
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl::new(), config));
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.maybe_initialize_server().await;
         app_server
@@ -1172,7 +1172,7 @@ mod tests {
     #[tokio::test]
     async fn test_gzip_write() {
         let (_, config) = config();
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl::new(), config));
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.maybe_initialize_server().await;
         app_server
@@ -1221,7 +1221,7 @@ mod tests {
     #[tokio::test]
     async fn write_to_invalid_database() {
         let (_, config) = config();
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config));
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl::new(), config));
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.maybe_initialize_server().await;
         app_server

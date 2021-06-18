@@ -150,7 +150,7 @@ pub async fn main(config: Config) -> Result<()> {
         std::process::exit(1);
     }
 
-    let connection_manager = ConnectionManager {};
+    let connection_manager = ConnectionManager::new();
     let app_server = Arc::new(AppServer::new(connection_manager, server_config));
 
     // if this ID isn't set the server won't be usable until this is set via an API
