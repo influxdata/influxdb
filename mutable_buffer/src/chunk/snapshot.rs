@@ -67,37 +67,9 @@ impl ChunkSnapshot {
         s
     }
 
-    /// returns true if there is no data in this snapshot
-    pub fn is_empty(&self) -> bool {
-        self.batch.num_rows() == 0
-    }
-
-    /// Return Schema for the specified table / columns
-    pub fn table_schema(&self, selection: Selection<'_>) -> Result<Schema> {
-        Ok(match selection {
-            Selection::All => self.schema.as_ref().clone(),
-            Selection::Some(columns) => {
-                let columns = self
-                    .schema
-                    .select_indicies(columns)
-                    .context(SelectColumns)?;
-                self.schema.project_indices(&columns)
-            }
-        })
-    }
-
     /// Return Schema for all columns in this snapshot
     pub fn full_schema(&self) -> Arc<Schema> {
         Arc::clone(&self.schema)
-    }
-
-    /// Returns a list of tables with writes matching the given timestamp_range
-    pub fn table_names(&self, timestamp_range: Option<TimestampRange>) -> BTreeSet<String> {
-        let mut ret = BTreeSet::new();
-        if self.has_timerange(&timestamp_range) {
-            ret.insert(self.table_name.to_string());
-        }
-        ret
     }
 
     /// Returns a RecordBatch with the given selection
