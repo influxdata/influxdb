@@ -82,7 +82,9 @@ pub enum Error {
     #[snafu(display("Cannot write to this database: no mutable buffer configured"))]
     DatabaseNotWriteable {},
 
-    #[snafu(display("Cannot write to this database: only reading from write buffer"))]
+    #[snafu(display(
+        "Cannot write to this database, configured to only read from the write buffer"
+    ))]
     WritingOnlyAllowedThroughWriteBuffer {},
 
     #[snafu(display("Hard buffer size limit reached"))]

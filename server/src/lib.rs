@@ -197,6 +197,12 @@ pub enum Error {
     #[snafu(display("hard buffer limit reached"))]
     HardLimitReached {},
 
+    #[snafu(display(
+        "Cannot write to database {}, it's configured to only read from the write buffer",
+        db_name
+    ))]
+    WritingOnlyAllowedThroughWriteBuffer { db_name: String },
+
     #[snafu(display("no remote configured for node group: {:?}", node_group))]
     NoRemoteConfigured { node_group: NodeGroup },
 
@@ -789,6 +795,11 @@ where
             );
             match e {
                 db::Error::HardLimitReached {} => Error::HardLimitReached {},
+                db::Error::WritingOnlyAllowedThroughWriteBuffer {} => {
+                    Error::WritingOnlyAllowedThroughWriteBuffer {
+                        db_name: db_name.into(),
+                    }
+                }
                 _ => Error::UnknownDatabaseError {
                     source: Box::new(e),
                 },
