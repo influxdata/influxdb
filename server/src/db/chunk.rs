@@ -308,12 +308,7 @@ impl QueryChunk for DbChunk {
 
                 debug!(?rb_predicate, "Predicate pushed down to RUB");
 
-                let read_results = chunk
-                    .read_filter(table_name, rb_predicate, selection)
-                    .context(ReadBufferChunkError {
-                        chunk_id: self.id(),
-                    })?;
-
+                let read_results = chunk.read_filter(table_name, rb_predicate, selection);
                 let schema = chunk
                     .read_filter_table_schema(table_name, selection)
                     .context(ReadBufferChunkError {

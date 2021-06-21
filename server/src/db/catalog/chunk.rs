@@ -413,11 +413,11 @@ impl CatalogChunk {
                 ChunkStageFrozenRepr::MutableBufferSnapshot(repr) => {
                     repr.column_sizes().map(to_summary).collect()
                 }
-                ChunkStageFrozenRepr::ReadBuffer(repr) => repr.column_sizes(&self.addr.table_name),
+                ChunkStageFrozenRepr::ReadBuffer(repr) => repr.column_sizes(),
             },
             ChunkStage::Persisted { read_buffer, .. } => {
                 if let Some(read_buffer) = &read_buffer {
-                    read_buffer.column_sizes(&self.addr.table_name)
+                    read_buffer.column_sizes()
                 } else {
                     // TODO parquet statistics
                     vec![]

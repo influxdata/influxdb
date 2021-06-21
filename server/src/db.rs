@@ -552,14 +552,17 @@ impl Db {
             .metrics_registry
             .register_domain_with_labels("read_buffer", db.metric_labels.clone());
 
-        let mut rb_chunk = RBChunk::new(ReadBufferChunkMetrics::new(
-            &metrics,
-            db.preserved_catalog
-                .state()
-                .metrics()
-                .memory()
-                .read_buffer(),
-        ));
+        let mut rb_chunk = RBChunk::new(
+            table_name,
+            ReadBufferChunkMetrics::new(
+                &metrics,
+                db.preserved_catalog
+                    .state()
+                    .metrics()
+                    .memory()
+                    .read_buffer(),
+            ),
+        );
 
         let fut = async move {
             info!(chunk=%addr, "chunk marked MOVING, loading tables into read buffer");
@@ -660,13 +663,10 @@ impl Db {
             let predicate = read_buffer::Predicate::default();
 
             // Get RecordBatchStream of data from the read buffer chunk
-            let read_results = rb_chunk
-                .read_filter(table_name, predicate, Selection::All)
-                .expect("read buffer is infallible");
+            let read_results = rb_chunk.read_filter(table_name, predicate, Selection::All);
 
             let arrow_schema: ArrowSchemaRef = rb_chunk
                 .read_filter_table_schema(table_name, Selection::All)
-                .expect("read buffer is infallible")
                 .into();
 
             let stream: SendableRecordBatchStream = Box::pin(
@@ -1618,7 +1618,7 @@ mod tests {
 
         // verify chunk size updated (chunk moved from closing to moving to moved)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0).unwrap();
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1616).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1486).unwrap();
 
         db.write_chunk_to_object_store("cpu", "1970-01-01T00", 0)
             .await
@@ -1638,7 +1638,7 @@ mod tests {
             .unwrap();
 
         let expected_parquet_size = 663;
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1616).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1486).unwrap();
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
@@ -1806,7 +1806,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated (chunk moved from moved to writing to written)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1616).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1486).unwrap();
 
         // drop, the chunk from the read buffer
         db.drop_chunk("cpu", partition_key, mb_chunk.id()).unwrap();
@@ -1816,7 +1816,7 @@ mod tests {
         );
 
         // verify size is reported until chunk dropped
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1616).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1486).unwrap();
         std::mem::drop(rb_chunk);
 
         // verify chunk size updated (chunk dropped from moved state)
@@ -1889,7 +1889,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3189.0)
+            .sample_sum_eq(3035.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk).await;
@@ -1991,7 +1991,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2279.0)
+            .sample_sum_eq(2149.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -2099,7 +2099,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2279.0)
+            .sample_sum_eq(2149.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -2515,7 +2515,7 @@ mod tests {
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
-                2277, // size of RB and OS chunks
+                2147, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2566,7 +2566,7 @@ mod tests {
                 .memory()
                 .read_buffer()
                 .get_total(),
-            1614
+            1484
         );
         assert_eq!(
             db.preserved_catalog
