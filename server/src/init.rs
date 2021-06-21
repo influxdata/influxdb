@@ -3,14 +3,13 @@ use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseNam
 use futures::TryStreamExt;
 use generated_types::database_rules::decode_database_rules;
 use internal_types::once::OnceNonZeroU32;
-use metrics::MetricRegistry;
 use object_store::{
     path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
 use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::Mutex;
-use parquet_file::catalog::PreservedCatalog;
+use parquet_file::catalog::wipe as wipe_preserved_catalog;
 use query::exec::Executor;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
@@ -24,7 +23,7 @@ use tokio::sync::Semaphore;
 
 use crate::{
     config::{Config, DB_RULES_FILE_NAME},
-    db::{catalog::Catalog, load_or_create_preserved_catalog},
+    db::load_or_create_preserved_catalog,
     DatabaseError,
 };
 
@@ -57,6 +56,16 @@ pub enum Error {
 
     #[snafu(display("Cannot create DB: {}", source))]
     CreateDbError { source: Box<crate::Error> },
+
+    #[snafu(display("Cannot recover DB: {}", source))]
+    RecoverDbError {
+        source: Arc<dyn std::error::Error + Send + Sync>,
+    },
+
+    #[snafu(display("Cannot wipe preserved catalog DB: {}", source))]
+    PreservedCatalogWipeError {
+        source: Box<parquet_file::catalog::Error>,
+    },
 
     #[snafu(display("Cannot parse DB name: {}", source))]
     DatabaseNameError {
@@ -110,6 +119,11 @@ pub struct InitStatus {
 
     /// Errors that occurred during some DB init.
     errors_databases: Arc<Mutex<HashMap<String, Arc<Error>>>>,
+
+    /// Automatic wipe-on-error recovery
+    ///
+    /// See https://github.com/influxdata/influxdb_iox/issues/1522)
+    pub(crate) wipe_on_error: AtomicBool,
 }
 
 impl InitStatus {
@@ -122,6 +136,7 @@ impl InitStatus {
             initialize_semaphore: Semaphore::new(1),
             error_generic: Default::default(),
             errors_databases: Default::default(),
+            wipe_on_error: Default::default(),
         }
     }
 
@@ -241,19 +256,21 @@ impl InitStatus {
                 let config = Arc::clone(&config);
                 let exec = Arc::clone(&exec);
                 let errors_databases = Arc::clone(&self.errors_databases);
+                let wipe_on_error = self.wipe_on_error.load(Ordering::Relaxed);
 
                 path.set_file_name(DB_RULES_FILE_NAME);
 
                 match db_name_from_rules_path(&path) {
                     Ok(db_name) => {
                         let handle = tokio::task::spawn(async move {
-                            if let Err(e) = Self::load_database_config(
+                            if let Err(e) = Self::initialize_database(
                                 server_id,
                                 store,
                                 config,
                                 exec,
                                 path,
                                 db_name.clone(),
+                                wipe_on_error,
                             )
                             .await
                             {
@@ -277,13 +294,14 @@ impl InitStatus {
         Ok(())
     }
 
-    async fn load_database_config(
+    async fn initialize_database(
         server_id: ServerId,
         store: Arc<ObjectStore>,
         config: Arc<Config>,
         exec: Arc<Executor>,
         path: Path,
         db_name: DatabaseName<'static>,
+        wipe_on_error: bool,
     ) -> Result<()> {
         // Reserve name before expensive IO (e.g. loading the preserved catalog)
         let handle = config
@@ -293,22 +311,37 @@ impl InitStatus {
 
         let metrics_registry = config.metrics_registry();
 
-        match Self::load_database_config_with_handle(
-            server_id,
-            Arc::clone(&store),
-            metrics_registry,
-            path,
-        )
-        .await
-        {
-            Ok(Some((rules, preserved_catalog))) => {
-                // successfully loaded
-                handle
-                    .commit(server_id, store, exec, preserved_catalog, rules)
-                    .map_err(Box::new)
-                    .context(CreateDbError)?;
-
-                Ok(())
+        match Self::load_database_rules(Arc::clone(&store), path).await {
+            Ok(Some(rules)) => {
+                // loaded rules, continue w/ preserved catalog
+                match load_or_create_preserved_catalog(
+                    rules.db_name(),
+                    Arc::clone(&store),
+                    server_id,
+                    metrics_registry,
+                    wipe_on_error,
+                )
+                .await
+                .map_err(|e| Box::new(e) as _)
+                .context(CatalogLoadError)
+                {
+                    Ok(preserved_catalog) => {
+                        // everything is there, can create DB
+                        handle
+                            .commit_db(server_id, store, exec, preserved_catalog, rules)
+                            .map_err(Box::new)
+                            .context(CreateDbError)?;
+                        Ok(())
+                    }
+                    Err(e) => {
+                        // catalog loading failed, at least remember the rules we have loaded
+                        handle
+                            .commit_rules_only(rules)
+                            .map_err(Box::new)
+                            .context(CreateDbError)?;
+                        Err(e)
+                    }
+                }
             }
             Ok(None) => {
                 // no DB there, drop handle to initiate rollback
@@ -317,18 +350,16 @@ impl InitStatus {
             }
             Err(e) => {
                 // abort transaction but keep DB registered
-                handle.abort_without_rollback();
+                handle.commit_no_rules();
                 Err(e)
             }
         }
     }
 
-    async fn load_database_config_with_handle(
-        server_id: ServerId,
+    async fn load_database_rules(
         store: Arc<ObjectStore>,
-        metrics_registry: Arc<MetricRegistry>,
         path: Path,
-    ) -> Result<Option<(DatabaseRules, PreservedCatalog<Catalog>)>> {
+    ) -> Result<Option<DatabaseRules>> {
         let serialized_rules = loop {
             match get_database_config_bytes(&path, &store).await {
                 Ok(data) => break data,
@@ -349,17 +380,91 @@ impl InitStatus {
         let rules = decode_database_rules(serialized_rules.freeze())
             .context(ErrorDeserializingRulesProtobuf)?;
 
-        let preserved_catalog = load_or_create_preserved_catalog(
-            rules.db_name(),
-            Arc::clone(&store),
-            server_id,
-            metrics_registry,
-        )
-        .await
-        .map_err(|e| Box::new(e) as _)
-        .context(CatalogLoadError)?;
+        Ok(Some(rules))
+    }
 
-        Ok(Some((rules, preserved_catalog)))
+    pub(crate) async fn wipe_preserved_catalog_and_maybe_recover(
+        &self,
+        store: Arc<ObjectStore>,
+        config: Arc<Config>,
+        exec: Arc<Executor>,
+        server_id: ServerId,
+        db_name: DatabaseName<'static>,
+    ) -> Result<()> {
+        if config.has_uninitialized_database(&db_name) {
+            let handle = config
+                .recover_db(db_name.clone())
+                .map_err(|e| Arc::new(e) as _)
+                .context(RecoverDbError)?;
+
+            wipe_preserved_catalog(&store, server_id, &db_name)
+                .await
+                .map_err(Box::new)
+                .context(PreservedCatalogWipeError)?;
+
+            if handle.has_rules() {
+                // can recover
+                let metrics_registry = config.metrics_registry();
+                let wipe_on_error = self.wipe_on_error.load(Ordering::Relaxed);
+
+                match load_or_create_preserved_catalog(
+                    &db_name,
+                    Arc::clone(&store),
+                    server_id,
+                    metrics_registry,
+                    wipe_on_error,
+                )
+                .await
+                .map_err(|e| Box::new(e) as _)
+                .context(CatalogLoadError)
+                {
+                    Ok(preserved_catalog) => {
+                        handle
+                            .commit_db(server_id, store, exec, preserved_catalog, None)
+                            .map_err(|e | {
+                                warn!(%db_name, %e, "wiped preserved catalog of registered database but still cannot recover");
+                                Box::new(e)
+                            })
+                            .context(CreateDbError)?;
+                        let mut guard = self.errors_databases.lock();
+                        guard.remove(&db_name.to_string());
+
+                        info!(%db_name, "wiped preserved catalog of registered database and recovered");
+                        Ok(())
+                    }
+                    Err(e) => {
+                        let mut guard = self.errors_databases.lock();
+                        let e = Arc::new(e);
+                        guard.insert(db_name.to_string(), Arc::clone(&e));
+                        drop(handle);
+
+                        warn!(%db_name, %e, "wiped preserved catalog of registered database but still cannot recover");
+                        Err(Error::RecoverDbError { source: e })
+                    }
+                }
+            } else {
+                // cannot recover, don't have any rules (yet)
+                handle.abort();
+
+                info!(%db_name, "wiped preserved catalog of registered database but do not have rules ready to recover");
+                Ok(())
+            }
+        } else {
+            let handle = config
+                .block_db(db_name.clone())
+                .map_err(|e| Arc::new(e) as _)
+                .context(RecoverDbError)?;
+
+            wipe_preserved_catalog(&store, server_id, &db_name)
+                .await
+                .map_err(Box::new)
+                .context(PreservedCatalogWipeError)?;
+
+            drop(handle);
+
+            info!(%db_name, "wiped preserved catalog of non-registered database");
+            Ok(())
+        }
     }
 }
 

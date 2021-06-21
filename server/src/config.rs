@@ -49,6 +49,7 @@ impl<E> From<Error> for UpdateError<E> {
 }
 
 impl Config {
+    /// Create new empty config.
     pub(crate) fn new(
         jobs: Arc<JobRegistry>,
         metric_registry: Arc<MetricRegistry>,
@@ -62,12 +63,22 @@ impl Config {
         }
     }
 
+    /// Get handle to create a database.
+    ///
+    /// While the handle is held, no other operations for the given database can be executed.
+    ///
+    /// This only works if the database is not yet known. To recover a database out of an uninitialized state, see
+    /// [`recover_db`](Self::recover_db). To do maintainance work on data linked to the database (e.g. the catalog)
+    /// without initializing it, see [`block_db`](Self::block_db).
     pub(crate) fn create_db(
         &self,
         db_name: DatabaseName<'static>,
     ) -> Result<CreateDatabaseHandle<'_>> {
         let mut state = self.state.write().expect("mutex poisoned");
-        if state.reservations.contains(&db_name) {
+        if state.reservations.contains(&db_name)
+            || state.databases.contains_key(&db_name)
+            || state.uninitialized_databases.contains_key(&db_name)
+        {
             return Err(Error::DatabaseAlreadyExists {
                 db_name: db_name.to_string(),
             });
@@ -80,16 +91,96 @@ impl Config {
         })
     }
 
+    /// Get handle to recover database out of an uninitialized state.
+    ///
+    /// If there are already rules known for this database, they will be passed to the handle.
+    ///
+    /// While the handle is held, no other operations for the given database can be executed.
+    ///
+    /// This only works if the database is known but is uninitialized. To create a new database that is not yet known,
+    /// see [`create_db`](Self::create_db). To do maintainance work on data linked to the database (e.g. the catalog)
+    /// without initializing it, see [`block_db`](Self::block_db).
+    pub(crate) fn recover_db(
+        &self,
+        db_name: DatabaseName<'static>,
+    ) -> Result<RecoverDatabaseHandle<'_>> {
+        let mut state = self.state.write().expect("mutex poisoned");
+        if state.reservations.contains(&db_name) || state.databases.contains_key(&db_name) {
+            return Err(Error::DatabaseAlreadyExists {
+                db_name: db_name.to_string(),
+            });
+        }
+        let rules = state
+            .uninitialized_databases
+            .get(&db_name)
+            .cloned()
+            .ok_or_else(|| Error::DatabaseNotFound {
+                db_name: db_name.to_string(),
+            })?;
+
+        state.reservations.insert(db_name.clone());
+        Ok(RecoverDatabaseHandle {
+            db_name: Some(db_name),
+            rules,
+            config: &self,
+        })
+    }
+
+    /// Get guard that blocks database creations. Useful when messing with the preserved catalog of unregistered DBs.
+    ///
+    /// While the handle is held, no other operations for the given database can be executed.
+    ///
+    /// This only works if the database is not yet registered. To create a new database that is not yet known,
+    /// see [`create_db`](Self::create_db). To recover a database out of an uninitialized state, see
+    /// [`recover_db`](Self::recover_db).
+    pub(crate) fn block_db(
+        &self,
+        db_name: DatabaseName<'static>,
+    ) -> Result<BlockDatabaseGuard<'_>> {
+        let mut state = self.state.write().expect("mutex poisoned");
+        if state.reservations.contains(&db_name)
+            || state.databases.contains_key(&db_name)
+            || state.uninitialized_databases.contains_key(&db_name)
+        {
+            return Err(Error::DatabaseAlreadyExists {
+                db_name: db_name.to_string(),
+            });
+        }
+
+        state.reservations.insert(db_name.clone());
+        Ok(BlockDatabaseGuard {
+            db_name: Some(db_name),
+            config: &self,
+        })
+    }
+
+    /// Get database, if registered and fully initialized.
     pub(crate) fn db(&self, name: &DatabaseName<'_>) -> Option<Arc<Db>> {
         let state = self.state.read().expect("mutex poisoned");
         state.databases.get(name).map(|x| Arc::clone(&x.db))
     }
 
-    pub(crate) fn db_names_sorted(&self) -> Vec<DatabaseName<'static>> {
+    /// Check if there is a database with the given name that is registered but is uninitialized.
+    pub(crate) fn has_uninitialized_database(&self, name: &DatabaseName<'_>) -> bool {
         let state = self.state.read().expect("mutex poisoned");
-        state.reservations.iter().cloned().collect()
+        state.uninitialized_databases.contains_key(name)
     }
 
+    /// Get all database names in all states (blocked, uninitialized, fully initialized).
+    pub(crate) fn db_names_sorted(&self) -> Vec<DatabaseName<'static>> {
+        let state = self.state.read().expect("mutex poisoned");
+        let mut names: Vec<_> = state
+            .reservations
+            .iter()
+            .cloned()
+            .chain(state.databases.keys().cloned())
+            .chain(state.uninitialized_databases.keys().cloned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// Update datbase rules of a fully initialized database.
     pub(crate) fn update_db_rules<F, E>(
         &self,
         db_name: &DatabaseName<'static>,
@@ -111,21 +202,25 @@ impl Config {
         Ok(rules.clone())
     }
 
+    /// Get all registered remote servers.
     pub(crate) fn remotes_sorted(&self) -> Vec<(ServerId, String)> {
         let state = self.state.read().expect("mutex poisoned");
         state.remotes.iter().map(|(&a, b)| (a, b.clone())).collect()
     }
 
+    /// Update given remote server.
     pub(crate) fn update_remote(&self, id: ServerId, addr: GRpcConnectionString) {
         let mut state = self.state.write().expect("mutex poisoned");
         state.remotes.insert(id, addr);
     }
 
+    /// Delete remote server by ID.
     pub(crate) fn delete_remote(&self, id: ServerId) -> Option<GRpcConnectionString> {
         let mut state = self.state.write().expect("mutex poisoned");
         state.remotes.remove(&id)
     }
 
+    /// Get remote server by ID.
     pub(crate) fn resolve_remote(&self, id: ServerId) -> Option<GRpcConnectionString> {
         let state = self.state.read().expect("mutex poisoned");
         state
@@ -135,7 +230,8 @@ impl Config {
             .or_else(|| state.remote_template.as_ref().map(|t| t.get(&id)))
     }
 
-    fn commit(
+    /// Creates database in initialized state.
+    fn commit_db(
         &self,
         rules: DatabaseRules,
         server_id: ServerId,
@@ -185,17 +281,31 @@ impl Config {
         assert!(state
             .databases
             .insert(
-                name,
+                name.clone(),
                 DatabaseState {
                     db,
                     handle,
                     shutdown
                 }
             )
-            .is_none())
+            .is_none());
+        state.reservations.remove(&name);
+        state.uninitialized_databases.remove(&name);
     }
 
-    fn rollback(&self, name: &DatabaseName<'static>) {
+    /// Creates a database in an uninitialized state but remembers rules that are supposed to use for the database.
+    fn commit_uninitialized(&self, name: DatabaseName<'static>, rules: Option<DatabaseRules>) {
+        let mut state = self.state.write().expect("mutex poisoned");
+
+        assert!(state
+            .uninitialized_databases
+            .insert(name.clone(), rules,)
+            .is_none());
+        state.reservations.remove(&name);
+    }
+
+    /// Forgets reservation for the given database.
+    fn forget_reservation(&self, name: &DatabaseName<'static>) {
         let mut state = self.state.write().expect("mutex poisoned");
         state.reservations.remove(name);
     }
@@ -241,12 +351,21 @@ pub fn object_store_path_for_database_config<P: ObjectStorePath>(
 /// A gRPC connection string.
 pub type GRpcConnectionString = String;
 
+/// Inner config state that is protected by a lock.
 #[derive(Default, Debug)]
 struct ConfigState {
+    /// Databases that are known (but not exist due to init errors).
     reservations: BTreeSet<DatabaseName<'static>>,
+
+    /// Rules for databases that are reserved but that could not be initialized.
+    uninitialized_databases: BTreeMap<DatabaseName<'static>, Option<DatabaseRules>>,
+
+    /// Databases that work.
     databases: BTreeMap<DatabaseName<'static>, DatabaseState>,
+
     /// Map between remote IOx server IDs and management API connection strings.
     remotes: BTreeMap<ServerId, GRpcConnectionString>,
+
     /// Static map between remote server IDs and hostnames based on a template
     remote_template: Option<RemoteTemplate>,
 }
@@ -322,7 +441,11 @@ pub(crate) struct CreateDatabaseHandle<'a> {
 }
 
 impl<'a> CreateDatabaseHandle<'a> {
-    pub(crate) fn commit(
+    /// Create initialized database.
+    ///
+    /// Will fail if database name used to create this handle and the name within `rules` do not match. In this case,
+    /// the database will be de-registered.
+    pub(crate) fn commit_db(
         mut self,
         server_id: ServerId,
         object_store: Arc<ObjectStore>,
@@ -332,7 +455,7 @@ impl<'a> CreateDatabaseHandle<'a> {
     ) -> Result<()> {
         let db_name = self.db_name.take().expect("not committed");
         if db_name != rules.name {
-            self.config.rollback(&db_name);
+            self.config.forget_reservation(&db_name);
             return Err(Error::RulesDatabaseNameMismatch {
                 actual: rules.name.to_string(),
                 expected: db_name.to_string(),
@@ -340,20 +463,132 @@ impl<'a> CreateDatabaseHandle<'a> {
         }
 
         self.config
-            .commit(rules, server_id, object_store, exec, preserved_catalog);
+            .commit_db(rules, server_id, object_store, exec, preserved_catalog);
 
         Ok(())
     }
 
-    pub(crate) fn abort_without_rollback(mut self) {
-        self.db_name.take();
+    /// Create database in uninitialized state and only remember rules.
+    ///
+    /// Use [`Config::recover_db`] to recover database from that state.
+    ///
+    /// Will fail if database name used to create this handle and the name within `rules` do not match. In this case,
+    /// the database will be de-registered.
+    pub(crate) fn commit_rules_only(mut self, rules: DatabaseRules) -> Result<()> {
+        let db_name = self.db_name.take().expect("not committed");
+        if db_name != rules.name {
+            self.config.forget_reservation(&db_name);
+            return Err(Error::RulesDatabaseNameMismatch {
+                actual: rules.name.to_string(),
+                expected: db_name.to_string(),
+            });
+        }
+
+        self.config.commit_uninitialized(db_name, Some(rules));
+
+        Ok(())
+    }
+
+    /// Create database in uninitialized state without any rules.
+    ///
+    /// Use [`Config::recover_db`] to recover database from that state.
+    pub(crate) fn commit_no_rules(mut self) {
+        let db_name = self.db_name.take().expect("not committed");
+
+        self.config.commit_uninitialized(db_name, None);
     }
 }
 
 impl<'a> Drop for CreateDatabaseHandle<'a> {
     fn drop(&mut self) {
         if let Some(db_name) = self.db_name.take() {
-            self.config.rollback(&db_name)
+            self.config.forget_reservation(&db_name)
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct RecoverDatabaseHandle<'a> {
+    /// Partial moves aren't supported on structures that implement Drop
+    /// so use Option to allow taking DatabaseRules out in `commit`
+    db_name: Option<DatabaseName<'static>>,
+    rules: Option<DatabaseRules>,
+    config: &'a Config,
+}
+
+impl<'a> RecoverDatabaseHandle<'a> {
+    /// Create initialized database.
+    ///
+    /// Rules are taken from the `rules` argument. If that is `None`, the rules that were previously recorded are used.
+    /// If both are `None` this method will fail and the database is kept uninitialized and the registered rules will
+    /// not change.
+    ///
+    /// Will fail if database name used to create this handle and the name within `rules` do not match. In this case,
+    /// the database will be kept uninitialized and the registered rules will not change.
+    pub(crate) fn commit_db(
+        mut self,
+        server_id: ServerId,
+        object_store: Arc<ObjectStore>,
+        exec: Arc<Executor>,
+        preserved_catalog: PreservedCatalog<Catalog>,
+        rules: Option<DatabaseRules>,
+    ) -> Result<()> {
+        let db_name = self.db_name.take().expect("not committed");
+        let rules = rules
+            .or_else(|| self.rules.take())
+            .ok_or_else(|| Error::NoRulesLoaded {
+                db_name: db_name.to_string(),
+            })?;
+        if db_name != rules.name {
+            self.config.forget_reservation(&db_name);
+            return Err(Error::RulesDatabaseNameMismatch {
+                actual: rules.name.to_string(),
+                expected: db_name.to_string(),
+            });
+        }
+
+        self.config
+            .commit_db(rules, server_id, object_store, exec, preserved_catalog);
+
+        Ok(())
+    }
+
+    /// Check if there are already rules known for this database.
+    pub(crate) fn has_rules(&self) -> bool {
+        self.rules.is_some()
+    }
+
+    /// Abort recovery process.
+    ///
+    /// This keeps the database in an uninitialized state and does not alter the potentially registered rules.
+    pub(crate) fn abort(mut self) {
+        let db_name = self.db_name.take().expect("not committed");
+
+        self.config.forget_reservation(&db_name);
+    }
+}
+
+impl<'a> Drop for RecoverDatabaseHandle<'a> {
+    fn drop(&mut self) {
+        if let Some(db_name) = self.db_name.take() {
+            self.config.forget_reservation(&db_name)
+        }
+    }
+}
+
+/// Guard that blocks DB creations. Useful when messing with the preserved catalog of unregistered DBs.
+#[derive(Debug)]
+pub(crate) struct BlockDatabaseGuard<'a> {
+    /// Partial moves aren't supported on structures that implement Drop
+    /// so use Option to allow taking DatabaseRules out in `commit`
+    db_name: Option<DatabaseName<'static>>,
+    config: &'a Config,
+}
+
+impl<'a> Drop for BlockDatabaseGuard<'a> {
+    fn drop(&mut self) {
+        if let Some(db_name) = self.db_name.take() {
+            self.config.forget_reservation(&db_name)
         }
     }
 }
@@ -393,6 +628,7 @@ mod test {
             Arc::clone(&store),
             server_id,
             config.metrics_registry(),
+            false,
         )
         .await
         .unwrap();
@@ -401,7 +637,7 @@ mod test {
         {
             let db_reservation = config.create_db(DatabaseName::new("bar").unwrap()).unwrap();
             let err = db_reservation
-                .commit(
+                .commit_db(
                     server_id,
                     Arc::clone(&store),
                     Arc::clone(&exec),
@@ -417,12 +653,13 @@ mod test {
             Arc::clone(&store),
             server_id,
             config.metrics_registry(),
+            false,
         )
         .await
         .unwrap();
         let db_reservation = config.create_db(name.clone()).unwrap();
         db_reservation
-            .commit(server_id, store, exec, preserved_catalog, rules)
+            .commit_db(server_id, store, exec, preserved_catalog, rules)
             .unwrap();
         assert!(config.db(&name).is_some());
         assert_eq!(config.db_names_sorted(), vec![name.clone()]);
@@ -443,6 +680,136 @@ mod test {
                 .worker_iterations_cleanup()
                 > 0
         );
+
+        let err = config.recover_db(name.clone()).unwrap_err();
+        assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
+
+        let err = config.create_db(name.clone()).unwrap_err();
+        assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
+
+        let err = config.block_db(name.clone()).unwrap_err();
+        assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
+
+        config.drain().await
+    }
+
+    #[tokio::test]
+    async fn recover_db() {
+        let name = DatabaseName::new("foo").unwrap();
+        let metric_registry = Arc::new(metrics::MetricRegistry::new());
+        let config = Config::new(
+            Arc::new(JobRegistry::new()),
+            Arc::clone(&metric_registry),
+            None,
+        );
+
+        {
+            let db_reservation = config.create_db(name.clone()).unwrap();
+
+            let err = db_reservation
+                .commit_rules_only(DatabaseRules::new(DatabaseName::new("bar").unwrap()))
+                .unwrap_err();
+            assert!(matches!(err, Error::RulesDatabaseNameMismatch { .. }));
+        }
+
+        assert!(!config.has_uninitialized_database(&name));
+
+        let rules = DatabaseRules::new(name.clone());
+        {
+            let db_reservation = config.create_db(name.clone()).unwrap();
+            db_reservation.commit_rules_only(rules).unwrap();
+        }
+
+        assert!(config.has_uninitialized_database(&name));
+
+        let err = config.create_db(name.clone()).unwrap_err();
+        assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
+
+        let err = config
+            .recover_db(DatabaseName::new("bar").unwrap())
+            .unwrap_err();
+        assert!(matches!(err, Error::DatabaseNotFound { .. }));
+
+        let server_id = ServerId::try_from(1).unwrap();
+        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let exec = Arc::new(Executor::new(1));
+        let preserved_catalog = load_or_create_preserved_catalog(
+            &name,
+            Arc::clone(&store),
+            server_id,
+            config.metrics_registry(),
+            false,
+        )
+        .await
+        .unwrap();
+        {
+            let db_reservation = config.recover_db(name.clone()).unwrap();
+            let err = db_reservation
+                .commit_db(
+                    server_id,
+                    Arc::clone(&store),
+                    Arc::clone(&exec),
+                    preserved_catalog,
+                    Some(DatabaseRules::new(DatabaseName::new("bar").unwrap())),
+                )
+                .unwrap_err();
+            assert!(matches!(err, Error::RulesDatabaseNameMismatch { .. }));
+        }
+
+        let preserved_catalog = load_or_create_preserved_catalog(
+            &name,
+            Arc::clone(&store),
+            server_id,
+            config.metrics_registry(),
+            false,
+        )
+        .await
+        .unwrap();
+        let db_reservation = config.recover_db(name.clone()).unwrap();
+        assert!(db_reservation.has_rules());
+        db_reservation
+            .commit_db(server_id, store, exec, preserved_catalog, None)
+            .unwrap();
+        assert!(config.db(&name).is_some());
+        assert_eq!(config.db_names_sorted(), vec![name.clone()]);
+        assert!(!config.has_uninitialized_database(&name));
+
+        let err = config.recover_db(name.clone()).unwrap_err();
+        assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
+
+        let err = config.create_db(name.clone()).unwrap_err();
+        assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
+
+        let err = config.block_db(name.clone()).unwrap_err();
+        assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
+
+        config.drain().await
+    }
+
+    #[tokio::test]
+    async fn block_db() {
+        let name = DatabaseName::new("foo").unwrap();
+        let metric_registry = Arc::new(metrics::MetricRegistry::new());
+        let config = Config::new(
+            Arc::new(JobRegistry::new()),
+            Arc::clone(&metric_registry),
+            None,
+        );
+
+        let handle = config.block_db(name.clone()).unwrap();
+
+        let err = config.recover_db(name.clone()).unwrap_err();
+        assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
+
+        let err = config.create_db(name.clone()).unwrap_err();
+        assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
+
+        let err = config.block_db(name.clone()).unwrap_err();
+        assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
+
+        drop(handle);
+
+        config.create_db(name.clone()).unwrap();
 
         config.drain().await
     }
@@ -467,11 +834,12 @@ mod test {
             Arc::clone(&store),
             server_id,
             config.metrics_registry(),
+            false,
         )
         .await
         .unwrap();
         db_reservation
-            .commit(server_id, store, exec, preserved_catalog, rules)
+            .commit_db(server_id, store, exec, preserved_catalog, rules)
             .unwrap();
 
         let token = config

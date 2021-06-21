@@ -27,3 +27,4 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 * Protobuf tips and tricks: [Protobuf](protobuf.md).
 * Catalog Persistence: [`catalog_persistence.md`](catalog_persistence.md).
 * SQL command line tips and tricks: [SQL](sql.md).
+* Notes on server startup and error recovery: [`server_startup.md`](server_startup.md)

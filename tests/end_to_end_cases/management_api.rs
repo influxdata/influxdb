@@ -761,6 +761,42 @@ async fn test_chunk_lifecycle() {
     }
 }
 
+#[tokio::test]
+async fn test_wipe_preserved_catalog() {
+    use influxdb_iox_client::management::generated_types::operation_metadata::Job;
+
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = fixture.management_client();
+    let mut operations_client = fixture.operations_client();
+
+    let db_name = rand_name();
+
+    let operation = management_client
+        .wipe_persisted_catalog(&db_name)
+        .await
+        .expect("wipe persisted catalog");
+
+    println!("Operation response is {:?}", operation);
+    let operation_id = operation.id();
+
+    let meta = operations::ClientOperation::try_new(operation)
+        .unwrap()
+        .metadata();
+
+    // ensure we got a legit job description back
+    if let Some(Job::WipePreservedCatalog(wipe_persisted_catalog)) = meta.job {
+        assert_eq!(wipe_persisted_catalog.db_name, db_name);
+    } else {
+        panic!("unexpected job returned")
+    };
+
+    // wait for the job to be done
+    operations_client
+        .wait_operation(operation_id, Some(std::time::Duration::from_secs(1)))
+        .await
+        .expect("failed to wait operation");
+}
+
 /// Normalizes a set of Chunks for comparison by removing timestamps
 fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
     chunks

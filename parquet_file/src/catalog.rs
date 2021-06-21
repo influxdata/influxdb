@@ -330,6 +330,23 @@ where
     db_name: String,
 }
 
+/// Deletes catalog.
+///
+/// **Always create a backup before wiping your data!**
+///
+/// This also works for broken catalogs. Also succeeds if no catalog is present.
+///
+/// Note that wiping the catalog will NOT wipe any referenced parquet files.
+pub async fn wipe(object_store: &ObjectStore, server_id: ServerId, db_name: &str) -> Result<()> {
+    for (path, _file_type, _revision_counter, _uuid) in
+        list_files(object_store, server_id, db_name).await?
+    {
+        object_store.delete(&path).await.context(Write)?;
+    }
+
+    Ok(())
+}
+
 impl<S> PreservedCatalog<S>
 where
     S: CatalogState + Send + Sync,
@@ -493,27 +510,6 @@ where
             server_id,
             db_name,
         }))
-    }
-
-    /// Deletes catalog.
-    ///
-    /// **Always create a backup before wiping your data!**
-    ///
-    /// This also works for broken catalogs. Also succeeds if no catalog is present.
-    ///
-    /// Note that wiping the catalog will NOT wipe any referenced parquet files.
-    pub async fn wipe(
-        object_store: &ObjectStore,
-        server_id: ServerId,
-        db_name: &str,
-    ) -> Result<()> {
-        for (path, _file_type, _revision_counter, _uuid) in
-            list_files(object_store, server_id, db_name).await?
-        {
-            object_store.delete(&path).await.context(Write)?;
-        }
-
-        Ok(())
     }
 
     /// Open a new transaction.
@@ -2875,9 +2871,7 @@ mod tests {
         let server_id = make_server_id();
         let db_name = "db1";
 
-        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
-            .await
-            .unwrap();
+        wipe(&object_store, server_id, db_name).await.unwrap();
     }
 
     #[tokio::test]
@@ -2890,9 +2884,7 @@ mod tests {
         assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
 
         // wipe
-        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
-            .await
-            .unwrap();
+        wipe(&object_store, server_id, db_name).await.unwrap();
 
         // `exists` and `load` both report "no data"
         assert!(
@@ -2943,9 +2935,7 @@ mod tests {
         break_catalog_with_weird_version(&catalog).await;
 
         // wipe
-        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
-            .await
-            .unwrap();
+        wipe(&object_store, server_id, db_name).await.unwrap();
 
         // `exists` and `load` both report "no data"
         assert!(
@@ -2990,9 +2980,7 @@ mod tests {
         create_empty_file(&object_store, &path).await;
 
         // wipe
-        PreservedCatalog::<TestCatalogState>::wipe(&object_store, server_id, db_name)
-            .await
-            .unwrap();
+        wipe(&object_store, server_id, db_name).await.unwrap();
 
         // check file is still there
         let prefix = catalog_path(&object_store, server_id, &db_name);

@@ -160,6 +160,9 @@ pub enum Error {
     #[snafu(display("database already exists"))]
     DatabaseAlreadyExists { db_name: String },
 
+    #[snafu(display("no rules loaded for database: {}", db_name))]
+    NoRulesLoaded { db_name: String },
+
     #[snafu(display(
         "Database names in deserialized rules ({}) does not match expected value ({})",
         actual,
@@ -378,7 +381,7 @@ pub struct Server<M: ConnectionManager> {
     /// and populates the endpoint with this data.
     pub registry: Arc<metrics::MetricRegistry>,
 
-    init_status: InitStatus,
+    init_status: Arc<InitStatus>,
 }
 
 #[derive(Debug)]
@@ -421,7 +424,7 @@ where
             jobs,
             metrics: Arc::new(ServerMetrics::new(Arc::clone(&metric_registry))),
             registry: Arc::clone(&metric_registry),
-            init_status: InitStatus::new(),
+            init_status: Arc::new(InitStatus::new()),
         }
     }
 
@@ -485,12 +488,13 @@ where
             Arc::clone(&self.store),
             server_id,
             self.config.metrics_registry(),
+            true,
         )
         .await
         .map_err(|e| Box::new(e) as _)
         .context(CatalogLoadError)?;
 
-        db_reservation.commit(
+        db_reservation.commit_db(
             server_id,
             Arc::clone(&self.store),
             Arc::clone(&self.exec),
@@ -810,6 +814,44 @@ where
         Ok(db.load_chunk_to_read_buffer_in_background(table_name, partition_key, chunk_id))
     }
 
+    /// Wipe preserved catalog of specific DB.
+    ///
+    /// The DB must not yet exist within this server for this to work! This is done to prevent race conditions between
+    /// DB jobs and this command.
+    pub fn wipe_preserved_catalog(
+        &self,
+        db_name: DatabaseName<'static>,
+    ) -> Result<TaskTracker<Job>> {
+        if self.config.db(&db_name).is_some() {
+            return Err(Error::DatabaseAlreadyExists {
+                db_name: db_name.to_string(),
+            });
+        }
+
+        let (tracker, registration) = self.jobs.register(Job::WipePreservedCatalog {
+            db_name: db_name.to_string(),
+        });
+        let object_store = Arc::clone(&self.store);
+        let config = Arc::clone(&self.config);
+        let exec = Arc::clone(&self.exec);
+        let server_id = self.require_id()?;
+        let init_status = Arc::clone(&self.init_status);
+        let task = async move {
+            init_status
+                .wipe_preserved_catalog_and_maybe_recover(
+                    object_store,
+                    config,
+                    exec,
+                    server_id,
+                    db_name,
+                )
+                .await
+        };
+        tokio::spawn(task.track(registration));
+
+        Ok(tracker)
+    }
+
     /// Returns a list of all jobs tracked by this server
     pub fn tracked_jobs(&self) -> Vec<TaskTracker<Job>> {
         self.jobs.inner.lock().tracked()
@@ -1026,6 +1068,7 @@ mod tests {
     use bytes::Bytes;
     use futures::TryStreamExt;
     use generated_types::database_rules::decode_database_rules;
+    use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
     use snafu::Snafu;
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
@@ -1855,5 +1898,207 @@ mod tests {
         // creating failed DBs does not work
         let err = create_simple_database(&server, "bar").await.unwrap_err();
         assert_eq!(err.to_string(), "database already exists");
+    }
+
+    #[tokio::test]
+    async fn wipe_preserved_catalog() {
+        // have the following DBs:
+        // 1. existing => cannot be wiped
+        // 2. non-existing => can be wiped, will not exist afterwards
+        // 3. existing one, but rules file is broken => can be wiped, will not exist afterwards
+        // 4. existing one, but catalog is broken => can be wiped, will exist afterwards
+        // 5. recently (during server lifecycle) created one => cannot be wiped
+        let db_name_existing = DatabaseName::new("db_existing".to_string()).unwrap();
+        let db_name_non_existing = DatabaseName::new("db_non_existing".to_string()).unwrap();
+        let db_name_rules_broken = DatabaseName::new("db_broken_rules".to_string()).unwrap();
+        let db_name_catalog_broken = DatabaseName::new("db_broken_catalog".to_string()).unwrap();
+        let db_name_created = DatabaseName::new("db_created".to_string()).unwrap();
+
+        // setup
+        let store = ObjectStore::new_in_memory(InMemory::new());
+        let server_id = ServerId::try_from(1).unwrap();
+
+        // Create temporary server to create existing databases
+        let manager = TestConnectionManager::new();
+        let config = config_with_store(store);
+        let store = config.store();
+        let server = Server::new(manager, config);
+        server.set_id(server_id).unwrap();
+        server.maybe_initialize_server().await;
+        create_simple_database(&server, db_name_existing.clone())
+            .await
+            .expect("failed to create database");
+        create_simple_database(&server, db_name_rules_broken.clone())
+            .await
+            .expect("failed to create database");
+        create_simple_database(&server, db_name_catalog_broken.clone())
+            .await
+            .expect("failed to create database");
+        let root = server.init_status.root_path(&store).unwrap();
+        server.config.drain().await;
+        drop(server);
+
+        // tamper store to break one database
+        let path = object_store_path_for_database_config(&root, &db_name_rules_broken);
+        let data = Bytes::from("x");
+        let len = data.len();
+        store
+            .put(
+                &path,
+                futures::stream::once(async move { Ok(data) }),
+                Some(len),
+            )
+            .await
+            .unwrap();
+        let preserved_catalog = PreservedCatalog::<TestCatalogState>::load(
+            Arc::clone(&store),
+            server_id,
+            db_name_catalog_broken.to_string(),
+            (),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
+            .await;
+        drop(preserved_catalog);
+
+        // boot actual test server
+        let store = Arc::try_unwrap(store).unwrap();
+        store.get(&path).await.unwrap();
+        let manager = TestConnectionManager::new();
+        let config = config_with_store(store);
+        let server = Server::new(manager, config);
+
+        // need to disable auto-wipe for this test
+        server
+            .init_status
+            .wipe_on_error
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+
+        // cannot wipe if server ID is not set
+        assert_eq!(
+            server
+                .wipe_preserved_catalog(db_name_non_existing.clone())
+                .unwrap_err()
+                .to_string(),
+            "cannot get id: unable to use server until id is set"
+        );
+
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server.maybe_initialize_server().await;
+
+        // 1. cannot wipe if DB exists
+        assert_eq!(
+            server
+                .wipe_preserved_catalog(db_name_existing.clone())
+                .unwrap_err()
+                .to_string(),
+            "database already exists"
+        );
+        assert!(PreservedCatalog::<TestCatalogState>::exists(
+            &server.store,
+            server.require_id().unwrap(),
+            &db_name_existing.to_string()
+        )
+        .await
+        .unwrap());
+
+        // 2. wiping a non-existing DB just works, but won't bring DB into existence
+        assert!(server.error_database(&db_name_non_existing).is_none());
+        PreservedCatalog::<TestCatalogState>::new_empty(
+            Arc::clone(&server.store),
+            server.require_id().unwrap(),
+            db_name_non_existing.to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+        let tracker = server
+            .wipe_preserved_catalog(db_name_non_existing.clone())
+            .unwrap();
+        let metadata = tracker.metadata();
+        let expected_metadata = Job::WipePreservedCatalog {
+            db_name: db_name_non_existing.to_string(),
+        };
+        assert_eq!(metadata, &expected_metadata);
+        tracker.join().await;
+        assert!(!PreservedCatalog::<TestCatalogState>::exists(
+            &server.store,
+            server.require_id().unwrap(),
+            &db_name_non_existing.to_string()
+        )
+        .await
+        .unwrap());
+        assert!(server.error_database(&db_name_non_existing).is_none());
+        assert!(server.db(&db_name_non_existing).is_none());
+
+        // 3. wipe DB with broken rules file, this won't bring DB back to life
+        assert!(server.error_database(&db_name_rules_broken).is_some());
+        let tracker = server
+            .wipe_preserved_catalog(db_name_rules_broken.clone())
+            .unwrap();
+        let metadata = tracker.metadata();
+        let expected_metadata = Job::WipePreservedCatalog {
+            db_name: db_name_rules_broken.to_string(),
+        };
+        assert_eq!(metadata, &expected_metadata);
+        tracker.join().await;
+        assert!(!PreservedCatalog::<TestCatalogState>::exists(
+            &server.store,
+            server.require_id().unwrap(),
+            &db_name_rules_broken.to_string()
+        )
+        .await
+        .unwrap());
+        assert!(server.error_database(&db_name_rules_broken).is_some());
+        assert!(server.db(&db_name_rules_broken).is_none());
+
+        // 4. wipe DB with broken catalog, this will bring the DB back to life
+        assert!(server.error_database(&db_name_catalog_broken).is_some());
+        let tracker = server
+            .wipe_preserved_catalog(db_name_catalog_broken.clone())
+            .unwrap();
+        let metadata = tracker.metadata();
+        let expected_metadata = Job::WipePreservedCatalog {
+            db_name: db_name_catalog_broken.to_string(),
+        };
+        assert_eq!(metadata, &expected_metadata);
+        tracker.join().await;
+        assert!(PreservedCatalog::<TestCatalogState>::exists(
+            &server.store,
+            server.require_id().unwrap(),
+            &db_name_catalog_broken.to_string()
+        )
+        .await
+        .unwrap());
+        assert!(server.error_database(&db_name_catalog_broken).is_none());
+        assert!(server.db(&db_name_catalog_broken).is_some());
+        let line = "cpu bar=1 10";
+        let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
+        server
+            .write_lines(&db_name_catalog_broken, &lines, ARBITRARY_DEFAULT_TIME)
+            .await
+            .expect("DB writable");
+
+        // 5. cannot wipe if DB was just created
+        server
+            .create_database(DatabaseRules::new(db_name_created.clone()))
+            .await
+            .unwrap();
+        assert_eq!(
+            server
+                .wipe_preserved_catalog(db_name_created.clone())
+                .unwrap_err()
+                .to_string(),
+            "database already exists"
+        );
+        assert!(PreservedCatalog::<TestCatalogState>::exists(
+            &server.store,
+            server.require_id().unwrap(),
+            &db_name_created.to_string()
+        )
+        .await
+        .unwrap());
     }
 }

@@ -30,6 +30,9 @@ impl From<Job> for management::operation_metadata::Job {
                 table_name,
                 chunk_id,
             }),
+            Job::WipePreservedCatalog { db_name } => {
+                Self::WipePreservedCatalog(management::WipePreservedCatalog { db_name })
+            }
         }
     }
 }
@@ -61,6 +64,9 @@ impl From<management::operation_metadata::Job> for Job {
                 table_name,
                 chunk_id,
             },
+            Job::WipePreservedCatalog(management::WipePreservedCatalog { db_name }) => {
+                Self::WipePreservedCatalog { db_name }
+            }
         }
     }
 }
