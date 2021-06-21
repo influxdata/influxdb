@@ -12,4 +12,5 @@ mod sql_cli;
 pub mod storage_api;
 mod system_tables;
 pub mod write_api;
+mod write_buffer;
 pub mod write_cli;

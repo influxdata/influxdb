@@ -294,6 +294,17 @@ pub async fn create_readable_database(
     db_name: impl Into<String>,
     channel: tonic::transport::Channel,
 ) {
+    create_readable_database_plus(db_name, channel, std::convert::identity).await
+}
+
+/// given a channel to talk with the management api, create a new
+/// database with the specified name configured with a 10MB mutable
+/// buffer, partitioned on table
+pub async fn create_readable_database_plus(
+    db_name: impl Into<String>,
+    channel: tonic::transport::Channel,
+    modify_rules: impl FnOnce(DatabaseRules) -> DatabaseRules,
+) {
     let mut management_client = influxdb_iox_client::management::Client::new(channel);
 
     let rules = DatabaseRules {
@@ -310,8 +321,10 @@ pub async fn create_readable_database(
         ..Default::default()
     };
 
+    let rules = modify_rules(rules);
+
     management_client
-        .create_database(rules.clone())
+        .create_database(rules)
         .await
         .expect("create database failed");
 }
