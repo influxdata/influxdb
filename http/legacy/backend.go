@@ -13,6 +13,8 @@ import (
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 // Handler is a collection of all the service handlers.
@@ -45,7 +47,7 @@ type HandlerConfig struct {
 }
 
 func NewHandlerConfig() *HandlerConfig {
-	return &HandlerConfig{}
+	return &HandlerConfig{Version: platform.GetBuildInfo().Version}
 }
 
 // Opts returns the CLI options for use with kit/cli.

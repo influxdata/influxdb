@@ -24,7 +24,7 @@ func NewPingHandler(version string) *PingHandler {
 
 // handlePostLegacyWrite is the HTTP handler for the POST /write route.
 func (h *PingHandler) pingHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("X-Influxdb-Build", "cloud2")
+	w.Header().Add("X-Influxdb-Build", "oss")
 	w.Header().Add("X-Influxdb-Version", h.InfluxDBVersion)
 	w.WriteHeader(http.StatusNoContent)
 }
