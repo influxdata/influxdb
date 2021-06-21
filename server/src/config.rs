@@ -65,7 +65,7 @@ impl Config {
 
     /// Get handle to create a database.
     ///
-    /// While the handle is hold, no other operations for the given database can be executed.
+    /// While the handle is held, no other operations for the given database can be executed.
     ///
     /// This only works if the database is not yet known. To recover a database out of an uninitialized state, see
     /// [`recover_db`](Self::recover_db). To do maintainance work on data linked to the database (e.g. the catalog)
@@ -95,7 +95,7 @@ impl Config {
     ///
     /// If there are already rules known for this database, they will be passed to the handle.
     ///
-    /// While the handle is hold, no other operations for the given database can be executed.
+    /// While the handle is held, no other operations for the given database can be executed.
     ///
     /// This only works if the database is known but is uninitialized. To create a new database that is not yet known,
     /// see [`create_db`](Self::create_db). To do maintainance work on data linked to the database (e.g. the catalog)
@@ -128,9 +128,9 @@ impl Config {
 
     /// Get guard that blocks database creations. Useful when messing with the preserved catalog of unregistered DBs.
     ///
-    /// While the handle is hold, no other operations for the given database can be executed.
+    /// While the handle is held, no other operations for the given database can be executed.
     ///
-    /// This only works if the database is not yet register. To create a new database that is not yet known,
+    /// This only works if the database is not yet registered. To create a new database that is not yet known,
     /// see [`create_db`](Self::create_db). To recover a database out of an uninitialized state, see
     /// [`recover_db`](Self::recover_db).
     pub(crate) fn block_db(

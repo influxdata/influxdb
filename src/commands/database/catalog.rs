@@ -47,7 +47,7 @@ enum Command {
 /// Wipe persisted catalog.
 #[derive(Debug, StructOpt)]
 struct Wipe {
-    /// Force wipe.
+    /// Force wipe. Required option to prevent accidental erasure
     #[structopt(long)]
     force: bool,
 
