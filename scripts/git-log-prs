@@ -30,7 +30,7 @@ ensure_command_gh() {
     echo "Other OS:"
     echo "  see https://github.com/cli/cli"
     exit 1
-  }
+  } >&2
 }
 
 get_title() {
