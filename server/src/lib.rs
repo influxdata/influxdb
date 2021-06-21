@@ -487,7 +487,7 @@ where
         let db_reservation = self.config.create_db(rules.name.clone())?;
         self.persist_database_rules(rules.clone()).await?;
 
-        let preserved_catalog = load_or_create_preserved_catalog(
+        let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
             rules.db_name(),
             Arc::clone(&self.store),
             server_id,
@@ -503,6 +503,7 @@ where
             Arc::clone(&self.store),
             Arc::clone(&self.exec),
             preserved_catalog,
+            catalog,
             rules,
         )?;
 
@@ -1962,7 +1963,7 @@ mod tests {
             )
             .await
             .unwrap();
-        let preserved_catalog = PreservedCatalog::<TestCatalogState>::load(
+        let (preserved_catalog, _catalog) = PreservedCatalog::<TestCatalogState>::load(
             Arc::clone(&store),
             server_id,
             db_name_catalog_broken.to_string(),

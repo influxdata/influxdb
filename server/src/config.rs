@@ -238,6 +238,7 @@ impl Config {
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
         preserved_catalog: PreservedCatalog<Catalog>,
+        catalog: Arc<Catalog>,
     ) {
         let mut state = self.state.write().expect("mutex poisoned");
         let name = rules.name.clone();
@@ -263,6 +264,7 @@ impl Config {
             exec,
             Arc::clone(&self.jobs),
             preserved_catalog,
+            catalog,
             write_buffer,
         ));
 
@@ -451,6 +453,7 @@ impl<'a> CreateDatabaseHandle<'a> {
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
         preserved_catalog: PreservedCatalog<Catalog>,
+        catalog: Arc<Catalog>,
         rules: DatabaseRules,
     ) -> Result<()> {
         let db_name = self.db_name.take().expect("not committed");
@@ -462,8 +465,14 @@ impl<'a> CreateDatabaseHandle<'a> {
             });
         }
 
-        self.config
-            .commit_db(rules, server_id, object_store, exec, preserved_catalog);
+        self.config.commit_db(
+            rules,
+            server_id,
+            object_store,
+            exec,
+            preserved_catalog,
+            catalog,
+        );
 
         Ok(())
     }
@@ -531,6 +540,7 @@ impl<'a> RecoverDatabaseHandle<'a> {
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
         preserved_catalog: PreservedCatalog<Catalog>,
+        catalog: Arc<Catalog>,
         rules: Option<DatabaseRules>,
     ) -> Result<()> {
         let db_name = self.db_name.take().expect("not committed");
@@ -547,8 +557,14 @@ impl<'a> RecoverDatabaseHandle<'a> {
             });
         }
 
-        self.config
-            .commit_db(rules, server_id, object_store, exec, preserved_catalog);
+        self.config.commit_db(
+            rules,
+            server_id,
+            object_store,
+            exec,
+            preserved_catalog,
+            catalog,
+        );
 
         Ok(())
     }
@@ -623,7 +639,7 @@ mod test {
         let server_id = ServerId::try_from(1).unwrap();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let exec = Arc::new(Executor::new(1));
-        let preserved_catalog = load_or_create_preserved_catalog(
+        let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
             &name,
             Arc::clone(&store),
             server_id,
@@ -642,13 +658,14 @@ mod test {
                     Arc::clone(&store),
                     Arc::clone(&exec),
                     preserved_catalog,
+                    catalog,
                     rules.clone(),
                 )
                 .unwrap_err();
             assert!(matches!(err, Error::RulesDatabaseNameMismatch { .. }));
         }
 
-        let preserved_catalog = load_or_create_preserved_catalog(
+        let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
             &name,
             Arc::clone(&store),
             server_id,
@@ -659,7 +676,7 @@ mod test {
         .unwrap();
         let db_reservation = config.create_db(name.clone()).unwrap();
         db_reservation
-            .commit_db(server_id, store, exec, preserved_catalog, rules)
+            .commit_db(server_id, store, exec, preserved_catalog, catalog, rules)
             .unwrap();
         assert!(config.db(&name).is_some());
         assert_eq!(config.db_names_sorted(), vec![name.clone()]);
@@ -733,7 +750,7 @@ mod test {
         let server_id = ServerId::try_from(1).unwrap();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let exec = Arc::new(Executor::new(1));
-        let preserved_catalog = load_or_create_preserved_catalog(
+        let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
             &name,
             Arc::clone(&store),
             server_id,
@@ -750,13 +767,14 @@ mod test {
                     Arc::clone(&store),
                     Arc::clone(&exec),
                     preserved_catalog,
+                    catalog,
                     Some(DatabaseRules::new(DatabaseName::new("bar").unwrap())),
                 )
                 .unwrap_err();
             assert!(matches!(err, Error::RulesDatabaseNameMismatch { .. }));
         }
 
-        let preserved_catalog = load_or_create_preserved_catalog(
+        let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
             &name,
             Arc::clone(&store),
             server_id,
@@ -768,7 +786,7 @@ mod test {
         let db_reservation = config.recover_db(name.clone()).unwrap();
         assert!(db_reservation.has_rules());
         db_reservation
-            .commit_db(server_id, store, exec, preserved_catalog, None)
+            .commit_db(server_id, store, exec, preserved_catalog, catalog, None)
             .unwrap();
         assert!(config.db(&name).is_some());
         assert_eq!(config.db_names_sorted(), vec![name.clone()]);
@@ -829,7 +847,7 @@ mod test {
         let server_id = ServerId::try_from(1).unwrap();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let exec = Arc::new(Executor::new(1));
-        let preserved_catalog = load_or_create_preserved_catalog(
+        let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
             &name,
             Arc::clone(&store),
             server_id,
@@ -839,7 +857,7 @@ mod test {
         .await
         .unwrap();
         db_reservation
-            .commit_db(server_id, store, exec, preserved_catalog, rules)
+            .commit_db(server_id, store, exec, preserved_catalog, catalog, rules)
             .unwrap();
 
         let token = config

@@ -325,10 +325,10 @@ impl InitStatus {
                 .map_err(|e| Box::new(e) as _)
                 .context(CatalogLoadError)
                 {
-                    Ok(preserved_catalog) => {
+                    Ok((preserved_catalog, catalog)) => {
                         // everything is there, can create DB
                         handle
-                            .commit_db(server_id, store, exec, preserved_catalog, rules)
+                            .commit_db(server_id, store, exec, preserved_catalog, catalog, rules)
                             .map_err(Box::new)
                             .context(CreateDbError)?;
                         Ok(())
@@ -418,9 +418,9 @@ impl InitStatus {
                 .map_err(|e| Box::new(e) as _)
                 .context(CatalogLoadError)
                 {
-                    Ok(preserved_catalog) => {
+                    Ok((preserved_catalog, catalog)) => {
                         handle
-                            .commit_db(server_id, store, exec, preserved_catalog, None)
+                            .commit_db(server_id, store, exec, preserved_catalog, catalog, None)
                             .map_err(|e | {
                                 warn!(%db_name, %e, "wiped preserved catalog of registered database but still cannot recover");
                                 Box::new(e)

@@ -96,7 +96,7 @@ pub async fn rebuild_catalog<S, N>(
     db_name: N,
     catalog_empty_input: S::EmptyInput,
     ignore_metadata_read_failure: bool,
-) -> Result<PreservedCatalog<S>>
+) -> Result<(PreservedCatalog<S>, Arc<S>)>
 where
     S: CatalogState + Send + Sync,
     N: Into<String> + Send,
@@ -106,7 +106,7 @@ where
         collect_revisions(&object_store, search_location, ignore_metadata_read_failure).await?;
 
     // create new empty catalog
-    let catalog =
+    let (catalog, mut state) =
         PreservedCatalog::<S>::new_empty(object_store, server_id, db_name, catalog_empty_input)
             .await
             .context(NewEmptyFailure)?;
@@ -125,7 +125,7 @@ where
 
             if let Some((uuid, entries)) = revisions.remove(&revision_counter) {
                 // we have files for this particular transaction
-                let mut transaction = catalog.open_transaction_with_uuid(uuid).await;
+                let mut transaction = catalog.open_transaction_with_uuid(uuid, state).await;
                 for (path, metadata) in entries {
                     let path: DirsAndFileName = path.clone().into();
 
@@ -138,7 +138,7 @@ where
                 let checkpoint_data = (revision_counter == max_revision).then(|| CheckpointData {
                     files: collected_files.clone(),
                 });
-                transaction
+                state = transaction
                     .commit(checkpoint_data)
                     .await
                     .context(CommitFailure)?;
@@ -146,13 +146,13 @@ where
                 // we do not have any files for this transaction (there might have been other actions though or it was
                 // an empty transaction) => create new empty transaction
                 // Note that this can never be the last transaction, so we don't need to create a checkpoint here.
-                let transaction = catalog.open_transaction().await;
-                transaction.commit(None).await.context(CommitFailure)?;
+                let transaction = catalog.open_transaction(state).await;
+                state = transaction.commit(None).await.context(CommitFailure)?;
             }
         }
     }
 
-    Ok(catalog)
+    Ok((catalog, state))
 }
 
 /// Collect all files under the given locations.
@@ -279,7 +279,7 @@ mod tests {
         let db_name = "db1";
 
         // build catalog with some data
-        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, mut state) = PreservedCatalog::<TestCatalogState>::new_empty(
             Arc::clone(&object_store),
             server_id,
             db_name,
@@ -288,7 +288,7 @@ mod tests {
         .await
         .unwrap();
         {
-            let mut transaction = catalog.open_transaction().await;
+            let mut transaction = catalog.open_transaction(state).await;
 
             let (path, md) = create_parquet_file(
                 &object_store,
@@ -312,15 +312,15 @@ mod tests {
             .await;
             transaction.add_parquet(&path, &md).unwrap();
 
-            transaction.commit(None).await.unwrap();
+            state = transaction.commit(None).await.unwrap();
         }
         {
             // empty transaction
-            let transaction = catalog.open_transaction().await;
-            transaction.commit(None).await.unwrap();
+            let transaction = catalog.open_transaction(state).await;
+            state = transaction.commit(None).await.unwrap();
         }
         {
-            let mut transaction = catalog.open_transaction().await;
+            let mut transaction = catalog.open_transaction(state).await;
 
             let (path, md) = create_parquet_file(
                 &object_store,
@@ -333,12 +333,11 @@ mod tests {
             .await;
             transaction.add_parquet(&path, &md).unwrap();
 
-            transaction.commit(None).await.unwrap();
+            state = transaction.commit(None).await.unwrap();
         }
 
         // store catalog state
         let paths_expected = {
-            let state = catalog.state();
             let mut tmp: Vec<_> = state.parquet_files.keys().cloned().collect();
             tmp.sort();
             tmp
@@ -350,7 +349,7 @@ mod tests {
 
         // rebuild
         let path = object_store.new_path();
-        let catalog = rebuild_catalog::<TestCatalogState, _>(
+        let (catalog, state) = rebuild_catalog::<TestCatalogState, _>(
             object_store,
             &path,
             server_id,
@@ -363,7 +362,6 @@ mod tests {
 
         // check match
         let paths_actual = {
-            let state = catalog.state();
             let mut tmp: Vec<_> = state.parquet_files.keys().cloned().collect();
             tmp.sort();
             tmp
@@ -379,7 +377,7 @@ mod tests {
         let db_name = "db1";
 
         // build empty catalog
-        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, _state) = PreservedCatalog::<TestCatalogState>::new_empty(
             Arc::clone(&object_store),
             server_id,
             db_name,
@@ -394,7 +392,7 @@ mod tests {
 
         // rebuild
         let path = object_store.new_path();
-        let catalog = rebuild_catalog::<TestCatalogState, _>(
+        let (catalog, state) = rebuild_catalog::<TestCatalogState, _>(
             object_store,
             &path,
             server_id,
@@ -406,7 +404,6 @@ mod tests {
         .unwrap();
 
         // check match
-        let state = catalog.state();
         assert!(state.parquet_files.is_empty());
         assert_eq!(catalog.revision_counter(), 0);
     }
@@ -457,7 +454,7 @@ mod tests {
         let db_name = "db1";
 
         // build catalog with same data
-        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, state) = PreservedCatalog::<TestCatalogState>::new_empty(
             Arc::clone(&object_store),
             server_id,
             db_name,
@@ -466,7 +463,7 @@ mod tests {
         .await
         .unwrap();
         {
-            let mut transaction = catalog.open_transaction().await;
+            let mut transaction = catalog.open_transaction(state).await;
 
             let (path, md) = create_parquet_file(
                 &object_store,
@@ -550,7 +547,7 @@ mod tests {
             .starts_with("Cannot read IOx metadata from parquet file"));
 
         // rebuild (ignore errors)
-        let catalog = rebuild_catalog::<TestCatalogState, _>(
+        let (catalog, state) = rebuild_catalog::<TestCatalogState, _>(
             object_store,
             &path,
             server_id,
@@ -560,7 +557,6 @@ mod tests {
         )
         .await
         .unwrap();
-        let state = catalog.state();
         assert!(state.parquet_files.is_empty());
         assert_eq!(catalog.revision_counter(), 0);
     }
@@ -572,7 +568,7 @@ mod tests {
         let db_name = "db1";
 
         // build catalog with some data (2 transactions + initial empty one)
-        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, mut state) = PreservedCatalog::<TestCatalogState>::new_empty(
             Arc::clone(&object_store),
             server_id,
             db_name,
@@ -581,7 +577,7 @@ mod tests {
         .await
         .unwrap();
         {
-            let mut transaction = catalog.open_transaction().await;
+            let mut transaction = catalog.open_transaction(state).await;
 
             let (path, md) = create_parquet_file(
                 &object_store,
@@ -594,10 +590,10 @@ mod tests {
             .await;
             transaction.add_parquet(&path, &md).unwrap();
 
-            transaction.commit(None).await.unwrap();
+            state = transaction.commit(None).await.unwrap();
         }
         {
-            let mut transaction = catalog.open_transaction().await;
+            let mut transaction = catalog.open_transaction(state).await;
 
             let (path, md) = create_parquet_file(
                 &object_store,
@@ -610,13 +606,12 @@ mod tests {
             .await;
             transaction.add_parquet(&path, &md).unwrap();
 
-            transaction.commit(None).await.unwrap();
+            state = transaction.commit(None).await.unwrap();
         }
         assert_eq!(catalog.revision_counter(), 2);
 
         // store catalog state
         let paths_expected = {
-            let state = catalog.state();
             let mut tmp: Vec<_> = state.parquet_files.keys().cloned().collect();
             tmp.sort();
             tmp
@@ -662,7 +657,7 @@ mod tests {
         assert!(deleted);
 
         // load catalog
-        let catalog = PreservedCatalog::<TestCatalogState>::load(
+        let (catalog, state) = PreservedCatalog::<TestCatalogState>::load(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -674,7 +669,6 @@ mod tests {
 
         // check match
         let paths_actual = {
-            let state = catalog.state();
             let mut tmp: Vec<_> = state.parquet_files.keys().cloned().collect();
             tmp.sort();
             tmp

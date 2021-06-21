@@ -41,6 +41,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// use `max_files` which will limit the number of files to delete in this cleanup round.
 pub async fn cleanup_unreferenced_parquet_files<S>(
     catalog: &PreservedCatalog<S>,
+    state: Arc<S>,
     max_files: usize,
 ) -> Result<()>
 where
@@ -48,14 +49,14 @@ where
 {
     // Create a transaction to prevent parallel modifications of the catalog. This avoids that we delete files there
     // that are about to get added to the catalog.
-    let transaction = catalog.open_transaction().await;
+    let transaction = catalog.open_transaction(state).await;
 
     let store = catalog.object_store();
     let server_id = catalog.server_id();
     let db_name = catalog.db_name();
     let all_known = {
         // replay catalog transactions to track ALL (even dropped) files that are referenced
-        let catalog = PreservedCatalog::<TracerCatalogState>::load(
+        let (_catalog, state) = PreservedCatalog::<TracerCatalogState>::load(
             Arc::clone(&store),
             server_id,
             db_name.to_string(),
@@ -64,12 +65,9 @@ where
         .await
         .context(CatalogLoadError)?
         .expect("catalog gone while reading it?");
-        catalog
-            .state()
-            .files
-            .lock()
-            .expect("lock poissened?")
-            .clone()
+
+        let file_guard = state.files.lock().expect("lock poissened?");
+        file_guard.clone()
     };
 
     let prefix = data_location(&store, server_id, db_name);
@@ -186,7 +184,7 @@ mod tests {
         let server_id = make_server_id();
         let db_name = "db1";
 
-        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, state) = PreservedCatalog::<TestCatalogState>::new_empty(
             Arc::clone(&object_store),
             server_id,
             db_name,
@@ -196,7 +194,7 @@ mod tests {
         .unwrap();
 
         // run clean-up
-        cleanup_unreferenced_parquet_files(&catalog, 1_000)
+        cleanup_unreferenced_parquet_files(&catalog, state, 1_000)
             .await
             .unwrap();
     }
@@ -207,7 +205,7 @@ mod tests {
         let server_id = make_server_id();
         let db_name = db_name();
 
-        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, mut state) = PreservedCatalog::<TestCatalogState>::new_empty(
             Arc::clone(&object_store),
             server_id,
             db_name,
@@ -220,7 +218,7 @@ mod tests {
         let mut paths_keep = vec![];
         let mut paths_delete = vec![];
         {
-            let mut transaction = catalog.open_transaction().await;
+            let mut transaction = catalog.open_transaction(state).await;
 
             // an ordinary tracked parquet file => keep
             let (path, md) = make_metadata(&object_store, "foo", chunk_addr(1)).await;
@@ -244,11 +242,11 @@ mod tests {
             let (path, _md) = make_metadata(&object_store, "foo", chunk_addr(3)).await;
             paths_delete.push(path.display());
 
-            transaction.commit(None).await.unwrap();
+            state = transaction.commit(None).await.unwrap();
         }
 
         // run clean-up
-        cleanup_unreferenced_parquet_files(&catalog, 1_000)
+        cleanup_unreferenced_parquet_files(&catalog, state, 1_000)
             .await
             .unwrap();
 
@@ -268,7 +266,7 @@ mod tests {
         let server_id = make_server_id();
         let db_name = db_name();
 
-        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, state) = PreservedCatalog::<TestCatalogState>::new_empty(
             Arc::clone(&object_store),
             server_id,
             db_name,
@@ -281,7 +279,7 @@ mod tests {
         for i in 0..100 {
             let (path, _) = tokio::join!(
                 async {
-                    let mut transaction = catalog.open_transaction().await;
+                    let mut transaction = catalog.open_transaction(Arc::clone(&state)).await;
 
                     let (path, md) = make_metadata(&object_store, "foo", chunk_addr(i)).await;
                     transaction.add_parquet(&path.clone().into(), &md).unwrap();
@@ -291,7 +289,7 @@ mod tests {
                     path.display()
                 },
                 async {
-                    cleanup_unreferenced_parquet_files(&catalog, 1_000)
+                    cleanup_unreferenced_parquet_files(&catalog, Arc::clone(&state), 1_000)
                         .await
                         .unwrap();
                 },
@@ -308,7 +306,7 @@ mod tests {
         let server_id = make_server_id();
         let db_name = db_name();
 
-        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, state) = PreservedCatalog::<TestCatalogState>::new_empty(
             Arc::clone(&object_store),
             server_id,
             db_name,
@@ -325,7 +323,7 @@ mod tests {
         }
 
         // run clean-up
-        cleanup_unreferenced_parquet_files(&catalog, 2)
+        cleanup_unreferenced_parquet_files(&catalog, Arc::clone(&state), 2)
             .await
             .unwrap();
 
@@ -335,7 +333,7 @@ mod tests {
         assert_eq!(leftover.len(), 1);
 
         // run clean-up again
-        cleanup_unreferenced_parquet_files(&catalog, 2)
+        cleanup_unreferenced_parquet_files(&catalog, Arc::clone(&state), 2)
             .await
             .unwrap();
 

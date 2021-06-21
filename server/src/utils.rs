@@ -57,7 +57,7 @@ impl TestDbBuilder {
         let exec = Arc::new(Executor::new(1));
         let metrics_registry = Arc::new(metrics::MetricRegistry::new());
 
-        let preserved_catalog = load_or_create_preserved_catalog(
+        let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
             db_name.as_str(),
             Arc::clone(&object_store),
             server_id,
@@ -87,6 +87,7 @@ impl TestDbBuilder {
                 exec,
                 Arc::new(JobRegistry::new()),
                 preserved_catalog,
+                catalog,
                 self.write_buffer,
             ),
         }
