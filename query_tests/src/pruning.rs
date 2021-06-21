@@ -28,7 +28,7 @@ async fn setup() -> TestDb {
         .await
         .unwrap()
         .unwrap();
-    db.load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id(), &Default::default())
+    db.load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
         .await
         .unwrap();
 
@@ -43,7 +43,7 @@ async fn setup() -> TestDb {
         .await
         .unwrap()
         .unwrap();
-    db.load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id(), &Default::default())
+    db.load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
         .await
         .unwrap();
 

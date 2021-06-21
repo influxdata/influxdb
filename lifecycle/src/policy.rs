@@ -1,5 +1,4 @@
 use std::convert::TryInto;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
@@ -10,7 +9,7 @@ use data_types::database_rules::LifecycleRules;
 use observability_deps::tracing::{debug, warn};
 use tracker::TaskTracker;
 
-use crate::{LifecycleChunk, LifecycleDb};
+use crate::{LifecycleChunk, LifecycleDb, LockableChunk};
 use data_types::chunk_metadata::ChunkStorage;
 
 pub const DEFAULT_LIFECYCLE_BACKOFF: Duration = Duration::from_secs(1);
@@ -21,15 +20,21 @@ pub const LIFECYCLE_ACTION_BACKOFF: Duration = Duration::from_secs(10);
 ///
 /// `LifecyclePolicy::check_for_work` can then be used to drive progress
 /// of the `LifecycleChunk` contained within this `LifecycleDb`
-pub struct LifecyclePolicy<M: LifecycleDb> {
-    db: Arc<M>,
+pub struct LifecyclePolicy<'a, M>
+where
+    &'a M: LifecycleDb,
+{
+    db: &'a M,
     // TODO: Remove these and use values from chunks within partition
-    move_tracker: Option<TaskTracker<()>>,
-    write_tracker: Option<TaskTracker<()>>,
+    move_tracker: Option<TaskTracker<<<&'a M as LifecycleDb>::Chunk as LockableChunk>::Job>>,
+    write_tracker: Option<TaskTracker<<<&'a M as LifecycleDb>::Chunk as LockableChunk>::Job>>,
 }
 
-impl<M: LifecycleDb + Sync + Send> LifecyclePolicy<M> {
-    pub fn new(db: Arc<M>) -> Self {
+impl<'a, M> LifecyclePolicy<'a, M>
+where
+    &'a M: LifecycleDb,
+{
+    pub fn new(db: &'a M) -> Self {
         Self {
             db,
             move_tracker: None,
@@ -79,8 +84,7 @@ impl<M: LifecycleDb + Sync + Send> LifecyclePolicy<M> {
                     && now_instant.duration_since(lifecycle_action.start_instant())
                         >= LIFECYCLE_ACTION_BACKOFF
                 {
-                    std::mem::drop(chunk_guard);
-                    chunk.write().clear_lifecycle_action();
+                    chunk_guard.upgrade().clear_lifecycle_action();
                 }
                 continue;
             }
@@ -89,44 +93,23 @@ impl<M: LifecycleDb + Sync + Send> LifecyclePolicy<M> {
                 ChunkStorage::OpenMutableBuffer => {
                     open_partitions.insert(chunk_guard.partition_key().to_string());
                     if self.move_tracker.is_none() && would_move {
-                        let partition_key = chunk_guard.partition_key();
-                        let table_name = chunk_guard.table_name();
-                        let chunk_id = chunk_guard.chunk_id();
-
-                        std::mem::drop(chunk_guard);
-
-                        self.move_tracker = Some(self.db.move_to_read_buffer(
-                            table_name,
-                            partition_key,
-                            chunk_id,
-                        ));
+                        self.move_tracker = Some(
+                            LockableChunk::move_to_read_buffer(chunk_guard.upgrade())
+                                .expect("task preparation failed"),
+                        );
                     }
                 }
                 ChunkStorage::ClosedMutableBuffer if self.move_tracker.is_none() => {
-                    let partition_key = chunk_guard.partition_key();
-                    let table_name = chunk_guard.table_name();
-                    let chunk_id = chunk_guard.chunk_id();
-
-                    std::mem::drop(chunk_guard);
-
-                    self.move_tracker = Some(self.db.move_to_read_buffer(
-                        table_name,
-                        partition_key,
-                        chunk_id,
-                    ));
+                    self.move_tracker = Some(
+                        LockableChunk::move_to_read_buffer(chunk_guard.upgrade())
+                            .expect("task preparation failed"),
+                    );
                 }
                 ChunkStorage::ReadBuffer if would_write => {
-                    let partition_key = chunk_guard.partition_key();
-                    let table_name = chunk_guard.table_name();
-                    let chunk_id = chunk_guard.chunk_id();
-
-                    std::mem::drop(chunk_guard);
-
-                    self.write_tracker = Some(self.db.write_to_object_store(
-                        table_name,
-                        partition_key,
-                        chunk_id,
-                    ));
+                    self.write_tracker = Some(
+                        LockableChunk::write_to_object_store(chunk_guard.upgrade())
+                            .expect("task preparation failed"),
+                    );
                 }
                 _ => {
                     // Chunk is already persisted, no additional work needed to persist it
@@ -180,7 +163,6 @@ impl<M: LifecycleDb + Sync + Send> LifecyclePolicy<M> {
                         let partition_key = chunk_guard.partition_key();
                         let table_name = chunk_guard.table_name();
                         let chunk_id = chunk_guard.chunk_id();
-                        std::mem::drop(chunk_guard);
 
                         match action {
                             Action::Drop => {
@@ -192,8 +174,8 @@ impl<M: LifecycleDb + Sync + Send> LifecyclePolicy<M> {
                                 self.db.drop_chunk(table_name, partition_key, chunk_id)
                             }
                             Action::Unload => {
-                                self.db
-                                    .unload_read_buffer(table_name, partition_key, chunk_id)
+                                LockableChunk::unload_read_buffer(chunk_guard.upgrade())
+                                    .expect("failed to unload read buffer")
                             }
                         }
                     }
@@ -295,7 +277,9 @@ mod tests {
     use tracker::{RwLock, TaskId, TaskRegistration, TaskRegistry};
 
     use super::*;
-    use crate::ChunkLifecycleAction;
+    use crate::{ChunkLifecycleAction, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk};
+    use std::convert::Infallible;
+    use std::sync::Arc;
 
     #[derive(Debug, Eq, PartialEq)]
     enum MoverEvents {
@@ -337,6 +321,62 @@ mod tests {
                 lifecycle_action: Some(TaskTracker::complete(action)),
                 storage: self.storage,
             }
+        }
+    }
+
+    #[derive(Clone)]
+    struct TestLockableChunk<'a> {
+        db: &'a TestDb,
+        chunk: Arc<RwLock<TestChunk>>,
+    }
+
+    impl<'a> LockableChunk for TestLockableChunk<'a> {
+        type Chunk = TestChunk;
+        type Job = ();
+        type Error = Infallible;
+
+        fn read(&self) -> LifecycleReadGuard<'_, Self::Chunk, Self> {
+            LifecycleReadGuard::new(self.clone(), &self.chunk)
+        }
+
+        fn write(&self) -> LifecycleWriteGuard<'_, Self::Chunk, Self> {
+            LifecycleWriteGuard::new(self.clone(), &self.chunk)
+        }
+
+        fn move_to_read_buffer(
+            mut s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
+        ) -> Result<TaskTracker<()>, Self::Error> {
+            s.storage = ChunkStorage::ReadBuffer;
+            s.data()
+                .db
+                .events
+                .write()
+                .push(MoverEvents::Move(s.chunk_id()));
+            Ok(TaskTracker::complete(()))
+        }
+
+        fn write_to_object_store(
+            mut s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
+        ) -> Result<TaskTracker<()>, Self::Error> {
+            s.storage = ChunkStorage::ReadBufferAndObjectStore;
+            s.data()
+                .db
+                .events
+                .write()
+                .push(MoverEvents::Write(s.chunk_id()));
+            Ok(TaskTracker::complete(()))
+        }
+
+        fn unload_read_buffer(
+            mut s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
+        ) -> Result<(), Self::Error> {
+            s.storage = ChunkStorage::ObjectStoreOnly;
+            s.data()
+                .db
+                .events
+                .write()
+                .push(MoverEvents::Unload(s.chunk_id()));
+            Ok(())
         }
     }
 
@@ -396,69 +436,33 @@ mod tests {
         }
     }
 
-    impl LifecycleDb for TestDb {
-        type Chunk = TestChunk;
+    impl<'a> LifecycleDb for &'a TestDb {
+        type Chunk = TestLockableChunk<'a>;
 
-        fn buffer_size(&self) -> usize {
+        fn buffer_size(self) -> usize {
             // All chunks are 20 bytes
             self.chunks.read().len() * 20
         }
 
-        fn rules(&self) -> LifecycleRules {
+        fn rules(self) -> LifecycleRules {
             self.rules.clone()
         }
 
-        fn chunks(&self, _: &SortOrder) -> Vec<Arc<RwLock<TestChunk>>> {
-            self.chunks.read().clone()
-        }
-
-        fn move_to_read_buffer(
-            &self,
-            _table_name: String,
-            _partition_key: String,
-            chunk_id: u32,
-        ) -> TaskTracker<()> {
-            let chunks = self.chunks.read();
-            let chunk = chunks
+        fn chunks(self, _: &SortOrder) -> Vec<Self::Chunk> {
+            self.chunks
+                .read()
                 .iter()
-                .find(|x| x.read().chunk_id() == chunk_id)
-                .unwrap();
-            chunk.write().storage = ChunkStorage::ReadBuffer;
-            self.events.write().push(MoverEvents::Move(chunk_id));
-            TaskTracker::complete(())
+                .map(|x| TestLockableChunk {
+                    db: self,
+                    chunk: Arc::clone(x),
+                })
+                .collect()
         }
 
-        fn write_to_object_store(
-            &self,
-            _table_name: String,
-            _partition_key: String,
-            chunk_id: u32,
-        ) -> TaskTracker<()> {
-            let chunks = self.chunks.read();
-            let chunk = chunks
-                .iter()
-                .find(|x| x.read().chunk_id() == chunk_id)
-                .unwrap();
-            chunk.write().storage = ChunkStorage::ReadBufferAndObjectStore;
-            self.events.write().push(MoverEvents::Write(chunk_id));
-            TaskTracker::complete(())
-        }
-
-        fn drop_chunk(&self, _table_name: String, _partition_key: String, chunk_id: u32) {
+        fn drop_chunk(self, _table_name: String, _partition_key: String, chunk_id: u32) {
             let mut chunks = self.chunks.write();
             chunks.retain(|x| x.read().chunk_id() != chunk_id);
             self.events.write().push(MoverEvents::Drop(chunk_id))
-        }
-
-        fn unload_read_buffer(&self, _table_name: String, _partition_key: String, chunk_id: u32) {
-            let chunks = self.chunks.read();
-            let chunk = chunks
-                .iter()
-                .find(|x| x.read().chunk_id() == chunk_id)
-                .unwrap();
-
-            chunk.write().storage = ChunkStorage::ObjectStoreOnly;
-            self.events.write().push(MoverEvents::Unload(chunk_id))
         }
     }
 
@@ -515,8 +519,8 @@ mod tests {
             TestChunk::new(2, Some(30), Some(1), ChunkStorage::OpenMutableBuffer),
         ];
 
-        let db = Arc::new(TestDb::new(rules, chunks));
-        let mut lifecycle = LifecyclePolicy::new(Arc::clone(&db));
+        let db = TestDb::new(rules, chunks);
+        let mut lifecycle = LifecyclePolicy::new(&db);
         lifecycle.check_for_work(from_secs(40), Instant::now());
         assert_eq!(*db.events.read(), vec![]);
     }
@@ -533,8 +537,8 @@ mod tests {
             TestChunk::new(2, Some(0), Some(0), ChunkStorage::OpenMutableBuffer),
         ];
 
-        let db = Arc::new(TestDb::new(rules, chunks));
-        let mut lifecycle = LifecyclePolicy::new(Arc::clone(&db));
+        let db = TestDb::new(rules, chunks);
+        let mut lifecycle = LifecyclePolicy::new(&db);
 
         lifecycle.check_for_work(from_secs(9), Instant::now());
 
@@ -579,8 +583,8 @@ mod tests {
             ChunkStorage::OpenMutableBuffer,
         )];
 
-        let db = Arc::new(TestDb::new(rules, chunks));
-        let mut lifecycle = LifecyclePolicy::new(Arc::clone(&db));
+        let db = TestDb::new(rules, chunks);
+        let mut lifecycle = LifecyclePolicy::new(&db);
 
         let (tracker, registration) = registry.register(());
         lifecycle.move_tracker = Some(tracker);
@@ -602,8 +606,8 @@ mod tests {
             mutable_linger_seconds: Some(NonZeroU32::new(100).unwrap()),
             ..Default::default()
         };
-        let db = Arc::new(TestDb::new(rules, vec![]));
-        let mut lifecycle = LifecyclePolicy::new(Arc::clone(&db));
+        let db = TestDb::new(rules, vec![]);
+        let mut lifecycle = LifecyclePolicy::new(&db);
 
         let (tracker, registration) = registry.register(());
 
@@ -635,8 +639,8 @@ mod tests {
             TestChunk::new(1, Some(0), Some(0), ChunkStorage::OpenMutableBuffer),
         ];
 
-        let db = Arc::new(TestDb::new(rules, chunks));
-        let mut lifecycle = LifecyclePolicy::new(Arc::clone(&db));
+        let db = TestDb::new(rules, chunks);
+        let mut lifecycle = LifecyclePolicy::new(&db);
 
         // Expect to move chunk_id=1 first, despite it coming second in
         // the order, because chunk_id=0 will only become old enough at t=100
@@ -674,8 +678,8 @@ mod tests {
             ChunkStorage::OpenMutableBuffer,
         )];
 
-        let db = Arc::new(TestDb::new(rules.clone(), chunks));
-        let mut lifecycle = LifecyclePolicy::new(Arc::clone(&db));
+        let db = TestDb::new(rules.clone(), chunks);
+        let mut lifecycle = LifecyclePolicy::new(&db);
 
         lifecycle.check_for_work(from_secs(10), Instant::now());
         assert_eq!(*db.events.read(), vec![]);
@@ -693,8 +697,8 @@ mod tests {
             TestChunk::new(4, Some(0), Some(0), ChunkStorage::ReadBufferAndObjectStore),
         ];
 
-        let db = Arc::new(TestDb::new(rules, chunks));
-        let mut lifecycle = LifecyclePolicy::new(Arc::clone(&db));
+        let db = TestDb::new(rules, chunks);
+        let mut lifecycle = LifecyclePolicy::new(&db);
 
         lifecycle.check_for_work(from_secs(10), Instant::now());
         assert_eq!(
@@ -723,8 +727,8 @@ mod tests {
             ChunkStorage::OpenMutableBuffer,
         )];
 
-        let db = Arc::new(TestDb::new(rules.clone(), chunks));
-        let mut lifecycle = LifecyclePolicy::new(Arc::clone(&db));
+        let db = TestDb::new(rules.clone(), chunks);
+        let mut lifecycle = LifecyclePolicy::new(&db);
 
         lifecycle.check_for_work(from_secs(10), Instant::now());
         assert_eq!(*db.events.read(), vec![]);
@@ -742,8 +746,8 @@ mod tests {
             TestChunk::new(4, Some(0), Some(0), ChunkStorage::ReadBufferAndObjectStore),
         ];
 
-        let db = Arc::new(TestDb::new(rules, chunks));
-        let mut lifecycle = LifecyclePolicy::new(Arc::clone(&db));
+        let db = TestDb::new(rules, chunks);
+        let mut lifecycle = LifecyclePolicy::new(&db);
 
         lifecycle.check_for_work(from_secs(10), Instant::now());
         assert_eq!(*db.events.read(), vec![MoverEvents::Unload(4)]);
@@ -764,8 +768,8 @@ mod tests {
             ChunkStorage::OpenMutableBuffer,
         )];
 
-        let db = Arc::new(TestDb::new(rules, chunks));
-        let mut lifecycle = LifecyclePolicy::new(Arc::clone(&db));
+        let db = TestDb::new(rules, chunks);
+        let mut lifecycle = LifecyclePolicy::new(&db);
 
         lifecycle.check_for_work(from_secs(10), Instant::now());
         assert_eq!(*db.events.read(), vec![]);
@@ -789,8 +793,8 @@ mod tests {
             TestChunk::new(2, Some(0), Some(0), ChunkStorage::ReadBufferAndObjectStore),
         ];
 
-        let db = Arc::new(TestDb::new(rules, chunks));
-        let mut lifecycle = LifecyclePolicy::new(Arc::clone(&db));
+        let db = TestDb::new(rules, chunks);
+        let mut lifecycle = LifecyclePolicy::new(&db);
 
         lifecycle.check_for_work(from_secs(0), Instant::now());
         assert_eq!(*db.events.read(), vec![MoverEvents::Write(1)]);
@@ -810,8 +814,8 @@ mod tests {
             ChunkStorage::OpenMutableBuffer,
         )];
 
-        let db = Arc::new(TestDb::new(rules, chunks));
-        let mut lifecycle = LifecyclePolicy::new(Arc::clone(&db));
+        let db = TestDb::new(rules, chunks);
+        let mut lifecycle = LifecyclePolicy::new(&db);
 
         // Initially can't move
         lifecycle.check_for_work(from_secs(80), Instant::now());
@@ -834,8 +838,8 @@ mod tests {
             ChunkStorage::ClosedMutableBuffer,
         )];
 
-        let db = Arc::new(TestDb::new(rules, chunks));
-        let mut lifecycle = LifecyclePolicy::new(Arc::clone(&db));
+        let db = TestDb::new(rules, chunks);
+        let mut lifecycle = LifecyclePolicy::new(&db);
         let chunk = &db.chunks.read()[0];
 
         let r0 = TaskRegistration::default();

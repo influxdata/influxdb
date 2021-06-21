@@ -99,6 +99,7 @@ use data_types::database_rules::{NodeGroup, RoutingRules, Shard, ShardConfig, Sh
 pub use db::Db;
 use generated_types::database_rules::encode_database_rules;
 use influxdb_iox_client::{connection::Builder, write};
+use lifecycle::LockableChunk;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
 
@@ -125,6 +126,9 @@ pub enum Error {
 
     #[snafu(display("database error: {}", source))]
     UnknownDatabaseError { source: DatabaseError },
+
+    #[snafu(display("chunk not found: {}", source))]
+    ChunkNotFound { source: db::catalog::Error },
 
     #[snafu(display("getting mutable buffer chunk: {}", source))]
     MutableBufferChunk { source: DatabaseError },
@@ -811,7 +815,15 @@ where
             .db(&name)
             .context(DatabaseNotFound { db_name: &db_name })?;
 
-        Ok(db.load_chunk_to_read_buffer_in_background(table_name, partition_key, chunk_id))
+        let chunk = db
+            .lockable_chunk(&table_name, &partition_key, chunk_id)
+            .context(ChunkNotFound)?;
+
+        let guard = chunk.write();
+
+        LockableChunk::move_to_read_buffer(guard).map_err(|e| Error::UnknownDatabaseError {
+            source: Box::new(e),
+        })
     }
 
     /// Wipe preserved catalog of specific DB.

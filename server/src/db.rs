@@ -2,10 +2,12 @@
 //! instances of the mutable buffer, read buffer, and object store
 
 use self::access::QueryCatalogAccess;
-use self::catalog::chunk::ChunkStage;
 use self::catalog::TableNameFilter;
 use super::{write_buffer::WriteBuffer, JobRegistry};
+use crate::db::catalog::chunk::ChunkStage;
 use crate::db::catalog::partition::Partition;
+use crate::db::lifecycle::LockableCatalogChunk;
+use ::lifecycle::{LifecycleWriteGuard, LockableChunk};
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use async_trait::async_trait;
 use catalog::{chunk::CatalogChunk, Catalog};
@@ -45,6 +47,7 @@ use rand_distr::{Distribution, Poisson};
 use read_buffer::{ChunkMetrics as ReadBufferChunkMetrics, RBChunk};
 use snafu::{ResultExt, Snafu};
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::{
     any::Any,
     num::NonZeroUsize,
@@ -54,7 +57,7 @@ use std::{
     },
     time::Duration,
 };
-use tracker::{TaskRegistration, TaskTracker, TrackedFutureExt};
+use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 pub mod access;
 pub mod catalog;
@@ -70,19 +73,8 @@ pub enum Error {
     #[snafu(context(false))]
     CatalogError { source: catalog::Error },
 
-    #[snafu(display(
-        "Lifecycle error: {}:{}:{} {}",
-        partition_key,
-        table_name,
-        chunk_id,
-        source
-    ))]
-    LifecycleError {
-        partition_key: String,
-        table_name: String,
-        chunk_id: u32,
-        source: catalog::chunk::Error,
-    },
+    #[snafu(display("Lifecycle error: {}", source))]
+    LifecycleError { source: catalog::chunk::Error },
 
     #[snafu(display(
         "Can not drop chunk {}:{}:{} which has an in-progress lifecycle action {}. Wait for this to complete",
@@ -156,6 +148,9 @@ pub enum Error {
     TransactionError {
         source: parquet_file::catalog::Error,
     },
+
+    #[snafu(display("background task cancelled: {}", source))]
+    TaskCancelled { source: futures::future::Aborted },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -235,7 +230,7 @@ pub struct Db {
     ///  - The Read Buffer where chunks are immutable and stored in an optimised
     ///    compressed form for small footprint and fast query execution; and
     ///  - The Parquet Buffer where chunks are backed by Parquet file data.
-    preserved_catalog: PreservedCatalog<Catalog>,
+    preserved_catalog: Arc<PreservedCatalog<Catalog>>,
 
     /// A handle to the global jobs registry for long running tasks
     jobs: Arc<JobRegistry>,
@@ -385,7 +380,7 @@ impl Db {
             server_id,
             store,
             exec,
-            preserved_catalog,
+            preserved_catalog: Arc::new(preserved_catalog),
             jobs,
             metrics_registry,
             catalog_access,
@@ -416,11 +411,7 @@ impl Db {
 
         if let Some(chunk) = chunk {
             let mut chunk = chunk.write();
-            chunk.freeze().context(LifecycleError {
-                partition_key,
-                table_name,
-                chunk_id: chunk.id(),
-            })?;
+            chunk.freeze().context(LifecycleError)?;
 
             Ok(Some(DbChunk::snapshot(&chunk)))
         } else {
@@ -432,7 +423,7 @@ impl Db {
         &self,
         table_name: &str,
         partition_key: &str,
-    ) -> Result<Arc<tracker::RwLock<Partition>>> {
+    ) -> catalog::Result<Arc<tracker::RwLock<Partition>>> {
         let partition = self
             .preserved_catalog
             .state()
@@ -445,11 +436,20 @@ impl Db {
         table_name: &str,
         partition_key: &str,
         chunk_id: u32,
-    ) -> Result<Arc<tracker::RwLock<CatalogChunk>>> {
-        Ok(self
-            .preserved_catalog
+    ) -> catalog::Result<Arc<tracker::RwLock<CatalogChunk>>> {
+        self.preserved_catalog
             .state()
-            .chunk(table_name, partition_key, chunk_id)?)
+            .chunk(table_name, partition_key, chunk_id)
+    }
+
+    pub fn lockable_chunk(
+        &self,
+        table_name: &str,
+        partition_key: &str,
+        chunk_id: u32,
+    ) -> catalog::Result<LockableCatalogChunk<'_>> {
+        let chunk = self.chunk(table_name, partition_key, chunk_id)?;
+        Ok(LockableCatalogChunk { db: self, chunk })
     }
 
     /// Drops the specified chunk from the catalog and all storage systems
@@ -511,179 +511,217 @@ impl Db {
         table_name: &str,
         partition_key: &str,
         chunk_id: u32,
-        tracker: &TaskRegistration,
     ) -> Result<Arc<DbChunk>> {
-        let chunk = self.chunk(table_name, partition_key, chunk_id)?;
+        let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
+        let (_, fut) = Self::load_chunk_to_read_buffer_impl(chunk.write())?;
+        fut.await.context(TaskCancelled)?
+    }
+
+    /// The implementation for moving a chunk to the read buffer
+    ///
+    /// Returns a future registered with the tracker registry, and the corresponding tracker
+    /// The caller can either spawn this future to tokio, or block directly on it
+    fn load_chunk_to_read_buffer_impl(
+        mut guard: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk<'_>>,
+    ) -> Result<(
+        TaskTracker<Job>,
+        TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
+    )> {
+        let db = guard.data().db;
+        let addr = guard.addr().clone();
+        // TODO: Use ChunkAddr within Job
+        let (tracker, registration) = db.jobs.register(Job::CloseChunk {
+            db_name: addr.db_name.to_string(),
+            partition_key: addr.partition_key.to_string(),
+            table_name: addr.table_name.to_string(),
+            chunk_id: addr.chunk_id,
+        });
 
         // update the catalog to say we are processing this chunk and
         // then drop the lock while we do the work
         let (mb_chunk, table_summary) = {
-            let mut chunk = chunk.write();
-
-            let mb_chunk = chunk.set_moving(tracker).context(LifecycleError {
-                partition_key,
-                table_name,
-                chunk_id,
-            })?;
-            (mb_chunk, chunk.table_summary())
+            let mb_chunk = guard.set_moving(&registration).context(LifecycleError)?;
+            (mb_chunk, guard.table_summary())
         };
 
-        info!(%table_name, %partition_key, %chunk_id, "chunk marked MOVING, loading tables into read buffer");
+        // Drop locks
+        let chunk = guard.unwrap().chunk;
 
         // create a new read buffer chunk with memory tracking
-        let metrics = self
+        let metrics = db
             .metrics_registry
-            .register_domain_with_labels("read_buffer", self.metric_labels.clone());
+            .register_domain_with_labels("read_buffer", db.metric_labels.clone());
+
         let mut rb_chunk = RBChunk::new(ReadBufferChunkMetrics::new(
             &metrics,
-            self.preserved_catalog
+            db.preserved_catalog
                 .state()
                 .metrics()
                 .memory()
                 .read_buffer(),
         ));
 
-        // load table into the new chunk one by one.
-        debug!(%table_name, %partition_key, %chunk_id, table=%table_summary.name, "loading table to read buffer");
-        let batch = mb_chunk
-            .read_filter(Selection::All)
-            // It is probably reasonable to recover from this error
-            // (reset the chunk state to Open) but until that is
-            // implemented (and tested) just panic
-            .expect("Loading chunk to mutable buffer");
+        let fut = async move {
+            info!(chunk=%addr, "chunk marked MOVING, loading tables into read buffer");
 
-        let sorted = sort_record_batch(batch).expect("failed to sort");
-        rb_chunk.upsert_table(&table_summary.name, sorted);
+            // load table into the new chunk one by one.
+            debug!(chunk=%addr, "loading table to read buffer");
+            let batch = mb_chunk
+                .read_filter(Selection::All)
+                // It is probably reasonable to recover from this error
+                // (reset the chunk state to Open) but until that is
+                // implemented (and tested) just panic
+                .expect("Loading chunk to mutable buffer");
 
-        // Relock the chunk again (nothing else should have been able
-        // to modify the chunk state while we were moving it
-        let mut chunk = chunk.write();
+            let sorted = sort_record_batch(batch).expect("failed to sort");
+            rb_chunk.upsert_table(&table_summary.name, sorted);
 
-        // update the catalog to say we are done processing
-        chunk
-            .set_moved(Arc::new(rb_chunk))
-            .context(LifecycleError {
-                partition_key,
-                table_name,
-                chunk_id,
-            })?;
+            // Can drop and re-acquire as lifecycle action prevents concurrent modification
+            let mut guard = chunk.write();
 
-        debug!(%table_name, %partition_key, %chunk_id, "chunk marked MOVED. loading complete");
+            // update the catalog to say we are done processing
+            guard
+                .set_moved(Arc::new(rb_chunk))
+                .expect("failed to move chunk");
 
-        Ok(DbChunk::snapshot(&chunk))
+            debug!(chunk=%addr, "chunk marked MOVED. loading complete");
+
+            Ok(DbChunk::snapshot(&guard))
+        };
+
+        Ok((tracker, fut.track(registration)))
     }
 
     /// Write given table of a given chunk to object store.
     /// The writing only happen if that chunk already in read buffer
-
     pub async fn write_chunk_to_object_store(
         &self,
         table_name: &str,
         partition_key: &str,
         chunk_id: u32,
-        tracker: &TaskRegistration,
     ) -> Result<Arc<DbChunk>> {
-        // Get the chunk from the catalog
-        let chunk = self.chunk(table_name, partition_key, chunk_id)?;
+        let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
+        let (_, fut) = Self::write_chunk_to_object_store_impl(chunk.write())?;
+        fut.await.context(TaskCancelled)?
+    }
+
+    /// The implementation for writing a chunk to the object store
+    ///
+    /// Returns a future registered with the tracker registry, and the corresponding tracker
+    /// The caller can either spawn this future to tokio, or block directly on it
+    fn write_chunk_to_object_store_impl(
+        mut guard: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk<'_>>,
+    ) -> Result<(
+        TaskTracker<Job>,
+        TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
+    )> {
+        let db = guard.data().db;
+        let addr = guard.addr().clone();
+
+        // TODO: Use ChunkAddr within Job
+        let (tracker, registration) = db.jobs.register(Job::WriteChunk {
+            db_name: addr.db_name.to_string(),
+            partition_key: addr.partition_key.to_string(),
+            table_name: addr.table_name.to_string(),
+            chunk_id: addr.chunk_id,
+        });
 
         // update the catalog to say we are processing this chunk and
-        // then drop the lock while we do the work
-        let (rb_chunk, table_summary) = {
-            let mut chunk = chunk.write();
+        let rb_chunk = guard
+            .set_writing_to_object_store(&registration)
+            .context(LifecycleError)?;
 
-            let rb_chunk = chunk
-                .set_writing_to_object_store(tracker)
-                .context(LifecycleError {
-                    partition_key,
-                    table_name,
-                    chunk_id,
-                })?;
+        let table_summary = guard.table_summary();
 
-            (rb_chunk, chunk.table_summary())
-        };
+        debug!(chunk=%guard.addr(), "chunk marked WRITING , loading tables into object store");
 
-        debug!(%table_name, %partition_key, %chunk_id, "chunk marked WRITING , loading tables into object store");
+        // Drop locks
+        let chunk = guard.unwrap().chunk;
 
         // Create a storage to save data of this chunk
         let storage = Storage::new(
-            Arc::clone(&self.store),
-            self.server_id,
-            self.rules.read().name.to_string(),
+            Arc::clone(&db.store),
+            db.server_id,
+            db.rules.read().name.to_string(),
         );
 
-        let table_name = table_summary.name.as_str();
-        debug!(%table_name, %partition_key, %chunk_id, table=table_name, "loading table to object store");
+        let catalog_transactions_until_checkpoint = db
+            .rules
+            .read()
+            .lifecycle_rules
+            .catalog_transactions_until_checkpoint;
 
-        let predicate = read_buffer::Predicate::default();
+        let catalog = Arc::clone(&db.preserved_catalog);
 
-        // Get RecordBatchStream of data from the read buffer chunk
-        let read_results = rb_chunk
-            .read_filter(table_name, predicate, Selection::All)
-            .context(ReadBufferChunkError {
-                table_name,
-                chunk_id,
-            })?;
+        let fut = async move {
+            let table_name = table_summary.name.as_str();
+            debug!(chunk=%addr, "loading table to object store");
 
-        let arrow_schema: ArrowSchemaRef = rb_chunk
-            .read_filter_table_schema(table_name, Selection::All)
-            .context(ReadBufferChunkSchemaError {
-                table_name,
-                chunk_id,
-            })?
-            .into();
-        let stream: SendableRecordBatchStream = Box::pin(streams::ReadFilterResultsStream::new(
-            read_results,
-            Arc::clone(&arrow_schema),
-        ));
+            let predicate = read_buffer::Predicate::default();
 
-        // catalog-level transaction for preseveration layer
-        {
-            let mut transaction = self.preserved_catalog.open_transaction().await;
+            // Get RecordBatchStream of data from the read buffer chunk
+            let read_results = rb_chunk
+                .read_filter(table_name, predicate, Selection::All)
+                .expect("read buffer is infallible");
 
-            // Write this table data into the object store
-            //
-            // IMPORTANT: Writing needs to take place during a transaction, otherwise the background cleanup task might
-            //            delete the just written parquet parquet file. Furthermore, the parquet files contains
-            //            information about the transaction (like revision counter and UUID) that are only available
-            //            once the transaction has started.
-            let metadata = IoxMetadata {
-                transaction_revision_counter: transaction.revision_counter(),
-                transaction_uuid: transaction.uuid(),
-                table_name: table_name.to_string(),
-                partition_key: partition_key.to_string(),
-                chunk_id,
-            };
-            let (path, parquet_metadata) = storage
-                .write_to_object_store(
-                    partition_key.to_string(),
-                    chunk_id,
-                    table_name.to_string(),
-                    stream,
-                    metadata,
-                )
-                .await
-                .context(WritingToObjectStore)?;
+            let arrow_schema: ArrowSchemaRef = rb_chunk
+                .read_filter_table_schema(table_name, Selection::All)
+                .expect("read buffer is infallible")
+                .into();
 
-            transaction
-                .add_parquet(&path.into(), &parquet_metadata)
-                .context(TransactionError)?;
-            let create_checkpoint = self
-                .rules
-                .read()
-                .lifecycle_rules
-                .catalog_transactions_until_checkpoint
-                .map_or(false, |interval| {
-                    transaction.revision_counter() % interval.get() == 0
-                });
-            transaction
-                .commit(create_checkpoint)
-                .await
-                .context(TransactionError)?;
-        }
+            let stream: SendableRecordBatchStream = Box::pin(
+                streams::ReadFilterResultsStream::new(read_results, Arc::clone(&arrow_schema)),
+            );
 
-        // We know this chunk is ParquetFile type
-        let chunk = chunk.read();
-        Ok(DbChunk::parquet_file_snapshot(&chunk))
+            // catalog-level transaction for preservation layer
+            {
+                let mut transaction = catalog.open_transaction().await;
+
+                // Write this table data into the object store
+                //
+                // IMPORTANT: Writing needs to take place during a transaction, otherwise the background cleanup task might
+                //            delete the just written parquet parquet file. Furthermore, the parquet files contains
+                //            information about the transaction (like revision counter and UUID) that are only available
+                //            once the transaction has started.let metadata = IoxMetadata {
+                let metadata = IoxMetadata {
+                    transaction_revision_counter: transaction.revision_counter(),
+                    transaction_uuid: transaction.uuid(),
+                    table_name: addr.table_name.to_string(),
+                    partition_key: addr.partition_key.to_string(),
+                    chunk_id: addr.chunk_id,
+                };
+                let (path, parquet_metadata) = storage
+                    .write_to_object_store(
+                        addr.partition_key.to_string(),
+                        addr.chunk_id,
+                        table_name.to_string(),
+                        stream,
+                        metadata,
+                    )
+                    .await
+                    .context(WritingToObjectStore)?;
+
+                transaction
+                    .add_parquet(&path.into(), &parquet_metadata)
+                    .context(TransactionError)?;
+
+                let create_checkpoint = catalog_transactions_until_checkpoint
+                    .map_or(false, |interval| {
+                        transaction.revision_counter() % interval.get() == 0
+                    });
+
+                transaction
+                    .commit(create_checkpoint)
+                    .await
+                    .context(TransactionError)?;
+            }
+
+            // We know this chunk is ParquetFile type
+            let chunk = chunk.read();
+            Ok(DbChunk::parquet_file_snapshot(&chunk))
+        };
+
+        Ok((tracker, fut.track(registration)))
     }
 
     /// Unload chunk from read buffer but keep it in object store
@@ -693,113 +731,23 @@ impl Db {
         partition_key: &str,
         chunk_id: u32,
     ) -> Result<Arc<DbChunk>> {
-        debug!(%table_name, %partition_key, %chunk_id, "unloading chunk from read buffer");
+        let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
+        let chunk = chunk.write();
+        Self::unload_read_buffer_impl(chunk)
+    }
 
-        // Get the chunk from the catalog
-        let chunk = self.chunk(table_name, partition_key, chunk_id)?;
-
-        // update the catalog to no longer use read buffer chunk if any
-        let mut chunk = chunk.write();
+    pub fn unload_read_buffer_impl(
+        mut chunk: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk<'_>>,
+    ) -> Result<Arc<DbChunk>> {
+        debug!(chunk=%chunk.addr(), "unloading chunk from read buffer");
 
         chunk
             .set_unload_from_read_buffer()
-            .context(LifecycleError {
-                partition_key,
-                table_name,
-                chunk_id,
-            })?;
+            .context(LifecycleError {})?;
 
-        debug!(%table_name, %partition_key, %chunk_id, "chunk marked UNLOADED from read buffer");
+        debug!(chunk=%chunk.addr(), "chunk marked UNLOADED from read buffer");
 
         Ok(DbChunk::snapshot(&chunk))
-    }
-
-    /// Spawns a task to perform
-    /// [`load_chunk_to_read_buffer`](Self::load_chunk_to_read_buffer)
-    pub fn load_chunk_to_read_buffer_in_background(
-        self: &Arc<Self>,
-        table_name: String,
-        partition_key: String,
-        chunk_id: u32,
-    ) -> TaskTracker<Job> {
-        let db_name = self.rules.read().name.clone();
-        let (tracker, registration) = self.jobs.register(Job::CloseChunk {
-            db_name: db_name.to_string(),
-            partition_key: partition_key.clone(),
-            table_name: table_name.clone(),
-            chunk_id,
-        });
-
-        let captured_registration = registration.clone();
-        let captured_db = Arc::clone(&self);
-        let task = async move {
-            debug!(%db_name, %table_name, %partition_key, %chunk_id, "background task loading chunk to read buffer");
-            let result = captured_db
-                .load_chunk_to_read_buffer(
-                    &table_name,
-                    &partition_key,
-                    chunk_id,
-                    &captured_registration,
-                )
-                .await;
-
-            if let Err(e) = result {
-                info!(%e, %db_name, %table_name, %partition_key, %chunk_id, "background task error loading read buffer chunk");
-                return Err(e);
-            }
-
-            debug!(%db_name, %table_name, %partition_key, %chunk_id, "background task completed loading chunk to read buffer");
-
-            Ok(())
-        };
-
-        tokio::spawn(task.track(registration));
-
-        tracker
-    }
-
-    /// Spawns a task to perform
-    /// [`write_chunk_to_object_store`](Self::write_chunk_to_object_store)
-    pub fn write_chunk_to_object_store_in_background(
-        self: &Arc<Self>,
-        table_name: String,
-        partition_key: String,
-        chunk_id: u32,
-    ) -> TaskTracker<Job> {
-        let db_name = self.rules.read().name.clone();
-        let (tracker, registration) = self.jobs.register(Job::WriteChunk {
-            db_name: db_name.to_string(),
-            partition_key: partition_key.clone(),
-            table_name: table_name.clone(),
-            chunk_id,
-        });
-
-        let captured_registration = registration.clone();
-        let captured_db = Arc::clone(&self);
-        let task = async move {
-            debug!(%db_name, %table_name, %partition_key, %chunk_id, "background task loading chunk to object store");
-            let result = captured_db
-                .write_chunk_to_object_store(
-                    &table_name,
-                    &partition_key,
-                    chunk_id,
-                    &captured_registration,
-                )
-                .await;
-
-            if let Err(e) = result {
-                info!(%e, %db_name, %table_name, %partition_key, %chunk_id, "background task error loading object store chunk");
-                return Err(e);
-            }
-
-            debug!(%db_name, %table_name, %partition_key, %chunk_id, "background task completed writing chunk to object store");
-
-            Ok(())
-        };
-
-        tokio::spawn(task.track(registration));
-
-        tracker
     }
 
     /// Return chunk summary information for all chunks in the specified
@@ -864,9 +812,7 @@ impl Db {
         tokio::join!(
             // lifecycle policy loop
             async {
-                // TODO: Remove this newtype hack
-                let arc_db = lifecycle::ArcDb(Arc::clone(&self));
-                let mut policy = ::lifecycle::LifecyclePolicy::new(Arc::new(arc_db));
+                let mut policy = ::lifecycle::LifecyclePolicy::new(&self);
 
                 while !shutdown.is_cancelled() {
                     self.worker_iterations_lifecycle
@@ -1653,7 +1599,7 @@ mod tests {
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1143)
             .unwrap();
 
-        db.load_chunk_to_read_buffer("cpu", "1970-01-01T00", 0, &Default::default())
+        db.load_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
             .await
             .unwrap();
 
@@ -1674,7 +1620,7 @@ mod tests {
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0).unwrap();
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1616).unwrap();
 
-        db.write_chunk_to_object_store("cpu", "1970-01-01T00", 0, &Default::default())
+        db.write_chunk_to_object_store("cpu", "1970-01-01T00", 0)
             .await
             .unwrap();
 
@@ -1823,7 +1769,7 @@ mod tests {
             .unwrap()
             .unwrap();
         let rb_chunk = db
-            .load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id(), &Default::default())
+            .load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
             .await
             .unwrap();
 
@@ -1916,7 +1862,7 @@ mod tests {
         let mb = collect_read_filter(&mb_chunk).await;
 
         let rb_chunk = db
-            .load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id(), &Default::default())
+            .load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
             .await
             .unwrap();
 
@@ -2026,12 +1972,12 @@ mod tests {
             .unwrap();
         // Move that MB chunk to RB chunk and drop it from MB
         let rb_chunk = db
-            .load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id(), &Default::default())
+            .load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
             .await
             .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
         let pq_chunk = db
-            .write_chunk_to_object_store("cpu", partition_key, mb_chunk.id(), &Default::default())
+            .write_chunk_to_object_store("cpu", partition_key, mb_chunk.id())
             .await
             .unwrap();
 
@@ -2125,12 +2071,12 @@ mod tests {
             .unwrap();
         // Move that MB chunk to RB chunk and drop it from MB
         let rb_chunk = db
-            .load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id(), &Default::default())
+            .load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
             .await
             .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
         let pq_chunk = db
-            .write_chunk_to_object_store("cpu", partition_key, mb_chunk.id(), &Default::default())
+            .write_chunk_to_object_store("cpu", partition_key, mb_chunk.id())
             .await
             .unwrap();
 
@@ -2396,7 +2342,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        db.load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id(), &Default::default())
+        db.load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
             .await
             .unwrap();
 
@@ -2547,11 +2493,11 @@ mod tests {
 
         print!("Partitions: {:?}", db.partition_keys().unwrap());
 
-        db.load_chunk_to_read_buffer("cpu", "1970-01-01T00", 0, &Default::default())
+        db.load_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
             .await
             .unwrap();
 
-        db.write_chunk_to_object_store("cpu", "1970-01-01T00", 0, &Default::default())
+        db.write_chunk_to_object_store("cpu", "1970-01-01T00", 0)
             .await
             .unwrap();
 
@@ -2649,12 +2595,12 @@ mod tests {
         write_lp(&db, "mem foo=1 1");
 
         // load a chunk to the read buffer
-        db.load_chunk_to_read_buffer("cpu", "1970-01-01T00", chunk_id, &Default::default())
+        db.load_chunk_to_read_buffer("cpu", "1970-01-01T00", chunk_id)
             .await
             .unwrap();
 
         // write the read buffer chunk to object store
-        db.write_chunk_to_object_store("cpu", "1970-01-01T00", chunk_id, &Default::default())
+        db.write_chunk_to_object_store("cpu", "1970-01-01T00", chunk_id)
             .await
             .unwrap();
 
@@ -2837,30 +2783,15 @@ mod tests {
             .unwrap()
             .unwrap();
         let rb_chunk = db
-            .load_chunk_to_read_buffer(
-                table_name,
-                partition_key,
-                mb_chunk.id(),
-                &Default::default(),
-            )
+            .load_chunk_to_read_buffer(table_name, partition_key, mb_chunk.id())
             .await
             .unwrap();
         assert_eq!(mb_chunk.id(), rb_chunk.id());
 
         // RB => OS
-        let task = db.write_chunk_to_object_store_in_background(
-            table_name.to_string(),
-            partition_key.to_string(),
-            rb_chunk.id(),
-        );
-        let t_start = std::time::Instant::now();
-        while !task.is_complete() {
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            assert!(
-                std::time::Instant::now() - t_start < std::time::Duration::from_secs(10),
-                "task deadline exceeded"
-            );
-        }
+        db.write_chunk_to_object_store(table_name, partition_key, 0)
+            .await
+            .unwrap();
 
         // we should have chunks in both the read buffer only
         assert!(mutable_chunk_ids(&db, partition_key).is_empty());
@@ -3337,12 +3268,12 @@ mod tests {
             mb_chunk.id()
         };
         // Move that MB chunk to RB chunk and drop it from MB
-        db.load_chunk_to_read_buffer(table_name, partition_key, chunk_id, &Default::default())
+        db.load_chunk_to_read_buffer(table_name, partition_key, chunk_id)
             .await
             .unwrap();
 
         // Write the RB chunk to Object Store but keep it in RB
-        db.write_chunk_to_object_store(table_name, partition_key, chunk_id, &Default::default())
+        db.write_chunk_to_object_store(table_name, partition_key, chunk_id)
             .await
             .unwrap();
 

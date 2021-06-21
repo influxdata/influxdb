@@ -72,7 +72,7 @@ impl DbSetup for NoData {
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
         // Now load the closed chunk into the RB
-        db.load_chunk_to_read_buffer(table_name, partition_key, 0, &Default::default())
+        db.load_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
         assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
@@ -110,7 +110,7 @@ impl DbSetup for NoData {
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
         // Now load the closed chunk into the RB
-        db.load_chunk_to_read_buffer(table_name, partition_key, 0, &Default::default())
+        db.load_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
         assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
@@ -118,7 +118,7 @@ impl DbSetup for NoData {
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
         // Now write the data in RB to object store but keep it in RB
-        db.write_chunk_to_object_store("cpu", partition_key, 0, &Default::default())
+        db.write_chunk_to_object_store("cpu", partition_key, 0)
             .await
             .unwrap();
         // it should be the same chunk!
@@ -309,7 +309,7 @@ impl DbSetup for TwoMeasurementsManyFieldsTwoChunks {
         ];
         write_lp(&db, &lp_lines.join("\n"));
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.load_chunk_to_read_buffer("h2o", partition_key, 0, &Default::default())
+        db.load_chunk_to_read_buffer("h2o", partition_key, 0)
             .await
             .unwrap();
 
@@ -344,7 +344,7 @@ impl DbSetup for OneMeasurementTwoChunksDifferentTagSet {
         ];
         write_lp(&db, &lp_lines.join("\n"));
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.load_chunk_to_read_buffer("h2o", partition_key, 0, &Default::default())
+        db.load_chunk_to_read_buffer("h2o", partition_key, 0)
             .await
             .unwrap();
 
@@ -355,7 +355,7 @@ impl DbSetup for OneMeasurementTwoChunksDifferentTagSet {
         ];
         write_lp(&db, &lp_lines.join("\n"));
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.load_chunk_to_read_buffer("h2o", partition_key, 1, &Default::default())
+        db.load_chunk_to_read_buffer("h2o", partition_key, 1)
             .await
             .unwrap();
 
@@ -387,7 +387,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         ];
         write_lp(&db, &lp_lines.join("\n"));
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.load_chunk_to_read_buffer("h2o", partition_key, 0, &Default::default())
+        db.load_chunk_to_read_buffer("h2o", partition_key, 0)
             .await
             .unwrap();
 
@@ -404,7 +404,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         ];
         write_lp(&db, &lp_lines.join("\n"));
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.load_chunk_to_read_buffer("h2o", partition_key, 1, &Default::default())
+        db.load_chunk_to_read_buffer("h2o", partition_key, 1)
             .await
             .unwrap();
 
@@ -421,7 +421,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         ];
         write_lp(&db, &lp_lines.join("\n"));
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.load_chunk_to_read_buffer("h2o", partition_key, 2, &Default::default())
+        db.load_chunk_to_read_buffer("h2o", partition_key, 2)
             .await
             .unwrap();
 
@@ -438,7 +438,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         ];
         write_lp(&db, &lp_lines.join("\n"));
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.load_chunk_to_read_buffer("h2o", partition_key, 3, &Default::default())
+        db.load_chunk_to_read_buffer("h2o", partition_key, 3)
             .await
             .unwrap();
 
@@ -472,24 +472,18 @@ impl DbSetup for TwoMeasurementsManyFieldsLifecycle {
         // Use a background task to do the work note when I used
         // TaskTracker::join, it ended up hanging for reasons I don't
         // now
-        let job = db.load_chunk_to_read_buffer_in_background(
-            "h2o".to_string(),
-            partition_key.to_string(),
-            0,
-        );
-        job.join().await;
+        db.load_chunk_to_read_buffer("h2o", partition_key, 0)
+            .await
+            .unwrap();
 
         write_lp(
             &db,
             &vec!["h2o,state=CA,city=Boston other_temp=72.4 350"].join("\n"),
         );
 
-        let job = db.write_chunk_to_object_store_in_background(
-            "h2o".to_string(),
-            partition_key.to_string(),
-            0,
-        );
-        job.join().await;
+        db.write_chunk_to_object_store("h2o", partition_key, 0)
+            .await
+            .unwrap();
 
         let db =
             std::sync::Arc::try_unwrap(db).expect("All background handles to db should be done");
@@ -584,7 +578,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db.rollover_partition(&table_name, partition_key)
             .await
             .unwrap();
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0, &Default::default())
+        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
     }
@@ -600,11 +594,11 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db.rollover_partition(&table_name, partition_key)
             .await
             .unwrap();
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0, &Default::default())
+        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
 
-        db.write_chunk_to_object_store(&table_name, partition_key, 0, &Default::default())
+        db.write_chunk_to_object_store(&table_name, partition_key, 0)
             .await
             .unwrap();
     }
@@ -620,10 +614,10 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db.rollover_partition(&table_name, partition_key)
             .await
             .unwrap();
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0, &Default::default())
+        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
-        db.write_chunk_to_object_store(&table_name, partition_key, 0, &Default::default())
+        db.write_chunk_to_object_store(&table_name, partition_key, 0)
             .await
             .unwrap();
         db.unload_read_buffer(&table_name, partition_key, 0)
@@ -677,7 +671,7 @@ pub async fn make_two_chunk_scenarios(
         db.rollover_partition(&table_name, partition_key)
             .await
             .unwrap();
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0, &Default::default())
+        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
     }
@@ -701,11 +695,11 @@ pub async fn make_two_chunk_scenarios(
             .await
             .unwrap();
 
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0, &Default::default())
+        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
 
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 1, &Default::default())
+        db.load_chunk_to_read_buffer(&table_name, partition_key, 1)
             .await
             .unwrap();
     }
@@ -728,19 +722,19 @@ pub async fn make_two_chunk_scenarios(
             .await
             .unwrap();
 
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0, &Default::default())
+        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
 
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 1, &Default::default())
+        db.load_chunk_to_read_buffer(&table_name, partition_key, 1)
             .await
             .unwrap();
 
-        db.write_chunk_to_object_store(&table_name, partition_key, 0, &Default::default())
+        db.write_chunk_to_object_store(&table_name, partition_key, 0)
             .await
             .unwrap();
 
-        db.write_chunk_to_object_store(&table_name, partition_key, 1, &Default::default())
+        db.write_chunk_to_object_store(&table_name, partition_key, 1)
             .await
             .unwrap();
     }
@@ -763,19 +757,19 @@ pub async fn make_two_chunk_scenarios(
             .await
             .unwrap();
 
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0, &Default::default())
+        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
 
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 1, &Default::default())
+        db.load_chunk_to_read_buffer(&table_name, partition_key, 1)
             .await
             .unwrap();
 
-        db.write_chunk_to_object_store(&table_name, partition_key, 0, &Default::default())
+        db.write_chunk_to_object_store(&table_name, partition_key, 0)
             .await
             .unwrap();
 
-        db.write_chunk_to_object_store(&table_name, partition_key, 1, &Default::default())
+        db.write_chunk_to_object_store(&table_name, partition_key, 1)
             .await
             .unwrap();
         db.unload_read_buffer(&table_name, partition_key, 0)
@@ -798,10 +792,10 @@ pub async fn rollover_and_load(db: &Db, partition_key: &str, table_name: &str) {
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
-    db.load_chunk_to_read_buffer(table_name, partition_key, 0, &Default::default())
+    db.load_chunk_to_read_buffer(table_name, partition_key, 0)
         .await
         .unwrap();
-    db.write_chunk_to_object_store(table_name, partition_key, 0, &Default::default())
+    db.write_chunk_to_object_store(table_name, partition_key, 0)
         .await
         .unwrap();
 }
@@ -818,7 +812,7 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
         db.rollover_partition(&table_name, partition_key)
             .await
             .unwrap();
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0, &Default::default())
+        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
     }
@@ -834,10 +828,10 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
         db.rollover_partition(&table_name, partition_key)
             .await
             .unwrap();
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0, &Default::default())
+        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
-        db.write_chunk_to_object_store(&table_name, partition_key, 0, &Default::default())
+        db.write_chunk_to_object_store(&table_name, partition_key, 0)
             .await
             .unwrap();
         db.unload_read_buffer(&table_name, partition_key, 0)
