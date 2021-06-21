@@ -1751,7 +1751,7 @@ mod tests {
             "+------+--------+-------------------------------+------+",
         ];
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
-        assert_batches_eq!(expected, &batches);
+        assert_batches_sorted_eq!(expected, &batches);
     }
 
     #[tokio::test]

@@ -1157,7 +1157,7 @@ mod tests {
         assert_eq!(get_content_type(&response), "application/json");
 
         // Note two json records: one record on each line
-        let res = r#"[{"bottom_degrees":50.4,"location":"santa_monica","state":"CA","surface_degrees":65.2,"time":"2021-04-01 14:10:24"},{"location":"Boston","state":"MA","surface_degrees":50.2,"time":"2021-04-01 14:10:24"}]"#;
+        let res = r#"[{"location":"Boston","state":"MA","surface_degrees":50.2,"time":"2021-04-01 14:10:24"},{"bottom_degrees":50.4,"location":"santa_monica","state":"CA","surface_degrees":65.2,"time":"2021-04-01 14:10:24"}]"#;
         check_response("query", response, StatusCode::OK, Some(res)).await;
     }
 

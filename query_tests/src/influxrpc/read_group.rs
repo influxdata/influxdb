@@ -353,11 +353,11 @@ impl DbSetup for MeasurementForMin {
 
         let lp_lines1 = vec![
             "h2o,state=MA,city=Cambridge f=8.0,i=8i,b=false,s=\"c\" 1000",
-            "h2o,state=MA,city=Cambridge f=7.0,i=7i,b=false,s=\"a\" 2000",
+            "h2o,state=MA,city=Cambridge f=7.0,i=7i,b=true,s=\"a\" 2000",
         ];
         let lp_lines2 = vec![
             "h2o,state=MA,city=Cambridge f=6.0,i=6i,b=true,s=\"z\" 3000",
-            "h2o,state=MA,city=Cambridge f=5.0,i=5i,b=true,s=\"c\" 4000",
+            "h2o,state=MA,city=Cambridge f=5.0,i=5i,b=false,s=\"c\" 4000",
         ];
 
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await

@@ -262,7 +262,6 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
             Arc::new(scan_schema),
             chunks,
             predicate,
-            false,
         )?;
 
         Ok(plan)
@@ -362,21 +361,9 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         output_schema: Arc<Schema>,
         chunks: Vec<Arc<C>>,
         predicate: Predicate,
-        for_testing: bool, // TODO: remove this parameter when #1682 and #1683 are done
     ) -> Result<Arc<dyn ExecutionPlan>> {
         // find overlapped chunks and put them into the right group
         self.split_overlapped_chunks(chunks.to_vec())?;
-
-        // TEMP until the rest of this module's code is complete:
-        // merge all plans into the same
-        if !for_testing {
-            self.no_duplicates_chunks
-                .append(&mut self.in_chunk_duplicates_chunks);
-            for mut group in &mut self.overlapped_chunks_set {
-                self.no_duplicates_chunks.append(&mut group);
-            }
-            self.overlapped_chunks_set.clear();
-        }
 
         // Building plans
         let mut plans = vec![];
@@ -1331,13 +1318,8 @@ mod test {
         assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
         let mut deduplicator = Deduplicater::new();
-        let plan = deduplicator.build_scan_plan(
-            Arc::from("t"),
-            schema,
-            chunks,
-            Predicate::default(),
-            true,
-        );
+        let plan =
+            deduplicator.build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default());
         let batch = collect(plan.unwrap()).await.unwrap();
         // No duplicates so no sort at all. The data will stay in their original order
         let expected = vec![
@@ -1390,13 +1372,8 @@ mod test {
         assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
         let mut deduplicator = Deduplicater::new();
-        let plan = deduplicator.build_scan_plan(
-            Arc::from("t"),
-            schema,
-            chunks,
-            Predicate::default(),
-            true,
-        );
+        let plan =
+            deduplicator.build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default());
         let batch = collect(plan.unwrap()).await.unwrap();
         // Data must be sorted and duplicates removed
         let expected = vec![
@@ -1460,7 +1437,6 @@ mod test {
             Arc::new(schema),
             chunks,
             Predicate::default(),
-            true,
         );
         let batch = collect(plan.unwrap()).await.unwrap();
 
@@ -1529,13 +1505,8 @@ mod test {
         assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
         let mut deduplicator = Deduplicater::new();
-        let plan = deduplicator.build_scan_plan(
-            Arc::from("t"),
-            schema,
-            chunks,
-            Predicate::default(),
-            true,
-        );
+        let plan =
+            deduplicator.build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default());
         let batch = collect(plan.unwrap()).await.unwrap();
         // Two overlapped chunks will be sort merged with dupplicates removed
         let expected = vec![
@@ -1630,15 +1601,10 @@ mod test {
         assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
         let mut deduplicator = Deduplicater::new();
-        let plan = deduplicator.build_scan_plan(
-            Arc::from("t"),
-            schema,
-            chunks,
-            Predicate::default(),
-            true,
-        );
+        let plan =
+            deduplicator.build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default());
         let batch = collect(plan.unwrap()).await.unwrap();
-        // Final data will be partially sorted and duplicates removed. Detailed:
+        // Final data is partially sorted with duplicates removed. Detailed:
         //   . chunk1 and chunk2 will be sorted merged and deduplicated (rows 8-32)
         //   . chunk3 will stay in its original (rows 1-3)
         //   . chunk4 will be sorted and deduplicated (rows 4-7)
