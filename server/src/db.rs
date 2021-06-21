@@ -553,7 +553,7 @@ impl Db {
             .register_domain_with_labels("read_buffer", db.metric_labels.clone());
 
         let mut rb_chunk = RBChunk::new(
-            table_name,
+            &table_summary.name,
             ReadBufferChunkMetrics::new(
                 &metrics,
                 db.preserved_catalog
@@ -667,6 +667,7 @@ impl Db {
 
             let arrow_schema: ArrowSchemaRef = rb_chunk
                 .read_filter_table_schema(table_name, Selection::All)
+                .expect("read buffer is infallible")
                 .into();
 
             let stream: SendableRecordBatchStream = Box::pin(
