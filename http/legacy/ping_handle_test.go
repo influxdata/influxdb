@@ -25,7 +25,7 @@ func TestPingHandler(t *testing.T) {
 			wants: wants{
 				statusCode: http.StatusNoContent,
 				version:    "2.0.0",
-				build:      "oss",
+				build:      "oss2",
 			},
 		},
 		{
@@ -35,7 +35,7 @@ func TestPingHandler(t *testing.T) {
 			wants: wants{
 				statusCode: http.StatusNoContent,
 				version:    "2.0.0",
-				build:      "oss",
+				build:      "oss2",
 			},
 		},
 	}
