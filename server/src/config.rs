@@ -239,23 +239,31 @@ impl Config {
         exec: Arc<Executor>,
         preserved_catalog: PreservedCatalog,
         catalog: Catalog,
-    ) {
+    ) -> Result<()> {
         let mut state = self.state.write().expect("mutex poisoned");
         let name = rules.name.clone();
 
         if self.shutdown.is_cancelled() {
             error!("server is shutting down");
-            return;
+            return Ok(());
         }
 
         // Right now, `KafkaBuffer` is the only production implementation of the `WriteBuffer`
         // trait, so always use `KafkaBuffer` when there is a write buffer connection string
         // specified. If/when there are other kinds of write buffers, additional configuration will
         // be needed to determine what kind of write buffer to use here.
-        let write_buffer = rules
-            .write_buffer_connection_string
-            .as_ref()
-            .map(|conn| Arc::new(KafkaBuffer::new(conn, &name)) as _);
+        let write_buffer = match rules.write_buffer_connection_string.as_ref() {
+            Some(conn) => {
+                let kafka_buffer = KafkaBuffer::new(conn, &name).map_err(|kafka_error| {
+                    Error::CreatingWriteBufferForWriting {
+                        source: Box::new(kafka_error) as _,
+                    }
+                })?;
+
+                Some(Arc::new(kafka_buffer) as _)
+            }
+            None => None,
+        };
 
         let db = Arc::new(Db::new(
             rules,
@@ -293,6 +301,7 @@ impl Config {
             .is_none());
         state.reservations.remove(&name);
         state.uninitialized_databases.remove(&name);
+        Ok(())
     }
 
     /// Creates a database in an uninitialized state but remembers rules that are supposed to use for the database.
@@ -472,7 +481,7 @@ impl<'a> CreateDatabaseHandle<'a> {
             exec,
             preserved_catalog,
             catalog,
-        );
+        )?;
 
         Ok(())
     }
@@ -564,7 +573,7 @@ impl<'a> RecoverDatabaseHandle<'a> {
             exec,
             preserved_catalog,
             catalog,
-        );
+        )?;
 
         Ok(())
     }

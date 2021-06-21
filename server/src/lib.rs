@@ -207,6 +207,9 @@ pub enum Error {
 
     #[snafu(display("cannot get id: {}", source))]
     GetIdError { source: crate::init::Error },
+
+    #[snafu(display("cannot create write buffer for writing: {}", source))]
+    CreatingWriteBufferForWriting { source: DatabaseError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

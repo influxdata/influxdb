@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use entry::{Entry, Sequence};
 use rdkafka::{
+    error::KafkaError,
     producer::{FutureProducer, FutureRecord},
     ClientConfig,
 };
@@ -65,7 +66,10 @@ impl WriteBuffer for KafkaBuffer {
 }
 
 impl KafkaBuffer {
-    pub fn new(conn: impl Into<String>, database_name: impl Into<String>) -> Self {
+    pub fn new(
+        conn: impl Into<String>,
+        database_name: impl Into<String>,
+    ) -> Result<Self, KafkaError> {
         let conn = conn.into();
         let database_name = database_name.into();
 
@@ -73,13 +77,13 @@ impl KafkaBuffer {
         cfg.set("bootstrap.servers", &conn);
         cfg.set("message.timeout.ms", "5000");
 
-        let producer: FutureProducer = cfg.create().unwrap();
+        let producer: FutureProducer = cfg.create()?;
 
-        Self {
+        Ok(Self {
             conn,
             database_name,
             producer,
-        }
+        })
     }
 }
 
