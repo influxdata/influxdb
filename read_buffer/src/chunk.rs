@@ -1,11 +1,10 @@
 use std::{
-    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet},
     convert::TryFrom,
 };
 
 use metrics::{Gauge, GaugeValue, KeyValue};
-use parking_lot::RwLock;
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 
 use arrow::record_batch::RecordBatch;
 use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
@@ -17,8 +16,6 @@ use crate::schema::{AggregateType, ResultSchema};
 use crate::table;
 use crate::table::Table;
 use crate::{column::Statistics, row_group::RowGroup};
-
-type TableName = String;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -43,103 +40,21 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// A `Chunk` comprises a collection of `Tables` where every table must have a
-/// unique identifier (name).
+/// A `Chunk` is a horizontal partition of data for a single table.
 pub struct Chunk {
     // All metrics for the chunk.
     metrics: ChunkMetrics,
 
-    // A chunk's data is held in a collection of mutable tables and
-    // mutable meta data (`TableData`).
-    //
-    // Concurrent access to the `TableData` is managed via an `RwLock`, which is
-    // taken in the following circumstances:
-    //
-    //    * A lock is needed when updating a table with a new row group. It is held as long as it
-    //      takes to update the table and update the chunk's meta-data. This is not long.
-    //
-    //    * A lock is needed when removing an entire table. It is held as long as it takes to
-    //      remove the table from the `TableData`'s map, and re-construct new meta-data. This is
-    //      not long.
-    //
-    //    * A read lock is needed for all read operations over chunk data (tables). However, the
-    //      read lock is only taken for as long as it takes to determine which table data is needed
-    //      to perform the read, shallow-clone that data (via Arcs), and construct an iterator for
-    //      executing that operation. Once the iterator is returned to the caller, the lock is
-    //      freed. Therefore, read execution against the chunk is mostly lock-free.
-    //
-    //    TODO(edd): `table_names` is currently one exception to execution that is mostly
-    //               lock-free. At the moment the read-lock is held for the duration of the
-    //               call. Whilst this execution will probably be in the order of micro-seconds
-    //               I plan to improve this situation in due course.
-    pub(crate) chunk_data: RwLock<TableData>,
-}
-
-/// Tie data and meta-data together so that they can be wrapped in RWLock.
-pub(crate) struct TableData {
-    /// Total number of rows across all tables
-    rows: u64,
-
-    /// Total number of row groups across all tables in the chunk.
-    row_groups: usize,
-
-    /// The set of tables within this chunk. Each table is identified by a
-    /// measurement name.
-    data: BTreeMap<TableName, Table>,
-}
-
-impl Default for TableData {
-    fn default() -> Self {
-        Self {
-            rows: 0,
-            row_groups: 0,
-            data: BTreeMap::new(),
-        }
-    }
-}
-
-impl TableData {
-    // Returns an estimation of the total size of the contents of the tables
-    // stored under `TableData` in memory.
-    fn size(&self) -> usize {
-        self.data
-            .iter()
-            .map(|(k, table)| k.len() + table.size() as usize)
-            .sum::<usize>()
-    }
-
-    // Returns an estimation of the total size of the contents of the tables for
-    // the chunk if all data was uncompressed and stored contiguously.
-    // `include_nulls` determines if NULL values should be ignored or included
-    // in the calculation.
-    fn size_raw(&self, include_nulls: bool) -> usize {
-        self.data
-            .iter()
-            .map(|(_, table)| table.size_raw(include_nulls))
-            .sum::<usize>()
-    }
+    // The table associated with the chunk.
+    pub(crate) table: Table,
 }
 
 impl Chunk {
     /// Initialises a new `Chunk` with the associated chunk ID.
-    pub fn new(metrics: ChunkMetrics) -> Self {
+    pub fn new(table_name: impl Into<String>, metrics: ChunkMetrics) -> Self {
         Self {
-            chunk_data: RwLock::new(TableData::default()),
             metrics,
-        }
-    }
-
-    /// Initialises a new `Chunk` seeded with the provided `Table`.
-    ///
-    /// TODO(edd): potentially deprecate.
-    pub(crate) fn new_with_table(table: Table, metrics: ChunkMetrics) -> Self {
-        Self {
-            chunk_data: RwLock::new(TableData {
-                rows: table.rows(),
-                row_groups: table.row_groups(),
-                data: vec![(table.name().to_owned(), table)].into_iter().collect(),
-            }),
-            metrics,
+            table: Table::new(table_name.into()),
         }
     }
 
@@ -151,21 +66,13 @@ impl Chunk {
     /// The total estimated size in bytes of this `Chunk` and all contained
     /// data.
     pub fn size(&self) -> usize {
-        let table_data = self.chunk_data.read();
-        Self::base_size() + table_data.size()
+        Self::base_size() + self.table.size()
     }
 
-    /// Return the estimated size for each column in the specific table.
+    /// Return the estimated size for each column in the table.
     /// Note there may be multiple entries for each column.
-    ///
-    /// If no such table exists in this chunk, an empty Vec is returned.
-    pub fn column_sizes(&self, table_name: &str) -> Vec<ChunkColumnSummary> {
-        let chunk_data = self.chunk_data.read();
-        chunk_data
-            .data
-            .get(table_name)
-            .map(|table| table.column_sizes())
-            .unwrap_or_default()
+    pub fn column_sizes(&self) -> Vec<ChunkColumnSummary> {
+        self.table.column_sizes()
     }
 
     /// The total estimated size in bytes of this `Chunk` and all contained
@@ -173,78 +80,40 @@ impl Chunk {
     /// vectors. `include_nulls` allows the caller to factor in NULL values or
     /// to ignore them.
     pub fn size_raw(&self, include_nulls: bool) -> usize {
-        let table_data = self.chunk_data.read();
-        table_data.size_raw(include_nulls)
+        self.table.size_raw(include_nulls)
     }
 
     /// The total number of rows in all row groups in all tables in this chunk.
     pub fn rows(&self) -> u64 {
-        self.chunk_data.read().rows
+        self.table.rows()
     }
 
     /// The total number of row groups in all tables in this chunk.
     pub(crate) fn row_groups(&self) -> usize {
-        self.chunk_data.read().row_groups
-    }
-
-    /// The total number of tables in this chunk.
-    pub(crate) fn tables(&self) -> usize {
-        self.chunk_data.read().data.len()
-    }
-
-    /// Returns true if the chunk contains data for this table.
-    pub fn has_table(&self, table_name: &str) -> bool {
-        self.chunk_data.read().data.contains_key(table_name)
-    }
-
-    /// Returns true if there are no tables under this chunk.
-    pub(crate) fn is_empty(&self) -> bool {
-        self.chunk_data.read().data.len() == 0
+        self.table.row_groups()
     }
 
     /// Add a row_group to a table in the chunk, updating all Chunk meta data.
-    ///
-    /// This operation locks the chunk for the duration of the call.
-    ///
-    /// TODO(edd): to be deprecated.
-    pub(crate) fn upsert_table_with_row_group(
-        &mut self,
-        table_name: impl Into<String>,
-        row_group: RowGroup,
-    ) {
-        let table_name = table_name.into();
+    pub(crate) fn upsert_table_with_row_group(&mut self, row_group: RowGroup) {
+        // track new row group statistics to update column-based metrics.
+        let storage_statistics = row_group.column_storage_statistics();
 
-        // Take write lock to modify chunk.
-        let mut chunk_data = self.chunk_data.write();
-
-        // update the meta-data for this chunk with contents of row group.
-        chunk_data.rows += row_group.rows() as u64;
-        chunk_data.row_groups += 1;
-
-        match chunk_data.data.entry(table_name.clone()) {
-            Entry::Occupied(mut table_entry) => {
-                let table = table_entry.get_mut();
-                table.add_row_group(row_group);
-            }
-            Entry::Vacant(table_entry) => {
-                // add a new table to this chunk.
-                table_entry.insert(Table::new(table_name, row_group));
-            }
-        };
+        self.table.add_row_group(row_group);
 
         // Get and set new size of chunk on memory tracker
-        let size = Self::base_size() + chunk_data.size();
-        self.metrics.memory_bytes.set(size)
+        let size = Self::base_size() + self.table.size();
+        self.metrics.memory_bytes.set(size);
+
+        // update column metrics associated with column storage
+        self.metrics
+            .update_column_storage_statistics(&storage_statistics);
     }
 
     /// Add a record batch of data to to a `Table` in the chunk.
     ///
-    /// The data is converted to a `RowGroup` outside of any locking on the
-    /// `Chunk` so the caller does not need to be concerned about the size of
-    /// the update. If the `Table` already exists then a new `RowGroup` will be
-    /// added to the `Table`. Otherwise a new `Table` with a single `RowGroup`
-    /// will be created.
-    pub fn upsert_table(&mut self, table_name: impl Into<String>, table_data: RecordBatch) {
+    /// The data is converted to a `RowGroup` outside of any locking so the
+    /// caller does not need to be concerned about the size of the update.
+    pub fn upsert_table(&mut self, _table_name: &str, table_data: RecordBatch) {
         // Approximate heap size of record batch.
         let mub_rb_size = table_data
             .columns()
@@ -257,7 +126,6 @@ impl Chunk {
         let now = std::time::Instant::now();
         let row_group = RowGroup::from(table_data);
         let compressing_took = now.elapsed();
-        let table_name = table_name.into();
 
         let rows = row_group.rows();
         let rg_size = row_group.size();
@@ -272,114 +140,50 @@ impl Chunk {
             "{:.2}%",
             (1.0 - (rg_size as f64 / raw_size_null as f64)) * 100.0
         );
+        let table_name = self.table.name();
 
         info!(%rows, %columns, rg_size, mub_rb_size, %mub_rb_comp, raw_size_null, raw_size_no_null, %raw_rb_comp, ?table_name, ?compressing_took, "row group added");
 
-        let mut chunk_data = self.chunk_data.write();
-
-        // update the meta-data for this chunk with contents of row group.
-        chunk_data.rows += row_group.rows() as u64;
-        chunk_data.row_groups += 1;
-
-        // track new row group statistics to update column-based metrics.
-        let storage_statistics = row_group.column_storage_statistics();
-
-        // create a new table if one doesn't exist, or add the table data to
-        // the existing table.
-        match chunk_data.data.entry(table_name.clone()) {
-            Entry::Occupied(mut table_entry) => {
-                let table = table_entry.get_mut();
-                table.add_row_group(row_group);
-            }
-            Entry::Vacant(table_entry) => {
-                // add a new table to this chunk.
-                table_entry.insert(Table::new(table_name, row_group));
-            }
-        };
-
-        // Get and set new size of chunk on memory tracker
-        let size = Self::base_size() + chunk_data.size();
-        self.metrics.memory_bytes.set(size);
-
-        // update column metrics associated with column storage
-        std::mem::drop(chunk_data); // drop write lock
-        self.metrics
-            .update_column_storage_statistics(&storage_statistics);
-    }
-
-    /// Removes the table specified by `name` along with all of its contained
-    /// data. Data may not be freed until all concurrent read operations against
-    /// the specified table have finished.
-    ///
-    /// Dropping a table that does not exist is effectively an no-op.
-    pub(crate) fn drop_table(&mut self, name: &str) {
-        let mut chunk_data = self.chunk_data.write();
-
-        // Remove table and update chunk meta-data if table exists.
-        if let Some(table) = chunk_data.data.remove(name) {
-            chunk_data.rows -= table.rows();
-            chunk_data.row_groups -= table.row_groups();
-        }
+        self.upsert_table_with_row_group(row_group)
     }
 
     //
     // Methods for executing queries.
     //
 
-    /// Returns selected data for the specified columns in the provided table.
+    /// Returns selected data for the specified columns.
     ///
     /// Results may be filtered by conjunctive predicates.
-    /// The `ReadBuffer` will optimally prune columns and tables to improve
+    /// The `ReadBuffer` will optimally prune columns and row groups to improve
     /// execution where possible.
     ///
     /// `read_filter` return an iterator that will emit record batches for all
     /// row groups help under the provided chunks.
     ///
-    /// `read_filter` is lazy - it does not execute against the next chunk until
-    /// the results for the previous one have been emitted.
-    ///
-    /// Returns an error if `table_name` does not exist.
+    /// `read_filter` is lazy - it does not execute against the next row group
+    /// until the results for the previous one have been emitted.
     pub fn read_filter(
         &self,
-        table_name: &str,
+        _table_name: &str,
         predicate: Predicate,
         select_columns: Selection<'_>,
-    ) -> Result<table::ReadFilterResults, Error> {
-        // read lock on chunk.
-        let chunk_data = self.chunk_data.read();
-
-        let table = chunk_data
-            .data
-            .get(table_name)
-            .context(TableNotFound { table_name })?;
-
-        Ok(table.read_filter(&select_columns, &predicate))
+    ) -> table::ReadFilterResults {
+        self.table.read_filter(&select_columns, &predicate)
     }
 
     /// Returns an iterable collection of data in group columns and aggregate
     /// columns, optionally filtered by the provided predicate. Results are
-    /// merged across all row groups within the returned table.
-    ///
-    /// Returns an error if the specified table does not exist.
+    /// merged across all row groups.
     ///
     /// Note: `read_aggregate` currently only supports grouping on "tag"
     /// columns.
     pub(crate) fn read_aggregate(
         &self,
-        table_name: &str,
         predicate: Predicate,
         group_columns: &Selection<'_>,
         aggregates: &[(ColumnName<'_>, AggregateType)],
     ) -> Result<table::ReadAggregateResults> {
-        // read lock on chunk.
-        let chunk_data = self.chunk_data.read();
-
-        let table = chunk_data
-            .data
-            .get(table_name)
-            .context(TableNotFound { table_name })?;
-
-        table
+        self.table
             .read_aggregate(predicate, group_columns, aggregates)
             .context(TableError)
     }
@@ -393,76 +197,37 @@ impl Chunk {
     ///
     /// If the provided table does not exist then `could_pass_predicate` returns
     /// `false`.
-    pub fn could_pass_predicate(&self, table_name: &str, predicate: Predicate) -> bool {
-        // read lock on chunk.
-        let chunk_data = self.chunk_data.read();
-
-        match chunk_data.data.get(table_name) {
-            Some(table) => table.could_pass_predicate(&predicate),
-            None => false,
-        }
+    pub fn could_pass_predicate(&self, predicate: Predicate) -> bool {
+        self.table.could_pass_predicate(&predicate)
     }
 
     /// Return table summaries or all tables in this chunk.
     /// Each table will be represented exactly once.
+    ///
+    /// TODO(edd): consider deprecating or changing to return information about
+    /// the physical layout of the data in the chunk.
     pub fn table_summaries(&self) -> Vec<TableSummary> {
-        // read lock on chunk.
-        let chunk_data = self.chunk_data.read();
-
-        chunk_data
-            .data
-            .values()
-            .map(|table| table.table_summary())
-            .collect()
-    }
-
-    /// A helper method for determining the time-range associated with the
-    /// specified table.
-    ///
-    /// A table's schema need not contain a column representing the time,
-    /// however any table that represents data using the InfluxDB model does
-    /// contain a column that represents the timestamp associated with each
-    /// row.
-    ///
-    /// `table_time_range` will return the min and max values for that column
-    /// if the table is using the InfluxDB data-model, otherwise it will return
-    /// `None`. An error will be returned if the table does not exist.
-    pub fn table_time_range(&self, table_name: &str) -> Result<Option<(i64, i64)>> {
-        // read lock on chunk.
-        let chunk_data = self.chunk_data.read();
-
-        let table = chunk_data
-            .data
-            .get(table_name)
-            .context(TableNotFound { table_name })?;
-
-        Ok(table.time_range())
+        vec![self.table.table_summary()]
     }
 
     /// Returns a schema object for a `read_filter` operation using the provided
     /// column selection. An error is returned if the specified columns do not
     /// exist.
+    ///
+    /// TODO: https://github.com/influxdata/influxdb_iox/issues/1717
     pub fn read_filter_table_schema(
         &self,
-        table_name: &str,
+        _table_name: &str,
         columns: Selection<'_>,
     ) -> Result<Schema> {
-        // read lock on chunk.
-        let chunk_data = self.chunk_data.read();
-
-        let table = chunk_data
-            .data
-            .get(table_name)
-            .context(TableNotFound { table_name })?;
-
         // Validate columns exist in table.
-        let table_meta = table.meta();
+        let table_meta = self.table.meta();
         if let Selection::Some(cols) = columns {
             for column_name in cols {
                 if !table_meta.has_column(column_name) {
                     return ColumnDoesNotExist {
                         column_name: column_name.to_string(),
-                        table_name: table_name.to_string(),
+                        table_name: self.table.name().to_string(),
                     }
                     .fail();
                 }
@@ -480,51 +245,25 @@ impl Chunk {
         .context(TableSchemaError)
     }
 
-    /// A helper method for retrieving all table names for the `Chunk`.
-    pub fn all_table_names(&self, skip_table_names: &BTreeSet<String>) -> BTreeSet<String> {
-        self.table_names(&Predicate::default(), skip_table_names)
-    }
-
     /// Returns the distinct set of table names that contain data satisfying the
     /// provided predicate.
     ///
     /// `skip_table_names` can be used to provide a set of table names to
     /// skip, typically because they're already included in results from other
     /// chunks.
+    ///
+    /// TODO(edd) refactor this into `satisfies_predicate(...) -> bool` for
+    /// single table use. https://github.com/influxdata/influxdb_iox/issues/1716
     pub fn table_names(
         &self,
         predicate: &Predicate,
-        skip_table_names: &BTreeSet<String>,
+        _skip_table_names: &BTreeSet<String>,
     ) -> BTreeSet<String> {
-        // read lock on chunk.
-        let chunk_data = self.chunk_data.read();
-
-        if predicate.is_empty() {
-            return chunk_data
-                .data
-                .keys()
-                .filter(|&name| !skip_table_names.contains(name))
-                .cloned()
-                .collect::<BTreeSet<_>>();
+        let mut result = BTreeSet::new();
+        if (predicate.is_empty() && self.rows() > 0) || self.table.satisfies_predicate(predicate) {
+            result.insert(self.table.name().to_string());
         }
-
-        // TODO(edd): potential contention. The read lock is held on the chunk
-        // for the duration of determining if its table satisfies the predicate.
-        // This may be expensive in pathological cases. This can be improved
-        // by releasing the lock before doing the execution.
-        chunk_data
-            .data
-            .iter()
-            .filter_map(|(name, table)| {
-                if skip_table_names.contains(name) {
-                    return None;
-                }
-
-                table
-                    .satisfies_predicate(predicate)
-                    .then(|| name.to_owned())
-            })
-            .collect::<BTreeSet<_>>()
+        result
     }
 
     /// Returns the distinct set of column names that contain data matching the
@@ -537,24 +276,16 @@ impl Chunk {
     /// determines that all the columns in the row group are already contained
     /// in the results buffer. Callers can skip this behaviour by passing in
     /// an empty `BTreeSet`.
+    ///
+    /// TODO(edd): remove `table_name`
     pub fn column_names(
         &self,
-        table_name: &str,
+        _table_name: &str,
         predicate: Predicate,
         only_columns: Selection<'_>,
         dst: BTreeSet<String>,
     ) -> Result<BTreeSet<String>> {
-        let chunk_data = self.chunk_data.read();
-
-        // TODO(edd): same potential contention as `table_names` but I'm ok
-        // with this for now.
-        match chunk_data.data.get(table_name) {
-            Some(table) => Ok(table.column_names(&predicate, only_columns, dst)),
-            None => TableNotFound {
-                table_name: table_name.to_owned(),
-            }
-            .fail(),
-        }
+        Ok(self.table.column_names(&predicate, only_columns, dst))
     }
 
     /// Returns the distinct set of column values for each provided column,
@@ -572,7 +303,7 @@ impl Chunk {
     /// skip this behaviour.
     pub fn column_values(
         &self,
-        table_name: &str,
+        _table_name: &str,
         predicate: Predicate,
         columns: Selection<'_>,
         dst: BTreeMap<String, BTreeSet<String>>,
@@ -587,19 +318,9 @@ impl Chunk {
             Selection::Some(columns) => columns,
         };
 
-        let chunk_data = self.chunk_data.read();
-
-        // TODO(edd): same potential contention as `table_names` but I'm ok
-        // with this for now.
-        match chunk_data.data.get(table_name) {
-            Some(table) => table
-                .column_values(&predicate, columns, dst)
-                .context(TableError),
-            None => TableNotFound {
-                table_name: table_name.to_owned(),
-            }
-            .fail(),
-        }
+        self.table
+            .column_values(&predicate, columns, dst)
+            .context(TableError)
     }
 }
 
@@ -743,7 +464,7 @@ mod test {
     use internal_types::schema::builder::SchemaBuilder;
 
     use super::*;
-    use crate::{column::Column, BinaryExpr};
+    use crate::BinaryExpr;
     use crate::{
         row_group::{ColumnType, RowGroup},
         value::Values,
@@ -919,102 +640,66 @@ mod test {
         let domain =
             registry.register_domain_with_labels("read_buffer", vec![KeyValue::new("db", "mydb")]);
 
-        let mut chunk = Chunk::new(ChunkMetrics::new(&domain, GaugeValue::new_unregistered()));
+        let mut chunk = Chunk::new(
+            "a_table",
+            ChunkMetrics::new(&domain, GaugeValue::new_unregistered()),
+        );
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
 
         assert_eq!(chunk.rows(), 3);
-        assert_eq!(chunk.tables(), 1);
         assert_eq!(chunk.row_groups(), 1);
         assert!(chunk.size() > 0);
-
-        {
-            let chunk_data = chunk.chunk_data.read();
-            let table = chunk_data.data.get("a_table").unwrap();
-            assert_eq!(table.rows(), 3);
-            assert_eq!(table.row_groups(), 1);
-        }
 
         // Add a row group to the same table in the Chunk.
         let last_chunk_size = chunk.size();
         chunk.upsert_table("a_table", gen_recordbatch());
 
         assert_eq!(chunk.rows(), 6);
-        assert_eq!(chunk.tables(), 1);
         assert_eq!(chunk.row_groups(), 2);
         assert!(chunk.size() > last_chunk_size);
-
-        {
-            let chunk_data = chunk.chunk_data.read();
-            let table = chunk_data.data.get("a_table").unwrap();
-            assert_eq!(table.rows(), 6);
-            assert_eq!(table.row_groups(), 2);
-        }
-
-        // Add a row group to a new table in the Chunk.
-        let last_chunk_size = chunk.size();
-        chunk.upsert_table("b_table", gen_recordbatch());
-
-        assert_eq!(chunk.rows(), 9);
-        assert_eq!(chunk.tables(), 2);
-        assert_eq!(chunk.row_groups(), 3);
-        assert!(chunk.size() > last_chunk_size);
-
-        {
-            let chunk_data = chunk.chunk_data.read();
-            let table = chunk_data.data.get("b_table").unwrap();
-            assert_eq!(table.rows(), 3);
-            assert_eq!(table.row_groups(), 1);
-        }
-
-        {
-            let chunk_data = chunk.chunk_data.read();
-            let table = chunk_data.data.get("a_table").unwrap();
-            assert_eq!(table.rows(), 6);
-            assert_eq!(table.row_groups(), 2);
-        }
 
         assert_eq!(
             String::from_utf8(reg.registry().metrics_as_text()).unwrap(),
             vec![
                 "# HELP read_buffer_column_bytes The number of bytes used by all columns in the Read Buffer",
         "# TYPE read_buffer_column_bytes gauge",
-        r#"read_buffer_column_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 108"#,
-        r#"read_buffer_column_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 1032"#,
-        r#"read_buffer_column_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 144"#,
-        r#"read_buffer_column_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 1152"#,
-        r#"read_buffer_column_bytes{db="mydb",encoding="RLE",log_data_type="string"} 750"#,
+        r#"read_buffer_column_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 72"#,
+        r#"read_buffer_column_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 688"#,
+        r#"read_buffer_column_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 96"#,
+        r#"read_buffer_column_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 768"#,
+        r#"read_buffer_column_bytes{db="mydb",encoding="RLE",log_data_type="string"} 500"#,
         "# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer",
         "# TYPE read_buffer_column_raw_bytes gauge",
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 144"#,
+        r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 96"#,
         r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="true"} 0"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="false"} 120"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="true"} 24"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 144"#,
+        r#"read_buffer_column_raw_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="false"} 80"#,
+        r#"read_buffer_column_raw_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="true"} 16"#,
+        r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 96"#,
         r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXED",log_data_type="f64",null="true"} 0"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 81"#,
+        r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 54"#,
         r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="false"} 324"#,
+        r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="false"} 216"#,
         r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
         "# HELP read_buffer_column_total The number of columns within the Read Buffer",
         "# TYPE read_buffer_column_total gauge",
-        r#"read_buffer_column_total{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 3"#,
-        r#"read_buffer_column_total{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 3"#,
-        r#"read_buffer_column_total{db="mydb",encoding="FIXED",log_data_type="f64"} 3"#,
-        r#"read_buffer_column_total{db="mydb",encoding="FIXEDN",log_data_type="bool"} 3"#,
-        r#"read_buffer_column_total{db="mydb",encoding="RLE",log_data_type="string"} 3"#,
+        r#"read_buffer_column_total{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 2"#,
+        r#"read_buffer_column_total{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 2"#,
+        r#"read_buffer_column_total{db="mydb",encoding="FIXED",log_data_type="f64"} 2"#,
+        r#"read_buffer_column_total{db="mydb",encoding="FIXEDN",log_data_type="bool"} 2"#,
+        r#"read_buffer_column_total{db="mydb",encoding="RLE",log_data_type="string"} 2"#,
         "# HELP read_buffer_column_values The number of values within columns in the Read Buffer",
         "# TYPE read_buffer_column_values gauge",
-        r#"read_buffer_column_values{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 9"#,
+        r#"read_buffer_column_values{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 6"#,
         r#"read_buffer_column_values{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="true"} 0"#,
-        r#"read_buffer_column_values{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="false"} 6"#,
-        r#"read_buffer_column_values{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="true"} 3"#,
-        r#"read_buffer_column_values{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 9"#,
+        r#"read_buffer_column_values{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="false"} 4"#,
+        r#"read_buffer_column_values{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="true"} 2"#,
+        r#"read_buffer_column_values{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 6"#,
         r#"read_buffer_column_values{db="mydb",encoding="FIXED",log_data_type="f64",null="true"} 0"#,
-        r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 9"#,
+        r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 6"#,
         r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
-        r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 9"#,
+        r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 6"#,
         r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
         "",
             ]
@@ -1072,7 +757,7 @@ mod test {
 
     #[test]
     fn read_filter_table_schema() {
-        let mut chunk = Chunk::new(ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new("a_table", ChunkMetrics::new_unregistered());
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -1115,18 +800,8 @@ mod test {
     }
 
     #[test]
-    fn has_table() {
-        let mut chunk = Chunk::new(ChunkMetrics::new_unregistered());
-
-        // Add a new table to the chunk.
-        chunk.upsert_table("a_table", gen_recordbatch());
-        assert!(chunk.has_table("a_table"));
-        assert!(!chunk.has_table("b_table"));
-    }
-
-    #[test]
     fn table_summaries() {
-        let mut chunk = Chunk::new(ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new("a_table", ChunkMetrics::new_unregistered());
 
         let schema = SchemaBuilder::new()
             .non_null_tag("env")
@@ -1159,11 +834,11 @@ mod test {
         // Add a record batch to a single partition
         let rb = RecordBatch::try_new(schema.into(), data).unwrap();
         // The row group gets added to the same chunk each time.
-        chunk.upsert_table("table1", rb);
+        chunk.upsert_table("a_table", rb);
 
         let summaries = chunk.table_summaries();
         let expected = vec![TableSummary {
-            name: "table1".into(),
+            name: "a_table".into(),
             columns: vec![
                 ColumnSummary {
                     name: "active".into(),
@@ -1222,7 +897,7 @@ mod test {
 
     #[test]
     fn read_filter() {
-        let mut chunk = Chunk::new(ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new("Coolverine", ChunkMetrics::new_unregistered());
 
         // Add a bunch of row groups to a single table in a single chunk
         for &i in &[100, 200, 300] {
@@ -1276,9 +951,7 @@ mod test {
         let predicate =
             Predicate::with_time_range(&[BinaryExpr::from(("env", "=", "us-west"))], 100, 205); // filter on time
 
-        let mut itr = chunk
-            .read_filter("Coolverine", predicate, Selection::All)
-            .unwrap();
+        let mut itr = chunk.read_filter("Coolverine", predicate, Selection::All);
 
         let exp_env_values = Values::Dictionary(vec![0], vec![Some("us-west")]);
         let exp_region_values = Values::Dictionary(vec![0], vec![Some("west")]);
@@ -1318,16 +991,16 @@ mod test {
 
     #[test]
     fn could_pass_predicate() {
-        let mut chunk = Chunk::new(ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new("a_table", ChunkMetrics::new_unregistered());
 
-        // Add a new table to the chunk.
+        // Add table data to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
 
-        assert!(!chunk.could_pass_predicate("not my table", Predicate::default()));
-        assert!(chunk.could_pass_predicate(
-            "a_table",
-            Predicate::new(vec![BinaryExpr::from(("region", "=", "east"))])
-        ));
+        assert!(
+            chunk.could_pass_predicate(Predicate::new(vec![BinaryExpr::from((
+                "region", "=", "east"
+            ))]))
+        );
     }
 
     #[test]
@@ -1343,9 +1016,9 @@ mod test {
             ),
         ];
         let rg = RowGroup::new(6, columns);
-        let table = Table::new("table_1", rg);
 
-        let mut chunk = Chunk::new_with_table(table, ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new("table_1", ChunkMetrics::new_unregistered());
+        chunk.table.add_row_group(rg);
 
         // All table names returned when no predicate.
         let table_names = chunk.table_names(&Predicate::default(), &BTreeSet::new());
@@ -1370,13 +1043,6 @@ mod test {
             vec!["table_1"]
         );
 
-        // Table name not returned if it is in skip list
-        let table_names = chunk.table_names(
-            &Predicate::default(),
-            &["table_1".to_owned()].iter().cloned().collect(),
-        );
-        assert!(table_names.is_empty());
-
         // table returned when predicate matches
         let table_names = chunk.table_names(
             &Predicate::new(vec![BinaryExpr::from(("region", ">=", "west"))]),
@@ -1396,46 +1062,6 @@ mod test {
             &BTreeSet::new(),
         );
         assert!(table_names.is_empty());
-
-        // create another table with different timestamps.
-        let columns = vec![
-            (
-                "time".to_owned(),
-                ColumnType::Time(Column::from(&[100_i64, 200, 300, 400, 500, 600][..])),
-            ),
-            (
-                "region".to_owned(),
-                ColumnType::create_tag(&["west", "west", "east", "west", "south", "north"][..]),
-            ),
-        ];
-        let rg = RowGroup::new(6, columns);
-        chunk.upsert_table_with_row_group("table_2", rg);
-
-        // all tables returned when predicate matches both
-        let table_names = chunk.table_names(
-            &Predicate::new(vec![BinaryExpr::from(("region", "!=", "north-north-east"))]),
-            &BTreeSet::new(),
-        );
-        assert_eq!(
-            table_names
-                .iter()
-                .map(|v| v.as_str())
-                .collect::<Vec<&str>>(),
-            vec!["table_1", "table_2"]
-        );
-
-        // only one table returned when one table matches predicate
-        let table_names = chunk.table_names(
-            &Predicate::new(vec![BinaryExpr::from(("time", ">", 300_i64))]),
-            &BTreeSet::new(),
-        );
-        assert_eq!(
-            table_names
-                .iter()
-                .map(|v| v.as_str())
-                .collect::<Vec<&str>>(),
-            vec!["table_2"]
-        );
     }
 
     fn to_set(v: &[&str]) -> BTreeSet<String> {
@@ -1444,7 +1070,7 @@ mod test {
 
     #[test]
     fn column_names() {
-        let mut chunk = Chunk::new(ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new("Utopia", ChunkMetrics::new_unregistered());
 
         let schema = SchemaBuilder::new()
             .non_null_tag("region")
@@ -1518,7 +1144,7 @@ mod test {
 
     #[test]
     fn column_values() {
-        let mut chunk = Chunk::new(ChunkMetrics::new_unregistered());
+        let mut chunk = Chunk::new("my_table", ChunkMetrics::new_unregistered());
 
         let schema = SchemaBuilder::new()
             .non_null_tag("region")
