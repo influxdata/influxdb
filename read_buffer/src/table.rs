@@ -72,14 +72,23 @@ pub struct Table {
 }
 
 // Tie data and meta-data together so that they can be wrapped in RWLock.
+#[derive(Default)]
 struct RowGroupData {
     meta: Arc<MetaData>,
     data: Vec<Arc<RowGroup>>,
 }
 
 impl Table {
+    /// Create a new empty table.
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            table_data: Default::default(),
+        }
+    }
+
     /// Create a new table with the provided row_group.
-    pub fn new(name: impl Into<String>, rg: RowGroup) -> Self {
+    pub fn with_row_group(name: impl Into<String>, rg: RowGroup) -> Self {
         Self {
             name: name.into(),
             table_data: RwLock::new(RowGroupData {
@@ -541,7 +550,7 @@ impl Table {
 }
 
 // TODO(edd): reduce owned strings here by, e.g., using references as keys.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct MetaData {
     // The total size of the table in bytes.
     size: usize,
@@ -585,17 +594,24 @@ impl MetaData {
     /// Create a new `MetaData` by consuming `this` and incorporating `other`.
     pub fn update_with(mut this: Self, rg: &row_group::RowGroup) -> Self {
         let other = rg.metadata();
-        // The incoming row group must have exactly the same schema as the
+
+        // first row group added to the table.
+        if this.columns.is_empty() {
+            this.size = other.size();
+            this.rows = other.rows as u64;
+            this.columns = other.columns.clone();
+            this.column_names = other.column_names.clone();
+
+            return this;
+        }
+
+        // The incoming row group must have exactly the same schema as any
         // existing row groups in the table.
         assert_eq!(&this.columns, &other.columns);
 
         // update size, rows, column ranges, time range
         this.size += rg.size();
         this.rows += other.rows as u64;
-
-        // The incoming row group must have exactly the same schema as the
-        // existing row groups in the table.
-        assert_eq!(&this.columns, &other.columns);
 
         // Update the table schema using the incoming row group schema
         for (column_name, column_meta) in &other.columns {
@@ -1043,7 +1059,8 @@ mod test {
         let columns = vec![("time".to_string(), tc)];
 
         let rg = RowGroup::new(3, columns);
-        let mut table = Table::new("cpu".to_owned(), rg);
+        let mut table = Table::new("cpu".to_owned());
+        table.add_row_group(rg);
 
         assert_eq!(table.rows(), 3);
 
@@ -1085,7 +1102,8 @@ mod test {
         let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
         let columns = vec![("time".to_string(), tc), ("count".to_string(), fc)];
         let row_group = RowGroup::new(3, columns);
-        let mut table = Table::new("cpu".to_owned(), row_group);
+        let mut table = Table::new("cpu");
+        table.add_row_group(row_group);
 
         // add another row group
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
@@ -1120,7 +1138,8 @@ mod test {
         ];
         let row_group = RowGroup::new(3, columns);
 
-        let mut table = Table::new("cpu".to_owned(), row_group);
+        let mut table = Table::new("cpu");
+        table.add_row_group(row_group);
 
         // add another row group
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
@@ -1200,7 +1219,9 @@ mod test {
 
         let rg = RowGroup::new(6, columns);
 
-        let mut table = Table::new("cpu".to_owned(), rg);
+        let mut table = Table::new("cpu");
+        table.add_row_group(rg);
+
         let exp_col_types = vec![
             ("region", LogicalDataType::String),
             ("count", LogicalDataType::Unsigned),
@@ -1326,7 +1347,8 @@ mod test {
             ),
         ];
         let rg = RowGroup::new(3, columns);
-        let mut table = Table::new("cpu", rg);
+        let mut table = Table::new("cpu");
+        table.add_row_group(rg);
 
         // Build another row group.
         let columns = vec![
@@ -1468,7 +1490,8 @@ west,host-b,100
         let columns = vec![("time".to_string(), tc), ("region".to_string(), rc)];
 
         let rg = RowGroup::new(3, columns);
-        let mut table = Table::new("cpu".to_owned(), rg);
+        let mut table = Table::new("cpu".to_owned());
+        table.add_row_group(rg);
 
         // add another row group
         let tc = ColumnType::Time(Column::from(&[200_i64, 300, 400][..]));
@@ -1540,7 +1563,8 @@ west,host-b,100
         ];
 
         let rg = RowGroup::new(4, columns);
-        let table = Table::new("cpu".to_owned(), rg);
+        let mut table = Table::new("cpu".to_owned());
+        table.add_row_group(rg);
 
         assert_eq!(table.time_range().unwrap(), (-100, 3));
     }
