@@ -669,7 +669,7 @@ impl Client {
             .ok_or(ClosePartitionChunkError::EmptyResponse)?)
     }
 
-    /// Wipe preserved catalog of specified, but non-existing database.
+    /// Wipe potential preserved catalog of an uninitialized database.
     pub async fn wipe_persisted_catalog(
         &mut self,
         db_name: impl Into<String> + Send,
