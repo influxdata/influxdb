@@ -17,7 +17,7 @@ const ONE_MS: i64 = 1_000_000;
 pub fn read_filter(c: &mut Criterion) {
     let mut rng = rand::thread_rng();
 
-    let mut chunk = RBChunk::new(read_buffer::ChunkMetrics::new_unregistered());
+    let mut chunk = RBChunk::new("table", read_buffer::ChunkMetrics::new_unregistered());
     let row_group = generate_row_group(200_000, &mut rng);
     read_buffer::benchmarks::upsert_table_with_row_group(&mut chunk, "table", row_group);
 
@@ -48,9 +48,7 @@ fn read_filter_no_pred_vary_proj(c: &mut Criterion, chunk: &RBChunk) {
             &exp_card,
             |b, _| {
                 b.iter(|| {
-                    let result = chunk
-                        .read_filter("table", Predicate::default(), projection)
-                        .unwrap();
+                    let result = chunk.read_filter("table", Predicate::default(), projection);
                     let rbs = result.collect::<Vec<_>>();
                     assert_eq!(rbs.len(), 1);
                     assert_eq!(rbs[0].num_rows(), 200_000);
@@ -85,9 +83,7 @@ fn read_filter_with_pred_vary_proj(c: &mut Criterion, chunk: &RBChunk) {
             &exp_rows,
             |b, _| {
                 b.iter(|| {
-                    let result = chunk
-                        .read_filter("table", predicate.clone(), Selection::All)
-                        .unwrap();
+                    let result = chunk.read_filter("table", predicate.clone(), Selection::All);
                     let rbs = result.collect::<Vec<_>>();
                     assert_eq!(rbs.len(), 1);
                     assert!(rbs[0].num_rows() > 0); // data randomly generated so row numbers not exact

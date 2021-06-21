@@ -34,9 +34,9 @@ pub mod benchmarks {
     // Allow external benchmarks to use this crate-only test method
     pub fn upsert_table_with_row_group(
         chunk: &mut RBChunk,
-        table_name: impl Into<String>,
+        _table_name: impl Into<String>,
         row_group: RowGroup,
     ) {
-        chunk.upsert_table_with_row_group(table_name, row_group)
+        chunk.upsert_table_with_row_group(row_group)
     }
 }
