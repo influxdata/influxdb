@@ -11,17 +11,18 @@ use datafusion::{
     error::{DataFusionError, Result as DataFusionResult},
     logical_plan::Expr,
     physical_plan::{
-        expressions::PhysicalSortExpr, sort::SortExec,
+        expressions::PhysicalSortExpr, projection::ProjectionExec, sort::SortExec,
         sort_preserving_merge::SortPreservingMergeExec, union::UnionExec, ExecutionPlan,
     },
 };
+use datafusion_util::AsPhysicalExpr;
 use internal_types::schema::{merge::SchemaMerger, Schema};
 use observability_deps::tracing::debug;
 
 use crate::{
     duplicate::group_potential_duplicates,
     predicate::{Predicate, PredicateBuilder},
-    util::{arrow_pk_sort_exprs, project_schema},
+    util::arrow_pk_sort_exprs,
     QueryChunk,
 };
 
@@ -56,6 +57,11 @@ pub enum Error {
 
     #[snafu(display("Internal error adding sort operator '{}'", source,))]
     InternalSort {
+        source: datafusion::error::DataFusionError,
+    },
+
+    #[snafu(display("Internal error adding projection operator '{}'", source,))]
+    InternalProjection {
         source: datafusion::error::DataFusionError,
     },
 
@@ -241,7 +247,10 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
         debug!(%predicate, num_initial_chunks, num_final_chunks=chunks.len(), "pruned with pushed down predicates");
 
         // Figure out the schema of the requested output
-        let scan_schema = project_schema(self.arrow_schema(), projection);
+        let scan_schema = match projection {
+            Some(indicies) => self.iox_schema.select_by_indices(indicies),
+            None => self.iox_schema.clone(),
+        };
 
         // This debug shows the self.arrow_schema() includes all columns in all chunks
         // which means the schema of all chunks are merged before invoking this scan
@@ -250,7 +259,7 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
         let mut deduplicate = Deduplicater::new();
         let plan = deduplicate.build_scan_plan(
             Arc::clone(&self.table_name),
-            scan_schema,
+            Arc::new(scan_schema),
             chunks,
             predicate,
             false,
@@ -350,7 +359,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     fn build_scan_plan(
         &mut self,
         table_name: Arc<str>,
-        schema: ArrowSchemaRef,
+        output_schema: Arc<Schema>,
         chunks: Vec<Arc<C>>,
         predicate: Predicate,
         for_testing: bool, // TODO: remove this parameter when #1682 and #1683 are done
@@ -375,7 +384,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             // Neither overlaps nor duplicates, no deduplicating needed
             let plan = Self::build_plans_for_non_duplicates_chunk(
                 Arc::clone(&table_name),
-                Arc::clone(&schema),
+                Arc::clone(&output_schema),
                 chunks,
                 predicate,
             );
@@ -385,7 +394,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             for overlapped_chunks in self.overlapped_chunks_set.to_vec() {
                 plans.push(Self::build_deduplicate_plan_for_overlapped_chunks(
                     Arc::clone(&table_name),
-                    Arc::clone(&schema),
+                    Arc::clone(&output_schema),
                     overlapped_chunks.to_owned(),
                     predicate.clone(),
                 )?);
@@ -395,7 +404,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             for chunk_with_duplicates in self.in_chunk_duplicates_chunks.to_vec() {
                 plans.push(Self::build_deduplicate_plan_for_chunk_with_duplicates(
                     Arc::clone(&table_name),
-                    Arc::clone(&schema),
+                    Arc::clone(&output_schema),
                     chunk_with_duplicates.to_owned(),
                     predicate.clone(),
                 )?);
@@ -405,7 +414,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             for no_duplicates_chunk in self.no_duplicates_chunks.to_vec() {
                 plans.push(Self::build_plan_for_non_duplicates_chunk(
                     Arc::clone(&table_name),
-                    Arc::clone(&schema),
+                    Arc::clone(&output_schema),
                     no_duplicates_chunk.to_owned(),
                     predicate.clone(),
                 ));
@@ -452,8 +461,16 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     }
 
     /// Return deduplicate plan for the given overlapped chunks
+    ///
     /// The plan will look like this
+    ///
     /// ```text
+    ///               ┌─────────────────┐
+    ///               │ ProjectionExec  │
+    ///               │  (optional)     │
+    ///               └─────────────────┘
+    ///                        ▲
+    ///                        │
     ///               ┌─────────────────┐
     ///               │ DeduplicateExec │
     ///               └─────────────────┘
@@ -485,26 +502,35 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///```
     fn build_deduplicate_plan_for_overlapped_chunks(
         table_name: Arc<str>,
-        schema: ArrowSchemaRef,
+        output_schema: Arc<Schema>,
         chunks: Vec<Arc<C>>, // These chunks are identified overlapped
         predicate: Predicate,
     ) -> Result<Arc<dyn ExecutionPlan>> {
+        // Note that we may need to sort/deduplicate based on tag
+        // columns which do not appear in the output
+
+        let pk_schema = Self::compute_pk_schema(&chunks);
+        let input_schema = Self::compute_input_schema(&output_schema, &pk_schema);
+
+        debug!(
+            ?output_schema,
+            ?pk_schema,
+            ?input_schema,
+            "creating deduplicate plan for overlapped chunks"
+        );
+
         // Build sort plan for each chunk
         let sorted_chunk_plans: Result<Vec<Arc<dyn ExecutionPlan>>> = chunks
             .iter()
             .map(|chunk| {
                 Self::build_sort_plan_for_read_filter(
                     Arc::clone(&table_name),
-                    Arc::clone(&schema),
+                    Arc::clone(&input_schema),
                     Arc::clone(&chunk),
                     predicate.clone(),
                 )
             })
             .collect();
-
-        // TODOs: build primary key by accumulating unique key columns from each chunk's table summary
-        // use the one of the first chunk for now
-        let schema = chunks[0].schema();
 
         // Union the plans
         // The UnionExec operator only streams all chunks (aka partitions in Datafusion) and
@@ -512,7 +538,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let plan = UnionExec::new(sorted_chunk_plans?);
 
         // Now (sort) merge the already sorted chunks
-        let sort_exprs = arrow_pk_sort_exprs(schema.primary_key());
+        let sort_exprs = arrow_pk_sort_exprs(pk_schema.primary_key());
         let plan = Arc::new(SortPreservingMergeExec::new(
             sort_exprs.clone(),
             Arc::new(plan),
@@ -521,12 +547,20 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
 
         // Add DeduplicateExc
         let plan = Self::add_deduplicate_node(sort_exprs, plan);
-        Ok(plan)
+
+        // select back to the requested output schema
+        Self::add_projection_node_if_needed(output_schema, plan)
     }
 
     /// Return deduplicate plan for a given chunk with duplicates
     /// The plan will look like this
     /// ```text
+    ///                ┌─────────────────┐
+    ///                │ ProjectionExec  │
+    ///                │  (optional)     │
+    ///                └─────────────────┘
+    ///                        ▲
+    ///                        │
     ///                ┌─────────────────┐
     ///                │ DeduplicateExec │
     ///                └─────────────────┘
@@ -536,9 +570,8 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///                │    SortExec     │
     ///                │   (optional)    │
     ///                └─────────────────┘
-    ///                          ▲
-    ///                          │
-    ///                          │
+    ///                        ▲
+    ///                        │
     ///                ┌─────────────────┐
     ///                │IOxReadFilterNode│
     ///                │    (Chunk)      │
@@ -546,32 +579,72 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///```
     fn build_deduplicate_plan_for_chunk_with_duplicates(
         table_name: Arc<str>,
-        schema: ArrowSchemaRef,
+        output_schema: Arc<Schema>,
         chunk: Arc<C>, // This chunk is identified having duplicates
         predicate: Predicate,
     ) -> Result<Arc<dyn ExecutionPlan>> {
+        let pk_schema = Self::compute_pk_schema(&[Arc::clone(&chunk)]);
+        let input_schema = Self::compute_input_schema(&output_schema, &pk_schema);
+
         // Create the 2 bottom nodes IOxReadFilterNode and SortExec
         let plan = Self::build_sort_plan_for_read_filter(
             table_name,
-            schema,
+            Arc::clone(&input_schema),
             Arc::clone(&chunk),
             predicate,
         )?;
 
         // Add DeduplicateExc
         // Sort exprs for the deduplication
-        let schema = chunk.schema();
-        let sort_exprs = arrow_pk_sort_exprs(schema.primary_key());
+        let sort_exprs = arrow_pk_sort_exprs(pk_schema.primary_key());
         let plan = Self::add_deduplicate_node(sort_exprs, plan);
-        Ok(plan)
+
+        // select back to the requested output schema
+        Self::add_projection_node_if_needed(output_schema, plan)
     }
 
-    // Hooks DeduplicateExec on top of the given input plan
+    /// Hooks DeduplicateExec on top of the given input plan
     fn add_deduplicate_node(
         sort_exprs: Vec<PhysicalSortExpr>,
         input: Arc<dyn ExecutionPlan>,
     ) -> Arc<dyn ExecutionPlan> {
         Arc::new(DeduplicateExec::new(input, sort_exprs))
+    }
+
+    /// Creates a plan that produces output_schema given a plan that
+    /// produces the input schema
+    ///
+    /// ```text
+    /// ┌─────────────────┐
+    /// │ ProjectionExec  │
+    /// │  (optional)     │
+    /// └─────────────────┘
+    ///```
+
+    fn add_projection_node_if_needed(
+        output_schema: Arc<Schema>,
+        input: Arc<dyn ExecutionPlan>,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        let input_schema = input.schema();
+        let output_schema = output_schema.as_arrow();
+
+        // If the schemas are the same, nothing to do
+        if input_schema == output_schema {
+            return Ok(input);
+        }
+
+        // build select exprs for the requested fields
+        let select_exprs: Vec<_> = output_schema
+            .fields()
+            .iter()
+            .map(|f| {
+                let field_name = f.name();
+                (field_name.as_physical_expr(), field_name.to_string())
+            })
+            .collect();
+
+        let plan = ProjectionExec::try_new(select_exprs, input).context(InternalProjection)?;
+        Ok(Arc::new(plan))
     }
 
     /// Return a sort plan for for a given chunk
@@ -591,14 +664,14 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///```
     fn build_sort_plan_for_read_filter(
         table_name: Arc<str>,
-        schema: ArrowSchemaRef,
+        output_schema: Arc<Schema>,
         chunk: Arc<C>, // This chunk is identified having duplicates
         predicate: Predicate,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         // Create the bottom node IOxReadFilterNode for this chunk
         let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
             Arc::clone(&table_name),
-            schema,
+            output_schema.as_arrow(),
             vec![Arc::clone(&chunk)],
             predicate,
         ));
@@ -618,8 +691,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         }
 
         let schema = chunk.schema();
-        let key_columns = schema.primary_key();
-        let sort_exprs = arrow_pk_sort_exprs(key_columns);
+        let sort_exprs = arrow_pk_sort_exprs(schema.primary_key());
 
         // Create SortExec operator
         Ok(Arc::new(
@@ -636,13 +708,13 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///```
     fn build_plan_for_non_duplicates_chunk(
         table_name: Arc<str>,
-        schema: ArrowSchemaRef,
+        output_schema: Arc<Schema>,
         chunk: Arc<C>, // This chunk is identified having no duplicates
         predicate: Predicate,
     ) -> Arc<dyn ExecutionPlan> {
         Arc::new(IOxReadFilterNode::new(
             Arc::clone(&table_name),
-            schema,
+            output_schema.as_arrow(),
             vec![chunk],
             predicate,
         ))
@@ -657,16 +729,45 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///```
     fn build_plans_for_non_duplicates_chunk(
         table_name: Arc<str>,
-        schema: ArrowSchemaRef,
+        output_schema: Arc<Schema>,
         chunks: Vec<Arc<C>>, // This chunk is identified having no duplicates
         predicate: Predicate,
     ) -> Arc<dyn ExecutionPlan> {
         Arc::new(IOxReadFilterNode::new(
             Arc::clone(&table_name),
-            schema,
+            output_schema.as_arrow(),
             chunks,
             predicate,
         ))
+    }
+
+    /// Find the columns needed in the primary key across schemas
+    ///
+    /// Note by the time we get down here, we have already checked
+    /// the chunks for compatible schema, so we use unwrap (perhaps
+    /// famous last words, but true at time of writing)
+    fn compute_pk_schema(chunks: &[Arc<C>]) -> Arc<Schema> {
+        let mut pk_schema_merger = SchemaMerger::new();
+        for chunk in chunks {
+            let chunk_schema = chunk.schema();
+            let chunk_pk = chunk_schema.primary_key();
+            let chunk_pk_schema = chunk_schema.select_by_names(&chunk_pk).unwrap();
+            pk_schema_merger.merge(&chunk_pk_schema).unwrap();
+        }
+        let pk_schema = pk_schema_merger.build();
+        Arc::new(pk_schema)
+    }
+
+    /// Find columns required to read from each scan: the output columns + the
+    /// primary key columns
+    fn compute_input_schema(output_schema: &Schema, pk_schema: &Schema) -> Arc<Schema> {
+        let input_schema = SchemaMerger::new()
+            .merge(&output_schema)
+            .unwrap()
+            .merge(&pk_schema)
+            .unwrap()
+            .build();
+        Arc::new(input_schema)
     }
 }
 
@@ -681,8 +782,11 @@ impl<C: QueryChunk> ChunkPruner<C> for NoOpPruner {
 
 #[cfg(test)]
 mod test {
+    use arrow::{datatypes::DataType, record_batch::RecordBatch};
     use arrow_util::assert_batches_eq;
     use datafusion::physical_plan::collect;
+    use futures::StreamExt;
+    use internal_types::{schema::builder::SchemaBuilder, selection::Selection};
 
     use crate::{test::TestChunk, QueryChunkMeta};
 
@@ -849,7 +953,7 @@ mod test {
 
         let sort_plan = Deduplicater::build_sort_plan_for_read_filter(
             Arc::from("t"),
-            schema.as_arrow(),
+            schema,
             Arc::clone(&chunk),
             Predicate::default(),
         );
@@ -883,22 +987,41 @@ mod test {
 
         // Chunk 2 exactly the same with Chunk 1
         let chunk2 = Arc::new(
-            TestChunk::new(1)
+            TestChunk::new(2)
                 .with_time_column("t")
                 .with_tag_column("t", "tag1")
                 .with_tag_column("t", "tag2")
                 .with_int_field_column("t", "field_int")
                 .with_five_rows_of_data("t"),
         );
-
         // Datafusion schema of the chunk
         // the same for 2 chunks
         let schema = chunk1.schema();
+        let chunks = vec![chunk1, chunk2];
+
+        // data in its original form
+        let expected = vec![
+            "+-----------+------+------+-------------------------------+",
+            "| field_int | tag1 | tag2 | time                          |",
+            "+-----------+------+------+-------------------------------+",
+            "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | AL   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | MA   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | AL   | 1970-01-01 00:00:00.000005    |",
+            "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | AL   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | MA   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | AL   | 1970-01-01 00:00:00.000005    |",
+            "+-----------+------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
             Arc::from("t"),
-            schema.as_arrow(),
-            vec![chunk1, chunk2],
+            schema,
+            chunks,
             Predicate::default(),
         );
         let batch = collect(sort_plan.unwrap()).await.unwrap();
@@ -918,6 +1041,267 @@ mod test {
     }
 
     #[tokio::test]
+    async fn deduplicate_plan_for_overlapped_chunks_subset() {
+        // Same two chunks but only select the field and timestamp, not the tag values
+        // Chunk 1 with 5 rows of data on 2 tags
+        let chunk1 = Arc::new(
+            TestChunk::new(1)
+                .with_time_column("t")
+                .with_tag_column("t", "tag1")
+                .with_tag_column("t", "tag2")
+                .with_int_field_column("t", "field_int")
+                .with_five_rows_of_data("t"),
+        );
+
+        // Chunk 2 exactly the same with Chunk 1
+        let chunk2 = Arc::new(
+            TestChunk::new(2)
+                .with_time_column("t")
+                .with_tag_column("t", "tag1")
+                .with_tag_column("t", "tag2")
+                .with_int_field_column("t", "field_int")
+                .with_five_rows_of_data("t"),
+        );
+        let chunks = vec![chunk1, chunk2];
+
+        // data in its original form
+        let expected = vec![
+            "+-----------+------+------+-------------------------------+",
+            "| field_int | tag1 | tag2 | time                          |",
+            "+-----------+------+------+-------------------------------+",
+            "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | AL   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | MA   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | AL   | 1970-01-01 00:00:00.000005    |",
+            "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | AL   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | MA   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | AL   | 1970-01-01 00:00:00.000005    |",
+            "+-----------+------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &raw_data(&chunks).await);
+
+        // request just the field and timestamp
+        let schema = SchemaBuilder::new()
+            .field("field_int", DataType::Int64)
+            .timestamp()
+            .build()
+            .unwrap();
+
+        let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
+            Arc::from("t"),
+            Arc::new(schema),
+            chunks,
+            Predicate::default(),
+        );
+        let batch = collect(sort_plan.unwrap()).await.unwrap();
+        // expect onlt only 5 values, with "f1" and "timestamp" (even though input has 10)
+        let expected = vec![
+            "+-----------+-------------------------------+",
+            "| field_int | time                          |",
+            "+-----------+-------------------------------+",
+            "| 100       | 1970-01-01 00:00:00.000000050 |",
+            "| 70        | 1970-01-01 00:00:00.000000100 |",
+            "| 5         | 1970-01-01 00:00:00.000005    |",
+            "| 10        | 1970-01-01 00:00:00.000007    |",
+            "| 1000      | 1970-01-01 00:00:00.000001    |",
+            "+-----------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
+    }
+
+    #[tokio::test]
+    async fn deduplicate_plan_for_overlapped_chunks_subset_different_fields() {
+        // Chunks with different fields / tags, and select a subset
+        // Chunk 1 with 5 rows of data on 2 tags
+        let chunk1 = Arc::new(
+            TestChunk::new(1)
+                .with_time_column("t")
+                .with_tag_column("t", "tag1")
+                .with_tag_column("t", "tag2")
+                .with_int_field_column("t", "field_int")
+                .with_five_rows_of_data("t"),
+        );
+
+        // Chunk 2 same tags, but different fields
+        let chunk2 = Arc::new(
+            TestChunk::new(2)
+                .with_time_column("t")
+                .with_tag_column("t", "tag1")
+                .with_int_field_column("t", "other_field_int")
+                .with_five_rows_of_data("t"),
+        );
+
+        // Chunk 3 exactly the same with Chunk 2
+        let chunk3 = Arc::new(
+            TestChunk::new(3)
+                .with_time_column("t")
+                .with_tag_column("t", "tag1")
+                .with_int_field_column("t", "other_field_int")
+                .with_five_rows_of_data("t"),
+        );
+
+        let chunks = vec![chunk1, chunk2, chunk3];
+        // data in its original form
+        let expected = vec![
+            "+-----------+------+-------------------------------+-------------------------------+",
+            "| field_int | tag1 | tag2                          | time                          |",
+            "+-----------+------+-------------------------------+-------------------------------+",
+            "| 1000      | MT   | CT                            | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | AL                            | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | CT                            | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | MA                            | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | AL                            | 1970-01-01 00:00:00.000005    |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |                               |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |                               |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |                               |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |                               |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000005    |                               |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |                               |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |                               |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |                               |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |                               |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000005    |                               |",
+            "+-----------+------+-------------------------------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &raw_data(&chunks).await);
+
+        // request just the fields
+        let schema = SchemaBuilder::new()
+            .field("field_int", DataType::Int64)
+            .field("other_field_int", DataType::Int64)
+            .build()
+            .unwrap();
+
+        let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
+            Arc::from("t"),
+            Arc::new(schema),
+            chunks,
+            Predicate::default(),
+        );
+        let batch = collect(sort_plan.unwrap()).await.unwrap();
+
+        let expected = vec![
+            "+-----------+-----------------+",
+            "| field_int | other_field_int |",
+            "+-----------+-----------------+",
+            "| 100       |                 |",
+            "|           | 100             |",
+            "| 70        |                 |",
+            "|           | 70              |",
+            "| 5         |                 |",
+            "| 10        |                 |",
+            "| 1000      |                 |",
+            "|           | 1000            |",
+            "|           | 5               |",
+            "|           | 10              |",
+            "+-----------+-----------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
+    }
+
+    #[tokio::test]
+    async fn deduplicate_plan_for_overlapped_chunks_with_different_schemas() {
+        // Chunk 1 with 5 rows of data on 2 tags
+        let chunk1 = Arc::new(
+            TestChunk::new(1)
+                .with_time_column("t")
+                .with_tag_column("t", "tag1")
+                .with_tag_column("t", "tag2")
+                .with_int_field_column("t", "field_int")
+                .with_five_rows_of_data("t"),
+        );
+
+        // Chunk 2 has two different tags
+        let chunk2 = Arc::new(
+            TestChunk::new(2)
+                .with_time_column("t")
+                .with_tag_column("t", "tag3")
+                .with_tag_column("t", "tag1")
+                .with_int_field_column("t", "field_int")
+                .with_five_rows_of_data("t"),
+        );
+
+        // Chunk 3 has just tag3
+        let chunk3 = Arc::new(
+            TestChunk::new(3)
+                .with_time_column("t")
+                .with_tag_column("t", "tag3")
+                .with_int_field_column("t", "field_int")
+                .with_int_field_column("t", "field_int2")
+                .with_five_rows_of_data("t"),
+        );
+
+        // Requested output schema == the schema for all three
+        let schema = SchemaMerger::new()
+            .merge(chunk1.schema().as_ref())
+            .unwrap()
+            .merge(chunk2.schema().as_ref())
+            .unwrap()
+            .merge(chunk3.schema().as_ref())
+            .unwrap()
+            .build();
+
+        let chunks = vec![chunk1, chunk2, chunk3];
+        // data in its original form
+        let expected = vec![
+            "+-----------+------+------+-------------------------------+",
+            "| field_int | tag1 | tag2 | time                          |",
+            "+-----------+------+------+-------------------------------+",
+            "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | AL   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | MA   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | AL   | 1970-01-01 00:00:00.000005    |",
+            "| 1000      | MT   | CT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | AL   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | MT   | 1970-01-01 00:00:00.000005    |",
+            "| 1000      | 1000 | CT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | 10   | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | 70   | AL   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | 100  | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | 5    | MT   | 1970-01-01 00:00:00.000005    |",
+            "+-----------+------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &raw_data(&chunks).await);
+
+        let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
+            Arc::from("t"),
+            Arc::new(schema),
+            chunks,
+            Predicate::default(),
+        );
+        let batch = collect(sort_plan.unwrap()).await.unwrap();
+        // data is sorted on primary key(tag1, tag2, tag3, time)
+        let expected = vec![
+            "+-----------+------------+------+------+------+-------------------------------+",
+            "| field_int | field_int2 | tag1 | tag2 | tag3 | time                          |",
+            "+-----------+------------+------+------+------+-------------------------------+",
+            "| 100       |            | AL   | MA   |      | 1970-01-01 00:00:00.000000050 |",
+            "| 100       |            | AL   |      | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 70        |            | CT   | CT   |      | 1970-01-01 00:00:00.000000100 |",
+            "| 70        |            | CT   |      | AL   | 1970-01-01 00:00:00.000000100 |",
+            "| 5         |            | MT   | AL   |      | 1970-01-01 00:00:00.000005    |",
+            "| 10        |            | MT   | AL   |      | 1970-01-01 00:00:00.000007    |",
+            "| 1000      |            | MT   | CT   |      | 1970-01-01 00:00:00.000001    |",
+            "| 1000      |            | MT   |      | CT   | 1970-01-01 00:00:00.000001    |",
+            "| 5         |            | MT   |      | MT   | 1970-01-01 00:00:00.000005    |",
+            "| 10        |            | MT   |      | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 100       | 100        |      |      | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 70        | 70         |      |      | AL   | 1970-01-01 00:00:00.000000100 |",
+            "| 1000      | 1000       |      |      | CT   | 1970-01-01 00:00:00.000001    |",
+            "| 5         | 5          |      |      | MT   | 1970-01-01 00:00:00.000005    |",
+            "| 10        | 10         |      |      | MT   | 1970-01-01 00:00:00.000007    |",
+            "+-----------+------------+------+------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
+    }
+
+    #[tokio::test]
     async fn scan_plan_with_one_chunk_no_duplicates() {
         // Test no duplicate at all
         let chunk = Arc::new(
@@ -930,12 +1314,27 @@ mod test {
 
         // Datafusion schema of the chunk
         let schema = chunk.schema();
+        let chunks = vec![chunk];
+
+        // data in its original form
+        let expected = vec![
+            "+-----------+------+-------------------------------+",
+            "| field_int | tag1 | time                          |",
+            "+-----------+------+-------------------------------+",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000005    |",
+            "+-----------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
         let mut deduplicator = Deduplicater::new();
         let plan = deduplicator.build_scan_plan(
             Arc::from("t"),
-            schema.as_arrow(),
-            vec![Arc::clone(&chunk)],
+            schema,
+            chunks,
             Predicate::default(),
             true,
         );
@@ -969,12 +1368,32 @@ mod test {
 
         // Datafusion schema of the chunk
         let schema = chunk.schema();
+        let chunks = vec![chunk];
+
+        // data in its original form
+        let expected = vec![
+            "+-----------+------+-------------------------------+",
+            "| field_int | tag1 | time                          |",
+            "+-----------+------+-------------------------------+",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000000005 |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000002    |",
+            "| 20        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000500 |",
+            "| 10        | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 30        | MT   | 1970-01-01 00:00:00.000000005 |",
+            "+-----------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
         let mut deduplicator = Deduplicater::new();
         let plan = deduplicator.build_scan_plan(
             Arc::from("t"),
-            schema.as_arrow(),
-            vec![Arc::clone(&chunk)],
+            schema,
+            chunks,
             Predicate::default(),
             true,
         );
@@ -992,6 +1411,72 @@ mod test {
             "| 1000      | MT   | 1970-01-01 00:00:00.000002    |",
             "| 20        | MT   | 1970-01-01 00:00:00.000007    |",
             "+-----------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batch);
+    }
+
+    #[tokio::test]
+    async fn scan_plan_with_one_chunk_with_duplicates_subset() {
+        // Test one chunk with duplicate within
+        let chunk = Arc::new(
+            TestChunk::new(1)
+                .with_time_column_with_stats("t", 5, 7000)
+                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
+                .with_int_field_column("t", "field_int")
+                .with_may_contain_pk_duplicates(true)
+                .with_ten_rows_of_data_some_duplicates("t"),
+        );
+
+        let chunks = vec![chunk];
+        // data in its original form
+        let expected = vec![
+            "+-----------+------+-------------------------------+",
+            "| field_int | tag1 | time                          |",
+            "+-----------+------+-------------------------------+",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000000005 |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000002    |",
+            "| 20        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000500 |",
+            "| 10        | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 30        | MT   | 1970-01-01 00:00:00.000000005 |",
+            "+-----------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &raw_data(&chunks).await);
+
+        // request just the field and timestamp
+        let schema = SchemaBuilder::new()
+            .field("field_int", DataType::Int64)
+            .timestamp()
+            .build()
+            .unwrap();
+
+        let mut deduplicator = Deduplicater::new();
+        let plan = deduplicator.build_scan_plan(
+            Arc::from("t"),
+            Arc::new(schema),
+            chunks,
+            Predicate::default(),
+            true,
+        );
+        let batch = collect(plan.unwrap()).await.unwrap();
+
+        // expect just the 7 rows of de-duplicated data
+        let expected = vec![
+            "+-----------+-------------------------------+",
+            "| field_int | time                          |",
+            "+-----------+-------------------------------+",
+            "| 10        | 1970-01-01 00:00:00.000000050 |",
+            "| 70        | 1970-01-01 00:00:00.000000100 |",
+            "| 70        | 1970-01-01 00:00:00.000000500 |",
+            "| 30        | 1970-01-01 00:00:00.000000005 |",
+            "| 1000      | 1970-01-01 00:00:00.000001    |",
+            "| 1000      | 1970-01-01 00:00:00.000002    |",
+            "| 20        | 1970-01-01 00:00:00.000007    |",
+            "+-----------+-------------------------------+",
         ];
         assert_batches_eq!(&expected, &batch);
     }
@@ -1017,12 +1502,37 @@ mod test {
 
         // Datafusion schema of the chunk
         let schema = chunk1.schema();
+        let chunks = vec![chunk1, chunk2];
+
+        // data in its original form
+        let expected = vec![
+            "+-----------+------+-------------------------------+",
+            "| field_int | tag1 | time                          |",
+            "+-----------+------+-------------------------------+",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000000005 |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000002    |",
+            "| 20        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000500 |",
+            "| 10        | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 30        | MT   | 1970-01-01 00:00:00.000000005 |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000005    |",
+            "+-----------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
         let mut deduplicator = Deduplicater::new();
         let plan = deduplicator.build_scan_plan(
             Arc::from("t"),
-            schema.as_arrow(),
-            vec![Arc::clone(&chunk1), Arc::clone(&chunk2)],
+            schema,
+            chunks,
             Predicate::default(),
             true,
         );
@@ -1086,17 +1596,44 @@ mod test {
 
         // Datafusion schema of the chunk
         let schema = chunk1.schema();
+        let chunks = vec![chunk1, chunk2, chunk3, chunk4];
+
+        // data in its original form
+        let expected = vec![
+            "+-----------+------+-------------------------------+",
+            "| field_int | tag1 | time                          |",
+            "+-----------+------+-------------------------------+",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000000005 |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000002    |",
+            "| 20        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000500 |",
+            "| 10        | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 30        | MT   | 1970-01-01 00:00:00.000000005 |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000005    |",
+            "| 1000      | WA   | 1970-01-01 00:00:00.000008    |",
+            "| 10        | VT   | 1970-01-01 00:00:00.000010    |",
+            "| 70        | UT   | 1970-01-01 00:00:00.000020    |",
+            "| 1000      | WA   | 1970-01-01 00:00:00.000008    |",
+            "| 10        | VT   | 1970-01-01 00:00:00.000010    |",
+            "| 70        | UT   | 1970-01-01 00:00:00.000020    |",
+            "| 50        | VT   | 1970-01-01 00:00:00.000010    |",
+            "+-----------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
         let mut deduplicator = Deduplicater::new();
         let plan = deduplicator.build_scan_plan(
             Arc::from("t"),
-            schema.as_arrow(),
-            vec![
-                Arc::clone(&chunk1),
-                Arc::clone(&chunk2),
-                Arc::clone(&chunk3),
-                Arc::clone(&chunk4),
-            ],
+            schema,
+            chunks,
             Predicate::default(),
             true,
         );
@@ -1139,5 +1676,22 @@ mod test {
             .enumerate()
             .map(|(idx, group)| format!("Group {}: {}", idx, chunk_ids(group)))
             .collect()
+    }
+
+    /// Return the raw data from the list of chunks
+    async fn raw_data(chunks: &[Arc<TestChunk>]) -> Vec<RecordBatch> {
+        let mut batches = vec![];
+        for c in chunks {
+            let pred = Predicate::default();
+            let selection = Selection::All;
+            let mut stream = c
+                .read_filter(&pred, selection)
+                .expect("Error in read_filter");
+            while let Some(b) = stream.next().await {
+                let b = b.expect("Error in stream");
+                batches.push(b)
+            }
+        }
+        batches
     }
 }

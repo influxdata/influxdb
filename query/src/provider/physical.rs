@@ -27,6 +27,9 @@ pub(crate) struct IOxReadFilterNode<C: QueryChunk + 'static> {
 }
 
 impl<C: QueryChunk + 'static> IOxReadFilterNode<C> {
+    /// Create a execution plan node that reads data from `chunks` producing
+    /// output according to schema, while applying `predicate` and
+    /// returns
     pub fn new(
         table_name: Arc<str>,
         schema: SchemaRef,

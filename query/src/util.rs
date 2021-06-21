@@ -1,12 +1,8 @@
 //! This module contains DataFusion utility functions and helpers
 
-use std::{collections::HashSet, sync::Arc};
+use std::collections::HashSet;
 
-use arrow::{
-    compute::SortOptions,
-    datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef},
-    record_batch::RecordBatch,
-};
+use arrow::{compute::SortOptions, record_batch::RecordBatch};
 
 use datafusion::{
     error::DataFusionError,
@@ -22,28 +18,6 @@ pub fn make_scan_plan(batch: RecordBatch) -> std::result::Result<LogicalPlan, Da
     let partitions = vec![vec![batch]];
     let projection = None; // scan all columns
     LogicalPlanBuilder::scan_memory(partitions, schema, projection)?.build()
-}
-
-/// Given the requested projection (set of requested columns),
-/// returns the schema of selecting just those columns
-///
-/// TODO contribute this back upstream in arrow's Schema so we can
-/// avoid the copy of fields
-pub fn project_schema(
-    arrow_schema: ArrowSchemaRef,
-    projection: &Option<Vec<usize>>,
-) -> ArrowSchemaRef {
-    match projection {
-        None => arrow_schema,
-        Some(projection) => {
-            let new_fields = projection
-                .iter()
-                .map(|&i| arrow_schema.field(i))
-                .cloned()
-                .collect();
-            Arc::new(ArrowSchema::new(new_fields))
-        }
-    }
 }
 
 /// Returns true if all columns referred to in schema are present, false

@@ -79,9 +79,9 @@ impl ChunkSnapshot {
             Selection::Some(columns) => {
                 let projection = self
                     .schema
-                    .select_indicies(columns)
+                    .compute_select_indicies(columns)
                     .context(SelectColumns)?;
-                let schema = self.schema.project_indices(&projection).into();
+                let schema = self.schema.select_by_indices(&projection).into();
                 let columns = projection
                     .into_iter()
                     .map(|x| Arc::clone(self.batch.column(x)))

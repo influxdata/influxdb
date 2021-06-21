@@ -334,8 +334,8 @@ impl Schema {
         Ok(match selection {
             Selection::All => self.clone(),
             Selection::Some(columns) => {
-                let columns = self.select_indicies(columns)?;
-                self.project_indices(&columns)
+                let columns = self.compute_select_indicies(columns)?;
+                self.select_by_indices(&columns)
             }
         })
     }
@@ -343,7 +343,7 @@ impl Schema {
     /// Returns the field indexes for a given selection
     ///
     /// Returns an error if a corresponding column isn't found
-    pub fn select_indicies(&self, columns: &[&str]) -> Result<Vec<usize>> {
+    pub fn compute_select_indicies(&self, columns: &[&str]) -> Result<Vec<usize>> {
         columns
             .iter()
             .map(|column_name| {
@@ -355,10 +355,10 @@ impl Schema {
             .collect()
     }
 
-    /// Returns the schema for a given set of column projects
-    pub fn project_indices(&self, projection: &[usize]) -> Self {
-        let mut fields = Vec::with_capacity(projection.len());
-        for idx in projection {
+    /// Returns a Schema for the given (sub)set of column projects
+    pub fn select_by_indices(&self, selection: &[usize]) -> Self {
+        let mut fields = Vec::with_capacity(selection.len());
+        for idx in selection {
             let field = self.inner.field(*idx);
             fields.push(field.clone());
         }
@@ -371,6 +371,11 @@ impl Schema {
         Self {
             inner: Arc::new(ArrowSchema::new_with_metadata(fields, metadata)),
         }
+    }
+
+    /// Returns a Schema for a given (sub)set of named columns
+    pub fn select_by_names(&self, selection: &[&str]) -> Result<Self> {
+        self.select(Selection::Some(selection))
     }
 
     /// Returns the sort key if any
@@ -1062,9 +1067,7 @@ mod test {
             .build()
             .unwrap();
 
-        let projection = schema1.select_indicies(&[TIME_COLUMN_NAME]).unwrap();
-
-        let schema2 = schema1.project_indices(&projection);
+        let schema2 = schema1.select_by_names(&[TIME_COLUMN_NAME]).unwrap();
         let schema3 = Schema::try_from_arrow(Arc::clone(&schema2.inner)).unwrap();
 
         assert_eq!(schema1.measurement(), schema2.measurement());
@@ -1126,12 +1129,9 @@ mod test {
             .build_with_sort_key(&sort_key)
             .unwrap();
 
-        let projected = schema1.project_indices(
-            schema1
-                .select_indicies(&["tag4", "tag2", "tag3", "time"])
-                .unwrap()
-                .as_slice(),
-        );
+        let projected = schema1
+            .select_by_names(&["tag4", "tag2", "tag3", "time"])
+            .unwrap();
 
         let projected_key: Vec<_> = projected.sort_key().unwrap().iter().map(|x| *x.0).collect();
 
