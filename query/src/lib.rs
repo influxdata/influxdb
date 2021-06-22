@@ -16,7 +16,6 @@ use predicate::PredicateMatch;
 
 use std::{fmt::Debug, sync::Arc};
 
-pub mod duplicate;
 pub mod exec;
 pub mod frontend;
 pub mod func;
