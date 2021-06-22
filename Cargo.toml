@@ -35,7 +35,9 @@ members = [
     "server_benchmarks",
     "test_helpers",
     "tracker",
-    "trogging"
+    "trogging",
+    "grpc-router",
+    "grpc-router/grpc-router-test-gen",
 ]
 
 [profile.release]

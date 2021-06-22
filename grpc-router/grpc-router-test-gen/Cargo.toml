@@ -1,0 +1,15 @@
+[package]
+name = "grpc-router-test-gen"
+version = "0.1.0"
+authors = ["Marko Mikulicic <mkm@influxdata.com>"]
+edition = "2018"
+description = "Protobuf used in test for the grpc-router crate; need to be in a separate create because of linter limitations"
+
+[dependencies]
+tonic = "0.4"
+prost = "0.7"
+prost-types = "0.7"
+
+[build-dependencies]
+tonic-build = "0.4"
+prost-build = "0.7"
