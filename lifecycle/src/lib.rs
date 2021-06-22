@@ -1,3 +1,12 @@
+#![deny(broken_intra_doc_links, rust_2018_idioms)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    clippy::explicit_iter_loop,
+    clippy::future_not_send,
+    clippy::use_self,
+    clippy::clone_on_ref_ptr
+)]
 use chrono::{DateTime, Utc};
 
 use data_types::chunk_metadata::ChunkStorage;
@@ -92,7 +101,7 @@ pub trait LockableChunk: Sized {
     /// Note that this can only be called for persisted chunks
     /// (otherwise the read buffer may contain the *only* copy of this
     /// chunk's data). In order to drop un-persisted chunks,
-    /// [`drop_chunk`](Self::drop_chunk) must be used.
+    /// [`drop_chunk`](LifecycleDb::drop_chunk) must be used.
     fn unload_read_buffer(s: LifecycleWriteGuard<'_, Self::Chunk, Self>)
         -> Result<(), Self::Error>;
 }

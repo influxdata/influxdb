@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::fmt::Debug;
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
@@ -219,6 +220,15 @@ where
                 _ = wait_optional_tracker(write_tracker) => {}
             };
         })
+    }
+}
+
+impl<'a, M> Debug for LifecyclePolicy<'a, M>
+where
+    &'a M: LifecycleDb,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "LifecyclePolicy{{..}}")
     }
 }
 
