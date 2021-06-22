@@ -510,8 +510,9 @@ mod tests {
         create_open_chunk(&p3);
 
         let mut p3 = p3.write();
+        let err = p3.drop_chunk(2).unwrap_err();
 
-        assert!(p3.drop_chunk(2).is_none());
+        assert!(matches!(err, partition::Error::ChunkNotFound { .. }))
     }
 
     #[test]

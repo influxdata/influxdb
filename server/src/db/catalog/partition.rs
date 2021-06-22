@@ -14,6 +14,25 @@ use crate::db::catalog::metrics::PartitionMetrics;
 
 use super::chunk::{CatalogChunk, ChunkStage};
 use data_types::chunk_metadata::{ChunkAddr, ChunkSummary};
+use lifecycle::ChunkLifecycleAction;
+use snafu::Snafu;
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("chunk not found: {}", chunk))]
+    ChunkNotFound { chunk: ChunkAddr },
+
+    #[snafu(display(
+        "cannot drop chunk {} with in-progress lifecycle action: {}",
+        chunk,
+        action
+    ))]
+    LifecycleInProgress {
+        chunk: ChunkAddr,
+        action: ChunkLifecycleAction,
+    },
+}
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// IOx Catalog Partition
 ///
@@ -22,6 +41,7 @@ use data_types::chunk_metadata::{ChunkAddr, ChunkSummary};
 pub struct Partition {
     /// Database name
     db_name: Arc<str>,
+
     /// The partition key
     partition_key: Arc<str>,
 
@@ -172,8 +192,29 @@ impl Partition {
     }
 
     /// Drop the specified chunk
-    pub fn drop_chunk(&mut self, chunk_id: u32) -> Option<Arc<RwLock<CatalogChunk>>> {
-        self.chunks.remove(&chunk_id)
+    pub fn drop_chunk(&mut self, chunk_id: u32) -> Result<Arc<RwLock<CatalogChunk>>> {
+        match self.chunks.entry(chunk_id) {
+            Entry::Vacant(_) => Err(Error::ChunkNotFound {
+                chunk: ChunkAddr {
+                    db_name: Arc::clone(&self.db_name),
+                    table_name: Arc::clone(&self.table_name),
+                    partition_key: Arc::clone(&self.partition_key),
+                    chunk_id,
+                },
+            }),
+            Entry::Occupied(occupied) => {
+                {
+                    let chunk = occupied.get().read();
+                    if let Some(action) = chunk.lifecycle_action() {
+                        return Err(Error::LifecycleInProgress {
+                            chunk: chunk.addr().clone(),
+                            action: *action.metadata(),
+                        });
+                    }
+                }
+                Ok(occupied.remove())
+            }
+        }
     }
 
     /// return the first currently open chunk, if any

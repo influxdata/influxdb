@@ -6,18 +6,20 @@ use ::lifecycle::LifecycleDb;
 use data_types::chunk_metadata::ChunkStorage;
 use data_types::database_rules::{LifecycleRules, SortOrder};
 use data_types::error::ErrorLogger;
+use data_types::job::Job;
 use lifecycle::{
-    ChunkLifecycleAction, LifecycleChunk, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
+    ChunkLifecycleAction, LifecycleChunk, LifecyclePartition, LifecycleReadGuard,
+    LifecycleWriteGuard, LockableChunk, LockablePartition,
 };
 use observability_deps::tracing::info;
 use tracker::{RwLock, TaskTracker};
 
 use crate::db::catalog::chunk::CatalogChunk;
+use crate::db::catalog::partition::Partition;
 use crate::Db;
-use data_types::job::Job;
 
 ///
-/// A LockableCatalogChunk combines a `CatalogChunk` with its owning `Db`
+/// A `LockableCatalogChunk` combines a `CatalogChunk` with its owning `Db`
 ///
 /// This provides the `lifecycle::LockableChunk` trait which can be used to lock
 /// the chunk, determine what to do, and then optionally trigger an action, all
@@ -73,8 +75,67 @@ impl<'a> LockableChunk for LockableCatalogChunk<'a> {
     }
 }
 
+///
+/// A `LockableCatalogPartition` combines a `Partition` with its owning `Db`
+///
+/// This provides the `lifecycle::LockablePartition` trait which can be used to lock
+/// the chunk, determine what to do, and then optionally trigger an action, all
+/// without allowing concurrent modification
+///
+#[derive(Debug, Clone)]
+pub struct LockableCatalogPartition<'a> {
+    pub db: &'a Db,
+    pub partition: Arc<RwLock<Partition>>,
+}
+
+impl<'a> LockablePartition for LockableCatalogPartition<'a> {
+    type Partition = Partition;
+
+    type Chunk = LockableCatalogChunk<'a>;
+
+    // TODO: Separate error enumeration for lifecycle actions
+    type Error = super::catalog::partition::Error;
+
+    fn read(&self) -> LifecycleReadGuard<'_, Self::Partition, Self> {
+        LifecycleReadGuard::new(self.clone(), self.partition.as_ref())
+    }
+
+    fn write(&self) -> LifecycleWriteGuard<'_, Self::Partition, Self> {
+        LifecycleWriteGuard::new(self.clone(), self.partition.as_ref())
+    }
+
+    fn chunk(
+        s: &LifecycleReadGuard<'_, Self::Partition, Self>,
+        chunk_id: u32,
+    ) -> Option<Self::Chunk> {
+        s.chunk(chunk_id).map(|chunk| LockableCatalogChunk {
+            db: s.data().db,
+            chunk: Arc::clone(chunk),
+        })
+    }
+
+    fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<Self::Chunk> {
+        let db = s.data().db;
+        s.chunks()
+            .map(|chunk| LockableCatalogChunk {
+                db,
+                chunk: Arc::clone(chunk),
+            })
+            .collect()
+    }
+
+    fn drop_chunk(
+        mut s: LifecycleWriteGuard<'_, Self::Partition, Self>,
+        chunk_id: u32,
+    ) -> Result<(), Self::Error> {
+        s.drop_chunk(chunk_id)?;
+        Ok(())
+    }
+}
+
 impl<'a> LifecycleDb for &'a Db {
     type Chunk = LockableCatalogChunk<'a>;
+    type Partition = LockableCatalogPartition<'a>;
 
     fn buffer_size(self) -> usize {
         self.catalog.metrics().memory().total()
@@ -84,6 +145,17 @@ impl<'a> LifecycleDb for &'a Db {
         self.rules.read().lifecycle_rules.clone()
     }
 
+    fn partitions(self) -> Vec<Self::Partition> {
+        self.catalog
+            .partitions()
+            .into_iter()
+            .map(|partition| LockableCatalogPartition {
+                db: self,
+                partition,
+            })
+            .collect()
+    }
+
     fn chunks(self, sort_order: &SortOrder) -> Vec<Self::Chunk> {
         self.catalog
             .chunks_sorted_by(sort_order)
@@ -91,11 +163,11 @@ impl<'a> LifecycleDb for &'a Db {
             .map(|chunk| LockableCatalogChunk { db: self, chunk })
             .collect()
     }
+}
 
-    fn drop_chunk(self, table_name: String, partition_key: String, chunk_id: u32) {
-        info!(%partition_key, %chunk_id, "dropping chunk");
-        let _ = Db::drop_chunk(self, &table_name, &partition_key, chunk_id)
-            .log_if_error("dropping chunk to free up memory");
+impl LifecyclePartition for Partition {
+    fn partition_key(&self) -> &str {
+        self.key()
     }
 }
 

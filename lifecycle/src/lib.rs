@@ -31,6 +31,12 @@ pub enum ChunkLifecycleAction {
     Compacting,
 }
 
+impl std::fmt::Display for ChunkLifecycleAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
 impl ChunkLifecycleAction {
     pub fn name(&self) -> &'static str {
         match self {
@@ -47,6 +53,7 @@ impl ChunkLifecycleAction {
 /// to yield `LifecycleDb::Chunk` with non-static lifetimes
 pub trait LifecycleDb {
     type Chunk: LockableChunk;
+    type Partition: LockablePartition;
 
     /// Return the in-memory size of the database. We expect this
     /// to change from call to call as chunks are dropped
@@ -55,14 +62,43 @@ pub trait LifecycleDb {
     /// Returns the lifecycle policy
     fn rules(self) -> LifecycleRules;
 
+    /// Returns a list of lockable partitions in the database
+    fn partitions(self) -> Vec<Self::Partition>;
+
     /// Returns a list of lockable chunks sorted in the order
     /// they should prioritised
-    fn chunks(self, order: &SortOrder) -> Vec<Self::Chunk>;
-
-    /// Drops a chunk from the database
     ///
-    /// TODO: Transaction-ify this
-    fn drop_chunk(self, table_name: String, partition_key: String, chunk_id: u32);
+    /// TODO: Remove this and use method on partition
+    fn chunks(self, order: &SortOrder) -> Vec<Self::Chunk>;
+}
+
+/// A `LockablePartition` is a wrapper around a `LifecyclePartition` that allows
+/// for planning and executing lifecycle actions on the partition
+pub trait LockablePartition: Sized {
+    type Partition: LifecyclePartition;
+    type Chunk: LockableChunk;
+    type Error: std::error::Error + Send + Sync;
+
+    /// Acquire a shared read lock on the chunk
+    fn read(&self) -> LifecycleReadGuard<'_, Self::Partition, Self>;
+
+    /// Acquire an exclusive write lock on the chunk
+    fn write(&self) -> LifecycleWriteGuard<'_, Self::Partition, Self>;
+
+    /// Returns a specific chunk
+    fn chunk(
+        s: &LifecycleReadGuard<'_, Self::Partition, Self>,
+        chunk_id: u32,
+    ) -> Option<Self::Chunk>;
+
+    /// Return a list of lockable chunks
+    fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<Self::Chunk>;
+
+    /// Drops a chunk from the partition
+    fn drop_chunk(
+        s: LifecycleWriteGuard<'_, Self::Partition, Self>,
+        chunk_id: u32,
+    ) -> Result<(), Self::Error>;
 }
 
 /// A `LockableChunk` is a wrapper around a `LifecycleChunk` that allows for
@@ -101,9 +137,13 @@ pub trait LockableChunk: Sized {
     /// Note that this can only be called for persisted chunks
     /// (otherwise the read buffer may contain the *only* copy of this
     /// chunk's data). In order to drop un-persisted chunks,
-    /// [`drop_chunk`](LifecycleDb::drop_chunk) must be used.
+    /// [`drop_chunk`](LockablePartition::drop_chunk) must be used.
     fn unload_read_buffer(s: LifecycleWriteGuard<'_, Self::Chunk, Self>)
         -> Result<(), Self::Error>;
+}
+
+pub trait LifecyclePartition {
+    fn partition_key(&self) -> &str;
 }
 
 /// The lifecycle operates on chunks implementing this trait
