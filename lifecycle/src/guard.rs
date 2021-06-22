@@ -82,7 +82,10 @@
 //! ```
 //!
 
-use std::ops::{Deref, DerefMut};
+use std::{
+    fmt::Debug,
+    ops::{Deref, DerefMut},
+};
 
 use tracker::{RwLock, RwLockUpgradableReadGuard, RwLockWriteGuard};
 
@@ -126,6 +129,12 @@ impl<'a, P, D> LifecycleReadGuard<'a, P, D> {
     }
 }
 
+impl<'a, P, D> Debug for LifecycleReadGuard<'a, P, D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "LifecycleReadGuard{{..}}")
+    }
+}
+
 impl<'a, P, D> Deref for LifecycleReadGuard<'a, P, D> {
     type Target = P;
     #[inline]
@@ -161,6 +170,12 @@ impl<'a, P, D> LifecycleWriteGuard<'a, P, D> {
     /// Drops the locks held by this guard and returns the data payload
     pub fn unwrap(self) -> D {
         self.data
+    }
+}
+
+impl<'a, P, D> Debug for LifecycleWriteGuard<'a, P, D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "LifecycleWriteGuard{{..}}")
     }
 }
 
