@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog, TransactionEnd},
+    catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
     storage::data_location,
 };
 use futures::TryStreamExt;
@@ -39,17 +39,13 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// This will hold the transaction lock while the list of files is being gathered. To limit the time the lock is held
 /// use `max_files` which will limit the number of files to delete in this cleanup round.
-pub async fn cleanup_unreferenced_parquet_files<S>(
+pub async fn cleanup_unreferenced_parquet_files(
     catalog: &PreservedCatalog,
-    state: Arc<S>,
     max_files: usize,
-) -> Result<()>
-where
-    S: CatalogState + Send + Sync,
-{
+) -> Result<()> {
     // Create a transaction to prevent parallel modifications of the catalog. This avoids that we delete files there
     // that are about to get added to the catalog.
-    let transaction = catalog.open_transaction(state).await;
+    let transaction = catalog.open_transaction().await;
 
     let store = catalog.object_store();
     let server_id = catalog.server_id();
@@ -130,35 +126,19 @@ impl CatalogState for TracerCatalogState {
         }
     }
 
-    type TransactionState = Arc<Self>;
-
-    fn transaction_begin(origin: &Arc<Self>) -> Self::TransactionState {
-        // no copy
-        Arc::clone(origin)
-    }
-
-    fn transaction_end(tstate: Self::TransactionState, _how: TransactionEnd) -> Arc<Self> {
-        // we don't care about aborts because they are not during clean-up
-        tstate
-    }
-
     fn add(
-        tstate: &mut Self::TransactionState,
+        &mut self,
         _object_store: Arc<ObjectStore>,
         info: CatalogParquetInfo,
     ) -> crate::catalog::Result<()> {
-        tstate
-            .files
+        self.files
             .lock()
             .expect("lock poissened?")
             .insert(info.path);
         Ok(())
     }
 
-    fn remove(
-        _tstate: &mut Self::TransactionState,
-        _path: DirsAndFileName,
-    ) -> crate::catalog::Result<()> {
+    fn remove(&mut self, _path: DirsAndFileName) -> crate::catalog::Result<()> {
         // Do NOT remove the file since we still need it for time travel
         Ok(())
     }
@@ -184,7 +164,7 @@ mod tests {
         let server_id = make_server_id();
         let db_name = "db1";
 
-        let (catalog, state) = PreservedCatalog::new_empty::<TestCatalogState>(
+        let (catalog, _state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -194,7 +174,7 @@ mod tests {
         .unwrap();
 
         // run clean-up
-        cleanup_unreferenced_parquet_files(&catalog, state, 1_000)
+        cleanup_unreferenced_parquet_files(&catalog, 1_000)
             .await
             .unwrap();
     }
@@ -205,7 +185,7 @@ mod tests {
         let server_id = make_server_id();
         let db_name = db_name();
 
-        let (catalog, mut state) = PreservedCatalog::new_empty::<TestCatalogState>(
+        let (catalog, _state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -218,7 +198,7 @@ mod tests {
         let mut paths_keep = vec![];
         let mut paths_delete = vec![];
         {
-            let mut transaction = catalog.open_transaction(state).await;
+            let mut transaction = catalog.open_transaction().await;
 
             // an ordinary tracked parquet file => keep
             let (path, md) = make_metadata(&object_store, "foo", chunk_addr(1)).await;
@@ -242,11 +222,11 @@ mod tests {
             let (path, _md) = make_metadata(&object_store, "foo", chunk_addr(3)).await;
             paths_delete.push(path.display());
 
-            state = transaction.commit(None).await.unwrap();
+            transaction.commit(None).await.unwrap();
         }
 
         // run clean-up
-        cleanup_unreferenced_parquet_files(&catalog, state, 1_000)
+        cleanup_unreferenced_parquet_files(&catalog, 1_000)
             .await
             .unwrap();
 
@@ -266,7 +246,7 @@ mod tests {
         let server_id = make_server_id();
         let db_name = db_name();
 
-        let (catalog, state) = PreservedCatalog::new_empty::<TestCatalogState>(
+        let (catalog, _state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -279,7 +259,7 @@ mod tests {
         for i in 0..100 {
             let (path, _) = tokio::join!(
                 async {
-                    let mut transaction = catalog.open_transaction(Arc::clone(&state)).await;
+                    let mut transaction = catalog.open_transaction().await;
 
                     let (path, md) = make_metadata(&object_store, "foo", chunk_addr(i)).await;
                     transaction.add_parquet(&path.clone().into(), &md).unwrap();
@@ -289,7 +269,7 @@ mod tests {
                     path.display()
                 },
                 async {
-                    cleanup_unreferenced_parquet_files(&catalog, Arc::clone(&state), 1_000)
+                    cleanup_unreferenced_parquet_files(&catalog, 1_000)
                         .await
                         .unwrap();
                 },
@@ -306,7 +286,7 @@ mod tests {
         let server_id = make_server_id();
         let db_name = db_name();
 
-        let (catalog, state) = PreservedCatalog::new_empty::<TestCatalogState>(
+        let (catalog, _state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -323,7 +303,7 @@ mod tests {
         }
 
         // run clean-up
-        cleanup_unreferenced_parquet_files(&catalog, Arc::clone(&state), 2)
+        cleanup_unreferenced_parquet_files(&catalog, 2)
             .await
             .unwrap();
 
@@ -333,7 +313,7 @@ mod tests {
         assert_eq!(leftover.len(), 1);
 
         // run clean-up again
-        cleanup_unreferenced_parquet_files(&catalog, Arc::clone(&state), 2)
+        cleanup_unreferenced_parquet_files(&catalog, 2)
             .await
             .unwrap();
 

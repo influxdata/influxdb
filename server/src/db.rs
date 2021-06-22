@@ -12,6 +12,7 @@ use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use async_trait::async_trait;
 use catalog::{chunk::CatalogChunk, Catalog};
 pub(crate) use chunk::DbChunk;
+use data_types::chunk_metadata::ChunkAddr;
 use data_types::{
     chunk_metadata::ChunkSummary,
     database_rules::DatabaseRules,
@@ -30,7 +31,7 @@ use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::RwLock;
-use parquet_file::catalog::{CheckpointData, TransactionEnd};
+use parquet_file::catalog::CheckpointData;
 use parquet_file::{
     catalog::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
@@ -42,7 +43,7 @@ use query::{exec::Executor, predicate::Predicate, QueryDatabase};
 use rand_distr::{Distribution, Poisson};
 use read_buffer::{ChunkMetrics as ReadBufferChunkMetrics, RBChunk};
 use snafu::{ResultExt, Snafu};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::future::Future;
 use std::{
     any::Any,
@@ -143,10 +144,21 @@ pub enum Error {
     #[snafu(display("Error building sequenced entry: {}", source))]
     SequencedEntryError { source: entry::SequencedEntryError },
 
+    #[snafu(display("Error while creating parquet chunk: {}", source))]
+    ParquetChunkError { source: parquet_file::chunk::Error },
+
     #[snafu(display("Error while handling transaction on preserved catalog: {}", source))]
     TransactionError {
         source: parquet_file::catalog::Error,
     },
+
+    #[snafu(display("Error while commiting transaction on preserved catalog: {}", source))]
+    CommitError {
+        source: parquet_file::catalog::CommitError,
+    },
+
+    #[snafu(display("Cannot write chunk: {}", addr))]
+    CannotWriteChunk { addr: ChunkAddr },
 
     #[snafu(display("background task cancelled: {}", source))]
     TaskCancelled { source: futures::future::Aborted },
@@ -595,9 +607,6 @@ impl Db {
 
         debug!(chunk=%guard.addr(), "chunk marked WRITING , loading tables into object store");
 
-        // Drop locks
-        let chunk = guard.unwrap().chunk;
-
         // Create a storage to save data of this chunk
         let storage = Storage::new(
             Arc::clone(&db.store),
@@ -613,6 +622,10 @@ impl Db {
 
         let preserved_catalog = Arc::clone(&db.preserved_catalog);
         let catalog = Arc::clone(&db.catalog);
+        let object_store = Arc::clone(&db.store);
+
+        // Drop locks
+        let chunk = guard.unwrap().chunk;
 
         let fut = async move {
             let table_name = table_summary.name.as_str();
@@ -632,9 +645,22 @@ impl Db {
                 streams::ReadFilterResultsStream::new(read_results, Arc::clone(&arrow_schema)),
             );
 
+            // check that the upcoming state change will very likely succeed
+            {
+                // re-lock
+                let guard = chunk.read();
+                if matches!(guard.stage(), &ChunkStage::Persisted { .. })
+                    || !guard.is_in_lifecycle(::lifecycle::ChunkLifecycleAction::Persisting)
+                {
+                    return Err(Error::CannotWriteChunk {
+                        addr: guard.addr().clone(),
+                    });
+                }
+            }
+
             // catalog-level transaction for preservation layer
             {
-                let mut transaction = preserved_catalog.open_transaction(catalog).await;
+                let mut transaction = preserved_catalog.open_transaction().await;
 
                 // Write this table data into the object store
                 //
@@ -659,6 +685,23 @@ impl Db {
                     )
                     .await
                     .context(WritingToObjectStore)?;
+                let parquet_metadata = Arc::new(parquet_metadata);
+
+                let metrics = catalog
+                    .metrics_registry
+                    .register_domain_with_labels("parquet", catalog.metric_labels.clone());
+                let metrics =
+                    ParquetChunkMetrics::new(&metrics, catalog.metrics().memory().parquet());
+                let parquet_chunk = Arc::new(
+                    ParquetChunk::new(
+                        path.clone(),
+                        object_store,
+                        Arc::clone(&parquet_metadata),
+                        metrics,
+                    )
+                    .context(ParquetChunkError)?,
+                );
+
                 let path: DirsAndFileName = path.into();
 
                 transaction
@@ -670,19 +713,35 @@ impl Db {
                         transaction.revision_counter() % interval.get() == 0
                     });
                 let checkpoint_data = create_checkpoint.then(|| {
-                    let mut checkpoint_data =
-                        checkpoint_data_from_catalog(&transaction.tstate().catalog);
+                    let mut checkpoint_data = checkpoint_data_from_catalog(&catalog);
                     // don't forget the file that we've just added
-                    checkpoint_data
-                        .files
-                        .insert(path, Arc::new(parquet_metadata));
+                    checkpoint_data.files.insert(path, parquet_metadata);
                     checkpoint_data
                 });
 
-                transaction
-                    .commit(checkpoint_data)
-                    .await
-                    .context(TransactionError)?;
+                match transaction.commit(checkpoint_data).await {
+                    Ok(()) => {
+                        let mut guard = chunk.write();
+                        if let Err(e) = guard.set_written_to_object_store(parquet_chunk) {
+                            panic!("Chunk written but cannot mark as written {}", e);
+                        }
+                    }
+                    Err(e @ parquet_file::catalog::CommitError::CheckpointFailed { .. }) => {
+                        warn!(%e, "cannot create catalog checkpoint");
+
+                        // still mark chunk as persisted
+                        let mut guard = chunk.write();
+                        if let Err(e) = guard.set_written_to_object_store(parquet_chunk) {
+                            panic!("Chunk written but cannot mark as written {}", e);
+                        }
+                    }
+                    Err(e @ parquet_file::catalog::CommitError::CommitFailed { .. }) => {
+                        warn!(%e, "cannot create catalog transaction");
+
+                        // do NOT mark chunk as persisted
+                        return Err(Error::CommitError { source: e });
+                    }
+                }
             }
 
             // We know this chunk is ParquetFile type
@@ -804,7 +863,7 @@ impl Db {
                             debug!(?duration, "cleanup worker sleeps");
                             tokio::time::sleep(duration).await;
 
-                            if let Err(e) = cleanup_unreferenced_parquet_files(&self.preserved_catalog, Arc::clone(&self.catalog), 1_000).await {
+                            if let Err(e) = cleanup_unreferenced_parquet_files(&self.preserved_catalog, 1_000).await {
                                 error!(%e, "error in background cleanup task");
                             }
                         } => {},
@@ -1016,47 +1075,6 @@ pub struct CatalogEmptyInput {
     metric_labels: Vec<KeyValue>,
 }
 
-#[derive(Debug)]
-enum TransactionCommitAction {
-    DropChunk {
-        table_name: String,
-        partition_key: String,
-        chunk_id: u32,
-    },
-    NewChunk {
-        table_name: String,
-        partition_key: String,
-        chunk_id: u32,
-        inner: Arc<ParquetChunk>,
-    },
-    SetWritten {
-        table_name: String,
-        partition_key: String,
-        chunk_id: u32,
-        inner: Arc<ParquetChunk>,
-    },
-}
-
-/// Helper to manage transaction on the in-memory catalog.
-#[derive(Debug)]
-pub struct TransactionState {
-    /// Inner catalog used during this transaction.
-    catalog: Arc<Catalog>,
-
-    /// Actions that will be performed on successful commit. These are pre-checked and should not result in any errors.
-    commit_actions: Vec<TransactionCommitAction>,
-
-    /// New files that are to be added during this transaction with table, partition key and chunk ID.
-    ///
-    /// This only contains files that were not (yet) removed during the same transaction.
-    new_files: HashMap<DirsAndFileName, (String, String, u32)>,
-
-    /// Files removed during this transaction.
-    ///
-    /// This only contains files that were not (yet) re-added during the same transaction.
-    removed_files: HashSet<DirsAndFileName>,
-}
-
 impl CatalogState for Catalog {
     type EmptyInput = CatalogEmptyInput;
 
@@ -1069,89 +1087,8 @@ impl CatalogState for Catalog {
         )
     }
 
-    type TransactionState = TransactionState;
-
-    fn transaction_begin(origin: &Arc<Self>) -> Self::TransactionState {
-        TransactionState {
-            catalog: Arc::clone(origin),
-            commit_actions: vec![],
-            new_files: HashMap::new(),
-            removed_files: HashSet::new(),
-        }
-    }
-
-    fn transaction_end(tstate: Self::TransactionState, how: TransactionEnd) -> Arc<Self> {
-        let TransactionState {
-            catalog,
-            commit_actions,
-            ..
-        } = tstate;
-
-        if matches!(how, TransactionEnd::Commit) {
-            for action in commit_actions {
-                match action {
-                    TransactionCommitAction::DropChunk {
-                        table_name,
-                        partition_key,
-                        chunk_id,
-                    } => {
-                        // TODO: Should this really be infallible?
-                        if let Ok(partition) = catalog.partition(&table_name, &partition_key) {
-                            let mut partition = partition.write();
-                            let _ = partition.drop_chunk(chunk_id);
-                        }
-
-                        debug!(%table_name, %partition_key, chunk_id, "removed chunk according to persisted catalog");
-                    }
-                    TransactionCommitAction::NewChunk {
-                        table_name,
-                        partition_key,
-                        chunk_id,
-                        inner,
-                    } => {
-                        let partition = catalog
-                            .get_or_create_partition(table_name.clone(), partition_key.clone());
-                        let mut partition = partition.write();
-                        partition.insert_object_store_only_chunk(chunk_id, inner);
-                        debug!(%table_name, %partition_key, chunk_id, "recovered chunk from persisted catalog");
-                    }
-                    TransactionCommitAction::SetWritten {
-                        table_name,
-                        partition_key,
-                        chunk_id,
-                        inner,
-                    } => {
-                        let partition = catalog
-                            .get_or_create_partition(table_name.clone(), partition_key.clone());
-                        let partition = partition.read();
-
-                        match partition.chunk(chunk_id) {
-                            Some(chunk) => {
-                                let mut chunk = chunk.write();
-
-                                match chunk.set_written_to_object_store(inner) {
-                                    Ok(()) => {
-                                        debug!(%table_name, %partition_key, chunk_id, "chunk marked WRITTEN. Persisting to object store complete");
-                                    }
-                                    Err(e) => {
-                                        warn!(%e, %table_name, %partition_key, chunk_id, "chunk state changed during transaction even though lifecycle action was present");
-                                    }
-                                }
-                            }
-                            None => {
-                                warn!(%table_name, %partition_key, chunk_id, "chunk is gone during transaction even though lifecycle action was present");
-                            }
-                        }
-                    }
-                };
-            }
-        }
-
-        catalog
-    }
-
     fn add(
-        tstate: &mut Self::TransactionState,
+        &mut self,
         object_store: Arc<ObjectStore>,
         info: CatalogParquetInfo,
     ) -> parquet_file::catalog::Result<()> {
@@ -1166,13 +1103,11 @@ impl CatalogState for Catalog {
             })?;
 
         // Create a parquet chunk for this chunk
-        let metrics = tstate
-            .catalog
+        let metrics = self
             .metrics_registry
-            .register_domain_with_labels("parquet", tstate.catalog.metric_labels.clone());
+            .register_domain_with_labels("parquet", self.metric_labels.clone());
 
-        let metrics =
-            ParquetChunkMetrics::new(&metrics, tstate.catalog.metrics().memory().parquet());
+        let metrics = ParquetChunkMetrics::new(&metrics, self.metrics().memory().parquet());
         let parquet_chunk = ParquetChunk::new(
             object_store.path_from_dirs_and_filename(info.path.clone()),
             object_store,
@@ -1186,128 +1121,45 @@ impl CatalogState for Catalog {
 
         // Get partition from the catalog
         // Note that the partition might not exist yet if the chunk is loaded from an existing preserved catalog.
-        let partition = tstate
-            .catalog
-            .get_or_create_partition(&iox_md.table_name, &iox_md.partition_key);
-        let partition_guard = partition.read();
-
-        if tstate.new_files.contains_key(&info.path) {
+        let partition = self.get_or_create_partition(&iox_md.table_name, &iox_md.partition_key);
+        let mut partition = partition.write();
+        if partition.chunk(iox_md.chunk_id).is_some() {
             return Err(parquet_file::catalog::Error::ParquetFileAlreadyExists { path: info.path });
         }
-
-        // Get the chunk from the catalog
-        match (
-            tstate.removed_files.remove(&info.path),
-            partition_guard.chunk(iox_md.chunk_id),
-        ) {
-            (false, Some(chunk)) => {
-                // Chunk exists => should be in frozen stage and will transition from there
-
-                // Relock the chunk again (nothing else should have been able
-                // to modify the chunk state while we were moving it
-                let chunk = chunk.read();
-
-                // check if chunk already exists
-                if matches!(chunk.stage(), &ChunkStage::Persisted { .. }) {
-                    return Err(parquet_file::catalog::Error::ParquetFileAlreadyExists {
-                        path: info.path,
-                    });
-                }
-
-                // check that the upcoming state change will very likely succeed
-                if !chunk.is_in_lifecycle(::lifecycle::ChunkLifecycleAction::Persisting) {
-                    return Err(parquet_file::catalog::Error::CatalogStateFailure {
-                        source: Box::new(
-                            crate::db::catalog::chunk::Error::UnexpectedLifecycleAction {
-                                chunk: chunk.addr().clone(),
-                                expected: "persisting".to_string(),
-                                actual: chunk
-                                    .lifecycle_action()
-                                    .map_or("n/a", |action| action.metadata().name())
-                                    .to_string(),
-                            },
-                        ),
-                        path: info.path,
-                    });
-                }
-
-                // update the catalog to say we are done processing
-                tstate
-                    .commit_actions
-                    .push(TransactionCommitAction::SetWritten {
-                        table_name: iox_md.table_name.clone(),
-                        partition_key: iox_md.partition_key.clone(),
-                        chunk_id: iox_md.chunk_id,
-                        inner: parquet_chunk,
-                    });
-                tstate.new_files.insert(
-                    info.path,
-                    (iox_md.table_name, iox_md.partition_key, iox_md.chunk_id),
-                );
-            }
-            _ => {
-                // table unknown => that's ok, create chunk in "object store only" stage which will also create the table
-                // table chunk, but table already known => that's ok, create chunk in "object store only" stage
-                tstate
-                    .commit_actions
-                    .push(TransactionCommitAction::NewChunk {
-                        table_name: iox_md.table_name.clone(),
-                        partition_key: iox_md.partition_key.clone(),
-                        chunk_id: iox_md.chunk_id,
-                        inner: parquet_chunk,
-                    });
-                tstate.new_files.insert(
-                    info.path,
-                    (iox_md.table_name, iox_md.partition_key, iox_md.chunk_id),
-                );
-            }
-        }
+        partition.insert_object_store_only_chunk(iox_md.chunk_id, parquet_chunk);
 
         Ok(())
     }
 
-    fn remove(
-        tstate: &mut Self::TransactionState,
-        path: DirsAndFileName,
-    ) -> parquet_file::catalog::Result<()> {
-        if tstate.removed_files.contains(&path) {
-            return Err(parquet_file::catalog::Error::ParquetFileDoesNotExist { path });
-        }
+    fn remove(&mut self, path: DirsAndFileName) -> parquet_file::catalog::Result<()> {
+        let mut removed_any = false;
 
-        let mut actions: Vec<TransactionCommitAction> = vec![];
-
-        for partition in tstate.catalog.partitions() {
-            let partition = partition.read();
+        for partition in self.partitions() {
+            let mut partition = partition.write();
+            let mut to_remove = vec![];
 
             for chunk in partition.chunks() {
                 let chunk = chunk.read();
                 if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
                     let chunk_path: DirsAndFileName = parquet.path().into();
                     if path == chunk_path {
-                        actions.push(TransactionCommitAction::DropChunk {
-                            table_name: partition.table_name().to_string(),
-                            partition_key: partition.key().to_string(),
-                            chunk_id: chunk.id(),
-                        });
+                        to_remove.push(chunk.id());
                     }
                 }
             }
+
+            for chunk_id in to_remove {
+                if let Err(e) = partition.drop_chunk(chunk_id) {
+                    panic!("Chunk is gone while we've had a partition lock: {}", e);
+                }
+                removed_any = true;
+            }
         }
 
-        if let Some((table_name, partition_key, chunk_id)) = tstate.new_files.remove(&path) {
-            actions.push(TransactionCommitAction::DropChunk {
-                table_name,
-                partition_key,
-                chunk_id,
-            });
-        }
-
-        if actions.is_empty() {
-            Err(parquet_file::catalog::Error::ParquetFileDoesNotExist { path })
-        } else {
-            tstate.commit_actions.append(&mut actions);
-            tstate.removed_files.insert(path);
+        if removed_any {
             Ok(())
+        } else {
+            Err(parquet_file::catalog::Error::ParquetFileDoesNotExist { path })
         }
     }
 }
