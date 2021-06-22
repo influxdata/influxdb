@@ -20,6 +20,7 @@ use arrow::{
     datatypes::DataType,
 };
 use datafusion::{error::Result as DataFusionResult, scalar::ScalarValue};
+use observability_deps::tracing::debug;
 
 use super::{Selector, SelectorOutput};
 
@@ -29,7 +30,7 @@ use super::{Selector, SelectorOutput};
 ///
 /// Note the only one that is different String <--> &str
 trait LtVal<T> {
-    /// return true  if v is less than self
+    /// return true if v is less than self
     fn lt_val(&self, v: &T) -> bool;
 }
 
@@ -160,7 +161,8 @@ macro_rules! make_first_selector {
                     let index = time_arr
                         .iter()
                         // arrow doesn't tell us what index had the
-                        // minimum, so need to find it ourselves
+                        // minimum, so need to find it ourselves see also
+                        // https://github.com/apache/arrow-datafusion/issues/600
                         .enumerate()
                         .find(|(_, time)| cur_min_time == *time)
                         .map(|(idx, _)| idx)
@@ -267,6 +269,31 @@ macro_rules! make_last_selector {
     };
 }
 
+/// Did we find a new min/max
+#[derive(Debug)]
+enum ActionNeeded {
+    UpdateValueAndTime,
+    UpdateTime,
+    Nothing,
+}
+
+impl ActionNeeded {
+    fn update_value(&self) -> bool {
+        match self {
+            Self::UpdateValueAndTime => true,
+            Self::UpdateTime => false,
+            Self::Nothing => false,
+        }
+    }
+    fn update_time(&self) -> bool {
+        match self {
+            Self::UpdateValueAndTime => true,
+            Self::UpdateTime => true,
+            Self::Nothing => false,
+        }
+    }
+}
+
 macro_rules! make_min_selector {
     ($STRUCTNAME:ident, $RUSTTYPE:ident, $ARROWTYPE:expr, $ARRTYPE:ident, $MINFUNC:ident, $TO_SCALARVALUE: expr) => {
         #[derive(Debug)]
@@ -308,6 +335,7 @@ macro_rules! make_min_selector {
                 value_arr: &ArrayRef,
                 time_arr: &ArrayRef,
             ) -> DataFusionResult<()> {
+                use ActionNeeded::*;
                 let value_arr = value_arr
                     .as_any()
                     .downcast_ref::<$ARRTYPE>()
@@ -322,31 +350,55 @@ macro_rules! make_min_selector {
 
                 let cur_min_value = $MINFUNC(&value_arr);
 
-                let need_update = match (&self.value, cur_min_value) {
-                    (Some(value), Some(cur_min_value)) => cur_min_value.lt_val(value),
+                let action_needed = match (&self.value, cur_min_value) {
+                    (Some(value), Some(cur_min_value)) => {
+                        if cur_min_value.lt_val(value) {
+                            // new minimim found
+                            UpdateValueAndTime
+                        } else if cur_min_value.eq(value) {
+                            // same minimum found, time might need update
+                            UpdateTime
+                        } else {
+                            Nothing
+                        }
+                    }
                     // No existing minimum time, so update needed
-                    (None, Some(_)) => true,
+                    (None, Some(_)) => UpdateValueAndTime,
                     // No actual minimum time  found, so no update needed
-                    (_, None) => false,
+                    (_, None) => Nothing,
                 };
 
-                if need_update {
-                    let index = value_arr
-                        .iter()
-                        // arrow doesn't tell us what index had the
-                        // minimum, so need to find it ourselves
-                        .enumerate()
-                        .find(|(_, value)| *value == cur_min_value)
-                        .map(|(idx, _)| idx)
-                        .unwrap(); // value always exists
-
+                if action_needed.update_value() {
                     self.value = cur_min_value.map(|v| v.to_state());
-                    // Note: time should never be null but handle it anyways
-                    self.time = if time_arr.is_null(index) {
-                        None
-                    } else {
-                        Some(time_arr.value(index))
-                    };
+                    self.time = None; // ignore time associated with old value
+                }
+
+                if action_needed.update_time() {
+                    // arrow doesn't tell us what index(es) had the
+                    // minimum value, so need to find them ourselves
+                    // and compute the minimum timestamp found. See
+                    // https://github.com/apache/arrow-datafusion/issues/600
+                    self.time = value_arr
+                        .iter()
+                        .enumerate()
+                        // stream of Option<i64>
+                        .map(|(idx, value)| {
+                            // Note: time should never be null but handle it anyways
+                            let null_time = time_arr.is_null(idx);
+                            if null_time {
+                                debug!(idx, "MIN selector saw null time value");
+                            }
+                            if value == cur_min_value && !null_time {
+                                Some(time_arr.value(idx))
+                            } else {
+                                None
+                            }
+                        })
+                        // include existing time, potentially
+                        .chain(std::iter::once(self.time.take()))
+                        // clean out any Nones
+                        .filter_map(|v| v)
+                        .min();
                 }
                 Ok(())
             }
@@ -395,6 +447,7 @@ macro_rules! make_max_selector {
                 value_arr: &ArrayRef,
                 time_arr: &ArrayRef,
             ) -> DataFusionResult<()> {
+                use ActionNeeded::*;
                 let value_arr = value_arr
                     .as_any()
                     .downcast_ref::<$ARRTYPE>()
@@ -409,31 +462,56 @@ macro_rules! make_max_selector {
 
                 let cur_max_value = $MAXFUNC(&value_arr);
 
-                let need_update = match (&self.value, &cur_max_value) {
-                    (Some(value), Some(cur_max_value)) => value.lt_val(cur_max_value),
+                let action_needed = match (&self.value, &cur_max_value) {
+                    (Some(value), Some(cur_max_value)) => {
+                        if value.lt_val(cur_max_value) {
+                            // new maximum found
+                            UpdateValueAndTime
+                        } else if cur_max_value.eq(value) {
+                            // same maximum found, time might need update
+                            UpdateTime
+                        } else {
+                            Nothing
+                        }
+                    }
                     // No existing maxmimum value, so update needed
-                    (None, Some(_)) => true,
+                    (None, Some(_)) => UpdateValueAndTime,
                     // No actual maximum value found, so no update needed
-                    (_, None) => false,
+                    (_, None) => Nothing,
                 };
 
-                if need_update {
-                    let index = value_arr
-                        .iter()
-                        // arrow doesn't tell us what index had the
-                        // maximum, so need to find it ourselves
-                        .enumerate()
-                        .find(|(_, value)| cur_max_value == *value)
-                        .map(|(idx, _)| idx)
-                        .unwrap(); // value always exists
-
+                if action_needed.update_value() {
                     self.value = cur_max_value.map(|v| v.to_state());
-                    // Note: time should never be null but handle it anyways
-                    self.time = if time_arr.is_null(index) {
-                        None
-                    } else {
-                        Some(time_arr.value(index))
-                    };
+                    self.time = None; // ignore time associated with old value
+                }
+
+                // Note even though we are computing the MAX value,
+                // the timestamp returned is the one with the *lowest*
+                // numerical value
+                if action_needed.update_time() {
+                    // arrow doesn't tell us what index(es) had the
+                    // minimum value, so need to find them ourselves
+                    // and compute the minimum timestamp found. See
+                    // https://github.com/apache/arrow-datafusion/issues/600
+                    self.time = value_arr
+                        .iter()
+                        .enumerate()
+                        .map(|(idx, value)| {
+                            let null_time = time_arr.is_null(idx);
+                            if null_time {
+                                debug!(idx, "MAX selector saw null time value");
+                            }
+                            if value == cur_max_value && !null_time {
+                                Some(time_arr.value(idx))
+                            } else {
+                                None
+                            }
+                        })
+                        // include existing time, potentially
+                        .chain(std::iter::once(self.time.take()))
+                        // clean out any Nones
+                        .filter_map(|v| v)
+                        .min(); // still use min
                 }
                 Ok(())
             }
