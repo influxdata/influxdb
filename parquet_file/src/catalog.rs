@@ -799,8 +799,8 @@ impl OpenTransaction {
     /// The deserializes the action state and passes it to the correct method in [`CatalogState`].
     ///
     /// Note that this method is primarily for replaying transactions and will NOT append the given action to the
-    /// current transaction. If you also want to store the given action (e.g. during an in-progress transaction), use
-    /// [`handle_action_and_record`](Self::handle_action_and_record).
+    /// current transaction. If you want to store the given action (e.g. during an in-progress transaction), use
+    /// [`record_action`](Self::record_action).
     fn handle_action<S>(
         state: &mut S,
         action: &proto::transaction::action::Action,
