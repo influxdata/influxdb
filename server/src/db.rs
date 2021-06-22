@@ -284,7 +284,7 @@ pub async fn load_or_create_preserved_catalog(
     server_id: ServerId,
     metrics_registry: Arc<MetricRegistry>,
     wipe_on_error: bool,
-) -> std::result::Result<(PreservedCatalog, Arc<Catalog>), parquet_file::catalog::Error> {
+) -> std::result::Result<(PreservedCatalog, Catalog), parquet_file::catalog::Error> {
     let metric_labels = vec![
         KeyValue::new("db_name", db_name.to_string()),
         KeyValue::new("svr_id", format!("{}", server_id)),
@@ -369,7 +369,7 @@ impl Db {
         exec: Arc<Executor>,
         jobs: Arc<JobRegistry>,
         preserved_catalog: PreservedCatalog,
-        catalog: Arc<Catalog>,
+        catalog: Catalog,
         write_buffer: Option<Arc<dyn WriteBuffer>>,
     ) -> Self {
         let db_name = rules.name.clone();
@@ -379,6 +379,7 @@ impl Db {
         let store = Arc::clone(&object_store);
         let metrics_registry = Arc::clone(&catalog.metrics_registry);
         let metric_labels = catalog.metric_labels.clone();
+        let catalog = Arc::new(catalog);
 
         let catalog_access = QueryCatalogAccess::new(
             &db_name,

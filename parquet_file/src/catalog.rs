@@ -318,14 +318,14 @@ impl PreservedCatalog {
         server_id: ServerId,
         db_name: String,
         state_data: S::EmptyInput,
-    ) -> Result<(Self, Arc<S>)>
+    ) -> Result<(Self, S)>
     where
         S: CatalogState + Send + Sync,
     {
         if Self::exists(&object_store, server_id, &db_name).await? {
             return Err(Error::AlreadyExists {});
         }
-        let state = Arc::new(S::new_empty(&db_name, state_data));
+        let state = S::new_empty(&db_name, state_data);
 
         let catalog = Self {
             previous_tkey: RwLock::new(None),
@@ -355,7 +355,7 @@ impl PreservedCatalog {
         server_id: ServerId,
         db_name: String,
         state_data: S::EmptyInput,
-    ) -> Result<Option<(Self, Arc<S>)>>
+    ) -> Result<Option<(Self, S)>>
     where
         S: CatalogState + Send + Sync,
     {
@@ -457,7 +457,7 @@ impl PreservedCatalog {
                 server_id,
                 db_name,
             },
-            Arc::new(state),
+            state,
         )))
     }
 
@@ -1330,7 +1330,7 @@ pub mod test_helpers {
     {
         // empty state
         let object_store = make_object_store();
-        let (_catalog, state) = PreservedCatalog::new_empty::<S>(
+        let (_catalog, mut state) = PreservedCatalog::new_empty::<S>(
             Arc::clone(&object_store),
             ServerId::try_from(1).unwrap(),
             "db1".to_string(),
@@ -1338,7 +1338,6 @@ pub mod test_helpers {
         )
         .await
         .unwrap();
-        let mut state = Arc::try_unwrap(state).unwrap();
         let mut expected = HashMap::new();
         assert_checkpoint(&state, &f, &expected);
 
@@ -2502,7 +2501,7 @@ mod tests {
         let mut trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
 
         // re-open catalog
-        let (catalog, state) = PreservedCatalog::load::<TestCatalogState>(
+        let (catalog, mut state) = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2511,7 +2510,6 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        let mut state = Arc::try_unwrap(state).unwrap();
 
         // create empty transaction w/ checkpoint (the delta transaction file is not required for catalog loading)
         {
@@ -2688,7 +2686,7 @@ mod tests {
         server_id: ServerId,
         db_name: &str,
     ) -> TestTrace {
-        let (catalog, state) = PreservedCatalog::new_empty(
+        let (catalog, mut state) = PreservedCatalog::new_empty(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2696,7 +2694,6 @@ mod tests {
         )
         .await
         .unwrap();
-        let mut state = Arc::try_unwrap(state).unwrap();
 
         // get some test metadata
         let (_, metadata1) = make_metadata(object_store, "foo", chunk_addr(1)).await;
