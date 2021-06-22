@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::fmt::Debug;
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
@@ -9,7 +10,7 @@ use data_types::database_rules::LifecycleRules;
 use observability_deps::tracing::{debug, warn};
 use tracker::TaskTracker;
 
-use crate::{LifecycleChunk, LifecycleDb, LockableChunk};
+use crate::{LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk, LockablePartition};
 use data_types::chunk_metadata::ChunkStorage;
 
 pub const DEFAULT_LIFECYCLE_BACKOFF: Duration = Duration::from_secs(1);
@@ -42,6 +43,133 @@ where
         }
     }
 
+    /// Check if database exceeds memory limits and free memory if necessary
+    ///
+    /// The policy will first try to unload persisted chunks in order of creation
+    /// time, starting with the oldest.
+    ///
+    /// If permitted by the lifecycle policy, it will then drop unpersisted chunks,
+    /// also in order of creation time, starting with the oldest.
+    ///
+    /// TODO: use LRU instead of creation time
+    ///
+    fn maybe_free_memory(&mut self, soft_limit: usize, drop_non_persisted: bool) {
+        let buffer_size = self.db.buffer_size();
+        if buffer_size < soft_limit {
+            debug!(buffer_size, %soft_limit, "memory use under soft limit");
+            return;
+        }
+
+        let partitions = self.db.partitions();
+
+        // Collect a list of candidates to free memory
+        let mut candidates = Vec::new();
+        for partition in &partitions {
+            let guard = partition.read();
+            for chunk in LockablePartition::chunks(&guard) {
+                let chunk = chunk.read();
+                if chunk.lifecycle_action().is_some() {
+                    continue;
+                }
+
+                let action = match chunk.storage() {
+                    ChunkStorage::ReadBuffer | ChunkStorage::ClosedMutableBuffer
+                        if drop_non_persisted =>
+                    {
+                        FreeAction::Drop
+                    }
+                    ChunkStorage::ReadBufferAndObjectStore => FreeAction::Unload,
+                    _ => continue,
+                };
+
+                candidates.push(FreeCandidate {
+                    partition,
+                    action,
+                    chunk_id: chunk.chunk_id(),
+                    first_write: chunk.time_of_first_write(),
+                })
+            }
+        }
+
+        sort_free_candidates(&mut candidates);
+        let mut candidates = candidates.into_iter();
+
+        // Loop through trying to free memory
+        //
+        // There is an intentional lock gap here, to avoid holding read locks on all
+        // the droppable chunks within the database. The downside is we have to
+        // re-check pre-conditions in case they no longer hold
+        //
+        loop {
+            let buffer_size = self.db.buffer_size();
+            if buffer_size < soft_limit {
+                debug!(buffer_size, %soft_limit, "memory use under soft limit");
+                break;
+            }
+            debug!(buffer_size, %soft_limit, "memory use over soft limit");
+
+            match candidates.next() {
+                Some(candidate) => {
+                    let partition = candidate.partition.read();
+                    match LockablePartition::chunk(&partition, candidate.chunk_id) {
+                        Some(chunk) => {
+                            let chunk = chunk.read();
+                            if chunk.lifecycle_action().is_some() {
+                                debug!(
+                                    chunk_id = candidate.chunk_id,
+                                    partition = partition.partition_key(),
+                                    "cannot mutate chunk with in-progress lifecycle action"
+                                );
+                                continue;
+                            }
+
+                            match candidate.action {
+                                FreeAction::Drop => match chunk.storage() {
+                                    ChunkStorage::ReadBuffer
+                                    | ChunkStorage::ClosedMutableBuffer => {
+                                        LockablePartition::drop_chunk(
+                                            partition.upgrade(),
+                                            candidate.chunk_id,
+                                        )
+                                        .expect("failed to drop")
+                                    }
+                                    storage => debug!(
+                                        chunk_id = candidate.chunk_id,
+                                        partition = partition.partition_key(),
+                                        ?storage,
+                                        "unexpected storage for drop"
+                                    ),
+                                },
+                                FreeAction::Unload => match chunk.storage() {
+                                    ChunkStorage::ReadBufferAndObjectStore => {
+                                        LockableChunk::unload_read_buffer(chunk.upgrade())
+                                            .expect("failed to unload")
+                                    }
+                                    storage => debug!(
+                                        chunk_id = candidate.chunk_id,
+                                        partition = partition.partition_key(),
+                                        ?storage,
+                                        "unexpected storage for unload"
+                                    ),
+                                },
+                            }
+                        }
+                        None => debug!(
+                            chunk_id = candidate.chunk_id,
+                            partition = partition.partition_key(),
+                            "cannot drop chunk that no longer exists on partition"
+                        ),
+                    }
+                }
+                None => {
+                    warn!(soft_limit, buffer_size,
+                          "soft limited exceeded, but no chunks found that can be evicted. Check lifecycle rules");
+                    break;
+                }
+            }
+        }
+    }
+
     /// The core policy logic
     ///
     /// Returns a future that resolves when this method should be called next
@@ -51,10 +179,6 @@ where
         now_instant: Instant,
     ) -> BoxFuture<'static, ()> {
         let rules = self.db.rules();
-
-        // NB the rules for "which to drop/unload first" are defined
-        // by rules.sort_order
-        let chunks = self.db.chunks(&rules.sort_order);
 
         let mut open_partitions: HashSet<String> = HashSet::new();
 
@@ -72,8 +196,8 @@ where
         self.write_tracker = self.write_tracker.take().filter(|x| !x.is_complete());
 
         // Loop 1: Determine which chunks need to be driven though the
-        // persistence lifecycle to ulitimately be persisted to object storage
-        for chunk in &chunks {
+        // persistence lifecycle to ultimately be persisted to object storage
+        for chunk in self.db.chunks(&rules.sort_order) {
             let chunk_guard = chunk.read();
 
             let would_move = can_move(&rules, &*chunk_guard, now);
@@ -117,75 +241,8 @@ where
             }
         }
 
-        // Loop 2: Determine which chunks to clear from memory when
-        // the overall database buffer size is exceeded
         if let Some(soft_limit) = rules.buffer_size_soft {
-            let mut chunks = chunks.iter();
-
-            loop {
-                let buffer_size = self.db.buffer_size();
-                if buffer_size < soft_limit.get() {
-                    debug!(buffer_size, %soft_limit, "memory use under soft limit");
-                    break;
-                }
-                debug!(buffer_size, %soft_limit, "memory use over soft limit");
-
-                // Dropping chunks that are currently in use by
-                // queries frees no memory until the query completes
-                match chunks.next() {
-                    Some(chunk) => {
-                        let chunk_guard = chunk.read();
-                        if chunk_guard.lifecycle_action().is_some() {
-                            debug!(table_name=%chunk_guard.table_name(), partition_key=%chunk_guard.partition_key(),
-                                   chunk_id=%chunk_guard.chunk_id(), lifecycle_action=?chunk_guard.lifecycle_action(),
-                                   "can not drop chunk with in-progress lifecycle action");
-                            continue;
-                        }
-
-                        enum Action {
-                            Drop,
-                            Unload,
-                        }
-
-                        // Figure out if we can drop or unload this chunk
-                        let action = match chunk_guard.storage() {
-                            ChunkStorage::ReadBuffer | ChunkStorage::ClosedMutableBuffer
-                                if rules.drop_non_persisted =>
-                            {
-                                // Chunk isn't yet persisted but we have
-                                // hit the limit so we need to drop it
-                                Action::Drop
-                            }
-                            ChunkStorage::ReadBufferAndObjectStore => Action::Unload,
-                            _ => continue,
-                        };
-
-                        let partition_key = chunk_guard.partition_key();
-                        let table_name = chunk_guard.table_name();
-                        let chunk_id = chunk_guard.chunk_id();
-
-                        match action {
-                            Action::Drop => {
-                                if open_partitions.contains(&partition_key) {
-                                    warn!(%partition_key, chunk_id, soft_limit, buffer_size,
-                                          "dropping chunk prior to persistence. Consider increasing the soft buffer limit");
-                                }
-
-                                self.db.drop_chunk(table_name, partition_key, chunk_id)
-                            }
-                            Action::Unload => {
-                                LockableChunk::unload_read_buffer(chunk_guard.upgrade())
-                                    .expect("failed to unload read buffer")
-                            }
-                        }
-                    }
-                    None => {
-                        warn!(soft_limit, buffer_size,
-                              "soft limited exceeded, but no chunks found that can be evicted. Check lifecycle rules");
-                        break;
-                    }
-                };
-            }
+            self.maybe_free_memory(soft_limit.get(), rules.drop_non_persisted)
         }
 
         let move_tracker = self.move_tracker.clone();
@@ -219,6 +276,15 @@ where
                 _ = wait_optional_tracker(write_tracker) => {}
             };
         })
+    }
+}
+
+impl<'a, M> Debug for LifecyclePolicy<'a, M>
+where
+    &'a M: LifecycleDb,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "LifecyclePolicy{{..}}")
     }
 }
 
@@ -268,6 +334,35 @@ fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<
     }
 }
 
+/// An action to free up memory
+#[derive(Debug, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
+enum FreeAction {
+    // Variants are in-order of preference
+    Unload,
+    Drop,
+}
+
+/// Describes a candidate to free up memory
+struct FreeCandidate<'a, P> {
+    partition: &'a P,
+    chunk_id: u32,
+    action: FreeAction,
+    first_write: Option<DateTime<Utc>>,
+}
+
+fn sort_free_candidates<P>(candidates: &mut Vec<FreeCandidate<'_, P>>) {
+    candidates.sort_unstable_by(|a, b| match a.action.cmp(&b.action) {
+        // Order candidates with the same FreeAction by first write time, with nulls last
+        std::cmp::Ordering::Equal => match (a.first_write.as_ref(), b.first_write.as_ref()) {
+            (Some(a), Some(b)) => a.cmp(b),
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, None) => std::cmp::Ordering::Equal,
+        },
+        o => o,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use std::num::{NonZeroU32, NonZeroUsize};
@@ -277,7 +372,11 @@ mod tests {
     use tracker::{RwLock, TaskId, TaskRegistration, TaskRegistry};
 
     use super::*;
-    use crate::{ChunkLifecycleAction, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk};
+    use crate::{
+        ChunkLifecycleAction, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
+        LockablePartition,
+    };
+    use std::collections::BTreeMap;
     use std::convert::Infallible;
     use std::sync::Arc;
 
@@ -287,6 +386,10 @@ mod tests {
         Write(u32),
         Drop(u32),
         Unload(u32),
+    }
+
+    struct TestPartition {
+        chunks: BTreeMap<u32, Arc<RwLock<TestChunk>>>,
     }
 
     struct TestChunk {
@@ -325,9 +428,60 @@ mod tests {
     }
 
     #[derive(Clone)]
+    struct TestLockablePartition<'a> {
+        db: &'a TestDb,
+        partition: Arc<RwLock<TestPartition>>,
+    }
+
+    #[derive(Clone)]
     struct TestLockableChunk<'a> {
         db: &'a TestDb,
         chunk: Arc<RwLock<TestChunk>>,
+    }
+
+    impl<'a> LockablePartition for TestLockablePartition<'a> {
+        type Partition = TestPartition;
+        type Chunk = TestLockableChunk<'a>;
+        type Error = Infallible;
+
+        fn read(&self) -> LifecycleReadGuard<'_, Self::Partition, Self> {
+            LifecycleReadGuard::new(self.clone(), &self.partition)
+        }
+
+        fn write(&self) -> LifecycleWriteGuard<'_, Self::Partition, Self> {
+            LifecycleWriteGuard::new(self.clone(), &self.partition)
+        }
+
+        fn chunk(
+            s: &LifecycleReadGuard<'_, Self::Partition, Self>,
+            chunk_id: u32,
+        ) -> Option<Self::Chunk> {
+            let db = s.data().db;
+            s.chunks.get(&chunk_id).map(|x| TestLockableChunk {
+                db,
+                chunk: Arc::clone(x),
+            })
+        }
+
+        fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<Self::Chunk> {
+            let db = s.data().db;
+            s.chunks
+                .values()
+                .map(|chunk| TestLockableChunk {
+                    db,
+                    chunk: Arc::clone(chunk),
+                })
+                .collect()
+        }
+
+        fn drop_chunk(
+            mut s: LifecycleWriteGuard<'_, Self::Partition, Self>,
+            chunk_id: u32,
+        ) -> Result<(), Self::Error> {
+            s.chunks.remove(&chunk_id);
+            s.data().db.events.write().push(MoverEvents::Drop(chunk_id));
+            Ok(())
+        }
     }
 
     impl<'a> LockableChunk for TestLockableChunk<'a> {
@@ -380,6 +534,12 @@ mod tests {
         }
     }
 
+    impl LifecyclePartition for TestPartition {
+        fn partition_key(&self) -> &str {
+            "test"
+        }
+    }
+
     impl LifecycleChunk for TestChunk {
         fn lifecycle_action(&self) -> Option<&TaskTracker<ChunkLifecycleAction>> {
             self.lifecycle_action.as_ref()
@@ -417,7 +577,7 @@ mod tests {
     /// A dummy db that is used to test the policy logic
     struct TestDb {
         rules: LifecycleRules,
-        chunks: RwLock<Vec<Arc<RwLock<TestChunk>>>>,
+        partitions: RwLock<Vec<Arc<RwLock<TestPartition>>>>,
         events: RwLock<Vec<MoverEvents>>,
     }
 
@@ -425,12 +585,12 @@ mod tests {
         fn new(rules: LifecycleRules, chunks: Vec<TestChunk>) -> Self {
             Self {
                 rules,
-                chunks: RwLock::new(
-                    chunks
+                partitions: RwLock::new(vec![Arc::new(RwLock::new(TestPartition {
+                    chunks: chunks
                         .into_iter()
-                        .map(|x| Arc::new(RwLock::new(x)))
+                        .map(|x| (x.id, Arc::new(RwLock::new(x))))
                         .collect(),
-                ),
+                }))]),
                 events: RwLock::new(vec![]),
             }
         }
@@ -438,31 +598,46 @@ mod tests {
 
     impl<'a> LifecycleDb for &'a TestDb {
         type Chunk = TestLockableChunk<'a>;
+        type Partition = TestLockablePartition<'a>;
 
         fn buffer_size(self) -> usize {
             // All chunks are 20 bytes
-            self.chunks.read().len() * 20
+            self.partitions
+                .read()
+                .iter()
+                .map(|x| x.read().chunks.len() * 20)
+                .sum()
         }
 
         fn rules(self) -> LifecycleRules {
             self.rules.clone()
         }
 
-        fn chunks(self, _: &SortOrder) -> Vec<Self::Chunk> {
-            self.chunks
+        fn partitions(self) -> Vec<Self::Partition> {
+            self.partitions
                 .read()
                 .iter()
-                .map(|x| TestLockableChunk {
+                .map(|x| TestLockablePartition {
                     db: self,
-                    chunk: Arc::clone(x),
+                    partition: Arc::clone(x),
                 })
                 .collect()
         }
 
-        fn drop_chunk(self, _table_name: String, _partition_key: String, chunk_id: u32) {
-            let mut chunks = self.chunks.write();
-            chunks.retain(|x| x.read().chunk_id() != chunk_id);
-            self.events.write().push(MoverEvents::Drop(chunk_id))
+        fn chunks(self, _: &SortOrder) -> Vec<Self::Chunk> {
+            let mut chunks = Vec::new();
+
+            let partitions = self.partitions.read();
+            for partition in partitions.iter() {
+                let partition = partition.read();
+                for chunk in partition.chunks.values() {
+                    chunks.push(TestLockableChunk {
+                        db: self,
+                        chunk: Arc::clone(chunk),
+                    })
+                }
+            }
+            chunks
         }
     }
 
@@ -507,6 +682,63 @@ mod tests {
         let chunk = TestChunk::new(0, Some(0), Some(70), ChunkStorage::OpenMutableBuffer);
         assert!(!can_move(&rules, &chunk, from_secs(71)));
         assert!(can_move(&rules, &chunk, from_secs(81)));
+    }
+
+    #[test]
+    fn test_sort_free_candidates() {
+        let mut candidates = vec![
+            FreeCandidate {
+                partition: &(),
+                chunk_id: 0,
+                action: FreeAction::Drop,
+                first_write: None,
+            },
+            FreeCandidate {
+                partition: &(),
+                chunk_id: 2,
+                action: FreeAction::Unload,
+                first_write: None,
+            },
+            FreeCandidate {
+                partition: &(),
+                chunk_id: 1,
+                action: FreeAction::Unload,
+                first_write: Some(from_secs(40)),
+            },
+            FreeCandidate {
+                partition: &(),
+                chunk_id: 3,
+                action: FreeAction::Unload,
+                first_write: Some(from_secs(20)),
+            },
+            FreeCandidate {
+                partition: &(),
+                chunk_id: 4,
+                action: FreeAction::Unload,
+                first_write: Some(from_secs(10)),
+            },
+            FreeCandidate {
+                partition: &(),
+                chunk_id: 5,
+                action: FreeAction::Drop,
+                first_write: Some(from_secs(10)),
+            },
+            FreeCandidate {
+                partition: &(),
+                chunk_id: 6,
+                action: FreeAction::Drop,
+                first_write: Some(from_secs(5)),
+            },
+        ];
+
+        sort_free_candidates(&mut candidates);
+
+        let ids: Vec<_> = candidates.into_iter().map(|x| x.chunk_id).collect();
+
+        // Should first unload, then drop
+        //
+        // Should order the same actions by write time, with nulls last
+        assert_eq!(ids, vec![4, 3, 1, 2, 6, 5, 0])
     }
 
     #[test]
@@ -703,7 +935,7 @@ mod tests {
         lifecycle.check_for_work(from_secs(10), Instant::now());
         assert_eq!(
             *db.events.read(),
-            vec![MoverEvents::Drop(2), MoverEvents::Unload(4)]
+            vec![MoverEvents::Unload(4), MoverEvents::Drop(2)]
         );
     }
 
@@ -821,7 +1053,8 @@ mod tests {
         lifecycle.check_for_work(from_secs(80), Instant::now());
         assert_eq!(*db.events.read(), vec![]);
 
-        db.chunks.read()[0].write().storage = ChunkStorage::ClosedMutableBuffer;
+        db.partitions.read()[0].read().chunks[&0].write().storage =
+            ChunkStorage::ClosedMutableBuffer;
 
         // As soon as closed can move
         lifecycle.check_for_work(from_secs(80), Instant::now());
@@ -840,7 +1073,7 @@ mod tests {
 
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
-        let chunk = &db.chunks.read()[0];
+        let chunk = Arc::clone(&db.partitions.read()[0].read().chunks[&0]);
 
         let r0 = TaskRegistration::default();
         let tracker = TaskTracker::new(TaskId(0), &r0, ChunkLifecycleAction::Moving);

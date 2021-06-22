@@ -69,6 +69,9 @@ pub enum Error {
     #[snafu(context(false))]
     CatalogError { source: catalog::Error },
 
+    #[snafu(context(false))]
+    PartitionError { source: catalog::partition::Error },
+
     #[snafu(display("Lifecycle error: {}", source))]
     LifecycleError { source: catalog::chunk::Error },
 
@@ -452,44 +455,8 @@ impl Db {
     /// Drops the specified chunk from the catalog and all storage systems
     pub fn drop_chunk(&self, table_name: &str, partition_key: &str, chunk_id: u32) -> Result<()> {
         debug!(%table_name, %partition_key, %chunk_id, "dropping chunk");
-
         let partition = self.partition(table_name, partition_key)?;
-
-        // lock the partition so that no one else can be messing /
-        // with it while we drop the chunk
-        let mut partition = partition.write();
-
-        {
-            let chunk = partition
-                .chunk(chunk_id)
-                .ok_or(catalog::Error::ChunkNotFound {
-                    chunk_id,
-                    partition: partition_key.to_string(),
-                    table: table_name.to_string(),
-                })?;
-            let chunk = chunk.read();
-            let chunk_state = chunk.stage().name();
-
-            // prevent chunks that are actively being moved. TODO it
-            // would be nicer to allow this to happen have the chunk
-            // migration logic cleanup afterwards so that users
-            // weren't prevented from dropping chunks due to
-            // background tasks
-            if let Some(lifecycle_action) = chunk.lifecycle_action() {
-                return DropMovingChunk {
-                    partition_key,
-                    table_name,
-                    chunk_id,
-                    action: lifecycle_action.metadata().name(),
-                }
-                .fail();
-            }
-
-            debug!(%table_name, %partition_key, %chunk_id, %chunk_state, "dropping chunk");
-        }
-
-        partition.drop_chunk(chunk_id).unwrap();
-
+        partition.write().drop_chunk(chunk_id)?;
         Ok(())
     }
 
@@ -1128,10 +1095,12 @@ impl CatalogState for Catalog {
                         partition_key,
                         chunk_id,
                     } => {
-                        let partition = catalog
-                            .get_or_create_partition(table_name.clone(), partition_key.clone());
-                        let mut partition = partition.write();
-                        partition.drop_chunk(chunk_id);
+                        // TODO: Should this really be infallible?
+                        if let Ok(partition) = catalog.partition(&table_name, &partition_key) {
+                            let mut partition = partition.write();
+                            let _ = partition.drop_chunk(chunk_id);
+                        }
+
                         debug!(%table_name, %partition_key, chunk_id, "removed chunk according to persisted catalog");
                     }
                     TransactionCommitAction::NewChunk {
