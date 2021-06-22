@@ -136,7 +136,7 @@ impl InitStatus {
             initialize_semaphore: Semaphore::new(1),
             error_generic: Default::default(),
             errors_databases: Default::default(),
-            wipe_on_error: Default::default(),
+            wipe_on_error: AtomicBool::new(true),
         }
     }
 
