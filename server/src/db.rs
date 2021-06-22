@@ -30,8 +30,7 @@ use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::RwLock;
-use parquet_file::catalog::TransactionEnd;
-use parquet_file::metadata::IoxParquetMetaData;
+use parquet_file::catalog::{CheckpointData, TransactionEnd};
 use parquet_file::{
     catalog::{
         wipe as wipe_preserved_catalog, CatalogParquetInfo, CatalogState, ChunkCreationFailed,
@@ -221,6 +220,9 @@ pub struct Db {
     /// Executor for running queries
     exec: Arc<Executor>,
 
+    /// Preserved catalog (data in object store).
+    preserved_catalog: Arc<PreservedCatalog<Catalog>>,
+
     /// The catalog holds chunks of data under partitions for the database.
     /// The underlying chunks may be backed by different execution engines
     /// depending on their stage in the data lifecycle. Currently there are
@@ -230,7 +232,7 @@ pub struct Db {
     ///  - The Read Buffer where chunks are immutable and stored in an optimised
     ///    compressed form for small footprint and fast query execution; and
     ///  - The Parquet Buffer where chunks are backed by Parquet file data.
-    preserved_catalog: Arc<PreservedCatalog<Catalog>>,
+    catalog: Arc<Catalog>,
 
     /// A handle to the global jobs registry for long running tasks
     jobs: Arc<JobRegistry>,
@@ -270,7 +272,7 @@ pub async fn load_or_create_preserved_catalog(
     server_id: ServerId,
     metrics_registry: Arc<MetricRegistry>,
     wipe_on_error: bool,
-) -> std::result::Result<PreservedCatalog<Catalog>, parquet_file::catalog::Error> {
+) -> std::result::Result<(PreservedCatalog<Catalog>, Arc<Catalog>), parquet_file::catalog::Error> {
     let metric_labels = vec![
         KeyValue::new("db_name", db_name.to_string()),
         KeyValue::new("svr_id", format!("{}", server_id)),
@@ -347,6 +349,7 @@ pub async fn load_or_create_preserved_catalog(
 }
 
 impl Db {
+    #[allow(clippy::clippy::too_many_arguments)]
     pub fn new(
         rules: DatabaseRules,
         server_id: ServerId,
@@ -354,6 +357,7 @@ impl Db {
         exec: Arc<Executor>,
         jobs: Arc<JobRegistry>,
         preserved_catalog: PreservedCatalog<Catalog>,
+        catalog: Arc<Catalog>,
         write_buffer: Option<Arc<dyn WriteBuffer>>,
     ) -> Self {
         let db_name = rules.name.clone();
@@ -361,12 +365,12 @@ impl Db {
         let rules = RwLock::new(rules);
         let server_id = server_id;
         let store = Arc::clone(&object_store);
-        let metrics_registry = Arc::clone(&preserved_catalog.state().metrics_registry);
-        let metric_labels = preserved_catalog.state().metric_labels.clone();
+        let metrics_registry = Arc::clone(&catalog.metrics_registry);
+        let metric_labels = catalog.metric_labels.clone();
 
         let catalog_access = QueryCatalogAccess::new(
             &db_name,
-            preserved_catalog.state(),
+            Arc::clone(&catalog),
             Arc::clone(&jobs),
             Arc::clone(&metrics_registry),
             metric_labels.clone(),
@@ -381,6 +385,7 @@ impl Db {
             store,
             exec,
             preserved_catalog: Arc::new(preserved_catalog),
+            catalog,
             jobs,
             metrics_registry,
             catalog_access,
@@ -424,10 +429,7 @@ impl Db {
         table_name: &str,
         partition_key: &str,
     ) -> catalog::Result<Arc<tracker::RwLock<Partition>>> {
-        let partition = self
-            .preserved_catalog
-            .state()
-            .partition(table_name, partition_key)?;
+        let partition = self.catalog.partition(table_name, partition_key)?;
         Ok(Arc::clone(&partition))
     }
 
@@ -437,9 +439,7 @@ impl Db {
         partition_key: &str,
         chunk_id: u32,
     ) -> catalog::Result<Arc<tracker::RwLock<CatalogChunk>>> {
-        self.preserved_catalog
-            .state()
-            .chunk(table_name, partition_key, chunk_id)
+        self.catalog.chunk(table_name, partition_key, chunk_id)
     }
 
     pub fn lockable_chunk(
@@ -554,14 +554,7 @@ impl Db {
 
         let mut rb_chunk = RBChunk::new(
             &table_summary.name,
-            ReadBufferChunkMetrics::new(
-                &metrics,
-                db.preserved_catalog
-                    .state()
-                    .metrics()
-                    .memory()
-                    .read_buffer(),
-            ),
+            ReadBufferChunkMetrics::new(&metrics, db.catalog.metrics().memory().read_buffer()),
         );
 
         let fut = async move {
@@ -654,7 +647,8 @@ impl Db {
             .lifecycle_rules
             .catalog_transactions_until_checkpoint;
 
-        let catalog = Arc::clone(&db.preserved_catalog);
+        let preserved_catalog = Arc::clone(&db.preserved_catalog);
+        let catalog = Arc::clone(&db.catalog);
 
         let fut = async move {
             let table_name = table_summary.name.as_str();
@@ -676,7 +670,7 @@ impl Db {
 
             // catalog-level transaction for preservation layer
             {
-                let mut transaction = catalog.open_transaction().await;
+                let mut transaction = preserved_catalog.open_transaction(catalog).await;
 
                 // Write this table data into the object store
                 //
@@ -701,18 +695,28 @@ impl Db {
                     )
                     .await
                     .context(WritingToObjectStore)?;
+                let path: DirsAndFileName = path.into();
 
                 transaction
-                    .add_parquet(&path.into(), &parquet_metadata)
+                    .add_parquet(&path, &parquet_metadata)
                     .context(TransactionError)?;
 
                 let create_checkpoint = catalog_transactions_until_checkpoint
                     .map_or(false, |interval| {
                         transaction.revision_counter() % interval.get() == 0
                     });
+                let checkpoint_data = create_checkpoint.then(|| {
+                    let mut checkpoint_data =
+                        checkpoint_data_from_catalog(&transaction.tstate().catalog);
+                    // don't forget the file that we've just added
+                    checkpoint_data
+                        .files
+                        .insert(path, Arc::new(parquet_metadata));
+                    checkpoint_data
+                });
 
                 transaction
-                    .commit(create_checkpoint)
+                    .commit(checkpoint_data)
                     .await
                     .context(TransactionError)?;
             }
@@ -756,11 +760,8 @@ impl Db {
     pub fn partition_chunk_summaries(&self, partition_key: &str) -> Vec<ChunkSummary> {
         let partition_key = Some(partition_key);
         let table_names = TableNameFilter::AllTables;
-        self.preserved_catalog.state().filtered_chunks(
-            table_names,
-            partition_key,
-            CatalogChunk::summary,
-        )
+        self.catalog
+            .filtered_chunks(table_names, partition_key, CatalogChunk::summary)
     }
 
     /// Return Summary information for all columns in all chunks in the
@@ -770,8 +771,7 @@ impl Db {
         table_name: &str,
         partition_key: &str,
     ) -> Option<PartitionSummary> {
-        self.preserved_catalog
-            .state()
+        self.catalog
             .partition(table_name, partition_key)
             .map(|partition| partition.read().summary())
             .ok()
@@ -840,7 +840,7 @@ impl Db {
                             debug!(?duration, "cleanup worker sleeps");
                             tokio::time::sleep(duration).await;
 
-                            if let Err(e) = cleanup_unreferenced_parquet_files(&self.preserved_catalog, 1_000).await {
+                            if let Err(e) = cleanup_unreferenced_parquet_files(&self.preserved_catalog, Arc::clone(&self.catalog), 1_000).await {
                                 error!(%e, "error in background cleanup task");
                             }
                         } => {},
@@ -918,7 +918,7 @@ impl Db {
             return DatabaseNotWriteable {}.fail();
         }
         if let Some(hard_limit) = buffer_size_hard {
-            if self.preserved_catalog.state().metrics().memory().total() > hard_limit.get() {
+            if self.catalog.metrics().memory().total() > hard_limit.get() {
                 return HardLimitReached {}.fail();
             }
         }
@@ -932,8 +932,7 @@ impl Db {
                     }
 
                     let partition = self
-                        .preserved_catalog
-                        .state()
+                        .catalog
                         .get_or_create_partition(table_batch.name(), partition_key);
 
                     let mut partition = partition.write();
@@ -970,11 +969,7 @@ impl Db {
                                 table_batch.name(),
                                 MutableBufferChunkMetrics::new(
                                     &metrics,
-                                    self.preserved_catalog
-                                        .state()
-                                        .metrics()
-                                        .memory()
-                                        .mutable_buffer(),
+                                    self.catalog.metrics().memory().mutable_buffer(),
                                 ),
                             );
 
@@ -1349,20 +1344,20 @@ impl CatalogState for Catalog {
             Ok(())
         }
     }
+}
 
-    fn files(&self) -> HashMap<DirsAndFileName, Arc<IoxParquetMetaData>> {
-        let mut files = HashMap::new();
+fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData {
+    let mut files = HashMap::new();
 
-        for chunk in self.chunks() {
-            let guard = chunk.read();
-            if let catalog::chunk::ChunkStage::Persisted { parquet, .. } = guard.stage() {
-                let path: DirsAndFileName = parquet.path().into();
-                files.insert(path, parquet.parquet_metadata());
-            }
+    for chunk in catalog.chunks() {
+        let guard = chunk.read();
+        if let catalog::chunk::ChunkStage::Persisted { parquet, .. } = guard.stage() {
+            let path: DirsAndFileName = parquet.path().into();
+            files.insert(path, parquet.parquet_metadata());
         }
-
-        files
     }
+
+    CheckpointData { files }
 }
 
 pub mod test_helpers {
@@ -1430,6 +1425,7 @@ mod tests {
     };
     use parquet_file::{
         catalog::test_helpers::assert_catalog_state_implementation,
+        metadata::IoxParquetMetaData,
         test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
     use query::{frontend::sql::SqlQueryPlanner, QueryChunk, QueryDatabase};
@@ -2175,11 +2171,7 @@ mod tests {
         let after_write = Utc::now();
 
         let last_write_prev = {
-            let partition = db
-                .preserved_catalog
-                .state()
-                .partition("cpu", partition_key)
-                .unwrap();
+            let partition = db.catalog.partition("cpu", partition_key).unwrap();
             let partition = partition.read();
 
             assert_ne!(partition.created_at(), partition.last_write_at());
@@ -2190,11 +2182,7 @@ mod tests {
 
         write_lp(&db, "cpu bar=1 20");
         {
-            let partition = db
-                .preserved_catalog
-                .state()
-                .partition("cpu", partition_key)
-                .unwrap();
+            let partition = db.catalog.partition("cpu", partition_key).unwrap();
             let partition = partition.read();
             assert!(last_write_prev < partition.last_write_at());
         }
@@ -2219,11 +2207,7 @@ mod tests {
             .id();
         let after_rollover = Utc::now();
 
-        let partition = db
-            .preserved_catalog
-            .state()
-            .partition("cpu", partition_key)
-            .unwrap();
+        let partition = db.catalog.partition("cpu", partition_key).unwrap();
         let partition = partition.read();
         let chunk = partition.chunk(chunk_id).unwrap();
         let chunk = chunk.read();
@@ -2251,15 +2235,11 @@ mod tests {
         write_lp(&db, "cpu bar=1 10");
         write_lp(&db, "cpu bar=1 20");
 
-        let partitions = db.preserved_catalog.state().partition_keys();
+        let partitions = db.catalog.partition_keys();
         assert_eq!(partitions.len(), 1);
         let partition_key = partitions.into_iter().next().unwrap();
 
-        let partition = db
-            .preserved_catalog
-            .state()
-            .partition("cpu", &partition_key)
-            .unwrap();
+        let partition = db.catalog.partition("cpu", &partition_key).unwrap();
         let partition = partition.read();
 
         let chunks: Vec<_> = partition.chunks().collect();
@@ -2292,7 +2272,7 @@ mod tests {
             order: Order::Desc,
             sort: Sort::LastWriteTime,
         };
-        let chunks = db.preserved_catalog.state().chunks_sorted_by(&sort_rules);
+        let chunks = db.catalog.chunks_sorted_by(&sort_rules);
         let partitions: Vec<_> = chunks
             .into_iter()
             .map(|x| x.read().key().to_string())
@@ -2304,7 +2284,7 @@ mod tests {
             order: Order::Asc,
             sort: Sort::CreatedAtTime,
         };
-        let chunks = db.preserved_catalog.state().chunks_sorted_by(&sort_rules);
+        let chunks = db.catalog.chunks_sorted_by(&sort_rules);
         let partitions: Vec<_> = chunks
             .into_iter()
             .map(|x| x.read().key().to_string())
@@ -2414,12 +2394,7 @@ mod tests {
             .sum();
 
         assert_eq!(
-            db.preserved_catalog
-                .state()
-                .metrics()
-                .memory()
-                .mutable_buffer()
-                .get_total(),
+            db.catalog.metrics().memory().mutable_buffer().get_total(),
             size
         );
 
@@ -2552,32 +2527,14 @@ mod tests {
         );
 
         assert_eq!(
-            db.preserved_catalog
-                .state()
-                .metrics()
-                .memory()
-                .mutable_buffer()
-                .get_total(),
+            db.catalog.metrics().memory().mutable_buffer().get_total(),
             64 + 2190 + 87
         );
         assert_eq!(
-            db.preserved_catalog
-                .state()
-                .metrics()
-                .memory()
-                .read_buffer()
-                .get_total(),
+            db.catalog.metrics().memory().read_buffer().get_total(),
             1484
         );
-        assert_eq!(
-            db.preserved_catalog
-                .state()
-                .metrics()
-                .memory()
-                .parquet()
-                .get_total(),
-            663
-        );
+        assert_eq!(db.catalog.metrics().memory().parquet().get_total(), 663);
     }
 
     #[tokio::test]
@@ -2863,7 +2820,7 @@ mod tests {
             .eq(0.)
             .unwrap();
 
-        let chunks = db.preserved_catalog.state().chunks();
+        let chunks = db.catalog.chunks();
         assert_eq!(chunks.len(), 1);
 
         let chunk_a = Arc::clone(&chunks[0]);
@@ -2958,7 +2915,7 @@ mod tests {
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = "preserved_catalog_test";
 
-        let preserved_catalog =
+        let (preserved_catalog, _catalog) =
             PreservedCatalog::<parquet_file::catalog::test_helpers::TestCatalogState>::new_empty(
                 Arc::clone(&object_store),
                 server_id,
@@ -3029,7 +2986,7 @@ mod tests {
             }
         }
         paths_expected.sort();
-        let preserved_catalog =
+        let (_preserved_catalog, catalog) =
             PreservedCatalog::<parquet_file::catalog::test_helpers::TestCatalogState>::load(
                 Arc::clone(&object_store),
                 server_id,
@@ -3040,8 +2997,7 @@ mod tests {
             .unwrap()
             .unwrap();
         let paths_actual = {
-            let state = preserved_catalog.state();
-            let mut tmp: Vec<String> = state.parquet_files.keys().map(|p| p.display()).collect();
+            let mut tmp: Vec<String> = catalog.parquet_files.keys().map(|p| p.display()).collect();
             tmp.sort();
             tmp
         };
@@ -3251,7 +3207,11 @@ mod tests {
             metrics_registry,
             metric_labels: vec![],
         };
-        assert_catalog_state_implementation::<Catalog>(empty_input).await;
+        assert_catalog_state_implementation::<Catalog, _>(
+            empty_input,
+            checkpoint_data_from_catalog,
+        )
+        .await;
     }
 
     async fn create_parquet_chunk(db: &Db) -> (String, String, u32) {
