@@ -237,7 +237,7 @@ impl Config {
         server_id: ServerId,
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
-        preserved_catalog: PreservedCatalog<Catalog>,
+        preserved_catalog: PreservedCatalog,
         catalog: Arc<Catalog>,
     ) {
         let mut state = self.state.write().expect("mutex poisoned");
@@ -452,7 +452,7 @@ impl<'a> CreateDatabaseHandle<'a> {
         server_id: ServerId,
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
-        preserved_catalog: PreservedCatalog<Catalog>,
+        preserved_catalog: PreservedCatalog,
         catalog: Arc<Catalog>,
         rules: DatabaseRules,
     ) -> Result<()> {
@@ -539,7 +539,7 @@ impl<'a> RecoverDatabaseHandle<'a> {
         server_id: ServerId,
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
-        preserved_catalog: PreservedCatalog<Catalog>,
+        preserved_catalog: PreservedCatalog,
         catalog: Arc<Catalog>,
         rules: Option<DatabaseRules>,
     ) -> Result<()> {

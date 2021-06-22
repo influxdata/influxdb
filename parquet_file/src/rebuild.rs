@@ -60,7 +60,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Creates a new catalog from parquet files.
 ///
-/// Users are required to [wipe](crate::catalog::wipe) the existing catalog before running this
+/// Users are required to [wipe](PreservedCatalog::wipe) the existing catalog before running this
 /// procedure (**after creating a backup!**).
 ///
 /// This will create a catalog checkpoint for the very last transaction.
@@ -89,17 +89,16 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// - **Multiple Transactions:** If there are multiple transaction with the same revision but different UUIDs, this
 ///   routine cannot reconstruct a single linear revision history. Make sure to
 //    [clean up](crate::cleanup::cleanup_unreferenced_parquet_files) regularly to avoid this case.
-pub async fn rebuild_catalog<S, N>(
+pub async fn rebuild_catalog<S>(
     object_store: Arc<ObjectStore>,
     search_location: &Path,
     server_id: ServerId,
-    db_name: N,
+    db_name: String,
     catalog_empty_input: S::EmptyInput,
     ignore_metadata_read_failure: bool,
-) -> Result<(PreservedCatalog<S>, Arc<S>)>
+) -> Result<(PreservedCatalog, Arc<S>)>
 where
     S: CatalogState + Send + Sync,
-    N: Into<String> + Send,
 {
     // collect all revisions from parquet files
     let mut revisions =
@@ -107,7 +106,7 @@ where
 
     // create new empty catalog
     let (catalog, mut state) =
-        PreservedCatalog::<S>::new_empty(object_store, server_id, db_name, catalog_empty_input)
+        PreservedCatalog::new_empty::<S>(object_store, server_id, db_name, catalog_empty_input)
             .await
             .context(NewEmptyFailure)?;
 
@@ -267,7 +266,7 @@ mod tests {
 
     use crate::{catalog::test_helpers::TestCatalogState, storage::MemWriter};
     use crate::{
-        catalog::{wipe, PreservedCatalog},
+        catalog::PreservedCatalog,
         storage::Storage,
         test_utils::{make_object_store, make_record_batch},
     };
@@ -279,10 +278,10 @@ mod tests {
         let db_name = "db1";
 
         // build catalog with some data
-        let (catalog, mut state) = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, mut state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
         )
         .await
@@ -345,15 +344,17 @@ mod tests {
 
         // wipe catalog
         drop(catalog);
-        wipe(&object_store, server_id, db_name).await.unwrap();
+        PreservedCatalog::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
 
         // rebuild
         let path = object_store.new_path();
-        let (catalog, state) = rebuild_catalog::<TestCatalogState, _>(
+        let (catalog, state) = rebuild_catalog::<TestCatalogState>(
             object_store,
             &path,
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
             false,
         )
@@ -377,10 +378,10 @@ mod tests {
         let db_name = "db1";
 
         // build empty catalog
-        let (catalog, _state) = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, _state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
         )
         .await
@@ -388,15 +389,17 @@ mod tests {
 
         // wipe catalog
         drop(catalog);
-        wipe(&object_store, server_id, db_name).await.unwrap();
+        PreservedCatalog::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
 
         // rebuild
         let path = object_store.new_path();
-        let (catalog, state) = rebuild_catalog::<TestCatalogState, _>(
+        let (catalog, state) = rebuild_catalog::<TestCatalogState>(
             object_store,
             &path,
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
             false,
         )
@@ -415,10 +418,10 @@ mod tests {
         let db_name = "db1";
 
         // build catalog with same data
-        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+        let catalog = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
         )
         .await
@@ -429,15 +432,17 @@ mod tests {
 
         // wipe catalog
         drop(catalog);
-        wipe(&object_store, server_id, db_name).await.unwrap();
+        PreservedCatalog::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
 
         // rebuild
         let path = object_store.new_path();
-        let res = rebuild_catalog::<TestCatalogState, _>(
+        let res = rebuild_catalog::<TestCatalogState>(
             object_store,
             &path,
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
             false,
         )
@@ -454,10 +459,10 @@ mod tests {
         let db_name = "db1";
 
         // build catalog with same data
-        let (catalog, state) = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
         )
         .await
@@ -492,15 +497,17 @@ mod tests {
 
         // wipe catalog
         drop(catalog);
-        wipe(&object_store, server_id, db_name).await.unwrap();
+        PreservedCatalog::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
 
         // rebuild
         let path = object_store.new_path();
-        let res = rebuild_catalog::<TestCatalogState, _>(
+        let res = rebuild_catalog::<TestCatalogState>(
             object_store,
             &path,
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
             false,
         )
@@ -516,10 +523,10 @@ mod tests {
         let db_name = "db1";
 
         // build catalog with same data
-        let catalog = PreservedCatalog::<TestCatalogState>::new_empty(
+        let catalog = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
         )
         .await
@@ -530,15 +537,17 @@ mod tests {
 
         // wipe catalog
         drop(catalog);
-        wipe(&object_store, server_id, db_name).await.unwrap();
+        PreservedCatalog::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
 
         // rebuild (do not ignore errors)
         let path = object_store.new_path();
-        let res = rebuild_catalog::<TestCatalogState, _>(
+        let res = rebuild_catalog::<TestCatalogState>(
             Arc::clone(&object_store),
             &path,
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
             false,
         )
@@ -547,11 +556,11 @@ mod tests {
             .starts_with("Cannot read IOx metadata from parquet file"));
 
         // rebuild (ignore errors)
-        let (catalog, state) = rebuild_catalog::<TestCatalogState, _>(
+        let (catalog, state) = rebuild_catalog::<TestCatalogState>(
             object_store,
             &path,
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
             true,
         )
@@ -568,10 +577,10 @@ mod tests {
         let db_name = "db1";
 
         // build catalog with some data (2 transactions + initial empty one)
-        let (catalog, mut state) = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, mut state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
         )
         .await
@@ -619,15 +628,17 @@ mod tests {
 
         // wipe catalog
         drop(catalog);
-        wipe(&object_store, server_id, db_name).await.unwrap();
+        PreservedCatalog::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
 
         // rebuild
         let path = object_store.new_path();
-        let catalog = rebuild_catalog::<TestCatalogState, _>(
+        let catalog = rebuild_catalog::<TestCatalogState>(
             Arc::clone(&object_store),
             &path,
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
             false,
         )
@@ -657,7 +668,7 @@ mod tests {
         assert!(deleted);
 
         // load catalog
-        let (catalog, state) = PreservedCatalog::<TestCatalogState>::load(
+        let (catalog, state) = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),

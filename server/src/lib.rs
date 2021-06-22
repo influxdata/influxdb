@@ -1963,7 +1963,7 @@ mod tests {
             )
             .await
             .unwrap();
-        let (preserved_catalog, _catalog) = PreservedCatalog::<TestCatalogState>::load(
+        let (preserved_catalog, _catalog) = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&store),
             server_id,
             db_name_catalog_broken.to_string(),
@@ -2009,7 +2009,7 @@ mod tests {
                 .to_string(),
             "database already exists"
         );
-        assert!(PreservedCatalog::<TestCatalogState>::exists(
+        assert!(PreservedCatalog::exists(
             &server.store,
             server.require_id().unwrap(),
             &db_name_existing.to_string()
@@ -2019,7 +2019,7 @@ mod tests {
 
         // 2. wiping a non-existing DB just works, but won't bring DB into existence
         assert!(server.error_database(&db_name_non_existing).is_none());
-        PreservedCatalog::<TestCatalogState>::new_empty(
+        PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&server.store),
             server.require_id().unwrap(),
             db_name_non_existing.to_string(),
@@ -2036,7 +2036,7 @@ mod tests {
         };
         assert_eq!(metadata, &expected_metadata);
         tracker.join().await;
-        assert!(!PreservedCatalog::<TestCatalogState>::exists(
+        assert!(!PreservedCatalog::exists(
             &server.store,
             server.require_id().unwrap(),
             &db_name_non_existing.to_string()
@@ -2057,7 +2057,7 @@ mod tests {
         };
         assert_eq!(metadata, &expected_metadata);
         tracker.join().await;
-        assert!(!PreservedCatalog::<TestCatalogState>::exists(
+        assert!(!PreservedCatalog::exists(
             &server.store,
             server.require_id().unwrap(),
             &db_name_rules_broken.to_string()
@@ -2078,7 +2078,7 @@ mod tests {
         };
         assert_eq!(metadata, &expected_metadata);
         tracker.join().await;
-        assert!(PreservedCatalog::<TestCatalogState>::exists(
+        assert!(PreservedCatalog::exists(
             &server.store,
             server.require_id().unwrap(),
             &db_name_catalog_broken.to_string()
@@ -2106,7 +2106,7 @@ mod tests {
                 .to_string(),
             "database already exists"
         );
-        assert!(PreservedCatalog::<TestCatalogState>::exists(
+        assert!(PreservedCatalog::exists(
             &server.store,
             server.require_id().unwrap(),
             &db_name_created.to_string()

@@ -6,7 +6,6 @@ use std::{
     },
     convert::TryInto,
     fmt::{Debug, Display},
-    marker::PhantomData,
     num::TryFromIntError,
     str::FromStr,
     sync::Arc,
@@ -257,40 +256,8 @@ pub trait CatalogState {
     fn remove(tstate: &mut Self::TransactionState, path: DirsAndFileName) -> Result<()>;
 }
 
-/// Find last transaction-start-timestamp.
-///
-/// This method is designed to read and verify as little as possible and should also work on most broken catalogs.
-pub async fn find_last_transaction_timestamp(
-    object_store: &ObjectStore,
-    server_id: ServerId,
-    db_name: &str,
-) -> Result<Option<DateTime<Utc>>> {
-    let mut res = None;
-    for (path, _file_type, _revision_counter, _uuid) in
-        list_files(object_store, server_id, db_name).await?
-    {
-        match load_transaction_proto(object_store, &path).await {
-            Ok(proto) => match parse_timestamp(&proto.start_timestamp) {
-                Ok(ts) => {
-                    res = Some(res.map_or(ts, |res: DateTime<Utc>| res.max(ts)));
-                }
-                Err(e) => warn!(%e, ?path, "Cannot parse timestamp"),
-            },
-            Err(e @ Error::Read { .. }) => {
-                // bubble up IO error
-                return Err(e);
-            }
-            Err(e) => warn!(%e, ?path, "Cannot read transaction"),
-        }
-    }
-    Ok(res)
-}
-
 /// In-memory view of the preserved catalog.
-pub struct PreservedCatalog<S>
-where
-    S: CatalogState,
-{
+pub struct PreservedCatalog {
     // We need an RWLock AND a semaphore, so that readers are NOT blocked during an open transactions. Note that this
     // requires a new transaction to:
     //
@@ -315,32 +282,9 @@ where
     object_store: Arc<ObjectStore>,
     server_id: ServerId,
     db_name: String,
-
-    // temporary measure to keep the API a bit more stable
-    phantom: PhantomData<S>,
 }
 
-/// Deletes catalog.
-///
-/// **Always create a backup before wiping your data!**
-///
-/// This also works for broken catalogs. Also succeeds if no catalog is present.
-///
-/// Note that wiping the catalog will NOT wipe any referenced parquet files.
-pub async fn wipe(object_store: &ObjectStore, server_id: ServerId, db_name: &str) -> Result<()> {
-    for (path, _file_type, _revision_counter, _uuid) in
-        list_files(object_store, server_id, db_name).await?
-    {
-        object_store.delete(&path).await.context(Write)?;
-    }
-
-    Ok(())
-}
-
-impl<S> PreservedCatalog<S>
-where
-    S: CatalogState + Send + Sync,
-{
+impl PreservedCatalog {
     /// Checks if a preserved catalog exists.
     pub async fn exists(
         object_store: &ObjectStore,
@@ -352,18 +296,69 @@ where
             .is_empty())
     }
 
+    /// Find last transaction-start-timestamp.
+    ///
+    /// This method is designed to read and verify as little as possible and should also work on most broken catalogs.
+    pub async fn find_last_transaction_timestamp(
+        object_store: &ObjectStore,
+        server_id: ServerId,
+        db_name: &str,
+    ) -> Result<Option<DateTime<Utc>>> {
+        let mut res = None;
+        for (path, _file_type, _revision_counter, _uuid) in
+            list_files(object_store, server_id, db_name).await?
+        {
+            match load_transaction_proto(object_store, &path).await {
+                Ok(proto) => match parse_timestamp(&proto.start_timestamp) {
+                    Ok(ts) => {
+                        res = Some(res.map_or(ts, |res: DateTime<Utc>| res.max(ts)));
+                    }
+                    Err(e) => warn!(%e, ?path, "Cannot parse timestamp"),
+                },
+                Err(e @ Error::Read { .. }) => {
+                    // bubble up IO error
+                    return Err(e);
+                }
+                Err(e) => warn!(%e, ?path, "Cannot read transaction"),
+            }
+        }
+        Ok(res)
+    }
+
+    /// Deletes catalog.
+    ///
+    /// **Always create a backup before wiping your data!**
+    ///
+    /// This also works for broken catalogs. Also succeeds if no catalog is present.
+    ///
+    /// Note that wiping the catalog will NOT wipe any referenced parquet files.
+    pub async fn wipe(
+        object_store: &ObjectStore,
+        server_id: ServerId,
+        db_name: &str,
+    ) -> Result<()> {
+        for (path, _file_type, _revision_counter, _uuid) in
+            list_files(object_store, server_id, db_name).await?
+        {
+            object_store.delete(&path).await.context(Write)?;
+        }
+
+        Ok(())
+    }
+
     /// Create new catalog w/o any data.
     ///
     /// An empty transaction will be used to mark the catalog start so that concurrent open but still-empty catalogs can
     /// easily be detected.
-    pub async fn new_empty(
+    pub async fn new_empty<S>(
         object_store: Arc<ObjectStore>,
         server_id: ServerId,
-        db_name: impl Into<String> + Send,
+        db_name: String,
         state_data: S::EmptyInput,
-    ) -> Result<(Self, Arc<S>)> {
-        let db_name = db_name.into();
-
+    ) -> Result<(Self, Arc<S>)>
+    where
+        S: CatalogState + Send + Sync,
+    {
         if Self::exists(&object_store, server_id, &db_name).await? {
             return Err(Error::AlreadyExists {});
         }
@@ -375,7 +370,6 @@ where
             object_store,
             server_id,
             db_name,
-            phantom: PhantomData,
         };
 
         // add empty transaction
@@ -389,12 +383,15 @@ where
     ///
     /// Loading starts at the latest checkpoint or -- if none exists -- at transaction `0`. Transactions before that
     /// point are neither verified nor are they required to exist.
-    pub async fn load(
+    pub async fn load<S>(
         object_store: Arc<ObjectStore>,
         server_id: ServerId,
         db_name: String,
         state_data: S::EmptyInput,
-    ) -> Result<Option<(Self, Arc<S>)>> {
+    ) -> Result<Option<(Self, Arc<S>)>>
+    where
+        S: CatalogState + Send + Sync,
+    {
         // parse all paths into revisions
         let mut transactions: HashMap<u64, Uuid> = HashMap::new();
         let mut max_revision = None;
@@ -492,7 +489,6 @@ where
                 object_store,
                 server_id,
                 db_name,
-                phantom: PhantomData,
             },
             state,
         )))
@@ -504,17 +500,23 @@ where
     /// transaction handle is dropped. The newly created transaction will contain the state after `await` (esp.
     /// post-blocking). This system is fair, which means that transactions are given out in the order they were
     /// requested.
-    pub async fn open_transaction(&self, state: Arc<S>) -> TransactionHandle<'_, S> {
+    pub async fn open_transaction<S>(&self, state: Arc<S>) -> TransactionHandle<'_, S>
+    where
+        S: CatalogState + Send + Sync,
+    {
         self.open_transaction_with_uuid(Uuid::new_v4(), state).await
     }
 
     /// Crate-private API to open an transaction with a specified UUID. Should only be used for catalog rebuilding or
     /// with a fresh V4-UUID!
-    pub(crate) async fn open_transaction_with_uuid(
+    pub(crate) async fn open_transaction_with_uuid<S>(
         &self,
         uuid: Uuid,
         state: Arc<S>,
-    ) -> TransactionHandle<'_, S> {
+    ) -> TransactionHandle<'_, S>
+    where
+        S: CatalogState + Send + Sync,
+    {
         TransactionHandle::new(self, uuid, state).await
     }
 
@@ -543,10 +545,7 @@ where
     }
 }
 
-impl<S> Debug for PreservedCatalog<S>
-where
-    S: CatalogState,
-{
+impl Debug for PreservedCatalog {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PreservedCatalog{{..}}")
     }
@@ -1032,7 +1031,7 @@ pub struct TransactionHandle<'c, S>
 where
     S: CatalogState + Send + Sync,
 {
-    catalog: &'c PreservedCatalog<S>,
+    catalog: &'c PreservedCatalog,
 
     // NOTE: The permit is technically used since we use it to reference the semaphore. It implements `drop` which we
     //       rely on.
@@ -1047,7 +1046,7 @@ where
     S: CatalogState + Send + Sync,
 {
     async fn new(
-        catalog: &'c PreservedCatalog<S>,
+        catalog: &'c PreservedCatalog,
         uuid: Uuid,
         state: Arc<S>,
     ) -> TransactionHandle<'c, S> {
@@ -1373,10 +1372,7 @@ pub mod test_helpers {
     }
 
     /// Break preserved catalog by moving one of the transaction files into a weird unknown version.
-    pub async fn break_catalog_with_weird_version<S>(catalog: &PreservedCatalog<S>)
-    where
-        S: CatalogState + Send + Sync,
-    {
+    pub async fn break_catalog_with_weird_version(catalog: &PreservedCatalog) {
         let tkey = get_tkey(catalog);
         let path = file_path(
             &catalog.object_store,
@@ -1395,10 +1391,7 @@ pub mod test_helpers {
     }
 
     /// Helper function to ensure that guards don't leak into the future state machine.
-    fn get_tkey<S>(catalog: &PreservedCatalog<S>) -> TransactionKey
-    where
-        S: CatalogState + Send + Sync,
-    {
+    fn get_tkey(catalog: &PreservedCatalog) -> TransactionKey {
         let guard = catalog.previous_tkey.read();
         guard
             .as_ref()
@@ -1416,7 +1409,7 @@ pub mod test_helpers {
     {
         // empty state
         let object_store = make_object_store();
-        let (catalog, mut state) = PreservedCatalog::<S>::new_empty(
+        let (catalog, mut state) = PreservedCatalog::new_empty::<S>(
             Arc::clone(&object_store),
             ServerId::try_from(1).unwrap(),
             "db1".to_string(),
@@ -1686,11 +1679,11 @@ mod tests {
         let db_name = "db1";
 
         assert!(
-            !PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
+            !PreservedCatalog::exists(&object_store, server_id, db_name,)
                 .await
                 .unwrap()
         );
-        assert!(PreservedCatalog::<TestCatalogState>::load(
+        assert!(PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -1700,7 +1693,7 @@ mod tests {
         .unwrap()
         .is_none());
 
-        PreservedCatalog::<TestCatalogState>::new_empty(
+        PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -1709,12 +1702,10 @@ mod tests {
         .await
         .unwrap();
 
-        assert!(
-            PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
-                .await
-                .unwrap()
-        );
-        assert!(PreservedCatalog::<TestCatalogState>::load(
+        assert!(PreservedCatalog::exists(&object_store, server_id, db_name,)
+            .await
+            .unwrap());
+        assert!(PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -1740,7 +1731,7 @@ mod tests {
     #[tokio::test]
     async fn test_load_from_empty_store() {
         let object_store = make_object_store();
-        let option = PreservedCatalog::<TestCatalogState>::load(
+        let option = PreservedCatalog::load::<TestCatalogState>(
             object_store,
             make_server_id(),
             "db1".to_string(),
@@ -1794,7 +1785,7 @@ mod tests {
         create_empty_file(&object_store, &path).await;
 
         // no data present
-        let option = PreservedCatalog::<TestCatalogState>::load(
+        let option = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.clone(),
@@ -1828,7 +1819,7 @@ mod tests {
         checked_delete(&object_store, &path).await;
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -1846,7 +1837,7 @@ mod tests {
         assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
 
         // break transaction file
-        let (catalog, _state) = PreservedCatalog::<TestCatalogState>::load(
+        let (catalog, _state) = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -1858,7 +1849,7 @@ mod tests {
         break_catalog_with_weird_version(&catalog).await;
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -1895,7 +1886,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -1934,7 +1925,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -1974,7 +1965,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2011,7 +2002,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2048,7 +2039,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2082,7 +2073,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2116,7 +2107,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2158,7 +2149,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2174,7 +2165,7 @@ mod tests {
     #[tokio::test]
     async fn test_transaction_handle_debug() {
         let object_store = make_object_store();
-        let (catalog, state) = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, state) = PreservedCatalog::new_empty::<TestCatalogState>(
             object_store,
             make_server_id(),
             "db1".to_string(),
@@ -2231,7 +2222,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2282,7 +2273,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2327,7 +2318,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2364,7 +2355,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2404,7 +2395,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2441,7 +2432,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2478,7 +2469,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2515,7 +2506,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2558,7 +2549,7 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::<TestCatalogState>::load(
+        let res = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2583,7 +2574,7 @@ mod tests {
         let mut trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
 
         // re-open catalog
-        let (catalog, mut state) = PreservedCatalog::<TestCatalogState>::load(
+        let (catalog, mut state) = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2746,12 +2737,7 @@ mod tests {
             }
         }
 
-        fn record(
-            &mut self,
-            catalog: &PreservedCatalog<TestCatalogState>,
-            state: &TestCatalogState,
-            aborted: bool,
-        ) {
+        fn record(&mut self, catalog: &PreservedCatalog, state: &TestCatalogState, aborted: bool) {
             self.tkeys
                 .push(catalog.previous_tkey.read().clone().unwrap());
             self.states.push(state.clone());
@@ -2872,7 +2858,7 @@ mod tests {
         let server_id = make_server_id();
         let db_name = "db1";
 
-        PreservedCatalog::<TestCatalogState>::new_empty(
+        PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2881,7 +2867,7 @@ mod tests {
         .await
         .unwrap();
 
-        let res = PreservedCatalog::<TestCatalogState>::new_empty(
+        let res = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2897,7 +2883,9 @@ mod tests {
         let server_id = make_server_id();
         let db_name = "db1";
 
-        wipe(&object_store, server_id, db_name).await.unwrap();
+        PreservedCatalog::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -2910,15 +2898,17 @@ mod tests {
         assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
 
         // wipe
-        wipe(&object_store, server_id, db_name).await.unwrap();
+        PreservedCatalog::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
 
         // `exists` and `load` both report "no data"
         assert!(
-            !PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
+            !PreservedCatalog::exists(&object_store, server_id, db_name,)
                 .await
                 .unwrap()
         );
-        assert!(PreservedCatalog::<TestCatalogState>::load(
+        assert!(PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2929,7 +2919,7 @@ mod tests {
         .is_none());
 
         // can create new catalog
-        PreservedCatalog::<TestCatalogState>::new_empty(
+        PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2949,7 +2939,7 @@ mod tests {
         assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
 
         // break
-        let (catalog, _state) = PreservedCatalog::<TestCatalogState>::load(
+        let (catalog, _state) = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2961,15 +2951,17 @@ mod tests {
         break_catalog_with_weird_version(&catalog).await;
 
         // wipe
-        wipe(&object_store, server_id, db_name).await.unwrap();
+        PreservedCatalog::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
 
         // `exists` and `load` both report "no data"
         assert!(
-            !PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
+            !PreservedCatalog::exists(&object_store, server_id, db_name,)
                 .await
                 .unwrap()
         );
-        assert!(PreservedCatalog::<TestCatalogState>::load(
+        assert!(PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -2980,7 +2972,7 @@ mod tests {
         .is_none());
 
         // can create new catalog
-        PreservedCatalog::<TestCatalogState>::new_empty(
+        PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -3006,7 +2998,9 @@ mod tests {
         create_empty_file(&object_store, &path).await;
 
         // wipe
-        wipe(&object_store, server_id, db_name).await.unwrap();
+        PreservedCatalog::wipe(&object_store, server_id, db_name)
+            .await
+            .unwrap();
 
         // check file is still there
         let prefix = catalog_path(&object_store, server_id, &db_name);
@@ -3025,7 +3019,7 @@ mod tests {
     #[tokio::test]
     async fn test_transaction_handle_revision_counter() {
         let object_store = make_object_store();
-        let (catalog, state) = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, state) = PreservedCatalog::new_empty::<TestCatalogState>(
             object_store,
             make_server_id(),
             "db1".to_string(),
@@ -3041,7 +3035,7 @@ mod tests {
     #[tokio::test]
     async fn test_transaction_handle_uuid() {
         let object_store = make_object_store();
-        let (catalog, state) = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, state) = PreservedCatalog::new_empty::<TestCatalogState>(
             object_store,
             make_server_id(),
             "db1".to_string(),
@@ -3062,10 +3056,11 @@ mod tests {
         let db_name = "db1";
         let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
 
-        let ts = find_last_transaction_timestamp(&object_store, server_id, db_name)
-            .await
-            .unwrap()
-            .unwrap();
+        let ts =
+            PreservedCatalog::find_last_transaction_timestamp(&object_store, server_id, db_name)
+                .await
+                .unwrap()
+                .unwrap();
 
         // last trace entry is an aborted transaction, so the valid transaction timestamp is the third last
         assert!(trace.aborted[trace.aborted.len() - 1]);
@@ -3092,12 +3087,14 @@ mod tests {
         let server_id = make_server_id();
         let db_name = "db1";
 
-        assert!(
-            find_last_transaction_timestamp(&object_store, server_id, db_name)
-                .await
-                .unwrap()
-                .is_none()
-        );
+        assert!(PreservedCatalog::find_last_transaction_timestamp(
+            &object_store,
+            server_id,
+            db_name
+        )
+        .await
+        .unwrap()
+        .is_none());
     }
 
     #[tokio::test]
@@ -3123,10 +3120,11 @@ mod tests {
             .await
             .unwrap();
 
-        let ts = find_last_transaction_timestamp(&object_store, server_id, db_name)
-            .await
-            .unwrap()
-            .unwrap();
+        let ts =
+            PreservedCatalog::find_last_transaction_timestamp(&object_store, server_id, db_name)
+                .await
+                .unwrap()
+                .unwrap();
 
         // last trace entry is an aborted transaction, so the valid transaction timestamp is the third last
         assert!(trace.aborted[trace.aborted.len() - 1]);
@@ -3175,10 +3173,11 @@ mod tests {
             .await
             .unwrap();
 
-        let ts = find_last_transaction_timestamp(&object_store, server_id, db_name)
-            .await
-            .unwrap()
-            .unwrap();
+        let ts =
+            PreservedCatalog::find_last_transaction_timestamp(&object_store, server_id, db_name)
+                .await
+                .unwrap()
+                .unwrap();
 
         // last trace entry is an aborted transaction, so the valid transaction timestamp is the third last
         assert!(trace.aborted[trace.aborted.len() - 1]);
@@ -3206,7 +3205,7 @@ mod tests {
         let db_name = "db1";
         let mut trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
 
-        let (catalog, mut state) = PreservedCatalog::<TestCatalogState>::load(
+        let (catalog, mut state) = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -3240,10 +3239,11 @@ mod tests {
         }
         drop(catalog);
 
-        let ts = find_last_transaction_timestamp(&object_store, server_id, db_name)
-            .await
-            .unwrap()
-            .unwrap();
+        let ts =
+            PreservedCatalog::find_last_transaction_timestamp(&object_store, server_id, db_name)
+                .await
+                .unwrap()
+                .unwrap();
 
         // check timestamps
         assert!(!trace.aborted[trace.aborted.len() - 1]);
@@ -3295,12 +3295,12 @@ mod tests {
         let db_name = "db1";
 
         assert!(
-            !PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
+            !PreservedCatalog::exists(&object_store, server_id, db_name,)
                 .await
                 .unwrap()
         );
 
-        let (catalog, state) = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -3340,12 +3340,10 @@ mod tests {
 
         drop(catalog);
 
-        assert!(
-            PreservedCatalog::<TestCatalogState>::exists(&object_store, server_id, db_name,)
-                .await
-                .unwrap()
-        );
-        assert!(PreservedCatalog::<TestCatalogState>::load(
+        assert!(PreservedCatalog::exists(&object_store, server_id, db_name,)
+            .await
+            .unwrap());
+        assert!(PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
