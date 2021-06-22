@@ -1396,7 +1396,7 @@ pub mod test_helpers {
             state.remove(path.clone()).unwrap();
             state
                 .add(
-                    Arc::clone(&&object_store),
+                    Arc::clone(&object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
                         metadata: Arc::new(metadata),
