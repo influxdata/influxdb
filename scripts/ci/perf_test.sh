@@ -43,13 +43,16 @@ debname=$(find /tmp/workspace/packages/influxdb*amd64.deb)
 base_debname=$(basename $debname)
 source_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
+scp /tmp/workspace/packages/influx_tools ubuntu@$ec2_ip:/home/ubuntu/influx_tools
 scp $debname ubuntu@$ec2_ip:/home/ubuntu/$base_debname
 scp ${source_dir}/run_perftest.sh ubuntu@$ec2_ip:/home/ubuntu/run_perftest.sh
 
 # install deb in remote vm and create ramdisk for dataset files
 RAMDISK_DIR=/mnt/ramdisk
 ssh ubuntu@$ec2_ip << EOF
+sudo whoami
 sudo DEBIAN_FRONTEND=noninteractive apt-get install --assume-yes /home/ubuntu/$base_debname
+sudo sed -i 's/# flux-enabled = false/flux-enabled = true/g' /etc/influxdb/influxdb.conf
 sudo systemctl unmask influxdb.service
 sudo systemctl start influxdb
 sudo mkdir -p ${RAMDISK_DIR}
