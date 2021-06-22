@@ -2,7 +2,6 @@ package tenant
 
 import (
 	"context"
-	"path"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
@@ -33,26 +32,6 @@ func (s *OnboardClientService) OnboardInitialUser(ctx context.Context, or *influ
 
 	err := s.Client.
 		PostJSON(or, prefixOnboard).
-		DecodeJSON(res).
-		Do(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &influxdb.OnboardingResults{
-		Org:    &res.Organization.Organization,
-		User:   &res.User.User,
-		Auth:   res.Auth.toPlatform(),
-		Bucket: res.Bucket.toInfluxDB(),
-	}, nil
-}
-
-func (s *OnboardClientService) OnboardUser(ctx context.Context, or *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
-	res := &onboardingResponse{}
-
-	err := s.Client.
-		PostJSON(or, path.Join(prefixOnboard, "user")).
 		DecodeJSON(res).
 		Do(ctx)
 

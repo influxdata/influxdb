@@ -37,8 +37,3 @@ func (m *OnboardingMetrics) OnboardInitialUser(ctx context.Context, req *influxd
 	res, err := m.onboardingService.OnboardInitialUser(ctx, req)
 	return res, rec(err)
 }
-func (m *OnboardingMetrics) OnboardUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
-	rec := m.rec.Record("onboard_user")
-	res, err := m.onboardingService.OnboardUser(ctx, req)
-	return res, rec(err)
-}
