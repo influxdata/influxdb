@@ -40,7 +40,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// This will hold the transaction lock while the list of files is being gathered. To limit the time the lock is held
 /// use `max_files` which will limit the number of files to delete in this cleanup round.
 pub async fn cleanup_unreferenced_parquet_files<S>(
-    catalog: &PreservedCatalog<S>,
+    catalog: &PreservedCatalog,
     state: Arc<S>,
     max_files: usize,
 ) -> Result<()>
@@ -56,7 +56,7 @@ where
     let db_name = catalog.db_name();
     let all_known = {
         // replay catalog transactions to track ALL (even dropped) files that are referenced
-        let (_catalog, state) = PreservedCatalog::<TracerCatalogState>::load(
+        let (_catalog, state) = PreservedCatalog::load::<TracerCatalogState>(
             Arc::clone(&store),
             server_id,
             db_name.to_string(),
@@ -184,10 +184,10 @@ mod tests {
         let server_id = make_server_id();
         let db_name = "db1";
 
-        let (catalog, state) = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
         )
         .await
@@ -205,10 +205,10 @@ mod tests {
         let server_id = make_server_id();
         let db_name = db_name();
 
-        let (catalog, mut state) = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, mut state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
         )
         .await
@@ -266,10 +266,10 @@ mod tests {
         let server_id = make_server_id();
         let db_name = db_name();
 
-        let (catalog, state) = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
         )
         .await
@@ -306,10 +306,10 @@ mod tests {
         let server_id = make_server_id();
         let db_name = db_name();
 
-        let (catalog, state) = PreservedCatalog::<TestCatalogState>::new_empty(
+        let (catalog, state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
-            db_name,
+            db_name.to_string(),
             (),
         )
         .await
