@@ -55,7 +55,10 @@ pub enum Error {
     FileRecordFailure { source: crate::catalog::Error },
 
     #[snafu(display("Cannot commit transaction: {}", source))]
-    CommitFailure { source: crate::catalog::CommitError },
+    CommitFailure { source: crate::catalog::Error },
+
+    #[snafu(display("Cannot create checkpoint: {}", source))]
+    CheckpointFailure { source: crate::catalog::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -149,19 +152,21 @@ where
                     collected_files.insert(path, Arc::new(metadata));
                 }
 
-                let checkpoint_data = (revision_counter == max_revision).then(|| CheckpointData {
-                    files: collected_files.clone(),
-                });
-                transaction
-                    .commit(checkpoint_data)
-                    .await
-                    .context(CommitFailure)?;
+                let ckpt_handle = transaction.commit().await.context(CommitFailure)?;
+                if revision_counter == max_revision {
+                    ckpt_handle
+                        .create_checkpoint(CheckpointData {
+                            files: collected_files.clone(),
+                        })
+                        .await
+                        .context(CommitFailure)?;
+                }
             } else {
                 // we do not have any files for this transaction (there might have been other actions though or it was
                 // an empty transaction) => create new empty transaction
                 // Note that this can never be the last transaction, so we don't need to create a checkpoint here.
                 let transaction = catalog.open_transaction().await;
-                transaction.commit(None).await.context(CommitFailure)?;
+                transaction.commit().await.context(CheckpointFailure)?;
             }
         }
     }
@@ -333,12 +338,12 @@ mod tests {
                 .insert(path.clone(), Arc::new(md.clone()));
             transaction.add_parquet(&path, &md).unwrap();
 
-            transaction.commit(None).await.unwrap();
+            transaction.commit().await.unwrap();
         }
         {
             // empty transaction
             let transaction = catalog.open_transaction().await;
-            transaction.commit(None).await.unwrap();
+            transaction.commit().await.unwrap();
         }
         {
             let mut transaction = catalog.open_transaction().await;
@@ -357,7 +362,7 @@ mod tests {
                 .insert(path.clone(), Arc::new(md.clone()));
             transaction.add_parquet(&path, &md).unwrap();
 
-            transaction.commit(None).await.unwrap();
+            transaction.commit().await.unwrap();
         }
 
         // store catalog state
@@ -517,7 +522,7 @@ mod tests {
             )
             .await;
 
-            transaction.commit(None).await.unwrap();
+            transaction.commit().await.unwrap();
         }
 
         // wipe catalog
@@ -628,7 +633,7 @@ mod tests {
                 .insert(path.clone(), Arc::new(md.clone()));
             transaction.add_parquet(&path, &md).unwrap();
 
-            transaction.commit(None).await.unwrap();
+            transaction.commit().await.unwrap();
         }
         {
             let mut transaction = catalog.open_transaction().await;
@@ -647,7 +652,7 @@ mod tests {
                 .insert(path.clone(), Arc::new(md.clone()));
             transaction.add_parquet(&path, &md).unwrap();
 
-            transaction.commit(None).await.unwrap();
+            transaction.commit().await.unwrap();
         }
         assert_eq!(catalog.revision_counter(), 2);
 

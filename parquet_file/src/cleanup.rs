@@ -222,7 +222,7 @@ mod tests {
             let (path, _md) = make_metadata(&object_store, "foo", chunk_addr(3)).await;
             paths_delete.push(path.display());
 
-            transaction.commit(None).await.unwrap();
+            transaction.commit().await.unwrap();
         }
 
         // run clean-up
@@ -264,7 +264,7 @@ mod tests {
                     let (path, md) = make_metadata(&object_store, "foo", chunk_addr(i)).await;
                     transaction.add_parquet(&path.clone().into(), &md).unwrap();
 
-                    transaction.commit(None).await.unwrap();
+                    transaction.commit().await.unwrap();
 
                     path.display()
                 },

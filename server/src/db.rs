@@ -154,7 +154,7 @@ pub enum Error {
 
     #[snafu(display("Error while commiting transaction on preserved catalog: {}", source))]
     CommitError {
-        source: parquet_file::catalog::CommitError,
+        source: parquet_file::catalog::Error,
     },
 
     #[snafu(display("Cannot write chunk: {}", addr))]
@@ -708,38 +708,35 @@ impl Db {
                     .add_parquet(&path, &parquet_metadata)
                     .context(TransactionError)?;
 
+                // preserved commit
+                let ckpt_handle = transaction.commit().await.context(CommitError)?;
+
+                // in-mem commit
+                {
+                    let mut guard = chunk.write();
+                    if let Err(e) = guard.set_written_to_object_store(parquet_chunk) {
+                        panic!("Chunk written but cannot mark as written {}", e);
+                    }
+                }
+
                 let create_checkpoint = catalog_transactions_until_checkpoint
                     .map_or(false, |interval| {
-                        transaction.revision_counter() % interval.get() == 0
+                        ckpt_handle.revision_counter() % interval.get() == 0
                     });
-                let checkpoint_data = create_checkpoint.then(|| {
-                    let mut checkpoint_data = checkpoint_data_from_catalog(&catalog);
-                    // don't forget the file that we've just added
-                    checkpoint_data.files.insert(path, parquet_metadata);
-                    checkpoint_data
-                });
-
-                match transaction.commit(checkpoint_data).await {
-                    Ok(()) => {
-                        let mut guard = chunk.write();
-                        if let Err(e) = guard.set_written_to_object_store(parquet_chunk) {
-                            panic!("Chunk written but cannot mark as written {}", e);
-                        }
-                    }
-                    Err(e @ parquet_file::catalog::CommitError::CheckpointFailed { .. }) => {
+                if create_checkpoint {
+                    // Commit is already done, so we can just scan the catalog for the state.
+                    //
+                    // NOTE: There can only be a single transaction in this section because the checkpoint handle holds
+                    //       transaction lock. Therefore we don't need to worry about concurrent modifications of
+                    //       preserved chunks.
+                    if let Err(e) = ckpt_handle
+                        .create_checkpoint(checkpoint_data_from_catalog(&catalog))
+                        .await
+                    {
                         warn!(%e, "cannot create catalog checkpoint");
 
-                        // still mark chunk as persisted
-                        let mut guard = chunk.write();
-                        if let Err(e) = guard.set_written_to_object_store(parquet_chunk) {
-                            panic!("Chunk written but cannot mark as written {}", e);
-                        }
-                    }
-                    Err(e @ parquet_file::catalog::CommitError::CommitFailed { .. }) => {
-                        warn!(%e, "cannot create catalog transaction");
-
-                        // do NOT mark chunk as persisted
-                        return Err(Error::CommitError { source: e });
+                        // That's somewhat OK. Don't fail the entire task, because the actual preservation was completed
+                        // (both in-mem and within the preserved catalog).
                     }
                 }
             }

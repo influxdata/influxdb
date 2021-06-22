@@ -187,7 +187,7 @@ pub enum Error {
     },
 
     #[snafu(display("Cannot commit transaction: {}", source))]
-    TransactionCommitError { source: CommitError },
+    CommitError { source: Box<Error> },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -338,9 +338,10 @@ impl PreservedCatalog {
         // add empty transaction
         let transaction = catalog.open_transaction().await;
         transaction
-            .commit(None)
+            .commit()
             .await
-            .context(TransactionCommitError)?;
+            .map_err(Box::new)
+            .context(CommitError)?;
 
         Ok((catalog, state))
     }
@@ -958,26 +959,14 @@ pub struct CheckpointData {
     pub files: HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>,
 }
 
-#[derive(Debug, Snafu)]
-pub enum CommitError {
-    #[snafu(display("Cannot write transaction: {}", source))]
-    CommitFailed { source: Box<Error> },
-
-    #[snafu(display("Cannot write checkpoint (transaction was written!): {}", source))]
-    CheckpointFailed { source: Box<Error> },
-}
-
 /// Handle for an open uncommitted transaction.
 ///
 /// Dropping this object w/o calling [`commit`](Self::commit) will issue a warning.
 pub struct TransactionHandle<'c> {
     catalog: &'c PreservedCatalog,
 
-    // NOTE: The permit is technically used since we use it to reference the semaphore. It implements `drop` which we
-    //       rely on.
-    #[allow(dead_code)]
-    permit: SemaphorePermit<'c>,
-
+    // NOTE: The following two must be an option so we can `take` them during `Self::commit`.
+    permit: Option<SemaphorePermit<'c>>,
     transaction: Option<OpenTransaction>,
 }
 
@@ -1002,7 +991,7 @@ impl<'c> TransactionHandle<'c> {
         Self {
             catalog,
             transaction: Some(transaction),
-            permit,
+            permit: Some(permit),
         }
     }
 
@@ -1026,26 +1015,15 @@ impl<'c> TransactionHandle<'c> {
 
     /// Write data to object store and commit transaction to underlying catalog.
     ///
-    /// This will first commit to object store and then to the in-memory state.
-    ///
     /// # Checkpointing
-    /// If `checkpoint_data` is passed this will also create a checkpoint at the end of the commit. Note that if the
-    /// checkpoint creation fails, the commit will still be treated as completed since the checkpoint is a mere
-    /// optimization to speed up transaction replay and allow to prune the history.
+    /// A [`CheckpointHandle`] will be returned that allows the caller to create a checkpoint. Note that this handle
+    /// holds a transaction lock, so it's safe to assume that no other transaction is in-progress while the caller
+    /// prepares the checkpoint.
     ///
-    /// Note that `checkpoint_data` must contain the state INCLUDING the to-be-commited transaction.
-    ///
-    /// # Failure Handling
-    /// When this function returns with an error, the caller MUST react accordingly:
-    ///
-    /// - [`CommitError::CommitFailed`]: It MUST be assumed that the commit has failed and all actions recorded
-    ///   with this handle are NOT preserved.
-    /// - [`CommitError::CheckpointFailed`]: The actual transaction was written. Just the checkpoint was not
-    ///   written. It MUST be assumed that all action recorded with this handle are preserved.
-    pub async fn commit(
-        mut self,
-        checkpoint_data: Option<CheckpointData>,
-    ) -> std::result::Result<(), CommitError> {
+    /// # Error Handling
+    /// When this function returns with an error, it MUST be assumed that the commit has failed and all actions
+    /// recorded with this handle are NOT preserved.
+    pub async fn commit(mut self) -> Result<CheckpointHandle<'c>> {
         let t = std::mem::take(&mut self.transaction)
             .expect("calling .commit on a closed transaction?!");
         let tkey = t.tkey();
@@ -1067,23 +1045,17 @@ impl<'c> TransactionHandle<'c> {
                 // maybe create a checkpoint
                 // IMPORTANT: Create the checkpoint AFTER commiting the transaction to object store and to the in-memory state.
                 //            Checkpoints are an optional optimization and are not required to materialize a transaction.
-                if let Some(checkpoint_data) = checkpoint_data {
-                    // NOTE: `inner_guard` will not be re-used here since it is a strong write lock and the checkpoint creation
-                    //       only needs a read lock.
-                    self.create_checkpoint(tkey, previous_tkey, checkpoint_data)
-                        .await
-                        .map_err(Box::new)
-                        .context(CheckpointFailed)?;
-                }
-
-                Ok(())
+                Ok(CheckpointHandle {
+                    catalog: self.catalog,
+                    tkey,
+                    previous_tkey,
+                    permit: self.permit.take().expect("transaction already dropped?!"),
+                })
             }
             Err(e) => {
                 warn!(?tkey, "failure while writing transaction, aborting");
                 t.abort();
-                Err(CommitError::CommitFailed {
-                    source: Box::new(e),
-                })
+                Err(e)
             }
         }
     }
@@ -1098,61 +1070,6 @@ impl<'c> TransactionHandle<'c> {
     fn commit_inner(&self, t: OpenTransaction) -> Option<TransactionKey> {
         let mut previous_tkey_guard = self.catalog.previous_tkey.write();
         t.commit(&mut previous_tkey_guard)
-    }
-
-    async fn create_checkpoint(
-        &self,
-        tkey: TransactionKey,
-        previous_tkey: Option<TransactionKey>,
-        checkpoint_data: CheckpointData,
-    ) -> Result<()> {
-        let object_store = self.catalog.object_store();
-        let server_id = self.catalog.server_id();
-        let db_name = self.catalog.db_name();
-
-        // sort by key (= path) for deterministic output
-        let files = {
-            let mut tmp: Vec<_> = checkpoint_data.files.into_iter().collect();
-            tmp.sort_by_key(|(path, _metadata)| path.clone());
-            tmp
-        };
-
-        // create transaction to add parquet files
-        let actions: Result<Vec<_>, Error> = files
-            .into_iter()
-            .map(|(path, metadata)| {
-                Ok(proto::transaction::Action {
-                    action: Some(proto::transaction::action::Action::AddParquet(
-                        proto::AddParquet {
-                            path: Some(unparse_dirs_and_filename(&path)),
-                            metadata: metadata.to_thrift().context(MetadataEncodingFailed)?,
-                        },
-                    )),
-                })
-            })
-            .collect();
-        let actions = actions?;
-
-        // assemble and store checkpoint protobuf
-        let proto = proto::Transaction {
-            actions,
-            version: TRANSACTION_VERSION,
-            uuid: tkey.uuid.to_string(),
-            revision_counter: tkey.revision_counter,
-            previous_uuid: previous_tkey.map_or_else(String::new, |tkey| tkey.uuid.to_string()),
-            start_timestamp: Some(Utc::now().into()),
-            encoding: proto::transaction::Encoding::Full.into(),
-        };
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            &tkey,
-            FileType::Checkpoint,
-        );
-        store_transaction_proto(&object_store, &path, &proto).await?;
-
-        Ok(())
     }
 
     /// Abort transaction w/o commit.
@@ -1215,6 +1132,101 @@ impl<'c> Drop for TransactionHandle<'c> {
             warn!(?self, "dropped uncommitted transaction, calling abort");
             t.abort();
         }
+    }
+}
+
+/// Handle that allows to create a checkpoint after a transaction.
+///
+/// This handle holds a transaction lock.
+pub struct CheckpointHandle<'c> {
+    catalog: &'c PreservedCatalog,
+
+    // metadata about the just-committed transaction
+    tkey: TransactionKey,
+    previous_tkey: Option<TransactionKey>,
+
+    // NOTE: The permit is technically used since we use it to reference the semaphore. It implements `drop` which we
+    //       rely on.
+    #[allow(dead_code)]
+    permit: SemaphorePermit<'c>,
+}
+
+impl<'c> CheckpointHandle<'c> {
+    /// Create a checkpoint for the just-committed transaction.
+    ///
+    /// Note that `checkpoint_data` must contain the state INCLUDING the just-committed transaction.
+    ///
+    /// # Error Handling
+    /// If the checkpoint creation fails, the commit will still be treated as completed since the checkpoint is a mere
+    /// optimization to speed up transaction replay and allow to prune the history.
+    pub async fn create_checkpoint(self, checkpoint_data: CheckpointData) -> Result<()> {
+        let object_store = self.catalog.object_store();
+        let server_id = self.catalog.server_id();
+        let db_name = self.catalog.db_name();
+
+        // sort by key (= path) for deterministic output
+        let files = {
+            let mut tmp: Vec<_> = checkpoint_data.files.into_iter().collect();
+            tmp.sort_by_key(|(path, _metadata)| path.clone());
+            tmp
+        };
+
+        // create transaction to add parquet files
+        let actions: Result<Vec<_>, Error> = files
+            .into_iter()
+            .map(|(path, metadata)| {
+                Ok(proto::transaction::Action {
+                    action: Some(proto::transaction::action::Action::AddParquet(
+                        proto::AddParquet {
+                            path: Some(unparse_dirs_and_filename(&path)),
+                            metadata: metadata.to_thrift().context(MetadataEncodingFailed)?,
+                        },
+                    )),
+                })
+            })
+            .collect();
+        let actions = actions?;
+
+        // assemble and store checkpoint protobuf
+        let proto = proto::Transaction {
+            actions,
+            version: TRANSACTION_VERSION,
+            uuid: self.tkey.uuid.to_string(),
+            revision_counter: self.tkey.revision_counter,
+            previous_uuid: self
+                .previous_tkey
+                .map_or_else(String::new, |tkey| tkey.uuid.to_string()),
+            start_timestamp: Some(Utc::now().into()),
+            encoding: proto::transaction::Encoding::Full.into(),
+        };
+        let path = file_path(
+            &object_store,
+            server_id,
+            db_name,
+            &self.tkey,
+            FileType::Checkpoint,
+        );
+        store_transaction_proto(&object_store, &path, &proto).await?;
+
+        Ok(())
+    }
+
+    /// Get revision counter for this transaction.
+    pub fn revision_counter(&self) -> u64 {
+        self.tkey.revision_counter
+    }
+
+    /// Get UUID for this transaction
+    pub fn uuid(&self) -> Uuid {
+        self.tkey.uuid
+    }
+}
+
+impl<'c> Debug for CheckpointHandle<'c> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CheckpointHandle")
+            .field("tkey", &self.tkey)
+            .finish()
     }
 }
 
@@ -2504,8 +2516,11 @@ mod tests {
         // create empty transaction w/ checkpoint (the delta transaction file is not required for catalog loading)
         {
             let transaction = catalog.open_transaction().await;
-            let checkpoint_data = Some(state.checkpoint_data());
-            transaction.commit(checkpoint_data).await.unwrap();
+            let ckpt_handle = transaction.commit().await.unwrap();
+            ckpt_handle
+                .create_checkpoint(state.checkpoint_data())
+                .await
+                .unwrap();
         }
         trace.record(&catalog, &state, false);
 
@@ -2517,8 +2532,11 @@ mod tests {
                 .parquet_files
                 .insert(path.clone(), Arc::new(metadata.clone()));
             transaction.add_parquet(&path, &metadata).unwrap();
-            let checkpoint_data = Some(state.checkpoint_data());
-            transaction.commit(checkpoint_data).await.unwrap();
+            let ckpt_handle = transaction.commit().await.unwrap();
+            ckpt_handle
+                .create_checkpoint(state.checkpoint_data())
+                .await
+                .unwrap();
         }
         trace.record(&catalog, &state, false);
 
@@ -2720,7 +2738,7 @@ mod tests {
                 .insert(path.clone(), Arc::new(metadata1.clone()));
             t.add_parquet(&path, &metadata1).unwrap();
 
-            t.commit(None).await.unwrap();
+            t.commit().await.unwrap();
         }
         assert_eq!(catalog.revision_counter(), 1);
         assert_catalog_parquet_files(
@@ -2749,7 +2767,7 @@ mod tests {
             state.parquet_files.remove(&path);
             t.remove_parquet(&path).unwrap();
 
-            t.commit(None).await.unwrap();
+            t.commit().await.unwrap();
         }
         assert_eq!(catalog.revision_counter(), 2);
         assert_catalog_parquet_files(
@@ -3153,8 +3171,11 @@ mod tests {
         // create empty transaction w/ checkpoint
         {
             let transaction = catalog.open_transaction().await;
-            let checkpoint_data = Some(state.checkpoint_data());
-            transaction.commit(checkpoint_data).await.unwrap();
+            let ckpt_handle = transaction.commit().await.unwrap();
+            ckpt_handle
+                .create_checkpoint(state.checkpoint_data())
+                .await
+                .unwrap();
         }
         trace.record(&catalog, &state, false);
 
@@ -3258,8 +3279,11 @@ mod tests {
         // create empty transaction w/ checkpoint
         {
             let transaction = catalog.open_transaction().await;
-            let checkpoint_data = Some(state.checkpoint_data());
-            transaction.commit(checkpoint_data).await.unwrap();
+            let ckpt_handle = transaction.commit().await.unwrap();
+            ckpt_handle
+                .create_checkpoint(state.checkpoint_data())
+                .await
+                .unwrap();
         }
 
         // delete transaction file
