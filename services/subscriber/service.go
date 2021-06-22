@@ -58,7 +58,7 @@ type Service struct {
 	mu              sync.Mutex
 	conf            Config
 
-	subs  map[subEntry]chanWriter
+	subs  map[subEntry]*chanWriter
 	subMu sync.RWMutex
 }
 
@@ -231,18 +231,17 @@ func (s *Service) Points() chan<- *coordinator.WritePointsRequest {
 
 // run read points from the points channel and writes them to the subscriptions.
 func (s *Service) run() {
-	var wg sync.WaitGroup
-	s.subs = make(map[subEntry]chanWriter)
+	s.subs = make(map[subEntry]*chanWriter)
 	// Perform initial update
-	s.updateSubs(&wg)
+	s.updateSubs()
 	for {
 		select {
 		case <-s.update:
-			s.updateSubs(&wg)
+			s.updateSubs()
 		case p, ok := <-s.points:
 			if !ok {
 				// Close out all chanWriters
-				s.close(&wg)
+				s.close()
 				return
 			}
 
@@ -299,24 +298,21 @@ func (s *Service) removeBadPoints(p *coordinator.WritePointsRequest) *coordinato
 }
 
 // close closes the existing channel writers.
-func (s *Service) close(wg *sync.WaitGroup) {
+func (s *Service) close() {
 	s.subMu.Lock()
 	defer s.subMu.Unlock()
-
 	for _, cw := range s.subs {
 		cw.Close()
 	}
-	// Wait for them to finish
-	wg.Wait()
 	s.subs = nil
 }
 
-func (s *Service) updateSubs(wg *sync.WaitGroup) {
+func (s *Service) updateSubs() {
 	s.subMu.Lock()
 	defer s.subMu.Unlock()
 
 	if s.subs == nil {
-		s.subs = make(map[subEntry]chanWriter)
+		s.subs = make(map[subEntry]*chanWriter)
 	}
 
 	dbis := s.MetaClient.Databases()
@@ -340,21 +336,7 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 					s.Logger.Info("Subscription creation failed", zap.String("name", si.Name), zap.Error(err))
 					continue
 				}
-				cw := chanWriter{
-					writeRequests: make(chan *coordinator.WritePointsRequest, s.conf.WriteBufferSize),
-					pw:            sub,
-					pointsWritten: &s.stats.PointsWritten,
-					failures:      &s.stats.WriteFailures,
-					logger:        s.Logger,
-				}
-				for i := 0; i < s.conf.WriteConcurrency; i++ {
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-						cw.Run()
-					}()
-				}
-				s.subs[se] = cw
+				s.subs[se] = newChanWriter(s, sub)
 				s.Logger.Info("Added new subscription",
 					logger.Database(se.db),
 					logger.RetentionPolicy(se.rp))
@@ -401,14 +383,35 @@ type chanWriter struct {
 	pointsWritten *int64
 	failures      *int64
 	logger        *zap.Logger
+	wg sync.WaitGroup
+}
+
+func newChanWriter(s *Service, sub PointsWriter) *chanWriter {
+	cw := &chanWriter{
+		writeRequests: make(chan *coordinator.WritePointsRequest, s.conf.WriteBufferSize),
+		pw:            sub,
+		pointsWritten: &s.stats.PointsWritten,
+		failures:      &s.stats.WriteFailures,
+		logger:        s.Logger,
+	}
+	for i := 0; i < s.conf.WriteConcurrency; i++ {
+		cw.wg.Add(1)
+		go func() {
+			defer cw.wg.Done()
+			cw.Run()
+		}()
+	}
+	return cw
 }
 
 // Close closes the chanWriter.
-func (c chanWriter) Close() {
+func (c *chanWriter) Close() {
 	close(c.writeRequests)
+	// Wait until all the write requests are finished
+	c.wg.Wait()
 }
 
-func (c chanWriter) Run() {
+func (c *chanWriter) Run() {
 	for wr := range c.writeRequests {
 		err := c.pw.WritePoints(wr)
 		if err != nil {
@@ -421,7 +424,7 @@ func (c chanWriter) Run() {
 }
 
 // Statistics returns statistics for periodic monitoring.
-func (c chanWriter) Statistics(tags map[string]string) []models.Statistic {
+func (c *chanWriter) Statistics(tags map[string]string) []models.Statistic {
 	if m, ok := c.pw.(monitor.Reporter); ok {
 		return m.Statistics(tags)
 	}
