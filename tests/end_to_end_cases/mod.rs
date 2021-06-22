@@ -7,6 +7,7 @@ pub mod operations_cli;
 mod persistence;
 pub mod read_api;
 pub mod read_cli;
+mod run_cli;
 pub mod scenario;
 mod sql_cli;
 pub mod storage_api;

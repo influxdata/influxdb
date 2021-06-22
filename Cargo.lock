@@ -1649,6 +1649,7 @@ dependencies = [
  "tracing-opentelemetry",
  "tracker",
  "trogging",
+ "uuid",
 ]
 
 [[package]]

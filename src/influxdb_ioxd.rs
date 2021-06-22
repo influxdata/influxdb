@@ -1,8 +1,9 @@
 use crate::commands::run::{Config, ObjectStore as ObjStoreOpt};
-use futures::{future::FusedFuture, pin_mut, FutureExt};
+use futures::{future::FusedFuture, pin_mut, FutureExt, TryStreamExt};
 use hyper::server::conn::AddrIncoming;
 use object_store::{
-    self, aws::AmazonS3, azure::MicrosoftAzure, gcp::GoogleCloudStorage, ObjectStore,
+    self, aws::AmazonS3, azure::MicrosoftAzure, gcp::GoogleCloudStorage, path::ObjectStorePath,
+    ObjectStore, ObjectStoreApi,
 };
 use observability_deps::tracing::{self, error, info, warn, Instrument};
 use panic_logging::SendPanicsToTracing;
@@ -13,6 +14,7 @@ use server::{
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, fs, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::time::Duration;
+use uuid::Uuid;
 
 mod http;
 mod planner;
@@ -68,6 +70,9 @@ pub enum Error {
     // don't return `Result`.
     #[snafu(display("Amazon S3 configuration was invalid: {}", source))]
     InvalidS3Config { source: object_store::aws::Error },
+
+    #[snafu(display("Cannot read from object store: {}", source))]
+    CannotReadObjectStore { source: object_store::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -126,6 +131,7 @@ pub async fn main(config: Config) -> Result<()> {
     }
 
     let object_store = ObjectStore::try_from(&config)?;
+    check_object_store(&object_store).await?;
     let object_storage = Arc::new(object_store);
     let metric_registry = Arc::new(metrics::MetricRegistry::new());
     let remote_template = config.remote_template.map(RemoteTemplate::new);
@@ -273,6 +279,29 @@ pub async fn main(config: Config) -> Result<()> {
     info!("server completed shutting down");
 
     res
+}
+
+/// Check if object store is properly configured and accepts writes and reads.
+///
+/// Note: This does NOT test if the object store is writable!
+async fn check_object_store(object_store: &ObjectStore) -> Result<()> {
+    // Use some prefix that will very likely end in an empty result, so we don't pull too much actual data here.
+    let uuid = Uuid::new_v4().to_string();
+    let mut prefix = object_store.new_path();
+    prefix.push_dir(&uuid);
+
+    let mut stream = object_store
+        .list(Some(&prefix))
+        .await
+        .context(CannotReadObjectStore)?;
+    while stream
+        .try_next()
+        .await
+        .context(CannotReadObjectStore)?
+        .is_some()
+    {}
+
+    Ok(())
 }
 
 impl TryFrom<&Config> for ObjectStore {

@@ -1,6 +1,5 @@
-use std::{collections::HashSet, process::Command};
+use std::{collections::HashSet, fs::set_permissions, os::unix::fs::PermissionsExt};
 
-use assert_cmd::prelude::CommandCargoExt;
 use generated_types::{
     google::protobuf::{Duration, Empty},
     influxdata::iox::management::v1::{database_rules::RoutingRules, *},
@@ -12,7 +11,7 @@ use test_helpers::assert_contains;
 use super::scenario::{
     create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
 };
-use crate::common::server_fixture::{grpc_channel, wait_for_grpc, BindAddresses, ServerFixture};
+use crate::common::server_fixture::ServerFixture;
 use std::time::Instant;
 use tonic::Code;
 
@@ -875,25 +874,17 @@ async fn test_get_server_status_ok() {
 
 #[tokio::test]
 async fn test_get_server_status_global_error() {
-    let addrs = BindAddresses::default();
-    let mut process = Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("run")
-        .env("INFLUXDB_IOX_OBJECT_STORE", "s3")
-        .env("AWS_ACCESS_KEY_ID", "foo")
-        .env("AWS_SECRET_ACCESS_KEY", "bar")
-        .env("INFLUXDB_IOX_BUCKET", "bucket")
-        .env("INFLUXDB_IOX_BIND_ADDR", addrs.http_bind_addr())
-        .env("INFLUXDB_IOX_GRPC_BIND_ADDR", addrs.grpc_bind_addr())
-        .spawn()
-        .unwrap();
+    let server_fixture = ServerFixture::create_single_use().await;
+    let mut client = server_fixture.management_client();
 
-    let wait = wait_for_grpc(&addrs);
-    let wait = tokio::time::timeout(std::time::Duration::from_secs(3), wait);
-    wait.await.unwrap();
+    // we need to "break" the object store AFTER the server was started, otherwise the server process will exit
+    // immediately
+    let metadata = server_fixture.dir().metadata().unwrap();
+    let mut permissions = metadata.permissions();
+    permissions.set_mode(0o000);
+    set_permissions(server_fixture.dir(), permissions).unwrap();
 
-    let channel = grpc_channel(&addrs).await.unwrap();
-    let mut client = influxdb_iox_client::management::Client::new(channel);
+    // setup server
     client.update_server_id(42).await.expect("set ID failed");
 
     let check = async {
@@ -911,8 +902,6 @@ async fn test_get_server_status_global_error() {
     };
     let check = tokio::time::timeout(std::time::Duration::from_secs(10), check);
     check.await.unwrap();
-
-    process.kill().unwrap();
 }
 
 #[tokio::test]
