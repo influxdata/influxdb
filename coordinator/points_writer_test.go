@@ -340,7 +340,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		c := coordinator.NewPointsWriter()
 		c.MetaClient = ms
 		c.TSDBStore = store
-		c.AddWriteSubscriber(sub.Points())
+		c.Subscriber = sub
 		c.Node = &influxdb.Node{ID: 1}
 
 		c.Open()
@@ -416,7 +416,7 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 	c := coordinator.NewPointsWriter()
 	c.MetaClient = ms
 	c.TSDBStore = store
-	c.AddWriteSubscriber(sub.Points())
+	c.Subscriber = sub
 	c.Node = &influxdb.Node{ID: 1}
 
 	c.Open()

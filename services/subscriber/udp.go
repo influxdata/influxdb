@@ -36,7 +36,6 @@ func (u *UDP) WritePoints(p *coordinator.WritePointsRequest) (err error) {
 		if err != nil {
 			return
 		}
-
 	}
 	return
 }

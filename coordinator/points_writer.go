@@ -60,7 +60,11 @@ type PointsWriter struct {
 		WriteToShard(ctx tsdb.WriteContext, shardID uint64, points []models.Point) error
 	}
 
-	subPoints []chan<- *WritePointsRequest
+	Subscriber interface {
+		Points() chan<- *WritePointsRequest
+	}
+
+	subPoints chan<- *WritePointsRequest
 
 	stats *WriteStatistics
 }
@@ -124,6 +128,9 @@ func (w *PointsWriter) Open() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.closing = make(chan struct{})
+	if w.Subscriber != nil {
+		w.subPoints = w.Subscriber.Points()
+	}
 	return nil
 }
 
@@ -141,10 +148,6 @@ func (w *PointsWriter) Close() error {
 		w.subPoints = nil
 	}
 	return nil
-}
-
-func (w *PointsWriter) AddWriteSubscriber(c chan<- *WritePointsRequest) {
-	w.subPoints = append(w.subPoints, c)
 }
 
 // WithLogger sets the Logger on w.
@@ -333,13 +336,11 @@ func (w *PointsWriter) WritePointsPrivileged(writeCtx tsdb.WriteContext, databas
 	pts := &WritePointsRequest{Database: database, RetentionPolicy: retentionPolicy, Points: points}
 	// We need to lock just in case the channel is about to be nil'ed
 	w.mu.RLock()
-	for _, ch := range w.subPoints {
-		select {
-		case ch <- pts:
-			ok++
-		default:
-			dropped++
-		}
+	select {
+	case w.subPoints <- pts:
+		ok++
+	default:
+		dropped++
 	}
 	w.mu.RUnlock()
 
