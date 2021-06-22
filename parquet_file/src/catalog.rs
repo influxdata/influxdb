@@ -152,15 +152,6 @@ pub enum Error {
         path: DirsAndFileName,
     },
 
-    #[snafu(
-        display("Catalog state failure when processing {:?}: {}", path, source),
-        visibility(pub)
-    )]
-    CatalogStateFailure {
-        source: Box<dyn std::error::Error + Send + Sync>,
-        path: DirsAndFileName,
-    },
-
     #[snafu(display("Catalog already exists"))]
     AlreadyExists {},
 
