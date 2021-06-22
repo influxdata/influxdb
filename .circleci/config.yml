@@ -103,8 +103,12 @@ jobs:
       - cache_restore
       - run:
           name: Cargo doc
-          command: cargo doc --document-private-items --no-deps --workspace
+          # excluding datafusion because it's effectively a dependency masqueraded as workspace crate.
+          command: cargo doc --document-private-items --no-deps --workspace --exclude datafusion
       - cache_save
+      - store_artifacts:
+          path: target/doc/
+          destination: rustdoc
   test:
     docker:
       - image: quay.io/influxdb/rust:ci
