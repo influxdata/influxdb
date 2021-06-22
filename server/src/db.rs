@@ -32,10 +32,7 @@ use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::RwLock;
 use parquet_file::catalog::{CheckpointData, TransactionEnd};
 use parquet_file::{
-    catalog::{
-        wipe as wipe_preserved_catalog, CatalogParquetInfo, CatalogState, ChunkCreationFailed,
-        PreservedCatalog,
-    },
+    catalog::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
     cleanup::cleanup_unreferenced_parquet_files,
     metadata::IoxMetadata,
@@ -221,7 +218,7 @@ pub struct Db {
     exec: Arc<Executor>,
 
     /// Preserved catalog (data in object store).
-    preserved_catalog: Arc<PreservedCatalog<Catalog>>,
+    preserved_catalog: Arc<PreservedCatalog>,
 
     /// The catalog holds chunks of data under partitions for the database.
     /// The underlying chunks may be backed by different execution engines
@@ -272,7 +269,7 @@ pub async fn load_or_create_preserved_catalog(
     server_id: ServerId,
     metrics_registry: Arc<MetricRegistry>,
     wipe_on_error: bool,
-) -> std::result::Result<(PreservedCatalog<Catalog>, Arc<Catalog>), parquet_file::catalog::Error> {
+) -> std::result::Result<(PreservedCatalog, Arc<Catalog>), parquet_file::catalog::Error> {
     let metric_labels = vec![
         KeyValue::new("db_name", db_name.to_string()),
         KeyValue::new("svr_id", format!("{}", server_id)),
@@ -325,7 +322,7 @@ pub async fn load_or_create_preserved_catalog(
                 // https://github.com/influxdata/influxdb_iox/issues/1522)
                 // broken => wipe for now (at least during early iterations)
                 error!("cannot load catalog, so wipe it: {}", e);
-                wipe_preserved_catalog(&object_store, server_id, db_name).await?;
+                PreservedCatalog::wipe(&object_store, server_id, db_name).await?;
 
                 let metrics_domain =
                     metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
@@ -356,7 +353,7 @@ impl Db {
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
         jobs: Arc<JobRegistry>,
-        preserved_catalog: PreservedCatalog<Catalog>,
+        preserved_catalog: PreservedCatalog,
         catalog: Arc<Catalog>,
         write_buffer: Option<Arc<dyn WriteBuffer>>,
     ) -> Self {
@@ -1424,7 +1421,7 @@ mod tests {
         ObjectStore, ObjectStoreApi,
     };
     use parquet_file::{
-        catalog::test_helpers::assert_catalog_state_implementation,
+        catalog::test_helpers::{assert_catalog_state_implementation, TestCatalogState},
         metadata::IoxParquetMetaData,
         test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
@@ -2915,15 +2912,14 @@ mod tests {
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = "preserved_catalog_test";
 
-        let (preserved_catalog, _catalog) =
-            PreservedCatalog::<parquet_file::catalog::test_helpers::TestCatalogState>::new_empty(
-                Arc::clone(&object_store),
-                server_id,
-                db_name.to_string(),
-                (),
-            )
-            .await
-            .unwrap();
+        let (preserved_catalog, _catalog) = PreservedCatalog::new_empty::<TestCatalogState>(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap();
         parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
             .await;
 
@@ -2954,15 +2950,14 @@ mod tests {
 
         // ==================== check: empty catalog created ====================
         // at this point, an empty preserved catalog exists
-        let maybe_preserved_catalog =
-            PreservedCatalog::<parquet_file::catalog::test_helpers::TestCatalogState>::load(
-                Arc::clone(&object_store),
-                server_id,
-                db_name.to_string(),
-                (),
-            )
-            .await
-            .unwrap();
+        let maybe_preserved_catalog = PreservedCatalog::load::<TestCatalogState>(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap();
         assert!(maybe_preserved_catalog.is_some());
 
         // ==================== do: write data to parquet ====================
@@ -2986,16 +2981,15 @@ mod tests {
             }
         }
         paths_expected.sort();
-        let (_preserved_catalog, catalog) =
-            PreservedCatalog::<parquet_file::catalog::test_helpers::TestCatalogState>::load(
-                Arc::clone(&object_store),
-                server_id,
-                db_name.to_string(),
-                (),
-            )
-            .await
-            .unwrap()
-            .unwrap();
+        let (_preserved_catalog, catalog) = PreservedCatalog::load::<TestCatalogState>(
+            Arc::clone(&object_store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap()
+        .unwrap();
         let paths_actual = {
             let mut tmp: Vec<String> = catalog.parquet_files.keys().map(|p| p.display()).collect();
             tmp.sort();
