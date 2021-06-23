@@ -501,6 +501,9 @@ where
         .map_err(|e| Box::new(e) as _)
         .context(CatalogLoadError)?;
 
+        let write_buffer = write_buffer::new(&rules)
+            .map_err(|e| Error::CreatingWriteBufferForWriting { source: e })?;
+
         db_reservation.commit_db(
             server_id,
             Arc::clone(&self.store),
@@ -508,6 +511,7 @@ where
             preserved_catalog,
             catalog,
             rules,
+            write_buffer,
         )?;
 
         Ok(())
