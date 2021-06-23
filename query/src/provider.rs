@@ -20,7 +20,6 @@ use internal_types::schema::{merge::SchemaMerger, Schema};
 use observability_deps::tracing::debug;
 
 use crate::{
-    duplicate::group_potential_duplicates,
     predicate::{Predicate, PredicateBuilder},
     util::arrow_pk_sort_exprs,
     QueryChunk,
@@ -30,8 +29,11 @@ use snafu::{ResultExt, Snafu};
 
 mod adapter;
 mod deduplicate;
+mod overlap;
 mod physical;
-use self::{deduplicate::DeduplicateExec, physical::IOxReadFilterNode};
+use self::{
+    deduplicate::DeduplicateExec, overlap::group_potential_duplicates, physical::IOxReadFilterNode,
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -66,7 +68,7 @@ pub enum Error {
     },
 
     #[snafu(display("Internal error: Can not group chunks '{}'", source,))]
-    InternalChunkGrouping { source: crate::duplicate::Error },
+    InternalChunkGrouping { source: self::overlap::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 

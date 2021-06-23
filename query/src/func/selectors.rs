@@ -305,7 +305,7 @@ where
 mod test {
     use arrow::{
         array::{BooleanArray, Float64Array, Int64Array, StringArray, TimestampNanosecondArray},
-        datatypes::{Field, Schema},
+        datatypes::{Field, Schema, SchemaRef},
         record_batch::RecordBatch,
         util::pretty::pretty_format_batches,
     };
@@ -479,7 +479,6 @@ mod test {
                     "| selector_min_value(i64_value,time) | selector_min_time(i64_value,time) |",
                     "+------------------------------------+-----------------------------------+",
                     "| 10                                 | 1970-01-01 00:00:00.000004        |",
-
                     "+------------------------------------+-----------------------------------+",
                     "",
                 ],
@@ -597,19 +596,18 @@ mod test {
 
     /// Run a plan against the following input table as "t"
     ///
+    /// ```text
     /// +-----------+-----------+--------------+------------+----------------------------+,
-    /// | f64_value | i64_value | string_value | bool_value | time
-    /// |,
+    /// | f64_value | i64_value | string_value | bool_value | time                       |,
     /// +-----------+-----------+--------------+------------+----------------------------+,
-    /// | 2         | 20        | two          | true       | 1970-01-01
-    /// 00:00:00.000001 |, | 4         | 40        | four         | false
-    /// | 1970-01-01 00:00:00.000002 |, |           |           |
-    /// |            | 1970-01-01 00:00:00.000003 |, | 1         | 10
-    /// | a_one        | true       | 1970-01-01 00:00:00.000004 |, | 5
-    /// | 50        | z_five       | false      | 1970-01-01 00:00:00.000005 |,
-    /// | 3         | 30        | three        | false      | 1970-01-01
-    /// 00:00:00.000006 |,
+    /// | 2         | 20        | two          | true       | 1970-01-01 00:00:00.000001 |,
+    /// | 4         | 40        | four         | false      | 1970-01-01 00:00:00.000002 |,
+    /// |           |           |                           | 1970-01-01 00:00:00.000003 |,
+    /// | 1         | 10        | a_one        | true       | 1970-01-01 00:00:00.000004 |,
+    /// | 5         | 50        | z_five       | false      | 1970-01-01 00:00:00.000005 |,
+    /// | 3         | 30        | three        | false      | 1970-01-01 00:00:00.000006 |,
     /// +-----------+-----------+--------------+------------+----------------------------+,
+    /// ```
     async fn run_plan(aggs: Vec<Expr>) -> Vec<String> {
         // define a schema for input
         // (value) and timestamp
@@ -678,11 +676,41 @@ mod test {
         )
         .unwrap();
 
-        let provider = MemTable::try_new(
-            Arc::clone(&schema),
-            vec![vec![batch1], vec![batch2, batch3]],
-        )
-        .unwrap();
+        // Ensure the answer is the same regardless of the order of inputs
+        let input = vec![batch1, batch2, batch3];
+        let input_string = pretty_format_batches(&input).unwrap();
+        let results = run_with_inputs(Arc::clone(&schema), aggs.clone(), input.clone()).await;
+
+        use itertools::Itertools;
+        // Get all permutations of the input
+        for p in input.iter().permutations(3) {
+            let p_batches = p.into_iter().cloned().collect::<Vec<_>>();
+            let p_input_string = pretty_format_batches(&p_batches).unwrap();
+            let p_results = run_with_inputs(Arc::clone(&schema), aggs.clone(), p_batches).await;
+            assert_eq!(
+                results, p_results,
+                "Mismatch with permutation.\n\
+                        Input1 \n\n\
+                        {}\n\n\
+                        produces output:\n\n\
+                        {:#?}\n\n\
+                        Input 2\n\n\
+                        {}\n\n\
+                        produces output:\n\n\
+                        {:#?}\n\n",
+                input_string, results, p_input_string, p_results
+            );
+        }
+
+        results
+    }
+
+    async fn run_with_inputs(
+        schema: SchemaRef,
+        aggs: Vec<Expr>,
+        inputs: Vec<RecordBatch>,
+    ) -> Vec<String> {
+        let provider = MemTable::try_new(Arc::clone(&schema), vec![inputs]).unwrap();
         let mut ctx = ExecutionContext::new();
         ctx.register_table("t", Arc::new(provider)).unwrap();
 

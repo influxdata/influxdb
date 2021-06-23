@@ -39,4 +39,5 @@ observability_deps = { path = "../observability_deps" }
 version = "0.2"
 
 [dev-dependencies] # In alphabetical order
+itertools = "0.10.1"
 test_helpers = { path = "../test_helpers" }

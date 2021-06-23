@@ -9,7 +9,7 @@ use object_store::{
 };
 use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::Mutex;
-use parquet_file::catalog::wipe as wipe_preserved_catalog;
+use parquet_file::catalog::PreservedCatalog;
 use query::exec::Executor;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
@@ -397,7 +397,7 @@ impl InitStatus {
                 .map_err(|e| Arc::new(e) as _)
                 .context(RecoverDbError)?;
 
-            wipe_preserved_catalog(&store, server_id, &db_name)
+            PreservedCatalog::wipe(&store, server_id, &db_name)
                 .await
                 .map_err(Box::new)
                 .context(PreservedCatalogWipeError)?;
@@ -455,7 +455,7 @@ impl InitStatus {
                 .map_err(|e| Arc::new(e) as _)
                 .context(RecoverDbError)?;
 
-            wipe_preserved_catalog(&store, server_id, &db_name)
+            PreservedCatalog::wipe(&store, server_id, &db_name)
                 .await
                 .map_err(Box::new)
                 .context(PreservedCatalogWipeError)?;

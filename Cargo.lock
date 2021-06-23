@@ -2984,6 +2984,7 @@ dependencies = [
  "futures",
  "hashbrown 0.11.2",
  "internal_types",
+ "itertools 0.10.1",
  "libc",
  "metrics",
  "observability_deps",
