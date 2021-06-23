@@ -26,14 +26,15 @@ version: 2.1
 
 commands:
   rust_components:
-    description: Install additional toolchain components
+    description: Verify installed components
     steps:
       - run:
-          # Cargo will automatically install the toolchain based on rust-toolchain
-          # But won't install optional components
-          # This will only matter when the CI image is out of date
-          name: Install rustfmt and clippy
-          command: rustup component add rustfmt clippy
+          name: Verify installed components
+          command: |
+              rustup --version
+              rustup show
+              cargo fmt --version
+              cargo clippy --version
 
   cache_restore:
     description: Restore Cargo Cache
