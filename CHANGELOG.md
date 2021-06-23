@@ -1,11 +1,16 @@
-v1.9.3 [unreleased]
+[unreleased]
 
-#### Bugfixes
+### Features
+
+-	[#21707](https://github.com/influxdata/influxdb/pull/21707): chore: add logging to compaction
+
+### Bugfixes
 
 -	[#21592](https://github.com/influxdata/influxdb/pull/21592): fix: avoid rewriting fields.idx unnecessarily
 -	[#21659](https://github.com/influxdata/influxdb/pull/21659): fix: do not close connection twice in DigestWithOptions
 -	[#21666](https://github.com/influxdata/influxdb/pull/21666): fix: do not panic on cleaning up failed iterators
--	[#21707](https://github.com/influxdata/influxdb/pull/21707): chore: add logging to compaction
+-	[#21693](https://github.com/influxdata/influxdb/pull/21693): fix: don't access a field in a nil struct
+-	[#21558](https://github.com/influxdata/influxdb/pull/21558): fix: do not send non-UTF-8 characters to subscriptions
 
 v1.9.2 [unreleased]
 -	[#21631](https://github.com/influxdata/influxdb/pull/21631): fix: group by returns multiple results per group in some circumstances
@@ -27,10 +32,10 @@ v1.9.0 [unreleased]
 -	[#17814](https://github.com/influxdata/influxdb/pull/17814): feat(prometheus): update prometheus remote protocol
 -	[#17596](https://github.com/influxdata/influxdb/pull/17596): improvement(query): performance improvement for sorted merge iterator [Tristan Su]
 -	[#21015](https://github.com/influxdata/influxdb/pull/21015): build: upgrade to go 1.15.10
--	[#21074](https://github.com/influxdata/influxdb/pull/21074): feat: upgrade to flux 0.111.0
 -	[#21100](https://github.com/influxdata/influxdb/pull/21100): feat: add memory and concurrency limits in flux controller
 -	[#21108](https://github.com/influxdata/influxdb/pull/21108): feat: make flux controller limits configurable
--	[#21226](https://github.com/influxdata/influxdb/pull/21226): feat: flux upgrade to v0.112.1
+-	[#21124](https://github.com/influxdata/influxdb/pull/21124): feat: implement rewrite rules for window and bare aggregates
+-	[#21281](https://github.com/influxdata/influxdb/pull/21281): feat: flux upgrade to v0.113.0
 -	[#21291](https://github.com/influxdata/influxdb/pull/21291): feat: meancount aggregation for WindowAggregate pushdown in enterprise
 
 ### Bugfixes
@@ -59,11 +64,14 @@ v1.9.0 [unreleased]
 -	[#17685](https://github.com/influxdata/influxdb/pull/17685): fix(tsm1): Fix temp directory search bug
 -	[#17495](https://github.com/influxdata/influxdb/pull/17495): fix(snapshotter): properly read payload
 -	[#21139](https://github.com/influxdata/influxdb/pull/21139): fix(tsdb): exclude stop time from array cursors
+-	[#21124](https://github.com/influxdata/influxdb/pull/21124): fix(storage): Detect need for descending cursor in WindowAggregate
+-	[#21285](https://github.com/influxdata/influxdb/pull/21281): fix(storage): Detect need for descending cursor in GroupAggregate
 -	[#21036](https://github.com/influxdata/influxdb/pull/21306): fix(models): grow tag index buffer if needed
 -	[#21275](https://github.com/influxdata/influxdb/pull/21275): fix: Anti-Entropy loops endlessly with empty shard
 -	[#21334](https://github.com/influxdata/influxdb/pull/21334): fix: summation should be in native type for new meancount iterator
 -	[#21347](https://github.com/influxdata/influxdb/pull/21347): fix(storage): cursor requests are [start, stop] instead of [start, stop)
 -	[#21358](https://github.com/influxdata/influxdb/pull/21358): fix: disable MergeFiltersRule until it is more stable
+-	[#21452](https://github.com/influxdata/influxdb/pull/21452): chore(ae): add more logging
 -	[#21516](https://github.com/influxdata/influxdb/pull/21516): fix: FGA enablement
 
 v1.8.6 [2021-05-21]
