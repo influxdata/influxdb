@@ -38,7 +38,7 @@ parquet_file = { path = "../parquet_file" }
 query = { path = "../query" }
 rand = "0.8.3"
 rand_distr = "0.4.0"
-rdkafka = "0.26.0" # TODO: Put behind a feature?
+rdkafka = "0.26.0"
 read_buffer = { path = "../read_buffer" }
 serde = "1.0"
 serde_json = "1.0"
