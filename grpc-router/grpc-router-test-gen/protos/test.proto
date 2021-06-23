@@ -1,0 +1,22 @@
+syntax = "proto3";
+package influxdata.iox.test;
+
+import "google/protobuf/empty.proto";
+
+service Test {
+  rpc TestUnary (TestRequest) returns (TestUnaryResponse);
+  rpc TestServerStream (TestRequest) returns (stream TestServerStreamResponse);
+}
+
+message TestRequest {
+  bool route_me = 1;
+}
+
+message TestUnaryResponse {
+  uint64 answer = 1;
+}
+
+message TestServerStreamResponse {
+  uint64 answer = 1;
+}
+

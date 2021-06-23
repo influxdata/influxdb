@@ -1,0 +1,28 @@
+[package]
+name = "grpc-router"
+version = "0.1.0"
+authors = ["Marko Mikulicic <mkm@influxdata.com>"]
+edition = "2018"
+
+[dependencies]
+bytes = { version = "1.0" }
+cache_loader_async = {version  = "0.1.0", features = ["ttl-cache"] }
+futures = "0.3"
+observability_deps = { path = "../observability_deps" }
+paste = "1.0.5"
+prost = "0.7"
+prost-types = "0.7"
+thiserror = "1.0.23"
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "parking_lot", "signal"] }
+tokio-stream = { version = "0.1.2", features = ["net"] }
+tokio-util = { version = "0.6.3" }
+tonic = "0.4"
+tonic-reflection = "0.1.0"
+
+[build-dependencies]
+paste = "1.0.5"
+prost-build = "0.7"
+tonic-build = "0.4"
+
+[dev-dependencies]
+grpc-router-test-gen = { path = "./grpc-router-test-gen" }
