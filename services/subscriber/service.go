@@ -49,24 +49,20 @@ type Service struct {
 	}
 	NewPointsWriter func(u url.URL) (PointsWriter, error)
 	Logger          *zap.Logger
-	update          chan struct{}
 	stats           *Statistics
 	points          chan *coordinator.WritePointsRequest
 	wg              sync.WaitGroup
-	closed          bool
 	closing         chan struct{}
-	mu              sync.Mutex
+	mu              sync.RWMutex
 	conf            Config
 
 	subs  map[subEntry]*chanWriter
-	subMu sync.RWMutex
 }
 
 // NewService returns a subscriber service with given settings
 func NewService(c Config) *Service {
 	s := &Service{
 		Logger: zap.NewNop(),
-		closed: true,
 		stats:  &Statistics{},
 		conf:   c,
 	}
@@ -80,48 +76,78 @@ func (s *Service) Open() error {
 		return nil // Service disabled.
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.MetaClient == nil {
-		return errors.New("no meta store")
+	err := func() error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.MetaClient == nil {
+			return errors.New("no meta store")
+		}
+
+		s.closing = make(chan struct{})
+		s.points = make(chan *coordinator.WritePointsRequest, 100)
+
+		s.wg.Add(2)
+		go func() {
+			defer s.wg.Done()
+			s.run()
+		}()
+		go func() {
+			defer s.wg.Done()
+			s.waitForMetaUpdates()
+		}()
+		return nil
+	}()
+	if err != nil {
+		return err
 	}
 
-	s.closed = false
-
-	s.closing = make(chan struct{})
-	s.update = make(chan struct{})
-	s.points = make(chan *coordinator.WritePointsRequest, 100)
-
-	s.wg.Add(2)
-	go func() {
-		defer s.wg.Done()
-		s.run()
-	}()
-	go func() {
-		defer s.wg.Done()
-		s.waitForMetaUpdates()
-	}()
+	// Create all subs with initial metadata
+	s.updateSubs()
 
 	s.Logger.Info("Opened service")
 	return nil
 }
 
 // Close terminates the subscription service.
-// It will panic if called multiple times or without first opening the service.
+// It will return an error if Open was not called first.
 func (s *Service) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
-	if s.closed {
-		return nil // Already closed.
+	err := func() error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.closing == nil {
+			return fmt.Errorf("closing unopened subscription service")
+		}
+
+		select {
+		case <-s.closing:
+			// already closed
+			return nil
+		default:
+		}
+
+		close(s.points)
+		close(s.closing)
+		return nil
+	}()
+	if err != nil {
+		return err
 	}
 
-	s.closed = true
+	// Note this section is safe for concurrent calls to Close - both calls will wait for the exits, one caller
+	// will win the right to close the channel writers, and the other will have to wait at the lock for that to finish.
+	// When the second caller gets the lock subs is nil which is safe.
 
-	close(s.points)
-	close(s.closing)
-
+	// wait, not under the lock, for run and waitForMetaUpdates to finish gracefully
 	s.wg.Wait()
+
+	// close all the subscriptions
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, cw := range s.subs {
+		cw.Close()
+	}
+	s.subs = nil
 	s.Logger.Info("Closed service")
 	return nil
 }
@@ -150,8 +176,8 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 		},
 	}}
 
-	s.subMu.RLock()
-	defer s.subMu.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	for _, sub := range s.subs {
 		statistics = append(statistics, sub.Statistics(tags)...)
@@ -160,28 +186,17 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 }
 
 func (s *Service) waitForMetaUpdates() {
+	ch := s.MetaClient.WaitForDataChanged()
 	for {
-		ch := s.MetaClient.WaitForDataChanged()
 		select {
 		case <-ch:
-			err := s.Update()
-			if err != nil {
-				s.Logger.Info("Error updating subscriptions", zap.Error(err))
-			}
+			// ch is closed on changes, so fetch the new channel to wait on to ensure we don't miss a new
+			// change while updating
+			ch = s.MetaClient.WaitForDataChanged()
+			s.updateSubs()
 		case <-s.closing:
 			return
 		}
-	}
-}
-
-// Update will start new and stop deleted subscriptions.
-func (s *Service) Update() error {
-	// signal update
-	select {
-	case s.update <- struct{}{}:
-		return nil
-	case <-s.closing:
-		return errors.New("service closed cannot update")
 	}
 }
 
@@ -231,30 +246,26 @@ func (s *Service) Points() chan<- *coordinator.WritePointsRequest {
 
 // run read points from the points channel and writes them to the subscriptions.
 func (s *Service) run() {
-	s.subs = make(map[subEntry]*chanWriter)
-	// Perform initial update
-	s.updateSubs()
 	for {
 		select {
-		case <-s.update:
-			s.updateSubs()
 		case p, ok := <-s.points:
 			if !ok {
-				// Close out all chanWriters
-				s.close()
 				return
 			}
-
-			p = s.removeBadPoints(p)
-			for se, cw := range s.subs {
-				if p.Database == se.db && p.RetentionPolicy == se.rp {
-					select {
-					case cw.writeRequests <- p:
-					default:
-						atomic.AddInt64(&s.stats.WriteFailures, 1)
+			func() {
+				s.mu.RLock()
+				s.mu.RUnlock()
+				p = s.removeBadPoints(p)
+				for se, cw := range s.subs {
+					if p.Database == se.db && p.RetentionPolicy == se.rp {
+						select {
+						case cw.writeRequests <- p:
+						default:
+							atomic.AddInt64(&s.stats.WriteFailures, 1)
+						}
 					}
 				}
-			}
+			}()
 		}
 	}
 }
@@ -297,19 +308,16 @@ func (s *Service) removeBadPoints(p *coordinator.WritePointsRequest) *coordinato
 	return p
 }
 
-// close closes the existing channel writers.
-func (s *Service) close() {
-	s.subMu.Lock()
-	defer s.subMu.Unlock()
-	for _, cw := range s.subs {
-		cw.Close()
-	}
-	s.subs = nil
-}
-
 func (s *Service) updateSubs() {
-	s.subMu.Lock()
-	defer s.subMu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// check if we're closing while under the lock
+	select {
+	case <-s.closing:
+		return
+	default:
+	}
 
 	if s.subs == nil {
 		s.subs = make(map[subEntry]*chanWriter)
@@ -330,6 +338,9 @@ func (s *Service) updateSubs() {
 				if _, ok := s.subs[se]; ok {
 					continue
 				}
+				s.Logger.Info("Adding new subscription",
+					logger.Database(se.db),
+					logger.RetentionPolicy(se.rp))
 				sub, err := s.createSubscription(se, si.Mode, si.Destinations)
 				if err != nil {
 					atomic.AddInt64(&s.stats.CreateFailures, 1)
@@ -347,6 +358,10 @@ func (s *Service) updateSubs() {
 	// Remove deleted subs
 	for se := range s.subs {
 		if !allEntries[se] {
+			s.Logger.Info("Deleting old subscription",
+				logger.Database(se.db),
+				logger.RetentionPolicy(se.rp))
+
 			// Close the chanWriter
 			s.subs[se].Close()
 
@@ -404,10 +419,9 @@ func newChanWriter(s *Service, sub PointsWriter) *chanWriter {
 	return cw
 }
 
-// Close closes the chanWriter.
+// Close closes the chanWriter. It blocks until all the in-flight write requests are finished.
 func (c *chanWriter) Close() {
 	close(c.writeRequests)
-	// Wait until all the write requests are finished
 	c.wg.Wait()
 }
 
