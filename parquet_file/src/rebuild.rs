@@ -276,6 +276,7 @@ async fn read_parquet(
 
 #[cfg(test)]
 mod tests {
+    use data_types::chunk_metadata::ChunkAddr;
     use datafusion::physical_plan::SendableRecordBatchStream;
     use datafusion_util::MemoryStream;
     use parquet::arrow::ArrowWriter;
@@ -738,11 +739,11 @@ mod tests {
         transaction_uuid: Uuid,
         chunk_id: u32,
     ) -> (DirsAndFileName, IoxParquetMetaData) {
-        let partition_key = "part1";
         let table_name = "table1";
+        let partition_key = "part1";
         let (record_batches, _schema, _column_summaries, _num_rows) = make_record_batch("foo");
 
-        let storage = Storage::new(Arc::clone(object_store), server_id, db_name.to_string());
+        let storage = Storage::new(Arc::clone(object_store), server_id);
         let metadata = IoxMetadata {
             transaction_revision_counter,
             transaction_uuid,
@@ -753,9 +754,12 @@ mod tests {
         let stream: SendableRecordBatchStream = Box::pin(MemoryStream::new(record_batches));
         let (path, parquet_md) = storage
             .write_to_object_store(
-                partition_key.to_string(),
-                chunk_id,
-                table_name.to_string(),
+                ChunkAddr {
+                    db_name: Arc::from(db_name),
+                    table_name: Arc::from(table_name),
+                    partition_key: Arc::from(partition_key),
+                    chunk_id,
+                },
                 stream,
                 metadata,
             )
@@ -788,8 +792,13 @@ mod tests {
 
         let data = mem_writer.into_inner().unwrap();
         let md = IoxParquetMetaData::from_file_bytes(data.clone()).unwrap();
-        let storage = Storage::new(Arc::clone(object_store), server_id, db_name.to_string());
-        let path = storage.location("part1".to_string(), chunk_id, "table1".to_string());
+        let storage = Storage::new(Arc::clone(object_store), server_id);
+        let path = storage.location(&ChunkAddr {
+            db_name: Arc::from(db_name),
+            table_name: Arc::from("table1"),
+            partition_key: Arc::from("part1"),
+            chunk_id,
+        });
         storage.to_object_store(data, &path).await.unwrap();
 
         let path: DirsAndFileName = path.into();

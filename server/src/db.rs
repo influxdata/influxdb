@@ -603,16 +603,10 @@ impl Db {
             .set_writing_to_object_store(&registration)
             .context(LifecycleError)?;
 
-        let table_summary = guard.table_summary();
-
         debug!(chunk=%guard.addr(), "chunk marked WRITING , loading tables into object store");
 
         // Create a storage to save data of this chunk
-        let storage = Storage::new(
-            Arc::clone(&db.store),
-            db.server_id,
-            db.rules.read().name.to_string(),
-        );
+        let storage = Storage::new(Arc::clone(&db.store), db.server_id);
 
         let catalog_transactions_until_checkpoint = db
             .rules
@@ -628,16 +622,15 @@ impl Db {
         let chunk = guard.unwrap().chunk;
 
         let fut = async move {
-            let table_name = table_summary.name.as_str();
             debug!(chunk=%addr, "loading table to object store");
 
             let predicate = read_buffer::Predicate::default();
 
             // Get RecordBatchStream of data from the read buffer chunk
-            let read_results = rb_chunk.read_filter(table_name, predicate, Selection::All);
+            let read_results = rb_chunk.read_filter(&addr.table_name, predicate, Selection::All);
 
             let arrow_schema: ArrowSchemaRef = rb_chunk
-                .read_filter_table_schema(table_name, Selection::All)
+                .read_filter_table_schema(&addr.table_name, Selection::All)
                 .expect("read buffer is infallible")
                 .into();
 
@@ -676,13 +669,7 @@ impl Db {
                     chunk_id: addr.chunk_id,
                 };
                 let (path, parquet_metadata) = storage
-                    .write_to_object_store(
-                        addr.partition_key.to_string(),
-                        addr.chunk_id,
-                        table_name.to_string(),
-                        stream,
-                        metadata,
-                    )
+                    .write_to_object_store(addr, stream, metadata)
                     .await
                     .context(WritingToObjectStore)?;
                 let parquet_metadata = Arc::new(parquet_metadata);
