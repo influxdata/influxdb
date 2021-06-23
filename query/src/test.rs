@@ -13,6 +13,7 @@ use data_types::{
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
 };
 use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
+use futures::StreamExt;
 
 use crate::exec::Executor;
 use crate::{
@@ -871,4 +872,21 @@ impl DatabaseStore for TestDatabaseStore {
     fn executor(&self) -> Arc<Executor> {
         Arc::clone(&self.executor)
     }
+}
+
+/// Return the raw data from the list of chunks
+pub async fn raw_data(chunks: &[Arc<TestChunk>]) -> Vec<RecordBatch> {
+    let mut batches = vec![];
+    for c in chunks {
+        let pred = Predicate::default();
+        let selection = Selection::All;
+        let mut stream = c
+            .read_filter(&pred, selection)
+            .expect("Error in read_filter");
+        while let Some(b) = stream.next().await {
+            let b = b.expect("Error in stream");
+            batches.push(b)
+        }
+    }
+    batches
 }
