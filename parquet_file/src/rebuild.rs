@@ -100,7 +100,7 @@ pub async fn rebuild_catalog<S>(
     db_name: String,
     catalog_empty_input: S::EmptyInput,
     ignore_metadata_read_failure: bool,
-) -> Result<(PreservedCatalog, Arc<S>)>
+) -> Result<(PreservedCatalog, S)>
 where
     S: CatalogState + Debug + Send + Sync,
 {
@@ -109,7 +109,7 @@ where
         collect_revisions(&object_store, search_location, ignore_metadata_read_failure).await?;
 
     // create new empty catalog
-    let (catalog, state) = PreservedCatalog::new_empty::<S>(
+    let (catalog, mut state) = PreservedCatalog::new_empty::<S>(
         Arc::clone(&object_store),
         server_id,
         db_name,
@@ -117,7 +117,6 @@ where
     )
     .await
     .context(NewEmptyFailure)?;
-    let mut state = Arc::try_unwrap(state).expect("dangling Arc?");
 
     // trace all files for final checkpoint
     let mut collected_files = HashMap::new();
@@ -171,7 +170,7 @@ where
         }
     }
 
-    Ok((catalog, Arc::new(state)))
+    Ok((catalog, state))
 }
 
 /// Collect all files under the given locations.
@@ -298,7 +297,7 @@ mod tests {
         let db_name = "db1";
 
         // build catalog with some data
-        let (catalog, state) = PreservedCatalog::new_empty::<TestCatalogState>(
+        let (catalog, mut state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -306,7 +305,6 @@ mod tests {
         )
         .await
         .unwrap();
-        let mut state = Arc::try_unwrap(state).unwrap();
         {
             let mut transaction = catalog.open_transaction().await;
 
@@ -607,7 +605,7 @@ mod tests {
         let db_name = "db1";
 
         // build catalog with some data (2 transactions + initial empty one)
-        let (catalog, state) = PreservedCatalog::new_empty::<TestCatalogState>(
+        let (catalog, mut state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
             server_id,
             db_name.to_string(),
@@ -615,7 +613,6 @@ mod tests {
         )
         .await
         .unwrap();
-        let mut state = Arc::try_unwrap(state).unwrap();
         {
             let mut transaction = catalog.open_transaction().await;
 
