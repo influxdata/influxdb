@@ -107,6 +107,7 @@ tonic = "0.4.0"
 tonic-health = "0.3.0"
 tonic-reflection = "0.1.0"
 tracing-opentelemetry = { version = "0.12", default-features = false }
+uuid = { version = "0.8", features = ["v4"] }
 
 [dev-dependencies]
 # Workspace dependencies, in alphabetical order
