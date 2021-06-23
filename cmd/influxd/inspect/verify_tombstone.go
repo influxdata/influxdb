@@ -14,7 +14,6 @@ type argsTomb struct {
 	dir string
 	v   bool
 	vv  bool
-	vvv bool
 }
 
 type verifierTomb struct {
@@ -28,7 +27,6 @@ const (
 	quiet = iota
 	verbose
 	veryVerbose
-	veryVeryVerbose
 )
 
 func NewVerifyTombstoneCommand() *cobra.Command {
@@ -39,9 +37,7 @@ func NewVerifyTombstoneCommand() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runner := verifierTomb{path: arguments.dir}
-			if arguments.vvv {
-				runner.verbosity = veryVeryVerbose
-			} else if arguments.vv {
+			if arguments.vv {
 				runner.verbosity = veryVerbose
 			} else if arguments.v {
 				runner.verbosity = verbose
@@ -56,8 +52,9 @@ func NewVerifyTombstoneCommand() *cobra.Command {
 		"Verbose: Emit periodic progress.")
 	cmd.Flags().BoolVar(&arguments.vv, "vv", false,
 		"Very verbose: Emit every tombstone entry key and time range.")
-	cmd.Flags().BoolVar(&arguments.vvv, "vvv", false,
-		"Very very verbose: Emit every tombstone entry key and RFC3339Nano time range.")
+	cmd.Flags().Bool("vvv", false,
+		"Leftover from original command left for compatibility")
+	_ = cmd.Flags().MarkHidden("vvv")
 	return cmd
 }
 

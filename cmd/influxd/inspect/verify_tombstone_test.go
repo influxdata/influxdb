@@ -81,7 +81,7 @@ func TestVerifies_ValidTS(t *testing.T) {
 	require.NoError(t, ts.Flush())
 
 	verify := NewVerifyTombstoneCommand()
-	verify.SetArgs([]string{"--dir", path, "--vvv"})
+	verify.SetArgs([]string{"--dir", path, "--vv"})
 	verify.SetOut(bytes.NewBufferString(""))
 
 	require.NoError(t, verify.Execute())
@@ -112,6 +112,22 @@ func TestVerifies_InvalidV4(t *testing.T) {
 
 	verify := NewVerifyTombstoneCommand()
 	verify.SetArgs([]string{"--dir", path})
+	verify.SetOut(bytes.NewBufferString(""))
+
+	require.Error(t, verify.Execute())
+}
+
+// Ensures "--vvv" flag will not error as it
+// is not needed, but was part of old command.
+func TestTombstone_VeryVeryVerbose(t *testing.T) {
+	path, file := NewTempTombstone(t)
+	defer os.RemoveAll(path)
+
+	WriteTombstoneHeader(t, file, v4header)
+	WriteBadData(t, file)
+
+	verify := NewVerifyTombstoneCommand()
+	verify.SetArgs([]string{"--dir", path, "--vvv"})
 	verify.SetOut(bytes.NewBufferString(""))
 
 	require.Error(t, verify.Execute())
