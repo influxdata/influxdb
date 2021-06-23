@@ -321,7 +321,7 @@ impl<W> TracingConfigBuilderExt<W> for Builder<W>
 where
     W: MakeWriter + Send + Sync + Clone + 'static,
 {
-    fn with_tracing_config(self, config: &TracingConfig) -> Builder<W> {
+    fn with_tracing_config(self, config: &TracingConfig) -> Self {
         config.with_builder(self)
     }
 }

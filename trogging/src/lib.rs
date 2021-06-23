@@ -1,5 +1,15 @@
 //! Log and trace initialization and setup
 
+#![deny(broken_intra_doc_links, rust_2018_idioms)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    clippy::explicit_iter_loop,
+    clippy::future_not_send,
+    clippy::use_self,
+    clippy::clone_on_ref_ptr
+)]
+
 #[cfg(feature = "structopt")]
 pub mod cli;
 pub mod config;
@@ -37,6 +47,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Builder for tracing and logging.
+#[derive(Debug)]
 pub struct Builder<W = fn() -> io::Stdout> {
     log_format: LogFormat,
     log_filter: Option<EnvFilter>,
@@ -391,6 +402,7 @@ where
 }
 
 /// A RAII guard. On Drop, tracing and OpenTelemetry are flushed and shut down.
+#[derive(Debug)]
 pub struct TracingGuard;
 
 impl Drop for TracingGuard {
@@ -434,6 +446,7 @@ pub mod test_util {
         }
     }
 
+    #[derive(Debug)]
     pub struct Captured(Arc<Mutex<Vec<u8>>>);
 
     impl Captured {
