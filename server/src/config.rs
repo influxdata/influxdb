@@ -12,8 +12,7 @@ use query::exec::Executor;
 /// This module contains code for managing the configuration of the server.
 use crate::{
     db::{catalog::Catalog, Db},
-    write_buffer::KafkaBuffer,
-    Error, JobRegistry, Result,
+    write_buffer, Error, JobRegistry, Result,
 };
 use observability_deps::tracing::{self, error, info, warn, Instrument};
 use tokio::task::JoinHandle;
@@ -248,22 +247,8 @@ impl Config {
             return Ok(());
         }
 
-        // Right now, `KafkaBuffer` is the only production implementation of the `WriteBuffer`
-        // trait, so always use `KafkaBuffer` when there is a write buffer connection string
-        // specified. If/when there are other kinds of write buffers, additional configuration will
-        // be needed to determine what kind of write buffer to use here.
-        let write_buffer = match rules.write_buffer_connection_string.as_ref() {
-            Some(conn) => {
-                let kafka_buffer = KafkaBuffer::new(conn, &name).map_err(|kafka_error| {
-                    Error::CreatingWriteBufferForWriting {
-                        source: Box::new(kafka_error) as _,
-                    }
-                })?;
-
-                Some(Arc::new(kafka_buffer) as _)
-            }
-            None => None,
-        };
+        let write_buffer = write_buffer::new(&rules)
+            .map_err(|e| Error::CreatingWriteBufferForWriting { source: e })?;
 
         let db = Arc::new(Db::new(
             rules,

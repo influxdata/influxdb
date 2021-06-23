@@ -1,13 +1,31 @@
 use async_trait::async_trait;
+use data_types::database_rules::DatabaseRules;
 use entry::{Entry, Sequence};
 use rdkafka::{
     error::KafkaError,
     producer::{FutureProducer, FutureRecord},
     ClientConfig,
 };
-use std::convert::TryInto;
+use std::{convert::TryInto, sync::Arc};
 
 pub type WriteBufferError = Box<dyn std::error::Error + Sync + Send>;
+
+pub fn new(rules: &DatabaseRules) -> Result<Option<Arc<dyn WriteBuffer>>, WriteBufferError> {
+    let name = rules.db_name();
+
+    // Right now, `KafkaBuffer` is the only production implementation of the `WriteBuffer`
+    // trait, so always use `KafkaBuffer` when there is a write buffer connection string
+    // specified. If/when there are other kinds of write buffers, additional configuration will
+    // be needed to determine what kind of write buffer to use here.
+    match rules.write_buffer_connection_string.as_ref() {
+        Some(conn) => {
+            let kafka_buffer = KafkaBuffer::new(conn, name)?;
+
+            Ok(Some(Arc::new(kafka_buffer) as _))
+        }
+        None => Ok(None),
+    }
+}
 
 /// A Write Buffer takes an `Entry` and returns `Sequence` data that facilitates reading entries
 /// from the Write Buffer at a later time.
