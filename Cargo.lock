@@ -1346,6 +1346,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "grpc-router"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "cache_loader_async",
+ "futures",
+ "grpc-router-test-gen",
+ "observability_deps",
+ "paste 1.0.5",
+ "prost",
+ "prost-build",
+ "prost-types",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tonic",
+ "tonic-build",
+ "tonic-reflection",
+]
+
+[[package]]
+name = "grpc-router-test-gen"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "prost-build",
+ "prost-types",
+ "tonic",
+ "tonic-build",
+]
+
+[[package]]
 name = "h2"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
