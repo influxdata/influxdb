@@ -7,6 +7,7 @@ use super::scenario::{
     collect_query, create_quickly_persisting_database, create_readable_database, rand_name,
 };
 use crate::common::server_fixture::ServerFixture;
+use itertools::Itertools;
 use std::convert::TryInto;
 
 #[tokio::test]
@@ -51,11 +52,17 @@ async fn test_chunk_are_removed_from_memory_when_soft_limit_is_hit() {
     // (as of time of writing, 10 chunks took up ~800K)
     let num_chunks = 10;
     for _ in 0..num_chunks {
-        let lp_lines: Vec<_> = (0..1_000)
-            .map(|i| format!("data,tag1=val{} x={} {}", i, i * 10, i))
-            .collect();
+        let lp_data = (0..500)
+            .map(|i| {
+                format!(
+                    "data,tag1=val{0} x={1} {0}\ndata,tag2=val{0} x={1} {0}",
+                    i,
+                    i * 10,
+                )
+            })
+            .join("\n");
         let num_lines_written = write_client
-            .write(&db_name, lp_lines.join("\n"))
+            .write(&db_name, &lp_data)
             .await
             .expect("successful write");
         assert_eq!(num_lines_written, 1000);
@@ -80,6 +87,10 @@ async fn test_chunk_are_removed_from_memory_when_soft_limit_is_hit() {
         chunks.len(),
         chunks
     );
+
+    for chunk in &chunks {
+        assert_eq!(chunk.row_count, 1000)
+    }
 }
 
 #[tokio::test]

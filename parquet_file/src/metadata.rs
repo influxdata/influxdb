@@ -249,6 +249,11 @@ impl IoxParquetMetaData {
         Ok(Self { md })
     }
 
+    /// Return the number of rows in the parquet file
+    pub fn row_count(&self) -> usize {
+        self.md.file_metadata().num_rows() as usize
+    }
+
     /// Read IOx metadata from file-level key-value parquet metadata.
     pub fn read_iox_metadata(&self) -> Result<IoxMetadata> {
         let kv = self

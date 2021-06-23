@@ -686,7 +686,7 @@ impl CatalogChunk {
                 read_buffer,
                 ..
             } => {
-                if let Some(read_buffer_inner) = &read_buffer {
+                if let Some(rub_chunk) = read_buffer.take() {
                     self.metrics
                         .state
                         .inc_with_labels(&[KeyValue::new("state", "os")]);
@@ -696,8 +696,6 @@ impl CatalogChunk {
                         &[KeyValue::new("state", "os")],
                     );
 
-                    let rub_chunk = Arc::clone(read_buffer_inner);
-                    *read_buffer = None;
                     Ok(rub_chunk)
                 } else {
                     // TODO: do we really need to error here or should unloading an unloaded chunk be a no-op?
