@@ -290,17 +290,16 @@ async fn check_object_store(object_store: &ObjectStore) -> Result<()> {
     let mut prefix = object_store.new_path();
     prefix.push_dir(&uuid);
 
+    // create stream (this might fail if the store is not readable)
     let mut stream = object_store
         .list(Some(&prefix))
         .await
         .context(CannotReadObjectStore)?;
-    while stream
-        .try_next()
-        .await
-        .context(CannotReadObjectStore)?
-        .is_some()
-    {}
 
+    // ... but sometimes it fails only if we use the resulting stream, so try that once
+    stream.try_next().await.context(CannotReadObjectStore)?;
+
+    // store seems to be readable
     Ok(())
 }
 
