@@ -23,7 +23,7 @@ use tokio::sync::Semaphore;
 
 use crate::{
     config::{Config, DB_RULES_FILE_NAME},
-    db::load_or_create_preserved_catalog,
+    db::{load_or_create_preserved_catalog, DatabaseToCommit},
     write_buffer, DatabaseError,
 };
 
@@ -332,17 +332,19 @@ impl InitStatus {
                         let write_buffer =
                             write_buffer::new(&rules).context(CreateWriteBufferForWriting)?;
 
+                        let database_to_commit = DatabaseToCommit {
+                            server_id,
+                            object_store: store,
+                            exec,
+                            preserved_catalog,
+                            catalog,
+                            rules,
+                            write_buffer,
+                        };
+
                         // everything is there, can create DB
                         handle
-                            .commit_db(
-                                server_id,
-                                store,
-                                exec,
-                                preserved_catalog,
-                                catalog,
-                                rules,
-                                write_buffer,
-                            )
+                            .commit_db(database_to_commit)
                             .map_err(Box::new)
                             .context(CreateDbError)?;
                         Ok(())

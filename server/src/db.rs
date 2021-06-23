@@ -360,26 +360,28 @@ pub async fn load_or_create_preserved_catalog(
     }
 }
 
-impl Db {
-    #[allow(clippy::clippy::too_many_arguments)]
-    pub fn new(
-        rules: DatabaseRules,
-        server_id: ServerId,
-        object_store: Arc<ObjectStore>,
-        exec: Arc<Executor>,
-        jobs: Arc<JobRegistry>,
-        preserved_catalog: PreservedCatalog,
-        catalog: Catalog,
-        write_buffer: Option<Arc<dyn WriteBuffer>>,
-    ) -> Self {
-        let db_name = rules.name.clone();
+/// All the information needed to commit a database
+#[derive(Debug)]
+pub(crate) struct DatabaseToCommit {
+    pub(crate) server_id: ServerId,
+    pub(crate) object_store: Arc<ObjectStore>,
+    pub(crate) exec: Arc<Executor>,
+    pub(crate) preserved_catalog: PreservedCatalog,
+    pub(crate) catalog: Catalog,
+    pub(crate) rules: DatabaseRules,
+    pub(crate) write_buffer: Option<Arc<dyn WriteBuffer>>,
+}
 
-        let rules = RwLock::new(rules);
-        let server_id = server_id;
-        let store = Arc::clone(&object_store);
-        let metrics_registry = Arc::clone(&catalog.metrics_registry);
-        let metric_labels = catalog.metric_labels.clone();
-        let catalog = Arc::new(catalog);
+impl Db {
+    pub(crate) fn new(database_to_commit: DatabaseToCommit, jobs: Arc<JobRegistry>) -> Self {
+        let db_name = database_to_commit.rules.name.clone();
+
+        let rules = RwLock::new(database_to_commit.rules);
+        let server_id = database_to_commit.server_id;
+        let store = Arc::clone(&database_to_commit.object_store);
+        let metrics_registry = Arc::clone(&database_to_commit.catalog.metrics_registry);
+        let metric_labels = database_to_commit.catalog.metric_labels.clone();
+        let catalog = Arc::new(database_to_commit.catalog);
 
         let catalog_access = QueryCatalogAccess::new(
             &db_name,
@@ -396,8 +398,8 @@ impl Db {
             rules,
             server_id,
             store,
-            exec,
-            preserved_catalog: Arc::new(preserved_catalog),
+            exec: database_to_commit.exec,
+            preserved_catalog: Arc::new(database_to_commit.preserved_catalog),
             catalog,
             jobs,
             metrics_registry,
@@ -406,7 +408,7 @@ impl Db {
             worker_iterations_lifecycle: AtomicUsize::new(0),
             worker_iterations_cleanup: AtomicUsize::new(0),
             metric_labels,
-            write_buffer,
+            write_buffer: database_to_commit.write_buffer,
         }
     }
 

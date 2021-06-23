@@ -73,7 +73,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
-use db::load_or_create_preserved_catalog;
+use db::{load_or_create_preserved_catalog, DatabaseToCommit};
 use init::InitStatus;
 use observability_deps::tracing::{debug, info, warn};
 use parking_lot::Mutex;
@@ -504,15 +504,17 @@ where
         let write_buffer = write_buffer::new(&rules)
             .map_err(|e| Error::CreatingWriteBufferForWriting { source: e })?;
 
-        db_reservation.commit_db(
+        let database_to_commit = DatabaseToCommit {
             server_id,
-            Arc::clone(&self.store),
-            Arc::clone(&self.exec),
+            object_store: Arc::clone(&self.store),
+            exec: Arc::clone(&self.exec),
             preserved_catalog,
             catalog,
             rules,
             write_buffer,
-        )?;
+        };
+
+        db_reservation.commit_db(database_to_commit)?;
 
         Ok(())
     }

@@ -11,9 +11,8 @@ use query::exec::Executor;
 
 /// This module contains code for managing the configuration of the server.
 use crate::{
-    db::{catalog::Catalog, Db},
-    write_buffer::{self, WriteBuffer},
-    Error, JobRegistry, Result,
+    db::{catalog::Catalog, DatabaseToCommit, Db},
+    write_buffer, Error, JobRegistry, Result,
 };
 use observability_deps::tracing::{self, error, info, warn, Instrument};
 use tokio::task::JoinHandle;
@@ -231,34 +230,16 @@ impl Config {
     }
 
     /// Creates database in initialized state.
-    fn commit_db(
-        &self,
-        rules: DatabaseRules,
-        server_id: ServerId,
-        object_store: Arc<ObjectStore>,
-        exec: Arc<Executor>,
-        preserved_catalog: PreservedCatalog,
-        catalog: Catalog,
-        write_buffer: Option<Arc<dyn WriteBuffer>>,
-    ) {
+    fn commit_db(&self, database_to_commit: DatabaseToCommit) {
         let mut state = self.state.write().expect("mutex poisoned");
-        let name = rules.name.clone();
+        let name = database_to_commit.rules.name.clone();
 
         if self.shutdown.is_cancelled() {
             error!("server is shutting down");
             return;
         }
 
-        let db = Arc::new(Db::new(
-            rules,
-            server_id,
-            object_store,
-            exec,
-            Arc::clone(&self.jobs),
-            preserved_catalog,
-            catalog,
-            write_buffer,
-        ));
+        let db = Arc::new(Db::new(database_to_commit, Arc::clone(&self.jobs)));
 
         let shutdown = self.shutdown.child_token();
         let shutdown_captured = shutdown.clone();
@@ -439,34 +420,17 @@ impl<'a> CreateDatabaseHandle<'a> {
     ///
     /// Will fail if database name used to create this handle and the name within `rules` do not match. In this case,
     /// the database will be de-registered.
-    pub(crate) fn commit_db(
-        mut self,
-        server_id: ServerId,
-        object_store: Arc<ObjectStore>,
-        exec: Arc<Executor>,
-        preserved_catalog: PreservedCatalog,
-        catalog: Catalog,
-        rules: DatabaseRules,
-        write_buffer: Option<Arc<dyn WriteBuffer>>,
-    ) -> Result<()> {
+    pub(crate) fn commit_db(mut self, database_to_commit: DatabaseToCommit) -> Result<()> {
         let db_name = self.db_name.take().expect("not committed");
-        if db_name != rules.name {
+        if db_name != database_to_commit.rules.name {
             self.config.forget_reservation(&db_name);
             return Err(Error::RulesDatabaseNameMismatch {
-                actual: rules.name.to_string(),
+                actual: database_to_commit.rules.name.to_string(),
                 expected: db_name.to_string(),
             });
         }
 
-        self.config.commit_db(
-            rules,
-            server_id,
-            object_store,
-            exec,
-            preserved_catalog,
-            catalog,
-            write_buffer,
-        );
+        self.config.commit_db(database_to_commit);
 
         Ok(())
     }
@@ -554,15 +518,17 @@ impl<'a> RecoverDatabaseHandle<'a> {
         let write_buffer = write_buffer::new(&rules)
             .map_err(|e| Error::CreatingWriteBufferForWriting { source: e })?;
 
-        self.config.commit_db(
-            rules,
+        let database_to_commit = DatabaseToCommit {
             server_id,
             object_store,
             exec,
             preserved_catalog,
             catalog,
+            rules,
             write_buffer,
-        );
+        };
+
+        self.config.commit_db(database_to_commit);
 
         Ok(())
     }
@@ -650,17 +616,17 @@ mod test {
 
         {
             let db_reservation = config.create_db(DatabaseName::new("bar").unwrap()).unwrap();
-            let err = db_reservation
-                .commit_db(
-                    server_id,
-                    Arc::clone(&store),
-                    Arc::clone(&exec),
-                    preserved_catalog,
-                    catalog,
-                    rules.clone(),
-                    None,
-                )
-                .unwrap_err();
+            let database_to_commit = DatabaseToCommit {
+                server_id,
+                object_store: Arc::clone(&store),
+                exec: Arc::clone(&exec),
+                preserved_catalog,
+                catalog,
+                rules: rules.clone(),
+                write_buffer: None,
+            };
+
+            let err = db_reservation.commit_db(database_to_commit).unwrap_err();
             assert!(matches!(err, Error::RulesDatabaseNameMismatch { .. }));
         }
 
@@ -674,17 +640,16 @@ mod test {
         .await
         .unwrap();
         let db_reservation = config.create_db(name.clone()).unwrap();
-        db_reservation
-            .commit_db(
-                server_id,
-                store,
-                exec,
-                preserved_catalog,
-                catalog,
-                rules,
-                None,
-            )
-            .unwrap();
+        let database_to_commit = DatabaseToCommit {
+            server_id,
+            object_store: store,
+            exec,
+            preserved_catalog,
+            catalog,
+            rules,
+            write_buffer: None,
+        };
+        db_reservation.commit_db(database_to_commit).unwrap();
         assert!(config.db(&name).is_some());
         assert_eq!(config.db_names_sorted(), vec![name.clone()]);
 
@@ -863,17 +828,18 @@ mod test {
         )
         .await
         .unwrap();
-        db_reservation
-            .commit_db(
-                server_id,
-                store,
-                exec,
-                preserved_catalog,
-                catalog,
-                rules,
-                None,
-            )
-            .unwrap();
+
+        let database_to_commit = DatabaseToCommit {
+            server_id,
+            object_store: store,
+            exec,
+            preserved_catalog,
+            catalog,
+            rules,
+            write_buffer: None,
+        };
+
+        db_reservation.commit_db(database_to_commit).unwrap();
 
         let token = config
             .state
