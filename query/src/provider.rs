@@ -771,13 +771,15 @@ impl<C: QueryChunk> ChunkPruner<C> for NoOpPruner {
 
 #[cfg(test)]
 mod test {
-    use arrow::{datatypes::DataType, record_batch::RecordBatch};
+    use arrow::datatypes::DataType;
     use arrow_util::assert_batches_eq;
     use datafusion::physical_plan::collect;
-    use futures::StreamExt;
-    use internal_types::{schema::builder::SchemaBuilder, selection::Selection};
+    use internal_types::schema::builder::SchemaBuilder;
 
-    use crate::{test::TestChunk, QueryChunkMeta};
+    use crate::{
+        test::{raw_data, TestChunk},
+        QueryChunkMeta,
+    };
 
     use super::*;
 
@@ -1644,22 +1646,5 @@ mod test {
             .enumerate()
             .map(|(idx, group)| format!("Group {}: {}", idx, chunk_ids(group)))
             .collect()
-    }
-
-    /// Return the raw data from the list of chunks
-    async fn raw_data(chunks: &[Arc<TestChunk>]) -> Vec<RecordBatch> {
-        let mut batches = vec![];
-        for c in chunks {
-            let pred = Predicate::default();
-            let selection = Selection::All;
-            let mut stream = c
-                .read_filter(&pred, selection)
-                .expect("Error in read_filter");
-            while let Some(b) = stream.next().await {
-                let b = b.expect("Error in stream");
-                batches.push(b)
-            }
-        }
-        batches
     }
 }

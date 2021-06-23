@@ -146,9 +146,9 @@ pub enum Error {
     ErrorReplicating { source: DatabaseError },
 
     #[snafu(display(
-        "server ID is set but DBs are not yet loaded. Server is not yet ready to read/write data."
+        "Server ID is set ({}) but server is not yet initialized (e.g. DBs and remotes are not loaded). Server is not yet ready to read/write data.", server_id
     ))]
-    DatabasesNotLoaded,
+    ServerNotInitialized { server_id: ServerId },
 
     #[snafu(display("error serializing database rules to protobuf: {}", source))]
     ErrorSerializingRulesProtobuf {
@@ -474,7 +474,7 @@ where
         if self.initialized() {
             Ok(server_id)
         } else {
-            Err(Error::DatabasesNotLoaded)
+            Err(Error::ServerNotInitialized { server_id })
         }
     }
 
@@ -1783,7 +1783,7 @@ mod tests {
         let err = create_simple_database(&server, "bananas")
             .await
             .unwrap_err();
-        assert!(matches!(err, Error::DatabasesNotLoaded));
+        assert!(matches!(err, Error::ServerNotInitialized { .. }));
     }
 
     #[tokio::test]

@@ -254,8 +254,7 @@ impl ParquetChunk {
 
     /// The total number of rows in all row groups in this chunk.
     pub fn rows(&self) -> usize {
-        // All columns have the same rows, so return get row count of the first column
-        self.table_summary.columns[0].count() as usize
+        self.parquet_metadata.row_count()
     }
 
     /// Parquet metadata from the underlying file.
