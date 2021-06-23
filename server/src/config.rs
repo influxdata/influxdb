@@ -238,7 +238,7 @@ impl Config {
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
         preserved_catalog: PreservedCatalog,
-        catalog: Arc<Catalog>,
+        catalog: Catalog,
     ) {
         let mut state = self.state.write().expect("mutex poisoned");
         let name = rules.name.clone();
@@ -453,7 +453,7 @@ impl<'a> CreateDatabaseHandle<'a> {
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
         preserved_catalog: PreservedCatalog,
-        catalog: Arc<Catalog>,
+        catalog: Catalog,
         rules: DatabaseRules,
     ) -> Result<()> {
         let db_name = self.db_name.take().expect("not committed");
@@ -540,7 +540,7 @@ impl<'a> RecoverDatabaseHandle<'a> {
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
         preserved_catalog: PreservedCatalog,
-        catalog: Arc<Catalog>,
+        catalog: Catalog,
         rules: Option<DatabaseRules>,
     ) -> Result<()> {
         let db_name = self.db_name.take().expect("not committed");
