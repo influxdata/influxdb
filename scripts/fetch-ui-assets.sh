@@ -20,7 +20,7 @@ set -e
 curl -Ls https://github.com/influxdata/ui/releases/download/OSS-Master/sha256.txt --output sha256.txt
 
 # Download the tar file containing the built UI assets.
-curl -L https://github.com/influxdata/ui/releases/download/OSS-v2.0.7/build.tar.gz --output build.tar.gz
+curl -L https://github.com/influxdata/ui/releases/download/OSS-Master/build.tar.gz --output build.tar.gz
 
 # Verify the checksums match; exit if they don't.
 echo "$(cat sha256.txt)" | sha256sum --check -- \
