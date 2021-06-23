@@ -134,14 +134,9 @@ pub async fn make_chunk_given_record_batch(
     column_summaries: Vec<ColumnSummary>,
 ) -> ParquetChunk {
     let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
-    let db_name = &addr.db_name;
-    let partition_key = &addr.partition_key;
-    let table_name = &addr.table_name;
-    let chunk_id = addr.chunk_id;
+    let storage = Storage::new(Arc::clone(&store), server_id);
 
-    let storage = Storage::new(Arc::clone(&store), server_id, db_name.to_string());
-
-    let mut table_summary = TableSummary::new(table_name.to_string());
+    let mut table_summary = TableSummary::new(addr.table_name.to_string());
     table_summary.columns = column_summaries;
     let stream: SendableRecordBatchStream = if record_batches.is_empty() {
         Box::pin(MemoryStream::new_with_schema(
@@ -154,23 +149,17 @@ pub async fn make_chunk_given_record_batch(
     let metadata = IoxMetadata {
         transaction_revision_counter: 0,
         transaction_uuid: Uuid::nil(),
-        table_name: table_name.to_string(),
-        partition_key: partition_key.to_string(),
-        chunk_id,
+        table_name: addr.table_name.to_string(),
+        partition_key: addr.partition_key.to_string(),
+        chunk_id: addr.chunk_id,
     };
     let (path, parquet_metadata) = storage
-        .write_to_object_store(
-            partition_key.to_string(),
-            chunk_id,
-            table_name.to_string(),
-            stream,
-            metadata,
-        )
+        .write_to_object_store(addr.clone(), stream, metadata)
         .await
         .unwrap();
 
     ParquetChunk::new_from_parts(
-        partition_key.to_string(),
+        addr.partition_key.to_string(),
         Arc::new(table_summary),
         Arc::new(schema),
         path,
