@@ -16,6 +16,7 @@ use super::chunk::{CatalogChunk, ChunkStage};
 use data_types::chunk_metadata::{ChunkAddr, ChunkSummary};
 use internal_types::schema::Schema;
 use lifecycle::ChunkLifecycleAction;
+use mutable_buffer::persistence_windows::PersistenceWindows;
 use snafu::Snafu;
 
 #[derive(Debug, Snafu)]
@@ -64,6 +65,9 @@ pub struct Partition {
 
     /// Partition metrics
     metrics: PartitionMetrics,
+
+    /// Ingest tracking for persisting data from memory to Parquet
+    persistence_windows: Option<PersistenceWindows>,
 }
 
 impl Partition {
@@ -88,6 +92,7 @@ impl Partition {
             last_write_at: now,
             next_chunk_id: 0,
             metrics,
+            persistence_windows: None,
         }
     }
 
@@ -299,5 +304,13 @@ impl Partition {
 
     pub fn metrics(&self) -> &PartitionMetrics {
         &self.metrics
+    }
+
+    pub fn persistence_windows(&mut self) -> Option<&mut PersistenceWindows> {
+        self.persistence_windows.as_mut()
+    }
+
+    pub fn set_persistence_windows(&mut self, windows: PersistenceWindows) {
+        self.persistence_windows = Some(windows);
     }
 }

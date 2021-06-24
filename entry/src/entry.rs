@@ -3,7 +3,7 @@
 
 use std::{collections::BTreeMap, convert::TryFrom, fmt::Formatter, num::NonZeroU64};
 
-use chrono::Utc;
+use chrono::{DateTime, TimeZone, Utc};
 use flatbuffers::{FlatBufferBuilder, Follow, ForwardsUOffset, Vector, VectorIter, WIPOffset};
 use ouroboros::self_referencing;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -41,6 +41,15 @@ pub enum Error {
 
     #[snafu(display("invalid flatbuffers: field {} is required", field))]
     FlatbufferFieldMissing { field: String },
+
+    #[snafu(display("'time' column is required"))]
+    TimeColumnMissing,
+
+    #[snafu(display("time value missing from batch"))]
+    TimeValueMissing,
+
+    #[snafu(display("'time' column must be i64 type"))]
+    TimeColumnWrongType,
 }
 
 #[derive(Debug, Snafu)]
@@ -391,6 +400,34 @@ impl<'a> TableBatch<'a> {
         }
     }
 
+    pub fn min_max_time(&self) -> Result<(DateTime<Utc>, DateTime<Utc>)> {
+        match self
+            .fb
+            .columns()
+            .as_ref()
+            .expect("invalid flatbuffers: table batch must have columns")
+            .iter()
+            .find(|fb| {
+                fb.name()
+                    .expect("invalid flatbuffers: column must have name")
+                    == TIME_COLUMN_NAME
+            }) {
+            Some(c) => {
+                let vals = c
+                    .values_as_i64values()
+                    .context(TimeColumnWrongType)?
+                    .values()
+                    .expect("invalid flatbuffers: time columm values must be present");
+
+                let min = vals.iter().min().context(TimeValueMissing)?;
+                let max = vals.iter().max().context(TimeValueMissing)?;
+
+                Ok((timestamp_to_datetime(min), timestamp_to_datetime(max)))
+            }
+            None => TimeColumnMissing.fail(),
+        }
+    }
+
     pub fn row_count(&self) -> usize {
         if let Some(cols) = self.fb.columns() {
             if let Some(c) = cols.iter().next() {
@@ -427,6 +464,12 @@ impl<'a> TableBatch<'a> {
 
         0
     }
+}
+
+fn timestamp_to_datetime(ts: i64) -> DateTime<Utc> {
+    let secs = ts / 1_000_000_000;
+    let nsec = ts % 1_000_000_000;
+    Utc.timestamp(secs, nsec as u32)
 }
 
 /// Wrapper struct for the flatbuffers Column. Has a convenience method to
@@ -1978,5 +2021,23 @@ mod tests {
         );
 
         assert!(sharded_entries.is_err());
+    }
+
+    #[test]
+    fn min_max_time() {
+        let entry = lp_to_entry("m val=1 10000000123");
+        let (min, max) = entry.partition_writes().unwrap()[0].table_batches()[0]
+            .min_max_time()
+            .unwrap();
+        let ts = Utc.timestamp(10, 123);
+        assert_eq!(min, ts);
+        assert_eq!(max, ts);
+
+        let entry = lp_to_entry("m val=1 10000000123\nm val=12 12000000003");
+        let (min, max) = entry.partition_writes().unwrap()[0].table_batches()[0]
+            .min_max_time()
+            .unwrap();
+        assert_eq!(min, ts);
+        assert_eq!(max, Utc.timestamp(12, 3));
     }
 }

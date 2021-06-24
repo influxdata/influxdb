@@ -170,6 +170,13 @@ pub struct LifecycleRules {
     pub persist_row_threshold: NonZeroUsize,
 }
 
+impl LifecycleRules {
+    /// The max timestamp skew across concurrent writers before persisted chunks might overlap
+    pub fn late_arrive_window(&self) -> Duration {
+        Duration::from_secs(self.late_arrive_window_seconds.get() as u64)
+    }
+}
+
 impl Default for LifecycleRules {
     fn default() -> Self {
         Self {
