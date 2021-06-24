@@ -2,6 +2,8 @@ package subscriber_test
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -390,14 +392,47 @@ func TestService_Multiple(t *testing.T) {
 
 func TestService_WaitForDataChanged(t *testing.T) {
 	dataChanged := make(chan struct{}, 1)
+	defer close(dataChanged)
 	ms := MetaClient{}
 	ms.WaitForDataChangedFn = func() chan struct{} {
 		return dataChanged
 	}
+
+	done := make(chan struct{})
+	receivedBlocking := make(chan struct{})
+	receivedNonBlocking := make(chan struct{})
+
+	blockingServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		receivedBlocking <- struct{}{}
+		<-done
+	}))
+	nonBlockingServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		receivedNonBlocking <- struct{}{}
+	}))
+	defer blockingServer.Close()
+	defer nonBlockingServer.Close()
+	defer close(done)
+	defer close(receivedNonBlocking)
+	defer close(receivedBlocking)
+
+	currentDatabaseInfo := []meta.DatabaseInfo{
+		{
+			Name: "db0",
+			RetentionPolicies: []meta.RetentionPolicyInfo{
+				{
+					Name: "rp0",
+					Subscriptions: []meta.SubscriptionInfo{
+						{Name: "block", Mode: "ALL", Destinations: []string{blockingServer.URL}},
+					},
+				},
+			},
+		},
+	}
+
 	calls := make(chan bool, 2)
 	ms.DatabasesFn = func() []meta.DatabaseInfo {
 		calls <- true
-		return nil
+		return currentDatabaseInfo
 	}
 
 	s := subscriber.NewService(subscriber.NewConfig())
@@ -405,7 +440,7 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	// Explicitly closed below for testing
 	s.Open()
 
-	// Should be called once during open
+	// DatabaseInfo should be called once during open
 	select {
 	case <-calls:
 	case <-time.After(testTimeout):
@@ -418,20 +453,53 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	case <-time.After(time.Millisecond):
 	}
 
-	// Signal that data has changed
-	dataChanged <- struct{}{}
-
-	// Should be called once more after data changed
+	// send a point, receive it on the server that always blocks (simulating a slow remote server)
+	s.Points() <- &coordinator.WritePointsRequest{
+		Database:        "db0",
+		RetentionPolicy: "rp0",
+		Points:          []models.Point{models.MustNewPoint("m0", nil, models.Fields{"f": 1.0}, time.Now())},
+	}
 	select {
-	case <-calls:
+	case <-receivedBlocking:
 	case <-time.After(testTimeout):
-		t.Fatal("expected call")
+		t.Fatal("expected blocking server to receive a point")
 	}
 
+	// Signal that data has changed - two calls to DatabaseInfo implies we already updated once due to channel size
+	currentDatabaseInfo[0].RetentionPolicies[0].Subscriptions[0].Destinations[0] = nonBlockingServer.URL
+	currentDatabaseInfo[0].RetentionPolicies[0].Subscriptions[0].Name = "nonblock"
+	for i := 0 ; i < 2; i ++ {
+		dataChanged <- struct{}{}
+
+		// DatabaseInfo should be called once more after data changed
+		select {
+		case <-calls:
+		case <-time.After(testTimeout):
+			t.Fatal("expected call")
+		}
+
+		select {
+		case <-calls:
+			t.Fatal("unexpected call")
+		case <-time.After(time.Millisecond):
+		}
+	}
+
+	// send a point, receive it on the server that never blocks (asserting the change was applied correctly)
+	s.Points() <- &coordinator.WritePointsRequest{
+		Database:        "db0",
+		RetentionPolicy: "rp0",
+		Points:          []models.Point{models.MustNewPoint("m0", nil, models.Fields{"f": 1.0}, time.Now())},
+	}
 	select {
-	case <-calls:
-		t.Fatal("unexpected call")
-	case <-time.After(time.Millisecond):
+	case <-receivedNonBlocking:
+	case <-time.After(testTimeout):
+		t.Fatal("expected call to non blocking server")
+	}
+	select {
+	case <-receivedBlocking:
+		t.Fatal("expected no call to blocking server")
+	case <-time.After(testTimeout):
 	}
 
 	//Close service ensure not called
@@ -443,7 +511,6 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	case <-time.After(time.Millisecond):
 	}
 
-	close(dataChanged)
 }
 
 func TestService_BadUTF8(t *testing.T) {
