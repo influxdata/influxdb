@@ -6,14 +6,16 @@
 # for example:
 #
 # cd influxdb_iox
-# docker build -f docker/Dockerfile.ci --build-arg RUST_VERSION=$(cat rust-toolchain) .
+# docker build -f docker/Dockerfile.ci \
+#   --build-arg RUST_VERSION=$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml) .
 ##
 
 ARG RUST_VERSION
 # Build actual image used for CI pipeline
 FROM rust:${RUST_VERSION}-slim-buster
 
-RUN rustup component add rustfmt clippy
+# When https://github.com/rust-lang/rustup/issues/2686 is fixed, run the command added that
+# will install everything in rust-toolchain.toml here so that components are in the container
 
 # make Apt non-interactive
 RUN echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/90ci \
