@@ -17,7 +17,7 @@ use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use rand_distr::{Distribution, Poisson};
-use snafu::{ResultExt, Snafu};
+use snafu::{ResultExt, Snafu, ensure};
 
 use ::lifecycle::{LifecycleWriteGuard, LockableChunk};
 use catalog::{chunk::CatalogChunk, Catalog};
@@ -147,6 +147,12 @@ pub enum Error {
         partition_key: String,
         source: mutable_buffer::chunk::Error,
     },
+
+    #[snafu(display(
+        "Storing sequenced entry failed with the following error(s): {}",
+        errors.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+    ))]
+    StoreSequencedEntryFailures { errors: Vec<Error> },
 
     #[snafu(display("Error building sequenced entry: {}", source))]
     SequencedEntryError { source: entry::SequencedEntryError },
@@ -863,6 +869,8 @@ impl Db {
         }
 
         if let Some(partitioned_writes) = sequenced_entry.partition_writes() {
+            let mut errors = vec![];
+
             for write in partitioned_writes {
                 let partition_key = write.key();
                 for table_batch in write.table_batches() {
@@ -891,7 +899,7 @@ impl Db {
                             let mb_chunk =
                                 chunk.mutable_buffer().expect("cannot mutate open chunk");
 
-                            mb_chunk
+                            if let Err(e) = mb_chunk
                                 .write_table_batch(
                                     sequenced_entry.sequence().id,
                                     sequenced_entry.sequence().number,
@@ -900,7 +908,11 @@ impl Db {
                                 .context(WriteEntry {
                                     partition_key,
                                     chunk_id,
-                                })?;
+                                })
+                            {
+                                errors.push(e);
+                                continue;
+                            };
 
                             check_chunk_closed(&mut *chunk, mutable_size_threshold);
                         }
@@ -917,13 +929,17 @@ impl Db {
                                 ),
                             );
 
-                            mb_chunk
+                            if let Err(e) = mb_chunk
                                 .write_table_batch(
                                     sequenced_entry.sequence().id,
                                     sequenced_entry.sequence().number,
                                     table_batch,
                                 )
-                                .context(WriteEntryInitial { partition_key })?;
+                                .context(WriteEntryInitial { partition_key })
+                            {
+                                errors.push(e);
+                                continue;
+                            }
 
                             let new_chunk = partition.create_open_chunk(mb_chunk);
                             check_chunk_closed(&mut *new_chunk.write(), mutable_size_threshold);
@@ -954,6 +970,8 @@ impl Db {
                     }
                 }
             }
+
+            ensure!(errors.is_empty(), StoreSequencedEntryFailures { errors });
         }
 
         Ok(())
@@ -1227,7 +1245,10 @@ mod tests {
 
         // This should return an error because there was at least one error in the loop
         let result = db.store_entry(entry).await;
-        assert!(result.is_err());
+        assert_contains!(
+            result.unwrap_err().to_string(),
+            "Storing sequenced entry failed with the following error(s):"
+        );
 
         // But 5 points should be returned, most importantly the last one after the line with
         // the mismatched schema
