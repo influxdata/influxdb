@@ -233,7 +233,7 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 				InfluxqldQueryService: tt.fields.ProxyQueryService,
 			}
 
-			h := NewInfluxQLHandler(b, HandlerConfig{})
+			h := NewInfluxQLHandler(b, *NewHandlerConfig())
 			h.Logger = zaptest.NewLogger(t)
 
 			if tt.context != nil {
