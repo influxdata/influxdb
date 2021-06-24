@@ -1,30 +1,25 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
-use std::collections::HashMap;
-use std::future::Future;
-use std::{
-    any::Any,
-    num::NonZeroUsize,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
+pub(crate) use crate::db::chunk::DbChunk;
+use crate::{
+    db::{
+        access::QueryCatalogAccess,
+        catalog::{
+            chunk::{CatalogChunk, ChunkStage},
+            partition::Partition,
+            Catalog, TableNameFilter,
+        },
+        lifecycle::LockableCatalogChunk,
     },
-    time::{Duration, Instant},
+    write_buffer::WriteBuffer,
+    JobRegistry,
 };
-
+use ::lifecycle::{LifecycleWriteGuard, LockableChunk};
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use async_trait::async_trait;
-use parking_lot::RwLock;
-use rand_distr::{Distribution, Poisson};
-use snafu::{ResultExt, Snafu, ensure};
-
-use ::lifecycle::{LifecycleWriteGuard, LockableChunk};
-use catalog::{chunk::CatalogChunk, Catalog};
-pub(crate) use chunk::DbChunk;
-use data_types::chunk_metadata::ChunkAddr;
 use data_types::{
-    chunk_metadata::ChunkSummary,
+    chunk_metadata::{ChunkAddr, ChunkSummary},
     database_rules::DatabaseRules,
     job::Job,
     partition_metadata::{PartitionSummary, TableSummary},
@@ -41,26 +36,30 @@ use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use mutable_buffer::persistence_windows::PersistenceWindows;
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info, warn};
-use parquet_file::catalog::CheckpointData;
+use parking_lot::RwLock;
 use parquet_file::{
-    catalog::PreservedCatalog,
+    catalog::{CheckpointData, PreservedCatalog},
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
     cleanup::cleanup_unreferenced_parquet_files,
     metadata::IoxMetadata,
     storage::Storage,
 };
 use query::{exec::Executor, predicate::Predicate, QueryDatabase};
+use rand_distr::{Distribution, Poisson};
 use read_buffer::{ChunkMetrics as ReadBufferChunkMetrics, RBChunk};
+use snafu::{ensure, ResultExt, Snafu};
+use std::{
+    any::Any,
+    collections::HashMap,
+    future::Future,
+    num::NonZeroUsize,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::{Duration, Instant},
+};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
-
-use crate::db::catalog::chunk::ChunkStage;
-use crate::db::catalog::partition::Partition;
-use crate::db::lifecycle::LockableCatalogChunk;
-
-use super::{write_buffer::WriteBuffer, JobRegistry};
-
-use self::access::QueryCatalogAccess;
-use self::catalog::TableNameFilter;
 
 pub mod access;
 pub mod catalog;
@@ -179,6 +178,7 @@ pub enum Error {
     #[snafu(display("error finding min/max time on table batch: {}", source))]
     TableBatchTimeError { source: entry::Error },
 }
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// This is the main IOx Database object. It is the root object of any
