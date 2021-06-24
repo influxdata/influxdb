@@ -12,7 +12,7 @@ use arrow::{
 use datafusion::physical_plan::{
     coalesce_batches::concat_batches, expressions::PhysicalSortExpr, PhysicalExpr, SQLMetric,
 };
-use observability_deps::tracing::debug;
+use observability_deps::tracing::trace;
 
 // Handles the deduplication across potentially multiple
 // [`RecordBatch`]es which are already sorted on a primary key,
@@ -141,10 +141,10 @@ impl RecordBatchDeduplicator {
 
         // Special case when no ranges are duplicated (so just emit input as output)
         if num_dupes == 0 {
-            debug!(num_rows = batch.num_rows(), "No dupes");
+            trace!(num_rows = batch.num_rows(), "No dupes");
             Self::slice_record_batch(&batch, 0, ranges.len())
         } else {
-            debug!(num_dupes, num_rows = batch.num_rows(), "dupes");
+            trace!(num_dupes, num_rows = batch.num_rows(), "dupes");
 
             // Use take kernel
             let sort_key_indices = self.compute_sort_key_indices(&ranges);

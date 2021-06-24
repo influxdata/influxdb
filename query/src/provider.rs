@@ -17,7 +17,7 @@ use datafusion::{
 };
 use datafusion_util::AsPhysicalExpr;
 use internal_types::schema::{merge::SchemaMerger, Schema};
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, trace};
 
 use crate::{
     predicate::{Predicate, PredicateBuilder},
@@ -237,8 +237,6 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> std::result::Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        debug!(?filters, "Input Filters to Scan");
-
         // Note that `filters` don't actually need to be evaluated in
         // the scan for the plans to be correct, they are an extra
         // optimization for providers which can offer them
@@ -261,7 +259,7 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
 
         // This debug shows the self.arrow_schema() includes all columns in all chunks
         // which means the schema of all chunks are merged before invoking this scan
-        debug!("all chunks schema: {:#?}", self.arrow_schema());
+        trace!("all chunks schema: {:#?}", self.arrow_schema());
 
         let mut deduplicate = Deduplicater::new();
         let plan = deduplicate.build_scan_plan(
@@ -506,7 +504,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let pk_schema = Self::compute_pk_schema(&chunks);
         let input_schema = Self::compute_input_schema(&output_schema, &pk_schema);
 
-        debug!(
+        trace!(
             ?output_schema,
             ?pk_schema,
             ?input_schema,

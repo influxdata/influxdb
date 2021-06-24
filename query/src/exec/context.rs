@@ -21,7 +21,7 @@ use crate::exec::{
     split::StreamSplitExec,
 };
 
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, trace};
 
 // Reuse DataFusion error and Result types for this module
 pub use datafusion::error::{DataFusionError as Error, Result};
@@ -164,21 +164,21 @@ impl IOxExecutionContext {
     /// Prepare a SQL statement for execution. This assumes that any
     /// tables referenced in the SQL have been registered with this context
     pub fn prepare_sql(&mut self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
-        debug!(text=%sql, "SQL");
+        debug!(text=%sql, "planning SQL query");
         let logical_plan = self.inner.sql(sql)?.to_logical_plan();
         self.prepare_plan(&logical_plan)
     }
 
     /// Prepare (optimize + plan) a pre-created logical plan for execution
     pub fn prepare_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
-        debug!(text=%plan.display_indent_schema(), "initial plan");
+        debug!(text=%plan.display_indent_schema(), "prepare_plan: initial plan");
 
         let plan = self.inner.optimize(&plan)?;
-        debug!(text=%plan.display_indent_schema(), graphviz=%plan.display_graphviz(), "optimized plan");
+        trace!(text=%plan.display_indent_schema(), graphviz=%plan.display_graphviz(), "optimized plan");
 
         let physical_plan = self.inner.create_physical_plan(&plan)?;
 
-        debug!(text=%displayable(physical_plan.as_ref()).indent(), "optimized physical plan");
+        debug!(text=%displayable(physical_plan.as_ref()).indent(), "prepare_plan: plan to run");
         Ok(physical_plan)
     }
 

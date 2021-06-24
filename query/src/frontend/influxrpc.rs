@@ -15,7 +15,7 @@ use internal_types::{
     schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME},
     selection::Selection,
 };
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, trace};
 use snafu::{ensure, ResultExt, Snafu};
 
 use crate::{
@@ -251,8 +251,6 @@ impl InfluxRpcPlanner {
                 continue;
             }
             let table_name = chunk.table_name();
-            let chunk_id = chunk.id();
-            debug!(table_name, chunk_id, "finding columns in table");
 
             // get only tag columns from metadata
             let schema = chunk.schema();
@@ -272,7 +270,7 @@ impl InfluxRpcPlanner {
 
             match maybe_names {
                 Some(mut names) => {
-                    debug!(names=?names, chunk_id = chunk.id(), "column names found from metadata");
+                    debug!(table_name, names=?names, chunk_id = chunk.id(), "column names found from metadata");
                     known_columns.append(&mut names);
                 }
                 None => {
@@ -359,8 +357,6 @@ impl InfluxRpcPlanner {
                 continue;
             }
             let table_name = chunk.table_name();
-            let chunk_id = chunk.id();
-            debug!(table_name, chunk_id, "finding columns in table");
 
             // use schema to validate column type
             let schema = chunk.schema();
@@ -399,7 +395,7 @@ impl InfluxRpcPlanner {
 
             match maybe_values {
                 Some(mut names) => {
-                    debug!(names=?names, chunk_id = chunk.id(), "column values found from metadata");
+                    debug!(table_name, names=?names, chunk_id = chunk.id(), "column values found from metadata");
                     known_values.append(&mut names);
                 }
                 None => {
@@ -593,7 +589,13 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
-        debug!(predicate=?predicate, "planning read_window_aggregate");
+        debug!(
+            ?predicate,
+            ?agg,
+            ?every,
+            ?offset,
+            "planning read_window_aggregate"
+        );
 
         // group tables by chunk, pruning if possible
         let chunks = database.chunks(&predicate);
@@ -1122,8 +1124,8 @@ impl InfluxRpcPlanner {
             // to evaluate the predicate (if not, it means no rows can
             // match and thus we should skip this plan)
             if !schema_has_all_expr_columns(&schema, &filter_expr) {
-                debug!(table_name=table_name,
-                       schema=?schema,
+                trace!(table_name=table_name,
+                       ?schema,
                        filter_expr=?filter_expr,
                        "Skipping table as schema doesn't have all filter_expr columns");
                 return Ok(None);

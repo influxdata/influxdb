@@ -26,7 +26,7 @@ use datafusion::{
 };
 
 use futures::StreamExt;
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, trace};
 use tokio::sync::{mpsc::Sender, Mutex};
 
 use crate::exec::stream::AdapterStream;
@@ -186,7 +186,7 @@ impl ExecutionPlan for StreamSplitExec {
     /// * partition 0 are the rows for which the split_expr evaluates to true
     /// * partition 1 are the rows for which the split_expr does not evaluate to true (e.g. Null or false)
     async fn execute(&self, partition: usize) -> Result<SendableRecordBatchStream> {
-        debug!(partition, "SplitExec::execute");
+        trace!(partition, "SplitExec::execute");
         self.start_if_needed().await?;
 
         let mut state = self.state.lock().await;
@@ -229,7 +229,7 @@ impl StreamSplitExec {
             "need exactly one input partition for stream split exec"
         );
 
-        debug!("Setting up SplitStreamExec state");
+        trace!("Setting up SplitStreamExec state");
 
         let input_stream = self.input.execute(0).await?;
         let (tx0, rx0) = tokio::sync::mpsc::channel(2);
@@ -267,7 +267,7 @@ impl StreamSplitExec {
                 }
                 // Input task completed successfully
                 Ok(Ok(())) => {
-                    debug!("All input tasks completed successfully");
+                    trace!("All input tasks completed successfully");
                 }
             }
         });
@@ -291,7 +291,7 @@ async fn split_the_stream(
 ) -> Result<()> {
     while let Some(batch) = input_stream.next().await {
         let batch = batch?;
-        debug!(num_rows = batch.num_rows(), "Processing batch");
+        trace!(num_rows = batch.num_rows(), "Processing batch");
         let mut tx0_done = false;
         let mut tx1_done = false;
 
@@ -362,7 +362,7 @@ async fn split_the_stream(
         }
     }
 
-    debug!("Splitting done successfully");
+    trace!("Splitting done successfully");
     Ok(())
 }
 

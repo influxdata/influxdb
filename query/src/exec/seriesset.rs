@@ -27,7 +27,7 @@ use arrow::{
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 
-use observability_deps::tracing::debug;
+use observability_deps::tracing::trace;
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
 use tokio::sync::mpsc::error::SendError;
@@ -313,7 +313,7 @@ impl SeriesSetConverter {
         // for now, always treat the last row as ending a series
         bitmap.add(num_rows as u32);
 
-        debug!(
+        trace!(
             rows = ?bitmap.to_vec(),
             ?col_idx,
             "row transitions for results"

@@ -34,7 +34,7 @@ where
     O: PruningObserver<Observed = P>,
 {
     let num_chunks = summaries.len();
-    debug!(num_chunks, %predicate, "Pruning chunks");
+    trace!(num_chunks, %predicate, "Pruning chunks");
 
     let filter_expr = match predicate.filter_expr() {
         Some(expr) => expr,
@@ -55,6 +55,7 @@ where
 
     let num_remaining_chunks = pruned_summaries.len();
     debug!(
+        %predicate,
         num_chunks,
         num_pruned_chunks = num_chunks - num_remaining_chunks,
         num_remaining_chunks,
