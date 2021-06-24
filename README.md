@@ -266,7 +266,7 @@ $ ./scripts/grpcurl -plaintext 127.0.0.1:8082 influxdata.iox.management.v1.Manag
 
 We welcome community contributions from anyone!
 
-Read our [Contributing Guide](CONTRIBUTING.md) for instructions on how to make your first contribution.
+Read our [Contributing Guide](CONTRIBUTING.md) for instructions on how to run tests and how to make your first contribution.
 
 ## Architecture and Technical Documenation
 
