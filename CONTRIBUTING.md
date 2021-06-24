@@ -118,6 +118,19 @@ can use all the features of that crate. For example, to disable the
 RUST_LOG=debug,hyper::proto::h1=info,h2=info cargo test --workspace
 ```
 
+### End-to-End Tests
+
+There are end-to-end tests that spin up a server and make requests via the client library and API. 
+These aren't run via the `cargo test --workspace` command. 
+They can be found in `tests/end_to_end_cases` and can be run with:
+```
+cargo test --test end-to-end
+``` 
+If you are debugging a failing end-to-end test, you'll likely want to see what's happening by running it like so:
+```
+cargo test --test end-to-end -- my_failing_test --nocapture
+```
+
 ### Visually showing explain plans
 
 Some query plans are output in the log in [graphviz](https://graphviz.org/) format. To display them you can use the `tools/iplan` helper.
