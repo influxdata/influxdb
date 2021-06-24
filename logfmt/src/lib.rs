@@ -281,16 +281,15 @@ fn needs_quotes_and_escaping(value: &str) -> bool {
         return true;
     }
 
-    value.contains(' ') && !pre_quoted
+    let has_not_printable = value.bytes().any(|b| b <= b' ');
+
+    has_not_printable && !pre_quoted
 }
 
 /// escape any characters in name as needed, otherwise return string as is
 fn quote_and_escape(value: &'_ str) -> Cow<'_, str> {
     if needs_quotes_and_escaping(value) {
-        Cow::Owned(format!(
-            "\"{}\"",
-            value.replace(r#"\"#, r#"\\"#).replace(r#"""#, r#"\""#)
-        ))
+        Cow::Owned(format!("{:?}", value))
     } else {
         Cow::Borrowed(value)
     }
@@ -375,5 +374,17 @@ mod test {
             quote_and_escape(r#"a "0 \"1\" 2" c"#),
             r#""a \"0 \\\"1\\\" 2\" c""#
         );
+    }
+
+    #[test]
+    fn quote_not_printable() {
+        assert_eq!(quote_and_escape("foo\nbar"), r#""foo\nbar""#);
+        assert_eq!(quote_and_escape("foo\r\nbar"), r#""foo\r\nbar""#);
+        assert_eq!(quote_and_escape("foo\0bar"), r#""foo\u{0}bar""#);
+    }
+
+    #[test]
+    fn not_quote_unicode_unnecessarily() {
+        assert_eq!(quote_and_escape("mikuličić"), "mikuličić");
     }
 }

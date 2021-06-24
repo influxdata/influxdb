@@ -138,6 +138,7 @@ impl std::fmt::Display for TracesSampler {
     }
 }
 
+#[derive(Debug)]
 pub struct JaegerConfig {
     pub agent_host: String,
     pub agent_port: NonZeroU16,
@@ -145,6 +146,7 @@ pub struct JaegerConfig {
     pub max_packet_size: usize,
 }
 
+#[derive(Debug)]
 pub struct OtlpConfig {
     pub host: String,
     pub port: NonZeroU16,
