@@ -171,11 +171,6 @@ pub enum Error {
 
     #[snafu(display("error finding min/max time on table batch: {}", source))]
     TableBatchTimeError { source: entry::Error },
-
-    #[snafu(display("error creating persistence windows: {}", source))]
-    PersistenceWindowsError {
-        source: mutable_buffer::persistence_windows::Error,
-    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -1032,8 +1027,7 @@ impl Db {
                             );
                         }
                         None => {
-                            let mut windows = PersistenceWindows::new(late_arrival_window)
-                                .context(PersistenceWindowsError)?;
+                            let mut windows = PersistenceWindows::new(late_arrival_window);
                             windows.add_range(
                                 sequenced_entry.as_ref().sequence(),
                                 row_count,
