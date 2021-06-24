@@ -73,7 +73,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
-use db::load_or_create_preserved_catalog;
+use db::{load_or_create_preserved_catalog, DatabaseToCommit};
 use init::InitStatus;
 use observability_deps::tracing::{debug, info, warn};
 use parking_lot::Mutex;
@@ -207,6 +207,9 @@ pub enum Error {
 
     #[snafu(display("cannot get id: {}", source))]
     GetIdError { source: crate::init::Error },
+
+    #[snafu(display("cannot create write buffer for writing: {}", source))]
+    CreatingWriteBufferForWriting { source: DatabaseError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -498,14 +501,20 @@ where
         .map_err(|e| Box::new(e) as _)
         .context(CatalogLoadError)?;
 
-        db_reservation.commit_db(
+        let write_buffer = write_buffer::new(&rules)
+            .map_err(|e| Error::CreatingWriteBufferForWriting { source: e })?;
+
+        let database_to_commit = DatabaseToCommit {
             server_id,
-            Arc::clone(&self.store),
-            Arc::clone(&self.exec),
+            object_store: Arc::clone(&self.store),
+            exec: Arc::clone(&self.exec),
             preserved_catalog,
             catalog,
             rules,
-        )?;
+            write_buffer,
+        };
+
+        db_reservation.commit_db(database_to_commit)?;
 
         Ok(())
     }
@@ -714,7 +723,7 @@ where
 
     pub async fn write_entry_local(&self, db_name: &str, db: &Db, entry: Entry) -> Result<()> {
         let bytes = entry.data().len() as u64;
-        db.store_entry(entry).map_err(|e| {
+        db.store_entry(entry).await.map_err(|e| {
             self.metrics.ingest_entries_bytes_total.add_with_labels(
                 bytes,
                 &[

@@ -7,10 +7,7 @@ use arrow::{
 };
 use datafusion::{
     logical_plan::Expr,
-    physical_plan::{
-        parquet::ParquetExec, ExecutionPlan, Partitioning, RecordBatchStream,
-        SendableRecordBatchStream,
-    },
+    physical_plan::{parquet::ParquetExec, ExecutionPlan, Partitioning, SendableRecordBatchStream},
 };
 use internal_types::selection::Selection;
 use object_store::{
@@ -23,19 +20,17 @@ use parquet::{
     arrow::ArrowWriter,
     file::{metadata::KeyValue, properties::WriterProperties, writer::TryClone},
 };
-use query::predicate::Predicate;
+use query::{exec::stream::AdapterStream, predicate::Predicate};
 
 use bytes::Bytes;
 use data_types::{chunk_metadata::ChunkAddr, server_id::ServerId};
-use futures::{Stream, StreamExt};
+use futures::StreamExt;
 use parking_lot::Mutex;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     io::{Cursor, Seek, SeekFrom, Write},
     sync::Arc,
-    task::{Context, Poll},
 };
-use tokio_stream::wrappers::ReceiverStream;
 use uuid::Uuid;
 
 use crate::metadata::{IoxMetadata, IoxParquetMetaData, METADATA_KEY};
@@ -133,29 +128,6 @@ pub enum Error {
     MetadataEncodeFailure { source: serde_json::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-#[derive(Debug)]
-pub struct ParquetStream {
-    schema: SchemaRef,
-    inner: ReceiverStream<ArrowResult<RecordBatch>>,
-}
-
-impl Stream for ParquetStream {
-    type Item = ArrowResult<RecordBatch>;
-
-    fn poll_next(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
-        self.inner.poll_next_unpin(cx)
-    }
-}
-
-impl RecordBatchStream for ParquetStream {
-    fn schema(&self) -> SchemaRef {
-        Arc::clone(&self.schema)
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct Storage {
@@ -397,13 +369,8 @@ impl Storage {
             }
         });
 
-        // returned stream simply reads off the rx stream
-        let stream = ParquetStream {
-            schema,
-            inner: ReceiverStream::new(rx),
-        };
-
-        Ok(Box::pin(stream))
+        // returned stream simply reads off the rx channel
+        Ok(AdapterStream::adapt(schema, rx))
     }
 }
 

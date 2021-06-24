@@ -4,25 +4,25 @@ mod algo;
 use std::{fmt, sync::Arc};
 
 use arrow::{
-    datatypes::SchemaRef,
     error::{ArrowError, Result as ArrowResult},
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
+
+use crate::exec::stream::AdapterStream;
 
 use self::algo::RecordBatchDeduplicator;
 use datafusion::{
     error::{DataFusionError, Result},
     physical_plan::{
         expressions::PhysicalSortExpr, DisplayFormatType, Distribution, ExecutionPlan,
-        Partitioning, RecordBatchStream, SQLMetric, SendableRecordBatchStream,
+        Partitioning, SQLMetric, SendableRecordBatchStream,
     },
 };
-use futures::{Stream, StreamExt};
+use futures::StreamExt;
 use hashbrown::HashMap;
 use observability_deps::tracing::debug;
 use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
 
 /// # DeduplicateExec
 ///
@@ -198,11 +198,7 @@ impl ExecutionPlan for DeduplicateExec {
             }
         });
 
-        let stream = AdapterStream {
-            schema: self.schema(),
-            inner: ReceiverStream::new(rx),
-        };
-        Ok(Box::pin(stream))
+        Ok(AdapterStream::adapt(self.schema(), rx))
     }
 
     fn required_child_distribution(&self) -> Distribution {
@@ -252,34 +248,10 @@ async fn deduplicate(
     Ok(())
 }
 
-#[derive(Debug)]
-struct AdapterStream {
-    /// Schema
-    schema: SchemaRef,
-    /// channel for getting deduplicated batches
-    inner: ReceiverStream<ArrowResult<RecordBatch>>,
-}
-
-impl Stream for AdapterStream {
-    type Item = ArrowResult<RecordBatch>;
-
-    fn poll_next(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        self.inner.poll_next_unpin(cx)
-    }
-}
-
-impl RecordBatchStream for AdapterStream {
-    fn schema(&self) -> SchemaRef {
-        Arc::clone(&self.schema)
-    }
-}
-
 #[cfg(test)]
 mod test {
     use arrow::compute::SortOptions;
+    use arrow::datatypes::SchemaRef;
     use arrow::{
         array::{ArrayRef, Float64Array, StringArray},
         record_batch::RecordBatch,
@@ -886,11 +858,7 @@ mod test {
                 }
             }
 
-            let stream = AdapterStream {
-                schema: self.schema(),
-                inner: ReceiverStream::new(rx),
-            };
-            Ok(Box::pin(stream))
+            Ok(AdapterStream::adapt(self.schema(), rx))
         }
     }
 

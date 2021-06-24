@@ -19,8 +19,8 @@ async fn setup() -> TestDb {
     let db = &test_db.db;
 
     // Chunk 0 has bar:[1-2]
-    write_lp(db, "cpu bar=1 10");
-    write_lp(db, "cpu bar=2 20");
+    write_lp(db, "cpu bar=1 10").await;
+    write_lp(db, "cpu bar=2 20").await;
 
     let partition_key = "1970-01-01T00";
     let mb_chunk = db
@@ -33,9 +33,9 @@ async fn setup() -> TestDb {
         .unwrap();
 
     // Chunk 1 has bar:[3-3] (going to get pruned)
-    write_lp(db, "cpu bar=3 10");
-    write_lp(db, "cpu bar=3 100");
-    write_lp(db, "cpu bar=3 1000");
+    write_lp(db, "cpu bar=3 10").await;
+    write_lp(db, "cpu bar=3 100").await;
+    write_lp(db, "cpu bar=3 1000").await;
 
     let partition_key = "1970-01-01T00";
     let mb_chunk = db

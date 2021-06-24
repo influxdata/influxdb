@@ -23,8 +23,8 @@ use tokio::sync::Semaphore;
 
 use crate::{
     config::{Config, DB_RULES_FILE_NAME},
-    db::load_or_create_preserved_catalog,
-    DatabaseError,
+    db::{load_or_create_preserved_catalog, DatabaseToCommit},
+    write_buffer, DatabaseError,
 };
 
 const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
@@ -71,6 +71,9 @@ pub enum Error {
     DatabaseNameError {
         source: data_types::DatabaseNameError,
     },
+
+    #[snafu(display("Cannot create write buffer for writing: {}", source))]
+    CreateWriteBufferForWriting { source: DatabaseError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -326,9 +329,22 @@ impl InitStatus {
                 .context(CatalogLoadError)
                 {
                     Ok((preserved_catalog, catalog)) => {
+                        let write_buffer =
+                            write_buffer::new(&rules).context(CreateWriteBufferForWriting)?;
+
+                        let database_to_commit = DatabaseToCommit {
+                            server_id,
+                            object_store: store,
+                            exec,
+                            preserved_catalog,
+                            catalog,
+                            rules,
+                            write_buffer,
+                        };
+
                         // everything is there, can create DB
                         handle
-                            .commit_db(server_id, store, exec, preserved_catalog, catalog, rules)
+                            .commit_db(database_to_commit)
                             .map_err(Box::new)
                             .context(CreateDbError)?;
                         Ok(())
