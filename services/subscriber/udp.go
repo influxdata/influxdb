@@ -1,6 +1,7 @@
 package subscriber
 
 import (
+	"context"
 	"net"
 
 	"github.com/influxdata/influxdb/coordinator"
@@ -17,7 +18,7 @@ func NewUDP(addr string) *UDP {
 }
 
 // WritePoints writes points over UDP transport.
-func (u *UDP) WritePoints(p *coordinator.WritePointsRequest) (err error) {
+func (u *UDP) WritePointsContext(_ context.Context, p *coordinator.WritePointsRequest) (err error) {
 	var addr *net.UDPAddr
 	var con *net.UDPConn
 	addr, err = net.ResolveUDPAddr("udp", u.addr)

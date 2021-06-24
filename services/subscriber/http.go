@@ -1,6 +1,7 @@
 package subscriber
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"io/ioutil"
@@ -42,7 +43,7 @@ func NewHTTPS(addr string, timeout time.Duration, unsafeSsl bool, caCerts string
 }
 
 // WritePoints writes points over HTTP transport.
-func (h *HTTP) WritePoints(p *coordinator.WritePointsRequest) (err error) {
+func (h *HTTP) WritePointsContext(ctx context.Context, p *coordinator.WritePointsRequest) (err error) {
 	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
 		Database:        p.Database,
 		RetentionPolicy: p.RetentionPolicy,
@@ -50,7 +51,7 @@ func (h *HTTP) WritePoints(p *coordinator.WritePointsRequest) (err error) {
 	for _, pt := range p.Points {
 		bp.AddPoint(client.NewPointFrom(pt))
 	}
-	err = h.c.Write(bp)
+	err = h.c.WriteCtx(ctx, bp)
 	return
 }
 

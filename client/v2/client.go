@@ -80,6 +80,9 @@ type Client interface {
 	// Write takes a BatchPoints object and writes all Points to InfluxDB.
 	Write(bp BatchPoints) error
 
+	// WriteCtx takes a BatchPoints object and writes all Points to InfluxDB.
+	WriteCtx(ctx context.Context, bp BatchPoints) error
+
 	// Query makes an InfluxDB Query on the database. This will fail if using
 	// the UDP client.
 	Query(q Query) (*Response, error)
@@ -377,6 +380,10 @@ func NewPointFrom(pt models.Point) *Point {
 }
 
 func (c *client) Write(bp BatchPoints) error {
+	return c.WriteCtx(context.Background(), bp)
+}
+
+func (c *client) WriteCtx(ctx context.Context, bp BatchPoints) error {
 	var b bytes.Buffer
 
 	for _, p := range bp.Points() {
@@ -395,7 +402,7 @@ func (c *client) Write(bp BatchPoints) error {
 	u := c.url
 	u.Path = path.Join(u.Path, "write")
 
-	req, err := http.NewRequest("POST", u.String(), &b)
+	req, err := http.NewRequestWithContext(ctx, "POST", u.String(), &b)
 	if err != nil {
 		return err
 	}

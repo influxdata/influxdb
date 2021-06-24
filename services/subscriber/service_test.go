@@ -1,6 +1,7 @@
 package subscriber_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -33,7 +34,7 @@ type Subscription struct {
 	WritePointsFn func(*coordinator.WritePointsRequest) error
 }
 
-func (s Subscription) WritePoints(p *coordinator.WritePointsRequest) error {
+func (s Subscription) WritePointsContext(_ context.Context, p *coordinator.WritePointsRequest) error {
 	return s.WritePointsFn(p)
 }
 

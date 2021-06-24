@@ -3,6 +3,7 @@
 package subscriber // import "github.com/influxdata/influxdb/services/subscriber"
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -29,7 +30,7 @@ const (
 // Only WritePoints() needs to be satisfied.  PointsWriter implementations
 // must be goroutine safe.
 type PointsWriter interface {
-	WritePoints(p *coordinator.WritePointsRequest) error
+	WritePointsContext(ctx context.Context, p *coordinator.WritePointsRequest) error
 }
 
 // subEntry is a unique set that identifies a given subscription.
@@ -362,8 +363,8 @@ func (s *Service) updateSubs() {
 				logger.Database(se.db),
 				logger.RetentionPolicy(se.rp))
 
-			// Close the chanWriter
-			s.subs[se].Close()
+			// Close the chanWriter and cancel all in-flight writes
+			s.subs[se].CancelAndClose()
 
 			// Remove it from the set
 			delete(s.subs, se)
@@ -394,6 +395,8 @@ func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
 // chanWriter sends WritePointsRequest to a PointsWriter received over a channel.
 type chanWriter struct {
 	writeRequests chan *coordinator.WritePointsRequest
+	ctx context.Context
+	cancel context.CancelFunc
 	pw            PointsWriter
 	pointsWritten *int64
 	failures      *int64
@@ -402,8 +405,11 @@ type chanWriter struct {
 }
 
 func newChanWriter(s *Service, sub PointsWriter) *chanWriter {
+	ctx, cancel := context.WithCancel(context.Background())
 	cw := &chanWriter{
 		writeRequests: make(chan *coordinator.WritePointsRequest, s.conf.WriteBufferSize),
+		ctx: ctx,
+		cancel: cancel,
 		pw:            sub,
 		pointsWritten: &s.stats.PointsWritten,
 		failures:      &s.stats.WriteFailures,
@@ -419,6 +425,12 @@ func newChanWriter(s *Service, sub PointsWriter) *chanWriter {
 	return cw
 }
 
+func (c *chanWriter) CancelAndClose() {
+	close(c.writeRequests)
+	c.cancel()
+	c.wg.Wait()
+}
+
 // Close closes the chanWriter. It blocks until all the in-flight write requests are finished.
 func (c *chanWriter) Close() {
 	close(c.writeRequests)
@@ -427,7 +439,7 @@ func (c *chanWriter) Close() {
 
 func (c *chanWriter) Run() {
 	for wr := range c.writeRequests {
-		err := c.pw.WritePoints(wr)
+		err := c.pw.WritePointsContext(c.ctx, wr)
 		if err != nil {
 			c.logger.Info(err.Error())
 			atomic.AddInt64(c.failures, 1)
@@ -471,7 +483,7 @@ type balancewriter struct {
 	i           int
 }
 
-func (b *balancewriter) WritePoints(p *coordinator.WritePointsRequest) error {
+func (b *balancewriter) WritePointsContext(ctx context.Context, p *coordinator.WritePointsRequest) error {
 	var lastErr error
 	for range b.writers {
 		// round robin through destinations.
@@ -480,7 +492,7 @@ func (b *balancewriter) WritePoints(p *coordinator.WritePointsRequest) error {
 		b.i = (b.i + 1) % len(b.writers)
 
 		// write points to destination.
-		err := w.WritePoints(p)
+		err := w.WritePointsContext(ctx, p)
 		if err != nil {
 			lastErr = err
 			atomic.AddInt64(&b.stats[i].failures, 1)
