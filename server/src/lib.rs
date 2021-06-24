@@ -1177,7 +1177,7 @@ mod tests {
                 parts: vec![TemplatePart::TimeFormat("YYYY-MM".to_string())],
             },
             lifecycle_rules: LifecycleRules {
-                catalog_transactions_until_checkpoint: Some(13.try_into().unwrap()),
+                catalog_transactions_until_checkpoint: 13.try_into().unwrap(),
                 ..Default::default()
             },
             routing_rules: None,

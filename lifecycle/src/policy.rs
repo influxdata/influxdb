@@ -4,16 +4,17 @@ use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
-use hashbrown::HashSet;
 
+use data_types::chunk_metadata::ChunkStorage;
 use data_types::database_rules::LifecycleRules;
-use observability_deps::tracing::{debug, warn};
+use observability_deps::tracing::{debug, info, warn};
 use tracker::TaskTracker;
 
-use crate::{LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk, LockablePartition};
-use data_types::chunk_metadata::ChunkStorage;
+use crate::{
+    ChunkLifecycleAction, LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk,
+    LockablePartition,
+};
 
-pub const DEFAULT_LIFECYCLE_BACKOFF: Duration = Duration::from_secs(1);
 /// Number of seconds to wait before retying a failed lifecycle action
 pub const LIFECYCLE_ACTION_BACKOFF: Duration = Duration::from_secs(10);
 
@@ -25,10 +26,11 @@ pub struct LifecyclePolicy<'a, M>
 where
     &'a M: LifecycleDb,
 {
+    /// The `LifecycleDb` this policy is automating
     db: &'a M,
-    // TODO: Remove these and use values from chunks within partition
-    move_tracker: Option<TaskTracker<<<&'a M as LifecycleDb>::Chunk as LockableChunk>::Job>>,
-    write_tracker: Option<TaskTracker<<<&'a M as LifecycleDb>::Chunk as LockableChunk>::Job>>,
+
+    /// Background tasks spawned by this `LifecyclePolicy`
+    trackers: Vec<TaskTracker<ChunkLifecycleAction>>,
 }
 
 impl<'a, M> LifecyclePolicy<'a, M>
@@ -38,8 +40,7 @@ where
     pub fn new(db: &'a M) -> Self {
         Self {
             db,
-            move_tracker: None,
-            write_tracker: None,
+            trackers: vec![],
         }
     }
 
@@ -53,20 +54,23 @@ where
     ///
     /// TODO: use LRU instead of creation time
     ///
-    fn maybe_free_memory(&mut self, soft_limit: usize, drop_non_persisted: bool) {
+    fn maybe_free_memory<P: LockablePartition>(
+        &mut self,
+        partitions: &[P],
+        soft_limit: usize,
+        drop_non_persisted: bool,
+    ) {
         let buffer_size = self.db.buffer_size();
         if buffer_size < soft_limit {
             debug!(buffer_size, %soft_limit, "memory use under soft limit");
             return;
         }
 
-        let partitions = self.db.partitions();
-
         // Collect a list of candidates to free memory
         let mut candidates = Vec::new();
-        for partition in &partitions {
+        for partition in partitions {
             let guard = partition.read();
-            for chunk in LockablePartition::chunks(&guard) {
+            for (_, chunk) in LockablePartition::chunks(&guard) {
                 let chunk = chunk.read();
                 if chunk.lifecycle_action().is_some() {
                     continue;
@@ -85,7 +89,7 @@ where
                 candidates.push(FreeCandidate {
                     partition,
                     action,
-                    chunk_id: chunk.chunk_id(),
+                    chunk_id: chunk.addr().chunk_id,
                     first_write: chunk.time_of_first_write(),
                 })
             }
@@ -170,6 +174,179 @@ where
         }
     }
 
+    /// Find chunks to compact together
+    ///
+    /// Finds unpersisted chunks with no in-progress lifecycle actions
+    /// and compacts them into a single RUB chunk
+    ///
+    /// Will include the open chunk if it is cold for writes as determined
+    /// by the mutable linger threshold
+    fn maybe_compact_chunks<P: LockablePartition>(
+        &mut self,
+        partitions: &[P],
+        rules: &LifecycleRules,
+        now: DateTime<Utc>,
+    ) {
+        // TODO: Skip partitions with no PersistenceWindows (i.e. fully persisted)
+        // TODO: Encapsulate locking into a CatalogTransaction type
+        for partition in partitions {
+            let partition = partition.read();
+
+            let mut chunks = LockablePartition::chunks(&partition);
+            // Sort by chunk ID to ensure a stable lock order
+            chunks.sort_by_key(|x| x.0);
+
+            let mut has_mub_snapshot = false;
+            let mut to_compact = Vec::new();
+            for (_, chunk) in &chunks {
+                let chunk = chunk.read();
+                if chunk.lifecycle_action().is_some() {
+                    // This likely means it is being persisted
+                    continue;
+                }
+
+                match chunk.storage() {
+                    ChunkStorage::OpenMutableBuffer => {
+                        if can_move(rules, &*chunk, now) {
+                            has_mub_snapshot = true;
+                            to_compact.push(chunk);
+                        }
+                    }
+                    ChunkStorage::ClosedMutableBuffer => {
+                        has_mub_snapshot = true;
+                        to_compact.push(chunk);
+                    }
+                    ChunkStorage::ReadBuffer => {
+                        to_compact.push(chunk);
+                    }
+                    _ => {}
+                }
+            }
+
+            if to_compact.len() >= 2 || has_mub_snapshot {
+                // Upgrade partition first
+                let partition = partition.upgrade();
+                let chunks = to_compact
+                    .into_iter()
+                    .map(|chunk| chunk.upgrade())
+                    .collect();
+
+                let tracker = LockablePartition::compact_chunks(partition, chunks)
+                    .expect("failed to compact chunks")
+                    .with_metadata(ChunkLifecycleAction::Compacting);
+
+                self.trackers.push(tracker);
+            }
+        }
+    }
+
+    /// Check persistence
+    ///
+    /// Looks for read buffer chunks to persist
+    ///
+    /// A chunk will be persisted if it has more than `persist_row_threshold` rows
+    /// or it was last written to more than `late_arrive_window_seconds` ago
+    ///
+    fn maybe_persist_chunks<P: LockablePartition>(
+        &mut self,
+        partitions: &[P],
+        rules: &LifecycleRules,
+        now: DateTime<Utc>,
+    ) {
+        // TODO: Skip partitions with no PersistenceWindows (i.e. fully persisted)
+        // TODO: Use PersistenceWindows, split chunks, etc...
+
+        let row_threshold = rules.persist_row_threshold.get();
+        let late_arrive_window_seconds = rules.late_arrive_window_seconds.get();
+
+        for partition in partitions {
+            let partition = partition.read();
+            let chunks = LockablePartition::chunks(&partition);
+
+            // The candidate RUB chunk to persist
+            let mut persist_candidate = None;
+
+            // If there are other unpersisted chunks in the partition
+            let mut has_other_unpersisted = false;
+
+            for (_, chunk) in &chunks {
+                let chunk = chunk.read();
+                match chunk.storage() {
+                    ChunkStorage::ReadBuffer => {}
+                    ChunkStorage::OpenMutableBuffer | ChunkStorage::ClosedMutableBuffer => {
+                        has_other_unpersisted = true;
+                        continue;
+                    }
+                    ChunkStorage::ReadBufferAndObjectStore | ChunkStorage::ObjectStoreOnly => {
+                        continue
+                    }
+                }
+
+                if chunk.lifecycle_action().is_some() {
+                    continue;
+                }
+
+                if persist_candidate.is_some() {
+                    debug!(
+                        partition = partition.partition_key(),
+                        "found multiple read buffer chunks"
+                    );
+
+                    has_other_unpersisted = true;
+                    continue;
+                }
+
+                persist_candidate = Some(chunk);
+            }
+
+            if let Some(chunk) = persist_candidate {
+                let mut should_persist = chunk.row_count() >= row_threshold;
+                if !should_persist && !has_other_unpersisted {
+                    if let Some(last_write) = chunk.time_of_last_write() {
+                        should_persist =
+                            elapsed_seconds(now, last_write) > late_arrive_window_seconds;
+                    }
+                }
+
+                if should_persist {
+                    let tracker = LockableChunk::write_to_object_store(chunk.upgrade())
+                        .expect("task preparation failed")
+                        .with_metadata(ChunkLifecycleAction::Persisting);
+
+                    self.trackers.push(tracker);
+                }
+            }
+        }
+    }
+
+    /// Find failed lifecycle actions to cleanup
+    ///
+    /// Iterates through the chunks in the database, looking for chunks marked with lifecycle
+    /// actions that are no longer running.
+    ///
+    /// As success should clear the action, the fact the action is still present but the job
+    /// is no longer running, implies the job failed
+    ///
+    /// Clear any such jobs if they exited more than `LIFECYCLE_ACTION_BACKOFF` seconds ago
+    ///
+    fn maybe_cleanup_failed<P: LockablePartition>(&mut self, partitions: &[P], now: Instant) {
+        for partition in partitions {
+            let partition = partition.read();
+            for (_, chunk) in LockablePartition::chunks(&partition) {
+                let chunk = chunk.read();
+                if let Some(lifecycle_action) = chunk.lifecycle_action() {
+                    if lifecycle_action.is_complete()
+                        && now.duration_since(lifecycle_action.start_instant())
+                            >= LIFECYCLE_ACTION_BACKOFF
+                    {
+                        info!(chunk=%chunk.addr(), action=?lifecycle_action.metadata(), "clearing failed lifecycle action");
+                        chunk.upgrade().clear_lifecycle_action();
+                    }
+                }
+            }
+        }
+    }
+
     /// The core policy logic
     ///
     /// Returns a future that resolves when this method should be called next
@@ -177,84 +354,43 @@ where
         &mut self,
         now: DateTime<Utc>,
         now_instant: Instant,
-    ) -> BoxFuture<'static, ()> {
+    ) -> BoxFuture<'_, ()> {
+        // TODO: Add loop iteration count and duration metrics
+
         let rules = self.db.rules();
+        let partitions = self.db.partitions();
 
-        let mut open_partitions: HashSet<String> = HashSet::new();
-
-        // Only want to start a new move/write task if there isn't one already in-flight
+        // Try to persist first as in future this may involve
+        // operations akin to compacting
         //
-        // Fetch the trackers for tasks created by previous loop iterations. If the trackers exist
-        // and haven't completed, we don't want to create a new task of that type as there
-        // is still one in-flight.
-        //
-        // This is a very weak heuristic for preventing background work from starving query
-        // workload - i.e. only use one thread for each type of background task.
-        //
-        // We may want to revisit this in future
-        self.move_tracker = self.move_tracker.take().filter(|x| !x.is_complete());
-        self.write_tracker = self.write_tracker.take().filter(|x| !x.is_complete());
+        // Any time-consuming work should be spawned as tokio tasks and not
+        // run directly within this loop
+        self.maybe_cleanup_failed(&partitions, now_instant);
 
-        // Loop 1: Determine which chunks need to be driven though the
-        // persistence lifecycle to ultimately be persisted to object storage
-        for chunk in self.db.chunks(&rules.sort_order) {
-            let chunk_guard = chunk.read();
-
-            let would_move = can_move(&rules, &*chunk_guard, now);
-            let would_write = self.write_tracker.is_none() && rules.persist;
-
-            if let Some(lifecycle_action) = chunk_guard.lifecycle_action() {
-                if lifecycle_action.is_complete()
-                    && now_instant.duration_since(lifecycle_action.start_instant())
-                        >= LIFECYCLE_ACTION_BACKOFF
-                {
-                    chunk_guard.upgrade().clear_lifecycle_action();
-                }
-                continue;
-            }
-
-            match chunk_guard.storage() {
-                ChunkStorage::OpenMutableBuffer => {
-                    open_partitions.insert(chunk_guard.partition_key().to_string());
-                    if self.move_tracker.is_none() && would_move {
-                        self.move_tracker = Some(
-                            LockableChunk::move_to_read_buffer(chunk_guard.upgrade())
-                                .expect("task preparation failed"),
-                        );
-                    }
-                }
-                ChunkStorage::ClosedMutableBuffer if self.move_tracker.is_none() => {
-                    self.move_tracker = Some(
-                        LockableChunk::move_to_read_buffer(chunk_guard.upgrade())
-                            .expect("task preparation failed"),
-                    );
-                }
-                ChunkStorage::ReadBuffer if would_write => {
-                    self.write_tracker = Some(
-                        LockableChunk::write_to_object_store(chunk_guard.upgrade())
-                            .expect("task preparation failed"),
-                    );
-                }
-                _ => {
-                    // Chunk is already persisted, no additional work needed to persist it
-                }
-            }
+        if rules.persist {
+            self.maybe_persist_chunks(&partitions, &rules, now);
         }
+
+        self.maybe_compact_chunks(&partitions, &rules, now);
 
         if let Some(soft_limit) = rules.buffer_size_soft {
-            self.maybe_free_memory(soft_limit.get(), rules.drop_non_persisted)
+            self.maybe_free_memory(&partitions, soft_limit.get(), rules.drop_non_persisted)
         }
 
-        let move_tracker = self.move_tracker.clone();
-        let write_tracker = self.write_tracker.clone();
+        // Clear out completed tasks
+        self.trackers.retain(|x| !x.is_complete());
+
+        let tracker_fut = match self.trackers.is_empty() {
+            false => futures::future::Either::Left(futures::future::select_all(
+                self.trackers.iter().map(|x| Box::pin(x.join())),
+            )),
+            true => futures::future::Either::Right(futures::future::pending()),
+        };
 
         Box::pin(async move {
-            let backoff = rules
-                .worker_backoff_millis
-                .map(|x| Duration::from_millis(x.get()))
-                .unwrap_or(DEFAULT_LIFECYCLE_BACKOFF);
+            let backoff = rules.worker_backoff_millis.get();
 
-            // `check_for_work` should be called again if either of the tasks completes
+            // `check_for_work` should be called again if any of the tasks completes
             // or the backoff expires.
             //
             // This formulation ensures that the loop will run again in backoff
@@ -269,11 +405,10 @@ where
             //
             // Finally if all tasks are running we still want to be invoked
             // after the backoff interval, even if no tasks have completed by then,
-            // as we may need to drop chunks
+            // as we may need to drop chunks to free up memory
             tokio::select! {
-                _ = tokio::time::sleep(backoff) => {}
-                _ = wait_optional_tracker(move_tracker) => {}
-                _ = wait_optional_tracker(write_tracker) => {}
+                _ = tokio::time::sleep(tokio::time::Duration::from_millis(backoff)) => {}
+                _ = tracker_fut => {}
             };
         })
     }
@@ -288,17 +423,10 @@ where
     }
 }
 
-/// Completes when the provided tracker completes or never if None provided
-async fn wait_optional_tracker<Job: Send + Sync + 'static>(tracker: Option<TaskTracker<Job>>) {
-    match tracker {
-        None => futures::future::pending().await,
-        Some(move_tracker) => move_tracker.join().await,
-    }
-}
-
 /// Returns the number of seconds between two times
 ///
 /// Computes a - b
+#[inline]
 fn elapsed_seconds(a: DateTime<Utc>, b: DateTime<Utc>) -> u32 {
     let seconds = (a - b).num_seconds();
     if seconds < 0 {
@@ -365,35 +493,40 @@ fn sort_free_candidates<P>(candidates: &mut Vec<FreeCandidate<'_, P>>) {
 
 #[cfg(test)]
 mod tests {
+    use std::cmp::max;
+    use std::collections::BTreeMap;
+    use std::convert::Infallible;
     use std::num::{NonZeroU32, NonZeroUsize};
+    use std::sync::Arc;
 
-    use data_types::chunk_metadata::ChunkStorage;
+    use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
     use data_types::database_rules::SortOrder;
     use tracker::{RwLock, TaskId, TaskRegistration, TaskRegistry};
 
-    use super::*;
     use crate::{
         ChunkLifecycleAction, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
         LockablePartition,
     };
-    use std::collections::BTreeMap;
-    use std::convert::Infallible;
-    use std::sync::Arc;
+
+    use super::*;
 
     #[derive(Debug, Eq, PartialEq)]
     enum MoverEvents {
         Move(u32),
-        Write(u32),
+        Persist(u32),
         Drop(u32),
         Unload(u32),
+        Compact(Vec<u32>),
     }
 
     struct TestPartition {
         chunks: BTreeMap<u32, Arc<RwLock<TestChunk>>>,
+        next_id: u32,
     }
 
     struct TestChunk {
-        id: u32,
+        addr: ChunkAddr,
+        row_count: usize,
         time_of_first_write: Option<DateTime<Utc>>,
         time_of_last_write: Option<DateTime<Utc>>,
         lifecycle_action: Option<TaskTracker<ChunkLifecycleAction>>,
@@ -407,8 +540,16 @@ mod tests {
             time_of_last_write: Option<i64>,
             storage: ChunkStorage,
         ) -> Self {
+            let addr = ChunkAddr {
+                db_name: Arc::from(""),
+                table_name: Arc::from(""),
+                partition_key: Arc::from(""),
+                chunk_id: id,
+            };
+
             Self {
-                id,
+                addr,
+                row_count: 10,
                 time_of_first_write: time_of_first_write.map(from_secs),
                 time_of_last_write: time_of_last_write.map(from_secs),
                 lifecycle_action: None,
@@ -416,9 +557,21 @@ mod tests {
             }
         }
 
+        fn with_row_count(self, row_count: usize) -> Self {
+            Self {
+                addr: self.addr,
+                row_count,
+                time_of_first_write: self.time_of_first_write,
+                time_of_last_write: self.time_of_last_write,
+                lifecycle_action: self.lifecycle_action,
+                storage: self.storage,
+            }
+        }
+
         fn with_action(self, action: ChunkLifecycleAction) -> Self {
             Self {
-                id: self.id,
+                addr: self.addr,
+                row_count: self.row_count,
                 time_of_first_write: self.time_of_first_write,
                 time_of_last_write: self.time_of_last_write,
                 lifecycle_action: Some(TaskTracker::complete(action)),
@@ -442,7 +595,8 @@ mod tests {
     impl<'a> LockablePartition for TestLockablePartition<'a> {
         type Partition = TestPartition;
         type Chunk = TestLockableChunk<'a>;
-        type Error = Infallible;
+        type DropError = Infallible;
+        type CompactError = Infallible;
 
         fn read(&self) -> LifecycleReadGuard<'_, Self::Partition, Self> {
             LifecycleReadGuard::new(self.clone(), &self.partition)
@@ -463,21 +617,51 @@ mod tests {
             })
         }
 
-        fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<Self::Chunk> {
+        fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<(u32, Self::Chunk)> {
             let db = s.data().db;
             s.chunks
-                .values()
-                .map(|chunk| TestLockableChunk {
-                    db,
-                    chunk: Arc::clone(chunk),
+                .iter()
+                .map(|(id, chunk)| {
+                    (
+                        *id,
+                        TestLockableChunk {
+                            db,
+                            chunk: Arc::clone(chunk),
+                        },
+                    )
                 })
                 .collect()
+        }
+
+        fn compact_chunks(
+            mut partition: LifecycleWriteGuard<'_, TestPartition, Self>,
+            chunks: Vec<LifecycleWriteGuard<'_, TestChunk, Self::Chunk>>,
+        ) -> Result<TaskTracker<()>, Self::CompactError> {
+            let id = partition.next_id;
+            partition.next_id += 1;
+
+            let mut new_chunk = TestChunk::new(id, None, None, ChunkStorage::ReadBuffer);
+            new_chunk.row_count = 0;
+
+            for chunk in &chunks {
+                partition.chunks.remove(&chunk.addr.chunk_id);
+                new_chunk.row_count += chunk.row_count;
+            }
+
+            partition
+                .chunks
+                .insert(id, Arc::new(RwLock::new(new_chunk)));
+
+            let event = MoverEvents::Compact(chunks.iter().map(|x| x.addr.chunk_id).collect());
+            partition.data().db.events.write().push(event);
+
+            Ok(TaskTracker::complete(()))
         }
 
         fn drop_chunk(
             mut s: LifecycleWriteGuard<'_, Self::Partition, Self>,
             chunk_id: u32,
-        ) -> Result<(), Self::Error> {
+        ) -> Result<(), Self::DropError> {
             s.chunks.remove(&chunk_id);
             s.data().db.events.write().push(MoverEvents::Drop(chunk_id));
             Ok(())
@@ -505,7 +689,7 @@ mod tests {
                 .db
                 .events
                 .write()
-                .push(MoverEvents::Move(s.chunk_id()));
+                .push(MoverEvents::Move(s.addr.chunk_id));
             Ok(TaskTracker::complete(()))
         }
 
@@ -517,7 +701,7 @@ mod tests {
                 .db
                 .events
                 .write()
-                .push(MoverEvents::Write(s.chunk_id()));
+                .push(MoverEvents::Persist(s.addr.chunk_id));
             Ok(TaskTracker::complete(()))
         }
 
@@ -529,7 +713,7 @@ mod tests {
                 .db
                 .events
                 .write()
-                .push(MoverEvents::Unload(s.chunk_id()));
+                .push(MoverEvents::Unload(s.addr.chunk_id));
             Ok(())
         }
     }
@@ -557,20 +741,34 @@ mod tests {
             self.time_of_last_write
         }
 
-        fn table_name(&self) -> String {
-            Default::default()
-        }
-
-        fn partition_key(&self) -> String {
-            Default::default()
-        }
-
-        fn chunk_id(&self) -> u32 {
-            self.id
+        fn addr(&self) -> &ChunkAddr {
+            &self.addr
         }
 
         fn storage(&self) -> ChunkStorage {
             self.storage
+        }
+
+        fn row_count(&self) -> usize {
+            self.row_count
+        }
+    }
+
+    impl TestPartition {
+        fn new(chunks: Vec<TestChunk>) -> Self {
+            let mut max_id = 0;
+            let chunks = chunks
+                .into_iter()
+                .map(|x| {
+                    max_id = max(max_id, x.addr.chunk_id);
+                    (x.addr.chunk_id, Arc::new(RwLock::new(x)))
+                })
+                .collect();
+
+            Self {
+                chunks,
+                next_id: max_id + 1,
+            }
         }
     }
 
@@ -578,19 +776,27 @@ mod tests {
     struct TestDb {
         rules: LifecycleRules,
         partitions: RwLock<Vec<Arc<RwLock<TestPartition>>>>,
+        // TODO: Move onto TestPartition
         events: RwLock<Vec<MoverEvents>>,
     }
 
     impl TestDb {
         fn new(rules: LifecycleRules, chunks: Vec<TestChunk>) -> Self {
+            Self::from_partitions(rules, std::iter::once(TestPartition::new(chunks)))
+        }
+
+        fn from_partitions(
+            rules: LifecycleRules,
+            partitions: impl IntoIterator<Item = TestPartition>,
+        ) -> Self {
             Self {
                 rules,
-                partitions: RwLock::new(vec![Arc::new(RwLock::new(TestPartition {
-                    chunks: chunks
+                partitions: RwLock::new(
+                    partitions
                         .into_iter()
-                        .map(|x| (x.id, Arc::new(RwLock::new(x))))
+                        .map(|x| Arc::new(RwLock::new(x)))
                         .collect(),
-                }))]),
+                ),
                 events: RwLock::new(vec![]),
             }
         }
@@ -771,64 +977,33 @@ mod tests {
 
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
+        let partition = Arc::clone(&db.partitions.read()[0]);
 
         lifecycle.check_for_work(from_secs(9), Instant::now());
 
         assert_eq!(*db.events.read(), vec![]);
 
         lifecycle.check_for_work(from_secs(11), Instant::now());
-        assert_eq!(*db.events.read(), vec![MoverEvents::Move(2)]);
+        let chunks = partition.read().chunks.keys().cloned().collect::<Vec<_>>();
+        // expect chunk 2 to have been compacted into a new chunk 3
+        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![2])]);
+        assert_eq!(chunks, vec![0, 1, 3]);
 
         lifecycle.check_for_work(from_secs(12), Instant::now());
-        assert_eq!(*db.events.read(), vec![MoverEvents::Move(2)]);
+        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![2])]);
 
-        // Should move in the order of chunks in the case of multiple candidates
+        // Should compact everything possible
         lifecycle.check_for_work(from_secs(20), Instant::now());
-        assert_eq!(
-            *db.events.read(),
-            vec![MoverEvents::Move(2), MoverEvents::Move(0)]
-        );
-
-        lifecycle.check_for_work(from_secs(20), Instant::now());
-
         assert_eq!(
             *db.events.read(),
             vec![
-                MoverEvents::Move(2),
-                MoverEvents::Move(0),
-                MoverEvents::Move(1)
+                MoverEvents::Compact(vec![2]),
+                MoverEvents::Compact(vec![0, 1, 3])
             ]
         );
-    }
 
-    #[test]
-    fn test_in_progress() {
-        let mut registry = TaskRegistry::new();
-        let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
-            ..Default::default()
-        };
-        let chunks = vec![TestChunk::new(
-            0,
-            Some(0),
-            Some(0),
-            ChunkStorage::OpenMutableBuffer,
-        )];
-
-        let db = TestDb::new(rules, chunks);
-        let mut lifecycle = LifecyclePolicy::new(&db);
-
-        let (tracker, registration) = registry.register(());
-        lifecycle.move_tracker = Some(tracker);
-        lifecycle.check_for_work(from_secs(80), Instant::now());
-
-        assert_eq!(*db.events.read(), vec![]);
-
-        std::mem::drop(registration);
-
-        lifecycle.check_for_work(from_secs(80), Instant::now());
-
-        assert_eq!(*db.events.read(), vec![MoverEvents::Move(0)]);
+        assert_eq!(partition.read().chunks.len(), 1);
+        assert_eq!(partition.read().chunks[&4].read().row_count, 30);
     }
 
     #[tokio::test]
@@ -841,11 +1016,11 @@ mod tests {
         let db = TestDb::new(rules, vec![]);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        let (tracker, registration) = registry.register(());
+        let (tracker, registration) = registry.register(ChunkLifecycleAction::Moving);
 
-        // Manually set the move_tracker on the DummyMover as if a previous invocation
+        // Manually add the tracker to the policy as if a previous invocation
         // of check_for_work had started a background move task
-        lifecycle.move_tracker = Some(tracker);
+        lifecycle.trackers.push(tracker);
 
         let future = lifecycle.check_for_work(from_secs(0), Instant::now());
         tokio::time::timeout(Duration::from_millis(1), future)
@@ -873,21 +1048,31 @@ mod tests {
 
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
+        let partition = Arc::clone(&db.partitions.read()[0]);
 
         // Expect to move chunk_id=1 first, despite it coming second in
         // the order, because chunk_id=0 will only become old enough at t=100
 
         lifecycle.check_for_work(from_secs(80), Instant::now());
-        assert_eq!(*db.events.read(), vec![MoverEvents::Move(1)]);
+        let chunks = partition.read().chunks.keys().cloned().collect::<Vec<_>>();
+        // Expect chunk 1 to have been compacted into a new chunk 2
+        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![1])]);
+        assert_eq!(chunks, vec![0, 2]);
 
         lifecycle.check_for_work(from_secs(90), Instant::now());
-        assert_eq!(*db.events.read(), vec![MoverEvents::Move(1)]);
+        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![1])]);
 
         lifecycle.check_for_work(from_secs(110), Instant::now());
         assert_eq!(
             *db.events.read(),
-            vec![MoverEvents::Move(1), MoverEvents::Move(0)]
+            vec![
+                MoverEvents::Compact(vec![1]),
+                MoverEvents::Compact(vec![0, 2])
+            ]
         );
+
+        assert_eq!(partition.read().chunks.len(), 1);
+        assert_eq!(partition.read().chunks[&3].read().row_count, 20);
     }
 
     #[tokio::test]
@@ -1008,28 +1193,139 @@ mod tests {
     }
 
     #[test]
+    fn test_compact() {
+        let rules = LifecycleRules {
+            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            ..Default::default()
+        };
+
+        let now = from_secs(20);
+
+        let partitions = vec![
+            TestPartition::new(vec![
+                // still receiving writes => cannot compact
+                TestChunk::new(0, Some(0), Some(20), ChunkStorage::OpenMutableBuffer),
+            ]),
+            TestPartition::new(vec![
+                // still receiving writes => cannot compact
+                TestChunk::new(1, Some(0), Some(20), ChunkStorage::OpenMutableBuffer),
+                // closed => can compact
+                TestChunk::new(2, Some(0), Some(20), ChunkStorage::ClosedMutableBuffer),
+            ]),
+            TestPartition::new(vec![
+                // open but cold => can compact
+                TestChunk::new(3, Some(0), Some(5), ChunkStorage::OpenMutableBuffer),
+                // closed => can compact
+                TestChunk::new(4, Some(0), Some(20), ChunkStorage::ClosedMutableBuffer),
+                // closed => can compact
+                TestChunk::new(5, Some(0), Some(20), ChunkStorage::ReadBuffer),
+                // persisted => cannot compact
+                TestChunk::new(6, Some(0), Some(20), ChunkStorage::ReadBufferAndObjectStore),
+                // persisted => cannot compact
+                TestChunk::new(7, Some(0), Some(20), ChunkStorage::ObjectStoreOnly),
+            ]),
+            TestPartition::new(vec![
+                // closed => can compact
+                TestChunk::new(8, Some(0), Some(20), ChunkStorage::ReadBuffer),
+                // closed => can compact
+                TestChunk::new(9, Some(0), Some(20), ChunkStorage::ReadBuffer),
+                // persisted => cannot compact
+                TestChunk::new(
+                    10,
+                    Some(0),
+                    Some(20),
+                    ChunkStorage::ReadBufferAndObjectStore,
+                ),
+                // persisted => cannot compact
+                TestChunk::new(11, Some(0), Some(20), ChunkStorage::ObjectStoreOnly),
+            ]),
+            TestPartition::new(vec![
+                // open but cold => can compact
+                TestChunk::new(12, Some(0), Some(5), ChunkStorage::OpenMutableBuffer),
+            ]),
+            TestPartition::new(vec![
+                // already compacted => should not compact
+                TestChunk::new(13, Some(0), Some(5), ChunkStorage::ReadBuffer),
+            ]),
+        ];
+
+        let db = TestDb::from_partitions(rules, partitions);
+        let mut lifecycle = LifecyclePolicy::new(&db);
+
+        lifecycle.check_for_work(now, Instant::now());
+        assert_eq!(
+            *db.events.read(),
+            vec![
+                MoverEvents::Compact(vec![2]),
+                MoverEvents::Compact(vec![3, 4, 5]),
+                MoverEvents::Compact(vec![8, 9]),
+                MoverEvents::Compact(vec![12])
+            ]
+        );
+    }
+
+    #[test]
     fn test_persist() {
         let rules = LifecycleRules {
             mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
             persist: true,
+            persist_row_threshold: NonZeroUsize::new(1_000).unwrap(),
+            late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
 
-        let chunks = vec![
-            // still moving => cannot write
-            TestChunk::new(0, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer)
-                .with_action(ChunkLifecycleAction::Moving),
-            // moved => write to object store
-            TestChunk::new(1, Some(0), Some(0), ChunkStorage::ReadBuffer),
-            // moved, but there will be already a write in progress (previous chunk) => don't write
-            TestChunk::new(2, Some(0), Some(0), ChunkStorage::ReadBufferAndObjectStore),
+        let partitions = vec![
+            TestPartition::new(vec![
+                // not compacted => cannot write
+                TestChunk::new(0, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer),
+                // not enough rows
+                TestChunk::new(1, Some(0), Some(0), ChunkStorage::ReadBuffer),
+                // already moved
+                TestChunk::new(2, Some(0), Some(0), ChunkStorage::ReadBufferAndObjectStore),
+            ]),
+            TestPartition::new(vec![
+                TestChunk::new(3, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer)
+                    .with_action(ChunkLifecycleAction::Compacting),
+                // reached row count => write
+                TestChunk::new(4, Some(0), Some(0), ChunkStorage::ReadBuffer).with_row_count(1_000),
+            ]),
+            TestPartition::new(vec![
+                TestChunk::new(5, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer)
+                    .with_action(ChunkLifecycleAction::Compacting),
+                // still compacting => cannot write
+                TestChunk::new(6, Some(0), Some(0), ChunkStorage::ReadBuffer)
+                    .with_row_count(1_000)
+                    .with_action(ChunkLifecycleAction::Compacting),
+            ]),
+            TestPartition::new(vec![
+                // chunk cold => write
+                TestChunk::new(7, Some(0), Some(0), ChunkStorage::ReadBuffer).with_row_count(20),
+            ]),
+            TestPartition::new(vec![
+                // reached row count => write
+                TestChunk::new(8, Some(0), Some(0), ChunkStorage::ReadBuffer).with_row_count(1_000),
+                // could persist, but already persisting above
+                TestChunk::new(9, Some(0), Some(0), ChunkStorage::ReadBuffer).with_row_count(1_000),
+            ]),
+            TestPartition::new(vec![
+                // chunk not cold => cannot write
+                TestChunk::new(10, Some(0), Some(11), ChunkStorage::ReadBuffer).with_row_count(20),
+            ]),
         ];
 
-        let db = TestDb::new(rules, chunks);
+        let db = TestDb::from_partitions(rules, partitions);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        lifecycle.check_for_work(from_secs(0), Instant::now());
-        assert_eq!(*db.events.read(), vec![MoverEvents::Write(1)]);
+        lifecycle.check_for_work(from_secs(20), Instant::now());
+        assert_eq!(
+            *db.events.read(),
+            vec![
+                MoverEvents::Persist(4),
+                MoverEvents::Persist(7),
+                MoverEvents::Persist(8),
+                MoverEvents::Compact(vec![0, 1])
+            ]
+        );
     }
 
     #[test]
@@ -1058,7 +1354,7 @@ mod tests {
 
         // As soon as closed can move
         lifecycle.check_for_work(from_secs(80), Instant::now());
-        assert_eq!(*db.events.read(), vec![MoverEvents::Move(0)]);
+        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![0])]);
     }
 
     #[test]

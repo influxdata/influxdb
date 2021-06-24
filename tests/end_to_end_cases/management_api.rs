@@ -215,6 +215,9 @@ async fn test_create_get_update_database() {
                 sort: Some(lifecycle_rules::sort_order::Sort::CreatedAtTime(Empty {})),
             }),
             catalog_transactions_until_checkpoint: 13,
+            late_arrive_window_seconds: 423,
+            worker_backoff_millis: 15,
+            persist_row_threshold: 342,
             ..Default::default()
         }),
         routing_rules: None,

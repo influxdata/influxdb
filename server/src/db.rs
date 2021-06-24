@@ -1,15 +1,25 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
-use self::access::QueryCatalogAccess;
-use self::catalog::TableNameFilter;
-use super::{write_buffer::WriteBuffer, JobRegistry};
-use crate::db::catalog::chunk::ChunkStage;
-use crate::db::catalog::partition::Partition;
-use crate::db::lifecycle::LockableCatalogChunk;
-use ::lifecycle::{LifecycleWriteGuard, LockableChunk};
+use std::collections::HashMap;
+use std::future::Future;
+use std::{
+    any::Any,
+    num::NonZeroUsize,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use async_trait::async_trait;
+use parking_lot::RwLock;
+use rand_distr::{Distribution, Poisson};
+use snafu::{ResultExt, Snafu};
+
+use ::lifecycle::{LifecycleWriteGuard, LockableChunk};
 use catalog::{chunk::CatalogChunk, Catalog};
 pub(crate) use chunk::DbChunk;
 use data_types::chunk_metadata::ChunkAddr;
@@ -30,7 +40,6 @@ use metrics::{KeyValue, MetricRegistry};
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info, warn};
-use parking_lot::RwLock;
 use parquet_file::catalog::CheckpointData;
 use parquet_file::{
     catalog::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
@@ -40,21 +49,17 @@ use parquet_file::{
     storage::Storage,
 };
 use query::{exec::Executor, predicate::Predicate, QueryDatabase};
-use rand_distr::{Distribution, Poisson};
 use read_buffer::{ChunkMetrics as ReadBufferChunkMetrics, RBChunk};
-use snafu::{ResultExt, Snafu};
-use std::collections::HashMap;
-use std::future::Future;
-use std::{
-    any::Any,
-    num::NonZeroUsize,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
-    time::Duration,
-};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
+
+use crate::db::catalog::chunk::ChunkStage;
+use crate::db::catalog::partition::Partition;
+use crate::db::lifecycle::LockableCatalogChunk;
+
+use super::{write_buffer::WriteBuffer, JobRegistry};
+
+use self::access::QueryCatalogAccess;
+use self::catalog::TableNameFilter;
 
 pub mod access;
 pub mod catalog;
@@ -615,7 +620,8 @@ impl Db {
             .rules
             .read()
             .lifecycle_rules
-            .catalog_transactions_until_checkpoint;
+            .catalog_transactions_until_checkpoint
+            .get();
 
         let preserved_catalog = Arc::clone(&db.preserved_catalog);
         let catalog = Arc::clone(&db.catalog);
@@ -709,10 +715,8 @@ impl Db {
                     }
                 }
 
-                let create_checkpoint = catalog_transactions_until_checkpoint
-                    .map_or(false, |interval| {
-                        ckpt_handle.revision_counter() % interval.get() == 0
-                    });
+                let create_checkpoint =
+                    ckpt_handle.revision_counter() % catalog_transactions_until_checkpoint == 0;
                 if create_checkpoint {
                     // Commit is already done, so we can just scan the catalog for the state.
                     //
@@ -1172,9 +1176,11 @@ fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData {
 }
 
 pub mod test_helpers {
-    use super::*;
-    use entry::test_helpers::lp_to_entries;
     use std::collections::HashSet;
+
+    use entry::test_helpers::lp_to_entries;
+
+    use super::*;
 
     /// Try to write lineprotocol data and return all tables that where written.
     pub async fn try_write_lp(db: &Db, lp: &str) -> Result<Vec<String>> {
@@ -1205,27 +1211,29 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        test_helpers::{try_write_lp, write_lp},
-        *,
+    use std::{
+        collections::HashSet,
+        convert::TryFrom,
+        iter::Iterator,
+        num::{NonZeroU64, NonZeroUsize},
+        str,
+        time::{Duration, Instant},
     };
-    use crate::{
-        db::catalog::chunk::{ChunkStage, ChunkStageFrozenRepr},
-        utils::{make_db, TestDb},
-        write_buffer::test_helpers::MockBuffer,
-    };
-    use ::test_helpers::assert_contains;
+
     use arrow::record_batch::RecordBatch;
-    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
     use chrono::Utc;
+    use futures::{stream, StreamExt, TryStreamExt};
+    use tokio_util::sync::CancellationToken;
+
+    use ::test_helpers::assert_contains;
+    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::{
         chunk_metadata::ChunkStorage,
         database_rules::{Order, Sort, SortOrder},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     };
     use entry::test_helpers::lp_to_entry;
-    use futures::{stream, StreamExt, TryStreamExt};
     use object_store::{
         memory::InMemory,
         path::{parts::PathPart, ObjectStorePath, Path},
@@ -1237,15 +1245,17 @@ mod tests {
         test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
     use query::{frontend::sql::SqlQueryPlanner, QueryChunk, QueryDatabase};
-    use std::{
-        collections::HashSet,
-        convert::TryFrom,
-        iter::Iterator,
-        num::{NonZeroU64, NonZeroUsize},
-        str,
-        time::{Duration, Instant},
+
+    use crate::{
+        db::catalog::chunk::{ChunkStage, ChunkStageFrozenRepr},
+        utils::{make_db, TestDb},
+        write_buffer::test_helpers::MockBuffer,
     };
-    use tokio_util::sync::CancellationToken;
+
+    use super::{
+        test_helpers::{try_write_lp, write_lp},
+        *,
+    };
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;

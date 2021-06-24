@@ -2,13 +2,15 @@
 
 use std::sync::Arc;
 
+use snafu::{ResultExt, Snafu};
+
 use datafusion::logical_plan::{Expr, LogicalPlan, LogicalPlanBuilder};
 use datafusion_util::AsExpr;
 use internal_types::schema::sort::SortKey;
 use observability_deps::tracing::debug;
 
 use crate::{provider::ProviderBuilder, QueryChunk};
-use snafu::{ResultExt, Snafu};
+use internal_types::schema::Schema;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -54,18 +56,16 @@ impl ReorgPlanner {
     ///
     /// (Sort on output_sort)
     ///   (Scan chunks) <-- any needed deduplication happens here
-    pub fn compact_plan<C>(
+    pub fn compact_plan<C, I>(
         &self,
-        chunks: Vec<Arc<C>>,
+        table_name: &str,
+        chunks: I,
         output_sort: SortKey<'_>,
-    ) -> Result<LogicalPlan>
+    ) -> Result<(Schema, LogicalPlan)>
     where
         C: QueryChunk + 'static,
+        I: IntoIterator<Item = Arc<C>>,
     {
-        assert!(!chunks.is_empty(), "No chunks provided to compact plan");
-        let table_name = chunks[0].table_name().to_string();
-        let table_name = &table_name;
-
         debug!(%table_name, "Creating compact plan");
 
         // Prepare the plan for the table
@@ -103,13 +103,18 @@ impl ReorgPlanner {
                 nulls_first: sort_options.nulls_first,
             });
 
-        LogicalPlanBuilder::scan(table_name, provider, projection)
+        // TODO: Set sort key on schema
+        let schema = provider.iox_schema();
+
+        let plan = LogicalPlanBuilder::scan(table_name, provider, projection)
             .context(BuildingPlan)?
             // Add the appropriate sort
             .sort(sort_exprs)
             .context(BuildingPlan)?
             .build()
-            .context(BuildingPlan)
+            .context(BuildingPlan)?;
+
+        Ok((schema, plan))
     }
 
     /// Creates an execution plan for the SPLIT operations which does the following:
@@ -159,6 +164,7 @@ impl ReorgPlanner {
 
     pub fn split_plan<C>(
         &self,
+        table_name: &str,
         chunks: Vec<Arc<C>>,
         output_sort: SortKey<'_>,
         _split_time: i64,
@@ -166,7 +172,7 @@ impl ReorgPlanner {
     where
         C: QueryChunk + 'static,
     {
-        let _base_plan = self.compact_plan(chunks, output_sort)?;
+        let (_, _base_plan) = self.compact_plan(table_name, chunks, output_sort)?;
         todo!("Add in the split node and return");
     }
 }
@@ -245,8 +251,8 @@ mod test {
             },
         );
 
-        let compact_plan = ReorgPlanner::new()
-            .compact_plan(chunks, sort_key)
+        let (_, compact_plan) = ReorgPlanner::new()
+            .compact_plan("t", chunks, sort_key)
             .expect("created compact plan");
 
         let ctx = ExecutionContext::new();

@@ -1,14 +1,16 @@
+use std::convert::TryInto;
+
+use itertools::Itertools;
+
 use arrow_util::assert_batches_eq;
 use data_types::chunk_metadata::{ChunkStorage, ChunkSummary};
-//use generated_types::influxdata::iox::management::v1::*;
 use influxdb_iox_client::operations;
+
+use crate::common::server_fixture::ServerFixture;
 
 use super::scenario::{
     collect_query, create_quickly_persisting_database, create_readable_database, rand_name,
 };
-use crate::common::server_fixture::ServerFixture;
-use itertools::Itertools;
-use std::convert::TryInto;
 
 #[tokio::test]
 async fn test_chunk_is_persisted_automatically() {
@@ -16,9 +18,8 @@ async fn test_chunk_is_persisted_automatically() {
     let mut write_client = fixture.write_client();
 
     let db_name = rand_name();
-    create_quickly_persisting_database(&db_name, fixture.grpc_channel()).await;
+    create_quickly_persisting_database(&db_name, fixture.grpc_channel(), 1).await;
 
-    // Stream in a write that should exceed the limit
     let lp_lines: Vec<_> = (0..1_000)
         .map(|i| format!("data,tag1=val{} x={} {}", i, i * 10, i))
         .collect();
@@ -36,61 +37,66 @@ async fn test_chunk_is_persisted_automatically() {
         std::time::Duration::from_secs(5),
     )
     .await;
+
+    // Should have compacted into a single chunk
+    let chunks = list_chunks(&fixture, &db_name).await;
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].row_count, 1_000);
 }
 
 #[tokio::test]
-async fn test_chunk_are_removed_from_memory_when_soft_limit_is_hit() {
+async fn test_full_lifecycle() {
     let fixture = ServerFixture::create_shared().await;
     let mut write_client = fixture.write_client();
 
     let db_name = rand_name();
-    create_quickly_persisting_database(&db_name, fixture.grpc_channel()).await;
+    create_quickly_persisting_database(&db_name, fixture.grpc_channel(), 100).await;
 
-    // write in more chunks that exceed the soft limit (512K) and
-    // expect that at least one ends up on object store but not in memory
+    // write in enough data to exceed the soft limit (512K) and
+    // expect that it compacts, persists and then unloads the data from memory
+    let num_payloads = 10;
+    let num_duplicates = 2;
+    let payload_size = 1_000;
 
-    // (as of time of writing, 10 chunks took up ~800K)
-    let num_chunks = 10;
-    for _ in 0..num_chunks {
-        let lp_data = (0..500)
-            .map(|i| {
-                format!(
-                    "data,tag1=val{0} x={1} {0}\ndata,tag2=val{0} x={1} {0}",
-                    i,
-                    i * 10,
-                )
-            })
-            .join("\n");
-        let num_lines_written = write_client
-            .write(&db_name, &lp_data)
-            .await
-            .expect("successful write");
-        assert_eq!(num_lines_written, 1000);
+    let payloads: Vec<_> = (0..num_payloads)
+        .map(|x| {
+            (0..payload_size)
+                .map(|i| format!("data,tag{}=val{} x={} {}", x, i, i * 10, i))
+                .join("\n")
+        })
+        .collect();
+
+    for payload in payloads.iter().take(num_payloads - 1) {
+        // Writing the same data multiple times should be compacted away
+        for _ in 0..num_duplicates {
+            let num_lines_written = write_client
+                .write(&db_name, payload)
+                .await
+                .expect("successful write");
+            assert_eq!(num_lines_written, payload_size);
+        }
     }
 
-    // make sure that at least one is in object store
+    // Don't duplicate last write as it is what crosses the persist row threshold
+    let num_lines_written = write_client
+        .write(&db_name, payloads.last().unwrap())
+        .await
+        .expect("successful write");
+    assert_eq!(num_lines_written, payload_size);
+
     wait_for_chunk(
         &fixture,
         &db_name,
         ChunkStorage::ObjectStoreOnly,
-        std::time::Duration::from_secs(5),
+        std::time::Duration::from_secs(10),
     )
     .await;
 
-    // Also ensure that all 10 chunks are still there
+    // Expect them to have been compacted into a single read buffer
+    // with the duplicates eliminated
     let chunks = list_chunks(&fixture, &db_name).await;
-    assert_eq!(
-        num_chunks,
-        chunks.len(),
-        "expected {} chunks but had {}: {:#?}",
-        num_chunks,
-        chunks.len(),
-        chunks
-    );
-
-    for chunk in &chunks {
-        assert_eq!(chunk.row_count, 1000)
-    }
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].row_count, num_payloads * payload_size)
 }
 
 #[tokio::test]
@@ -112,11 +118,12 @@ async fn test_query_chunk_after_restart() {
     create_readable_database(&db_name, fixture.grpc_channel()).await;
     let chunk_id = create_readbuffer_chunk(&fixture, &db_name).await;
 
-    // enable persistance
+    // enable persistence
     let mut rules = management_client.get_database(&db_name).await.unwrap();
     rules.lifecycle_rules = Some({
         let mut lifecycle_rules = rules.lifecycle_rules.unwrap();
         lifecycle_rules.persist = true;
+        lifecycle_rules.late_arrive_window_seconds = 1;
         lifecycle_rules
     });
     management_client.update_database(rules).await.unwrap();
@@ -246,11 +253,13 @@ async fn wait_for_chunk(
         // Log the current status of the chunks
         for chunk in &chunks {
             println!(
-                "{:?}: chunk {} partition {} storage:{:?}",
+                "{:?}: chunk {} partition {} storage: {:?} row_count: {} time_of_last_write: {:?}",
                 (t_start.elapsed()),
                 chunk.id,
                 chunk.partition_key,
-                chunk.storage
+                chunk.storage,
+                chunk.row_count,
+                chunk.time_of_last_write
             );
         }
 

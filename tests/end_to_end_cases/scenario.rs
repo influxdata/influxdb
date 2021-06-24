@@ -1,25 +1,22 @@
-use std::{sync::Arc, time::SystemTime};
-
-use generated_types::google::protobuf::Empty;
-use generated_types::influxdata::iox::management::v1::*;
-use influxdb_iox_client::flight::PerformQuery;
-use rand::{
-    distributions::{Alphanumeric, Standard},
-    thread_rng, Rng,
-};
-
 use std::{convert::TryInto, str, u32};
-
-use futures::prelude::*;
-use prost::Message;
-
-use data_types::{names::org_and_bucket_to_database, DatabaseName};
-use generated_types::{influxdata::iox::management::v1::DatabaseRules, ReadSource, TimestampRange};
+use std::{sync::Arc, time::SystemTime};
 
 use arrow::{
     array::{ArrayRef, Float64Array, StringArray, TimestampNanosecondArray},
     record_batch::RecordBatch,
 };
+use futures::prelude::*;
+use prost::Message;
+use rand::{
+    distributions::{Alphanumeric, Standard},
+    thread_rng, Rng,
+};
+
+use data_types::{names::org_and_bucket_to_database, DatabaseName};
+use generated_types::google::protobuf::Empty;
+use generated_types::influxdata::iox::management::v1::*;
+use generated_types::{influxdata::iox::management::v1::DatabaseRules, ReadSource, TimestampRange};
+use influxdb_iox_client::flight::PerformQuery;
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -335,6 +332,7 @@ pub async fn create_readable_database_plus(
 pub async fn create_quickly_persisting_database(
     db_name: impl Into<String>,
     channel: tonic::transport::Channel,
+    late_arrive_window_seconds: u32,
 ) {
     let db_name = db_name.into();
 
@@ -351,9 +349,12 @@ pub async fn create_quickly_persisting_database(
         lifecycle_rules: Some(LifecycleRules {
             mutable_linger_seconds: 1,
             mutable_size_threshold: 100,
-            buffer_size_soft: 512 * 1024,  // 512K
-            buffer_size_hard: 1024 * 1024, // 1MB
+            buffer_size_soft: 512 * 1024,       // 512K
+            buffer_size_hard: 10 * 1024 * 1024, // 10MB
             persist: true,
+            worker_backoff_millis: 100,
+            persist_row_threshold: 10_000,
+            late_arrive_window_seconds,
             ..Default::default()
         }),
         ..Default::default()

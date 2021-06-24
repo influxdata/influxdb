@@ -1,8 +1,3 @@
-use crate::{consistent_hasher::ConsistentHasher, server_id::ServerId, DatabaseName};
-use chrono::{TimeZone, Utc};
-use influxdb_line_protocol::ParsedLine;
-use regex::Regex;
-use snafu::{OptionExt, Snafu};
 use std::num::NonZeroU64;
 use std::time::Duration;
 use std::{
@@ -11,6 +6,14 @@ use std::{
     num::{NonZeroU32, NonZeroUsize},
     sync::Arc,
 };
+
+use chrono::{TimeZone, Utc};
+use regex::Regex;
+use snafu::{OptionExt, Snafu};
+
+use influxdb_line_protocol::ParsedLine;
+
+use crate::{consistent_hasher::ConsistentHasher, server_id::ServerId, DatabaseName};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -103,8 +106,13 @@ impl Partitioner for DatabaseRules {
     }
 }
 
+pub const DEFAULT_WORKER_BACKOFF_MILLIS: u64 = 1_000;
+pub const DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT: u64 = 100;
+pub const DEFAULT_PERSIST_ROW_THRESHOLD: usize = 100_000;
+pub const DEFAULT_LATE_ARRIVE_WINDOW_SECONDS: u32 = 5 * 60;
+
 /// Configures how data automatically flows through the system
-#[derive(Debug, Default, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct LifecycleRules {
     /// A chunk of data within a partition that has been cold for writes for
     /// this many seconds will be frozen and compacted (moved to the read
@@ -150,10 +158,40 @@ pub struct LifecycleRules {
 
     /// If the background worker doesn't find anything to do it
     /// will sleep for this many milliseconds before looking again
-    pub worker_backoff_millis: Option<NonZeroU64>,
+    pub worker_backoff_millis: NonZeroU64,
 
     /// After how many transactions should IOx write a new checkpoint?
-    pub catalog_transactions_until_checkpoint: Option<NonZeroU64>,
+    pub catalog_transactions_until_checkpoint: NonZeroU64,
+
+    /// The average timestamp skew across concurrent writers
+    pub late_arrive_window_seconds: NonZeroU32,
+
+    /// Maximum number of rows before triggering persistence
+    pub persist_row_threshold: NonZeroUsize,
+}
+
+impl Default for LifecycleRules {
+    fn default() -> Self {
+        Self {
+            mutable_linger_seconds: None,
+            mutable_minimum_age_seconds: None,
+            mutable_size_threshold: None,
+            buffer_size_soft: None,
+            buffer_size_hard: None,
+            sort_order: Default::default(),
+            drop_non_persisted: false,
+            persist: false,
+            immutable: false,
+            worker_backoff_millis: NonZeroU64::new(DEFAULT_WORKER_BACKOFF_MILLIS).unwrap(),
+            catalog_transactions_until_checkpoint: NonZeroU64::new(
+                DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT,
+            )
+            .unwrap(),
+            late_arrive_window_seconds: NonZeroU32::new(DEFAULT_LATE_ARRIVE_WINDOW_SECONDS)
+                .unwrap(),
+            persist_row_threshold: NonZeroUsize::new(DEFAULT_PERSIST_ROW_THRESHOLD).unwrap(),
+        }
+    }
 }
 
 /// This struct specifies the rules for the order to sort partitions
@@ -482,8 +520,9 @@ pub type PartitionId = String;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use influxdb_line_protocol::parse_lines;
+
+    use super::*;
 
     const ARBITRARY_DEFAULT_TIME: i64 = 456;
 

@@ -33,6 +33,17 @@ impl From<Job> for management::operation_metadata::Job {
             Job::WipePreservedCatalog { db_name } => {
                 Self::WipePreservedCatalog(management::WipePreservedCatalog { db_name })
             }
+            Job::CompactChunks {
+                db_name,
+                partition_key,
+                table_name,
+                chunks,
+            } => Self::CompactChunks(management::CompactChunks {
+                db_name,
+                partition_key,
+                table_name,
+                chunks,
+            }),
         }
     }
 }
@@ -67,6 +78,17 @@ impl From<management::operation_metadata::Job> for Job {
             Job::WipePreservedCatalog(management::WipePreservedCatalog { db_name }) => {
                 Self::WipePreservedCatalog { db_name }
             }
+            Job::CompactChunks(management::CompactChunks {
+                db_name,
+                partition_key,
+                table_name,
+                chunks,
+            }) => Self::CompactChunks {
+                db_name,
+                partition_key,
+                table_name,
+                chunks,
+            },
         }
     }
 }

@@ -237,6 +237,17 @@ impl Statistics {
         }
     }
 
+    /// Returns the distinct count if known
+    pub fn distinct_count(&self) -> Option<NonZeroU64> {
+        match self {
+            Self::I64(s) => s.distinct_count,
+            Self::U64(s) => s.distinct_count,
+            Self::F64(s) => s.distinct_count,
+            Self::Bool(s) => s.distinct_count,
+            Self::String(s) => s.distinct_count,
+        }
+    }
+
     /// Return a human interpretable description of this type
     pub fn type_name(&self) -> &'static str {
         match self {

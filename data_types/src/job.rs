@@ -26,6 +26,14 @@ pub enum Job {
         chunk_id: u32,
     },
 
+    /// Compact a set of chunks
+    CompactChunks {
+        db_name: String,
+        partition_key: String,
+        table_name: String,
+        chunks: Vec<u32>,
+    },
+
     /// Wipe preserved catalog
     WipePreservedCatalog {
         db_name: String,
@@ -39,6 +47,7 @@ impl Job {
             Self::Dummy { .. } => None,
             Self::CloseChunk { db_name, .. } => Some(db_name),
             Self::WriteChunk { db_name, .. } => Some(db_name),
+            Self::CompactChunks { db_name, .. } => Some(db_name),
             Self::WipePreservedCatalog { db_name, .. } => Some(db_name),
         }
     }
@@ -49,6 +58,7 @@ impl Job {
             Self::Dummy { .. } => None,
             Self::CloseChunk { partition_key, .. } => Some(partition_key),
             Self::WriteChunk { partition_key, .. } => Some(partition_key),
+            Self::CompactChunks { partition_key, .. } => Some(partition_key),
             Self::WipePreservedCatalog { .. } => None,
         }
     }
@@ -59,6 +69,7 @@ impl Job {
             Self::Dummy { .. } => None,
             Self::CloseChunk { chunk_id, .. } => Some(*chunk_id),
             Self::WriteChunk { chunk_id, .. } => Some(*chunk_id),
+            Self::CompactChunks { .. } => None,
             Self::WipePreservedCatalog { .. } => None,
         }
     }
@@ -69,6 +80,7 @@ impl Job {
             Self::Dummy { .. } => "Dummy Job, for testing",
             Self::CloseChunk { .. } => "Loading chunk to ReadBuffer",
             Self::WriteChunk { .. } => "Writing chunk to Object Storage",
+            Self::CompactChunks { .. } => "Compacting chunks to ReadBuffer",
             Self::WipePreservedCatalog { .. } => "Wipe preserved catalog",
         }
     }

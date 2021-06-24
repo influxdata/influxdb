@@ -7,9 +7,10 @@
     clippy::use_self,
     clippy::clone_on_ref_ptr
 )]
+
 use chrono::{DateTime, Utc};
 
-use data_types::chunk_metadata::ChunkStorage;
+use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
 use data_types::database_rules::{LifecycleRules, SortOrder};
 pub use guard::*;
 pub use policy::*;
@@ -77,7 +78,8 @@ pub trait LifecycleDb {
 pub trait LockablePartition: Sized {
     type Partition: LifecyclePartition;
     type Chunk: LockableChunk;
-    type Error: std::error::Error + Send + Sync;
+    type DropError: std::error::Error + Send + Sync;
+    type CompactError: std::error::Error + Send + Sync;
 
     /// Acquire a shared read lock on the chunk
     fn read(&self) -> LifecycleReadGuard<'_, Self::Partition, Self>;
@@ -91,14 +93,22 @@ pub trait LockablePartition: Sized {
         chunk_id: u32,
     ) -> Option<Self::Chunk>;
 
-    /// Return a list of lockable chunks
-    fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<Self::Chunk>;
+    /// Return a list of lockable chunks - the returned order must be stable
+    fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<(u32, Self::Chunk)>;
+
+    /// Compact chunks into a single read buffer chunk
+    ///
+    /// TODO: Encapsulate these locks into a CatalogTransaction object
+    fn compact_chunks(
+        partition: LifecycleWriteGuard<'_, Self::Partition, Self>,
+        chunks: Vec<LifecycleWriteGuard<'_, <Self::Chunk as LockableChunk>::Chunk, Self::Chunk>>,
+    ) -> Result<TaskTracker<<Self::Chunk as LockableChunk>::Job>, Self::CompactError>;
 
     /// Drops a chunk from the partition
     fn drop_chunk(
         s: LifecycleWriteGuard<'_, Self::Partition, Self>,
         chunk_id: u32,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<(), Self::DropError>;
 }
 
 /// A `LockableChunk` is a wrapper around a `LifecycleChunk` that allows for
@@ -156,11 +166,9 @@ pub trait LifecycleChunk {
 
     fn time_of_last_write(&self) -> Option<DateTime<Utc>>;
 
-    fn table_name(&self) -> String;
-
-    fn partition_key(&self) -> String;
-
-    fn chunk_id(&self) -> u32;
+    fn addr(&self) -> &ChunkAddr;
 
     fn storage(&self) -> ChunkStorage;
+
+    fn row_count(&self) -> usize;
 }

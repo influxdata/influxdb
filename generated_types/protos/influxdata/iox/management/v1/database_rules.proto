@@ -115,6 +115,12 @@ message LifecycleRules {
   //
   // If 0 / absent, this default to 100.
   uint64 catalog_transactions_until_checkpoint = 11;
+
+  // The average timestamp skew across concurrent writers
+  uint32 late_arrive_window_seconds = 12;
+
+  // Maximum number of rows before triggering persistence
+  uint64 persist_row_threshold = 13;
 }
 
 message DatabaseRules {

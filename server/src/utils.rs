@@ -1,3 +1,5 @@
+use std::{borrow::Cow, convert::TryFrom, num::NonZeroU64, sync::Arc, time::Duration};
+
 use data_types::{
     chunk_metadata::{ChunkStorage, ChunkSummary},
     database_rules::DatabaseRules,
@@ -12,7 +14,6 @@ use crate::{
     write_buffer::WriteBuffer,
     JobRegistry,
 };
-use std::{borrow::Cow, convert::TryFrom, num::NonZeroU64, sync::Arc, time::Duration};
 
 // A wrapper around a Db and a metrics registry allowing for isolated testing
 // of a Db and its metrics.
@@ -75,8 +76,9 @@ impl TestDbBuilder {
             .unwrap_or_else(|| Duration::from_secs(1));
 
         // enable checkpointing
-        rules.lifecycle_rules.catalog_transactions_until_checkpoint =
-            self.catalog_transactions_until_checkpoint;
+        if let Some(v) = self.catalog_transactions_until_checkpoint {
+            rules.lifecycle_rules.catalog_transactions_until_checkpoint = v;
+        }
 
         let database_to_commit = DatabaseToCommit {
             rules,
