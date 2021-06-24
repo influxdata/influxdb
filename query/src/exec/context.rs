@@ -16,14 +16,17 @@ use datafusion::{
     prelude::*,
 };
 
-use crate::exec::schema_pivot::{SchemaPivotExec, SchemaPivotNode};
+use crate::exec::{
+    schema_pivot::{SchemaPivotExec, SchemaPivotNode},
+    split::StreamSplitExec,
+};
 
 use observability_deps::tracing::debug;
 
 // Reuse DataFusion error and Result types for this module
 pub use datafusion::error::{DataFusionError as Error, Result};
 
-use super::{counters::ExecutionCounters, task::DedicatedExecutor};
+use super::{counters::ExecutionCounters, split::StreamSplitNode, task::DedicatedExecutor};
 
 // The default catalog name - this impacts what SQL queries use if not specified
 pub const DEFAULT_CATALOG: &str = "public";
@@ -42,7 +45,8 @@ impl QueryPlanner for IOxQueryPlanner {
         logical_plan: &LogicalPlan,
         ctx_state: &ExecutionContextState,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        // Teach the default physical planner how to plan SchemaPivot nodes.
+        // Teach the default physical planner how to plan SchemaPivot
+        // and StreamSplit nodes.
         let physical_planner =
             DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(IOxExtensionPlanner {})]);
         // Delegate most work of physical planning to the default physical planner
@@ -59,19 +63,34 @@ impl ExtensionPlanner for IOxExtensionPlanner {
         &self,
         node: &dyn UserDefinedLogicalNode,
         inputs: &[Arc<dyn ExecutionPlan>],
-        _ctx_state: &ExecutionContextState,
+        ctx_state: &ExecutionContextState,
     ) -> Result<Option<Arc<dyn ExecutionPlan>>> {
-        node.as_any()
-            .downcast_ref::<SchemaPivotNode>()
-            .map(|schema_pivot| {
-                assert_eq!(inputs.len(), 1, "Inconsistent number of inputs");
-                let execution_plan = Arc::new(SchemaPivotExec::new(
-                    Arc::clone(&inputs[0]),
-                    schema_pivot.schema().as_ref().clone().into(),
-                ));
-                Ok(execution_plan as _)
-            })
-            .transpose()
+        let any = node.as_any();
+        let plan = if let Some(schema_pivot) = any.downcast_ref::<SchemaPivotNode>() {
+            assert_eq!(inputs.len(), 1, "Inconsistent number of inputs");
+            Some(Arc::new(SchemaPivotExec::new(
+                Arc::clone(&inputs[0]),
+                schema_pivot.schema().as_ref().clone().into(),
+            )) as Arc<dyn ExecutionPlan>)
+        } else if let Some(stream_split) = any.downcast_ref::<StreamSplitNode>() {
+            assert_eq!(inputs.len(), 1, "Inconsistent number of inputs");
+            // It is strange to have to make a new physical planner
+            // (when we are already being called via a planner)
+            let physical_planner = DefaultPhysicalPlanner::default();
+            let split_expr = physical_planner.create_physical_expr(
+                stream_split.split_expr(),
+                &inputs[0].schema(),
+                ctx_state,
+            )?;
+
+            Some(
+                Arc::new(StreamSplitExec::new(Arc::clone(&inputs[0]), split_expr))
+                    as Arc<dyn ExecutionPlan>,
+            )
+        } else {
+            None
+        };
+        Ok(plan)
     }
 }
 

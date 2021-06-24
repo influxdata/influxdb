@@ -43,7 +43,7 @@ use datafusion::{
 
 use tokio_stream::StreamExt;
 
-/// Implementes the SchemaPivot operation described in make_schema_pivot,
+/// Implements the SchemaPivot operation described in `make_schema_pivot`
 pub struct SchemaPivotNode {
     input: LogicalPlan,
     schema: DFSchemaRef,

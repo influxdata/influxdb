@@ -213,6 +213,11 @@ impl<C: QueryChunk + 'static> ChunkTableProvider<C> {
     pub fn arrow_schema(&self) -> ArrowSchemaRef {
         self.iox_schema.as_arrow()
     }
+
+    /// Return the table name
+    pub fn table_name(&self) -> &str {
+        self.table_name.as_ref()
+    }
 }
 
 impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {

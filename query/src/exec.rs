@@ -7,6 +7,7 @@ pub mod field;
 pub mod fieldlist;
 mod schema_pivot;
 pub mod seriesset;
+mod split;
 pub mod stream;
 pub mod stringset;
 mod task;
@@ -17,7 +18,11 @@ use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
 use counters::ExecutionCounters;
-use datafusion::{self, logical_plan::LogicalPlan, physical_plan::ExecutionPlan};
+use datafusion::{
+    self,
+    logical_plan::{Expr, LogicalPlan},
+    physical_plan::ExecutionPlan,
+};
 
 use context::IOxExecutionContext;
 use schema_pivot::SchemaPivotNode;
@@ -35,7 +40,10 @@ use crate::plan::{
     stringset::StringSetPlan,
 };
 
-use self::task::{DedicatedExecutor, Error as ExecutorError};
+use self::{
+    split::StreamSplitNode,
+    task::{DedicatedExecutor, Error as ExecutorError},
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -297,6 +305,7 @@ impl Executor {
             .context(TaskJoinError)
     }
 }
+
 /// Create a SchemaPivot node which  an arbitrary input like
 ///  ColA | ColB | ColC
 /// ------+------+------
@@ -314,6 +323,39 @@ impl Executor {
 pub fn make_schema_pivot(input: LogicalPlan) -> LogicalPlan {
     let node = Arc::new(SchemaPivotNode::new(input));
 
+    LogicalPlan::Extension { node }
+}
+
+/// Create a StreamSplit node which takes an input stream of record
+/// batches and produces two output streams based on a predicate
+///
+/// For example, if the input looks like:
+/// ```text
+///  X | time
+/// ---+-----
+///  a | 1000
+///  b | 4000
+///  c | 2000
+/// ```
+///
+/// A StreamSplit with split_expr = `time <= 2000` will produce the
+/// following two output streams (output DataFusion Partitions):
+///
+///
+/// ```text
+///  X | time
+/// ---+-----
+///  a | 1000
+///  c | 2000
+/// ```
+/// and
+/// ```text
+///  X | time
+/// ---+-----
+///  b | 4000
+/// ```
+pub fn make_stream_split(input: LogicalPlan, split_expr: Expr) -> LogicalPlan {
+    let node = Arc::new(StreamSplitNode::new(input, split_expr));
     LogicalPlan::Extension { node }
 }
 

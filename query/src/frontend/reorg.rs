@@ -2,15 +2,20 @@
 
 use std::sync::Arc;
 
-use snafu::{ResultExt, Snafu};
-
-use datafusion::logical_plan::{Expr, LogicalPlan, LogicalPlanBuilder};
+use datafusion::{
+    logical_plan::{col, Expr, LogicalPlan, LogicalPlanBuilder},
+    scalar::ScalarValue,
+};
 use datafusion_util::AsExpr;
-use internal_types::schema::sort::SortKey;
+use internal_types::schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 use observability_deps::tracing::debug;
 
-use crate::{provider::ProviderBuilder, QueryChunk};
-use internal_types::schema::Schema;
+use crate::{
+    exec::make_stream_split,
+    provider::{ChunkTableProvider, ProviderBuilder},
+    QueryChunk,
+};
+use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -58,7 +63,6 @@ impl ReorgPlanner {
     ///   (Scan chunks) <-- any needed deduplication happens here
     pub fn compact_plan<C, I>(
         &self,
-        table_name: &str,
         chunks: I,
         output_sort: SortKey<'_>,
     ) -> Result<(Schema, LogicalPlan)>
@@ -66,7 +70,121 @@ impl ReorgPlanner {
         C: QueryChunk + 'static,
         I: IntoIterator<Item = Arc<C>>,
     {
-        debug!(%table_name, "Creating compact plan");
+        let ScanPlan {
+            plan_builder,
+            provider,
+        } = self.scan_plan(chunks)?;
+
+        // figure out the sort expression
+        let sort_exprs = output_sort
+            .iter()
+            .map(|(column_name, sort_options)| Expr::Sort {
+                expr: Box::new(column_name.as_expr()),
+                asc: !sort_options.descending,
+                nulls_first: sort_options.nulls_first,
+            });
+
+        // TODO: Set sort key on schema
+        let schema = provider.iox_schema();
+
+        let plan = plan_builder
+            .sort(sort_exprs)
+            .context(BuildingPlan)?
+            .build()
+            .context(BuildingPlan)?;
+
+        debug!(table_name=provider.table_name(), plan=%plan.display_indent_schema(),
+               "created compact plan for table");
+
+        Ok((schema, plan))
+    }
+
+    /// Creates an execution plan for the SPLIT operations which does the following:
+    ///
+    /// 1. Merges chunks together into a single stream
+    /// 2. Deduplicates via PK as necessary
+    /// 3. Sorts the result according to the requested key
+    /// 4. Splits the stream on value of the `time` column: Those
+    ///    rows that are on or before the time and those that are after
+    ///
+    /// The plan looks like:
+    ///
+    /// (Split on Time)
+    ///   (Sort on output_sort)
+    ///     (Scan chunks) <-- any needed deduplication happens here
+    ///
+    /// The output execution plan has two "output streams" (DataFusion partition):
+    /// 1. Rows that have `time` *on or before* the split_time
+    /// 2. Rows that have `time` *after* the split_time
+    ///
+    /// For example, if the input looks like:
+    /// ```text
+    ///  X | time
+    /// ---+-----
+    ///  a | 1000
+    ///  b | 2000
+    ///  c | 4000
+    ///  d | 2000
+    ///  e | 3000
+    /// ```
+    /// A split plan with `split_time=2000` will produce the following two output streams
+    ///
+    /// ```text
+    ///  X | time
+    /// ---+-----
+    ///  a | 1000
+    ///  b | 2000
+    ///  d | 2000
+    /// ```
+    /// and
+    /// ```text
+    ///  X | time
+    /// ---+-----
+    ///  c | 4000
+    ///  e | 3000
+    /// ```
+    pub fn split_plan<C>(&self, chunks: Vec<Arc<C>>, split_time: i64) -> Result<LogicalPlan>
+    where
+        C: QueryChunk + 'static,
+    {
+        let ScanPlan {
+            plan_builder,
+            provider,
+        } = self.scan_plan(chunks)?;
+
+        // time <= split_time
+        let ts_literal = Expr::Literal(ScalarValue::TimestampNanosecond(Some(split_time)));
+        let split_expr = col(TIME_COLUMN_NAME).lt_eq(ts_literal);
+
+        let plan = plan_builder.build().context(BuildingPlan)?;
+
+        let plan = make_stream_split(plan, split_expr);
+
+        debug!(table_name=provider.table_name(), plan=%plan.display_indent_schema(),
+               "created split plan for table");
+
+        Ok(plan)
+    }
+
+    /// Creates a scan plan for the set of chunks that:
+    ///
+    /// 1. Merges chunks together into a single stream
+    /// 2. Deduplicates via PK as necessary
+    ///
+    /// The plan looks like:
+    ///
+    /// (Scan chunks) <-- any needed deduplication happens here
+    fn scan_plan<C, I>(&self, chunks: I) -> Result<ScanPlan<C>>
+    where
+        C: QueryChunk + 'static,
+        I: IntoIterator<Item = Arc<C>>,
+    {
+        let mut chunks = chunks.into_iter().peekable();
+        let table_name = match chunks.peek() {
+            Some(chunk) => chunk.table_name().to_string(),
+            None => panic!("No chunks provided to compact plan"),
+        };
+        let table_name = &table_name;
 
         // Prepare the plan for the table
         let mut builder = ProviderBuilder::new(table_name);
@@ -94,101 +212,35 @@ impl ReorgPlanner {
         // Scan all columns
         let projection = None;
 
-        // figure out the sort expression
-        let sort_exprs = output_sort
-            .iter()
-            .map(|(column_name, sort_options)| Expr::Sort {
-                expr: Box::new(column_name.as_expr()),
-                asc: !sort_options.descending,
-                nulls_first: sort_options.nulls_first,
-            });
+        let plan_builder =
+            LogicalPlanBuilder::scan(table_name, Arc::clone(&provider) as _, projection)
+                .context(BuildingPlan)?;
 
-        // TODO: Set sort key on schema
-        let schema = provider.iox_schema();
-
-        let plan = LogicalPlanBuilder::scan(table_name, provider, projection)
-            .context(BuildingPlan)?
-            // Add the appropriate sort
-            .sort(sort_exprs)
-            .context(BuildingPlan)?
-            .build()
-            .context(BuildingPlan)?;
-
-        Ok((schema, plan))
+        Ok(ScanPlan {
+            plan_builder,
+            provider,
+        })
     }
+}
 
-    /// Creates an execution plan for the SPLIT operations which does the following:
-    ///
-    /// 1. Merges chunks together into a single stream
-    /// 2. Deduplicates via PK as necessary
-    /// 3. Sorts the result according to the requested key
-    /// 4. Splits the stream on value of the `time` column: Those
-    ///    rows that are on or before the time and those that are after
-    ///
-    /// The plan looks like:
-    ///
-    /// (Split on Time)
-    ///   (Sort on output_sort)
-    ///     (Scan chunks) <-- any needed deduplication happens here
-    ///
-    /// The output execution plan has two "output streams" (DataFusion partition):
-    /// 1. Rows that have `time` *on or before* the split_time
-    /// 2. Rows that have `time` *after* the split_time
-    ///
-    /// For example, if the input looks like:
-    /// ```text
-    ///  a | time
-    /// ---+-----
-    ///  a | 1000
-    ///  b | 2000
-    ///  c | 4000
-    ///  d | 2000
-    ///  e | 3000
-    /// ```
-    /// A split plan with `split_time=2000` will produce the following two output streams
-    ///
-    /// ```text
-    ///  a | time
-    /// ---+-----
-    ///  a | 1000
-    ///  b | 2000
-    ///  d | 2000
-    /// ```
-    /// and
-    /// ```text
-    ///  a | time
-    /// ---+-----
-    ///  c | 4000
-    ///  e | 3000
-    /// ```
-
-    pub fn split_plan<C>(
-        &self,
-        table_name: &str,
-        chunks: Vec<Arc<C>>,
-        output_sort: SortKey<'_>,
-        _split_time: i64,
-    ) -> Result<LogicalPlan>
-    where
-        C: QueryChunk + 'static,
-    {
-        let (_, _base_plan) = self.compact_plan(table_name, chunks, output_sort)?;
-        todo!("Add in the split node and return");
-    }
+struct ScanPlan<C: QueryChunk + 'static> {
+    plan_builder: LogicalPlanBuilder,
+    provider: Arc<ChunkTableProvider<C>>,
 }
 
 #[cfg(test)]
 mod test {
-    use arrow_util::assert_batches_eq;
-    use datafusion::prelude::ExecutionContext;
+    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use internal_types::schema::sort::SortOptions;
 
-    use crate::test::{raw_data, TestChunk};
+    use crate::{
+        exec::Executor,
+        test::{raw_data, TestChunk},
+    };
 
     use super::*;
 
-    #[tokio::test]
-    async fn deduplicate_plan_for_overlapped_chunks() {
+    async fn get_test_chunks() -> Vec<Arc<TestChunk>> {
         // Chunk 1 with 5 rows of data on 2 tags
         let chunk1 = Arc::new(
             TestChunk::new(1)
@@ -208,8 +260,6 @@ mod test {
                 .with_four_rows_of_data("t"),
         );
 
-        let chunks = vec![chunk1, chunk2];
-
         let expected = vec![
             "+-----------+------+-------------------------------+",
             "| field_int | tag1 | time                          |",
@@ -221,7 +271,7 @@ mod test {
             "| 5         | MT   | 1970-01-01 00:00:00.000005    |",
             "+-----------+------+-------------------------------+",
         ];
-        assert_batches_eq!(&expected, &raw_data(&[Arc::clone(&chunks[0])]).await);
+        assert_batches_eq!(&expected, &raw_data(&[Arc::clone(&chunk1)]).await);
 
         let expected = vec![
             "+-----------+------------+------+----------------------------+",
@@ -233,7 +283,14 @@ mod test {
             "| 50        | 50         | VT   | 1970-01-01 00:00:00.000010 |",
             "+-----------+------------+------+----------------------------+",
         ];
-        assert_batches_eq!(&expected, &raw_data(&[Arc::clone(&chunks[1])]).await);
+        assert_batches_eq!(&expected, &raw_data(&[Arc::clone(&chunk2)]).await);
+
+        vec![chunk1, chunk2]
+    }
+
+    #[tokio::test]
+    async fn test_compact_plan() {
+        let chunks = get_test_chunks().await;
 
         let mut sort_key = SortKey::with_capacity(2);
         sort_key.push(
@@ -252,11 +309,11 @@ mod test {
         );
 
         let (_, compact_plan) = ReorgPlanner::new()
-            .compact_plan("t", chunks, sort_key)
+            .compact_plan(chunks, sort_key)
             .expect("created compact plan");
 
-        let ctx = ExecutionContext::new();
-        let physical_plan = ctx.create_physical_plan(&compact_plan).unwrap();
+        let executor = Executor::new(1);
+        let physical_plan = executor.new_context().prepare_plan(&compact_plan).unwrap();
         assert_eq!(
             physical_plan.output_partitioning().partition_count(),
             1,
@@ -283,5 +340,61 @@ mod test {
             "+-----------+------------+------+-------------------------------+",
         ];
         assert_batches_eq!(&expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn test_split_plan() {
+        // validate that the plumbing is all hooked up. The logic of
+        // the operator is tested in its own module.
+        let chunks = get_test_chunks().await;
+
+        // split on 1000 should have timestamps 1000, 5000, and 7000
+        let split_plan = ReorgPlanner::new()
+            .split_plan(chunks, 1000)
+            .expect("created compact plan");
+
+        let executor = Executor::new(1);
+        let physical_plan = executor.new_context().prepare_plan(&split_plan).unwrap();
+
+        assert_eq!(
+            physical_plan.output_partitioning().partition_count(),
+            2,
+            "{:?}",
+            physical_plan.output_partitioning()
+        );
+
+        // verify that the stream was split
+        let stream0 = physical_plan.execute(0).await.expect("ran the plan");
+        let batches0 = datafusion::physical_plan::common::collect(stream0)
+            .await
+            .expect("plan ran without error");
+
+        let expected = vec![
+            "+-----------+------------+------+-------------------------------+",
+            "| field_int | field_int2 | tag1 | time                          |",
+            "+-----------+------------+------+-------------------------------+",
+            "| 1000      |            | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 70        |            | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       |            | AL   | 1970-01-01 00:00:00.000000050 |",
+            "+-----------+------------+------+-------------------------------+",
+        ];
+        assert_batches_sorted_eq!(&expected, &batches0);
+
+        let stream1 = physical_plan.execute(1).await.expect("ran the plan");
+        let batches1 = datafusion::physical_plan::common::collect(stream1)
+            .await
+            .expect("plan ran without error");
+        let expected = vec![
+            "+-----------+------------+------+----------------------------+",
+            "| field_int | field_int2 | tag1 | time                       |",
+            "+-----------+------------+------+----------------------------+",
+            "| 10        |            | MT   | 1970-01-01 00:00:00.000007 |",
+            "| 1000      | 1000       | WA   | 1970-01-01 00:00:00.000008 |",
+            "| 5         |            | MT   | 1970-01-01 00:00:00.000005 |",
+            "| 50        | 50         | VT   | 1970-01-01 00:00:00.000010 |",
+            "| 70        | 70         | UT   | 1970-01-01 00:00:00.000020 |",
+            "+-----------+------------+------+----------------------------+",
+        ];
+        assert_batches_sorted_eq!(&expected, &batches1);
     }
 }
