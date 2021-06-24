@@ -59,6 +59,7 @@
     clippy::clone_on_ref_ptr
 )]
 
+pub mod checkpoint;
 pub mod chunk;
 mod column;
 mod dictionary;
