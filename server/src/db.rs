@@ -1189,6 +1189,64 @@ mod tests {
         assert_batches_eq!(expected, &batches);
     }
 
+    #[tokio::test]
+    async fn try_all_partition_writes_when_some_fail() {
+        let db = Arc::new(make_db().await.db);
+
+        let nanoseconds_per_hour = 60 * 60 * 1_000_000_000u64;
+
+        // 3 lines that will go into 3 hour partitions and start new chunks.
+        let lp = format!(
+            "foo,t1=alpha iv=1i {}
+             foo,t1=bravo iv=1i {}
+             foo,t1=charlie iv=1i {}",
+            0,
+            nanoseconds_per_hour,
+            nanoseconds_per_hour * 2,
+        );
+
+        let entry = lp_to_entry(&lp);
+
+        // This should succeed and start chunks in the MUB
+        db.store_entry(entry).await.unwrap();
+
+        // 3 more lines that should go in the 3 partitions/chunks.
+        // Line 1 has the same schema and should end up in the MUB.
+        // Line 2 has a different schema than line 1 and should error
+        // Line 3 has the same schema as line 1 and should end up in the MUB.
+        let lp = format!(
+            "foo,t1=delta iv=1i {}
+             foo t1=10i {}
+             foo,t1=important iv=1i {}",
+            1,
+            nanoseconds_per_hour + 1,
+            nanoseconds_per_hour * 2 + 1,
+        );
+
+        let entry = lp_to_entry(&lp);
+
+        // This should return an error because there was at least one error in the loop
+        let result = db.store_entry(entry).await;
+        assert!(result.is_err());
+
+        // But 5 points should be returned, most importantly the last one after the line with
+        // the mismatched schema
+        let batches = run_query(db, "select t1 from foo").await;
+
+        let expected = vec![
+            "+-----------+",
+            "| t1        |",
+            "+-----------+",
+            "| alpha     |",
+            "| bravo     |",
+            "| charlie   |",
+            "| delta     |",
+            "| important |",
+            "+-----------+",
+        ];
+        assert_batches_sorted_eq!(expected, &batches);
+    }
+
     fn catalog_chunk_size_bytes_metric_eq(
         reg: &metrics::TestMetricRegistry,
         source: &'static str,
