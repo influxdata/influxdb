@@ -3781,6 +3781,7 @@ dependencies = [
  "query",
  "rand 0.8.3",
  "rand_distr",
+ "rdkafka",
  "read_buffer",
  "serde",
  "serde_json",

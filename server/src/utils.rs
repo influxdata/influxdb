@@ -8,7 +8,7 @@ use object_store::{memory::InMemory, ObjectStore};
 use query::{exec::Executor, QueryDatabase};
 
 use crate::{
-    db::{load_or_create_preserved_catalog, Db},
+    db::{load_or_create_preserved_catalog, DatabaseToCommit, Db},
     write_buffer::WriteBuffer,
     JobRegistry,
 };
@@ -78,18 +78,19 @@ impl TestDbBuilder {
         rules.lifecycle_rules.catalog_transactions_until_checkpoint =
             self.catalog_transactions_until_checkpoint;
 
+        let database_to_commit = DatabaseToCommit {
+            rules,
+            server_id,
+            object_store,
+            preserved_catalog,
+            catalog,
+            write_buffer: self.write_buffer,
+            exec,
+        };
+
         TestDb {
             metric_registry: metrics::TestMetricRegistry::new(metrics_registry),
-            db: Db::new(
-                rules,
-                server_id,
-                object_store,
-                exec,
-                Arc::new(JobRegistry::new()),
-                preserved_catalog,
-                catalog,
-                self.write_buffer,
-            ),
+            db: Db::new(database_to_commit, Arc::new(JobRegistry::new())),
         }
     }
 
