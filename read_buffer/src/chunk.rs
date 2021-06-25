@@ -113,7 +113,25 @@ impl Chunk {
     ///
     /// The data is converted to a `RowGroup` outside of any locking so the
     /// caller does not need to be concerned about the size of the update.
-    pub fn upsert_table(&mut self, _table_name: &str, table_data: RecordBatch) {
+    pub fn upsert_table(&mut self, table_name: &str, table_data: RecordBatch) {
+        // TEMPORARY: print record batch information
+        for (column, field) in table_data
+            .columns()
+            .iter()
+            .zip(table_data.schema().fields())
+        {
+            info!(%table_name, column = %field.name(), rows=column.len(), data_type=%field.data_type(), buffer_size=column.get_buffer_memory_size(), array_size=column.get_array_memory_size(), "column");
+            for (idx, buffer) in column.data().buffers().iter().enumerate() {
+                info!(%table_name, column = %field.name(), len=buffer.len(), capacity=buffer.capacity(), idx, "column data");
+            }
+
+            for (parent_idx, data) in column.data().child_data().iter().enumerate() {
+                for (child_idx, buffer) in data.buffers().iter().enumerate() {
+                    info!(%table_name, column = %field.name(), len=buffer.len(), capacity=buffer.capacity(), parent_idx, child_idx, "column child data");
+                }
+            }
+        }
+
         // Approximate heap size of record batch.
         let mub_rb_size = table_data
             .columns()
