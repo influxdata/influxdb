@@ -849,6 +849,7 @@ func (h *Handler) serveWriteV2(w http.ResponseWriter, r *http.Request, user meta
 	default:
 		err := fmt.Sprintf("invalid precision %q (use ns, us, ms or s)", precision)
 		h.httpError(w, err, http.StatusBadRequest)
+		return
 	}
 
 	db, rp, err := bucket2dbrp(r.URL.Query().Get("bucket"))
@@ -868,6 +869,7 @@ func (h *Handler) serveWriteV1(w http.ResponseWriter, r *http.Request, user meta
 	default:
 		err := fmt.Sprintf("invalid precision %q (use n, u, ms, s, m or h)", precision)
 		h.httpError(w, err, http.StatusBadRequest)
+		return
 	}
 
 	db := r.URL.Query().Get("db")
