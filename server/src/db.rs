@@ -148,7 +148,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Storing sequenced entry failed with the following error(s): {}",
+        "Storing sequenced entry failed with the following error(s), and possibly more: {}",
         errors.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
     ))]
     StoreSequencedEntryFailures { errors: Vec<Error> },
@@ -869,7 +869,10 @@ impl Db {
         }
 
         if let Some(partitioned_writes) = sequenced_entry.partition_writes() {
-            let mut errors = vec![];
+            // Protect against DoS by limiting the number of errors we might collect
+            const MAX_ERRORS_PER_SEQUENCED_ENTRY: usize = 10;
+
+            let mut errors = Vec::with_capacity(MAX_ERRORS_PER_SEQUENCED_ENTRY);
 
             for write in partitioned_writes {
                 let partition_key = write.key();
@@ -910,7 +913,9 @@ impl Db {
                                     chunk_id,
                                 })
                             {
-                                errors.push(e);
+                                if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
+                                    errors.push(e);
+                                }
                                 continue;
                             };
 
@@ -937,7 +942,9 @@ impl Db {
                                 )
                                 .context(WriteEntryInitial { partition_key })
                             {
-                                errors.push(e);
+                                if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
+                                    errors.push(e);
+                                }
                                 continue;
                             }
 
@@ -1247,7 +1254,7 @@ mod tests {
         let result = db.store_entry(entry).await;
         assert_contains!(
             result.unwrap_err().to_string(),
-            "Storing sequenced entry failed with the following error(s):"
+            "Storing sequenced entry failed with the following error(s), and possibly more:"
         );
 
         // But 5 points should be returned, most importantly the last one after the line with
