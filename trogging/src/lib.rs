@@ -469,13 +469,15 @@ pub mod test_util {
         }
     }
 
-    /// This is a test helper that sets a few  test-friendly parameters
+    /// This is a test helper that sets a few test-friendly parameters
     /// such as disabled ANSI escape sequences on the provided builder.
-    /// This helper then emits a few logs of different verbosity levels
-    /// and returns the captured output.
-    pub fn simple_test<W>(builder: Builder<W>) -> Captured
+    /// This helper then calls the provided function within the context
+    /// of the test subscriber, and returns the captured output of all
+    /// the logging macros invoked by the function.
+    pub fn log_test<W, F>(builder: Builder<W>, f: F) -> Captured
     where
         W: MakeWriter + Send + Sync + 'static,
+        F: Fn(),
     {
         let (writer, output) = TestWriter::new();
         let subscriber = builder
@@ -485,15 +487,26 @@ pub mod test_util {
             .build()
             .expect("subscriber");
 
-        tracing::subscriber::with_default(subscriber, || {
+        tracing::subscriber::with_default(subscriber, f);
+
+        output
+    }
+
+    /// This is a test helper that sets a few test-friendly parameters
+    /// such as disabled ANSI escape sequences on the provided builder.
+    /// This helper then emits a few logs of different verbosity levels
+    /// and returns the captured output.
+    pub fn simple_test<W>(builder: Builder<W>) -> Captured
+    where
+        W: MakeWriter + Send + Sync + 'static,
+    {
+        log_test(builder, || {
             error!("foo");
             warn!("woo");
             info!("bar");
             debug!("baz");
             trace!("trax");
-        });
-
-        output
+        })
     }
 }
 
@@ -502,6 +515,9 @@ mod tests {
     use super::*;
 
     use crate::test_util::*;
+    use observability_deps::tracing::{debug, error};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
 
     #[test]
     fn simple_logging() {
@@ -603,5 +619,33 @@ INFO bar
 "#
             .trim_start(),
         );
+    }
+
+    #[test]
+    fn test_side_effects() {
+        let called = Arc::new(AtomicBool::new(false));
+        let called_captured = Arc::clone(&called);
+
+        fn call(called: &AtomicBool) -> bool {
+            called.store(true, Ordering::SeqCst);
+            true
+        }
+
+        assert_eq!(
+            log_test(
+                Builder::new().with_log_filter(&Some("error".to_string())),
+                move || {
+                    error!("foo");
+                    debug!(called=?call(&called_captured), "bar");
+                }
+            )
+            .without_timestamps(),
+            r#"
+ERROR foo
+"#
+            .trim_start(),
+        );
+
+        assert_eq!(called.load(Ordering::SeqCst), false);
     }
 }
