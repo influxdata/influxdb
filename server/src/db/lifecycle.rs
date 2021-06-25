@@ -136,7 +136,7 @@ impl<'a> LockablePartition for LockableCatalogPartition<'a> {
         partition: LifecycleWriteGuard<'_, Self::Partition, Self>,
         chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, Self::Chunk>>,
     ) -> Result<TaskTracker<Job>, Self::CompactError> {
-        info!(partition=%partition.partition_key(), "compacting chunks");
+        info!(table=%partition.table_name(), partition=%partition.partition_key(), "compacting chunks");
         let (tracker, fut) = compact::compact_chunks(partition, chunks)?;
         let _ = tokio::spawn(async move { fut.await.log_if_error("compacting chunks") });
         Ok(tracker)
