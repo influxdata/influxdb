@@ -24,8 +24,6 @@ require (
 	github.com/elazarl/go-bindata-assetfs v1.0.0
 	github.com/fatih/color v1.9.0
 	github.com/fujiwara/shapeio v1.0.0
-	github.com/getkin/kin-openapi v0.53.0
-	github.com/ghodss/yaml v1.0.0
 	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
 	github.com/glycerine/goconvey v0.0.0-20180728074245-46e3a41ad493 // indirect
 	github.com/go-chi/chi v4.1.0+incompatible

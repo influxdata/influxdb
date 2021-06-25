@@ -1,5 +1,3 @@
-// +build !assets
-
 package server
 
 import (
