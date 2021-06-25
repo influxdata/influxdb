@@ -57,7 +57,7 @@ type Service struct {
 	mu              sync.RWMutex
 	conf            Config
 
-	subs  map[subEntry]*chanWriter
+	subs  subscriberMap
 }
 
 // NewService returns a subscriber service with given settings
@@ -145,10 +145,10 @@ func (s *Service) Close() error {
 	// close all the subscriptions
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, cw := range s.subs {
+	s.subs.forEachChanWriter(func(cw *chanWriter){
 		cw.Close()
-	}
-	s.subs = nil
+	})
+	s.subs = subscriberMap{}
 	s.Logger.Info("Closed service")
 	return nil
 }
@@ -179,10 +179,10 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	s.subs.forEachChanWriter(func(cw *chanWriter){
+		statistics = append(statistics, cw.Statistics(tags)...)
+	})
 
-	for _, sub := range s.subs {
-		statistics = append(statistics, sub.Statistics(tags)...)
-	}
 	return statistics
 }
 
@@ -257,15 +257,13 @@ func (s *Service) run() {
 				s.mu.RLock()
 				s.mu.RUnlock()
 				p = s.removeBadPoints(p)
-				for se, cw := range s.subs {
-					if p.Database == se.db && p.RetentionPolicy == se.rp {
-						select {
-						case cw.writeRequests <- p:
-						default:
-							atomic.AddInt64(&s.stats.WriteFailures, 1)
-						}
+				s.subs.forEachDbRp(p.Database, p.RetentionPolicy, func(cw *chanWriter){
+					select {
+					case cw.writeRequests <- p:
+					default:
+						atomic.AddInt64(&s.stats.WriteFailures, 1)
 					}
-				}
+				})
 			}()
 		}
 	}
@@ -320,10 +318,6 @@ func (s *Service) updateSubs() {
 	default:
 	}
 
-	if s.subs == nil {
-		s.subs = make(map[subEntry]*chanWriter)
-	}
-
 	dbis := s.MetaClient.Databases()
 	allEntries := make(map[subEntry]bool)
 	// Add in new subscriptions
@@ -336,7 +330,7 @@ func (s *Service) updateSubs() {
 					name: si.Name,
 				}
 				allEntries[se] = true
-				if _, ok := s.subs[se]; ok {
+				if s.subs.contains(se) {
 					continue
 				}
 				s.Logger.Info("Adding new subscription",
@@ -348,7 +342,7 @@ func (s *Service) updateSubs() {
 					s.Logger.Info("Subscription creation failed", zap.String("name", si.Name), zap.Error(err))
 					continue
 				}
-				s.subs[se] = newChanWriter(s, sub)
+				s.subs.upsert(se, newChanWriter(s, sub))
 				s.Logger.Info("Added new subscription",
 					logger.Database(se.db),
 					logger.RetentionPolicy(se.rp))
@@ -356,23 +350,21 @@ func (s *Service) updateSubs() {
 		}
 	}
 
-	// Remove deleted subs
-	for se := range s.subs {
-		if !allEntries[se] {
+	s.subs.removeIf(func(se subEntry, cw *chanWriter) bool{
+		if !allEntries[se]{
 			s.Logger.Info("Deleting old subscription",
 				logger.Database(se.db),
 				logger.RetentionPolicy(se.rp))
 
-			// Close the chanWriter and cancel all in-flight writes
-			s.subs[se].CancelAndClose()
+			cw.CancelAndClose()
 
-			// Remove it from the set
-			delete(s.subs, se)
 			s.Logger.Info("Deleted old subscription",
 				logger.Database(se.db),
 				logger.RetentionPolicy(se.rp))
+			return true
 		}
-	}
+		return false
+	})
 }
 
 // newPointsWriter returns a new PointsWriter from the given URL.
@@ -522,4 +514,79 @@ func (b *balancewriter) Statistics(tags map[string]string) []models.Statistic {
 		}
 	}
 	return statistics
+}
+
+type dbrp struct {
+	db, rp string
+}
+
+type subscriberMap struct {
+	// m is a two-level map to make finding the db,rp match efficient
+	m map[dbrp]map[string]*chanWriter
+}
+
+// upsert upserts a channel writer for subEntry
+func (s *subscriberMap) upsert(se subEntry, cw *chanWriter) {
+	if s.m == nil {
+		s.m = make(map[dbrp]map[string]*chanWriter)
+	}
+	key1 := dbrp{
+		db: se.db,
+		rp: se.rp,
+	}
+	if s.m[key1] == nil {
+		s.m[key1] = make(map[string]*chanWriter)
+	}
+	s.m[key1][se.name] = cw
+}
+
+func (s *subscriberMap) forEachChanWriter(f func(cw *chanWriter)) {
+	for _, m1 := range s.m {
+		for _, cw := range m1 {
+			f(cw)
+		}
+	}
+}
+
+// forEachDbRp runs f for all the channel writers with subscriptions matching a given write request
+func (s *subscriberMap) forEachDbRp(db, rp string, f func(cw *chanWriter)) {
+	key1 := dbrp{
+		db: db,
+		rp: rp,
+	}
+	for _, cw := range s.m[key1] {
+		f(cw)
+	}
+}
+
+// contains returns true if there is a matching subscriber
+func (s *subscriberMap) contains(se subEntry) bool {
+	key1 := dbrp{
+		db: se.db,
+		rp: se.rp,
+	}
+	if _, ok := s.m[key1]; !ok {
+		return false
+	}
+	_, ok := s.m[key1][se.name]
+	return ok
+}
+
+// removeIf runs f for each channel writer, and then removes it if f returns true
+func (s *subscriberMap) removeIf(f func(se subEntry, cw *chanWriter) bool) {
+	for key1 := range s.m {
+		for name, cw := range s.m[key1] {
+			se := subEntry{
+				db:   key1.db,
+				rp:   key1.rp,
+				name: name,
+			}
+			if f(se, cw) {
+				delete(s.m[key1], name)
+			}
+		}
+		if len(s.m[key1]) == 0 {
+			delete(s.m, key1)
+		}
+	}
 }
