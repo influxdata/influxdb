@@ -73,25 +73,12 @@ impl ReorgPlanner {
         let ScanPlan {
             plan_builder,
             provider,
-        } = self.scan_plan(chunks)?;
-
-        // figure out the sort expression
-        let sort_exprs = output_sort
-            .iter()
-            .map(|(column_name, sort_options)| Expr::Sort {
-                expr: Box::new(column_name.as_expr()),
-                asc: !sort_options.descending,
-                nulls_first: sort_options.nulls_first,
-            });
+        } = self.scan_and_sort_plan(chunks, output_sort)?;
 
         // TODO: Set sort key on schema
         let schema = provider.iox_schema();
 
-        let plan = plan_builder
-            .sort(sort_exprs)
-            .context(BuildingPlan)?
-            .build()
-            .context(BuildingPlan)?;
+        let plan = plan_builder.build().context(BuildingPlan)?;
 
         debug!(table_name=provider.table_name(), plan=%plan.display_indent_schema(),
                "created compact plan for table");
@@ -121,13 +108,13 @@ impl ReorgPlanner {
     /// ```text
     ///  X | time
     /// ---+-----
-    ///  a | 1000
     ///  b | 2000
+    ///  a | 1000
     ///  c | 4000
     ///  d | 2000
     ///  e | 3000
     /// ```
-    /// A split plan with `split_time=2000` will produce the following two output streams
+    /// A split plan with `sort=time` and `split_time=2000` will produce the following two output streams
     ///
     /// ```text
     ///  X | time
@@ -140,17 +127,22 @@ impl ReorgPlanner {
     /// ```text
     ///  X | time
     /// ---+-----
-    ///  c | 4000
     ///  e | 3000
+    ///  c | 4000
     /// ```
-    pub fn split_plan<C>(&self, chunks: Vec<Arc<C>>, split_time: i64) -> Result<LogicalPlan>
+    pub fn split_plan<C>(
+        &self,
+        chunks: Vec<Arc<C>>,
+        output_sort: SortKey<'_>,
+        split_time: i64,
+    ) -> Result<LogicalPlan>
     where
         C: QueryChunk + 'static,
     {
         let ScanPlan {
             plan_builder,
             provider,
-        } = self.scan_plan(chunks)?;
+        } = self.scan_and_sort_plan(chunks, output_sort)?;
 
         // time <= split_time
         let ts_literal = Expr::Literal(ScalarValue::TimestampNanosecond(Some(split_time)));
@@ -170,11 +162,13 @@ impl ReorgPlanner {
     ///
     /// 1. Merges chunks together into a single stream
     /// 2. Deduplicates via PK as necessary
+    /// 3. Sorts the result according to the requested key
     ///
     /// The plan looks like:
     ///
-    /// (Scan chunks) <-- any needed deduplication happens here
-    fn scan_plan<C, I>(&self, chunks: I) -> Result<ScanPlan<C>>
+    /// (Sort on output_sort)
+    ///   (Scan chunks) <-- any needed deduplication happens here
+    fn scan_and_sort_plan<C, I>(&self, chunks: I, output_sort: SortKey<'_>) -> Result<ScanPlan<C>>
     where
         C: QueryChunk + 'static,
         I: IntoIterator<Item = Arc<C>>,
@@ -212,8 +206,19 @@ impl ReorgPlanner {
         // Scan all columns
         let projection = None;
 
+        // figure out the sort expression
+        let sort_exprs = output_sort
+            .iter()
+            .map(|(column_name, sort_options)| Expr::Sort {
+                expr: Box::new(column_name.as_expr()),
+                asc: !sort_options.descending,
+                nulls_first: sort_options.nulls_first,
+            });
+
         let plan_builder =
             LogicalPlanBuilder::scan(table_name, Arc::clone(&provider) as _, projection)
+                .context(BuildingPlan)?
+                .sort(sort_exprs)
                 .context(BuildingPlan)?;
 
         Ok(ScanPlan {
@@ -230,7 +235,7 @@ struct ScanPlan<C: QueryChunk + 'static> {
 
 #[cfg(test)]
 mod test {
-    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
+    use arrow_util::assert_batches_eq;
     use internal_types::schema::sort::SortOptions;
 
     use crate::{
@@ -348,9 +353,18 @@ mod test {
         // the operator is tested in its own module.
         let chunks = get_test_chunks().await;
 
+        let mut sort_key = SortKey::with_capacity(1);
+        sort_key.push(
+            "time",
+            SortOptions {
+                descending: false,
+                nulls_first: false,
+            },
+        );
+
         // split on 1000 should have timestamps 1000, 5000, and 7000
         let split_plan = ReorgPlanner::new()
-            .split_plan(chunks, 1000)
+            .split_plan(chunks, sort_key, 1000)
             .expect("created compact plan");
 
         let executor = Executor::new(1);
@@ -369,32 +383,35 @@ mod test {
             .await
             .expect("plan ran without error");
 
+        // Note sorted on time
         let expected = vec![
             "+-----------+------------+------+-------------------------------+",
             "| field_int | field_int2 | tag1 | time                          |",
             "+-----------+------------+------+-------------------------------+",
-            "| 1000      |            | MT   | 1970-01-01 00:00:00.000001    |",
-            "| 70        |            | CT   | 1970-01-01 00:00:00.000000100 |",
             "| 100       |            | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 70        |            | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 1000      |            | MT   | 1970-01-01 00:00:00.000001    |",
             "+-----------+------------+------+-------------------------------+",
         ];
-        assert_batches_sorted_eq!(&expected, &batches0);
+        assert_batches_eq!(&expected, &batches0);
 
         let stream1 = physical_plan.execute(1).await.expect("ran the plan");
         let batches1 = datafusion::physical_plan::common::collect(stream1)
             .await
             .expect("plan ran without error");
+
+        // Note sorted on time
         let expected = vec![
             "+-----------+------------+------+----------------------------+",
             "| field_int | field_int2 | tag1 | time                       |",
             "+-----------+------------+------+----------------------------+",
+            "| 5         |            | MT   | 1970-01-01 00:00:00.000005 |",
             "| 10        |            | MT   | 1970-01-01 00:00:00.000007 |",
             "| 1000      | 1000       | WA   | 1970-01-01 00:00:00.000008 |",
-            "| 5         |            | MT   | 1970-01-01 00:00:00.000005 |",
             "| 50        | 50         | VT   | 1970-01-01 00:00:00.000010 |",
             "| 70        | 70         | UT   | 1970-01-01 00:00:00.000020 |",
             "+-----------+------------+------+----------------------------+",
         ];
-        assert_batches_sorted_eq!(&expected, &batches1);
+        assert_batches_eq!(&expected, &batches1);
     }
 }
