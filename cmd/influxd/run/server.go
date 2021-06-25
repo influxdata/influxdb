@@ -39,14 +39,15 @@ import (
 	reads "github.com/influxdata/influxdb/storage/flux"
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
-	client "github.com/influxdata/usage-client/v1"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
 
 	// Initialize the engine package
 	_ "github.com/influxdata/influxdb/tsdb/engine"
+
 	// Initialize the index package
 	_ "github.com/influxdata/influxdb/tsdb/index"
+	client "github.com/influxdata/usage-client/v1"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 var startTime time.Time

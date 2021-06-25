@@ -3,8 +3,6 @@ package subscriber_test
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/pkg/testing/assert"
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -14,8 +12,10 @@ import (
 
 	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/testing/assert"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/subscriber"
+	"github.com/stretchr/testify/require"
 )
 
 const testTimeout = 10 * time.Second
@@ -385,7 +385,7 @@ func TestService_Multiple(t *testing.T) {
 		case <-time.After(testTimeout):
 			t.Fatalf("expected points request: got %d exp 2", i)
 		}
-		assert.Equal(t,expPR,pr)
+		assert.Equal(t, expPR, pr)
 	}
 	close(dataChanged)
 }
@@ -469,7 +469,7 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	// Signal that data has changed - two calls to DatabaseInfo implies we already updated once due to channel size
 	currentDatabaseInfo[0].RetentionPolicies[0].Subscriptions[0].Destinations[0] = nonBlockingServer.URL
 	currentDatabaseInfo[0].RetentionPolicies[0].Subscriptions[0].Name = "nonblock"
-	for i := 0 ; i < 2; i ++ {
+	for i := 0; i < 2; i++ {
 		dataChanged <- struct{}{}
 
 		// DatabaseInfo should be called once more after data changed
@@ -490,14 +490,14 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	s.Points() <- &coordinator.WritePointsRequest{
 		Database:        "db0",
 		RetentionPolicy: "rp0",
-		Points:          []models.Point{
-			models.MustNewPoint("m0", nil, models.Fields{"f": 1.0}, time.Date(2020,1,1,0,0,0,0, time.UTC)),
-			models.MustNewPoint("m0", nil, models.Fields{"f": 2.0}, time.Date(2020,1,1,0,0,0,4, time.UTC)),
+		Points: []models.Point{
+			models.MustNewPoint("m0", nil, models.Fields{"f": 1.0}, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)),
+			models.MustNewPoint("m0", nil, models.Fields{"f": 2.0}, time.Date(2020, 1, 1, 0, 0, 0, 4, time.UTC)),
 		},
 	}
 	select {
 	case receivedStr := <-receivedNonBlocking:
-		assert.Equal(t, receivedStr,"m0 f=1 1577836800000000000\nm0 f=2 1577836800000000004\n")
+		assert.Equal(t, receivedStr, "m0 f=1 1577836800000000000\nm0 f=2 1577836800000000004\n")
 	case <-time.After(testTimeout):
 		t.Fatal("expected call to non blocking server")
 	}

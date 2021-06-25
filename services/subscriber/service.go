@@ -72,7 +72,7 @@ func (w *WriteRequest) Length() int {
 
 func (w *WriteRequest) SizeOf() int {
 	const intSize = unsafe.Sizeof(w.pointOffsets[0])
-	return len(w.lineProtocol) + len(w.pointOffsets) * int(intSize) + len(w.Database) + len(w.RetentionPolicy)
+	return len(w.lineProtocol) + len(w.pointOffsets)*int(intSize) + len(w.Database) + len(w.RetentionPolicy)
 }
 
 // PointsWriter is an interface for writing points to a subscription destination.
@@ -106,7 +106,7 @@ type Service struct {
 	mu              sync.RWMutex
 	conf            Config
 
-	subs  subscriberMap
+	subs subscriberMap
 }
 
 // NewService returns a subscriber service with given settings
@@ -194,7 +194,7 @@ func (s *Service) Close() error {
 	// close all the subscriptions
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.subs.forEachChanWriter(func(cw *chanWriter){
+	s.subs.forEachChanWriter(func(cw *chanWriter) {
 		cw.Close()
 	})
 	s.subs = subscriberMap{}
@@ -228,7 +228,7 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	s.subs.forEachChanWriter(func(cw *chanWriter){
+	s.subs.forEachChanWriter(func(cw *chanWriter) {
 		statistics = append(statistics, cw.Statistics(tags)...)
 	})
 
@@ -306,12 +306,8 @@ func (s *Service) run() {
 				s.mu.RLock()
 				s.mu.RUnlock()
 				p = s.removeBadPoints(p)
-				s.subs.forEachDbRp(p.Database, p.RetentionPolicy, func(cw *chanWriter){
-					select {
-					case cw.writeRequests <- NewWriteRequest(p):
-					default:
-						atomic.AddInt64(&s.stats.WriteFailures, 1)
-					}
+				s.subs.forEachDbRp(p.Database, p.RetentionPolicy, func(cw *chanWriter) {
+					cw.Write(NewWriteRequest(p))
 				})
 			}()
 		}
@@ -399,8 +395,8 @@ func (s *Service) updateSubs() {
 		}
 	}
 
-	s.subs.removeIf(func(se subEntry, cw *chanWriter) bool{
-		if !allEntries[se]{
+	s.subs.removeIf(func(se subEntry, cw *chanWriter) bool {
+		if !allEntries[se] {
 			s.Logger.Info("Deleting old subscription",
 				logger.Database(se.db),
 				logger.RetentionPolicy(se.rp))
@@ -413,6 +409,18 @@ func (s *Service) updateSubs() {
 			return true
 		}
 		return false
+	})
+
+	memoryLimit := int64(0)
+	if s.conf.TotalBufferBytes != 0 {
+		memoryLimit = int64(s.conf.TotalBufferBytes / len(allEntries))
+		if memoryLimit == 0 {
+			memoryLimit = 1
+		}
+	}
+	s.subs.forEachChanWriter(func(cw *chanWriter) {
+		// Note limitTo cannot be called concurrently - we have the write lock for the whole Service here so it is safe.
+		cw.limitTo(memoryLimit)
 	})
 }
 
@@ -436,21 +444,23 @@ func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
 // chanWriter sends WritePointsRequest to a PointsWriter received over a channel.
 type chanWriter struct {
 	writeRequests chan WriteRequest
-	ctx context.Context
-	cancel context.CancelFunc
+	ctx           context.Context
+	cancel        context.CancelFunc
 	pw            PointsWriter
 	pointsWritten *int64
 	failures      *int64
 	logger        *zap.Logger
-	wg sync.WaitGroup
+	queueSize     int64
+	queueLimit    int64
+	wg            sync.WaitGroup
 }
 
 func newChanWriter(s *Service, sub PointsWriter) *chanWriter {
 	ctx, cancel := context.WithCancel(context.Background())
 	cw := &chanWriter{
 		writeRequests: make(chan WriteRequest, s.conf.WriteBufferSize),
-		ctx: ctx,
-		cancel: cancel,
+		ctx:           ctx,
+		cancel:        cancel,
 		pw:            sub,
 		pointsWritten: &s.stats.PointsWritten,
 		failures:      &s.stats.WriteFailures,
@@ -464,6 +474,34 @@ func newChanWriter(s *Service, sub PointsWriter) *chanWriter {
 		}()
 	}
 	return cw
+}
+
+func (c *chanWriter) Write(wr WriteRequest) {
+	sz := wr.SizeOf()
+	newSize := atomic.AddInt64(&c.queueSize, int64(sz))
+	limit := atomic.LoadInt64(&c.queueLimit)
+
+	// If we would add more size than we should hold, reject the write
+	if limit > 0 && newSize > limit {
+		atomic.AddInt64(c.failures, 1)
+		atomic.AddInt64(&c.queueSize, -int64(sz))
+		return
+	}
+
+	// If the write queue is full, reject the write
+	select {
+	case c.writeRequests <- wr:
+	default:
+		atomic.AddInt64(c.failures, 1)
+	}
+}
+
+// limitTo sets a new limit on the size of the queue.
+// It is not safe to call limitTo concurrently.
+func (c *chanWriter) limitTo(newLimit int64) {
+	atomic.StoreInt64(&c.queueLimit, newLimit)
+	// We don't immediately evict things if the queue is over the limit,
+	// since they should be shortly evicted in normal operation.
 }
 
 func (c *chanWriter) CancelAndClose() {
@@ -487,6 +525,7 @@ func (c *chanWriter) Run() {
 		} else {
 			atomic.AddInt64(c.pointsWritten, int64(len(wr.pointOffsets)))
 		}
+		atomic.AddInt64(&c.queueSize, -int64(wr.SizeOf()))
 	}
 }
 
