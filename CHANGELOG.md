@@ -9,6 +9,7 @@ v1.9.3 [unreleased]
 -	[#21609](https://github.com/influxdata/influxdb/pull/21609): fix: avoid rewriting fields.idx unnecessarily 
 -	[#21695](https://github.com/influxdata/influxdb/pull/21695): fix: Do not close connection twice in DigestWithOptions
 -	[#21697](https://github.com/influxdata/influxdb/pull/21697): fix: do not panic on cleaning up failed iterators
+- [#21751](https://github.com/influxdata/influxdb/pull/21751): fix: rename arm rpms with yum-compatible names
 
 v1.9.2 [unreleased]
 
