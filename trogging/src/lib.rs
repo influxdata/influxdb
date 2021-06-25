@@ -29,8 +29,13 @@ use observability_deps::{
         EnvFilter,
     },
 };
+use std::cmp::min;
 use std::io;
+use std::io::Write;
 use thiserror::Error;
+
+/// Maximum length of a log line.
+const MAX_LINE_LENGTH: usize = 16 * 1024;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -93,7 +98,7 @@ impl Builder {
 impl<W> Builder<W> {
     pub fn with_writer<W2>(self, make_writer: W2) -> Builder<W2>
     where
-        W2: MakeWriter + Send + Sync + Clone + 'static,
+        W2: MakeWriter + Send + Sync + 'static,
     {
         Builder::<W2> {
             make_writer,
@@ -153,13 +158,26 @@ where
     }
 
     pub fn with_log_destination(self, log_destination: LogDestination) -> Builder<BoxMakeWriter> {
+        // Ideally we need a synchronized writer so that threads don't stomp on each others.
+        // Unfortunately with the current release of `tracing-subscriber`, the trait doesn't expose
+        // a lifetime parameter. The HEAD version fixes that and even implements MakeWriter for Mutex<Writer>
+        // and shows some examples of how to use StdoutLock
+        //
+        // https://docs.rs/tracing-subscriber/0.2.18/tracing_subscriber/fmt/trait.MakeWriter.html)
+        // vs
+        // https://github.com/tokio-rs/tracing/blob/master/tracing-subscriber/src/fmt/writer.rs#L161
+        //
+        // The current hack is to ensure the LineWriter has enough buffer space to perform one single
+        // large call to the underlying writer. This is not a guarantee that the write won't be interrupted
+        // but hopefully it will happen much less often and not cause a pain until tracing_subscriber
+        // gets upgraded.
+        //
+        // For that to work we must cap the line length, which is also a good idea because docker
+        // caps log lines at 16K (and fluentd caps them at 32K).
+
         let make_writer = match log_destination {
-            LogDestination::Stdout => {
-                fmt::writer::BoxMakeWriter::new(|| std::io::LineWriter::new(std::io::stdout()))
-            }
-            LogDestination::Stderr => {
-                fmt::writer::BoxMakeWriter::new(|| std::io::LineWriter::new(std::io::stderr()))
-            }
+            LogDestination::Stdout => make_writer(std::io::stdout),
+            LogDestination::Stderr => make_writer(std::io::stderr),
         };
         Builder {
             make_writer,
@@ -411,6 +429,33 @@ impl Drop for TracingGuard {
     }
 }
 
+fn make_writer<M>(m: M) -> BoxMakeWriter
+where
+    M: MakeWriter + Send + Sync + 'static,
+{
+    fmt::writer::BoxMakeWriter::new(move || {
+        LimitedWriter(
+            MAX_LINE_LENGTH,
+            std::io::LineWriter::with_capacity(MAX_LINE_LENGTH, m.make_writer()),
+        )
+    })
+}
+
+struct LimitedWriter<W: Write>(usize, W);
+impl<W: Write> Write for LimitedWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        // in case of interrupted syscalls we prefer to write a garbled log line.
+        // than to just truncate the logs.
+        self.1
+            .write_all(&buf[..min(self.0, buf.len())])
+            .map(|_| buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.1.flush()
+    }
+}
+
 #[cfg(test)]
 pub mod test_util {
     ///! Utilities for testing logging and tracing.
@@ -481,7 +526,7 @@ pub mod test_util {
     {
         let (writer, output) = TestWriter::new();
         let subscriber = builder
-            .with_writer(writer)
+            .with_writer(make_writer(writer))
             .with_target(false)
             .with_ansi(false)
             .build()
@@ -647,5 +692,25 @@ ERROR foo
         );
 
         assert_eq!(called.load(Ordering::SeqCst), false);
+    }
+
+    #[test]
+    fn test_long_lines() {
+        let long = std::iter::repeat("X").take(20 * 1024).collect::<String>();
+
+        let captured = log_test(
+            Builder::new().with_log_filter(&Some("error".to_string())),
+            move || {
+                error!(%long);
+            },
+        )
+        .without_timestamps();
+
+        assert!(
+            captured.len() <= MAX_LINE_LENGTH,
+            "{} <= {}",
+            captured.len(),
+            MAX_LINE_LENGTH
+        );
     }
 }
