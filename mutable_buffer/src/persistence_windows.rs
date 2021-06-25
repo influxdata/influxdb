@@ -28,11 +28,7 @@ pub struct PersistenceWindows {
 
 impl PersistenceWindows {
     pub fn new(late_arrival_period: Duration) -> Self {
-        let closed_window_period = if late_arrival_period > DEFAULT_CLOSED_WINDOW_PERIOD {
-            DEFAULT_CLOSED_WINDOW_PERIOD
-        } else {
-            late_arrival_period
-        };
+        let closed_window_period = late_arrival_period.min(DEFAULT_CLOSED_WINDOW_PERIOD);
 
         let late_arrival_seconds = late_arrival_period.as_secs();
         let closed_window_seconds = closed_window_period.as_secs();

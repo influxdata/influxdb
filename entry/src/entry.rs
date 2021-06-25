@@ -45,7 +45,7 @@ pub enum Error {
     #[snafu(display("'time' column is required"))]
     TimeColumnMissing,
 
-    #[snafu(display("time value missing from batch"))]
+    #[snafu(display("time value missing from batch or no rows in batch"))]
     TimeValueMissing,
 
     #[snafu(display("'time' column must be i64 type"))]
@@ -422,7 +422,7 @@ impl<'a> TableBatch<'a> {
                 let min = vals.iter().min().context(TimeValueMissing)?;
                 let max = vals.iter().max().context(TimeValueMissing)?;
 
-                Ok((timestamp_to_datetime(min), timestamp_to_datetime(max)))
+                Ok((Utc.timestamp_nanos(min), Utc.timestamp_nanos(max)))
             }
             None => TimeColumnMissing.fail(),
         }
@@ -464,12 +464,6 @@ impl<'a> TableBatch<'a> {
 
         0
     }
-}
-
-fn timestamp_to_datetime(ts: i64) -> DateTime<Utc> {
-    let secs = ts / 1_000_000_000;
-    let nsec = ts % 1_000_000_000;
-    Utc.timestamp(secs, nsec as u32)
 }
 
 /// Wrapper struct for the flatbuffers Column. Has a convenience method to
