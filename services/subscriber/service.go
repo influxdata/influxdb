@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/logger"
@@ -26,11 +27,59 @@ const (
 	statWriteFailures  = "writeFailures"
 )
 
+// WriteRequest is a parsed write request.
+type WriteRequest struct {
+	Database        string
+	RetentionPolicy string
+	// lineProtocol must be valid newline-separated line protocol.
+	lineProtocol []byte
+	// pointOffsets gives the starting index within lineProtocol of each point,
+	// for splitting batches if required.
+	pointOffsets []int
+}
+
+func NewWriteRequest(r *coordinator.WritePointsRequest) WriteRequest {
+	// Pre-allocate at least smallPointSize bytes per point.
+	const smallPointSize = 10
+	writeReq := WriteRequest{
+		Database:        r.Database,
+		RetentionPolicy: r.RetentionPolicy,
+		pointOffsets:    make([]int, 0, len(r.Points)),
+		lineProtocol:    make([]byte, 0, len(r.Points)*smallPointSize),
+	}
+	for _, p := range r.Points {
+		writeReq.pointOffsets = append(writeReq.pointOffsets, len(writeReq.lineProtocol))
+		writeReq.lineProtocol = p.AppendString(writeReq.lineProtocol)
+		writeReq.lineProtocol = append(writeReq.lineProtocol, byte('\n'))
+	}
+	return writeReq
+}
+
+// pointAt uses pointOffsets to slice the lineProtocol buffer and retrieve the i_th point in the request.
+// It includes the trailing newline.
+func (w *WriteRequest) PointAt(i int) []byte {
+	start := w.pointOffsets[i]
+	end := len(w.lineProtocol)
+	if i+1 < len(w.pointOffsets) {
+		end = w.pointOffsets[i+1]
+	}
+	return w.lineProtocol[start:end]
+}
+
+func (w *WriteRequest) Length() int {
+	return len(w.pointOffsets)
+}
+
+func (w *WriteRequest) SizeOf() int {
+	const intSize = unsafe.Sizeof(w.pointOffsets[0])
+	return len(w.lineProtocol) + len(w.pointOffsets) * int(intSize) + len(w.Database) + len(w.RetentionPolicy)
+}
+
 // PointsWriter is an interface for writing points to a subscription destination.
 // Only WritePoints() needs to be satisfied.  PointsWriter implementations
 // must be goroutine safe.
 type PointsWriter interface {
-	WritePointsContext(ctx context.Context, p *coordinator.WritePointsRequest) error
+	WritePointsContext(ctx context.Context, request WriteRequest) error
 }
 
 // subEntry is a unique set that identifies a given subscription.
@@ -259,7 +308,7 @@ func (s *Service) run() {
 				p = s.removeBadPoints(p)
 				s.subs.forEachDbRp(p.Database, p.RetentionPolicy, func(cw *chanWriter){
 					select {
-					case cw.writeRequests <- p:
+					case cw.writeRequests <- NewWriteRequest(p):
 					default:
 						atomic.AddInt64(&s.stats.WriteFailures, 1)
 					}
@@ -386,7 +435,7 @@ func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
 
 // chanWriter sends WritePointsRequest to a PointsWriter received over a channel.
 type chanWriter struct {
-	writeRequests chan *coordinator.WritePointsRequest
+	writeRequests chan WriteRequest
 	ctx context.Context
 	cancel context.CancelFunc
 	pw            PointsWriter
@@ -399,7 +448,7 @@ type chanWriter struct {
 func newChanWriter(s *Service, sub PointsWriter) *chanWriter {
 	ctx, cancel := context.WithCancel(context.Background())
 	cw := &chanWriter{
-		writeRequests: make(chan *coordinator.WritePointsRequest, s.conf.WriteBufferSize),
+		writeRequests: make(chan WriteRequest, s.conf.WriteBufferSize),
 		ctx: ctx,
 		cancel: cancel,
 		pw:            sub,
@@ -436,7 +485,7 @@ func (c *chanWriter) Run() {
 			c.logger.Info(err.Error())
 			atomic.AddInt64(c.failures, 1)
 		} else {
-			atomic.AddInt64(c.pointsWritten, int64(len(wr.Points)))
+			atomic.AddInt64(c.pointsWritten, int64(len(wr.pointOffsets)))
 		}
 	}
 }
@@ -475,7 +524,7 @@ type balancewriter struct {
 	i           int
 }
 
-func (b *balancewriter) WritePointsContext(ctx context.Context, p *coordinator.WritePointsRequest) error {
+func (b *balancewriter) WritePointsContext(ctx context.Context, request WriteRequest) error {
 	var lastErr error
 	for range b.writers {
 		// round robin through destinations.
@@ -484,12 +533,12 @@ func (b *balancewriter) WritePointsContext(ctx context.Context, p *coordinator.W
 		b.i = (b.i + 1) % len(b.writers)
 
 		// write points to destination.
-		err := w.WritePointsContext(ctx, p)
+		err := w.WritePointsContext(ctx, request)
 		if err != nil {
 			lastErr = err
 			atomic.AddInt64(&b.stats[i].failures, 1)
 		} else {
-			atomic.AddInt64(&b.stats[i].pointsWritten, int64(len(p.Points)))
+			atomic.AddInt64(&b.stats[i].pointsWritten, int64(len(request.pointOffsets)))
 			if b.bm == ANY {
 				break
 			}

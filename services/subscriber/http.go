@@ -1,6 +1,7 @@
 package subscriber
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -8,12 +9,11 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/client/v2"
-	"github.com/influxdata/influxdb/coordinator"
 )
 
 // HTTP supports writing points over HTTP using the line protocol.
 type HTTP struct {
-	c client.Client
+	c client.HTTPClient
 }
 
 // NewHTTP returns a new HTTP points writer with default options.
@@ -43,16 +43,12 @@ func NewHTTPS(addr string, timeout time.Duration, unsafeSsl bool, caCerts string
 }
 
 // WritePoints writes points over HTTP transport.
-func (h *HTTP) WritePointsContext(ctx context.Context, p *coordinator.WritePointsRequest) (err error) {
+func (h *HTTP) WritePointsContext(ctx context.Context, request WriteRequest) (err error) {
 	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
-		Database:        p.Database,
-		RetentionPolicy: p.RetentionPolicy,
+		Database:        request.Database,
+		RetentionPolicy: request.RetentionPolicy,
 	})
-	for _, pt := range p.Points {
-		bp.AddPoint(client.NewPointFrom(pt))
-	}
-	err = h.c.WriteCtx(ctx, bp)
-	return
+	return h.c.WriteRawCtx(ctx, bp, bytes.NewReader(request.lineProtocol))
 }
 
 func createTLSConfig(caCerts string, tlsConfig *tls.Config) (*tls.Config, error) {

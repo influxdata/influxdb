@@ -3,6 +3,9 @@ package subscriber_test
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/pkg/testing/assert"
+	"github.com/stretchr/testify/require"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -31,11 +34,11 @@ func (m MetaClient) WaitForDataChanged() chan struct{} {
 }
 
 type Subscription struct {
-	WritePointsFn func(*coordinator.WritePointsRequest) error
+	WritePointsFn func(request subscriber.WriteRequest) error
 }
 
-func (s Subscription) WritePointsContext(_ context.Context, p *coordinator.WritePointsRequest) error {
-	return s.WritePointsFn(p)
+func (s Subscription) WritePointsContext(_ context.Context, request subscriber.WriteRequest) error {
+	return s.WritePointsFn(request)
 }
 
 func TestService_IgnoreNonMatch(t *testing.T) {
@@ -60,11 +63,11 @@ func TestService_IgnoreNonMatch(t *testing.T) {
 		}
 	}
 
-	prs := make(chan *coordinator.WritePointsRequest, 2)
+	prs := make(chan subscriber.WriteRequest, 2)
 	urls := make(chan url.URL, 2)
 	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
 		sub := Subscription{}
-		sub.WritePointsFn = func(p *coordinator.WritePointsRequest) error {
+		sub.WritePointsFn = func(p subscriber.WriteRequest) error {
 			prs <- p
 			return nil
 		}
@@ -135,11 +138,11 @@ func TestService_ModeALL(t *testing.T) {
 		}
 	}
 
-	prs := make(chan *coordinator.WritePointsRequest, 2)
+	prs := make(chan subscriber.WriteRequest, 2)
 	urls := make(chan url.URL, 2)
 	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
 		sub := Subscription{}
-		sub.WritePointsFn = func(p *coordinator.WritePointsRequest) error {
+		sub.WritePointsFn = func(p subscriber.WriteRequest) error {
 			prs <- p
 			return nil
 		}
@@ -169,24 +172,23 @@ func TestService_ModeALL(t *testing.T) {
 		}
 	}
 
-	// Write points that match subscription with mode ALL
-	expPR := &coordinator.WritePointsRequest{
+	wr := &coordinator.WritePointsRequest{
 		Database:        "db0",
 		RetentionPolicy: "rp0",
 	}
-	s.Points() <- expPR
+	// Write points that match subscription with mode ALL
+	expPR := subscriber.NewWriteRequest(wr)
+	s.Points() <- wr
 
 	// Should get pr back twice
 	for i := 0; i < 2; i++ {
-		var pr *coordinator.WritePointsRequest
+		var pr subscriber.WriteRequest
 		select {
 		case pr = <-prs:
 		case <-time.After(testTimeout):
 			t.Fatalf("expected points request: got %d exp 2", i)
 		}
-		if pr != expPR {
-			t.Errorf("unexpected points request: got %v, exp %v", pr, expPR)
-		}
+		assert.Equal(t, expPR, pr)
 	}
 	close(dataChanged)
 }
@@ -213,11 +215,11 @@ func TestService_ModeANY(t *testing.T) {
 		}
 	}
 
-	prs := make(chan *coordinator.WritePointsRequest, 2)
+	prs := make(chan subscriber.WriteRequest, 2)
 	urls := make(chan url.URL, 2)
 	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
 		sub := Subscription{}
-		sub.WritePointsFn = func(p *coordinator.WritePointsRequest) error {
+		sub.WritePointsFn = func(p subscriber.WriteRequest) error {
 			prs <- p
 			return nil
 		}
@@ -247,22 +249,21 @@ func TestService_ModeANY(t *testing.T) {
 		}
 	}
 	// Write points that match subscription with mode ANY
-	expPR := &coordinator.WritePointsRequest{
+	wr := &coordinator.WritePointsRequest{
 		Database:        "db0",
 		RetentionPolicy: "rp0",
 	}
-	s.Points() <- expPR
+	expPR := subscriber.NewWriteRequest(wr)
+	s.Points() <- wr
 
 	// Validate we get the pr back just once
-	var pr *coordinator.WritePointsRequest
+	var pr subscriber.WriteRequest
 	select {
 	case pr = <-prs:
 	case <-time.After(testTimeout):
 		t.Fatal("expected points request")
 	}
-	if pr != expPR {
-		t.Errorf("unexpected points request: got %v, exp %v", pr, expPR)
-	}
+	assert.Equal(t, expPR, pr)
 
 	// shouldn't get it a second time
 	select {
@@ -301,11 +302,11 @@ func TestService_Multiple(t *testing.T) {
 		}
 	}
 
-	prs := make(chan *coordinator.WritePointsRequest, 4)
+	prs := make(chan subscriber.WriteRequest, 4)
 	urls := make(chan url.URL, 4)
 	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
 		sub := Subscription{}
-		sub.WritePointsFn = func(p *coordinator.WritePointsRequest) error {
+		sub.WritePointsFn = func(p subscriber.WriteRequest) error {
 			prs <- p
 			return nil
 		}
@@ -346,22 +347,21 @@ func TestService_Multiple(t *testing.T) {
 	}
 
 	// Write points that match subscription with mode ANY
-	expPR := &coordinator.WritePointsRequest{
+	wr := &coordinator.WritePointsRequest{
 		Database:        "db0",
 		RetentionPolicy: "rp0",
 	}
-	s.Points() <- expPR
+	expPR := subscriber.NewWriteRequest(wr)
+	s.Points() <- wr
 
 	// Validate we get the pr back just once
-	var pr *coordinator.WritePointsRequest
+	var pr subscriber.WriteRequest
 	select {
 	case pr = <-prs:
 	case <-time.After(testTimeout):
 		t.Fatal("expected points request")
 	}
-	if pr != expPR {
-		t.Errorf("unexpected points request: got %v, exp %v", pr, expPR)
-	}
+	assert.Equal(t, expPR, pr)
 
 	// shouldn't get it a second time
 	select {
@@ -371,11 +371,12 @@ func TestService_Multiple(t *testing.T) {
 	}
 
 	// Write points that match subscription with mode ALL
-	expPR = &coordinator.WritePointsRequest{
+	wr = &coordinator.WritePointsRequest{
 		Database:        "db0",
 		RetentionPolicy: "rp1",
 	}
-	s.Points() <- expPR
+	expPR = subscriber.NewWriteRequest(wr)
+	s.Points() <- wr
 
 	// Should get pr back twice
 	for i := 0; i < 2; i++ {
@@ -384,9 +385,7 @@ func TestService_Multiple(t *testing.T) {
 		case <-time.After(testTimeout):
 			t.Fatalf("expected points request: got %d exp 2", i)
 		}
-		if pr != expPR {
-			t.Errorf("unexpected points request: got %v, exp %v", pr, expPR)
-		}
+		assert.Equal(t,expPR,pr)
 	}
 	close(dataChanged)
 }
@@ -401,14 +400,15 @@ func TestService_WaitForDataChanged(t *testing.T) {
 
 	done := make(chan struct{})
 	receivedBlocking := make(chan struct{})
-	receivedNonBlocking := make(chan struct{})
+	receivedNonBlocking := make(chan string)
 
 	blockingServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		receivedBlocking <- struct{}{}
 		<-done
 	}))
-	nonBlockingServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
-		receivedNonBlocking <- struct{}{}
+	nonBlockingServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+		b, _ := ioutil.ReadAll(req.Body)
+		receivedNonBlocking <- string(b)
 	}))
 	defer blockingServer.Close()
 	defer nonBlockingServer.Close()
@@ -490,10 +490,14 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	s.Points() <- &coordinator.WritePointsRequest{
 		Database:        "db0",
 		RetentionPolicy: "rp0",
-		Points:          []models.Point{models.MustNewPoint("m0", nil, models.Fields{"f": 1.0}, time.Now())},
+		Points:          []models.Point{
+			models.MustNewPoint("m0", nil, models.Fields{"f": 1.0}, time.Date(2020,1,1,0,0,0,0, time.UTC)),
+			models.MustNewPoint("m0", nil, models.Fields{"f": 2.0}, time.Date(2020,1,1,0,0,0,4, time.UTC)),
+		},
 	}
 	select {
-	case <-receivedNonBlocking:
+	case receivedStr := <-receivedNonBlocking:
+		assert.Equal(t, receivedStr,"m0 f=1 1577836800000000000\nm0 f=2 1577836800000000004\n")
 	case <-time.After(testTimeout):
 		t.Fatal("expected call to non blocking server")
 	}
@@ -536,11 +540,11 @@ func TestService_BadUTF8(t *testing.T) {
 		}
 	}
 
-	prs := make(chan *coordinator.WritePointsRequest, 2)
+	prs := make(chan subscriber.WriteRequest, 2)
 	urls := make(chan url.URL, 2)
 	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
 		sub := Subscription{}
-		sub.WritePointsFn = func(p *coordinator.WritePointsRequest) error {
+		sub.WritePointsFn = func(p subscriber.WriteRequest) error {
 			prs <- p
 			return nil
 		}
@@ -629,7 +633,7 @@ func TestService_BadUTF8(t *testing.T) {
 	close(dataChanged)
 }
 
-func verifyNonUTF8Removal(t *testing.T, pointString string, s *subscriber.Service, prs chan *coordinator.WritePointsRequest, goodLines []int, trialMessage string) {
+func verifyNonUTF8Removal(t *testing.T, pointString string, s *subscriber.Service, prs chan subscriber.WriteRequest, goodLines []int, trialMessage string) {
 	points, err := models.ParsePointsString(pointString)
 	if err != nil {
 		t.Fatalf("%s: %v", trialMessage, err)
@@ -650,16 +654,14 @@ func verifyNonUTF8Removal(t *testing.T, pointString string, s *subscriber.Servic
 
 	// Should get pr back twice
 	for i := 0; i < 2; i++ {
-		var pr *coordinator.WritePointsRequest
+		var pr subscriber.WriteRequest
 		select {
 		case pr = <-prs:
-			if len(pr.Points) != len(goodPoints) {
-				t.Fatalf("%s expected %d points: got %d for %q", trialMessage, len(goodPoints), len(pr.Points), pointString)
-			}
-			for i, p := range pr.Points {
-				if p.String() != goodPoints[i] {
-					t.Fatalf("%s expected %q: got %q for %q", trialMessage, goodPoints[i], p.String(), pointString)
-				}
+			require.Equal(t, len(goodPoints), pr.Length())
+			for i := 0; i < pr.Length(); i++ {
+				point := pr.PointAt(i)
+				point = point[:len(point)-1]
+				assert.Equal(t, goodPoints[i], string(point))
 			}
 		case <-time.After(testTimeout):
 			t.Fatalf("%s expected points request: got %d exp 2 for %q", trialMessage, i, pointString)
