@@ -10,7 +10,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
@@ -38,6 +38,7 @@ use entry::{Entry, SequencedEntry};
 use internal_types::{arrow::sort::sort_record_batch, selection::Selection};
 use metrics::{KeyValue, MetricRegistry};
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
+use mutable_buffer::persistence_windows::PersistenceWindows;
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info, warn};
 use parquet_file::catalog::CheckpointData;
@@ -167,6 +168,9 @@ pub enum Error {
 
     #[snafu(display("background task cancelled: {}", source))]
     TaskCancelled { source: futures::future::Aborted },
+
+    #[snafu(display("error finding min/max time on table batch: {}", source))]
+    TableBatchTimeError { source: entry::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -929,6 +933,7 @@ impl Db {
         let mutable_size_threshold = rules.lifecycle_rules.mutable_size_threshold;
         let immutable = rules.lifecycle_rules.immutable;
         let buffer_size_hard = rules.lifecycle_rules.buffer_size_hard;
+        let late_arrival_window = rules.lifecycle_rules.late_arrive_window();
         std::mem::drop(rules);
 
         // We may have gotten here through `store_entry`, in which case this is checking the
@@ -947,7 +952,9 @@ impl Db {
             for write in partitioned_writes {
                 let partition_key = write.key();
                 for table_batch in write.table_batches() {
-                    if table_batch.row_count() == 0 {
+                    let row_count = table_batch.row_count();
+
+                    if row_count == 0 {
                         continue;
                     }
 
@@ -957,6 +964,9 @@ impl Db {
 
                     let mut partition = partition.write();
                     partition.update_last_write_at();
+
+                    let (min_time, max_time) =
+                        table_batch.min_max_time().context(TableBatchTimeError)?;
 
                     match partition.open_chunk() {
                         Some(chunk) => {
@@ -1005,6 +1015,29 @@ impl Db {
                             check_chunk_closed(&mut *new_chunk.write(), mutable_size_threshold);
                         }
                     };
+
+                    match partition.persistence_windows() {
+                        Some(windows) => {
+                            windows.add_range(
+                                sequenced_entry.as_ref().sequence(),
+                                row_count,
+                                min_time,
+                                max_time,
+                                Instant::now(),
+                            );
+                        }
+                        None => {
+                            let mut windows = PersistenceWindows::new(late_arrival_window);
+                            windows.add_range(
+                                sequenced_entry.as_ref().sequence(),
+                                row_count,
+                                min_time,
+                                max_time,
+                                Instant::now(),
+                            );
+                            partition.set_persistence_windows(windows);
+                        }
+                    }
                 }
             }
         }
@@ -2004,6 +2037,26 @@ mod tests {
             let partition = partition.read();
             assert!(last_write_prev < partition.last_write_at());
         }
+    }
+
+    #[tokio::test]
+    async fn write_updates_persistence_windows() {
+        let db = Arc::new(make_db().await.db);
+
+        let now = Utc::now().timestamp_nanos() as u64;
+
+        let partition_key = "1970-01-01T00";
+        write_lp(&db, "cpu bar=1 10").await;
+
+        let later = Utc::now().timestamp_nanos() as u64;
+
+        let partition = db.catalog.partition("cpu", partition_key).unwrap();
+        let mut partition = partition.write();
+        let windows = partition.persistence_windows().unwrap();
+        let seq = windows.minimum_unpersisted_sequence().unwrap();
+
+        let seq = seq.get(&1).unwrap();
+        assert!(now < seq.min && later > seq.min);
     }
 
     #[tokio::test]
