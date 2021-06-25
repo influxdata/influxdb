@@ -82,6 +82,8 @@ nfpms:
       rpm:
         replacements:
           amd64: x86_64
+          arm64: aarch64
+          armhf: armv7hl
         file_name_template: "influxdb2-{{ .Version }}.{{ .Arch }}"
       deb:
         file_name_template: "influxdb2-{{ .Version }}-{{ .Arch }}"
