@@ -109,7 +109,7 @@ type Service struct {
 	stats           *Statistics
 	wg              sync.WaitGroup
 	closing         chan struct{}
-	mu              sync.RWMutex
+	mu              sync.Mutex
 	conf            Config
 	subs            map[subEntry]*chanWriter
 
@@ -233,8 +233,8 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 		},
 	}}
 
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	for _, cw := range s.subs {
 		statistics = append(statistics, cw.Statistics(tags)...)
 	}
