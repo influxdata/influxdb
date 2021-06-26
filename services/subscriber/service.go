@@ -38,7 +38,8 @@ type WriteRequest struct {
 	pointOffsets []int
 }
 
-func NewWriteRequest(r *coordinator.WritePointsRequest) WriteRequest {
+func NewWriteRequest(r *coordinator.WritePointsRequest, log *zap.Logger) (wr WriteRequest, numInvalid int64) {
+	log = log.With(zap.String("database", r.Database), zap.String("retention_policy", r.RetentionPolicy))
 	// Pre-allocate at least smallPointSize bytes per point.
 	const smallPointSize = 10
 	writeReq := WriteRequest{
@@ -47,12 +48,18 @@ func NewWriteRequest(r *coordinator.WritePointsRequest) WriteRequest {
 		pointOffsets:    make([]int, 0, len(r.Points)),
 		lineProtocol:    make([]byte, 0, len(r.Points)*smallPointSize),
 	}
+	numInvalid = 0
 	for _, p := range r.Points {
+		if err := models.ValidPointStrings(p); err != nil {
+			log.Debug("discarding point", zap.Error(err))
+			numInvalid++
+			continue
+		}
 		writeReq.pointOffsets = append(writeReq.pointOffsets, len(writeReq.lineProtocol))
 		writeReq.lineProtocol = p.AppendString(writeReq.lineProtocol)
 		writeReq.lineProtocol = append(writeReq.lineProtocol, byte('\n'))
 	}
-	return writeReq
+	return writeReq, numInvalid
 }
 
 // pointAt uses pointOffsets to slice the lineProtocol buffer and retrieve the i_th point in the request.
@@ -100,21 +107,24 @@ type Service struct {
 	NewPointsWriter func(u url.URL) (PointsWriter, error)
 	Logger          *zap.Logger
 	stats           *Statistics
-	points          chan *coordinator.WritePointsRequest
 	wg              sync.WaitGroup
 	closing         chan struct{}
 	mu              sync.RWMutex
 	conf            Config
+	subs            map[subEntry]*chanWriter
 
-	subs subscriberMap
+	// subscriptionRouter is not locked by mu
+	router *subscriptionRouter
 }
 
 // NewService returns a subscriber service with given settings
 func NewService(c Config) *Service {
+	stats := &Statistics{}
 	s := &Service{
 		Logger: zap.NewNop(),
-		stats:  &Statistics{},
+		stats:  stats,
 		conf:   c,
+		router: newSubscriptionRouter(stats),
 	}
 	s.NewPointsWriter = s.newPointsWriter
 	return s
@@ -134,13 +144,8 @@ func (s *Service) Open() error {
 		}
 
 		s.closing = make(chan struct{})
-		s.points = make(chan *coordinator.WritePointsRequest, 100)
 
-		s.wg.Add(2)
-		go func() {
-			defer s.wg.Done()
-			s.run()
-		}()
+		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
 			s.waitForMetaUpdates()
@@ -161,6 +166,8 @@ func (s *Service) Open() error {
 // Close terminates the subscription service.
 // It will return an error if Open was not called first.
 func (s *Service) Close() error {
+	// stop receiving new input
+	s.router.Close()
 
 	err := func() error {
 		s.mu.Lock()
@@ -176,7 +183,6 @@ func (s *Service) Close() error {
 		default:
 		}
 
-		close(s.points)
 		close(s.closing)
 		return nil
 	}()
@@ -188,16 +194,16 @@ func (s *Service) Close() error {
 	// will win the right to close the channel writers, and the other will have to wait at the lock for that to finish.
 	// When the second caller gets the lock subs is nil which is safe.
 
-	// wait, not under the lock, for run and waitForMetaUpdates to finish gracefully
+	// wait, not under the lock, for waitForMetaUpdates to finish gracefully
 	s.wg.Wait()
 
 	// close all the subscriptions
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.subs.forEachChanWriter(func(cw *chanWriter) {
+	for _, cw := range s.subs {
 		cw.Close()
-	})
-	s.subs = subscriberMap{}
+	}
+	s.subs = nil
 	s.Logger.Info("Closed service")
 	return nil
 }
@@ -205,6 +211,7 @@ func (s *Service) Close() error {
 // WithLogger sets the logger on the service.
 func (s *Service) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "subscriber"))
+	s.router.Logger = s.Logger
 }
 
 // Statistics maintains the statistics for the subscriber service.
@@ -228,9 +235,9 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	s.subs.forEachChanWriter(func(cw *chanWriter) {
+	for _, cw := range s.subs {
 		statistics = append(statistics, cw.Statistics(tags)...)
-	})
+	}
 
 	return statistics
 }
@@ -289,67 +296,8 @@ func (s *Service) createSubscription(se subEntry, mode string, destinations []st
 	}, nil
 }
 
-// Points returns a channel into which write point requests can be sent.
-func (s *Service) Points() chan<- *coordinator.WritePointsRequest {
-	return s.points
-}
-
-// run read points from the points channel and writes them to the subscriptions.
-func (s *Service) run() {
-	for {
-		select {
-		case p, ok := <-s.points:
-			if !ok {
-				return
-			}
-			func() {
-				s.mu.RLock()
-				s.mu.RUnlock()
-				p = s.removeBadPoints(p)
-				s.subs.forEachDbRp(p.Database, p.RetentionPolicy, func(cw *chanWriter) {
-					cw.Write(NewWriteRequest(p))
-				})
-			}()
-		}
-	}
-}
-
-// removeBadPoints - if any non-UTF8 strings are found in the points in the WritePointRequest,
-// make a copy without those points
-func (s *Service) removeBadPoints(p *coordinator.WritePointsRequest) *coordinator.WritePointsRequest {
-	log := s.Logger.With(zap.String("database", p.Database), zap.String("retention_policy", p.RetentionPolicy))
-
-	firstBad, err := func() (int, error) {
-		for i, point := range p.Points {
-			if err := models.ValidPointStrings(point); err != nil {
-				atomic.AddInt64(&s.stats.WriteFailures, 1)
-				log.Debug("discarding point", zap.Error(err))
-				return i, err
-			}
-		}
-		return -1, nil
-	}()
-	if err != nil {
-		wrq := &coordinator.WritePointsRequest{
-			Database:        p.Database,
-			RetentionPolicy: p.RetentionPolicy,
-			Points:          make([]models.Point, 0, len(p.Points)-1),
-		}
-
-		// Copy all the points up to the first bad one.
-		wrq.Points = append(wrq.Points, p.Points[:firstBad]...)
-		for _, point := range p.Points[firstBad+1:] {
-			if err := models.ValidPointStrings(point); err != nil {
-				// Log and omit this point from subscription writes
-				atomic.AddInt64(&s.stats.WriteFailures, 1)
-				log.Debug("discarding point", zap.Error(err))
-			} else {
-				wrq.Points = append(wrq.Points, point)
-			}
-		}
-		p = wrq
-	}
-	return p
+func (s *Service) Send(request *coordinator.WritePointsRequest) {
+	s.router.Send(request)
 }
 
 func (s *Service) updateSubs() {
@@ -363,8 +311,13 @@ func (s *Service) updateSubs() {
 	default:
 	}
 
+	if s.subs == nil {
+		s.subs = make(map[subEntry]*chanWriter)
+	}
+
 	dbis := s.MetaClient.Databases()
 	allEntries := make(map[subEntry]bool)
+	createdNew := false
 	// Add in new subscriptions
 	for _, dbi := range dbis {
 		for _, rpi := range dbi.RetentionPolicies {
@@ -375,9 +328,10 @@ func (s *Service) updateSubs() {
 					name: si.Name,
 				}
 				allEntries[se] = true
-				if s.subs.contains(se) {
+				if _, ok := s.subs[se]; ok {
 					continue
 				}
+				createdNew = true
 				s.Logger.Info("Adding new subscription",
 					logger.Database(se.db),
 					logger.RetentionPolicy(se.rp))
@@ -387,7 +341,7 @@ func (s *Service) updateSubs() {
 					s.Logger.Info("Subscription creation failed", zap.String("name", si.Name), zap.Error(err))
 					continue
 				}
-				s.subs.upsert(se, newChanWriter(s, sub))
+				s.subs[se] = newChanWriter(s, sub)
 				s.Logger.Info("Added new subscription",
 					logger.Database(se.db),
 					logger.RetentionPolicy(se.rp))
@@ -395,33 +349,37 @@ func (s *Service) updateSubs() {
 		}
 	}
 
-	s.subs.removeIf(func(se subEntry, cw *chanWriter) bool {
+	toClose := make(map[subEntry]*chanWriter)
+	for se, cw := range s.subs {
 		if !allEntries[se] {
-			s.Logger.Info("Deleting old subscription",
-				logger.Database(se.db),
-				logger.RetentionPolicy(se.rp))
-
-			cw.CancelAndClose()
-
-			s.Logger.Info("Deleted old subscription",
-				logger.Database(se.db),
-				logger.RetentionPolicy(se.rp))
-			return true
-		}
-		return false
-	})
-
-	memoryLimit := int64(0)
-	if s.conf.TotalBufferBytes != 0 {
-		memoryLimit = int64(s.conf.TotalBufferBytes / len(allEntries))
-		if memoryLimit == 0 {
-			memoryLimit = 1
+			toClose[se] = cw
+			delete(s.subs, se)
 		}
 	}
-	s.subs.forEachChanWriter(func(cw *chanWriter) {
-		// Note limitTo cannot be called concurrently - we have the write lock for the whole Service here so it is safe.
-		cw.limitTo(memoryLimit)
-	})
+
+	if createdNew || len(toClose) > 0 {
+		memoryLimit := int64(0)
+		if s.conf.TotalBufferBytes != 0 {
+			memoryLimit = int64(s.conf.TotalBufferBytes / len(s.subs))
+			if memoryLimit == 0 {
+				memoryLimit = 1
+			}
+		}
+		// update the router before we close any subscriptions
+		s.router.Update(s.subs, memoryLimit)
+	}
+
+	for se, cw := range toClose {
+		s.Logger.Info("Deleting old subscription",
+			logger.Database(se.db),
+			logger.RetentionPolicy(se.rp))
+
+		cw.CancelAndClose()
+
+		s.Logger.Info("Deleted old subscription",
+			logger.Database(se.db),
+			logger.RetentionPolicy(se.rp))
+	}
 }
 
 // newPointsWriter returns a new PointsWriter from the given URL.
@@ -476,6 +434,8 @@ func newChanWriter(s *Service, sub PointsWriter) *chanWriter {
 	return cw
 }
 
+// Write is on the hot path for data ingest (to the whole database, not just subscriptions).
+// Be extra careful about latency.
 func (c *chanWriter) Write(wr WriteRequest) {
 	sz := wr.SizeOf()
 	newSize := atomic.AddInt64(&c.queueSize, int64(sz))
@@ -497,7 +457,6 @@ func (c *chanWriter) Write(wr WriteRequest) {
 }
 
 // limitTo sets a new limit on the size of the queue.
-// It is not safe to call limitTo concurrently.
 func (c *chanWriter) limitTo(newLimit int64) {
 	atomic.StoreInt64(&c.queueLimit, newLimit)
 	// We don't immediately evict things if the queue is over the limit,
@@ -605,76 +564,67 @@ func (b *balancewriter) Statistics(tags map[string]string) []models.Statistic {
 }
 
 type dbrp struct {
-	db, rp string
+	db string
+	rp string
 }
 
-type subscriberMap struct {
-	// m is a two-level map to make finding the db,rp match efficient
-	m map[dbrp]map[string]*chanWriter
+// subscriptionRouter has a mutex lock on the hot path for database writes - make sure that the lock is very tight.
+type subscriptionRouter struct {
+	mu            sync.RWMutex
+	ready         bool
+	m             map[dbrp][]*chanWriter
+	writeFailures *int64
+	Logger        *zap.Logger
 }
 
-// upsert upserts a channel writer for subEntry
-func (s *subscriberMap) upsert(se subEntry, cw *chanWriter) {
-	if s.m == nil {
-		s.m = make(map[dbrp]map[string]*chanWriter)
+func newSubscriptionRouter(statistics *Statistics) *subscriptionRouter {
+	return &subscriptionRouter{
+		ready:         true,
+		writeFailures: &statistics.WriteFailures,
+		Logger:        zap.NewNop(),
 	}
-	key1 := dbrp{
-		db: se.db,
-		rp: se.rp,
-	}
-	if s.m[key1] == nil {
-		s.m[key1] = make(map[string]*chanWriter)
-	}
-	s.m[key1][se.name] = cw
 }
 
-func (s *subscriberMap) forEachChanWriter(f func(cw *chanWriter)) {
-	for _, m1 := range s.m {
-		for _, cw := range m1 {
-			f(cw)
+func (s *subscriptionRouter) Close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ready = false
+}
+
+func (s *subscriptionRouter) Send(request *coordinator.WritePointsRequest) {
+	// serialize points and put on writer
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.ready {
+		return
+	}
+	writers := s.m[dbrp{
+		db: request.Database,
+		rp: request.RetentionPolicy,
+	}]
+	if len(writers) == 0 {
+		return
+	}
+	writeReq, numInvalid := NewWriteRequest(request, s.Logger)
+	atomic.AddInt64(s.writeFailures, numInvalid)
+	for _, w := range writers {
+		w.Write(writeReq)
+	}
+}
+
+func (s *subscriptionRouter) Update(cws map[subEntry]*chanWriter, memoryLimit int64) {
+	s.mu.Lock()
+	s.mu.Unlock()
+	if !s.ready {
+		panic("must be created with NewServer before calling update, must not call update after close")
+	}
+	s.m = make(map[dbrp][]*chanWriter)
+	for se, cw := range cws {
+		cw.limitTo(memoryLimit)
+		key := dbrp{
+			db: se.db,
+			rp: se.rp,
 		}
-	}
-}
-
-// forEachDbRp runs f for all the channel writers with subscriptions matching a given write request
-func (s *subscriberMap) forEachDbRp(db, rp string, f func(cw *chanWriter)) {
-	key1 := dbrp{
-		db: db,
-		rp: rp,
-	}
-	for _, cw := range s.m[key1] {
-		f(cw)
-	}
-}
-
-// contains returns true if there is a matching subscriber
-func (s *subscriberMap) contains(se subEntry) bool {
-	key1 := dbrp{
-		db: se.db,
-		rp: se.rp,
-	}
-	if _, ok := s.m[key1]; !ok {
-		return false
-	}
-	_, ok := s.m[key1][se.name]
-	return ok
-}
-
-// removeIf runs f for each channel writer, and then removes it if f returns true
-func (s *subscriberMap) removeIf(f func(se subEntry, cw *chanWriter) bool) {
-	for key1 := range s.m {
-		for name, cw := range s.m[key1] {
-			se := subEntry{
-				db:   key1.db,
-				rp:   key1.rp,
-				name: name,
-			}
-			if f(se, cw) {
-				delete(s.m[key1], name)
-			}
-		}
-		if len(s.m[key1]) == 0 {
-			delete(s.m, key1)
-		}
+		s.m[key] = append(s.m[key], cw)
 	}
 }

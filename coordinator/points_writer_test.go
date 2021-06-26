@@ -333,8 +333,8 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 
 		subPoints := make(chan *coordinator.WritePointsRequest, 1)
 		sub := Subscriber{}
-		sub.PointsFn = func() chan<- *coordinator.WritePointsRequest {
-			return subPoints
+		sub.SendFn = func(wr *coordinator.WritePointsRequest) {
+			subPoints <- wr
 		}
 
 		c := coordinator.NewPointsWriter()
@@ -409,8 +409,8 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 
 	subPoints := make(chan *coordinator.WritePointsRequest, 1)
 	sub := Subscriber{}
-	sub.PointsFn = func() chan<- *coordinator.WritePointsRequest {
-		return subPoints
+	sub.SendFn = func(wr *coordinator.WritePointsRequest) {
+		subPoints <- wr
 	}
 
 	c := coordinator.NewPointsWriter()
@@ -617,11 +617,11 @@ func (m PointsWriterMetaClient) ShardOwner(shardID uint64) (string, string, *met
 }
 
 type Subscriber struct {
-	PointsFn func() chan<- *coordinator.WritePointsRequest
+	SendFn func(*coordinator.WritePointsRequest)
 }
 
-func (s Subscriber) Points() chan<- *coordinator.WritePointsRequest {
-	return s.PointsFn()
+func (s Subscriber) Send(wr *coordinator.WritePointsRequest) {
+	s.SendFn(wr)
 }
 
 func NewRetentionPolicy(name string, duration time.Duration, nodeCount int) *meta.RetentionPolicyInfo {

@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 const testTimeout = 10 * time.Second
@@ -98,14 +99,14 @@ func TestService_IgnoreNonMatch(t *testing.T) {
 	}
 
 	// Write points that don't match any subscription.
-	s.Points() <- &coordinator.WritePointsRequest{
+	s.Send(&coordinator.WritePointsRequest{
 		Database:        "db1",
 		RetentionPolicy: "rp0",
-	}
-	s.Points() <- &coordinator.WritePointsRequest{
+	})
+	s.Send(&coordinator.WritePointsRequest{
 		Database:        "db0",
 		RetentionPolicy: "rp2",
-	}
+	})
 
 	// Shouldn't get any prs back
 	select {
@@ -177,8 +178,8 @@ func TestService_ModeALL(t *testing.T) {
 		RetentionPolicy: "rp0",
 	}
 	// Write points that match subscription with mode ALL
-	expPR := subscriber.NewWriteRequest(wr)
-	s.Points() <- wr
+	expPR, _ := subscriber.NewWriteRequest(wr, zaptest.NewLogger(t))
+	s.Send(wr)
 
 	// Should get pr back twice
 	for i := 0; i < 2; i++ {
@@ -253,8 +254,8 @@ func TestService_ModeANY(t *testing.T) {
 		Database:        "db0",
 		RetentionPolicy: "rp0",
 	}
-	expPR := subscriber.NewWriteRequest(wr)
-	s.Points() <- wr
+	expPR, _ := subscriber.NewWriteRequest(wr, zaptest.NewLogger(t))
+	s.Send(wr)
 
 	// Validate we get the pr back just once
 	var pr subscriber.WriteRequest
@@ -337,22 +338,22 @@ func TestService_Multiple(t *testing.T) {
 	}
 
 	// Write points that don't match any subscription.
-	s.Points() <- &coordinator.WritePointsRequest{
+	s.Send(&coordinator.WritePointsRequest{
 		Database:        "db1",
 		RetentionPolicy: "rp0",
-	}
-	s.Points() <- &coordinator.WritePointsRequest{
+	})
+	s.Send(&coordinator.WritePointsRequest{
 		Database:        "db0",
 		RetentionPolicy: "rp2",
-	}
+	})
 
 	// Write points that match subscription with mode ANY
 	wr := &coordinator.WritePointsRequest{
 		Database:        "db0",
 		RetentionPolicy: "rp0",
 	}
-	expPR := subscriber.NewWriteRequest(wr)
-	s.Points() <- wr
+	expPR, _ := subscriber.NewWriteRequest(wr, zaptest.NewLogger(t))
+	s.Send(wr)
 
 	// Validate we get the pr back just once
 	var pr subscriber.WriteRequest
@@ -375,8 +376,8 @@ func TestService_Multiple(t *testing.T) {
 		Database:        "db0",
 		RetentionPolicy: "rp1",
 	}
-	expPR = subscriber.NewWriteRequest(wr)
-	s.Points() <- wr
+	expPR, _ = subscriber.NewWriteRequest(wr, zaptest.NewLogger(t))
+	s.Send(wr)
 
 	// Should get pr back twice
 	for i := 0; i < 2; i++ {
@@ -455,11 +456,11 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	}
 
 	// send a point, receive it on the server that always blocks (simulating a slow remote server)
-	s.Points() <- &coordinator.WritePointsRequest{
+	s.Send(&coordinator.WritePointsRequest{
 		Database:        "db0",
 		RetentionPolicy: "rp0",
 		Points:          []models.Point{models.MustNewPoint("m0", nil, models.Fields{"f": 1.0}, time.Now())},
-	}
+	})
 	select {
 	case <-receivedBlocking:
 	case <-time.After(testTimeout):
@@ -487,14 +488,14 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	}
 
 	// send a point, receive it on the server that never blocks (asserting the change was applied correctly)
-	s.Points() <- &coordinator.WritePointsRequest{
+	s.Send(&coordinator.WritePointsRequest{
 		Database:        "db0",
 		RetentionPolicy: "rp0",
 		Points: []models.Point{
 			models.MustNewPoint("m0", nil, models.Fields{"f": 1.0}, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)),
 			models.MustNewPoint("m0", nil, models.Fields{"f": 2.0}, time.Date(2020, 1, 1, 0, 0, 0, 4, time.UTC)),
 		},
-	}
+	})
 	select {
 	case receivedStr := <-receivedNonBlocking:
 		assert.Equal(t, receivedStr, "m0 f=1 1577836800000000000\nm0 f=2 1577836800000000004\n")
@@ -650,7 +651,7 @@ func verifyNonUTF8Removal(t *testing.T, pointString string, s *subscriber.Servic
 		RetentionPolicy: "rp0",
 		Points:          points,
 	}
-	s.Points() <- expPR
+	s.Send(expPR)
 
 	// Should get pr back twice
 	for i := 0; i < 2; i++ {
