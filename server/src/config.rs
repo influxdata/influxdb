@@ -579,7 +579,7 @@ mod test {
 
     use object_store::{memory::InMemory, ObjectStore, ObjectStoreApi};
 
-    use crate::db::load_or_create_preserved_catalog;
+    use crate::db::load::load_or_create_preserved_catalog;
 
     use super::*;
     use std::num::NonZeroU32;
