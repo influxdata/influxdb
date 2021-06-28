@@ -26,6 +26,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21621](https://github.com/influxdata/influxdb/pull/21621): Add `storage-wal-max-concurrent-writes` config option to `influxd` to enable tuning memory pressure under heavy write load.
 1. [21621](https://github.com/influxdata/influxdb/pull/21621): Add `storage-wal-max-write-delay` config option to `influxd` to prevent deadlocks when the WAL is overloaded with concurrent writes.
 1. [21615](https://github.com/influxdata/influxdb/pull/21615): Ported the `influxd inspect verify-tsm` command from 1.x.
+1. [21646](https://github.com/influxdata/influxdb/pull/21646): Ported the `influxd inspect verify-tombstone` command from 1.x.
 
 ### Bug Fixes
 

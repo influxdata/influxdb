@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type verifier interface {
+type verifierTSM interface {
 	Run(cmd *cobra.Command, dataPath string, verbose bool) error
 }
 
@@ -45,7 +45,7 @@ func NewTSMVerifyCommand() *cobra.Command {
 		Short: `Verifies the integrity of TSM files`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var runner verifier
+			var runner verifierTSM
 			if checkUTF8 {
 				runner = &verifyUTF8{}
 			} else {

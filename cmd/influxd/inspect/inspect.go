@@ -26,5 +26,7 @@ func NewCommand(v *viper.Viper) (*cobra.Command, error) {
 
 	base.AddCommand(NewVerifySeriesfileCommand())
 
+	base.AddCommand(NewVerifyTombstoneCommand())
+
 	return base, nil
 }
