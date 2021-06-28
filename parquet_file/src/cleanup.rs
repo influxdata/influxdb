@@ -1,5 +1,4 @@
 //! Methods to cleanup the object store.
-
 use std::{
     collections::HashSet,
     sync::{Arc, Mutex},
@@ -16,6 +15,7 @@ use object_store::{
 };
 use observability_deps::tracing::info;
 use snafu::{ResultExt, Snafu};
+use tokio::sync::RwLock;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -37,15 +37,31 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Delete all unreferenced parquet files.
 ///
-/// This will hold the transaction lock while the list of files is being gathered. To limit the time the lock is held
-/// use `max_files` which will limit the number of files to delete in this cleanup round.
+/// # Locking / Concurrent Actions
+/// This method will acquire an exclusive (= write) guard for the provided lock. If you plan to write parquet files or
+/// modify the catalog while calling this method, you must at least acquire a shared (= read) guard for the provided
+/// lock while writing or modifying the catalog. For a parquet write operation this will lock like this:
+///
+/// 1. Acquire shared (= read) guard.
+/// 2. In any order:
+///    - write parquet file(s)
+///    - start transaction
+/// 3. Add parquet file(s) to transaction.
+/// 4. Commit transaction.
+/// 5. Drop shared ( = read) guard.
+///
+/// **This method does NOT acquire the transaction lock!**
+///
+/// To limit the time the exclusive (= write) lock is held use `max_files` which will limit the number of files to
+/// delete in this cleanup round.
 pub async fn cleanup_unreferenced_parquet_files(
     catalog: &PreservedCatalog,
     max_files: usize,
+    lock: &RwLock<()>,
 ) -> Result<()> {
-    // Create a transaction to prevent parallel modifications of the catalog. This avoids that we delete files there
+    // Take exclusive lock to prevent parallel modifications of the catalog. This avoids that we delete files there
     // that are about to get added to the catalog.
-    let transaction = catalog.open_transaction().await;
+    let guard = lock.write().await;
 
     let store = catalog.object_store();
     let server_id = catalog.server_id();
@@ -62,8 +78,7 @@ pub async fn cleanup_unreferenced_parquet_files(
         .context(CatalogLoadError)?
         .expect("catalog gone while reading it?");
 
-        let file_guard = state.files.lock().expect("lock poissened?");
-        file_guard.clone()
+        state.files.into_inner().expect("lock poissened?")
     };
 
     let prefix = data_location(&store, server_id, db_name);
@@ -95,8 +110,10 @@ pub async fn cleanup_unreferenced_parquet_files(
         }
     }
 
-    // abort transaction cleanly to avoid warnings about uncommited transactions
-    transaction.abort();
+    // We now have the set of files that we wanna delete. Since new files should have different names due to the UUIDv4
+    // part of the parquet file names, it is guaranteed that we can drop the exclusive lock and files added afterwards
+    // won't accidentally be deleted as well.
+    drop(guard);
 
     // now that the transaction lock is dropped, perform the actual (and potentially slow) delete operation
     let n_files = to_remove.len();
@@ -174,7 +191,8 @@ mod tests {
         .unwrap();
 
         // run clean-up
-        cleanup_unreferenced_parquet_files(&catalog, 1_000)
+        let lock = Default::default();
+        cleanup_unreferenced_parquet_files(&catalog, 1_000, &lock)
             .await
             .unwrap();
     }
@@ -226,7 +244,8 @@ mod tests {
         }
 
         // run clean-up
-        cleanup_unreferenced_parquet_files(&catalog, 1_000)
+        let lock = Default::default();
+        cleanup_unreferenced_parquet_files(&catalog, 1_000, &lock)
             .await
             .unwrap();
 
@@ -245,6 +264,7 @@ mod tests {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let db_name = db_name();
+        let lock: RwLock<()> = Default::default();
 
         let (catalog, _state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
@@ -257,19 +277,27 @@ mod tests {
 
         // try multiple times to provoke a conflict
         for i in 0..100 {
+            // Every so often try to create a file with the same ChunkAddr beforehand. This should not trick the cleanup
+            // logic to remove the actual file because file paths contains a UUIDv4 part.
+            if i % 2 == 0 {
+                make_metadata(&object_store, "foo", chunk_addr(i)).await;
+            }
+
             let (path, _) = tokio::join!(
                 async {
-                    let mut transaction = catalog.open_transaction().await;
-
+                    let guard = lock.read().await;
                     let (path, md) = make_metadata(&object_store, "foo", chunk_addr(i)).await;
-                    transaction.add_parquet(&path.clone().into(), &md).unwrap();
 
+                    let mut transaction = catalog.open_transaction().await;
+                    transaction.add_parquet(&path.clone().into(), &md).unwrap();
                     transaction.commit().await.unwrap();
+
+                    drop(guard);
 
                     path.display()
                 },
                 async {
-                    cleanup_unreferenced_parquet_files(&catalog, 1_000)
+                    cleanup_unreferenced_parquet_files(&catalog, 1_000, &lock)
                         .await
                         .unwrap();
                 },
@@ -303,7 +331,8 @@ mod tests {
         }
 
         // run clean-up
-        cleanup_unreferenced_parquet_files(&catalog, 2)
+        let lock = Default::default();
+        cleanup_unreferenced_parquet_files(&catalog, 2, &lock)
             .await
             .unwrap();
 
@@ -313,7 +342,7 @@ mod tests {
         assert_eq!(leftover.len(), 1);
 
         // run clean-up again
-        cleanup_unreferenced_parquet_files(&catalog, 2)
+        cleanup_unreferenced_parquet_files(&catalog, 2, &lock)
             .await
             .unwrap();
 

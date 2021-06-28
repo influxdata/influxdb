@@ -287,6 +287,10 @@ pub struct Db {
 
     /// Optionally buffer writes
     write_buffer: Option<Arc<dyn WriteBuffer>>,
+
+    /// Lock that prevents the cleanup job from deleting files that are written but not yet added to the preserved
+    /// catalog.
+    cleanup_lock: Arc<tokio::sync::RwLock<()>>,
 }
 
 /// All the information needed to commit a database
@@ -338,6 +342,7 @@ impl Db {
             worker_iterations_cleanup: AtomicUsize::new(0),
             metric_labels,
             write_buffer: database_to_commit.write_buffer,
+            cleanup_lock: Default::default(),
         }
     }
 
@@ -550,6 +555,7 @@ impl Db {
         let preserved_catalog = Arc::clone(&db.preserved_catalog);
         let catalog = Arc::clone(&db.catalog);
         let object_store = Arc::clone(&db.store);
+        let cleanup_lock = Arc::clone(&db.cleanup_lock);
 
         // Drop locks
         let chunk = guard.unwrap().chunk;
@@ -586,6 +592,9 @@ impl Db {
 
             // catalog-level transaction for preservation layer
             {
+                // fetch shared (= read) guard preventing the cleanup job from deleting our files
+                let _guard = cleanup_lock.read().await;
+
                 let mut transaction = preserved_catalog.open_transaction().await;
 
                 // Write this table data into the object store
@@ -778,7 +787,7 @@ impl Db {
                             debug!(?duration, "cleanup worker sleeps");
                             tokio::time::sleep(duration).await;
 
-                            if let Err(e) = cleanup_unreferenced_parquet_files(&self.preserved_catalog, 1_000).await {
+                            if let Err(e) = cleanup_unreferenced_parquet_files(&self.preserved_catalog, 1_000, &self.cleanup_lock).await {
                                 error!(%e, "error in background cleanup task");
                             }
                         } => {},
