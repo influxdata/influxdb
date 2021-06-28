@@ -742,7 +742,7 @@ impl QueryChunk for TestChunk {
         false
     }
 
-    fn apply_predicate(&self, predicate: &Predicate) -> Result<PredicateMatch> {
+    fn apply_predicate_to_metadata(&self, predicate: &Predicate) -> Result<PredicateMatch> {
         self.check_error()?;
 
         // save the predicate
