@@ -805,7 +805,7 @@ func (h *Handler) async(q *influxql.Query, results <-chan *query.Result) {
 // bucket2drbp extracts a bucket and retention policy from a properly formatted
 // string.
 //
-// The 2.x compatible endpoints encode the databse and retention policy names
+// The 2.x compatible endpoints encode the database and retention policy names
 // in the database URL query value.  It is encoded using a forward slash like
 // "database/retentionpolicy" and we should be able to simply split that string
 // on the forward slash.
