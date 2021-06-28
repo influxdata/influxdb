@@ -23,7 +23,7 @@ use tokio::sync::Semaphore;
 
 use crate::{
     config::{Config, DB_RULES_FILE_NAME},
-    db::{load_or_create_preserved_catalog, DatabaseToCommit},
+    db::{load::load_or_create_preserved_catalog, DatabaseToCommit},
     write_buffer, DatabaseError,
 };
 

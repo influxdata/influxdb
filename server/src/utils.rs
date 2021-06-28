@@ -10,7 +10,7 @@ use object_store::{memory::InMemory, ObjectStore};
 use query::{exec::Executor, QueryDatabase};
 
 use crate::{
-    db::{load_or_create_preserved_catalog, DatabaseToCommit, Db},
+    db::{load::load_or_create_preserved_catalog, DatabaseToCommit, Db},
     write_buffer::WriteBuffer,
     JobRegistry,
 };
