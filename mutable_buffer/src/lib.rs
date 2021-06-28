@@ -3,6 +3,7 @@
 //!
 //! The mutable buffer is structured in this way:
 //!
+//! ```text
 //! ┌───────────────────────────────────────────────┐
 //! │                                               │
 //! │    ┌────────────────┐                         │
@@ -25,7 +26,7 @@
 //! │    ┌────────────────┐                         │
 //! │    │     Table      │                         │
 //! │    └────────────────┘                         │
-//! │             │  multiple Colums                │
+//! │             │  multiple Columns               │
 //! │             ▼                                 │
 //! │    ┌────────────────┐                         │
 //! │    │     Column     │                         │
@@ -33,6 +34,7 @@
 //! │                              MutableBuffer    │
 //! │                                               │
 //! └───────────────────────────────────────────────┘
+//! ```
 //!
 //! Each row of data is routed into a particular partitions based on
 //! column values in that row. The partition's open chunk
