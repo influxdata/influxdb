@@ -186,7 +186,7 @@ impl InfluxRpcPlanner {
         for chunk in database.chunks(&predicate) {
             // Try and apply the predicate using only metadata
             let pred_result = chunk
-                .apply_predicate(&predicate)
+                .apply_predicate_to_metadata(&predicate)
                 .map_err(|e| Box::new(e) as _)
                 .context(CheckingChunkPredicate {
                     chunk_id: chunk.id(),
@@ -241,7 +241,7 @@ impl InfluxRpcPlanner {
         for chunk in database.chunks(&predicate) {
             // Try and apply the predicate using only metadata
             let pred_result = chunk
-                .apply_predicate(&predicate)
+                .apply_predicate_to_metadata(&predicate)
                 .map_err(|e| Box::new(e) as _)
                 .context(CheckingChunkPredicate {
                     chunk_id: chunk.id(),
@@ -347,7 +347,7 @@ impl InfluxRpcPlanner {
         for chunk in database.chunks(&predicate) {
             // Try and apply the predicate using only metadata
             let pred_result = chunk
-                .apply_predicate(&predicate)
+                .apply_predicate_to_metadata(&predicate)
                 .map_err(|e| Box::new(e) as _)
                 .context(CheckingChunkPredicate {
                     chunk_id: chunk.id(),
@@ -628,7 +628,7 @@ impl InfluxRpcPlanner {
         for chunk in chunks {
             // Try and apply the predicate using only metadata
             let pred_result = chunk
-                .apply_predicate(&predicate)
+                .apply_predicate_to_metadata(&predicate)
                 .map_err(|e| Box::new(e) as _)
                 .context(CheckingChunkPredicate {
                     chunk_id: chunk.id(),
