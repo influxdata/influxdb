@@ -265,6 +265,12 @@ async fn wait_for_chunk(
 
         if t_start.elapsed() >= wait_time {
             let operations = fixture.operations_client().list_operations().await.unwrap();
+            let mut operations: Vec<_> = operations
+                .into_iter()
+                .map(|x| (x.name().parse::<usize>().unwrap(), x.metadata()))
+                .collect();
+            operations.sort_by_key(|x| x.0);
+
             panic!("Could not find chunk in desired state {:?} within {:?}.\nChunks were: {:#?}\nOperations were: {:#?}", desired_storage, wait_time, chunks, operations)
         }
 
