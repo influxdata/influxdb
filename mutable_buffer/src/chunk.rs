@@ -6,7 +6,7 @@ use parking_lot::Mutex;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use data_types::partition_metadata::{ColumnSummary, InfluxDbType, TableSummary};
-use entry::TableBatch;
+use entry::{Sequence, TableBatch};
 use internal_types::{
     schema::{builder::SchemaBuilder, InfluxColumnType, Schema},
     selection::Selection,
@@ -108,8 +108,7 @@ impl MBChunk {
     /// Panics if the batch specifies a different name for the table in this Chunk
     pub fn write_table_batch(
         &mut self,
-        sequencer_id: u32,
-        sequence_number: u64,
+        sequence: Option<&Sequence>,
         batch: TableBatch<'_>,
     ) -> Result<()> {
         let table_name = batch.name();
@@ -120,7 +119,7 @@ impl MBChunk {
         );
 
         let columns = batch.columns();
-        self.write_columns(sequencer_id, sequence_number, columns)?;
+        self.write_columns(sequence, columns)?;
 
         // Invalidate chunk snapshot
         *self
@@ -275,8 +274,7 @@ impl MBChunk {
     /// the associated columns in the table and updates summary statistics.
     pub fn write_columns(
         &mut self,
-        _sequencer_id: u32,
-        _sequence_number: u64,
+        _sequence: Option<&Sequence>,
         columns: Vec<entry::Column<'_>>,
     ) -> Result<()> {
         let row_count_before_insert = self.rows();
@@ -357,7 +355,8 @@ pub mod test_helpers {
             );
 
             for batch in table_batches {
-                chunk.write_table_batch(1, 5, batch)?;
+                let seq = Some(Sequence::new(1, 5));
+                chunk.write_table_batch(seq.as_ref(), batch)?;
             }
         }
 
@@ -598,13 +597,13 @@ mod tests {
         let mut table = MBChunk::new("table_name", ChunkMetrics::new_unregistered());
         let sequencer_id = 1;
         let sequence_number = 5;
+        let sequence = Some(Sequence::new(sequencer_id, sequence_number));
 
         let lp = "foo,t1=asdf iv=1i,uv=1u,fv=1.0,bv=true,sv=\"hi\" 1";
         let entry = lp_to_entry(&lp);
         table
             .write_columns(
-                sequencer_id,
-                sequence_number,
+                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -621,8 +620,7 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequencer_id,
-                sequence_number,
+                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -654,8 +652,7 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequencer_id,
-                sequence_number,
+                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -687,8 +684,7 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequencer_id,
-                sequence_number,
+                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -720,8 +716,7 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequencer_id,
-                sequence_number,
+                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -753,8 +748,7 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequencer_id,
-                sequence_number,
+                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -786,8 +780,7 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequencer_id,
-                sequence_number,
+                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -821,6 +814,7 @@ mod tests {
         let lp_data = lp_lines.join("\n");
         let entry = lp_to_entry(&lp_data);
 
+        let sequence = Some(Sequence::new(1, 5));
         for batch in entry
             .partition_writes()
             .unwrap()
@@ -828,7 +822,9 @@ mod tests {
             .unwrap()
             .table_batches()
         {
-            table.write_columns(1, 5, batch.columns()).unwrap();
+            table
+                .write_columns(sequence.as_ref(), batch.columns())
+                .unwrap();
         }
     }
 }

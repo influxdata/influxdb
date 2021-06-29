@@ -165,8 +165,8 @@ impl ClientOperation {
     }
 
     /// Return name of this operation
-    pub fn name(&self) -> String {
-        self.inner.name.clone()
+    pub fn name(&self) -> &str {
+        &self.inner.name
     }
 
     /// Return the inner's Operation

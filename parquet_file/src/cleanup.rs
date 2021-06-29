@@ -1,9 +1,5 @@
 //! Methods to cleanup the object store.
-
-use std::{
-    collections::HashSet,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashSet, sync::Arc};
 
 use crate::{
     catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
@@ -11,10 +7,11 @@ use crate::{
 };
 use futures::TryStreamExt;
 use object_store::{
-    path::{parsed::DirsAndFileName, ObjectStorePath},
+    path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
 use observability_deps::tracing::info;
+use parking_lot::Mutex;
 use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -35,18 +32,25 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Delete all unreferenced parquet files.
+/// Get unreferenced parquet files.
 ///
-/// This will hold the transaction lock while the list of files is being gathered. To limit the time the lock is held
-/// use `max_files` which will limit the number of files to delete in this cleanup round.
-pub async fn cleanup_unreferenced_parquet_files(
+/// The resulting vector is in no particular order. It may be passed to [`delete_files`].
+///
+/// # Locking / Concurrent Actions
+/// While this method is running you MUST NOT create any new parquet files or modify the preserved catalog in any other
+/// way. Hence this method needs exclusive access to the preserved catalog and the parquet file. Otherwise this method
+/// may report files for deletion that you are about to write to the catalog!
+///
+/// **This method does NOT acquire the transaction lock!**
+///
+/// To limit the time the exclusive access is required use `max_files` which will limit the number of files to be
+/// detected in this cleanup round.
+///
+/// The exclusive access can be dropped after this method returned and before calling [`delete_files`].
+pub async fn get_unreferenced_parquet_files(
     catalog: &PreservedCatalog,
     max_files: usize,
-) -> Result<()> {
-    // Create a transaction to prevent parallel modifications of the catalog. This avoids that we delete files there
-    // that are about to get added to the catalog.
-    let transaction = catalog.open_transaction().await;
-
+) -> Result<Vec<Path>> {
     let store = catalog.object_store();
     let server_id = catalog.server_id();
     let db_name = catalog.db_name();
@@ -62,8 +66,7 @@ pub async fn cleanup_unreferenced_parquet_files(
         .context(CatalogLoadError)?
         .expect("catalog gone while reading it?");
 
-        let file_guard = state.files.lock().expect("lock poissened?");
-        file_guard.clone()
+        state.files.into_inner()
     };
 
     let prefix = data_location(&store, server_id, db_name);
@@ -95,19 +98,27 @@ pub async fn cleanup_unreferenced_parquet_files(
         }
     }
 
-    // abort transaction cleanly to avoid warnings about uncommited transactions
-    transaction.abort();
+    info!(n_files = to_remove.len(), "Found files to delete");
 
-    // now that the transaction lock is dropped, perform the actual (and potentially slow) delete operation
-    let n_files = to_remove.len();
-    info!(%n_files, "Found files to delete, start deletion.");
+    Ok(to_remove)
+}
 
-    for path in to_remove {
+/// Delete all `files` from the store linked to the preserved catalog.
+///
+/// A file might already be deleted (or entirely absent) when this method is called. This will NOT result in an error.
+///
+/// # Locking / Concurrent Actions
+/// File creation and catalog modifications can be done while calling this method. Even
+/// [`get_unreferenced_parquet_files`] can be called while is method is in-progress.
+pub async fn delete_files(catalog: &PreservedCatalog, files: &[Path]) -> Result<()> {
+    let store = catalog.object_store();
+
+    for path in files {
         info!(path = %path.display(), "Delete file");
         store.delete(&path).await.context(WriteError)?;
     }
 
-    info!(%n_files, "Finished deletion, removed files.");
+    info!(n_files = files.len(), "Finished deletion, removed files.");
 
     Ok(())
 }
@@ -131,10 +142,7 @@ impl CatalogState for TracerCatalogState {
         _object_store: Arc<ObjectStore>,
         info: CatalogParquetInfo,
     ) -> crate::catalog::Result<()> {
-        self.files
-            .lock()
-            .expect("lock poissened?")
-            .insert(info.path);
+        self.files.lock().insert(info.path);
         Ok(())
     }
 
@@ -151,6 +159,7 @@ mod tests {
     use bytes::Bytes;
     use data_types::server_id::ServerId;
     use object_store::path::{parsed::DirsAndFileName, ObjectStorePath, Path};
+    use tokio::sync::RwLock;
 
     use super::*;
     use crate::{
@@ -174,9 +183,10 @@ mod tests {
         .unwrap();
 
         // run clean-up
-        cleanup_unreferenced_parquet_files(&catalog, 1_000)
+        let files = get_unreferenced_parquet_files(&catalog, 1_000)
             .await
             .unwrap();
+        delete_files(&catalog, &files).await.unwrap();
     }
 
     #[tokio::test]
@@ -226,9 +236,13 @@ mod tests {
         }
 
         // run clean-up
-        cleanup_unreferenced_parquet_files(&catalog, 1_000)
+        let files = get_unreferenced_parquet_files(&catalog, 1_000)
             .await
             .unwrap();
+        delete_files(&catalog, &files).await.unwrap();
+
+        // deleting a second time should just work
+        delete_files(&catalog, &files).await.unwrap();
 
         // list all files
         let all_files = list_all_files(&object_store).await;
@@ -245,6 +259,7 @@ mod tests {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let db_name = db_name();
+        let lock: RwLock<()> = Default::default();
 
         let (catalog, _state) = PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&object_store),
@@ -257,21 +272,33 @@ mod tests {
 
         // try multiple times to provoke a conflict
         for i in 0..100 {
+            // Every so often try to create a file with the same ChunkAddr beforehand. This should not trick the cleanup
+            // logic to remove the actual file because file paths contains a UUIDv4 part.
+            if i % 2 == 0 {
+                make_metadata(&object_store, "foo", chunk_addr(i)).await;
+            }
+
             let (path, _) = tokio::join!(
                 async {
-                    let mut transaction = catalog.open_transaction().await;
-
+                    let guard = lock.read().await;
                     let (path, md) = make_metadata(&object_store, "foo", chunk_addr(i)).await;
-                    transaction.add_parquet(&path.clone().into(), &md).unwrap();
 
+                    let mut transaction = catalog.open_transaction().await;
+                    transaction.add_parquet(&path.clone().into(), &md).unwrap();
                     transaction.commit().await.unwrap();
+
+                    drop(guard);
 
                     path.display()
                 },
                 async {
-                    cleanup_unreferenced_parquet_files(&catalog, 1_000)
+                    let guard = lock.write().await;
+                    let files = get_unreferenced_parquet_files(&catalog, 1_000)
                         .await
                         .unwrap();
+                    drop(guard);
+
+                    delete_files(&catalog, &files).await.unwrap();
                 },
             );
 
@@ -303,9 +330,9 @@ mod tests {
         }
 
         // run clean-up
-        cleanup_unreferenced_parquet_files(&catalog, 2)
-            .await
-            .unwrap();
+        let files = get_unreferenced_parquet_files(&catalog, 2).await.unwrap();
+        assert_eq!(files.len(), 2);
+        delete_files(&catalog, &files).await.unwrap();
 
         // should only delete 2
         let all_files = list_all_files(&object_store).await;
@@ -313,9 +340,9 @@ mod tests {
         assert_eq!(leftover.len(), 1);
 
         // run clean-up again
-        cleanup_unreferenced_parquet_files(&catalog, 2)
-            .await
-            .unwrap();
+        let files = get_unreferenced_parquet_files(&catalog, 2).await.unwrap();
+        assert_eq!(files.len(), 1);
+        delete_files(&catalog, &files).await.unwrap();
 
         // should delete remaining file
         let all_files = list_all_files(&object_store).await;

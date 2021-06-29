@@ -263,25 +263,11 @@ impl Chunk {
         .context(TableSchemaError)
     }
 
-    /// Returns the distinct set of table names that contain data satisfying the
-    /// provided predicate.
-    ///
-    /// `skip_table_names` can be used to provide a set of table names to
-    /// skip, typically because they're already included in results from other
-    /// chunks.
-    ///
-    /// TODO(edd) refactor this into `satisfies_predicate(...) -> bool` for
-    /// single table use. https://github.com/influxdata/influxdb_iox/issues/1716
-    pub fn table_names(
-        &self,
-        predicate: &Predicate,
-        _skip_table_names: &BTreeSet<String>,
-    ) -> BTreeSet<String> {
-        let mut result = BTreeSet::new();
-        if (predicate.is_empty() && self.rows() > 0) || self.table.satisfies_predicate(predicate) {
-            result.insert(self.table.name().to_string());
-        }
-        result
+    /// Determines if at least one row in the Chunk satisfies the provided
+    /// predicate. `satisfies_predicate` will return true if it is guaranteed
+    /// that at least one row in the Chunk will satisfy the predicate.
+    pub fn satisfies_predicate(&self, predicate: &Predicate) -> bool {
+        self.table.satisfies_predicate(predicate)
     }
 
     /// Returns the distinct set of column names that contain data matching the
@@ -1022,7 +1008,7 @@ mod test {
     }
 
     #[test]
-    fn table_names() {
+    fn satisfies_predicate() {
         let columns = vec![
             (
                 "time".to_owned(),
@@ -1038,48 +1024,22 @@ mod test {
         let mut chunk = Chunk::new("table_1", ChunkMetrics::new_unregistered());
         chunk.table.add_row_group(rg);
 
-        // All table names returned when no predicate.
-        let table_names = chunk.table_names(&Predicate::default(), &BTreeSet::new());
-        assert_eq!(
-            table_names
-                .iter()
-                .map(|v| v.as_str())
-                .collect::<Vec<&str>>(),
-            vec!["table_1"]
+        // No predicate so at least one row matches
+        assert!(chunk.satisfies_predicate(&Predicate::default()));
+
+        // at least one row satisfies the predicate
+        assert!(
+            chunk.satisfies_predicate(&Predicate::new(vec![BinaryExpr::from((
+                "region", ">=", "west"
+            ))]),)
         );
 
-        // All table names returned if no predicate and not in skip list
-        let table_names = chunk.table_names(
-            &Predicate::default(),
-            &["table_2".to_owned()].iter().cloned().collect(),
+        // no rows match the predicate
+        assert!(
+            !chunk.satisfies_predicate(&Predicate::new(vec![BinaryExpr::from((
+                "region", ">", "west"
+            ))]),)
         );
-        assert_eq!(
-            table_names
-                .iter()
-                .map(|v| v.as_str())
-                .collect::<Vec<&str>>(),
-            vec!["table_1"]
-        );
-
-        // table returned when predicate matches
-        let table_names = chunk.table_names(
-            &Predicate::new(vec![BinaryExpr::from(("region", ">=", "west"))]),
-            &BTreeSet::new(),
-        );
-        assert_eq!(
-            table_names
-                .iter()
-                .map(|v| v.as_str())
-                .collect::<Vec<&str>>(),
-            vec!["table_1"]
-        );
-
-        // table not returned when predicate doesn't match
-        let table_names = chunk.table_names(
-            &Predicate::new(vec![BinaryExpr::from(("region", ">", "west"))]),
-            &BTreeSet::new(),
-        );
-        assert!(table_names.is_empty());
     }
 
     fn to_set(v: &[&str]) -> BTreeSet<String> {

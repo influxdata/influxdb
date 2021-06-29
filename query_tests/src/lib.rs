@@ -8,9 +8,14 @@
 // Actual tests
 
 #[cfg(test)]
+#[rustfmt::skip]
+mod cases;
+#[cfg(test)]
 pub mod influxrpc;
 #[cfg(test)]
 pub mod pruning;
+#[cfg(test)]
+mod runner;
 #[cfg(test)]
 pub mod sql;
 #[cfg(test)]

@@ -13,7 +13,9 @@
 #[cfg(feature = "structopt")]
 pub mod cli;
 pub mod config;
+pub mod layered_tracing;
 
+use crate::layered_tracing::{CloneableEnvFilter, FilteredLayer, UnionFilter};
 pub use config::*;
 
 use observability_deps::{
@@ -26,7 +28,7 @@ use observability_deps::{
         self,
         fmt::{self, writer::BoxMakeWriter, MakeWriter},
         layer::SubscriberExt,
-        EnvFilter,
+        EnvFilter, Layer,
     },
 };
 use std::cmp::min;
@@ -404,14 +406,32 @@ where
                 ),
             };
 
+        let log_filter = self.log_filter.unwrap_or(self.default_log_filter);
+
+        // construct the union filter which allows us to skip evaluating the expensive field values unless
+        // at least one of the filters is interested in the events.
+        // e.g. consider: `debug!(foo=bar(), "baz");`
+        // `bar()` will only be called if either the log_filter or the traces_layer_filter is at debug level for that module.
+        let log_filter = CloneableEnvFilter::new(log_filter);
+        let traces_layer_filter = traces_layer_filter.map(CloneableEnvFilter::new);
+        let union_filter = UnionFilter::new(vec![
+            Some(Box::new(log_filter.clone())),
+            traces_layer_filter.clone().map(|l| Box::new(l) as _),
+        ]);
+
         let subscriber = tracing_subscriber::Registry::default()
-            .with(self.log_filter.unwrap_or(self.default_log_filter))
-            .with(log_format_full)
-            .with(log_format_pretty)
-            .with(log_format_json)
-            .with(log_format_logfmt)
-            .with(traces_layer_otel)
-            .with(traces_layer_filter);
+            .with(union_filter)
+            .with(FilteredLayer::new(
+                log_filter
+                    .and_then(log_format_full)
+                    .and_then(log_format_pretty)
+                    .and_then(log_format_json)
+                    .and_then(log_format_logfmt),
+            ))
+            .with(
+                traces_layer_filter
+                    .map(|filter| FilteredLayer::new(filter.and_then(traces_layer_otel))),
+            );
 
         Ok(subscriber)
     }
