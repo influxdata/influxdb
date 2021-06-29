@@ -36,7 +36,11 @@ struct DuplicateRanges {
 }
 
 impl RecordBatchDeduplicator {
-    pub fn new(sort_keys: Vec<PhysicalSortExpr>, num_dupes: Arc<SQLMetric>, last_batch: Option<RecordBatch>) -> Self {
+    pub fn new(
+        sort_keys: Vec<PhysicalSortExpr>,
+        num_dupes: Arc<SQLMetric>,
+        last_batch: Option<RecordBatch>,
+    ) -> Self {
         Self {
             sort_keys,
             last_batch,
@@ -84,6 +88,15 @@ impl RecordBatchDeduplicator {
     pub fn last_batch_with_no_same_sort_key(&mut self, batch: &RecordBatch) -> Option<RecordBatch> {
         // Take the previous batch, if any, out of it storage self.last_batch
         if let Some(last_batch) = self.last_batch.take() {
+            let formatted =
+                arrow::util::pretty::pretty_format_batches(&[last_batch.clone()]).unwrap();
+            let lines = formatted.trim().split('\n').collect::<Vec<_>>();
+            println!("\nLast_Batch::\n\n{:#?}\n\n", lines);
+
+            let formatted = arrow::util::pretty::pretty_format_batches(&[batch.clone()]).unwrap();
+            let lines = formatted.trim().split('\n').collect::<Vec<_>>();
+            println!("\nBatch::\n\n{:#?}\n\n", lines);
+
             let schema = last_batch.schema();
             // Build sorted columns for last_batch and current one
             let last_batch_key_columns = self
@@ -415,8 +428,7 @@ mod test {
         }];
 
         let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
-        let mut dedupe =
-            RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
+        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
 
         let results = dedupe
             .last_batch_with_no_same_sort_key(&current_batch)
@@ -504,8 +516,7 @@ mod test {
         ];
 
         let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
-        let mut dedupe =
-            RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
+        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
 
         let results = dedupe
             .last_batch_with_no_same_sort_key(&current_batch)
@@ -577,8 +588,7 @@ mod test {
         }];
 
         let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
-        let mut dedupe =
-            RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
+        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
 
         let results = dedupe.last_batch_with_no_same_sort_key(&current_batch);
         assert!(results.is_none());
@@ -647,8 +657,7 @@ mod test {
         ];
 
         let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
-        let mut dedupe =
-            RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
+        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
 
         let results = dedupe.last_batch_with_no_same_sort_key(&current_batch);
         assert!(results.is_none());

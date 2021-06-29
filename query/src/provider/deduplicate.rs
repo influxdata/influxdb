@@ -521,7 +521,7 @@ mod test {
 
         let t1 = StringArray::from(vec![Some("a"), Some("b")]);
 
-        let t2 = StringArray::from(vec![Some("b"), Some("d")]);
+        let t2 = StringArray::from(vec![Some("c"), Some("d")]);
 
         let f1 = Float64Array::from(vec![None, Some(7.0)]);
 
