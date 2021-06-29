@@ -1,4 +1,4 @@
-package inspect
+package verify_seriesfile
 
 import (
 	"fmt"
@@ -28,10 +28,10 @@ func TestVerifies_Valid(t *testing.T) {
 	test := NewTest(t)
 	defer os.RemoveAll(test.Path)
 
-	verify := NewVerify()
+	verify := newVerify()
 	verify.Logger = zaptest.NewLogger(t)
 
-	passed, err := verify.VerifySeriesFile(test.Path)
+	passed, err := verify.verifySeriesFile(test.Path)
 	require.NoError(t, err)
 	require.True(t, passed)
 }
@@ -58,10 +58,10 @@ func TestVerifies_Invalid(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, fh.Close())
 
-		verify := NewVerify()
+		verify := newVerify()
 		verify.Logger = zaptest.NewLogger(t)
 
-		passed, err := verify.VerifySeriesFile(test.Path)
+		passed, err := verify.verifySeriesFile(test.Path)
 		require.NoError(t, err)
 		require.False(t, passed)
 

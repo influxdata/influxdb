@@ -1,4 +1,4 @@
-package inspect
+package verify_tsm
 
 import (
 	"bytes"

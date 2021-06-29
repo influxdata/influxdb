@@ -1,4 +1,4 @@
-package inspect
+package verify_tsm
 
 import (
 	"fmt"
@@ -13,14 +13,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type verifierTSM interface {
-	Run(cmd *cobra.Command, dataPath string, verbose bool) error
+type verifier interface {
+	run(cmd *cobra.Command, dataPath string, verbose bool) error
 }
 
 type verifyTSM struct {
-	files []string
-	f     string
-	start time.Time
+	files     []string
+	f         string
+	startTime time.Time
 }
 
 type verifyUTF8 struct {
@@ -45,13 +45,13 @@ func NewTSMVerifyCommand() *cobra.Command {
 		Short: `Verifies the integrity of TSM files`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var runner verifierTSM
+			var runner verifier
 			if checkUTF8 {
 				runner = &verifyUTF8{}
 			} else {
 				runner = &verifyChecksums{}
 			}
-			err := runner.Run(cmd, dir, verbose)
+			err := runner.run(cmd, dir, verbose)
 			return err
 		},
 	}
@@ -61,15 +61,15 @@ func NewTSMVerifyCommand() *cobra.Command {
 	return cmd
 }
 
-func (v *verifyUTF8) Run(cmd *cobra.Command, dataPath string, verbose bool) error {
+func (v *verifyUTF8) run(cmd *cobra.Command, dataPath string, verbose bool) error {
 	if err := v.loadFiles(dataPath); err != nil {
 		return err
 	}
 
-	v.Start()
+	v.start()
 
-	for v.Next() {
-		reader, closer, err := v.TSMReader()
+	for v.next() {
+		reader, closer, err := v.tsmReader()
 		if closer != nil {
 			defer closer()
 		}
@@ -95,7 +95,7 @@ func (v *verifyUTF8) Run(cmd *cobra.Command, dataPath string, verbose bool) erro
 		}
 	}
 
-	cmd.PrintErrf("Invalid Keys: %d / %d, in %vs\n", v.totalErrors, v.total, v.Elapsed().Seconds())
+	cmd.PrintErrf("Invalid Keys: %d / %d, in %vs\n", v.totalErrors, v.total, v.elapsed().Seconds())
 	if v.totalErrors > 0 {
 		return errors.New("check-utf8: failed")
 	}
@@ -103,15 +103,15 @@ func (v *verifyUTF8) Run(cmd *cobra.Command, dataPath string, verbose bool) erro
 	return nil
 }
 
-func (v *verifyChecksums) Run(cmd *cobra.Command, dataPath string, verbose bool) error {
+func (v *verifyChecksums) run(cmd *cobra.Command, dataPath string, verbose bool) error {
 	if err := v.loadFiles(dataPath); err != nil {
 		return err
 	}
 
-	v.Start()
+	v.start()
 
-	for v.Next() {
-		reader, closer, err := v.TSMReader()
+	for v.next() {
+		reader, closer, err := v.tsmReader()
 		if closer != nil {
 			defer closer()
 		}
@@ -145,7 +145,7 @@ func (v *verifyChecksums) Run(cmd *cobra.Command, dataPath string, verbose bool)
 		}
 	}
 
-	cmd.PrintErrf("Broken Blocks: %d / %d, in %vs\n", v.totalErrors, v.total, v.Elapsed().Seconds())
+	cmd.PrintErrf("Broken Blocks: %d / %d, in %vs\n", v.totalErrors, v.total, v.elapsed().Seconds())
 
 	return nil
 }
@@ -168,7 +168,7 @@ func (v *verifyTSM) loadFiles(dataPath string) error {
 	return nil
 }
 
-func (v *verifyTSM) Next() bool {
+func (v *verifyTSM) next() bool {
 	if len(v.files) == 0 {
 		return false
 	}
@@ -177,7 +177,7 @@ func (v *verifyTSM) Next() bool {
 	return true
 }
 
-func (v *verifyTSM) TSMReader() (*tsm1.TSMReader, func(), error) {
+func (v *verifyTSM) tsmReader() (*tsm1.TSMReader, func(), error) {
 	file, err := os.OpenFile(v.f, os.O_RDONLY, 0600)
 	if err != nil {
 		return nil, nil, err
@@ -198,10 +198,10 @@ func (v *verifyTSM) TSMReader() (*tsm1.TSMReader, func(), error) {
 	return reader, closer, nil
 }
 
-func (v *verifyTSM) Start() {
-	v.start = time.Now()
+func (v *verifyTSM) start() {
+	v.startTime = time.Now()
 }
 
-func (v *verifyTSM) Elapsed() time.Duration {
-	return time.Since(v.start)
+func (v *verifyTSM) elapsed() time.Duration {
+	return time.Since(v.startTime)
 }

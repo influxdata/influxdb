@@ -1,4 +1,4 @@
-package inspect
+package verify_seriesfile
 
 import (
 	"errors"
@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-type argsSeries struct {
+type args struct {
 	dir        string
 	db         string
 	seriesFile string
@@ -26,7 +26,7 @@ type argsSeries struct {
 }
 
 func NewVerifySeriesfileCommand() *cobra.Command {
-	var arguments argsSeries
+	var arguments args
 	cmd := &cobra.Command{
 		Use:   "verify-seriesfile",
 		Short: "Verifies the integrity of series files.",
@@ -44,7 +44,7 @@ func NewVerifySeriesfileCommand() *cobra.Command {
 				return err
 			}
 
-			v := NewVerify()
+			v := newVerify()
 			v.Logger = log
 			v.Concurrent = arguments.concurrent
 
@@ -55,7 +55,7 @@ func NewVerifySeriesfileCommand() *cobra.Command {
 				db = filepath.Join(arguments.dir, arguments.db, "_series")
 			}
 			if db != "" {
-				_, err := v.VerifySeriesFile(db)
+				_, err := v.verifySeriesFile(db)
 				return err
 			}
 
@@ -70,7 +70,7 @@ func NewVerifySeriesfileCommand() *cobra.Command {
 					continue
 				}
 				filePath := filepath.Join(arguments.dir, db.Name(), "_series")
-				if _, err := v.VerifySeriesFile(filePath); err != nil {
+				if _, err := v.verifySeriesFile(filePath); err != nil {
 					v.Logger.Error("Failed to verify series file",
 						zap.String("filename", filePath),
 						zap.Error(err))
@@ -98,31 +98,31 @@ func NewVerifySeriesfileCommand() *cobra.Command {
 	return cmd
 }
 
-// verifyResult contains the result of a Verify... call
+// verifyResult contains the result of a verify... call
 type verifyResult struct {
 	valid bool
 	err   error
 }
 
-// Verify contains configuration for running verification of series files.
-type Verify struct {
+// verify contains configuration for running verification of series files.
+type verify struct {
 	Concurrent int
 	Logger     *zap.Logger
 
 	done chan struct{}
 }
 
-// NewVerify constructs a Verify with good defaults.
-func NewVerify() Verify {
-	return Verify{
+// newVerify constructs a verify with good defaults.
+func newVerify() verify {
+	return verify{
 		Concurrent: runtime.GOMAXPROCS(0),
 		Logger:     zap.NewNop(),
 	}
 }
 
-// VerifySeriesFile performs verifications on a series file. The error is only returned
+// verifySeriesFile performs verifications on a series file. The error is only returned
 // if there was some fatal problem with operating, not if there was a problem with the series file.
-func (v Verify) VerifySeriesFile(filePath string) (valid bool, err error) {
+func (v verify) verifySeriesFile(filePath string) (valid bool, err error) {
 	v.Logger = v.Logger.With(zap.String("path", filePath))
 	v.Logger.Info("Verifying series file")
 
@@ -164,7 +164,7 @@ func (v Verify) VerifySeriesFile(filePath string) (valid bool, err error) {
 			defer wg.Done()
 
 			for partitionPath := range in {
-				valid, err := v.VerifyPartition(partitionPath)
+				valid, err := v.verifyPartition(partitionPath)
 				select {
 				case out <- verifyResult{valid: valid, err: err}:
 				case <-v.done:
@@ -192,9 +192,9 @@ func (v Verify) VerifySeriesFile(filePath string) (valid bool, err error) {
 	return true, nil
 }
 
-// VerifyPartition performs verifications on a partition of a series file. The error is only returned
+// verifyPartition performs verifications on a partition of a series file. The error is only returned
 // if there was some fatal problem with operating, not if there was a problem with the partition.
-func (v Verify) VerifyPartition(partitionPath string) (valid bool, err error) {
+func (v verify) verifyPartition(partitionPath string) (valid bool, err error) {
 	v.Logger = v.Logger.With(zap.String("partition", filepath.Base(partitionPath)))
 	v.Logger.Info("Verifying partition")
 
@@ -227,7 +227,7 @@ func (v Verify) VerifyPartition(partitionPath string) (valid bool, err error) {
 			continue
 		}
 
-		if valid, err := v.VerifySegment(segmentPath, ids); err != nil {
+		if valid, err := v.verifySegment(segmentPath, ids); err != nil {
 			return false, err
 		} else if !valid {
 			return false, nil
@@ -246,7 +246,7 @@ func (v Verify) VerifyPartition(partitionPath string) (valid bool, err error) {
 
 	// check the index
 	indexPath := filepath.Join(partitionPath, "index")
-	if valid, err := v.VerifyIndex(indexPath, segments, ids); err != nil {
+	if valid, err := v.verifyIndex(indexPath, segments, ids); err != nil {
 		return false, err
 	} else if !valid {
 		return false, nil
@@ -262,10 +262,10 @@ type IDData struct {
 	Deleted bool
 }
 
-// VerifySegment performs verifications on a segment of a series file. The error is only returned
+// verifySegment performs verifications on a segment of a series file. The error is only returned
 // if there was some fatal problem with operating, not if there was a problem with the partition.
 // The ids map is populated with information about the ids stored in the segment.
-func (v Verify) VerifySegment(segmentPath string, ids map[uint64]IDData) (valid bool, err error) {
+func (v verify) verifySegment(segmentPath string, ids map[uint64]IDData) (valid bool, err error) {
 	segmentName := filepath.Base(segmentPath)
 	v.Logger = v.Logger.With(zap.String("segment", segmentName))
 	v.Logger.Info("Verifying segment")
@@ -393,10 +393,10 @@ entries:
 	return true, nil
 }
 
-// VerifyIndex performs verification on an index in a series file. The error is only returned
+// verifyIndex performs verification on an index in a series file. The error is only returned
 // if there was some fatal problem with operating, not if there was a problem with the partition.
 // The ids map must be built from verifying the passed in segments.
-func (v Verify) VerifyIndex(indexPath string, segments []*tsdb.SeriesSegment,
+func (v verify) verifyIndex(indexPath string, segments []*tsdb.SeriesSegment,
 	ids map[uint64]IDData) (valid bool, err error) {
 	v.Logger.Info("Verifying index")
 
