@@ -180,12 +180,12 @@ async fn read_parquet(object_store: &ObjectStore, path: &Path) -> Result<IoxParq
 
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
     use data_types::chunk_metadata::ChunkAddr;
     use datafusion::physical_plan::SendableRecordBatchStream;
     use datafusion_util::MemoryStream;
     use parquet::arrow::ArrowWriter;
     use tokio_stream::StreamExt;
-    use uuid::Uuid;
 
     use super::*;
     use std::num::NonZeroU32;
@@ -216,29 +216,13 @@ mod tests {
         {
             let mut transaction = catalog.open_transaction().await;
 
-            let (path, md) = create_parquet_file(
-                &object_store,
-                server_id,
-                db_name,
-                transaction.revision_counter(),
-                transaction.uuid(),
-                0,
-            )
-            .await;
+            let (path, md) = create_parquet_file(&object_store, server_id, db_name, 0).await;
             state
                 .parquet_files
                 .insert(path.clone(), Arc::new(md.clone()));
             transaction.add_parquet(&path, &md).unwrap();
 
-            let (path, md) = create_parquet_file(
-                &object_store,
-                server_id,
-                db_name,
-                transaction.revision_counter(),
-                transaction.uuid(),
-                1,
-            )
-            .await;
+            let (path, md) = create_parquet_file(&object_store, server_id, db_name, 1).await;
             state
                 .parquet_files
                 .insert(path.clone(), Arc::new(md.clone()));
@@ -254,15 +238,7 @@ mod tests {
         {
             let mut transaction = catalog.open_transaction().await;
 
-            let (path, md) = create_parquet_file(
-                &object_store,
-                server_id,
-                db_name,
-                transaction.revision_counter(),
-                transaction.uuid(),
-                2,
-            )
-            .await;
+            let (path, md) = create_parquet_file(&object_store, server_id, db_name, 2).await;
             state
                 .parquet_files
                 .insert(path.clone(), Arc::new(md.clone()));
@@ -483,8 +459,6 @@ mod tests {
         object_store: &Arc<ObjectStore>,
         server_id: ServerId,
         db_name: &str,
-        transaction_revision_counter: u64,
-        transaction_uuid: Uuid,
         chunk_id: u32,
     ) -> (DirsAndFileName, IoxParquetMetaData) {
         let table_name = "table1";
@@ -493,8 +467,7 @@ mod tests {
 
         let storage = Storage::new(Arc::clone(object_store), server_id);
         let metadata = IoxMetadata {
-            transaction_revision_counter,
-            transaction_uuid,
+            creation_timestamp: Utc::now(),
             table_name: table_name.to_string(),
             partition_key: partition_key.to_string(),
             chunk_id,

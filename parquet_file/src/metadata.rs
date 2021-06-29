@@ -88,6 +88,7 @@
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
 use std::{convert::TryInto, sync::Arc};
 
+use chrono::{DateTime, Utc};
 use data_types::partition_metadata::{
     ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
 };
@@ -108,7 +109,6 @@ use parquet::{
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
-use uuid::Uuid;
 
 /// File-level metadata key to store the IOx-specific data.
 ///
@@ -217,11 +217,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[allow(missing_copy_implementations)] // we want to extend this type in the future
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct IoxMetadata {
-    /// Revision counter of the transaction during which the Parquet file was created.
-    pub transaction_revision_counter: u64,
-
-    /// UUID of the transaction during which the Parquet file was created.
-    pub transaction_uuid: Uuid,
+    /// Timestamp when this file was created.
+    pub creation_timestamp: DateTime<Utc>,
 
     /// Table that holds this parquet file.
     pub table_name: String,
