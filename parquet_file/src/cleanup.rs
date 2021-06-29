@@ -10,12 +10,11 @@ use crate::{
 };
 use futures::TryStreamExt;
 use object_store::{
-    path::{parsed::DirsAndFileName, ObjectStorePath},
+    path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
 use observability_deps::tracing::info;
 use snafu::{ResultExt, Snafu};
-use tokio::sync::RwLock;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -35,34 +34,26 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Delete all unreferenced parquet files.
+/// Get unreferenced parquet files.
+///
+/// The resulting vector is in no particular order. It may be passed to [`delete_files`].
 ///
 /// # Locking / Concurrent Actions
-/// This method will acquire an exclusive (= write) guard for the provided lock. If you plan to write parquet files or
-/// modify the catalog while calling this method, you must at least acquire a shared (= read) guard for the provided
-/// lock while writing or modifying the catalog. For a parquet write operation this will lock like this:
-///
-/// 1. Acquire shared (= read) guard.
-/// 2. In any order:
-///    - write parquet file(s)
-///    - start transaction
-/// 3. Add parquet file(s) to transaction.
-/// 4. Commit transaction.
-/// 5. Drop shared ( = read) guard.
+/// While this method is running you MUST NOT create any new parquet files or modify the preserved catalog in any other
+/// way. Hence this method needs exclusive access to the preserved catalog and the parquet file. Otherwise this method
+/// may report files for deletion that you are about to write to the catalog!
 ///
 /// **This method does NOT acquire the transaction lock!**
 ///
-/// To limit the time the exclusive (= write) lock is held use `max_files` which will limit the number of files to
-/// delete in this cleanup round.
-pub async fn cleanup_unreferenced_parquet_files(
+/// To limit the time the exclusive access is required use `max_files` which will limit the number of files to be
+/// detected in this cleanup round.
+///
+/// The exclusive access can be downgraded to shared access after this method returned and before calling
+/// [`delete_files`].
+pub async fn get_unreferenced_parquet_files(
     catalog: &PreservedCatalog,
     max_files: usize,
-    lock: &RwLock<()>,
-) -> Result<()> {
-    // Take exclusive lock to prevent parallel modifications of the catalog. This avoids that we delete files there
-    // that are about to get added to the catalog.
-    let guard = lock.write().await;
-
+) -> Result<Vec<Path>> {
     let store = catalog.object_store();
     let server_id = catalog.server_id();
     let db_name = catalog.db_name();
@@ -110,21 +101,30 @@ pub async fn cleanup_unreferenced_parquet_files(
         }
     }
 
-    // We now have the set of files that we wanna delete. Since new files should have different names due to the UUIDv4
-    // part of the parquet file names, it is guaranteed that we can drop the exclusive lock and files added afterwards
-    // won't accidentally be deleted as well.
-    drop(guard);
+    info!(
+        n_files = to_remove.len(),
+        "Found files to delete, start deletion."
+    );
 
-    // now that the transaction lock is dropped, perform the actual (and potentially slow) delete operation
-    let n_files = to_remove.len();
-    info!(%n_files, "Found files to delete, start deletion.");
+    Ok(to_remove)
+}
 
-    for path in to_remove {
+/// Delete all `files` from the store linked to the preserved catalog.
+///
+/// A file might already be deleted (or entirely absent) when this method is called. This will NOT result in an error.
+///
+/// # Locking / Concurrent Actions
+/// File creation and catalog modifications can be done while calling this method. Even
+/// [`get_unreferenced_parquet_files`] can be called while is method is in-progress.
+pub async fn delete_files(catalog: &PreservedCatalog, files: &[Path]) -> Result<()> {
+    let store = catalog.object_store();
+
+    for path in files {
         info!(path = %path.display(), "Delete file");
         store.delete(&path).await.context(WriteError)?;
     }
 
-    info!(%n_files, "Finished deletion, removed files.");
+    info!(n_files = files.len(), "Finished deletion, removed files.");
 
     Ok(())
 }
@@ -168,6 +168,7 @@ mod tests {
     use bytes::Bytes;
     use data_types::server_id::ServerId;
     use object_store::path::{parsed::DirsAndFileName, ObjectStorePath, Path};
+    use tokio::sync::RwLock;
 
     use super::*;
     use crate::{
@@ -191,10 +192,10 @@ mod tests {
         .unwrap();
 
         // run clean-up
-        let lock = Default::default();
-        cleanup_unreferenced_parquet_files(&catalog, 1_000, &lock)
+        let files = get_unreferenced_parquet_files(&catalog, 1_000)
             .await
             .unwrap();
+        delete_files(&catalog, &files).await.unwrap();
     }
 
     #[tokio::test]
@@ -244,10 +245,13 @@ mod tests {
         }
 
         // run clean-up
-        let lock = Default::default();
-        cleanup_unreferenced_parquet_files(&catalog, 1_000, &lock)
+        let files = get_unreferenced_parquet_files(&catalog, 1_000)
             .await
             .unwrap();
+        delete_files(&catalog, &files).await.unwrap();
+
+        // deleting a second time should just work
+        delete_files(&catalog, &files).await.unwrap();
 
         // list all files
         let all_files = list_all_files(&object_store).await;
@@ -297,9 +301,13 @@ mod tests {
                     path.display()
                 },
                 async {
-                    cleanup_unreferenced_parquet_files(&catalog, 1_000, &lock)
+                    let guard = lock.write().await;
+                    let files = get_unreferenced_parquet_files(&catalog, 1_000)
                         .await
                         .unwrap();
+                    drop(guard);
+
+                    delete_files(&catalog, &files).await.unwrap();
                 },
             );
 
@@ -331,10 +339,9 @@ mod tests {
         }
 
         // run clean-up
-        let lock = Default::default();
-        cleanup_unreferenced_parquet_files(&catalog, 2, &lock)
-            .await
-            .unwrap();
+        let files = get_unreferenced_parquet_files(&catalog, 2).await.unwrap();
+        assert_eq!(files.len(), 2);
+        delete_files(&catalog, &files).await.unwrap();
 
         // should only delete 2
         let all_files = list_all_files(&object_store).await;
@@ -342,9 +349,9 @@ mod tests {
         assert_eq!(leftover.len(), 1);
 
         // run clean-up again
-        cleanup_unreferenced_parquet_files(&catalog, 2, &lock)
-            .await
-            .unwrap();
+        let files = get_unreferenced_parquet_files(&catalog, 2).await.unwrap();
+        assert_eq!(files.len(), 1);
+        delete_files(&catalog, &files).await.unwrap();
 
         // should delete remaining file
         let all_files = list_all_files(&object_store).await;
