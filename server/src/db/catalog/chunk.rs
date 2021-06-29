@@ -819,7 +819,7 @@ impl CatalogChunk {
 
 #[cfg(test)]
 mod tests {
-    use entry::test_helpers::lp_to_entry;
+    use entry::{test_helpers::lp_to_entry, Sequence};
     use mutable_buffer::chunk::{ChunkMetrics as MBChunkMetrics, MBChunk};
     use parquet_file::{
         chunk::ParquetChunk,
@@ -911,7 +911,10 @@ mod tests {
         let entry = lp_to_entry(&format!("{} bar=1 10", table_name));
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
-        mb_chunk.write_table_batch(sequencer_id, 1, batch).unwrap();
+        let sequence = Some(Sequence::new(sequencer_id, 1));
+        mb_chunk
+            .write_table_batch(sequence.as_ref(), batch)
+            .unwrap();
         mb_chunk
     }
 

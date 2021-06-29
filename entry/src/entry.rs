@@ -1241,13 +1241,25 @@ pub enum SequencedEntryError {
 #[derive(Debug)]
 pub struct SequencedEntry {
     entry: Entry,
-    sequence: Sequence,
+    /// The (optional) sequence for this entry.  At the time of
+    /// writing, sequences will not be present when there is no
+    /// configured mechanism to define the order of all writes.
+    sequence: Option<Sequence>,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct Sequence {
     pub id: u32,
     pub number: u64,
+}
+
+impl Sequence {
+    pub fn new(sequencer_id: u32, sequence_number: u64) -> Self {
+        Self {
+            id: sequencer_id,
+            number: sequence_number,
+        }
+    }
 }
 
 impl SequencedEntry {
@@ -1258,10 +1270,10 @@ impl SequencedEntry {
     ) -> Result<Self, SequencedEntryError> {
         Ok(Self {
             entry,
-            sequence: Sequence {
+            sequence: Some(Sequence {
                 id: server_id.get_u32(),
                 number: process_clock.get_u64(),
-            },
+            }),
         })
     }
 
@@ -1269,15 +1281,21 @@ impl SequencedEntry {
         sequence: Sequence,
         entry: Entry,
     ) -> Result<Self, SequencedEntryError> {
+        let sequence = Some(sequence);
         Ok(Self { entry, sequence })
+    }
+
+    pub fn new_unsequenced(entry: Entry) -> Self {
+        let sequence = None;
+        Self { entry, sequence }
     }
 
     pub fn partition_writes(&self) -> Option<Vec<PartitionWrite<'_>>> {
         self.entry.partition_writes()
     }
 
-    pub fn sequence(&self) -> &Sequence {
-        &self.sequence
+    pub fn sequence(&self) -> Option<&Sequence> {
+        self.sequence.as_ref()
     }
 }
 

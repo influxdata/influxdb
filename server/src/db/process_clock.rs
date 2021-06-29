@@ -27,6 +27,7 @@ impl ProcessClock {
     ///
     /// We expect that updates to the process clock are not so frequent and the system is slow
     /// enough that the returned value will be incremented by at least 1.
+    #[allow(dead_code)]
     pub fn next(&self) -> ClockValue {
         let next = loop {
             if let Ok(next) = self.try_update() {
@@ -37,6 +38,7 @@ impl ProcessClock {
         ClockValue::try_from(next).expect("process clock should not be 0")
     }
 
+    #[allow(dead_code)]
     fn try_update(&self) -> Result<u64, u64> {
         let now = system_clock_now();
         let current_process_clock = self.inner.load(Ordering::SeqCst);
