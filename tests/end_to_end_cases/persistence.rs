@@ -263,13 +263,10 @@ async fn wait_for_chunk(
             );
         }
 
-        assert!(
-            t_start.elapsed() < wait_time,
-            "Could not find chunk in desired state {:?} within {:?}. Chunks were: {:#?}",
-            desired_storage,
-            wait_time,
-            chunks
-        );
+        if t_start.elapsed() >= wait_time {
+            let operations = fixture.operations_client().list_operations().await.unwrap();
+            panic!("Could not find chunk in desired state {:?} within {:?}.\nChunks were: {:#?}\nOperations were: {:#?}", desired_storage, wait_time, chunks, operations)
+        }
 
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
