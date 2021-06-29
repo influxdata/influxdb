@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, sync::Arc};
+use std::sync::Arc;
 
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 
@@ -12,65 +12,64 @@ use read_buffer::{BinaryExpr, ChunkMetrics, Predicate, RBChunk};
 const BASE_TIME: i64 = 1351700038292387000_i64;
 const ONE_MS: i64 = 1_000_000;
 
-fn table_names(c: &mut Criterion) {
+fn satisfies_predicate(c: &mut Criterion) {
     let rb = generate_row_group(500_000);
     let mut chunk = RBChunk::new("table_a", ChunkMetrics::new_unregistered());
     chunk.upsert_table("table_a", rb);
 
-    // no predicate - return all the tables
-    benchmark_table_names(
+    // no predicate
+    benchmark_satisfies_predicate(
         c,
-        "database_table_names_all_tables",
+        "database_satisfies_predicate_all_tables",
         &chunk,
         Predicate::default(),
-        1,
+        true,
     );
 
-    // predicate - meta data proves not present
-    benchmark_table_names(
+    // predicate but meta-data rules out matches
+    benchmark_satisfies_predicate(
         c,
-        "database_table_names_meta_pred_no_match",
+        "database_satisfies_predicate_meta_pred_no_match",
         &chunk,
         Predicate::new(vec![BinaryExpr::from(("env", "=", "zoo"))]),
-        0,
+        false,
     );
 
-    // predicate - single predicate match
-    benchmark_table_names(
+    // predicate - single expression matches at least one row
+    benchmark_satisfies_predicate(
         c,
-        "database_table_names_single_pred_match",
+        "database_satisfies_predicate_single_pred_match",
         &chunk,
         Predicate::new(vec![BinaryExpr::from(("env", "=", "prod"))]),
-        1,
+        true,
     );
 
-    // predicate - multi predicate match
-    benchmark_table_names(
+    // predicate - at least one row matches all expressions
+    benchmark_satisfies_predicate(
         c,
-        "database_table_names_multi_pred_match",
+        "database_satisfies_predicate_multi_pred_match",
         &chunk,
         Predicate::new(vec![
             BinaryExpr::from(("env", "=", "prod")),
             BinaryExpr::from(("time", ">=", BASE_TIME)),
             BinaryExpr::from(("time", "<", BASE_TIME + (ONE_MS * 10000))),
         ]),
-        1,
+        true,
     );
 }
 
-fn benchmark_table_names(
+fn benchmark_satisfies_predicate(
     c: &mut Criterion,
     bench_name: &str,
     chunk: &RBChunk,
     predicate: Predicate,
-    expected_rows: usize,
+    satisfies: bool,
 ) {
     c.bench_function(bench_name, |b| {
         b.iter_batched(
             || predicate.clone(), // don't want to time predicate cloning
             |predicate: Predicate| {
-                let tables = chunk.table_names(&predicate, &BTreeSet::new());
-                assert_eq!(tables.len(), expected_rows);
+                assert_eq!(chunk.satisfies_predicate(&predicate), satisfies);
             },
             BatchSize::SmallInput,
         );
@@ -118,5 +117,5 @@ fn generate_row_group(rows: usize) -> RecordBatch {
     RecordBatch::try_new(schema.into(), data).unwrap()
 }
 
-criterion_group!(benches, table_names);
+criterion_group!(benches, satisfies_predicate);
 criterion_main!(benches);

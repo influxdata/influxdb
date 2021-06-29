@@ -1,6 +1,6 @@
-use assert_cmd::prelude::*;
+use std::sync::Arc;
+use std::time::Duration;
 use std::{
-    fs::OpenOptions,
     path::Path,
     process::{Child, Command},
     str,
@@ -11,9 +11,11 @@ use std::{
     time::Instant,
 };
 
+use assert_cmd::prelude::*;
 use futures::prelude::*;
-use std::time::Duration;
-use tempfile::TempDir;
+use once_cell::sync::OnceCell;
+use tempfile::{NamedTempFile, TempDir};
+use tokio::sync::Mutex;
 
 // These port numbers are chosen to not collide with a development ioxd server
 // running locally.
@@ -23,9 +25,6 @@ static NEXT_PORT: AtomicUsize = AtomicUsize::new(8090);
 
 /// This structure contains all the addresses a test server should use
 pub struct BindAddresses {
-    http_port: usize,
-    grpc_port: usize,
-
     http_bind_addr: String,
     grpc_bind_addr: String,
 
@@ -58,8 +57,6 @@ impl Default for BindAddresses {
         let grpc_base = format!("http://{}", grpc_bind_addr);
 
         Self {
-            http_port,
-            grpc_port,
             http_bind_addr,
             grpc_bind_addr,
             http_base,
@@ -70,11 +67,6 @@ impl Default for BindAddresses {
 }
 
 const TOKEN: &str = "InfluxDB IOx doesn't have authentication yet";
-
-use std::sync::Arc;
-
-use once_cell::sync::OnceCell;
-use tokio::sync::Mutex;
 
 /// Represents a server that has been started and is available for
 /// testing.
@@ -259,7 +251,7 @@ struct TestServer {
     ready: Mutex<ServerState>,
 
     /// Handle to the server process being controlled
-    server_process: Mutex<Child>,
+    server_process: Mutex<Process>,
 
     /// Which ports this server should use
     addrs: BindAddresses,
@@ -267,6 +259,11 @@ struct TestServer {
     // The temporary directory **must** be last so that it is
     // dropped after the database closes.
     dir: TempDir,
+}
+
+struct Process {
+    child: Child,
+    log_path: Box<Path>,
 }
 
 impl TestServer {
@@ -289,40 +286,41 @@ impl TestServer {
     async fn restart(&self) {
         let mut ready_guard = self.ready.lock().await;
         let mut server_process = self.server_process.lock().await;
-        server_process.kill().unwrap();
-        server_process.wait().unwrap();
+        server_process.child.kill().unwrap();
+        server_process.child.wait().unwrap();
         *server_process = Self::create_server_process(&self.addrs, &self.dir);
         *ready_guard = ServerState::Started;
     }
 
-    fn create_server_process(addrs: &BindAddresses, dir: &TempDir) -> Child {
-        // Make a log file in the temporary dir (don't auto delete it to help debugging
-        // efforts)
-        let mut log_path = std::env::temp_dir();
-        log_path.push(format!(
-            "server_fixture_{}_{}.log",
-            addrs.http_port, addrs.grpc_port
-        ));
-
-        println!("****************");
-        println!("Server Logging to {:?}", log_path);
-        println!("****************");
-        let log_file = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(log_path)
-            .expect("Opening log file");
+    fn create_server_process(addrs: &BindAddresses, dir: &TempDir) -> Process {
+        // Create a new file each time and keep it around to aid debugging
+        let (log_file, log_path) = NamedTempFile::new()
+            .expect("opening log file")
+            .keep()
+            .expect("expected to keep");
 
         let stdout_log_file = log_file
             .try_clone()
             .expect("cloning file handle for stdout");
         let stderr_log_file = log_file;
 
-        Command::cargo_bin("influxdb_iox")
+        println!("****************");
+        println!(
+            "Server {} Logging to {:?}",
+            addrs.http_bind_addr(),
+            log_path
+        );
+        println!("****************");
+
+        // If set in test environment, use that value, else default to info
+        let log_filter = std::env::var("LOG_FILTER").unwrap_or_else(|_| "info".to_string());
+
+        // This will inherit environment from the test runner
+        // in particular `LOG_FILTER`
+        let child = Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("run")
-            // Run in high verbosity debugging
-            .arg("-vv")
+            .env("LOG_FILTER", log_filter)
             .env("INFLUXDB_IOX_OBJECT_STORE", "file")
             .env("INFLUXDB_IOX_DB_DIR", dir.path())
             .env("INFLUXDB_IOX_BIND_ADDR", addrs.http_bind_addr())
@@ -331,7 +329,12 @@ impl TestServer {
             .stdout(stdout_log_file)
             .stderr(stderr_log_file)
             .spawn()
-            .unwrap()
+            .unwrap();
+
+        Process {
+            child,
+            log_path: log_path.into_boxed_path(),
+        }
     }
 
     async fn wait_until_ready(&self, initial_config: InitialConfig) {
@@ -501,10 +504,40 @@ impl std::fmt::Display for TestServer {
 
 impl Drop for TestServer {
     fn drop(&mut self) {
-        self.server_process
+        use std::io::{Read, Write};
+
+        let mut server_lock = self
+            .server_process
             .try_lock()
-            .expect("should be able to get a server process lock")
+            .expect("should be able to get a server process lock");
+
+        server_lock
+            .child
             .kill()
             .expect("Should have been able to kill the test server");
+
+        server_lock
+            .child
+            .wait()
+            .expect("Should have been able to wait for shutdown");
+
+        let mut out = std::io::stdout();
+        let mut f = std::fs::File::open(&server_lock.log_path).expect("failed to open log file");
+        let mut buffer = [0_u8; 8 * 1024];
+
+        writeln!(out, "****************").unwrap();
+        writeln!(out, "Start TestServer Output").unwrap();
+        writeln!(out, "****************").unwrap();
+
+        while let Ok(read) = f.read(&mut buffer) {
+            if read == 0 {
+                break;
+            }
+            out.write_all(&buffer[..read]).unwrap();
+        }
+
+        writeln!(out, "****************").unwrap();
+        writeln!(out, "End TestServer Output").unwrap();
+        writeln!(out, "****************").unwrap();
     }
 }

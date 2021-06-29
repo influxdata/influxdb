@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use entry::{test_helpers::lp_to_entries, Entry};
+use entry::{test_helpers::lp_to_entries, Entry, Sequence};
 use flate2::read::GzDecoder;
 use mutable_buffer::chunk::{ChunkMetrics, MBChunk};
 use std::io::Read;
@@ -9,11 +9,12 @@ fn write_chunk(count: usize, entries: &[Entry]) {
     // m0 is hard coded into tag_values.lp.gz
     let mut chunk = MBChunk::new("m0", ChunkMetrics::new_unregistered());
 
+    let sequence = Some(Sequence::new(1, 5));
     for _ in 0..count {
         for entry in entries {
             for write in entry.partition_writes().iter().flatten() {
                 for batch in write.table_batches() {
-                    chunk.write_table_batch(1, 5, batch).unwrap();
+                    chunk.write_table_batch(sequence.as_ref(), batch).unwrap();
                 }
             }
         }

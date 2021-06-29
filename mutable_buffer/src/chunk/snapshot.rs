@@ -1,11 +1,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use arrow::{
-    array::DictionaryArray,
-    datatypes::{DataType, Int32Type},
-    record_batch::RecordBatch,
-};
+use arrow::record_batch::RecordBatch;
 use snafu::{ResultExt, Snafu};
 
 use data_types::partition_metadata::TableSummary;
@@ -126,47 +122,19 @@ impl ChunkSnapshot {
         columns + stats + std::mem::size_of::<Self>()
     }
 
-    /// Returns the number of bytes taken up by the shared dictionary
-    pub fn dictionary_size(&self) -> usize {
-        self.batch
-            .columns()
-            .iter()
-            .filter_map(|array| {
-                let dict = array
-                    .as_any()
-                    .downcast_ref::<DictionaryArray<Int32Type>>()?;
-                let values = dict.values();
-                Some(values.get_buffer_memory_size() + values.get_array_memory_size())
-            })
-            .next()
-            .unwrap_or(0)
-    }
-
     /// Returns an iterator over (column_name, estimated_size) for all
     /// columns in this chunk.
     ///
-    /// Dictionary-encoded columns do not include the size of the shared dictionary
-    /// in their reported total
-    ///
     /// This is instead returned as a special "__dictionary" column
     pub fn column_sizes(&self) -> impl Iterator<Item = (&str, usize)> + '_ {
-        let dictionary_size = self.dictionary_size();
         self.batch
             .columns()
             .iter()
             .zip(self.stats.iter())
             .map(move |(array, summary)| {
-                let size = match array.data_type() {
-                    // Dictionary is only encoded once for all columns
-                    DataType::Dictionary(_, _) => {
-                        array.get_array_memory_size() + array.get_buffer_memory_size()
-                            - dictionary_size
-                    }
-                    _ => array.get_array_memory_size() + array.get_buffer_memory_size(),
-                };
+                let size = array.get_array_memory_size() + array.get_buffer_memory_size();
                 (summary.name.as_str(), size)
             })
-            .chain(std::iter::once(("__dictionary", dictionary_size)))
     }
 
     /// Return the number of rows in this chunk

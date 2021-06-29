@@ -73,7 +73,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
-use db::{load_or_create_preserved_catalog, DatabaseToCommit};
+use db::{load::load_or_create_preserved_catalog, DatabaseToCommit};
 use init::InitStatus;
 use observability_deps::tracing::{debug, info, warn};
 use parking_lot::Mutex;

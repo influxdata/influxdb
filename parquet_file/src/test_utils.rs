@@ -8,6 +8,7 @@ use arrow::{
     datatypes::{Int32Type, SchemaRef},
     record_batch::RecordBatch,
 };
+use chrono::{TimeZone, Utc};
 use datafusion::physical_plan::SendableRecordBatchStream;
 
 use data_types::{
@@ -25,7 +26,6 @@ use parquet::{
     arrow::{ArrowReader, ParquetFileArrowReader},
     file::serialized_reader::{SerializedFileReader, SliceableCursor},
 };
-use uuid::Uuid;
 
 use crate::{
     chunk::ChunkMetrics,
@@ -147,8 +147,7 @@ pub async fn make_chunk_given_record_batch(
         Box::pin(MemoryStream::new(record_batches))
     };
     let metadata = IoxMetadata {
-        transaction_revision_counter: 0,
-        transaction_uuid: Uuid::nil(),
+        creation_timestamp: Utc.timestamp(10, 20),
         table_name: addr.table_name.to_string(),
         partition_key: addr.partition_key.to_string(),
         chunk_id: addr.chunk_id,

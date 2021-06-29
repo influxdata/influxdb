@@ -37,6 +37,16 @@ impl<K: AsPrimitive<usize> + FromPrimitive + Zero> PackedStringArray<K> {
         }
     }
 
+    pub fn with_capacity(keys: usize, values: usize) -> Self {
+        let mut offsets = Vec::with_capacity(keys + 1);
+        offsets.push(K::zero());
+
+        Self {
+            offsets,
+            storage: String::with_capacity(values),
+        }
+    }
+
     /// Append a value
     ///
     /// Returns the index of the appended data

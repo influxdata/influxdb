@@ -334,7 +334,7 @@ impl Catalog {
 
 #[cfg(test)]
 mod tests {
-    use entry::test_helpers::lp_to_entry;
+    use entry::{test_helpers::lp_to_entry, Sequence};
 
     use super::*;
 
@@ -350,7 +350,10 @@ mod tests {
             mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
         );
 
-        mb_chunk.write_table_batch(1, 5, batch).unwrap();
+        let sequence = Some(Sequence::new(1, 5));
+        mb_chunk
+            .write_table_batch(sequence.as_ref(), batch)
+            .unwrap();
 
         partition.create_open_chunk(mb_chunk);
     }

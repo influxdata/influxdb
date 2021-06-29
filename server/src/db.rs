@@ -1,30 +1,26 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
-use std::collections::HashMap;
-use std::future::Future;
-use std::{
-    any::Any,
-    num::NonZeroUsize,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
+pub(crate) use crate::db::chunk::DbChunk;
+use crate::{
+    db::{
+        access::QueryCatalogAccess,
+        catalog::{
+            chunk::{CatalogChunk, ChunkStage},
+            partition::Partition,
+            Catalog, TableNameFilter,
+        },
+        lifecycle::LockableCatalogChunk,
     },
-    time::{Duration, Instant},
+    write_buffer::WriteBuffer,
+    JobRegistry,
 };
-
+use ::lifecycle::{LifecycleWriteGuard, LockableChunk};
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use async_trait::async_trait;
-use parking_lot::RwLock;
-use rand_distr::{Distribution, Poisson};
-use snafu::{ResultExt, Snafu};
-
-use ::lifecycle::{LifecycleWriteGuard, LockableChunk};
-use catalog::{chunk::CatalogChunk, Catalog};
-pub(crate) use chunk::DbChunk;
-use data_types::chunk_metadata::ChunkAddr;
+use chrono::Utc;
 use data_types::{
-    chunk_metadata::ChunkSummary,
+    chunk_metadata::{ChunkAddr, ChunkSummary},
     database_rules::DatabaseRules,
     job::Job,
     partition_metadata::{PartitionSummary, TableSummary},
@@ -36,36 +32,41 @@ use datafusion::{
 };
 use entry::{Entry, SequencedEntry};
 use internal_types::{arrow::sort::sort_record_batch, selection::Selection};
-use metrics::{KeyValue, MetricRegistry};
+use metrics::KeyValue;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use mutable_buffer::persistence_windows::PersistenceWindows;
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info, warn};
-use parquet_file::catalog::CheckpointData;
+use parking_lot::RwLock;
 use parquet_file::{
-    catalog::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
+    catalog::{CheckpointData, PreservedCatalog},
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
-    cleanup::cleanup_unreferenced_parquet_files,
+    cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
     metadata::IoxMetadata,
     storage::Storage,
 };
 use query::{exec::Executor, predicate::Predicate, QueryDatabase};
+use rand_distr::{Distribution, Poisson};
 use read_buffer::{ChunkMetrics as ReadBufferChunkMetrics, RBChunk};
+use snafu::{ensure, ResultExt, Snafu};
+use std::{
+    any::Any,
+    collections::HashMap,
+    future::Future,
+    num::NonZeroUsize,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::{Duration, Instant},
+};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
-
-use crate::db::catalog::chunk::ChunkStage;
-use crate::db::catalog::partition::Partition;
-use crate::db::lifecycle::LockableCatalogChunk;
-
-use super::{write_buffer::WriteBuffer, JobRegistry};
-
-use self::access::QueryCatalogAccess;
-use self::catalog::TableNameFilter;
 
 pub mod access;
 pub mod catalog;
 mod chunk;
 mod lifecycle;
+pub mod load;
 pub mod pred;
 mod process_clock;
 mod streams;
@@ -147,6 +148,12 @@ pub enum Error {
         source: mutable_buffer::chunk::Error,
     },
 
+    #[snafu(display(
+        "Storing sequenced entry failed with the following error(s), and possibly more: {}",
+        errors.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+    ))]
+    StoreSequencedEntryFailures { errors: Vec<Error> },
+
     #[snafu(display("Error building sequenced entry: {}", source))]
     SequencedEntryError { source: entry::SequencedEntryError },
 
@@ -172,6 +179,7 @@ pub enum Error {
     #[snafu(display("error finding min/max time on table batch: {}", source))]
     TableBatchTimeError { source: entry::Error },
 }
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// This is the main IOx Database object. It is the root object of any
@@ -280,93 +288,13 @@ pub struct Db {
 
     /// Optionally buffer writes
     write_buffer: Option<Arc<dyn WriteBuffer>>,
-}
 
-/// Load preserved catalog state from store.
-///
-/// If no catalog exists yet, a new one will be created.
-///
-/// **For now, if the catalog is broken, it will be wiped! (https://github.com/influxdata/influxdb_iox/issues/1522)**
-pub async fn load_or_create_preserved_catalog(
-    db_name: &str,
-    object_store: Arc<ObjectStore>,
-    server_id: ServerId,
-    metrics_registry: Arc<MetricRegistry>,
-    wipe_on_error: bool,
-) -> std::result::Result<(PreservedCatalog, Catalog), parquet_file::catalog::Error> {
-    let metric_labels = vec![
-        KeyValue::new("db_name", db_name.to_string()),
-        KeyValue::new("svr_id", format!("{}", server_id)),
-    ];
-
-    // first try to load existing catalogs
-    let metrics_domain =
-        metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
-
-    match PreservedCatalog::load(
-        Arc::clone(&object_store),
-        server_id,
-        db_name.to_string(),
-        CatalogEmptyInput {
-            domain: metrics_domain,
-            metrics_registry: Arc::clone(&metrics_registry),
-            metric_labels: metric_labels.clone(),
-        },
-    )
-    .await
-    {
-        Ok(Some(catalog)) => {
-            // successfull load
-            info!("Found existing catalog for DB {}", db_name);
-            Ok(catalog)
-        }
-        Ok(None) => {
-            // no catalog yet => create one
-            info!(
-                "Found NO existing catalog for DB {}, creating new one",
-                db_name
-            );
-            let metrics_domain =
-                metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
-
-            PreservedCatalog::new_empty(
-                Arc::clone(&object_store),
-                server_id,
-                db_name.to_string(),
-                CatalogEmptyInput {
-                    domain: metrics_domain,
-                    metrics_registry: Arc::clone(&metrics_registry),
-                    metric_labels: metric_labels.clone(),
-                },
-            )
-            .await
-        }
-        Err(e) => {
-            if wipe_on_error {
-                // https://github.com/influxdata/influxdb_iox/issues/1522)
-                // broken => wipe for now (at least during early iterations)
-                error!("cannot load catalog, so wipe it: {}", e);
-                PreservedCatalog::wipe(&object_store, server_id, db_name).await?;
-
-                let metrics_domain =
-                    metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
-
-                PreservedCatalog::new_empty(
-                    Arc::clone(&object_store),
-                    server_id,
-                    db_name.to_string(),
-                    CatalogEmptyInput {
-                        domain: metrics_domain,
-                        metrics_registry: Arc::clone(&metrics_registry),
-                        metric_labels: metric_labels.clone(),
-                    },
-                )
-                .await
-            } else {
-                Err(e)
-            }
-        }
-    }
+    /// Lock that prevents the cleanup job from deleting files that are written but not yet added to the preserved
+    /// catalog.
+    ///
+    /// The cleanup job needs exclusive access and hence will acquire a write-guard. Creating parquet files and creating
+    /// catalog transaction only needs shared access and hence will acquire a read-guard.
+    cleanup_lock: Arc<tokio::sync::RwLock<()>>,
 }
 
 /// All the information needed to commit a database
@@ -418,6 +346,7 @@ impl Db {
             worker_iterations_cleanup: AtomicUsize::new(0),
             metric_labels,
             write_buffer: database_to_commit.write_buffer,
+            cleanup_lock: Default::default(),
         }
     }
 
@@ -630,6 +559,7 @@ impl Db {
         let preserved_catalog = Arc::clone(&db.preserved_catalog);
         let catalog = Arc::clone(&db.catalog);
         let object_store = Arc::clone(&db.store);
+        let cleanup_lock = Arc::clone(&db.cleanup_lock);
 
         // Drop locks
         let chunk = guard.unwrap().chunk;
@@ -666,17 +596,15 @@ impl Db {
 
             // catalog-level transaction for preservation layer
             {
-                let mut transaction = preserved_catalog.open_transaction().await;
+                // fetch shared (= read) guard preventing the cleanup job from deleting our files
+                let _guard = cleanup_lock.read().await;
 
                 // Write this table data into the object store
                 //
-                // IMPORTANT: Writing needs to take place during a transaction, otherwise the background cleanup task might
-                //            delete the just written parquet parquet file. Furthermore, the parquet files contains
-                //            information about the transaction (like revision counter and UUID) that are only available
-                //            once the transaction has started.let metadata = IoxMetadata {
+                // IMPORTANT: Writing must take place while holding the cleanup lock, otherwise the file might be deleted
+                //            between creation and the transaction commit.
                 let metadata = IoxMetadata {
-                    transaction_revision_counter: transaction.revision_counter(),
-                    transaction_uuid: transaction.uuid(),
+                    creation_timestamp: Utc::now(),
                     table_name: addr.table_name.to_string(),
                     partition_key: addr.partition_key.to_string(),
                     chunk_id: addr.chunk_id,
@@ -704,6 +632,11 @@ impl Db {
 
                 let path: DirsAndFileName = path.into();
 
+                // IMPORTANT: Start transaction AFTER writing the actual parquet file so we do not hold the
+                //            transaction lock (that is part of the PreservedCatalog) for too long. By using the
+                //            cleanup lock (see above) it is ensured that the file that we have written is not deleted
+                //            in between.
+                let mut transaction = preserved_catalog.open_transaction().await;
                 transaction
                     .add_parquet(&path, &parquet_metadata)
                     .context(TransactionError)?;
@@ -858,7 +791,7 @@ impl Db {
                             debug!(?duration, "cleanup worker sleeps");
                             tokio::time::sleep(duration).await;
 
-                            if let Err(e) = cleanup_unreferenced_parquet_files(&self.preserved_catalog, 1_000).await {
+                            if let Err(e) = self.cleanup_unreferenced_parquet_files().await {
                                 error!(%e, "error in background cleanup task");
                             }
                         } => {},
@@ -869,6 +802,16 @@ impl Db {
         );
 
         info!("finished background worker");
+    }
+
+    async fn cleanup_unreferenced_parquet_files(
+        self: &Arc<Self>,
+    ) -> std::result::Result<(), parquet_file::cleanup::Error> {
+        let guard = self.cleanup_lock.write().await;
+        let files = get_unreferenced_parquet_files(&self.preserved_catalog, 1_000).await?;
+        drop(guard);
+
+        delete_parquet_files(&self.preserved_catalog, &files).await
     }
 
     /// Stores an entry based on the configuration.
@@ -909,16 +852,9 @@ impl Db {
                 DatabaseNotWriteable {}.fail()
             }
             (None, false) => {
-                // If no write buffer is configured, use the process clock and send to the mutable
-                // buffer.
-                let sequenced_entry = Arc::new(
-                    SequencedEntry::new_from_process_clock(
-                        self.process_clock.next(),
-                        self.server_id,
-                        entry,
-                    )
-                    .context(SequencedEntryError)?,
-                );
+                // If no write buffer is configured, nothing is
+                // sequencing entries so skip doing so here
+                let sequenced_entry = Arc::new(SequencedEntry::new_unsequenced(entry));
 
                 self.store_sequenced_entry(sequenced_entry)
             }
@@ -949,6 +885,13 @@ impl Db {
         }
 
         if let Some(partitioned_writes) = sequenced_entry.partition_writes() {
+            let sequence = sequenced_entry.as_ref().sequence();
+
+            // Protect against DoS by limiting the number of errors we might collect
+            const MAX_ERRORS_PER_SEQUENCED_ENTRY: usize = 10;
+
+            let mut errors = Vec::with_capacity(MAX_ERRORS_PER_SEQUENCED_ENTRY);
+
             for write in partitioned_writes {
                 let partition_key = write.key();
                 for table_batch in write.table_batches() {
@@ -977,16 +920,18 @@ impl Db {
                             let mb_chunk =
                                 chunk.mutable_buffer().expect("cannot mutate open chunk");
 
-                            mb_chunk
-                                .write_table_batch(
-                                    sequenced_entry.sequence().id,
-                                    sequenced_entry.sequence().number,
-                                    table_batch,
-                                )
+                            if let Err(e) = mb_chunk
+                                .write_table_batch(sequence, table_batch)
                                 .context(WriteEntry {
                                     partition_key,
                                     chunk_id,
-                                })?;
+                                })
+                            {
+                                if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
+                                    errors.push(e);
+                                }
+                                continue;
+                            };
 
                             check_chunk_closed(&mut *chunk, mutable_size_threshold);
                         }
@@ -1003,13 +948,15 @@ impl Db {
                                 ),
                             );
 
-                            mb_chunk
-                                .write_table_batch(
-                                    sequenced_entry.sequence().id,
-                                    sequenced_entry.sequence().number,
-                                    table_batch,
-                                )
-                                .context(WriteEntryInitial { partition_key })?;
+                            if let Err(e) = mb_chunk
+                                .write_table_batch(sequence, table_batch)
+                                .context(WriteEntryInitial { partition_key })
+                            {
+                                if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
+                                    errors.push(e);
+                                }
+                                continue;
+                            }
 
                             let new_chunk = partition.create_open_chunk(mb_chunk);
                             check_chunk_closed(&mut *new_chunk.write(), mutable_size_threshold);
@@ -1019,7 +966,7 @@ impl Db {
                     match partition.persistence_windows() {
                         Some(windows) => {
                             windows.add_range(
-                                sequenced_entry.as_ref().sequence(),
+                                sequence,
                                 row_count,
                                 min_time,
                                 max_time,
@@ -1029,7 +976,7 @@ impl Db {
                         None => {
                             let mut windows = PersistenceWindows::new(late_arrival_window);
                             windows.add_range(
-                                sequenced_entry.as_ref().sequence(),
+                                sequence,
                                 row_count,
                                 min_time,
                                 max_time,
@@ -1040,6 +987,8 @@ impl Db {
                     }
                 }
             }
+
+            ensure!(errors.is_empty(), StoreSequencedEntryFailures { errors });
         }
 
         Ok(())
@@ -1097,104 +1046,7 @@ impl CatalogProvider for Db {
     }
 }
 
-/// All input required to create an empty [`Catalog`](crate::db::catalog::Catalog).
-#[derive(Debug)]
-pub struct CatalogEmptyInput {
-    domain: ::metrics::Domain,
-    metrics_registry: Arc<::metrics::MetricRegistry>,
-    metric_labels: Vec<KeyValue>,
-}
-
-impl CatalogState for Catalog {
-    type EmptyInput = CatalogEmptyInput;
-
-    fn new_empty(db_name: &str, data: Self::EmptyInput) -> Self {
-        Self::new(
-            Arc::from(db_name),
-            data.domain,
-            data.metrics_registry,
-            data.metric_labels,
-        )
-    }
-
-    fn add(
-        &mut self,
-        object_store: Arc<ObjectStore>,
-        info: CatalogParquetInfo,
-    ) -> parquet_file::catalog::Result<()> {
-        use parquet_file::catalog::MetadataExtractFailed;
-
-        // extract relevant bits from parquet file metadata
-        let iox_md = info
-            .metadata
-            .read_iox_metadata()
-            .context(MetadataExtractFailed {
-                path: info.path.clone(),
-            })?;
-
-        // Create a parquet chunk for this chunk
-        let metrics = self
-            .metrics_registry
-            .register_domain_with_labels("parquet", self.metric_labels.clone());
-
-        let metrics = ParquetChunkMetrics::new(&metrics, self.metrics().memory().parquet());
-        let parquet_chunk = ParquetChunk::new(
-            object_store.path_from_dirs_and_filename(info.path.clone()),
-            object_store,
-            info.metadata,
-            metrics,
-        )
-        .context(ChunkCreationFailed {
-            path: info.path.clone(),
-        })?;
-        let parquet_chunk = Arc::new(parquet_chunk);
-
-        // Get partition from the catalog
-        // Note that the partition might not exist yet if the chunk is loaded from an existing preserved catalog.
-        let partition = self.get_or_create_partition(&iox_md.table_name, &iox_md.partition_key);
-        let mut partition = partition.write();
-        if partition.chunk(iox_md.chunk_id).is_some() {
-            return Err(parquet_file::catalog::Error::ParquetFileAlreadyExists { path: info.path });
-        }
-        partition.insert_object_store_only_chunk(iox_md.chunk_id, parquet_chunk);
-
-        Ok(())
-    }
-
-    fn remove(&mut self, path: DirsAndFileName) -> parquet_file::catalog::Result<()> {
-        let mut removed_any = false;
-
-        for partition in self.partitions() {
-            let mut partition = partition.write();
-            let mut to_remove = vec![];
-
-            for chunk in partition.chunks() {
-                let chunk = chunk.read();
-                if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
-                    let chunk_path: DirsAndFileName = parquet.path().into();
-                    if path == chunk_path {
-                        to_remove.push(chunk.id());
-                    }
-                }
-            }
-
-            for chunk_id in to_remove {
-                if let Err(e) = partition.drop_chunk(chunk_id) {
-                    panic!("Chunk is gone while we've had a partition lock: {}", e);
-                }
-                removed_any = true;
-            }
-        }
-
-        if removed_any {
-            Ok(())
-        } else {
-            Err(parquet_file::catalog::Error::ParquetFileDoesNotExist { path })
-        }
-    }
-}
-
-fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData {
+pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData {
     let mut files = HashMap::new();
 
     for chunk in catalog.chunks() {
@@ -1257,6 +1109,7 @@ mod tests {
     use bytes::Bytes;
     use chrono::Utc;
     use futures::{stream, StreamExt, TryStreamExt};
+    use mutable_buffer::persistence_windows::MinMaxSequence;
     use tokio_util::sync::CancellationToken;
 
     use ::test_helpers::assert_contains;
@@ -1273,7 +1126,7 @@ mod tests {
         ObjectStore, ObjectStoreApi,
     };
     use parquet_file::{
-        catalog::test_helpers::{assert_catalog_state_implementation, TestCatalogState},
+        catalog::test_helpers::TestCatalogState,
         metadata::IoxParquetMetaData,
         test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
@@ -1370,6 +1223,67 @@ mod tests {
             "+-----+-------------------------------+",
         ];
         assert_batches_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn try_all_partition_writes_when_some_fail() {
+        let db = Arc::new(make_db().await.db);
+
+        let nanoseconds_per_hour = 60 * 60 * 1_000_000_000u64;
+
+        // 3 lines that will go into 3 hour partitions and start new chunks.
+        let lp = format!(
+            "foo,t1=alpha iv=1i {}
+             foo,t1=bravo iv=1i {}
+             foo,t1=charlie iv=1i {}",
+            0,
+            nanoseconds_per_hour,
+            nanoseconds_per_hour * 2,
+        );
+
+        let entry = lp_to_entry(&lp);
+
+        // This should succeed and start chunks in the MUB
+        db.store_entry(entry).await.unwrap();
+
+        // 3 more lines that should go in the 3 partitions/chunks.
+        // Line 1 has the same schema and should end up in the MUB.
+        // Line 2 has a different schema than line 1 and should error
+        // Line 3 has the same schema as line 1 and should end up in the MUB.
+        let lp = format!(
+            "foo,t1=delta iv=1i {}
+             foo t1=10i {}
+             foo,t1=important iv=1i {}",
+            1,
+            nanoseconds_per_hour + 1,
+            nanoseconds_per_hour * 2 + 1,
+        );
+
+        let entry = lp_to_entry(&lp);
+
+        // This should return an error because there was at least one error in the loop
+        let result = db.store_entry(entry).await;
+        assert_contains!(
+            result.unwrap_err().to_string(),
+            "Storing sequenced entry failed with the following error(s), and possibly more:"
+        );
+
+        // But 5 points should be returned, most importantly the last one after the line with
+        // the mismatched schema
+        let batches = run_query(db, "select t1 from foo").await;
+
+        let expected = vec![
+            "+-----------+",
+            "| t1        |",
+            "+-----------+",
+            "| alpha     |",
+            "| bravo     |",
+            "| charlie   |",
+            "| delta     |",
+            "| important |",
+            "+-----------+",
+        ];
+        assert_batches_sorted_eq!(expected, &batches);
     }
 
     fn catalog_chunk_size_bytes_metric_eq(
@@ -2041,22 +1955,48 @@ mod tests {
 
     #[tokio::test]
     async fn write_updates_persistence_windows() {
-        let db = Arc::new(make_db().await.db);
-
-        let now = Utc::now().timestamp_nanos() as u64;
+        // Writes should update the persistence windows when there
+        // is a write buffer configured.
+        let write_buffer = Arc::new(MockBuffer::default());
+        let db = TestDb::builder()
+            .write_buffer(Arc::clone(&write_buffer) as _)
+            .build()
+            .await
+            .db;
 
         let partition_key = "1970-01-01T00";
-        write_lp(&db, "cpu bar=1 10").await;
-
-        let later = Utc::now().timestamp_nanos() as u64;
+        write_lp(&db, "cpu bar=1 10").await; // seq 0
+        write_lp(&db, "cpu bar=1 20").await; // seq 1
+        write_lp(&db, "cpu bar=1 30").await; // seq 2
 
         let partition = db.catalog.partition("cpu", partition_key).unwrap();
         let mut partition = partition.write();
         let windows = partition.persistence_windows().unwrap();
         let seq = windows.minimum_unpersisted_sequence().unwrap();
 
-        let seq = seq.get(&1).unwrap();
-        assert!(now < seq.min && later > seq.min);
+        let seq = seq.get(&0).unwrap();
+        assert_eq!(seq, &MinMaxSequence { min: 0, max: 2 });
+    }
+
+    #[tokio::test]
+    async fn write_with_no_write_buffer_updates_sequence() {
+        let db = Arc::new(make_db().await.db);
+
+        let partition_key = "1970-01-01T00";
+        write_lp(&db, "cpu bar=1 10").await;
+        write_lp(&db, "cpu bar=1 20").await;
+
+        let partition = db.catalog.partition("cpu", partition_key).unwrap();
+        let mut partition = partition.write();
+        // validate it has data
+        let table_summary = partition.summary().table;
+        assert_eq!(&table_summary.name, "cpu");
+        assert_eq!(table_summary.count(), 2);
+        let windows = partition.persistence_windows().unwrap();
+        let open_min = windows.open_min_time().unwrap();
+        let open_max = windows.open_max_time().unwrap();
+        assert_eq!(open_min.timestamp_nanos(), 10);
+        assert_eq!(open_max.timestamp_nanos(), 20);
     }
 
     #[tokio::test]
@@ -2781,29 +2721,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_or_create_preserved_catalog_recovers_from_error() {
-        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server_id = ServerId::try_from(1).unwrap();
-        let db_name = "preserved_catalog_test";
-
-        let (preserved_catalog, _catalog) = PreservedCatalog::new_empty::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap();
-        parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
-            .await;
-
-        let metrics_registry = Arc::new(metrics::MetricRegistry::new());
-        load_or_create_preserved_catalog(db_name, object_store, server_id, metrics_registry, true)
-            .await
-            .unwrap();
-    }
-
-    #[tokio::test]
     async fn write_one_chunk_to_preserved_catalog() {
         // Test that parquet data is committed to preserved catalog
 
@@ -3065,21 +2982,6 @@ mod tests {
 
         // ==================== check: DB still writable ====================
         write_lp(db.as_ref(), "cpu bar=1 10").await;
-    }
-
-    #[tokio::test]
-    async fn test_catalog_state() {
-        let metrics_registry = Arc::new(::metrics::MetricRegistry::new());
-        let empty_input = CatalogEmptyInput {
-            domain: metrics_registry.register_domain("catalog"),
-            metrics_registry,
-            metric_labels: vec![],
-        };
-        assert_catalog_state_implementation::<Catalog, _>(
-            empty_input,
-            checkpoint_data_from_catalog,
-        )
-        .await;
     }
 
     async fn create_parquet_chunk(db: &Db) -> (String, String, u32) {

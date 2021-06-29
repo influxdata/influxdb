@@ -1,11 +1,16 @@
+use observability_deps::tracing::Metadata;
+use observability_deps::tracing_subscriber::EnvFilter;
 use observability_deps::{
     tracing::{
         event::Event,
         span::{Attributes, Id, Record},
         subscriber::Subscriber,
     },
-    tracing_subscriber::layer::{Context, Layer, Layered},
+    tracing_subscriber::layer::{Context, Layer},
 };
+use std::fmt::Formatter;
+use std::marker::PhantomData;
+use std::sync::Arc;
 
 /// A FilteredLayer wraps a tracing subscriber Layer and passes events only
 /// if the provided EnvFilter accepts the event.
@@ -16,34 +21,32 @@ use observability_deps::{
 ///
 /// A FilteredLayer on the other hand, allows to restrict the verbosity of one event sink
 /// without throwing away events available to other layers.
-pub struct FilteredLayer<S, F, L>
+#[derive(Debug)]
+pub struct FilteredLayer<S, L>
 where
     S: Subscriber,
-    F: Layer<S>,
     L: Layer<S>,
 {
-    inner: Layered<F, L, S>,
+    inner: L,
+    _phantom_data: PhantomData<S>,
 }
 
-impl<S, F, L> FilteredLayer<S, F, L>
+impl<S, L> FilteredLayer<S, L>
 where
     S: Subscriber,
-    F: Layer<S>,
     L: Layer<S>,
 {
-    // TODO remove when we'll use this
-    #[allow(dead_code)]
-    pub fn new(filter: F, delegate: L) -> Self {
+    pub fn new(inner: L) -> Self {
         Self {
-            inner: delegate.and_then(filter),
+            inner,
+            _phantom_data: Default::default(),
         }
     }
 }
 
-impl<S, F, L> Layer<S> for FilteredLayer<S, F, L>
+impl<S, L> Layer<S> for FilteredLayer<S, L>
 where
     S: Subscriber,
-    F: Layer<S>,
     L: Layer<S>,
 {
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
@@ -71,6 +74,101 @@ where
     }
     fn on_id_change(&self, old: &Id, new: &Id, ctx: Context<'_, S>) {
         self.inner.on_id_change(old, new, ctx)
+    }
+}
+
+/// A union filter is a filtering Layer that returns "enabled: true"
+/// for events for which at least one of the inner filters returns "enabled: true".
+///
+/// This is the opposite of what the main subscriber's layered chain does, where
+/// if one filter says nope, the event is filtered out.
+///
+/// Since there is a blanked `impl<L: Layer> Layer for Option<L>` that returns
+/// "enabled: true" when the option is None, it would be very confusing if an
+/// user accidentally passed such a none to the filter vector in the union filter.
+/// However it's quite tempting to pass an optional layer around hoping it "does the right thing",
+/// since it does indeed work in other places a layer is passed to a subscriber builder
+/// (moreover, due to the static typing builder pattern used there, there is no way of
+/// conditionally adding a filter other than passing an optional filter). Thus, it would be
+/// (and it happened in practice) quite confusing for this API to technically accept optional
+/// layers and silently do the wrong thing with them.
+/// For this reason the [`UnionFilter::new`] method accepts a vector of [`Option`][option]s.
+/// It's not perfect, since a user could pass an `Option<Option<L>>` but hopefully
+///
+/// This filter is intended to be used together with the [`FilteredLayer`] layer
+/// which will filter unwanted events for each of the.
+///
+/// This [`UnionFilter`] and the [`FilteredLayer`] are likely to share filters.
+/// Unfortunately the [`EnvFilter`][envfilter] doesn't implement [`Clone`].
+/// See [`CloneableEnvFilter`] for a workaround.
+///
+/// [envfilter]: observability_deps::tracing_subscriber::EnvFilter
+/// [option]: std::option::Option
+pub struct UnionFilter<S>
+where
+    S: Subscriber,
+{
+    inner: Vec<Box<dyn Layer<S> + Send + Sync + 'static>>,
+    _phantom_data: PhantomData<S>,
+}
+
+impl<S> UnionFilter<S>
+where
+    S: Subscriber,
+{
+    pub fn new(inner: Vec<Option<Box<dyn Layer<S> + Send + Sync + 'static>>>) -> Self {
+        let inner = inner.into_iter().flatten().collect();
+        Self {
+            inner,
+            _phantom_data: Default::default(),
+        }
+    }
+}
+
+impl<S> Layer<S> for UnionFilter<S>
+where
+    S: Subscriber,
+{
+    /// Return the disjunction of all the enabled flags of all the inner filters which are not None.
+    ///
+    /// A None filter doesn't really mean "I want this event", nor it means "I want to filter this event out";
+    /// it just means "please ignore me, I'm not really a filter".
+    ///
+    /// Yet, there is a blanked implementation of `Option<L>` for all `L: Layer`, and its implementation
+    /// if the `enabled()` method returns true. This works because the normal subscriber layer chain
+    /// performs a conjunction of each filter decision.
+    ///
+    /// However, the [`UnionFilter`] here is the opposite, we want to enable processing of one event
+    /// as long as one of the event filters registers interest in it.
+    fn enabled(&self, metadata: &Metadata<'_>, ctx: Context<'_, S>) -> bool {
+        self.inner.iter().any(|i| i.enabled(metadata, ctx.clone()))
+    }
+}
+
+impl<S> std::fmt::Debug for UnionFilter<S>
+where
+    S: Subscriber,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("UnionFilter(...)")
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct CloneableEnvFilter(Arc<EnvFilter>);
+
+impl CloneableEnvFilter {
+    pub fn new(inner: EnvFilter) -> Self {
+        Self(Arc::new(inner))
+    }
+}
+
+impl<S> Layer<S> for CloneableEnvFilter
+where
+    S: Subscriber,
+{
+    fn enabled(&self, metadata: &Metadata<'_>, ctx: Context<'_, S>) -> bool {
+        self.0.enabled(metadata, ctx)
     }
 }
 
@@ -113,8 +211,8 @@ mod tests {
             .with_writer(move || SynchronizedWriter::new(Arc::clone(&writer2_captured)));
 
         let subscriber = tracing_subscriber::Registry::default()
-            .with(FilteredLayer::new(filter1, layer1))
-            .with(FilteredLayer::new(filter2, layer2));
+            .with(FilteredLayer::new(filter1.and_then(layer1)))
+            .with(FilteredLayer::new(filter2.and_then(layer2)));
 
         tracing::subscriber::with_default(subscriber, workload);
 
