@@ -18,6 +18,7 @@ use crate::{
 use ::lifecycle::{LifecycleWriteGuard, LockableChunk};
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use async_trait::async_trait;
+use chrono::Utc;
 use data_types::{
     chunk_metadata::{ChunkAddr, ChunkSummary},
     database_rules::DatabaseRules,
@@ -602,13 +603,10 @@ impl Db {
 
                 // Write this table data into the object store
                 //
-                // IMPORTANT: Writing needs to take place during a transaction, otherwise the background cleanup task might
-                //            delete the just written parquet parquet file. Furthermore, the parquet files contains
-                //            information about the transaction (like revision counter and UUID) that are only available
-                //            once the transaction has started.let metadata = IoxMetadata {
+                // IMPORTANT: Writing must take place while holding the cleanup lock, otherwise the file might be deleted
+                //            between creation and the transaction commit.
                 let metadata = IoxMetadata {
-                    transaction_revision_counter: transaction.revision_counter(),
-                    transaction_uuid: transaction.uuid(),
+                    creation_timestamp: Utc::now(),
                     table_name: addr.table_name.to_string(),
                     partition_key: addr.partition_key.to_string(),
                     chunk_id: addr.chunk_id,

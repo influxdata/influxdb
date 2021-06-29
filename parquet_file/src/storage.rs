@@ -443,15 +443,14 @@ mod tests {
     use crate::test_utils::{make_object_store, make_record_batch};
     use arrow::array::{ArrayRef, StringArray};
     use arrow_util::assert_batches_eq;
+    use chrono::Utc;
     use datafusion::physical_plan::common::SizedRecordBatchStream;
     use datafusion_util::MemoryStream;
-    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_parquet_contains_key_value_metadata() {
         let metadata = IoxMetadata {
-            transaction_revision_counter: 42,
-            transaction_uuid: Uuid::new_v4(),
+            creation_timestamp: Utc::now(),
             table_name: "table1".to_string(),
             partition_key: "part1".to_string(),
             chunk_id: 1337,
@@ -517,8 +516,7 @@ mod tests {
             vec![Arc::new(batch)],
         ));
         let metadata = IoxMetadata {
-            transaction_revision_counter: 42,
-            transaction_uuid: Uuid::new_v4(),
+            creation_timestamp: Utc::now(),
             table_name: table_name.to_string(),
             partition_key: partition_key.to_string(),
             chunk_id,
