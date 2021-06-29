@@ -48,8 +48,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// To limit the time the exclusive access is required use `max_files` which will limit the number of files to be
 /// detected in this cleanup round.
 ///
-/// The exclusive access can be downgraded to shared access after this method returned and before calling
-/// [`delete_files`].
+/// The exclusive access can be dropped after this method returned and before calling [`delete_files`].
 pub async fn get_unreferenced_parquet_files(
     catalog: &PreservedCatalog,
     max_files: usize,
