@@ -227,7 +227,7 @@ async fn deduplicate(
     tx: mpsc::Sender<ArrowResult<RecordBatch>>,
     num_dupes: Arc<SQLMetric>,
 ) -> ArrowResult<()> {
-    let mut deduplicator = RecordBatchDeduplicator::new(sort_keys, num_dupes);
+    let mut deduplicator = RecordBatchDeduplicator::new(sort_keys, num_dupes, None);
 
     // Stream input through the indexer
     while let Some(batch) = input_stream.next().await {
