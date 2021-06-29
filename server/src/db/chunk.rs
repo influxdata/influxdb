@@ -247,8 +247,11 @@ impl QueryChunk for DbChunk {
                 }
             }
             State::ReadBuffer { chunk, .. } => {
-                // If not supported, ReadBuffer can't answer with
-                // metadata only
+                // If the predicate is not supported by the Read Buffer then
+                // it can't determine if the predicate can be answered by
+                // meta-data only. A future improvement could be to apply this
+                // logic to chunk meta-data without involving the backing
+                // execution engine.
                 let rb_predicate = match to_read_buffer_predicate(&predicate) {
                     Ok(rb_predicate) => rb_predicate,
                     Err(e) => {
@@ -257,11 +260,12 @@ impl QueryChunk for DbChunk {
                     }
                 };
 
-                // TODO align API in read_buffer
-                let table_names = chunk.table_names(&rb_predicate, &BTreeSet::new());
-                if !table_names.is_empty() {
-                    // As above, this should really be "Unknown" rather than AtLeastOne
-                    // for precision / correctness.
+                // TODO: currently this will provide an exact answer, which may
+                // be expensive in pathological cases. It might make more
+                // sense to implement logic that works to rule out chunks based
+                // on meta-data only. This should be possible without needing to
+                // know the execution engine the chunk is held in.
+                if chunk.satisfies_predicate(&rb_predicate) {
                     PredicateMatch::AtLeastOne
                 } else {
                     PredicateMatch::Zero
