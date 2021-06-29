@@ -23,7 +23,7 @@ pub struct AdapterStream {
 
 impl AdapterStream {
     /// Create a new stream which wraps the `inner` channel which
-    /// produces [`RecordBatch`]es that each have the specified schama
+    /// produces [`RecordBatch`]es that each have the specified schema
     ///
     /// Not called `new` because it returns a pinned reference rather than the object itself
     pub fn adapt(

@@ -232,6 +232,16 @@ async fn deduplicate(
     // Stream input through the indexer
     while let Some(batch) = input_stream.next().await {
         let batch = batch?;
+
+        // First check if this batch has same sort key with its previous batch
+        if let Some(last_batch) = deduplicator.last_batch_with_no_same_sort_key(&batch) {
+            // No same sort key, so send the last batch downstream first
+            tx.send(Ok(last_batch))
+                .await
+                .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+        }
+
+        // deduplicate data of the batch
         let output_batch = deduplicator.push(batch)?;
         tx.send(Ok(output_batch))
             .await
