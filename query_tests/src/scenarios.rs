@@ -1,5 +1,10 @@
 //! This module contains testing scenarios for Db
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use once_cell::sync::OnceCell;
+
 #[allow(unused_imports, dead_code, unused_macros)]
 use query::QueryChunk;
 
@@ -18,10 +23,44 @@ pub struct DbScenario {
 }
 
 #[async_trait]
-pub trait DbSetup {
+pub trait DbSetup: Send + Sync {
     // Create several scenarios, scenario has the same data, but
     // different physical arrangements (e.g.  the data is in different chunks)
     async fn make(&self) -> Vec<DbScenario>;
+}
+
+// registry of setups that can be referred to by name
+static SETUPS: OnceCell<HashMap<String, Arc<dyn DbSetup>>> = OnceCell::new();
+
+/// Creates a pair of (setup_name, Arc(setup))
+/// assumes that the setup is constructed via DB_SETUP {} type constructor
+macro_rules! register_setup {
+    ($DB_SETUP_NAME:ident) => {
+        (
+            stringify!($DB_SETUP_NAME),
+            Arc::new($DB_SETUP_NAME {}) as Arc<dyn DbSetup>,
+        )
+    };
+}
+
+pub fn get_all_setups() -> &'static HashMap<String, Arc<dyn DbSetup>> {
+    SETUPS.get_or_init(|| {
+        vec![
+            register_setup!(TwoMeasurements),
+            register_setup!(TwoMeasurementsPredicatePushDown),
+            register_setup!(OneMeasurementThreeChunksWithDuplicates),
+        ]
+        .into_iter()
+        .map(|(name, setup)| (name.to_string(), setup as Arc<dyn DbSetup>))
+        .collect()
+    })
+}
+
+/// Return a reference to the specified scenario
+pub fn get_db_setup(setup_name: impl AsRef<str>) -> Option<Arc<dyn DbSetup>> {
+    get_all_setups()
+        .get(setup_name.as_ref())
+        .map(|setup| Arc::clone(setup))
 }
 
 /// No data

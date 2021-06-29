@@ -8,15 +8,19 @@ description = "Tests of the query engine against different database configuratio
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-trait = "0.1"
+once_cell = { version = "1.4.0", features = ["parking_lot"] }
+query = { path = "../query" }
+server = { path = "../server" }
+
+[dev-dependencies]
 arrow = { version = "4.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
-async-trait = "0.1"
 datafusion = { path = "../datafusion" }
 data_types = { path = "../data_types" }
 internal_types = { path = "../internal_types" }
 metrics = { path = "../metrics" }
 object_store = { path = "../object_store" }
-query = { path = "../query" }
-server = { path = "../server" }
+snafu = "0.6.3"
 test_helpers = { path = "../test_helpers" }
 tokio = { version = "1.0", features = ["macros", "time"] }

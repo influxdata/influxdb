@@ -5,3 +5,4 @@
 *.tsm
 **/.DS_Store
 **/.vscode
+query_tests/cases/**/*.out

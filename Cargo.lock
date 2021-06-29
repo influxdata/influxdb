@@ -3042,8 +3042,10 @@ dependencies = [
  "internal_types",
  "metrics",
  "object_store",
+ "once_cell",
  "query",
  "server",
+ "snafu",
  "test_helpers",
  "tokio",
 ]
