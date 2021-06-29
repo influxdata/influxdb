@@ -403,7 +403,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_rebuild_creates_no_checkpoint() {
-        // there is no need to create a checkpoint for the single transaction that we will have
+        // the rebuild method will create a catalog with the following transactions:
+        // 1. an empty one (done by `PreservedCatalog::new_empty`)
+        // 2. an "add all the files"
+        //
+        // There is no real need to create a checkpoint in this case. So here we delete all transaction files and then
+        // check that rebuilt catalog will be gone afterwards. Note the difference to the `test_rebuild_empty` case
+        // where we can indeed proof the existence of a catalog (even though it is empty aka has no files).
         let object_store = make_object_store();
         let server_id = make_server_id();
         let db_name = "db1";
