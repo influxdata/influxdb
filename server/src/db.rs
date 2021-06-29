@@ -599,8 +599,6 @@ impl Db {
                 // fetch shared (= read) guard preventing the cleanup job from deleting our files
                 let _guard = cleanup_lock.read().await;
 
-                let mut transaction = preserved_catalog.open_transaction().await;
-
                 // Write this table data into the object store
                 //
                 // IMPORTANT: Writing must take place while holding the cleanup lock, otherwise the file might be deleted
@@ -634,6 +632,11 @@ impl Db {
 
                 let path: DirsAndFileName = path.into();
 
+                // IMPORTANT: Start transaction AFTER writing the actual parquet file so we do not hold the
+                //            transaction lock (that is part of the PreservedCatalog) for too long. By using the
+                //            cleanup lock (see above) it is ensured that the file that we have written is not deleted
+                //            in between.
+                let mut transaction = preserved_catalog.open_transaction().await;
                 transaction
                     .add_parquet(&path, &parquet_metadata)
                     .context(TransactionError)?;
