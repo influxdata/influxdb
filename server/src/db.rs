@@ -40,7 +40,7 @@ use parking_lot::RwLock;
 use parquet_file::{
     catalog::{CheckpointData, PreservedCatalog},
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
-    cleanup::cleanup_unreferenced_parquet_files,
+    cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
     metadata::IoxMetadata,
     storage::Storage,
 };
@@ -287,6 +287,13 @@ pub struct Db {
 
     /// Optionally buffer writes
     write_buffer: Option<Arc<dyn WriteBuffer>>,
+
+    /// Lock that prevents the cleanup job from deleting files that are written but not yet added to the preserved
+    /// catalog.
+    ///
+    /// The cleanup job needs exclusive access and hence will acquire a write-guard. Creating parquet files and creating
+    /// catalog transaction only needs shared access and hence will acquire a read-guard.
+    cleanup_lock: Arc<tokio::sync::RwLock<()>>,
 }
 
 /// All the information needed to commit a database
@@ -338,6 +345,7 @@ impl Db {
             worker_iterations_cleanup: AtomicUsize::new(0),
             metric_labels,
             write_buffer: database_to_commit.write_buffer,
+            cleanup_lock: Default::default(),
         }
     }
 
@@ -550,6 +558,7 @@ impl Db {
         let preserved_catalog = Arc::clone(&db.preserved_catalog);
         let catalog = Arc::clone(&db.catalog);
         let object_store = Arc::clone(&db.store);
+        let cleanup_lock = Arc::clone(&db.cleanup_lock);
 
         // Drop locks
         let chunk = guard.unwrap().chunk;
@@ -586,6 +595,9 @@ impl Db {
 
             // catalog-level transaction for preservation layer
             {
+                // fetch shared (= read) guard preventing the cleanup job from deleting our files
+                let _guard = cleanup_lock.read().await;
+
                 let mut transaction = preserved_catalog.open_transaction().await;
 
                 // Write this table data into the object store
@@ -778,7 +790,7 @@ impl Db {
                             debug!(?duration, "cleanup worker sleeps");
                             tokio::time::sleep(duration).await;
 
-                            if let Err(e) = cleanup_unreferenced_parquet_files(&self.preserved_catalog, 1_000).await {
+                            if let Err(e) = self.cleanup_unreferenced_parquet_files().await {
                                 error!(%e, "error in background cleanup task");
                             }
                         } => {},
@@ -789,6 +801,16 @@ impl Db {
         );
 
         info!("finished background worker");
+    }
+
+    async fn cleanup_unreferenced_parquet_files(
+        self: &Arc<Self>,
+    ) -> std::result::Result<(), parquet_file::cleanup::Error> {
+        let guard = self.cleanup_lock.write().await;
+        let files = get_unreferenced_parquet_files(&self.preserved_catalog, 1_000).await?;
+        drop(guard);
+
+        delete_parquet_files(&self.preserved_catalog, &files).await
     }
 
     /// Stores an entry based on the configuration.
