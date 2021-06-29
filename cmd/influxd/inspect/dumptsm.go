@@ -3,13 +3,14 @@ package inspect
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
-	"github.com/spf13/cobra"
 	"os"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+	"github.com/spf13/cobra"
 )
 
 type argsDumpTSM struct {
@@ -23,9 +24,9 @@ type argsDumpTSM struct {
 func NewDumpTSMCommand() *cobra.Command {
 	var arguments argsDumpTSM
 	cmd := &cobra.Command{
-		Use: "dump-tsm",
+		Use:   "dump-tsm",
 		Short: "Dumps low-level details about tsm1 files",
-		Args: cobra.NoArgs,
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if arguments.path == "" {
 				cmd.PrintErrf("TSM File not specified\n\n")
