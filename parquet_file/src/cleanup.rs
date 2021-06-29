@@ -102,7 +102,7 @@ pub async fn get_unreferenced_parquet_files(
 
     info!(
         n_files = to_remove.len(),
-        "Found files to delete, start deletion."
+        "Found files to delete"
     );
 
     Ok(to_remove)
