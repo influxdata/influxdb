@@ -1,12 +1,13 @@
+use std::convert::TryInto;
 use std::mem;
 use std::sync::Arc;
 
 use arrow::{
     array::{
-        Array, ArrayDataBuilder, ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array,
+        ArrayDataBuilder, ArrayRef, BooleanArray, Float64Array, Int64Array,
         TimestampNanosecondArray, UInt64Array,
     },
-    datatypes::{DataType, Int32Type},
+    datatypes::DataType,
 };
 use snafu::{ensure, Snafu};
 
@@ -17,7 +18,6 @@ use entry::Column as EntryColumn;
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, TIME_DATA_TYPE};
 
 use crate::dictionary::{Dictionary, DID, INVALID_DID};
-use std::convert::TryInto;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations)]
@@ -345,21 +345,7 @@ impl Column {
                 Arc::new(BooleanArray::from(data))
             }
             ColumnData::Tag(data, dictionary, _) => {
-                let dictionary = dictionary.values().to_arrow();
-
-                let data = ArrayDataBuilder::new(DataType::Dictionary(
-                    Box::new(DataType::Int32),
-                    Box::new(DataType::Utf8),
-                ))
-                .len(data.len())
-                .add_buffer(data.iter().cloned().collect())
-                .null_bit_buffer(nulls)
-                .add_child_data(dictionary.data().clone())
-                .build();
-
-                let array = DictionaryArray::<Int32Type>::from(data);
-
-                Arc::new(array)
+                Arc::new(dictionary.to_arrow(data.iter().cloned(), Some(nulls)))
             }
         };
 

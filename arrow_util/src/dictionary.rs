@@ -1,11 +1,15 @@
 //! Contains a structure to map from strings to integer symbols based on
 //! string interning.
-use hashbrown::HashMap;
+use std::convert::TryFrom;
 
-use crate::string::PackedStringArray;
+use arrow::array::{Array, ArrayDataBuilder, DictionaryArray};
+use arrow::buffer::Buffer;
+use arrow::datatypes::{DataType, Int32Type};
+use hashbrown::HashMap;
 use num_traits::{AsPrimitive, FromPrimitive, Zero};
 use snafu::Snafu;
-use std::convert::TryFrom;
+
+use crate::string::PackedStringArray;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -43,6 +47,14 @@ impl<K: AsPrimitive<usize> + FromPrimitive + Zero> Default for StringDictionary<
 impl<K: AsPrimitive<usize> + FromPrimitive + Zero> StringDictionary<K> {
     pub fn new() -> Self {
         Default::default()
+    }
+
+    pub fn with_capacity(keys: usize, values: usize) -> StringDictionary<K> {
+        Self {
+            hash: Default::default(),
+            dedup: HashMap::with_capacity_and_hasher(keys, ()),
+            storage: PackedStringArray::with_capacity(keys, values),
+        }
     }
 
     /// Returns the id corresponding to value, adding an entry for the
@@ -109,6 +121,31 @@ fn hash_str(hasher: &ahash::RandomState, value: &str) -> u64 {
     state.finish()
 }
 
+impl StringDictionary<i32> {
+    /// Convert to an arrow representation with the provided set of
+    /// keys and an optional null bitmask
+    pub fn to_arrow<I>(&self, keys: I, nulls: Option<Buffer>) -> DictionaryArray<Int32Type>
+    where
+        I: IntoIterator<Item = i32>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let keys = keys.into_iter();
+        let mut array_builder = ArrayDataBuilder::new(DataType::Dictionary(
+            Box::new(DataType::Int32),
+            Box::new(DataType::Utf8),
+        ))
+        .len(keys.len())
+        .add_buffer(keys.collect())
+        .add_child_data(self.storage.to_arrow().data().clone());
+
+        if let Some(nulls) = nulls {
+            array_builder = array_builder.null_bit_buffer(nulls);
+        }
+
+        DictionaryArray::<Int32Type>::from(array_builder.build())
+    }
+}
+
 impl<K> TryFrom<PackedStringArray<K>> for StringDictionary<K>
 where
     K: AsPrimitive<usize> + FromPrimitive + Zero,
@@ -155,8 +192,9 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use std::convert::TryInto;
+
+    use super::*;
 
     #[test]
     fn test_dictionary() {
