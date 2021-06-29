@@ -707,6 +707,11 @@ def package(build_output, pkg_name, version, nightly=False, iteration=1, static=
                     elif package_type not in ['zip', 'tar'] and static or "static_" in arch:
                         logging.info("Skipping package type '{}' for static builds.".format(package_type))
                     else:
+                        if package_type == "rpm":
+                            if package_arch == "armhf":
+                                package_arch = "armv7hl"
+                            elif package_arch == "arm64":
+                                package_arch = "aarch64"
                         fpm_command = "fpm {} --name {} -a {} -t {} --version {} --iteration {} -C {} -p {} ".format(
                             fpm_common_args,
                             name,
