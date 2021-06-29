@@ -97,8 +97,8 @@ impl RecordBatchDeduplicator {
             let lines = formatted.trim().split('\n').collect::<Vec<_>>();
             println!("\nBatch::\n\n{:#?}\n\n", lines);
 
-            let schema = last_batch.schema();
             // Build sorted columns for last_batch and current one
+            let schema = last_batch.schema();
             let last_batch_key_columns = self
                 .sort_keys
                 .iter()
@@ -120,6 +120,7 @@ impl RecordBatchDeduplicator {
                 .collect::<Vec<arrow::compute::SortColumn>>();
 
             // Build sorted columns for current batch
+            let schema = batch.schema();
             let batch_key_columns = self
                 .sort_keys
                 .iter()
