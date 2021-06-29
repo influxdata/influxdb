@@ -67,7 +67,7 @@ func dumpTSM(cmd *cobra.Command, args argsDumpTSM) error {
 
 	r, err := tsm1.NewTSMReader(f)
 	if err != nil {
-		cmd.PrintErrf("Error opening TSM files: %w", err)
+		cmd.PrintErrf("Error opening TSM files: %s", err.Error())
 		return err
 	}
 	defer r.Close()
