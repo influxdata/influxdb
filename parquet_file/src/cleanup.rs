@@ -1,8 +1,5 @@
 //! Methods to cleanup the object store.
-use std::{
-    collections::HashSet,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashSet, sync::Arc};
 
 use crate::{
     catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
@@ -14,6 +11,7 @@ use object_store::{
     ObjectStore, ObjectStoreApi,
 };
 use observability_deps::tracing::info;
+use parking_lot::Mutex;
 use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -68,7 +66,7 @@ pub async fn get_unreferenced_parquet_files(
         .context(CatalogLoadError)?
         .expect("catalog gone while reading it?");
 
-        state.files.into_inner().expect("lock poissened?")
+        state.files.into_inner()
     };
 
     let prefix = data_location(&store, server_id, db_name);
@@ -100,10 +98,7 @@ pub async fn get_unreferenced_parquet_files(
         }
     }
 
-    info!(
-        n_files = to_remove.len(),
-        "Found files to delete"
-    );
+    info!(n_files = to_remove.len(), "Found files to delete");
 
     Ok(to_remove)
 }
@@ -147,10 +142,7 @@ impl CatalogState for TracerCatalogState {
         _object_store: Arc<ObjectStore>,
         info: CatalogParquetInfo,
     ) -> crate::catalog::Result<()> {
-        self.files
-            .lock()
-            .expect("lock poissened?")
-            .insert(info.path);
+        self.files.lock().insert(info.path);
         Ok(())
     }
 
