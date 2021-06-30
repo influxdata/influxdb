@@ -18,6 +18,7 @@ use crate::db::catalog::chunk::CatalogChunk;
 use crate::db::catalog::partition::Partition;
 use crate::Db;
 
+pub(crate) use compact::compact_chunks;
 pub(crate) use error::{Error, Result};
 pub(crate) use move_chunk::move_chunk_to_read_buffer;
 pub(crate) use unload::unload_read_buffer_chunk;
