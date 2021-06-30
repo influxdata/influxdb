@@ -280,11 +280,8 @@ impl Chunk {
     /// determines that all the columns in the row group are already contained
     /// in the results buffer. Callers can skip this behaviour by passing in
     /// an empty `BTreeSet`.
-    ///
-    /// TODO(edd): remove `table_name`
     pub fn column_names(
         &self,
-        _table_name: &str,
         predicate: Predicate,
         only_columns: Selection<'_>,
         dst: BTreeSet<String>,
@@ -1078,12 +1075,7 @@ mod test {
         chunk.upsert_table("Utopia", rb);
 
         let result = chunk
-            .column_names(
-                "Utopia",
-                Predicate::default(),
-                Selection::All,
-                BTreeSet::new(),
-            )
+            .column_names(Predicate::default(), Selection::All, BTreeSet::new())
             .unwrap();
 
         assert_eq!(
@@ -1094,7 +1086,6 @@ mod test {
         // Testing predicates
         let result = chunk
             .column_names(
-                "Utopia",
                 Predicate::new(vec![BinaryExpr::from(("time", "=", 222222_i64))]),
                 Selection::All,
                 BTreeSet::new(),

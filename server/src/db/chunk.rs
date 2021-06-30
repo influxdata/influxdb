@@ -342,7 +342,6 @@ impl QueryChunk for DbChunk {
         predicate: &Predicate,
         columns: Selection<'_>,
     ) -> Result<Option<StringSet>, Self::Error> {
-        let table_name = self.table_name.as_ref();
         match &self.state {
             State::MutableBuffer { chunk, .. } => {
                 if !predicate.is_empty() {
@@ -362,7 +361,7 @@ impl QueryChunk for DbChunk {
 
                 Ok(Some(
                     chunk
-                        .column_names(table_name, rb_predicate, columns, BTreeSet::new())
+                        .column_names(rb_predicate, columns, BTreeSet::new())
                         .context(ReadBufferChunkError {
                             chunk_id: self.id(),
                         })?,
