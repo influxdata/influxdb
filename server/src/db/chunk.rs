@@ -382,7 +382,6 @@ impl QueryChunk for DbChunk {
         column_name: &str,
         predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error> {
-        let table_name = self.table_name.as_ref();
         match &self.state {
             State::MutableBuffer { .. } => {
                 // There is no advantage to manually implementing this
@@ -400,7 +399,6 @@ impl QueryChunk for DbChunk {
 
                 let mut values = chunk
                     .column_values(
-                        table_name,
                         rb_predicate,
                         Selection::Some(&[column_name]),
                         BTreeMap::new(),

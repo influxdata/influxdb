@@ -291,12 +291,10 @@ impl Chunk {
 
     /// Returns the distinct set of column values for each provided column,
     /// where each returned value lives in a row matching the provided
-    /// predicate. All values are deduplicated across row groups in the table.
+    /// predicate.
     ///
     /// If the predicate is empty then all distinct values are returned for the
-    /// table.
-    ///
-    /// Returns an error if the provided table does not exist.
+    /// chunk.
     ///
     /// `dst` is intended to allow for some more sophisticated execution,
     /// wherein execution can be short-circuited for distinct values that have
@@ -304,7 +302,6 @@ impl Chunk {
     /// skip this behaviour.
     pub fn column_values(
         &self,
-        _table_name: &str,
         predicate: Predicate,
         columns: Selection<'_>,
         dst: BTreeMap<String, BTreeSet<String>>,
@@ -1146,7 +1143,6 @@ mod test {
 
         let result = chunk
             .column_values(
-                "my_table",
                 Predicate::default(),
                 Selection::Some(&["region", "env"]),
                 BTreeMap::new(),
@@ -1164,7 +1160,6 @@ mod test {
         // With a predicate
         let result = chunk
             .column_values(
-                "my_table",
                 Predicate::new(vec![
                     BinaryExpr::from(("time", ">=", 20_i64)),
                     BinaryExpr::from(("time", "<=", 3333_i64)),
@@ -1184,7 +1179,7 @@ mod test {
 
         // Error when All column selection provided.
         assert!(matches!(
-            chunk.column_values("x", Predicate::default(), Selection::All, BTreeMap::new()),
+            chunk.column_values(Predicate::default(), Selection::All, BTreeMap::new()),
             Err(Error::UnsupportedOperation { .. })
         ));
     }
