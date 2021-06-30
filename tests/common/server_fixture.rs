@@ -356,7 +356,7 @@ impl TestServer {
         let try_http_connect = async {
             let client = reqwest::Client::new();
             let url = format!("{}/health", self.addrs().http_base);
-            let mut interval = tokio::time::interval(Duration::from_millis(500));
+            let mut interval = tokio::time::interval(Duration::from_millis(1000));
             loop {
                 match client.get(&url).send().await {
                     Ok(resp) => {
@@ -373,7 +373,7 @@ impl TestServer {
 
         let pair = future::join(try_http_connect, try_grpc_connect);
 
-        let capped_check = tokio::time::timeout(Duration::from_secs(3), pair);
+        let capped_check = tokio::time::timeout(Duration::from_secs(30), pair);
 
         match capped_check.await {
             Ok(_) => {
@@ -412,7 +412,7 @@ impl TestServer {
 
                 // if server ID was set, we can also wait until DBs are loaded
                 let check_dbs_loaded = async {
-                    let mut interval = tokio::time::interval(Duration::from_millis(500));
+                    let mut interval = tokio::time::interval(Duration::from_millis(1000));
 
                     while !management_client
                         .get_server_status()
@@ -424,7 +424,7 @@ impl TestServer {
                     }
                 };
 
-                let capped_check = tokio::time::timeout(Duration::from_secs(3), check_dbs_loaded);
+                let capped_check = tokio::time::timeout(Duration::from_secs(30), check_dbs_loaded);
 
                 match capped_check.await {
                     Ok(_) => {
@@ -464,7 +464,7 @@ pub async fn grpc_channel(
 }
 
 pub async fn wait_for_grpc(addrs: &BindAddresses) {
-    let mut interval = tokio::time::interval(Duration::from_millis(500));
+    let mut interval = tokio::time::interval(Duration::from_millis(1000));
 
     loop {
         match grpc_channel(addrs).await {
