@@ -40,7 +40,7 @@ impl RecordBatchDeduplicator {
     pub fn new(
         sort_keys: Vec<PhysicalSortExpr>,
         num_dupes: Arc<SQLMetric>,
-        last_batch: Option<RecordBatch>,
+        last_batch: Option<RecordBatch>
     ) -> Self {
         Self {
             sort_keys,
@@ -89,14 +89,14 @@ impl RecordBatchDeduplicator {
     pub fn last_batch_with_no_same_sort_key(&mut self, batch: &RecordBatch) -> Option<RecordBatch> {
         // Take the previous batch, if any, out of it storage self.last_batch
         if let Some(last_batch) = self.last_batch.take() {
-            // let formatted =
-            //     arrow::util::pretty::pretty_format_batches(&[last_batch.clone()]).unwrap();
-            // let lines = formatted.trim().split('\n').collect::<Vec<_>>();
-            // println!("\nLast_Batch::\n\n{:#?}\n\n", lines);
+            let formatted =
+                arrow::util::pretty::pretty_format_batches(&[last_batch.clone()]).unwrap();
+            let lines = formatted.trim().split('\n').collect::<Vec<_>>();
+            println!("\nLast_Batch::\n\n{:#?}\n\n", lines);
 
-            // let formatted = arrow::util::pretty::pretty_format_batches(&[batch.clone()]).unwrap();
-            // let lines = formatted.trim().split('\n').collect::<Vec<_>>();
-            // println!("\nBatch::\n\n{:#?}\n\n", lines);
+            let formatted = arrow::util::pretty::pretty_format_batches(&[batch.clone()]).unwrap();
+            let lines = formatted.trim().split('\n').collect::<Vec<_>>();
+            println!("\nBatch::\n\n{:#?}\n\n", lines);
 
             // Build sorted columns for last_batch and current one
             let schema = last_batch.schema();
@@ -147,16 +147,16 @@ impl RecordBatchDeduplicator {
 
             // Compare sort keys of the first row of the given batch the the last_batch
             // Note that the batches are sorted and all rows of last_batch have the same sort keys so
-            // only need to compare the first row
+            // only need to compare last row of the last_batch with the first row of the current batch
             let mut same = true;
             for (l, r) in zipped {
-                if (l.values.is_valid(0), r.values.is_valid(0)) == (true, true) {
+                let last_idx = l.values.len()-1;
+                if (l.values.is_valid(last_idx), r.values.is_valid(0)) == (true, true) {
                     // Both ave values, do the actual comparison
-                    let c = arrow::array::build_compare(l.values.as_ref(), r.values.as_ref())
-                    .unwrap();
+                    let c =
+                        arrow::array::build_compare(l.values.as_ref(), r.values.as_ref()).unwrap();
 
-                    match c(0, 0) {
-                        // again only compare the first row
+                    match c(last_idx, 0) {
                         Ordering::Equal => {}
                         _ => {
                             same = false;
@@ -164,45 +164,22 @@ impl RecordBatchDeduplicator {
                         }
                     }
                 }
-
-
-            //    match (l.values.is_valid(0), r.values.is_valid(0)) {
-            //         (true, true) => {
-            //             // Both ave values, do the actual comparison
-            //             let c = arrow::array::build_compare(l.values.as_ref(), r.values.as_ref())
-            //                 .unwrap();
-
-            //             match c(0, 0) {
-            //                 // again only compare the first row
-            //                 Ordering::Equal => {}
-            //                 _ => {
-            //                     same = false;
-            //                     break;
-            //                 }
-            //             }
-            //         }
-            //         // (false, false) => { 
-            //         //     // Both NULL which are the same
-            //         // }
-            //         _ => {
-            //             // The values of this column pair are not the same, no need to compare further
-            //             // same = false;
-            //             // break;
-            //         }
-            //     }
             }
 
             if same {
                 // The batches overlap and need to be concatinated
                 // So, store it back in self.last_batch for the concat_batches later
+                println!(" ----- OVERLAPPED ------");
                 self.last_batch = Some(last_batch);
                 None
             } else {
                 // The batches do not overlap, return the last_batch to be sent downstream and reset it here
+                println!(" ----- NONE OVERLAPPED ------");
                 self.last_batch = None;
                 Some(last_batch)
             }
         } else {
+            println!(" ----- NO LAST BATCH ------");
             None
         }
     }
@@ -689,6 +666,53 @@ mod test {
 
         let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
         let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
+
+        let results = dedupe.last_batch_with_no_same_sort_key(&current_batch);
+        assert!(results.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_non_overlapped_none_last_batch() {
+        // Sorted key: t1, t2
+
+        // Current batch
+        //  ====(next batch)====
+        //  a | b  |    | 6
+        //  b | d  | 7  | 8
+
+        // Columns of current_batch
+        let t1 = StringArray::from(vec![Some("a"), Some("b")]);
+        let t2 = StringArray::from(vec![Some("b"), Some("d")]);
+        let f1 = Float64Array::from(vec![None, Some(7.0)]);
+        let f2 = Float64Array::from(vec![Some(6.0), Some(8.0)]);
+
+        let current_batch = RecordBatch::try_from_iter(vec![
+            ("t1", Arc::new(t1) as ArrayRef),
+            ("t2", Arc::new(t2) as ArrayRef),
+            ("f1", Arc::new(f1) as ArrayRef),
+            ("f2", Arc::new(f2) as ArrayRef),
+        ])
+        .unwrap();
+
+        let sort_keys = vec![
+            PhysicalSortExpr {
+                expr: col("t1"),
+                options: SortOptions {
+                    descending: false,
+                    nulls_first: false,
+                },
+            },
+            PhysicalSortExpr {
+                expr: col("t2"),
+                options: SortOptions {
+                    descending: false,
+                    nulls_first: false,
+                },
+            },
+        ];
+
+        let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
+        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, None);
 
         let results = dedupe.last_batch_with_no_same_sort_key(&current_batch);
         assert!(results.is_none());
