@@ -120,15 +120,15 @@ RUST_LOG=debug,hyper::proto::h1=info,h2=info cargo test --workspace
 
 ### End-to-End Tests
 
-There are end-to-end tests that spin up a server and make requests via the client library and API. They can be found in `tests/end_to_end_cases` 
+There are end-to-end tests that spin up a server and make requests via the client library and API. They can be found in `tests/end_to_end_cases`
 
 They are run by `cargo test --workspace` command but can be run exclusively with:
 
 ```
 cargo test --test end-to-end
-``` 
+```
 
-Each server writes its logs to a temporary file and this is printed to stdout on shutdown, bypassing the default test log capturing. 
+Each server writes its logs to a temporary file and this is captured when the server shutsdown.
 
 If you are debugging a failing end-to-end test, you will likely want to run with `--nocapture` to also get the logs from the test execution in addition to the server:
 
@@ -139,7 +139,7 @@ cargo test --test end-to-end -- my_failing_test --nocapture
 If running multiple tests in parallel:
 
 * The output may be interleaved
-* Multiple tests may share the same server instance
+* Multiple tests may share the same server instance and thus the server logs may be captured in the output of a different test than the one that is failing.
 
 When debugging a failing test it is therefore recommended you run a single test, or disable parallel test execution
 
