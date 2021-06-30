@@ -9,6 +9,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 
+use arrow_util::optimize::optimize_dictionaries;
 use datafusion::physical_plan::{
     coalesce_batches::concat_batches, expressions::PhysicalSortExpr, PhysicalExpr, SQLMetric,
 };
@@ -177,7 +178,12 @@ impl RecordBatchDeduplicator {
                     }
                 })
                 .collect::<ArrowResult<Vec<ArrayRef>>>()?;
-            RecordBatch::try_new(batch.schema(), new_columns)
+
+            let batch = RecordBatch::try_new(batch.schema(), new_columns)?;
+            // At time of writing, `MutableArrayData` concatenates the
+            // contents of dictionaries as well; Do a post pass to remove the
+            // redundancy if possible
+            optimize_dictionaries(&batch)
         }
     }
 
@@ -233,7 +239,12 @@ impl RecordBatchDeduplicator {
             .map(|old_column| old_column.slice(offset, len))
             .collect();
 
-        RecordBatch::try_new(schema, new_columns)
+        let batch = RecordBatch::try_new(schema, new_columns)?;
+
+        // At time of writing, `concat_batches` concatenates the
+        // contents of dictionaries as well; Do a post pass to remove the
+        // redundancy if possible
+        optimize_dictionaries(&batch)
     }
 }
 
