@@ -2,7 +2,7 @@
 use std::{pin::Pin, sync::Arc};
 
 use futures::Stream;
-use observability_deps::tracing::error;
+use observability_deps::tracing::{info, warn};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tonic::{Interceptor, Request, Response, Streaming};
@@ -70,7 +70,20 @@ impl From<Error> for tonic::Status {
     /// Converts a result from the business logic into the appropriate tonic
     /// status
     fn from(err: Error) -> Self {
-        error!("Error handling Flight gRPC request: {}", err);
+        // An explicit match on the Error enum will ensure appropriate
+        // logging is handled for any new error variants.
+        let msg = "Error handling Flight gRPC request";
+        match err {
+            Error::DatabaseNotFound { .. }
+            | Error::InvalidTicket { .. }
+            | Error::InvalidQuery { .. }
+            // TODO(edd): this should be `debug`. Keeping at info whilst IOx still in early development
+            | Error::InvalidDatabaseName { .. } => info!(?err, msg),
+            Error::Query { .. } => info!(?err, msg),
+            Error::DictionaryError { .. }
+            | Error::InvalidRecordBatch { .. }
+            | Error::Planning { .. } => warn!(?err, msg),
+        }
         err.to_status()
     }
 }

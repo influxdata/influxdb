@@ -599,8 +599,7 @@ mod tests {
     impl<'a> LockablePartition for TestLockablePartition<'a> {
         type Partition = TestPartition;
         type Chunk = TestLockableChunk<'a>;
-        type DropError = Infallible;
-        type CompactError = Infallible;
+        type Error = Infallible;
 
         fn read(&self) -> LifecycleReadGuard<'_, Self::Partition, Self> {
             LifecycleReadGuard::new(self.clone(), &self.partition)
@@ -640,7 +639,7 @@ mod tests {
         fn compact_chunks(
             mut partition: LifecycleWriteGuard<'_, TestPartition, Self>,
             chunks: Vec<LifecycleWriteGuard<'_, TestChunk, Self::Chunk>>,
-        ) -> Result<TaskTracker<()>, Self::CompactError> {
+        ) -> Result<TaskTracker<()>, Self::Error> {
             let id = partition.next_id;
             partition.next_id += 1;
 
@@ -665,7 +664,7 @@ mod tests {
         fn drop_chunk(
             mut s: LifecycleWriteGuard<'_, Self::Partition, Self>,
             chunk_id: u32,
-        ) -> Result<(), Self::DropError> {
+        ) -> Result<(), Self::Error> {
             s.chunks.remove(&chunk_id);
             s.data().db.events.write().push(MoverEvents::Drop(chunk_id));
             Ok(())
