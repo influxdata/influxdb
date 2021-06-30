@@ -29,24 +29,12 @@ pub async fn load_or_create_preserved_catalog(
     metrics_registry: Arc<MetricRegistry>,
     wipe_on_error: bool,
 ) -> std::result::Result<(PreservedCatalog, Catalog), parquet_file::catalog::Error> {
-    let metric_labels = vec![
-        KeyValue::new("db_name", db_name.to_string()),
-        KeyValue::new("svr_id", format!("{}", server_id)),
-    ];
-
     // first try to load existing catalogs
-    let metrics_domain =
-        metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
-
     match PreservedCatalog::load(
         Arc::clone(&object_store),
         server_id,
         db_name.to_string(),
-        CatalogEmptyInput {
-            domain: metrics_domain,
-            metrics_registry: Arc::clone(&metrics_registry),
-            metric_labels: metric_labels.clone(),
-        },
+        CatalogEmptyInput::new(db_name, server_id, Arc::clone(&metrics_registry)),
     )
     .await
     {
@@ -61,18 +49,12 @@ pub async fn load_or_create_preserved_catalog(
                 "Found NO existing catalog for DB {}, creating new one",
                 db_name
             );
-            let metrics_domain =
-                metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
 
-            PreservedCatalog::new_empty(
+            create_preserved_catalog(
+                db_name,
                 Arc::clone(&object_store),
                 server_id,
-                db_name.to_string(),
-                CatalogEmptyInput {
-                    domain: metrics_domain,
-                    metrics_registry: Arc::clone(&metrics_registry),
-                    metric_labels: metric_labels.clone(),
-                },
+                Arc::clone(&metrics_registry),
             )
             .await
         }
@@ -81,20 +63,14 @@ pub async fn load_or_create_preserved_catalog(
                 // https://github.com/influxdata/influxdb_iox/issues/1522)
                 // broken => wipe for now (at least during early iterations)
                 error!("cannot load catalog, so wipe it: {}", e);
+
                 PreservedCatalog::wipe(&object_store, server_id, db_name).await?;
 
-                let metrics_domain =
-                    metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
-
-                PreservedCatalog::new_empty(
+                create_preserved_catalog(
+                    db_name,
                     Arc::clone(&object_store),
                     server_id,
-                    db_name.to_string(),
-                    CatalogEmptyInput {
-                        domain: metrics_domain,
-                        metrics_registry: Arc::clone(&metrics_registry),
-                        metric_labels: metric_labels.clone(),
-                    },
+                    Arc::clone(&metrics_registry),
                 )
                 .await
             } else {
@@ -104,12 +80,46 @@ pub async fn load_or_create_preserved_catalog(
     }
 }
 
+/// Create new empty in-mem and perserved catalog.
+///
+/// This will fail if a preserved catalog already exists.
+pub async fn create_preserved_catalog(
+    db_name: &str,
+    object_store: Arc<ObjectStore>,
+    server_id: ServerId,
+    metrics_registry: Arc<MetricRegistry>,
+) -> std::result::Result<(PreservedCatalog, Catalog), parquet_file::catalog::Error> {
+    PreservedCatalog::new_empty(
+        Arc::clone(&object_store),
+        server_id,
+        db_name.to_string(),
+        CatalogEmptyInput::new(db_name, server_id, Arc::clone(&metrics_registry)),
+    )
+    .await
+}
+
 /// All input required to create an empty [`Catalog`](crate::db::catalog::Catalog).
 #[derive(Debug)]
 pub struct CatalogEmptyInput {
     domain: ::metrics::Domain,
     metrics_registry: Arc<::metrics::MetricRegistry>,
     metric_labels: Vec<KeyValue>,
+}
+
+impl CatalogEmptyInput {
+    fn new(db_name: &str, server_id: ServerId, metrics_registry: Arc<MetricRegistry>) -> Self {
+        let metric_labels = vec![
+            KeyValue::new("db_name", db_name.to_string()),
+            KeyValue::new("svr_id", format!("{}", server_id)),
+        ];
+        let domain = metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
+
+        Self {
+            domain,
+            metrics_registry,
+            metric_labels,
+        }
+    }
 }
 
 impl CatalogState for Catalog {

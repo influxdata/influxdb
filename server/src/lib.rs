@@ -73,7 +73,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
-use db::{load::load_or_create_preserved_catalog, DatabaseToCommit};
+use db::{load::create_preserved_catalog, DatabaseToCommit};
 use init::InitStatus;
 use observability_deps::tracing::{debug, info, warn};
 use parking_lot::Mutex;
@@ -199,8 +199,8 @@ pub enum Error {
     #[snafu(display("remote error: {}", source))]
     RemoteError { source: ConnectionManagerError },
 
-    #[snafu(display("cannot load catalog: {}", source))]
-    CatalogLoadError { source: DatabaseError },
+    #[snafu(display("cannot create preserved catalog: {}", source))]
+    CannotCreatePreservedCatalog { source: DatabaseError },
 
     #[snafu(display("cannot set id: {}", source))]
     SetIdError { source: crate::init::Error },
@@ -490,16 +490,15 @@ where
         let db_reservation = self.config.create_db(rules.name.clone())?;
         self.persist_database_rules(rules.clone()).await?;
 
-        let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
+        let (preserved_catalog, catalog) = create_preserved_catalog(
             rules.db_name(),
             Arc::clone(&self.store),
             server_id,
             self.config.metrics_registry(),
-            true,
         )
         .await
         .map_err(|e| Box::new(e) as _)
-        .context(CatalogLoadError)?;
+        .context(CannotCreatePreservedCatalog)?;
 
         let write_buffer = write_buffer::new(&rules)
             .map_err(|e| Error::CreatingWriteBufferForWriting { source: e })?;
@@ -2122,5 +2121,34 @@ mod tests {
         )
         .await
         .unwrap());
+    }
+
+    #[tokio::test]
+    async fn cannot_create_db_when_catalog_is_present() {
+        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let server_id = ServerId::try_from(1).unwrap();
+        let db_name = "my_db";
+
+        // create catalog
+        PreservedCatalog::new_empty::<TestCatalogState>(
+            Arc::clone(&store),
+            server_id,
+            db_name.to_string(),
+            (),
+        )
+        .await
+        .unwrap();
+
+        // setup server
+        let store = Arc::try_unwrap(store).unwrap();
+        let manager = TestConnectionManager::new();
+        let config = config_with_store(store);
+        let server = Server::new(manager, config);
+        server.set_id(server_id).unwrap();
+        server.maybe_initialize_server().await;
+
+        // creating database will now result in an error
+        let err = create_simple_database(&server, db_name).await.unwrap_err();
+        assert!(matches!(err, Error::CannotCreatePreservedCatalog { .. }));
     }
 }

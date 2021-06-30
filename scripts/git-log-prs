@@ -103,7 +103,7 @@ main() {
 
       local title=""
       if [ -n "${titles}" ]; then
-        title=$(get_title "${sha}" "${pr}")
+        title=$(get_title "${sha}" "${pr}" | sed 's;(#\([0-9]\+\));(influxdata/influxdb_iox#\1);g')
       fi
 
       local commit=""

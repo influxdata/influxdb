@@ -231,13 +231,7 @@ impl Chunk {
     /// Returns a schema object for a `read_filter` operation using the provided
     /// column selection. An error is returned if the specified columns do not
     /// exist.
-    ///
-    /// TODO: https://github.com/influxdata/influxdb_iox/issues/1717
-    pub fn read_filter_table_schema(
-        &self,
-        _table_name: &str,
-        columns: Selection<'_>,
-    ) -> Result<Schema> {
+    pub fn read_filter_table_schema(&self, columns: Selection<'_>) -> Result<Schema> {
         // Validate columns exist in table.
         let table_meta = self.table.meta();
         if let Selection::Some(cols) = columns {
@@ -280,11 +274,8 @@ impl Chunk {
     /// determines that all the columns in the row group are already contained
     /// in the results buffer. Callers can skip this behaviour by passing in
     /// an empty `BTreeSet`.
-    ///
-    /// TODO(edd): remove `table_name`
     pub fn column_names(
         &self,
-        _table_name: &str,
         predicate: Predicate,
         only_columns: Selection<'_>,
         dst: BTreeSet<String>,
@@ -294,12 +285,10 @@ impl Chunk {
 
     /// Returns the distinct set of column values for each provided column,
     /// where each returned value lives in a row matching the provided
-    /// predicate. All values are deduplicated across row groups in the table.
+    /// predicate.
     ///
     /// If the predicate is empty then all distinct values are returned for the
-    /// table.
-    ///
-    /// Returns an error if the provided table does not exist.
+    /// chunk.
     ///
     /// `dst` is intended to allow for some more sophisticated execution,
     /// wherein execution can be short-circuited for distinct values that have
@@ -307,7 +296,6 @@ impl Chunk {
     /// skip this behaviour.
     pub fn column_values(
         &self,
-        _table_name: &str,
         predicate: Predicate,
         columns: Selection<'_>,
         dst: BTreeMap<String, BTreeSet<String>>,
@@ -765,9 +753,7 @@ mod test {
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
-        let schema = chunk
-            .read_filter_table_schema("a_table", Selection::All)
-            .unwrap();
+        let schema = chunk.read_filter_table_schema(Selection::All).unwrap();
 
         let exp_schema: Arc<Schema> = SchemaBuilder::new()
             .tag("region")
@@ -781,10 +767,7 @@ mod test {
         assert_eq!(Arc::new(schema), exp_schema);
 
         let schema = chunk
-            .read_filter_table_schema(
-                "a_table",
-                Selection::Some(&["sketchy_sensor", "counter", "region"]),
-            )
+            .read_filter_table_schema(Selection::Some(&["sketchy_sensor", "counter", "region"]))
             .unwrap();
 
         let exp_schema: Arc<Schema> = SchemaBuilder::new()
@@ -798,7 +781,7 @@ mod test {
 
         // Verify error handling
         assert!(matches!(
-            chunk.read_filter_table_schema("a_table", Selection::Some(&["random column name"])),
+            chunk.read_filter_table_schema(Selection::Some(&["random column name"])),
             Err(Error::ColumnDoesNotExist { .. })
         ));
     }
@@ -1078,12 +1061,7 @@ mod test {
         chunk.upsert_table("Utopia", rb);
 
         let result = chunk
-            .column_names(
-                "Utopia",
-                Predicate::default(),
-                Selection::All,
-                BTreeSet::new(),
-            )
+            .column_names(Predicate::default(), Selection::All, BTreeSet::new())
             .unwrap();
 
         assert_eq!(
@@ -1094,7 +1072,6 @@ mod test {
         // Testing predicates
         let result = chunk
             .column_names(
-                "Utopia",
                 Predicate::new(vec![BinaryExpr::from(("time", "=", 222222_i64))]),
                 Selection::All,
                 BTreeSet::new(),
@@ -1155,7 +1132,6 @@ mod test {
 
         let result = chunk
             .column_values(
-                "my_table",
                 Predicate::default(),
                 Selection::Some(&["region", "env"]),
                 BTreeMap::new(),
@@ -1173,7 +1149,6 @@ mod test {
         // With a predicate
         let result = chunk
             .column_values(
-                "my_table",
                 Predicate::new(vec![
                     BinaryExpr::from(("time", ">=", 20_i64)),
                     BinaryExpr::from(("time", "<=", 3333_i64)),
@@ -1193,7 +1168,7 @@ mod test {
 
         // Error when All column selection provided.
         assert!(matches!(
-            chunk.column_values("x", Predicate::default(), Selection::All, BTreeMap::new()),
+            chunk.column_values(Predicate::default(), Selection::All, BTreeMap::new()),
             Err(Error::UnsupportedOperation { .. })
         ));
     }
