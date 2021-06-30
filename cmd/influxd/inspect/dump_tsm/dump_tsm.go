@@ -1,4 +1,4 @@
-package inspect
+package dump_tsm
 
 import (
 	"encoding/binary"
@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type argsDumpTSM struct {
+type args struct {
 	dumpIndex  bool
 	dumpBlocks bool
 	dumpAll    bool
@@ -22,7 +22,7 @@ type argsDumpTSM struct {
 }
 
 func NewDumpTSMCommand() *cobra.Command {
-	var arguments argsDumpTSM
+	var arguments args
 	cmd := &cobra.Command{
 		Use:   "dump-tsm",
 		Short: "Dumps low-level details about tsm1 files",
@@ -52,7 +52,7 @@ func NewDumpTSMCommand() *cobra.Command {
 	return cmd
 }
 
-func dumpTSM(cmd *cobra.Command, args argsDumpTSM) error {
+func dumpTSM(cmd *cobra.Command, args args) error {
 	f, err := os.Open(args.path)
 	if err != nil {
 		return err
