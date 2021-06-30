@@ -1975,7 +1975,7 @@ mod tests {
         let seq = windows.minimum_unpersisted_sequence().unwrap();
 
         let seq = seq.get(&0).unwrap();
-        assert_eq!(seq, &MinMaxSequence { min: 0, max: 2 });
+        assert_eq!(seq, &MinMaxSequence::new(0, 2));
     }
 
     #[tokio::test]
