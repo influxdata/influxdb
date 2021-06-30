@@ -78,8 +78,7 @@ pub trait LifecycleDb {
 pub trait LockablePartition: Sized {
     type Partition: LifecyclePartition;
     type Chunk: LockableChunk;
-    type DropError: std::error::Error + Send + Sync;
-    type CompactError: std::error::Error + Send + Sync;
+    type Error: std::error::Error + Send + Sync;
 
     /// Acquire a shared read lock on the chunk
     fn read(&self) -> LifecycleReadGuard<'_, Self::Partition, Self>;
@@ -102,13 +101,13 @@ pub trait LockablePartition: Sized {
     fn compact_chunks(
         partition: LifecycleWriteGuard<'_, Self::Partition, Self>,
         chunks: Vec<LifecycleWriteGuard<'_, <Self::Chunk as LockableChunk>::Chunk, Self::Chunk>>,
-    ) -> Result<TaskTracker<<Self::Chunk as LockableChunk>::Job>, Self::CompactError>;
+    ) -> Result<TaskTracker<<Self::Chunk as LockableChunk>::Job>, Self::Error>;
 
     /// Drops a chunk from the partition
     fn drop_chunk(
         s: LifecycleWriteGuard<'_, Self::Partition, Self>,
         chunk_id: u32,
-    ) -> Result<(), Self::DropError>;
+    ) -> Result<(), Self::Error>;
 }
 
 /// A `LockableChunk` is a wrapper around a `LifecycleChunk` that allows for
