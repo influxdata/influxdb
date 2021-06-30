@@ -85,9 +85,13 @@ fn optimize_dict_col(
         None => -1,
     });
 
-    Ok(Arc::new(
-        new_dictionary.to_arrow(new_keys, keys.data().null_buffer().cloned()),
-    ))
+    let offset = keys.data().offset();
+    let nulls = keys
+        .data()
+        .null_buffer()
+        .map(|buffer| buffer.bit_slice(offset, keys.len()));
+
+    Ok(Arc::new(new_dictionary.to_arrow(new_keys, nulls)))
 }
 
 #[cfg(test)]
@@ -118,19 +122,9 @@ mod tests {
             Some(3),
         ]);
 
-        let data = ArrayDataBuilder::new(DataType::Dictionary(
-            Box::new(DataType::Int32),
-            Box::new(DataType::Utf8),
-        ))
-        .len(keys.len())
-        .add_buffer(keys.data().buffers()[0].clone())
-        .null_bit_buffer(keys.data().null_buffer().unwrap().clone())
-        .add_child_data(values.data().clone())
-        .build();
-
         let batch = RecordBatch::try_from_iter(vec![(
             "foo",
-            Arc::new(DictionaryArray::<Int32Type>::from(data)) as ArrayRef,
+            Arc::new(build_dict(keys, values)) as ArrayRef,
         )])
         .unwrap();
 
@@ -243,5 +237,67 @@ mod tests {
             ],
             &[optimized]
         );
+    }
+
+    #[test]
+    fn test_null() {
+        let values = StringArray::from(vec!["bananas"]);
+        let keys = Int32Array::from(vec![None, None, Some(0)]);
+        let col = Arc::new(build_dict(keys, values)) as ArrayRef;
+
+        let col = optimize_dict_col(&col, &DataType::Int32, &DataType::Utf8).unwrap();
+
+        let batch = RecordBatch::try_from_iter(vec![("t", col)]).unwrap();
+
+        assert_batches_eq!(
+            vec![
+                "+---------+",
+                "| t       |",
+                "+---------+",
+                "|         |",
+                "|         |",
+                "| bananas |",
+                "+---------+",
+            ],
+            &[batch]
+        );
+    }
+
+    #[test]
+    fn test_slice() {
+        let values = StringArray::from(vec!["bananas"]);
+        let keys = Int32Array::from(vec![None, Some(0), None]);
+        let col = Arc::new(build_dict(keys, values)) as ArrayRef;
+        let col = col.slice(1, 2);
+
+        let col = optimize_dict_col(&col, &DataType::Int32, &DataType::Utf8).unwrap();
+
+        let batch = RecordBatch::try_from_iter(vec![("t", col)]).unwrap();
+
+        assert_batches_eq!(
+            vec![
+                "+---------+",
+                "| t       |",
+                "+---------+",
+                "| bananas |",
+                "|         |",
+                "+---------+",
+            ],
+            &[batch]
+        );
+    }
+
+    fn build_dict(keys: Int32Array, values: StringArray) -> DictionaryArray<Int32Type> {
+        let data = ArrayDataBuilder::new(DataType::Dictionary(
+            Box::new(DataType::Int32),
+            Box::new(DataType::Utf8),
+        ))
+        .len(keys.len())
+        .add_buffer(keys.data().buffers()[0].clone())
+        .null_bit_buffer(keys.data().null_buffer().unwrap().clone())
+        .add_child_data(values.data().clone())
+        .build();
+
+        DictionaryArray::from(data)
     }
 }

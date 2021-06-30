@@ -573,7 +573,7 @@ impl Db {
             let read_results = rb_chunk.read_filter(&addr.table_name, predicate, Selection::All);
 
             let arrow_schema: ArrowSchemaRef = rb_chunk
-                .read_filter_table_schema(&addr.table_name, Selection::All)
+                .read_filter_table_schema(Selection::All)
                 .expect("read buffer is infallible")
                 .into();
 

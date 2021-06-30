@@ -251,7 +251,7 @@ async fn deduplicate(
 #[cfg(test)]
 mod test {
     use arrow::compute::SortOptions;
-    use arrow::datatypes::SchemaRef;
+    use arrow::datatypes::{Int32Type, SchemaRef};
     use arrow::{
         array::{ArrayRef, Float64Array, StringArray},
         record_batch::RecordBatch,
@@ -260,6 +260,8 @@ mod test {
     use datafusion::physical_plan::{collect, expressions::col, memory::MemoryExec};
 
     use super::*;
+    use arrow::array::DictionaryArray;
+    use std::iter::FromIterator;
 
     #[tokio::test]
     async fn test_single_tag() {
@@ -775,6 +777,90 @@ mod test {
             "actual output: {}",
             output
         );
+    }
+
+    #[tokio::test]
+    async fn test_dictionary() {
+        let t1 = DictionaryArray::<Int32Type>::from_iter(vec![Some("a"), Some("a"), Some("b")]);
+        let t2 = DictionaryArray::<Int32Type>::from_iter(vec![Some("b"), Some("c"), Some("c")]);
+        let f1 = Float64Array::from(vec![Some(1.0), Some(3.0), Some(4.0)]);
+        let f2 = Float64Array::from(vec![Some(2.0), None, Some(5.0)]);
+
+        let batch1 = RecordBatch::try_from_iter(vec![
+            ("t1", Arc::new(t1) as ArrayRef),
+            ("t2", Arc::new(t2) as ArrayRef),
+            ("f1", Arc::new(f1) as ArrayRef),
+            ("f2", Arc::new(f2) as ArrayRef),
+        ])
+        .unwrap();
+
+        let t1 = DictionaryArray::<Int32Type>::from_iter(vec![Some("b"), Some("c")]);
+        let t2 = DictionaryArray::<Int32Type>::from_iter(vec![Some("c"), Some("d")]);
+        let f1 = Float64Array::from(vec![None, Some(7.0)]);
+        let f2 = Float64Array::from(vec![Some(6.0), Some(8.0)]);
+
+        let batch2 = RecordBatch::try_from_iter(vec![
+            ("t1", Arc::new(t1) as ArrayRef),
+            ("t2", Arc::new(t2) as ArrayRef),
+            ("f1", Arc::new(f1) as ArrayRef),
+            ("f2", Arc::new(f2) as ArrayRef),
+        ])
+        .unwrap();
+
+        let sort_keys = vec![
+            PhysicalSortExpr {
+                expr: col("t1"),
+                options: SortOptions {
+                    descending: false,
+                    nulls_first: false,
+                },
+            },
+            PhysicalSortExpr {
+                expr: col("t2"),
+                options: SortOptions {
+                    descending: false,
+                    nulls_first: false,
+                },
+            },
+        ];
+
+        let results = dedupe(vec![batch1, batch2], sort_keys).await;
+
+        let cols: Vec<_> = results
+            .output
+            .iter()
+            .map(|batch| {
+                batch
+                    .column(batch.schema().column_with_name("t1").unwrap().0)
+                    .as_any()
+                    .downcast_ref::<DictionaryArray<Int32Type>>()
+                    .unwrap()
+            })
+            .collect();
+
+        // Should produce optimised dictionaries
+        // The batching is not important
+        assert_eq!(cols.len(), 3);
+        assert_eq!(cols[0].keys().len(), 2);
+        assert_eq!(cols[0].values().len(), 1); // "a"
+        assert_eq!(cols[1].keys().len(), 1);
+        assert_eq!(cols[1].values().len(), 1); // "b"
+        assert_eq!(cols[2].keys().len(), 1);
+        assert_eq!(cols[2].values().len(), 1); // "c"
+
+        let expected = vec![
+            "+----+----+----+----+",
+            "| t1 | t2 | f1 | f2 |",
+            "+----+----+----+----+",
+            "| a  | b  | 1  | 2  |",
+            "| a  | c  | 3  |    |",
+            "| b  | c  | 4  | 6  |",
+            "| c  | d  | 7  | 8  |",
+            "+----+----+----+----+",
+        ];
+        assert_batches_eq!(&expected, &results.output);
+        // 5 rows in initial input, 4 rows in output ==> 1 dupes
+        assert_eq!(results.num_dupes(), 5 - 4);
     }
 
     struct TestResults {
