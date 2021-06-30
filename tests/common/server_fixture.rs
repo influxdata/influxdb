@@ -504,7 +504,7 @@ impl std::fmt::Display for TestServer {
 
 impl Drop for TestServer {
     fn drop(&mut self) {
-        use std::io::{Read, Write};
+        use std::io::Read;
 
         let mut server_lock = self
             .server_process
@@ -521,23 +521,29 @@ impl Drop for TestServer {
             .wait()
             .expect("Should have been able to wait for shutdown");
 
-        let mut out = std::io::stdout();
         let mut f = std::fs::File::open(&server_lock.log_path).expect("failed to open log file");
         let mut buffer = [0_u8; 8 * 1024];
 
-        writeln!(out, "****************").unwrap();
-        writeln!(out, "Start TestServer Output").unwrap();
-        writeln!(out, "****************").unwrap();
+        println!("****************");
+        println!("Start TestServer Output");
+        println!("****************");
 
         while let Ok(read) = f.read(&mut buffer) {
             if read == 0 {
                 break;
             }
-            out.write_all(&buffer[..read]).unwrap();
+            if let Ok(str) = std::str::from_utf8(&buffer[..read]) {
+                print!("{}", str);
+            } else {
+                println!(
+                    "\n\n-- ERROR IN TRANSFER -- please see {:?} for raw contents ---\n\n",
+                    &server_lock.log_path
+                );
+            }
         }
 
-        writeln!(out, "****************").unwrap();
-        writeln!(out, "End TestServer Output").unwrap();
-        writeln!(out, "****************").unwrap();
+        println!("****************");
+        println!("End TestServer Output");
+        println!("****************");
     }
 }

@@ -316,11 +316,12 @@ impl QueryChunk for DbChunk {
                 debug!(?rb_predicate, "Predicate pushed down to RUB");
 
                 let read_results = chunk.read_filter(table_name, rb_predicate, selection);
-                let schema = chunk
-                    .read_filter_table_schema(table_name, selection)
-                    .context(ReadBufferChunkError {
-                        chunk_id: self.id(),
-                    })?;
+                let schema =
+                    chunk
+                        .read_filter_table_schema(selection)
+                        .context(ReadBufferChunkError {
+                            chunk_id: self.id(),
+                        })?;
 
                 Ok(Box::pin(ReadFilterResultsStream::new(
                     read_results,
@@ -342,7 +343,6 @@ impl QueryChunk for DbChunk {
         predicate: &Predicate,
         columns: Selection<'_>,
     ) -> Result<Option<StringSet>, Self::Error> {
-        let table_name = self.table_name.as_ref();
         match &self.state {
             State::MutableBuffer { chunk, .. } => {
                 if !predicate.is_empty() {
@@ -362,7 +362,7 @@ impl QueryChunk for DbChunk {
 
                 Ok(Some(
                     chunk
-                        .column_names(table_name, rb_predicate, columns, BTreeSet::new())
+                        .column_names(rb_predicate, columns, BTreeSet::new())
                         .context(ReadBufferChunkError {
                             chunk_id: self.id(),
                         })?,
@@ -383,7 +383,6 @@ impl QueryChunk for DbChunk {
         column_name: &str,
         predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error> {
-        let table_name = self.table_name.as_ref();
         match &self.state {
             State::MutableBuffer { .. } => {
                 // There is no advantage to manually implementing this
@@ -401,7 +400,6 @@ impl QueryChunk for DbChunk {
 
                 let mut values = chunk
                     .column_values(
-                        table_name,
                         rb_predicate,
                         Selection::Some(&[column_name]),
                         BTreeMap::new(),

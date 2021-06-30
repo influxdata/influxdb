@@ -573,7 +573,7 @@ impl Db {
             let read_results = rb_chunk.read_filter(&addr.table_name, predicate, Selection::All);
 
             let arrow_schema: ArrowSchemaRef = rb_chunk
-                .read_filter_table_schema(&addr.table_name, Selection::All)
+                .read_filter_table_schema(Selection::All)
                 .expect("read buffer is infallible")
                 .into();
 
@@ -1975,7 +1975,7 @@ mod tests {
         let seq = windows.minimum_unpersisted_sequence().unwrap();
 
         let seq = seq.get(&0).unwrap();
-        assert_eq!(seq, &MinMaxSequence { min: 0, max: 2 });
+        assert_eq!(seq, &MinMaxSequence::new(0, 2));
     }
 
     #[tokio::test]
