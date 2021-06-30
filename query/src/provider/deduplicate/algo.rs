@@ -88,14 +88,14 @@ impl RecordBatchDeduplicator {
     pub fn last_batch_with_no_same_sort_key(&mut self, batch: &RecordBatch) -> Option<RecordBatch> {
         // Take the previous batch, if any, out of it storage self.last_batch
         if let Some(last_batch) = self.last_batch.take() {
-            let formatted =
-                arrow::util::pretty::pretty_format_batches(&[last_batch.clone()]).unwrap();
-            let lines = formatted.trim().split('\n').collect::<Vec<_>>();
-            println!("\nLast_Batch::\n\n{:#?}\n\n", lines);
+            // let formatted =
+            //     arrow::util::pretty::pretty_format_batches(&[last_batch.clone()]).unwrap();
+            // let lines = formatted.trim().split('\n').collect::<Vec<_>>();
+            // println!("\nLast_Batch::\n\n{:#?}\n\n", lines);
 
-            let formatted = arrow::util::pretty::pretty_format_batches(&[batch.clone()]).unwrap();
-            let lines = formatted.trim().split('\n').collect::<Vec<_>>();
-            println!("\nBatch::\n\n{:#?}\n\n", lines);
+            // let formatted = arrow::util::pretty::pretty_format_batches(&[batch.clone()]).unwrap();
+            // let lines = formatted.trim().split('\n').collect::<Vec<_>>();
+            // println!("\nBatch::\n\n{:#?}\n\n", lines);
 
             // Build sorted columns for last_batch and current one
             let schema = last_batch.schema();
@@ -149,27 +149,46 @@ impl RecordBatchDeduplicator {
             // only need to compare the first row
             let mut same = true;
             for (l, r) in zipped {
-                match (l.values.is_valid(0), r.values.is_valid(0)) {
-                    (true, true) => {
-                        // Now the actual comparison
-                        let c = arrow::array::build_compare(l.values.as_ref(), r.values.as_ref())
-                            .unwrap();
+                if (l.values.is_valid(0), r.values.is_valid(0)) == (true, true) {
+                    // Both ave values, do the actual comparison
+                    let c = arrow::array::build_compare(l.values.as_ref(), r.values.as_ref())
+                    .unwrap();
 
-                        match c(0, 0) {
-                            // again only compare the first row
-                            Ordering::Equal => {}
-                            _ => {
-                                same = false;
-                                break;
-                            }
+                    match c(0, 0) {
+                        // again only compare the first row
+                        Ordering::Equal => {}
+                        _ => {
+                            same = false;
+                            break;
                         }
                     }
-                    _ => {
-                        // The values of this column pair are not the same, no need to compare further
-                        same = false;
-                        break;
-                    }
                 }
+
+
+            //    match (l.values.is_valid(0), r.values.is_valid(0)) {
+            //         (true, true) => {
+            //             // Both ave values, do the actual comparison
+            //             let c = arrow::array::build_compare(l.values.as_ref(), r.values.as_ref())
+            //                 .unwrap();
+
+            //             match c(0, 0) {
+            //                 // again only compare the first row
+            //                 Ordering::Equal => {}
+            //                 _ => {
+            //                     same = false;
+            //                     break;
+            //                 }
+            //             }
+            //         }
+            //         // (false, false) => { 
+            //         //     // Both NULL which are the same
+            //         // }
+            //         _ => {
+            //             // The values of this column pair are not the same, no need to compare further
+            //             // same = false;
+            //             // break;
+            //         }
+            //     }
             }
 
             if same {
