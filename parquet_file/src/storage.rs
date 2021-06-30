@@ -125,7 +125,7 @@ pub enum Error {
     LocationParsingFailure { path: DirsAndFileName },
 
     #[snafu(display("Cannot encode metadata: {}", source))]
-    MetadataEncodeFailure { source: serde_json::Error },
+    MetadataEncodeFailure { source: prost::EncodeError },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -193,10 +193,12 @@ impl Storage {
         schema: SchemaRef,
         metadata: IoxMetadata,
     ) -> Result<Vec<u8>> {
+        let metadata_bytes = metadata.to_protobuf().context(MetadataEncodeFailure)?;
+
         let props = WriterProperties::builder()
             .set_key_value_metadata(Some(vec![KeyValue {
                 key: METADATA_KEY.to_string(),
-                value: Some(serde_json::to_string(&metadata).context(MetadataEncodeFailure)?),
+                value: Some(base64::encode(&metadata_bytes)),
             }]))
             .build();
 

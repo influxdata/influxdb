@@ -2619,6 +2619,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow_util",
+ "base64 0.13.0",
  "bytes",
  "chrono",
  "data_types",
@@ -2635,8 +2636,6 @@ dependencies = [
  "parquet-format",
  "prost",
  "query",
- "serde",
- "serde_json",
  "snafu",
  "tempfile",
  "test_helpers",
