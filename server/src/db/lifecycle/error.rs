@@ -1,19 +1,31 @@
 //! Errors that can occur during lifecycle actions
-use data_types::chunk_metadata::ChunkAddr;
 use snafu::Snafu;
+
+use data_types::chunk_metadata::ChunkAddr;
+
+use crate::db::catalog;
 
 #[derive(Debug, Snafu)]
 // Export the snafu "selectors" so they can be used in other modules
 #[snafu(visibility = "pub")]
 pub enum Error {
     #[snafu(context(false))]
-    PartitionError {
-        source: crate::db::catalog::partition::Error,
+    PartitionError { source: catalog::partition::Error },
+
+    #[snafu(context(false))]
+    ChunkError { source: catalog::chunk::Error },
+
+    #[snafu(context(false))]
+    PlannerError {
+        source: query::frontend::reorg::Error,
     },
 
-    #[snafu(display("Lifecycle error: {}", source))]
-    LifecycleError {
-        source: crate::db::catalog::chunk::Error,
+    #[snafu(context(false))]
+    ArrowError { source: arrow::error::ArrowError },
+
+    #[snafu(context(false))]
+    DataFusionError {
+        source: datafusion::error::DataFusionError,
     },
 
     #[snafu(display("Read Buffer Error in chunk {}{} : {}", chunk_id, table_name, source))]
@@ -26,11 +38,6 @@ pub enum Error {
     #[snafu(display("Error writing to object store: {}", source))]
     WritingToObjectStore {
         source: parquet_file::storage::Error,
-    },
-
-    #[snafu(display("Error sending entry to write buffer"))]
-    WriteBufferError {
-        source: Box<dyn std::error::Error + Sync + Send>,
     },
 
     #[snafu(display("Error while creating parquet chunk: {}", source))]

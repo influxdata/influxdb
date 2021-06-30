@@ -6,20 +6,16 @@ use internal_types::{arrow::sort::sort_record_batch, selection::Selection};
 
 use observability_deps::tracing::{debug, info};
 use read_buffer::{ChunkMetrics as ReadBufferChunkMetrics, RBChunk};
-use snafu::ResultExt;
 use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
-use super::{
-    error::{LifecycleError, Result},
-    LockableCatalogChunk,
-};
+use super::{error::Result, LockableCatalogChunk};
 
 /// The implementation for moving a chunk to the read buffer
 ///
 /// Returns a future registered with the tracker registry, and the corresponding tracker
 /// The caller can either spawn this future to tokio, or block directly on it
-pub fn move_chunk_to_read_buffer_impl(
+pub fn move_chunk_to_read_buffer(
     mut guard: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk<'_>>,
 ) -> Result<(
     TaskTracker<Job>,
@@ -38,7 +34,7 @@ pub fn move_chunk_to_read_buffer_impl(
     // update the catalog to say we are processing this chunk and
     // then drop the lock while we do the work
     let (mb_chunk, table_summary) = {
-        let mb_chunk = guard.set_moving(&registration).context(LifecycleError)?;
+        let mb_chunk = guard.set_moving(&registration)?;
         (mb_chunk, guard.table_summary())
     };
 

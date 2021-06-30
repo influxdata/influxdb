@@ -70,7 +70,7 @@ pub enum Error {
     PartitionError { source: catalog::partition::Error },
 
     #[snafu(display("Lifecycle error: {}", source))]
-    LifecycleError { source: lifecycle::error::Error },
+    LifecycleError { source: lifecycle::Error },
 
     #[snafu(display("Error freeinzing chunk while rolling over partition: {}", source))]
     FreezingChunk { source: catalog::chunk::Error },
@@ -365,8 +365,8 @@ impl Db {
         chunk_id: u32,
     ) -> Result<Arc<DbChunk>> {
         let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
-        let (_, fut) = lifecycle::move_chunk::move_chunk_to_read_buffer_impl(chunk.write())
-            .context(LifecycleError)?;
+        let (_, fut) =
+            lifecycle::move_chunk_to_read_buffer(chunk.write()).context(LifecycleError)?;
         fut.await.context(TaskCancelled)?.context(LifecycleError)
     }
 
@@ -379,8 +379,8 @@ impl Db {
         chunk_id: u32,
     ) -> Result<Arc<DbChunk>> {
         let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
-        let (_, fut) = lifecycle::write::write_chunk_to_object_store_impl(chunk.write())
-            .context(LifecycleError)?;
+        let (_, fut) =
+            lifecycle::write_chunk_to_object_store(chunk.write()).context(LifecycleError)?;
         fut.await.context(TaskCancelled)?.context(LifecycleError)
     }
 
@@ -393,7 +393,7 @@ impl Db {
     ) -> Result<Arc<DbChunk>> {
         let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
         let chunk = chunk.write();
-        lifecycle::unload::unload_read_buffer_impl(chunk).context(LifecycleError)
+        lifecycle::unload_read_buffer_chunk(chunk).context(LifecycleError)
     }
 
     /// Return chunk summary information for all chunks in the specified
