@@ -2762,16 +2762,16 @@ mod tests {
         }
     }
 
-    /// loop and try to make a client connection for 5 seconds,
+    /// loop and try to make a client connection for 30 seconds,
     /// returning the result of the connection
     async fn connect_to_server<T>(bind_addr: SocketAddr) -> Result<T, tonic::transport::Error>
     where
         T: NewClient,
     {
-        const MAX_RETRIES: u32 = 10;
+        const MAX_RETRIES: u32 = 30;
         let mut retry_count = 0;
         loop {
-            let mut interval = tokio::time::interval(Duration::from_millis(500));
+            let mut interval = tokio::time::interval(Duration::from_millis(1000));
 
             match T::connect(format!("http://{}", bind_addr)).await {
                 Ok(client) => {
