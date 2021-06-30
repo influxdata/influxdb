@@ -231,13 +231,7 @@ impl Chunk {
     /// Returns a schema object for a `read_filter` operation using the provided
     /// column selection. An error is returned if the specified columns do not
     /// exist.
-    ///
-    /// TODO: https://github.com/influxdata/influxdb_iox/issues/1717
-    pub fn read_filter_table_schema(
-        &self,
-        _table_name: &str,
-        columns: Selection<'_>,
-    ) -> Result<Schema> {
+    pub fn read_filter_table_schema(&self, columns: Selection<'_>) -> Result<Schema> {
         // Validate columns exist in table.
         let table_meta = self.table.meta();
         if let Selection::Some(cols) = columns {
@@ -759,9 +753,7 @@ mod test {
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
-        let schema = chunk
-            .read_filter_table_schema("a_table", Selection::All)
-            .unwrap();
+        let schema = chunk.read_filter_table_schema(Selection::All).unwrap();
 
         let exp_schema: Arc<Schema> = SchemaBuilder::new()
             .tag("region")
@@ -775,10 +767,7 @@ mod test {
         assert_eq!(Arc::new(schema), exp_schema);
 
         let schema = chunk
-            .read_filter_table_schema(
-                "a_table",
-                Selection::Some(&["sketchy_sensor", "counter", "region"]),
-            )
+            .read_filter_table_schema(Selection::Some(&["sketchy_sensor", "counter", "region"]))
             .unwrap();
 
         let exp_schema: Arc<Schema> = SchemaBuilder::new()
@@ -792,7 +781,7 @@ mod test {
 
         // Verify error handling
         assert!(matches!(
-            chunk.read_filter_table_schema("a_table", Selection::Some(&["random column name"])),
+            chunk.read_filter_table_schema(Selection::Some(&["random column name"])),
             Err(Error::ColumnDoesNotExist { .. })
         ));
     }
