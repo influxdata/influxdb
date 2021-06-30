@@ -193,8 +193,31 @@ struct Window {
 /// The minimum and maximum sequence numbers seen for a given sequencer
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct MinMaxSequence {
-    pub min: u64,
-    pub max: u64,
+    min: u64,
+    max: u64,
+}
+
+impl MinMaxSequence {
+    /// Create new min-max sequence range.
+    ///
+    /// This panics if `min > max`.
+    pub fn new(min: u64, max: u64) -> Self {
+        assert!(
+            min <= max,
+            "min ({}) is greater than max ({}) sequence",
+            min,
+            max
+        );
+        Self { min, max }
+    }
+
+    pub fn min(&self) -> u64 {
+        self.min
+    }
+
+    pub fn max(&self) -> u64 {
+        self.max
+    }
 }
 
 impl Window {
@@ -209,10 +232,7 @@ impl Window {
         if let Some(sequence) = sequence {
             sequencer_numbers.insert(
                 sequence.id,
-                MinMaxSequence {
-                    min: sequence.number,
-                    max: sequence.number,
-                },
+                MinMaxSequence::new(sequence.number, sequence.number),
             );
         }
 
@@ -250,10 +270,7 @@ impl Window {
                 None => {
                     self.sequencer_numbers.insert(
                         sequence.id,
-                        MinMaxSequence {
-                            min: sequence.number,
-                            max: sequence.number,
-                        },
+                        MinMaxSequence::new(sequence.number, sequence.number),
                     );
                 }
             }
@@ -286,6 +303,24 @@ impl Window {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_min_max_getters() {
+        let min_max = MinMaxSequence::new(10, 20);
+        assert_eq!(min_max.min(), 10);
+        assert_eq!(min_max.max(), 20);
+    }
+
+    #[test]
+    fn test_min_max_accepts_equal_values() {
+        MinMaxSequence::new(10, 10);
+    }
+
+    #[test]
+    #[should_panic(expected = "min (11) is greater than max (10) sequence")]
+    fn test_min_max_checks_values() {
+        MinMaxSequence::new(11, 10);
+    }
 
     #[test]
     fn starts_open_window() {
@@ -334,11 +369,11 @@ mod tests {
         assert_eq!(open.row_count, 14);
         assert_eq!(
             open.sequencer_numbers.get(&1).unwrap(),
-            &MinMaxSequence { min: 2, max: 10 }
+            &MinMaxSequence::new(2, 10)
         );
         assert_eq!(
             open.sequencer_numbers.get(&2).unwrap(),
-            &MinMaxSequence { min: 23, max: 23 }
+            &MinMaxSequence::new(23, 23)
         );
     }
 
@@ -380,7 +415,7 @@ mod tests {
         let closed = w.closed.get(0).unwrap();
         assert_eq!(
             closed.sequencer_numbers.get(&1).unwrap(),
-            &MinMaxSequence { min: 2, max: 3 }
+            &MinMaxSequence::new(2, 3)
         );
         assert_eq!(closed.row_count, 2);
         assert_eq!(closed.min_time, start_time);
@@ -392,7 +427,7 @@ mod tests {
         assert_eq!(open.max_time, open_time);
         assert_eq!(
             open.sequencer_numbers.get(&1).unwrap(),
-            &MinMaxSequence { min: 6, max: 6 }
+            &MinMaxSequence::new(6, 6)
         )
     }
 
