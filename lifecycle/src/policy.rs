@@ -183,60 +183,57 @@ where
     /// by the mutable linger threshold
     fn maybe_compact_chunks<P: LockablePartition>(
         &mut self,
-        partitions: &[P],
+        partition: &P,
         rules: &LifecycleRules,
         now: DateTime<Utc>,
     ) {
-        // TODO: Skip partitions with no PersistenceWindows (i.e. fully persisted)
         // TODO: Encapsulate locking into a CatalogTransaction type
-        for partition in partitions {
-            let partition = partition.read();
+        let partition = partition.read();
 
-            let mut chunks = LockablePartition::chunks(&partition);
-            // Sort by chunk ID to ensure a stable lock order
-            chunks.sort_by_key(|x| x.0);
+        let mut chunks = LockablePartition::chunks(&partition);
+        // Sort by chunk ID to ensure a stable lock order
+        chunks.sort_by_key(|x| x.0);
 
-            let mut has_mub_snapshot = false;
-            let mut to_compact = Vec::new();
-            for (_, chunk) in &chunks {
-                let chunk = chunk.read();
-                if chunk.lifecycle_action().is_some() {
-                    // This likely means it is being persisted
-                    continue;
-                }
+        let mut has_mub_snapshot = false;
+        let mut to_compact = Vec::new();
+        for (_, chunk) in &chunks {
+            let chunk = chunk.read();
+            if chunk.lifecycle_action().is_some() {
+                // This likely means it is being persisted
+                continue;
+            }
 
-                match chunk.storage() {
-                    ChunkStorage::OpenMutableBuffer => {
-                        if can_move(rules, &*chunk, now) {
-                            has_mub_snapshot = true;
-                            to_compact.push(chunk);
-                        }
-                    }
-                    ChunkStorage::ClosedMutableBuffer => {
+            match chunk.storage() {
+                ChunkStorage::OpenMutableBuffer => {
+                    if can_move(rules, &*chunk, now) {
                         has_mub_snapshot = true;
                         to_compact.push(chunk);
                     }
-                    ChunkStorage::ReadBuffer => {
-                        to_compact.push(chunk);
-                    }
-                    _ => {}
                 }
+                ChunkStorage::ClosedMutableBuffer => {
+                    has_mub_snapshot = true;
+                    to_compact.push(chunk);
+                }
+                ChunkStorage::ReadBuffer => {
+                    to_compact.push(chunk);
+                }
+                _ => {}
             }
+        }
 
-            if to_compact.len() >= 2 || has_mub_snapshot {
-                // Upgrade partition first
-                let partition = partition.upgrade();
-                let chunks = to_compact
-                    .into_iter()
-                    .map(|chunk| chunk.upgrade())
-                    .collect();
+        if to_compact.len() >= 2 || has_mub_snapshot {
+            // Upgrade partition first
+            let partition = partition.upgrade();
+            let chunks = to_compact
+                .into_iter()
+                .map(|chunk| chunk.upgrade())
+                .collect();
 
-                let tracker = LockablePartition::compact_chunks(partition, chunks)
-                    .expect("failed to compact chunks")
-                    .with_metadata(ChunkLifecycleAction::Compacting);
+            let tracker = LockablePartition::compact_chunks(partition, chunks)
+                .expect("failed to compact chunks")
+                .with_metadata(ChunkLifecycleAction::Compacting);
 
-                self.trackers.push(tracker);
-            }
+            self.trackers.push(tracker);
         }
     }
 
@@ -247,76 +244,74 @@ where
     /// A chunk will be persisted if it has more than `persist_row_threshold` rows
     /// or it was last written to more than `late_arrive_window_seconds` ago
     ///
+    /// Returns a boolean to indicate if it should stall compaction to allow
+    /// persistence to make progress
     fn maybe_persist_chunks<P: LockablePartition>(
         &mut self,
-        partitions: &[P],
+        partition: &P,
         rules: &LifecycleRules,
         now: DateTime<Utc>,
-    ) {
-        // TODO: Skip partitions with no PersistenceWindows (i.e. fully persisted)
+    ) -> bool {
         // TODO: Use PersistenceWindows, split chunks, etc...
 
         let row_threshold = rules.persist_row_threshold.get();
         let late_arrive_window_seconds = rules.late_arrive_window_seconds.get();
 
-        for partition in partitions {
-            let partition = partition.read();
-            let chunks = LockablePartition::chunks(&partition);
+        let partition = partition.read();
+        let chunks = LockablePartition::chunks(&partition);
 
-            // The candidate RUB chunk to persist
-            let mut persist_candidate = None;
+        // The candidate RUB chunk to persist
+        let mut persist_candidate = None;
 
-            // If there are other unpersisted chunks in the partition
-            let mut has_other_unpersisted = false;
+        // If there are other unpersisted chunks in the partition
+        let mut has_other_unpersisted = false;
 
-            for (_, chunk) in &chunks {
-                let chunk = chunk.read();
-                match chunk.storage() {
-                    ChunkStorage::ReadBuffer => {}
-                    ChunkStorage::OpenMutableBuffer | ChunkStorage::ClosedMutableBuffer => {
-                        has_other_unpersisted = true;
-                        continue;
-                    }
-                    ChunkStorage::ReadBufferAndObjectStore | ChunkStorage::ObjectStoreOnly => {
-                        continue
-                    }
-                }
-
-                if chunk.lifecycle_action().is_some() {
-                    continue;
-                }
-
-                if persist_candidate.is_some() {
-                    debug!(
-                        partition = partition.partition_key(),
-                        "found multiple read buffer chunks"
-                    );
-
+        for (_, chunk) in &chunks {
+            let chunk = chunk.read();
+            match chunk.storage() {
+                ChunkStorage::ReadBuffer => {}
+                ChunkStorage::OpenMutableBuffer | ChunkStorage::ClosedMutableBuffer => {
                     has_other_unpersisted = true;
                     continue;
                 }
-
-                persist_candidate = Some(chunk);
+                ChunkStorage::ReadBufferAndObjectStore | ChunkStorage::ObjectStoreOnly => continue,
             }
 
-            if let Some(chunk) = persist_candidate {
-                let mut should_persist = chunk.row_count() >= row_threshold;
-                if !should_persist && !has_other_unpersisted {
-                    if let Some(last_write) = chunk.time_of_last_write() {
-                        should_persist =
-                            elapsed_seconds(now, last_write) > late_arrive_window_seconds;
-                    }
-                }
+            if chunk.lifecycle_action().is_some() {
+                continue;
+            }
 
-                if should_persist {
-                    let tracker = LockableChunk::write_to_object_store(chunk.upgrade())
-                        .expect("task preparation failed")
-                        .with_metadata(ChunkLifecycleAction::Persisting);
+            if persist_candidate.is_some() {
+                debug!(
+                    partition = partition.partition_key(),
+                    "found multiple read buffer chunks"
+                );
 
-                    self.trackers.push(tracker);
+                has_other_unpersisted = true;
+                continue;
+            }
+
+            persist_candidate = Some(chunk);
+        }
+
+        if let Some(chunk) = persist_candidate {
+            let mut should_persist = chunk.row_count() >= row_threshold;
+            if !should_persist && !has_other_unpersisted {
+                if let Some(last_write) = chunk.time_of_last_write() {
+                    should_persist = elapsed_seconds(now, last_write) > late_arrive_window_seconds;
                 }
+            }
+
+            if should_persist {
+                let tracker = LockableChunk::write_to_object_store(chunk.upgrade())
+                    .expect("task preparation failed")
+                    .with_metadata(ChunkLifecycleAction::Persisting);
+
+                self.trackers.push(tracker);
             }
         }
+
+        false
     }
 
     /// Find failed lifecycle actions to cleanup
@@ -329,19 +324,17 @@ where
     ///
     /// Clear any such jobs if they exited more than `LIFECYCLE_ACTION_BACKOFF` seconds ago
     ///
-    fn maybe_cleanup_failed<P: LockablePartition>(&mut self, partitions: &[P], now: Instant) {
-        for partition in partitions {
-            let partition = partition.read();
-            for (_, chunk) in LockablePartition::chunks(&partition) {
-                let chunk = chunk.read();
-                if let Some(lifecycle_action) = chunk.lifecycle_action() {
-                    if lifecycle_action.is_complete()
-                        && now.duration_since(lifecycle_action.start_instant())
-                            >= LIFECYCLE_ACTION_BACKOFF
-                    {
-                        info!(chunk=%chunk.addr(), action=?lifecycle_action.metadata(), "clearing failed lifecycle action");
-                        chunk.upgrade().clear_lifecycle_action();
-                    }
+    fn maybe_cleanup_failed<P: LockablePartition>(&mut self, partition: &P, now: Instant) {
+        let partition = partition.read();
+        for (_, chunk) in LockablePartition::chunks(&partition) {
+            let chunk = chunk.read();
+            if let Some(lifecycle_action) = chunk.lifecycle_action() {
+                if lifecycle_action.is_complete()
+                    && now.duration_since(lifecycle_action.start_instant())
+                        >= LIFECYCLE_ACTION_BACKOFF
+                {
+                    info!(chunk=%chunk.addr(), action=?lifecycle_action.metadata(), "clearing failed lifecycle action");
+                    chunk.upgrade().clear_lifecycle_action();
                 }
             }
         }
@@ -355,23 +348,34 @@ where
         now: DateTime<Utc>,
         now_instant: Instant,
     ) -> BoxFuture<'_, ()> {
+        // Any time-consuming work should be spawned as tokio tasks and not
+        // run directly within this loop
+
         // TODO: Add loop iteration count and duration metrics
 
         let rules = self.db.rules();
         let partitions = self.db.partitions();
 
-        // Try to persist first as in future this may involve
-        // operations akin to compacting
-        //
-        // Any time-consuming work should be spawned as tokio tasks and not
-        // run directly within this loop
-        self.maybe_cleanup_failed(&partitions, now_instant);
+        for partition in &partitions {
+            self.maybe_cleanup_failed(partition, now_instant);
 
-        if rules.persist {
-            self.maybe_persist_chunks(&partitions, &rules, now);
+            // TODO: Skip partitions with no PersistenceWindows (i.e. fully persisted)
+
+            // Persistence cannot split chunks if they are currently being compacted
+            //
+            // To avoid compaction "starving" persistence we employ a heavy-handed approach
+            // of temporarily pausing compaction if the criteria for persistence have been
+            // satisfied, but persistence cannot proceed because of in-progress compactions
+            let stall_compaction = if rules.persist {
+                self.maybe_persist_chunks(partition, &rules, now)
+            } else {
+                false
+            };
+
+            if !stall_compaction {
+                self.maybe_compact_chunks(partition, &rules, now);
+            }
         }
-
-        self.maybe_compact_chunks(&partitions, &rules, now);
 
         if let Some(soft_limit) = rules.buffer_size_soft {
             self.maybe_free_memory(&partitions, soft_limit.get(), rules.drop_non_persisted)
@@ -1320,10 +1324,10 @@ mod tests {
         assert_eq!(
             *db.events.read(),
             vec![
+                MoverEvents::Compact(vec![0, 1]),
                 MoverEvents::Persist(4),
                 MoverEvents::Persist(7),
                 MoverEvents::Persist(8),
-                MoverEvents::Compact(vec![0, 1])
             ]
         );
     }
