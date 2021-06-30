@@ -423,14 +423,14 @@ impl Db {
     /// but the process may take a long time
     ///
     /// Returns a handle to the newly loaded chunk in the read buffer
-    pub async fn load_chunk_to_read_buffer(
+    pub async fn move_chunk_to_read_buffer(
         &self,
         table_name: &str,
         partition_key: &str,
         chunk_id: u32,
     ) -> Result<Arc<DbChunk>> {
         let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
-        let (_, fut) = Self::load_chunk_to_read_buffer_impl(chunk.write())?;
+        let (_, fut) = Self::move_chunk_to_read_buffer_impl(chunk.write())?;
         fut.await.context(TaskCancelled)?
     }
 
@@ -438,7 +438,7 @@ impl Db {
     ///
     /// Returns a future registered with the tracker registry, and the corresponding tracker
     /// The caller can either spawn this future to tokio, or block directly on it
-    fn load_chunk_to_read_buffer_impl(
+    fn move_chunk_to_read_buffer_impl(
         mut guard: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk<'_>>,
     ) -> Result<(
         TaskTracker<Job>,
@@ -1361,7 +1361,7 @@ mod tests {
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1143)
             .unwrap();
 
-        db.load_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
+        db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
             .await
             .unwrap();
 
@@ -1531,7 +1531,7 @@ mod tests {
             .unwrap()
             .unwrap();
         let rb_chunk = db
-            .load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
+            .move_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
             .await
             .unwrap();
 
@@ -1624,7 +1624,7 @@ mod tests {
         let mb = collect_read_filter(&mb_chunk).await;
 
         let rb_chunk = db
-            .load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
+            .move_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
             .await
             .unwrap();
 
@@ -1734,7 +1734,7 @@ mod tests {
             .unwrap();
         // Move that MB chunk to RB chunk and drop it from MB
         let rb_chunk = db
-            .load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
+            .move_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
             .await
             .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
@@ -1833,7 +1833,7 @@ mod tests {
             .unwrap();
         // Move that MB chunk to RB chunk and drop it from MB
         let rb_chunk = db
-            .load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
+            .move_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
             .await
             .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
@@ -2134,7 +2134,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        db.load_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
+        db.move_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
             .await
             .unwrap();
 
@@ -2280,7 +2280,7 @@ mod tests {
 
         print!("Partitions: {:?}", db.partition_keys().unwrap());
 
-        db.load_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
+        db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
             .await
             .unwrap();
 
@@ -2364,7 +2364,7 @@ mod tests {
         write_lp(&db, "mem foo=1 1").await;
 
         // load a chunk to the read buffer
-        db.load_chunk_to_read_buffer("cpu", "1970-01-01T00", chunk_id)
+        db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", chunk_id)
             .await
             .unwrap();
 
@@ -2552,7 +2552,7 @@ mod tests {
             .unwrap()
             .unwrap();
         let rb_chunk = db
-            .load_chunk_to_read_buffer(table_name, partition_key, mb_chunk.id())
+            .move_chunk_to_read_buffer(table_name, partition_key, mb_chunk.id())
             .await
             .unwrap();
         assert_eq!(mb_chunk.id(), rb_chunk.id());
@@ -2999,7 +2999,7 @@ mod tests {
             mb_chunk.id()
         };
         // Move that MB chunk to RB chunk and drop it from MB
-        db.load_chunk_to_read_buffer(table_name, partition_key, chunk_id)
+        db.move_chunk_to_read_buffer(table_name, partition_key, chunk_id)
             .await
             .unwrap();
 

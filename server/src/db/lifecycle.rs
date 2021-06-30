@@ -53,7 +53,7 @@ impl<'a> LockableChunk for LockableCatalogChunk<'a> {
         s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
     ) -> Result<TaskTracker<Self::Job>, Self::Error> {
         info!(chunk=%s.addr(), "move to read buffer");
-        let (tracker, fut) = Db::load_chunk_to_read_buffer_impl(s)?;
+        let (tracker, fut) = Db::move_chunk_to_read_buffer_impl(s)?;
         let _ = tokio::spawn(async move { fut.await.log_if_error("move to read buffer") });
         Ok(tracker)
     }
