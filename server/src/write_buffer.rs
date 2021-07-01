@@ -226,7 +226,7 @@ pub mod test_helpers {
         }
     }
 
-    type MoveableEntries = Arc<Mutex<Option<Vec<Result<Entry, WriteBufferError>>>>>;
+    type MoveableEntries = Arc<Mutex<Vec<Result<Entry, WriteBufferError>>>>;
     pub struct MockBufferForReading {
         entries: MoveableEntries,
     }
@@ -240,7 +240,7 @@ pub mod test_helpers {
     impl MockBufferForReading {
         pub fn new(entries: Vec<Result<Entry, WriteBufferError>>) -> Self {
             Self {
-                entries: Arc::new(Mutex::new(Some(entries))),
+                entries: Arc::new(Mutex::new(entries)),
             }
         }
     }
@@ -254,7 +254,7 @@ pub mod test_helpers {
             Self: 'async_trait,
         {
             // move the entries out of `self` to move them into the stream
-            let entries = self.entries.lock().unwrap().take().unwrap();
+            let entries: Vec<_> = self.entries.lock().unwrap().drain(..).collect();
 
             stream::iter(entries.into_iter())
                 .chain(stream::pending())
