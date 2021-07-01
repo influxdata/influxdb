@@ -213,14 +213,8 @@ async fn list_tag_values_table_and_timestamp_and_state_pred_state_col_no_rows() 
         .build();
     let expected_tag_keys = vec![];
 
-    // Ignore the compact case, until this is fixed:
-    // https://github.com/influxdata/influxdb_iox/issues/1860
-    let filter =
-        |setup: &DbScenario| setup.scenario_name != "Data in one compacted read buffer chunk";
-
     run_tag_values_test_case!(
-        //TwoMeasurementsManyNulls {},
-        FilteredSetup::new(TwoMeasurementsManyNulls {}, filter),
+        TwoMeasurementsManyNulls {},
         tag_name,
         predicate,
         expected_tag_keys
