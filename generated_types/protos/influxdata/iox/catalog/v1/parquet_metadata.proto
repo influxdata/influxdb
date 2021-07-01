@@ -1,0 +1,22 @@
+syntax = "proto3";
+package influxdata.iox.catalog.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// IOx-specific metadata that will be serialized into the file-level key-value Parquet metadata under a single key.
+message IoxMetadata {
+  // Metadata format version.
+  uint32 version = 1;
+
+  // Timestamp when this file was created.
+  google.protobuf.Timestamp creation_timestamp = 2;
+
+  // Table that holds this parquet file.
+  string table_name = 3;
+
+  // Partition key of the partition that holds this parquet file.
+  string partition_key = 4;
+
+  // Chunk ID.
+  uint32 chunk_id = 5;
+}

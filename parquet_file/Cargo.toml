@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies] # In alphabetical order
 arrow = { version = "4.0", features = ["prettyprint"] }
+base64 = "0.13"
 bytes = "1.0"
 chrono = "0.4"
 data_types = { path = "../data_types" }
@@ -24,8 +25,6 @@ parquet-format = "2.6"
 parking_lot = "0.11.1"
 prost = "0.7"
 query = { path = "../query" }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
 snafu = "0.6"
 tempfile = "3.1.0"
 thrift = "0.13"
