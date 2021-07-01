@@ -39,7 +39,6 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         idpe_path.join("source.proto"),
         catalog_path.join("catalog.proto"),
         catalog_path.join("parquet_metadata.proto"),
-        management_path.join("base_types.proto"),
         management_path.join("database_rules.proto"),
         management_path.join("chunk.proto"),
         management_path.join("partition.proto"),

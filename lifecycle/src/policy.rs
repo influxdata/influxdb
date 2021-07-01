@@ -509,7 +509,6 @@ mod tests {
     use std::sync::Arc;
 
     use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
-    use data_types::database_rules::SortOrder;
     use tracker::{RwLock, TaskId, TaskRegistration, TaskRegistry};
 
     use crate::{
@@ -836,22 +835,6 @@ mod tests {
                     partition: Arc::clone(x),
                 })
                 .collect()
-        }
-
-        fn chunks(self, _: &SortOrder) -> Vec<Self::Chunk> {
-            let mut chunks = Vec::new();
-
-            let partitions = self.partitions.read();
-            for partition in partitions.iter() {
-                let partition = partition.read();
-                for chunk in partition.chunks.values() {
-                    chunks.push(TestLockableChunk {
-                        db: self,
-                        chunk: Arc::clone(chunk),
-                    })
-                }
-            }
-            chunks
         }
     }
 

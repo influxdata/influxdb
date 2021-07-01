@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 
 use ::lifecycle::LifecycleDb;
 use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
-use data_types::database_rules::{LifecycleRules, SortOrder};
+use data_types::database_rules::LifecycleRules;
 use data_types::error::ErrorLogger;
 use data_types::job::Job;
 use data_types::partition_metadata::{InfluxDbType, TableSummary};
@@ -182,14 +182,6 @@ impl<'a> LifecycleDb for &'a Db {
                 db: self,
                 partition,
             })
-            .collect()
-    }
-
-    fn chunks(self, sort_order: &SortOrder) -> Vec<Self::Chunk> {
-        self.catalog
-            .chunks_sorted_by(sort_order)
-            .into_iter()
-            .map(|chunk| LockableCatalogChunk { db: self, chunk })
             .collect()
     }
 }

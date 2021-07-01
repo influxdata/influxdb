@@ -132,20 +132,12 @@ pub struct LifecycleRules {
     pub mutable_size_threshold: Option<NonZeroUsize>,
 
     /// Once the total amount of buffered data in memory reaches this size start
-    /// dropping data from memory based on the [`sort_order`](Self::sort_order)
+    /// dropping data from memory
     pub buffer_size_soft: Option<NonZeroUsize>,
 
     /// Once the amount of data in memory reaches this size start
     /// rejecting writes
-    ///
-    /// TODO: Implement this limit
     pub buffer_size_hard: Option<NonZeroUsize>,
-
-    /// Configure order to transition data
-    ///
-    /// In the case of multiple candidates, data will be
-    /// compacted, persisted and dropped in this order
-    pub sort_order: SortOrder,
 
     /// Allow dropping data that has not been persisted to object storage
     /// once the database size has exceeded the configured limits
@@ -189,7 +181,6 @@ impl Default for LifecycleRules {
             mutable_size_threshold: None,
             buffer_size_soft: None,
             buffer_size_hard: None,
-            sort_order: Default::default(),
             drop_non_persisted: false,
             persist: false,
             immutable: false,
@@ -205,87 +196,6 @@ impl Default for LifecycleRules {
                 .unwrap(),
         }
     }
-}
-
-/// This struct specifies the rules for the order to sort partitions
-/// from the mutable buffer. This is used to determine which order to drop them
-/// in. The last partition in the list will be dropped, until enough space has
-/// been freed up to be below the max size.
-///
-/// For example, to drop the partition that has been open longest:
-/// ```
-/// use data_types::database_rules::{SortOrder, Order, Sort};
-///
-/// let rules = SortOrder{
-///     order: Order::Desc,
-///     sort: Sort::CreatedAtTime,
-/// };
-/// ```
-#[derive(Debug, Default, Eq, PartialEq, Clone)]
-pub struct SortOrder {
-    /// Sort partitions by this order. Last will be dropped.
-    pub order: Order,
-    /// Sort by either a column value, or when the partition was opened, or when
-    /// it last received a write.
-    pub sort: Sort,
-}
-
-/// What to sort the partition by.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum Sort {
-    /// The last time the partition received a write.
-    LastWriteTime,
-    /// When the partition was opened in the mutable buffer.
-    CreatedAtTime,
-    /// A column name, its expected type, and whether to use the min or max
-    /// value. The ColumnType is necessary because the column can appear in
-    /// any number of tables and be of a different type. This specifies that
-    /// when sorting partitions, only columns with the given name and type
-    /// should be used for the purposes of determining the partition order. If a
-    /// partition doesn't have the given column in any way, the partition will
-    /// appear at the beginning of the list with a null value where all
-    /// partitions having null for that value will then be
-    /// sorted by created_at_time desc. So if none of the partitions in the
-    /// mutable buffer had this column with this type, then the partition
-    /// that was created first would appear last in the list and thus be the
-    /// first up to be dropped.
-    Column(String, ColumnType, ColumnValue),
-}
-
-impl Default for Sort {
-    fn default() -> Self {
-        Self::CreatedAtTime
-    }
-}
-
-/// The sort order.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum Order {
-    Asc,
-    Desc,
-}
-
-impl Default for Order {
-    fn default() -> Self {
-        Self::Asc
-    }
-}
-
-/// Use columns of this type.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum ColumnType {
-    I64,
-    U64,
-    F64,
-    String,
-    Bool,
-}
-
-/// Use either the min or max summary statistic.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum ColumnValue {
-    Min,
-    Max,
 }
 
 /// `PartitionTemplate` is used to compute the partition key of each row that

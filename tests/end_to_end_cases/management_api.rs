@@ -210,10 +210,6 @@ async fn test_create_get_update_database() {
         }),
         lifecycle_rules: Some(LifecycleRules {
             buffer_size_hard: 553,
-            sort_order: Some(lifecycle_rules::SortOrder {
-                order: Order::Asc as _,
-                sort: Some(lifecycle_rules::sort_order::Sort::CreatedAtTime(Empty {})),
-            }),
             catalog_transactions_until_checkpoint: 13,
             late_arrive_window_seconds: 423,
             worker_backoff_millis: 15,

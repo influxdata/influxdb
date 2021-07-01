@@ -11,7 +11,7 @@
 use chrono::{DateTime, Utc};
 
 use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
-use data_types::database_rules::{LifecycleRules, SortOrder};
+use data_types::database_rules::LifecycleRules;
 pub use guard::*;
 pub use policy::*;
 use tracker::TaskTracker;
@@ -65,12 +65,6 @@ pub trait LifecycleDb {
 
     /// Returns a list of lockable partitions in the database
     fn partitions(self) -> Vec<Self::Partition>;
-
-    /// Returns a list of lockable chunks sorted in the order
-    /// they should prioritised
-    ///
-    /// TODO: Remove this and use method on partition
-    fn chunks(self, order: &SortOrder) -> Vec<Self::Chunk>;
 }
 
 /// A `LockablePartition` is a wrapper around a `LifecyclePartition` that allows

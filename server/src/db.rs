@@ -845,7 +845,6 @@ mod tests {
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::{
         chunk_metadata::ChunkStorage,
-        database_rules::{Order, Sort, SortOrder},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     };
     use entry::test_helpers::lp_to_entry;
@@ -1854,38 +1853,6 @@ mod tests {
                 ..
             }
         ));
-    }
-
-    #[tokio::test]
-    async fn chunks_sorted_by_times() {
-        let db = Arc::new(make_db().await.db);
-        write_lp(&db, "cpu val=1 1").await;
-        write_lp(&db, "mem val=2 400000000000001").await;
-        write_lp(&db, "cpu val=1 2").await;
-        write_lp(&db, "mem val=2 400000000000002").await;
-
-        let sort_rules = SortOrder {
-            order: Order::Desc,
-            sort: Sort::LastWriteTime,
-        };
-        let chunks = db.catalog.chunks_sorted_by(&sort_rules);
-        let partitions: Vec<_> = chunks
-            .into_iter()
-            .map(|x| x.read().key().to_string())
-            .collect();
-
-        assert_eq!(partitions, vec!["1970-01-05T15", "1970-01-01T00"]);
-
-        let sort_rules = SortOrder {
-            order: Order::Asc,
-            sort: Sort::CreatedAtTime,
-        };
-        let chunks = db.catalog.chunks_sorted_by(&sort_rules);
-        let partitions: Vec<_> = chunks
-            .into_iter()
-            .map(|x| x.read().key().to_string())
-            .collect();
-        assert_eq!(partitions, vec!["1970-01-01T00", "1970-01-05T15"]);
     }
 
     #[tokio::test]
