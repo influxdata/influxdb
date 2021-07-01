@@ -32,8 +32,8 @@ func NewDumpTSMCommand() *cobra.Command {
 				cmd.PrintErrf("TSM File not specified\n")
 				return nil
 			}
-			arguments.dumpBlocks = arguments.dumpBlocks || arguments.dumpAll || arguments.filterKey != ""
-			arguments.dumpIndex = arguments.dumpIndex || arguments.dumpAll || arguments.filterKey != ""
+			arguments.dumpBlocks = arguments.dumpBlocks || arguments.dumpAll
+			arguments.dumpIndex = arguments.dumpIndex || arguments.dumpAll
 			return dumpTSM(cmd, arguments)
 		},
 	}
@@ -173,7 +173,6 @@ func dumpIndex(cmd *cobra.Command, args args, info dumpIndexParams) {
 			pos++
 			split := strings.Split(string(key), "#!~#")
 
-			// Possible corruption? Try to read as much as we can and point to the problem.
 			measurement := split[0]
 			field := split[1]
 
