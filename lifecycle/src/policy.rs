@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 
 use data_types::chunk_metadata::ChunkStorage;
-use data_types::database_rules::LifecycleRules;
+use data_types::database_rules::{LifecycleRules, DEFAULT_MUB_ROW_THRESHOLD};
 use observability_deps::tracing::{debug, info, warn};
 use tracker::TaskTracker;
 
@@ -465,9 +465,9 @@ fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<
             }
         }
 
-        // Disable movement if no mutable_linger set,
-        // or the chunk is empty, or the linger hasn't expired
-        _ => false,
+        // Move it if over the row count threshold or don't move since it's either empty or the linger time hasn't expired.
+        // TODO: make this a configuration variable
+        _ => chunk.row_count() >= DEFAULT_MUB_ROW_THRESHOLD,
     }
 }
 
