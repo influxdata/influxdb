@@ -11,6 +11,7 @@ v1.9.3 [unreleased]
 -	[#21697](https://github.com/influxdata/influxdb/pull/21697): fix: do not panic on cleaning up failed iterators
 -	[#21751](https://github.com/influxdata/influxdb/pull/21751): fix: rename arm rpms with yum-compatible names
 -	[#21764](https://github.com/influxdata/influxdb/pull/21764): fix: do not send non-UTF-8 characters to subscriptions
+-	[#21776](https://github.com/influxdata/influxdb/pull/21776): fix: convert arm arch names for rpms during builds via docker
 
 v1.9.2 [unreleased]
 
