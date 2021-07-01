@@ -3,6 +3,7 @@ use std::{pin::Pin, sync::Arc};
 
 use futures::Stream;
 use observability_deps::tracing::{info, warn};
+use query::exec::ExecutorType;
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tonic::{Interceptor, Request, Response, Streaming};
@@ -181,8 +182,7 @@ where
 
         // execute the query
         let results = executor
-            .new_context()
-            .collect(Arc::clone(&physical_plan))
+            .collect(Arc::clone(&physical_plan), ExecutorType::Query)
             .await
             .map_err(|e| Box::new(e) as _)
             .context(Query {

@@ -18,7 +18,7 @@ use data_types::{
 };
 use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
-use query::QueryDatabase;
+use query::{exec::ExecutorType, QueryDatabase};
 use server::{ConnectionManager, Server as AppServer};
 
 // External crates
@@ -631,7 +631,7 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     // TODO: stream read results out rather than rendering the
     // whole thing in mem
     let batches = executor
-        .collect(physical_plan)
+        .collect(physical_plan, ExecutorType::Query)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(Query { db_name })?;
@@ -1340,6 +1340,9 @@ mod tests {
             .await
             .unwrap();
 
-        executor.collect(physical_plan).await.unwrap()
+        executor
+            .collect(physical_plan, ExecutorType::Query)
+            .await
+            .unwrap()
     }
 }

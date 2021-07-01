@@ -858,7 +858,7 @@ mod tests {
         metadata::IoxParquetMetaData,
         test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
-    use query::{frontend::sql::SqlQueryPlanner, QueryChunk, QueryDatabase};
+    use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryChunk, QueryDatabase};
 
     use crate::{
         db::{
@@ -2240,7 +2240,10 @@ mod tests {
 
         let physical_plan = planner.query(db, query, &executor).unwrap();
 
-        executor.collect(physical_plan).await.unwrap()
+        executor
+            .collect(physical_plan, ExecutorType::Query)
+            .await
+            .unwrap()
     }
 
     fn mutable_chunk_ids(db: &Db, partition_key: &str) -> Vec<u32> {

@@ -2,7 +2,10 @@ use arrow::datatypes::DataType;
 use arrow_util::assert_batches_eq;
 use datafusion::logical_plan::{col, lit};
 use query::{
-    exec::fieldlist::{Field, FieldList},
+    exec::{
+        fieldlist::{Field, FieldList},
+        ExecutorType,
+    },
     frontend::influxrpc::InfluxRpcPlanner,
     predicate::PredicateBuilder,
 };
@@ -140,7 +143,7 @@ async fn test_field_name_plan() {
         // expected (specifically that the column ordering is correct)
         let results = db
             .executor()
-            .run_logical_plan(plan)
+            .run_logical_plan(plan, ExecutorType::Query)
             .await
             .expect("ok running plan");
 

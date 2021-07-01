@@ -5,7 +5,7 @@ use data_types::job::Job;
 use futures::StreamExt;
 
 use observability_deps::tracing::{debug, info};
-use query::{frontend::reorg::ReorgPlanner, QueryChunkMeta};
+use query::{exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
 use read_buffer::{ChunkMetrics as ReadBufferChunkMetrics, RBChunk};
 use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
@@ -53,7 +53,7 @@ pub fn move_chunk_to_read_buffer(
         ReadBufferChunkMetrics::new(&metrics, db.catalog.metrics().memory().read_buffer()),
     );
 
-    let ctx = db.exec.new_context();
+    let ctx = db.exec.new_context(ExecutorType::Reorg);
 
     let fut = async move {
         info!(chunk=%addr, "chunk marked MOVING, loading tables into read buffer");

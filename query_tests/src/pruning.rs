@@ -4,7 +4,7 @@ use std::sync::Arc;
 use arrow_util::assert_batches_sorted_eq;
 use datafusion::logical_plan::{col, lit};
 use query::{
-    exec::stringset::StringSet,
+    exec::{stringset::StringSet, ExecutorType},
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
     predicate::PredicateBuilder,
     QueryChunk,
@@ -74,7 +74,10 @@ async fn chunk_pruning_sql() {
     let physical_plan = SqlQueryPlanner::default()
         .query(db, query, &executor)
         .unwrap();
-    let batches = executor.collect(physical_plan).await.unwrap();
+    let batches = executor
+        .collect(physical_plan, ExecutorType::Query)
+        .await
+        .unwrap();
 
     assert_batches_sorted_eq!(&expected, &batches);
 

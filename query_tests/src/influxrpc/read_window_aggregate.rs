@@ -7,6 +7,7 @@ use arrow::util::pretty::pretty_format_batches;
 use async_trait::async_trait;
 use datafusion::prelude::*;
 use query::{
+    exec::ExecutorType,
     frontend::influxrpc::InfluxRpcPlanner,
     group_by::{Aggregate, WindowDuration},
     predicate::{Predicate, PredicateBuilder},
@@ -40,7 +41,7 @@ macro_rules! run_read_window_aggregate_test_case {
             for plan in plans.into_iter() {
                 let batches = db
                     .executor()
-                    .run_logical_plan(plan.plan)
+                    .run_logical_plan(plan.plan, ExecutorType::Query)
                     .await
                     .expect("ok running plan");
 

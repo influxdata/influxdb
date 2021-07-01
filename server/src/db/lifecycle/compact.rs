@@ -7,6 +7,7 @@ use futures::StreamExt;
 
 use data_types::job::Job;
 use lifecycle::LifecycleWriteGuard;
+use query::exec::ExecutorType;
 use query::frontend::reorg::ReorgPlanner;
 use query::QueryChunkMeta;
 use read_buffer::{ChunkMetrics, RBChunk};
@@ -67,7 +68,7 @@ pub(crate) fn compact_chunks(
         ChunkMetrics::new(&metrics, db.catalog.metrics().memory().read_buffer()),
     );
 
-    let ctx = db.exec.new_context();
+    let ctx = db.exec.new_context(ExecutorType::Reorg);
 
     let fut = async move {
         let key = compute_sort_key(query_chunks.iter().map(|x| x.summary()));

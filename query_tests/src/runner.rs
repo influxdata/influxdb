@@ -4,7 +4,7 @@ mod parse;
 mod setup;
 
 use arrow::record_batch::RecordBatch;
-use query::frontend::sql::SqlQueryPlanner;
+use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner};
 use snafu::{ResultExt, Snafu};
 use std::{
     io::BufWriter,
@@ -250,8 +250,10 @@ impl<W: Write> Runner<W> {
                 .query(db, &sql, executor.as_ref())
                 .expect("built plan successfully");
 
-            let results: Vec<RecordBatch> =
-                executor.collect(physical_plan).await.expect("Running plan");
+            let results: Vec<RecordBatch> = executor
+                .collect(physical_plan, ExecutorType::Query)
+                .await
+                .expect("Running plan");
 
             let current_results = arrow::util::pretty::pretty_format_batches(&results)
                 .unwrap()

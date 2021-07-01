@@ -1110,6 +1110,7 @@ mod tests {
         time::{Duration, Instant},
     };
 
+    use arrow::record_batch::RecordBatch;
     use async_trait::async_trait;
     use bytes::Bytes;
     use futures::TryStreamExt;
@@ -1126,7 +1127,7 @@ mod tests {
     use influxdb_line_protocol::parse_lines;
     use metrics::MetricRegistry;
     use object_store::{memory::InMemory, path::ObjectStorePath};
-    use query::{frontend::sql::SqlQueryPlanner, QueryDatabase};
+    use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryDatabase};
 
     use super::*;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -1398,14 +1399,8 @@ mod tests {
 
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).unwrap();
+        let batches = run_query(db, "select * from cpu").await;
 
-        let planner = SqlQueryPlanner::default();
-        let executor = server.executor();
-        let physical_plan = planner
-            .query(db, "select * from cpu", executor.as_ref())
-            .unwrap();
-
-        let batches = executor.collect(physical_plan).await.unwrap();
         let expected = vec![
             "+-----+-------------------------------+",
             "| bar | time                          |",
@@ -1449,13 +1444,7 @@ mod tests {
             .await
             .expect("write entry");
 
-        let planner = SqlQueryPlanner::default();
-        let executor = server.executor();
-        let physical_plan = planner
-            .query(db, "select * from cpu", executor.as_ref())
-            .unwrap();
-
-        let batches = executor.collect(physical_plan).await.unwrap();
+        let batches = run_query(db, "select * from cpu").await;
         let expected = vec![
             "+-----+-------------------------------+",
             "| bar | time                          |",
@@ -2175,5 +2164,18 @@ mod tests {
         // creating database will now result in an error
         let err = create_simple_database(&server, db_name).await.unwrap_err();
         assert!(matches!(err, Error::CannotCreatePreservedCatalog { .. }));
+    }
+
+    // run a sql query against the database, returning the results as record batches
+    async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
+        let planner = SqlQueryPlanner::default();
+        let executor = db.executor();
+
+        let physical_plan = planner.query(db, query, &executor).unwrap();
+
+        executor
+            .collect(physical_plan, ExecutorType::Query)
+            .await
+            .unwrap()
     }
 }
