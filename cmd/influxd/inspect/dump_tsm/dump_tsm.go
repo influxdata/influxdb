@@ -112,6 +112,9 @@ func dumpTSM(cmd *cobra.Command, args args) error {
 		f:          f,
 		r:          r,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to decode block in tsm1 file: %w", err)
+	}
 
 	// Flush the printer to display all block details
 	if args.dumpBlocks {
