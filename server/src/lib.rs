@@ -73,7 +73,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
-use db::{load::create_preserved_catalog, DatabaseToCommit};
+use config::DatabaseStateCode;
+use db::load::create_preserved_catalog;
 use init::InitStatus;
 use observability_deps::tracing::{debug, info, warn};
 use parking_lot::Mutex;
@@ -161,8 +162,11 @@ pub enum Error {
     #[snafu(display("store error: {}", source))]
     StoreError { source: object_store::Error },
 
-    #[snafu(display("database already exists"))]
+    #[snafu(display("database already exists: {}", db_name))]
     DatabaseAlreadyExists { db_name: String },
+
+    #[snafu(display("database currently reserved: {}", db_name))]
+    DatabaseReserved { db_name: String },
 
     #[snafu(display("no rules loaded for database: {}", db_name))]
     NoRulesLoaded { db_name: String },
@@ -210,6 +214,19 @@ pub enum Error {
 
     #[snafu(display("cannot create write buffer for writing: {}", source))]
     CreatingWriteBufferForWriting { source: DatabaseError },
+
+    #[snafu(display(
+        "Invalid database state transition, expected {:?} but got {:?}",
+        expected,
+        actual
+    ))]
+    InvalidDatabaseStateTransition {
+        actual: DatabaseStateCode,
+        expected: DatabaseStateCode,
+    },
+
+    #[snafu(display("server is shutting down"))]
+    ServerShuttingDown,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -487,9 +504,17 @@ where
         let server_id = self.require_initialized()?;
 
         // Reserve name before expensive IO (e.g. loading the preserved catalog)
-        let db_reservation = self.config.create_db(rules.name.clone())?;
-        self.persist_database_rules(rules.clone()).await?;
+        let mut db_reservation = self.config.create_db(
+            Arc::clone(&self.store),
+            Arc::clone(&self.exec),
+            server_id,
+            rules.name.clone(),
+        )?;
 
+        // register rules
+        db_reservation.advance_rules_loaded(rules.clone())?;
+
+        // load preserved catalog
         let (preserved_catalog, catalog) = create_preserved_catalog(
             rules.db_name(),
             Arc::clone(&self.store),
@@ -499,21 +524,13 @@ where
         .await
         .map_err(|e| Box::new(e) as _)
         .context(CannotCreatePreservedCatalog)?;
-
         let write_buffer = write_buffer::new(&rules)
             .map_err(|e| Error::CreatingWriteBufferForWriting { source: e })?;
+        db_reservation.advance_init(preserved_catalog, catalog, write_buffer)?;
 
-        let database_to_commit = DatabaseToCommit {
-            server_id,
-            object_store: Arc::clone(&self.store),
-            exec: Arc::clone(&self.exec),
-            preserved_catalog,
-            catalog,
-            rules,
-            write_buffer,
-        };
-
-        db_reservation.commit_db(database_to_commit)?;
+        // ready to commit
+        self.persist_database_rules(rules.clone()).await?;
+        db_reservation.commit();
 
         Ok(())
     }
@@ -854,18 +871,11 @@ where
         });
         let object_store = Arc::clone(&self.store);
         let config = Arc::clone(&self.config);
-        let exec = Arc::clone(&self.exec);
         let server_id = self.require_id()?;
         let init_status = Arc::clone(&self.init_status);
         let task = async move {
             init_status
-                .wipe_preserved_catalog_and_maybe_recover(
-                    object_store,
-                    config,
-                    exec,
-                    server_id,
-                    db_name,
-                )
+                .wipe_preserved_catalog_and_maybe_recover(object_store, config, server_id, db_name)
                 .await
         };
         tokio::spawn(task.track(registration));
@@ -1918,7 +1928,7 @@ mod tests {
 
         // creating failed DBs does not work
         let err = create_simple_database(&server, "bar").await.unwrap_err();
-        assert_eq!(err.to_string(), "database already exists");
+        assert_eq!(err.to_string(), "database already exists: bar");
     }
 
     #[tokio::test]
@@ -2015,7 +2025,7 @@ mod tests {
                 .wipe_preserved_catalog(db_name_existing.clone())
                 .unwrap_err()
                 .to_string(),
-            "database already exists"
+            "database already exists: db_existing"
         );
         assert!(PreservedCatalog::exists(
             &server.store,
@@ -2112,7 +2122,7 @@ mod tests {
                 .wipe_preserved_catalog(db_name_created.clone())
                 .unwrap_err()
                 .to_string(),
-            "database already exists"
+            "database already exists: db_created"
         );
         assert!(PreservedCatalog::exists(
             &server.store,
