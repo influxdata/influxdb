@@ -22,7 +22,7 @@ macro_rules! run_table_names_test_case {
             let planner = InfluxRpcPlanner::new();
 
             let plan = planner
-                .table_names(&db, predicate.clone())
+                .table_names(db.as_ref(), predicate.clone())
                 .expect("built plan successfully");
             let names = db
                 .executor()

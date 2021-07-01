@@ -33,12 +33,12 @@ use super::error::{
 /// Returns a future registered with the tracker registry, and the corresponding tracker
 /// The caller can either spawn this future to tokio, or block directly on it
 pub fn write_chunk_to_object_store(
-    mut guard: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk<'_>>,
+    mut guard: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>,
 ) -> Result<(
     TaskTracker<Job>,
     TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
 )> {
-    let db = guard.data().db;
+    let db = Arc::clone(&guard.data().db);
     let addr = guard.addr().clone();
 
     // TODO: Use ChunkAddr within Job
@@ -63,11 +63,6 @@ pub fn write_chunk_to_object_store(
         .lifecycle_rules
         .catalog_transactions_until_checkpoint
         .get();
-
-    let preserved_catalog = Arc::clone(&db.preserved_catalog);
-    let catalog = Arc::clone(&db.catalog);
-    let object_store = Arc::clone(&db.store);
-    let cleanup_lock = Arc::clone(&db.cleanup_lock);
 
     // Drop locks
     let chunk = guard.unwrap().chunk;
@@ -106,7 +101,7 @@ pub fn write_chunk_to_object_store(
         // catalog-level transaction for preservation layer
         {
             // fetch shared (= read) guard preventing the cleanup job from deleting our files
-            let _guard = cleanup_lock.read().await;
+            let _guard = db.cleanup_lock.read().await;
 
             // Write this table data into the object store
             //
@@ -124,14 +119,16 @@ pub fn write_chunk_to_object_store(
                 .context(WritingToObjectStore)?;
             let parquet_metadata = Arc::new(parquet_metadata);
 
-            let metrics = catalog
+            let metrics = db
+                .catalog
                 .metrics_registry
-                .register_domain_with_labels("parquet", catalog.metric_labels.clone());
-            let metrics = ParquetChunkMetrics::new(&metrics, catalog.metrics().memory().parquet());
+                .register_domain_with_labels("parquet", db.catalog.metric_labels.clone());
+            let metrics =
+                ParquetChunkMetrics::new(&metrics, db.catalog.metrics().memory().parquet());
             let parquet_chunk = Arc::new(
                 ParquetChunk::new(
                     path.clone(),
-                    object_store,
+                    Arc::clone(&db.store),
                     Arc::clone(&parquet_metadata),
                     metrics,
                 )
@@ -144,7 +141,7 @@ pub fn write_chunk_to_object_store(
             //            transaction lock (that is part of the PreservedCatalog) for too long. By using the
             //            cleanup lock (see above) it is ensured that the file that we have written is not deleted
             //            in between.
-            let mut transaction = preserved_catalog.open_transaction().await;
+            let mut transaction = db.preserved_catalog.open_transaction().await;
             transaction
                 .add_parquet(&path, &parquet_metadata)
                 .context(TransactionError)?;
@@ -169,7 +166,7 @@ pub fn write_chunk_to_object_store(
                 //       transaction lock. Therefore we don't need to worry about concurrent modifications of
                 //       preserved chunks.
                 if let Err(e) = ckpt_handle
-                    .create_checkpoint(checkpoint_data_from_catalog(&catalog))
+                    .create_checkpoint(checkpoint_data_from_catalog(&db.catalog))
                     .await
                 {
                     warn!(%e, "cannot create catalog checkpoint");

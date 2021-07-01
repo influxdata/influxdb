@@ -10,7 +10,6 @@ use std::{
     io::BufWriter,
     io::Write,
     path::{Path, PathBuf},
-    sync::Arc,
 };
 
 use self::{parse::TestQueries, setup::TestSetup};
@@ -239,7 +238,6 @@ impl<W: Write> Runner<W> {
             let DbScenario {
                 scenario_name, db, ..
             } = scenario;
-            let db = Arc::new(db);
 
             writeln!(self.log, "Running scenario '{}'", scenario_name)?;
             writeln!(self.log, "SQL: '{:#?}'", sql)?;

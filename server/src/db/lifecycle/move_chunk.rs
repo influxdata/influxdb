@@ -17,12 +17,12 @@ use super::{error::Result, LockableCatalogChunk};
 /// Returns a future registered with the tracker registry, and the corresponding tracker
 /// The caller can either spawn this future to tokio, or block directly on it
 pub fn move_chunk_to_read_buffer(
-    mut guard: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk<'_>>,
+    mut guard: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>,
 ) -> Result<(
     TaskTracker<Job>,
     TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
 )> {
-    let db = guard.data().db;
+    let db = Arc::clone(&guard.data().db);
     let addr = guard.addr().clone();
     // TODO: Use ChunkAddr within Job
     let (tracker, registration) = db.jobs.register(Job::CloseChunk {
