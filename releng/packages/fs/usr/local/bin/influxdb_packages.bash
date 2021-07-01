@@ -114,6 +114,13 @@ elif [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
   if [ "$OS" == "linux" ] ; then
     # Call fpm to build .deb and .rpm packages.
     for typeargs in "-t deb" "-t rpm --depends coreutils --depends shadow-utils"; do
+      ARCH_CONVERTED=$ARCH
+      pkg_t=$(echo $typeargs | cut -d ' ' -f2)
+      if [ "$pkg_t" == "rpm" ] && [ $"$ARCH" == "armhf" ]; then
+        ARCH_CONVERTED="armv7hl"
+      elif [ "$pkg_t" == "rpm" ] && [ $"$ARCH" == "arm64" ]; then
+        ARCH_CONVERTED="aarch64"
+      fi
       FPM_NAME=$(
       fpm \
         -s dir \
@@ -134,7 +141,7 @@ elif [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
         --config-files /etc/influxdb/influxdb.conf \
         --config-files /etc/logrotate.d/influxdb \
         --name "influxdb" \
-        --architecture "$ARCH" \
+        --architecture "$ARCH_CONVERTED" \
         --version "$VERSION" \
         --iteration 1 \
         -C "$PKG_ROOT" \
