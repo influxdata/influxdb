@@ -19,4 +19,38 @@ message IoxMetadata {
 
   // Chunk ID.
   uint32 chunk_id = 5;
+
+  // Partition checkpoint with pre-split data for the in this file.
+  PartitionCheckpoint partition_checkpoint = 6;
+
+  // Database checkpoint created at the time of the write.
+  DatabaseCheckpoint database_checkpoint = 7;
+}
+
+// Partition checkpoint.
+//
+// Note that a partition checkpoint belongs to a single partition (via table name and partition key). Since this
+// checkpoint is usually serialized as part of `IoxMetadata`, the partition information is NOT repeated as part of this
+// message.
+message PartitionCheckpoint {
+  // Maps sequencer_id to the minimum and maximum sequence numbers seen.
+  map<uint32, MinMaxSequence> sequencer_numbers = 1;
+
+  // Minimum unpersisted timestamp.
+  google.protobuf.Timestamp min_unpersisted_timestamp = 2;
+}
+
+// Record of the playback state for the whole database.
+//
+// This effectively contains the minimum sequence numbers over the whole database that are the starting point for
+// replay.
+message DatabaseCheckpoint {
+  // Maps `sequencer_id` to the minimum sequence numbers seen.
+  map<uint32, uint64> min_sequencer_numbers = 1;
+}
+
+// The minimum and maximum sequence numbers seen for a given sequencer.
+message MinMaxSequence {
+  uint64 min = 1;
+  uint64 max = 2;
 }

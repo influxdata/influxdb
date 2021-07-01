@@ -13,6 +13,9 @@ use chrono::Utc;
 use data_types::job::Job;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use internal_types::selection::Selection;
+use mutable_buffer::checkpoint::{
+    DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder,
+};
 use object_store::path::parsed::DirsAndFileName;
 use observability_deps::tracing::{debug, warn};
 use parquet_file::{
@@ -21,7 +24,7 @@ use parquet_file::{
     storage::Storage,
 };
 use snafu::ResultExt;
-use std::{future::Future, sync::Arc};
+use std::{collections::BTreeMap, future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 use super::error::{
@@ -107,11 +110,15 @@ pub fn write_chunk_to_object_store(
             //
             // IMPORTANT: Writing must take place while holding the cleanup lock, otherwise the file might be deleted
             //            between creation and the transaction commit.
+            let (partition_checkpoint, database_checkpoint) =
+                fake_partition_and_database_checkpoint(&addr.table_name, &addr.partition_key);
             let metadata = IoxMetadata {
                 creation_timestamp: Utc::now(),
                 table_name: addr.table_name.to_string(),
                 partition_key: addr.partition_key.to_string(),
                 chunk_id: addr.chunk_id,
+                partition_checkpoint,
+                database_checkpoint,
             };
             let (path, parquet_metadata) = storage
                 .write_to_object_store(addr, stream, metadata)
@@ -183,4 +190,24 @@ pub fn write_chunk_to_object_store(
     };
 
     Ok((tracker, fut.track(registration)))
+}
+
+/// Fake until we have the split implementation in-place.
+fn fake_partition_and_database_checkpoint(
+    table_name: &str,
+    partition_key: &str,
+) -> (PartitionCheckpoint, DatabaseCheckpoint) {
+    // create partition checkpoint
+    let sequencer_numbers = BTreeMap::new();
+    let min_unpersisted_timestamp = Utc::now();
+    let partition_checkpoint = PartitionCheckpoint::new(
+        table_name.to_string(),
+        partition_key.to_string(),
+        sequencer_numbers,
+        min_unpersisted_timestamp,
+    );
+
+    // build database checkpoint
+    let builder = PersistCheckpointBuilder::new(partition_checkpoint);
+    builder.build()
 }
