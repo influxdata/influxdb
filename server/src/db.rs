@@ -1109,7 +1109,13 @@ mod tests {
 
         // verify chunk size updated (chunk moved from closing to moving to moved)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0).unwrap();
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1486).unwrap();
+        let expected_read_buffer_size = 1484;
+        catalog_chunk_size_bytes_metric_eq(
+            &test_db.metric_registry,
+            "read_buffer",
+            expected_read_buffer_size,
+        )
+        .unwrap();
 
         db.write_chunk_to_object_store("cpu", "1970-01-01T00", 0)
             .await
@@ -1129,7 +1135,12 @@ mod tests {
             .unwrap();
 
         let expected_parquet_size = 663;
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1486).unwrap();
+        catalog_chunk_size_bytes_metric_eq(
+            &test_db.metric_registry,
+            "read_buffer",
+            expected_read_buffer_size,
+        )
+        .unwrap();
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
@@ -1425,7 +1436,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3035.0)
+            .sample_sum_eq(3042.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk).await;

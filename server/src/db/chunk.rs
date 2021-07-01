@@ -211,13 +211,12 @@ impl QueryChunk for DbChunk {
     }
 
     fn may_contain_pk_duplicates(&self) -> bool {
-        // TODO: once merging is implemented
-
-        // Assume that the MUB can contain duplicates as it has the
-        // raw incoming stream of writes, but that all other types of
-        // chunks are deduplicated as part of creation
-        //!matches!(self.state, State::ReadBuffer { .. })
-        true
+        // Assume that only data in the MUB can contain duplicates
+        // within itself as it has the raw incoming stream of writes.
+        //
+        // All other types of chunks are deduplicated as part of
+        // of the reorganization plan run as part of their creation
+        matches!(self.state, State::MutableBuffer { .. })
     }
 
     fn apply_predicate_to_metadata(&self, predicate: &Predicate) -> Result<PredicateMatch> {
