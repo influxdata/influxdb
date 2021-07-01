@@ -218,6 +218,7 @@ async fn test_create_get_update_database() {
             late_arrive_window_seconds: 423,
             worker_backoff_millis: 15,
             persist_row_threshold: 342,
+            persist_age_threshold_seconds: 700,
             ..Default::default()
         }),
         routing_rules: None,

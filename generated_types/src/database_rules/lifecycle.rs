@@ -3,8 +3,8 @@ use std::num::{NonZeroU32, NonZeroU64, NonZeroUsize};
 
 use data_types::database_rules::{
     LifecycleRules, Sort, SortOrder, DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT,
-    DEFAULT_LATE_ARRIVE_WINDOW_SECONDS, DEFAULT_PERSIST_ROW_THRESHOLD,
-    DEFAULT_WORKER_BACKOFF_MILLIS,
+    DEFAULT_LATE_ARRIVE_WINDOW_SECONDS, DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS,
+    DEFAULT_PERSIST_ROW_THRESHOLD, DEFAULT_WORKER_BACKOFF_MILLIS,
 };
 
 use crate::google::protobuf::Empty;
@@ -44,6 +44,7 @@ impl From<LifecycleRules> for management::LifecycleRules {
                 .get(),
             late_arrive_window_seconds: config.late_arrive_window_seconds.get(),
             persist_row_threshold: config.persist_row_threshold.get() as u64,
+            persist_age_threshold_seconds: config.persist_age_threshold_seconds.get(),
         }
     }
 }
@@ -76,6 +77,8 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
                 .unwrap_or_else(|| {
                     NonZeroUsize::new(DEFAULT_PERSIST_ROW_THRESHOLD as usize).unwrap()
                 }),
+            persist_age_threshold_seconds: NonZeroU32::new(proto.persist_age_threshold_seconds)
+                .unwrap_or_else(|| NonZeroU32::new(DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS).unwrap()),
         })
     }
 }
@@ -167,6 +170,7 @@ mod tests {
             catalog_transactions_until_checkpoint: 10,
             late_arrive_window_seconds: 23,
             persist_row_threshold: 57,
+            persist_age_threshold_seconds: 23,
         };
 
         let config: LifecycleRules = protobuf.clone().try_into().unwrap();
@@ -212,6 +216,10 @@ mod tests {
             protobuf.late_arrive_window_seconds
         );
         assert_eq!(back.persist_row_threshold, protobuf.persist_row_threshold);
+        assert_eq!(
+            back.persist_age_threshold_seconds,
+            protobuf.persist_age_threshold_seconds
+        );
     }
 
     #[test]

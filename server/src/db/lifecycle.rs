@@ -18,7 +18,17 @@ use crate::db::catalog::chunk::CatalogChunk;
 use crate::db::catalog::partition::Partition;
 use crate::Db;
 
+pub(crate) use compact::compact_chunks;
+pub(crate) use error::{Error, Result};
+pub(crate) use move_chunk::move_chunk_to_read_buffer;
+pub(crate) use unload::unload_read_buffer_chunk;
+pub(crate) use write::write_chunk_to_object_store;
+
 mod compact;
+mod error;
+mod move_chunk;
+mod unload;
+mod write;
 
 ///
 /// A `LockableCatalogChunk` combines a `CatalogChunk` with its owning `Db`
@@ -38,8 +48,7 @@ impl<'a> LockableChunk for LockableCatalogChunk<'a> {
 
     type Job = Job;
 
-    // TODO: Separate error enumeration for lifecycle actions - db::Error is large
-    type Error = super::Error;
+    type Error = Error;
 
     fn read(&self) -> LifecycleReadGuard<'_, Self::Chunk, Self> {
         LifecycleReadGuard::new(self.clone(), self.chunk.as_ref())
@@ -53,7 +62,7 @@ impl<'a> LockableChunk for LockableCatalogChunk<'a> {
         s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
     ) -> Result<TaskTracker<Self::Job>, Self::Error> {
         info!(chunk=%s.addr(), "move to read buffer");
-        let (tracker, fut) = Db::load_chunk_to_read_buffer_impl(s)?;
+        let (tracker, fut) = move_chunk::move_chunk_to_read_buffer(s)?;
         let _ = tokio::spawn(async move { fut.await.log_if_error("move to read buffer") });
         Ok(tracker)
     }
@@ -62,7 +71,7 @@ impl<'a> LockableChunk for LockableCatalogChunk<'a> {
         s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
     ) -> Result<TaskTracker<Self::Job>, Self::Error> {
         info!(chunk=%s.addr(), "writing to object store");
-        let (tracker, fut) = Db::write_chunk_to_object_store_impl(s)?;
+        let (tracker, fut) = write::write_chunk_to_object_store(s)?;
         let _ = tokio::spawn(async move { fut.await.log_if_error("writing to object store") });
         Ok(tracker)
     }
@@ -72,7 +81,7 @@ impl<'a> LockableChunk for LockableCatalogChunk<'a> {
     ) -> Result<(), Self::Error> {
         info!(chunk=%s.addr(), "unloading from readbuffer");
 
-        let _ = Db::unload_read_buffer_impl(s)?;
+        let _ = self::unload::unload_read_buffer_chunk(s)?;
         Ok(())
     }
 }
@@ -95,9 +104,7 @@ impl<'a> LockablePartition for LockableCatalogPartition<'a> {
 
     type Chunk = LockableCatalogChunk<'a>;
 
-    type DropError = super::catalog::partition::Error;
-
-    type CompactError = super::lifecycle::compact::Error;
+    type Error = super::lifecycle::Error;
 
     fn read(&self) -> LifecycleReadGuard<'_, Self::Partition, Self> {
         LifecycleReadGuard::new(self.clone(), self.partition.as_ref())
@@ -135,7 +142,7 @@ impl<'a> LockablePartition for LockableCatalogPartition<'a> {
     fn compact_chunks(
         partition: LifecycleWriteGuard<'_, Self::Partition, Self>,
         chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, Self::Chunk>>,
-    ) -> Result<TaskTracker<Job>, Self::CompactError> {
+    ) -> Result<TaskTracker<Job>, Self::Error> {
         info!(table=%partition.table_name(), partition=%partition.partition_key(), "compacting chunks");
         let (tracker, fut) = compact::compact_chunks(partition, chunks)?;
         let _ = tokio::spawn(async move { fut.await.log_if_error("compacting chunks") });
@@ -145,7 +152,7 @@ impl<'a> LockablePartition for LockableCatalogPartition<'a> {
     fn drop_chunk(
         mut s: LifecycleWriteGuard<'_, Self::Partition, Self>,
         chunk_id: u32,
-    ) -> Result<(), Self::DropError> {
+    ) -> Result<(), Self::Error> {
         s.drop_chunk(chunk_id)?;
         Ok(())
     }

@@ -111,7 +111,7 @@ impl DbSetup for NoData {
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
         // Now load the closed chunk into the RB
-        db.load_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
         assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
@@ -149,7 +149,7 @@ impl DbSetup for NoData {
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
         // Now load the closed chunk into the RB
-        db.load_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
         assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
@@ -348,7 +348,7 @@ impl DbSetup for TwoMeasurementsManyFieldsTwoChunks {
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.load_chunk_to_read_buffer("h2o", partition_key, 0)
+        db.move_chunk_to_read_buffer("h2o", partition_key, 0)
             .await
             .unwrap();
 
@@ -383,7 +383,7 @@ impl DbSetup for OneMeasurementTwoChunksDifferentTagSet {
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.load_chunk_to_read_buffer("h2o", partition_key, 0)
+        db.move_chunk_to_read_buffer("h2o", partition_key, 0)
             .await
             .unwrap();
 
@@ -394,7 +394,7 @@ impl DbSetup for OneMeasurementTwoChunksDifferentTagSet {
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.load_chunk_to_read_buffer("h2o", partition_key, 1)
+        db.move_chunk_to_read_buffer("h2o", partition_key, 1)
             .await
             .unwrap();
 
@@ -426,7 +426,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.load_chunk_to_read_buffer("h2o", partition_key, 0)
+        db.move_chunk_to_read_buffer("h2o", partition_key, 0)
             .await
             .unwrap();
 
@@ -443,7 +443,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.load_chunk_to_read_buffer("h2o", partition_key, 1)
+        db.move_chunk_to_read_buffer("h2o", partition_key, 1)
             .await
             .unwrap();
 
@@ -460,7 +460,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.load_chunk_to_read_buffer("h2o", partition_key, 2)
+        db.move_chunk_to_read_buffer("h2o", partition_key, 2)
             .await
             .unwrap();
 
@@ -477,7 +477,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.load_chunk_to_read_buffer("h2o", partition_key, 3)
+        db.move_chunk_to_read_buffer("h2o", partition_key, 3)
             .await
             .unwrap();
 
@@ -512,7 +512,7 @@ impl DbSetup for TwoMeasurementsManyFieldsLifecycle {
         // Use a background task to do the work note when I used
         // TaskTracker::join, it ended up hanging for reasons I don't
         // now
-        db.load_chunk_to_read_buffer("h2o", partition_key, 0)
+        db.move_chunk_to_read_buffer("h2o", partition_key, 0)
             .await
             .unwrap();
 
@@ -619,7 +619,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db.rollover_partition(&table_name, partition_key)
             .await
             .unwrap();
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
     }
@@ -635,7 +635,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db.rollover_partition(&table_name, partition_key)
             .await
             .unwrap();
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
 
@@ -655,7 +655,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db.rollover_partition(&table_name, partition_key)
             .await
             .unwrap();
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
         db.write_chunk_to_object_store(&table_name, partition_key, 0)
@@ -712,7 +712,7 @@ pub async fn make_two_chunk_scenarios(
         db.rollover_partition(&table_name, partition_key)
             .await
             .unwrap();
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
     }
@@ -736,11 +736,11 @@ pub async fn make_two_chunk_scenarios(
             .await
             .unwrap();
 
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
 
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 1)
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 1)
             .await
             .unwrap();
     }
@@ -763,11 +763,11 @@ pub async fn make_two_chunk_scenarios(
             .await
             .unwrap();
 
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
 
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 1)
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 1)
             .await
             .unwrap();
 
@@ -798,11 +798,11 @@ pub async fn make_two_chunk_scenarios(
             .await
             .unwrap();
 
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
 
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 1)
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 1)
             .await
             .unwrap();
 
@@ -823,8 +823,32 @@ pub async fn make_two_chunk_scenarios(
         db,
     };
 
+    // Scenario 7: in a single chunk resulting from compacting MUB and RUB
+    let db = make_db().await.db;
+    let table_names = write_lp(&db, data1).await;
+    for table_name in &table_names {
+        // put chunk 1 into RUB
+        db.rollover_partition(&table_name, partition_key)
+            .await
+            .unwrap();
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+            .await
+            .unwrap();
+    }
+    let table_names = write_lp(&db, data2).await; // write to MUB
+    for table_name in &table_names {
+        // compact chunks into a single RUB chunk
+        db.compact_partition(&table_name, partition_key)
+            .await
+            .unwrap();
+    }
+    let scenario7 = DbScenario {
+        scenario_name: "Data in one compacted read buffer chunk".into(),
+        db,
+    };
+
     vec![
-        scenario1, scenario2, scenario3, scenario4, scenario5, scenario6,
+        scenario1, scenario2, scenario3, scenario4, scenario5, scenario6, scenario7,
     ]
 }
 
@@ -833,7 +857,7 @@ pub async fn rollover_and_load(db: &Db, partition_key: &str, table_name: &str) {
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
-    db.load_chunk_to_read_buffer(table_name, partition_key, 0)
+    db.move_chunk_to_read_buffer(table_name, partition_key, 0)
         .await
         .unwrap();
     db.write_chunk_to_object_store(table_name, partition_key, 0)
@@ -853,7 +877,7 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
         db.rollover_partition(&table_name, partition_key)
             .await
             .unwrap();
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
     }
@@ -869,7 +893,7 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
         db.rollover_partition(&table_name, partition_key)
             .await
             .unwrap();
-        db.load_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
         db.write_chunk_to_object_store(&table_name, partition_key, 0)
@@ -884,4 +908,43 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
     };
 
     vec![scenario1, scenario2]
+}
+
+/// This helper filters out scenarios from another setup. If, for
+/// example, one scenario triggers a bug that is not yet fixed
+pub struct FilteredSetup<S, P>
+where
+    S: DbSetup,
+    P: Fn(&DbScenario) -> bool,
+{
+    inner: S,
+    filter: P,
+}
+
+impl<S, P> FilteredSetup<S, P>
+where
+    S: DbSetup,
+    P: Fn(&DbScenario) -> bool + Send + Sync,
+{
+    /// Create a new setup that returns all scenarios from inner if
+    /// filter(scenaro) returns true.
+    pub fn new(inner: S, filter: P) -> Self {
+        Self { inner, filter }
+    }
+}
+
+#[async_trait]
+impl<S, P> DbSetup for FilteredSetup<S, P>
+where
+    S: DbSetup,
+    P: Fn(&DbScenario) -> bool + Send + Sync,
+{
+    async fn make(&self) -> Vec<DbScenario> {
+        self.inner
+            .make()
+            .await
+            .into_iter()
+            .filter(|s| (self.filter)(s))
+            .collect()
+    }
 }

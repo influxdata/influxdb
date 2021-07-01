@@ -5,44 +5,22 @@ use std::sync::Arc;
 
 use futures::StreamExt;
 use hashbrown::HashMap;
-use snafu::Snafu;
 
 use data_types::job::Job;
 use data_types::partition_metadata::{InfluxDbType, TableSummary};
 use internal_types::schema::sort::SortKey;
 use internal_types::schema::TIME_COLUMN_NAME;
 use lifecycle::LifecycleWriteGuard;
-use query::frontend::reorg::{self, ReorgPlanner};
+use query::frontend::reorg::ReorgPlanner;
 use query::QueryChunkMeta;
 use read_buffer::{ChunkMetrics, RBChunk};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
-use crate::db::catalog::chunk::{self, CatalogChunk};
-use crate::db::catalog::partition::{self, Partition};
+use crate::db::catalog::chunk::CatalogChunk;
+use crate::db::catalog::partition::Partition;
 use crate::db::DbChunk;
 
-use super::{LockableCatalogChunk, LockableCatalogPartition};
-
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(context(false))]
-    PartitionError { source: partition::Error },
-
-    #[snafu(context(false))]
-    ChunkError { source: chunk::Error },
-
-    #[snafu(context(false))]
-    PlannerError { source: reorg::Error },
-
-    #[snafu(context(false))]
-    ArrowError { source: arrow::error::ArrowError },
-
-    #[snafu(context(false))]
-    DataFusionError {
-        source: datafusion::error::DataFusionError,
-    },
-}
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+use super::{error::Result, LockableCatalogChunk, LockableCatalogPartition};
 
 /// Compute a sort key that orders lower cardinality columns first
 ///
@@ -73,15 +51,16 @@ fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -> So
     key
 }
 
-/// Compact the provided chunks into a single chunk
+/// Compact the provided chunks into a single chunk,
+/// returning the newly created chunk
 ///
 /// TODO: Replace low-level locks with transaction object
-pub(super) fn compact_chunks(
+pub(crate) fn compact_chunks(
     partition: LifecycleWriteGuard<'_, Partition, LockableCatalogPartition<'_>>,
     chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk<'_>>>,
 ) -> Result<(
     TaskTracker<Job>,
-    TrackedFuture<impl Future<Output = Result<()>> + Send>,
+    TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
 )> {
     let db = partition.data().db;
     let table_name = partition.table_name().to_string();
@@ -137,15 +116,16 @@ pub(super) fn compact_chunks(
             rb_chunk.upsert_table(&table_name, batch?)
         }
 
-        {
+        let new_chunk = {
             let mut partition = partition.write();
             for id in chunk_ids {
                 partition.force_drop_chunk(id)
             }
-            partition.create_rub_chunk(rb_chunk, schema);
-        }
+            partition.create_rub_chunk(rb_chunk, schema)
+        };
 
-        Ok(())
+        let guard = new_chunk.read();
+        Ok(DbChunk::snapshot(&guard))
     };
 
     Ok((tracker, fut.track(registration)))

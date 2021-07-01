@@ -130,6 +130,10 @@ struct Create {
     /// Maximum number of rows before triggering persistence
     #[structopt(long, default_value = "100000")]
     persist_row_threshold: u64,
+
+    /// Maximum age of a write before triggering persistence
+    #[structopt(long, default_value = "1800")]
+    persist_age_threshold_seconds: u32,
 }
 
 /// Get list of databases
@@ -204,6 +208,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                         .get(),
                     late_arrive_window_seconds: command.late_arrive_window_seconds,
                     persist_row_threshold: command.persist_row_threshold,
+                    persist_age_threshold_seconds: command.persist_age_threshold_seconds,
                 }),
 
                 // Default to hourly partitions

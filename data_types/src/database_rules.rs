@@ -109,6 +109,7 @@ impl Partitioner for DatabaseRules {
 pub const DEFAULT_WORKER_BACKOFF_MILLIS: u64 = 1_000;
 pub const DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT: u64 = 100;
 pub const DEFAULT_PERSIST_ROW_THRESHOLD: usize = 100_000;
+pub const DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS: u32 = 30 * 60;
 pub const DEFAULT_LATE_ARRIVE_WINDOW_SECONDS: u32 = 5 * 60;
 
 /// Configures how data automatically flows through the system
@@ -168,6 +169,9 @@ pub struct LifecycleRules {
 
     /// Maximum number of rows before triggering persistence
     pub persist_row_threshold: NonZeroUsize,
+
+    /// Maximum age of a write before triggering persistence
+    pub persist_age_threshold_seconds: NonZeroU32,
 }
 
 impl LifecycleRules {
@@ -197,6 +201,8 @@ impl Default for LifecycleRules {
             late_arrive_window_seconds: NonZeroU32::new(DEFAULT_LATE_ARRIVE_WINDOW_SECONDS)
                 .unwrap(),
             persist_row_threshold: NonZeroUsize::new(DEFAULT_PERSIST_ROW_THRESHOLD).unwrap(),
+            persist_age_threshold_seconds: NonZeroU32::new(DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS)
+                .unwrap(),
         }
     }
 }
