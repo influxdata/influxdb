@@ -157,6 +157,10 @@ impl RecordBatchDeduplicator {
                             break;
                         }
                     }
+                } else {
+                    // At least one of the value is invalid, consider they are different
+                    same = false;
+                    break;
                 }
             }
 
