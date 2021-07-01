@@ -12,6 +12,7 @@
 -	[#21693](https://github.com/influxdata/influxdb/pull/21693): fix: don't access a field in a nil struct
 -	[#21558](https://github.com/influxdata/influxdb/pull/21558): fix: do not send non-UTF-8 characters to subscriptions
 - [#21750](https://github.com/influxdata/influxdb/pull/21750): fix: rename arm rpms with yum-compatible names
+- [#21777](https://github.com/influxdata/influxdb/pull/21777): fix: convert arm arch names for rpms during builds via docker
 
 v1.9.2 [unreleased]
 -	[#21631](https://github.com/influxdata/influxdb/pull/21631): fix: group by returns multiple results per group in some circumstances
