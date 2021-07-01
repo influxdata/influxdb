@@ -1011,6 +1011,7 @@ dependencies = [
  "chrono",
  "data_types",
  "flatbuffers",
+ "generated_types",
  "influxdb_line_protocol",
  "internal_types",
  "ouroboros",

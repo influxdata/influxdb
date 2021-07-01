@@ -127,6 +127,7 @@ impl TableSummary {
 // Replicate this enum here as it can't be derived from the existing statistics
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub enum InfluxDbType {
+    IOx,
     Tag,
     Field,
     Timestamp,
@@ -135,6 +136,7 @@ pub enum InfluxDbType {
 impl InfluxDbType {
     pub fn as_str(&self) -> &'static str {
         match self {
+            Self::IOx => "IOx",
             Self::Tag => "Tag",
             Self::Field => "Field",
             Self::Timestamp => "Timestamp",
@@ -837,7 +839,7 @@ mod tests {
             Statistics::String(StatValues::new(
                 Some("aaa".to_string()),
                 Some("zzz".to_string()),
-                4
+                4,
             ))
         );
 
@@ -860,7 +862,7 @@ mod tests {
             Statistics::String(StatValues::new(
                 Some("aaa".to_string()),
                 Some("zzz".to_string()),
-                4
+                4,
             ))
         );
 
@@ -917,7 +919,7 @@ mod tests {
             Statistics::String(StatValues::new(
                 Some("bar".to_string()),
                 Some("foo".to_string()),
-                2
+                2,
             ))
         );
         let col = t.column("int").unwrap();

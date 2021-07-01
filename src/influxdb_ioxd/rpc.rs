@@ -18,6 +18,7 @@ mod operations;
 mod storage;
 mod testing;
 mod write;
+mod write_pb;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -108,6 +109,7 @@ where
             ),
             flight::make_server(Arc::clone(&server), serving_gate.clone()),
             write::make_server(Arc::clone(&server), serving_gate.clone()),
+            write_pb::make_server(Arc::clone(&server), serving_gate.clone()),
             management::make_server(Arc::clone(&server), serving_readiness.clone()),
             operations::make_server(Arc::clone(&server)),
         ],

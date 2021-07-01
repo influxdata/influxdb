@@ -203,6 +203,7 @@ impl std::convert::From<Vec<Option<String>>> for Packers {
 impl std::convert::From<InfluxColumnType> for Packers {
     fn from(t: InfluxColumnType) -> Self {
         match t {
+            InfluxColumnType::IOx(_) => todo!(),
             InfluxColumnType::Tag => Self::Bytes(Packer::<ByteArray>::new()),
             InfluxColumnType::Field(InfluxFieldType::Float) => Self::Float(Packer::<f64>::new()),
             InfluxColumnType::Field(InfluxFieldType::Integer) => {

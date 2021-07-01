@@ -517,6 +517,7 @@ fn read_statistics_from_parquet_row_group(
             column_summaries.push(ColumnSummary {
                 name: field.name().clone(),
                 influxdb_type: Some(match iox_type {
+                    InfluxColumnType::IOx(_) => todo!(),
                     InfluxColumnType::Tag => InfluxDbType::Tag,
                     InfluxColumnType::Field(_) => InfluxDbType::Field,
                     InfluxColumnType::Timestamp => InfluxDbType::Timestamp,

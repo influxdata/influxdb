@@ -418,6 +418,7 @@ impl Schema {
             .iter()
             .filter_map(|(column_type, field)| match column_type {
                 Some(Tag) => Some((Tag, field)),
+                Some(IOx(iox_value_type)) => Some((IOx(iox_value_type), field)),
                 Some(Field(_)) => None,
                 Some(Timestamp) => Some((Timestamp, field)),
                 None => None,
@@ -483,8 +484,53 @@ pub(crate) fn set_field_metadata(
     field.set_metadata(Some(metadata))
 }
 
-/// Valid types for InfluxDB data model, as defined in [the documentation]
-///
+/// Value types for "native" IOx data columns.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum IOxValueType {
+    /// 64-bit signed integer
+    I64,
+    /// 64-bit floating point number (including non-finite values define in IEEE-754)
+    F64,
+    /// Unsigned 64-bit integer
+    U64,
+    /// UTF-8 encoded string
+    String,
+    /// true or false
+    Boolean,
+    /// Bytes (no encoding is enforced)
+    Bytes,
+}
+
+impl From<IOxValueType> for ArrowDataType {
+    fn from(t: IOxValueType) -> Self {
+        match t {
+            IOxValueType::I64 => Self::Int64,
+            IOxValueType::F64 => Self::Float64,
+            IOxValueType::U64 => Self::UInt64,
+            IOxValueType::String => Self::Utf8,
+            IOxValueType::Boolean => Self::Boolean,
+            IOxValueType::Bytes => Self::Binary,
+        }
+    }
+}
+
+impl TryFrom<ArrowDataType> for IOxValueType {
+    type Error = &'static str;
+
+    fn try_from(value: ArrowDataType) -> Result<Self, Self::Error> {
+        match value {
+            ArrowDataType::Int64 => Ok(Self::I64),
+            ArrowDataType::Float64 => Ok(Self::F64),
+            ArrowDataType::UInt64 => Ok(Self::U64),
+            ArrowDataType::Utf8 => Ok(Self::String),
+            ArrowDataType::Boolean => Ok(Self::Boolean),
+            ArrowDataType::Binary => Ok(Self::Bytes),
+            _ => Err("No corresponding type in the IOx data model"),
+        }
+    }
+}
+
+/// Field value types for InfluxDB 2.0 data model, as defined in
 /// [the documentation]: https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum InfluxFieldType {
@@ -492,8 +538,7 @@ pub enum InfluxFieldType {
     Float,
     /// 64-bit signed integer
     Integer,
-    /// Unsigned 64-bit integers. Trailing u on the number specifies an unsigned
-    /// integer.
+    /// Unsigned 64-bit integers
     UInteger,
     /// UTF-8 encoded string
     String,
@@ -528,10 +573,15 @@ impl TryFrom<ArrowDataType> for InfluxFieldType {
     }
 }
 
-/// Valid types for fields in the InfluxDB data model, as described in the
+/// Column types.
+///
+/// Includes types for tags and fields in the InfluxDB data model, as described in the
 /// [documentation](https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/).
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum InfluxColumnType {
+    /// IOx: "native" column type, not compatible with InfluxDB 2.0
+    IOx(IOxValueType),
+
     /// Tag
     ///
     /// Note: tags are always stored as a Utf8, but eventually this
@@ -559,7 +609,7 @@ impl InfluxColumnType {
                 }
                 _ => false,
             },
-            Self::Field(_) | Self::Timestamp => {
+            Self::IOx(_) | Self::Field(_) | Self::Timestamp => {
                 let default_type: ArrowDataType = self.into();
                 data_type == &default_type
             }
@@ -571,6 +621,7 @@ impl InfluxColumnType {
 impl From<&InfluxColumnType> for &'static str {
     fn from(t: &InfluxColumnType) -> Self {
         match t {
+            InfluxColumnType::IOx(IOxValueType::I64) => "iox::column_type::i64",
             InfluxColumnType::Tag => "iox::column_type::tag",
             InfluxColumnType::Field(InfluxFieldType::Float) => "iox::column_type::field::float",
             InfluxColumnType::Field(InfluxFieldType::Integer) => "iox::column_type::field::integer",
@@ -580,6 +631,7 @@ impl From<&InfluxColumnType> for &'static str {
             InfluxColumnType::Field(InfluxFieldType::String) => "iox::column_type::field::string",
             InfluxColumnType::Field(InfluxFieldType::Boolean) => "iox::column_type::field::boolean",
             InfluxColumnType::Timestamp => "iox::column_type::timestamp",
+            _ => todo!(),
         }
     }
 }
@@ -597,6 +649,7 @@ impl TryFrom<&str> for InfluxColumnType {
     /// this is the inverse of converting to &str
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s {
+            "iox::column_type::i64" => Ok(Self::IOx(IOxValueType::I64)),
             "iox::column_type::tag" => Ok(Self::Tag),
             "iox::column_type::field::float" => Ok(Self::Field(InfluxFieldType::Float)),
             "iox::column_type::field::integer" => Ok(Self::Field(InfluxFieldType::Integer)),
@@ -613,6 +666,7 @@ impl From<&InfluxColumnType> for ArrowDataType {
     /// What arrow type is used for this column type?
     fn from(t: &InfluxColumnType) -> Self {
         match t {
+            InfluxColumnType::IOx(iox_value_type) => (*iox_value_type).into(),
             InfluxColumnType::Tag => Self::Dictionary(Box::new(Self::Int32), Box::new(Self::Utf8)),
             InfluxColumnType::Field(influxdb_field_type) => (*influxdb_field_type).into(),
             InfluxColumnType::Timestamp => TIME_DATA_TYPE(),
