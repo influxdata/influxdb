@@ -19,7 +19,7 @@ use crate::{
 // of a Db and its metrics.
 #[derive(Debug)]
 pub struct TestDb {
-    pub db: Db,
+    pub db: Arc<Db>,
     pub metric_registry: metrics::TestMetricRegistry,
 }
 
@@ -92,7 +92,7 @@ impl TestDbBuilder {
 
         TestDb {
             metric_registry: metrics::TestMetricRegistry::new(metrics_registry),
-            db: Db::new(database_to_commit, Arc::new(JobRegistry::new())),
+            db: Arc::new(Db::new(database_to_commit, Arc::new(JobRegistry::new()))),
         }
     }
 

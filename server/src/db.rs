@@ -2,6 +2,7 @@
 //! instances of the mutable buffer, read buffer, and object store
 
 pub(crate) use crate::db::chunk::DbChunk;
+use crate::db::lifecycle::ArcDb;
 use crate::{
     db::{
         access::QueryCatalogAccess,
@@ -330,13 +331,16 @@ impl Db {
     }
 
     pub fn lockable_chunk(
-        &self,
+        self: &Arc<Self>,
         table_name: &str,
         partition_key: &str,
         chunk_id: u32,
-    ) -> catalog::Result<LockableCatalogChunk<'_>> {
+    ) -> catalog::Result<LockableCatalogChunk> {
         let chunk = self.chunk(table_name, partition_key, chunk_id)?;
-        Ok(LockableCatalogChunk { db: self, chunk })
+        Ok(LockableCatalogChunk {
+            db: Arc::clone(self),
+            chunk,
+        })
     }
 
     /// Drops the specified chunk from the catalog and all storage systems
@@ -358,7 +362,7 @@ impl Db {
     ///
     /// Returns a handle to the newly loaded chunk in the read buffer
     pub async fn move_chunk_to_read_buffer(
-        &self,
+        self: &Arc<Self>,
         table_name: &str,
         partition_key: &str,
         chunk_id: u32,
@@ -379,7 +383,7 @@ impl Db {
     ///
     /// Returns a handle to the newly created chunk in the read buffer
     pub async fn compact_partition(
-        &self,
+        self: &Arc<Self>,
         table_name: &str,
         partition_key: &str,
     ) -> Result<Arc<DbChunk>> {
@@ -388,7 +392,7 @@ impl Db {
         let fut = {
             let partition = self.partition(table_name, partition_key)?;
             let partition = LockableCatalogPartition {
-                db: self,
+                db: Arc::clone(&self),
                 partition,
             };
 
@@ -411,7 +415,7 @@ impl Db {
     /// Write given table of a given chunk to object store.
     /// The writing only happen if that chunk already in read buffer
     pub async fn write_chunk_to_object_store(
-        &self,
+        self: &Arc<Self>,
         table_name: &str,
         partition_key: &str,
         chunk_id: u32,
@@ -424,7 +428,7 @@ impl Db {
 
     /// Unload chunk from read buffer but keep it in object store
     pub fn unload_read_buffer(
-        &self,
+        self: &Arc<Self>,
         table_name: &str,
         partition_key: &str,
         chunk_id: u32,
@@ -492,7 +496,7 @@ impl Db {
         tokio::join!(
             // lifecycle policy loop
             async {
-                let mut policy = ::lifecycle::LifecyclePolicy::new(&self);
+                let mut policy = ::lifecycle::LifecyclePolicy::new(ArcDb(Arc::clone(&self)));
 
                 while !shutdown.is_cancelled() {
                     self.worker_iterations_lifecycle
@@ -893,18 +897,17 @@ mod tests {
         // Writes should be forwarded to the write buffer *and* the mutable buffer if both are
         // configured.
         let write_buffer = Arc::new(MockBuffer::default());
-        let test_db = TestDb::builder()
+        let db = TestDb::builder()
             .write_buffer(Arc::clone(&write_buffer) as _)
             .build()
             .await
             .db;
 
         let entry = lp_to_entry("cpu bar=1 10");
-        test_db.store_entry(entry).await.unwrap();
+        db.store_entry(entry).await.unwrap();
 
         assert_eq!(write_buffer.entries.lock().unwrap().len(), 1);
 
-        let db = Arc::new(test_db);
         let batches = run_query(db, "select * from cpu").await;
 
         let expected = vec![
@@ -920,7 +923,7 @@ mod tests {
     #[tokio::test]
     async fn read_write() {
         // This test also exercises the path without a write buffer.
-        let db = Arc::new(make_db().await.db);
+        let db = make_db().await.db;
         write_lp(&db, "cpu bar=1 10").await;
 
         let batches = run_query(db, "select * from cpu").await;
@@ -937,7 +940,7 @@ mod tests {
 
     #[tokio::test]
     async fn try_all_partition_writes_when_some_fail() {
-        let db = Arc::new(make_db().await.db);
+        let db = make_db().await.db;
 
         let nanoseconds_per_hour = 60 * 60 * 1_000_000_000u64;
 
@@ -1014,7 +1017,7 @@ mod tests {
     #[tokio::test]
     async fn metrics_during_rollover() {
         let test_db = make_db().await;
-        let db = Arc::new(test_db.db);
+        let db = test_db.db;
 
         write_lp(db.as_ref(), "cpu bar=1 10").await;
 
@@ -1154,7 +1157,7 @@ mod tests {
 
     #[tokio::test]
     async fn write_with_rollover() {
-        let db = Arc::new(make_db().await.db);
+        let db = make_db().await.db;
         write_lp(db.as_ref(), "cpu bar=1 10").await;
         assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
 
@@ -2459,7 +2462,7 @@ mod tests {
         // replay)
         let mut chunks = vec![];
         for _ in 0..2 {
-            chunks.push(create_parquet_chunk(db.as_ref()).await);
+            chunks.push(create_parquet_chunk(&db).await);
         }
 
         // ==================== check: catalog state ====================
@@ -2542,7 +2545,7 @@ mod tests {
         //   2: dropped (not in current catalog but parquet file still present for time travel)
         let mut paths_keep = vec![];
         for i in 0..3i8 {
-            let (table_name, partition_key, chunk_id) = create_parquet_chunk(db.as_ref()).await;
+            let (table_name, partition_key, chunk_id) = create_parquet_chunk(&db).await;
             let chunk = db.chunk(&table_name, &partition_key, chunk_id).unwrap();
             let chunk = chunk.read();
             if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
@@ -2634,7 +2637,7 @@ mod tests {
         // replay)
         let mut chunks = vec![];
         for _ in 0..2 {
-            chunks.push(create_parquet_chunk(db.as_ref()).await);
+            chunks.push(create_parquet_chunk(&db).await);
         }
 
         // ==================== do: remove .txn files ====================
@@ -2687,7 +2690,7 @@ mod tests {
         write_lp(db.as_ref(), "cpu bar=1 10").await;
     }
 
-    async fn create_parquet_chunk(db: &Db) -> (String, String, u32) {
+    async fn create_parquet_chunk(db: &Arc<Db>) -> (String, String, u32) {
         write_lp(db, "cpu bar=1 10").await;
         let partition_key = "1970-01-01T00";
         let table_name = "cpu";

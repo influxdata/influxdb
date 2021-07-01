@@ -32,7 +32,7 @@ macro_rules! run_field_columns_test_case {
             let executor = db.executor();
 
             let plan = planner
-                .field_columns(&db, predicate.clone())
+                .field_columns(db.as_ref(), predicate.clone())
                 .expect("built plan successfully");
             let fields = executor
                 .to_field_list(plan)
@@ -132,7 +132,7 @@ async fn test_field_name_plan() {
         let planner = InfluxRpcPlanner::new();
 
         let plan = planner
-            .field_columns(&db, predicate.clone())
+            .field_columns(db.as_ref(), predicate.clone())
             .expect("built plan successfully");
 
         let mut plans = plan.plans;

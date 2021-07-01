@@ -26,7 +26,7 @@ macro_rules! run_tag_keys_test_case {
             let planner = InfluxRpcPlanner::new();
 
             let plan = planner
-                .tag_keys(&db, predicate.clone())
+                .tag_keys(db.as_ref(), predicate.clone())
                 .expect("built plan successfully");
             let names = db
                 .executor()

@@ -25,13 +25,13 @@ use super::{error::Result, LockableCatalogChunk, LockableCatalogPartition};
 ///
 /// TODO: Replace low-level locks with transaction object
 pub(crate) fn compact_chunks(
-    partition: LifecycleWriteGuard<'_, Partition, LockableCatalogPartition<'_>>,
-    chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk<'_>>>,
+    partition: LifecycleWriteGuard<'_, Partition, LockableCatalogPartition>,
+    chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>>,
 ) -> Result<(
     TaskTracker<Job>,
     TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
 )> {
-    let db = partition.data().db;
+    let db = Arc::clone(&partition.data().db);
     let table_name = partition.table_name().to_string();
     let chunk_ids: Vec<_> = chunks.iter().map(|x| x.id()).collect();
 
@@ -47,7 +47,7 @@ pub(crate) fn compact_chunks(
         .into_iter()
         .map(|mut chunk| {
             // Sanity-check
-            assert!(std::ptr::eq(db, chunk.data().db));
+            assert!(Arc::ptr_eq(&db, &chunk.data().db));
             assert_eq!(chunk.table_name().as_ref(), table_name.as_str());
 
             chunk.set_compacting(&registration)?;

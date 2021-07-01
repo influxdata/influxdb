@@ -32,7 +32,13 @@ macro_rules! run_read_window_aggregate_test_case {
             let planner = InfluxRpcPlanner::new();
 
             let plans = planner
-                .read_window_aggregate(&db, predicate.clone(), agg, every.clone(), offset.clone())
+                .read_window_aggregate(
+                    db.as_ref(),
+                    predicate.clone(),
+                    agg,
+                    every.clone(),
+                    offset.clone(),
+                )
                 .expect("built plan successfully");
 
             let plans = plans.into_inner();

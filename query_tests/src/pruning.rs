@@ -58,7 +58,6 @@ async fn chunk_pruning_sql() {
         db,
         metric_registry,
     } = setup().await;
-    let db = Arc::new(db);
 
     let expected = vec![
         "+-----+-------------------------------+",
@@ -114,7 +113,6 @@ async fn chunk_pruning_influxrpc() {
         db,
         metric_registry,
     } = setup().await;
-    let db = Arc::new(db);
 
     let predicate = PredicateBuilder::new()
         // bar < 3.0

@@ -22,22 +22,22 @@ pub const LIFECYCLE_ACTION_BACKOFF: Duration = Duration::from_secs(10);
 ///
 /// `LifecyclePolicy::check_for_work` can then be used to drive progress
 /// of the `LifecycleChunk` contained within this `LifecycleDb`
-pub struct LifecyclePolicy<'a, M>
+pub struct LifecyclePolicy<M>
 where
-    &'a M: LifecycleDb,
+    M: LifecycleDb,
 {
     /// The `LifecycleDb` this policy is automating
-    db: &'a M,
+    db: M,
 
     /// Background tasks spawned by this `LifecyclePolicy`
     trackers: Vec<TaskTracker<ChunkLifecycleAction>>,
 }
 
-impl<'a, M> LifecyclePolicy<'a, M>
+impl<M> LifecyclePolicy<M>
 where
-    &'a M: LifecycleDb,
+    M: LifecycleDb,
 {
-    pub fn new(db: &'a M) -> Self {
+    pub fn new(db: M) -> Self {
         Self {
             db,
             trackers: vec![],
@@ -423,9 +423,9 @@ where
     }
 }
 
-impl<'a, M> Debug for LifecyclePolicy<'a, M>
+impl<M> Debug for LifecyclePolicy<M>
 where
-    &'a M: LifecycleDb,
+    M: LifecycleDb + Copy,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "LifecyclePolicy{{..}}")
@@ -817,7 +817,7 @@ mod tests {
         type Chunk = TestLockableChunk<'a>;
         type Partition = TestLockablePartition<'a>;
 
-        fn buffer_size(self) -> usize {
+        fn buffer_size(&self) -> usize {
             // All chunks are 20 bytes
             self.partitions
                 .read()
@@ -826,11 +826,11 @@ mod tests {
                 .sum()
         }
 
-        fn rules(self) -> LifecycleRules {
+        fn rules(&self) -> LifecycleRules {
             self.rules.clone()
         }
 
-        fn partitions(self) -> Vec<Self::Partition> {
+        fn partitions(&self) -> Vec<Self::Partition> {
             self.partitions
                 .read()
                 .iter()

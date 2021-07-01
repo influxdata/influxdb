@@ -12,7 +12,7 @@ use super::LockableCatalogChunk;
 use super::error::Result;
 
 pub fn unload_read_buffer_chunk(
-    mut chunk: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk<'_>>,
+    mut chunk: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>,
 ) -> Result<Arc<DbChunk>> {
     debug!(chunk=%chunk.addr(), "unloading chunk from read buffer");
 
