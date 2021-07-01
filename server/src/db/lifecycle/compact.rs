@@ -51,7 +51,8 @@ fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -> So
     key
 }
 
-/// Compact the provided chunks into a single chunk
+/// Compact the provided chunks into a single chunk,
+/// returning the newly created chunk
 ///
 /// TODO: Replace low-level locks with transaction object
 pub(crate) fn compact_chunks(
@@ -59,7 +60,7 @@ pub(crate) fn compact_chunks(
     chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk<'_>>>,
 ) -> Result<(
     TaskTracker<Job>,
-    TrackedFuture<impl Future<Output = Result<()>> + Send>,
+    TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
 )> {
     let db = partition.data().db;
     let table_name = partition.table_name().to_string();
@@ -115,15 +116,16 @@ pub(crate) fn compact_chunks(
             rb_chunk.upsert_table(&table_name, batch?)
         }
 
-        {
+        let new_chunk = {
             let mut partition = partition.write();
             for id in chunk_ids {
                 partition.force_drop_chunk(id)
             }
-            partition.create_rub_chunk(rb_chunk, schema);
-        }
+            partition.create_rub_chunk(rb_chunk, schema)
+        };
 
-        Ok(())
+        let guard = new_chunk.read();
+        Ok(DbChunk::snapshot(&guard))
     };
 
     Ok((tracker, fut.track(registration)))

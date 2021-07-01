@@ -121,6 +121,9 @@ message LifecycleRules {
 
   // Maximum number of rows before triggering persistence
   uint64 persist_row_threshold = 13;
+
+  // Maximum age of a write before triggering persistence
+  uint32 persist_age_threshold_seconds = 14;
 }
 
 message DatabaseRules {

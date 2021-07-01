@@ -26,7 +26,8 @@ use observability_deps::tracing::{debug, trace};
 // Reuse DataFusion error and Result types for this module
 pub use datafusion::error::{DataFusionError as Error, Result};
 
-use super::{counters::ExecutionCounters, split::StreamSplitNode, task::DedicatedExecutor};
+use super::split::StreamSplitNode;
+use super::task::DedicatedExecutor;
 
 // The default catalog name - this impacts what SQL queries use if not specified
 pub const DEFAULT_CATALOG: &str = "public";
@@ -95,8 +96,7 @@ impl ExtensionPlanner for IOxExtensionPlanner {
 }
 
 /// This is an execution context for planning in IOx.  It wraps a
-/// DataFusion execution context and incudes statistical counters and
-/// a dedicated thread pool.
+/// DataFusion execution context with the information needed for planning.
 ///
 /// Methods on this struct should be preferred to using the raw
 /// DataFusion functions (such as `collect`) directly.
@@ -105,7 +105,6 @@ impl ExtensionPlanner for IOxExtensionPlanner {
 /// types such as Memory and providing visibility into what plans are
 /// running
 pub struct IOxExecutionContext {
-    counters: Arc<ExecutionCounters>,
     inner: ExecutionContext,
 
     /// Dedicated executor for query execution.
@@ -120,7 +119,6 @@ pub struct IOxExecutionContext {
 impl fmt::Debug for IOxExecutionContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("IOxExecutionContext")
-            .field("counters", &self.counters)
             .field("inner", &"<DataFusion ExecutionContext>")
             .finish()
     }
@@ -131,7 +129,7 @@ impl IOxExecutionContext {
     ///
     /// The config is created with a default catalog and schema, but this
     /// can be overridden at a later date
-    pub fn new(exec: DedicatedExecutor, counters: Arc<ExecutionCounters>) -> Self {
+    pub fn new(exec: DedicatedExecutor) -> Self {
         const BATCH_SIZE: usize = 1000;
 
         // TBD: Should we be reusing an execution context across all executions?
@@ -144,11 +142,7 @@ impl IOxExecutionContext {
 
         let inner = ExecutionContext::with_config(config);
 
-        Self {
-            counters,
-            inner,
-            exec,
-        }
+        Self { inner, exec }
     }
 
     /// returns a reference to the inner datafusion execution context
@@ -185,8 +179,6 @@ impl IOxExecutionContext {
     /// Executes the logical plan using DataFusion on a separate
     /// thread pool and produces RecordBatches
     pub async fn collect(&self, physical_plan: Arc<dyn ExecutionPlan>) -> Result<Vec<RecordBatch>> {
-        self.counters.inc_plans_run();
-
         debug!(
             "Running plan, physical:\n{}",
             displayable(physical_plan.as_ref()).indent()

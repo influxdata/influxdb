@@ -92,6 +92,7 @@ use chrono::{DateTime, Utc};
 use data_types::partition_metadata::{
     ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
 };
+use generated_types::influxdata::iox::catalog::v1 as proto;
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
 use parquet::{
     arrow::parquet_to_arrow_schema,
@@ -106,15 +107,23 @@ use parquet::{
     },
     schema::types::SchemaDescriptor as ParquetSchemaDescriptor,
 };
-use serde::{Deserialize, Serialize};
+use prost::Message;
 use snafu::{OptionExt, ResultExt, Snafu};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
 
+/// Current version for serialized metadata.
+///
+/// For breaking changes, this will change.
+///
+/// **Important: When changing this structure, consider bumping the
+///   [catalog transaction version](crate::catalog::TRANSACTION_VERSION)!**
+pub const METADATA_VERSION: u32 = 1;
+
 /// File-level metadata key to store the IOx-specific data.
 ///
-/// This will contain [`IoxMetadata`] serialized as [JSON].
+/// This will contain [`IoxMetadata`] serialized as base64-encoded [Protocol Buffers 3].
 ///
-/// [JSON]: https://www.json.org/
+/// [Protocol Buffers 3]: https://developers.google.com/protocol-buffers/docs/proto3
 pub const METADATA_KEY: &str = "IOX:metadata";
 
 #[derive(Debug, Snafu)]
@@ -201,21 +210,33 @@ pub enum Error {
     #[snafu(display("Parquet metadata does not contain IOx metadata"))]
     IoxMetadataMissing {},
 
-    #[snafu(display("Cannot parse IOx metadata from JSON: {}", source))]
-    IoxMetadataBroken { source: serde_json::Error },
+    #[snafu(display("Field missing while parsing IOx metadata: {}", field))]
+    IoxMetadataFieldMissing { field: String },
+
+    #[snafu(display("Cannot parse IOx metadata from Protobuf: {}", source))]
+    IoxMetadataBroken {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
+    #[snafu(display(
+        "Format version of IOx metadata is {} but only {:?} are supported",
+        actual,
+        expected
+    ))]
+    IoxMetadataVersionMismatch { actual: u32, expected: Vec<u32> },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// IOx-specific metadata.
 ///
-/// This will serialized as [JSON] into the file-level key-value Parquet metadata (under [`METADATA_KEY`]).
+/// This will serialized as base64-encoded [Protocol Buffers 3] into the file-level key-value Parquet metadata (under [`METADATA_KEY`]).
 ///
 /// **Important: When changing this structure, consider bumping the
-///   [catalog transaction version](crate::catalog::TRANSACTION_VERSION)!**
+///   [metadata version](METADATA_VERSION)!**
 ///
-/// [JSON]: https://www.json.org/
+/// [Protocol Buffers 3]: https://developers.google.com/protocol-buffers/docs/proto3
 #[allow(missing_copy_implementations)] // we want to extend this type in the future
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct IoxMetadata {
     /// Timestamp when this file was created.
     pub creation_timestamp: DateTime<Utc>,
@@ -228,6 +249,55 @@ pub struct IoxMetadata {
 
     /// Chunk ID.
     pub chunk_id: u32,
+}
+
+impl IoxMetadata {
+    /// Read from protobuf message
+    fn from_protobuf(data: &[u8]) -> Result<Self> {
+        let proto_msg = proto::IoxMetadata::decode(data)
+            .map_err(|err| Box::new(err) as _)
+            .context(IoxMetadataBroken)?;
+
+        // check version
+        if proto_msg.version != METADATA_VERSION {
+            return Err(Error::IoxMetadataVersionMismatch {
+                actual: proto_msg.version,
+                expected: vec![METADATA_VERSION],
+            });
+        }
+
+        let creation_timestamp: DateTime<Utc> = proto_msg
+            .creation_timestamp
+            .ok_or_else(|| Error::IoxMetadataFieldMissing {
+                field: "creation_timestamp".to_string(),
+            })?
+            .try_into()
+            .map_err(|err| Box::new(err) as _)
+            .context(IoxMetadataBroken)?;
+
+        Ok(Self {
+            creation_timestamp,
+            table_name: proto_msg.table_name,
+            partition_key: proto_msg.partition_key,
+            chunk_id: proto_msg.chunk_id,
+        })
+    }
+
+    /// Convert to protobuf v3 message.
+    pub(crate) fn to_protobuf(&self) -> std::result::Result<Vec<u8>, prost::EncodeError> {
+        let proto_msg = proto::IoxMetadata {
+            version: METADATA_VERSION,
+            creation_timestamp: Some(self.creation_timestamp.into()),
+            table_name: self.table_name.clone(),
+            partition_key: self.partition_key.clone(),
+            chunk_id: self.chunk_id,
+        };
+
+        let mut buf = Vec::new();
+        proto_msg.encode(&mut buf)?;
+
+        Ok(buf)
+    }
 }
 
 /// Parquet metadata with IOx-specific wrapper.
@@ -253,6 +323,7 @@ impl IoxParquetMetaData {
 
     /// Read IOx metadata from file-level key-value parquet metadata.
     pub fn read_iox_metadata(&self) -> Result<IoxMetadata> {
+        // find file-level key-value metadata entry
         let kv = self
             .md
             .file_metadata()
@@ -262,8 +333,15 @@ impl IoxParquetMetaData {
             .iter()
             .find(|kv| kv.key == METADATA_KEY)
             .context(IoxMetadataMissing)?;
-        let json = kv.value.as_ref().context(IoxMetadataMissing)?;
-        serde_json::from_str(json).context(IoxMetadataBroken)
+
+        // extract protobuf message from key-value entry
+        let proto_base64 = kv.value.as_ref().context(IoxMetadataMissing)?;
+        let proto_bytes = base64::decode(proto_base64)
+            .map_err(|err| Box::new(err) as _)
+            .context(IoxMetadataBroken)?;
+
+        // convert to Rust object
+        IoxMetadata::from_protobuf(proto_bytes.as_slice())
     }
 
     /// Read IOx schema from parquet metadata.
@@ -731,5 +809,34 @@ mod tests {
         for column in parquet_metadata.md.file_metadata().schema_descr().columns() {
             assert!((column.name() == TIME_COLUMN_NAME) || column.name().starts_with("foo_"));
         }
+    }
+
+    #[test]
+    fn test_iox_metadata_from_protobuf_checks_version() {
+        let metadata = IoxMetadata {
+            creation_timestamp: Utc::now(),
+            table_name: "table1".to_string(),
+            partition_key: "part1".to_string(),
+            chunk_id: 1337,
+        };
+
+        let proto_bytes = metadata.to_protobuf().unwrap();
+
+        // tamper message
+        let mut proto_msg = proto::IoxMetadata::decode(proto_bytes.as_slice()).unwrap();
+        proto_msg.version = 42;
+        let mut proto_bytes = Vec::new();
+        proto_msg.encode(&mut proto_bytes).unwrap();
+
+        // decoding should fail now
+        assert_eq!(
+            IoxMetadata::from_protobuf(&proto_bytes)
+                .unwrap_err()
+                .to_string(),
+            format!(
+                "Format version of IOx metadata is 42 but only [{}] are supported",
+                METADATA_VERSION
+            )
+        );
     }
 }

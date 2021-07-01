@@ -10,12 +10,12 @@ use crate::{
             partition::Partition,
             Catalog, TableNameFilter,
         },
-        lifecycle::LockableCatalogChunk,
+        lifecycle::{LockableCatalogChunk, LockableCatalogPartition},
     },
     write_buffer::WriteBuffer,
     JobRegistry,
 };
-use ::lifecycle::LockableChunk;
+use ::lifecycle::{LockableChunk, LockablePartition};
 use async_trait::async_trait;
 use chrono::Utc;
 use data_types::{
@@ -367,6 +367,45 @@ impl Db {
         let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
         let (_, fut) =
             lifecycle::move_chunk_to_read_buffer(chunk.write()).context(LifecycleError)?;
+        fut.await.context(TaskCancelled)?.context(LifecycleError)
+    }
+
+    /// Compacts all chunks in a partition to create a new chunk
+    ///
+    /// This code does not do any checking of the read buffer against
+    /// memory limits, etc
+    ///
+    /// This (async) function returns when this process is complete,
+    /// but the process may take a long time
+    ///
+    /// Returns a handle to the newly created chunk in the read buffer
+    pub async fn compact_partition(
+        &self,
+        table_name: &str,
+        partition_key: &str,
+    ) -> Result<Arc<DbChunk>> {
+        // Use explict scope to ensure the async generator doesn't
+        // assume the locks have to possibly live across the `await`
+        let fut = {
+            let partition = self.partition(table_name, partition_key)?;
+            let partition = LockableCatalogPartition {
+                db: self,
+                partition,
+            };
+
+            // Do lock dance to get a write lock on the partition as well
+            // as on all of the chunks
+            let partition = partition.read();
+
+            // Get a list of all the chunks to compact
+            let chunks = LockablePartition::chunks(&partition);
+            let partition = partition.upgrade();
+            let chunks = chunks.iter().map(|(_id, chunk)| chunk.write()).collect();
+
+            let (_, fut) = lifecycle::compact_chunks(partition, chunks).context(LifecycleError)?;
+            fut
+        };
+
         fut.await.context(TaskCancelled)?.context(LifecycleError)
     }
 
@@ -1279,6 +1318,51 @@ mod tests {
         // query after all data dropped!"); let expected = vec![] as
         // Vec<&str>; let batches = run_query(&db, "select * from
         // cpu").await; assert_batches_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn compact() {
+        // Test that data can be read after it is compacted
+        let test_db = make_db().await;
+        let db = Arc::new(test_db.db);
+
+        write_lp(db.as_ref(), "cpu bar=1 10").await;
+
+        let partition_key = "1970-01-01T00";
+        let mb_chunk = db
+            .rollover_partition("cpu", partition_key)
+            .await
+            .unwrap()
+            .unwrap();
+        let old_rb_chunk = db
+            .move_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
+            .await
+            .unwrap();
+
+        // Put new data into the mutable buffer
+        write_lp(db.as_ref(), "cpu bar=2 20").await;
+
+        // now, compact it
+        let compacted_rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
+
+        // no other read buffer data should be present
+        assert_eq!(
+            read_buffer_chunk_ids(&db, partition_key),
+            vec![compacted_rb_chunk.id()]
+        );
+        assert_ne!(old_rb_chunk.id(), compacted_rb_chunk.id());
+
+        // data should be readable
+        let expected = vec![
+            "+-----+-------------------------------+",
+            "| bar | time                          |",
+            "+-----+-------------------------------+",
+            "| 1   | 1970-01-01 00:00:00.000000010 |",
+            "| 2   | 1970-01-01 00:00:00.000000020 |",
+            "+-----+-------------------------------+",
+        ];
+        let batches = run_query(Arc::clone(&db), "select * from cpu").await;
+        assert_batches_eq!(&expected, &batches);
     }
 
     async fn collect_read_filter(chunk: &DbChunk) -> Vec<RecordBatch> {
