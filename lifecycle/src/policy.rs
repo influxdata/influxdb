@@ -187,6 +187,8 @@ where
         rules: &LifecycleRules,
         now: DateTime<Utc>,
     ) {
+        let row_threshold = rules.persist_row_threshold.get();
+
         // TODO: Encapsulate locking into a CatalogTransaction type
         let partition = partition.read();
 
@@ -215,6 +217,9 @@ where
                     to_compact.push(chunk);
                 }
                 ChunkStorage::ReadBuffer => {
+                    if chunk.row_count() >= row_threshold {
+                        continue;
+                    }
                     to_compact.push(chunk);
                 }
                 _ => {}
@@ -1199,6 +1204,7 @@ mod tests {
     fn test_compact() {
         let rules = LifecycleRules {
             mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            persist_row_threshold: NonZeroUsize::new(1_000).unwrap(),
             ..Default::default()
         };
 
@@ -1250,6 +1256,15 @@ mod tests {
                 // already compacted => should not compact
                 TestChunk::new(13, Some(0), Some(5), ChunkStorage::ReadBuffer),
             ]),
+            TestPartition::new(vec![
+                // closed => can compact
+                TestChunk::new(14, Some(0), Some(20), ChunkStorage::ReadBuffer),
+                // closed => can compact
+                TestChunk::new(15, Some(0), Some(20), ChunkStorage::ReadBuffer),
+                // too many rows => ignore
+                TestChunk::new(16, Some(0), Some(20), ChunkStorage::ReadBuffer)
+                    .with_row_count(1_000),
+            ]),
         ];
 
         let db = TestDb::from_partitions(rules, partitions);
@@ -1262,7 +1277,8 @@ mod tests {
                 MoverEvents::Compact(vec![2]),
                 MoverEvents::Compact(vec![3, 4, 5]),
                 MoverEvents::Compact(vec![8, 9]),
-                MoverEvents::Compact(vec![12])
+                MoverEvents::Compact(vec![12]),
+                MoverEvents::Compact(vec![14, 15]),
             ]
         );
     }
