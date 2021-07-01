@@ -2,7 +2,6 @@
 //! plans. This is currently implemented using DataFusion, and this
 //! interface abstracts away many of the details
 pub(crate) mod context;
-mod counters;
 pub mod field;
 pub mod fieldlist;
 mod schema_pivot;
@@ -17,7 +16,6 @@ use futures::{future, Future};
 use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
-use counters::ExecutionCounters;
 use datafusion::{
     self,
     logical_plan::{Expr, LogicalPlan},
@@ -104,7 +102,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// native structures.
 #[derive(Debug)]
 pub struct Executor {
-    counters: Arc<ExecutionCounters>,
     exec: DedicatedExecutor,
 }
 
@@ -114,10 +111,7 @@ impl Executor {
     pub fn new(num_threads: usize) -> Self {
         let exec = DedicatedExecutor::new("IOx Executor Thread", num_threads);
 
-        Self {
-            exec,
-            counters: Arc::new(ExecutionCounters::default()),
-        }
+        Self { exec }
     }
 
     /// Executes this plan and returns the resulting set of strings
@@ -256,7 +250,7 @@ impl Executor {
 
     /// Create a new execution context, suitable for executing a new query
     pub fn new_context(&self) -> IOxExecutionContext {
-        IOxExecutionContext::new(self.exec.clone(), Arc::clone(&self.counters))
+        IOxExecutionContext::new(self.exec.clone())
     }
 
     /// plans and runs the plans in parallel and collects the results
