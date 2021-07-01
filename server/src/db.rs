@@ -43,7 +43,6 @@ use snafu::{ensure, ResultExt, Snafu};
 use std::{
     any::Any,
     collections::HashMap,
-    num::NonZeroUsize,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -599,7 +598,6 @@ impl Db {
     pub fn store_sequenced_entry(&self, sequenced_entry: Arc<SequencedEntry>) -> Result<()> {
         // Get all needed database rule values, then release the lock
         let rules = self.rules.read();
-        let mutable_size_threshold = rules.lifecycle_rules.mutable_size_threshold;
         let immutable = rules.lifecycle_rules.immutable;
         let buffer_size_hard = rules.lifecycle_rules.buffer_size_hard;
         let late_arrival_window = rules.lifecycle_rules.late_arrive_window();
@@ -665,8 +663,6 @@ impl Db {
                                 }
                                 continue;
                             };
-
-                            check_chunk_closed(&mut *chunk, mutable_size_threshold);
                         }
                         None => {
                             let metrics = self.metrics_registry.register_domain_with_labels(
@@ -691,8 +687,7 @@ impl Db {
                                 continue;
                             }
 
-                            let new_chunk = partition.create_open_chunk(mb_chunk);
-                            check_chunk_closed(&mut *new_chunk.write(), mutable_size_threshold);
+                            partition.create_open_chunk(mb_chunk);
                         }
                     };
 
@@ -725,19 +720,6 @@ impl Db {
         }
 
         Ok(())
-    }
-}
-
-/// Check if the given chunk should be closed based on the the MutableBuffer size threshold.
-fn check_chunk_closed(chunk: &mut CatalogChunk, mutable_size_threshold: Option<NonZeroUsize>) {
-    if let Some(threshold) = mutable_size_threshold {
-        if let Ok(mb_chunk) = chunk.mutable_buffer() {
-            let size = mb_chunk.size();
-
-            if size > threshold.get() {
-                chunk.freeze().expect("cannot close open chunk");
-            }
-        }
     }
 }
 
@@ -866,7 +848,7 @@ mod tests {
 
     use crate::{
         db::{
-            catalog::chunk::{ChunkStage, ChunkStageFrozenRepr},
+            catalog::chunk::ChunkStage,
             test_helpers::{try_write_lp, write_lp},
         },
         utils::{make_db, TestDb},
@@ -1825,40 +1807,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_chunk_closing() {
-        let db = Arc::new(make_db().await.db);
-        db.rules.write().lifecycle_rules.mutable_size_threshold =
-            Some(NonZeroUsize::new(2).unwrap());
-
-        write_lp(&db, "cpu bar=1 10").await;
-        write_lp(&db, "cpu bar=1 20").await;
-
-        let partitions = db.catalog.partition_keys();
-        assert_eq!(partitions.len(), 1);
-        let partition_key = partitions.into_iter().next().unwrap();
-
-        let partition = db.catalog.partition("cpu", &partition_key).unwrap();
-        let partition = partition.read();
-
-        let chunks: Vec<_> = partition.chunks().collect();
-        assert_eq!(chunks.len(), 2);
-        assert!(matches!(
-            chunks[0].read().stage(),
-            ChunkStage::Frozen {
-                representation: ChunkStageFrozenRepr::MutableBufferSnapshot(_),
-                ..
-            }
-        ));
-        assert!(matches!(
-            chunks[1].read().stage(),
-            ChunkStage::Frozen {
-                representation: ChunkStageFrozenRepr::MutableBufferSnapshot(_),
-                ..
-            }
-        ));
-    }
-
-    #[tokio::test]
     async fn chunk_id_listing() {
         // Test that chunk id listing is hooked up
         let db = Arc::new(make_db().await.db);
@@ -2446,7 +2394,7 @@ mod tests {
                 ("access", "exclusive"),
             ])
             .counter()
-            .eq(2.)
+            .eq(1.)
             .unwrap();
 
         test_db
