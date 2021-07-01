@@ -1,6 +1,6 @@
 //! Implementation of Deduplication algorithm
 
-use std::{ops::Range, sync::Arc};
+use std::{cmp::Ordering, ops::Range, sync::Arc};
 
 use arrow::{
     array::{ArrayRef, UInt64Array},
@@ -37,10 +37,14 @@ struct DuplicateRanges {
 }
 
 impl RecordBatchDeduplicator {
-    pub fn new(sort_keys: Vec<PhysicalSortExpr>, num_dupes: Arc<SQLMetric>) -> Self {
+    pub fn new(
+        sort_keys: Vec<PhysicalSortExpr>,
+        num_dupes: Arc<SQLMetric>,
+        last_batch: Option<RecordBatch>,
+    ) -> Self {
         Self {
             sort_keys,
-            last_batch: None,
+            last_batch,
             num_dupes,
         }
     }
@@ -78,6 +82,116 @@ impl RecordBatchDeduplicator {
         }
 
         Ok(output_record_batch)
+    }
+
+    /// Return last_batch if it does not overlap with the given batch
+    /// Note that since last_batch, if exists, will include at least one row and all of its rows will have the same key
+    pub fn last_batch_with_no_same_sort_key(&mut self, batch: &RecordBatch) -> Option<RecordBatch> {
+        // Take the previous batch, if any, out of it storage self.last_batch
+        if let Some(last_batch) = self.last_batch.take() {
+            // Build sorted columns for last_batch and current one
+            let schema = last_batch.schema();
+            // is_sort_key[col_idx] = true if it is present in sort keys
+            let mut is_sort_key: Vec<bool> = vec![false; last_batch.columns().len()];
+            let last_batch_key_columns = self
+                .sort_keys
+                .iter()
+                .map(|skey| {
+                    // figure out the index of the key columns
+                    let name = get_col_name(skey.expr.as_ref());
+                    let index = schema.index_of(name).unwrap();
+                    is_sort_key[index] = true;
+
+                    // Key column of last_batch of this index
+                    let last_batch_array = last_batch.column(index);
+                    if last_batch_array.len() == 0 {
+                        panic!("Key column, {}, of last_batch has no data", name);
+                    }
+                    arrow::compute::SortColumn {
+                        values: Arc::clone(last_batch_array),
+                        options: Some(skey.options),
+                    }
+                })
+                .collect::<Vec<arrow::compute::SortColumn>>();
+
+            // Build sorted columns for current batch
+            // Schema of both batches are the same
+            let batch_key_columns = self
+                .sort_keys
+                .iter()
+                .map(|skey| {
+                    // figure out the index of the key columns
+                    let name = get_col_name(skey.expr.as_ref());
+                    let index = schema.index_of(name).unwrap();
+
+                    // Key column of current batch of this index
+                    let array = batch.column(index);
+                    if array.len() == 0 {
+                        panic!("Key column, {}, of current batch has no data", name);
+                    }
+                    arrow::compute::SortColumn {
+                        values: Arc::clone(array),
+                        options: Some(skey.options),
+                    }
+                })
+                .collect::<Vec<arrow::compute::SortColumn>>();
+
+            // Zip the 2 key sets of columns for comparison
+            let zipped = last_batch_key_columns.iter().zip(batch_key_columns.iter());
+
+            // Compare sort keys of the first row of the given batch the the last_batch
+            // Note that the batches are sorted and all rows of last_batch have the same sort keys so
+            // only need to compare last row of the last_batch with the first row of the current batch
+            let mut same = true;
+            for (l, r) in zipped {
+                let last_idx = l.values.len() - 1;
+                if (l.values.is_valid(last_idx), r.values.is_valid(0)) == (true, true) {
+                    // Both have values, do the actual comparison
+                    let c =
+                        arrow::array::build_compare(l.values.as_ref(), r.values.as_ref()).unwrap();
+
+                    match c(last_idx, 0) {
+                        Ordering::Equal => {}
+                        _ => {
+                            same = false;
+                            break;
+                        }
+                    }
+                } else {
+                    // At least one of the value is invalid, consider they are different
+                    same = false;
+                    break;
+                }
+            }
+
+            if same {
+                // The batches overlap and need to be concatinated
+                // So, store it back in self.last_batch for the concat_batches later
+                self.last_batch = Some(last_batch);
+                None
+            } else {
+                // The batches do not overlap, deduplicate and then return the last_batch to get sent downstream
+
+                // Ranges of the batch needed for deduplication
+                // This last batch include only one range with all same key
+                let ranges = vec![
+                    Range {
+                        start: 0,
+                        end: last_batch.num_rows()
+                    };
+                    1
+                ];
+                let dupe_ranges = DuplicateRanges {
+                    is_sort_key,
+                    ranges,
+                };
+                let dedup_last_batch = self.output_from_ranges(&last_batch, &dupe_ranges).unwrap();
+
+                Some(dedup_last_batch)
+            }
+        } else {
+            None
+        }
     }
 
     /// Consume the indexer, returning any remaining record batches for output
@@ -255,4 +369,354 @@ fn get_col_name(expr: &dyn PhysicalExpr) -> &str {
         .downcast_ref::<datafusion::physical_plan::expressions::Column>()
         .expect("expected column reference")
         .name()
+}
+
+#[cfg(test)]
+mod test {
+    use arrow::compute::SortOptions;
+    use arrow::{
+        array::{ArrayRef, Float64Array, StringArray},
+        record_batch::RecordBatch,
+    };
+
+    use arrow_util::assert_batches_eq;
+    use datafusion::physical_plan::expressions::col;
+    use datafusion::physical_plan::MetricType;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_non_overlapped_sorted_batches_one_key_column() {
+        // Sorted key: t1
+
+        // Last batch
+        // t1 | t2 | f1 | f2
+        // ---+----+----+----
+        //  a | b  | 1  | 2
+        //  a | c  | 3  |
+        //  a | c  | 4  |
+
+        // Current batch
+        //  ====(next batch)====
+        //  b | c  |    | 6
+        //  b | d  | 7  | 8
+
+        // Non overlapped => return last batch
+        // Expected output = Deduplication of Last batch
+        // t1 | t2 | f1 | f2
+        // ---+----+----+----
+        //  a | c  | 4  | 2
+
+        // Columns of last_batch
+        let t1 = StringArray::from(vec![Some("a"), Some("a"), Some("a")]);
+        let t2 = StringArray::from(vec![Some("b"), Some("c"), Some("c")]);
+        let f1 = Float64Array::from(vec![Some(1.0), Some(3.0), Some(4.0)]);
+        let f2 = Float64Array::from(vec![Some(2.0), None, None]);
+
+        let last_batch = RecordBatch::try_from_iter(vec![
+            ("t1", Arc::new(t1) as ArrayRef),
+            ("t2", Arc::new(t2) as ArrayRef),
+            ("f1", Arc::new(f1) as ArrayRef),
+            ("f2", Arc::new(f2) as ArrayRef),
+        ])
+        .unwrap();
+
+        // Columns of current_batch
+        let t1 = StringArray::from(vec![Some("b"), Some("b")]);
+        let t2 = StringArray::from(vec![Some("c"), Some("d")]);
+        let f1 = Float64Array::from(vec![None, Some(7.0)]);
+        let f2 = Float64Array::from(vec![Some(6.0), Some(8.0)]);
+
+        let current_batch = RecordBatch::try_from_iter(vec![
+            ("t1", Arc::new(t1) as ArrayRef),
+            ("t2", Arc::new(t2) as ArrayRef),
+            ("f1", Arc::new(f1) as ArrayRef),
+            ("f2", Arc::new(f2) as ArrayRef),
+        ])
+        .unwrap();
+
+        let sort_keys = vec![PhysicalSortExpr {
+            expr: col("t1"),
+            options: SortOptions {
+                descending: false,
+                nulls_first: false,
+            },
+        }];
+
+        let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
+        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
+
+        let results = dedupe
+            .last_batch_with_no_same_sort_key(&current_batch)
+            .unwrap();
+
+        let expected = vec![
+            "+----+----+----+----+",
+            "| t1 | t2 | f1 | f2 |",
+            "+----+----+----+----+",
+            "| a  | c  | 4  | 2  |",
+            "+----+----+----+----+",
+        ];
+        assert_batches_eq!(&expected, &[results]);
+    }
+
+    #[tokio::test]
+    async fn test_non_overlapped_sorted_batches_two_key_columns() {
+        // Sorted key: t1, t2
+
+        // Last batch
+        // t1 | t2 | f1 | f2
+        // ---+----+----+----
+        //  a | c  | 1  | 2
+        //  a | c  | 3  |
+        //  a | c  | 4  | 5
+
+        // Current batch
+        //  ====(next batch)====
+        //  b | c  |    | 6
+        //  b | d  | 7  | 8
+
+        // Non overlapped => return last batch
+        // Expected output = Deduplication of last batch
+        // t1 | t2 | f1 | f2
+        // ---+----+----+----
+        //  a | c  | 4  | 5
+
+        // Columns of last_batch
+        let t1 = StringArray::from(vec![Some("a"), Some("a"), Some("a")]);
+        let t2 = StringArray::from(vec![Some("c"), Some("c"), Some("c")]);
+        let f1 = Float64Array::from(vec![Some(1.0), Some(3.0), Some(4.0)]);
+        let f2 = Float64Array::from(vec![Some(2.0), None, Some(5.0)]);
+
+        let last_batch = RecordBatch::try_from_iter(vec![
+            ("t1", Arc::new(t1) as ArrayRef),
+            ("t2", Arc::new(t2) as ArrayRef),
+            ("f1", Arc::new(f1) as ArrayRef),
+            ("f2", Arc::new(f2) as ArrayRef),
+        ])
+        .unwrap();
+
+        // Columns of current_batch
+        let t1 = StringArray::from(vec![Some("b"), Some("b")]);
+        let t2 = StringArray::from(vec![Some("c"), Some("d")]);
+        let f1 = Float64Array::from(vec![None, Some(7.0)]);
+        let f2 = Float64Array::from(vec![Some(6.0), Some(8.0)]);
+
+        let current_batch = RecordBatch::try_from_iter(vec![
+            ("t1", Arc::new(t1) as ArrayRef),
+            ("t2", Arc::new(t2) as ArrayRef),
+            ("f1", Arc::new(f1) as ArrayRef),
+            ("f2", Arc::new(f2) as ArrayRef),
+        ])
+        .unwrap();
+
+        let sort_keys = vec![
+            PhysicalSortExpr {
+                expr: col("t1"),
+                options: SortOptions {
+                    descending: false,
+                    nulls_first: false,
+                },
+            },
+            PhysicalSortExpr {
+                expr: col("t2"),
+                options: SortOptions {
+                    descending: false,
+                    nulls_first: false,
+                },
+            },
+        ];
+
+        let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
+        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
+
+        let results = dedupe
+            .last_batch_with_no_same_sort_key(&current_batch)
+            .unwrap();
+
+        let expected = vec![
+            "+----+----+----+----+",
+            "| t1 | t2 | f1 | f2 |",
+            "+----+----+----+----+",
+            "| a  | c  | 4  | 5  |",
+            "+----+----+----+----+",
+        ];
+        assert_batches_eq!(&expected, &[results]);
+    }
+
+    #[tokio::test]
+    async fn test_overlapped_sorted_batches_one_key_column() {
+        // Sorted key: t1
+
+        // Last batch
+        // t1 | t2 | f1 | f2
+        // ---+----+----+----
+        //  a | b  | 1  | 2
+        //  a | b  | 3  |
+
+        // Current batch
+        //  ====(next batch)====
+        //  a | b  |    | 6
+        //  b | d  | 7  | 8
+
+        // Overlapped => return None
+
+        // Columns of last_batch
+        let t1 = StringArray::from(vec![Some("a"), Some("a")]);
+        let t2 = StringArray::from(vec![Some("b"), Some("b")]);
+        let f1 = Float64Array::from(vec![Some(1.0), Some(3.0)]);
+        let f2 = Float64Array::from(vec![Some(2.0), None]);
+
+        let last_batch = RecordBatch::try_from_iter(vec![
+            ("t1", Arc::new(t1) as ArrayRef),
+            ("t2", Arc::new(t2) as ArrayRef),
+            ("f1", Arc::new(f1) as ArrayRef),
+            ("f2", Arc::new(f2) as ArrayRef),
+        ])
+        .unwrap();
+
+        // Columns of current_batch
+        let t1 = StringArray::from(vec![Some("a"), Some("b")]);
+        let t2 = StringArray::from(vec![Some("b"), Some("d")]);
+        let f1 = Float64Array::from(vec![None, Some(7.0)]);
+        let f2 = Float64Array::from(vec![Some(6.0), Some(8.0)]);
+
+        let current_batch = RecordBatch::try_from_iter(vec![
+            ("t1", Arc::new(t1) as ArrayRef),
+            ("t2", Arc::new(t2) as ArrayRef),
+            ("f1", Arc::new(f1) as ArrayRef),
+            ("f2", Arc::new(f2) as ArrayRef),
+        ])
+        .unwrap();
+
+        let sort_keys = vec![PhysicalSortExpr {
+            expr: col("t1"),
+            options: SortOptions {
+                descending: false,
+                nulls_first: false,
+            },
+        }];
+
+        let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
+        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
+
+        let results = dedupe.last_batch_with_no_same_sort_key(&current_batch);
+        assert!(results.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_overlapped_sorted_batches_two_key_columns() {
+        // Sorted key: t1, t2
+
+        // Last batch
+        // t1 | t2 | f1 | f2
+        // ---+----+----+----
+        //  a | b  | 1  | 2
+        //  a | b  | 3  |
+
+        // Current batch
+        //  ====(next batch)====
+        //  a | b  |    | 6
+        //  b | d  | 7  | 8
+
+        // Overlapped => return None
+
+        // Columns of last_batch
+        let t1 = StringArray::from(vec![Some("a"), Some("a")]);
+        let t2 = StringArray::from(vec![Some("b"), Some("b")]);
+        let f1 = Float64Array::from(vec![Some(1.0), Some(3.0)]);
+        let f2 = Float64Array::from(vec![Some(2.0), None]);
+
+        let last_batch = RecordBatch::try_from_iter(vec![
+            ("t1", Arc::new(t1) as ArrayRef),
+            ("t2", Arc::new(t2) as ArrayRef),
+            ("f1", Arc::new(f1) as ArrayRef),
+            ("f2", Arc::new(f2) as ArrayRef),
+        ])
+        .unwrap();
+
+        // Columns of current_batch
+        let t1 = StringArray::from(vec![Some("a"), Some("b")]);
+        let t2 = StringArray::from(vec![Some("b"), Some("d")]);
+        let f1 = Float64Array::from(vec![None, Some(7.0)]);
+        let f2 = Float64Array::from(vec![Some(6.0), Some(8.0)]);
+
+        let current_batch = RecordBatch::try_from_iter(vec![
+            ("t1", Arc::new(t1) as ArrayRef),
+            ("t2", Arc::new(t2) as ArrayRef),
+            ("f1", Arc::new(f1) as ArrayRef),
+            ("f2", Arc::new(f2) as ArrayRef),
+        ])
+        .unwrap();
+
+        let sort_keys = vec![
+            PhysicalSortExpr {
+                expr: col("t1"),
+                options: SortOptions {
+                    descending: false,
+                    nulls_first: false,
+                },
+            },
+            PhysicalSortExpr {
+                expr: col("t2"),
+                options: SortOptions {
+                    descending: false,
+                    nulls_first: false,
+                },
+            },
+        ];
+
+        let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
+        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
+
+        let results = dedupe.last_batch_with_no_same_sort_key(&current_batch);
+        assert!(results.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_non_overlapped_none_last_batch() {
+        // Sorted key: t1, t2
+
+        // Current batch
+        //  ====(next batch)====
+        //  a | b  |    | 6
+        //  b | d  | 7  | 8
+
+        // Columns of current_batch
+        let t1 = StringArray::from(vec![Some("a"), Some("b")]);
+        let t2 = StringArray::from(vec![Some("b"), Some("d")]);
+        let f1 = Float64Array::from(vec![None, Some(7.0)]);
+        let f2 = Float64Array::from(vec![Some(6.0), Some(8.0)]);
+
+        let current_batch = RecordBatch::try_from_iter(vec![
+            ("t1", Arc::new(t1) as ArrayRef),
+            ("t2", Arc::new(t2) as ArrayRef),
+            ("f1", Arc::new(f1) as ArrayRef),
+            ("f2", Arc::new(f2) as ArrayRef),
+        ])
+        .unwrap();
+
+        let sort_keys = vec![
+            PhysicalSortExpr {
+                expr: col("t1"),
+                options: SortOptions {
+                    descending: false,
+                    nulls_first: false,
+                },
+            },
+            PhysicalSortExpr {
+                expr: col("t2"),
+                options: SortOptions {
+                    descending: false,
+                    nulls_first: false,
+                },
+            },
+        ];
+
+        let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
+        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, None);
+
+        let results = dedupe.last_batch_with_no_same_sort_key(&current_batch);
+        assert!(results.is_none());
+    }
 }
