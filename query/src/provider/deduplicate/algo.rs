@@ -40,7 +40,7 @@ impl RecordBatchDeduplicator {
     pub fn new(
         sort_keys: Vec<PhysicalSortExpr>,
         num_dupes: Arc<SQLMetric>,
-        last_batch: Option<RecordBatch>
+        last_batch: Option<RecordBatch>,
     ) -> Self {
         Self {
             sort_keys,
@@ -89,17 +89,10 @@ impl RecordBatchDeduplicator {
     pub fn last_batch_with_no_same_sort_key(&mut self, batch: &RecordBatch) -> Option<RecordBatch> {
         // Take the previous batch, if any, out of it storage self.last_batch
         if let Some(last_batch) = self.last_batch.take() {
-            let formatted =
-                arrow::util::pretty::pretty_format_batches(&[last_batch.clone()]).unwrap();
-            let lines = formatted.trim().split('\n').collect::<Vec<_>>();
-            println!("\nLast_Batch::\n\n{:#?}\n\n", lines);
-
-            let formatted = arrow::util::pretty::pretty_format_batches(&[batch.clone()]).unwrap();
-            let lines = formatted.trim().split('\n').collect::<Vec<_>>();
-            println!("\nBatch::\n\n{:#?}\n\n", lines);
-
             // Build sorted columns for last_batch and current one
             let schema = last_batch.schema();
+            // is_sort_key[col_idx] = true if it is present in sort keys
+            let mut is_sort_key: Vec<bool> = vec![false; last_batch.columns().len()];
             let last_batch_key_columns = self
                 .sort_keys
                 .iter()
@@ -107,6 +100,7 @@ impl RecordBatchDeduplicator {
                     // figure out the index of the key columns
                     let name = get_col_name(skey.expr.as_ref());
                     let index = schema.index_of(name).unwrap();
+                    is_sort_key[index] = true;
 
                     // Key column of last_batch of this index
                     let last_batch_array = last_batch.column(index);
@@ -121,7 +115,7 @@ impl RecordBatchDeduplicator {
                 .collect::<Vec<arrow::compute::SortColumn>>();
 
             // Build sorted columns for current batch
-            let schema = batch.schema();
+            // Schema of both batches are the same
             let batch_key_columns = self
                 .sort_keys
                 .iter()
@@ -142,7 +136,7 @@ impl RecordBatchDeduplicator {
                 })
                 .collect::<Vec<arrow::compute::SortColumn>>();
 
-            // Zip the 2 key set of columns for comparison
+            // Zip the 2 key sets of columns for comparison
             let zipped = last_batch_key_columns.iter().zip(batch_key_columns.iter());
 
             // Compare sort keys of the first row of the given batch the the last_batch
@@ -150,9 +144,9 @@ impl RecordBatchDeduplicator {
             // only need to compare last row of the last_batch with the first row of the current batch
             let mut same = true;
             for (l, r) in zipped {
-                let last_idx = l.values.len()-1;
+                let last_idx = l.values.len() - 1;
                 if (l.values.is_valid(last_idx), r.values.is_valid(0)) == (true, true) {
-                    // Both ave values, do the actual comparison
+                    // Both have values, do the actual comparison
                     let c =
                         arrow::array::build_compare(l.values.as_ref(), r.values.as_ref()).unwrap();
 
@@ -169,17 +163,29 @@ impl RecordBatchDeduplicator {
             if same {
                 // The batches overlap and need to be concatinated
                 // So, store it back in self.last_batch for the concat_batches later
-                println!(" ----- OVERLAPPED ------");
                 self.last_batch = Some(last_batch);
                 None
             } else {
-                // The batches do not overlap, return the last_batch to be sent downstream and reset it here
-                println!(" ----- NONE OVERLAPPED ------");
-                self.last_batch = None;
-                Some(last_batch)
+                // The batches do not overlap, deduplicate and then return the last_batch to get sent downstream
+
+                // Ranges of the batch needed for deduplication
+                // This last batch include only one range with all same key
+                let ranges = vec![
+                    Range {
+                        start: 0,
+                        end: last_batch.num_rows()
+                    };
+                    1
+                ];
+                let dupe_ranges = DuplicateRanges {
+                    is_sort_key,
+                    ranges,
+                };
+                let dedup_last_batch = self.output_from_ranges(&last_batch, &dupe_ranges).unwrap();
+
+                Some(dedup_last_batch)
             }
         } else {
-            println!(" ----- NO LAST BATCH ------");
             None
         }
     }
@@ -384,7 +390,7 @@ mod test {
         // ---+----+----+----
         //  a | b  | 1  | 2
         //  a | c  | 3  |
-        //  a | c  | 4  | 5
+        //  a | c  | 4  |
 
         // Current batch
         //  ====(next batch)====
@@ -392,18 +398,16 @@ mod test {
         //  b | d  | 7  | 8
 
         // Non overlapped => return last batch
-        // Expected output = Last batch
+        // Expected output = Deduplication of Last batch
         // t1 | t2 | f1 | f2
         // ---+----+----+----
-        //  a | b  | 1  | 2
-        //  a | c  | 3  |
-        //  a | c  | 4  | 5
+        //  a | c  | 4  | 2
 
         // Columns of last_batch
         let t1 = StringArray::from(vec![Some("a"), Some("a"), Some("a")]);
         let t2 = StringArray::from(vec![Some("b"), Some("c"), Some("c")]);
         let f1 = Float64Array::from(vec![Some(1.0), Some(3.0), Some(4.0)]);
-        let f2 = Float64Array::from(vec![Some(2.0), None, Some(5.0)]);
+        let f2 = Float64Array::from(vec![Some(2.0), None, None]);
 
         let last_batch = RecordBatch::try_from_iter(vec![
             ("t1", Arc::new(t1) as ArrayRef),
@@ -446,9 +450,7 @@ mod test {
             "+----+----+----+----+",
             "| t1 | t2 | f1 | f2 |",
             "+----+----+----+----+",
-            "| a  | b  | 1  | 2  |",
-            "| a  | c  | 3  |    |",
-            "| a  | c  | 4  | 5  |",
+            "| a  | c  | 4  | 2  |",
             "+----+----+----+----+",
         ];
         assert_batches_eq!(&expected, &[results]);
@@ -461,7 +463,7 @@ mod test {
         // Last batch
         // t1 | t2 | f1 | f2
         // ---+----+----+----
-        //  a | b  | 1  | 2
+        //  a | c  | 1  | 2
         //  a | c  | 3  |
         //  a | c  | 4  | 5
 
@@ -471,16 +473,14 @@ mod test {
         //  b | d  | 7  | 8
 
         // Non overlapped => return last batch
-        // Expected output = Last batch
+        // Expected output = Deduplication of last batch
         // t1 | t2 | f1 | f2
         // ---+----+----+----
-        //  a | b  | 1  | 2
-        //  a | c  | 3  |
         //  a | c  | 4  | 5
 
         // Columns of last_batch
         let t1 = StringArray::from(vec![Some("a"), Some("a"), Some("a")]);
-        let t2 = StringArray::from(vec![Some("b"), Some("c"), Some("c")]);
+        let t2 = StringArray::from(vec![Some("c"), Some("c"), Some("c")]);
         let f1 = Float64Array::from(vec![Some(1.0), Some(3.0), Some(4.0)]);
         let f2 = Float64Array::from(vec![Some(2.0), None, Some(5.0)]);
 
@@ -534,8 +534,6 @@ mod test {
             "+----+----+----+----+",
             "| t1 | t2 | f1 | f2 |",
             "+----+----+----+----+",
-            "| a  | b  | 1  | 2  |",
-            "| a  | c  | 3  |    |",
             "| a  | c  | 4  | 5  |",
             "+----+----+----+----+",
         ];

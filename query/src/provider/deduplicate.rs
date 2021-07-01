@@ -236,6 +236,12 @@ async fn deduplicate(
         // First check if this batch has same sort key with its previous batch
         if let Some(last_batch) = deduplicator.last_batch_with_no_same_sort_key(&batch) {
             // No same sort key, so send the last batch downstream first
+
+            let formatted =
+                arrow::util::pretty::pretty_format_batches(&[last_batch.clone()]).unwrap();
+            let lines = formatted.trim().split('\n').collect::<Vec<_>>();
+            println!("\nLast_Batch to send::\n\n{:#?}\n\n", lines);
+
             tx.send(Ok(last_batch))
                 .await
                 .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
