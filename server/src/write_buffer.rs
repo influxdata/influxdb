@@ -10,35 +10,44 @@ use std::{convert::TryInto, sync::Arc};
 
 pub type WriteBufferError = Box<dyn std::error::Error + Sync + Send>;
 
-pub fn new(rules: &DatabaseRules) -> Result<Option<Arc<dyn WriteBufferWriting>>, WriteBufferError> {
-    let name = rules.db_name();
+#[derive(Debug)]
+pub enum WriteBufferConfig {
+    Writing(Arc<dyn WriteBufferWriting>),
+    Reading(Arc<dyn WriteBufferReading>),
+}
 
-    // Right now, `KafkaBufferProducer` is the only production implementation of the
-    // `WriteBufferWriting` trait, so always use `KafkaBufferProducer` when there is a write buffer
-    // writing connection string specified. If/when there are other kinds of write buffers,
-    // additional configuration will be needed to determine what kind of write buffer to use here.
-    match rules.write_buffer_connection.as_ref() {
-        Some(WriteBufferConnection::Writing(conn)) => {
-            let kafka_buffer = KafkaBufferProducer::new(conn, name)?;
+impl WriteBufferConfig {
+    pub fn new(rules: &DatabaseRules) -> Result<Option<Self>, WriteBufferError> {
+        let name = rules.db_name();
 
-            Ok(Some(Arc::new(kafka_buffer) as _))
+        // Right now, the Kafka producer and consumers ar the only production implementations of the
+        // `WriteBufferWriting` and `WriteBufferReading` traits. If/when there are other kinds of
+        // write buffers, additional configuration will be needed to determine what kind of write
+        // buffer to use here.
+        match rules.write_buffer_connection.as_ref() {
+            Some(WriteBufferConnection::Writing(conn)) => {
+                let kafka_buffer = KafkaBufferProducer::new(conn, name)?;
+
+                Ok(Some(Self::Writing(Arc::new(kafka_buffer) as _)))
+            }
+            Some(WriteBufferConnection::Reading(_conn)) => {
+                unimplemented!();
+            }
+            None => Ok(None),
         }
-        Some(WriteBufferConnection::Reading(_)) => unimplemented!(),
-        None => Ok(None),
     }
 }
 
-/// A Write Buffer takes an `Entry` and returns `Sequence` data that facilitates reading entries
-/// from the Write Buffer at a later time.
+/// Writing to a Write Buffer takes an `Entry` and returns `Sequence` data that facilitates reading
+/// entries from the Write Buffer at a later time.
 #[async_trait]
 pub trait WriteBufferWriting: Sync + Send + std::fmt::Debug + 'static {
     /// Send an `Entry` to the write buffer and return information that can be used to restore
     /// entries at a later time.
     async fn store_entry(&self, entry: &Entry) -> Result<Sequence, WriteBufferError>;
-
-    // TODO: interface for restoring, will look something like:
-    // async fn restore_from(&self, sequence: &Sequence) -> Result<Stream<Entry>, Err>;
 }
+
+pub trait WriteBufferReading: Sync + Send + std::fmt::Debug + 'static {}
 
 pub struct KafkaBufferProducer {
     conn: String,
@@ -49,7 +58,7 @@ pub struct KafkaBufferProducer {
 // Needed because rdkafka's FutureProducer doesn't impl Debug
 impl std::fmt::Debug for KafkaBufferProducer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("KafkaBuffer")
+        f.debug_struct("KafkaBufferProducer")
             .field("conn", &self.conn)
             .field("database_name", &self.database_name)
             .finish()
@@ -106,17 +115,18 @@ impl KafkaBufferProducer {
     }
 }
 
+#[cfg(test)]
 pub mod test_helpers {
     use super::*;
     use std::sync::{Arc, Mutex};
 
     #[derive(Debug, Default)]
-    pub struct MockBuffer {
+    pub struct MockBufferForWriting {
         pub entries: Arc<Mutex<Vec<Entry>>>,
     }
 
     #[async_trait]
-    impl WriteBufferWriting for MockBuffer {
+    impl WriteBufferWriting for MockBufferForWriting {
         async fn store_entry(&self, entry: &Entry) -> Result<Sequence, WriteBufferError> {
             let mut entries = self.entries.lock().unwrap();
             let offset = entries.len() as u64;

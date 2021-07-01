@@ -80,7 +80,9 @@ use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use data_types::{
-    database_rules::{DatabaseRules, NodeGroup, RoutingRules, Shard, ShardConfig, ShardId},
+    database_rules::{
+        DatabaseRules, NodeGroup, RoutingRules, Shard, ShardConfig, ShardId, WriteBufferConnection,
+    },
     database_state::DatabaseStateCode,
     job::Job,
     server_id::ServerId,
@@ -215,8 +217,15 @@ pub enum Error {
     #[snafu(display("cannot get id: {}", source))]
     GetIdError { source: crate::init::Error },
 
-    #[snafu(display("cannot create write buffer for writing: {}", source))]
-    CreatingWriteBufferForWriting { source: DatabaseError },
+    #[snafu(display(
+        "cannot create write buffer with config: {:?}, error: {}",
+        config,
+        source
+    ))]
+    CreatingWriteBuffer {
+        config: Option<WriteBufferConnection>,
+        source: DatabaseError,
+    },
 
     #[snafu(display(
         "Invalid database state transition, expected {:?} but got {:?}",
@@ -536,8 +545,13 @@ where
         .await
         .map_err(|e| Box::new(e) as _)
         .context(CannotCreatePreservedCatalog)?;
-        let write_buffer = write_buffer::new(&rules)
-            .map_err(|e| Error::CreatingWriteBufferForWriting { source: e })?;
+
+        let write_buffer = write_buffer::WriteBufferConfig::new(&rules).map_err(|e| {
+            Error::CreatingWriteBuffer {
+                config: rules.write_buffer_connection.clone(),
+                source: e,
+            }
+        })?;
         db_reservation.advance_replay(preserved_catalog, catalog, write_buffer)?;
 
         // no actual replay required

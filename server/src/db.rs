@@ -11,7 +11,7 @@ use crate::{
         catalog::{chunk::CatalogChunk, partition::Partition, Catalog, TableNameFilter},
         lifecycle::{LockableCatalogChunk, LockableCatalogPartition},
     },
-    write_buffer::WriteBufferWriting,
+    write_buffer::WriteBufferConfig,
     JobRegistry,
 };
 use ::lifecycle::{LockableChunk, LockablePartition};
@@ -74,12 +74,15 @@ pub enum Error {
     FreezingChunk { source: catalog::chunk::Error },
 
     #[snafu(display("Error sending entry to write buffer"))]
-    WriteBufferError {
+    WriteBufferWritingError {
         source: Box<dyn std::error::Error + Sync + Send>,
     },
 
     #[snafu(display("Cannot write to this database: no mutable buffer configured"))]
     DatabaseNotWriteable {},
+
+    #[snafu(display("Cannot write to this database: only reading from write buffer"))]
+    WritingOnlyAllowedThroughWriteBuffer {},
 
     #[snafu(display("Hard buffer size limit reached"))]
     HardLimitReached {},
@@ -229,8 +232,8 @@ pub struct Db {
     /// Metric labels
     metric_labels: Vec<KeyValue>,
 
-    /// Optionally buffer writes
-    write_buffer: Option<Arc<dyn WriteBufferWriting>>,
+    /// Optionally connect to a write buffer for either buffering writes or reading buffered writes
+    write_buffer: Option<WriteBufferConfig>,
 
     /// Lock that prevents the cleanup job from deleting files that are written but not yet added to the preserved
     /// catalog.
@@ -249,7 +252,7 @@ pub(crate) struct DatabaseToCommit {
     pub(crate) preserved_catalog: PreservedCatalog,
     pub(crate) catalog: Catalog,
     pub(crate) rules: DatabaseRules,
-    pub(crate) write_buffer: Option<Arc<dyn WriteBufferWriting>>,
+    pub(crate) write_buffer: Option<WriteBufferConfig>,
 }
 
 impl Db {
@@ -570,23 +573,23 @@ impl Db {
         };
 
         match (self.write_buffer.as_ref(), immutable) {
-            (Some(write_buffer), true) => {
+            (Some(WriteBufferConfig::Writing(write_buffer)), true) => {
                 // If only the write buffer is configured, this is passing the data through to
                 // the write buffer, and it's not an error. We ignore the returned metadata; it
                 // will get picked up when data is read from the write buffer.
                 let _ = write_buffer
                     .store_entry(&entry)
                     .await
-                    .context(WriteBufferError)?;
+                    .context(WriteBufferWritingError)?;
                 Ok(())
             }
-            (Some(write_buffer), false) => {
+            (Some(WriteBufferConfig::Writing(write_buffer)), false) => {
                 // If using both write buffer and mutable buffer, we want to wait for the write
                 // buffer to return success before adding the entry to the mutable buffer.
                 let sequence = write_buffer
                     .store_entry(&entry)
                     .await
-                    .context(WriteBufferError)?;
+                    .context(WriteBufferWritingError)?;
                 let sequenced_entry = Arc::new(
                     SequencedEntry::new_from_sequence(sequence, entry)
                         .context(SequencedEntryError)?,
@@ -594,10 +597,15 @@ impl Db {
 
                 self.store_sequenced_entry(sequenced_entry)
             }
-            (None, true) => {
-                // If no write buffer is configured and the database is immutable, trying to
-                // store an entry is an error and we don't need to build a `SequencedEntry`.
+            (_, true) => {
+                // If not configured to send entries to the write buffer and the database is
+                // immutable, trying to store an entry is an error and we don't need to build a
+                // `SequencedEntry`.
                 DatabaseNotWriteable {}.fail()
+            }
+            (Some(WriteBufferConfig::Reading(_)), false) => {
+                // If configured to read entries from the write buffer, we shouldn't be here
+                WritingOnlyAllowedThroughWriteBuffer {}.fail()
             }
             (None, false) => {
                 // If no write buffer is configured, nothing is
@@ -917,7 +925,7 @@ mod tests {
             test_helpers::{try_write_lp, write_lp},
         },
         utils::{make_db, TestDb},
-        write_buffer::test_helpers::MockBuffer,
+        write_buffer::test_helpers::MockBufferForWriting,
     };
 
     use super::*;
@@ -942,9 +950,9 @@ mod tests {
     async fn write_with_write_buffer_no_mutable_buffer() {
         // Writes should be forwarded to the write buffer and *not* rejected if the write buffer is
         // configured and the mutable buffer isn't
-        let write_buffer = Arc::new(MockBuffer::default());
+        let write_buffer = Arc::new(MockBufferForWriting::default());
         let test_db = TestDb::builder()
-            .write_buffer(Arc::clone(&write_buffer) as _)
+            .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
             .build()
             .await
             .db;
@@ -958,12 +966,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn write_buffer_and_mutable_buffer() {
+    async fn write_to_write_buffer_and_mutable_buffer() {
         // Writes should be forwarded to the write buffer *and* the mutable buffer if both are
         // configured.
-        let write_buffer = Arc::new(MockBuffer::default());
+        let write_buffer = Arc::new(MockBufferForWriting::default());
         let db = TestDb::builder()
-            .write_buffer(Arc::clone(&write_buffer) as _)
+            .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
             .build()
             .await
             .db;
@@ -1829,9 +1837,9 @@ mod tests {
     async fn write_updates_persistence_windows() {
         // Writes should update the persistence windows when there
         // is a write buffer configured.
-        let write_buffer = Arc::new(MockBuffer::default());
+        let write_buffer = Arc::new(MockBufferForWriting::default());
         let db = TestDb::builder()
-            .write_buffer(Arc::clone(&write_buffer) as _)
+            .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
             .build()
             .await
             .db;
