@@ -449,6 +449,10 @@ fn elapsed_seconds(a: DateTime<Utc>, b: DateTime<Utc>) -> u32 {
 ///
 /// Note: Does not check the chunk is the correct state
 fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<Utc>) -> bool {
+    if chunk.row_count() >= DEFAULT_MUB_ROW_THRESHOLD {
+        return true;
+    }
+
     match (rules.mutable_linger_seconds, chunk.time_of_last_write()) {
         (Some(linger), Some(last_write)) if elapsed_seconds(now, last_write) >= linger.get() => {
             match (
@@ -465,9 +469,9 @@ fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<
             }
         }
 
-        // Move it if over the row count threshold or don't move since it's either empty or the linger time hasn't expired.
-        // TODO: make this a configuration variable
-        _ => chunk.row_count() >= DEFAULT_MUB_ROW_THRESHOLD,
+        // Disable movement if no mutable_linger set,
+        // or the chunk is empty, or the linger hasn't expired
+        _ => false,
     }
 }
 
@@ -879,6 +883,11 @@ mod tests {
         let chunk = TestChunk::new(0, Some(0), Some(70), ChunkStorage::OpenMutableBuffer);
         assert!(!can_move(&rules, &chunk, from_secs(71)));
         assert!(can_move(&rules, &chunk, from_secs(81)));
+
+        // If over the default row count threshold, we should be able to move
+        let chunk = TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer)
+            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD);
+        assert!(can_move(&rules, &chunk, from_secs(0)));
     }
 
     #[test]

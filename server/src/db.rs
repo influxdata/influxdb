@@ -683,7 +683,7 @@ impl Db {
                                 continue;
                             }
 
-                            let _ = partition.create_open_chunk(mb_chunk);
+                            partition.create_open_chunk(mb_chunk);
                         }
                     };
 
@@ -2391,7 +2391,7 @@ mod tests {
                 ("access", "exclusive"),
             ])
             .counter()
-            .eq(2.)
+            .eq(1.)
             .unwrap();
 
         test_db
