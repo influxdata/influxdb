@@ -11,7 +11,7 @@ use crate::{
         catalog::{chunk::CatalogChunk, partition::Partition, Catalog, TableNameFilter},
         lifecycle::{LockableCatalogChunk, LockableCatalogPartition},
     },
-    write_buffer::WriteBufferConfig,
+    write_buffer::{WriteBufferConfig, WriteBufferError},
     JobRegistry,
 };
 use ::lifecycle::{LockableChunk, LockablePartition};
@@ -25,6 +25,7 @@ use data_types::{
 };
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use entry::{Entry, SequencedEntry};
+use futures::{stream::BoxStream, StreamExt};
 use metrics::KeyValue;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
@@ -550,9 +551,55 @@ impl Db {
                     }
                 }
             },
+            // streaming from the write buffer loop
+            async {
+                if let Some(WriteBufferConfig::Reading(write_buffer)) = &self.write_buffer {
+                    let wb = Arc::clone(write_buffer);
+                    while !shutdown.is_cancelled() {
+                        tokio::select! {
+                            _ = {
+                                self.stream_in_sequenced_entries(wb.stream())
+                                } => {},
+                            _ = shutdown.cancelled() => break,
+                        }
+                    }
+                }
+            },
         );
 
         info!("finished background worker");
+    }
+
+    /// This is used to take entries from a `Stream` and put them in the mutable buffer, such as
+    /// streaming entries from a write buffer.
+    async fn stream_in_sequenced_entries(
+        &self,
+        stream: BoxStream<'_, Result<SequencedEntry, WriteBufferError>>,
+    ) {
+        stream
+            .for_each(|sequenced_entry_result| async {
+                let sequenced_entry = match sequenced_entry_result {
+                    Ok(sequenced_entry) => sequenced_entry,
+                    Err(e) => {
+                        debug!(?e, "Error converting write buffer data to SequencedEntry");
+                        // TODO: add to metrics
+                        // self.ingest_errors.add_with_labels(1, &labels);
+                        return;
+                    }
+                };
+
+                let sequenced_entry = Arc::new(sequenced_entry);
+
+                if let Err(e) = self.store_sequenced_entry(sequenced_entry) {
+                    debug!(
+                        ?e,
+                        "Error storing SequencedEntry from write buffer in database"
+                    );
+                    // TODO: add to metrics
+                    // self.ingest_errors.add_with_labels(1, &labels);
+                }
+            })
+            .await
     }
 
     async fn cleanup_unreferenced_parquet_files(
@@ -882,29 +929,28 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        collections::HashSet,
-        convert::TryFrom,
-        iter::Iterator,
-        num::{NonZeroU64, NonZeroUsize},
-        str,
-        time::{Duration, Instant},
+    use super::*;
+    use crate::{
+        assert_store_sequenced_entry_failures,
+        db::{
+            catalog::chunk::ChunkStage,
+            test_helpers::{try_write_lp, write_lp},
+        },
+        utils::{make_db, TestDb},
+        write_buffer::test_helpers::{MockBufferForReading, MockBufferForWriting},
     };
-
-    use arrow::record_batch::RecordBatch;
-    use bytes::Bytes;
-    use futures::{stream, StreamExt, TryStreamExt};
-    use internal_types::{schema::Schema, selection::Selection};
-    use tokio_util::sync::CancellationToken;
-
     use ::test_helpers::assert_contains;
+    use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
+    use bytes::Bytes;
     use data_types::{
         chunk_metadata::ChunkStorage,
         database_rules::{PartitionTemplate, TemplatePart},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     };
     use entry::test_helpers::lp_to_entry;
+    use futures::{stream, StreamExt, TryStreamExt};
+    use internal_types::{schema::Schema, selection::Selection};
     use object_store::{
         memory::InMemory,
         path::{parts::PathPart, ObjectStorePath, Path},
@@ -917,18 +963,15 @@ mod tests {
     };
     use persistence_windows::min_max_sequence::MinMaxSequence;
     use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryChunk, QueryDatabase};
-
-    use crate::{
-        assert_store_sequenced_entry_failures,
-        db::{
-            catalog::chunk::ChunkStage,
-            test_helpers::{try_write_lp, write_lp},
-        },
-        utils::{make_db, TestDb},
-        write_buffer::test_helpers::MockBufferForWriting,
+    use std::{
+        collections::HashSet,
+        convert::TryFrom,
+        iter::Iterator,
+        num::{NonZeroU64, NonZeroUsize},
+        str,
+        time::{Duration, Instant},
     };
-
-    use super::*;
+    use tokio_util::sync::CancellationToken;
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
@@ -991,6 +1034,74 @@ mod tests {
             "+-----+-------------------------------+",
         ];
         assert_batches_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn read_from_write_buffer_write_to_mutable_buffer() {
+        let entry = lp_to_entry("cpu bar=1 10");
+        let write_buffer = Arc::new(MockBufferForReading::new(vec![Ok(entry)]));
+
+        let db = TestDb::builder()
+            .write_buffer(WriteBufferConfig::Reading(Arc::clone(&write_buffer) as _))
+            .build()
+            .await
+            .db;
+
+        // do: start background task loop
+        let shutdown: CancellationToken = Default::default();
+        let shutdown_captured = shutdown.clone();
+        let db_captured = Arc::clone(&db);
+        let join_handle =
+            tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+
+        let query = "select * from cpu";
+
+        // check: after a while the table should exist and a query plan should succeed
+        let t_0 = Instant::now();
+        loop {
+            let loop_db = Arc::clone(&db);
+
+            let planner = SqlQueryPlanner::default();
+            let executor = loop_db.executor();
+
+            let physical_plan = planner.query(loop_db, query, &executor);
+
+            if physical_plan.is_ok() {
+                break;
+            }
+
+            assert!(t_0.elapsed() < Duration::from_secs(10));
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        // do: stop background task loop
+        shutdown.cancel();
+        join_handle.await.unwrap();
+
+        // check: the expected results should be there
+        let batches = run_query(db, "select * from cpu").await;
+
+        let expected = vec![
+            "+-----+-------------------------------+",
+            "| bar | time                          |",
+            "+-----+-------------------------------+",
+            "| 1   | 1970-01-01 00:00:00.000000010 |",
+            "+-----+-------------------------------+",
+        ];
+        assert_batches_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn cant_write_when_reading_from_write_buffer() {
+        // Validate that writes are rejected if this database is reading from the write buffer
+        let db = make_db().await.db;
+        db.rules.write().lifecycle_rules.immutable = true;
+        let entry = lp_to_entry("cpu bar=1 10");
+        let res = db.store_entry(entry).await;
+        assert_contains!(
+            res.unwrap_err().to_string(),
+            "Cannot write to this database: no mutable buffer configured"
+        );
     }
 
     #[tokio::test]
