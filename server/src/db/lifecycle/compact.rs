@@ -82,7 +82,7 @@ pub(crate) fn compact_chunks(
 
         // Collect results into RUB chunk
         while let Some(batch) = stream.next().await {
-            rb_chunk.upsert_table(&table_name, batch?)
+            rb_chunk.upsert_table(batch?)
         }
 
         let new_chunk = {
