@@ -28,7 +28,7 @@ type args struct {
 	tagKeyFilter      *regexp.Regexp
 	tagValueFilter    *regexp.Regexp
 
-	w *io.Writer
+	w io.Writer
 }
 
 func NewDumpTSICommand() *cobra.Command {
@@ -37,58 +37,29 @@ func NewDumpTSICommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dumptsi",
 		Short: "Dumps low-level details about tsi1 files.",
-		Long: `Usage: influx_inspect dumptsi [flags] path...
-    -series
-            Dump raw series data
-    -measurements
-            Dump raw measurement data
-    -tag-keys
-            Dump raw tag keys
-    -tag-values
-            Dump raw tag values
-    -tag-value-series
-            Dump raw series for each tag value
-    -measurement-filter REGEXP
-            Filters data by measurement regular expression
-    -series-file PATH
-            Path to the "_series" directory under the database data directory.
-            Required.
-    -tag-key-filter REGEXP
-            Filters data by tag key regular expression
-    -tag-value-filter REGEXP
-            Filters data by tag value regular expression
-One or more paths are required. Path must specify either a TSI index directory
-or it should specify one or more .tsi/.tsl files. If no flags are specified
-then summary stats are provided for each file.
-`,
-		Args: cobra.MinimumNArgs(1),
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Parse filters.
 			if measurementFilter != "" {
 				re, err := regexp.Compile(measurementFilter)
 				if err != nil {
-					return fmt.Errorf("failed to parse regex: %w", err)
+					return fmt.Errorf("failed to parse regex %q: %w", measurementFilter, err)
 				}
 				arguments.measurementFilter = re
 			}
 			if tagKeyFilter != "" {
 				re, err := regexp.Compile(tagKeyFilter)
 				if err != nil {
-					return fmt.Errorf("failed to parse regex: %w", err)
+					return fmt.Errorf("failed to parse regex %q: %w", tagKeyFilter, err)
 				}
 				arguments.tagKeyFilter = re
 			}
 			if tagValueFilter != "" {
 				re, err := regexp.Compile(tagValueFilter)
 				if err != nil {
-					return fmt.Errorf("failed to parse regex: %w", err)
+					return fmt.Errorf("failed to parse regex %q: %w", tagValueFilter, err)
 				}
 				arguments.tagValueFilter = re
-			}
-
-			// Validate series file path.
-			if arguments.seriesFilePath == "" {
-				return fmt.Errorf("series file path required")
 			}
 
 			arguments.paths = args
@@ -107,8 +78,7 @@ then summary stats are provided for each file.
 				arguments.showMeasurements = true
 			}
 
-			w := cmd.OutOrStdout()
-			arguments.w = &w
+			arguments.w = cmd.OutOrStdout()
 			return arguments.run()
 		},
 	}
@@ -132,12 +102,13 @@ then summary stats are provided for each file.
 	cmd.Flags().StringVar(&tagValueFilter, "tag-value-filter", "",
 		"Regex tag value filter")
 
+	cmd.MarkFlagRequired("series-file")
+
 	return cmd
 }
 
 func (a *args) run() error {
 	sfile := tsdb.NewSeriesFile(a.seriesFilePath)
-	//sfile.Logger = logger.New(os.Stderr)
 	if err := sfile.Open(); err != nil {
 		return err
 	}
@@ -148,6 +119,11 @@ func (a *args) run() error {
 	if err != nil {
 		return err
 	}
+	if fs != nil {
+		defer fs.Release()
+		defer fs.Close()
+	}
+	defer idx.Close()
 
 	if a.showSeries {
 		if err := a.printSeries(sfile); err != nil {
@@ -157,8 +133,6 @@ func (a *args) run() error {
 
 	// If this is an ad-hoc fileset then process it and close afterward.
 	if fs != nil {
-		defer fs.Release()
-		defer fs.Close()
 		if a.showSeries || a.showMeasurements {
 			return a.printMeasurements(sfile, fs)
 		}
@@ -166,7 +140,6 @@ func (a *args) run() error {
 	}
 
 	// Otherwise iterate over each partition in the index.
-	defer idx.Close()
 	for i := 0; i < int(idx.PartitionN); i++ {
 		if err := func() error {
 			fs, err := idx.PartitionAt(i).RetainFileSet()
@@ -248,7 +221,7 @@ func (a *args) printSeries(sfile *tsdb.SeriesFile) error {
 	}
 
 	// Print header.
-	tw := tabwriter.NewWriter(*a.w, 8, 8, 1, '\t', 0)
+	tw := tabwriter.NewWriter(a.w, 8, 8, 1, '\t', 0)
 	fmt.Fprintln(tw, "Series\t")
 
 	// Iterate over each series.
@@ -275,7 +248,7 @@ func (a *args) printSeries(sfile *tsdb.SeriesFile) error {
 	if err := tw.Flush(); err != nil {
 		return fmt.Errorf("failed to flush tabwriter: %w", err)
 	}
-	fmt.Fprint(*a.w, "\n\n")
+	fmt.Fprint(a.w, "\n\n")
 
 	return nil
 }
@@ -285,7 +258,7 @@ func (a *args) printMeasurements(sfile *tsdb.SeriesFile, fs *tsi1.FileSet) error
 		return nil
 	}
 
-	tw := tabwriter.NewWriter(*a.w, 8, 8, 1, '\t', 0)
+	tw := tabwriter.NewWriter(a.w, 8, 8, 1, '\t', 0)
 	fmt.Fprintln(tw, "Measurement\t")
 
 	// Iterate over each series.
@@ -306,7 +279,7 @@ func (a *args) printMeasurements(sfile *tsdb.SeriesFile, fs *tsi1.FileSet) error
 		}
 	}
 
-	fmt.Fprint(*a.w, "\n\n")
+	fmt.Fprint(a.w, "\n\n")
 
 	return nil
 }
@@ -317,7 +290,7 @@ func (a *args) printTagKeys(sfile *tsdb.SeriesFile, fs *tsi1.FileSet, name []byt
 	}
 
 	// Iterate over each key.
-	tw := tabwriter.NewWriter(*a.w, 8, 8, 1, '\t', 0)
+	tw := tabwriter.NewWriter(a.w, 8, 8, 1, '\t', 0)
 	itr := fs.TagKeyIterator(name)
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		if a.tagKeyFilter != nil && !a.tagKeyFilter.Match(e.Key()) {
@@ -333,7 +306,7 @@ func (a *args) printTagKeys(sfile *tsdb.SeriesFile, fs *tsi1.FileSet, name []byt
 			return err
 		}
 	}
-	fmt.Fprint(*a.w, "\n")
+	fmt.Fprint(a.w, "\n")
 
 	return nil
 }
@@ -344,7 +317,7 @@ func (a *args) printTagValues(sfile *tsdb.SeriesFile, fs *tsi1.FileSet, name, ke
 	}
 
 	// Iterate over each value.
-	tw := tabwriter.NewWriter(*a.w, 8, 8, 1, '\t', 0)
+	tw := tabwriter.NewWriter(a.w, 8, 8, 1, '\t', 0)
 	itr := fs.TagValueIterator(name, key)
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		if a.tagValueFilter != nil && !a.tagValueFilter.Match(e.Value()) {
@@ -360,7 +333,7 @@ func (a *args) printTagValues(sfile *tsdb.SeriesFile, fs *tsi1.FileSet, name, ke
 			return err
 		}
 	}
-	fmt.Fprint(*a.w, "\n")
+	fmt.Fprint(a.w, "\n")
 
 	return nil
 }
@@ -371,7 +344,7 @@ func (a *args) printTagValueSeries(sfile *tsdb.SeriesFile, fs *tsi1.FileSet, nam
 	}
 
 	// Iterate over each series.
-	tw := tabwriter.NewWriter(*a.w, 8, 8, 1, '\t', 0)
+	tw := tabwriter.NewWriter(a.w, 8, 8, 1, '\t', 0)
 	itr, err := fs.TagValueSeriesIDIterator(name, key, value)
 	if err != nil {
 		return fmt.Errorf("failed to get series ID iterator with name %q: %w", name, err)
@@ -395,7 +368,7 @@ func (a *args) printTagValueSeries(sfile *tsdb.SeriesFile, fs *tsi1.FileSet, nam
 			return fmt.Errorf("failed to flush tabwriter: %w", err)
 		}
 	}
-	fmt.Fprint(*a.w, "\n")
+	fmt.Fprint(a.w, "\n")
 
 	return nil
 }
@@ -414,14 +387,14 @@ func (a *args) printFileSummaries(fs *tsi1.FileSet) error {
 		default:
 			panic("unreachable")
 		}
-		fmt.Fprintln(*a.w, "")
+		fmt.Fprintln(a.w, "")
 	}
 	return nil
 }
 
 func (a *args) printLogFileSummary(f *tsi1.LogFile) error {
-	fmt.Fprintf(*a.w, "[LOG FILE] %s\n", filepath.Base(f.Path()))
-	tw := tabwriter.NewWriter(*a.w, 8, 8, 1, '\t', 0)
+	fmt.Fprintf(a.w, "[LOG FILE] %s\n", filepath.Base(f.Path()))
+	tw := tabwriter.NewWriter(a.w, 8, 8, 1, '\t', 0)
 	fmt.Fprintf(tw, "Series:\t%d\n", f.SeriesN())
 	fmt.Fprintf(tw, "Measurements:\t%d\n", f.MeasurementN())
 	fmt.Fprintf(tw, "Tag Keys:\t%d\n", f.TagKeyN())
@@ -430,7 +403,7 @@ func (a *args) printLogFileSummary(f *tsi1.LogFile) error {
 }
 
 func (a *args) printIndexFileSummary(f *tsi1.IndexFile) error {
-	fmt.Fprintf(*a.w, "[INDEX FILE] %s\n", filepath.Base(f.Path()))
+	fmt.Fprintf(a.w, "[INDEX FILE] %s\n", filepath.Base(f.Path()))
 
 	// Calculate summary stats.
 	var measurementN, measurementSeriesN, measurementSeriesSize uint64
@@ -456,7 +429,7 @@ func (a *args) printIndexFileSummary(f *tsi1.IndexFile) error {
 	}
 
 	// Write stats.
-	tw := tabwriter.NewWriter(*a.w, 8, 8, 1, '\t', 0)
+	tw := tabwriter.NewWriter(a.w, 8, 8, 1, '\t', 0)
 	fmt.Fprintf(tw, "Measurements:\t%d\n", measurementN)
 	fmt.Fprintf(tw, "  Series data size:\t%d (%s)\n", measurementSeriesSize, formatSize(measurementSeriesSize))
 	fmt.Fprintf(tw, "  Bytes per series:\t%.01fb\n", float64(measurementSeriesSize)/float64(measurementSeriesN))
