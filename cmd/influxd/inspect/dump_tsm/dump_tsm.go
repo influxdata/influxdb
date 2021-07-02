@@ -39,7 +39,7 @@ func NewDumpTSMCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&arguments.path, "file", "",
-		"Root storage path")
+		"Path to TSM file")
 	cmd.Flags().BoolVar(&arguments.dumpIndex, "index", false,
 		"Dump raw index data")
 	cmd.Flags().BoolVar(&arguments.dumpBlocks, "blocks", false,
@@ -98,11 +98,12 @@ func dumpTSM(cmd *cobra.Command, args args) error {
 		})
 	}
 
-	tw = tabwriter.NewWriter(cmd.OutOrStdout(), 8, 8, 1, '\t', 0)
-	fmt.Fprintln(tw, "  "+strings.Join([]string{"Blk", "Chk", "Ofs", "Len", "Type", "Min Time", "Points", "Enc [T/V]", "Len [T/V]"}, "\t"))
+	if args.dumpBlocks {
+		tw = tabwriter.NewWriter(cmd.OutOrStdout(), 8, 8, 1, '\t', 0)
+		fmt.Fprintln(tw, "  "+strings.Join([]string{"Blk", "Chk", "Ofs", "Len", "Type", "Min Time", "Points", "Enc [T/V]", "Len [T/V]"}, "\t"))
+	}
 
 	indexSize := r.IndexSize()
-
 	blockCount, pointCount, blockSize, err := dumpBlocks(cmd, dumpBlocksParams{
 		tw:         tw,
 		keyCount:   keyCount,
