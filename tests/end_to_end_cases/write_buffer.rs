@@ -7,6 +7,8 @@ use entry::{test_helpers::lp_to_entry, Entry};
 use generated_types::influxdata::iox::management::v1::database_rules::WriteBufferConnection;
 use influxdb_iox_client::write::WriteError;
 use rdkafka::{
+    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
+    client::DefaultClientContext,
     consumer::{Consumer, StreamConsumer},
     producer::{FutureProducer, FutureRecord},
     ClientConfig, Message, Offset, TopicPartitionList,
@@ -110,6 +112,27 @@ async fn writes_go_to_kafka() {
     assert_eq!(partition_writes.len(), 2);
 }
 
+async fn produce_to_kafka_directly(
+    producer: &FutureProducer,
+    lp: &str,
+    topic: &str,
+    partition: Option<i32>,
+) {
+    let entry = lp_to_entry(lp);
+    let mut record: FutureRecord<'_, String, _> = FutureRecord::to(topic).payload(entry.data());
+
+    if let Some(pid) = partition {
+        record = record.partition(pid);
+    }
+
+    producer
+        .send_result(record)
+        .unwrap()
+        .await
+        .unwrap()
+        .unwrap();
+}
+
 #[tokio::test]
 async fn reads_come_from_kafka() {
     let kafka_connection = maybe_skip_integration!();
@@ -124,26 +147,44 @@ async fn reads_come_from_kafka() {
     })
     .await;
 
-    // put some points in Kafka
-    let mut producer_cfg = ClientConfig::new();
-    producer_cfg.set("bootstrap.servers", kafka_connection);
-    producer_cfg.set("message.timeout.ms", "5000");
-    let producer: FutureProducer = producer_cfg.create().unwrap();
+    // Common Kafka config
+    let mut cfg = ClientConfig::new();
+    cfg.set("bootstrap.servers", kafka_connection);
+    cfg.set("message.timeout.ms", "5000");
 
+    // Create a partition with 2 topics in Kafka
+    let num_partitions = 2;
+    let admin: AdminClient<DefaultClientContext> = cfg.clone().create().unwrap();
+    let topic = NewTopic::new(&db_name, num_partitions, TopicReplication::Fixed(1));
+    let opts = AdminOptions::default();
+    admin.create_topics(&[topic], &opts).await.unwrap();
+
+    // put some points in Kafka
+    let producer: FutureProducer = cfg.create().unwrap();
+
+    // Put some data in partition 0
     let lp_lines = [
         "upc,region=west user=23.2 100",
         "upc,region=east user=21.0 150",
         "diskio,region=east bytes=99i 200",
     ];
-    let entry = lp_to_entry(&lp_lines.join("\n"));
-    let record: FutureRecord<'_, String, _> = FutureRecord::to(&db_name).payload(entry.data());
+    produce_to_kafka_directly(&producer, &lp_lines.join("\n"), &db_name, Some(0)).await;
 
-    producer
-        .send_result(record)
-        .unwrap()
-        .await
-        .unwrap()
-        .unwrap();
+    // Put some data in partition 1
+    let lp_lines = [
+        "upc,region=north user=76.2 300",
+        "upc,region=east user=88.7 350",
+        "diskio,region=east bytes=106i 400",
+    ];
+    produce_to_kafka_directly(&producer, &lp_lines.join("\n"), &db_name, Some(1)).await;
+
+    // Put some data in no partition
+    let lp_lines = [
+        "upc,region=south user=0.2 500",
+        "upc,region=east user=37.5 550",
+        "diskio,region=east bytes=9i 600",
+    ];
+    produce_to_kafka_directly(&producer, &lp_lines.join("\n"), &db_name, None).await;
 
     let check = async {
         let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
@@ -165,8 +206,12 @@ async fn reads_come_from_kafka() {
                     "+--------+-------------------------------+------+",
                     "| region | time                          | user |",
                     "+--------+-------------------------------+------+",
-                    "| west   | 1970-01-01 00:00:00.000000100 | 23.2 |",
                     "| east   | 1970-01-01 00:00:00.000000150 | 21   |",
+                    "| east   | 1970-01-01 00:00:00.000000350 | 88.7 |",
+                    "| east   | 1970-01-01 00:00:00.000000550 | 37.5 |",
+                    "| north  | 1970-01-01 00:00:00.000000300 | 76.2 |",
+                    "| south  | 1970-01-01 00:00:00.000000500 | 0.2  |",
+                    "| west   | 1970-01-01 00:00:00.000000100 | 23.2 |",
                     "+--------+-------------------------------+------+",
                 ];
                 assert_batches_sorted_eq!(&expected, &batches);

@@ -9,7 +9,7 @@ use rdkafka::{
     consumer::{Consumer, StreamConsumer},
     error::KafkaError,
     producer::{FutureProducer, FutureRecord},
-    ClientConfig, Message, Offset, TopicPartitionList,
+    ClientConfig, Message,
 };
 use std::{
     convert::{TryFrom, TryInto},
@@ -190,17 +190,18 @@ impl KafkaBufferConsumer {
         cfg.set("bootstrap.servers", &conn);
         cfg.set("session.timeout.ms", "6000");
         cfg.set("enable.auto.commit", "false");
+
         // Create a unique group ID for this database's consumer as we don't want to create
         // consumer groups.
         cfg.set("group.id", &format!("{}-{}", server_id, database_name));
 
+        // When subscribing without a partition offset, start from the smallest offset available.
+        cfg.set("auto.offset.reset", "smallest");
+
         let consumer: StreamConsumer = cfg.create()?;
-        let mut topics = TopicPartitionList::new();
-        topics.add_partition(&database_name, 0);
-        topics
-            .set_partition_offset(&database_name, 0, Offset::Beginning)
-            .unwrap();
-        consumer.assign(&topics)?;
+
+        // Subscribe to all partitions of this database's topic.
+        consumer.subscribe(&[&database_name]).unwrap();
 
         Ok(Self {
             conn,
@@ -213,7 +214,7 @@ impl KafkaBufferConsumer {
 #[cfg(test)]
 pub mod test_helpers {
     use super::*;
-    use futures::stream::{self, StreamExt, TryStreamExt};
+    use futures::stream::{self, StreamExt};
     use std::sync::{Arc, Mutex};
 
     #[derive(Debug, Default)]
@@ -235,7 +236,7 @@ pub mod test_helpers {
         }
     }
 
-    type MoveableEntries = Arc<Mutex<Vec<Result<Entry, WriteBufferError>>>>;
+    type MoveableEntries = Arc<Mutex<Vec<Result<SequencedEntry, WriteBufferError>>>>;
     pub struct MockBufferForReading {
         entries: MoveableEntries,
     }
@@ -247,7 +248,7 @@ pub mod test_helpers {
     }
 
     impl MockBufferForReading {
-        pub fn new(entries: Vec<Result<Entry, WriteBufferError>>) -> Self {
+        pub fn new(entries: Vec<Result<SequencedEntry, WriteBufferError>>) -> Self {
             Self {
                 entries: Arc::new(Mutex::new(entries)),
             }
@@ -267,7 +268,6 @@ pub mod test_helpers {
 
             stream::iter(entries.into_iter())
                 .chain(stream::pending())
-                .map_ok(SequencedEntry::new_unsequenced)
                 .boxed()
         }
     }
