@@ -1,6 +1,7 @@
 package inspect
 
 import (
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/report_tsi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -23,10 +24,9 @@ func NewCommand(v *viper.Viper) (*cobra.Command, error) {
 	base.AddCommand(exportLp)
 	base.AddCommand(NewExportIndexCommand())
 	base.AddCommand(NewTSMVerifyCommand())
-
 	base.AddCommand(NewVerifySeriesfileCommand())
-
 	base.AddCommand(NewVerifyTombstoneCommand())
+	base.AddCommand(report_tsi.NewReportTSICommand())
 
 	return base, nil
 }
