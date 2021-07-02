@@ -93,7 +93,7 @@ then summary stats are provided for each file.
 
 			arguments.paths = args
 			if len(arguments.paths) == 0 {
-				return fmt.Errorf("at least one path required\n")
+				return fmt.Errorf("at least one path required")
 			}
 
 			// Some flags imply other flags.
