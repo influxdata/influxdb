@@ -64,6 +64,21 @@ func NewSwaggerHandler() http.Handler {
 		Prefix:    embedBaseDir,
 	}
 
+	return mwSetCacheControl(swaggerHandler(fileOpener))
+}
+
+// mwSetCacheControl sets a default cache control header.
+func mwSetCacheControl(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Cache-Control", "public, max-age=3600")
+		next.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(fn)
+}
+
+// swaggerHandler returns a handler that serves the swaggerFile or returns a 404
+// if the swaggerFile is not present.
+func swaggerHandler(fileOpener http.FileSystem) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		f, err := fileOpener.Open(swaggerFile)
 		if err != nil {
@@ -75,15 +90,6 @@ func NewSwaggerHandler() http.Handler {
 		staticFileHandler(f).ServeHTTP(w, r)
 	}
 
-	return mwSetCacheControl(http.HandlerFunc(fn))
-}
-
-// mwSetCacheControl sets a default cache control header.
-func mwSetCacheControl(next http.Handler) http.Handler {
-	fn := func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Cache-Control", "public, max-age=3600")
-		next.ServeHTTP(w, r)
-	}
 	return http.HandlerFunc(fn)
 }
 
@@ -130,7 +136,7 @@ func staticFileHandler(f fs.File) http.Handler {
 			return
 		}
 
-		modTime, err := modTimeFromInfo(i)
+		modTime, err := modTimeFromInfo(i, buildTime)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -165,16 +171,16 @@ func openAsset(fileOpener http.FileSystem, name string) (fs.File, error) {
 }
 
 // modTimeFromInfo gets the modification time from an fs.FileInfo. If this
-// modification time is zero (for embedded assets), it falls back to the build
-// time for the binary.
-func modTimeFromInfo(i fs.FileInfo) (time.Time, error) {
+// modification time is time.Time{}, it falls back to the time returned by
+// timeFunc. The modification time will only be time.Time{} if using assets
+// embedded with go:embed.
+func modTimeFromInfo(i fs.FileInfo, timeFunc func() (time.Time, error)) (time.Time, error) {
 	modTime := i.ModTime()
-	var err error
 	if modTime.IsZero() {
-		modTime, err = time.Parse(time.RFC3339, platform.GetBuildInfo().Date)
+		return timeFunc()
 	}
 
-	return modTime, err
+	return modTime, nil
 }
 
 // etag calculates an etag string from the provided file size and modification
@@ -182,4 +188,8 @@ func modTimeFromInfo(i fs.FileInfo) (time.Time, error) {
 func etag(s int64, mt time.Time) string {
 	hour, minute, second := mt.Clock()
 	return fmt.Sprintf(`"%d%d%d%d%d"`, s, mt.Day(), hour, minute, second)
+}
+
+func buildTime() (time.Time, error) {
+	return time.Parse(time.RFC3339, platform.GetBuildInfo().Date)
 }
