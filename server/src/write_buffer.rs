@@ -1,5 +1,8 @@
 use async_trait::async_trait;
-use data_types::database_rules::{DatabaseRules, WriteBufferConnection};
+use data_types::{
+    database_rules::{DatabaseRules, WriteBufferConnection},
+    server_id::ServerId,
+};
 use entry::{Entry, Sequence, SequencedEntry};
 use futures::{stream::BoxStream, StreamExt};
 use rdkafka::{
@@ -22,7 +25,10 @@ pub enum WriteBufferConfig {
 }
 
 impl WriteBufferConfig {
-    pub fn new(rules: &DatabaseRules) -> Result<Option<Self>, WriteBufferError> {
+    pub fn new(
+        server_id: ServerId,
+        rules: &DatabaseRules,
+    ) -> Result<Option<Self>, WriteBufferError> {
         let name = rules.db_name();
 
         // Right now, the Kafka producer and consumers ar the only production implementations of the
@@ -36,7 +42,7 @@ impl WriteBufferConfig {
                 Ok(Some(Self::Writing(Arc::new(kafka_buffer) as _)))
             }
             Some(WriteBufferConnection::Reading(conn)) => {
-                let kafka_buffer = KafkaBufferConsumer::new(conn, name)?;
+                let kafka_buffer = KafkaBufferConsumer::new(conn, server_id, name)?;
 
                 Ok(Some(Self::Reading(Arc::new(kafka_buffer) as _)))
             }
@@ -174,6 +180,7 @@ impl WriteBufferReading for KafkaBufferConsumer {
 impl KafkaBufferConsumer {
     pub fn new(
         conn: impl Into<String>,
+        server_id: ServerId,
         database_name: impl Into<String>,
     ) -> Result<Self, KafkaError> {
         let conn = conn.into();
@@ -183,7 +190,9 @@ impl KafkaBufferConsumer {
         cfg.set("bootstrap.servers", &conn);
         cfg.set("session.timeout.ms", "6000");
         cfg.set("enable.auto.commit", "false");
-        cfg.set("group.id", "placeholder");
+        // Create a unique group ID for this database's consumer as we don't want to create
+        // consumer groups.
+        cfg.set("group.id", &format!("{}-{}", server_id, database_name));
 
         let consumer: StreamConsumer = cfg.create()?;
         let mut topics = TopicPartitionList::new();

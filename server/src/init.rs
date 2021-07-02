@@ -530,9 +530,11 @@ impl InitStatus {
                 let rules = handle
                     .rules()
                     .expect("in this state rules should be loaded");
-                let write_buffer = WriteBufferConfig::new(&rules).context(CreateWriteBuffer {
-                    config: rules.write_buffer_connection.clone(),
-                })?;
+                let write_buffer = WriteBufferConfig::new(handle.server_id(), &rules).context(
+                    CreateWriteBuffer {
+                        config: rules.write_buffer_connection.clone(),
+                    },
+                )?;
 
                 handle
                     .advance_replay(preserved_catalog, catalog, write_buffer)
