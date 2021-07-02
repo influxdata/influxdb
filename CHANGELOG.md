@@ -1,7 +1,8 @@
 v1.8.7 [unreleased]
 -------------------
 
-- [#](https://github.com/influxdata/influxdb/pull/21749): fix: rename arm rpms with yum-compatible names
+- [#21749](https://github.com/influxdata/influxdb/pull/21749): fix: rename arm rpms with yum-compatible names
+- [#21775](https://github.com/influxdata/influxdb/pull/21775): fix: convert arm arch names for rpms during builds via docker
 
 v1.8.6 [2021-05-20]
 -------------------
