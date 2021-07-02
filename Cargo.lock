@@ -818,6 +818,7 @@ name = "data_types"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "indexmap",
  "influxdb_line_protocol",
  "observability_deps",
  "percent-encoding",
