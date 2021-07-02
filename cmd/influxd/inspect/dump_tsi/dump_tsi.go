@@ -123,7 +123,9 @@ func (a *args) run() error {
 		defer fs.Release()
 		defer fs.Close()
 	}
-	defer idx.Close()
+	if idx != nil {
+		defer idx.Close()
+	}
 
 	if a.showSeries {
 		if err := a.printSeries(sfile); err != nil {
