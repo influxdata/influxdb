@@ -6,6 +6,7 @@
     clippy::clone_on_ref_ptr
 )]
 
+pub mod guard;
 pub mod once;
 pub mod schema;
 pub mod selection;
