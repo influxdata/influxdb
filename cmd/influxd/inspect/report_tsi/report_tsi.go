@@ -8,7 +8,6 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/spf13/cobra"
-	"io"
 	"math"
 	"os"
 	"path"
@@ -28,18 +27,12 @@ const (
 
 // reportTSI represents the program execution for "inspect report-tsi".
 type reportTSI struct {
-	// Standard input/output, overridden for testing.
-	Stderr io.Writer
-	Stdout io.Writer
-
 	// Flags
-	dbPath         string
+	enginePath     string // required
+	bucketId       string // required
 	seriesFilePath string
 	topN           int
-	byMeasurement  bool
 	concurrency    int
-	orgId		   string
-	bucketId       string
 
 	// Variables for calculating and storing cardinalities
 	sfile          *tsdb.SeriesFile
@@ -71,33 +64,37 @@ func NewReportTSICommand() *cobra.Command {
 			* Series cardinality for each measurement;`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Printf("%+v\n", arguments)
+			//fmt.Printf("%+v\n", arguments)
 			return arguments.Run()
 		},
 	}
-	cmd.Flags().StringVar(&arguments.dbPath, "path", os.Getenv("HOME")+"/.influxdbv2/engine/index", "Path to index. Defaults $HOME/.influxdbv2/engine/index")
-	cmd.Flags().StringVar(&arguments.seriesFilePath, "series-file", os.Getenv("HOME")+"/.influxdbv2/engine/_series", "Optional path to series file. Defaults $HOME/.influxdbv2/engine/_series")
-	cmd.Flags().BoolVarP(&arguments.byMeasurement, "measurements", "m", false, "Segment cardinality by measurements")
-	cmd.Flags().IntVarP(&arguments.topN, "top", "t", 0, "Limit results to top n")
+
 	cmd.Flags().StringVarP(&arguments.bucketId, "bucket_id", "b", "", "If bucket is specified, org must be specified. A bucket id must be a base-16 string")
-	cmd.Flags().StringVarP(&arguments.orgId, "org_id", "o", "", "Only specified org data will be reported. An org id must be a base-16 string")
+	cmd.Flags().StringVar(&arguments.enginePath, "path", os.Getenv("HOME")+"/.influxdbv2/engine/data", "Path to engine. Defaults $HOME/.influxdbv2/engine")
+	cmd.Flags().StringVar(&arguments.seriesFilePath, "series-file", "", "Optional path to series file. Defaults $HOME/.influxdbv2/engine/<bucket_id>/_series")
+	cmd.Flags().IntVarP(&arguments.topN, "top", "t", 0, "Limit results to top n")
 	cmd.Flags().IntVar(&arguments.concurrency, "c", runtime.GOMAXPROCS(0), "How many concurrent workers to run. Default is 8.")
+
+	arguments.shardPaths = map[uint64]string{}
+	arguments.shardIdxs = map[uint64]*tsi1.Index{}
+	arguments.cardinalities = map[uint64]map[string]*cardinality{}
 
 	return cmd
 }
 
 // Run executes the command.
-func (report *reportTSI) Run(args ...string) error {
-	if report.dbPath == "" {
-		return errors.New("path to database must be provided")
+func (report *reportTSI) Run() error {
+	if report.bucketId == "" {
+		return errors.New("bucket_id is required, use -b or --bucket_id flag")
 	}
 
 	if report.seriesFilePath == "" {
-		report.seriesFilePath = path.Join(report.dbPath, tsdb.SeriesFileDirectory)
+		report.seriesFilePath = path.Join(report.enginePath, report.bucketId, tsdb.SeriesFileDirectory)
 	}
 
 	// Walk database directory to get shards.
-	if err := filepath.Walk(report.dbPath, func(path string, info os.FileInfo, err error) error {
+	if err := filepath.Walk(report.enginePath, func(path string, info os.FileInfo, err error) error {
+
 		if err != nil {
 			return err
 		}
@@ -116,14 +113,16 @@ func (report *reportTSI) Run(args ...string) error {
 		if err != nil {
 			return nil
 		}
+
 		report.shardPaths[uint64(id)] = path
+
 		return nil
 	}); err != nil {
 		return err
 	}
 
 	if len(report.shardPaths) == 0 {
-		fmt.Fprintf(report.Stderr, "No shards under %s\n", report.dbPath)
+		fmt.Fprintf(os.Stderr, "No shards under %s\n", report.enginePath)
 		return nil
 	}
 
@@ -134,11 +133,11 @@ func (report *reportTSI) run() error {
 	report.sfile = tsdb.NewSeriesFile(report.seriesFilePath)
 
 	config := logger.NewConfig()
-	logger, err := config.New(os.Stderr)
+	newLogger, err := config.New(os.Stderr)
 	if err != nil {
 		return err
 	}
-	report.sfile.Logger = logger
+	report.sfile.Logger = newLogger
 
 	if err := report.sfile.Open(); err != nil {
 		return err
@@ -171,9 +170,6 @@ func (report *reportTSI) run() error {
 
 	// Calculate cardinalities of shards.
 	fn := report.cardinalityByMeasurement
-	// if cmd.byTagKey {
-	// TODO(edd)
-	// }
 
 	// Blocks until all work done.
 	report.calculateCardinalities(fn)
@@ -443,8 +439,9 @@ func (report *reportTSI) printSummaryByMeasurement() error {
 		measurements = measurements[:n]
 	}
 
-	tw := tabwriter.NewWriter(report.Stdout, 4, 4, 1, '\t', 0)
-	fmt.Fprintf(tw, "Summary\nDatabase Path: %s\nCardinality (exact): %d\n\n", report.dbPath, totalCardinality)
+	tw := tabwriter.NewWriter(os.Stdout, 4, 4, 1, '\t', 0)
+
+	fmt.Fprintf(tw, "Summary\nDatabase Path: %s\nCardinality (exact): %d\n\n", report.enginePath, totalCardinality)
 	fmt.Fprint(tw, "Measurement\tCardinality (exact)\n\n")
 	for _, res := range measurements {
 		fmt.Fprintf(tw, "%q\t\t%d\n", res.name, res.count)
@@ -453,7 +450,7 @@ func (report *reportTSI) printSummaryByMeasurement() error {
 	if err := tw.Flush(); err != nil {
 		return err
 	}
-	fmt.Fprint(report.Stdout, "\n\n")
+	fmt.Fprint(os.Stdout, "\n\n")
 	return nil
 }
 
@@ -484,7 +481,7 @@ func (report *reportTSI) printShardByMeasurement(id uint64) error {
 		all = all[:n]
 	}
 
-	tw := tabwriter.NewWriter(report.Stdout, 4, 4, 1, '\t', 0)
+	tw := tabwriter.NewWriter(os.Stdout, 4, 4, 1, '\t', 0)
 	fmt.Fprintf(tw, "===============\nShard ID: %d\nPath: %s\nCardinality (exact): %d\n\n", id, report.shardPaths[id], totalCardinality)
 	fmt.Fprint(tw, "Measurement\tCardinality (exact)\n\n")
 	for _, card := range all {
@@ -494,6 +491,6 @@ func (report *reportTSI) printShardByMeasurement(id uint64) error {
 	if err := tw.Flush(); err != nil {
 		return err
 	}
-	fmt.Fprint(report.Stdout, "\n\n")
+	fmt.Fprint(os.Stdout, "\n\n")
 	return nil
 }
