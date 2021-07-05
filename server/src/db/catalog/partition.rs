@@ -16,7 +16,7 @@ use super::chunk::{CatalogChunk, ChunkStage};
 use data_types::chunk_metadata::{ChunkAddr, ChunkSummary};
 use internal_types::schema::Schema;
 use lifecycle::ChunkLifecycleAction;
-use mutable_buffer::persistence_windows::PersistenceWindows;
+use persistence_windows::persistence_windows::PersistenceWindows;
 use snafu::Snafu;
 
 #[derive(Debug, Snafu)]

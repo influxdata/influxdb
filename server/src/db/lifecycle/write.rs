@@ -13,15 +13,15 @@ use chrono::Utc;
 use data_types::job::Job;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use internal_types::selection::Selection;
-use mutable_buffer::checkpoint::{
-    DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder,
-};
 use object_store::path::parsed::DirsAndFileName;
 use observability_deps::tracing::{debug, warn};
 use parquet_file::{
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
     metadata::IoxMetadata,
     storage::Storage,
+};
+use persistence_windows::checkpoint::{
+    DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder,
 };
 use snafu::ResultExt;
 use std::{collections::BTreeMap, future::Future, sync::Arc};

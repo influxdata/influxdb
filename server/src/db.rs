@@ -29,7 +29,6 @@ use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use entry::{Entry, SequencedEntry};
 use metrics::KeyValue;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
-use mutable_buffer::persistence_windows::PersistenceWindows;
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
@@ -37,6 +36,7 @@ use parquet_file::{
     catalog::{CheckpointData, PreservedCatalog},
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
 };
+use persistence_windows::persistence_windows::PersistenceWindows;
 use query::{exec::Executor, predicate::Predicate, QueryDatabase};
 use rand_distr::{Distribution, Poisson};
 use snafu::{ensure, ResultExt, Snafu};
@@ -824,7 +824,6 @@ mod tests {
     use bytes::Bytes;
     use futures::{stream, StreamExt, TryStreamExt};
     use internal_types::selection::Selection;
-    use mutable_buffer::persistence_windows::MinMaxSequence;
     use tokio_util::sync::CancellationToken;
 
     use ::test_helpers::assert_contains;
@@ -844,6 +843,7 @@ mod tests {
         metadata::IoxParquetMetaData,
         test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
+    use persistence_windows::min_max_sequence::MinMaxSequence;
     use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryChunk, QueryDatabase};
 
     use crate::{

@@ -16,7 +16,6 @@ futures = "0.3.7"
 generated_types = { path = "../generated_types" }
 internal_types = {path = "../internal_types"}
 metrics = { path = "../metrics" }
-mutable_buffer = { path = "../mutable_buffer" }
 object_store = {path = "../object_store"}
 observability_deps = { path = "../observability_deps" }
 # Turn off the "arrow" feature; it currently has a bug that causes the crate to rebuild every time
@@ -24,6 +23,7 @@ observability_deps = { path = "../observability_deps" }
 parquet = "4.0"
 parquet-format = "2.6"
 parking_lot = "0.11.1"
+persistence_windows = { path = "../persistence_windows" }
 prost = "0.7"
 query = { path = "../query" }
 snafu = "0.6"

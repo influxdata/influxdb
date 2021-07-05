@@ -9,6 +9,8 @@ use chrono::{DateTime, TimeZone, Utc};
 use entry::Sequence;
 use internal_types::guard::{ReadGuard, ReadLock};
 
+use crate::min_max_sequence::MinMaxSequence;
+
 const DEFAULT_CLOSED_WINDOW_PERIOD: Duration = Duration::from_secs(30);
 
 /// PersistenceWindows keep track of ingested data within a partition to determine when it
@@ -228,36 +230,6 @@ struct Window {
     sequencer_numbers: BTreeMap<u32, MinMaxSequence>,
 }
 
-/// The minimum and maximum sequence numbers seen for a given sequencer
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct MinMaxSequence {
-    min: u64,
-    max: u64,
-}
-
-impl MinMaxSequence {
-    /// Create new min-max sequence range.
-    ///
-    /// This panics if `min > max`.
-    pub fn new(min: u64, max: u64) -> Self {
-        assert!(
-            min <= max,
-            "min ({}) is greater than max ({}) sequence",
-            min,
-            max
-        );
-        Self { min, max }
-    }
-
-    pub fn min(&self) -> u64 {
-        self.min
-    }
-
-    pub fn max(&self) -> u64 {
-        self.max
-    }
-}
-
 impl Window {
     fn new(
         created_at: Instant,
@@ -302,8 +274,8 @@ impl Window {
         if let Some(sequence) = sequence {
             match self.sequencer_numbers.get_mut(&sequence.id) {
                 Some(n) => {
-                    assert!(sequence.number > n.max);
-                    n.max = sequence.number;
+                    assert!(sequence.number > n.max());
+                    *n = MinMaxSequence::new(n.min(), sequence.number);
                 }
                 None => {
                     self.sequencer_numbers.insert(
@@ -327,8 +299,8 @@ impl Window {
         for (sequencer_id, other_n) in other.sequencer_numbers {
             match self.sequencer_numbers.get_mut(&sequencer_id) {
                 Some(n) => {
-                    assert!(other_n.max > n.max);
-                    n.max = other_n.max;
+                    assert!(other_n.max() > n.max());
+                    *n = MinMaxSequence::new(n.min(), other_n.max());
                 }
                 None => {
                     self.sequencer_numbers.insert(sequencer_id, other_n);
@@ -341,24 +313,6 @@ impl Window {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_min_max_getters() {
-        let min_max = MinMaxSequence::new(10, 20);
-        assert_eq!(min_max.min(), 10);
-        assert_eq!(min_max.max(), 20);
-    }
-
-    #[test]
-    fn test_min_max_accepts_equal_values() {
-        MinMaxSequence::new(10, 10);
-    }
-
-    #[test]
-    #[should_panic(expected = "min (11) is greater than max (10) sequence")]
-    fn test_min_max_checks_values() {
-        MinMaxSequence::new(11, 10);
-    }
 
     #[test]
     fn starts_open_window() {

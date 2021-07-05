@@ -94,10 +94,6 @@ use data_types::partition_metadata::{
 };
 use generated_types::influxdata::iox::catalog::v1 as proto;
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
-use mutable_buffer::{
-    checkpoint::{DatabaseCheckpoint, PartitionCheckpoint},
-    persistence_windows::MinMaxSequence,
-};
 use parquet::{
     arrow::parquet_to_arrow_schema,
     file::{
@@ -110,6 +106,10 @@ use parquet::{
         statistics::Statistics as ParquetStatistics,
     },
     schema::types::SchemaDescriptor as ParquetSchemaDescriptor,
+};
+use persistence_windows::{
+    checkpoint::{DatabaseCheckpoint, PartitionCheckpoint},
+    min_max_sequence::MinMaxSequence,
 };
 use prost::Message;
 use snafu::{OptionExt, ResultExt, Snafu};
