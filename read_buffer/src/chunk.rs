@@ -113,7 +113,8 @@ impl Chunk {
     ///
     /// The data is converted to a `RowGroup` outside of any locking so the
     /// caller does not need to be concerned about the size of the update.
-    pub fn upsert_table(&mut self, table_name: &str, table_data: RecordBatch) {
+    pub fn upsert_table(&mut self, table_data: RecordBatch) {
+        let table_name = self.table.name();
         // TEMPORARY: print record batch information
         for (column, field) in table_data
             .columns()
@@ -638,7 +639,7 @@ mod test {
         );
 
         // Add a new table to the chunk.
-        chunk.upsert_table("a_table", gen_recordbatch());
+        chunk.upsert_table(gen_recordbatch());
 
         assert_eq!(chunk.rows(), 3);
         assert_eq!(chunk.row_groups(), 1);
@@ -646,7 +647,7 @@ mod test {
 
         // Add a row group to the same table in the Chunk.
         let last_chunk_size = chunk.size();
-        chunk.upsert_table("a_table", gen_recordbatch());
+        chunk.upsert_table(gen_recordbatch());
 
         assert_eq!(chunk.rows(), 6);
         assert_eq!(chunk.row_groups(), 2);
@@ -752,7 +753,7 @@ mod test {
         let mut chunk = Chunk::new("a_table", ChunkMetrics::new_unregistered());
 
         // Add a new table to the chunk.
-        chunk.upsert_table("a_table", gen_recordbatch());
+        chunk.upsert_table(gen_recordbatch());
         let schema = chunk.read_filter_table_schema(Selection::All).unwrap();
 
         let exp_schema: Arc<Schema> = SchemaBuilder::new()
@@ -821,7 +822,7 @@ mod test {
         // Add a record batch to a single partition
         let rb = RecordBatch::try_new(schema.into(), data).unwrap();
         // The row group gets added to the same chunk each time.
-        chunk.upsert_table("a_table", rb);
+        chunk.upsert_table(rb);
 
         let summaries = chunk.table_summaries();
         let expected = vec![TableSummary {
@@ -926,7 +927,7 @@ mod test {
 
             // Add a record batch to a single partition
             let rb = RecordBatch::try_new(schema.into(), data).unwrap();
-            chunk.upsert_table("Coolverine", rb);
+            chunk.upsert_table(rb);
         }
 
         // Build the operation equivalent to the following query:
@@ -981,7 +982,7 @@ mod test {
         let mut chunk = Chunk::new("a_table", ChunkMetrics::new_unregistered());
 
         // Add table data to the chunk.
-        chunk.upsert_table("a_table", gen_recordbatch());
+        chunk.upsert_table(gen_recordbatch());
 
         assert!(
             chunk.could_pass_predicate(Predicate::new(vec![BinaryExpr::from((
@@ -1058,7 +1059,7 @@ mod test {
 
         // Add the above table to the chunk
         let rb = RecordBatch::try_new(schema, data).unwrap();
-        chunk.upsert_table("Utopia", rb);
+        chunk.upsert_table(rb);
 
         let result = chunk
             .column_names(Predicate::default(), Selection::All, BTreeSet::new())
@@ -1128,7 +1129,7 @@ mod test {
 
         // Add the above table to a chunk and partition
         let rb = RecordBatch::try_new(schema, data).unwrap();
-        chunk.upsert_table("my_table", rb);
+        chunk.upsert_table(rb);
 
         let result = chunk
             .column_values(

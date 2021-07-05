@@ -35,8 +35,18 @@ Showing top 10 nodes out of 185
          0     0%   100%          1  1.08%  <alloc::vec::Vec<T,A> as core::iter::traits::collect::Extend<T>>::extend
 ```
 
+# Interactive visualizations
+
+The `go tool pprof` command can also open an interactive visualization in a web browser page,
+that allows you to render a call graph, or a flamegraph or other visualizations, and also search for symbols etc. See:
+
+```shell
+go tool pprof -http=localhost:6060 'http://localhost:8080/debug/pprof/profile?seconds=30'
+```
+
 # Use the built in flame graph renderer
 
+You may not always have the `go` toolchain on your machine.
 IOx also knows how to render a flamegraph SVG directly if opened directly in the browser:
 
 For example, if you aim your browser at an IOx server with a URL such as http://localhost:8080/debug/pprof/profile?seconds=5

@@ -69,7 +69,7 @@ pub fn move_chunk_to_read_buffer(
 
         // Collect results into RUB chunk
         while let Some(batch) = stream.next().await {
-            rb_chunk.upsert_table(&table_summary.name, batch?)
+            rb_chunk.upsert_table(batch?)
         }
 
         // Can drop and re-acquire as lifecycle action prevents concurrent modification
