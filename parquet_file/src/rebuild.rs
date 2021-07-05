@@ -191,6 +191,7 @@ mod tests {
     use std::num::NonZeroU32;
 
     use crate::metadata::IoxMetadata;
+    use crate::test_utils::create_partition_and_database_checkpoint;
     use crate::{catalog::test_helpers::TestCatalogState, storage::MemWriter};
     use crate::{
         catalog::PreservedCatalog,
@@ -466,11 +467,15 @@ mod tests {
         let (record_batches, _schema, _column_summaries, _num_rows) = make_record_batch("foo");
 
         let storage = Storage::new(Arc::clone(object_store), server_id);
+        let (partition_checkpoint, database_checkpoint) =
+            create_partition_and_database_checkpoint(table_name, partition_key);
         let metadata = IoxMetadata {
             creation_timestamp: Utc::now(),
             table_name: table_name.to_string(),
             partition_key: partition_key.to_string(),
             chunk_id,
+            partition_checkpoint,
+            database_checkpoint,
         };
         let stream: SendableRecordBatchStream = Box::pin(MemoryStream::new(record_batches));
         let (path, parquet_md) = storage

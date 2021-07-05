@@ -215,7 +215,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Immutable record of the playback state for a single partition.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartitionCheckpoint {
     /// Table of the partition.
     table_name: String,
@@ -268,18 +268,40 @@ impl PartitionCheckpoint {
     pub fn sequencer_ids(&self) -> Vec<u32> {
         self.sequencer_numbers.keys().copied().collect()
     }
+
+    /// Iterate over sequencer numbers.
+    pub fn sequencer_numbers_iter(&self) -> impl Iterator<Item = (u32, MinMaxSequence)> + '_ {
+        self.sequencer_numbers
+            .iter()
+            .map(|(sequencer_id, min_max)| (*sequencer_id, *min_max))
+    }
+
+    /// Minimum unpersisted timestamp.
+    pub fn min_unpersisted_timestamp(&self) -> DateTime<Utc> {
+        self.min_unpersisted_timestamp
+    }
 }
 
 /// Immutable record of the playback state for the whole database.
 ///
 /// This effectively contains the minimum sequence numbers over the whole database that are the starting point for replay.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DatabaseCheckpoint {
     /// Maps `sequencer_id` to the minimum sequence numbers seen.
     min_sequencer_numbers: BTreeMap<u32, u64>,
 }
 
 impl DatabaseCheckpoint {
+    /// Create new database checkpoint.
+    ///
+    /// **This should only rarely be be used directly. Consider using [`PersistCheckpointBuilder`] to collect
+    /// database-wide checkpoints!**
+    pub fn new(min_sequencer_numbers: BTreeMap<u32, u64>) -> Self {
+        Self {
+            min_sequencer_numbers,
+        }
+    }
+
     /// Get minimum sequence number that should be used during replay of the given sequencer.
     ///
     /// This will return `None` for unknown sequencer. This might have multiple reasons, e.g. in case of Apache Kafka it
@@ -294,6 +316,13 @@ impl DatabaseCheckpoint {
     /// Sorted list of sequencer IDs that are included in this checkpoint.
     pub fn sequencer_ids(&self) -> Vec<u32> {
         self.min_sequencer_numbers.keys().copied().collect()
+    }
+
+    /// Iterate over minimum sequencer numbers
+    pub fn min_sequencer_number_iter(&self) -> impl Iterator<Item = (u32, u64)> + '_ {
+        self.min_sequencer_numbers
+            .iter()
+            .map(|(sequencer_id, min)| (*sequencer_id, *min))
     }
 }
 

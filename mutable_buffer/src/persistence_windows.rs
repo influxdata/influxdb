@@ -229,7 +229,7 @@ struct Window {
 }
 
 /// The minimum and maximum sequence numbers seen for a given sequencer
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct MinMaxSequence {
     min: u64,
     max: u64,
