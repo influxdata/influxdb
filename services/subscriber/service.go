@@ -55,7 +55,10 @@ func NewWriteRequest(r *coordinator.WritePointsRequest, log *zap.Logger) (wr Wri
 			numInvalid++
 			continue
 		}
+		// We are about to append a point of line protocol, so the new point's start index
+		// is the current length.
 		writeReq.pointOffsets = append(writeReq.pointOffsets, len(writeReq.lineProtocol))
+		// Append the new point and a newline
 		writeReq.lineProtocol = p.AppendString(writeReq.lineProtocol)
 		writeReq.lineProtocol = append(writeReq.lineProtocol, byte('\n'))
 	}
@@ -66,7 +69,9 @@ func NewWriteRequest(r *coordinator.WritePointsRequest, log *zap.Logger) (wr Wri
 // It includes the trailing newline.
 func (w *WriteRequest) PointAt(i int) []byte {
 	start := w.pointOffsets[i]
+	// The end of the last point is the length of the buffer
 	end := len(w.lineProtocol)
+	// For points that are not the last point, the end is the start of the next point
 	if i+1 < len(w.pointOffsets) {
 		end = w.pointOffsets[i+1]
 	}
@@ -614,7 +619,7 @@ func (s *subscriptionRouter) Send(request *coordinator.WritePointsRequest) {
 
 func (s *subscriptionRouter) Update(cws map[subEntry]*chanWriter, memoryLimit int64) {
 	s.mu.Lock()
-	s.mu.Unlock()
+	defer s.mu.Unlock()
 	if !s.ready {
 		panic("must be created with NewServer before calling update, must not call update after close")
 	}
