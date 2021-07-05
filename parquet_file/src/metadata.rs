@@ -236,11 +236,19 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// IOx-specific metadata.
 ///
+/// # Serialization
 /// This will serialized as base64-encoded [Protocol Buffers 3] into the file-level key-value Parquet metadata (under [`METADATA_KEY`]).
 ///
 /// **Important: When changing this structure, consider bumping the
 ///   [metadata version](METADATA_VERSION)!**
 ///
+/// # Content
+/// This struct contains chunk-specific information (like the chunk address), data lineage information (like the
+/// creation timestamp) and partition/database-wide checkpoint data. While this struct is stored in a parquet file and
+/// is somewhat chunk-bound, it is necessary to also store broader information (like the checkpoints) in it so that the
+/// catalog can be rebuilt from parquet files (see [Catalog Properties]).
+///
+/// [Catalog Properties]: https://github.com/influxdata/influxdb_iox/blob/main/docs/catalog_persistence.md#13-properties
 /// [Protocol Buffers 3]: https://developers.google.com/protocol-buffers/docs/proto3
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct IoxMetadata {
