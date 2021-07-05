@@ -3057,6 +3057,7 @@ dependencies = [
  "query",
  "server",
  "snafu",
+ "tempfile",
  "test_helpers",
  "tokio",
 ]
