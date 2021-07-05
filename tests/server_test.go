@@ -7325,6 +7325,11 @@ func TestServer_Query_ShowSeriesCardinalityEstimation(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
+			name:    `show series cardinality from cpu`,
+			command: "SHOW SERIES CARDINALITY FROM cpu",
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
 			name:    `show series cardinality on db0`,
 			command: "SHOW SERIES CARDINALITY ON db0",
 		},
