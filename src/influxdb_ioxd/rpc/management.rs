@@ -387,7 +387,14 @@ where
                         message: e.to_string(),
                     });
 
-                    DatabaseStatus { db_name, error }
+                    let state: database_status::DatabaseState =
+                        self.server.database_state(&db_name).into();
+
+                    DatabaseStatus {
+                        db_name,
+                        error,
+                        state: state.into(),
+                    }
                 })
                 .collect()
         } else {

@@ -3,7 +3,10 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
+use data_types::{
+    database_rules::DatabaseRules, database_state::DatabaseStateCode, server_id::ServerId,
+    DatabaseName,
+};
 use metrics::MetricRegistry;
 use object_store::{path::ObjectStorePath, ObjectStore};
 use parquet_file::catalog::PreservedCatalog;
@@ -192,6 +195,12 @@ impl Config {
             .get(name)
             .map(|db_state| !db_state.is_initialized())
             .unwrap_or(false)
+    }
+
+    /// Current database init state
+    pub(crate) fn db_state(&self, name: &DatabaseName<'_>) -> Option<DatabaseStateCode> {
+        let state = self.state.read().expect("mutex poisoned");
+        state.databases.get(name).map(|db_state| db_state.code())
     }
 
     /// Get all database names in all states (blocked, uninitialized, fully initialized).
@@ -463,25 +472,6 @@ impl Drop for DatabaseState {
             }
         }
     }
-}
-
-/// Simple representation of the state a database can be in.
-///
-/// The state machine is a simple linear state machine:
-///
-/// ```text
-/// Known -> RulesLoaded -> Initialized
-/// ```
-#[derive(Debug, PartialEq, Eq)]
-pub enum DatabaseStateCode {
-    /// Database is known but nothing is loaded.
-    Known,
-
-    /// Rules are loaded
-    RulesLoaded,
-
-    /// Fully initialized database.
-    Initialized,
 }
 
 /// This handle is returned when a call is made to [`create_db`](Config::create_db) or

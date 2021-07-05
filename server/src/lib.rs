@@ -73,7 +73,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
-use config::DatabaseStateCode;
 use db::load::create_preserved_catalog;
 use init::InitStatus;
 use observability_deps::tracing::{debug, info, warn};
@@ -81,7 +80,8 @@ use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use data_types::{
-    database_rules::DatabaseRules,
+    database_rules::{DatabaseRules, NodeGroup, RoutingRules, Shard, ShardConfig, ShardId},
+    database_state::DatabaseStateCode,
     job::Job,
     server_id::ServerId,
     {DatabaseName, DatabaseNameError},
@@ -97,7 +97,6 @@ use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, Tr
 pub use crate::config::RemoteTemplate;
 use crate::config::{object_store_path_for_database_config, Config, GRpcConnectionString};
 use cache_loader_async::cache_api::LoadingCache;
-use data_types::database_rules::{NodeGroup, RoutingRules, Shard, ShardConfig, ShardId};
 pub use db::Db;
 use generated_types::database_rules::encode_database_rules;
 use influxdb_iox_client::{connection::Builder, write};
@@ -487,6 +486,15 @@ where
     /// Error that occurred during initialization of a specific database.
     pub fn error_database(&self, db_name: &str) -> Option<Arc<crate::init::Error>> {
         self.init_status.error_database(db_name)
+    }
+
+    /// Current database init state.
+    pub fn database_state(&self, name: &str) -> Option<DatabaseStateCode> {
+        if let Ok(name) = DatabaseName::new(name) {
+            self.config.db_state(&name)
+        } else {
+            None
+        }
     }
 
     /// Require that server is loaded. Databases are loaded and server is ready to read/write.

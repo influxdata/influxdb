@@ -266,6 +266,26 @@ message DatabaseStatus {
 
   // If present, the database reports an error condition.
   Error error = 2;
+
+  // Current initialization state of the database.
+  enum DatabaseState {
+      DATABASE_STATE_UNSPECIFIED = 0;
+
+      // Database is known but nothing is loaded.
+      DATABASE_STATE_KNOWN = 1;
+
+      // Rules are loaded
+      DATABASE_STATE_RULES_LOADED = 2;
+
+      // Here will be the "preserved catalog loaded but replay is pending" state
+      reserved 3;
+
+      // Fully initialized database.
+      DATABASE_STATE_INITIALIZED = 4;
+  }
+
+  // Current initialization state of the database.
+  DatabaseState state = 3;
 }
 
 message Error {

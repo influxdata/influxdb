@@ -1,5 +1,8 @@
 //! Routines to initialize a server.
-use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
+use data_types::{
+    database_rules::DatabaseRules, database_state::DatabaseStateCode, server_id::ServerId,
+    DatabaseName,
+};
 use futures::TryStreamExt;
 use generated_types::database_rules::decode_database_rules;
 use internal_types::once::OnceNonZeroU32;
@@ -22,10 +25,7 @@ use std::{
 use tokio::sync::Semaphore;
 
 use crate::{
-    config::{
-        object_store_path_for_database_config, Config, DatabaseHandle, DatabaseStateCode,
-        DB_RULES_FILE_NAME,
-    },
+    config::{object_store_path_for_database_config, Config, DatabaseHandle, DB_RULES_FILE_NAME},
     db::load::load_or_create_preserved_catalog,
     write_buffer, DatabaseError,
 };
