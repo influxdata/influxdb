@@ -22,5 +22,6 @@ internal_types = { path = "../internal_types" }
 metrics = { path = "../metrics" }
 object_store = { path = "../object_store" }
 snafu = "0.6.3"
+tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers" }
 tokio = { version = "1.0", features = ["macros", "time"] }

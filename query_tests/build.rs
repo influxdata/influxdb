@@ -1,4 +1,4 @@
-//! Finds all .sql files in cases/ and creates corresponding entries in src/cases.rs
+//! Finds all .sql files in `cases/in/` and creates corresponding entries in src/cases.rs
 //! native Rust types.
 
 use std::path::{Path, PathBuf};
@@ -9,7 +9,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 fn main() -> Result<()> {
     // crate root
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let cases = root.join("cases");
+    let cases = root.join("cases").join("in");
 
     let sql_files = find_sql_files(&cases);
 
@@ -64,7 +64,7 @@ use crate::runner::Runner;"#
 #[tokio::test]
 // Tests from {:?},
 async fn test_cases_{}() {{
-    let input_path = Path::new("cases").join("{}");
+    let input_path = Path::new("cases").join("in").join("{}");
     let mut runner = Runner::new();
     runner
         .run(input_path)

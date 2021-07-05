@@ -5,7 +5,7 @@ mod setup;
 
 use arrow::record_batch::RecordBatch;
 use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner};
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     io::BufWriter,
     io::Write,
@@ -78,6 +78,12 @@ pub enum Error {
 
     #[snafu(display("IO inner while flushing buffer: {}", source))]
     FlushingBuffer { source: std::io::Error },
+
+    #[snafu(display("Input path has no file stem: '{:?}'", path))]
+    NoFileStem { path: PathBuf },
+
+    #[snafu(display("Input path has no parent?!: '{:?}'", path))]
+    NoParent { path: PathBuf },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -136,15 +142,13 @@ impl<W: Write> Runner<W> {
 
     /// Run the test case of the specified `input_path`
     ///
-    /// Produces output at `input_path`.out
+    /// Produces output at `../out/<input_path>.out`
     ///
-    /// Compares it to an expected result at `input_path`.expected
-    ///
-    /// Returns Ok on success, or Err() on failure
+    /// Compares it to an expected result at `<input_path>.expected`
     pub async fn run(&mut self, input_path: impl Into<PathBuf>) -> Result<()> {
         let input_path = input_path.into();
         // create output and expected output
-        let output_path = input_path.with_extension("out");
+        let output_path = make_output_path(&input_path)?;
         let expected_path = input_path.with_extension("expected");
 
         writeln!(self.log, "Running case in {:?}", input_path)?;
@@ -274,6 +278,25 @@ impl<W: Write> Runner<W> {
     }
 }
 
+/// Return output path for input path.
+fn make_output_path(input: &Path) -> Result<PathBuf> {
+    let stem = input.file_stem().context(NoFileStem { path: input })?;
+
+    // go two levels up (from file to dir, from dir to parent dir)
+    let parent = input.parent().context(NoParent { path: input })?;
+    let parent = parent.parent().context(NoParent { path: parent })?;
+    let mut out = parent.to_path_buf();
+
+    // go one level down (from parent dir to out-dir)
+    out.push("out");
+
+    // set file name and ext
+    out.set_file_name(stem);
+    out.set_extension("out");
+
+    Ok(out)
+}
+
 /// Return the absolute path to `path`, regardless of if it exists or
 /// not on the local filesystem
 fn make_absolute(path: &Path) -> PathBuf {
@@ -284,7 +307,7 @@ fn make_absolute(path: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod test {
-    use test_helpers::assert_contains;
+    use test_helpers::{assert_contains, tmp_dir};
 
     use super::*;
 
@@ -307,15 +330,15 @@ SELECT * from disk;
 
     #[tokio::test]
     async fn runner_positive() {
-        let input_file = test_helpers::make_temp_file(TEST_INPUT);
-        let output_path = input_file.path().with_extension("out");
-        let expected_path = input_file.path().with_extension("expected");
+        let (_tmp_dir, input_file) = make_in_file(TEST_INPUT);
+        let output_path = make_output_path(&input_file).unwrap();
+        let expected_path = input_file.with_extension("expected");
 
         // write expected output
         std::fs::write(&expected_path, EXPECTED_OUTPUT).unwrap();
 
         let mut runner = Runner::new_with_writer(vec![]);
-        let runner_results = runner.run(&input_file.path()).await;
+        let runner_results = runner.run(&input_file).await;
 
         // ensure that the generated output and expected output match
         let output_contents = read_file(&output_path);
@@ -340,15 +363,15 @@ SELECT * from disk;
 
     #[tokio::test]
     async fn runner_negative() {
-        let input_file = test_helpers::make_temp_file(TEST_INPUT);
-        let output_path = input_file.path().with_extension("out");
-        let expected_path = input_file.path().with_extension("expected");
+        let (_tmp_dir, input_file) = make_in_file(TEST_INPUT);
+        let output_path = make_output_path(&input_file).unwrap();
+        let expected_path = input_file.with_extension("expected");
 
         // write incorrect expected output
         std::fs::write(&expected_path, "this is not correct").unwrap();
 
         let mut runner = Runner::new_with_writer(vec![]);
-        let runner_results = runner.run(&input_file.path()).await;
+        let runner_results = runner.run(&input_file).await;
 
         // ensure that the generated output and expected output match
         let output_contents = read_file(&output_path);
@@ -372,6 +395,18 @@ SELECT * from disk;
             format!("expected output in {:?}", &expected_path)
         );
         assert_contains!(&runner_log, "Setup: TwoMeasurements");
+    }
+
+    fn make_in_file<C: AsRef<[u8]>>(contents: C) -> (tempfile::TempDir, PathBuf) {
+        let dir = tmp_dir().expect("create temp dir");
+        let in_dir = dir.path().join("in");
+        std::fs::create_dir(&in_dir).expect("create in-dir");
+
+        let mut file = in_dir;
+        file.set_file_name("foo.sql");
+
+        std::fs::write(&file, contents).expect("writing data to temp file");
+        (dir, file)
     }
 
     fn read_file(path: &Path) -> String {

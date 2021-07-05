@@ -15,7 +15,7 @@ The tests in `src/runner` are driven somewhat more dynamically based on input fi
 # Cookbook: Adding a new Test
 
 How do you make a new test:
-1. Add a new file .sql to the `cases` directory
+1. Add a new file .sql to the `cases/in` directory
 2. Run the tests `` cargo test -p query_tests`
 3. You will get a failure message that contains examples of how to update the files
 
@@ -23,9 +23,9 @@ How do you make a new test:
 ## Example output
 Possibly helpful commands:
   # See diff
-  diff -du "/Users/alamb/Software/influxdb_iox/query_tests/cases/pushdown.expected" "/Users/alamb/Software/influxdb_iox/query_tests/cases/pushdown.out"
+  diff -du "/Users/alamb/Software/influxdb_iox/query_tests/cases/in/pushdown.expected" "/Users/alamb/Software/influxdb_iox/query_tests/cases/out/pushdown.out"
   # Update expected
-  cp -f "/Users/alamb/Software/influxdb_iox/query_tests/cases/pushdown.out" "/Users/alamb/Software/influxdb_iox/query_tests/cases/pushdown.expected"
+  cp -f "/Users/alamb/Software/influxdb_iox/query_tests/cases/in/pushdown.out" "/Users/alamb/Software/influxdb_iox/query_tests/cases/out/pushdown.expected"
 
 # Cookbook: Adding a new test scenaroo
 
