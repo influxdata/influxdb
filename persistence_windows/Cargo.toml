@@ -1,0 +1,10 @@
+[package]
+name = "persistence_windows"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+chrono = "0.4"
+entry = { path = "../entry" }
+internal_types = { path = "../internal_types" }
+snafu = "0.6.2"

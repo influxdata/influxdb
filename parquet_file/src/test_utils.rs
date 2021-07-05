@@ -21,14 +21,14 @@ use internal_types::{
     schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME},
     selection::Selection,
 };
-use mutable_buffer::{
-    checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder},
-    persistence_windows::MinMaxSequence,
-};
 use object_store::{memory::InMemory, path::Path, ObjectStore, ObjectStoreApi};
 use parquet::{
     arrow::{ArrowReader, ParquetFileArrowReader},
     file::serialized_reader::{SerializedFileReader, SliceableCursor},
+};
+use persistence_windows::{
+    checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder},
+    min_max_sequence::MinMaxSequence,
 };
 
 use crate::{

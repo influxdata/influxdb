@@ -13,7 +13,7 @@
 //!
 //! ```
 //! use std::sync::{Arc, RwLock};
-//! use mutable_buffer::checkpoint::{PersistCheckpointBuilder, PartitionCheckpoint};
+//! use persistence_windows::checkpoint::{PersistCheckpointBuilder, PartitionCheckpoint};
 //!
 //! # // mocking for the example below
 //! # use chrono::Utc;
@@ -108,11 +108,11 @@
 //! Here is an example on how to organize replay:
 //!
 //! ```
-//! use mutable_buffer::checkpoint::ReplayPlanner;
+//! use persistence_windows::checkpoint::ReplayPlanner;
 //!
 //! # // mocking for the example below
 //! # use chrono::Utc;
-//! # use mutable_buffer::checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder};
+//! # use persistence_windows::checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder};
 //! #
 //! # struct File {}
 //! #
@@ -196,7 +196,7 @@ use std::collections::{
 use chrono::{DateTime, Utc};
 use snafu::Snafu;
 
-use crate::persistence_windows::MinMaxSequence;
+use crate::min_max_sequence::MinMaxSequence;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

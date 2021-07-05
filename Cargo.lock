@@ -2630,12 +2630,12 @@ dependencies = [
  "generated_types",
  "internal_types",
  "metrics",
- "mutable_buffer",
  "object_store",
  "observability_deps",
  "parking_lot",
  "parquet",
  "parquet-format",
+ "persistence_windows",
  "prost",
  "query",
  "snafu",
@@ -2701,6 +2701,16 @@ name = "permutation"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9978962f8a4b158e97447a6d09d2d75e206d2994eff056c894019f362b27142"
+
+[[package]]
+name = "persistence_windows"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "entry",
+ "internal_types",
+ "snafu",
+]
 
 [[package]]
 name = "pest"
@@ -3781,6 +3791,7 @@ dependencies = [
  "observability_deps",
  "parking_lot",
  "parquet_file",
+ "persistence_windows",
  "query",
  "rand 0.8.4",
  "rand_distr",
