@@ -524,7 +524,21 @@ impl InitStatus {
                     write_buffer::new(&rules).context(CreateWriteBufferForWriting)?;
 
                 handle
-                    .advance_init(preserved_catalog, catalog, write_buffer)
+                    .advance_replay(preserved_catalog, catalog, write_buffer)
+                    .map_err(Box::new)
+                    .context(InitDbError)?;
+
+                // there is still more work to do for this DB
+                Ok(InitProgress::Unfinished)
+            }
+            DatabaseStateCode::Replay => {
+                let db = handle
+                    .db_any_state()
+                    .expect("DB should be available in this state");
+                db.perform_replay().await;
+
+                handle
+                    .advance_init()
                     .map_err(Box::new)
                     .context(InitDbError)?;
 

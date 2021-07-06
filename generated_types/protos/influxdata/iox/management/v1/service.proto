@@ -277,8 +277,8 @@ message DatabaseStatus {
       // Rules are loaded
       DATABASE_STATE_RULES_LOADED = 2;
 
-      // Here will be the "preserved catalog loaded but replay is pending" state
-      reserved 3;
+      // Catalog is loaded but data from sequencers / write buffers is not yet replayed.
+      DATABASE_STATE_REPLAY = 3;
 
       // Fully initialized database.
       DATABASE_STATE_INITIALIZED = 4;

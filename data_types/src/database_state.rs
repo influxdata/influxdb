@@ -3,7 +3,7 @@
 /// The state machine is a simple linear state machine:
 ///
 /// ```text
-/// Known -> RulesLoaded -> Initialized
+/// Known -> RulesLoaded -> Replay -> Initialized
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 pub enum DatabaseStateCode {
@@ -12,6 +12,9 @@ pub enum DatabaseStateCode {
 
     /// Rules are loaded
     RulesLoaded,
+
+    /// Catalog is loaded but data from sequencers / write buffers is not yet replayed.
+    Replay,
 
     /// Fully initialized database.
     Initialized,
