@@ -12,6 +12,7 @@ use chrono::{DateTime, Utc};
 
 use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
 use data_types::database_rules::LifecycleRules;
+use data_types::DatabaseName;
 pub use guard::*;
 pub use policy::*;
 use tracker::TaskTracker;
@@ -62,6 +63,9 @@ pub trait LifecycleDb {
 
     /// Returns a list of lockable partitions in the database
     fn partitions(&self) -> Vec<Self::Partition>;
+
+    /// Return the database name.
+    fn name(&self) -> DatabaseName<'static>;
 }
 
 /// A `LockablePartition` is a wrapper around a `LifecyclePartition` that allows

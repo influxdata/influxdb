@@ -8,6 +8,7 @@ use data_types::database_rules::LifecycleRules;
 use data_types::error::ErrorLogger;
 use data_types::job::Job;
 use data_types::partition_metadata::{InfluxDbType, TableSummary};
+use data_types::DatabaseName;
 use hashbrown::HashMap;
 use internal_types::schema::sort::SortKey;
 use internal_types::schema::TIME_COLUMN_NAME;
@@ -194,6 +195,10 @@ impl LifecycleDb for ArcDb {
                 partition,
             })
             .collect()
+    }
+
+    fn name(&self) -> DatabaseName<'static> {
+        self.rules.read().name.clone()
     }
 }
 

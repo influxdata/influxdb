@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
+use data_types::DatabaseName;
 use futures::future::BoxFuture;
 
 use data_types::chunk_metadata::ChunkStorage;
@@ -56,13 +57,14 @@ where
     ///
     fn maybe_free_memory<P: LockablePartition>(
         &mut self,
+        db_name: &DatabaseName<'static>,
         partitions: &[P],
         soft_limit: usize,
         drop_non_persisted: bool,
     ) {
         let buffer_size = self.db.buffer_size();
         if buffer_size < soft_limit {
-            debug!(buffer_size, %soft_limit, "memory use under soft limit");
+            debug!(%db_name, buffer_size, %soft_limit, "memory use under soft limit");
             return;
         }
 
@@ -107,10 +109,10 @@ where
         loop {
             let buffer_size = self.db.buffer_size();
             if buffer_size < soft_limit {
-                debug!(buffer_size, %soft_limit, "memory use under soft limit");
+                debug!(%db_name, buffer_size, %soft_limit, "memory use under soft limit");
                 break;
             }
-            debug!(buffer_size, %soft_limit, "memory use over soft limit");
+            debug!(%db_name, buffer_size, %soft_limit, "memory use over soft limit");
 
             match candidates.next() {
                 Some(candidate) => {
@@ -120,6 +122,7 @@ where
                             let chunk = chunk.read();
                             if chunk.lifecycle_action().is_some() {
                                 debug!(
+                                    %db_name,
                                     chunk_id = candidate.chunk_id,
                                     partition = partition.partition_key(),
                                     "cannot mutate chunk with in-progress lifecycle action"
@@ -138,6 +141,7 @@ where
                                         .expect("failed to drop")
                                     }
                                     storage => debug!(
+                                        %db_name,
                                         chunk_id = candidate.chunk_id,
                                         partition = partition.partition_key(),
                                         ?storage,
@@ -150,6 +154,7 @@ where
                                             .expect("failed to unload")
                                     }
                                     storage => debug!(
+                                        %db_name,
                                         chunk_id = candidate.chunk_id,
                                         partition = partition.partition_key(),
                                         ?storage,
@@ -159,6 +164,7 @@ where
                             }
                         }
                         None => debug!(
+                            %db_name,
                             chunk_id = candidate.chunk_id,
                             partition = partition.partition_key(),
                             "cannot drop chunk that no longer exists on partition"
@@ -166,7 +172,7 @@ where
                     }
                 }
                 None => {
-                    warn!(soft_limit, buffer_size,
+                    warn!(%db_name, soft_limit, buffer_size,
                           "soft limited exceeded, but no chunks found that can be evicted. Check lifecycle rules");
                     break;
                 }
@@ -255,6 +261,7 @@ where
     /// persistence to make progress
     fn maybe_persist_chunks<P: LockablePartition>(
         &mut self,
+        db_name: &DatabaseName<'static>,
         partition: &P,
         rules: &LifecycleRules,
         now: DateTime<Utc>,
@@ -290,6 +297,7 @@ where
 
             if persist_candidate.is_some() {
                 debug!(
+                    %db_name,
                     partition = partition.partition_key(),
                     "found multiple read buffer chunks"
                 );
@@ -331,7 +339,12 @@ where
     ///
     /// Clear any such jobs if they exited more than `LIFECYCLE_ACTION_BACKOFF` seconds ago
     ///
-    fn maybe_cleanup_failed<P: LockablePartition>(&mut self, partition: &P, now: Instant) {
+    fn maybe_cleanup_failed<P: LockablePartition>(
+        &mut self,
+        db_name: &DatabaseName<'static>,
+        partition: &P,
+        now: Instant,
+    ) {
         let partition = partition.read();
         for (_, chunk) in LockablePartition::chunks(&partition) {
             let chunk = chunk.read();
@@ -340,7 +353,7 @@ where
                     && now.duration_since(lifecycle_action.start_instant())
                         >= LIFECYCLE_ACTION_BACKOFF
                 {
-                    info!(chunk=%chunk.addr(), action=?lifecycle_action.metadata(), "clearing failed lifecycle action");
+                    info!(%db_name, chunk=%chunk.addr(), action=?lifecycle_action.metadata(), "clearing failed lifecycle action");
                     chunk.upgrade().clear_lifecycle_action();
                 }
             }
@@ -360,11 +373,12 @@ where
 
         // TODO: Add loop iteration count and duration metrics
 
+        let db_name = self.db.name();
         let rules = self.db.rules();
         let partitions = self.db.partitions();
 
         for partition in &partitions {
-            self.maybe_cleanup_failed(partition, now_instant);
+            self.maybe_cleanup_failed(&db_name, partition, now_instant);
 
             // TODO: Skip partitions with no PersistenceWindows (i.e. fully persisted)
 
@@ -374,7 +388,7 @@ where
             // of temporarily pausing compaction if the criteria for persistence have been
             // satisfied, but persistence cannot proceed because of in-progress compactions
             let stall_compaction = if rules.persist {
-                self.maybe_persist_chunks(partition, &rules, now)
+                self.maybe_persist_chunks(&db_name, partition, &rules, now)
             } else {
                 false
             };
@@ -385,7 +399,12 @@ where
         }
 
         if let Some(soft_limit) = rules.buffer_size_soft {
-            self.maybe_free_memory(&partitions, soft_limit.get(), rules.drop_non_persisted)
+            self.maybe_free_memory(
+                &db_name,
+                &partitions,
+                soft_limit.get(),
+                rules.drop_non_persisted,
+            )
         }
 
         // Clear out completed tasks
@@ -841,6 +860,10 @@ mod tests {
                     partition: Arc::clone(x),
                 })
                 .collect()
+        }
+
+        fn name(&self) -> DatabaseName<'static> {
+            DatabaseName::new("test_db").unwrap()
         }
     }
 
