@@ -277,7 +277,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 }
 
 func freePort() string {
-	l, _ := net.Listen("tcp", "")
+	l, _ := net.Listen("tcp", "127.0.0.1:")
 	defer l.Close()
 	return l.Addr().String()
 }
