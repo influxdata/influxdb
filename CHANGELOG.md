@@ -28,6 +28,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21615](https://github.com/influxdata/influxdb/pull/21615): Ported the `influxd inspect verify-tsm` command from 1.x.
 1. [21646](https://github.com/influxdata/influxdb/pull/21646): Ported the `influxd inspect verify-tombstone` command from 1.x.
 1. [21761](https://github.com/influxdata/influxdb/pull/21761): Ported the `influxd inspect dump-tsm` command from 1.x.
+1. [21784](https://github.com/influxdata/influxdb/pull/21784): Ported the `influxd inspect dumptsi` command from 1.x.
 
 ### Bug Fixes
 

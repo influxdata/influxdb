@@ -1100,3 +1100,21 @@ func (i *Index) RetainFileSet() (*FileSet, error) {
 	}
 	return fs, nil
 }
+
+// IsIndexDir returns true if directory contains at least one partition directory.
+func IsIndexDir(path string) (bool, error) {
+	fis, err := os.ReadDir(path)
+	if err != nil {
+		return false, err
+	}
+	for _, fi := range fis {
+		if !fi.IsDir() {
+			continue
+		} else if ok, err := IsPartitionDir(filepath.Join(path, fi.Name())); err != nil {
+			return false, err
+		} else if ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
