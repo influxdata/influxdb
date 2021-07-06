@@ -35,9 +35,10 @@ This release adds an embedded SQLite database for storing metadata required by t
 
 1. [21610](https://github.com/influxdata/influxdb/pull/21610): Avoid rewriting `fields.idx` unnecessarily.
 1. [21648](https://github.com/influxdata/influxdb/pull/21648): Change static legend's `hide` to `show` to let users decide if they want it.
-1. [21662](https://github.com/influxdata/influxdb/pull/21662): Do not close connection twice in DigestWithOptions
-1. [21691](https://github.com/influxdata/influxdb/pull/21691): Remove incorrect optimization for group-by
-1. [21747](https://github.com/influxdata/influxdb/pull/21747): Rename arm rpms with yum-compatible names
+1. [21662](https://github.com/influxdata/influxdb/pull/21662): Do not close connection twice in DigestWithOptions.
+1. [21691](https://github.com/influxdata/influxdb/pull/21691): Remove incorrect optimization for group-by.
+1. [21747](https://github.com/influxdata/influxdb/pull/21747): Rename arm rpms with yum-compatible names.
+1. [21800](https://github.com/influxdata/influxdb/pull/21800): Return an error instead of panicking when InfluxQL statement rewrites fail.
 
 ## v2.0.7 [2021-06-04]
 
