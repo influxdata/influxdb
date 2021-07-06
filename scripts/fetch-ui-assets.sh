@@ -2,7 +2,7 @@
 
 declare -r SCRIPT_DIR=$(cd $(dirname ${0}) >/dev/null 2>&1 && pwd)
 declare -r ROOT_DIR=$(dirname ${SCRIPT_DIR})
-declare -r UI_DIR="$ROOT_DIR/ui"
+declare -r STATIC_DIR="$ROOT_DIR/static"
 
 # This script is used to download built UI assets from the "influxdata/ui"
 # repository. The built UI assets are attached to a release in "influxdata/ui",
@@ -31,6 +31,7 @@ echo "$(cat sha256.txt)" | sha256sum --check -- \
     || { echo "Checksums did not match for downloaded UI assets!"; exit 1; }
 
 # Extract the assets and clean up.
-tar -xzf build.tar.gz -C "$UI_DIR"
+mkdir -p "$STATIC_DIR/data"
+tar -xzf build.tar.gz -C "$STATIC_DIR/data"
 rm sha256.txt
 rm build.tar.gz

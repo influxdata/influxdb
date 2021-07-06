@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/static"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -174,7 +175,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	sourceBackend.BucketService = authorizer.NewBucketService(b.BucketService)
 	h.Mount(prefixSources, NewSourceHandler(b.Logger, sourceBackend))
 
-	h.Mount("/api/v2/swagger.json", newSwaggerLoader(b.Logger.With(zap.String("service", "swagger-loader")), b.HTTPErrorHandler))
+	h.Mount("/api/v2/swagger.json", static.NewSwaggerHandler(b.Logger.With(zap.String("service", "swagger-loader")), b.HTTPErrorHandler))
 
 	taskLogger := b.Logger.With(zap.String("handler", "bucket"))
 	taskBackend := NewTaskBackend(taskLogger, b)

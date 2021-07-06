@@ -1,6 +1,6 @@
 // +build assets
 
-package http
+package static
 
 // asset returns its input arguments.
 //

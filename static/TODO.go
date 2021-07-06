@@ -1,12 +1,14 @@
-package dist
+// +build !assets
+
+package static
 
 import (
 	"errors"
 	"os"
 )
 
-// The functions defined in this file are placeholders
-// when the binary is compiled without assets.
+// The functions defined in this file are placeholders for when the binary is
+// built without assets.
 
 var errNoAssets = errors.New("no assets included in binary")
 

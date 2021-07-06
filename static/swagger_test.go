@@ -1,4 +1,4 @@
-package http
+package static
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestValidSwagger(t *testing.T) {
-	data, err := ioutil.ReadFile("./swagger.yml")
+	data, err := ioutil.ReadFile("./data/swagger.yml")
 	if err != nil {
 		t.Fatalf("unable to read swagger specification: %v", err)
 	}

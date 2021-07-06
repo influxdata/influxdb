@@ -1,7 +1,4 @@
-package http
-
-// Only generate an asset for swagger.yml.
-//go:generate env GO111MODULE=on go run github.com/kevinburke/go-bindata/go-bindata -o swagger_gen.go -tags assets -nocompress -pkg http ./swagger.yml
+package static
 
 import (
 	"net/http"
@@ -37,7 +34,7 @@ func newSwaggerLoader(log *zap.Logger, h influxdb.HTTPErrorHandler) *swaggerLoad
 }
 
 func (s *swaggerLoader) initialize() {
-	swagger, err := s.asset(Asset("swagger.yml"))
+	swagger, err := s.asset(Asset("data/swagger.yml"))
 	if err != nil {
 		s.loadErr = err
 		return
