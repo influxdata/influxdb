@@ -25,7 +25,6 @@ const (
 	statWriteTimeout       = "writeTimeout"
 	statWriteErr           = "writeError"
 	statSubWriteOK         = "subWriteOk"
-	statSubWriteDrop       = "subWriteDrop"
 )
 
 var (
@@ -60,7 +59,11 @@ type PointsWriter struct {
 		WriteToShard(ctx tsdb.WriteContext, shardID uint64, points []models.Point) error
 	}
 
-	subPoints []chan<- *WritePointsRequest
+	Subscriber interface {
+		Send(*WritePointsRequest)
+	}
+
+	subPoints chan<- *WritePointsRequest
 
 	stats *WriteStatistics
 }
@@ -121,30 +124,16 @@ func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p models.Point) {
 
 // Open opens the communication channel with the point writer.
 func (w *PointsWriter) Open() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	w.closing = make(chan struct{})
 	return nil
 }
 
 // Close closes the communication channel with the point writer.
 func (w *PointsWriter) Close() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	if w.closing != nil {
 		close(w.closing)
 	}
-	if w.subPoints != nil {
-		// 'nil' channels always block so this makes the
-		// select statement in WritePoints hit its default case
-		// dropping any in-flight writes.
-		w.subPoints = nil
-	}
 	return nil
-}
-
-func (w *PointsWriter) AddWriteSubscriber(c chan<- *WritePointsRequest) {
-	w.subPoints = append(w.subPoints, c)
 }
 
 // WithLogger sets the Logger on w.
@@ -162,7 +151,6 @@ type WriteStatistics struct {
 	WriteTimeout       int64
 	WriteErr           int64
 	SubWriteOK         int64
-	SubWriteDrop       int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -179,7 +167,6 @@ func (w *PointsWriter) Statistics(tags map[string]string) []models.Statistic {
 			statWriteTimeout:       atomic.LoadInt64(&w.stats.WriteTimeout),
 			statWriteErr:           atomic.LoadInt64(&w.stats.WriteErr),
 			statSubWriteOK:         atomic.LoadInt64(&w.stats.SubWriteOK),
-			statSubWriteDrop:       atomic.LoadInt64(&w.stats.SubWriteDrop),
 		},
 	}}
 }
@@ -328,35 +315,18 @@ func (w *PointsWriter) WritePointsPrivileged(writeCtx tsdb.WriteContext, databas
 		}(writeCtx, shardMappings.Shards[shardID], database, retentionPolicy, points)
 	}
 
-	// Send points to subscriptions if possible.
-	var ok, dropped int64
+	timeout := time.NewTimer(w.WriteTimeout)
+	defer timeout.Stop()
+
+	// Send points to subscriptions
 	pts := &WritePointsRequest{Database: database, RetentionPolicy: retentionPolicy, Points: points}
-	// We need to lock just in case the channel is about to be nil'ed
-	w.mu.RLock()
-	for _, ch := range w.subPoints {
-		select {
-		case ch <- pts:
-			ok++
-		default:
-			dropped++
-		}
-	}
-	w.mu.RUnlock()
-
-	if ok > 0 {
-		atomic.AddInt64(&w.stats.SubWriteOK, ok)
-	}
-
-	if dropped > 0 {
-		atomic.AddInt64(&w.stats.SubWriteDrop, dropped)
-	}
+	w.Subscriber.Send(pts)
+	atomic.AddInt64(&w.stats.SubWriteOK, 1)
 
 	if err == nil && len(shardMappings.Dropped) > 0 {
 		err = tsdb.PartialWriteError{Reason: "points beyond retention policy", Dropped: len(shardMappings.Dropped)}
-
 	}
-	timeout := time.NewTimer(w.WriteTimeout)
-	defer timeout.Stop()
+
 	for range shardMappings.Points {
 		select {
 		case <-w.closing:
