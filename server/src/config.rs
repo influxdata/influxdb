@@ -377,7 +377,7 @@ impl RemoteTemplate {
 /// Internal representation of the different database states.
 ///
 /// # Shared Data During Transitions
-/// The following elements can safely be shared between states because they won't be poissened by any half-done
+/// The following elements can safely be shared between states because they won't be poisoned by any half-done
 /// transition (e.g. starting a transition and then failing due to an IO error):
 /// - `object_store`
 /// - `exec`
@@ -568,7 +568,7 @@ impl<'a> DatabaseHandle<'a> {
         self.state().rules()
     }
 
-    /// Get database linked to this state.
+    /// Get database linked to this state, if any
     ///
     /// This database may be uninitialized.
     pub fn db_any_state(&self) -> Option<Arc<Db>> {
