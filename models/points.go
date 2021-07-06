@@ -2529,6 +2529,7 @@ func appendField(b []byte, k string, v interface{}) []byte {
 
 // ValidKeyToken returns true if the token used for measurement, tag key, or tag
 // value is a valid unicode string and only contains printable, non-replacement characters.
+// Note \n (newline) is not printable.
 func ValidKeyToken(s string) bool {
 	if !utf8.ValidString(s) {
 		return false
