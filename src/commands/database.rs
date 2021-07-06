@@ -198,7 +198,6 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                     mutable_size_threshold: command.mutable_size_threshold as _,
                     buffer_size_soft: command.buffer_size_soft as _,
                     buffer_size_hard: command.buffer_size_hard as _,
-                    sort_order: None, // Server-side default
                     drop_non_persisted: command.drop_non_persisted,
                     persist: command.persist,
                     immutable: command.immutable,

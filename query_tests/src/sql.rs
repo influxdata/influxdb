@@ -6,8 +6,7 @@
 use super::scenarios::*;
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
-use query::frontend::sql::SqlQueryPlanner;
-use std::sync::Arc;
+use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner};
 
 /// runs table_names(predicate) and compares it to the expected
 /// output
@@ -19,7 +18,6 @@ macro_rules! run_sql_test_case {
             let DbScenario {
                 scenario_name, db, ..
             } = scenario;
-            let db = Arc::new(db);
 
             println!("Running scenario '{}'", scenario_name);
             println!("SQL: '{:#?}'", sql);
@@ -30,8 +28,10 @@ macro_rules! run_sql_test_case {
                 .query(db, &sql, executor.as_ref())
                 .expect("built plan successfully");
 
-            let results: Vec<RecordBatch> =
-                executor.collect(physical_plan).await.expect("Running plan");
+            let results: Vec<RecordBatch> = executor
+                .collect(physical_plan, ExecutorType::Query)
+                .await
+                .expect("Running plan");
 
             assert_batches_sorted_eq!($EXPECTED_LINES, &results);
         }
@@ -319,9 +319,9 @@ async fn sql_select_from_system_chunk_columns() {
         "+---------------+----------+------------+-------------+-------------------+-------+-----------+-----------+-----------------+",
         "| partition_key | chunk_id | table_name | column_name | storage           | count | min_value | max_value | estimated_bytes |",
         "+---------------+----------+------------+-------------+-------------------+-------+-----------+-----------+-----------------+",
-        "| 1970-01-01T00 | 0        | h2o        | city        | ReadBuffer        | 2     | Boston    | Boston    | 247             |",
+        "| 1970-01-01T00 | 0        | h2o        | city        | ReadBuffer        | 2     | Boston    | Boston    | 252             |",
         "| 1970-01-01T00 | 0        | h2o        | other_temp  | ReadBuffer        | 1     | 70.4      | 70.4      | 369             |",
-        "| 1970-01-01T00 | 0        | h2o        | state       | ReadBuffer        | 2     | MA        | MA        | 235             |",
+        "| 1970-01-01T00 | 0        | h2o        | state       | ReadBuffer        | 2     | MA        | MA        | 240             |",
         "| 1970-01-01T00 | 0        | h2o        | temp        | ReadBuffer        | 1     | 70.4      | 70.4      | 369             |",
         "| 1970-01-01T00 | 0        | h2o        | time        | ReadBuffer        | 2     | 50        | 250       | 51              |",
         "| 1970-01-01T00 | 0        | o2         | city        | OpenMutableBuffer | 1     | Boston    | Boston    | 35              |",

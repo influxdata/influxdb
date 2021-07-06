@@ -3,9 +3,7 @@ use std::time::Duration;
 
 use thiserror::Error;
 
-use data_types::database_rules::{
-    ColumnType, ColumnValue, DatabaseRules, Order, RoutingConfig, RoutingRules,
-};
+use data_types::database_rules::{DatabaseRules, RoutingConfig, RoutingRules};
 use data_types::DatabaseName;
 
 use crate::google::{FieldViolation, FieldViolationExt, FromFieldOpt, FromFieldString};
@@ -141,77 +139,6 @@ pub fn encode_database_rules(
 ) -> Result<(), EncodeError> {
     let encoded: management::DatabaseRules = rules.into();
     Ok(prost::Message::encode(&encoded, bytes)?)
-}
-
-impl From<Order> for management::Order {
-    fn from(o: Order) -> Self {
-        match o {
-            Order::Asc => Self::Asc,
-            Order::Desc => Self::Desc,
-        }
-    }
-}
-
-impl TryFrom<management::Order> for Order {
-    type Error = FieldViolation;
-
-    fn try_from(proto: management::Order) -> Result<Self, Self::Error> {
-        Ok(match proto {
-            management::Order::Unspecified => Self::default(),
-            management::Order::Asc => Self::Asc,
-            management::Order::Desc => Self::Desc,
-        })
-    }
-}
-
-impl From<ColumnType> for management::ColumnType {
-    fn from(t: ColumnType) -> Self {
-        match t {
-            ColumnType::I64 => Self::I64,
-            ColumnType::U64 => Self::U64,
-            ColumnType::F64 => Self::F64,
-            ColumnType::String => Self::String,
-            ColumnType::Bool => Self::Bool,
-        }
-    }
-}
-
-impl TryFrom<management::ColumnType> for ColumnType {
-    type Error = FieldViolation;
-
-    fn try_from(proto: management::ColumnType) -> Result<Self, Self::Error> {
-        Ok(match proto {
-            management::ColumnType::Unspecified => return Err(FieldViolation::required("")),
-            management::ColumnType::I64 => Self::I64,
-            management::ColumnType::U64 => Self::U64,
-            management::ColumnType::F64 => Self::F64,
-            management::ColumnType::String => Self::String,
-            management::ColumnType::Bool => Self::Bool,
-        })
-    }
-}
-
-impl From<ColumnValue> for management::Aggregate {
-    fn from(v: ColumnValue) -> Self {
-        match v {
-            ColumnValue::Min => Self::Min,
-            ColumnValue::Max => Self::Max,
-        }
-    }
-}
-
-impl TryFrom<management::Aggregate> for ColumnValue {
-    type Error = FieldViolation;
-
-    fn try_from(proto: management::Aggregate) -> Result<Self, Self::Error> {
-        use management::Aggregate;
-
-        Ok(match proto {
-            Aggregate::Unspecified => return Err(FieldViolation::required("")),
-            Aggregate::Min => Self::Min,
-            Aggregate::Max => Self::Max,
-        })
-    }
 }
 
 #[cfg(test)]

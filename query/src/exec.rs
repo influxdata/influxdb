@@ -2,7 +2,6 @@
 //! plans. This is currently implemented using DataFusion, and this
 //! interface abstracts away many of the details
 pub(crate) mod context;
-mod counters;
 pub mod field;
 pub mod fieldlist;
 mod schema_pivot;
@@ -17,7 +16,6 @@ use futures::{future, Future};
 use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
-use counters::ExecutionCounters;
 use datafusion::{
     self,
     logical_plan::{Expr, LogicalPlan},
@@ -102,38 +100,56 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Handles executing DataFusion plans, and marshalling the results into rust
 /// native structures.
+///
+/// TODO: Have a resource manager that would limit how many plans are
+/// running, based on a policy
 #[derive(Debug)]
 pub struct Executor {
-    counters: Arc<ExecutionCounters>,
-    exec: DedicatedExecutor,
+    /// Executor for running user queries
+    query_exec: DedicatedExecutor,
+
+    /// Executor for running system/reorganization tasks such as
+    /// compact
+    reorg_exec: DedicatedExecutor,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExecutorType {
+    /// Run using the pool for queries
+    Query,
+    /// Run using the pool for system / reorganization tasks
+    Reorg,
 }
 
 impl Executor {
-    /// Creates a new executor with a single dedicated thread pool with
-    /// num_threads
+    /// Creates a new executor with a two dedicated thread pools, each
+    /// with num_threads
     pub fn new(num_threads: usize) -> Self {
-        let exec = DedicatedExecutor::new("IOx Executor Thread", num_threads);
+        let query_exec = DedicatedExecutor::new("IOx Query Executor Thread", num_threads);
+        let reorg_exec = DedicatedExecutor::new("IOx Reorg Executor Thread", num_threads);
 
         Self {
-            exec,
-            counters: Arc::new(ExecutionCounters::default()),
+            query_exec,
+            reorg_exec,
         }
     }
 
-    /// Executes this plan and returns the resulting set of strings
+    /// Executes this plan on the query pool, and returns the
+    /// resulting set of strings
     pub async fn to_string_set(&self, plan: StringSetPlan) -> Result<StringSetRef> {
         match plan {
             StringSetPlan::Known(ss) => Ok(ss),
             StringSetPlan::Plan(plans) => self
-                .run_logical_plans(plans)
+                .run_logical_plans(plans, ExecutorType::Query)
                 .await?
                 .into_stringset()
                 .context(StringSetConversion),
         }
     }
 
-    /// Executes the embedded plans, each as separate tasks combining the results
-    /// into the returned collection of items.
+    /// Executes the SeriesSetPlans on the query exectutor, in
+    /// parallel, combining the results into the returned collection
+    /// of items.
     ///
     /// The SeriesSets are guaranteed to come back ordered by table_name.
     pub async fn to_series_set(
@@ -153,47 +169,50 @@ impl Executor {
         let handles = plans
             .into_iter()
             .map(|plan| {
-                // TODO run these on some executor other than the main tokio pool (maybe?)
-                let ctx = self.new_context();
+                let executor_type = ExecutorType::Query;
+                let ctx = self.new_context(executor_type);
 
-                self.exec.spawn(async move {
-                    let SeriesSetPlan {
-                        table_name,
-                        plan,
-                        tag_columns,
-                        field_columns,
-                        num_prefix_tag_group_columns,
-                    } = plan;
-
-                    let tag_columns = Arc::new(tag_columns);
-
-                    let physical_plan = ctx
-                        .prepare_plan(&plan)
-                        .context(DataFusionPhysicalPlanning)?;
-
-                    let it = ctx
-                        .execute(physical_plan)
-                        .await
-                        .context(SeriesSetExecution)?;
-
-                    SeriesSetConverter::default()
-                        .convert(
+                self.run(
+                    async move {
+                        let SeriesSetPlan {
                             table_name,
+                            plan,
                             tag_columns,
                             field_columns,
                             num_prefix_tag_group_columns,
-                            it,
-                        )
-                        .await
-                        .context(SeriesSetConversion)
-                })
+                        } = plan;
+
+                        let tag_columns = Arc::new(tag_columns);
+
+                        let physical_plan = ctx
+                            .prepare_plan(&plan)
+                            .context(DataFusionPhysicalPlanning)?;
+
+                        let it = ctx
+                            .execute(physical_plan)
+                            .await
+                            .context(SeriesSetExecution)?;
+
+                        SeriesSetConverter::default()
+                            .convert(
+                                table_name,
+                                tag_columns,
+                                field_columns,
+                                num_prefix_tag_group_columns,
+                                it,
+                            )
+                            .await
+                            .context(SeriesSetConversion)
+                    },
+                    executor_type,
+                )
             })
             .collect::<Vec<_>>();
 
         // join_all ensures that the results are consumed in the same order they
         // were spawned maintaining the guarantee to return results ordered
         // by the plan sort order.
-        let handles = future::try_join_all(handles).await.context(TaskJoinError)?;
+        let handles = future::try_join_all(handles).await?;
         let mut results = vec![];
         for handle in handles {
             results.extend(handle?.into_iter());
@@ -202,7 +221,7 @@ impl Executor {
         Ok(results)
     }
 
-    /// Executes `plan` and return the resulting FieldList
+    /// Executes `plan` and return the resulting FieldList on the query executor
     pub async fn to_field_list(&self, plan: FieldListPlan) -> Result<FieldList> {
         let FieldListPlan { plans } = plan;
 
@@ -210,29 +229,33 @@ impl Executor {
         let handles = plans
             .into_iter()
             .map(|plan| {
-                let ctx = self.new_context();
-                self.exec.spawn(async move {
-                    let physical_plan = ctx
-                        .prepare_plan(&plan)
-                        .context(DataFusionPhysicalPlanning)?;
+                let executor_type = ExecutorType::Query;
+                let ctx = self.new_context(executor_type);
+                self.run(
+                    async move {
+                        let physical_plan = ctx
+                            .prepare_plan(&plan)
+                            .context(DataFusionPhysicalPlanning)?;
 
-                    // TODO: avoid this buffering
-                    let fieldlist = ctx
-                        .collect(physical_plan)
-                        .await
-                        .context(FieldListExectuor)?
-                        .into_fieldlist()
-                        .context(FieldListConversion);
+                        // TODO: avoid this buffering
+                        let fieldlist = ctx
+                            .collect(physical_plan)
+                            .await
+                            .context(FieldListExectuor)?
+                            .into_fieldlist()
+                            .context(FieldListConversion);
 
-                    Ok(fieldlist)
-                })
+                        Ok(fieldlist)
+                    },
+                    executor_type,
+                )
             })
             .collect::<Vec<_>>();
 
         // collect them all up and combine them
         let mut results = Vec::new();
         for join_handle in handles {
-            let fieldlist = join_handle.await.context(TaskJoinError)???;
+            let fieldlist = join_handle.await???;
 
             results.push(fieldlist);
         }
@@ -241,64 +264,88 @@ impl Executor {
     }
 
     /// Run the plan and return a record batch reader for reading the results
-    pub async fn run_logical_plan(&self, plan: LogicalPlan) -> Result<Vec<RecordBatch>> {
-        self.run_logical_plans(vec![plan]).await
+    pub async fn run_logical_plan(
+        &self,
+        plan: LogicalPlan,
+        executor_type: ExecutorType,
+    ) -> Result<Vec<RecordBatch>> {
+        self.run_logical_plans(vec![plan], executor_type).await
     }
 
     /// Executes the logical plan using DataFusion on a separate
     /// thread pool and produces RecordBatches
-    pub async fn collect(&self, physical_plan: Arc<dyn ExecutionPlan>) -> Result<Vec<RecordBatch>> {
-        self.new_context()
+    pub async fn collect(
+        &self,
+        physical_plan: Arc<dyn ExecutionPlan>,
+        executor_type: ExecutorType,
+    ) -> Result<Vec<RecordBatch>> {
+        self.new_context(executor_type)
             .collect(physical_plan)
             .await
             .context(DataFusionExecution)
     }
 
-    /// Create a new execution context, suitable for executing a new query
-    pub fn new_context(&self) -> IOxExecutionContext {
-        IOxExecutionContext::new(self.exec.clone(), Arc::clone(&self.counters))
+    /// Create a new execution context, suitable for executing a new query or system task
+    pub fn new_context(&self, executor_type: ExecutorType) -> IOxExecutionContext {
+        let executor = self.executor(executor_type).clone();
+
+        IOxExecutionContext::new(executor)
+    }
+
+    /// Return the execution pool  of the specified type
+    fn executor(&self, executor_type: ExecutorType) -> &DedicatedExecutor {
+        match executor_type {
+            ExecutorType::Query => &self.query_exec,
+            ExecutorType::Reorg => &self.reorg_exec,
+        }
     }
 
     /// plans and runs the plans in parallel and collects the results
     /// run each plan in parallel and collect the results
-    async fn run_logical_plans(&self, plans: Vec<LogicalPlan>) -> Result<Vec<RecordBatch>> {
+    async fn run_logical_plans(
+        &self,
+        plans: Vec<LogicalPlan>,
+        executor_type: ExecutorType,
+    ) -> Result<Vec<RecordBatch>> {
         let value_futures = plans
             .into_iter()
             .map(|plan| {
-                let ctx = self.new_context();
+                let ctx = self.new_context(executor_type);
 
-                self.exec.spawn(async move {
-                    let physical_plan = ctx
-                        .prepare_plan(&plan)
-                        .context(DataFusionPhysicalPlanning)?;
+                self.run(
+                    async move {
+                        let physical_plan = ctx
+                            .prepare_plan(&plan)
+                            .context(DataFusionPhysicalPlanning)?;
 
-                    // TODO: avoid this buffering
-                    ctx.collect(physical_plan)
-                        .await
-                        .context(DataFusionExecution)
-                })
+                        // TODO: avoid this buffering
+                        ctx.collect(physical_plan)
+                            .await
+                            .context(DataFusionExecution)
+                    },
+                    executor_type,
+                )
             })
             .collect::<Vec<_>>();
 
         // now, wait for all the values to resolve and collect them together
         let mut results = Vec::new();
         for join_handle in value_futures {
-            let mut plan_result = join_handle.await.context(TaskJoinError)??;
+            let mut plan_result = join_handle.await??;
             results.append(&mut plan_result);
         }
         Ok(results)
     }
 
     /// Runs the specified Future (and any tasks it spawns) on the
-    /// worker pool for this executor, returning the result of the
-    /// computation.
-    pub async fn run<T>(&self, task: T) -> Result<T::Output>
+    /// specified executor, returning the result of the computation.
+    pub async fn run<T>(&self, task: T, executor_type: ExecutorType) -> Result<T::Output>
     where
         T: Future + Send + 'static,
         T::Output: Send + 'static,
     {
         // run on the dedicated executor
-        self.exec
+        self.executor(executor_type)
             .spawn(task)
             // wait on the *current* tokio executor
             .await

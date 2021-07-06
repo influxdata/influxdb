@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use datafusion::{catalog::catalog::CatalogProvider, physical_plan::ExecutionPlan};
 use query::{
-    exec::Executor,
+    exec::{Executor, ExecutorType},
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
     group_by::{Aggregate, WindowDuration},
     plan::{fieldlist::FieldListPlan, seriesset::SeriesSetPlans, stringset::StringSetPlan},
@@ -61,11 +61,14 @@ impl Planner {
         let query = query.into();
 
         self.exec
-            .run(async move {
-                planner
-                    .query(database, &query, q_executor.as_ref())
-                    .context(Sql { query })
-            })
+            .run(
+                async move {
+                    planner
+                        .query(database, &query, q_executor.as_ref())
+                        .context(Sql { query })
+                },
+                ExecutorType::Query,
+            )
             .await
             .context(InternalExecutionWhilePlanning)?
     }
@@ -83,11 +86,14 @@ impl Planner {
         let planner = InfluxRpcPlanner::new();
 
         self.exec
-            .run(async move {
-                planner
-                    .table_names(database.as_ref(), predicate)
-                    .context(InfluxRpc)
-            })
+            .run(
+                async move {
+                    planner
+                        .table_names(database.as_ref(), predicate)
+                        .context(InfluxRpc)
+                },
+                ExecutorType::Query,
+            )
             .await
             .context(InternalExecutionWhilePlanning)?
     }
@@ -101,11 +107,14 @@ impl Planner {
         let planner = InfluxRpcPlanner::new();
 
         self.exec
-            .run(async move {
-                planner
-                    .tag_keys(database.as_ref(), predicate)
-                    .context(InfluxRpc)
-            })
+            .run(
+                async move {
+                    planner
+                        .tag_keys(database.as_ref(), predicate)
+                        .context(InfluxRpc)
+                },
+                ExecutorType::Query,
+            )
             .await
             .context(InternalExecutionWhilePlanning)?
     }
@@ -125,11 +134,14 @@ impl Planner {
         let planner = InfluxRpcPlanner::new();
 
         self.exec
-            .run(async move {
-                planner
-                    .tag_values(database.as_ref(), &tag_name, predicate)
-                    .context(InfluxRpc)
-            })
+            .run(
+                async move {
+                    planner
+                        .tag_values(database.as_ref(), &tag_name, predicate)
+                        .context(InfluxRpc)
+                },
+                ExecutorType::Query,
+            )
             .await
             .context(InternalExecutionWhilePlanning)?
     }
@@ -147,11 +159,14 @@ impl Planner {
         let planner = InfluxRpcPlanner::new();
 
         self.exec
-            .run(async move {
-                planner
-                    .field_columns(database.as_ref(), predicate)
-                    .context(InfluxRpc)
-            })
+            .run(
+                async move {
+                    planner
+                        .field_columns(database.as_ref(), predicate)
+                        .context(InfluxRpc)
+                },
+                ExecutorType::Query,
+            )
             .await
             .context(InternalExecutionWhilePlanning)?
     }
@@ -169,11 +184,14 @@ impl Planner {
         let planner = InfluxRpcPlanner::new();
 
         self.exec
-            .run(async move {
-                planner
-                    .read_filter(database.as_ref(), predicate)
-                    .context(InfluxRpc)
-            })
+            .run(
+                async move {
+                    planner
+                        .read_filter(database.as_ref(), predicate)
+                        .context(InfluxRpc)
+                },
+                ExecutorType::Query,
+            )
             .await
             .context(InternalExecutionWhilePlanning)?
     }
@@ -193,11 +211,14 @@ impl Planner {
         let planner = InfluxRpcPlanner::new();
 
         self.exec
-            .run(async move {
-                planner
-                    .read_group(database.as_ref(), predicate, agg, &group_columns)
-                    .context(InfluxRpc)
-            })
+            .run(
+                async move {
+                    planner
+                        .read_group(database.as_ref(), predicate, agg, &group_columns)
+                        .context(InfluxRpc)
+                },
+                ExecutorType::Query,
+            )
             .await
             .context(InternalExecutionWhilePlanning)?
     }
@@ -218,11 +239,14 @@ impl Planner {
         let planner = InfluxRpcPlanner::new();
 
         self.exec
-            .run(async move {
-                planner
-                    .read_window_aggregate(database.as_ref(), predicate, agg, every, offset)
-                    .context(InfluxRpc)
-            })
+            .run(
+                async move {
+                    planner
+                        .read_window_aggregate(database.as_ref(), predicate, agg, every, offset)
+                        .context(InfluxRpc)
+                },
+                ExecutorType::Query,
+            )
             .await
             .context(InternalExecutionWhilePlanning)?
     }

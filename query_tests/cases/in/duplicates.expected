@@ -28,12 +28,8 @@
 |                                         |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                   |
 |                                         |             SortExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]            |
 |                                         |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                   |
-|                                         |       DeduplicateExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]           |
-|                                         |         SortExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]                |
-|                                         |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                       |
-|                                         |       DeduplicateExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]           |
-|                                         |         SortExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]                |
-|                                         |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                       |
+|                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                           |
+|                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                           |
 +-----------------------------------------+-------------------------------------------------------------------------------------------------+
 -- SQL: explain verbose select time, state, city, min_temp, max_temp, area from h2o;
 +-----------------------------------------+-----------------------------------------------------------------------------------------------+
@@ -58,12 +54,8 @@
 |                                         |             IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                   |
 |                                         |           SortExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]            |
 |                                         |             IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                   |
-|                                         |     DeduplicateExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]           |
-|                                         |       SortExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]                |
-|                                         |         IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                       |
-|                                         |     DeduplicateExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]           |
-|                                         |       SortExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]                |
-|                                         |         IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                       |
+|                                         |     IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                           |
+|                                         |     IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                           |
 +-----------------------------------------+-----------------------------------------------------------------------------------------------+
 -- SQL: EXPLAIN VERBOSE select state as name from h2o UNION ALL select city as name from h2o;
 +-----------------------------------------+---------------------------------------------------------------------------------------------------+
@@ -105,14 +97,8 @@
 |                                         |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                   |
 |                                         |               SortExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]            |
 |                                         |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                   |
-|                                         |       ProjectionExec: expr=[state]                                                                |
-|                                         |         DeduplicateExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]           |
-|                                         |           SortExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]                |
-|                                         |             IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                       |
-|                                         |       ProjectionExec: expr=[state]                                                                |
-|                                         |         DeduplicateExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]           |
-|                                         |           SortExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]                |
-|                                         |             IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                       |
+|                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                             |
+|                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                             |
 |                                         |   ProjectionExec: expr=[city as name]                                                             |
 |                                         |     ExecutionPlan(PlaceHolder)                                                                    |
 |                                         |       ProjectionExec: expr=[city]                                                                 |
@@ -123,12 +109,6 @@
 |                                         |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                   |
 |                                         |               SortExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]            |
 |                                         |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                   |
-|                                         |       ProjectionExec: expr=[city]                                                                 |
-|                                         |         DeduplicateExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]           |
-|                                         |           SortExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]                |
-|                                         |             IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                       |
-|                                         |       ProjectionExec: expr=[city]                                                                 |
-|                                         |         DeduplicateExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]           |
-|                                         |           SortExec: [city ASC NULLS LAST,state ASC NULLS LAST,time ASC NULLS LAST]                |
-|                                         |             IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                       |
+|                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                             |
+|                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                             |
 +-----------------------------------------+---------------------------------------------------------------------------------------------------+

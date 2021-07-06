@@ -4,9 +4,13 @@ use chrono::{DateTime, Utc};
 
 use ::lifecycle::LifecycleDb;
 use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
-use data_types::database_rules::{LifecycleRules, SortOrder};
+use data_types::database_rules::LifecycleRules;
 use data_types::error::ErrorLogger;
 use data_types::job::Job;
+use data_types::partition_metadata::{InfluxDbType, TableSummary};
+use hashbrown::HashMap;
+use internal_types::schema::sort::SortKey;
+use internal_types::schema::TIME_COLUMN_NAME;
 use lifecycle::{
     ChunkLifecycleAction, LifecycleChunk, LifecyclePartition, LifecycleReadGuard,
     LifecycleWriteGuard, LockableChunk, LockablePartition,
@@ -30,6 +34,18 @@ mod move_chunk;
 mod unload;
 mod write;
 
+/// A newtype wrapper around `Arc<Db>` to workaround trait orphan rules
+#[derive(Debug, Clone)]
+pub struct ArcDb(pub(super) Arc<Db>);
+
+impl std::ops::Deref for ArcDb {
+    type Target = Db;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 ///
 /// A `LockableCatalogChunk` combines a `CatalogChunk` with its owning `Db`
 ///
@@ -38,12 +54,12 @@ mod write;
 /// without allowing concurrent modification
 ///
 #[derive(Debug, Clone)]
-pub struct LockableCatalogChunk<'a> {
-    pub db: &'a Db,
+pub struct LockableCatalogChunk {
+    pub db: Arc<Db>,
     pub chunk: Arc<RwLock<CatalogChunk>>,
 }
 
-impl<'a> LockableChunk for LockableCatalogChunk<'a> {
+impl LockableChunk for LockableCatalogChunk {
     type Chunk = CatalogChunk;
 
     type Job = Job;
@@ -94,15 +110,15 @@ impl<'a> LockableChunk for LockableCatalogChunk<'a> {
 /// without allowing concurrent modification
 ///
 #[derive(Debug, Clone)]
-pub struct LockableCatalogPartition<'a> {
-    pub db: &'a Db,
+pub struct LockableCatalogPartition {
+    pub db: Arc<Db>,
     pub partition: Arc<RwLock<Partition>>,
 }
 
-impl<'a> LockablePartition for LockableCatalogPartition<'a> {
+impl LockablePartition for LockableCatalogPartition {
     type Partition = Partition;
 
-    type Chunk = LockableCatalogChunk<'a>;
+    type Chunk = LockableCatalogChunk;
 
     type Error = super::lifecycle::Error;
 
@@ -119,19 +135,18 @@ impl<'a> LockablePartition for LockableCatalogPartition<'a> {
         chunk_id: u32,
     ) -> Option<Self::Chunk> {
         s.chunk(chunk_id).map(|chunk| LockableCatalogChunk {
-            db: s.data().db,
+            db: Arc::clone(&s.data().db),
             chunk: Arc::clone(chunk),
         })
     }
 
     fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<(u32, Self::Chunk)> {
-        let db = s.data().db;
         s.keyed_chunks()
             .map(|(id, chunk)| {
                 (
                     id,
                     LockableCatalogChunk {
-                        db,
+                        db: Arc::clone(&s.data().db),
                         chunk: Arc::clone(chunk),
                     },
                 )
@@ -158,34 +173,26 @@ impl<'a> LockablePartition for LockableCatalogPartition<'a> {
     }
 }
 
-impl<'a> LifecycleDb for &'a Db {
-    type Chunk = LockableCatalogChunk<'a>;
-    type Partition = LockableCatalogPartition<'a>;
+impl LifecycleDb for ArcDb {
+    type Chunk = LockableCatalogChunk;
+    type Partition = LockableCatalogPartition;
 
-    fn buffer_size(self) -> usize {
+    fn buffer_size(&self) -> usize {
         self.catalog.metrics().memory().total()
     }
 
-    fn rules(self) -> LifecycleRules {
+    fn rules(&self) -> LifecycleRules {
         self.rules.read().lifecycle_rules.clone()
     }
 
-    fn partitions(self) -> Vec<Self::Partition> {
+    fn partitions(&self) -> Vec<Self::Partition> {
         self.catalog
             .partitions()
             .into_iter()
             .map(|partition| LockableCatalogPartition {
-                db: self,
+                db: Arc::clone(&self.0),
                 partition,
             })
-            .collect()
-    }
-
-    fn chunks(self, sort_order: &SortOrder) -> Vec<Self::Chunk> {
-        self.catalog
-            .chunks_sorted_by(sort_order)
-            .into_iter()
-            .map(|chunk| LockableCatalogChunk { db: self, chunk })
             .collect()
     }
 }
@@ -225,4 +232,33 @@ impl LifecycleChunk for CatalogChunk {
     fn row_count(&self) -> usize {
         self.storage().0
     }
+}
+
+/// Compute a sort key that orders lower cardinality columns first
+///
+/// In the absence of more precise information, this should yield a
+/// good ordering for RLE compression
+fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -> SortKey<'a> {
+    let mut cardinalities: HashMap<&str, u64> = Default::default();
+    for summary in summaries {
+        for column in &summary.columns {
+            if column.influxdb_type != Some(InfluxDbType::Tag) {
+                continue;
+            }
+
+            if let Some(count) = column.stats.distinct_count() {
+                *cardinalities.entry(column.name.as_str()).or_default() += count.get()
+            }
+        }
+    }
+
+    let mut cardinalities: Vec<_> = cardinalities.into_iter().collect();
+    cardinalities.sort_by_key(|x| x.1);
+
+    let mut key = SortKey::with_capacity(cardinalities.len() + 1);
+    for (col, _) in cardinalities {
+        key.push(col, Default::default())
+    }
+    key.push(TIME_COLUMN_NAME, Default::default());
+    key
 }

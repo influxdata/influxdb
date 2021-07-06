@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use snafu::{ResultExt, Snafu};
 
-use crate::exec::{context::DEFAULT_CATALOG, Executor};
+use crate::exec::{context::DEFAULT_CATALOG, Executor, ExecutorType};
 use datafusion::{
     catalog::catalog::CatalogProvider, error::DataFusionError, physical_plan::ExecutionPlan,
 };
@@ -76,15 +76,17 @@ impl SqlQueryPlanner {
     }
 
     /// Plan a SQL query against the data in `database`, and return a
-    /// DataFusion physical execution plan. The plan can then be
-    /// executed using `executor` in a streaming fashion.
+    /// DataFusion physical execution plan that runs on the query executor.
+    ///
+    /// When the plan is executed, it will run on the query executor
+    /// in a streaming fashion.
     pub fn query<D: CatalogProvider + 'static>(
         &self,
         database: Arc<D>,
         query: &str,
         executor: &Executor,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let mut ctx = executor.new_context();
+        let mut ctx = executor.new_context(ExecutorType::Query);
         ctx.inner_mut().register_catalog(DEFAULT_CATALOG, database);
         ctx.prepare_sql(query).context(Preparing)
     }

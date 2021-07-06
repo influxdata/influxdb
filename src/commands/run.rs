@@ -81,11 +81,12 @@ pub struct Config {
     #[structopt(long = "--data-dir", env = "INFLUXDB_IOX_DB_DIR")]
     pub database_directory: Option<PathBuf>,
 
-    /// The number of threads to use for the query worker pool.
+    /// The number of threads to use for all worker pools.
     ///
-    /// IOx uses `--num-threads` threads for handling API requests and
-    /// will use a dedicated thread pool with `--num-worker-threads`
-    /// for running queries.
+    /// IOx uses a pool with `--num-threads` threads *each* for
+    /// 1. Handling API requests
+    /// 2. Running queries.
+    /// 3. Reorganizing data (e.g. compacting chunks)
     ///
     /// If not specified, defaults to the number of cores on the system
     #[structopt(long = "--num-worker-threads", env = "INFLUXDB_IOX_NUM_WORKER_THREADS")]

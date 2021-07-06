@@ -73,19 +73,21 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
-use db::{load::create_preserved_catalog, DatabaseToCommit};
+use db::load::create_preserved_catalog;
 use init::InitStatus;
 use observability_deps::tracing::{debug, info, warn};
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use data_types::{
-    database_rules::DatabaseRules,
+    database_rules::{DatabaseRules, NodeGroup, RoutingRules, Shard, ShardConfig, ShardId},
+    database_state::DatabaseStateCode,
     job::Job,
     server_id::ServerId,
     {DatabaseName, DatabaseNameError},
 };
-use entry::{lines_to_sharded_entries, Entry, ShardedEntry};
+use entry::{lines_to_sharded_entries, pb_to_entry, Entry, ShardedEntry};
+use generated_types::influxdata::transfer::column::v1 as pb;
 use influxdb_line_protocol::ParsedLine;
 use metrics::{KeyValue, MetricObserverBuilder, MetricRegistry};
 use object_store::{ObjectStore, ObjectStoreApi};
@@ -95,7 +97,6 @@ use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, Tr
 pub use crate::config::RemoteTemplate;
 use crate::config::{object_store_path_for_database_config, Config, GRpcConnectionString};
 use cache_loader_async::cache_api::LoadingCache;
-use data_types::database_rules::{NodeGroup, RoutingRules, Shard, ShardConfig, ShardId};
 pub use db::Db;
 use generated_types::database_rules::encode_database_rules;
 use influxdb_iox_client::{connection::Builder, write};
@@ -161,8 +162,11 @@ pub enum Error {
     #[snafu(display("store error: {}", source))]
     StoreError { source: object_store::Error },
 
-    #[snafu(display("database already exists"))]
+    #[snafu(display("database already exists: {}", db_name))]
     DatabaseAlreadyExists { db_name: String },
+
+    #[snafu(display("database currently reserved: {}", db_name))]
+    DatabaseReserved { db_name: String },
 
     #[snafu(display("no rules loaded for database: {}", db_name))]
     NoRulesLoaded { db_name: String },
@@ -176,6 +180,9 @@ pub enum Error {
 
     #[snafu(display("error converting line protocol to flatbuffers: {}", source))]
     LineConversion { source: entry::Error },
+
+    #[snafu(display("error converting protobuf to flatbuffers: {}", source))]
+    PBConversion { source: entry::Error },
 
     #[snafu(display("error decoding entry flatbuffers: {}", source))]
     DecodingEntry {
@@ -210,6 +217,19 @@ pub enum Error {
 
     #[snafu(display("cannot create write buffer for writing: {}", source))]
     CreatingWriteBufferForWriting { source: DatabaseError },
+
+    #[snafu(display(
+        "Invalid database state transition, expected {:?} but got {:?}",
+        expected,
+        actual
+    ))]
+    InvalidDatabaseStateTransition {
+        actual: DatabaseStateCode,
+        expected: DatabaseStateCode,
+    },
+
+    #[snafu(display("server is shutting down"))]
+    ServerShuttingDown,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -468,6 +488,15 @@ where
         self.init_status.error_database(db_name)
     }
 
+    /// Current database init state.
+    pub fn database_state(&self, name: &str) -> Option<DatabaseStateCode> {
+        if let Ok(name) = DatabaseName::new(name) {
+            self.config.db_state(&name)
+        } else {
+            None
+        }
+    }
+
     /// Require that server is loaded. Databases are loaded and server is ready to read/write.
     fn require_initialized(&self) -> Result<ServerId> {
         // since a server ID is the pre-requirement for init, check this first
@@ -487,9 +516,17 @@ where
         let server_id = self.require_initialized()?;
 
         // Reserve name before expensive IO (e.g. loading the preserved catalog)
-        let db_reservation = self.config.create_db(rules.name.clone())?;
-        self.persist_database_rules(rules.clone()).await?;
+        let mut db_reservation = self.config.create_db(
+            Arc::clone(&self.store),
+            Arc::clone(&self.exec),
+            server_id,
+            rules.name.clone(),
+        )?;
 
+        // register rules
+        db_reservation.advance_rules_loaded(rules.clone())?;
+
+        // load preserved catalog
         let (preserved_catalog, catalog) = create_preserved_catalog(
             rules.db_name(),
             Arc::clone(&self.store),
@@ -499,21 +536,13 @@ where
         .await
         .map_err(|e| Box::new(e) as _)
         .context(CannotCreatePreservedCatalog)?;
-
         let write_buffer = write_buffer::new(&rules)
             .map_err(|e| Error::CreatingWriteBufferForWriting { source: e })?;
+        db_reservation.advance_init(preserved_catalog, catalog, write_buffer)?;
 
-        let database_to_commit = DatabaseToCommit {
-            server_id,
-            object_store: Arc::clone(&self.store),
-            exec: Arc::clone(&self.exec),
-            preserved_catalog,
-            catalog,
-            rules,
-            write_buffer,
-        };
-
-        db_reservation.commit_db(database_to_commit)?;
+        // ready to commit
+        self.persist_database_rules(rules.clone()).await?;
+        db_reservation.commit();
 
         Ok(())
     }
@@ -557,6 +586,17 @@ where
                 Arc::clone(&self.exec),
             )
             .await;
+    }
+
+    pub async fn write_pb(&self, database_batch: pb::DatabaseBatch) -> Result<()> {
+        // Return an error if this server is not yet ready
+        self.require_initialized()?;
+
+        let entry = pb_to_entry(&database_batch).context(PBConversion)?;
+        self.write_entry(&database_batch.database_name, entry.data().into())
+            .await?;
+
+        Ok(())
     }
 
     /// `write_lines` takes in raw line protocol and converts it to a collection
@@ -854,18 +894,11 @@ where
         });
         let object_store = Arc::clone(&self.store);
         let config = Arc::clone(&self.config);
-        let exec = Arc::clone(&self.exec);
         let server_id = self.require_id()?;
         let init_status = Arc::clone(&self.init_status);
         let task = async move {
             init_status
-                .wipe_preserved_catalog_and_maybe_recover(
-                    object_store,
-                    config,
-                    exec,
-                    server_id,
-                    db_name,
-                )
+                .wipe_preserved_catalog_and_maybe_recover(object_store, config, server_id, db_name)
                 .await
         };
         tokio::spawn(task.track(registration));
@@ -1085,6 +1118,7 @@ mod tests {
         time::{Duration, Instant},
     };
 
+    use arrow::record_batch::RecordBatch;
     use async_trait::async_trait;
     use bytes::Bytes;
     use futures::TryStreamExt;
@@ -1101,7 +1135,7 @@ mod tests {
     use influxdb_line_protocol::parse_lines;
     use metrics::MetricRegistry;
     use object_store::{memory::InMemory, path::ObjectStorePath};
-    use query::{frontend::sql::SqlQueryPlanner, QueryDatabase};
+    use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryDatabase};
 
     use super::*;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -1373,14 +1407,8 @@ mod tests {
 
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).unwrap();
+        let batches = run_query(db, "select * from cpu").await;
 
-        let planner = SqlQueryPlanner::default();
-        let executor = server.executor();
-        let physical_plan = planner
-            .query(db, "select * from cpu", executor.as_ref())
-            .unwrap();
-
-        let batches = executor.collect(physical_plan).await.unwrap();
         let expected = vec![
             "+-----+-------------------------------+",
             "| bar | time                          |",
@@ -1424,13 +1452,7 @@ mod tests {
             .await
             .expect("write entry");
 
-        let planner = SqlQueryPlanner::default();
-        let executor = server.executor();
-        let physical_plan = planner
-            .query(db, "select * from cpu", executor.as_ref())
-            .unwrap();
-
-        let batches = executor.collect(physical_plan).await.unwrap();
+        let batches = run_query(db, "select * from cpu").await;
         let expected = vec![
             "+-----+-------------------------------+",
             "| bar | time                          |",
@@ -1918,7 +1940,7 @@ mod tests {
 
         // creating failed DBs does not work
         let err = create_simple_database(&server, "bar").await.unwrap_err();
-        assert_eq!(err.to_string(), "database already exists");
+        assert_eq!(err.to_string(), "database already exists: bar");
     }
 
     #[tokio::test]
@@ -2015,7 +2037,7 @@ mod tests {
                 .wipe_preserved_catalog(db_name_existing.clone())
                 .unwrap_err()
                 .to_string(),
-            "database already exists"
+            "database already exists: db_existing"
         );
         assert!(PreservedCatalog::exists(
             &server.store,
@@ -2112,7 +2134,7 @@ mod tests {
                 .wipe_preserved_catalog(db_name_created.clone())
                 .unwrap_err()
                 .to_string(),
-            "database already exists"
+            "database already exists: db_created"
         );
         assert!(PreservedCatalog::exists(
             &server.store,
@@ -2150,5 +2172,18 @@ mod tests {
         // creating database will now result in an error
         let err = create_simple_database(&server, db_name).await.unwrap_err();
         assert!(matches!(err, Error::CannotCreatePreservedCatalog { .. }));
+    }
+
+    // run a sql query against the database, returning the results as record batches
+    async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
+        let planner = SqlQueryPlanner::default();
+        let executor = db.executor();
+
+        let physical_plan = planner.query(db, query, &executor).unwrap();
+
+        executor
+            .collect(physical_plan, ExecutorType::Query)
+            .await
+            .unwrap()
     }
 }

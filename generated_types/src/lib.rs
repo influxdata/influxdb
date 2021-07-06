@@ -46,6 +46,17 @@ pub mod influxdata {
             }
         }
     }
+
+    pub mod transfer {
+        pub mod column {
+            pub mod v1 {
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.transfer.column.v1.rs"
+                ));
+            }
+        }
+    }
 }
 
 pub mod com {
@@ -118,6 +129,7 @@ pub use influxdata::platform::storage::*;
 
 pub mod chunk;
 pub mod database_rules;
+pub mod database_state;
 pub mod google;
 pub mod job;
 

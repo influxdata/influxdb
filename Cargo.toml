@@ -28,6 +28,7 @@ members = [
     "observability_deps",
     "packers",
     "panic_logging",
+    "persistence_windows",
     "query",
     "query_tests",
     "read_buffer",

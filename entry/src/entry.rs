@@ -12,8 +12,9 @@ use data_types::{
     database_rules::{Error as DataError, Partitioner, ShardId, Sharder},
     server_id::ServerId,
 };
+use generated_types::influxdata::transfer::column::v1 as pb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
-use internal_types::schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
+use internal_types::schema::{IOxValueType, InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
 
 use crate::entry_fb;
 
@@ -50,6 +51,18 @@ pub enum Error {
 
     #[snafu(display("'time' column must be i64 type"))]
     TimeColumnWrongType,
+
+    #[snafu(display("proto column {} semantic type {} invalid", column_name, semantic_type))]
+    PBColumnSemanticTypeInvalid {
+        column_name: String,
+        semantic_type: i32,
+    },
+
+    #[snafu(display("proto column {} contains only null values", column_name))]
+    PBColumnContainsOnlyNullValues { column_name: String },
+
+    #[snafu(display("table column type conflict {}", message))]
+    PBSemanticTypeConflict { message: String },
 }
 
 #[derive(Debug, Snafu)]
@@ -287,6 +300,436 @@ fn build_table_write_batch<'a>(
     ))
 }
 
+pub fn pb_to_entry(database_batch: &pb::DatabaseBatch) -> Result<Entry> {
+    let mut fbb = FlatBufferBuilder::new();
+
+    let mut table_batches = Vec::with_capacity(database_batch.table_batches.len());
+    for table_batch in &database_batch.table_batches {
+        table_batches.push(pb_table_batch_to_fb(&mut fbb, &table_batch)?);
+    }
+    let partition_key = fbb.create_string("pkey");
+    let table_batches = fbb.create_vector(&table_batches);
+
+    let partition_write = entry_fb::PartitionWrite::create(
+        &mut fbb,
+        &entry_fb::PartitionWriteArgs {
+            key: Some(partition_key),
+            table_batches: Some(table_batches),
+        },
+    );
+    let partition_writes = fbb.create_vector(&[partition_write]);
+    let operation = entry_fb::WriteOperations::create(
+        &mut fbb,
+        &entry_fb::WriteOperationsArgs {
+            partition_writes: Some(partition_writes),
+        },
+    )
+    .as_union_value();
+
+    let entry = entry_fb::Entry::create(
+        &mut fbb,
+        &entry_fb::EntryArgs {
+            operation_type: entry_fb::Operation::write,
+            operation: Some(operation),
+        },
+    );
+    fbb.finish(entry, None);
+
+    let (mut data, idx) = fbb.collapse();
+    let entry = Entry::try_from(data.split_off(idx)).unwrap();
+    Ok(entry)
+}
+
+/// Ensure that line protocol table batches conform to line protocol type constraints.
+fn pb_check_table_batch_column_types(table_batch: &pb::TableBatch) -> Result<()> {
+    let mut iox_column_detected = false;
+    let mut lp_tag_detected = false;
+    let mut lp_field_detected = false;
+    let mut time_nontime_detected = false; // type=time AND name!=time
+    let mut time_time_detected = false; // type=time AND name=time
+
+    for column in &table_batch.columns {
+        match pb::column::SemanticType::from_i32(column.semantic_type).unwrap() {
+            pb::column::SemanticType::Iox => {
+                iox_column_detected = true;
+            }
+            pb::column::SemanticType::Field => {
+                lp_field_detected = true;
+            }
+            pb::column::SemanticType::Tag => {
+                lp_tag_detected = true;
+            }
+            pb::column::SemanticType::Time => {
+                if column.column_name == TIME_COLUMN_NAME {
+                    time_time_detected = true;
+                } else {
+                    time_nontime_detected = true;
+                }
+            }
+            _ => {
+                return Err(Error::PBColumnSemanticTypeInvalid {
+                    column_name: column.column_name.to_string(),
+                    semantic_type: column.semantic_type,
+                })
+            }
+        }
+    }
+
+    match (
+        iox_column_detected,
+        lp_tag_detected,
+        lp_field_detected,
+        time_nontime_detected,
+        time_time_detected,
+    ) {
+        (true, false, false, _, _) => Ok(()), // Expected IOx column set
+        (false, _, true, false, true) => Ok(()), // Expected line protocol column set
+        (true, true, _, _, _) => Err(Error::PBSemanticTypeConflict {
+            message: "IOx column incompatible with line protocol tag column".to_string(),
+        }),
+        (true, _, true, _, _) => Err(Error::PBSemanticTypeConflict {
+            message: "IOx column incompatible with line protocol field column".to_string(),
+        }),
+        (_, _, true, true, _) => Err(Error::PBSemanticTypeConflict {
+            message: "line protocol field column incompatible with time column not named 'time'"
+                .to_string(),
+        }),
+        (_, _, true, _, false) => Err(Error::PBSemanticTypeConflict {
+            message: "line protocol field column requires time column named 'time'".to_string(),
+        }),
+        (_, true, false, _, _) => Err(Error::PBSemanticTypeConflict {
+            message: "line protocol tag column requires at least one line protocol field column"
+                .to_string(),
+        }),
+        _ => unreachable!(),
+    }
+}
+
+fn pb_table_batch_to_fb<'a>(
+    fbb: &mut FlatBufferBuilder<'a>,
+    table_batch: &pb::TableBatch,
+) -> Result<flatbuffers::WIPOffset<entry_fb::TableWriteBatch<'a>>> {
+    pb_check_table_batch_column_types(table_batch)?;
+    let mut columns = Vec::with_capacity(table_batch.columns.len());
+    for column in &table_batch.columns {
+        columns.push(pb_column_to_fb(
+            fbb,
+            &column,
+            table_batch.row_count as usize,
+        )?);
+    }
+
+    let columns = fbb.create_vector(&columns);
+    let name = fbb.create_string(&table_batch.table_name);
+    Ok(entry_fb::TableWriteBatch::create(
+        fbb,
+        &entry_fb::TableWriteBatchArgs {
+            name: Some(name),
+            columns: Some(columns),
+        },
+    ))
+}
+
+fn pb_column_to_fb<'a>(
+    fbb: &mut FlatBufferBuilder<'a>,
+    column: &pb::Column,
+    table_length: usize,
+) -> Result<flatbuffers::WIPOffset<entry_fb::Column<'a>>> {
+    let null_mask_cardinality: usize = column
+        .null_mask
+        .iter()
+        .map(|b| b.count_ones() as usize)
+        .sum();
+    let null_mask = if null_mask_cardinality > 0 {
+        Some(fbb.create_vector_direct(&column.null_mask))
+    } else {
+        None
+    };
+
+    let values = column
+        .values
+        .as_ref()
+        .ok_or(Error::PBColumnContainsOnlyNullValues {
+            column_name: column.column_name.clone(),
+        })?;
+    let (logical_column_type, values_type, values) = if !values.i64_values.is_empty() {
+        let logical_column_type = match pb::column::SemanticType::from_i32(column.semantic_type) {
+            Some(pb::column::SemanticType::Iox) => entry_fb::LogicalColumnType::IOx,
+            Some(pb::column::SemanticType::Field) => entry_fb::LogicalColumnType::Field,
+            Some(pb::column::SemanticType::Time) => entry_fb::LogicalColumnType::Time,
+            _ => {
+                return Err(Error::PBColumnSemanticTypeInvalid {
+                    column_name: column.column_name.clone(),
+                    semantic_type: column.semantic_type as i32,
+                });
+            }
+        };
+
+        let missing_values = table_length - null_mask_cardinality - values.i64_values.len();
+        let values = if missing_values == 0 {
+            fbb.create_vector(&values.i64_values)
+        } else {
+            fbb.start_vector::<flatbuffers::WIPOffset<i64>>(table_length);
+            for value in &values.i64_values {
+                fbb.push(*value);
+            }
+            let last_value = values.i64_values.last().unwrap();
+            for _ in 0..missing_values {
+                fbb.push(*last_value);
+            }
+            fbb.end_vector(table_length)
+        };
+        let values = entry_fb::I64Values::create(
+            fbb,
+            &entry_fb::I64ValuesArgs {
+                values: Some(values),
+            },
+        );
+
+        (
+            logical_column_type,
+            entry_fb::ColumnValues::I64Values,
+            values.as_union_value(),
+        )
+    } else if !values.f64_values.is_empty() {
+        let logical_column_type = match pb::column::SemanticType::from_i32(column.semantic_type) {
+            Some(pb::column::SemanticType::Iox) => entry_fb::LogicalColumnType::IOx,
+            Some(pb::column::SemanticType::Field) => entry_fb::LogicalColumnType::Field,
+            _ => {
+                return Err(Error::PBColumnSemanticTypeInvalid {
+                    column_name: column.column_name.clone(),
+                    semantic_type: column.semantic_type as i32,
+                });
+            }
+        };
+
+        let missing_values = table_length - null_mask_cardinality - values.f64_values.len();
+
+        let values = if missing_values == 0 {
+            fbb.create_vector(&values.f64_values)
+        } else {
+            fbb.start_vector::<flatbuffers::WIPOffset<f64>>(table_length);
+            for value in &values.f64_values {
+                fbb.push(*value);
+            }
+            let last_value = values.f64_values.last().unwrap();
+            for _ in 0..missing_values {
+                fbb.push(*last_value);
+            }
+            fbb.end_vector(table_length)
+        };
+        let values = entry_fb::F64Values::create(
+            fbb,
+            &entry_fb::F64ValuesArgs {
+                values: Some(values),
+            },
+        );
+
+        (
+            logical_column_type,
+            entry_fb::ColumnValues::F64Values,
+            values.as_union_value(),
+        )
+    } else if !values.u64_values.is_empty() {
+        let logical_column_type = match pb::column::SemanticType::from_i32(column.semantic_type) {
+            Some(pb::column::SemanticType::Iox) => entry_fb::LogicalColumnType::IOx,
+            Some(pb::column::SemanticType::Field) => entry_fb::LogicalColumnType::Field,
+            _ => {
+                return Err(Error::PBColumnSemanticTypeInvalid {
+                    column_name: column.column_name.clone(),
+                    semantic_type: column.semantic_type as i32,
+                });
+            }
+        };
+
+        let missing_values = table_length - null_mask_cardinality - values.u64_values.len();
+
+        let values = if missing_values == 0 {
+            fbb.create_vector(&values.u64_values)
+        } else {
+            fbb.start_vector::<flatbuffers::WIPOffset<u64>>(table_length);
+            for value in &values.u64_values {
+                fbb.push(*value);
+            }
+            let last_value = values.u64_values.last().unwrap();
+            for _ in 0..missing_values {
+                fbb.push(*last_value);
+            }
+            fbb.end_vector(table_length)
+        };
+        let values = entry_fb::U64Values::create(
+            fbb,
+            &entry_fb::U64ValuesArgs {
+                values: Some(values),
+            },
+        );
+
+        (
+            logical_column_type,
+            entry_fb::ColumnValues::U64Values,
+            values.as_union_value(),
+        )
+    } else if !values.string_values.is_empty() {
+        let logical_column_type = match pb::column::SemanticType::from_i32(column.semantic_type) {
+            Some(pb::column::SemanticType::Iox) => entry_fb::LogicalColumnType::IOx,
+            Some(pb::column::SemanticType::Field) => entry_fb::LogicalColumnType::Field,
+            Some(pb::column::SemanticType::Tag) => entry_fb::LogicalColumnType::Tag,
+            _ => {
+                return Err(Error::PBColumnSemanticTypeInvalid {
+                    column_name: column.column_name.clone(),
+                    semantic_type: column.semantic_type as i32,
+                });
+            }
+        };
+
+        let missing_values = table_length - null_mask_cardinality - values.string_values.len();
+
+        let values = {
+            let mut fb_values = Vec::with_capacity(values.string_values.len() + missing_values);
+            let mut fb_reference_by_value = BTreeMap::new();
+            for value in &values.string_values {
+                let fb_value = if value.len() < 1000 {
+                    *fb_reference_by_value
+                        .entry(value)
+                        .or_insert_with_key(|v| fbb.create_string(v))
+                } else {
+                    fbb.create_string(value)
+                };
+                fb_values.push(fb_value);
+            }
+            if missing_values > 0 {
+                let last_value = *fb_values.last().unwrap();
+                for _ in 0..missing_values {
+                    fb_values.push(last_value);
+                }
+            }
+            fbb.create_vector(fb_values.as_slice())
+        };
+        let values = entry_fb::StringValues::create(
+            fbb,
+            &entry_fb::StringValuesArgs {
+                values: Some(values),
+            },
+        );
+
+        (
+            logical_column_type,
+            entry_fb::ColumnValues::StringValues,
+            values.as_union_value(),
+        )
+    } else if !values.bool_values.is_empty() {
+        let logical_column_type = match pb::column::SemanticType::from_i32(column.semantic_type) {
+            Some(pb::column::SemanticType::Iox) => entry_fb::LogicalColumnType::IOx,
+            Some(pb::column::SemanticType::Field) => entry_fb::LogicalColumnType::Field,
+            _ => {
+                return Err(Error::PBColumnSemanticTypeInvalid {
+                    column_name: column.column_name.clone(),
+                    semantic_type: column.semantic_type as i32,
+                });
+            }
+        };
+
+        let missing_values = table_length - null_mask_cardinality - values.bool_values.len();
+
+        let values = if missing_values == 0 {
+            fbb.create_vector_direct(&values.bool_values)
+        } else {
+            fbb.start_vector::<flatbuffers::WIPOffset<bool>>(table_length);
+            for value in &values.bool_values {
+                fbb.push(*value);
+            }
+            let last_value = values.bool_values.last().unwrap();
+            for _ in 0..missing_values {
+                fbb.push(*last_value);
+            }
+            fbb.end_vector(table_length)
+        };
+        let values = entry_fb::BoolValues::create(
+            fbb,
+            &entry_fb::BoolValuesArgs {
+                values: Some(values),
+            },
+        );
+
+        (
+            logical_column_type,
+            entry_fb::ColumnValues::BoolValues,
+            values.as_union_value(),
+        )
+    } else if !values.bytes_values.is_empty() {
+        let logical_column_type = match pb::column::SemanticType::from_i32(column.semantic_type) {
+            Some(pb::column::SemanticType::Iox) => entry_fb::LogicalColumnType::IOx,
+            Some(pb::column::SemanticType::Field) => entry_fb::LogicalColumnType::Field,
+            _ => {
+                return Err(Error::PBColumnSemanticTypeInvalid {
+                    column_name: column.column_name.clone(),
+                    semantic_type: column.semantic_type as i32,
+                });
+            }
+        };
+
+        let missing_values = table_length - null_mask_cardinality - values.bytes_values.len();
+
+        let values = {
+            let mut fb_values = Vec::with_capacity(values.bytes_values.len() + missing_values);
+            let mut fb_reference_by_value = BTreeMap::new();
+            for value in &values.bytes_values {
+                let fb_value = if value.len() < 1000 {
+                    *fb_reference_by_value.entry(value).or_insert_with_key(|v| {
+                        let v = fbb.create_vector(v);
+                        entry_fb::BytesValue::create(
+                            fbb,
+                            &entry_fb::BytesValueArgs { data: Some(v) },
+                        )
+                    })
+                } else {
+                    let value = fbb.create_vector(value);
+                    entry_fb::BytesValue::create(
+                        fbb,
+                        &entry_fb::BytesValueArgs { data: Some(value) },
+                    )
+                };
+                fb_values.push(fb_value);
+            }
+            if missing_values > 0 {
+                let last_value = *fb_values.last().unwrap();
+                for _ in 0..missing_values {
+                    fb_values.push(last_value);
+                }
+            }
+            fbb.create_vector(fb_values.as_slice())
+        };
+        let values = entry_fb::BytesValues::create(
+            fbb,
+            &entry_fb::BytesValuesArgs {
+                values: Some(values),
+            },
+        );
+
+        (
+            logical_column_type,
+            entry_fb::ColumnValues::BytesValues,
+            values.as_union_value(),
+        )
+    } else {
+        return Err(Error::PBColumnContainsOnlyNullValues {
+            column_name: column.column_name.clone(),
+        });
+    };
+
+    let name = Some(fbb.create_string(&column.column_name));
+    Ok(entry_fb::Column::create(
+        fbb,
+        &entry_fb::ColumnArgs {
+            name,
+            logical_column_type,
+            values_type,
+            values: Some(values),
+            null_mask,
+        },
+    ))
+}
+
 /// Holds a shard id to the associated entry. If there is no ShardId, then
 /// everything goes to the same place. This means a single entry will be
 /// generated from a batch of line protocol.
@@ -486,28 +929,48 @@ impl<'a> Column<'a> {
     }
 
     pub fn influx_type(&self) -> InfluxColumnType {
-        match (self.fb.values_type(), self.fb.logical_column_type()) {
-            (entry_fb::ColumnValues::BoolValues, entry_fb::LogicalColumnType::Field) => {
-                InfluxColumnType::Field(InfluxFieldType::Boolean)
-            }
-            (entry_fb::ColumnValues::U64Values, entry_fb::LogicalColumnType::Field) => {
-                InfluxColumnType::Field(InfluxFieldType::UInteger)
-            }
-            (entry_fb::ColumnValues::F64Values, entry_fb::LogicalColumnType::Field) => {
-                InfluxColumnType::Field(InfluxFieldType::Float)
-            }
-            (entry_fb::ColumnValues::I64Values, entry_fb::LogicalColumnType::Field) => {
-                InfluxColumnType::Field(InfluxFieldType::Integer)
-            }
-            (entry_fb::ColumnValues::StringValues, entry_fb::LogicalColumnType::Tag) => {
-                InfluxColumnType::Tag
-            }
-            (entry_fb::ColumnValues::StringValues, entry_fb::LogicalColumnType::Field) => {
-                InfluxColumnType::Field(InfluxFieldType::String)
-            }
-            (entry_fb::ColumnValues::I64Values, entry_fb::LogicalColumnType::Time) => {
-                InfluxColumnType::Timestamp
-            }
+        match self.fb.values_type() {
+            entry_fb::ColumnValues::I64Values => match self.fb.logical_column_type() {
+                entry_fb::LogicalColumnType::IOx => InfluxColumnType::IOx(IOxValueType::I64),
+                entry_fb::LogicalColumnType::Field => {
+                    InfluxColumnType::Field(InfluxFieldType::Integer)
+                }
+                entry_fb::LogicalColumnType::Time => InfluxColumnType::Timestamp,
+                _ => unreachable!(),
+            },
+            entry_fb::ColumnValues::F64Values => match self.fb.logical_column_type() {
+                entry_fb::LogicalColumnType::IOx => InfluxColumnType::IOx(IOxValueType::F64),
+                entry_fb::LogicalColumnType::Field => {
+                    InfluxColumnType::Field(InfluxFieldType::Float)
+                }
+                _ => unreachable!(),
+            },
+            entry_fb::ColumnValues::U64Values => match self.fb.logical_column_type() {
+                entry_fb::LogicalColumnType::IOx => InfluxColumnType::IOx(IOxValueType::U64),
+                entry_fb::LogicalColumnType::Field => {
+                    InfluxColumnType::Field(InfluxFieldType::UInteger)
+                }
+                _ => unreachable!(),
+            },
+            entry_fb::ColumnValues::StringValues => match self.fb.logical_column_type() {
+                entry_fb::LogicalColumnType::IOx => InfluxColumnType::IOx(IOxValueType::String),
+                entry_fb::LogicalColumnType::Field => {
+                    InfluxColumnType::Field(InfluxFieldType::String)
+                }
+                entry_fb::LogicalColumnType::Tag => InfluxColumnType::Tag,
+                _ => unreachable!(),
+            },
+            entry_fb::ColumnValues::BoolValues => match self.fb.logical_column_type() {
+                entry_fb::LogicalColumnType::IOx => InfluxColumnType::IOx(IOxValueType::Boolean),
+                entry_fb::LogicalColumnType::Field => {
+                    InfluxColumnType::Field(InfluxFieldType::Boolean)
+                }
+                _ => unreachable!(),
+            },
+            entry_fb::ColumnValues::BytesValues => match self.fb.logical_column_type() {
+                entry_fb::LogicalColumnType::IOx => InfluxColumnType::IOx(IOxValueType::Bytes),
+                _ => unreachable!(),
+            },
             _ => unreachable!(),
         }
     }
@@ -947,7 +1410,7 @@ impl<'a> ColumnBuilder<'a> {
             }
             _ => {
                 return ColumnTypeMismatch {
-                    new_type: "time",
+                    new_type: TIME_COLUMN_NAME,
                     expected_type: self.type_description(),
                 }
                 .fail()
@@ -2051,5 +2514,221 @@ mod tests {
             .unwrap();
         assert_eq!(min, ts);
         assert_eq!(max, Utc.timestamp(12, 3));
+    }
+
+    #[test]
+    fn pb_logical_type_conflict() {
+        // IOx columns and InfluxDB 2.x fields cannot exist in a single table batch.
+        let p = pb::DatabaseBatch {
+            database_name: "mydb".to_string(),
+            table_batches: vec![pb::TableBatch {
+                table_name: "mytable".to_string(),
+                columns: vec![
+                    pb::Column {
+                        column_name: "mycol0".to_string(),
+                        semantic_type: pb::column::SemanticType::Iox as i32,
+                        values: Some(pb::column::Values {
+                            i64_values: vec![3],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec![],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                        }),
+                        null_mask: vec![],
+                    },
+                    pb::Column {
+                        column_name: "mycol1".to_string(),
+                        semantic_type: pb::column::SemanticType::Field as i32,
+                        values: Some(pb::column::Values {
+                            i64_values: vec![3],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec![],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                        }),
+                        null_mask: vec![],
+                    },
+                ],
+                row_count: 1,
+            }],
+        };
+
+        let result = pb_to_entry(&p);
+        assert!(result.is_err());
+
+        // IOx columns and InfluxDB 2.x tags cannot exist in a single table batch.
+        let p = pb::DatabaseBatch {
+            database_name: "mydb".to_string(),
+            table_batches: vec![pb::TableBatch {
+                table_name: "mytable".to_string(),
+                columns: vec![
+                    pb::Column {
+                        column_name: "mycol0".to_string(),
+                        semantic_type: pb::column::SemanticType::Iox as i32,
+                        values: Some(pb::column::Values {
+                            i64_values: vec![3],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec![],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                        }),
+                        null_mask: vec![],
+                    },
+                    pb::Column {
+                        column_name: "mycol1".to_string(),
+                        semantic_type: pb::column::SemanticType::Tag as i32,
+                        values: Some(pb::column::Values {
+                            i64_values: vec![],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec!["3".to_string()],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                        }),
+                        null_mask: vec![],
+                    },
+                ],
+                row_count: 1,
+            }],
+        };
+
+        let result = pb_to_entry(&p);
+        assert!(result.is_err());
+
+        // IOx columns and time columns (not named 'time') can exist in a single table batch
+        let p = pb::DatabaseBatch {
+            database_name: "mydb".to_string(),
+            table_batches: vec![pb::TableBatch {
+                table_name: "mytable".to_string(),
+                columns: vec![
+                    pb::Column {
+                        column_name: "mycol0".to_string(),
+                        semantic_type: pb::column::SemanticType::Iox as i32,
+                        values: Some(pb::column::Values {
+                            i64_values: vec![3],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec![],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                        }),
+                        null_mask: vec![],
+                    },
+                    pb::Column {
+                        column_name: "mycol1".to_string(),
+                        semantic_type: pb::column::SemanticType::Time as i32,
+                        values: Some(pb::column::Values {
+                            i64_values: vec![3],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec![],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                        }),
+                        null_mask: vec![],
+                    },
+                ],
+                row_count: 1,
+            }],
+        };
+
+        let result = pb_to_entry(&p);
+        assert!(!result.is_err());
+
+        // InfluxDB 2.x fields and time columns (not named 'time') cannot exist in a single table batch
+        let p = pb::DatabaseBatch {
+            database_name: "mydb".to_string(),
+            table_batches: vec![pb::TableBatch {
+                table_name: "mytable".to_string(),
+                columns: vec![
+                    pb::Column {
+                        column_name: "mycol0".to_string(),
+                        semantic_type: pb::column::SemanticType::Field as i32,
+                        values: Some(pb::column::Values {
+                            i64_values: vec![3],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec![],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                        }),
+                        null_mask: vec![],
+                    },
+                    pb::Column {
+                        column_name: "mycol1".to_string(),
+                        semantic_type: pb::column::SemanticType::Time as i32,
+                        values: Some(pb::column::Values {
+                            i64_values: vec![3],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec![],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                        }),
+                        null_mask: vec![],
+                    },
+                ],
+                row_count: 1,
+            }],
+        };
+
+        let result = pb_to_entry(&p);
+        assert!(result.is_err());
+
+        // InfluxDB 2.x tags, fields and time columns (named 'time') can exist in a single table batch
+        let p = pb::DatabaseBatch {
+            database_name: "mydb".to_string(),
+            table_batches: vec![pb::TableBatch {
+                table_name: "mytable".to_string(),
+                columns: vec![
+                    pb::Column {
+                        column_name: "time".to_string(),
+                        semantic_type: pb::column::SemanticType::Time as i32,
+                        values: Some(pb::column::Values {
+                            i64_values: vec![3],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec![],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                        }),
+                        null_mask: vec![],
+                    },
+                    pb::Column {
+                        column_name: "tag-key".to_string(),
+                        semantic_type: pb::column::SemanticType::Tag as i32,
+                        values: Some(pb::column::Values {
+                            i64_values: vec![],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec!["v".to_string()],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                        }),
+                        null_mask: vec![],
+                    },
+                    pb::Column {
+                        column_name: "field-key".to_string(),
+                        semantic_type: pb::column::SemanticType::Field as i32,
+                        values: Some(pb::column::Values {
+                            i64_values: vec![3],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec![],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                        }),
+                        null_mask: vec![],
+                    },
+                ],
+                row_count: 1,
+            }],
+        };
+
+        let result = pb_to_entry(&p);
+        assert!(!result.is_err());
     }
 }

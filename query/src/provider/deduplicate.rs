@@ -227,11 +227,21 @@ async fn deduplicate(
     tx: mpsc::Sender<ArrowResult<RecordBatch>>,
     num_dupes: Arc<SQLMetric>,
 ) -> ArrowResult<()> {
-    let mut deduplicator = RecordBatchDeduplicator::new(sort_keys, num_dupes);
+    let mut deduplicator = RecordBatchDeduplicator::new(sort_keys, num_dupes, None);
 
     // Stream input through the indexer
     while let Some(batch) = input_stream.next().await {
         let batch = batch?;
+
+        // First check if this batch has same sort key with its previous batch
+        if let Some(last_batch) = deduplicator.last_batch_with_no_same_sort_key(&batch) {
+            // No, different sort key, so send the last batch downstream first
+            tx.send(Ok(last_batch))
+                .await
+                .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+        }
+
+        // deduplicate data of the batch
         let output_batch = deduplicator.push(batch)?;
         tx.send(Ok(output_batch))
             .await
@@ -513,7 +523,7 @@ mod test {
 
         let t1 = StringArray::from(vec![Some("a"), Some("b")]);
 
-        let t2 = StringArray::from(vec![Some("b"), Some("d")]);
+        let t2 = StringArray::from(vec![Some("c"), Some("d")]);
 
         let f1 = Float64Array::from(vec![None, Some(7.0)]);
 

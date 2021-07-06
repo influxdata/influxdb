@@ -442,7 +442,9 @@ mod tests {
     use std::convert::TryFrom;
 
     use super::*;
-    use crate::test_utils::{make_object_store, make_record_batch};
+    use crate::test_utils::{
+        create_partition_and_database_checkpoint, make_object_store, make_record_batch,
+    };
     use arrow::array::{ArrayRef, StringArray};
     use arrow_util::assert_batches_eq;
     use chrono::Utc;
@@ -451,11 +453,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_parquet_contains_key_value_metadata() {
+        let table_name = "table1";
+        let partition_key = "part1";
+        let (partition_checkpoint, database_checkpoint) =
+            create_partition_and_database_checkpoint(table_name, partition_key);
         let metadata = IoxMetadata {
             creation_timestamp: Utc::now(),
-            table_name: "table1".to_string(),
-            partition_key: "part1".to_string(),
+            table_name: table_name.to_string(),
+            partition_key: partition_key.to_string(),
             chunk_id: 1337,
+            partition_checkpoint,
+            database_checkpoint,
         };
 
         // create parquet file
@@ -517,11 +525,15 @@ mod tests {
             batch.schema(),
             vec![Arc::new(batch)],
         ));
+        let (partition_checkpoint, database_checkpoint) =
+            create_partition_and_database_checkpoint(table_name, partition_key);
         let metadata = IoxMetadata {
             creation_timestamp: Utc::now(),
             table_name: table_name.to_string(),
             partition_key: partition_key.to_string(),
             chunk_id,
+            partition_checkpoint,
+            database_checkpoint,
         };
 
         let (path, _) = storage

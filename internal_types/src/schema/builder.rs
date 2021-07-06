@@ -71,8 +71,11 @@ impl SchemaBuilder {
     /// Add a new field column with the specified InfluxDB data model type
     pub fn influx_column(&mut self, column_name: &str, column_type: InfluxColumnType) -> &mut Self {
         match column_type {
+            InfluxColumnType::IOx(iox_value_type) => self.field(column_name, iox_value_type.into()),
             InfluxColumnType::Tag => self.tag(column_name),
-            InfluxColumnType::Field(field) => self.field(column_name, field.into()),
+            InfluxColumnType::Field(influx_field_type) => {
+                self.field(column_name, influx_field_type.into())
+            }
             InfluxColumnType::Timestamp => self.timestamp(),
         }
     }

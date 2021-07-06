@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 
 use data_types::chunk_metadata::ChunkStorage;
-use data_types::database_rules::LifecycleRules;
+use data_types::database_rules::{LifecycleRules, DEFAULT_MUB_ROW_THRESHOLD};
 use observability_deps::tracing::{debug, info, warn};
 use tracker::TaskTracker;
 
@@ -22,22 +22,22 @@ pub const LIFECYCLE_ACTION_BACKOFF: Duration = Duration::from_secs(10);
 ///
 /// `LifecyclePolicy::check_for_work` can then be used to drive progress
 /// of the `LifecycleChunk` contained within this `LifecycleDb`
-pub struct LifecyclePolicy<'a, M>
+pub struct LifecyclePolicy<M>
 where
-    &'a M: LifecycleDb,
+    M: LifecycleDb,
 {
     /// The `LifecycleDb` this policy is automating
-    db: &'a M,
+    db: M,
 
     /// Background tasks spawned by this `LifecyclePolicy`
     trackers: Vec<TaskTracker<ChunkLifecycleAction>>,
 }
 
-impl<'a, M> LifecyclePolicy<'a, M>
+impl<M> LifecyclePolicy<M>
 where
-    &'a M: LifecycleDb,
+    M: LifecycleDb,
 {
-    pub fn new(db: &'a M) -> Self {
+    pub fn new(db: M) -> Self {
         Self {
             db,
             trackers: vec![],
@@ -187,6 +187,8 @@ where
         rules: &LifecycleRules,
         now: DateTime<Utc>,
     ) {
+        let row_threshold = rules.persist_row_threshold.get();
+
         // TODO: Encapsulate locking into a CatalogTransaction type
         let partition = partition.read();
 
@@ -215,6 +217,9 @@ where
                     to_compact.push(chunk);
                 }
                 ChunkStorage::ReadBuffer => {
+                    if chunk.row_count() >= row_threshold {
+                        continue;
+                    }
                     to_compact.push(chunk);
                 }
                 _ => {}
@@ -418,9 +423,9 @@ where
     }
 }
 
-impl<'a, M> Debug for LifecyclePolicy<'a, M>
+impl<M> Debug for LifecyclePolicy<M>
 where
-    &'a M: LifecycleDb,
+    M: LifecycleDb + Copy,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "LifecyclePolicy{{..}}")
@@ -444,6 +449,10 @@ fn elapsed_seconds(a: DateTime<Utc>, b: DateTime<Utc>) -> u32 {
 ///
 /// Note: Does not check the chunk is the correct state
 fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<Utc>) -> bool {
+    if chunk.row_count() >= DEFAULT_MUB_ROW_THRESHOLD {
+        return true;
+    }
+
     match (rules.mutable_linger_seconds, chunk.time_of_last_write()) {
         (Some(linger), Some(last_write)) if elapsed_seconds(now, last_write) >= linger.get() => {
             match (
@@ -504,7 +513,6 @@ mod tests {
     use std::sync::Arc;
 
     use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
-    use data_types::database_rules::SortOrder;
     use tracker::{RwLock, TaskId, TaskRegistration, TaskRegistry};
 
     use crate::{
@@ -809,7 +817,7 @@ mod tests {
         type Chunk = TestLockableChunk<'a>;
         type Partition = TestLockablePartition<'a>;
 
-        fn buffer_size(self) -> usize {
+        fn buffer_size(&self) -> usize {
             // All chunks are 20 bytes
             self.partitions
                 .read()
@@ -818,11 +826,11 @@ mod tests {
                 .sum()
         }
 
-        fn rules(self) -> LifecycleRules {
+        fn rules(&self) -> LifecycleRules {
             self.rules.clone()
         }
 
-        fn partitions(self) -> Vec<Self::Partition> {
+        fn partitions(&self) -> Vec<Self::Partition> {
             self.partitions
                 .read()
                 .iter()
@@ -831,22 +839,6 @@ mod tests {
                     partition: Arc::clone(x),
                 })
                 .collect()
-        }
-
-        fn chunks(self, _: &SortOrder) -> Vec<Self::Chunk> {
-            let mut chunks = Vec::new();
-
-            let partitions = self.partitions.read();
-            for partition in partitions.iter() {
-                let partition = partition.read();
-                for chunk in partition.chunks.values() {
-                    chunks.push(TestLockableChunk {
-                        db: self,
-                        chunk: Arc::clone(chunk),
-                    })
-                }
-            }
-            chunks
         }
     }
 
@@ -891,6 +883,11 @@ mod tests {
         let chunk = TestChunk::new(0, Some(0), Some(70), ChunkStorage::OpenMutableBuffer);
         assert!(!can_move(&rules, &chunk, from_secs(71)));
         assert!(can_move(&rules, &chunk, from_secs(81)));
+
+        // If over the default row count threshold, we should be able to move
+        let chunk = TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer)
+            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD);
+        assert!(can_move(&rules, &chunk, from_secs(0)));
     }
 
     #[test]
@@ -1199,6 +1196,7 @@ mod tests {
     fn test_compact() {
         let rules = LifecycleRules {
             mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            persist_row_threshold: NonZeroUsize::new(1_000).unwrap(),
             ..Default::default()
         };
 
@@ -1250,6 +1248,15 @@ mod tests {
                 // already compacted => should not compact
                 TestChunk::new(13, Some(0), Some(5), ChunkStorage::ReadBuffer),
             ]),
+            TestPartition::new(vec![
+                // closed => can compact
+                TestChunk::new(14, Some(0), Some(20), ChunkStorage::ReadBuffer),
+                // closed => can compact
+                TestChunk::new(15, Some(0), Some(20), ChunkStorage::ReadBuffer),
+                // too many rows => ignore
+                TestChunk::new(16, Some(0), Some(20), ChunkStorage::ReadBuffer)
+                    .with_row_count(1_000),
+            ]),
         ];
 
         let db = TestDb::from_partitions(rules, partitions);
@@ -1262,7 +1269,8 @@ mod tests {
                 MoverEvents::Compact(vec![2]),
                 MoverEvents::Compact(vec![3, 4, 5]),
                 MoverEvents::Compact(vec![8, 9]),
-                MoverEvents::Compact(vec![12])
+                MoverEvents::Compact(vec![12]),
+                MoverEvents::Compact(vec![14, 15]),
             ]
         );
     }

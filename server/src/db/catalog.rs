@@ -5,11 +5,8 @@ use std::sync::Arc;
 use hashbrown::{HashMap, HashSet};
 
 use data_types::chunk_metadata::ChunkSummary;
+use data_types::chunk_metadata::DetailedChunkSummary;
 use data_types::partition_metadata::{PartitionSummary, TableSummary};
-use data_types::{
-    chunk_metadata::DetailedChunkSummary,
-    database_rules::{Order, Sort, SortOrder},
-};
 use snafu::Snafu;
 use tracker::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 
@@ -256,26 +253,6 @@ impl Catalog {
                 chunks.extend(partition.chunks().cloned())
             }
         }
-        chunks
-    }
-
-    /// Returns the chunks in the requested sort order
-    pub fn chunks_sorted_by(&self, sort_rules: &SortOrder) -> Vec<Arc<RwLock<CatalogChunk>>> {
-        let mut chunks = self.chunks();
-
-        match &sort_rules.sort {
-            // The first write is technically not the created time but is in practice close enough
-            Sort::CreatedAtTime => chunks.sort_by_cached_key(|x| x.read().time_of_first_write()),
-            Sort::LastWriteTime => chunks.sort_by_cached_key(|x| x.read().time_of_last_write()),
-            Sort::Column(_name, _data_type, _val) => {
-                unimplemented!()
-            }
-        }
-
-        if sort_rules.order == Order::Desc {
-            chunks.reverse();
-        }
-
         chunks
     }
 

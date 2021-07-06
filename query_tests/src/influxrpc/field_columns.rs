@@ -2,7 +2,10 @@ use arrow::datatypes::DataType;
 use arrow_util::assert_batches_eq;
 use datafusion::logical_plan::{col, lit};
 use query::{
-    exec::fieldlist::{Field, FieldList},
+    exec::{
+        fieldlist::{Field, FieldList},
+        ExecutorType,
+    },
     frontend::influxrpc::InfluxRpcPlanner,
     predicate::PredicateBuilder,
 };
@@ -29,7 +32,7 @@ macro_rules! run_field_columns_test_case {
             let executor = db.executor();
 
             let plan = planner
-                .field_columns(&db, predicate.clone())
+                .field_columns(db.as_ref(), predicate.clone())
                 .expect("built plan successfully");
             let fields = executor
                 .to_field_list(plan)
@@ -129,7 +132,7 @@ async fn test_field_name_plan() {
         let planner = InfluxRpcPlanner::new();
 
         let plan = planner
-            .field_columns(&db, predicate.clone())
+            .field_columns(db.as_ref(), predicate.clone())
             .expect("built plan successfully");
 
         let mut plans = plan.plans;
@@ -140,7 +143,7 @@ async fn test_field_name_plan() {
         // expected (specifically that the column ordering is correct)
         let results = db
             .executor()
-            .run_logical_plan(plan)
+            .run_logical_plan(plan, ExecutorType::Query)
             .await
             .expect("ok running plan");
 

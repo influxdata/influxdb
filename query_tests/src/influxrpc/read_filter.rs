@@ -50,7 +50,7 @@ macro_rules! run_read_filter_test_case {
             let planner = InfluxRpcPlanner::new();
 
             let plan = planner
-                .read_filter(&db, predicate.clone())
+                .read_filter(db.as_ref(), predicate.clone())
                 .expect("built plan successfully");
 
             let string_results = run_series_set_plan(db.executor(), plan).await;

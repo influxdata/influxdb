@@ -3,7 +3,6 @@ package influxdata.iox.management.v1;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
-import "influxdata/iox/management/v1/base_types.proto";
 import "influxdata/iox/management/v1/shard.proto";
 
 // `PartitionTemplate` is used to compute the partition key of each row that
@@ -33,37 +32,6 @@ message PartitionTemplate {
 }
 
 message LifecycleRules {
-  message SortOrder {
-    message ColumnSort {
-      string column_name = 1;
-      ColumnType column_type = 2;
-      Aggregate column_value = 3;
-    }
-
-    // Sort by this order
-    Order order = 1;
-
-    // Configure sort key
-    oneof sort {
-      // The last time the item received a write.
-      google.protobuf.Empty last_write_time = 2;
-
-      // When the item was created.
-      google.protobuf.Empty created_at_time = 3;
-
-      // A column name, its expected type, and whether to use the min or max
-      // value. The ColumnType is necessary because the column can appear in
-      // any number of tables and be of a different type. This specifies that
-      // when sorting j, only columns with the given name and type
-      // should be used for the purposes of determining the order.
-      //
-      // All items are first sorted by created_at_time asc and then stably
-      // sorted based on the selected aggregate. If an item doesn't have the
-      // given column in any way, it will appear at the beginning of the list.
-      ColumnSort column = 4;
-    }
-  }
-
   // A chunk of data within a partition that has been cold for writes for this
   // many seconds will be frozen and compacted (moved to the read buffer)
   // if the chunk is older than mutable_min_lifetime_seconds
@@ -81,18 +49,12 @@ message LifecycleRules {
   uint64 mutable_size_threshold = 3;
 
   // Once the total amount of buffered data in memory reaches this size start
-  // dropping data from memory based on the drop_order
+  // dropping data from memory
   uint64 buffer_size_soft = 4;
 
   // Once the amount of data in memory reaches this size start
   // rejecting writes
   uint64 buffer_size_hard = 5;
-
-  // Configure order to transition data
-  //
-  // In the case of multiple candidates, data will be
-  // compacted, persisted and dropped in this order
-  SortOrder sort_order = 6;
 
   // Allow dropping data that has not been persisted to object storage
   // once the database size has exceeded the configured limits

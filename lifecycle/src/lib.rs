@@ -11,7 +11,7 @@
 use chrono::{DateTime, Utc};
 
 use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
-use data_types::database_rules::{LifecycleRules, SortOrder};
+use data_types::database_rules::LifecycleRules;
 pub use guard::*;
 pub use policy::*;
 use tracker::TaskTracker;
@@ -49,28 +49,19 @@ impl ChunkLifecycleAction {
 }
 
 /// A trait that encapsulates the database logic that is automated by `LifecyclePolicy`
-///
-/// Note: This trait is meant to be implemented for references to types allowing them
-/// to yield `LifecycleDb::Chunk` with non-static lifetimes
 pub trait LifecycleDb {
     type Chunk: LockableChunk;
     type Partition: LockablePartition;
 
     /// Return the in-memory size of the database. We expect this
     /// to change from call to call as chunks are dropped
-    fn buffer_size(self) -> usize;
+    fn buffer_size(&self) -> usize;
 
     /// Returns the lifecycle policy
-    fn rules(self) -> LifecycleRules;
+    fn rules(&self) -> LifecycleRules;
 
     /// Returns a list of lockable partitions in the database
-    fn partitions(self) -> Vec<Self::Partition>;
-
-    /// Returns a list of lockable chunks sorted in the order
-    /// they should prioritised
-    ///
-    /// TODO: Remove this and use method on partition
-    fn chunks(self, order: &SortOrder) -> Vec<Self::Chunk>;
+    fn partitions(&self) -> Vec<Self::Partition>;
 }
 
 /// A `LockablePartition` is a wrapper around a `LifecyclePartition` that allows

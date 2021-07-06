@@ -19,7 +19,7 @@ use server::{db::test_helpers::write_lp, Db};
 #[derive(Debug)]
 pub struct DbScenario {
     pub scenario_name: String,
-    pub db: Db,
+    pub db: Arc<Db>,
 }
 
 #[async_trait]
@@ -853,7 +853,7 @@ pub async fn make_two_chunk_scenarios(
 }
 
 /// Rollover the mutable buffer and load chunk 0 to the read buffer and object store
-pub async fn rollover_and_load(db: &Db, partition_key: &str, table_name: &str) {
+pub async fn rollover_and_load(db: &Arc<Db>, partition_key: &str, table_name: &str) {
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();

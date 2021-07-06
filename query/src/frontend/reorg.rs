@@ -239,7 +239,7 @@ mod test {
     use internal_types::schema::sort::SortOptions;
 
     use crate::{
-        exec::Executor,
+        exec::{Executor, ExecutorType},
         test::{raw_data, TestChunk},
     };
 
@@ -318,7 +318,10 @@ mod test {
             .expect("created compact plan");
 
         let executor = Executor::new(1);
-        let physical_plan = executor.new_context().prepare_plan(&compact_plan).unwrap();
+        let physical_plan = executor
+            .new_context(ExecutorType::Reorg)
+            .prepare_plan(&compact_plan)
+            .unwrap();
         assert_eq!(
             physical_plan.output_partitioning().partition_count(),
             1,
@@ -368,7 +371,10 @@ mod test {
             .expect("created compact plan");
 
         let executor = Executor::new(1);
-        let physical_plan = executor.new_context().prepare_plan(&split_plan).unwrap();
+        let physical_plan = executor
+            .new_context(ExecutorType::Reorg)
+            .prepare_plan(&split_plan)
+            .unwrap();
 
         assert_eq!(
             physical_plan.output_partitioning().partition_count(),
