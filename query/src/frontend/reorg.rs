@@ -184,7 +184,7 @@ impl ReorgPlanner {
         let mut builder = ProviderBuilder::new(table_name);
 
         // There are no predicates in these plans, so no need to prune them
-        builder.add_no_op_pruner();
+        builder = builder.add_no_op_pruner();
 
         for chunk in chunks {
             // check that it is consistent with this table_name
@@ -195,7 +195,7 @@ impl ReorgPlanner {
                 chunk.id(),
             );
 
-            builder
+            builder = builder
                 .add_chunk(chunk)
                 .context(CreatingProvider { table_name })?;
         }

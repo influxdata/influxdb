@@ -1095,7 +1095,7 @@ impl InfluxRpcPlanner {
         // predicates that could be pushed down and used for
         // additional pruning we may want to add an extra layer of
         // pruning here.
-        builder.add_no_op_pruner();
+        builder = builder.add_no_op_pruner();
 
         for chunk in chunks {
             // check that it is consistent with this table_name
@@ -1106,7 +1106,7 @@ impl InfluxRpcPlanner {
                 chunk.id(),
             );
 
-            builder
+            builder = builder
                 .add_chunk(chunk)
                 .context(CreatingProvider { table_name })?;
         }
