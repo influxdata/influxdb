@@ -221,7 +221,7 @@ where
                     if row_count >= rows_left {
                         continue;
                     }
-                    rows_left -= row_count;
+                    rows_left = rows_left.saturating_sub(row_count);
                     to_compact.push(chunk);
                 }
                 _ => {}
