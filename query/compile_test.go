@@ -361,6 +361,7 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT atan2(value, 3, 3) FROM cpu`, err: `invalid number of arguments for atan2, expected 2, got 3`},
 		{s: `SELECT sin(1.3) FROM cpu`, err: `field must contain at least one variable`},
 		{s: `SELECT nofunc(1.3) FROM cpu`, err: `undefined function nofunc()`},
+		{s: `SELECT * FROM cpu WHERE ( host =~ /foo/ ^ other AND env =~ /bar/ ) and time >= now()-15m`, err: `likely malformed statement, unable to rewrite: interface conversion: influxql.Expr is *influxql.BinaryExpr, not *influxql.RegexLiteral`},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt.s)
