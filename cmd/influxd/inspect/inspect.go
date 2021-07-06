@@ -2,6 +2,12 @@ package inspect
 
 import (
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/report_tsi"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/dump_tsm"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/export_index"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/export_lp"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/verify_seriesfile"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/verify_tombstone"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/verify_tsm"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -17,16 +23,17 @@ func NewCommand(v *viper.Viper) (*cobra.Command, error) {
 		},
 	}
 
-	exportLp, err := NewExportLineProtocolCommand(v)
+	exportLp, err := export_lp.NewExportLineProtocolCommand(v)
 	if err != nil {
 		return nil, err
 	}
 	base.AddCommand(exportLp)
-	base.AddCommand(NewExportIndexCommand())
-	base.AddCommand(NewTSMVerifyCommand())
-	base.AddCommand(NewVerifySeriesfileCommand())
-	base.AddCommand(NewVerifyTombstoneCommand())
 	base.AddCommand(report_tsi.NewReportTSICommand())
+	base.AddCommand(export_index.NewExportIndexCommand())
+	base.AddCommand(verify_tsm.NewTSMVerifyCommand())
+	base.AddCommand(verify_seriesfile.NewVerifySeriesfileCommand())
+	base.AddCommand(verify_tombstone.NewVerifyTombstoneCommand())
+	base.AddCommand(dump_tsm.NewDumpTSMCommand())
 
 	return base, nil
 }

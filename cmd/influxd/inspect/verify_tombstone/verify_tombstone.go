@@ -1,4 +1,4 @@
-package inspect
+package verify_tombstone
 
 import (
 	"errors"
@@ -10,13 +10,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type argsTomb struct {
+type args struct {
 	dir string
 	v   bool
 	vv  bool
 }
 
-type verifierTomb struct {
+type verifier struct {
 	path      string
 	verbosity int
 	files     []string
@@ -30,19 +30,19 @@ const (
 )
 
 func NewVerifyTombstoneCommand() *cobra.Command {
-	var arguments argsTomb
+	var arguments args
 	cmd := &cobra.Command{
 		Use:   "verify-tombstone",
 		Short: "Verify the integrity of tombstone files",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runner := verifierTomb{path: arguments.dir}
+			runner := verifier{path: arguments.dir}
 			if arguments.vv {
 				runner.verbosity = veryVerbose
 			} else if arguments.v {
 				runner.verbosity = verbose
 			}
-			return runner.Run(cmd)
+			return runner.run(cmd)
 		},
 	}
 
@@ -58,7 +58,7 @@ func NewVerifyTombstoneCommand() *cobra.Command {
 	return cmd
 }
 
-func (v *verifierTomb) loadFiles() error {
+func (v *verifier) loadFiles() error {
 	return filepath.Walk(v.path, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -70,7 +70,7 @@ func (v *verifierTomb) loadFiles() error {
 	})
 }
 
-func (v *verifierTomb) Next() bool {
+func (v *verifier) next() bool {
 	if len(v.files) == 0 {
 		return false
 	}
@@ -79,7 +79,7 @@ func (v *verifierTomb) Next() bool {
 	return true
 }
 
-func (v *verifierTomb) Run(cmd *cobra.Command) error {
+func (v *verifier) run(cmd *cobra.Command) error {
 	if err := v.loadFiles(); err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func (v *verifierTomb) Run(cmd *cobra.Command) error {
 	var failed bool
 	var foundTombstoneFile bool
 	start := time.Now()
-	for v.Next() {
+	for v.next() {
 		foundTombstoneFile = true
 		if v.verbosity > quiet {
 			cmd.Printf("Verifying: %q\n", v.f)

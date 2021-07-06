@@ -1,4 +1,4 @@
-package inspect
+package export_index
 
 import (
 	"bufio"
