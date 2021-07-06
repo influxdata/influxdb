@@ -13,7 +13,7 @@
 
 # SUBDIRS are directories that have their own Makefile.
 # It is required that all SUBDIRS have the `all` and `clean` targets.
-SUBDIRS := http chronograf storage
+SUBDIRS := static storage
 
 export GOPATH=$(shell go env GOPATH)
 export GOOS=$(shell go env GOOS)
@@ -77,11 +77,7 @@ CMDS := \
 	bin/$(GOOS)/influx \
 	bin/$(GOOS)/influxd
 
-all: ui/build $(SUBDIRS) generate $(CMDS)
-
-# Target for the built UI assets directory.
-ui/build:
-	scripts/fetch-ui-assets.sh
+all: $(SUBDIRS) generate $(CMDS)
 
 # Target to build subdirs.
 # Each subdirs must support the `all` target.
@@ -122,7 +118,7 @@ checktidy:
 checkgenerate:
 	./etc/checkgenerate.sh
 
-generate: ui/build $(SUBDIRS)
+generate: $(SUBDIRS)
 
 test-go:
 	$(GO_TEST) $(GO_TEST_PATHS)
@@ -157,7 +153,6 @@ clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
 	$(RM) -r bin
 	$(RM) -r dist
-	$(RM) -r ui/build
 
 # generate feature flags
 flags:
