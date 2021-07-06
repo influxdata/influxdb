@@ -538,7 +538,10 @@ where
         .context(CannotCreatePreservedCatalog)?;
         let write_buffer = write_buffer::new(&rules)
             .map_err(|e| Error::CreatingWriteBufferForWriting { source: e })?;
-        db_reservation.advance_init(preserved_catalog, catalog, write_buffer)?;
+        db_reservation.advance_replay(preserved_catalog, catalog, write_buffer)?;
+
+        // no actual replay required
+        db_reservation.advance_init()?;
 
         // ready to commit
         self.persist_database_rules(rules.clone()).await?;
@@ -618,7 +621,7 @@ where
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
         let db = self
             .config
-            .db(&db_name)
+            .db_initialized(&db_name)
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
         // need to split this in two blocks because we cannot hold a lock across an async call.
@@ -753,7 +756,7 @@ where
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
         let db = self
             .config
-            .db(&db_name)
+            .db_initialized(&db_name)
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
         let entry = entry_bytes.try_into().context(DecodingEntry)?;
@@ -790,11 +793,13 @@ where
     }
 
     pub fn db(&self, name: &DatabaseName<'_>) -> Option<Arc<Db>> {
-        self.config.db(name)
+        self.config.db_initialized(name)
     }
 
     pub fn db_rules(&self, name: &DatabaseName<'_>) -> Option<DatabaseRules> {
-        self.config.db(name).map(|d| d.rules.read().clone())
+        self.config
+            .db_initialized(name)
+            .map(|d| d.rules.read().clone())
     }
 
     // Update database rules and save on success.
@@ -861,7 +866,7 @@ where
 
         let db = self
             .config
-            .db(&name)
+            .db_initialized(&name)
             .context(DatabaseNotFound { db_name: &db_name })?;
 
         let chunk = db
@@ -883,7 +888,7 @@ where
         &self,
         db_name: DatabaseName<'static>,
     ) -> Result<TaskTracker<Job>> {
-        if self.config.db(&db_name).is_some() {
+        if self.config.db_initialized(&db_name).is_some() {
             return Err(Error::DatabaseAlreadyExists {
                 db_name: db_name.to_string(),
             });

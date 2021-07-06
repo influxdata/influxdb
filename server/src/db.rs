@@ -486,6 +486,11 @@ impl Db {
         self.worker_iterations_cleanup.load(Ordering::Relaxed)
     }
 
+    /// Perform sequencer-driven replay for this DB.
+    pub async fn perform_replay(&self) {
+        // TODO: implement replay
+    }
+
     /// Background worker function
     pub async fn background_worker(
         self: &Arc<Self>,
