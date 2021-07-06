@@ -121,7 +121,10 @@ impl<C: QueryChunk> ProviderBuilder<C> {
     pub fn add_chunk(&mut self, chunk: Arc<C>) -> Result<&mut Self> {
         let chunk_table_schema = chunk.schema();
 
-        self.schema_merger
+        // TODO: avoid this clone call by making ProviderBuilder a self-consuming builder
+        self.schema_merger = self
+            .schema_merger
+            .clone()
             .merge(&chunk_table_schema.as_ref())
             .context(ChunkSchemaNotCompatible {
                 table_name: self.table_name.as_ref(),
@@ -159,7 +162,8 @@ impl<C: QueryChunk> ProviderBuilder<C> {
         assert!(!self.finished, "build called multiple times");
         self.finished = true;
 
-        let iox_schema = self.schema_merger.build();
+        // TODO: avoid this clone call by making ProviderBuilder a self-consuming builder
+        let iox_schema = self.schema_merger.clone().build();
 
         // if the table was reported to exist, it should not be empty
         if self.chunks.is_empty() {
@@ -744,7 +748,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             let chunk_schema = chunk.schema();
             let chunk_pk = chunk_schema.primary_key();
             let chunk_pk_schema = chunk_schema.select_by_names(&chunk_pk).unwrap();
-            pk_schema_merger.merge(&chunk_pk_schema).unwrap();
+            pk_schema_merger = pk_schema_merger.merge(&chunk_pk_schema).unwrap();
         }
         let pk_schema = pk_schema_merger.build();
         Arc::new(pk_schema)
