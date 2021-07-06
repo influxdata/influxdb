@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
-use parking_lot::Mutex;
 use snafu::Snafu;
 
 use data_types::chunk_metadata::ChunkAddr;
@@ -133,7 +132,7 @@ pub enum ChunkStage {
     /// or more chunks and creates a single new frozen chunk.
     Frozen {
         /// Metadata (statistics, schema) about this chunk
-        meta: Arc<Mutex<ChunkMetadata>>,
+        meta: Arc<ChunkMetadata>,
 
         /// Internal memory representation of the frozen chunk.
         representation: ChunkStageFrozenRepr,
@@ -144,7 +143,7 @@ pub enum ChunkStage {
     /// Chunk cannot receive new data. It is persisted.
     Persisted {
         /// Metadata (statistics, schema) about this chunk
-        meta: Arc<Mutex<ChunkMetadata>>,
+        meta: Arc<ChunkMetadata>,
 
         /// Parquet chunk that lives immutable within the object store.
         parquet: Arc<ParquetChunk>,
@@ -283,10 +282,10 @@ impl CatalogChunk {
         let summary = summaries.into_iter().next().unwrap();
 
         let stage = ChunkStage::Frozen {
-            meta: Arc::new(Mutex::new(ChunkMetadata {
+            meta: Arc::new(ChunkMetadata {
                 table_summary: Arc::new(summary),
                 schema: Arc::new(schema),
-            })),
+            }),
             representation: ChunkStageFrozenRepr::ReadBuffer(Arc::new(chunk)),
         };
 
@@ -316,10 +315,10 @@ impl CatalogChunk {
         assert_eq!(chunk.table_name(), addr.table_name.as_ref());
 
         // Cache table summary + schema
-        let meta = Arc::new(Mutex::new(ChunkMetadata {
+        let meta = Arc::new(ChunkMetadata {
             table_summary: Arc::clone(chunk.table_summary()),
             schema: chunk.schema(),
-        }));
+        });
 
         let stage = ChunkStage::Persisted {
             parquet: chunk,
@@ -473,14 +472,8 @@ impl CatalogChunk {
                 // The stats for open chunks change so can't be cached
                 Arc::new(mb_chunk.table_summary())
             }
-            ChunkStage::Frozen { meta, .. } => {
-                let meta = meta.lock();
-                Arc::clone(&meta.table_summary)
-            }
-            ChunkStage::Persisted { meta, .. } => {
-                let meta = meta.lock();
-                Arc::clone(&meta.table_summary)
-            }
+            ChunkStage::Frozen { meta, .. } => Arc::clone(&meta.table_summary),
+            ChunkStage::Persisted { meta, .. } => Arc::clone(&meta.table_summary),
         }
     }
 
@@ -545,7 +538,8 @@ impl CatalogChunk {
 
                 self.stage = ChunkStage::Frozen {
                     representation: ChunkStageFrozenRepr::MutableBufferSnapshot(Arc::clone(&s)),
-                    meta: Arc::new(Mutex::new(metadata)),
+                    //meta: Arc::new(Mutex::new(metadata)),
+                    meta: Arc::new(metadata),
                 };
                 Ok(())
             }
@@ -621,8 +615,11 @@ impl CatalogChunk {
         match &mut self.stage {
             ChunkStage::Frozen {meta,  representation, .. } => {
                 // after moved, the chunk is sorted and schema need to get updated
-                let mut metadata = meta.lock();
-                *metadata.schema =schema;
+                *meta = Arc::new(ChunkMetadata{ 
+                    table_summary: Arc::clone(&meta.table_summary),
+                    schema: Arc::new(schema),
+                 });
+
 
                 match &representation {
                     ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {

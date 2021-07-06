@@ -4,7 +4,6 @@ use std::{
 };
 
 use data_types::partition_metadata;
-use parking_lot::Mutex;
 use partition_metadata::TableSummary;
 use snafu::{ResultExt, Snafu};
 
@@ -79,7 +78,7 @@ pub struct DbChunk {
     id: u32,
     table_name: Arc<str>,
     state: State,
-    meta: Arc<Mutex<ChunkMetadata>>,
+    meta: Arc<ChunkMetadata>,
 }
 
 #[derive(Debug)]
@@ -113,7 +112,7 @@ impl DbChunk {
                     table_summary: Arc::new(mb_chunk.table_summary()),
                     schema: snapshot.full_schema(),
                 };
-                (state, Arc::new(Mutex::new(meta)))
+                (state, Arc::new(meta))
             }
             ChunkStage::Frozen {
                 representation,
@@ -449,12 +448,10 @@ impl QueryChunk for DbChunk {
 
 impl QueryChunkMeta for DbChunk {
     fn summary(&self) -> &TableSummary {
-        self.meta.table_summary.as_ref() // original that is no longer working because of the mutex
-        // have tried may other things but if I do not modify the return value as a MutexGaurd, they won't work. But since this is a function of a trait, I do not want to modify it 
+        self.meta.table_summary.as_ref()
     }
 
     fn schema(&self) -> Arc<Schema> {
-        let meta = self.meta.lock();
-        Arc::clone(&meta.schema)
+        Arc::clone(&self.meta.schema)
     }
 }
