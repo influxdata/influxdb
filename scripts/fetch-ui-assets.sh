@@ -27,6 +27,7 @@ echo "$(cat sha256.txt)" | sha256sum --check -- \
     || { echo "Checksums did not match for downloaded UI assets!"; exit 1; }
 
 # Extract the assets and clean up.
-tar -xzf build.tar.gz -C ui
+mkdir data
+tar -xzf build.tar.gz -C data
 rm sha256.txt
 rm build.tar.gz

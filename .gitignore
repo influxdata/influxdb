@@ -36,34 +36,15 @@ test.key
 /editorconfig-checker
 /staticcheck
 
-ui/node_modules
-ui/coverage
-ui/npm-error.log
-ui/build
-ui/.cache
-ui/package-lock.json
-ui/junit.xml
-
-# e2e test artifacts
-ui/cypress/screenshots
-ui/cypress/videos
-
-ui/src/api/.gitignore
-ui/src/api/.openapi-generator-ignore
-ui/src/api/.openapi-generator/VERSION
-ui/src/api/git_push.sh
-
-# UI generated typescript types
-ui/src/client/generatedRoutes.ts
-
-http/swagger_gen.go
+# Generated static assets
+/static/data
+/static/static_gen.go
 
 # The below files are generated with make generate
 # These are used with the assests go build tag.
 chronograf/canned/bin_gen.go
 chronograf/dist/dist_gen.go
 chronograf/server/swagger_gen.go
-http/swagger_gen.go
 
 # Ignore TSM/TSI testdata binary files
 tsdb/tsi1/testdata
@@ -141,8 +122,6 @@ man/*.1.gz
 # test outputs
 /test-results.xml
 junit-results
-cypress/screenshots
-cypress/videos
 
 # profile data
 /prof
@@ -159,6 +138,5 @@ cypress/videos
 .influxdbv2/
 .profile
 .rustup/
-.yarnrc
 go/
 goreleaser-install
