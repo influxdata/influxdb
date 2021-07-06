@@ -5,6 +5,9 @@
 
 set -e
 
+# Pins the swagger that will be downloaded to a specific commit
+declare -r OPENAPI_SHA=c87a08f832e79bc338a37509028641cda9e1875b
+
 # Don't do a shallow clone since the commit we want might be several commits
 # back; but do only clone the main branch.
 git clone https://github.com/influxdata/openapi.git --single-branch

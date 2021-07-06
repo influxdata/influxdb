@@ -17,7 +17,7 @@ data/build:
 
 # Target for the swagger.json from the openapi repo
 data/swagger.json:
-	OPENAPI_SHA=c87a08f832e79bc338a37509028641cda9e1875b ../scripts/fetch-swagger.sh
+	../scripts/fetch-swagger.sh
 
 # Define go generate if not already defined
 GO_GENERATE := go generate
