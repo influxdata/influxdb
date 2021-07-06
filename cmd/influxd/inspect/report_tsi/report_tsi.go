@@ -4,10 +4,6 @@ package report_tsi
 import (
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/logger"
-	"github.com/influxdata/influxdb/v2/tsdb"
-	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
-	"github.com/spf13/cobra"
 	"math"
 	"os"
 	"path"
@@ -17,6 +13,11 @@ import (
 	"strconv"
 	"sync/atomic"
 	"text/tabwriter"
+
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -35,10 +36,10 @@ type reportTSI struct {
 	concurrency    int
 
 	// Variables for calculating and storing cardinalities
-	sfile          *tsdb.SeriesFile
-	shardPaths     map[uint64]string
-	shardIdxs      map[uint64]*tsi1.Index
-	cardinalities  map[uint64]map[string]*cardinality
+	sfile         *tsdb.SeriesFile
+	shardPaths    map[uint64]string
+	shardIdxs     map[uint64]*tsi1.Index
+	cardinalities map[uint64]map[string]*cardinality
 }
 
 // NewReportTSICommand returns a new instance of Command with default setting applied.
@@ -49,7 +50,7 @@ func NewReportTSICommand() *cobra.Command {
 		Short: "Reports the cardinality of TSI files",
 		Long: `This command will analyze TSI files within a specified bucket, reporting the 
 		cardinality of data within the files, segmented by shard and further by measurement.`,
-		Args:  cobra.NoArgs,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if arguments.bucketId == "" {
 				return errors.New("bucket_id is required, use -b or --bucket_id flag")
