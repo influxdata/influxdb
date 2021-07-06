@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
+use parking_lot::Mutex;
 use snafu::Snafu;
 
 use data_types::chunk_metadata::ChunkAddr;
@@ -132,7 +133,7 @@ pub enum ChunkStage {
     /// or more chunks and creates a single new frozen chunk.
     Frozen {
         /// Metadata (statistics, schema) about this chunk
-        meta: Arc<ChunkMetadata>,
+        meta: Arc<Mutex<ChunkMetadata>>,
 
         /// Internal memory representation of the frozen chunk.
         representation: ChunkStageFrozenRepr,
@@ -143,7 +144,7 @@ pub enum ChunkStage {
     /// Chunk cannot receive new data. It is persisted.
     Persisted {
         /// Metadata (statistics, schema) about this chunk
-        meta: Arc<ChunkMetadata>,
+        meta: Arc<Mutex<ChunkMetadata>>,
 
         /// Parquet chunk that lives immutable within the object store.
         parquet: Arc<ParquetChunk>,
@@ -282,10 +283,10 @@ impl CatalogChunk {
         let summary = summaries.into_iter().next().unwrap();
 
         let stage = ChunkStage::Frozen {
-            meta: Arc::new(ChunkMetadata {
+            meta: Arc::new(Mutex::new(ChunkMetadata {
                 table_summary: Arc::new(summary),
                 schema: Arc::new(schema),
-            }),
+            })),
             representation: ChunkStageFrozenRepr::ReadBuffer(Arc::new(chunk)),
         };
 
@@ -315,10 +316,10 @@ impl CatalogChunk {
         assert_eq!(chunk.table_name(), addr.table_name.as_ref());
 
         // Cache table summary + schema
-        let meta = Arc::new(ChunkMetadata {
+        let meta = Arc::new(Mutex::new(ChunkMetadata {
             table_summary: Arc::clone(chunk.table_summary()),
             schema: chunk.schema(),
-        });
+        }));
 
         let stage = ChunkStage::Persisted {
             parquet: chunk,
@@ -472,8 +473,14 @@ impl CatalogChunk {
                 // The stats for open chunks change so can't be cached
                 Arc::new(mb_chunk.table_summary())
             }
-            ChunkStage::Frozen { meta, .. } => Arc::clone(&meta.table_summary),
-            ChunkStage::Persisted { meta, .. } => Arc::clone(&meta.table_summary),
+            ChunkStage::Frozen { meta, .. } => {
+                let meta = meta.lock();
+                Arc::clone(&meta.table_summary)
+            }
+            ChunkStage::Persisted { meta, .. } => {
+                let meta = meta.lock();
+                Arc::clone(&meta.table_summary)
+            }
         }
     }
 
@@ -538,7 +545,7 @@ impl CatalogChunk {
 
                 self.stage = ChunkStage::Frozen {
                     representation: ChunkStageFrozenRepr::MutableBufferSnapshot(Arc::clone(&s)),
-                    meta: Arc::new(metadata),
+                    meta: Arc::new(Mutex::new(metadata)),
                 };
                 Ok(())
             }
@@ -610,30 +617,35 @@ impl CatalogChunk {
     /// Set the chunk in the Moved state, setting the underlying
     /// storage handle to db, and discarding the underlying mutable buffer
     /// storage.
-    pub fn set_moved(&mut self, chunk: Arc<RBChunk>) -> Result<()> {
+    pub fn set_moved(&mut self, chunk: Arc<RBChunk>, schema: Schema) -> Result<()> {
         match &mut self.stage {
-            ChunkStage::Frozen { representation, .. } => match &representation {
-                ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
-                    self.metrics
-                        .state
-                        .inc_with_labels(&[KeyValue::new("state", "moved")]);
+            ChunkStage::Frozen {meta,  representation, .. } => {
+                // after moved, the chunk is sorted and schema need to get updated
+                let mut metadata = meta.lock();
+                *metadata.schema =schema;
 
-                    self.metrics.immutable_chunk_size.observe_with_labels(
-                        chunk.size() as f64,
-                        &[KeyValue::new("state", "moved")],
-                    );
+                match &representation {
+                    ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
+                        self.metrics
+                            .state
+                            .inc_with_labels(&[KeyValue::new("state", "moved")]);
 
-                    *representation = ChunkStageFrozenRepr::ReadBuffer(chunk);
-                    self.finish_lifecycle_action(ChunkLifecycleAction::Moving)?;
-                    Ok(())
+                        self.metrics.immutable_chunk_size.observe_with_labels(
+                            chunk.size() as f64,
+                            &[KeyValue::new("state", "moved")],
+                        );
+                        *representation = ChunkStageFrozenRepr::ReadBuffer(chunk);
+                        self.finish_lifecycle_action(ChunkLifecycleAction::Moving)?;
+                        Ok(())
+                    }
+                    ChunkStageFrozenRepr::ReadBuffer(_) => InternalChunkState {
+                        chunk: self.addr.clone(),
+                        operation: "setting moved",
+                        expected: "Frozen with MutableBufferSnapshot",
+                        actual: "Frozen with ReadBuffer",
+                    }
+                    .fail(),
                 }
-                ChunkStageFrozenRepr::ReadBuffer(_) => InternalChunkState {
-                    chunk: self.addr.clone(),
-                    operation: "setting moved",
-                    expected: "Frozen with MutableBufferSnapshot",
-                    actual: "Frozen with ReadBuffer",
-                }
-                .fail(),
             },
             _ => {
                 unexpected_state!(self, "setting moved", "Moving", self.stage)

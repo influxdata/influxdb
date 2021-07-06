@@ -61,7 +61,7 @@ pub fn move_chunk_to_read_buffer(
         let key = compute_sort_key(query_chunks.iter().map(|x| x.summary()));
 
         // Cannot move query_chunks as the sort key borrows the column names
-        let (_schema, plan) =
+        let (schema, plan) =
             ReorgPlanner::new().compact_plan(query_chunks.iter().map(Arc::clone), key)?;
 
         let physical_plan = ctx.prepare_plan(&plan)?;
@@ -72,12 +72,14 @@ pub fn move_chunk_to_read_buffer(
             rb_chunk.upsert_table(batch?)
         }
 
+
+
         // Can drop and re-acquire as lifecycle action prevents concurrent modification
         let mut guard = chunk.write();
 
         // update the catalog to say we are done processing
         guard
-            .set_moved(Arc::new(rb_chunk))
+            .set_moved(Arc::new(rb_chunk), schema)
             .expect("failed to move chunk");
 
         debug!(chunk=%addr, "chunk marked MOVED. loading complete");

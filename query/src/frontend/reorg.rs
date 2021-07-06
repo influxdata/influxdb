@@ -73,10 +73,11 @@ impl ReorgPlanner {
         let ScanPlan {
             plan_builder,
             provider,
-        } = self.scan_and_sort_plan(chunks, output_sort)?;
+        } = self.scan_and_sort_plan(chunks, output_sort.clone())?;
 
-        // TODO: Set sort key on schema
-        let schema = provider.iox_schema();
+        let mut schema = provider.iox_schema();
+        // Set the sort_key of the schema to the compacted chunk's sort key
+        schema.set_sort_key(&output_sort);        
 
         let plan = plan_builder.build().context(BuildingPlan)?;
 

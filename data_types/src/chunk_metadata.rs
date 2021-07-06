@@ -1,7 +1,5 @@
 //! Module contains a representation of chunk metadata
-use std::{fmt, sync::Arc};
-
-use indexmap::IndexMap;
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -20,47 +18,14 @@ pub struct ChunkAddr {
 
     /// The ID of the chunk
     pub chunk_id: u32,
-
-    // Sort key of this chunk
-    pub sort_key: Arc<SortKey>,
-}
-
-/// Temporary - https://github.com/apache/arrow-rs/pull/425
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SortOptions {
-    /// Whether to sort in descending order
-    pub descending: bool,
-    /// Whether to sort nulls first
-    pub nulls_first: bool,
-}
-impl fmt::Display for SortOptions {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Descending: {}, NUll first: {}", self.descending, self.nulls_first)
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SortKey {
-    columns: Vec<(String, SortOptions)>,
-}
-
-impl fmt::Display for SortKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut sort_key = "Sort Key:\n".to_string();
-        for col in &self.columns {
-            let s = format!("{}, {}", col.0, col.1);
-            sort_key = sort_key + &s;
-        }
-        write!(f, "{}", sort_key)
-    }
 }
 
 impl std::fmt::Display for ChunkAddr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Chunk('{}':'{}':'{}':{}:'{}')",
-            self.db_name, self.table_name, self.partition_key, self.chunk_id, self.sort_key
+            "Chunk('{}':'{}':'{}':{}')",
+            self.db_name, self.table_name, self.partition_key, self.chunk_id
         )
     }
 }

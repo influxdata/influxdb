@@ -678,13 +678,16 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         chunk: Arc<C>,
         input: Arc<dyn ExecutionPlan>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
+
+        // Todo: check there is sort key and it matches with the given one
+        //let sort_key = schema.sort_key();
         if chunk.is_sorted_on_pk() {
             return Ok(input);
         }
 
         let schema = chunk.schema();
         let sort_exprs = arrow_pk_sort_exprs(schema.primary_key());
-
+        
         // Create SortExec operator
         Ok(Arc::new(
             SortExec::try_new(sort_exprs, input).context(InternalSort)?,
