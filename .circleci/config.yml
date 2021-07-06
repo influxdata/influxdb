@@ -61,9 +61,9 @@ workflows:
       - litmus_integration:
           requires:
             - build
-          filters:
-            branches:
-              only: master
+#          filters:
+#            branches:
+#              only: master
       - share-testing-image:
           filters:
             branches:
