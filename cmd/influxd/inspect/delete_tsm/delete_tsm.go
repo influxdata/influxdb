@@ -25,7 +25,7 @@ func NewDeleteTSMCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate measurement or sanitize flag.
 			if arguments.measurement == "" && !arguments.sanitize {
-				return fmt.Errorf("-measurement or -sanitize flag required")
+				return fmt.Errorf("--measurement or --sanitize flag required")
 			}
 
 			// Process each TSM file.
@@ -68,9 +68,9 @@ func (a *args) process(cmd *cobra.Command, path string) error {
 	// Remove previous temporary files.
 	outputPath := path + ".rewriting.tmp"
 	if err := os.RemoveAll(outputPath); err != nil {
-		return fmt.Errorf("failed to remove all files in directory %q: %w", outputPath, err)
+		return fmt.Errorf("failed to remove existing temp file at %q: %w", outputPath, err)
 	} else if err := os.RemoveAll(outputPath + ".idx.tmp"); err != nil {
-		return fmt.Errorf("failed to remove all files in directory %q: %w", outputPath+".idx.tmp", err)
+		return fmt.Errorf("failed to remove existing temp file at %q: %w", outputPath+".idx.tmp", err)
 	}
 
 	// Create TSMWriter to temporary location.
