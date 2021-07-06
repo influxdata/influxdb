@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 # This script clones the openapi repo and extracts the OSS swagger.json for the
 # specified commit.
