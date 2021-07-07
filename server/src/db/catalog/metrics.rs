@@ -26,9 +26,17 @@ impl CatalogMetrics {
     }
 
     pub(super) fn new_table_metrics(&self, table_name: &str) -> TableMetrics {
-        let chunk_lock_tracker = Default::default();
-        let partition_lock_tracker = Default::default();
+        let table_lock_tracker = Default::default();
+        self.metrics_domain.register_observer(
+            None,
+            &[
+                KeyValue::new("lock", "table"),
+                KeyValue::new("table", table_name.to_string()),
+            ],
+            &table_lock_tracker,
+        );
 
+        let partition_lock_tracker = Default::default();
         self.metrics_domain.register_observer(
             None,
             &[
@@ -38,6 +46,7 @@ impl CatalogMetrics {
             &partition_lock_tracker,
         );
 
+        let chunk_lock_tracker = Default::default();
         self.metrics_domain.register_observer(
             None,
             &[
@@ -49,6 +58,7 @@ impl CatalogMetrics {
 
         TableMetrics {
             metrics_domain: Arc::clone(&self.metrics_domain),
+            table_lock_tracker,
             partition_lock_tracker,
             chunk_lock_tracker,
         }
@@ -60,12 +70,21 @@ pub struct TableMetrics {
     /// Metrics domain
     metrics_domain: Arc<metrics::Domain>,
 
+    /// Lock tracker for table-level locks
+    table_lock_tracker: LockTracker,
+
     /// Lock tracker for partition-level locks
     partition_lock_tracker: LockTracker,
+
+    /// Lock tracker for chunk-level locks
     chunk_lock_tracker: LockTracker,
 }
 
 impl TableMetrics {
+    pub(super) fn new_table_lock<T>(&self, t: T) -> RwLock<T> {
+        self.table_lock_tracker.new_lock(t)
+    }
+
     pub(super) fn new_partition_lock<T>(&self, t: T) -> RwLock<T> {
         self.partition_lock_tracker.new_lock(t)
     }
