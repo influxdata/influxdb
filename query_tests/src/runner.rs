@@ -306,6 +306,7 @@ fn make_output_path(input: &Path) -> Result<PathBuf> {
     out.push("out");
 
     // set file name and ext
+    out.push("placeholder"); // really confusing API
     out.set_file_name(stem);
     out.set_extension("out");
 
@@ -417,8 +418,11 @@ SELECT * from disk;
         let in_dir = dir.path().join("in");
         std::fs::create_dir(&in_dir).expect("create in-dir");
 
+        let out_dir = dir.path().join("out");
+        std::fs::create_dir(&out_dir).expect("create out-dir");
+
         let mut file = in_dir;
-        file.set_file_name("foo.sql");
+        file.push("foo.sql");
 
         std::fs::write(&file, contents).expect("writing data to temp file");
         (dir, file)
