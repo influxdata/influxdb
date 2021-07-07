@@ -1,7 +1,5 @@
 #!/usr/bin/sh -ex
 
-echo "Running as user: $(whoami)"
-
 # Install Telegraf
 wget -qO- https://repos.influxdata.com/influxdb.key | apt-key add -
 echo "deb https://repos.influxdata.com/ubuntu focal stable" | tee /etc/apt/sources.list.d/influxdb.list
