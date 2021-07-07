@@ -521,11 +521,11 @@ mod test {
         packer.push_option(None);
         packer.push(33.3);
 
-        assert_eq!(packer.is_null(0), false);
-        assert_eq!(packer.is_null(1), false);
-        assert_eq!(packer.is_null(2), true);
-        assert_eq!(packer.is_null(3), false);
-        assert_eq!(packer.is_null(4), true); // out of bounds
+        assert!(!packer.is_null(0));
+        assert!(!packer.is_null(1));
+        assert!(packer.is_null(2));
+        assert!(!packer.is_null(3));
+        assert!(packer.is_null(4)); // out of bounds
     }
 
     #[test]

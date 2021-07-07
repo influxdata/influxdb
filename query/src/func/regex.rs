@@ -85,7 +85,6 @@ mod test {
         logical_plan::{col, Expr},
         prelude::ExecutionContext,
     };
-    use std::iter::FromIterator;
     use std::sync::Arc;
 
     #[tokio::test]
@@ -197,9 +196,12 @@ mod test {
             Arc::clone(&schema),
             vec![
                 Arc::new(StringArray::from(words.clone())),
-                Arc::new(UInt64Array::from_iter(
-                    words.iter().map(|word| word.map(|word| word.len() as u64)),
-                )),
+                Arc::new(
+                    words
+                        .iter()
+                        .map(|word| word.map(|word| word.len() as u64))
+                        .collect::<UInt64Array>(),
+                ),
             ],
         )
         .unwrap();

@@ -2150,10 +2150,7 @@ mod test {
         // Future improvement would be to support this type of check.
         let input = &[100_i64, -20];
         let col = Column::from(&input[..]);
-        assert_eq!(
-            col.predicate_matches_all_values(&cmp::Operator::LT, &Value::from(u64::MAX)),
-            false
-        );
+        assert!(!col.predicate_matches_all_values(&cmp::Operator::LT, &Value::from(u64::MAX)));
     }
 
     #[test]

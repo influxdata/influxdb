@@ -1,5 +1,4 @@
 use std::fmt::Display;
-use std::iter::FromIterator;
 use std::mem::size_of;
 
 use arrow::array::{Array, PrimitiveArray};
@@ -418,7 +417,10 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
         let (enc, name) = match (min, max) {
             // data is all NULL. Store u8 RLE
             (None, None) => {
-                let arr = PrimitiveArray::from_iter(arr.iter().map::<Option<u8>, _>(|_| None));
+                let arr = arr
+                    .iter()
+                    .map::<Option<u8>, _>(|_| None)
+                    .collect::<PrimitiveArray<_>>();
                 let enc: Box<dyn ScalarEncoding<i64>> = if rle {
                     Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
                 } else {
@@ -429,9 +431,10 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
             }
             // encode as u8 values
             (min, max) if min >= Some(0) && max <= Some(u8::MAX as i64) => {
-                let arr = PrimitiveArray::from_iter(
-                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as u8
-                );
+                let arr = arr
+                    .into_iter()
+                    .map(|v| v.map(|v| transcoder.encode(v)))
+                    .collect::<PrimitiveArray<_>>(); // encode i64 as u8
 
                 let enc: Box<dyn ScalarEncoding<i64>> = if rle {
                     Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
@@ -443,9 +446,10 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
             }
             // encode as i8 values
             (min, max) if min >= Some(i8::MIN as i64) && max <= Some(i8::MAX as i64) => {
-                let arr = PrimitiveArray::from_iter(
-                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as i8
-                );
+                let arr = arr
+                    .into_iter()
+                    .map(|v| v.map(|v| transcoder.encode(v)))
+                    .collect::<PrimitiveArray<_>>(); // encode i64 as i8
 
                 let enc: Box<dyn ScalarEncoding<i64>> = if rle {
                     Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
@@ -457,9 +461,10 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
             }
             // encode as u16 values
             (min, max) if min >= Some(0) && max <= Some(u16::MAX as i64) => {
-                let arr = PrimitiveArray::from_iter(
-                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as u16
-                );
+                let arr = arr
+                    .into_iter()
+                    .map(|v| v.map(|v| transcoder.encode(v)))
+                    .collect::<PrimitiveArray<_>>(); // encode i64 as u16
 
                 let enc: Box<dyn ScalarEncoding<i64>> = if rle {
                     Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
@@ -471,10 +476,10 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
             }
             // encode as i16 values
             (min, max) if min >= Some(i16::MIN as i64) && max <= Some(i16::MAX as i64) => {
-                let arr = PrimitiveArray::from_iter(
-                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as i16
-                );
-
+                let arr = arr
+                    .into_iter()
+                    .map(|v| v.map(|v| transcoder.encode(v)))
+                    .collect::<PrimitiveArray<_>>(); // encode i64 as i16
                 let enc: Box<dyn ScalarEncoding<i64>> = if rle {
                     Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
                 } else {
@@ -485,9 +490,10 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
             }
             // encode as u32 values
             (min, max) if min >= Some(0) && max <= Some(u32::MAX as i64) => {
-                let arr = PrimitiveArray::from_iter(
-                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as u32
-                );
+                let arr = arr
+                    .into_iter()
+                    .map(|v| v.map(|v| transcoder.encode(v)))
+                    .collect::<PrimitiveArray<_>>(); // encode i64 as u32
 
                 let enc: Box<dyn ScalarEncoding<i64>> = if rle {
                     Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
@@ -499,9 +505,10 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
             }
             // encode as i32 values
             (min, max) if min >= Some(i32::MIN as i64) && max <= Some(i32::MAX as i64) => {
-                let arr = PrimitiveArray::from_iter(
-                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode i64 as i32
-                );
+                let arr = arr
+                    .into_iter()
+                    .map(|v| v.map(|v| transcoder.encode(v)))
+                    .collect::<PrimitiveArray<_>>(); // encode i64 as i32
 
                 let enc: Box<dyn ScalarEncoding<i64>> = if rle {
                     Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
@@ -627,7 +634,10 @@ impl From<arrow::array::UInt64Array> for IntegerEncoding {
             // data is all NULL. Store as single byte column for now.
             // TODO(edd): this will be smaller when stored using RLE
             None => {
-                let arr = PrimitiveArray::from_iter(arr.iter().map::<Option<u8>, _>(|_| None));
+                let arr = arr
+                    .iter()
+                    .map::<Option<u8>, _>(|_| None)
+                    .collect::<PrimitiveArray<_>>();
                 let enc: Box<dyn ScalarEncoding<u64>> = if rle {
                     Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
                 } else {
@@ -638,9 +648,10 @@ impl From<arrow::array::UInt64Array> for IntegerEncoding {
             }
             // encode as u8 values
             max if max <= Some(u8::MAX as u64) => {
-                let arr = PrimitiveArray::from_iter(
-                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode u64 as u8
-                );
+                let arr = arr
+                    .into_iter()
+                    .map(|v| v.map(|v| transcoder.encode(v)))
+                    .collect::<PrimitiveArray<_>>(); // encode u64 as u8
 
                 let enc: Box<dyn ScalarEncoding<u64>> = if rle {
                     Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
@@ -652,9 +663,10 @@ impl From<arrow::array::UInt64Array> for IntegerEncoding {
             }
             // encode as u16 values
             max if max <= Some(u16::MAX as u64) => {
-                let arr = PrimitiveArray::from_iter(
-                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode u64 as u16
-                );
+                let arr = arr
+                    .into_iter()
+                    .map(|v| v.map(|v| transcoder.encode(v)))
+                    .collect::<PrimitiveArray<_>>(); // encode u64 as u16
 
                 let enc: Box<dyn ScalarEncoding<u64>> = if rle {
                     Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
@@ -666,9 +678,10 @@ impl From<arrow::array::UInt64Array> for IntegerEncoding {
             }
             // encode as u32 values
             max if max <= Some(u32::MAX as u64) => {
-                let arr = PrimitiveArray::from_iter(
-                    arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))), // encode u64 as u32
-                );
+                let arr = arr
+                    .into_iter()
+                    .map(|v| v.map(|v| transcoder.encode(v)))
+                    .collect::<PrimitiveArray<_>>(); // encode u64 as u32
 
                 let enc: Box<dyn ScalarEncoding<u64>> = if rle {
                     Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))

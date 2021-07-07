@@ -2912,46 +2912,46 @@ west,POST,304,101,203
         let row_group = RowGroup::new(6, columns);
 
         let mut predicate = Predicate::default();
-        assert_eq!(row_group.satisfies_predicate(&predicate), true);
+        assert!(row_group.satisfies_predicate(&predicate));
 
         predicate = Predicate::new(vec![BinaryExpr::from(("region", "=", "east"))]);
-        assert_eq!(row_group.satisfies_predicate(&predicate), true);
+        assert!(row_group.satisfies_predicate(&predicate));
 
         // all expressions satisfied in data
         predicate = Predicate::new(vec![
             BinaryExpr::from(("region", "=", "east")),
             BinaryExpr::from(("method", "!=", "POST")),
         ]);
-        assert_eq!(row_group.satisfies_predicate(&predicate), true);
+        assert!(row_group.satisfies_predicate(&predicate));
 
         // all expressions satisfied in data by all rows
         predicate = Predicate::new(vec![BinaryExpr::from(("method", "=", "GET"))]);
-        assert_eq!(row_group.satisfies_predicate(&predicate), true);
+        assert!(row_group.satisfies_predicate(&predicate));
 
         // one expression satisfied in data but other ruled out via column pruning.
         predicate = Predicate::new(vec![
             BinaryExpr::from(("region", "=", "east")),
             BinaryExpr::from(("method", ">", "GET")),
         ]);
-        assert_eq!(row_group.satisfies_predicate(&predicate), false);
+        assert!(!row_group.satisfies_predicate(&predicate));
 
         // all expressions rules out via column pruning.
         predicate = Predicate::new(vec![
             BinaryExpr::from(("region", ">", "west")),
             BinaryExpr::from(("method", ">", "GET")),
         ]);
-        assert_eq!(row_group.satisfies_predicate(&predicate), false);
+        assert!(!row_group.satisfies_predicate(&predicate));
 
         // column does not exist
         predicate = Predicate::new(vec![BinaryExpr::from(("track", "=", "Jeanette"))]);
-        assert_eq!(row_group.satisfies_predicate(&predicate), false);
+        assert!(!row_group.satisfies_predicate(&predicate));
 
         // one column satisfies expression but other column does not exist
         predicate = Predicate::new(vec![
             BinaryExpr::from(("region", "=", "south")),
             BinaryExpr::from(("track", "=", "Jeanette")),
         ]);
-        assert_eq!(row_group.satisfies_predicate(&predicate), false);
+        assert!(!row_group.satisfies_predicate(&predicate));
     }
 
     #[test]

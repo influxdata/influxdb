@@ -230,7 +230,7 @@ mod test {
                 Box::new(ArrowDataType::Utf8)
             )
         );
-        assert_eq!(field.is_nullable(), true);
+        assert!(field.is_nullable());
         assert_eq!(influxdb_column_type, Some(Tag));
 
         let (influxdb_column_type, field) = s.field(1);
@@ -242,7 +242,7 @@ mod test {
                 Box::new(ArrowDataType::Utf8)
             )
         );
-        assert_eq!(field.is_nullable(), false);
+        assert!(!field.is_nullable());
         assert_eq!(influxdb_column_type, Some(Tag));
 
         assert_eq!(s.len(), 2);
@@ -260,13 +260,13 @@ mod test {
         let (influxdb_column_type, field) = s.field(0);
         assert_eq!(field.name(), "the_influx_field");
         assert_eq!(field.data_type(), &ArrowDataType::Float64);
-        assert_eq!(field.is_nullable(), true);
+        assert!(field.is_nullable());
         assert_eq!(influxdb_column_type, Some(Field(Float)));
 
         let (influxdb_column_type, field) = s.field(1);
         assert_eq!(field.name(), "the_no_influx_field");
         assert_eq!(field.data_type(), &ArrowDataType::Decimal(10, 0));
-        assert_eq!(field.is_nullable(), true);
+        assert!(field.is_nullable());
         assert_eq!(influxdb_column_type, None);
 
         assert_eq!(s.len(), 2);
@@ -282,7 +282,7 @@ mod test {
         let (influxdb_column_type, field) = s.field(0);
         assert_eq!(field.name(), "the_influx_field");
         assert_eq!(field.data_type(), &ArrowDataType::Float64);
-        assert_eq!(field.is_nullable(), true);
+        assert!(field.is_nullable());
         assert_eq!(influxdb_column_type, Some(Field(Float)));
 
         assert_eq!(s.len(), 1);
@@ -300,13 +300,13 @@ mod test {
         let (influxdb_column_type, field) = s.field(0);
         assert_eq!(field.name(), "the_influx_field");
         assert_eq!(field.data_type(), &ArrowDataType::Float64);
-        assert_eq!(field.is_nullable(), false);
+        assert!(!field.is_nullable());
         assert_eq!(influxdb_column_type, Some(Field(Float)));
 
         let (influxdb_column_type, field) = s.field(1);
         assert_eq!(field.name(), "the_no_influx_field");
         assert_eq!(field.data_type(), &ArrowDataType::Decimal(10, 0));
-        assert_eq!(field.is_nullable(), false);
+        assert!(!field.is_nullable());
         assert_eq!(influxdb_column_type, None);
 
         assert_eq!(s.len(), 2);
