@@ -211,7 +211,9 @@ where
                 continue;
             }
 
-            match chunk.storage() {
+            let to_compact_len_before = to_compact.len();
+            let storage = chunk.storage();
+            match storage {
                 ChunkStorage::OpenMutableBuffer => {
                     if can_move(rules, &*chunk, now) {
                         has_mub_snapshot = true;
@@ -232,6 +234,13 @@ where
                 }
                 _ => {}
             }
+            let has_added_to_compact = to_compact.len() > to_compact_len_before;
+            debug!(db_name = %self.db.name(),
+                   partition_key = %partition.partition_key(),
+                   ?has_added_to_compact,
+                   chunk_storage = ?storage,
+                   ?has_mub_snapshot,
+                   "maybe compacting chunks");
         }
 
         if to_compact.len() >= 2 || has_mub_snapshot {
