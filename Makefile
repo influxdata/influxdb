@@ -77,7 +77,6 @@ PRECANNED := $(shell find chronograf/canned -name '*.json')
 
 # List of binary cmds to build
 CMDS := \
-	bin/$(GOOS)/influx \
 	bin/$(GOOS)/influxd
 
 all: $(SUBDIRS) generate $(CMDS)
@@ -93,13 +92,8 @@ $(SUBDIRS):
 bin/$(GOOS)/influxd: $(SOURCES)
 	$(GO_BUILD) -o $@ ./cmd/$(shell basename "$@")
 
-bin/$(GOOS)/influx: $(SOURCES)
-	$(GO_BUILD_SM) -o $@ ./cmd/$(shell basename "$@")
-
 # Ease of use build for just the go binary
 influxd: bin/$(GOOS)/influxd
-
-influx: bin/$(GOOS)/influx
 
 #
 # Define targets for the web ui

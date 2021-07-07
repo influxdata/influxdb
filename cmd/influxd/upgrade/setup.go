@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/influxdata/influx-cli/v2/config"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/tcnksm/go-input"
 	"go.uber.org/zap"
@@ -108,7 +108,7 @@ func saveLocalConfig(sourceOptions *optionsV1, targetOptions *optionsV2, log *za
 		return errors.New("a valid configurations path must be provided")
 	}
 
-	localConfigSVC := config.NewLocalConfigSVC(dPath, dir)
+	localConfigSVC := config.NewLocalConfigService(targetOptions.cliConfigsPath)
 	p := config.DefaultConfig
 	p.Token = targetOptions.token
 	p.Org = targetOptions.orgName
