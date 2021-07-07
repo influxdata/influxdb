@@ -80,9 +80,6 @@ type Client interface {
 	// Write takes a BatchPoints object and writes all Points to InfluxDB.
 	Write(bp BatchPoints) error
 
-	// WriteCtx takes a BatchPoints object and writes all Points to InfluxDB.
-	WriteCtx(ctx context.Context, bp BatchPoints) error
-
 	// Query makes an InfluxDB Query on the database. This will fail if using
 	// the UDP client.
 	Query(q Query) (*Response, error)
@@ -99,15 +96,9 @@ type Client interface {
 	Close() error
 }
 
-// For added performance users may want to send pre-serialized points.
-type HTTPClient interface {
-	Client
-	WriteRawCtx(ctx context.Context, bp BatchPoints, reqBody io.Reader) error
-}
-
 // NewHTTPClient returns a new Client from the provided config.
 // Client is safe for concurrent use by multiple goroutines.
-func NewHTTPClient(conf HTTPConfig) (HTTPClient, error) {
+func NewHTTPClient(conf HTTPConfig) (Client, error) {
 	if conf.UserAgent == "" {
 		conf.UserAgent = "InfluxDBClient"
 	}
@@ -386,10 +377,6 @@ func NewPointFrom(pt models.Point) *Point {
 }
 
 func (c *client) Write(bp BatchPoints) error {
-	return c.WriteCtx(context.Background(), bp)
-}
-
-func (c *client) WriteCtx(ctx context.Context, bp BatchPoints) error {
 	var b bytes.Buffer
 
 	for _, p := range bp.Points() {
@@ -404,15 +391,11 @@ func (c *client) WriteCtx(ctx context.Context, bp BatchPoints) error {
 			return err
 		}
 	}
-	return c.WriteRawCtx(ctx, bp, &b)
-}
 
-// WriteRawCtx uses reqBody instead of parsing bp.Points. Metadata still comes from bp.
-func (c *client) WriteRawCtx(ctx context.Context, bp BatchPoints, reqBody io.Reader) error {
 	u := c.url
 	u.Path = path.Join(u.Path, "write")
 
-	req, err := http.NewRequestWithContext(ctx, "POST", u.String(), reqBody)
+	req, err := http.NewRequest("POST", u.String(), &b)
 	if err != nil {
 		return err
 	}

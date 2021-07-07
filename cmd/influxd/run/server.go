@@ -39,15 +39,14 @@ import (
 	reads "github.com/influxdata/influxdb/storage/flux"
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
-
-	// Initialize the engine package
-	_ "github.com/influxdata/influxdb/tsdb/engine"
-
-	// Initialize the index package
-	_ "github.com/influxdata/influxdb/tsdb/index"
 	client "github.com/influxdata/usage-client/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+
+	// Initialize the engine package
+	_ "github.com/influxdata/influxdb/tsdb/engine"
+	// Initialize the index package
+	_ "github.com/influxdata/influxdb/tsdb/index"
 )
 
 var startTime time.Time
@@ -476,9 +475,6 @@ func (s *Server) Open() error {
 		return fmt.Errorf("open tsdb store: %s", err)
 	}
 
-	// Add the subscriber before opening the PointsWriter
-	s.PointsWriter.Subscriber = s.Subscriber
-
 	// Open the subscriber service
 	if err := s.Subscriber.Open(); err != nil {
 		return fmt.Errorf("open subscriber: %s", err)
@@ -488,6 +484,8 @@ func (s *Server) Open() error {
 	if err := s.PointsWriter.Open(); err != nil {
 		return fmt.Errorf("open points writer: %s", err)
 	}
+
+	s.PointsWriter.AddWriteSubscriber(s.Subscriber.Points())
 
 	for _, service := range s.Services {
 		if err := service.Open(); err != nil {

@@ -333,14 +333,14 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 
 		subPoints := make(chan *coordinator.WritePointsRequest, 1)
 		sub := Subscriber{}
-		sub.SendFn = func(wr *coordinator.WritePointsRequest) {
-			subPoints <- wr
+		sub.PointsFn = func() chan<- *coordinator.WritePointsRequest {
+			return subPoints
 		}
 
 		c := coordinator.NewPointsWriter()
 		c.MetaClient = ms
 		c.TSDBStore = store
-		c.Subscriber = sub
+		c.AddWriteSubscriber(sub.Points())
 		c.Node = &influxdb.Node{ID: 1}
 
 		c.Open()
@@ -409,14 +409,14 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 
 	subPoints := make(chan *coordinator.WritePointsRequest, 1)
 	sub := Subscriber{}
-	sub.SendFn = func(wr *coordinator.WritePointsRequest) {
-		subPoints <- wr
+	sub.PointsFn = func() chan<- *coordinator.WritePointsRequest {
+		return subPoints
 	}
 
 	c := coordinator.NewPointsWriter()
 	c.MetaClient = ms
 	c.TSDBStore = store
-	c.Subscriber = sub
+	c.AddWriteSubscriber(sub.Points())
 	c.Node = &influxdb.Node{ID: 1}
 
 	c.Open()
@@ -617,11 +617,11 @@ func (m PointsWriterMetaClient) ShardOwner(shardID uint64) (string, string, *met
 }
 
 type Subscriber struct {
-	SendFn func(*coordinator.WritePointsRequest)
+	PointsFn func() chan<- *coordinator.WritePointsRequest
 }
 
-func (s Subscriber) Send(wr *coordinator.WritePointsRequest) {
-	s.SendFn(wr)
+func (s Subscriber) Points() chan<- *coordinator.WritePointsRequest {
+	return s.PointsFn()
 }
 
 func NewRetentionPolicy(name string, duration time.Duration, nodeCount int) *meta.RetentionPolicyInfo {
