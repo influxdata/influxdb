@@ -14,7 +14,10 @@ use data_types::{
 };
 use generated_types::influxdata::transfer::column::v1 as pb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
-use internal_types::schema::{IOxValueType, InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
+use internal_types::schema::{
+    builder::{Error as SchemaBuilderError, SchemaBuilder},
+    IOxValueType, InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME,
+};
 
 use crate::entry_fb;
 
@@ -906,6 +909,20 @@ impl<'a> TableBatch<'a> {
         }
 
         0
+    }
+
+    /// Build schema from measurement name and columns in this batch.
+    ///
+    /// No sort key will present in this schema.
+    pub fn schema(&self) -> Result<Schema, SchemaBuilderError> {
+        let mut builder = SchemaBuilder::new();
+        builder.measurement(self.name());
+
+        for column in self.columns() {
+            builder.influx_column(column.name(), column.influx_type());
+        }
+
+        builder.build()
     }
 }
 
@@ -2730,5 +2747,36 @@ mod tests {
 
         let result = pb_to_entry(&p);
         assert!(!result.is_err());
+    }
+
+    #[test]
+    fn schema() {
+        let entry = lp_to_entry("a_table,a_tag=1 a_field=2 10000000123");
+        let schema = entry.partition_writes().unwrap()[0].table_batches()[0]
+            .schema()
+            .unwrap();
+        assert_eq!(schema.measurement().unwrap(), "a_table");
+        assert_eq!(
+            schema
+                .tags_iter()
+                .map(|field| field.name().clone())
+                .collect::<Vec<String>>(),
+            vec!["a_tag".to_string()]
+        );
+        assert_eq!(
+            schema
+                .fields_iter()
+                .map(|field| field.name().clone())
+                .collect::<Vec<String>>(),
+            vec!["a_field".to_string()]
+        );
+        assert_eq!(
+            schema
+                .time_iter()
+                .map(|field| field.name().clone())
+                .collect::<Vec<String>>(),
+            vec![TIME_COLUMN_NAME]
+        );
+        assert!(schema.sort_key().is_none());
     }
 }
