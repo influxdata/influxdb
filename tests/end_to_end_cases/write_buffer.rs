@@ -162,29 +162,24 @@ async fn reads_come_from_kafka() {
     // put some points in Kafka
     let producer: FutureProducer = cfg.create().unwrap();
 
-    // Put some data in partition 0
+    // Kafka partitions must be configured based on the primary key because ordering across Kafka
+    // partitions is undefined, so the upsert semantics would be undefined. Entries that can
+    // potentially be merged must end up in the same Kafka partition. This test follows that
+    // constraint, but doesn't actually encode it.
+
+    // Put some data for `upc,region=west` in partition 0
     let lp_lines = [
         "upc,region=west user=23.2 100",
-        "upc,region=east user=21.0 150",
-        "diskio,region=east bytes=99i 200",
+        "upc,region=west user=21.0 150",
     ];
     produce_to_kafka_directly(&producer, &lp_lines.join("\n"), &db_name, Some(0)).await;
 
-    // Put some data in partition 1
+    // Put some data for `upc,region=east` in partition 1
     let lp_lines = [
-        "upc,region=north user=76.2 300",
+        "upc,region=east user=76.2 300",
         "upc,region=east user=88.7 350",
-        "diskio,region=east bytes=106i 400",
     ];
     produce_to_kafka_directly(&producer, &lp_lines.join("\n"), &db_name, Some(1)).await;
-
-    // Put some data in no partition
-    let lp_lines = [
-        "upc,region=south user=0.2 500",
-        "upc,region=east user=37.5 550",
-        "diskio,region=east bytes=9i 600",
-    ];
-    produce_to_kafka_directly(&producer, &lp_lines.join("\n"), &db_name, None).await;
 
     let check = async {
         let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
@@ -206,12 +201,10 @@ async fn reads_come_from_kafka() {
                     "+--------+-------------------------------+------+",
                     "| region | time                          | user |",
                     "+--------+-------------------------------+------+",
-                    "| east   | 1970-01-01 00:00:00.000000150 | 21   |",
+                    "| east   | 1970-01-01 00:00:00.000000300 | 76.2 |",
                     "| east   | 1970-01-01 00:00:00.000000350 | 88.7 |",
-                    "| east   | 1970-01-01 00:00:00.000000550 | 37.5 |",
-                    "| north  | 1970-01-01 00:00:00.000000300 | 76.2 |",
-                    "| south  | 1970-01-01 00:00:00.000000500 | 0.2  |",
                     "| west   | 1970-01-01 00:00:00.000000100 | 23.2 |",
+                    "| west   | 1970-01-01 00:00:00.000000150 | 21   |",
                     "+--------+-------------------------------+------+",
                 ];
                 assert_batches_sorted_eq!(&expected, &batches);
