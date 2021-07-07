@@ -1,32 +1,5 @@
 project_name: influxdb2
 builds:
-  - id: influx
-    goos:
-      - linux
-      - darwin
-      - windows
-    goarch:
-      - amd64
-      - arm64
-    ignore:
-      - goos: darwin
-        goarch: arm64
-      - goos: windows
-        goarch: arm64
-    main: ./cmd/influx/
-    flags:
-      - -tags={{if eq .Os "linux"}}osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
-      - -buildmode={{if eq .Os "windows"}}exe{{else}}pie{{end}}
-    env:
-      - GO111MODULE=on
-      - CGO_ENABLED=1
-      - CC=xcc
-      - PKG_CONFIG=$GOPATH/bin/pkg-config
-      - MACOSX_DEPLOYMENT_TARGET=10.11
-    ldflags:
-      - -s -w -X main.version=nightly -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
-    binary: influx
-
   - id: influxd
     goos:
       - linux
@@ -58,7 +31,7 @@ builds:
 
 nfpms:
   - id: "influxdb2"
-    builds: ["influx", "influxd"]
+    builds: ["influxd"]
     formats:
       - deb
       - rpm
@@ -94,18 +67,7 @@ nfpms:
     license: MIT
 
 archives:
-  - id: influx_only
-    builds: ["influx"]
-    format: tar.gz
-    format_overrides:
-      - goos: windows
-        format: zip
-    wrap_in_directory: true
-    name_template: "influxdb2-client-nightly-{{ .Os }}-{{ .Arch }}"
-    files:
-      - LICENSE
-      - README.md
-  - id: influx_and_influxd
+  - id: influxd
     format: tar.gz
     format_overrides:
       - goos: windows
@@ -129,9 +91,6 @@ checksum:
 dockers:
   - goos: linux
     goarch: amd64
-    binaries:
-      - influxd
-      - influx
     image_templates:
       - "quay.io/influxdb/influxdb-amd64:nightly"
     dockerfile: docker/influxd/Dockerfile
@@ -142,9 +101,6 @@ dockers:
     use_buildx: true
   - goos: linux
     goarch: arm64
-    binaries:
-      - influxd
-      - influx
     image_templates:
       - "quay.io/influxdb/influxdb-arm64v8:nightly"
     dockerfile: docker/influxd/Dockerfile

@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influx-cli/v2/config"
 	"github.com/influxdata/influxdb/v2/bolt"
-	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
@@ -70,11 +70,9 @@ func TestLocalConfig(t *testing.T) {
 			err := saveLocalConfig(tc.sourceOpts, opts, log)
 			require.NoError(t, err)
 			// verify saved config
-			dPath, dir := opts.cliConfigsPath, filepath.Dir(opts.cliConfigsPath)
-			localConfigSVC := config.NewLocalConfigSVC(dPath, dir)
-			cs, err := localConfigSVC.ListConfigs()
+			localConfigSVC := config.NewLocalConfigService(opts.cliConfigsPath)
+			actual, err := localConfigSVC.Active()
 			require.NoError(t, err)
-			actual := cs.Active()
 			if diff := cmp.Diff(tc.want, actual); diff != "" {
 				t.Fatal(diff)
 			}
