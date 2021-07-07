@@ -171,6 +171,7 @@ impl SchemaBuilder {
         arrow_type: ArrowDataType,
     ) -> &mut Self {
         let field = ArrowField::new(column_name, arrow_type, nullable);
+
         self.fields.push((field, column_type));
         self
     }

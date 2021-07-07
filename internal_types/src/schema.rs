@@ -219,7 +219,7 @@ impl Schema {
     }
 
     /// Set the order of sort columns to the primary key id the schema
-    pub fn set_sort_key (&mut self, sort_key: &SortKey<'_>) {
+    pub fn set_sort_key(&mut self, sort_key: &SortKey<'_>) {
         let fields = self.inner.fields();
 
         // create a new_fields that are the fields with their sort keys set
@@ -228,16 +228,28 @@ impl Schema {
             .map(|field| {
                 let mut new_field = field.clone();
                 if let Some(sort) = sort_key.get(field.name()) {
-                    set_field_metadata(&mut new_field, None, Some(sort));
+                    let mut meta = std::collections::BTreeMap::new();
+                    // New sort key
+                    meta.insert(COLUMN_SORT_METADATA_KEY.to_string(), sort.to_string());
+                    // Keep other meta data
+                    if let Some(metadata) = field.metadata().to_owned() {
+                        metadata.iter().for_each(|(key, value)| {
+                            if key.ne(&COLUMN_SORT_METADATA_KEY.to_string()) {
+                                meta.insert(key.clone(), value.clone());
+                            }
+                        })
+                    }
+
+                    new_field.set_metadata(Some(meta))
                 }
                 new_field
-            } )
+            })
             .collect();
 
         let new_meta = self.inner.metadata().clone();
         let new_schema = ArrowSchema::new_with_metadata(new_fields, new_meta);
         self.inner = Arc::new(new_schema);
-    }   
+    }
 
     /// Provide a reference to the underlying Arrow Schema object
     pub fn inner(&self) -> &ArrowSchemaRef {

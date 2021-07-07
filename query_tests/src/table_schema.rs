@@ -1,7 +1,10 @@
 //! Tests for the table_names implementation
 
 use arrow::datatypes::DataType;
-use internal_types::{schema::builder::SchemaBuilder, selection::Selection};
+use internal_types::{
+    schema::{builder::SchemaBuilder, sort::SortKey, TIME_COLUMN_NAME},
+    selection::Selection,
+};
 use query::{QueryChunk, QueryChunkMeta, QueryDatabase};
 
 use super::scenarios::*;
@@ -57,7 +60,7 @@ macro_rules! run_table_schema_test_case {
 }
 
 #[tokio::test]
-async fn list_schema_cpu_all() {
+async fn list_schema_cpu_all_mub() {
     // we expect columns to come out in lexographic order by name
     let expected_schema = SchemaBuilder::new()
         .tag("region")
@@ -66,7 +69,35 @@ async fn list_schema_cpu_all() {
         .build()
         .unwrap();
 
-    run_table_schema_test_case!(TwoMeasurements {}, Selection::All, "cpu", expected_schema);
+    run_table_schema_test_case!(
+        TwoMeasurementsMubScenario {},
+        Selection::All,
+        "cpu",
+        expected_schema
+    );
+}
+
+#[tokio::test]
+async fn list_schema_cpu_all_rub() {
+    // we expect columns to come out in lexographic order by name
+    // The est is o RUb so the schema includes sort key
+    let mut sort_key = SortKey::with_capacity(2);
+    sort_key.push("region", Default::default());
+    sort_key.push(TIME_COLUMN_NAME, Default::default());
+
+    let expected_schema = SchemaBuilder::new()
+        .tag("region")
+        .timestamp()
+        .field("user", DataType::Float64)
+        .build_with_sort_key(&sort_key)
+        .unwrap();
+
+    run_table_schema_test_case!(
+        TwoMeasurementsRubScenario {},
+        Selection::All,
+        "cpu",
+        expected_schema
+    );
 }
 
 #[tokio::test]
@@ -79,7 +110,12 @@ async fn list_schema_disk_all() {
         .build()
         .unwrap();
 
-    run_table_schema_test_case!(TwoMeasurements {}, Selection::All, "disk", expected_schema);
+    run_table_schema_test_case!(
+        TwoMeasurementsMubScenario {},
+        Selection::All,
+        "disk",
+        expected_schema
+    );
 }
 
 #[tokio::test]
@@ -93,7 +129,12 @@ async fn list_schema_cpu_selection() {
     // Pick an order that is not lexographic
     let selection = Selection::Some(&["user", "region"]);
 
-    run_table_schema_test_case!(TwoMeasurements {}, selection, "cpu", expected_schema);
+    run_table_schema_test_case!(
+        TwoMeasurementsMubScenario {},
+        selection,
+        "cpu",
+        expected_schema
+    );
 }
 
 #[tokio::test]
@@ -108,7 +149,12 @@ async fn list_schema_disk_selection() {
     // Pick an order that is not lexographic
     let selection = Selection::Some(&["time", "bytes"]);
 
-    run_table_schema_test_case!(TwoMeasurements {}, selection, "disk", expected_schema);
+    run_table_schema_test_case!(
+        TwoMeasurementsMubScenario {},
+        selection,
+        "disk",
+        expected_schema
+    );
 }
 
 #[tokio::test]
@@ -122,7 +168,7 @@ async fn list_schema_location_all() {
         .unwrap();
 
     run_table_schema_test_case!(
-        TwoMeasurementsUnsignedType {},
+        TwoMeasurementsUnsignedTypeMubScenario {},
         Selection::All,
         "restaurant",
         expected_schema

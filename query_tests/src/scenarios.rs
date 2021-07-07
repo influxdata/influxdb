@@ -185,6 +185,40 @@ impl DbSetup for NoData {
 
 /// Two measurements data in a single mutable buffer chunk
 #[derive(Debug)]
+pub struct TwoMeasurementsMubScenario {}
+#[async_trait]
+impl DbSetup for TwoMeasurementsMubScenario {
+    async fn make(&self) -> Vec<DbScenario> {
+        let lp_lines = vec![
+            "cpu,region=west user=23.2 100",
+            "cpu,region=west user=21.0 150",
+            "disk,region=east bytes=99i 200",
+        ];
+
+        make_one_chunk_mub_scenario(&lp_lines.join("\n")).await
+    }
+}
+
+/// Two measurements data in a single read buffer chunk
+#[derive(Debug)]
+pub struct TwoMeasurementsRubScenario {}
+#[async_trait]
+impl DbSetup for TwoMeasurementsRubScenario {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let lp_lines = vec![
+            "cpu,region=west user=23.2 100",
+            "cpu,region=west user=21.0 150",
+            "disk,region=east bytes=99i 200",
+        ];
+
+        make_one_chunk_rub_scenario(partition_key, &lp_lines.join("\n")).await
+    }
+}
+
+/// Two measurements data in different chunk scenarios
+#[derive(Debug)]
 pub struct TwoMeasurements {}
 #[async_trait]
 impl DbSetup for TwoMeasurements {
@@ -198,6 +232,22 @@ impl DbSetup for TwoMeasurements {
         ];
 
         make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
+    }
+}
+
+#[derive(Debug)]
+pub struct TwoMeasurementsUnsignedTypeMubScenario {}
+#[async_trait]
+impl DbSetup for TwoMeasurementsUnsignedTypeMubScenario {
+    async fn make(&self) -> Vec<DbScenario> {
+        let lp_lines = vec![
+            "restaurant,town=andover count=40000u 100",
+            "restaurant,town=reading count=632u 120",
+            "school,town=reading count=17u 150",
+            "school,town=andover count=25u 160",
+        ];
+
+        make_one_chunk_mub_scenario(&lp_lines.join("\n")).await
     }
 }
 
@@ -585,6 +635,45 @@ impl DbSetup for EndToEndTest {
         };
         vec![scenario1]
     }
+}
+
+/// This function loads one chunk of lp data into MUB only
+///
+pub(crate) async fn make_one_chunk_mub_scenario(data: &str) -> Vec<DbScenario> {
+    // Scenario 1: One open chunk in MUB
+    let db = make_db().await.db;
+    write_lp(&db, data).await;
+    let scenario = DbScenario {
+        scenario_name: "Data in open chunk of mutable buffer".into(),
+        db,
+    };
+
+    vec![scenario]
+}
+
+/// This function loads one chunk of lp data into RUB only
+///
+pub(crate) async fn make_one_chunk_rub_scenario(
+    partition_key: &str,
+    data: &str,
+) -> Vec<DbScenario> {
+    // Scenario 1: One closed chunk in RUB
+    let db = make_db().await.db;
+    let table_names = write_lp(&db, data).await;
+    for table_name in &table_names {
+        db.rollover_partition(&table_name, partition_key)
+            .await
+            .unwrap();
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+            .await
+            .unwrap();
+    }
+    let scenario = DbScenario {
+        scenario_name: "Data in read buffer".into(),
+        db,
+    };
+
+    vec![scenario]
 }
 
 /// This function loads one chunk of lp data into different scenarios that simulates

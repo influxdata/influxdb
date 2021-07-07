@@ -613,13 +613,16 @@ impl CatalogChunk {
     /// storage.
     pub fn set_moved(&mut self, chunk: Arc<RBChunk>, schema: Schema) -> Result<()> {
         match &mut self.stage {
-            ChunkStage::Frozen {meta,  representation, .. } => {
+            ChunkStage::Frozen {
+                meta,
+                representation,
+                ..
+            } => {
                 // after moved, the chunk is sorted and schema need to get updated
-                *meta = Arc::new(ChunkMetadata{ 
+                *meta = Arc::new(ChunkMetadata {
                     table_summary: Arc::clone(&meta.table_summary),
                     schema: Arc::new(schema),
-                 });
-
+                });
 
                 match &representation {
                     ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
@@ -643,7 +646,7 @@ impl CatalogChunk {
                     }
                     .fail(),
                 }
-            },
+            }
             _ => {
                 unexpected_state!(self, "setting moved", "Moving", self.stage)
             }

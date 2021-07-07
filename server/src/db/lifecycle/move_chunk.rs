@@ -72,8 +72,6 @@ pub fn move_chunk_to_read_buffer(
             rb_chunk.upsert_table(batch?)
         }
 
-
-
         // Can drop and re-acquire as lifecycle action prevents concurrent modification
         let mut guard = chunk.write();
 
