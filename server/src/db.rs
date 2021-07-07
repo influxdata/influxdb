@@ -795,7 +795,10 @@ pub mod test_helpers {
 
     /// Try to write lineprotocol data and return all tables that where written.
     pub async fn try_write_lp(db: &Db, lp: &str) -> Result<Vec<String>> {
-        let entries = lp_to_entries(lp);
+        let entries = {
+            let partitioner = &db.rules.read().partition_template;
+            lp_to_entries(lp, partitioner)
+        };
 
         let mut tables = HashSet::new();
         for entry in entries {

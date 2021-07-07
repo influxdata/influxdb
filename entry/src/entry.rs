@@ -1813,7 +1813,7 @@ pub mod test_helpers {
     /// Converts the line protocol to a collection of `Entry` with a single
     /// shard and a single partition, which is useful for testing when `lp` is
     /// large. Batches are sized according to LP_BATCH_SIZE.
-    pub fn lp_to_entries(lp: &str) -> Vec<Entry> {
+    pub fn lp_to_entries(lp: &str, partitioner: &impl Partitioner) -> Vec<Entry> {
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
         let default_time = Utc::now().timestamp_nanos();
@@ -1821,16 +1821,11 @@ pub mod test_helpers {
         lines
             .chunks(LP_BATCH_SIZE)
             .map(|batch| {
-                lines_to_sharded_entries(
-                    batch,
-                    default_time,
-                    sharder(1).as_ref(),
-                    &hour_partitioner(),
-                )
-                .unwrap()
-                .pop()
-                .unwrap()
-                .entry
+                lines_to_sharded_entries(batch, default_time, sharder(1).as_ref(), partitioner)
+                    .unwrap()
+                    .pop()
+                    .unwrap()
+                    .entry
             })
             .collect::<Vec<_>>()
     }

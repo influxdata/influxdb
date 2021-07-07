@@ -2,7 +2,7 @@ use std::{borrow::Cow, convert::TryFrom, num::NonZeroU64, sync::Arc, time::Durat
 
 use data_types::{
     chunk_metadata::{ChunkStorage, ChunkSummary},
-    database_rules::DatabaseRules,
+    database_rules::{DatabaseRules, PartitionTemplate, TemplatePart},
     server_id::ServerId,
     DatabaseName,
 };
@@ -37,6 +37,7 @@ pub struct TestDbBuilder {
     worker_cleanup_avg_sleep: Option<Duration>,
     write_buffer: Option<Arc<dyn WriteBuffer>>,
     catalog_transactions_until_checkpoint: Option<NonZeroU64>,
+    partition_template: Option<PartitionTemplate>,
 }
 
 impl TestDbBuilder {
@@ -78,6 +79,16 @@ impl TestDbBuilder {
         // enable checkpointing
         if let Some(v) = self.catalog_transactions_until_checkpoint {
             rules.lifecycle_rules.catalog_transactions_until_checkpoint = v;
+        }
+
+        // set partion template
+        if let Some(partition_template) = self.partition_template {
+            rules.partition_template = partition_template;
+        } else {
+            // default to hourly
+            rules.partition_template = PartitionTemplate {
+                parts: vec![TemplatePart::TimeFormat("%Y-%m-%dT%H".to_string())],
+            };
         }
 
         let database_to_commit = DatabaseToCommit {
@@ -123,6 +134,11 @@ impl TestDbBuilder {
 
     pub fn catalog_transactions_until_checkpoint(mut self, interval: NonZeroU64) -> Self {
         self.catalog_transactions_until_checkpoint = Some(interval);
+        self
+    }
+
+    pub fn partition_template(mut self, template: PartitionTemplate) -> Self {
+        self.partition_template = Some(template);
         self
     }
 }
