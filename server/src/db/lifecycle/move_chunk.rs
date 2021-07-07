@@ -37,7 +37,11 @@ pub fn move_chunk_to_read_buffer(
     let table_summary = guard.table_summary();
 
     // snapshot the data
-    let query_chunks = vec![DbChunk::snapshot(&*guard)];
+    // Note: we can just use the chunk-specific schema here since there is only a single chunk and this is somewhat a
+    // local operation that should only need to deal with the columns that are really present.
+    let db_chunk = DbChunk::snapshot(&*guard);
+    let schema = db_chunk.schema();
+    let query_chunks = vec![db_chunk];
 
     // Drop locks
     let chunk = guard.unwrap().chunk;
@@ -51,8 +55,11 @@ pub fn move_chunk_to_read_buffer(
         let key = compute_sort_key(query_chunks.iter().map(|x| x.summary()));
 
         // Cannot move query_chunks as the sort key borrows the column names
-        let (schema, plan) =
-            ReorgPlanner::new().compact_plan(query_chunks.iter().map(Arc::clone), key)?;
+        let (schema, plan) = ReorgPlanner::new().compact_plan(
+            schema.as_ref().clone(),
+            query_chunks.iter().map(Arc::clone),
+            key,
+        )?;
 
         let physical_plan = ctx.prepare_plan(&plan)?;
         let stream = ctx.execute(physical_plan).await?;

@@ -4,6 +4,7 @@ use std::future::Future;
 use std::sync::Arc;
 
 use data_types::job::Job;
+use internal_types::schema::merge::SchemaMerger;
 use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
 use query::exec::ExecutorType;
@@ -58,6 +59,17 @@ pub(crate) fn compact_chunks(
         })
         .collect::<Result<Vec<_>>>()?;
 
+    // build schema
+    // Note: we only use the merged schema from the to-be-compacted chunks - not the table-wide schema, since we don't
+    // need to bother with other columns (e.g. ones that only exist in other partitions).
+    let mut merger = SchemaMerger::new();
+    for db_chunk in &query_chunks {
+        merger = merger
+            .merge(&db_chunk.schema())
+            .expect("schemas compatible");
+    }
+    let schema = merger.build();
+
     // drop partition lock
     let partition = partition.unwrap().partition;
 
@@ -79,7 +91,7 @@ pub(crate) fn compact_chunks(
 
         // Cannot move query_chunks as the sort key borrows the column names
         let (schema, plan) =
-            ReorgPlanner::new().compact_plan(query_chunks.iter().map(Arc::clone), key)?;
+            ReorgPlanner::new().compact_plan(schema, query_chunks.iter().map(Arc::clone), key)?;
 
         let physical_plan = ctx.prepare_plan(&plan)?;
         let stream = ctx.execute(physical_plan).await?;

@@ -116,6 +116,23 @@ impl QueryDatabase for TestDatabase {
     fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>, Self::Error> {
         unimplemented!("summaries not implemented TestDatabase")
     }
+
+    fn table_schema(&self, table_name: &str) -> Option<Schema> {
+        let mut merger = SchemaMerger::new();
+        let mut found_one = false;
+
+        let partitions = self.partitions.lock();
+        for partition in partitions.values() {
+            for chunk in partition.values() {
+                if chunk.table_name() == table_name {
+                    merger = merger.merge(&chunk.schema()).expect("consistent schemas");
+                    found_one = true;
+                }
+            }
+        }
+
+        found_one.then(|| merger.build())
+    }
 }
 
 #[derive(Debug, Default)]

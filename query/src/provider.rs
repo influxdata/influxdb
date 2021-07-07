@@ -40,25 +40,11 @@ use self::{
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Chunk schema not compatible for table '{}': {}", table_name, source))]
-    ChunkSchemaNotCompatible {
-        table_name: String,
-        source: internal_types::schema::merge::Error,
-    },
-
     #[snafu(display(
         "Internal error: no chunk pruner provided to builder for {}",
         table_name,
     ))]
     InternalNoChunkPruner { table_name: String },
-
-    #[snafu(display("Internal error: No rows found in table '{}'", table_name))]
-    InternalNoRowsInTable { table_name: String },
-
-    #[snafu(display("Internal error: Cannot verify the push-down predicate '{}'", source,))]
-    InternalPushdownPredicate {
-        source: datafusion::error::DataFusionError,
-    },
 
     #[snafu(display("Internal error: Cannot create projection select expr '{}'", source,))]
     InternalSelectExpr {
@@ -106,35 +92,25 @@ pub trait ChunkPruner<C: QueryChunk>: Sync + Send + std::fmt::Debug {
 #[derive(Debug)]
 pub struct ProviderBuilder<C: QueryChunk + 'static> {
     table_name: Arc<str>,
-    schema_merger: SchemaMerger,
+    schema: Schema,
     chunk_pruner: Option<Arc<dyn ChunkPruner<C>>>,
     chunks: Vec<Arc<C>>,
 }
 
 impl<C: QueryChunk> ProviderBuilder<C> {
-    pub fn new(table_name: impl AsRef<str>) -> Self {
+    pub fn new(table_name: impl AsRef<str>, schema: Schema) -> Self {
         Self {
             table_name: Arc::from(table_name.as_ref()),
-            schema_merger: SchemaMerger::new(),
+            schema,
             chunk_pruner: None,
             chunks: Vec::new(),
         }
     }
 
     /// Add a new chunk to this provider
-    pub fn add_chunk(mut self, chunk: Arc<C>) -> Result<Self> {
-        let chunk_table_schema = chunk.schema();
-
-        self.schema_merger = self
-            .schema_merger
-            .merge(&chunk_table_schema.as_ref())
-            .context(ChunkSchemaNotCompatible {
-                table_name: self.table_name.as_ref(),
-            })?;
-
+    pub fn add_chunk(mut self, chunk: Arc<C>) -> Self {
         self.chunks.push(chunk);
-
-        Ok(self)
+        self
     }
 
     /// Specify a `ChunkPruner` for the provider that will apply
@@ -161,16 +137,6 @@ impl<C: QueryChunk> ProviderBuilder<C> {
 
     /// Create the Provider
     pub fn build(self) -> Result<ChunkTableProvider<C>> {
-        let iox_schema = self.schema_merger.build();
-
-        // if the table was reported to exist, it should not be empty
-        if self.chunks.is_empty() {
-            return InternalNoRowsInTable {
-                table_name: self.table_name.as_ref(),
-            }
-            .fail();
-        }
-
         let chunk_pruner = match self.chunk_pruner {
             Some(chunk_pruner) => chunk_pruner,
             None => {
@@ -182,7 +148,7 @@ impl<C: QueryChunk> ProviderBuilder<C> {
         };
 
         Ok(ChunkTableProvider {
-            iox_schema,
+            iox_schema: self.schema,
             chunk_pruner,
             table_name: self.table_name,
             chunks: self.chunks,

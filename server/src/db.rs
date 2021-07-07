@@ -26,6 +26,7 @@ use data_types::{
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use entry::{Entry, SequencedEntry};
 use futures::{stream::BoxStream, StreamExt};
+use internal_types::schema::Schema;
 use metrics::KeyValue;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
@@ -849,6 +850,10 @@ impl QueryDatabase for Db {
 
     fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>> {
         self.catalog_access.chunk_summaries()
+    }
+
+    fn table_schema(&self, table_name: &str) -> Option<Schema> {
+        self.catalog_access.table_schema(table_name)
     }
 }
 

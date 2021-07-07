@@ -63,6 +63,7 @@ impl ReorgPlanner {
     ///   (Scan chunks) <-- any needed deduplication happens here
     pub fn compact_plan<C, I>(
         &self,
+        schema: Schema,
         chunks: I,
         output_sort: SortKey<'_>,
     ) -> Result<(Schema, LogicalPlan)>
@@ -73,7 +74,7 @@ impl ReorgPlanner {
         let ScanPlan {
             plan_builder,
             provider,
-        } = self.scan_and_sort_plan(chunks, output_sort.clone())?;
+        } = self.scan_and_sort_plan(schema, chunks, output_sort.clone())?;
 
         let mut schema = provider.iox_schema();
 
@@ -136,6 +137,7 @@ impl ReorgPlanner {
     /// ```
     pub fn split_plan<C, I>(
         &self,
+        schema: Schema,
         chunks: I,
         output_sort: SortKey<'_>,
         split_time: i64,
@@ -147,7 +149,7 @@ impl ReorgPlanner {
         let ScanPlan {
             plan_builder,
             provider,
-        } = self.scan_and_sort_plan(chunks, output_sort)?;
+        } = self.scan_and_sort_plan(schema, chunks, output_sort)?;
 
         // TODO: Set sort key on schema
         let schema = provider.iox_schema();
@@ -176,7 +178,12 @@ impl ReorgPlanner {
     ///
     /// (Sort on output_sort)
     ///   (Scan chunks) <-- any needed deduplication happens here
-    fn scan_and_sort_plan<C, I>(&self, chunks: I, output_sort: SortKey<'_>) -> Result<ScanPlan<C>>
+    fn scan_and_sort_plan<C, I>(
+        &self,
+        schema: Schema,
+        chunks: I,
+        output_sort: SortKey<'_>,
+    ) -> Result<ScanPlan<C>>
     where
         C: QueryChunk + 'static,
         I: IntoIterator<Item = Arc<C>>,
@@ -189,7 +196,7 @@ impl ReorgPlanner {
         let table_name = &table_name;
 
         // Prepare the plan for the table
-        let mut builder = ProviderBuilder::new(table_name);
+        let mut builder = ProviderBuilder::new(table_name, schema);
 
         // There are no predicates in these plans, so no need to prune them
         builder = builder.add_no_op_pruner();
@@ -203,9 +210,7 @@ impl ReorgPlanner {
                 chunk.id(),
             );
 
-            builder = builder
-                .add_chunk(chunk)
-                .context(CreatingProvider { table_name })?;
+            builder = builder.add_chunk(chunk);
         }
 
         let provider = builder.build().context(CreatingProvider { table_name })?;
@@ -244,16 +249,17 @@ struct ScanPlan<C: QueryChunk + 'static> {
 #[cfg(test)]
 mod test {
     use arrow_util::assert_batches_eq;
-    use internal_types::schema::sort::SortOptions;
+    use internal_types::schema::{merge::SchemaMerger, sort::SortOptions};
 
     use crate::{
         exec::{Executor, ExecutorType},
         test::{raw_data, TestChunk},
+        QueryChunkMeta,
     };
 
     use super::*;
 
-    async fn get_test_chunks() -> Vec<Arc<TestChunk>> {
+    async fn get_test_chunks() -> (Schema, Vec<Arc<TestChunk>>) {
         // Chunk 1 with 5 rows of data on 2 tags
         let chunk1 = Arc::new(
             TestChunk::new(1)
@@ -298,12 +304,19 @@ mod test {
         ];
         assert_batches_eq!(&expected, &raw_data(&[Arc::clone(&chunk2)]).await);
 
-        vec![chunk1, chunk2]
+        let schema = SchemaMerger::new()
+            .merge(&chunk1.schema())
+            .unwrap()
+            .merge(&chunk2.schema())
+            .unwrap()
+            .build();
+
+        (schema, vec![chunk1, chunk2])
     }
 
     #[tokio::test]
     async fn test_compact_plan() {
-        let chunks = get_test_chunks().await;
+        let (schema, chunks) = get_test_chunks().await;
 
         let mut sort_key = SortKey::with_capacity(2);
         sort_key.push(
@@ -322,7 +335,7 @@ mod test {
         );
 
         let (_, compact_plan) = ReorgPlanner::new()
-            .compact_plan(chunks, sort_key)
+            .compact_plan(schema, chunks, sort_key)
             .expect("created compact plan");
 
         let executor = Executor::new(1);
@@ -363,7 +376,7 @@ mod test {
         test_helpers::maybe_start_logging();
         // validate that the plumbing is all hooked up. The logic of
         // the operator is tested in its own module.
-        let chunks = get_test_chunks().await;
+        let (schema, chunks) = get_test_chunks().await;
 
         let mut sort_key = SortKey::with_capacity(1);
         sort_key.push(
@@ -376,7 +389,7 @@ mod test {
 
         // split on 1000 should have timestamps 1000, 5000, and 7000
         let (_, split_plan) = ReorgPlanner::new()
-            .split_plan(chunks, sort_key, 1000)
+            .split_plan(schema, chunks, sort_key, 1000)
             .expect("created compact plan");
 
         let executor = Executor::new(1);

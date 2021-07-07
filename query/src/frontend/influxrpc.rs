@@ -16,7 +16,7 @@ use internal_types::{
     selection::Selection,
 };
 use observability_deps::tracing::{debug, trace};
-use snafu::{ensure, ResultExt, Snafu};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use crate::{
     exec::{field::FieldColumns, make_schema_pivot},
@@ -141,6 +141,9 @@ pub enum Error {
 
     #[snafu(display("Internal error: aggregate {:?} is not a selector", agg))]
     InternalAggregateNotSelector { agg: Aggregate },
+
+    #[snafu(display("Table was removed while planning query: {}", table_name))]
+    TableRemoved { table_name: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -301,7 +304,10 @@ impl InfluxRpcPlanner {
             // were already known to have data (based on the contents of known_columns)
 
             for (table_name, chunks) in need_full_plans.into_iter() {
-                let plan = self.tag_keys_plan(&table_name, &predicate, chunks)?;
+                let schema = database.table_schema(&table_name).context(TableRemoved {
+                    table_name: &table_name,
+                })?;
+                let plan = self.tag_keys_plan(&table_name, schema, &predicate, chunks)?;
 
                 if let Some(plan) = plan {
                     builder = builder.append(plan)
@@ -422,7 +428,10 @@ impl InfluxRpcPlanner {
         // time in `known_columns`, and some tables in chunks that we
         // need to run a plan to find what values pass the predicate.
         for (table_name, chunks) in need_full_plans.into_iter() {
-            let scan_and_filter = self.scan_and_filter(&table_name, &predicate, chunks)?;
+            let schema = database.table_schema(&table_name).context(TableRemoved {
+                table_name: &table_name,
+            })?;
+            let scan_and_filter = self.scan_and_filter(&table_name, schema, &predicate, chunks)?;
 
             // if we have any data to scan, make a plan!
             if let Some(TableScanAndFilter {
@@ -483,7 +492,10 @@ impl InfluxRpcPlanner {
 
         let mut field_list_plan = FieldListPlan::new();
         for (table_name, chunks) in table_chunks {
-            if let Some(plan) = self.field_columns_plan(&table_name, &predicate, chunks)? {
+            let schema = database.table_schema(&table_name).context(TableRemoved {
+                table_name: &table_name,
+            })?;
+            if let Some(plan) = self.field_columns_plan(&table_name, schema, &predicate, chunks)? {
                 field_list_plan = field_list_plan.append(plan);
             }
         }
@@ -524,8 +536,12 @@ impl InfluxRpcPlanner {
         let mut ss_plans = Vec::with_capacity(table_chunks.len());
         for (table_name, chunks) in table_chunks {
             let prefix_columns: Option<&[&str]> = None;
+            let schema = database.table_schema(&table_name).context(TableRemoved {
+                table_name: &table_name,
+            })?;
 
-            let ss_plan = self.read_filter_plan(table_name, prefix_columns, &predicate, chunks)?;
+            let ss_plan =
+                self.read_filter_plan(table_name, schema, prefix_columns, &predicate, chunks)?;
             // If we have to do real work, add it to the list of plans
             if let Some(ss_plan) = ss_plan {
                 ss_plans.push(ss_plan);
@@ -559,11 +575,25 @@ impl InfluxRpcPlanner {
         // now, build up plans for each table
         let mut ss_plans = Vec::with_capacity(table_chunks.len());
         for (table_name, chunks) in table_chunks {
+            let schema = database.table_schema(&table_name).context(TableRemoved {
+                table_name: &table_name,
+            })?;
             let ss_plan = match agg {
-                Aggregate::None => {
-                    self.read_filter_plan(table_name, Some(group_columns), &predicate, chunks)?
-                }
-                _ => self.read_group_plan(table_name, &predicate, agg, group_columns, chunks)?,
+                Aggregate::None => self.read_filter_plan(
+                    table_name,
+                    schema.clone(),
+                    Some(group_columns),
+                    &predicate,
+                    chunks,
+                )?,
+                _ => self.read_group_plan(
+                    table_name,
+                    schema,
+                    &predicate,
+                    agg,
+                    group_columns,
+                    chunks,
+                )?,
             };
 
             // If we have to do real work, add it to the list of plans
@@ -604,8 +634,12 @@ impl InfluxRpcPlanner {
         // now, build up plans for each table
         let mut ss_plans = Vec::with_capacity(table_chunks.len());
         for (table_name, chunks) in table_chunks {
-            let ss_plan = self
-                .read_window_aggregate_plan(table_name, &predicate, agg, &every, &offset, chunks)?;
+            let schema = database.table_schema(&table_name).context(TableRemoved {
+                table_name: &table_name,
+            })?;
+            let ss_plan = self.read_window_aggregate_plan(
+                table_name, schema, &predicate, agg, &every, &offset, chunks,
+            )?;
             // If we have to do real work, add it to the list of plans
             if let Some(ss_plan) = ss_plan {
                 ss_plans.push(ss_plan);
@@ -665,13 +699,14 @@ impl InfluxRpcPlanner {
     fn tag_keys_plan<C>(
         &self,
         table_name: &str,
+        schema: Schema,
         predicate: &Predicate,
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<StringSetPlan>>
     where
         C: QueryChunk + 'static,
     {
-        let scan_and_filter = self.scan_and_filter(table_name, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(table_name, schema, predicate, chunks)?;
 
         let TableScanAndFilter {
             plan_builder,
@@ -727,13 +762,14 @@ impl InfluxRpcPlanner {
     fn field_columns_plan<C>(
         &self,
         table_name: &str,
+        schema: Schema,
         predicate: &Predicate,
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<LogicalPlan>>
     where
         C: QueryChunk + 'static,
     {
-        let scan_and_filter = self.scan_and_filter(table_name, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(table_name, schema, predicate, chunks)?;
         let TableScanAndFilter {
             plan_builder,
             schema,
@@ -777,6 +813,7 @@ impl InfluxRpcPlanner {
     fn read_filter_plan<C>(
         &self,
         table_name: impl AsRef<str>,
+        schema: Schema,
         prefix_columns: Option<&[impl AsRef<str>]>,
         predicate: &Predicate,
         chunks: Vec<Arc<C>>,
@@ -785,7 +822,7 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.as_ref();
-        let scan_and_filter = self.scan_and_filter(table_name, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(table_name, schema, predicate, chunks)?;
 
         let TableScanAndFilter {
             plan_builder,
@@ -897,6 +934,7 @@ impl InfluxRpcPlanner {
     fn read_group_plan<C>(
         &self,
         table_name: impl Into<String>,
+        schema: Schema,
         predicate: &Predicate,
         agg: Aggregate,
         group_columns: &[impl AsRef<str>],
@@ -906,7 +944,7 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter = self.scan_and_filter(&table_name, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(&table_name, schema, predicate, chunks)?;
 
         let TableScanAndFilter {
             plan_builder,
@@ -984,9 +1022,11 @@ impl InfluxRpcPlanner {
     ///      GroupBy(gby: tag columns, window_function; agg: aggregate(field))
     ///        Filter(predicate)
     ///          Scan
+    #[allow(clippy::too_many_arguments)]
     fn read_window_aggregate_plan<C>(
         &self,
         table_name: impl Into<String>,
+        schema: Schema,
         predicate: &Predicate,
         agg: Aggregate,
         every: &WindowDuration,
@@ -997,7 +1037,7 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter = self.scan_and_filter(&table_name, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(&table_name, schema, predicate, chunks)?;
 
         let TableScanAndFilter {
             plan_builder,
@@ -1074,6 +1114,7 @@ impl InfluxRpcPlanner {
     fn scan_and_filter<C>(
         &self,
         table_name: &str,
+        schema: Schema,
         predicate: &Predicate,
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<TableScanAndFilter>>
@@ -1085,7 +1126,7 @@ impl InfluxRpcPlanner {
         let projection = None;
 
         // Prepare the scan of the table
-        let mut builder = ProviderBuilder::new(table_name);
+        let mut builder = ProviderBuilder::new(table_name, schema);
 
         // Since the entire predicate is used in the call to
         // `database.chunks()` there will not be any additional
@@ -1106,9 +1147,7 @@ impl InfluxRpcPlanner {
                 chunk.id(),
             );
 
-            builder = builder
-                .add_chunk(chunk)
-                .context(CreatingProvider { table_name })?;
+            builder = builder.add_chunk(chunk);
         }
 
         let provider = builder.build().context(CreatingProvider { table_name })?;
