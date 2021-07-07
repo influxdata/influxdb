@@ -1,6 +1,7 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
+use crate::db::catalog::table::TableSchemaUpsertHandle;
 pub(crate) use crate::db::chunk::DbChunk;
 use crate::db::lifecycle::ArcDb;
 use crate::{
@@ -113,6 +114,16 @@ pub enum Error {
 
     #[snafu(display("error finding min/max time on table batch: {}", source))]
     TableBatchTimeError { source: entry::Error },
+
+    #[snafu(display("Table batch has invalid schema: {}", source))]
+    TableBatchSchemaExtractError {
+        source: internal_types::schema::builder::Error,
+    },
+
+    #[snafu(display("Table batch has mismatching schema: {}", source))]
+    TableBatchSchemaMergeError {
+        source: internal_types::schema::merge::Error,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -643,9 +654,32 @@ impl Db {
                         continue;
                     }
 
-                    let partition = self
+                    let (partition, table_schema) = self
                         .catalog
                         .get_or_create_partition(table_batch.name(), partition_key);
+
+                    let batch_schema =
+                        match table_batch.schema().context(TableBatchSchemaExtractError) {
+                            Ok(batch_schema) => batch_schema,
+                            Err(e) => {
+                                if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
+                                    errors.push(e);
+                                }
+                                continue;
+                            }
+                        };
+                    let schema_handle =
+                        match TableSchemaUpsertHandle::new(&table_schema, &batch_schema)
+                            .context(TableBatchSchemaMergeError)
+                        {
+                            Ok(schema_handle) => schema_handle,
+                            Err(e) => {
+                                if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
+                                    errors.push(e);
+                                }
+                                continue;
+                            }
+                        };
 
                     let mut partition = partition.write();
 
@@ -701,6 +735,8 @@ impl Db {
                         }
                     };
                     partition.update_last_write_at();
+
+                    schema_handle.commit();
 
                     match partition.persistence_windows() {
                         Some(windows) => {
@@ -844,6 +880,7 @@ mod tests {
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::{
         chunk_metadata::ChunkStorage,
+        database_rules::{PartitionTemplate, TemplatePart},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     };
     use entry::test_helpers::lp_to_entry;
@@ -2740,6 +2777,77 @@ mod tests {
 
         // ==================== check: DB still writable ====================
         write_lp(db.as_ref(), "cpu bar=1 10").await;
+    }
+
+    #[tokio::test]
+    async fn table_wide_schema_enforcement() {
+        // need a table with a partition template that uses a tag column, so that we can easily write to different partitions
+        let test_db = TestDb::builder()
+            .partition_template(PartitionTemplate {
+                parts: vec![TemplatePart::Column("tag_partition_by".to_string())],
+            })
+            .build()
+            .await;
+        let db = test_db.db;
+
+        // first write should create schema
+        try_write_lp(&db, "my_table,tag_partition_by=a field_integer=1 10")
+            .await
+            .unwrap();
+
+        // other writes are allowed to evolve the schema
+        try_write_lp(&db, "my_table,tag_partition_by=a field_string=\"foo\" 10")
+            .await
+            .unwrap();
+        try_write_lp(&db, "my_table,tag_partition_by=b field_float=1.1 10")
+            .await
+            .unwrap();
+
+        // check that we have the expected partitions
+        let mut partition_keys = db.partition_keys().unwrap();
+        partition_keys.sort();
+        assert_eq!(
+            partition_keys,
+            vec![
+                "tag_partition_by_a".to_string(),
+                "tag_partition_by_b".to_string(),
+            ]
+        );
+
+        // illegal changes
+        try_write_lp(&db, "my_table,tag_partition_by=a field_integer=\"foo\" 10")
+            .await
+            .unwrap_err();
+        try_write_lp(&db, "my_table,tag_partition_by=b field_integer=\"foo\" 10")
+            .await
+            .unwrap_err();
+        try_write_lp(&db, "my_table,tag_partition_by=c field_integer=\"foo\" 10")
+            .await
+            .unwrap_err();
+
+        // drop all chunks
+        for partition_key in db.partition_keys().unwrap() {
+            let chunk_ids: Vec<_> = {
+                let partition = db.partition("my_table", &partition_key).unwrap();
+                let partition = partition.read();
+                partition
+                    .chunks()
+                    .map(|chunk| {
+                        let chunk = chunk.read();
+                        chunk.id()
+                    })
+                    .collect()
+            };
+
+            for chunk_id in chunk_ids {
+                db.drop_chunk("my_table", &partition_key, chunk_id).unwrap();
+            }
+        }
+
+        // schema is still there
+        try_write_lp(&db, "my_table,tag_partition_by=a field_integer=\"foo\" 10")
+            .await
+            .unwrap_err();
     }
 
     async fn create_parquet_chunk(db: &Arc<Db>) -> (String, String, u32) {

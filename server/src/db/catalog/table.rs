@@ -10,9 +10,6 @@ use internal_types::schema::{
 use std::{ops::Deref, result::Result, sync::Arc};
 use tracker::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-/// Table-wide schema.
-type TableSchema = RwLock<Schema>;
-
 /// A `Table` is a collection of `Partition` each of which is a collection of `Chunk`
 #[derive(Debug)]
 pub struct Table {
@@ -29,7 +26,7 @@ pub struct Table {
     metrics: TableMetrics,
 
     /// Table-wide schema.
-    schema: TableSchema,
+    schema: Arc<RwLock<Schema>>,
 }
 
 impl Table {
@@ -41,9 +38,9 @@ impl Table {
     pub(super) fn new(db_name: Arc<str>, table_name: Arc<str>, metrics: TableMetrics) -> Self {
         // build empty schema for this table
         let mut builder = SchemaBuilder::new();
-        builder.measurement(db_name.as_ref());
+        builder.measurement(table_name.as_ref());
         let schema = builder.build().expect("cannot build empty schema");
-        let schema = metrics.new_table_lock(schema);
+        let schema = Arc::new(metrics.new_table_lock(schema));
 
         Self {
             db_name,
@@ -96,16 +93,14 @@ impl Table {
         self.partitions.values().map(|x| x.read().summary())
     }
 
-    pub fn schema_upsert_handle(
-        &self,
-        new_schema: &Schema,
-    ) -> Result<TableSchemaUpsertHandle<'_>, SchemaMergerError> {
-        TableSchemaUpsertHandle::new(&self.schema, new_schema)
+    pub fn schema(&self) -> Arc<RwLock<Schema>> {
+        Arc::clone(&self.schema)
     }
 }
 
 /// Inner state of [`TableSchemaUpsertHandle`] that depends if the schema will be changed during the write operation or
 /// not.
+#[derive(Debug)]
 enum TableSchemaUpsertHandleInner<'a> {
     /// Schema will not be changed.
     NoChange {
@@ -120,12 +115,16 @@ enum TableSchemaUpsertHandleInner<'a> {
 }
 
 /// Handle that can be used to modify the table-wide [schema](Schema) during new writes.
+#[derive(Debug)]
 pub struct TableSchemaUpsertHandle<'a> {
     inner: TableSchemaUpsertHandleInner<'a>,
 }
 
 impl<'a> TableSchemaUpsertHandle<'a> {
-    fn new(table_schema: &'a TableSchema, new_schema: &Schema) -> Result<Self, SchemaMergerError> {
+    pub(crate) fn new(
+        table_schema: &'a RwLock<Schema>,
+        new_schema: &Schema,
+    ) -> Result<Self, SchemaMergerError> {
         // Be optimistic and only get a read lock. It is rather rate that the schema will change when new data arrives
         // and we do NOT want to serialize all writes on a single lock.
         let table_schema_read = table_schema.read();
@@ -171,7 +170,7 @@ impl<'a> TableSchemaUpsertHandle<'a> {
     }
 
     /// Commit potential schema change.
-    fn commit(self) {
+    pub(crate) fn commit(self) {
         match self.inner {
             TableSchemaUpsertHandleInner::NoChange { table_schema_read } => {
                 // Nothing to do since there was no schema changed queued. Just drop the read guard.
@@ -264,7 +263,7 @@ mod tests {
             .influx_column("tag2", InfluxColumnType::Tag)
             .build()
             .unwrap();
-        let table_schema = lock_tracker.new_lock(table_schema_orig.clone());
+        let table_schema = lock_tracker.new_lock(table_schema_orig);
 
         let new_schema = SchemaBuilder::new()
             .measurement("m1")

@@ -13,7 +13,7 @@ use parquet_file::{
 };
 use snafu::ResultExt;
 
-use crate::db::catalog::chunk::ChunkStage;
+use crate::db::catalog::{chunk::ChunkStage, table::TableSchemaUpsertHandle};
 
 use super::catalog::Catalog;
 
@@ -139,7 +139,7 @@ impl CatalogState for Catalog {
         object_store: Arc<ObjectStore>,
         info: CatalogParquetInfo,
     ) -> parquet_file::catalog::Result<()> {
-        use parquet_file::catalog::MetadataExtractFailed;
+        use parquet_file::catalog::{MetadataExtractFailed, SchemaError};
 
         // extract relevant bits from parquet file metadata
         let iox_md = info
@@ -168,12 +168,17 @@ impl CatalogState for Catalog {
 
         // Get partition from the catalog
         // Note that the partition might not exist yet if the chunk is loaded from an existing preserved catalog.
-        let partition = self.get_or_create_partition(&iox_md.table_name, &iox_md.partition_key);
+        let (partition, table_schema) =
+            self.get_or_create_partition(&iox_md.table_name, &iox_md.partition_key);
         let mut partition = partition.write();
         if partition.chunk(iox_md.chunk_id).is_some() {
             return Err(parquet_file::catalog::Error::ParquetFileAlreadyExists { path: info.path });
         }
+        let schema_handle = TableSchemaUpsertHandle::new(&table_schema, &parquet_chunk.schema())
+            .map_err(|e| Box::new(e) as _)
+            .context(SchemaError { path: info.path })?;
         partition.insert_object_store_only_chunk(iox_md.chunk_id, parquet_chunk);
+        schema_handle.commit();
 
         Ok(())
     }
