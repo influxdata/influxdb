@@ -15,6 +15,7 @@ use crate::{
     ChunkLifecycleAction, LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk,
     LockablePartition,
 };
+use std::num::NonZeroU32;
 
 /// Number of seconds to wait before retying a failed lifecycle action
 pub const LIFECYCLE_ACTION_BACKOFF: Duration = Duration::from_secs(10);
@@ -483,8 +484,15 @@ fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<
         return true;
     }
 
-    match (rules.mutable_linger_seconds, chunk.time_of_last_write()) {
-        (Some(linger), Some(last_write)) if elapsed_seconds(now, last_write) >= linger.get() => {
+    // minimum value for linuger is 1 second.
+    // TODO: turn mutable_linger_seconds into a u32 because it being Option<NonZeroU32>
+    // is an unnecessary complication.
+    // TODO: move the default to the configuration layer.
+    let linger = rules
+        .mutable_linger_seconds
+        .unwrap_or_else(|| NonZeroU32::new(300).unwrap());
+    match chunk.time_of_last_write() {
+        Some(last_write) if elapsed_seconds(now, last_write) >= linger.get() => {
             match (
                 rules.mutable_minimum_age_seconds,
                 chunk.time_of_first_write(),
@@ -499,8 +507,7 @@ fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<
             }
         }
 
-        // Disable movement if no mutable_linger set,
-        // or the chunk is empty, or the linger hasn't expired
+        // Disable movement the chunk is empty, or the linger hasn't expired
         _ => false,
     }
 }
@@ -889,11 +896,6 @@ mod tests {
 
     #[test]
     fn test_can_move() {
-        // Cannot move by default
-        let rules = LifecycleRules::default();
-        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer);
-        assert!(!can_move(&rules, &chunk, from_secs(20)));
-
         // If only mutable_linger set can move a chunk once passed
         let rules = LifecycleRules {
             mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
@@ -944,6 +946,31 @@ mod tests {
         let chunk = TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer)
             .with_row_count(DEFAULT_MUB_ROW_THRESHOLD - 1);
         assert!(!can_move(&rules, &chunk, from_secs(0)));
+
+        // Also check that a "None" linger time is treated like a zero.
+
+        // If mutable_minimum_age_seconds set must also take this into account
+        let rules = LifecycleRules {
+            mutable_linger_seconds: None,
+            mutable_minimum_age_seconds: Some(NonZeroU32::new(60).unwrap()),
+            ..Default::default()
+        };
+        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer);
+        assert!(!can_move(&rules, &chunk, from_secs(9)));
+        assert!(!can_move(&rules, &chunk, from_secs(11)));
+        assert!(can_move(&rules, &chunk, from_secs(301)));
+
+        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer)
+            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD - 1);
+        assert!(!can_move(&rules, &chunk, from_secs(9)));
+        assert!(!can_move(&rules, &chunk, from_secs(11)));
+        assert!(can_move(&rules, &chunk, from_secs(301)));
+
+        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer)
+            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD + 1);
+        assert!(can_move(&rules, &chunk, from_secs(9)));
+        assert!(can_move(&rules, &chunk, from_secs(11)));
+        assert!(can_move(&rules, &chunk, from_secs(301)));
     }
 
     #[test]
