@@ -894,6 +894,11 @@ mod tests {
         assert!(!can_move(&rules, &chunk, from_secs(9)));
         assert!(can_move(&rules, &chunk, from_secs(11)));
 
+        // can move even if the chunk is small
+        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer)
+            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD - 1);
+        assert!(can_move(&rules, &chunk, from_secs(11)));
+
         // If mutable_minimum_age_seconds set must also take this into account
         let rules = LifecycleRules {
             mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
@@ -905,6 +910,18 @@ mod tests {
         assert!(!can_move(&rules, &chunk, from_secs(11)));
         assert!(can_move(&rules, &chunk, from_secs(61)));
 
+        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer)
+            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD - 1);
+        assert!(!can_move(&rules, &chunk, from_secs(9)));
+        assert!(!can_move(&rules, &chunk, from_secs(11)));
+        assert!(can_move(&rules, &chunk, from_secs(61)));
+
+        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer)
+            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD + 1);
+        assert!(can_move(&rules, &chunk, from_secs(9)));
+        assert!(can_move(&rules, &chunk, from_secs(11)));
+        assert!(can_move(&rules, &chunk, from_secs(61)));
+
         let chunk = TestChunk::new(0, Some(0), Some(70), ChunkStorage::OpenMutableBuffer);
         assert!(!can_move(&rules, &chunk, from_secs(71)));
         assert!(can_move(&rules, &chunk, from_secs(81)));
@@ -913,6 +930,11 @@ mod tests {
         let chunk = TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer)
             .with_row_count(DEFAULT_MUB_ROW_THRESHOLD);
         assert!(can_move(&rules, &chunk, from_secs(0)));
+
+        // If below the default row count threshold, it shouldn't move
+        let chunk = TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer)
+            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD - 1);
+        assert!(!can_move(&rules, &chunk, from_secs(0)));
     }
 
     #[test]
