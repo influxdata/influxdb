@@ -21,10 +21,6 @@ impl From<LifecycleRules> for management::LifecycleRules {
                 .mutable_minimum_age_seconds
                 .map(Into::into)
                 .unwrap_or_default(),
-            mutable_size_threshold: config
-                .mutable_size_threshold
-                .map(|x| x.get() as u64)
-                .unwrap_or_default(),
             buffer_size_soft: config
                 .buffer_size_soft
                 .map(|x| x.get() as u64)
@@ -54,7 +50,6 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
         Ok(Self {
             mutable_linger_seconds: proto.mutable_linger_seconds.try_into().ok(),
             mutable_minimum_age_seconds: proto.mutable_minimum_age_seconds.try_into().ok(),
-            mutable_size_threshold: (proto.mutable_size_threshold as usize).try_into().ok(),
             buffer_size_soft: (proto.buffer_size_soft as usize).try_into().ok(),
             buffer_size_hard: (proto.buffer_size_hard as usize).try_into().ok(),
             drop_non_persisted: proto.drop_non_persisted,
@@ -89,7 +84,6 @@ mod tests {
         let protobuf = management::LifecycleRules {
             mutable_linger_seconds: 123,
             mutable_minimum_age_seconds: 5345,
-            mutable_size_threshold: 232,
             buffer_size_soft: 353,
             buffer_size_hard: 232,
             drop_non_persisted: true,
@@ -114,10 +108,6 @@ mod tests {
             protobuf.mutable_minimum_age_seconds
         );
         assert_eq!(
-            config.mutable_size_threshold.unwrap().get(),
-            protobuf.mutable_size_threshold as usize
-        );
-        assert_eq!(
             config.buffer_size_soft.unwrap().get(),
             protobuf.buffer_size_soft as usize
         );
@@ -133,7 +123,6 @@ mod tests {
             back.mutable_minimum_age_seconds,
             protobuf.mutable_minimum_age_seconds
         );
-        assert_eq!(back.mutable_size_threshold, protobuf.mutable_size_threshold);
         assert_eq!(back.buffer_size_soft, protobuf.buffer_size_soft);
         assert_eq!(back.buffer_size_hard, protobuf.buffer_size_hard);
         assert_eq!(back.drop_non_persisted, protobuf.drop_non_persisted);

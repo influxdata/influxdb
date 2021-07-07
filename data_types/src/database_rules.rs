@@ -127,11 +127,6 @@ pub struct LifecycleRules {
     /// for at least this number of seconds unless it exceeds the mutable_size_threshold
     pub mutable_minimum_age_seconds: Option<NonZeroU32>,
 
-    /// Once a chunk of data within a partition reaches this number of bytes
-    /// writes outside its keyspace will be directed to a new chunk and this
-    /// chunk will be compacted to the read buffer as soon as possible
-    pub mutable_size_threshold: Option<NonZeroUsize>,
-
     /// Once the total amount of buffered data in memory reaches this size start
     /// dropping data from memory
     pub buffer_size_soft: Option<NonZeroUsize>,
@@ -179,7 +174,6 @@ impl Default for LifecycleRules {
         Self {
             mutable_linger_seconds: None,
             mutable_minimum_age_seconds: None,
-            mutable_size_threshold: None,
             buffer_size_soft: None,
             buffer_size_hard: None,
             drop_non_persisted: false,

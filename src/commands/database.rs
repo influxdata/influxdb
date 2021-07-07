@@ -88,14 +88,6 @@ struct Create {
     #[structopt(long, default_value = "0")] // 0 minutes
     mutable_minimum_age_seconds: u32,
 
-    /// Once a chunk of data within a partition reaches this number of bytes
-    /// writes outside its keyspace will be directed to a new chunk
-    ///
-    /// This chunk will be then compacted once it becomes cold for writes
-    /// based on the mutable_linger_seconds and mutable_minimum_age_seconds
-    #[structopt(long, default_value = "10485760")] // 10485760 = 10*1024*1024
-    mutable_size_threshold: usize,
-
     /// Once the total amount of buffered data in memory reaches this size start
     /// dropping data from memory based on the drop_order
     #[structopt(long, default_value = "52428800")] // 52428800 = 50*1024*1024
@@ -195,7 +187,6 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                 lifecycle_rules: Some(LifecycleRules {
                     mutable_linger_seconds: command.mutable_linger_seconds,
                     mutable_minimum_age_seconds: command.mutable_minimum_age_seconds,
-                    mutable_size_threshold: command.mutable_size_threshold as _,
                     buffer_size_soft: command.buffer_size_soft as _,
                     buffer_size_hard: command.buffer_size_hard as _,
                     drop_non_persisted: command.drop_non_persisted,

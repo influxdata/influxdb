@@ -43,11 +43,6 @@ message LifecycleRules {
   // for at least this number of seconds unless it exceeds the mutable_size_threshold
   uint32 mutable_minimum_age_seconds = 2;
 
-  // Once a chunk of data within a partition reaches this number of bytes
-  // writes outside its keyspace will be directed to a new chunk and this
-  // chunk will be compacted to the read buffer as soon as possible
-  uint64 mutable_size_threshold = 3;
-
   // Once the total amount of buffered data in memory reaches this size start
   // dropping data from memory
   uint64 buffer_size_soft = 4;
