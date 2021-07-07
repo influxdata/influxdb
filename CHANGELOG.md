@@ -3,7 +3,6 @@
 ### Features
 
 -	[#21707](https://github.com/influxdata/influxdb/pull/21707): chore: add logging to compaction
--	[#21752](https://github.com/influxdata/influxdb/pull/21752): feat: add total-buffer-bytes config parameter to subscriptions
 
 ### Bugfixes
 
