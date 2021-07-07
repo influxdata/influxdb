@@ -48,7 +48,7 @@ if [ -z "${INFLUXDB_IOX_INTEGRATION_LOCAL}" ]; then
     --volume "${DIR}/..:${DOCKER_IOX_DIR}" \
     ${CI_IMAGE}
 
-  docker exec -e INFLUXDB_IOX_INTEGRATION_LOCAL=1 flatc .${DOCKER_IOX_DIR}/generated_types/regenerate-flatbuffers.sh
+  docker exec -e INFLUXDB_IOX_INTEGRATION_LOCAL=1 flatc .${DOCKER_IOX_DIR}/entry/regenerate-flatbuffers.sh
 
   docker rm --force flatc || true
 else
