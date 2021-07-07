@@ -302,6 +302,7 @@ impl Db {
             .read()
             .open_chunk();
 
+        info!(%table_name, %partition_key, found_chunk=chunk.is_some(), "rolling over a partition");
         if let Some(chunk) = chunk {
             let mut chunk = chunk.write();
             chunk.freeze().context(FreezingChunk)?;
