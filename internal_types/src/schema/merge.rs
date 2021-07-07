@@ -79,14 +79,12 @@ fn nullable_to_str(nullability: bool) -> &'static str {
 ///
 /// 2. The measurement names must be consistent: one or both can be
 ///    `None`, or they can both be `Some(name`)
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct SchemaMerger {
     /// Maps column names to their definition
     fields: HashMap<String, (Field, Option<InfluxColumnType>)>,
     /// The measurement name if any
     measurement: Option<String>,
-    /// If the builder has been consumed
-    finished: bool,
 }
 
 impl SchemaMerger {
@@ -96,7 +94,7 @@ impl SchemaMerger {
 
     /// Appends the schema to the merged schema being built,
     /// validating that no columns are added.
-    pub fn merge(&mut self, other: &Schema) -> Result<&mut Self> {
+    pub fn merge(mut self, other: &Schema) -> Result<Self> {
         // Verify measurement name is compatible
         match (self.measurement.as_ref(), other.measurement()) {
             (Some(existing_measurement), Some(new_measurement)) => {
@@ -170,17 +168,14 @@ impl SchemaMerger {
     }
 
     /// Returns the schema that was built, the columns are always sorted in lexicographic order
-    pub fn build(&mut self) -> Schema {
+    pub fn build(self) -> Schema {
         self.build_with_sort_key(&Default::default())
     }
 
     /// Returns the schema that was built, the columns are always sorted in lexicographic order
     ///
     /// Additionally specifies a sort key for the data
-    pub fn build_with_sort_key(&mut self, sort_key: &SortKey<'_>) -> Schema {
-        assert!(!self.finished, "build called multiple times");
-        self.finished = true;
-
+    pub fn build_with_sort_key(mut self, sort_key: &SortKey<'_>) -> Schema {
         Schema::new_from_parts(
             self.measurement.take(),
             self.fields.drain().map(|x| x.1),

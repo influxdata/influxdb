@@ -250,7 +250,8 @@ impl SchemaProvider for DbSchemaProvider {
     /// Create a table provider for the named table
     fn table(&self, table_name: &str) -> Option<Arc<dyn TableProvider>> {
         let mut builder = ProviderBuilder::new(table_name);
-        builder.add_pruner(Arc::clone(&self.chunk_access) as Arc<dyn ChunkPruner<DbChunk>>);
+        builder =
+            builder.add_pruner(Arc::clone(&self.chunk_access) as Arc<dyn ChunkPruner<DbChunk>>);
 
         let predicate = PredicateBuilder::new().table(table_name).build();
 
@@ -260,7 +261,7 @@ impl SchemaProvider for DbSchemaProvider {
             //
             // It is also potentially ill-formed as continuing to use the builder
             // after it has errored may not yield entirely sensible results
-            builder
+            builder = builder
                 .add_chunk(chunk)
                 .log_if_error("Adding chunks to table")
                 .ok()?;

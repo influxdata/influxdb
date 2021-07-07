@@ -101,9 +101,6 @@ pub struct ProviderBuilder<C: QueryChunk + 'static> {
     schema_merger: SchemaMerger,
     chunk_pruner: Option<Arc<dyn ChunkPruner<C>>>,
     chunks: Vec<Arc<C>>,
-
-    /// If the builder has been consumed
-    finished: bool,
 }
 
 impl<C: QueryChunk> ProviderBuilder<C> {
@@ -113,15 +110,15 @@ impl<C: QueryChunk> ProviderBuilder<C> {
             schema_merger: SchemaMerger::new(),
             chunk_pruner: None,
             chunks: Vec::new(),
-            finished: false,
         }
     }
 
     /// Add a new chunk to this provider
-    pub fn add_chunk(&mut self, chunk: Arc<C>) -> Result<&mut Self> {
+    pub fn add_chunk(mut self, chunk: Arc<C>) -> Result<Self> {
         let chunk_table_schema = chunk.schema();
 
-        self.schema_merger
+        self.schema_merger = self
+            .schema_merger
             .merge(&chunk_table_schema.as_ref())
             .context(ChunkSchemaNotCompatible {
                 table_name: self.table_name.as_ref(),
@@ -134,7 +131,7 @@ impl<C: QueryChunk> ProviderBuilder<C> {
 
     /// Specify a `ChunkPruner` for the provider that will apply
     /// additional chunk level pruning based on pushed down predicates
-    pub fn add_pruner(&mut self, chunk_pruner: Arc<dyn ChunkPruner<C>>) -> &mut Self {
+    pub fn add_pruner(mut self, chunk_pruner: Arc<dyn ChunkPruner<C>>) -> Self {
         assert!(
             self.chunk_pruner.is_none(),
             "Chunk pruner already specified"
@@ -149,16 +146,13 @@ impl<C: QueryChunk> ProviderBuilder<C> {
     /// Some planners, such as InfluxRPC which apply all predicates
     /// when they get the initial list of chunks, do not need an
     /// additional pass.
-    pub fn add_no_op_pruner(&mut self) -> &mut Self {
+    pub fn add_no_op_pruner(self) -> Self {
         let chunk_pruner = Arc::new(NoOpPruner {});
         self.add_pruner(chunk_pruner)
     }
 
     /// Create the Provider
-    pub fn build(&mut self) -> Result<ChunkTableProvider<C>> {
-        assert!(!self.finished, "build called multiple times");
-        self.finished = true;
-
+    pub fn build(self) -> Result<ChunkTableProvider<C>> {
         let iox_schema = self.schema_merger.build();
 
         // if the table was reported to exist, it should not be empty
@@ -169,7 +163,7 @@ impl<C: QueryChunk> ProviderBuilder<C> {
             .fail();
         }
 
-        let chunk_pruner = match self.chunk_pruner.take() {
+        let chunk_pruner = match self.chunk_pruner {
             Some(chunk_pruner) => chunk_pruner,
             None => {
                 return InternalNoChunkPruner {
@@ -182,8 +176,8 @@ impl<C: QueryChunk> ProviderBuilder<C> {
         Ok(ChunkTableProvider {
             iox_schema,
             chunk_pruner,
-            table_name: Arc::clone(&self.table_name),
-            chunks: std::mem::take(&mut self.chunks),
+            table_name: self.table_name,
+            chunks: self.chunks,
         })
     }
 }
@@ -744,7 +738,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             let chunk_schema = chunk.schema();
             let chunk_pk = chunk_schema.primary_key();
             let chunk_pk_schema = chunk_schema.select_by_names(&chunk_pk).unwrap();
-            pk_schema_merger.merge(&chunk_pk_schema).unwrap();
+            pk_schema_merger = pk_schema_merger.merge(&chunk_pk_schema).unwrap();
         }
         let pk_schema = pk_schema_merger.build();
         Arc::new(pk_schema)
