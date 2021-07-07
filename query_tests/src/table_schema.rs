@@ -80,7 +80,7 @@ async fn list_schema_cpu_all_mub() {
 #[tokio::test]
 async fn list_schema_cpu_all_rub() {
     // we expect columns to come out in lexographic order by name
-    // The est is o RUb so the schema includes sort key
+    // The schema of RUB includes sort key
     let mut sort_key = SortKey::with_capacity(2);
     sort_key.push("region", Default::default());
     sort_key.push(TIME_COLUMN_NAME, Default::default());

@@ -538,7 +538,6 @@ impl CatalogChunk {
 
                 self.stage = ChunkStage::Frozen {
                     representation: ChunkStageFrozenRepr::MutableBufferSnapshot(Arc::clone(&s)),
-                    //meta: Arc::new(Mutex::new(metadata)),
                     meta: Arc::new(metadata),
                 };
                 Ok(())
@@ -618,7 +617,7 @@ impl CatalogChunk {
                 representation,
                 ..
             } => {
-                // after moved, the chunk is sorted and schema need to get updated
+                // after moved, the chunk is sorted and its schema needs to get updated
                 *meta = Arc::new(ChunkMetadata {
                     table_summary: Arc::clone(&meta.table_summary),
                     schema: Arc::new(schema),
