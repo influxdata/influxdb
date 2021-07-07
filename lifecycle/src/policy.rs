@@ -109,10 +109,10 @@ where
         loop {
             let buffer_size = self.db.buffer_size();
             if buffer_size < soft_limit {
-                debug!(%db_name, buffer_size, %soft_limit, "memory use under soft limit");
+                info!(%db_name, buffer_size, %soft_limit, "memory use under soft limit");
                 break;
             }
-            debug!(%db_name, buffer_size, %soft_limit, "memory use over soft limit");
+            info!(%db_name, buffer_size, %soft_limit, "memory use over soft limit");
 
             match candidates.next() {
                 Some(candidate) => {
@@ -121,7 +121,7 @@ where
                         Some(chunk) => {
                             let chunk = chunk.read();
                             if chunk.lifecycle_action().is_some() {
-                                debug!(
+                                info!(
                                     %db_name,
                                     chunk_id = candidate.chunk_id,
                                     partition = partition.partition_key(),
@@ -140,7 +140,7 @@ where
                                         )
                                         .expect("failed to drop")
                                     }
-                                    storage => debug!(
+                                    storage => warn!(
                                         %db_name,
                                         chunk_id = candidate.chunk_id,
                                         partition = partition.partition_key(),
@@ -153,7 +153,7 @@ where
                                         LockableChunk::unload_read_buffer(chunk.upgrade())
                                             .expect("failed to unload")
                                     }
-                                    storage => debug!(
+                                    storage => warn!(
                                         %db_name,
                                         chunk_id = candidate.chunk_id,
                                         partition = partition.partition_key(),
@@ -163,7 +163,7 @@ where
                                 },
                             }
                         }
-                        None => debug!(
+                        None => info!(
                             %db_name,
                             chunk_id = candidate.chunk_id,
                             partition = partition.partition_key(),
