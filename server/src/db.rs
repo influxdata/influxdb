@@ -291,7 +291,12 @@ impl Db {
     }
 
     /// Rolls over the active chunk in the database's specified
-    /// partition. Returns the previously open (now closed) Chunk if there was any.
+    /// partition. Returns the previously open (now closed) Chunk if
+    /// there was any.
+    ///
+    /// NOTE: this function is only used in tests and can be invoked
+    /// by the management API. It is not called automatically by the
+    /// lifecycle manager during normal operation.
     pub async fn rollover_partition(
         &self,
         table_name: &str,
