@@ -61,6 +61,10 @@ type udpclient struct {
 }
 
 func (uc *udpclient) Write(bp BatchPoints) error {
+	return uc.WriteCtx(context.Background(), bp)
+}
+
+func (uc *udpclient) WriteCtx(ctx context.Context, bp BatchPoints) error {
 	var b = make([]byte, 0, uc.payloadSize) // initial buffer size, it will grow as needed
 	var d, _ = time.ParseDuration("1" + bp.Precision())
 
