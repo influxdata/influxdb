@@ -3,7 +3,6 @@
 //! For example `SELECT * FROM system.chunks`
 
 use std::convert::AsRef;
-use std::iter::FromIterator;
 use std::sync::Arc;
 use std::{any::Any, collections::HashMap};
 
@@ -201,22 +200,42 @@ fn chunk_summaries_schema() -> SchemaRef {
 }
 
 fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
-    let id = UInt32Array::from_iter(chunks.iter().map(|c| Some(c.id)));
-    let partition_key =
-        StringArray::from_iter(chunks.iter().map(|c| Some(c.partition_key.as_ref())));
-    let table_name = StringArray::from_iter(chunks.iter().map(|c| Some(c.table_name.as_ref())));
-    let storage = StringArray::from_iter(chunks.iter().map(|c| Some(c.storage.as_str())));
-    let estimated_bytes =
-        UInt64Array::from_iter(chunks.iter().map(|c| Some(c.estimated_bytes as u64)));
-    let row_counts = UInt64Array::from_iter(chunks.iter().map(|c| Some(c.row_count as u64)));
-    let time_of_first_write = TimestampNanosecondArray::from_iter(
-        chunks.iter().map(|c| c.time_of_first_write).map(time_to_ts),
-    );
-    let time_of_last_write = TimestampNanosecondArray::from_iter(
-        chunks.iter().map(|c| c.time_of_last_write).map(time_to_ts),
-    );
-    let time_closed =
-        TimestampNanosecondArray::from_iter(chunks.iter().map(|c| c.time_closed).map(time_to_ts));
+    let id = chunks.iter().map(|c| Some(c.id)).collect::<UInt32Array>();
+    let partition_key = chunks
+        .iter()
+        .map(|c| Some(c.partition_key.as_ref()))
+        .collect::<StringArray>();
+    let table_name = chunks
+        .iter()
+        .map(|c| Some(c.table_name.as_ref()))
+        .collect::<StringArray>();
+    let storage = chunks
+        .iter()
+        .map(|c| Some(c.storage.as_str()))
+        .collect::<StringArray>();
+    let estimated_bytes = chunks
+        .iter()
+        .map(|c| Some(c.estimated_bytes as u64))
+        .collect::<UInt64Array>();
+    let row_counts = chunks
+        .iter()
+        .map(|c| Some(c.row_count as u64))
+        .collect::<UInt64Array>();
+    let time_of_first_write = chunks
+        .iter()
+        .map(|c| c.time_of_first_write)
+        .map(time_to_ts)
+        .collect::<TimestampNanosecondArray>();
+    let time_of_last_write = chunks
+        .iter()
+        .map(|c| c.time_of_last_write)
+        .map(time_to_ts)
+        .collect::<TimestampNanosecondArray>();
+    let time_closed = chunks
+        .iter()
+        .map(|c| c.time_closed)
+        .map(time_to_ts)
+        .collect::<TimestampNanosecondArray>();
 
     RecordBatch::try_new(
         schema,
@@ -484,21 +503,34 @@ fn from_task_trackers(
         .filter(|job| job.metadata().db_name() == Some(db_name))
         .collect::<Vec<_>>();
 
-    let ids = StringArray::from_iter(jobs.iter().map(|job| Some(job.id().to_string())));
-    let statuses = StringArray::from_iter(jobs.iter().map(|job| Some(job.get_status().name())));
-    let cpu_time_used = Time64NanosecondArray::from_iter(
-        jobs.iter()
-            .map(|job| job.get_status().cpu_nanos().map(|n| n as i64)),
-    );
-    let wall_time_used = Time64NanosecondArray::from_iter(
-        jobs.iter()
-            .map(|job| job.get_status().wall_nanos().map(|n| n as i64)),
-    );
-    let partition_keys =
-        StringArray::from_iter(jobs.iter().map(|job| job.metadata().partition_key()));
-    let chunk_ids = UInt32Array::from_iter(jobs.iter().map(|job| job.metadata().chunk_id()));
-    let descriptions =
-        StringArray::from_iter(jobs.iter().map(|job| Some(job.metadata().description())));
+    let ids = jobs
+        .iter()
+        .map(|job| Some(job.id().to_string()))
+        .collect::<StringArray>();
+    let statuses = jobs
+        .iter()
+        .map(|job| Some(job.get_status().name()))
+        .collect::<StringArray>();
+    let cpu_time_used = jobs
+        .iter()
+        .map(|job| job.get_status().cpu_nanos().map(|n| n as i64))
+        .collect::<Time64NanosecondArray>();
+    let wall_time_used = jobs
+        .iter()
+        .map(|job| job.get_status().wall_nanos().map(|n| n as i64))
+        .collect::<Time64NanosecondArray>();
+    let partition_keys = jobs
+        .iter()
+        .map(|job| job.metadata().partition_key())
+        .collect::<StringArray>();
+    let chunk_ids = jobs
+        .iter()
+        .map(|job| job.metadata().chunk_id())
+        .collect::<UInt32Array>();
+    let descriptions = jobs
+        .iter()
+        .map(|job| Some(job.metadata().description()))
+        .collect::<StringArray>();
 
     RecordBatch::try_new(
         schema,

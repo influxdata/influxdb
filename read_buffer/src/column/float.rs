@@ -8,7 +8,6 @@ use arrow::datatypes::Int8Type;
 use arrow::datatypes::UInt16Type;
 use arrow::datatypes::UInt32Type;
 use arrow::datatypes::UInt8Type;
-use std::iter::FromIterator;
 use std::mem::size_of;
 
 use super::encoding::scalar::{rle, transcoders::*, ScalarEncoding};
@@ -429,7 +428,7 @@ impl From<Float64Array> for FloatEncoding {
         // Column is all NULL - encode as RLE u8
         if min.is_none() {
             let arr: PrimitiveArray<UInt8Type> =
-                PrimitiveArray::from_iter(arr.iter().map::<Option<u8>, _>(|_| None));
+                arr.iter().map::<Option<u8>, _>(|_| None).collect();
             let enc: Box<dyn ScalarEncoding<f64>> =
                 Box::new(RLE::new_from_iter_opt(arr.iter(), FloatByteTrimmer {}));
             let name = enc.name();
@@ -488,8 +487,10 @@ fn from_array_with_byte_trimming(arr: Float64Array, range: (f64, f64)) -> FloatE
     let (enc, name) = match (min, max) {
         // encode as u8 values
         (min, max) if min >= 0.0 && max <= u8::MAX as f64 => {
-            let arr: PrimitiveArray<UInt8Type> =
-                PrimitiveArray::from_iter(arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))));
+            let arr: PrimitiveArray<UInt8Type> = arr
+                .into_iter()
+                .map(|v| v.map(|v| transcoder.encode(v)))
+                .collect();
             let enc: Box<dyn ScalarEncoding<f64>> = if rle {
                 Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
             } else {
@@ -500,8 +501,10 @@ fn from_array_with_byte_trimming(arr: Float64Array, range: (f64, f64)) -> FloatE
         }
         // encode as i8 values
         (min, max) if min >= i8::MIN as f64 && max <= i8::MAX as f64 => {
-            let arr: PrimitiveArray<Int8Type> =
-                PrimitiveArray::from_iter(arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))));
+            let arr: PrimitiveArray<Int8Type> = arr
+                .into_iter()
+                .map(|v| v.map(|v| transcoder.encode(v)))
+                .collect();
             let enc: Box<dyn ScalarEncoding<f64>> = if rle {
                 Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
             } else {
@@ -512,8 +515,10 @@ fn from_array_with_byte_trimming(arr: Float64Array, range: (f64, f64)) -> FloatE
         }
         // encode as u16 values
         (min, max) if min >= 0.0 && max <= u16::MAX as f64 => {
-            let arr: PrimitiveArray<UInt16Type> =
-                PrimitiveArray::from_iter(arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))));
+            let arr: PrimitiveArray<UInt16Type> = arr
+                .into_iter()
+                .map(|v| v.map(|v| transcoder.encode(v)))
+                .collect();
             let enc: Box<dyn ScalarEncoding<f64>> = if rle {
                 Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
             } else {
@@ -524,8 +529,10 @@ fn from_array_with_byte_trimming(arr: Float64Array, range: (f64, f64)) -> FloatE
         }
         // encode as i16 values
         (min, max) if min >= i16::MIN as f64 && max <= i16::MAX as f64 => {
-            let arr: PrimitiveArray<Int16Type> =
-                PrimitiveArray::from_iter(arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))));
+            let arr: PrimitiveArray<Int16Type> = arr
+                .into_iter()
+                .map(|v| v.map(|v| transcoder.encode(v)))
+                .collect();
             let enc: Box<dyn ScalarEncoding<f64>> = if rle {
                 Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
             } else {
@@ -536,8 +543,10 @@ fn from_array_with_byte_trimming(arr: Float64Array, range: (f64, f64)) -> FloatE
         }
         // encode as u32 values
         (min, max) if min >= 0.0 && max <= u32::MAX as f64 => {
-            let arr: PrimitiveArray<UInt32Type> =
-                PrimitiveArray::from_iter(arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))));
+            let arr: PrimitiveArray<UInt32Type> = arr
+                .into_iter()
+                .map(|v| v.map(|v| transcoder.encode(v)))
+                .collect();
             let enc: Box<dyn ScalarEncoding<f64>> = if rle {
                 Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
             } else {
@@ -548,8 +557,10 @@ fn from_array_with_byte_trimming(arr: Float64Array, range: (f64, f64)) -> FloatE
         }
         // encode as i32 values
         (min, max) if min >= i32::MIN as f64 && max <= i32::MAX as f64 => {
-            let arr: PrimitiveArray<Int32Type> =
-                PrimitiveArray::from_iter(arr.into_iter().map(|v| v.map(|v| transcoder.encode(v))));
+            let arr: PrimitiveArray<Int32Type> = arr
+                .into_iter()
+                .map(|v| v.map(|v| transcoder.encode(v)))
+                .collect();
             let enc: Box<dyn ScalarEncoding<f64>> = if rle {
                 Box::new(RLE::new_from_iter_opt(arr.iter(), transcoder))
             } else {

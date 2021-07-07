@@ -3,7 +3,7 @@ mod internal;
 pub use internal::{Duration, Window};
 use internal_types::schema::TIME_DATA_TYPE;
 
-use std::{iter::FromIterator, sync::Arc};
+use std::sync::Arc;
 
 use arrow::array::{ArrayRef, TimestampNanosecondArray};
 use datafusion::{logical_plan::Expr, physical_plan::functions::make_scalar_function, prelude::*};
@@ -57,7 +57,7 @@ fn window_bounds(args: &[ArrayRef], every: &WindowDuration, offset: &WindowDurat
         })
     });
 
-    let array = TimestampNanosecondArray::from_iter(values);
+    let array = values.collect::<TimestampNanosecondArray>();
     Arc::new(array) as ArrayRef
 }
 

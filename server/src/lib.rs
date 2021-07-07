@@ -746,7 +746,7 @@ where
                 }
             };
         }
-        return NoRemoteReachable { errors }.fail();
+        NoRemoteReachable { errors }.fail()
     }
 
     pub async fn write_entry(&self, db_name: &str, entry_bytes: Vec<u8>) -> Result<()> {
@@ -1562,8 +1562,8 @@ mod tests {
                 ConnectionManagerError::RemoteServerConnectError {..}
             )
         ));
-        assert_eq!(written_1.load(Ordering::Relaxed), false);
-        assert_eq!(written_2.load(Ordering::Relaxed), false);
+        assert!(!written_1.load(Ordering::Relaxed));
+        assert!(!written_2.load(Ordering::Relaxed));
 
         // We configure the address for the other remote, this time connection will succeed
         // despite the bad remote failing to connect.
@@ -1578,8 +1578,8 @@ mod tests {
                 .await
                 .expect("cannot write lines");
         }
-        assert_eq!(written_1.load(Ordering::Relaxed), true);
-        assert_eq!(written_2.load(Ordering::Relaxed), true);
+        assert!(written_1.load(Ordering::Relaxed));
+        assert!(written_2.load(Ordering::Relaxed));
     }
 
     #[tokio::test]

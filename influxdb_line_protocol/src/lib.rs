@@ -1286,7 +1286,7 @@ mod test {
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(1234));
         assert_eq!(vals[0].field_set[0].0, "asdf");
-        assert_eq!(vals[0].field_set[0].1.unwrap_bool(), true);
+        assert!(vals[0].field_set[0].1.unwrap_bool());
     }
 
     #[test]
@@ -1423,7 +1423,7 @@ mod test {
         assert_eq!(vals[0].field_set[3].1.unwrap_string(), "the string");
 
         assert_eq!(vals[0].field_set[4].0, "frab");
-        assert_eq!(vals[0].field_set[4].1.unwrap_bool(), false);
+        assert!(!vals[0].field_set[4].1.unwrap_bool());
     }
 
     #[test]

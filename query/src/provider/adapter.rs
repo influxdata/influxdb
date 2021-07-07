@@ -123,11 +123,10 @@ impl SchemaAdapterStream {
             // not present in the desired output schema (otherwise we
             // are dropping fields -- theys should have been selected
             // out with projection push down)
-            if output_schema
+            if !output_schema
                 .fields()
                 .iter()
-                .find(|output_field| input_field.name() == output_field.name())
-                .is_none()
+                .any(|output_field| input_field.name() == output_field.name())
             {
                 return InternalLostInputField {
                     field_name: input_field.name(),
