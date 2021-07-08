@@ -779,7 +779,7 @@ mod test {
     use arrow::datatypes::DataType;
     use arrow_util::assert_batches_eq;
     use datafusion::physical_plan::collect;
-    use internal_types::schema::{builder::SchemaBuilder};
+    use internal_types::schema::builder::SchemaBuilder;
 
     use crate::{
         test::{raw_data, TestChunk},
@@ -821,7 +821,7 @@ mod test {
         );
         assert_eq!(chunk_ids(&deduplicator.in_chunk_duplicates_chunks), "4");
         assert_eq!(chunk_ids(&deduplicator.no_duplicates_chunks), "1");
-    }    
+    }
 
     #[tokio::test]
     async fn sort_planning_one_tag_with_time() {
