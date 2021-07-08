@@ -83,7 +83,7 @@ impl std::fmt::Display for ColumnSort {
     }
 }
 
-#[derive(Debug, Default, Eq, PartialEq)]
+#[derive(Debug, Default, Eq, PartialEq, Clone)]
 pub struct SortKey<'a> {
     columns: IndexMap<&'a str, SortOptions>,
 }
