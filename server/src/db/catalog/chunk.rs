@@ -245,7 +245,6 @@ impl CatalogChunk {
         chunk: mutable_buffer::chunk::MBChunk,
         metrics: ChunkMetrics,
     ) -> Self {
-        assert!(chunk.rows() > 0, "chunk must not be empty");
         assert_eq!(chunk.table_name(), &addr.table_name);
         let stage = ChunkStage::Open { mb_chunk: chunk };
 
@@ -275,8 +274,6 @@ impl CatalogChunk {
         schema: Schema,
         metrics: ChunkMetrics,
     ) -> Self {
-        assert!(chunk.rows() > 0, "chunk must not be empty");
-
         // TODO: Move RUB to single table (#1295)
         let summaries = chunk.table_summaries();
         assert_eq!(summaries.len(), 1);
@@ -834,15 +831,6 @@ mod tests {
         assert!(matches!(chunk.stage(), &ChunkStage::Open { .. }));
     }
 
-    #[test]
-    #[should_panic(expected = "chunk must not be empty")]
-    fn test_new_open_empty() {
-        let addr = chunk_addr();
-        // fails with empty MBChunk
-        let mb_chunk = MBChunk::new(&addr.table_name, MBChunkMetrics::new_unregistered());
-        CatalogChunk::new_open(addr, mb_chunk, ChunkMetrics::new_unregistered());
-    }
-
     #[tokio::test]
     async fn test_freeze() {
         let mut chunk = make_open_chunk();
@@ -927,15 +915,12 @@ mod tests {
     }
 
     fn make_mb_chunk(table_name: &str, sequencer_id: u32) -> MBChunk {
-        let mut mb_chunk = MBChunk::new(table_name, MBChunkMetrics::new_unregistered());
         let entry = lp_to_entry(&format!("{} bar=1 10", table_name));
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
         let sequence = Some(Sequence::new(sequencer_id, 1));
-        mb_chunk
-            .write_table_batch(sequence.as_ref(), batch)
-            .unwrap();
-        mb_chunk
+
+        MBChunk::new(MBChunkMetrics::new_unregistered(), sequence.as_ref(), batch).unwrap()
     }
 
     async fn make_parquet_chunk(addr: ChunkAddr) -> ParquetChunk {

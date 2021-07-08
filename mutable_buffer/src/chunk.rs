@@ -89,8 +89,14 @@ pub struct MBChunk {
 }
 
 impl MBChunk {
-    pub fn new(table_name: impl AsRef<str>, metrics: ChunkMetrics) -> Self {
-        let table_name = Arc::from(table_name.as_ref());
+    /// Create a new batch and write the contents of the [`TableBatch`] into it. Chunks
+    /// shouldn't exist without some data.
+    pub fn new(
+        metrics: ChunkMetrics,
+        sequence: Option<&Sequence>,
+        batch: TableBatch<'_>,
+    ) -> Result<Self> {
+        let table_name = Arc::from(batch.name());
 
         let mut chunk = Self {
             table_name,
@@ -98,8 +104,13 @@ impl MBChunk {
             metrics,
             snapshot: Mutex::new(None),
         };
+
+        let columns = batch.columns();
+        chunk.write_columns(sequence, columns)?;
+
         chunk.metrics.memory_bytes.set(chunk.size());
-        chunk
+
+        Ok(chunk)
     }
 
     /// Write the contents of a [`TableBatch`] into this Chunk.
@@ -362,11 +373,49 @@ pub mod test_helpers {
 
         Ok(())
     }
+
+    pub fn write_lp_to_new_chunk(lp: &str) -> Result<MBChunk> {
+        let entry = lp_to_entry(lp);
+        let mut chunk: Option<MBChunk> = None;
+
+        for w in entry.partition_writes().unwrap() {
+            let table_batches = w.table_batches();
+            // ensure they are all to the same table
+            let table_names: BTreeSet<String> =
+                table_batches.iter().map(|b| b.name().to_string()).collect();
+
+            assert!(
+                table_names.len() <= 1,
+                "Can only write 0 or one tables to chunk. Found {:?}",
+                table_names
+            );
+
+            for batch in table_batches {
+                let seq = Some(Sequence::new(1, 5));
+
+                match chunk {
+                    Some(ref mut c) => c.write_table_batch(seq.as_ref(), batch)?,
+                    None => {
+                        chunk = Some(MBChunk::new(
+                            ChunkMetrics::new_unregistered(),
+                            seq.as_ref(),
+                            batch,
+                        )?);
+                    }
+                }
+            }
+        }
+
+        Ok(chunk.expect("Must write at least one table batch to create a chunk"))
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{test_helpers::write_lp_to_chunk, *};
+    use super::{
+        test_helpers::{write_lp_to_chunk, write_lp_to_new_chunk},
+        *,
+    };
     use arrow::datatypes::DataType as ArrowDataType;
     use arrow_util::assert_batches_eq;
     use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
@@ -376,11 +425,8 @@ mod tests {
 
     #[test]
     fn writes_table_batches() {
-        let mut chunk = MBChunk::new("cpu", ChunkMetrics::new_unregistered());
-
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
-
-        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        let chunk = write_lp_to_new_chunk(&lp).unwrap();
 
         assert_batches_eq!(
             vec![
@@ -397,18 +443,13 @@ mod tests {
 
     #[test]
     fn writes_table_3_batches() {
-        let mut chunk = MBChunk::new("cpu", ChunkMetrics::new_unregistered());
-
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
-
-        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        let mut chunk = write_lp_to_new_chunk(&lp).unwrap();
 
         let lp = vec!["cpu,host=c val=11 1"].join("\n");
-
         write_lp_to_chunk(&lp, &mut chunk).unwrap();
 
         let lp = vec!["cpu,host=a val=14 2"].join("\n");
-
         write_lp_to_chunk(&lp, &mut chunk).unwrap();
 
         assert_batches_eq!(
@@ -428,14 +469,13 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let mut chunk = MBChunk::new("cpu", ChunkMetrics::new_unregistered());
         let lp = r#"
             cpu,host=a val=23 1
             cpu,host=b,env=prod val=2 1
             cpu,host=c,env=stage val=11 1
             cpu,host=a,env=prod val=14 2
         "#;
-        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        let chunk = write_lp_to_new_chunk(&lp).unwrap();
 
         let summary = chunk.table_summary();
         assert_eq!(
@@ -491,11 +531,9 @@ mod tests {
     #[test]
     #[cfg(not(feature = "nocache"))]
     fn test_snapshot() {
-        let mut chunk = MBChunk::new("cpu", ChunkMetrics::new_unregistered());
-
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
+        let mut chunk = write_lp_to_new_chunk(&lp).unwrap();
 
-        write_lp_to_chunk(&lp, &mut chunk).unwrap();
         let s1 = chunk.snapshot();
         let s2 = chunk.snapshot();
 
@@ -514,15 +552,12 @@ mod tests {
 
     #[test]
     fn table_size() {
-        let mut chunk = MBChunk::new("h2o", ChunkMetrics::new_unregistered());
-
         let lp = vec![
             "h2o,state=MA,city=Boston temp=70.4 100",
             "h2o,state=MA,city=Boston temp=72.4 250",
         ]
         .join("\n");
-
-        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        let mut chunk = write_lp_to_new_chunk(&lp).unwrap();
         let s1 = chunk.size();
 
         write_lp_to_chunk(&lp, &mut chunk).unwrap();
@@ -537,11 +572,8 @@ mod tests {
 
     #[test]
     fn test_to_arrow_schema_all() {
-        let mut chunk = MBChunk::new("h2o", ChunkMetrics::new_unregistered());
-
         let lp = "h2o,state=MA,city=Boston float_field=70.4,int_field=8i,uint_field=42u,bool_field=t,string_field=\"foo\" 100";
-
-        write_lp_to_chunk(lp, &mut chunk).unwrap();
+        let chunk = write_lp_to_new_chunk(lp).unwrap();
 
         let selection = Selection::All;
         let actual_schema = chunk.schema(selection).unwrap();
@@ -566,11 +598,8 @@ mod tests {
 
     #[test]
     fn test_to_arrow_schema_subset() {
-        let mut chunk = MBChunk::new("h2o", ChunkMetrics::new_unregistered());
-
         let lp = "h2o,state=MA,city=Boston float_field=70.4 100";
-
-        write_lp_to_chunk(lp, &mut chunk).unwrap();
+        let chunk = write_lp_to_new_chunk(lp).unwrap();
 
         let selection = Selection::Some(&["float_field"]);
         let actual_schema = chunk.schema(selection).unwrap();
@@ -588,27 +617,12 @@ mod tests {
 
     #[test]
     fn write_columns_validates_schema() {
-        let mut table = MBChunk::new("table_name", ChunkMetrics::new_unregistered());
         let sequencer_id = 1;
         let sequence_number = 5;
         let sequence = Some(Sequence::new(sequencer_id, sequence_number));
 
         let lp = "foo,t1=asdf iv=1i,uv=1u,fv=1.0,bv=true,sv=\"hi\" 1";
-        let entry = lp_to_entry(&lp);
-        table
-            .write_columns(
-                sequence.as_ref(),
-                entry
-                    .partition_writes()
-                    .unwrap()
-                    .first()
-                    .unwrap()
-                    .table_batches()
-                    .first()
-                    .unwrap()
-                    .columns(),
-            )
-            .unwrap();
+        let mut table = write_lp_to_new_chunk(lp).unwrap();
 
         let lp = "foo t1=\"string\" 1";
         let entry = lp_to_entry(&lp);

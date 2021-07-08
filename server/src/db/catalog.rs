@@ -323,15 +323,13 @@ mod tests {
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
 
-        let mut mb_chunk = mutable_buffer::chunk::MBChunk::new(
-            batch.name(),
-            mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
-        );
-
         let sequence = Some(Sequence::new(1, 5));
-        mb_chunk
-            .write_table_batch(sequence.as_ref(), batch)
-            .unwrap();
+        let mb_chunk = mutable_buffer::chunk::MBChunk::new(
+            mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
+            sequence.as_ref(),
+            batch,
+        )
+        .unwrap();
 
         partition.create_open_chunk(mb_chunk);
     }

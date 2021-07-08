@@ -764,25 +764,27 @@ impl Db {
                                 "mutable_buffer",
                                 self.metric_labels.clone(),
                             );
-                            let mut mb_chunk = MBChunk::new(
-                                table_batch.name(),
+                            let chunk_result = MBChunk::new(
                                 MutableBufferChunkMetrics::new(
                                     &metrics,
                                     self.catalog.metrics().memory().mutable_buffer(),
                                 ),
-                            );
+                                sequence,
+                                table_batch,
+                            )
+                            .context(WriteEntryInitial { partition_key });
 
-                            if let Err(e) = mb_chunk
-                                .write_table_batch(sequence, table_batch)
-                                .context(WriteEntryInitial { partition_key })
-                            {
-                                if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
-                                    errors.push(e);
+                            match chunk_result {
+                                Ok(mb_chunk) => {
+                                    partition.create_open_chunk(mb_chunk);
                                 }
-                                continue;
+                                Err(e) => {
+                                    if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
+                                        errors.push(e);
+                                    }
+                                    continue;
+                                }
                             }
-
-                            partition.create_open_chunk(mb_chunk);
                         }
                     };
                     partition.update_last_write_at();
