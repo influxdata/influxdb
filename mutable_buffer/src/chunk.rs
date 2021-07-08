@@ -514,21 +514,22 @@ mod tests {
 
     #[test]
     fn table_size() {
-        let mut table = MBChunk::new("table_name", ChunkMetrics::new_unregistered());
+        let mut chunk = MBChunk::new("h2o", ChunkMetrics::new_unregistered());
 
-        let lp_lines = vec![
+        let lp = vec![
             "h2o,state=MA,city=Boston temp=70.4 100",
             "h2o,state=MA,city=Boston temp=72.4 250",
-        ];
+        ]
+        .join("\n");
 
-        write_lines_to_table(&mut table, lp_lines.clone());
-        let s1 = table.size();
+        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        let s1 = chunk.size();
 
-        write_lines_to_table(&mut table, lp_lines.clone());
-        let s2 = table.size();
+        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        let s2 = chunk.size();
 
-        write_lines_to_table(&mut table, lp_lines);
-        let s3 = table.size();
+        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        let s3 = chunk.size();
 
         // Should increase by a constant amount each time
         assert_eq!(s2 - s1, s3 - s2);
@@ -536,16 +537,14 @@ mod tests {
 
     #[test]
     fn test_to_arrow_schema_all() {
-        let mut table = MBChunk::new("table_name", ChunkMetrics::new_unregistered());
+        let mut chunk = MBChunk::new("h2o", ChunkMetrics::new_unregistered());
 
-        let lp_lines = vec![
-            "h2o,state=MA,city=Boston float_field=70.4,int_field=8i,uint_field=42u,bool_field=t,string_field=\"foo\" 100",
-        ];
+        let lp = "h2o,state=MA,city=Boston float_field=70.4,int_field=8i,uint_field=42u,bool_field=t,string_field=\"foo\" 100";
 
-        write_lines_to_table(&mut table, lp_lines);
+        write_lp_to_chunk(lp, &mut chunk).unwrap();
 
         let selection = Selection::All;
-        let actual_schema = table.schema(selection).unwrap();
+        let actual_schema = chunk.schema(selection).unwrap();
         let expected_schema = SchemaBuilder::new()
             .field("bool_field", ArrowDataType::Boolean)
             .tag("city")
@@ -567,14 +566,14 @@ mod tests {
 
     #[test]
     fn test_to_arrow_schema_subset() {
-        let mut table = MBChunk::new("table_name", ChunkMetrics::new_unregistered());
+        let mut chunk = MBChunk::new("h2o", ChunkMetrics::new_unregistered());
 
-        let lp_lines = vec!["h2o,state=MA,city=Boston float_field=70.4 100"];
+        let lp = "h2o,state=MA,city=Boston float_field=70.4 100";
 
-        write_lines_to_table(&mut table, lp_lines);
+        write_lp_to_chunk(lp, &mut chunk).unwrap();
 
         let selection = Selection::Some(&["float_field"]);
-        let actual_schema = table.schema(selection).unwrap();
+        let actual_schema = chunk.schema(selection).unwrap();
         let expected_schema = SchemaBuilder::new()
             .field("float_field", ArrowDataType::Float64)
             .build()
@@ -802,24 +801,5 @@ mod tests {
             "didn't match returned error: {:?}",
             response
         );
-    }
-
-    ///  Insert the line protocol lines in `lp_lines` into this table
-    fn write_lines_to_table(table: &mut MBChunk, lp_lines: Vec<&str>) {
-        let lp_data = lp_lines.join("\n");
-        let entry = lp_to_entry(&lp_data);
-
-        let sequence = Some(Sequence::new(1, 5));
-        for batch in entry
-            .partition_writes()
-            .unwrap()
-            .first()
-            .unwrap()
-            .table_batches()
-        {
-            table
-                .write_columns(sequence.as_ref(), batch.columns())
-                .unwrap();
-        }
     }
 }
