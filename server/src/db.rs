@@ -857,6 +857,25 @@ pub mod test_helpers {
     pub async fn write_lp(db: &Db, lp: &str) -> Vec<String> {
         try_write_lp(db, lp).await.unwrap()
     }
+
+    /// Convenience macro to test if an [`db::Error`](crate::db::Error) is a
+    /// [StoreSequencedEntryFailures](crate::db::Error::StoreSequencedEntryFailures) and then check for errors contained
+    /// in it.
+    #[macro_export]
+    macro_rules! assert_store_sequenced_entry_failures {
+        ($e:expr, [$($sub:pat),*]) => {
+            {
+                // bind $e to variable so we don't evaluate it twice
+                let e = $e;
+
+                if let $crate::db::Error::StoreSequencedEntryFailures{errors} = e {
+                    assert!(matches!(&errors[..], [$($sub),*]));
+                } else {
+                    panic!("Expected StoreSequencedEntryFailures but got {}", e);
+                }
+            }
+        };
+    }
 }
 
 #[cfg(test)]
@@ -898,6 +917,7 @@ mod tests {
     use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryChunk, QueryDatabase};
 
     use crate::{
+        assert_store_sequenced_entry_failures,
         db::{
             catalog::chunk::ChunkStage,
             test_helpers::{try_write_lp, write_lp},
@@ -2815,15 +2835,27 @@ mod tests {
         );
 
         // illegal changes
-        try_write_lp(&db, "my_table,tag_partition_by=a field_integer=\"foo\" 10")
+        let e = try_write_lp(&db, "my_table,tag_partition_by=a field_integer=\"foo\" 10")
             .await
             .unwrap_err();
-        try_write_lp(&db, "my_table,tag_partition_by=b field_integer=\"foo\" 10")
+        assert_store_sequenced_entry_failures!(
+            e,
+            [super::Error::TableBatchSchemaMergeError { .. }]
+        );
+        let e = try_write_lp(&db, "my_table,tag_partition_by=b field_integer=\"foo\" 10")
             .await
             .unwrap_err();
-        try_write_lp(&db, "my_table,tag_partition_by=c field_integer=\"foo\" 10")
+        assert_store_sequenced_entry_failures!(
+            e,
+            [super::Error::TableBatchSchemaMergeError { .. }]
+        );
+        let e = try_write_lp(&db, "my_table,tag_partition_by=c field_integer=\"foo\" 10")
             .await
             .unwrap_err();
+        assert_store_sequenced_entry_failures!(
+            e,
+            [super::Error::TableBatchSchemaMergeError { .. }]
+        );
 
         // drop all chunks
         for partition_key in db.partition_keys().unwrap() {
@@ -2845,9 +2877,13 @@ mod tests {
         }
 
         // schema is still there
-        try_write_lp(&db, "my_table,tag_partition_by=a field_integer=\"foo\" 10")
+        let e = try_write_lp(&db, "my_table,tag_partition_by=a field_integer=\"foo\" 10")
             .await
             .unwrap_err();
+        assert_store_sequenced_entry_failures!(
+            e,
+            [super::Error::TableBatchSchemaMergeError { .. }]
+        );
     }
 
     async fn create_parquet_chunk(db: &Arc<Db>) -> (String, String, u32) {
