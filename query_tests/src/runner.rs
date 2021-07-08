@@ -294,6 +294,8 @@ impl<W: Write> Runner<W> {
 }
 
 /// Return output path for input path.
+///
+/// This converts `some/prefix/in/foo.sql` (or other file extensions) to `some/prefix/out/foo.out`.
 fn make_output_path(input: &Path) -> Result<PathBuf> {
     let stem = input.file_stem().context(NoFileStem { path: input })?;
 
@@ -306,7 +308,10 @@ fn make_output_path(input: &Path) -> Result<PathBuf> {
     out.push("out");
 
     // set file name and ext
-    out.push("placeholder"); // really confusing API
+    // The PathBuf API is somewhat confusing: `set_file_name` will replace the last component (which at this point is
+    // the "out"). However we wanna create a file out of the stem and the extension. So as a somewhat hackish
+    // workaround first push a placeholder that is then replaced.
+    out.push("placeholder");
     out.set_file_name(stem);
     out.set_extension("out");
 
