@@ -810,7 +810,10 @@ func (e *StatementExecutor) executeShowShardsStatement(stmt *influxql.ShowShards
 					for i, owner := range si.Owners {
 						ownerIDs[i] = owner.NodeID
 					}
-
+					expiry := ""
+					if rpi.Duration != 0 {
+						expiry = sgi.EndTime.Add(rpi.Duration).UTC().Format(time.RFC3339)
+					}
 					row.Values = append(row.Values, []interface{}{
 						si.ID,
 						di.Name,
@@ -818,7 +821,7 @@ func (e *StatementExecutor) executeShowShardsStatement(stmt *influxql.ShowShards
 						sgi.ID,
 						sgi.StartTime.UTC().Format(time.RFC3339),
 						sgi.EndTime.UTC().Format(time.RFC3339),
-						sgi.EndTime.Add(rpi.Duration).UTC().Format(time.RFC3339),
+						expiry,
 						joinUint64(ownerIDs),
 					})
 				}

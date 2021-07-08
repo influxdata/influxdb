@@ -821,6 +821,11 @@ func TestServer_Query_DefaultDBAndRP(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["name","duration","shardGroupDuration","replicaN","default"],"values":[["autogen","0s","168h0m0s",1,false],["rp0","0s","168h0m0s",1,true]]}]}]}`,
 		},
 		&Query{
+			name:    "show shards works",
+			command: `show shards`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"db0","columns":["id","database","retention_policy","shard_group","start_time","end_time","expiry_time","owners"],"values":[[1,"db0","rp0",1,"1999-12-27T00:00:00Z","2000-01-03T00:00:00Z","",""]]}]}]}`,
+		},
+		&Query{
 			name:    "default rp",
 			command: `SELECT * FROM db0..cpu GROUP BY *`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T01:00:00Z",1]]}]}]}`,
@@ -848,6 +853,42 @@ func TestServer_Query_DefaultDBAndRP(t *testing.T) {
 				t.Error(query.failureMessage())
 			}
 		})
+	}
+}
+
+func TestServer_ShowShardsNonInf(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 1000000*time.Hour), true); err != nil {
+		t.Fatal(err)
+	}
+
+	points := []string{
+		"cpu,host=server01 value=100 1621440001000000000",
+	}
+	if _, err := s.Write("db0", "rp0", strings.Join(points, "\n"), nil); err != nil {
+		t.Fatal("unexpected error: ", err)
+	}
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp1", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Write("db0", "rp1", strings.Join(points, "\n"), nil); err != nil {
+		t.Fatal("unexpected error: ", err)
+	}
+
+	// inf shard has no expiry_time, shard with expiry has correct expiry_time
+	exp := `{"results":[{"statement_id":0,"series":[{"name":"db0","columns":` +
+		`["id","database","retention_policy","shard_group","start_time","end_time","expiry_time","owners"],"values":[` +
+		`[1,"db0","rp0",1,"2021-05-17T00:00:00Z","2021-05-24T00:00:00Z","2135-06-22T16:00:00Z",""],` +
+		`[2,"db0","rp1",2,"2021-05-17T00:00:00Z","2021-05-24T00:00:00Z","",""]]}]}]}`
+	// Verify the data was written.
+	if res, err := s.Query(`show shards`); err != nil {
+		t.Fatal(err)
+	} else if exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
 	}
 }
 
