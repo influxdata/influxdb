@@ -4,7 +4,6 @@ package report_tsi
 import (
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/logger"
 	"math"
 	"os"
 	"path"
@@ -14,6 +13,7 @@ import (
 	"sync/atomic"
 	"text/tabwriter"
 
+	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/spf13/cobra"
@@ -28,10 +28,10 @@ const (
 // reportTSI represents the program execution for "inspect report-tsi".
 type reportTSI struct {
 	// Flags
-	bucketId       string // required
-	enginePath     string
-	topN           int
-	concurrency    int
+	bucketId    string // required
+	enginePath  string
+	topN        int
+	concurrency int
 
 	// Variables for calculating and storing cardinalities
 	sfile         *tsdb.SeriesFile
@@ -114,24 +114,6 @@ func (report *reportTSI) run() error {
 	}
 	defer report.sfile.Close()
 
-	// Open all the indexes.
-	for id, pth := range report.shardPaths {
-		pth = path.Join(pth, "index")
-
-		report.shardIdxs[id] = tsi1.NewIndex(report.sfile,
-			"",
-			tsi1.WithPath(pth),
-			tsi1.DisableCompactions(),
-		)
-		if err := report.shardIdxs[id].Open(); err != nil {
-			return err
-		}
-		defer report.shardIdxs[id].Close()
-
-		// Initialise cardinality set to store cardinalities for this shard.
-		report.cardinalities[id] = map[string]*cardinality{}
-	}
-
 	// Blocks until all work done.
 	report.calculateCardinalities(report.cardinalityByMeasurement)
 
@@ -159,8 +141,19 @@ func (report *reportTSI) run() error {
 // calculated and broken down.
 func (report *reportTSI) calculateCardinalities(fn func(id uint64) error) error {
 	// Get list of shards to work on.
-	shardIDs := make([]uint64, 0, len(report.shardIdxs))
-	for id := range report.shardIdxs {
+	shardIDs := make([]uint64, 0, len(report.shardPaths))
+	for id := range report.shardPaths {
+		pth := path.Join(report.shardPaths[id], "index")
+
+		report.shardIdxs[id] = tsi1.NewIndex(report.sfile,
+			"",
+			tsi1.WithPath(pth),
+			tsi1.DisableCompactions(),
+		)
+
+		// Initialise cardinality set to store cardinalities for each shard
+		report.cardinalities[id] = map[string]*cardinality{}
+
 		shardIDs = append(shardIDs, id)
 	}
 
@@ -184,6 +177,7 @@ func (report *reportTSI) calculateCardinalities(fn func(id uint64) error) error 
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -231,7 +225,9 @@ func (a cardinalities) Less(i, j int) bool { return a[i].cardinality() < a[j].ca
 func (a cardinalities) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 func (report *reportTSI) cardinalityByMeasurement(shardID uint64) error {
-
+	if err := report.shardIdxs[shardID].Open(); err != nil {
+		return err
+	}
 
 	idx := report.shardIdxs[shardID]
 	itr, err := idx.MeasurementIterator()
@@ -408,6 +404,7 @@ func (report *reportTSI) printSummaryByMeasurement() error {
 		return err
 	}
 	fmt.Fprint(os.Stdout, "\n\n")
+
 	return nil
 }
 
