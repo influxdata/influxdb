@@ -2,12 +2,12 @@
 
 use std::collections::HashSet;
 
-use arrow::{compute::SortOptions, record_batch::RecordBatch};
+use arrow::{compute::SortOptions, datatypes::Schema as ArrowSchema, record_batch::RecordBatch};
 
 use datafusion::{
     error::DataFusionError,
     logical_plan::{Expr, LogicalPlan, LogicalPlanBuilder},
-    optimizer::utils::expr_to_column_names,
+    optimizer::utils::expr_to_columns,
     physical_plan::expressions::{col as physical_col, PhysicalSortExpr},
 };
 use internal_types::schema::Schema;
@@ -24,19 +24,23 @@ pub fn make_scan_plan(batch: RecordBatch) -> std::result::Result<LogicalPlan, Da
 /// otherwise
 pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
     let mut predicate_columns = HashSet::new();
-    expr_to_column_names(expr, &mut predicate_columns).unwrap();
+    expr_to_columns(expr, &mut predicate_columns).unwrap();
 
     predicate_columns
         .into_iter()
-        .all(|col_name| schema.find_index_of(&col_name).is_some())
+        .all(|col_name| schema.find_index_of(&col_name.name).is_some())
 }
 
 /// Returns the pk in arrow's expression used for data sorting
-pub fn arrow_pk_sort_exprs(key_columns: Vec<&str>) -> Vec<PhysicalSortExpr> {
+pub fn arrow_pk_sort_exprs(
+    key_columns: Vec<&str>,
+    input_schema: &ArrowSchema,
+) -> Vec<PhysicalSortExpr> {
     let mut sort_exprs = vec![];
     for key in key_columns {
+        let expr = physical_col(key, &input_schema).expect("pk in schema");
         sort_exprs.push(PhysicalSortExpr {
-            expr: physical_col(key),
+            expr,
             options: SortOptions {
                 descending: false,
                 nulls_first: false,

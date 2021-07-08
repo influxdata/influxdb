@@ -1,7 +1,7 @@
 use std::io::Read;
 
 use criterion::{BenchmarkId, Criterion};
-use datafusion::{logical_plan::Expr, scalar::ScalarValue};
+use datafusion::logical_plan::{col, lit};
 // This is a struct that tells Criterion.rs to use the "futures" crate's
 // current-thread executor
 use flate2::read::GzDecoder;
@@ -62,10 +62,7 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DbScenario]) {
         (PredicateBuilder::default().build(), "no_pred"),
         (
             PredicateBuilder::default()
-                .add_expr(
-                    Expr::Column("tag3".to_owned())
-                        .eq(Expr::Literal(ScalarValue::Utf8(Some("value49".to_owned())))),
-                )
+                .add_expr(col("tag3").eq(lit("value49")))
                 .build(),
             "with_pred_tag_3=value49",
         ),

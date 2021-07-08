@@ -430,7 +430,7 @@ impl InfluxRpcPlanner {
                 schema: _,
             }) = scan_and_filter
             {
-                let tag_name_is_not_null = Expr::Column(tag_name.to_string()).is_not_null();
+                let tag_name_is_not_null = Expr::Column(tag_name.into()).is_not_null();
 
                 // TODO: optimize this to use "DISINCT" or do
                 // something more intelligent that simply fetching all

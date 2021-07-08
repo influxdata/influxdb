@@ -352,6 +352,7 @@ mod test {
 
     #[tokio::test]
     async fn test_split_plan() {
+        test_helpers::maybe_start_logging();
         // validate that the plumbing is all hooked up. The logic of
         // the operator is tested in its own module.
         let chunks = get_test_chunks().await;

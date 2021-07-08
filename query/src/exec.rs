@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arrow::record_batch::RecordBatch;
 use datafusion::{
     self,
-    logical_plan::{Expr, LogicalPlan},
+    logical_plan::{normalize_col, Expr, LogicalPlan},
     physical_plan::ExecutionPlan,
 };
 
@@ -402,6 +402,9 @@ pub fn make_schema_pivot(input: LogicalPlan) -> LogicalPlan {
 ///  b | 4000
 /// ```
 pub fn make_stream_split(input: LogicalPlan, split_expr: Expr) -> LogicalPlan {
+    // rewrite the input expression so that it is fully qualified with the input schema
+    let split_expr = normalize_col(split_expr, &input).expect("normalize is infallable");
+
     let node = Arc::new(StreamSplitNode::new(input, split_expr));
     LogicalPlan::Extension { node }
 }

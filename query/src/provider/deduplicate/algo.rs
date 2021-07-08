@@ -436,7 +436,7 @@ mod test {
         .unwrap();
 
         let sort_keys = vec![PhysicalSortExpr {
-            expr: col("t1"),
+            expr: col("t1", &current_batch.schema()).unwrap(),
             options: SortOptions {
                 descending: false,
                 nulls_first: false,
@@ -512,14 +512,14 @@ mod test {
 
         let sort_keys = vec![
             PhysicalSortExpr {
-                expr: col("t1"),
+                expr: col("t1", &current_batch.schema()).unwrap(),
                 options: SortOptions {
                     descending: false,
                     nulls_first: false,
                 },
             },
             PhysicalSortExpr {
-                expr: col("t2"),
+                expr: col("t2", &current_batch.schema()).unwrap(),
                 options: SortOptions {
                     descending: false,
                     nulls_first: false,
@@ -590,7 +590,7 @@ mod test {
         .unwrap();
 
         let sort_keys = vec![PhysicalSortExpr {
-            expr: col("t1"),
+            expr: col("t1", &current_batch.schema()).unwrap(),
             options: SortOptions {
                 descending: false,
                 nulls_first: false,
@@ -651,14 +651,14 @@ mod test {
 
         let sort_keys = vec![
             PhysicalSortExpr {
-                expr: col("t1"),
+                expr: col("t1", &current_batch.schema()).unwrap(),
                 options: SortOptions {
                     descending: false,
                     nulls_first: false,
                 },
             },
             PhysicalSortExpr {
-                expr: col("t2"),
+                expr: col("t2", &current_batch.schema()).unwrap(),
                 options: SortOptions {
                     descending: false,
                     nulls_first: false,
@@ -698,14 +698,14 @@ mod test {
 
         let sort_keys = vec![
             PhysicalSortExpr {
-                expr: col("t1"),
+                expr: col("t1", &current_batch.schema()).unwrap(),
                 options: SortOptions {
                     descending: false,
                     nulls_first: false,
                 },
             },
             PhysicalSortExpr {
-                expr: col("t2"),
+                expr: col("t2", &current_batch.schema()).unwrap(),
                 options: SortOptions {
                     descending: false,
                     nulls_first: false,

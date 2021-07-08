@@ -330,7 +330,7 @@ mod test {
         .unwrap();
 
         let sort_keys = vec![PhysicalSortExpr {
-            expr: col("t1"),
+            expr: col("t1", &batch.schema()).unwrap(),
             options: SortOptions {
                 descending: false,
                 nulls_first: false,
@@ -451,14 +451,14 @@ mod test {
 
         let sort_keys = vec![
             PhysicalSortExpr {
-                expr: col("t1"),
+                expr: col("t1", &batch.schema()).unwrap(),
                 options: SortOptions {
                     descending: false,
                     nulls_first: false,
                 },
             },
             PhysicalSortExpr {
-                expr: col("t2"),
+                expr: col("t2", &batch.schema()).unwrap(),
                 options: SortOptions {
                     descending: false,
                     nulls_first: false,
@@ -539,14 +539,14 @@ mod test {
 
         let sort_keys = vec![
             PhysicalSortExpr {
-                expr: col("t1"),
+                expr: col("t1", &batch2.schema()).unwrap(),
                 options: SortOptions {
                     descending: false,
                     nulls_first: false,
                 },
             },
             PhysicalSortExpr {
-                expr: col("t2"),
+                expr: col("t2", &batch2.schema()).unwrap(),
                 options: SortOptions {
                     descending: false,
                     nulls_first: false,
@@ -606,7 +606,7 @@ mod test {
         .unwrap();
 
         let sort_keys = vec![PhysicalSortExpr {
-            expr: col("t1"),
+            expr: col("t1", &batch2.schema()).unwrap(),
             options: SortOptions {
                 descending: false,
                 nulls_first: false,
@@ -657,7 +657,7 @@ mod test {
         .unwrap();
 
         let sort_keys = vec![PhysicalSortExpr {
-            expr: col("t1"),
+            expr: col("t1", &batch.schema()).unwrap(),
             options: SortOptions {
                 descending: false,
                 nulls_first: false,
@@ -709,14 +709,14 @@ mod test {
 
         let sort_keys = vec![
             PhysicalSortExpr {
-                expr: col("t1"),
+                expr: col("t1", &batch.schema()).unwrap(),
                 options: SortOptions {
                     descending: false,
                     nulls_first: false,
                 },
             },
             PhysicalSortExpr {
-                expr: col("t2"),
+                expr: col("t2", &batch.schema()).unwrap(),
                 options: SortOptions {
                     descending: false,
                     nulls_first: false,
@@ -770,7 +770,7 @@ mod test {
         });
 
         let sort_keys = vec![PhysicalSortExpr {
-            expr: col("t1"),
+            expr: col("t1", &schema).unwrap(),
             options: SortOptions {
                 descending: false,
                 nulls_first: false,
@@ -819,14 +819,14 @@ mod test {
 
         let sort_keys = vec![
             PhysicalSortExpr {
-                expr: col("t1"),
+                expr: col("t1", &batch1.schema()).unwrap(),
                 options: SortOptions {
                     descending: false,
                     nulls_first: false,
                 },
             },
             PhysicalSortExpr {
-                expr: col("t2"),
+                expr: col("t2", &batch1.schema()).unwrap(),
                 options: SortOptions {
                     descending: false,
                     nulls_first: false,

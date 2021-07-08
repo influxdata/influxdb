@@ -11,11 +11,14 @@ use datafusion::{
     error::{DataFusionError, Result as DataFusionResult},
     logical_plan::Expr,
     physical_plan::{
-        expressions::PhysicalSortExpr, projection::ProjectionExec, sort::SortExec,
-        sort_preserving_merge::SortPreservingMergeExec, union::UnionExec, ExecutionPlan,
+        expressions::{col as physical_col, PhysicalSortExpr},
+        projection::ProjectionExec,
+        sort::SortExec,
+        sort_preserving_merge::SortPreservingMergeExec,
+        union::UnionExec,
+        ExecutionPlan,
     },
 };
-use datafusion_util::AsPhysicalExpr;
 use internal_types::schema::{merge::SchemaMerger, Schema};
 use observability_deps::tracing::{debug, trace};
 
@@ -54,6 +57,11 @@ pub enum Error {
 
     #[snafu(display("Internal error: Cannot verify the push-down predicate '{}'", source,))]
     InternalPushdownPredicate {
+        source: datafusion::error::DataFusionError,
+    },
+
+    #[snafu(display("Internal error: Cannot create projection select expr '{}'", source,))]
+    InternalSelectExpr {
         source: datafusion::error::DataFusionError,
     },
 
@@ -524,7 +532,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let plan = UnionExec::new(sorted_chunk_plans?);
 
         // Now (sort) merge the already sorted chunks
-        let sort_exprs = arrow_pk_sort_exprs(pk_schema.primary_key());
+        let sort_exprs = arrow_pk_sort_exprs(pk_schema.primary_key(), &plan.schema());
         let plan = Arc::new(SortPreservingMergeExec::new(
             sort_exprs.clone(),
             Arc::new(plan),
@@ -582,7 +590,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
 
         // Add DeduplicateExc
         // Sort exprs for the deduplication
-        let sort_exprs = arrow_pk_sort_exprs(pk_schema.primary_key());
+        let sort_exprs = arrow_pk_sort_exprs(pk_schema.primary_key(), &plan.schema());
         let plan = Self::add_deduplicate_node(sort_exprs, plan);
 
         // select back to the requested output schema
@@ -620,14 +628,16 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         }
 
         // build select exprs for the requested fields
-        let select_exprs: Vec<_> = output_schema
+        let select_exprs = output_schema
             .fields()
             .iter()
             .map(|f| {
                 let field_name = f.name();
-                (field_name.as_physical_expr(), field_name.to_string())
+                let physical_expr =
+                    physical_col(field_name, &input_schema).context(InternalSelectExpr)?;
+                Ok((physical_expr, field_name.to_string()))
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         let plan = ProjectionExec::try_new(select_exprs, input).context(InternalProjection)?;
         Ok(Arc::new(plan))
@@ -677,7 +687,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         }
 
         let schema = chunk.schema();
-        let sort_exprs = arrow_pk_sort_exprs(schema.primary_key());
+        let sort_exprs = arrow_pk_sort_exprs(schema.primary_key(), &input.schema());
 
         // Create SortExec operator
         Ok(Arc::new(

@@ -394,10 +394,12 @@ fn negate(v: &ColumnarValue) -> Result<ColumnarValue> {
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryInto;
+
     use arrow::array::{Int64Array, StringArray};
     use arrow_util::assert_batches_sorted_eq;
     use datafusion::{
-        logical_plan::{col, lit},
+        logical_plan::{col, lit, DFSchema},
         physical_plan::{memory::MemoryExec, planner::DefaultPhysicalPlanner},
     };
 
@@ -577,8 +579,20 @@ mod tests {
         // physical planner somehow,..
         let ctx_state = datafusion::execution::context::ExecutionContextState::new();
 
+        let input_physical_schema = input.schema();
+        let input_logical_schema: DFSchema = input_physical_schema
+            .as_ref()
+            .clone()
+            .try_into()
+            .expect("could not make logical schema");
+
         physical_planner
-            .create_physical_expr(&expr, &input.schema(), &ctx_state)
+            .create_physical_expr(
+                &expr,
+                &input_logical_schema,
+                &input_physical_schema,
+                &ctx_state,
+            )
             .expect("creating physical expression")
     }
 
