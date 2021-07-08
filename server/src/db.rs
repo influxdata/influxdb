@@ -892,7 +892,7 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use bytes::Bytes;
     use futures::{stream, StreamExt, TryStreamExt};
-    use internal_types::selection::Selection;
+    use internal_types::{schema::Schema, selection::Selection};
     use tokio_util::sync::CancellationToken;
 
     use ::test_helpers::assert_contains;
@@ -2603,6 +2603,20 @@ mod tests {
         };
         assert_eq!(paths_actual, paths_expected);
 
+        // ==================== do: remember table schema ====================
+        let mut table_schemas: HashMap<String, Schema> = Default::default();
+        for (table_name, _partition_key, _chunk_id) in &chunks {
+            // TODO: use official `db.table_schema` interface later
+            let schema = db
+                .catalog
+                .table(table_name)
+                .unwrap()
+                .schema()
+                .read()
+                .clone();
+            table_schemas.insert(table_name.clone(), schema);
+        }
+
         // ==================== do: re-load DB ====================
         // Re-create database with same store, serverID, and DB name
         drop(db);
@@ -2626,6 +2640,17 @@ mod tests {
                     ..
                 }
             ));
+        }
+        for (table_name, schema) in table_schemas {
+            // TODO: use official `db.table_schema` interface later
+            let schema2 = db
+                .catalog
+                .table(table_name)
+                .unwrap()
+                .schema()
+                .read()
+                .clone();
+            assert_eq!(schema2, schema);
         }
 
         // ==================== check: DB still writable ====================
