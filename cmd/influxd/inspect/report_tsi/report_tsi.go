@@ -4,17 +4,16 @@ package report_tsi
 import (
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/logger"
 	"math"
 	"os"
 	"path"
-	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
 	"sync/atomic"
 	"text/tabwriter"
 
-	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/spf13/cobra"
@@ -31,7 +30,6 @@ type reportTSI struct {
 	// Flags
 	bucketId       string // required
 	enginePath     string
-	seriesFilePath string
 	topN           int
 	concurrency    int
 
@@ -49,61 +47,52 @@ func NewReportTSICommand() *cobra.Command {
 		Use:   "report-tsi",
 		Short: "Reports the cardinality of TSI files",
 		Long: `This command will analyze TSI files within a specified bucket, reporting the 
-		cardinality of data within the files, segmented by shard and further by measurement.`,
+cardinality of data within the files, segmented by shard and further by measurement.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if arguments.bucketId == "" {
-				return errors.New("bucket_id is required, use -b or --bucket_id flag")
-			}
-
-			if arguments.seriesFilePath == "" {
-				arguments.seriesFilePath = path.Join(arguments.enginePath, arguments.bucketId, tsdb.SeriesFileDirectory)
-			}
 
 			arguments.shardPaths = map[uint64]string{}
 			arguments.shardIdxs = map[uint64]*tsi1.Index{}
 			arguments.cardinalities = map[uint64]map[string]*cardinality{}
 
-			return arguments.Run()
+			return arguments.run()
 		},
 	}
 
-	cmd.Flags().StringVarP(&arguments.bucketId, "bucket_id", "b", "", "Required - specify which bucket to report on. A bucket id must be a base-16 string")
+	cmd.Flags().StringVarP(&arguments.bucketId, "bucket-id", "b", "", "Required - specify which bucket to report on. A bucket id must be a base-16 string")
 	cmd.Flags().StringVar(&arguments.enginePath, "path", os.Getenv("HOME")+"/.influxdbv2/engine/data", "Path to engine.")
-	cmd.Flags().StringVar(&arguments.seriesFilePath, "series-file", "", "Optional path to series file. Defaults $HOME/.influxdbv2/engine/data/<bucket_id>/_series/")
 	cmd.Flags().IntVarP(&arguments.topN, "top", "t", 0, "Limit results to top n")
 	cmd.Flags().IntVar(&arguments.concurrency, "c", runtime.GOMAXPROCS(0), "How many concurrent workers to run.")
+	cmd.MarkFlagRequired("bucket-id")
 
 	return cmd
 }
 
 // Run executes the command.
-func (report *reportTSI) Run() error {
-	// Walk database directory to get shards.
-	if err := filepath.Walk(path.Join(report.enginePath, report.bucketId, "autogen"), func(path string, info os.FileInfo, err error) error {
+func (report *reportTSI) run() error {
+	// Get all shards from specified bucket
+	dirEntries, err := os.ReadDir(path.Join(report.enginePath, report.bucketId, "autogen"))
 
-		if err != nil {
-			return err
-		}
-
-		if !info.IsDir() {
-			return nil
-		}
-
-		if info.Name() == tsdb.SeriesFileDirectory || info.Name() == "index" {
-			return filepath.SkipDir
-		}
-
-		id, err := strconv.Atoi(info.Name())
-		if err != nil {
-			return nil
-		}
-
-		report.shardPaths[uint64(id)] = path
-
-		return nil
-	}); err != nil {
+	if err != nil {
 		return err
+	}
+
+	for _, entry := range dirEntries {
+
+		if !entry.IsDir() {
+			continue
+		}
+
+		if entry.Name() == tsdb.SeriesFileDirectory || entry.Name() == "index" {
+			continue
+		}
+
+		id, err := strconv.Atoi(entry.Name())
+		if err != nil {
+			continue
+		}
+
+		report.shardPaths[uint64(id)] = path.Join(report.enginePath, report.bucketId, "autogen", entry.Name())
 	}
 
 	if len(report.shardPaths) == 0 {
@@ -111,11 +100,7 @@ func (report *reportTSI) Run() error {
 		return nil
 	}
 
-	return report.run()
-}
-
-func (report *reportTSI) run() error {
-	report.sfile = tsdb.NewSeriesFile(report.seriesFilePath)
+	report.sfile = tsdb.NewSeriesFile(path.Join(report.enginePath, report.bucketId, tsdb.SeriesFileDirectory))
 
 	config := logger.NewConfig()
 	newLogger, err := config.New(os.Stderr)
@@ -132,12 +117,6 @@ func (report *reportTSI) run() error {
 	// Open all the indexes.
 	for id, pth := range report.shardPaths {
 		pth = path.Join(pth, "index")
-		// Verify directory is an index before opening it.
-		if ok, err := tsi1.IsIndexDir(pth); err != nil {
-			return err
-		} else if !ok {
-			return fmt.Errorf("not a TSI index directory: %q", pth)
-		}
 
 		report.shardIdxs[id] = tsi1.NewIndex(report.sfile,
 			"",
@@ -153,11 +132,8 @@ func (report *reportTSI) run() error {
 		report.cardinalities[id] = map[string]*cardinality{}
 	}
 
-	// Calculate cardinalities of shards.
-	fn := report.cardinalityByMeasurement
-
 	// Blocks until all work done.
-	report.calculateCardinalities(fn)
+	report.calculateCardinalities(report.cardinalityByMeasurement)
 
 	// Print summary.
 	if err := report.printSummaryByMeasurement(); err != nil {
@@ -193,7 +169,7 @@ func (report *reportTSI) calculateCardinalities(fn func(id uint64) error) error 
 	for k := 0; k < report.concurrency; k++ {
 		go func() {
 			for {
-				i := int(atomic.AddUint32(&maxi, 1) - 1) // Get next partition to work on.
+				i := int(atomic.AddUint32(&maxi, 1) - 1) // Get next shard to work on.
 				if i >= len(shardIDs) {
 					return // No more work.
 				}
@@ -229,8 +205,8 @@ func (c *cardinality) add(x uint64) {
 	// Cheaper to store in bitmap.
 	if len(c.short) > useBitmapN {
 		c.set = tsdb.NewSeriesIDSet()
-		for i := 0; i < len(c.short); i++ {
-			c.set.AddNoLock(uint64(c.short[i]))
+		for _, s := range c.short {
+			c.set.AddNoLock(uint64(s))
 		}
 		c.short = nil
 		return
@@ -255,6 +231,8 @@ func (a cardinalities) Less(i, j int) bool { return a[i].cardinality() < a[j].ca
 func (a cardinalities) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 func (report *reportTSI) cardinalityByMeasurement(shardID uint64) error {
+
+
 	idx := report.shardIdxs[shardID]
 	itr, err := idx.MeasurementIterator()
 	if err != nil {
@@ -290,7 +268,7 @@ OUTER:
 		var e tsdb.SeriesIDElem
 		for e, err = sitr.Next(); err == nil && e.SeriesID != 0; e, err = sitr.Next() {
 			if e.SeriesID > math.MaxUint32 {
-				panic(fmt.Sprintf("series ID is too large: %d (max %d). Corrupted series file?", e.SeriesID, uint32(math.MaxUint32)))
+				return fmt.Errorf("series ID is too large: %d (max %d)", e.SeriesID, uint32(math.MaxUint32))
 			}
 			c.add(e.SeriesID)
 		}
@@ -385,17 +363,11 @@ func (report *reportTSI) printSummaryByMeasurement() error {
 				continue // this shard doesn't have anything for this measurement.
 			}
 
-			if other.short != nil && other.set != nil {
-				panic("cardinality stored incorrectly")
-			}
-
 			if other.short != nil { // low cardinality case
 				res.addShort(other.short)
 			} else if other.set != nil { // High cardinality case
 				res.merge(other.set)
 			}
-
-			// Shard does not have any series for this measurement.
 		}
 
 		// Determine final cardinality and allow intermediate structures to be
@@ -427,7 +399,7 @@ func (report *reportTSI) printSummaryByMeasurement() error {
 	tw := tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', tabwriter.AlignRight)
 
 	fmt.Fprintf(tw, "Summary\nDatabase Path: %s\nCardinality (exact): %d\n\n", report.enginePath, totalCardinality)
-	fmt.Fprint(tw, "Measurement\t\tCardinality (exact)\n\n")
+	fmt.Fprint(tw, "Measurement\tCardinality (exact)\n\n")
 	for _, res := range measurements {
 		fmt.Fprintf(tw, "%q\t%d\t\n", res.name, res.count)
 	}
@@ -468,7 +440,7 @@ func (report *reportTSI) printShardByMeasurement(id uint64) error {
 
 	tw := tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
 	fmt.Fprintf(tw, "===============\nShard ID: %d\nPath: %s\nCardinality (exact): %d\n\n", id, report.shardPaths[id], totalCardinality)
-	fmt.Fprint(tw, "Measurement\t\tCardinality (exact)\n\n")
+	fmt.Fprint(tw, "Measurement\tCardinality (exact)\n\n")
 	for _, card := range all {
 		fmt.Fprintf(tw, "%q\t%d\t\n", card.name, card.cardinality())
 	}
@@ -476,6 +448,6 @@ func (report *reportTSI) printShardByMeasurement(id uint64) error {
 	if err := tw.Flush(); err != nil {
 		return err
 	}
-	fmt.Fprint(os.Stdout, "\n\n")
+
 	return nil
 }
