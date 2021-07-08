@@ -14,6 +14,7 @@ use super::scenario::{
     create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
 };
 use crate::common::server_fixture::ServerFixture;
+use data_types::database_rules::DEFAULT_MUTABLE_LINGER_SECONDS;
 use std::time::Instant;
 use tonic::Code;
 
@@ -243,6 +244,10 @@ async fn test_create_get_update_database() {
         ignore_errors: true,
         ..Default::default()
     }));
+    rules.lifecycle_rules = Some(LifecycleRules {
+        mutable_linger_seconds: DEFAULT_MUTABLE_LINGER_SECONDS,
+        ..rules.lifecycle_rules.unwrap()
+    });
 
     let updated_rules = client
         .update_database(rules.clone())

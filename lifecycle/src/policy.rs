@@ -483,8 +483,10 @@ fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<
         return true;
     }
 
-    match (rules.mutable_linger_seconds, chunk.time_of_last_write()) {
-        (Some(linger), Some(last_write)) if elapsed_seconds(now, last_write) >= linger.get() => {
+    match chunk.time_of_last_write() {
+        Some(last_write)
+            if elapsed_seconds(now, last_write) >= rules.mutable_linger_seconds.get() =>
+        {
             match (
                 rules.mutable_minimum_age_seconds,
                 chunk.time_of_first_write(),
@@ -499,8 +501,7 @@ fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<
             }
         }
 
-        // Disable movement if no mutable_linger set,
-        // or the chunk is empty, or the linger hasn't expired
+        // Disable movement the chunk is empty, or the linger hasn't expired
         _ => false,
     }
 }
@@ -889,14 +890,9 @@ mod tests {
 
     #[test]
     fn test_can_move() {
-        // Cannot move by default
-        let rules = LifecycleRules::default();
-        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer);
-        assert!(!can_move(&rules, &chunk, from_secs(20)));
-
         // If only mutable_linger set can move a chunk once passed
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
         let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer);
@@ -910,7 +906,7 @@ mod tests {
 
         // If mutable_minimum_age_seconds set must also take this into account
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             mutable_minimum_age_seconds: Some(NonZeroU32::new(60).unwrap()),
             ..Default::default()
         };
@@ -1022,7 +1018,7 @@ mod tests {
     #[test]
     fn test_mutable_linger() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
         let chunks = vec![
@@ -1066,7 +1062,7 @@ mod tests {
     async fn test_backoff() {
         let mut registry = TaskRegistry::new();
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(100).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(100).unwrap(),
             ..Default::default()
         };
         let db = TestDb::new(rules, vec![]);
@@ -1093,7 +1089,7 @@ mod tests {
     #[test]
     fn test_minimum_age() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             mutable_minimum_age_seconds: Some(NonZeroU32::new(60).unwrap()),
             ..Default::default()
         };
@@ -1251,7 +1247,7 @@ mod tests {
     #[test]
     fn test_compact() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             persist_row_threshold: NonZeroUsize::new(1_000).unwrap(),
             ..Default::default()
         };
@@ -1342,7 +1338,7 @@ mod tests {
     #[test]
     fn test_persist() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             persist: true,
             persist_row_threshold: NonZeroUsize::new(1_000).unwrap(),
             late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
@@ -1406,7 +1402,7 @@ mod tests {
     #[test]
     fn test_moves_closed() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             mutable_minimum_age_seconds: Some(NonZeroU32::new(60).unwrap()),
             ..Default::default()
         };

@@ -106,6 +106,7 @@ impl Partitioner for DatabaseRules {
     }
 }
 
+pub const DEFAULT_MUTABLE_LINGER_SECONDS: u32 = 300;
 pub const DEFAULT_WORKER_BACKOFF_MILLIS: u64 = 1_000;
 pub const DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT: u64 = 100;
 pub const DEFAULT_MUB_ROW_THRESHOLD: usize = 100_000;
@@ -121,7 +122,7 @@ pub struct LifecycleRules {
     /// buffer) if the chunk is older than mutable_min_lifetime_seconds
     ///
     /// Represents the chunk transition open -> moving and closed -> moving
-    pub mutable_linger_seconds: Option<NonZeroU32>,
+    pub mutable_linger_seconds: NonZeroU32,
 
     /// A chunk of data within a partition is guaranteed to remain mutable
     /// for at least this number of seconds unless it exceeds the mutable_size_threshold
@@ -172,7 +173,7 @@ impl LifecycleRules {
 impl Default for LifecycleRules {
     fn default() -> Self {
         Self {
-            mutable_linger_seconds: None,
+            mutable_linger_seconds: NonZeroU32::new(DEFAULT_MUTABLE_LINGER_SECONDS).unwrap(),
             mutable_minimum_age_seconds: None,
             buffer_size_soft: None,
             buffer_size_hard: None,

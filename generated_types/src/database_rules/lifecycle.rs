@@ -3,8 +3,9 @@ use std::num::{NonZeroU32, NonZeroU64, NonZeroUsize};
 
 use data_types::database_rules::{
     LifecycleRules, DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT,
-    DEFAULT_LATE_ARRIVE_WINDOW_SECONDS, DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS,
-    DEFAULT_PERSIST_ROW_THRESHOLD, DEFAULT_WORKER_BACKOFF_MILLIS,
+    DEFAULT_LATE_ARRIVE_WINDOW_SECONDS, DEFAULT_MUTABLE_LINGER_SECONDS,
+    DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS, DEFAULT_PERSIST_ROW_THRESHOLD,
+    DEFAULT_WORKER_BACKOFF_MILLIS,
 };
 
 use crate::google::FieldViolation;
@@ -13,10 +14,7 @@ use crate::influxdata::iox::management::v1 as management;
 impl From<LifecycleRules> for management::LifecycleRules {
     fn from(config: LifecycleRules) -> Self {
         Self {
-            mutable_linger_seconds: config
-                .mutable_linger_seconds
-                .map(Into::into)
-                .unwrap_or_default(),
+            mutable_linger_seconds: config.mutable_linger_seconds.get(),
             mutable_minimum_age_seconds: config
                 .mutable_minimum_age_seconds
                 .map(Into::into)
@@ -48,7 +46,12 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
 
     fn try_from(proto: management::LifecycleRules) -> Result<Self, Self::Error> {
         Ok(Self {
-            mutable_linger_seconds: proto.mutable_linger_seconds.try_into().ok(),
+            mutable_linger_seconds: NonZeroU32::new(if proto.mutable_linger_seconds == 0 {
+                DEFAULT_MUTABLE_LINGER_SECONDS
+            } else {
+                proto.mutable_linger_seconds
+            })
+            .unwrap(),
             mutable_minimum_age_seconds: proto.mutable_minimum_age_seconds.try_into().ok(),
             buffer_size_soft: (proto.buffer_size_soft as usize).try_into().ok(),
             buffer_size_hard: (proto.buffer_size_hard as usize).try_into().ok(),
@@ -100,7 +103,7 @@ mod tests {
         let back: management::LifecycleRules = config.clone().into();
 
         assert_eq!(
-            config.mutable_linger_seconds.unwrap().get(),
+            config.mutable_linger_seconds.get(),
             protobuf.mutable_linger_seconds
         );
         assert_eq!(
