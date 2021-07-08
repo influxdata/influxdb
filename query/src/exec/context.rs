@@ -205,18 +205,26 @@ impl IOxExecutionContext {
         &self,
         physical_plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
+        match physical_plan.output_partitioning().partition_count() {
+            0 => unreachable!(),
+            1 => self.execute_partition(physical_plan, 0).await,
+            _ => {
+                // Merge into a single partition
+                self.execute_partition(Arc::new(CoalescePartitionsExec::new(physical_plan)), 0)
+                    .await
+            }
+        }
+    }
+
+    /// Executes a single partition of a physical plan and produces a RecordBatchStream to stream
+    /// over the result that iterates over the results.
+    pub async fn execute_partition(
+        &self,
+        physical_plan: Arc<dyn ExecutionPlan>,
+        partition: usize,
+    ) -> Result<SendableRecordBatchStream> {
         self.exec
-            .spawn(async move {
-                if physical_plan.output_partitioning().partition_count() <= 1 {
-                    physical_plan.execute(0).await
-                } else {
-                    // merge into a single partition
-                    let plan = CoalescePartitionsExec::new(physical_plan);
-                    // MergeExec must produce a single partition
-                    assert_eq!(1, plan.output_partitioning().partition_count());
-                    plan.execute(0).await
-                }
-            })
+            .spawn(async move { physical_plan.execute(partition).await })
             .await
             .map_err(|e| {
                 Error::Execution(format!("Error running IOxExecutionContext::execute: {}", e))

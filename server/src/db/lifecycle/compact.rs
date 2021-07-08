@@ -3,8 +3,6 @@
 use std::future::Future;
 use std::sync::Arc;
 
-use futures::StreamExt;
-
 use data_types::job::Job;
 use lifecycle::LifecycleWriteGuard;
 use query::exec::ExecutorType;
@@ -19,6 +17,7 @@ use crate::db::DbChunk;
 
 use super::compute_sort_key;
 use super::{error::Result, LockableCatalogChunk, LockableCatalogPartition};
+use crate::db::lifecycle::collect_rub;
 
 /// Compact the provided chunks into a single chunk,
 /// returning the newly created chunk
@@ -78,12 +77,8 @@ pub(crate) fn compact_chunks(
             ReorgPlanner::new().compact_plan(query_chunks.iter().map(Arc::clone), key)?;
 
         let physical_plan = ctx.prepare_plan(&plan)?;
-        let mut stream = ctx.execute(physical_plan).await?;
-
-        // Collect results into RUB chunk
-        while let Some(batch) = stream.next().await {
-            rb_chunk.upsert_table(batch?)
-        }
+        let stream = ctx.execute(physical_plan).await?;
+        collect_rub(stream, &mut rb_chunk).await?;
 
         let new_chunk = {
             let mut partition = partition.write();

@@ -130,19 +130,23 @@ impl ReorgPlanner {
     ///  e | 3000
     ///  c | 4000
     /// ```
-    pub fn split_plan<C>(
+    pub fn split_plan<C, I>(
         &self,
-        chunks: Vec<Arc<C>>,
+        chunks: I,
         output_sort: SortKey<'_>,
         split_time: i64,
-    ) -> Result<LogicalPlan>
+    ) -> Result<(Schema, LogicalPlan)>
     where
         C: QueryChunk + 'static,
+        I: IntoIterator<Item = Arc<C>>,
     {
         let ScanPlan {
             plan_builder,
             provider,
         } = self.scan_and_sort_plan(chunks, output_sort)?;
+
+        // TODO: Set sort key on schema
+        let schema = provider.iox_schema();
 
         // time <= split_time
         let ts_literal = Expr::Literal(ScalarValue::TimestampNanosecond(Some(split_time)));
@@ -155,7 +159,7 @@ impl ReorgPlanner {
         debug!(table_name=provider.table_name(), plan=%plan.display_indent_schema(),
                "created split plan for table");
 
-        Ok(plan)
+        Ok((schema, plan))
     }
 
     /// Creates a scan plan for the set of chunks that:
@@ -367,7 +371,7 @@ mod test {
         );
 
         // split on 1000 should have timestamps 1000, 5000, and 7000
-        let split_plan = ReorgPlanner::new()
+        let (_, split_plan) = ReorgPlanner::new()
             .split_plan(chunks, sort_key, 1000)
             .expect("created compact plan");
 

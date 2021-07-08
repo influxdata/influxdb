@@ -113,10 +113,7 @@ impl PersistenceWindows {
         self.persistable.as_ref().map(|w| w.row_count).unwrap_or(0)
     }
 
-    /// Returns the instant of the oldest persistable data. This is used by the lifecycle manager
-    /// to determine if persistence should be triggered because data has been sitting in memory
-    /// too long. This limit should only be hit if the throughput in the partition hasn't crossed
-    /// the row count threshold or if the partition has gone cold for writes.
+    /// Returns the instant of the oldest persistable data
     pub fn persistable_age(&self) -> Option<Instant> {
         self.persistable.as_ref().map(|w| w.created_at)
     }
@@ -200,21 +197,31 @@ impl PersistenceWindows {
         *persistable = None;
     }
 
-    /// Returns the unpersisted sequencer numbers that represent the min
-    pub fn minimum_unpersisted_sequence(&self) -> Option<BTreeMap<u32, MinMaxSequence>> {
+    /// Returns the minimum window
+    fn minimum_window(&self) -> Option<&Window> {
         if let Some(w) = self.persistable.as_ref() {
-            return Some(w.sequencer_numbers.clone());
+            return Some(w);
         }
 
-        if let Some(w) = self.closed.get(0) {
-            return Some(w.sequencer_numbers.clone());
+        if let Some(w) = self.closed.front() {
+            return Some(w);
         }
 
         if let Some(w) = self.open.as_ref() {
-            return Some(w.sequencer_numbers.clone());
+            return Some(w);
         }
 
         None
+    }
+
+    /// Returns the unpersisted sequencer numbers that represent the min
+    pub fn minimum_unpersisted_sequence(&self) -> Option<BTreeMap<u32, MinMaxSequence>> {
+        self.minimum_window().map(|x| x.sequencer_numbers.clone())
+    }
+
+    /// Returns the minimum unpersisted age
+    pub fn minimum_unpersisted_age(&self) -> Option<Instant> {
+        self.minimum_window().map(|x| x.created_at)
     }
 }
 

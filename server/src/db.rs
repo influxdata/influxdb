@@ -1,17 +1,14 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
+use crate::db::catalog::chunk::ChunkStage;
 use crate::db::catalog::table::TableSchemaUpsertHandle;
 pub(crate) use crate::db::chunk::DbChunk;
 use crate::db::lifecycle::ArcDb;
 use crate::{
     db::{
         access::QueryCatalogAccess,
-        catalog::{
-            chunk::{CatalogChunk, ChunkStage},
-            partition::Partition,
-            Catalog, TableNameFilter,
-        },
+        catalog::{chunk::CatalogChunk, partition::Partition, Catalog, TableNameFilter},
         lifecycle::{LockableCatalogChunk, LockableCatalogPartition},
     },
     write_buffer::WriteBuffer,
@@ -408,10 +405,7 @@ impl Db {
         // assume the locks have to possibly live across the `await`
         let fut = {
             let partition = self.partition(table_name, partition_key)?;
-            let partition = LockableCatalogPartition {
-                db: Arc::clone(&self),
-                partition,
-            };
+            let partition = LockableCatalogPartition::new(Arc::clone(&self), partition);
 
             // Do lock dance to get a write lock on the partition as well
             // as on all of the chunks
@@ -738,7 +732,7 @@ impl Db {
 
                     schema_handle.commit();
 
-                    match partition.persistence_windows() {
+                    match partition.persistence_windows_mut() {
                         Some(windows) => {
                             windows.add_range(
                                 sequence,
@@ -1848,7 +1842,7 @@ mod tests {
         write_lp(&db, "cpu bar=1 30").await; // seq 2
 
         let partition = db.catalog.partition("cpu", partition_key).unwrap();
-        let mut partition = partition.write();
+        let partition = partition.write();
         let windows = partition.persistence_windows().unwrap();
         let seq = windows.minimum_unpersisted_sequence().unwrap();
 
@@ -1865,7 +1859,7 @@ mod tests {
         write_lp(&db, "cpu bar=1 20").await;
 
         let partition = db.catalog.partition("cpu", partition_key).unwrap();
-        let mut partition = partition.write();
+        let partition = partition.write();
         // validate it has data
         let table_summary = partition.summary().table;
         assert_eq!(&table_summary.name, "cpu");

@@ -642,32 +642,20 @@ impl CatalogChunk {
     }
 
     /// Start lifecycle action that should move the chunk into the _persisted_ stage.
-    pub fn set_writing_to_object_store(
-        &mut self,
-        registration: &TaskRegistration,
-    ) -> Result<Arc<RBChunk>> {
+    pub fn set_writing_to_object_store(&mut self, registration: &TaskRegistration) -> Result<()> {
+        // This ensures the closing logic is consistent but doesn't break code that
+        // assumes a chunk can be moved from open
+        if matches!(self.stage, ChunkStage::Open { .. }) {
+            self.freeze()?;
+        }
+
         match &self.stage {
-            ChunkStage::Frozen { representation, .. } => {
-                match &representation {
-                    ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
-                        // TODO: ideally we would support all Frozen representations
-                        InternalChunkState {
-                            chunk: self.addr.clone(),
-                            operation: "setting object store",
-                            expected: "Frozen with ReadBuffer",
-                            actual: "Frozen with MutableBufferSnapshot",
-                        }
-                        .fail()
-                    }
-                    ChunkStageFrozenRepr::ReadBuffer(repr) => {
-                        let db = Arc::clone(repr);
-                        self.set_lifecycle_action(ChunkLifecycleAction::Persisting, registration)?;
-                        self.metrics
-                            .state
-                            .inc_with_labels(&[KeyValue::new("state", "writing_os")]);
-                        Ok(db)
-                    }
-                }
+            ChunkStage::Frozen { .. } => {
+                self.set_lifecycle_action(ChunkLifecycleAction::Persisting, registration)?;
+                self.metrics
+                    .state
+                    .inc_with_labels(&[KeyValue::new("state", "writing_os")]);
+                Ok(())
             }
             _ => {
                 unexpected_state!(self, "setting object store", "Moved", self.stage)
@@ -687,7 +675,7 @@ impl CatalogChunk {
                 let meta = Arc::clone(&meta);
                 match &representation {
                     ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
-                        // TODO: ideally we would support all Frozen representations
+                        // Should always be in RUB once persisted
                         InternalChunkState {
                             chunk: self.addr.clone(),
                             operation: "setting object store",
