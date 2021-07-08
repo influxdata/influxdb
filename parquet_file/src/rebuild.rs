@@ -203,7 +203,7 @@ mod tests {
     async fn test_rebuild_successfull() {
         let object_store = make_object_store();
         let server_id = make_server_id();
-        let db_name = "db1";
+        let db_name = Arc::<str>::from("db1");
 
         // build catalog with some data
         let (catalog, mut state) = PreservedCatalog::new_empty::<TestCatalogState>(
@@ -217,13 +217,15 @@ mod tests {
         {
             let mut transaction = catalog.open_transaction().await;
 
-            let (path, md) = create_parquet_file(&object_store, server_id, db_name, 0).await;
+            let (path, md) =
+                create_parquet_file(&object_store, server_id, Arc::clone(&db_name), 0).await;
             state
                 .parquet_files
                 .insert(path.clone(), Arc::new(md.clone()));
             transaction.add_parquet(&path, &md).unwrap();
 
-            let (path, md) = create_parquet_file(&object_store, server_id, db_name, 1).await;
+            let (path, md) =
+                create_parquet_file(&object_store, server_id, Arc::clone(&db_name), 1).await;
             state
                 .parquet_files
                 .insert(path.clone(), Arc::new(md.clone()));
@@ -239,7 +241,8 @@ mod tests {
         {
             let mut transaction = catalog.open_transaction().await;
 
-            let (path, md) = create_parquet_file(&object_store, server_id, db_name, 2).await;
+            let (path, md) =
+                create_parquet_file(&object_store, server_id, Arc::clone(&db_name), 2).await;
             state
                 .parquet_files
                 .insert(path.clone(), Arc::new(md.clone()));
@@ -257,7 +260,7 @@ mod tests {
 
         // wipe catalog
         drop(catalog);
-        PreservedCatalog::wipe(&object_store, server_id, db_name)
+        PreservedCatalog::wipe(&object_store, server_id, &db_name)
             .await
             .unwrap();
 
@@ -459,20 +462,22 @@ mod tests {
     pub async fn create_parquet_file(
         object_store: &Arc<ObjectStore>,
         server_id: ServerId,
-        db_name: &str,
+        db_name: Arc<str>,
         chunk_id: u32,
     ) -> (DirsAndFileName, IoxParquetMetaData) {
-        let table_name = "table1";
-        let partition_key = "part1";
+        let table_name = Arc::from("table1");
+        let partition_key = Arc::from("part1");
         let (record_batches, _schema, _column_summaries, _num_rows) = make_record_batch("foo");
 
         let storage = Storage::new(Arc::clone(object_store), server_id);
-        let (partition_checkpoint, database_checkpoint) =
-            create_partition_and_database_checkpoint(table_name, partition_key);
+        let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
+            Arc::clone(&table_name),
+            Arc::clone(&partition_key),
+        );
         let metadata = IoxMetadata {
             creation_timestamp: Utc::now(),
-            table_name: table_name.to_string(),
-            partition_key: partition_key.to_string(),
+            table_name: Arc::clone(&table_name),
+            partition_key: Arc::clone(&partition_key),
             chunk_id,
             partition_checkpoint,
             database_checkpoint,
@@ -481,9 +486,9 @@ mod tests {
         let (path, parquet_md) = storage
             .write_to_object_store(
                 ChunkAddr {
-                    db_name: Arc::from(db_name),
-                    table_name: Arc::from(table_name),
-                    partition_key: Arc::from(partition_key),
+                    db_name,
+                    table_name,
+                    partition_key,
                     chunk_id,
                 },
                 stream,

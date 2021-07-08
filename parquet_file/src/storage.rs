@@ -453,14 +453,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_parquet_contains_key_value_metadata() {
-        let table_name = "table1";
-        let partition_key = "part1";
-        let (partition_checkpoint, database_checkpoint) =
-            create_partition_and_database_checkpoint(table_name, partition_key);
+        let table_name = Arc::from("table1");
+        let partition_key = Arc::from("part1");
+        let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
+            Arc::clone(&table_name),
+            Arc::clone(&partition_key),
+        );
         let metadata = IoxMetadata {
             creation_timestamp: Utc::now(),
-            table_name: table_name.to_string(),
-            partition_key: partition_key.to_string(),
+            table_name,
+            partition_key,
             chunk_id: 1337,
             partition_checkpoint,
             database_checkpoint,
@@ -513,9 +515,9 @@ mod tests {
 
         // create Storage
         let server_id = ServerId::try_from(1).unwrap();
-        let db_name = "my_db";
-        let table_name = "my_table";
-        let partition_key = "my_partition";
+        let db_name = Arc::from("my_db");
+        let table_name = Arc::from("my_table");
+        let partition_key = Arc::from("my_partition");
         let chunk_id = 33;
         let storage = Storage::new(make_object_store(), server_id);
 
@@ -525,12 +527,14 @@ mod tests {
             batch.schema(),
             vec![Arc::new(batch)],
         ));
-        let (partition_checkpoint, database_checkpoint) =
-            create_partition_and_database_checkpoint(table_name, partition_key);
+        let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
+            Arc::clone(&table_name),
+            Arc::clone(&partition_key),
+        );
         let metadata = IoxMetadata {
             creation_timestamp: Utc::now(),
-            table_name: table_name.to_string(),
-            partition_key: partition_key.to_string(),
+            table_name: Arc::clone(&table_name),
+            partition_key: Arc::clone(&partition_key),
             chunk_id,
             partition_checkpoint,
             database_checkpoint,
@@ -539,9 +543,9 @@ mod tests {
         let (path, _) = storage
             .write_to_object_store(
                 ChunkAddr {
-                    db_name: Arc::from(db_name),
-                    table_name: Arc::from(table_name),
-                    partition_key: Arc::from(partition_key),
+                    db_name,
+                    table_name,
+                    partition_key,
                     chunk_id,
                 },
                 input_stream,

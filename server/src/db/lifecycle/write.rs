@@ -101,11 +101,14 @@ pub fn write_chunk_to_object_store(
             // IMPORTANT: Writing must take place while holding the cleanup lock, otherwise the file might be deleted
             //            between creation and the transaction commit.
             let (partition_checkpoint, database_checkpoint) =
-                fake_partition_and_database_checkpoint(&addr.table_name, &addr.partition_key);
+                fake_partition_and_database_checkpoint(
+                    Arc::clone(&addr.table_name),
+                    Arc::clone(&addr.partition_key),
+                );
             let metadata = IoxMetadata {
                 creation_timestamp: Utc::now(),
-                table_name: addr.table_name.to_string(),
-                partition_key: addr.partition_key.to_string(),
+                table_name: Arc::clone(&addr.table_name),
+                partition_key: Arc::clone(&addr.partition_key),
                 chunk_id: addr.chunk_id,
                 partition_checkpoint,
                 database_checkpoint,
@@ -184,15 +187,15 @@ pub fn write_chunk_to_object_store(
 
 /// Fake until we have the split implementation in-place.
 fn fake_partition_and_database_checkpoint(
-    table_name: &str,
-    partition_key: &str,
+    table_name: Arc<str>,
+    partition_key: Arc<str>,
 ) -> (PartitionCheckpoint, DatabaseCheckpoint) {
     // create partition checkpoint
     let sequencer_numbers = BTreeMap::new();
     let min_unpersisted_timestamp = Utc::now();
     let partition_checkpoint = PartitionCheckpoint::new(
-        table_name.to_string(),
-        partition_key.to_string(),
+        table_name,
+        partition_key,
         sequencer_numbers,
         min_unpersisted_timestamp,
     );

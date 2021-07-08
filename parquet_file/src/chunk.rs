@@ -85,7 +85,7 @@ impl ChunkMetrics {
 #[derive(Debug)]
 pub struct ParquetChunk {
     /// Partition this chunk belongs to
-    partition_key: String,
+    partition_key: Arc<str>,
 
     /// Meta data of the table
     table_summary: Arc<TableSummary>,
@@ -146,7 +146,7 @@ impl ParquetChunk {
 
     /// Creates a new chunk from given parts w/o parsing anything from the provided parquet metadata.
     pub(crate) fn new_from_parts(
-        part_key: impl Into<String>,
+        partition_key: Arc<str>,
         table_summary: Arc<TableSummary>,
         schema: Arc<Schema>,
         file_location: Path,
@@ -157,7 +157,7 @@ impl ParquetChunk {
         let timestamp_range = extract_range(&table_summary);
 
         let mut chunk = Self {
-            partition_key: part_key.into(),
+            partition_key,
             table_summary,
             schema,
             timestamp_range,

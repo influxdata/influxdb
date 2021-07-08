@@ -150,12 +150,14 @@ pub async fn make_chunk_given_record_batch(
     } else {
         Box::pin(MemoryStream::new(record_batches))
     };
-    let (partition_checkpoint, database_checkpoint) =
-        create_partition_and_database_checkpoint(&addr.table_name, &addr.partition_key);
+    let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
+        Arc::clone(&addr.table_name),
+        Arc::clone(&addr.partition_key),
+    );
     let metadata = IoxMetadata {
         creation_timestamp: Utc.timestamp(10, 20),
-        table_name: addr.table_name.to_string(),
-        partition_key: addr.partition_key.to_string(),
+        table_name: Arc::clone(&addr.table_name),
+        partition_key: Arc::clone(&addr.partition_key),
         chunk_id: addr.chunk_id,
         partition_checkpoint,
         database_checkpoint,
@@ -166,7 +168,7 @@ pub async fn make_chunk_given_record_batch(
         .unwrap();
 
     ParquetChunk::new_from_parts(
-        addr.partition_key.to_string(),
+        addr.partition_key,
         Arc::new(table_summary),
         Arc::new(schema),
         path,
@@ -750,8 +752,8 @@ pub async fn make_metadata(
 
 /// Create [`PartitionCheckpoint`] and [`DatabaseCheckpoint`] for testing.
 pub fn create_partition_and_database_checkpoint(
-    table_name: &str,
-    partition_key: &str,
+    table_name: Arc<str>,
+    partition_key: Arc<str>,
 ) -> (PartitionCheckpoint, DatabaseCheckpoint) {
     // create partition checkpoint
     let mut sequencer_numbers = BTreeMap::new();
@@ -759,8 +761,8 @@ pub fn create_partition_and_database_checkpoint(
     sequencer_numbers.insert(2, MinMaxSequence::new(25, 28));
     let min_unpersisted_timestamp = Utc.timestamp(10, 20);
     let partition_checkpoint = PartitionCheckpoint::new(
-        table_name.to_string(),
-        partition_key.to_string(),
+        table_name,
+        partition_key,
         sequencer_numbers,
         min_unpersisted_timestamp,
     );
