@@ -9,15 +9,28 @@ use std::io::Read;
 
 #[inline]
 fn write_chunk(count: usize, entries: &[Entry]) {
-    // m0 is hard coded into tag_values.lp.gz
-    let mut chunk = MBChunk::new("m0", ChunkMetrics::new_unregistered());
+    let mut chunk: Option<MBChunk> = None;
 
     let sequence = Some(Sequence::new(1, 5));
     for _ in 0..count {
         for entry in entries {
             for write in entry.partition_writes().iter().flatten() {
                 for batch in write.table_batches() {
-                    chunk.write_table_batch(sequence.as_ref(), batch).unwrap();
+                    match chunk {
+                        Some(ref mut c) => {
+                            c.write_table_batch(sequence.as_ref(), batch).unwrap();
+                        }
+                        None => {
+                            chunk = Some(
+                                MBChunk::new(
+                                    ChunkMetrics::new_unregistered(),
+                                    sequence.as_ref(),
+                                    batch,
+                                )
+                                .unwrap(),
+                            );
+                        }
+                    }
                 }
             }
         }

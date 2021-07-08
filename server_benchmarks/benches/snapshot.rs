@@ -13,8 +13,7 @@ fn snapshot_chunk(chunk: &MBChunk) {
 }
 
 fn chunk(count: usize) -> MBChunk {
-    // m0 is hard coded into tag_values.lp.gz
-    let mut chunk = MBChunk::new("m0", ChunkMetrics::new_unregistered());
+    let mut chunk: Option<MBChunk> = None;
 
     let raw = include_bytes!("../../tests/fixtures/lineproto/tag_values.lp.gz");
     let mut gz = GzDecoder::new(&raw[..]);
@@ -26,13 +25,27 @@ fn chunk(count: usize) -> MBChunk {
         for entry in lp_to_entries(&lp, &hour_partitioner()) {
             for write in entry.partition_writes().iter().flatten() {
                 for batch in write.table_batches() {
-                    chunk.write_table_batch(sequence.as_ref(), batch).unwrap();
+                    match chunk {
+                        Some(ref mut c) => {
+                            c.write_table_batch(sequence.as_ref(), batch).unwrap();
+                        }
+                        None => {
+                            chunk = Some(
+                                MBChunk::new(
+                                    ChunkMetrics::new_unregistered(),
+                                    sequence.as_ref(),
+                                    batch,
+                                )
+                                .unwrap(),
+                            );
+                        }
+                    }
                 }
             }
         }
     }
 
-    chunk
+    chunk.expect("Must write at least one table batch to create a chunk")
 }
 
 pub fn snapshot_mb(c: &mut Criterion) {
