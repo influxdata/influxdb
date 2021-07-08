@@ -3,32 +3,29 @@
 //!
 //! AKA it is a Mock
 
+use crate::exec::Executor;
+use crate::{
+    exec::stringset::{StringSet, StringSetRef},
+    DatabaseStore, Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
+};
 use arrow::{
     array::{ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray},
     datatypes::{DataType, Int32Type, TimeUnit},
     record_batch::RecordBatch,
 };
+use async_trait::async_trait;
 use data_types::{
     chunk_metadata::ChunkSummary,
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
 };
 use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
 use futures::StreamExt;
-
-use crate::exec::Executor;
-use crate::{
-    exec::stringset::{StringSet, StringSetRef},
-    DatabaseStore, Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
-};
-
 use internal_types::{
     schema::{
         builder::SchemaBuilder, merge::SchemaMerger, InfluxColumnType, Schema, TIME_COLUMN_NAME,
     },
     selection::Selection,
 };
-
-use async_trait::async_trait;
 use parking_lot::Mutex;
 use snafu::Snafu;
 use std::{collections::BTreeMap, sync::Arc};

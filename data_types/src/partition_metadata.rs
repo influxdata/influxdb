@@ -1,12 +1,13 @@
 //! This module contains structs that describe the metadata for a partition
 //! including schema, summary statistics, and file locations in storage.
 
-use std::{borrow::Cow, mem};
-
 use serde::{Deserialize, Serialize};
-use std::borrow::Borrow;
-use std::iter::FromIterator;
-use std::num::NonZeroU64;
+use std::{
+    borrow::{Borrow, Cow},
+    iter::FromIterator,
+    mem,
+    num::NonZeroU64,
+};
 
 /// Describes the aggregated (across all chunks) summary
 /// statistics for each column in a partition
