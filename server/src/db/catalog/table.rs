@@ -125,7 +125,7 @@ impl<'a> TableSchemaUpsertHandle<'a> {
         table_schema: &'a RwLock<Schema>,
         new_schema: &Schema,
     ) -> Result<Self, SchemaMergerError> {
-        // Be optimistic and only get a read lock. It is rather rate that the schema will change when new data arrives
+        // Be optimistic and only get a read lock. It is rather rare that the schema will change when new data arrives
         // and we do NOT want to serialize all writes on a single lock.
         let table_schema_read = table_schema.read();
 
