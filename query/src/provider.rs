@@ -682,6 +682,8 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         chunk: Arc<C>,
         input: Arc<dyn ExecutionPlan>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
+        // Todo: check there is sort key and it matches with the given one
+        //let sort_key = schema.sort_key();
         if chunk.is_sorted_on_pk() {
             return Ok(input);
         }

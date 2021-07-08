@@ -6,15 +6,12 @@ use chrono::{DateTime, Utc};
 use data_types::DatabaseName;
 use futures::future::BoxFuture;
 
-use data_types::chunk_metadata::ChunkStorage;
+use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkStorage};
 use data_types::database_rules::{LifecycleRules, DEFAULT_MUB_ROW_THRESHOLD};
 use observability_deps::tracing::{debug, info, warn};
 use tracker::TaskTracker;
 
-use crate::{
-    ChunkLifecycleAction, LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk,
-    LockablePartition,
-};
+use crate::{LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk, LockablePartition};
 
 /// Number of seconds to wait before retying a failed lifecycle action
 pub const LIFECYCLE_ACTION_BACKOFF: Duration = Duration::from_secs(10);

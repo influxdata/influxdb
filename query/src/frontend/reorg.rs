@@ -8,7 +8,7 @@ use datafusion::{
 };
 use datafusion_util::AsExpr;
 use internal_types::schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, trace};
 
 use crate::{
     exec::make_stream_split,
@@ -73,10 +73,14 @@ impl ReorgPlanner {
         let ScanPlan {
             plan_builder,
             provider,
-        } = self.scan_and_sort_plan(chunks, output_sort)?;
+        } = self.scan_and_sort_plan(chunks, output_sort.clone())?;
 
-        // TODO: Set sort key on schema
-        let schema = provider.iox_schema();
+        let mut schema = provider.iox_schema();
+
+        // Set the sort_key of the schema to the compacted chunk's sort key
+        trace!(input_schema=?schema, "Setting sort key on schema");
+        schema.set_sort_key(&output_sort);
+        trace!(output_schema=?schema, "Setting sort key on schema");
 
         let plan = plan_builder.build().context(BuildingPlan)?;
 

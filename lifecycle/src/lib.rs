@@ -10,7 +10,7 @@
 
 use chrono::{DateTime, Utc};
 
-use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
+use data_types::chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkStorage};
 use data_types::database_rules::LifecycleRules;
 use data_types::DatabaseName;
 pub use guard::*;
@@ -19,35 +19,6 @@ use tracker::TaskTracker;
 
 mod guard;
 mod policy;
-
-/// Any lifecycle action currently in progress for this chunk
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum ChunkLifecycleAction {
-    /// Chunk is in the process of being moved to the read buffer
-    Moving,
-
-    /// Chunk is in the process of being written to object storage
-    Persisting,
-
-    /// Chunk is in the process of being compacted
-    Compacting,
-}
-
-impl std::fmt::Display for ChunkLifecycleAction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name())
-    }
-}
-
-impl ChunkLifecycleAction {
-    pub fn name(&self) -> &'static str {
-        match self {
-            Self::Moving => "Moving to the Read Buffer",
-            Self::Persisting => "Persisting to Object Storage",
-            Self::Compacting => "Compacting",
-        }
-    }
-}
 
 /// A trait that encapsulates the database logic that is automated by `LifecyclePolicy`
 pub trait LifecycleDb {

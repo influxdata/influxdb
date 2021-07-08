@@ -4,7 +4,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 
 use ::lifecycle::LifecycleDb;
-use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
+use data_types::chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkStorage};
 use data_types::database_rules::LifecycleRules;
 use data_types::error::ErrorLogger;
 use data_types::job::Job;
@@ -15,8 +15,8 @@ use hashbrown::HashMap;
 use internal_types::schema::sort::SortKey;
 use internal_types::schema::TIME_COLUMN_NAME;
 use lifecycle::{
-    ChunkLifecycleAction, LifecycleChunk, LifecyclePartition, LifecycleReadGuard,
-    LifecycleWriteGuard, LockableChunk, LockablePartition,
+    LifecycleChunk, LifecyclePartition, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
+    LockablePartition,
 };
 use observability_deps::tracing::info;
 use tracker::{RwLock, TaskTracker};

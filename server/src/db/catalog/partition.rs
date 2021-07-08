@@ -8,7 +8,7 @@ use std::{
 
 use chrono::{DateTime, Utc};
 
-use data_types::partition_metadata::PartitionSummary;
+use data_types::{chunk_metadata::ChunkLifecycleAction, partition_metadata::PartitionSummary};
 use tracker::RwLock;
 
 use crate::db::catalog::metrics::PartitionMetrics;
@@ -16,7 +16,6 @@ use crate::db::catalog::metrics::PartitionMetrics;
 use super::chunk::{CatalogChunk, ChunkStage};
 use data_types::chunk_metadata::{ChunkAddr, ChunkSummary};
 use internal_types::schema::Schema;
-use lifecycle::ChunkLifecycleAction;
 use observability_deps::tracing::info;
 use persistence_windows::persistence_windows::PersistenceWindows;
 use snafu::Snafu;

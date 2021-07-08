@@ -432,7 +432,11 @@ impl QueryChunk for DbChunk {
         }
     }
 
-    // TODOs: return the right value. For now the chunk is assumed to be not sorted
+    /// Returns true if the chunk is sorted on its pk
+    /// Since data is compacted prior being moved to RUBs, data in RUBs and OBs
+    /// should be sorted on their PK as the results of compacting.
+    /// However, since we current sorted data based on their cardinality (see compute_sort_key),
+    /// 2 different chunks may be sorted on different order of key columns.
     fn is_sorted_on_pk(&self) -> bool {
         match &self.state {
             State::MutableBuffer { .. } => false,

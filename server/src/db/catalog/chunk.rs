@@ -3,13 +3,12 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use snafu::Snafu;
 
-use data_types::chunk_metadata::ChunkAddr;
+use data_types::chunk_metadata::{ChunkAddr, ChunkLifecycleAction};
 use data_types::{
     chunk_metadata::{ChunkColumnSummary, ChunkStorage, ChunkSummary, DetailedChunkSummary},
     partition_metadata::TableSummary,
 };
 use internal_types::schema::Schema;
-use lifecycle::ChunkLifecycleAction;
 use metrics::{Counter, Histogram, KeyValue};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use parquet_file::chunk::ParquetChunk;
@@ -610,31 +609,42 @@ impl CatalogChunk {
     /// Set the chunk in the Moved state, setting the underlying
     /// storage handle to db, and discarding the underlying mutable buffer
     /// storage.
-    pub fn set_moved(&mut self, chunk: Arc<RBChunk>) -> Result<()> {
+    pub fn set_moved(&mut self, chunk: Arc<RBChunk>, schema: Schema) -> Result<()> {
         match &mut self.stage {
-            ChunkStage::Frozen { representation, .. } => match &representation {
-                ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
-                    self.metrics
-                        .state
-                        .inc_with_labels(&[KeyValue::new("state", "moved")]);
+            ChunkStage::Frozen {
+                meta,
+                representation,
+                ..
+            } => {
+                // after moved, the chunk is sorted and its schema needs to get updated
+                *meta = Arc::new(ChunkMetadata {
+                    table_summary: Arc::clone(&meta.table_summary),
+                    schema: Arc::new(schema),
+                });
 
-                    self.metrics.immutable_chunk_size.observe_with_labels(
-                        chunk.size() as f64,
-                        &[KeyValue::new("state", "moved")],
-                    );
+                match &representation {
+                    ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
+                        self.metrics
+                            .state
+                            .inc_with_labels(&[KeyValue::new("state", "moved")]);
 
-                    *representation = ChunkStageFrozenRepr::ReadBuffer(chunk);
-                    self.finish_lifecycle_action(ChunkLifecycleAction::Moving)?;
-                    Ok(())
+                        self.metrics.immutable_chunk_size.observe_with_labels(
+                            chunk.size() as f64,
+                            &[KeyValue::new("state", "moved")],
+                        );
+                        *representation = ChunkStageFrozenRepr::ReadBuffer(chunk);
+                        self.finish_lifecycle_action(ChunkLifecycleAction::Moving)?;
+                        Ok(())
+                    }
+                    ChunkStageFrozenRepr::ReadBuffer(_) => InternalChunkState {
+                        chunk: self.addr.clone(),
+                        operation: "setting moved",
+                        expected: "Frozen with MutableBufferSnapshot",
+                        actual: "Frozen with ReadBuffer",
+                    }
+                    .fail(),
                 }
-                ChunkStageFrozenRepr::ReadBuffer(_) => InternalChunkState {
-                    chunk: self.addr.clone(),
-                    operation: "setting moved",
-                    expected: "Frozen with MutableBufferSnapshot",
-                    actual: "Frozen with ReadBuffer",
-                }
-                .fail(),
-            },
+            }
             _ => {
                 unexpected_state!(self, "setting moved", "Moving", self.stage)
             }
