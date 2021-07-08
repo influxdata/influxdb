@@ -3,6 +3,7 @@ v1.9.3 [unreleased]
 ### Features
 
 -	[#21710](https://github.com/influxdata/influxdb/pull/21710): chore: add logging to compaction
+-	[#21806](https://github.com/influxdata/influxdb/pull/21806): feat: add total-buffer-bytes config parameter to subscriptions
 
 ### Bugfixes
 
@@ -12,6 +13,8 @@ v1.9.3 [unreleased]
 -	[#21751](https://github.com/influxdata/influxdb/pull/21751): fix: rename arm rpms with yum-compatible names
 -	[#21764](https://github.com/influxdata/influxdb/pull/21764): fix: do not send non-UTF-8 characters to subscriptions
 -	[#21776](https://github.com/influxdata/influxdb/pull/21776): fix: convert arm arch names for rpms during builds via docker
+-	[#21809](https://github.com/influxdata/influxdb/pull/21809): fix: error instead of panic for statement rewrite failure
+-	[#21807](https://github.com/influxdata/influxdb/pull/21807): fix: show shards gives empty expiry time for inf duration shards
 
 v1.9.2 [unreleased]
 
