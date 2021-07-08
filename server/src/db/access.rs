@@ -197,11 +197,11 @@ impl QueryDatabase for QueryCatalogAccess {
         Ok(self.catalog.chunk_summaries())
     }
 
-    fn table_schema(&self, table_name: &str) -> Option<Schema> {
+    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
         self.catalog
             .table(table_name)
             .ok()
-            .map(|table| table.schema().read().clone())
+            .map(|table| Arc::clone(&table.schema().read()))
     }
 }
 
@@ -259,7 +259,7 @@ impl SchemaProvider for DbSchemaProvider {
     fn table(&self, table_name: &str) -> Option<Arc<dyn TableProvider>> {
         let schema = {
             let table = self.catalog.table(table_name).ok()?;
-            table.schema().read().clone()
+            Arc::clone(&table.schema().read())
         };
 
         let mut builder = ProviderBuilder::new(table_name, schema);

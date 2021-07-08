@@ -271,7 +271,7 @@ impl CatalogChunk {
     pub(super) fn new_rub_chunk(
         addr: ChunkAddr,
         chunk: read_buffer::RBChunk,
-        schema: Schema,
+        schema: Arc<Schema>,
         metrics: ChunkMetrics,
     ) -> Self {
         // TODO: Move RUB to single table (#1295)
@@ -282,7 +282,7 @@ impl CatalogChunk {
         let stage = ChunkStage::Frozen {
             meta: Arc::new(ChunkMetadata {
                 table_summary: Arc::new(summary),
-                schema: Arc::new(schema),
+                schema,
             }),
             representation: ChunkStageFrozenRepr::ReadBuffer(Arc::new(chunk)),
         };
@@ -603,7 +603,7 @@ impl CatalogChunk {
 
     /// Set the chunk in the Moved state, setting the underlying storage handle to db, and
     /// discarding the underlying mutable buffer storage.
-    pub fn set_moved(&mut self, chunk: Arc<RBChunk>, schema: Schema) -> Result<()> {
+    pub fn set_moved(&mut self, chunk: Arc<RBChunk>, schema: Arc<Schema>) -> Result<()> {
         match &mut self.stage {
             ChunkStage::Frozen {
                 meta,
@@ -613,7 +613,7 @@ impl CatalogChunk {
                 // after moved, the chunk is sorted and its schema needs to get updated
                 *meta = Arc::new(ChunkMetadata {
                     table_summary: Arc::clone(&meta.table_summary),
-                    schema: Arc::new(schema),
+                    schema,
                 });
 
                 match &representation {

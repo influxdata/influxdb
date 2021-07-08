@@ -199,7 +199,7 @@ impl Catalog {
         &self,
         table_name: impl AsRef<str>,
         partition_key: impl AsRef<str>,
-    ) -> (Arc<RwLock<Partition>>, Arc<RwLock<Schema>>) {
+    ) -> (Arc<RwLock<Partition>>, Arc<RwLock<Arc<Schema>>>) {
         let mut tables = self.tables.write();
         let (_, table) = tables
             .raw_entry_mut()

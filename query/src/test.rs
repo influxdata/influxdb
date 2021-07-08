@@ -117,7 +117,7 @@ impl QueryDatabase for TestDatabase {
         unimplemented!("summaries not implemented TestDatabase")
     }
 
-    fn table_schema(&self, table_name: &str) -> Option<Schema> {
+    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
         let mut merger = SchemaMerger::new();
         let mut found_one = false;
 
@@ -131,7 +131,7 @@ impl QueryDatabase for TestDatabase {
             }
         }
 
-        found_one.then(|| merger.build())
+        found_one.then(|| Arc::new(merger.build()))
     }
 }
 

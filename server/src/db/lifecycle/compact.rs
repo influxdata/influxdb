@@ -68,7 +68,7 @@ pub(crate) fn compact_chunks(
             .merge(&db_chunk.schema())
             .expect("schemas compatible");
     }
-    let schema = merger.build();
+    let schema = Arc::new(merger.build());
 
     // drop partition lock
     let partition = partition.unwrap().partition;

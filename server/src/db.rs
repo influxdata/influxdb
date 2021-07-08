@@ -852,7 +852,7 @@ impl QueryDatabase for Db {
         self.catalog_access.chunk_summaries()
     }
 
-    fn table_schema(&self, table_name: &str) -> Option<Schema> {
+    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
         self.catalog_access.table_schema(table_name)
     }
 }
@@ -985,6 +985,7 @@ mod tests {
         convert::TryFrom,
         iter::Iterator,
         num::{NonZeroU64, NonZeroUsize},
+        ops::Deref,
         str,
         time::{Duration, Instant},
     };
@@ -2836,16 +2837,9 @@ mod tests {
         assert_eq!(paths_actual, paths_expected);
 
         // ==================== do: remember table schema ====================
-        let mut table_schemas: HashMap<String, Schema> = Default::default();
+        let mut table_schemas: HashMap<String, Arc<Schema>> = Default::default();
         for (table_name, _partition_key, _chunk_id) in &chunks {
-            // TODO: use official `db.table_schema` interface later
-            let schema = db
-                .catalog
-                .table(table_name)
-                .unwrap()
-                .schema()
-                .read()
-                .clone();
+            let schema = db.table_schema(table_name).unwrap();
             table_schemas.insert(table_name.clone(), schema);
         }
 
@@ -2873,16 +2867,9 @@ mod tests {
                 }
             ));
         }
-        for (table_name, schema) in table_schemas {
-            // TODO: use official `db.table_schema` interface later
-            let schema2 = db
-                .catalog
-                .table(table_name)
-                .unwrap()
-                .schema()
-                .read()
-                .clone();
-            assert_eq!(schema2, schema);
+        for (table_name, schema) in &table_schemas {
+            let schema2 = db.table_schema(table_name).unwrap();
+            assert_eq!(schema2.deref(), schema.deref());
         }
 
         // ==================== check: DB still writable ====================

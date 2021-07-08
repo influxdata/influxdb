@@ -26,7 +26,11 @@ pub struct Table {
     metrics: TableMetrics,
 
     /// Table-wide schema.
-    schema: Arc<RwLock<Schema>>,
+    ///
+    /// Notes on the type:
+    /// - the outer `Arc<RwLock<...>>` so so that we can reference the locked schema w/o a lifetime to the table
+    /// - the inner `Arc<Schema>` is a schema that we don't need to copy when moving it around the query stack
+    schema: Arc<RwLock<Arc<Schema>>>,
 }
 
 impl Table {
@@ -40,7 +44,7 @@ impl Table {
         let mut builder = SchemaBuilder::new();
         builder.measurement(table_name.as_ref());
         let schema = builder.build().expect("cannot build empty schema");
-        let schema = Arc::new(metrics.new_table_lock(schema));
+        let schema = Arc::new(metrics.new_table_lock(Arc::new(schema)));
 
         Self {
             db_name,
@@ -93,7 +97,7 @@ impl Table {
         self.partitions.values().map(|x| x.read().summary())
     }
 
-    pub fn schema(&self) -> Arc<RwLock<Schema>> {
+    pub fn schema(&self) -> Arc<RwLock<Arc<Schema>>> {
         Arc::clone(&self.schema)
     }
 }
@@ -104,12 +108,12 @@ impl Table {
 enum TableSchemaUpsertHandleInner<'a> {
     /// Schema will not be changed.
     NoChange {
-        table_schema_read: RwLockReadGuard<'a, Schema>,
+        table_schema_read: RwLockReadGuard<'a, Arc<Schema>>,
     },
 
     /// Schema might change (if write to mutable buffer is successfull).
     MightChange {
-        table_schema_write: RwLockWriteGuard<'a, Schema>,
+        table_schema_write: RwLockWriteGuard<'a, Arc<Schema>>,
         merged_schema: Schema,
     },
 }
@@ -122,7 +126,7 @@ pub struct TableSchemaUpsertHandle<'a> {
 
 impl<'a> TableSchemaUpsertHandle<'a> {
     pub(crate) fn new(
-        table_schema: &'a RwLock<Schema>,
+        table_schema: &'a RwLock<Arc<Schema>>,
         new_schema: &Schema,
     ) -> Result<Self, SchemaMergerError> {
         // Be optimistic and only get a read lock. It is rather rare that the schema will change when new data arrives
@@ -134,7 +138,7 @@ impl<'a> TableSchemaUpsertHandle<'a> {
         let merged_schema = Self::try_merge(&table_schema_read, new_schema)?;
 
         // Now check if this would actually change the schema:
-        if &merged_schema == table_schema_read.deref() {
+        if &merged_schema == table_schema_read.deref().deref() {
             // Optimism payed off and we get away we the read lock.
             Ok(Self {
                 inner: TableSchemaUpsertHandleInner::NoChange { table_schema_read },
@@ -181,7 +185,7 @@ impl<'a> TableSchemaUpsertHandle<'a> {
                 merged_schema,
             } => {
                 // Commit new schema and drop write guard;
-                *table_schema_write = merged_schema;
+                *table_schema_write = Arc::new(merged_schema);
                 drop(table_schema_write);
             }
         }
@@ -204,7 +208,7 @@ mod tests {
             .influx_column("tag2", InfluxColumnType::Tag)
             .build()
             .unwrap();
-        let table_schema = lock_tracker.new_lock(table_schema_orig.clone());
+        let table_schema = lock_tracker.new_lock(Arc::new(table_schema_orig.clone()));
 
         // writing with the same schema must not trigger a change
         let schema1 = SchemaBuilder::new()
@@ -218,9 +222,9 @@ mod tests {
             handle.inner,
             TableSchemaUpsertHandleInner::NoChange { .. }
         ));
-        assert_eq!(table_schema.read().deref(), &table_schema_orig);
+        assert_eq!(table_schema.read().deref().deref(), &table_schema_orig);
         handle.commit();
-        assert_eq!(table_schema.read().deref(), &table_schema_orig);
+        assert_eq!(table_schema.read().deref().deref(), &table_schema_orig);
 
         // writing with different column order must not trigger a change
         let schema2 = SchemaBuilder::new()
@@ -234,9 +238,9 @@ mod tests {
             handle.inner,
             TableSchemaUpsertHandleInner::NoChange { .. }
         ));
-        assert_eq!(table_schema.read().deref(), &table_schema_orig);
+        assert_eq!(table_schema.read().deref().deref(), &table_schema_orig);
         handle.commit();
-        assert_eq!(table_schema.read().deref(), &table_schema_orig);
+        assert_eq!(table_schema.read().deref().deref(), &table_schema_orig);
 
         // writing with a column subset must not trigger a change
         let schema3 = SchemaBuilder::new()
@@ -249,9 +253,9 @@ mod tests {
             handle.inner,
             TableSchemaUpsertHandleInner::NoChange { .. }
         ));
-        assert_eq!(table_schema.read().deref(), &table_schema_orig);
+        assert_eq!(table_schema.read().deref().deref(), &table_schema_orig);
         handle.commit();
-        assert_eq!(table_schema.read().deref(), &table_schema_orig);
+        assert_eq!(table_schema.read().deref().deref(), &table_schema_orig);
     }
 
     #[test]
@@ -263,7 +267,7 @@ mod tests {
             .influx_column("tag2", InfluxColumnType::Tag)
             .build()
             .unwrap();
-        let table_schema = lock_tracker.new_lock(table_schema_orig);
+        let table_schema = lock_tracker.new_lock(Arc::new(table_schema_orig));
 
         let new_schema = SchemaBuilder::new()
             .measurement("m1")
@@ -288,7 +292,7 @@ mod tests {
             .influx_column("tag3", InfluxColumnType::Tag)
             .build()
             .unwrap();
-        assert_eq!(table_schema.read().deref(), &table_schema_expected);
+        assert_eq!(table_schema.read().deref().deref(), &table_schema_expected);
     }
 
     #[test]
@@ -300,7 +304,7 @@ mod tests {
             .influx_column("tag2", InfluxColumnType::Tag)
             .build()
             .unwrap();
-        let table_schema = lock_tracker.new_lock(table_schema_orig.clone());
+        let table_schema = lock_tracker.new_lock(Arc::new(table_schema_orig.clone()));
 
         let schema1 = SchemaBuilder::new()
             .measurement("m1")
@@ -311,6 +315,6 @@ mod tests {
         assert!(TableSchemaUpsertHandle::new(&table_schema, &schema1).is_err());
 
         // schema did not change
-        assert_eq!(table_schema.read().deref(), &table_schema_orig);
+        assert_eq!(table_schema.read().deref().deref(), &table_schema_orig);
     }
 }

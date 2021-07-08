@@ -63,10 +63,10 @@ impl ReorgPlanner {
     ///   (Scan chunks) <-- any needed deduplication happens here
     pub fn compact_plan<C, I>(
         &self,
-        schema: Schema,
+        schema: Arc<Schema>,
         chunks: I,
         output_sort: SortKey<'_>,
-    ) -> Result<(Schema, LogicalPlan)>
+    ) -> Result<(Arc<Schema>, LogicalPlan)>
     where
         C: QueryChunk + 'static,
         I: IntoIterator<Item = Arc<C>>,
@@ -79,8 +79,16 @@ impl ReorgPlanner {
         let mut schema = provider.iox_schema();
 
         // Set the sort_key of the schema to the compacted chunk's sort key
+        // Try to do this only if the sort key changes so we avoid unnecessary schema copies.
         trace!(input_schema=?schema, "Setting sort key on schema");
-        schema.set_sort_key(&output_sort);
+        if schema
+            .sort_key()
+            .map_or(true, |existing_key| existing_key != output_sort)
+        {
+            let mut schema_cloned = schema.as_ref().clone();
+            schema_cloned.set_sort_key(&output_sort);
+            schema = Arc::new(schema_cloned);
+        }
         trace!(output_schema=?schema, "Setting sort key on schema");
 
         let plan = plan_builder.build().context(BuildingPlan)?;
@@ -137,11 +145,11 @@ impl ReorgPlanner {
     /// ```
     pub fn split_plan<C, I>(
         &self,
-        schema: Schema,
+        schema: Arc<Schema>,
         chunks: I,
         output_sort: SortKey<'_>,
         split_time: i64,
-    ) -> Result<(Schema, LogicalPlan)>
+    ) -> Result<(Arc<Schema>, LogicalPlan)>
     where
         C: QueryChunk + 'static,
         I: IntoIterator<Item = Arc<C>>,
@@ -180,7 +188,7 @@ impl ReorgPlanner {
     ///   (Scan chunks) <-- any needed deduplication happens here
     fn scan_and_sort_plan<C, I>(
         &self,
-        schema: Schema,
+        schema: Arc<Schema>,
         chunks: I,
         output_sort: SortKey<'_>,
     ) -> Result<ScanPlan<C>>
@@ -259,7 +267,7 @@ mod test {
 
     use super::*;
 
-    async fn get_test_chunks() -> (Schema, Vec<Arc<TestChunk>>) {
+    async fn get_test_chunks() -> (Arc<Schema>, Vec<Arc<TestChunk>>) {
         // Chunk 1 with 5 rows of data on 2 tags
         let chunk1 = Arc::new(
             TestChunk::new(1)
@@ -311,7 +319,7 @@ mod test {
             .unwrap()
             .build();
 
-        (schema, vec![chunk1, chunk2])
+        (Arc::new(schema), vec![chunk1, chunk2])
     }
 
     #[tokio::test]

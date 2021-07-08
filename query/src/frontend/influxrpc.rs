@@ -581,7 +581,7 @@ impl InfluxRpcPlanner {
             let ss_plan = match agg {
                 Aggregate::None => self.read_filter_plan(
                     table_name,
-                    schema.clone(),
+                    Arc::clone(&schema),
                     Some(group_columns),
                     &predicate,
                     chunks,
@@ -699,7 +699,7 @@ impl InfluxRpcPlanner {
     fn tag_keys_plan<C>(
         &self,
         table_name: &str,
-        schema: Schema,
+        schema: Arc<Schema>,
         predicate: &Predicate,
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<StringSetPlan>>
@@ -762,7 +762,7 @@ impl InfluxRpcPlanner {
     fn field_columns_plan<C>(
         &self,
         table_name: &str,
-        schema: Schema,
+        schema: Arc<Schema>,
         predicate: &Predicate,
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<LogicalPlan>>
@@ -813,7 +813,7 @@ impl InfluxRpcPlanner {
     fn read_filter_plan<C>(
         &self,
         table_name: impl AsRef<str>,
-        schema: Schema,
+        schema: Arc<Schema>,
         prefix_columns: Option<&[impl AsRef<str>]>,
         predicate: &Predicate,
         chunks: Vec<Arc<C>>,
@@ -934,7 +934,7 @@ impl InfluxRpcPlanner {
     fn read_group_plan<C>(
         &self,
         table_name: impl Into<String>,
-        schema: Schema,
+        schema: Arc<Schema>,
         predicate: &Predicate,
         agg: Aggregate,
         group_columns: &[impl AsRef<str>],
@@ -1026,7 +1026,7 @@ impl InfluxRpcPlanner {
     fn read_window_aggregate_plan<C>(
         &self,
         table_name: impl Into<String>,
-        schema: Schema,
+        schema: Arc<Schema>,
         predicate: &Predicate,
         agg: Aggregate,
         every: &WindowDuration,
@@ -1114,7 +1114,7 @@ impl InfluxRpcPlanner {
     fn scan_and_filter<C>(
         &self,
         table_name: &str,
-        schema: Schema,
+        schema: Arc<Schema>,
         predicate: &Predicate,
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<TableScanAndFilter>>
@@ -1256,7 +1256,7 @@ struct TableScanAndFilter {
     /// Represents plan that scans a table and applies optional filtering
     plan_builder: LogicalPlanBuilder,
     /// The IOx schema of the result
-    schema: Schema,
+    schema: Arc<Schema>,
 }
 
 /// Reorders tag_columns so that its prefix matches exactly

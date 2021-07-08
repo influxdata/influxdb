@@ -92,13 +92,13 @@ pub trait ChunkPruner<C: QueryChunk>: Sync + Send + std::fmt::Debug {
 #[derive(Debug)]
 pub struct ProviderBuilder<C: QueryChunk + 'static> {
     table_name: Arc<str>,
-    schema: Schema,
+    schema: Arc<Schema>,
     chunk_pruner: Option<Arc<dyn ChunkPruner<C>>>,
     chunks: Vec<Arc<C>>,
 }
 
 impl<C: QueryChunk> ProviderBuilder<C> {
-    pub fn new(table_name: impl AsRef<str>, schema: Schema) -> Self {
+    pub fn new(table_name: impl AsRef<str>, schema: Arc<Schema>) -> Self {
         Self {
             table_name: Arc::from(table_name.as_ref()),
             schema,
@@ -164,7 +164,7 @@ impl<C: QueryChunk> ProviderBuilder<C> {
 pub struct ChunkTableProvider<C: QueryChunk + 'static> {
     table_name: Arc<str>,
     /// The IOx schema (wrapper around Arrow Schemaref) for this table
-    iox_schema: Schema,
+    iox_schema: Arc<Schema>,
     /// Something that can prune chunks
     chunk_pruner: Arc<dyn ChunkPruner<C>>,
     // The chunks
@@ -173,8 +173,8 @@ pub struct ChunkTableProvider<C: QueryChunk + 'static> {
 
 impl<C: QueryChunk + 'static> ChunkTableProvider<C> {
     /// Return the IOx schema view for the data provided by this provider
-    pub fn iox_schema(&self) -> Schema {
-        self.iox_schema.clone()
+    pub fn iox_schema(&self) -> Arc<Schema> {
+        Arc::clone(&self.iox_schema)
     }
 
     /// Return the Arrow schema view for the data provided by this provider
@@ -221,8 +221,8 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
 
         // Figure out the schema of the requested output
         let scan_schema = match projection {
-            Some(indicies) => self.iox_schema.select_by_indices(indicies),
-            None => self.iox_schema.clone(),
+            Some(indicies) => Arc::new(self.iox_schema.select_by_indices(indicies)),
+            None => Arc::clone(&self.iox_schema),
         };
 
         // This debug shows the self.arrow_schema() includes all columns in all chunks
@@ -232,7 +232,7 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
         let mut deduplicate = Deduplicater::new();
         let plan = deduplicate.build_scan_plan(
             Arc::clone(&self.table_name),
-            Arc::new(scan_schema),
+            scan_schema,
             chunks,
             predicate,
         )?;
