@@ -77,10 +77,10 @@ impl ReorgPlanner {
 
         let mut schema = provider.iox_schema();
 
-        trace!("Schema before setting sort key: {:#?}", schema);
         // Set the sort_key of the schema to the compacted chunk's sort key
+        trace!(input_schema=?schema, "Setting sort key on schema");
         schema.set_sort_key(&output_sort);
-        trace!("Schema after setting sort key: {:#?}", schema);
+        trace!(output_schema=?schema, "Setting sort key on schema");
 
         let plan = plan_builder.build().context(BuildingPlan)?;
 

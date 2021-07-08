@@ -101,6 +101,30 @@ async fn list_schema_cpu_all_rub() {
 }
 
 #[tokio::test]
+async fn list_schema_cpu_all_rub_set_sort_key() {
+    // The schema of RUB includes sort key
+    let mut sort_key = SortKey::with_capacity(2);
+    sort_key.push("region", Default::default());
+    sort_key.push(TIME_COLUMN_NAME, Default::default());
+
+    let expected_schema = SchemaBuilder::new()
+        .tag("region")
+        .timestamp()
+        .field("user", DataType::Float64)
+        .build_with_sort_key(&sort_key)
+        .unwrap();
+
+    run_table_schema_test_case!(
+        TwoMeasurementsRubScenario {},
+        Selection::All,
+        "cpu",
+        expected_schema
+    );
+
+    // Now set
+}
+
+#[tokio::test]
 async fn list_schema_disk_all() {
     // we expect columns to come out in lexographic order by name
     let expected_schema = SchemaBuilder::new()
@@ -172,5 +196,196 @@ async fn list_schema_location_all() {
         Selection::All,
         "restaurant",
         expected_schema
+    );
+}
+
+#[tokio::test]
+async fn test_set_sort_key_valid_same_order() {
+    // Build the expected schema with sort key
+    let mut sort_key = SortKey::with_capacity(3);
+    sort_key.push("tag1", Default::default());
+    sort_key.push("time", Default::default());
+    sort_key.push("tag2", Default::default());
+
+    let expected_schema = SchemaBuilder::new()
+        .tag("tag1")
+        .timestamp()
+        .tag("tag2")
+        .field("field_int", DataType::Int64)
+        .field("field_float", DataType::Float64)
+        .build_with_sort_key(&sort_key)
+        .unwrap();
+
+    // The same schema without sort key
+    let mut schema = SchemaBuilder::new()
+        .tag("tag1")
+        .timestamp()
+        .tag("tag2")
+        .field("field_int", DataType::Int64)
+        .field("field_float", DataType::Float64)
+        .build()
+        .unwrap();
+
+    schema.set_sort_key(&sort_key);
+
+    assert_eq!(
+        expected_schema, schema,
+        "Schema mismatch \nExpected:\n{:#?}\nActual:\n{:#?}\n",
+        expected_schema, schema
+    );
+}
+
+#[tokio::test]
+async fn test_set_sort_key_valid_different_order() {
+    // Build the expected schema with sort key "time, tag2, tag1"
+    let mut sort_key = SortKey::with_capacity(3);
+    sort_key.push("time", Default::default());
+    sort_key.push("tag2", Default::default());
+    sort_key.push("tag1", Default::default());
+
+    let expected_schema = SchemaBuilder::new()
+        .tag("tag1")
+        .timestamp()
+        .tag("tag2")
+        .field("field_int", DataType::Int64)
+        .field("field_float", DataType::Float64)
+        .build_with_sort_key(&sort_key)
+        .unwrap();
+
+    // The same schema without sort key
+    let mut schema = SchemaBuilder::new()
+        .tag("tag1")
+        .timestamp()
+        .tag("tag2")
+        .field("field_int", DataType::Int64)
+        .field("field_float", DataType::Float64)
+        .build()
+        .unwrap();
+
+    schema.set_sort_key(&sort_key);
+
+    assert_eq!(
+        expected_schema, schema,
+        "Schema mismatch \nExpected:\n{:#?}\nActual:\n{:#?}\n",
+        expected_schema, schema
+    );
+}
+
+#[tokio::test]
+async fn test_set_sort_key_valid_subset() {
+    // Build the expected schema with sort key "time, tag1"
+    let mut sort_key = SortKey::with_capacity(2);
+    sort_key.push("time", Default::default());
+    sort_key.push("tag1", Default::default());
+
+    let expected_schema = SchemaBuilder::new()
+        .tag("tag1")
+        .timestamp()
+        .tag("tag2")
+        .field("field_int", DataType::Int64)
+        .field("field_float", DataType::Float64)
+        .build_with_sort_key(&sort_key)
+        .unwrap();
+
+    // The same schema without sort key
+    let mut schema = SchemaBuilder::new()
+        .tag("tag1")
+        .timestamp()
+        .tag("tag2")
+        .field("field_int", DataType::Int64)
+        .field("field_float", DataType::Float64)
+        .build()
+        .unwrap();
+
+    // set sort key for it
+    schema.set_sort_key(&sort_key);
+
+    assert_eq!(
+        expected_schema, schema,
+        "Schema mismatch \nExpected:\n{:#?}\nActual:\n{:#?}\n",
+        expected_schema, schema
+    );
+}
+
+#[tokio::test]
+async fn test_set_sort_key_valid_subset_of_fully_set() {
+    // Build sort key "tag1, time, tag2"
+    let mut sort_key = SortKey::with_capacity(3);
+    sort_key.push("tag1", Default::default());
+    sort_key.push("time", Default::default());
+    sort_key.push("tag2", Default::default());
+
+    // The schema with sort key
+    let mut schema = SchemaBuilder::new()
+        .tag("tag1")
+        .timestamp()
+        .tag("tag2")
+        .field("field_int", DataType::Int64)
+        .field("field_float", DataType::Float64)
+        .build_with_sort_key(&sort_key)
+        .unwrap();
+
+    // reset sort key to "tag2, time"
+    let mut sort_key = SortKey::with_capacity(2);
+    sort_key.push("tag2", Default::default());
+    sort_key.push("time", Default::default());
+
+    schema.set_sort_key(&sort_key);
+
+    // Expected schema with "tag2, time" as sort key
+    let expected_schema = SchemaBuilder::new()
+        .tag("tag1")
+        .timestamp()
+        .tag("tag2")
+        .field("field_int", DataType::Int64)
+        .field("field_float", DataType::Float64)
+        .build_with_sort_key(&sort_key)
+        .unwrap();
+
+    assert_eq!(
+        expected_schema, schema,
+        "Schema mismatch \nExpected:\n{:#?}\nActual:\n{:#?}\n",
+        expected_schema, schema
+    );
+}
+
+#[tokio::test]
+async fn test_set_sort_key_invalid_not_exist() {
+    // Build the expected schema with sort key "time"
+    let mut sort_key = SortKey::with_capacity(1);
+    sort_key.push("time", Default::default());
+
+    let expected_schema = SchemaBuilder::new()
+        .tag("tag1")
+        .timestamp()
+        .tag("tag2")
+        .field("field_int", DataType::Int64)
+        .field("field_float", DataType::Float64)
+        .build_with_sort_key(&sort_key)
+        .unwrap();
+
+    // The same schema without sort key
+    let mut schema = SchemaBuilder::new()
+        .tag("tag1")
+        .timestamp()
+        .tag("tag2")
+        .field("field_int", DataType::Int64)
+        .field("field_float", DataType::Float64)
+        .build()
+        .unwrap();
+
+    // Nuild sort key that include valid "time" and invalid "no_tag"
+    let mut sort_key = SortKey::with_capacity(2);
+    sort_key.push("time", Default::default());
+    // invalid column
+    sort_key.push("not_tag", Default::default());
+
+    // The invalid key will be ignored in this function
+    schema.set_sort_key(&sort_key);
+
+    assert_eq!(
+        expected_schema, schema,
+        "Schema mismatch \nExpected:\n{:#?}\nActual:\n{:#?}\n",
+        expected_schema, schema
     );
 }
