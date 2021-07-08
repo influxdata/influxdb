@@ -1,9 +1,8 @@
 package subscriber
 
 import (
+	"context"
 	"net"
-
-	"github.com/influxdata/influxdb/coordinator"
 )
 
 // UDP supports writing points over UDP using the line protocol.
@@ -17,7 +16,7 @@ func NewUDP(addr string) *UDP {
 }
 
 // WritePoints writes points over UDP transport.
-func (u *UDP) WritePoints(p *coordinator.WritePointsRequest) (err error) {
+func (u *UDP) WritePointsContext(_ context.Context, request WriteRequest) (err error) {
 	var addr *net.UDPAddr
 	var con *net.UDPConn
 	addr, err = net.ResolveUDPAddr("udp", u.addr)
@@ -31,12 +30,13 @@ func (u *UDP) WritePoints(p *coordinator.WritePointsRequest) (err error) {
 	}
 	defer con.Close()
 
-	for _, p := range p.Points {
-		_, err = con.Write([]byte(p.String()))
+	for i := range request.pointOffsets {
+		// write the point without the trailing newline
+		pointRaw := request.PointAt(i)
+		_, err = con.Write(pointRaw[:pointRaw[len(pointRaw)-1]])
 		if err != nil {
 			return
 		}
-
 	}
 	return
 }
