@@ -75,7 +75,7 @@ pub(crate) fn compact_chunks(
 
     let fut = async move {
         let key = compute_sort_key(query_chunks.iter().map(|x| x.summary()));
-        let key_str = format!("{:?}", key); // for logging
+        let key_str = format!("\"{}\"", key); // for logging
 
         // Cannot move query_chunks as the sort key borrows the column names
         let (schema, plan) =
