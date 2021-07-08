@@ -1,5 +1,8 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use entry::{test_helpers::lp_to_entries, Entry, Sequence};
+use entry::{
+    test_helpers::{hour_partitioner, lp_to_entries},
+    Entry, Sequence,
+};
 use flate2::read::GzDecoder;
 use mutable_buffer::chunk::{ChunkMetrics, MBChunk};
 use std::io::Read;
@@ -26,7 +29,7 @@ fn load_entries() -> Vec<Entry> {
     let mut gz = GzDecoder::new(&raw[..]);
     let mut lp = String::new();
     gz.read_to_string(&mut lp).unwrap();
-    lp_to_entries(&lp)
+    lp_to_entries(&lp, &hour_partitioner())
 }
 
 pub fn write_mb(c: &mut Criterion) {

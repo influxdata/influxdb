@@ -144,6 +144,15 @@ pub enum Error {
     },
 
     #[snafu(
+        display("Schema for {:?} does not work with existing schema: {}", path, source),
+        visibility(pub)
+    )]
+    SchemaError {
+        source: Box<dyn std::error::Error + Send + Sync>,
+        path: DirsAndFileName,
+    },
+
+    #[snafu(
         display("Cannot create parquet chunk from {:?}: {}", path, source),
         visibility(pub)
     )]
