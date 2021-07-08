@@ -1,9 +1,13 @@
-//! Contains implementation of IOx name: (), stats: () system table stats: () stats: ()es (aka tables in the `system` schema)
+//! Contains implementation of IOx system tables:
+//!
+//! system.chunks
+//! system.columns
+//! system.chunk_columns
+//! system.operations
 //!
 //! For example `SELECT * FROM system.chunks`
 
 use std::convert::AsRef;
-use std::iter::FromIterator;
 use std::sync::Arc;
 use std::{any::Any, collections::HashMap};
 
@@ -201,22 +205,42 @@ fn chunk_summaries_schema() -> SchemaRef {
 }
 
 fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
-    let id = UInt32Array::from_iter(chunks.iter().map(|c| Some(c.id)));
-    let partition_key =
-        StringArray::from_iter(chunks.iter().map(|c| Some(c.partition_key.as_ref())));
-    let table_name = StringArray::from_iter(chunks.iter().map(|c| Some(c.table_name.as_ref())));
-    let storage = StringArray::from_iter(chunks.iter().map(|c| Some(c.storage.as_str())));
-    let estimated_bytes =
-        UInt64Array::from_iter(chunks.iter().map(|c| Some(c.estimated_bytes as u64)));
-    let row_counts = UInt64Array::from_iter(chunks.iter().map(|c| Some(c.row_count as u64)));
-    let time_of_first_write = TimestampNanosecondArray::from_iter(
-        chunks.iter().map(|c| c.time_of_first_write).map(time_to_ts),
-    );
-    let time_of_last_write = TimestampNanosecondArray::from_iter(
-        chunks.iter().map(|c| c.time_of_last_write).map(time_to_ts),
-    );
-    let time_closed =
-        TimestampNanosecondArray::from_iter(chunks.iter().map(|c| c.time_closed).map(time_to_ts));
+    let id = chunks.iter().map(|c| Some(c.id)).collect::<UInt32Array>();
+    let partition_key = chunks
+        .iter()
+        .map(|c| Some(c.partition_key.as_ref()))
+        .collect::<StringArray>();
+    let table_name = chunks
+        .iter()
+        .map(|c| Some(c.table_name.as_ref()))
+        .collect::<StringArray>();
+    let storage = chunks
+        .iter()
+        .map(|c| Some(c.storage.as_str()))
+        .collect::<StringArray>();
+    let estimated_bytes = chunks
+        .iter()
+        .map(|c| Some(c.estimated_bytes as u64))
+        .collect::<UInt64Array>();
+    let row_counts = chunks
+        .iter()
+        .map(|c| Some(c.row_count as u64))
+        .collect::<UInt64Array>();
+    let time_of_first_write = chunks
+        .iter()
+        .map(|c| c.time_of_first_write)
+        .map(time_to_ts)
+        .collect::<TimestampNanosecondArray>();
+    let time_of_last_write = chunks
+        .iter()
+        .map(|c| c.time_of_last_write)
+        .map(time_to_ts)
+        .collect::<TimestampNanosecondArray>();
+    let time_closed = chunks
+        .iter()
+        .map(|c| c.time_closed)
+        .map(time_to_ts)
+        .collect::<TimestampNanosecondArray>();
 
     RecordBatch::try_new(
         schema,
@@ -347,7 +371,7 @@ fn chunk_columns_schema() -> SchemaRef {
         Field::new("table_name", DataType::Utf8, false),
         Field::new("column_name", DataType::Utf8, false),
         Field::new("storage", DataType::Utf8, false),
-        Field::new("count", DataType::UInt64, true),
+        Field::new("row_count", DataType::UInt64, true),
         Field::new("min_value", DataType::Utf8, true),
         Field::new("max_value", DataType::Utf8, true),
         Field::new("estimated_bytes", DataType::UInt64, true),
@@ -380,7 +404,7 @@ fn assemble_chunk_columns(
     let mut table_name = StringBuilder::new(row_estimate);
     let mut column_name = StringBuilder::new(row_estimate);
     let mut storage = StringBuilder::new(row_estimate);
-    let mut count = UInt64Builder::new(row_estimate);
+    let mut row_count = UInt64Builder::new(row_estimate);
     let mut min_values = StringBuilder::new(row_estimate);
     let mut max_values = StringBuilder::new(row_estimate);
     let mut estimated_bytes = UInt64Builder::new(row_estimate);
@@ -398,7 +422,7 @@ fn assemble_chunk_columns(
             table_name.append_value(&chunk_summary.inner.table_name)?;
             column_name.append_value(&column.name)?;
             storage.append_value(storage_value)?;
-            count.append_value(column.count())?;
+            row_count.append_value(column.count())?;
             if let Some(v) = column.stats.min_as_str() {
                 min_values.append_value(v)?;
             } else {
@@ -424,7 +448,7 @@ fn assemble_chunk_columns(
             Arc::new(table_name.finish()),
             Arc::new(column_name.finish()),
             Arc::new(storage.finish()),
-            Arc::new(count.finish()),
+            Arc::new(row_count.finish()),
             Arc::new(min_values.finish()),
             Arc::new(max_values.finish()),
             Arc::new(estimated_bytes.finish()),
@@ -484,21 +508,34 @@ fn from_task_trackers(
         .filter(|job| job.metadata().db_name() == Some(db_name))
         .collect::<Vec<_>>();
 
-    let ids = StringArray::from_iter(jobs.iter().map(|job| Some(job.id().to_string())));
-    let statuses = StringArray::from_iter(jobs.iter().map(|job| Some(job.get_status().name())));
-    let cpu_time_used = Time64NanosecondArray::from_iter(
-        jobs.iter()
-            .map(|job| job.get_status().cpu_nanos().map(|n| n as i64)),
-    );
-    let wall_time_used = Time64NanosecondArray::from_iter(
-        jobs.iter()
-            .map(|job| job.get_status().wall_nanos().map(|n| n as i64)),
-    );
-    let partition_keys =
-        StringArray::from_iter(jobs.iter().map(|job| job.metadata().partition_key()));
-    let chunk_ids = UInt32Array::from_iter(jobs.iter().map(|job| job.metadata().chunk_id()));
-    let descriptions =
-        StringArray::from_iter(jobs.iter().map(|job| Some(job.metadata().description())));
+    let ids = jobs
+        .iter()
+        .map(|job| Some(job.id().to_string()))
+        .collect::<StringArray>();
+    let statuses = jobs
+        .iter()
+        .map(|job| Some(job.get_status().name()))
+        .collect::<StringArray>();
+    let cpu_time_used = jobs
+        .iter()
+        .map(|job| job.get_status().cpu_nanos().map(|n| n as i64))
+        .collect::<Time64NanosecondArray>();
+    let wall_time_used = jobs
+        .iter()
+        .map(|job| job.get_status().wall_nanos().map(|n| n as i64))
+        .collect::<Time64NanosecondArray>();
+    let partition_keys = jobs
+        .iter()
+        .map(|job| job.metadata().partition_key())
+        .collect::<StringArray>();
+    let chunk_ids = jobs
+        .iter()
+        .map(|job| job.metadata().chunk_id())
+        .collect::<UInt32Array>();
+    let descriptions = jobs
+        .iter()
+        .map(|job| Some(job.metadata().description()))
+        .collect::<StringArray>();
 
     RecordBatch::try_new(
         schema,
@@ -852,14 +889,14 @@ mod tests {
         ];
 
         let expected = vec![
-            "+---------------+----------+------------+-------------+-------------------+-------+-----------+-----------+-----------------+",
-            "| partition_key | chunk_id | table_name | column_name | storage           | count | min_value | max_value | estimated_bytes |",
-            "+---------------+----------+------------+-------------+-------------------+-------+-----------+-----------+-----------------+",
-            "| p1            | 42       | t1         | c1          | ReadBuffer        | 55    | bar       | foo       | 11              |",
-            "| p1            | 42       | t1         | c2          | ReadBuffer        | 66    | 11        | 43        | 12              |",
-            "| p2            | 43       | t1         | c1          | OpenMutableBuffer | 667   | 110       | 430       | 100             |",
-            "| p2            | 44       | t2         | c3          | OpenMutableBuffer | 4     | -1        | 2         | 200             |",
-            "+---------------+----------+------------+-------------+-------------------+-------+-----------+-----------+-----------------+",
+            "+---------------+----------+------------+-------------+-------------------+-----------+-----------+-----------+-----------------+",
+            "| partition_key | chunk_id | table_name | column_name | storage           | row_count | min_value | max_value | estimated_bytes |",
+            "+---------------+----------+------------+-------------+-------------------+-----------+-----------+-----------+-----------------+",
+            "| p1            | 42       | t1         | c1          | ReadBuffer        | 55        | bar       | foo       | 11              |",
+            "| p1            | 42       | t1         | c2          | ReadBuffer        | 66        | 11        | 43        | 12              |",
+            "| p2            | 43       | t1         | c1          | OpenMutableBuffer | 667       | 110       | 430       | 100             |",
+            "| p2            | 44       | t2         | c3          | OpenMutableBuffer | 4         | -1        | 2         | 200             |",
+            "+---------------+----------+------------+-------------+-------------------+-----------+-----------+-----------+-----------------+",
         ];
 
         let batch = assemble_chunk_columns(chunk_columns_schema(), summaries).unwrap();

@@ -34,7 +34,7 @@ use arrow::{
 };
 use datafusion::{
     error::{DataFusionError as Error, Result},
-    logical_plan::{self, DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
+    logical_plan::{DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
     physical_plan::{
         common::SizedRecordBatchStream, DisplayFormatType, Distribution, ExecutionPlan,
         Partitioning, SendableRecordBatchStream,
@@ -58,12 +58,12 @@ impl SchemaPivotNode {
         let schema = make_schema_pivot_output_schema();
 
         // Form exprs that refer to all of our input columns (so that
-        // datafusion doesn't opimize them away)
+        // datafusion knows not to opimize them away)
         let exprs = input
             .schema()
             .fields()
             .iter()
-            .map(|field| logical_plan::col(field.name()))
+            .map(|field| Expr::Column(field.qualified_column()))
             .collect::<Vec<_>>();
 
         Self {

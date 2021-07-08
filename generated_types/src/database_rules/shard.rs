@@ -250,7 +250,7 @@ mod tests {
         let hash_ring: HashRing = protobuf.clone().try_into().unwrap();
         let back: management::HashRing = hash_ring.clone().into();
 
-        assert_eq!(hash_ring.table_name, false);
+        assert!(!hash_ring.table_name);
         assert_eq!(protobuf.table_name, back.table_name);
         assert!(hash_ring.columns.is_empty());
         assert_eq!(protobuf.columns, back.columns);
@@ -308,7 +308,7 @@ mod tests {
         assert!(shard_config.hash_ring.is_none());
         assert_eq!(protobuf.hash_ring, back.hash_ring);
 
-        assert_eq!(shard_config.ignore_errors, false);
+        assert!(!shard_config.ignore_errors);
         assert_eq!(protobuf.ignore_errors, back.ignore_errors);
 
         assert!(shard_config.shards.is_empty());

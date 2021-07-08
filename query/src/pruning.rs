@@ -3,7 +3,7 @@
 use arrow::array::ArrayRef;
 use data_types::partition_metadata::{ColumnSummary, Statistics, TableSummary};
 use datafusion::{
-    logical_plan::Expr,
+    logical_plan::{Column, Expr},
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
     scalar::ScalarValue,
 };
@@ -72,7 +72,7 @@ where
 {
     trace!(?filter_expr, schema=?chunk.schema(), "creating pruning predicate");
 
-    let pruning_predicate = match PruningPredicate::try_new(filter_expr, chunk.schema().as_arrow())
+    let pruning_predicate = match PruningPredicate::try_new(&filter_expr, chunk.schema().as_arrow())
     {
         Ok(p) => p,
         Err(e) => {
@@ -110,7 +110,8 @@ struct ChunkMetaStats<'a> {
 }
 impl<'a> ChunkMetaStats<'a> {
     fn column_summary(&self, column: &str) -> Option<&ColumnSummary> {
-        self.summary.columns.iter().find(|c| c.name == column)
+        let summary = self.summary.columns.iter().find(|c| c.name == column);
+        summary
     }
 }
 
@@ -137,16 +138,20 @@ fn max_to_scalar(stats: &Statistics) -> Option<ScalarValue> {
 }
 
 impl<'a> PruningStatistics for ChunkMetaStats<'a> {
-    fn min_values(&self, column: &str) -> Option<ArrayRef> {
-        self.column_summary(column)
+    fn min_values(&self, column: &Column) -> Option<ArrayRef> {
+        let min = self
+            .column_summary(&column.name)
             .and_then(|c| min_to_scalar(&c.stats))
-            .map(|s| s.to_array_of_size(1))
+            .map(|s| s.to_array_of_size(1));
+        min
     }
 
-    fn max_values(&self, column: &str) -> Option<ArrayRef> {
-        self.column_summary(column)
+    fn max_values(&self, column: &Column) -> Option<ArrayRef> {
+        let max = self
+            .column_summary(&column.name)
             .and_then(|c| max_to_scalar(&c.stats))
-            .map(|s| s.to_array_of_size(1))
+            .map(|s| s.to_array_of_size(1));
+        max
     }
 
     fn num_containers(&self) -> usize {

@@ -1230,10 +1230,10 @@ mod test {
 
         // w,w,w,e,e,n,n,n,n
         // 0 1 2 3 4 5 6 7 8
-        assert_eq!(drle.has_non_null_value_in_row_ids(&[0]), true);
-        assert_eq!(drle.has_non_null_value_in_row_ids(&[1, 3]), true);
-        assert_eq!(drle.has_non_null_value_in_row_ids(&[8]), true);
-        assert_eq!(drle.has_non_null_value_in_row_ids(&[12, 132]), false);
+        assert!(drle.has_non_null_value_in_row_ids(&[0]));
+        assert!(drle.has_non_null_value_in_row_ids(&[1, 3]));
+        assert!(drle.has_non_null_value_in_row_ids(&[8]));
+        assert!(!drle.has_non_null_value_in_row_ids(&[12, 132]));
     }
 
     #[test]
@@ -1251,17 +1251,17 @@ mod test {
 
         // w,w,w,?,e,e,n,n,n,n, ?, ?,  ?,  ?,  w,  w,  w
         // 0 1 2 3 4 5 6 7 8 9 10 11, 12, 13, 14, 15, 16
-        assert_eq!(drle.has_non_null_value_in_row_ids(&[0]), true);
-        assert_eq!(drle.has_non_null_value_in_row_ids(&[2, 3]), true);
-        assert_eq!(drle.has_non_null_value_in_row_ids(&[2, 3]), true);
-        assert_eq!(drle.has_non_null_value_in_row_ids(&[3, 4, 10]), true);
-        assert_eq!(drle.has_non_null_value_in_row_ids(&[16, 19]), true);
+        assert!(drle.has_non_null_value_in_row_ids(&[0]));
+        assert!(drle.has_non_null_value_in_row_ids(&[2, 3]));
+        assert!(drle.has_non_null_value_in_row_ids(&[2, 3]));
+        assert!(drle.has_non_null_value_in_row_ids(&[3, 4, 10]));
+        assert!(drle.has_non_null_value_in_row_ids(&[16, 19]));
 
-        assert_eq!(drle.has_non_null_value_in_row_ids(&[3]), false);
-        assert_eq!(drle.has_non_null_value_in_row_ids(&[3, 10]), false);
-        assert_eq!(drle.has_non_null_value_in_row_ids(&[17]), false);
-        assert_eq!(drle.has_non_null_value_in_row_ids(&[17, 19]), false);
-        assert_eq!(drle.has_non_null_value_in_row_ids(&[12, 19]), false);
+        assert!(!drle.has_non_null_value_in_row_ids(&[3]));
+        assert!(!drle.has_non_null_value_in_row_ids(&[3, 10]));
+        assert!(!drle.has_non_null_value_in_row_ids(&[17]));
+        assert!(!drle.has_non_null_value_in_row_ids(&[17, 19]));
+        assert!(!drle.has_non_null_value_in_row_ids(&[12, 19]));
     }
 
     #[test]

@@ -34,6 +34,14 @@ pub enum Job {
         chunks: Vec<u32>,
     },
 
+    /// Split and persist a set of chunks
+    PersistChunks {
+        db_name: String,
+        partition_key: String,
+        table_name: String,
+        chunks: Vec<u32>,
+    },
+
     /// Wipe preserved catalog
     WipePreservedCatalog {
         db_name: String,
@@ -48,6 +56,7 @@ impl Job {
             Self::CloseChunk { db_name, .. } => Some(db_name),
             Self::WriteChunk { db_name, .. } => Some(db_name),
             Self::CompactChunks { db_name, .. } => Some(db_name),
+            Self::PersistChunks { db_name, .. } => Some(db_name),
             Self::WipePreservedCatalog { db_name, .. } => Some(db_name),
         }
     }
@@ -59,17 +68,19 @@ impl Job {
             Self::CloseChunk { partition_key, .. } => Some(partition_key),
             Self::WriteChunk { partition_key, .. } => Some(partition_key),
             Self::CompactChunks { partition_key, .. } => Some(partition_key),
+            Self::PersistChunks { partition_key, .. } => Some(partition_key),
             Self::WipePreservedCatalog { .. } => None,
         }
     }
 
-    /// Returns the chunk_id assocated with this job, if any
+    /// Returns the chunk_id associated with this job, if any
     pub fn chunk_id(&self) -> Option<u32> {
         match self {
             Self::Dummy { .. } => None,
             Self::CloseChunk { chunk_id, .. } => Some(*chunk_id),
             Self::WriteChunk { chunk_id, .. } => Some(*chunk_id),
             Self::CompactChunks { .. } => None,
+            Self::PersistChunks { .. } => None,
             Self::WipePreservedCatalog { .. } => None,
         }
     }
@@ -81,6 +92,7 @@ impl Job {
             Self::CloseChunk { .. } => "Loading chunk to ReadBuffer",
             Self::WriteChunk { .. } => "Writing chunk to Object Storage",
             Self::CompactChunks { .. } => "Compacting chunks to ReadBuffer",
+            Self::PersistChunks { .. } => "Persisting chunks to object storage",
             Self::WipePreservedCatalog { .. } => "Wipe preserved catalog",
         }
     }

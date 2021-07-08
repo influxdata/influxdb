@@ -7,7 +7,7 @@ use crate::runner::Runner;
 #[tokio::test]
 // Tests from "duplicates.sql",
 async fn test_cases_duplicates_sql() {
-    let input_path = Path::new("cases").join("duplicates.sql");
+    let input_path = Path::new("cases").join("in").join("duplicates.sql");
     let mut runner = Runner::new();
     runner
         .run(input_path)
@@ -21,7 +21,7 @@ async fn test_cases_duplicates_sql() {
 #[tokio::test]
 // Tests from "pushdown.sql",
 async fn test_cases_pushdown_sql() {
-    let input_path = Path::new("cases").join("pushdown.sql");
+    let input_path = Path::new("cases").join("in").join("pushdown.sql");
     let mut runner = Runner::new();
     runner
         .run(input_path)

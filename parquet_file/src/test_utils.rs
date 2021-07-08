@@ -1,4 +1,4 @@
-use std::{num::NonZeroU32, sync::Arc};
+use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc};
 
 use arrow::{
     array::{
@@ -25,6 +25,10 @@ use object_store::{memory::InMemory, path::Path, ObjectStore, ObjectStoreApi};
 use parquet::{
     arrow::{ArrowReader, ParquetFileArrowReader},
     file::serialized_reader::{SerializedFileReader, SliceableCursor},
+};
+use persistence_windows::{
+    checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder},
+    min_max_sequence::MinMaxSequence,
 };
 
 use crate::{
@@ -146,11 +150,17 @@ pub async fn make_chunk_given_record_batch(
     } else {
         Box::pin(MemoryStream::new(record_batches))
     };
+    let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
+        Arc::clone(&addr.table_name),
+        Arc::clone(&addr.partition_key),
+    );
     let metadata = IoxMetadata {
         creation_timestamp: Utc.timestamp(10, 20),
-        table_name: addr.table_name.to_string(),
-        partition_key: addr.partition_key.to_string(),
+        table_name: Arc::clone(&addr.table_name),
+        partition_key: Arc::clone(&addr.partition_key),
         chunk_id: addr.chunk_id,
+        partition_checkpoint,
+        database_checkpoint,
     };
     let (path, parquet_metadata) = storage
         .write_to_object_store(addr.clone(), stream, metadata)
@@ -158,7 +168,7 @@ pub async fn make_chunk_given_record_batch(
         .unwrap();
 
     ParquetChunk::new_from_parts(
-        addr.partition_key.to_string(),
+        addr.partition_key,
         Arc::new(table_summary),
         Arc::new(schema),
         path,
@@ -738,4 +748,26 @@ pub async fn make_metadata(
         chunk.path(),
         IoxParquetMetaData::from_file_bytes(parquet_data).unwrap(),
     )
+}
+
+/// Create [`PartitionCheckpoint`] and [`DatabaseCheckpoint`] for testing.
+pub fn create_partition_and_database_checkpoint(
+    table_name: Arc<str>,
+    partition_key: Arc<str>,
+) -> (PartitionCheckpoint, DatabaseCheckpoint) {
+    // create partition checkpoint
+    let mut sequencer_numbers = BTreeMap::new();
+    sequencer_numbers.insert(1, MinMaxSequence::new(15, 18));
+    sequencer_numbers.insert(2, MinMaxSequence::new(25, 28));
+    let min_unpersisted_timestamp = Utc.timestamp(10, 20);
+    let partition_checkpoint = PartitionCheckpoint::new(
+        table_name,
+        partition_key,
+        sequencer_numbers,
+        min_unpersisted_timestamp,
+    );
+
+    // build database checkpoint
+    let builder = PersistCheckpointBuilder::new(partition_checkpoint);
+    builder.build()
 }

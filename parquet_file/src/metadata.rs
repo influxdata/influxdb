@@ -86,7 +86,7 @@
 //! [Apache Parquet]: https://parquet.apache.org/
 //! [Apache Thrift]: https://thrift.apache.org/
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
-use std::{convert::TryInto, sync::Arc};
+use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use data_types::partition_metadata::{
@@ -107,6 +107,10 @@ use parquet::{
     },
     schema::types::SchemaDescriptor as ParquetSchemaDescriptor,
 };
+use persistence_windows::{
+    checkpoint::{DatabaseCheckpoint, PartitionCheckpoint},
+    min_max_sequence::MinMaxSequence,
+};
 use prost::Message;
 use snafu::{OptionExt, ResultExt, Snafu};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
@@ -117,7 +121,7 @@ use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputPro
 ///
 /// **Important: When changing this structure, consider bumping the
 ///   [catalog transaction version](crate::catalog::TRANSACTION_VERSION)!**
-pub const METADATA_VERSION: u32 = 1;
+pub const METADATA_VERSION: u32 = 2;
 
 /// File-level metadata key to store the IOx-specific data.
 ///
@@ -213,6 +217,9 @@ pub enum Error {
     #[snafu(display("Field missing while parsing IOx metadata: {}", field))]
     IoxMetadataFieldMissing { field: String },
 
+    #[snafu(display("Min-max relation wrong while parsing IOx metadata"))]
+    IoxMetadataMinMax,
+
     #[snafu(display("Cannot parse IOx metadata from Protobuf: {}", source))]
     IoxMetadataBroken {
         source: Box<dyn std::error::Error + Send + Sync>,
@@ -229,31 +236,45 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// IOx-specific metadata.
 ///
+/// # Serialization
 /// This will serialized as base64-encoded [Protocol Buffers 3] into the file-level key-value Parquet metadata (under [`METADATA_KEY`]).
 ///
 /// **Important: When changing this structure, consider bumping the
 ///   [metadata version](METADATA_VERSION)!**
 ///
+/// # Content
+/// This struct contains chunk-specific information (like the chunk address), data lineage information (like the
+/// creation timestamp) and partition/database-wide checkpoint data. While this struct is stored in a parquet file and
+/// is somewhat chunk-bound, it is necessary to also store broader information (like the checkpoints) in it so that the
+/// catalog can be rebuilt from parquet files (see [Catalog Properties]).
+///
+/// [Catalog Properties]: https://github.com/influxdata/influxdb_iox/blob/main/docs/catalog_persistence.md#13-properties
 /// [Protocol Buffers 3]: https://developers.google.com/protocol-buffers/docs/proto3
-#[allow(missing_copy_implementations)] // we want to extend this type in the future
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct IoxMetadata {
     /// Timestamp when this file was created.
     pub creation_timestamp: DateTime<Utc>,
 
     /// Table that holds this parquet file.
-    pub table_name: String,
+    pub table_name: Arc<str>,
 
     /// Partition key of the partition that holds this parquet file.
-    pub partition_key: String,
+    pub partition_key: Arc<str>,
 
     /// Chunk ID.
     pub chunk_id: u32,
+
+    /// Partition checkpoint with pre-split data for the in this file.
+    pub partition_checkpoint: PartitionCheckpoint,
+
+    /// Database checkpoint created at the time of the write.
+    pub database_checkpoint: DatabaseCheckpoint,
 }
 
 impl IoxMetadata {
     /// Read from protobuf message
     fn from_protobuf(data: &[u8]) -> Result<Self> {
+        // extract protobuf message from bytes
         let proto_msg = proto::IoxMetadata::decode(data)
             .map_err(|err| Box::new(err) as _)
             .context(IoxMetadataBroken)?;
@@ -266,6 +287,7 @@ impl IoxMetadata {
             });
         }
 
+        // extract creation timestamp
         let creation_timestamp: DateTime<Utc> = proto_msg
             .creation_timestamp
             .ok_or_else(|| Error::IoxMetadataFieldMissing {
@@ -275,22 +297,102 @@ impl IoxMetadata {
             .map_err(|err| Box::new(err) as _)
             .context(IoxMetadataBroken)?;
 
+        // extract strings
+        let table_name = Arc::from(proto_msg.table_name.as_ref());
+        let partition_key = Arc::from(proto_msg.partition_key.as_ref());
+
+        // extract partition checkpoint
+        let proto_partition_checkpoint =
+            proto_msg
+                .partition_checkpoint
+                .ok_or_else(|| Error::IoxMetadataFieldMissing {
+                    field: "partition_checkpoint".to_string(),
+                })?;
+        let sequencer_numbers = proto_partition_checkpoint
+            .sequencer_numbers
+            .into_iter()
+            .map(|(sequencer_id, min_max)| {
+                if min_max.min <= min_max.max {
+                    Ok((sequencer_id, MinMaxSequence::new(min_max.min, min_max.max)))
+                } else {
+                    Err(Error::IoxMetadataMinMax)
+                }
+            })
+            .collect::<Result<BTreeMap<u32, MinMaxSequence>>>()?;
+        let min_unpersisted_timestamp = proto_partition_checkpoint
+            .min_unpersisted_timestamp
+            .ok_or_else(|| Error::IoxMetadataFieldMissing {
+                field: "partition_checkpoint.min_unpersisted_timestamp".to_string(),
+            })?
+            .try_into()
+            .map_err(|err| Box::new(err) as _)
+            .context(IoxMetadataBroken)?;
+        let partition_checkpoint = PartitionCheckpoint::new(
+            Arc::clone(&table_name),
+            Arc::clone(&partition_key),
+            sequencer_numbers,
+            min_unpersisted_timestamp,
+        );
+
+        // extract database checkpoint
+        let proto_database_checkpoint =
+            proto_msg
+                .database_checkpoint
+                .ok_or_else(|| Error::IoxMetadataFieldMissing {
+                    field: "database_checkpoint".to_string(),
+                })?;
+        let min_sequencer_numbers = proto_database_checkpoint
+            .min_sequencer_numbers
+            .into_iter()
+            .collect();
+        let database_checkpoint = DatabaseCheckpoint::new(min_sequencer_numbers);
+
         Ok(Self {
             creation_timestamp,
-            table_name: proto_msg.table_name,
-            partition_key: proto_msg.partition_key,
+            table_name,
+            partition_key,
             chunk_id: proto_msg.chunk_id,
+            partition_checkpoint,
+            database_checkpoint,
         })
     }
 
     /// Convert to protobuf v3 message.
     pub(crate) fn to_protobuf(&self) -> std::result::Result<Vec<u8>, prost::EncodeError> {
+        let proto_partition_checkpoint = proto::PartitionCheckpoint {
+            sequencer_numbers: self
+                .partition_checkpoint
+                .sequencer_numbers_iter()
+                .map(|(sequencer_id, min_max)| {
+                    (
+                        sequencer_id,
+                        proto::MinMaxSequence {
+                            min: min_max.min(),
+                            max: min_max.max(),
+                        },
+                    )
+                })
+                .collect(),
+            min_unpersisted_timestamp: Some(
+                self.partition_checkpoint.min_unpersisted_timestamp().into(),
+            ),
+        };
+
+        let proto_database_checkpoint = proto::DatabaseCheckpoint {
+            min_sequencer_numbers: self
+                .database_checkpoint
+                .min_sequencer_number_iter()
+                .collect(),
+        };
+
         let proto_msg = proto::IoxMetadata {
             version: METADATA_VERSION,
             creation_timestamp: Some(self.creation_timestamp.into()),
-            table_name: self.table_name.clone(),
-            partition_key: self.partition_key.clone(),
+            table_name: self.table_name.to_string(),
+            partition_key: self.partition_key.to_string(),
             chunk_id: self.chunk_id,
+            partition_checkpoint: Some(proto_partition_checkpoint),
+            database_checkpoint: Some(proto_database_checkpoint),
         };
 
         let mut buf = Vec::new();
@@ -647,7 +749,8 @@ mod tests {
     use internal_types::schema::TIME_COLUMN_NAME;
 
     use crate::test_utils::{
-        chunk_addr, load_parquet_from_store, make_chunk, make_chunk_no_row_group, make_object_store,
+        chunk_addr, create_partition_and_database_checkpoint, load_parquet_from_store, make_chunk,
+        make_chunk_no_row_group, make_object_store,
     };
 
     #[tokio::test]
@@ -814,11 +917,19 @@ mod tests {
 
     #[test]
     fn test_iox_metadata_from_protobuf_checks_version() {
+        let table_name = Arc::from("table1");
+        let partition_key = Arc::from("part1");
+        let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
+            Arc::clone(&table_name),
+            Arc::clone(&partition_key),
+        );
         let metadata = IoxMetadata {
             creation_timestamp: Utc::now(),
-            table_name: "table1".to_string(),
-            partition_key: "part1".to_string(),
+            table_name,
+            partition_key,
             chunk_id: 1337,
+            partition_checkpoint,
+            database_checkpoint,
         };
 
         let proto_bytes = metadata.to_protobuf().unwrap();

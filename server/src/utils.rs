@@ -2,7 +2,7 @@ use std::{borrow::Cow, convert::TryFrom, num::NonZeroU64, sync::Arc, time::Durat
 
 use data_types::{
     chunk_metadata::{ChunkStorage, ChunkSummary},
-    database_rules::DatabaseRules,
+    database_rules::{DatabaseRules, PartitionTemplate, TemplatePart},
     server_id::ServerId,
     DatabaseName,
 };
@@ -11,7 +11,7 @@ use query::{exec::Executor, QueryDatabase};
 
 use crate::{
     db::{load::load_or_create_preserved_catalog, DatabaseToCommit, Db},
-    write_buffer::WriteBuffer,
+    write_buffer::WriteBufferConfig,
     JobRegistry,
 };
 
@@ -35,8 +35,9 @@ pub struct TestDbBuilder {
     object_store: Option<Arc<ObjectStore>>,
     db_name: Option<DatabaseName<'static>>,
     worker_cleanup_avg_sleep: Option<Duration>,
-    write_buffer: Option<Arc<dyn WriteBuffer>>,
+    write_buffer: Option<WriteBufferConfig>,
     catalog_transactions_until_checkpoint: Option<NonZeroU64>,
+    partition_template: Option<PartitionTemplate>,
 }
 
 impl TestDbBuilder {
@@ -80,6 +81,16 @@ impl TestDbBuilder {
             rules.lifecycle_rules.catalog_transactions_until_checkpoint = v;
         }
 
+        // set partion template
+        if let Some(partition_template) = self.partition_template {
+            rules.partition_template = partition_template;
+        } else {
+            // default to hourly
+            rules.partition_template = PartitionTemplate {
+                parts: vec![TemplatePart::TimeFormat("%Y-%m-%dT%H".to_string())],
+            };
+        }
+
         let database_to_commit = DatabaseToCommit {
             rules,
             server_id,
@@ -116,13 +127,18 @@ impl TestDbBuilder {
         self
     }
 
-    pub fn write_buffer(mut self, write_buffer: Arc<dyn WriteBuffer>) -> Self {
+    pub fn write_buffer(mut self, write_buffer: WriteBufferConfig) -> Self {
         self.write_buffer = Some(write_buffer);
         self
     }
 
     pub fn catalog_transactions_until_checkpoint(mut self, interval: NonZeroU64) -> Self {
         self.catalog_transactions_until_checkpoint = Some(interval);
+        self
+    }
+
+    pub fn partition_template(mut self, template: PartitionTemplate) -> Self {
+        self.partition_template = Some(template);
         self
     }
 }

@@ -1,19 +1,22 @@
+use std::fmt::Display;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 
 use ::lifecycle::LifecycleDb;
-use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
+use data_types::chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkStorage};
 use data_types::database_rules::LifecycleRules;
 use data_types::error::ErrorLogger;
 use data_types::job::Job;
 use data_types::partition_metadata::{InfluxDbType, TableSummary};
+use data_types::DatabaseName;
+use datafusion::physical_plan::SendableRecordBatchStream;
 use hashbrown::HashMap;
 use internal_types::schema::sort::SortKey;
 use internal_types::schema::TIME_COLUMN_NAME;
 use lifecycle::{
-    ChunkLifecycleAction, LifecycleChunk, LifecyclePartition, LifecycleReadGuard,
-    LifecycleWriteGuard, LockableChunk, LockablePartition,
+    LifecycleChunk, LifecyclePartition, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
+    LockablePartition,
 };
 use observability_deps::tracing::info;
 use tracker::{RwLock, TaskTracker};
@@ -113,6 +116,31 @@ impl LockableChunk for LockableCatalogChunk {
 pub struct LockableCatalogPartition {
     pub db: Arc<Db>,
     pub partition: Arc<RwLock<Partition>>,
+    /// Human readable description of what this CatalogPartiton is
+    pub display_string: String,
+}
+
+impl LockableCatalogPartition {
+    pub fn new(db: Arc<Db>, partition: Arc<RwLock<Partition>>) -> Self {
+        let display_string = {
+            partition
+                .try_read()
+                .map(|partition| partition.to_string())
+                .unwrap_or_else(|| "UNKNOWN (could not get lock)".into())
+        };
+
+        Self {
+            db,
+            partition,
+            display_string,
+        }
+    }
+}
+
+impl Display for LockableCatalogPartition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display_string)
+    }
 }
 
 impl LockablePartition for LockableCatalogPartition {
@@ -189,11 +217,12 @@ impl LifecycleDb for ArcDb {
         self.catalog
             .partitions()
             .into_iter()
-            .map(|partition| LockableCatalogPartition {
-                db: Arc::clone(&self.0),
-                partition,
-            })
+            .map(|partition| LockableCatalogPartition::new(Arc::clone(&self.0), partition))
             .collect()
+    }
+
+    fn name(&self) -> DatabaseName<'static> {
+        self.rules.read().name.clone()
     }
 }
 
@@ -261,4 +290,33 @@ fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -> So
     }
     key.push(TIME_COLUMN_NAME, Default::default());
     key
+}
+
+/// Creates a new RUB chunk
+fn new_rub_chunk(db: &Db, table_name: &str) -> read_buffer::RBChunk {
+    // create a new read buffer chunk with memory tracking
+    let metrics = db
+        .metrics_registry
+        .register_domain_with_labels("read_buffer", db.metric_labels.clone());
+
+    read_buffer::RBChunk::new(
+        table_name,
+        read_buffer::ChunkMetrics::new(&metrics, db.catalog.metrics().memory().read_buffer()),
+    )
+}
+
+/// Executes a plan and collects the results into a read buffer chunk
+async fn collect_rub(
+    mut stream: SendableRecordBatchStream,
+    chunk: &mut read_buffer::RBChunk,
+) -> Result<()> {
+    use futures::StreamExt;
+
+    while let Some(batch) = stream.next().await {
+        let batch = batch?;
+        if batch.num_rows() > 0 {
+            chunk.upsert_table(batch)
+        }
+    }
+    Ok(())
 }

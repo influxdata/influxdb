@@ -1,19 +1,17 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
+use crate::db::catalog::chunk::ChunkStage;
+use crate::db::catalog::table::TableSchemaUpsertHandle;
 pub(crate) use crate::db::chunk::DbChunk;
 use crate::db::lifecycle::ArcDb;
 use crate::{
     db::{
         access::QueryCatalogAccess,
-        catalog::{
-            chunk::{CatalogChunk, ChunkStage},
-            partition::Partition,
-            Catalog, TableNameFilter,
-        },
+        catalog::{chunk::CatalogChunk, partition::Partition, Catalog, TableNameFilter},
         lifecycle::{LockableCatalogChunk, LockableCatalogPartition},
     },
-    write_buffer::WriteBuffer,
+    write_buffer::{WriteBufferConfig, WriteBufferError},
     JobRegistry,
 };
 use ::lifecycle::{LockableChunk, LockablePartition};
@@ -27,9 +25,9 @@ use data_types::{
 };
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use entry::{Entry, SequencedEntry};
+use futures::{stream::BoxStream, StreamExt};
 use metrics::KeyValue;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
-use mutable_buffer::persistence_windows::PersistenceWindows;
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
@@ -37,6 +35,7 @@ use parquet_file::{
     catalog::{CheckpointData, PreservedCatalog},
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
 };
+use persistence_windows::persistence_windows::PersistenceWindows;
 use query::{exec::Executor, predicate::Predicate, QueryDatabase};
 use rand_distr::{Distribution, Poisson};
 use snafu::{ensure, ResultExt, Snafu};
@@ -76,12 +75,17 @@ pub enum Error {
     FreezingChunk { source: catalog::chunk::Error },
 
     #[snafu(display("Error sending entry to write buffer"))]
-    WriteBufferError {
+    WriteBufferWritingError {
         source: Box<dyn std::error::Error + Sync + Send>,
     },
 
     #[snafu(display("Cannot write to this database: no mutable buffer configured"))]
     DatabaseNotWriteable {},
+
+    #[snafu(display(
+        "Cannot write to this database, configured to only read from the write buffer"
+    ))]
+    WritingOnlyAllowedThroughWriteBuffer {},
 
     #[snafu(display("Hard buffer size limit reached"))]
     HardLimitReached {},
@@ -113,6 +117,16 @@ pub enum Error {
 
     #[snafu(display("error finding min/max time on table batch: {}", source))]
     TableBatchTimeError { source: entry::Error },
+
+    #[snafu(display("Table batch has invalid schema: {}", source))]
+    TableBatchSchemaExtractError {
+        source: internal_types::schema::builder::Error,
+    },
+
+    #[snafu(display("Table batch has mismatching schema: {}", source))]
+    TableBatchSchemaMergeError {
+        source: internal_types::schema::merge::Error,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -221,8 +235,8 @@ pub struct Db {
     /// Metric labels
     metric_labels: Vec<KeyValue>,
 
-    /// Optionally buffer writes
-    write_buffer: Option<Arc<dyn WriteBuffer>>,
+    /// Optionally connect to a write buffer for either buffering writes or reading buffered writes
+    write_buffer: Option<WriteBufferConfig>,
 
     /// Lock that prevents the cleanup job from deleting files that are written but not yet added to the preserved
     /// catalog.
@@ -241,7 +255,7 @@ pub(crate) struct DatabaseToCommit {
     pub(crate) preserved_catalog: PreservedCatalog,
     pub(crate) catalog: Catalog,
     pub(crate) rules: DatabaseRules,
-    pub(crate) write_buffer: Option<Arc<dyn WriteBuffer>>,
+    pub(crate) write_buffer: Option<WriteBufferConfig>,
 }
 
 impl Db {
@@ -291,7 +305,12 @@ impl Db {
     }
 
     /// Rolls over the active chunk in the database's specified
-    /// partition. Returns the previously open (now closed) Chunk if there was any.
+    /// partition. Returns the previously open (now closed) Chunk if
+    /// there was any.
+    ///
+    /// NOTE: this function is only used in tests and can be invoked
+    /// by the management API. It is not called automatically by the
+    /// lifecycle manager during normal operation.
     pub async fn rollover_partition(
         &self,
         table_name: &str,
@@ -302,6 +321,7 @@ impl Db {
             .read()
             .open_chunk();
 
+        info!(%table_name, %partition_key, found_chunk=chunk.is_some(), "rolling over a partition");
         if let Some(chunk) = chunk {
             let mut chunk = chunk.write();
             chunk.freeze().context(FreezingChunk)?;
@@ -391,10 +411,7 @@ impl Db {
         // assume the locks have to possibly live across the `await`
         let fut = {
             let partition = self.partition(table_name, partition_key)?;
-            let partition = LockableCatalogPartition {
-                db: Arc::clone(&self),
-                partition,
-            };
+            let partition = LockableCatalogPartition::new(Arc::clone(&self), partition);
 
             // Do lock dance to get a write lock on the partition as well
             // as on all of the chunks
@@ -486,6 +503,11 @@ impl Db {
         self.worker_iterations_cleanup.load(Ordering::Relaxed)
     }
 
+    /// Perform sequencer-driven replay for this DB.
+    pub async fn perform_replay(&self) {
+        // TODO: implement replay
+    }
+
     /// Background worker function
     pub async fn background_worker(
         self: &Arc<Self>,
@@ -531,9 +553,55 @@ impl Db {
                     }
                 }
             },
+            // streaming from the write buffer loop
+            async {
+                if let Some(WriteBufferConfig::Reading(write_buffer)) = &self.write_buffer {
+                    let wb = Arc::clone(write_buffer);
+                    while !shutdown.is_cancelled() {
+                        tokio::select! {
+                            _ = {
+                                self.stream_in_sequenced_entries(wb.stream())
+                                } => {},
+                            _ = shutdown.cancelled() => break,
+                        }
+                    }
+                }
+            },
         );
 
         info!("finished background worker");
+    }
+
+    /// This is used to take entries from a `Stream` and put them in the mutable buffer, such as
+    /// streaming entries from a write buffer.
+    async fn stream_in_sequenced_entries(
+        &self,
+        stream: BoxStream<'_, Result<SequencedEntry, WriteBufferError>>,
+    ) {
+        stream
+            .for_each(|sequenced_entry_result| async {
+                let sequenced_entry = match sequenced_entry_result {
+                    Ok(sequenced_entry) => sequenced_entry,
+                    Err(e) => {
+                        debug!(?e, "Error converting write buffer data to SequencedEntry");
+                        // TODO: add to metrics
+                        // self.ingest_errors.add_with_labels(1, &labels);
+                        return;
+                    }
+                };
+
+                let sequenced_entry = Arc::new(sequenced_entry);
+
+                if let Err(e) = self.store_sequenced_entry(sequenced_entry) {
+                    debug!(
+                        ?e,
+                        "Error storing SequencedEntry from write buffer in database"
+                    );
+                    // TODO: add to metrics
+                    // self.ingest_errors.add_with_labels(1, &labels);
+                }
+            })
+            .await
     }
 
     async fn cleanup_unreferenced_parquet_files(
@@ -554,23 +622,23 @@ impl Db {
         };
 
         match (self.write_buffer.as_ref(), immutable) {
-            (Some(write_buffer), true) => {
+            (Some(WriteBufferConfig::Writing(write_buffer)), true) => {
                 // If only the write buffer is configured, this is passing the data through to
                 // the write buffer, and it's not an error. We ignore the returned metadata; it
                 // will get picked up when data is read from the write buffer.
                 let _ = write_buffer
                     .store_entry(&entry)
                     .await
-                    .context(WriteBufferError)?;
+                    .context(WriteBufferWritingError)?;
                 Ok(())
             }
-            (Some(write_buffer), false) => {
+            (Some(WriteBufferConfig::Writing(write_buffer)), false) => {
                 // If using both write buffer and mutable buffer, we want to wait for the write
                 // buffer to return success before adding the entry to the mutable buffer.
                 let sequence = write_buffer
                     .store_entry(&entry)
                     .await
-                    .context(WriteBufferError)?;
+                    .context(WriteBufferWritingError)?;
                 let sequenced_entry = Arc::new(
                     SequencedEntry::new_from_sequence(sequence, entry)
                         .context(SequencedEntryError)?,
@@ -578,10 +646,15 @@ impl Db {
 
                 self.store_sequenced_entry(sequenced_entry)
             }
-            (None, true) => {
-                // If no write buffer is configured and the database is immutable, trying to
-                // store an entry is an error and we don't need to build a `SequencedEntry`.
+            (_, true) => {
+                // If not configured to send entries to the write buffer and the database is
+                // immutable, trying to store an entry is an error and we don't need to build a
+                // `SequencedEntry`.
                 DatabaseNotWriteable {}.fail()
+            }
+            (Some(WriteBufferConfig::Reading(_)), false) => {
+                // If configured to read entries from the write buffer, we shouldn't be here
+                WritingOnlyAllowedThroughWriteBuffer {}.fail()
             }
             (None, false) => {
                 // If no write buffer is configured, nothing is
@@ -632,12 +705,34 @@ impl Db {
                         continue;
                     }
 
-                    let partition = self
+                    let (partition, table_schema) = self
                         .catalog
                         .get_or_create_partition(table_batch.name(), partition_key);
 
+                    let batch_schema =
+                        match table_batch.schema().context(TableBatchSchemaExtractError) {
+                            Ok(batch_schema) => batch_schema,
+                            Err(e) => {
+                                if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
+                                    errors.push(e);
+                                }
+                                continue;
+                            }
+                        };
+                    let schema_handle =
+                        match TableSchemaUpsertHandle::new(&table_schema, &batch_schema)
+                            .context(TableBatchSchemaMergeError)
+                        {
+                            Ok(schema_handle) => schema_handle,
+                            Err(e) => {
+                                if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
+                                    errors.push(e);
+                                }
+                                continue;
+                            }
+                        };
+
                     let mut partition = partition.write();
-                    partition.update_last_write_at();
 
                     let (min_time, max_time) =
                         table_batch.min_max_time().context(TableBatchTimeError)?;
@@ -645,7 +740,6 @@ impl Db {
                     match partition.open_chunk() {
                         Some(chunk) => {
                             let mut chunk = chunk.write();
-                            chunk.record_write();
                             let chunk_id = chunk.id();
 
                             let mb_chunk =
@@ -663,6 +757,7 @@ impl Db {
                                 }
                                 continue;
                             };
+                            chunk.record_write();
                         }
                         None => {
                             let metrics = self.metrics_registry.register_domain_with_labels(
@@ -690,8 +785,11 @@ impl Db {
                             partition.create_open_chunk(mb_chunk);
                         }
                     };
+                    partition.update_last_write_at();
 
-                    match partition.persistence_windows() {
+                    schema_handle.commit();
+
+                    match partition.persistence_windows_mut() {
                         Some(windows) => {
                             windows.add_range(
                                 sequence,
@@ -784,7 +882,10 @@ pub mod test_helpers {
 
     /// Try to write lineprotocol data and return all tables that where written.
     pub async fn try_write_lp(db: &Db, lp: &str) -> Result<Vec<String>> {
-        let entries = lp_to_entries(lp);
+        let entries = {
+            let partitioner = &db.rules.read().partition_template;
+            lp_to_entries(lp, partitioner)
+        };
 
         let mut tables = HashSet::new();
         for entry in entries {
@@ -807,33 +908,51 @@ pub mod test_helpers {
     pub async fn write_lp(db: &Db, lp: &str) -> Vec<String> {
         try_write_lp(db, lp).await.unwrap()
     }
+
+    /// Convenience macro to test if an [`db::Error`](crate::db::Error) is a
+    /// [StoreSequencedEntryFailures](crate::db::Error::StoreSequencedEntryFailures) and then check for errors contained
+    /// in it.
+    #[macro_export]
+    macro_rules! assert_store_sequenced_entry_failures {
+        ($e:expr, [$($sub:pat),*]) => {
+            {
+                // bind $e to variable so we don't evaluate it twice
+                let e = $e;
+
+                if let $crate::db::Error::StoreSequencedEntryFailures{errors} = e {
+                    assert!(matches!(&errors[..], [$($sub),*]));
+                } else {
+                    panic!("Expected StoreSequencedEntryFailures but got {}", e);
+                }
+            }
+        };
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        collections::HashSet,
-        convert::TryFrom,
-        iter::Iterator,
-        num::{NonZeroU64, NonZeroUsize},
-        str,
-        time::{Duration, Instant},
+    use super::*;
+    use crate::{
+        assert_store_sequenced_entry_failures,
+        db::{
+            catalog::chunk::ChunkStage,
+            test_helpers::{try_write_lp, write_lp},
+        },
+        utils::{make_db, TestDb},
+        write_buffer::test_helpers::{MockBufferForReading, MockBufferForWriting},
     };
-
-    use arrow::record_batch::RecordBatch;
-    use bytes::Bytes;
-    use futures::{stream, StreamExt, TryStreamExt};
-    use internal_types::selection::Selection;
-    use mutable_buffer::persistence_windows::MinMaxSequence;
-    use tokio_util::sync::CancellationToken;
-
     use ::test_helpers::assert_contains;
+    use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
+    use bytes::Bytes;
     use data_types::{
         chunk_metadata::ChunkStorage,
+        database_rules::{PartitionTemplate, TemplatePart},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     };
-    use entry::test_helpers::lp_to_entry;
+    use entry::{test_helpers::lp_to_entry, Sequence};
+    use futures::{stream, StreamExt, TryStreamExt};
+    use internal_types::{schema::Schema, selection::Selection};
     use object_store::{
         memory::InMemory,
         path::{parts::PathPart, ObjectStorePath, Path},
@@ -844,18 +963,17 @@ mod tests {
         metadata::IoxParquetMetaData,
         test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
+    use persistence_windows::min_max_sequence::MinMaxSequence;
     use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryChunk, QueryDatabase};
-
-    use crate::{
-        db::{
-            catalog::chunk::ChunkStage,
-            test_helpers::{try_write_lp, write_lp},
-        },
-        utils::{make_db, TestDb},
-        write_buffer::test_helpers::MockBuffer,
+    use std::{
+        collections::{BTreeMap, HashSet},
+        convert::TryFrom,
+        iter::Iterator,
+        num::{NonZeroU64, NonZeroUsize},
+        str,
+        time::{Duration, Instant},
     };
-
-    use super::*;
+    use tokio_util::sync::CancellationToken;
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
@@ -877,9 +995,9 @@ mod tests {
     async fn write_with_write_buffer_no_mutable_buffer() {
         // Writes should be forwarded to the write buffer and *not* rejected if the write buffer is
         // configured and the mutable buffer isn't
-        let write_buffer = Arc::new(MockBuffer::default());
+        let write_buffer = Arc::new(MockBufferForWriting::default());
         let test_db = TestDb::builder()
-            .write_buffer(Arc::clone(&write_buffer) as _)
+            .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
             .build()
             .await
             .db;
@@ -893,12 +1011,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn write_buffer_and_mutable_buffer() {
+    async fn write_to_write_buffer_and_mutable_buffer() {
         // Writes should be forwarded to the write buffer *and* the mutable buffer if both are
         // configured.
-        let write_buffer = Arc::new(MockBuffer::default());
+        let write_buffer = Arc::new(MockBufferForWriting::default());
         let db = TestDb::builder()
-            .write_buffer(Arc::clone(&write_buffer) as _)
+            .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
             .build()
             .await
             .db;
@@ -918,6 +1036,76 @@ mod tests {
             "+-----+-------------------------------+",
         ];
         assert_batches_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn read_from_write_buffer_write_to_mutable_buffer() {
+        let entry = lp_to_entry("cpu bar=1 10");
+        let write_buffer = Arc::new(MockBufferForReading::new(vec![Ok(
+            SequencedEntry::new_unsequenced(entry),
+        )]));
+
+        let db = TestDb::builder()
+            .write_buffer(WriteBufferConfig::Reading(Arc::clone(&write_buffer) as _))
+            .build()
+            .await
+            .db;
+
+        // do: start background task loop
+        let shutdown: CancellationToken = Default::default();
+        let shutdown_captured = shutdown.clone();
+        let db_captured = Arc::clone(&db);
+        let join_handle =
+            tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+
+        let query = "select * from cpu";
+
+        // check: after a while the table should exist and a query plan should succeed
+        let t_0 = Instant::now();
+        loop {
+            let loop_db = Arc::clone(&db);
+
+            let planner = SqlQueryPlanner::default();
+            let executor = loop_db.executor();
+
+            let physical_plan = planner.query(loop_db, query, &executor);
+
+            if physical_plan.is_ok() {
+                break;
+            }
+
+            assert!(t_0.elapsed() < Duration::from_secs(10));
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        // do: stop background task loop
+        shutdown.cancel();
+        join_handle.await.unwrap();
+
+        // check: the expected results should be there
+        let batches = run_query(db, "select * from cpu").await;
+
+        let expected = vec![
+            "+-----+-------------------------------+",
+            "| bar | time                          |",
+            "+-----+-------------------------------+",
+            "| 1   | 1970-01-01 00:00:00.000000010 |",
+            "+-----+-------------------------------+",
+        ];
+        assert_batches_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn cant_write_when_reading_from_write_buffer() {
+        // Validate that writes are rejected if this database is reading from the write buffer
+        let db = make_db().await.db;
+        db.rules.write().lifecycle_rules.immutable = true;
+        let entry = lp_to_entry("cpu bar=1 10");
+        let res = db.store_entry(entry).await;
+        assert_contains!(
+            res.unwrap_err().to_string(),
+            "Cannot write to this database: no mutable buffer configured"
+        );
     }
 
     #[tokio::test]
@@ -1118,7 +1306,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 663;
+        let expected_parquet_size = 655;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -1522,7 +1710,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2149.0)
+            .sample_sum_eq(2141.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1630,7 +1818,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2149.0)
+            .sample_sum_eq(2141.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -1657,7 +1845,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(663.0)
+            .sample_sum_eq(655.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -1723,12 +1911,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn failed_write_doesnt_update_last_write_at() {
+        let db = Arc::new(make_db().await.db);
+        let before_create = Utc::now();
+
+        let partition_key = "1970-01-01T00";
+        write_lp(&db, "cpu bar=1 10").await;
+        let after_write = Utc::now();
+
+        let (last_write_prev, chunk_last_write_prev) = {
+            let partition = db.catalog.partition("cpu", partition_key).unwrap();
+            let partition = partition.read();
+
+            assert_ne!(partition.created_at(), partition.last_write_at());
+            assert!(before_create < partition.last_write_at());
+            assert!(after_write > partition.last_write_at());
+            let chunk = partition.open_chunk().unwrap();
+            let chunk = chunk.read();
+
+            (
+                partition.last_write_at(),
+                chunk.time_of_last_write().unwrap(),
+            )
+        };
+
+        let entry = lp_to_entry("cpu bar=true 10");
+        let result = db.store_entry(entry).await;
+        assert!(result.is_err());
+        {
+            let partition = db.catalog.partition("cpu", partition_key).unwrap();
+            let partition = partition.read();
+            assert_eq!(last_write_prev, partition.last_write_at());
+            let chunk = partition.open_chunk().unwrap();
+            let chunk = chunk.read();
+            assert_eq!(chunk_last_write_prev, chunk.time_of_last_write().unwrap());
+        }
+    }
+
+    #[tokio::test]
     async fn write_updates_persistence_windows() {
         // Writes should update the persistence windows when there
         // is a write buffer configured.
-        let write_buffer = Arc::new(MockBuffer::default());
+        let write_buffer = Arc::new(MockBufferForWriting::default());
         let db = TestDb::builder()
-            .write_buffer(Arc::clone(&write_buffer) as _)
+            .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
             .build()
             .await
             .db;
@@ -1739,7 +1965,7 @@ mod tests {
         write_lp(&db, "cpu bar=1 30").await; // seq 2
 
         let partition = db.catalog.partition("cpu", partition_key).unwrap();
-        let mut partition = partition.write();
+        let partition = partition.write();
         let windows = partition.persistence_windows().unwrap();
         let seq = windows.minimum_unpersisted_sequence().unwrap();
 
@@ -1756,7 +1982,7 @@ mod tests {
         write_lp(&db, "cpu bar=1 20").await;
 
         let partition = db.catalog.partition("cpu", partition_key).unwrap();
-        let mut partition = partition.write();
+        let partition = partition.write();
         // validate it has data
         let table_summary = partition.summary().table;
         assert_eq!(&table_summary.name, "cpu");
@@ -1766,6 +1992,59 @@ mod tests {
         let open_max = windows.open_max_time().unwrap();
         assert_eq!(open_min.timestamp_nanos(), 10);
         assert_eq!(open_max.timestamp_nanos(), 20);
+    }
+
+    #[tokio::test]
+    async fn read_from_write_buffer_updates_persistence_windows() {
+        let entry = lp_to_entry("cpu bar=1 10");
+        let partition_key = "1970-01-01T00";
+
+        let write_buffer = Arc::new(MockBufferForReading::new(vec![
+            Ok(SequencedEntry::new_from_sequence(Sequence::new(0, 0), entry.clone()).unwrap()),
+            Ok(SequencedEntry::new_from_sequence(Sequence::new(1, 0), entry.clone()).unwrap()),
+            Ok(SequencedEntry::new_from_sequence(Sequence::new(1, 2), entry.clone()).unwrap()),
+            Ok(SequencedEntry::new_from_sequence(Sequence::new(0, 1), entry).unwrap()),
+        ]));
+
+        let db = TestDb::builder()
+            .write_buffer(WriteBufferConfig::Reading(Arc::clone(&write_buffer) as _))
+            .build()
+            .await
+            .db;
+
+        // do: start background task loop
+        let shutdown: CancellationToken = Default::default();
+        let shutdown_captured = shutdown.clone();
+        let db_captured = Arc::clone(&db);
+        let join_handle =
+            tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+
+        // check: after a while the persistence windows should have the expected data
+        let t_0 = Instant::now();
+        let min_unpersisted = loop {
+            if let Ok(partition) = db.catalog.partition("cpu", partition_key) {
+                let partition = partition.write();
+                let windows = partition.persistence_windows().unwrap();
+                let min_unpersisted = windows.minimum_unpersisted_sequence();
+
+                if let Some(min_unpersisted) = min_unpersisted {
+                    break min_unpersisted;
+                }
+            }
+
+            assert!(t_0.elapsed() < Duration::from_secs(10));
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        };
+
+        // do: stop background task loop
+        shutdown.cancel();
+        join_handle.await.unwrap();
+
+        let mut expected_unpersisted = BTreeMap::new();
+        expected_unpersisted.insert(0, MinMaxSequence::new(0, 1));
+        expected_unpersisted.insert(1, MinMaxSequence::new(0, 2));
+
+        assert_eq!(min_unpersisted, expected_unpersisted);
     }
 
     #[tokio::test]
@@ -2005,7 +2284,7 @@ mod tests {
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
-                2147, // size of RB and OS chunks
+                2139, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2048,7 +2327,7 @@ mod tests {
             db.catalog.metrics().memory().read_buffer().get_total(),
             1484
         );
-        assert_eq!(db.catalog.metrics().memory().parquet().get_total(), 663);
+        assert_eq!(db.catalog.metrics().memory().parquet().get_total(), 655);
     }
 
     #[tokio::test]
@@ -2494,6 +2773,20 @@ mod tests {
         };
         assert_eq!(paths_actual, paths_expected);
 
+        // ==================== do: remember table schema ====================
+        let mut table_schemas: HashMap<String, Schema> = Default::default();
+        for (table_name, _partition_key, _chunk_id) in &chunks {
+            // TODO: use official `db.table_schema` interface later
+            let schema = db
+                .catalog
+                .table(table_name)
+                .unwrap()
+                .schema()
+                .read()
+                .clone();
+            table_schemas.insert(table_name.clone(), schema);
+        }
+
         // ==================== do: re-load DB ====================
         // Re-create database with same store, serverID, and DB name
         drop(db);
@@ -2517,6 +2810,17 @@ mod tests {
                     ..
                 }
             ));
+        }
+        for (table_name, schema) in table_schemas {
+            // TODO: use official `db.table_schema` interface later
+            let schema2 = db
+                .catalog
+                .table(table_name)
+                .unwrap()
+                .schema()
+                .read()
+                .clone();
+            assert_eq!(schema2, schema);
         }
 
         // ==================== check: DB still writable ====================
@@ -2688,6 +2992,93 @@ mod tests {
 
         // ==================== check: DB still writable ====================
         write_lp(db.as_ref(), "cpu bar=1 10").await;
+    }
+
+    #[tokio::test]
+    async fn table_wide_schema_enforcement() {
+        // need a table with a partition template that uses a tag column, so that we can easily write to different partitions
+        let test_db = TestDb::builder()
+            .partition_template(PartitionTemplate {
+                parts: vec![TemplatePart::Column("tag_partition_by".to_string())],
+            })
+            .build()
+            .await;
+        let db = test_db.db;
+
+        // first write should create schema
+        try_write_lp(&db, "my_table,tag_partition_by=a field_integer=1 10")
+            .await
+            .unwrap();
+
+        // other writes are allowed to evolve the schema
+        try_write_lp(&db, "my_table,tag_partition_by=a field_string=\"foo\" 10")
+            .await
+            .unwrap();
+        try_write_lp(&db, "my_table,tag_partition_by=b field_float=1.1 10")
+            .await
+            .unwrap();
+
+        // check that we have the expected partitions
+        let mut partition_keys = db.partition_keys().unwrap();
+        partition_keys.sort();
+        assert_eq!(
+            partition_keys,
+            vec![
+                "tag_partition_by_a".to_string(),
+                "tag_partition_by_b".to_string(),
+            ]
+        );
+
+        // illegal changes
+        let e = try_write_lp(&db, "my_table,tag_partition_by=a field_integer=\"foo\" 10")
+            .await
+            .unwrap_err();
+        assert_store_sequenced_entry_failures!(
+            e,
+            [super::Error::TableBatchSchemaMergeError { .. }]
+        );
+        let e = try_write_lp(&db, "my_table,tag_partition_by=b field_integer=\"foo\" 10")
+            .await
+            .unwrap_err();
+        assert_store_sequenced_entry_failures!(
+            e,
+            [super::Error::TableBatchSchemaMergeError { .. }]
+        );
+        let e = try_write_lp(&db, "my_table,tag_partition_by=c field_integer=\"foo\" 10")
+            .await
+            .unwrap_err();
+        assert_store_sequenced_entry_failures!(
+            e,
+            [super::Error::TableBatchSchemaMergeError { .. }]
+        );
+
+        // drop all chunks
+        for partition_key in db.partition_keys().unwrap() {
+            let chunk_ids: Vec<_> = {
+                let partition = db.partition("my_table", &partition_key).unwrap();
+                let partition = partition.read();
+                partition
+                    .chunks()
+                    .map(|chunk| {
+                        let chunk = chunk.read();
+                        chunk.id()
+                    })
+                    .collect()
+            };
+
+            for chunk_id in chunk_ids {
+                db.drop_chunk("my_table", &partition_key, chunk_id).unwrap();
+            }
+        }
+
+        // schema is still there
+        let e = try_write_lp(&db, "my_table,tag_partition_by=a field_integer=\"foo\" 10")
+            .await
+            .unwrap_err();
+        assert_store_sequenced_entry_failures!(
+            e,
+            [super::Error::TableBatchSchemaMergeError { .. }]
+        );
     }
 
     async fn create_parquet_chunk(db: &Arc<Db>) -> (String, String, u32) {

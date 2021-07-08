@@ -28,6 +28,9 @@ pub enum Error {
         source: datafusion::error::DataFusionError,
     },
 
+    #[snafu(context(false))]
+    Aborted { source: futures::future::Aborted },
+
     #[snafu(display("Read Buffer Error in chunk {}{} : {}", chunk_id, table_name, source))]
     ReadBufferChunkError {
         source: read_buffer::Error,

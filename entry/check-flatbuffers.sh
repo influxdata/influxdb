@@ -15,7 +15,7 @@ if ! git diff --quiet HEAD --; then
   git diff HEAD
   echo "************************************************************"
   echo "* Found uncommitted changes to generated flatbuffers code! *"
-  echo "* Please run \`generated_types/regenerate-flatbuffers.sh\`   *"
+  echo "* Please run \`entry/regenerate-flatbuffers.sh\`           *"
   echo "* to regenerate the flatbuffers code and check it in!      *"
   echo "************************************************************"
   exit 1

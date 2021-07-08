@@ -45,9 +45,9 @@ pub fn to_read_buffer_predicate(predicate: &Predicate) -> Result<read_buffer::Pr
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use datafusion::logical_plan::Expr;
-    use datafusion::scalar::ScalarValue;
+    use datafusion::logical_plan::{col, lit, Expr};
 
+    use datafusion::scalar::ScalarValue;
     use query::predicate::PredicateBuilder;
     use read_buffer::BinaryExpr as RBBinaryExpr;
     use read_buffer::Predicate as RBPredicate;
@@ -67,22 +67,15 @@ pub mod test {
             // just a single non-time-range expression
             (
                 PredicateBuilder::default()
-                    .add_expr(Expr::Column("track".to_owned()).eq(Expr::Literal(
-                        ScalarValue::Utf8(Some("Star Roving".to_owned())),
-                    )))
+                    .add_expr(col("track").eq(lit("Star Roving")))
                     .build(),
                 RBPredicate::new(vec![RBBinaryExpr::from(("track", "=", "Star Roving"))]),
             ),
             // multiple non-time-range expressions
             (
                 PredicateBuilder::default()
-                    .add_expr(Expr::Column("track".to_owned()).eq(Expr::Literal(
-                        ScalarValue::Utf8(Some("Star Roving".to_owned())),
-                    )))
-                    .add_expr(
-                        Expr::Column("counter".to_owned())
-                            .gt(Expr::Literal(ScalarValue::Int64(Some(2992)))),
-                    )
+                    .add_expr(col("track").eq(lit("Star Roving")))
+                    .add_expr(col("counter").gt(lit(2992_i64)))
                     .build(),
                 RBPredicate::new(vec![
                     RBBinaryExpr::from(("track", "=", "Star Roving")),
@@ -93,13 +86,8 @@ pub mod test {
             (
                 PredicateBuilder::default()
                     .timestamp_range(100, 2000)
-                    .add_expr(Expr::Column("track".to_owned()).eq(Expr::Literal(
-                        ScalarValue::Utf8(Some("Star Roving".to_owned())),
-                    )))
-                    .add_expr(
-                        Expr::Column("counter".to_owned())
-                            .gt(Expr::Literal(ScalarValue::Int64(Some(2992)))),
-                    )
+                    .add_expr(col("track").eq(lit("Star Roving")))
+                    .add_expr(col("counter").gt(lit(2992_i64)))
                     .build(),
                 RBPredicate::with_time_range(
                     &[
@@ -119,44 +107,34 @@ pub mod test {
         let cases = vec![
             // not a binary expression
             (
-                PredicateBuilder::default()
-                    .add_expr(Expr::Literal(ScalarValue::Int64(Some(100_i64))))
-                    .build(),
+                PredicateBuilder::default().add_expr(lit(100_i64)).build(),
                 "unsupported expression type Int64(100)",
             ),
             // left side must be a column
             (
                 PredicateBuilder::default()
-                    .add_expr(
-                        Expr::Literal(ScalarValue::Utf8(Some("The Stove &".to_owned()))).eq(
-                            Expr::Literal(ScalarValue::Utf8(Some("The Toaster".to_owned()))),
-                        ),
-                    )
+                    .add_expr(lit("The Stove &").eq(lit("The Toaster")))
                     .build(),
                 "unsupported expression Utf8(\"The Stove &\") Eq Utf8(\"The Toaster\")",
             ),
             // unsupported operator LIKE
             (
                 PredicateBuilder::default()
-                    .add_expr(Expr::Column("track".to_owned()).like(Expr::Literal(
-                        ScalarValue::Utf8(Some("Star Roving".to_owned())),
-                    )))
+                    .add_expr(col("track").like(lit("Star Roving")))
                     .build(),
                 "unsupported operator Like",
             ),
             // right side must be a literal
             (
                 PredicateBuilder::default()
-                    .add_expr(Expr::Column("Intermezzo 1".to_owned()).eq(Expr::Wildcard))
+                    .add_expr(col("Intermezzo 1").eq(Expr::Wildcard))
                     .build(),
                 "unsupported expression #Intermezzo 1 Eq *",
             ),
             // binary expression like foo = NULL not supported
             (
                 PredicateBuilder::default()
-                    .add_expr(
-                        Expr::Column("track".to_owned()).eq(Expr::Literal(ScalarValue::Utf8(None))),
-                    )
+                    .add_expr(col("track").eq(Expr::Literal(ScalarValue::Utf8(None))))
                     .build(),
                 "NULL literal not supported",
             ),

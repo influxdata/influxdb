@@ -3,17 +3,15 @@ use std::fmt::Debug;
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
+use data_types::DatabaseName;
 use futures::future::BoxFuture;
 
-use data_types::chunk_metadata::ChunkStorage;
+use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkStorage};
 use data_types::database_rules::{LifecycleRules, DEFAULT_MUB_ROW_THRESHOLD};
 use observability_deps::tracing::{debug, info, warn};
 use tracker::TaskTracker;
 
-use crate::{
-    ChunkLifecycleAction, LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk,
-    LockablePartition,
-};
+use crate::{LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk, LockablePartition};
 
 /// Number of seconds to wait before retying a failed lifecycle action
 pub const LIFECYCLE_ACTION_BACKOFF: Duration = Duration::from_secs(10);
@@ -56,13 +54,14 @@ where
     ///
     fn maybe_free_memory<P: LockablePartition>(
         &mut self,
+        db_name: &DatabaseName<'static>,
         partitions: &[P],
         soft_limit: usize,
         drop_non_persisted: bool,
     ) {
         let buffer_size = self.db.buffer_size();
         if buffer_size < soft_limit {
-            debug!(buffer_size, %soft_limit, "memory use under soft limit");
+            debug!(%db_name, buffer_size, %soft_limit, "memory use under soft limit");
             return;
         }
 
@@ -107,10 +106,10 @@ where
         loop {
             let buffer_size = self.db.buffer_size();
             if buffer_size < soft_limit {
-                debug!(buffer_size, %soft_limit, "memory use under soft limit");
+                info!(%db_name, buffer_size, %soft_limit, "memory use under soft limit");
                 break;
             }
-            debug!(buffer_size, %soft_limit, "memory use over soft limit");
+            info!(%db_name, buffer_size, %soft_limit, "memory use over soft limit");
 
             match candidates.next() {
                 Some(candidate) => {
@@ -119,7 +118,8 @@ where
                         Some(chunk) => {
                             let chunk = chunk.read();
                             if chunk.lifecycle_action().is_some() {
-                                debug!(
+                                info!(
+                                    %db_name,
                                     chunk_id = candidate.chunk_id,
                                     partition = partition.partition_key(),
                                     "cannot mutate chunk with in-progress lifecycle action"
@@ -137,7 +137,8 @@ where
                                         )
                                         .expect("failed to drop")
                                     }
-                                    storage => debug!(
+                                    storage => warn!(
+                                        %db_name,
                                         chunk_id = candidate.chunk_id,
                                         partition = partition.partition_key(),
                                         ?storage,
@@ -149,7 +150,8 @@ where
                                         LockableChunk::unload_read_buffer(chunk.upgrade())
                                             .expect("failed to unload")
                                     }
-                                    storage => debug!(
+                                    storage => warn!(
+                                        %db_name,
                                         chunk_id = candidate.chunk_id,
                                         partition = partition.partition_key(),
                                         ?storage,
@@ -158,7 +160,8 @@ where
                                 },
                             }
                         }
-                        None => debug!(
+                        None => info!(
+                            %db_name,
                             chunk_id = candidate.chunk_id,
                             partition = partition.partition_key(),
                             "cannot drop chunk that no longer exists on partition"
@@ -166,7 +169,7 @@ where
                     }
                 }
                 None => {
-                    warn!(soft_limit, buffer_size,
+                    warn!(%db_name, soft_limit, buffer_size,
                           "soft limited exceeded, but no chunks found that can be evicted. Check lifecycle rules");
                     break;
                 }
@@ -187,7 +190,7 @@ where
         rules: &LifecycleRules,
         now: DateTime<Utc>,
     ) {
-        let row_threshold = rules.persist_row_threshold.get();
+        let mut rows_left = rules.persist_row_threshold.get();
 
         // TODO: Encapsulate locking into a CatalogTransaction type
         let partition = partition.read();
@@ -205,7 +208,9 @@ where
                 continue;
             }
 
-            match chunk.storage() {
+            let to_compact_len_before = to_compact.len();
+            let storage = chunk.storage();
+            match storage {
                 ChunkStorage::OpenMutableBuffer => {
                     if can_move(rules, &*chunk, now) {
                         has_mub_snapshot = true;
@@ -217,13 +222,22 @@ where
                     to_compact.push(chunk);
                 }
                 ChunkStorage::ReadBuffer => {
-                    if chunk.row_count() >= row_threshold {
+                    let row_count = chunk.row_count();
+                    if row_count >= rows_left {
                         continue;
                     }
+                    rows_left = rows_left.saturating_sub(row_count);
                     to_compact.push(chunk);
                 }
                 _ => {}
             }
+            let has_added_to_compact = to_compact.len() > to_compact_len_before;
+            debug!(db_name = %self.db.name(),
+                   partition_key = %partition.partition_key(),
+                   ?has_added_to_compact,
+                   chunk_storage = ?storage,
+                   ?has_mub_snapshot,
+                   "maybe compacting chunks");
         }
 
         if to_compact.len() >= 2 || has_mub_snapshot {
@@ -253,6 +267,7 @@ where
     /// persistence to make progress
     fn maybe_persist_chunks<P: LockablePartition>(
         &mut self,
+        db_name: &DatabaseName<'static>,
         partition: &P,
         rules: &LifecycleRules,
         now: DateTime<Utc>,
@@ -288,6 +303,7 @@ where
 
             if persist_candidate.is_some() {
                 debug!(
+                    %db_name,
                     partition = partition.partition_key(),
                     "found multiple read buffer chunks"
                 );
@@ -329,7 +345,12 @@ where
     ///
     /// Clear any such jobs if they exited more than `LIFECYCLE_ACTION_BACKOFF` seconds ago
     ///
-    fn maybe_cleanup_failed<P: LockablePartition>(&mut self, partition: &P, now: Instant) {
+    fn maybe_cleanup_failed<P: LockablePartition>(
+        &mut self,
+        db_name: &DatabaseName<'static>,
+        partition: &P,
+        now: Instant,
+    ) {
         let partition = partition.read();
         for (_, chunk) in LockablePartition::chunks(&partition) {
             let chunk = chunk.read();
@@ -338,7 +359,7 @@ where
                     && now.duration_since(lifecycle_action.start_instant())
                         >= LIFECYCLE_ACTION_BACKOFF
                 {
-                    info!(chunk=%chunk.addr(), action=?lifecycle_action.metadata(), "clearing failed lifecycle action");
+                    info!(%db_name, chunk=%chunk.addr(), action=?lifecycle_action.metadata(), "clearing failed lifecycle action");
                     chunk.upgrade().clear_lifecycle_action();
                 }
             }
@@ -358,11 +379,12 @@ where
 
         // TODO: Add loop iteration count and duration metrics
 
+        let db_name = self.db.name();
         let rules = self.db.rules();
         let partitions = self.db.partitions();
 
         for partition in &partitions {
-            self.maybe_cleanup_failed(partition, now_instant);
+            self.maybe_cleanup_failed(&db_name, partition, now_instant);
 
             // TODO: Skip partitions with no PersistenceWindows (i.e. fully persisted)
 
@@ -372,7 +394,7 @@ where
             // of temporarily pausing compaction if the criteria for persistence have been
             // satisfied, but persistence cannot proceed because of in-progress compactions
             let stall_compaction = if rules.persist {
-                self.maybe_persist_chunks(partition, &rules, now)
+                self.maybe_persist_chunks(&db_name, partition, &rules, now)
             } else {
                 false
             };
@@ -383,7 +405,12 @@ where
         }
 
         if let Some(soft_limit) = rules.buffer_size_soft {
-            self.maybe_free_memory(&partitions, soft_limit.get(), rules.drop_non_persisted)
+            self.maybe_free_memory(
+                &db_name,
+                &partitions,
+                soft_limit.get(),
+                rules.drop_non_persisted,
+            )
         }
 
         // Clear out completed tasks
@@ -453,8 +480,10 @@ fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<
         return true;
     }
 
-    match (rules.mutable_linger_seconds, chunk.time_of_last_write()) {
-        (Some(linger), Some(last_write)) if elapsed_seconds(now, last_write) >= linger.get() => {
+    match chunk.time_of_last_write() {
+        Some(last_write)
+            if elapsed_seconds(now, last_write) >= rules.mutable_linger_seconds.get() =>
+        {
             match (
                 rules.mutable_minimum_age_seconds,
                 chunk.time_of_first_write(),
@@ -469,8 +498,7 @@ fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<
             }
         }
 
-        // Disable movement if no mutable_linger set,
-        // or the chunk is empty, or the linger hasn't expired
+        // Disable movement the chunk is empty, or the linger hasn't expired
         _ => false,
     }
 }
@@ -840,6 +868,10 @@ mod tests {
                 })
                 .collect()
         }
+
+        fn name(&self) -> DatabaseName<'static> {
+            DatabaseName::new("test_db").unwrap()
+        }
     }
 
     fn from_secs(secs: i64) -> DateTime<Utc> {
@@ -855,29 +887,41 @@ mod tests {
 
     #[test]
     fn test_can_move() {
-        // Cannot move by default
-        let rules = LifecycleRules::default();
-        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer);
-        assert!(!can_move(&rules, &chunk, from_secs(20)));
-
         // If only mutable_linger set can move a chunk once passed
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
         let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer);
         assert!(!can_move(&rules, &chunk, from_secs(9)));
         assert!(can_move(&rules, &chunk, from_secs(11)));
 
+        // can move even if the chunk is small
+        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer)
+            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD - 1);
+        assert!(can_move(&rules, &chunk, from_secs(11)));
+
         // If mutable_minimum_age_seconds set must also take this into account
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             mutable_minimum_age_seconds: Some(NonZeroU32::new(60).unwrap()),
             ..Default::default()
         };
         let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer);
         assert!(!can_move(&rules, &chunk, from_secs(9)));
         assert!(!can_move(&rules, &chunk, from_secs(11)));
+        assert!(can_move(&rules, &chunk, from_secs(61)));
+
+        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer)
+            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD - 1);
+        assert!(!can_move(&rules, &chunk, from_secs(9)));
+        assert!(!can_move(&rules, &chunk, from_secs(11)));
+        assert!(can_move(&rules, &chunk, from_secs(61)));
+
+        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer)
+            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD + 1);
+        assert!(can_move(&rules, &chunk, from_secs(9)));
+        assert!(can_move(&rules, &chunk, from_secs(11)));
         assert!(can_move(&rules, &chunk, from_secs(61)));
 
         let chunk = TestChunk::new(0, Some(0), Some(70), ChunkStorage::OpenMutableBuffer);
@@ -888,6 +932,11 @@ mod tests {
         let chunk = TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer)
             .with_row_count(DEFAULT_MUB_ROW_THRESHOLD);
         assert!(can_move(&rules, &chunk, from_secs(0)));
+
+        // If below the default row count threshold, it shouldn't move
+        let chunk = TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer)
+            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD - 1);
+        assert!(!can_move(&rules, &chunk, from_secs(0)));
     }
 
     #[test]
@@ -966,7 +1015,7 @@ mod tests {
     #[test]
     fn test_mutable_linger() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
         let chunks = vec![
@@ -1010,7 +1059,7 @@ mod tests {
     async fn test_backoff() {
         let mut registry = TaskRegistry::new();
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(100).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(100).unwrap(),
             ..Default::default()
         };
         let db = TestDb::new(rules, vec![]);
@@ -1037,7 +1086,7 @@ mod tests {
     #[test]
     fn test_minimum_age() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             mutable_minimum_age_seconds: Some(NonZeroU32::new(60).unwrap()),
             ..Default::default()
         };
@@ -1195,7 +1244,7 @@ mod tests {
     #[test]
     fn test_compact() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             persist_row_threshold: NonZeroUsize::new(1_000).unwrap(),
             ..Default::default()
         };
@@ -1250,12 +1299,16 @@ mod tests {
             ]),
             TestPartition::new(vec![
                 // closed => can compact
-                TestChunk::new(14, Some(0), Some(20), ChunkStorage::ReadBuffer),
-                // closed => can compact
-                TestChunk::new(15, Some(0), Some(20), ChunkStorage::ReadBuffer),
-                // too many rows => ignore
-                TestChunk::new(16, Some(0), Some(20), ChunkStorage::ReadBuffer)
+                TestChunk::new(14, Some(0), Some(20), ChunkStorage::ReadBuffer).with_row_count(400),
+                // too many individual rows => ignore
+                TestChunk::new(15, Some(0), Some(20), ChunkStorage::ReadBuffer)
                     .with_row_count(1_000),
+                // closed => can compact
+                TestChunk::new(16, Some(0), Some(20), ChunkStorage::ReadBuffer).with_row_count(400),
+                // too many total rows => next compaction job
+                TestChunk::new(17, Some(0), Some(20), ChunkStorage::ReadBuffer).with_row_count(400),
+                // too many total rows => next compaction job
+                TestChunk::new(18, Some(0), Some(20), ChunkStorage::ReadBuffer).with_row_count(400),
             ]),
         ];
 
@@ -1270,15 +1323,19 @@ mod tests {
                 MoverEvents::Compact(vec![3, 4, 5]),
                 MoverEvents::Compact(vec![8, 9]),
                 MoverEvents::Compact(vec![12]),
-                MoverEvents::Compact(vec![14, 15]),
-            ]
+                MoverEvents::Compact(vec![14, 16]),
+            ],
         );
+
+        db.events.write().clear();
+        lifecycle.check_for_work(now, Instant::now());
+        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![17, 18])]);
     }
 
     #[test]
     fn test_persist() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             persist: true,
             persist_row_threshold: NonZeroUsize::new(1_000).unwrap(),
             late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
@@ -1342,7 +1399,7 @@ mod tests {
     #[test]
     fn test_moves_closed() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             mutable_minimum_age_seconds: Some(NonZeroU32::new(60).unwrap()),
             ..Default::default()
         };

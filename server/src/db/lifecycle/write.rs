@@ -3,15 +3,13 @@ use crate::db::{
     catalog::chunk::{CatalogChunk, ChunkStage},
     checkpoint_data_from_catalog,
     lifecycle::LockableCatalogChunk,
-    streams, DbChunk,
+    DbChunk,
 };
 
 use ::lifecycle::LifecycleWriteGuard;
 
-use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use chrono::Utc;
-use data_types::job::Job;
-use datafusion::physical_plan::SendableRecordBatchStream;
+use data_types::{chunk_metadata::ChunkLifecycleAction, job::Job};
 use internal_types::selection::Selection;
 use object_store::path::parsed::DirsAndFileName;
 use observability_deps::tracing::{debug, warn};
@@ -20,8 +18,12 @@ use parquet_file::{
     metadata::IoxMetadata,
     storage::Storage,
 };
+use persistence_windows::checkpoint::{
+    DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder,
+};
+use query::QueryChunk;
 use snafu::ResultExt;
-use std::{future::Future, sync::Arc};
+use std::{collections::BTreeMap, future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 use super::error::{
@@ -50,9 +52,13 @@ pub fn write_chunk_to_object_store(
     });
 
     // update the catalog to say we are processing this chunk and
-    let rb_chunk = guard.set_writing_to_object_store(&registration)?;
+    guard.set_writing_to_object_store(&registration)?;
+    let db_chunk = DbChunk::snapshot(&*guard);
 
     debug!(chunk=%guard.addr(), "chunk marked WRITING , loading tables into object store");
+
+    // Drop locks
+    let chunk = guard.unwrap().chunk;
 
     // Create a storage to save data of this chunk
     let storage = Storage::new(Arc::clone(&db.store), db.server_id);
@@ -64,33 +70,20 @@ pub fn write_chunk_to_object_store(
         .catalog_transactions_until_checkpoint
         .get();
 
-    // Drop locks
-    let chunk = guard.unwrap().chunk;
-
     let fut = async move {
         debug!(chunk=%addr, "loading table to object store");
 
-        let predicate = read_buffer::Predicate::default();
-
         // Get RecordBatchStream of data from the read buffer chunk
-        let read_results = rb_chunk.read_filter(&addr.table_name, predicate, Selection::All);
-
-        let arrow_schema: ArrowSchemaRef = rb_chunk
-            .read_filter_table_schema(Selection::All)
-            .expect("read buffer is infallible")
-            .into();
-
-        let stream: SendableRecordBatchStream = Box::pin(streams::ReadFilterResultsStream::new(
-            read_results,
-            Arc::clone(&arrow_schema),
-        ));
+        let stream = db_chunk
+            .read_filter(&Default::default(), Selection::All)
+            .expect("read filter should be infallible");
 
         // check that the upcoming state change will very likely succeed
         {
             // re-lock
             let guard = chunk.read();
             if matches!(guard.stage(), &ChunkStage::Persisted { .. })
-                || !guard.is_in_lifecycle(::lifecycle::ChunkLifecycleAction::Persisting)
+                || !guard.is_in_lifecycle(ChunkLifecycleAction::Persisting)
             {
                 return Err(Error::CannotWriteChunk {
                     addr: guard.addr().clone(),
@@ -107,11 +100,18 @@ pub fn write_chunk_to_object_store(
             //
             // IMPORTANT: Writing must take place while holding the cleanup lock, otherwise the file might be deleted
             //            between creation and the transaction commit.
+            let (partition_checkpoint, database_checkpoint) =
+                fake_partition_and_database_checkpoint(
+                    Arc::clone(&addr.table_name),
+                    Arc::clone(&addr.partition_key),
+                );
             let metadata = IoxMetadata {
                 creation_timestamp: Utc::now(),
-                table_name: addr.table_name.to_string(),
-                partition_key: addr.partition_key.to_string(),
+                table_name: Arc::clone(&addr.table_name),
+                partition_key: Arc::clone(&addr.partition_key),
                 chunk_id: addr.chunk_id,
+                partition_checkpoint,
+                database_checkpoint,
             };
             let (path, parquet_metadata) = storage
                 .write_to_object_store(addr, stream, metadata)
@@ -183,4 +183,24 @@ pub fn write_chunk_to_object_store(
     };
 
     Ok((tracker, fut.track(registration)))
+}
+
+/// Fake until we have the split implementation in-place.
+fn fake_partition_and_database_checkpoint(
+    table_name: Arc<str>,
+    partition_key: Arc<str>,
+) -> (PartitionCheckpoint, DatabaseCheckpoint) {
+    // create partition checkpoint
+    let sequencer_numbers = BTreeMap::new();
+    let min_unpersisted_timestamp = Utc::now();
+    let partition_checkpoint = PartitionCheckpoint::new(
+        table_name,
+        partition_key,
+        sequencer_numbers,
+        min_unpersisted_timestamp,
+    );
+
+    // build database checkpoint
+    let builder = PersistCheckpointBuilder::new(partition_checkpoint);
+    builder.build()
 }

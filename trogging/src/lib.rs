@@ -730,7 +730,7 @@ ERROR foo
             .trim_start(),
         );
 
-        assert_eq!(called.load(Ordering::SeqCst), false);
+        assert!(!called.load(Ordering::SeqCst));
     }
 
     #[test]

@@ -3,7 +3,10 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
+use data_types::{
+    database_rules::DatabaseRules, database_state::DatabaseStateCode, server_id::ServerId,
+    DatabaseName,
+};
 use metrics::MetricRegistry;
 use object_store::{path::ObjectStorePath, ObjectStore};
 use parquet_file::catalog::PreservedCatalog;
@@ -12,7 +15,7 @@ use query::exec::Executor;
 /// This module contains code for managing the configuration of the server.
 use crate::{
     db::{catalog::Catalog, DatabaseToCommit, Db},
-    write_buffer::WriteBuffer,
+    write_buffer::WriteBufferConfig,
     Error, JobRegistry, Result,
 };
 use observability_deps::tracing::{self, error, info, warn, Instrument};
@@ -175,12 +178,12 @@ impl Config {
     }
 
     /// Get database, if registered and fully initialized.
-    pub(crate) fn db(&self, name: &DatabaseName<'_>) -> Option<Arc<Db>> {
+    pub(crate) fn db_initialized(&self, name: &DatabaseName<'_>) -> Option<Arc<Db>> {
         let state = self.state.read().expect("mutex poisoned");
         state
             .databases
             .get(name)
-            .map(|db_state| db_state.db())
+            .map(|db_state| db_state.db_initialized())
             .flatten()
     }
 
@@ -192,6 +195,12 @@ impl Config {
             .get(name)
             .map(|db_state| !db_state.is_initialized())
             .unwrap_or(false)
+    }
+
+    /// Current database init state
+    pub(crate) fn db_state(&self, name: &DatabaseName<'_>) -> Option<DatabaseStateCode> {
+        let state = self.state.read().expect("mutex poisoned");
+        state.databases.get(name).map(|db_state| db_state.code())
     }
 
     /// Get all database names in all states (blocked, uninitialized, fully initialized).
@@ -216,9 +225,12 @@ impl Config {
     where
         F: FnOnce(DatabaseRules) -> std::result::Result<DatabaseRules, E>,
     {
-        let db = self.db(db_name).ok_or_else(|| Error::DatabaseNotFound {
-            db_name: db_name.to_string(),
-        })?;
+        // TODO: implement for non-initialized databases
+        let db = self
+            .db_initialized(db_name)
+            .ok_or_else(|| Error::DatabaseNotFound {
+                db_name: db_name.to_string(),
+            })?;
 
         let mut rules = db.rules.write();
         *rules = update(rules.clone()).map_err(UpdateError::Closure)?;
@@ -362,6 +374,24 @@ impl RemoteTemplate {
     }
 }
 
+/// Internal representation of the different database states.
+///
+/// # Shared Data During Transitions
+/// The following elements can safely be shared between states because they won't be poisoned by any half-done
+/// transition (e.g. starting a transition and then failing due to an IO error):
+/// - `object_store`
+/// - `exec`
+///
+/// The following elements can trivially be copied from one state to the next:
+/// - `server_id`
+/// - `db_name`
+///
+/// The following elements MUST be copied from one state to the next because partial modifications are not allowed:
+/// - `rules`
+///
+/// Exceptions to the above rules are the following states:
+/// - [`Replay`](Self::Replay): replaying twice should (apart from some performance penalties) not do much harm
+/// - [`Initialized`](Self::Initialized): the final state is not advanced to anything else
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 enum DatabaseState {
@@ -380,6 +410,9 @@ enum DatabaseState {
         server_id: ServerId,
         rules: DatabaseRules,
     },
+
+    /// Catalog is loaded but data from sequencers / write buffers is not yet replayed.
+    Replay { db: Arc<Db> },
 
     /// Fully initialized database.
     Initialized {
@@ -401,6 +434,7 @@ impl DatabaseState {
         match self {
             DatabaseState::Known { .. } => DatabaseStateCode::Known,
             DatabaseState::RulesLoaded { .. } => DatabaseStateCode::RulesLoaded,
+            DatabaseState::Replay { .. } => DatabaseStateCode::Replay,
             DatabaseState::Initialized { .. } => DatabaseStateCode::Initialized,
         }
     }
@@ -409,7 +443,15 @@ impl DatabaseState {
         matches!(self, DatabaseState::Initialized { .. })
     }
 
-    fn db(&self) -> Option<Arc<Db>> {
+    fn db_any_state(&self) -> Option<Arc<Db>> {
+        match self {
+            DatabaseState::Replay { db, .. } => Some(Arc::clone(&db)),
+            DatabaseState::Initialized { db, .. } => Some(Arc::clone(&db)),
+            _ => None,
+        }
+    }
+
+    fn db_initialized(&self) -> Option<Arc<Db>> {
         match self {
             DatabaseState::Initialized { db, .. } => Some(Arc::clone(&db)),
             _ => None,
@@ -420,6 +462,7 @@ impl DatabaseState {
         match self {
             DatabaseState::Known { db_name, .. } => db_name.clone(),
             DatabaseState::RulesLoaded { rules, .. } => rules.name.clone(),
+            DatabaseState::Replay { db, .. } => db.rules.read().name.clone(),
             DatabaseState::Initialized { db, .. } => db.rules.read().name.clone(),
         }
     }
@@ -428,6 +471,7 @@ impl DatabaseState {
         match self {
             DatabaseState::Known { object_store, .. } => Arc::clone(object_store),
             DatabaseState::RulesLoaded { object_store, .. } => Arc::clone(object_store),
+            DatabaseState::Replay { db, .. } => Arc::clone(&db.store),
             DatabaseState::Initialized { db, .. } => Arc::clone(&db.store),
         }
     }
@@ -436,6 +480,7 @@ impl DatabaseState {
         match self {
             DatabaseState::Known { server_id, .. } => *server_id,
             DatabaseState::RulesLoaded { server_id, .. } => *server_id,
+            DatabaseState::Replay { db, .. } => db.server_id,
             DatabaseState::Initialized { db, .. } => db.server_id,
         }
     }
@@ -444,6 +489,7 @@ impl DatabaseState {
         match self {
             DatabaseState::Known { .. } => None,
             DatabaseState::RulesLoaded { rules, .. } => Some(rules.clone()),
+            DatabaseState::Replay { db, .. } => Some(db.rules.read().clone()),
             DatabaseState::Initialized { db, .. } => Some(db.rules.read().clone()),
         }
     }
@@ -463,25 +509,6 @@ impl Drop for DatabaseState {
             }
         }
     }
-}
-
-/// Simple representation of the state a database can be in.
-///
-/// The state machine is a simple linear state machine:
-///
-/// ```text
-/// Known -> RulesLoaded -> Initialized
-/// ```
-#[derive(Debug, PartialEq, Eq)]
-pub enum DatabaseStateCode {
-    /// Database is known but nothing is loaded.
-    Known,
-
-    /// Rules are loaded
-    RulesLoaded,
-
-    /// Fully initialized database.
-    Initialized,
 }
 
 /// This handle is returned when a call is made to [`create_db`](Config::create_db) or
@@ -541,6 +568,13 @@ impl<'a> DatabaseHandle<'a> {
         self.state().rules()
     }
 
+    /// Get database linked to this state, if any
+    ///
+    /// This database may be uninitialized.
+    pub fn db_any_state(&self) -> Option<Arc<Db>> {
+        self.state().db_any_state()
+    }
+
     /// Commit modification done to this handle to config.
     ///
     /// After commiting a new handle for the same database can be created.
@@ -589,12 +623,12 @@ impl<'a> DatabaseHandle<'a> {
         }
     }
 
-    /// Advance database state to [`Initialized`](DatabaseStateCode::Initialized).
-    pub fn advance_init(
+    /// Advance database state to [`Replay`](DatabaseStateCode::Replay).
+    pub fn advance_replay(
         &mut self,
         preserved_catalog: PreservedCatalog,
         catalog: Catalog,
-        write_buffer: Option<Arc<dyn WriteBuffer>>,
+        write_buffer: Option<WriteBufferConfig>,
     ) -> Result<()> {
         match self.state().as_ref() {
             DatabaseState::RulesLoaded {
@@ -603,13 +637,6 @@ impl<'a> DatabaseHandle<'a> {
                 server_id,
                 rules,
             } => {
-                let name = rules.name.clone();
-
-                if self.config.shutdown.is_cancelled() {
-                    error!("server is shutting down");
-                    return Err(Error::ServerShuttingDown);
-                }
-
                 let database_to_commit = DatabaseToCommit {
                     server_id: *server_id,
                     object_store: Arc::clone(&object_store),
@@ -621,10 +648,30 @@ impl<'a> DatabaseHandle<'a> {
                 };
                 let db = Arc::new(Db::new(database_to_commit, Arc::clone(&self.config.jobs)));
 
+                self.state = Some(Arc::new(DatabaseState::Replay { db }));
+
+                Ok(())
+            }
+            state => Err(Error::InvalidDatabaseStateTransition {
+                actual: state.code(),
+                expected: DatabaseStateCode::RulesLoaded,
+            }),
+        }
+    }
+
+    /// Advance database state to [`Initialized`](DatabaseStateCode::Initialized).
+    pub fn advance_init(&mut self) -> Result<()> {
+        match self.state().as_ref() {
+            DatabaseState::Replay { db } => {
+                if self.config.shutdown.is_cancelled() {
+                    error!("server is shutting down");
+                    return Err(Error::ServerShuttingDown);
+                }
+
                 let shutdown = self.config.shutdown.child_token();
                 let shutdown_captured = shutdown.clone();
                 let db_captured = Arc::clone(&db);
-                let name_captured = name.clone();
+                let name_captured = db.rules.read().name.clone();
 
                 let handle = Some(tokio::spawn(async move {
                     db_captured
@@ -634,7 +681,7 @@ impl<'a> DatabaseHandle<'a> {
                 }));
 
                 self.state = Some(Arc::new(DatabaseState::Initialized {
-                    db,
+                    db: Arc::clone(&db),
                     handle,
                     shutdown,
                 }));
@@ -643,7 +690,7 @@ impl<'a> DatabaseHandle<'a> {
             }
             state => Err(Error::InvalidDatabaseStateTransition {
                 actual: state.code(),
-                expected: DatabaseStateCode::RulesLoaded,
+                expected: DatabaseStateCode::Replay,
             }),
         }
     }
@@ -724,7 +771,7 @@ mod test {
             let err = config.block_db(name.clone()).unwrap_err();
             assert!(matches!(err, Error::DatabaseReserved { .. }));
         }
-        assert!(config.db(&name).is_none());
+        assert!(config.db_initialized(&name).is_none());
         assert_eq!(config.db_names_sorted(), vec![]);
         assert!(!config.has_uninitialized_database(&name));
 
@@ -744,7 +791,7 @@ mod test {
                 .unwrap_err();
             assert!(matches!(err, Error::RulesDatabaseNameMismatch { .. }));
         }
-        assert!(config.db(&name).is_none());
+        assert!(config.db_initialized(&name).is_none());
         assert_eq!(config.db_names_sorted(), vec![]);
         assert!(!config.has_uninitialized_database(&name));
 
@@ -761,7 +808,7 @@ mod test {
 
             db_reservation.abort();
         }
-        assert!(config.db(&name).is_none());
+        assert!(config.db_initialized(&name).is_none());
         assert_eq!(config.db_names_sorted(), vec![]);
         assert!(!config.has_uninitialized_database(&name));
 
@@ -788,12 +835,14 @@ mod test {
             .await
             .unwrap();
             db_reservation
-                .advance_init(preserved_catalog, catalog, None)
+                .advance_replay(preserved_catalog, catalog, None)
                 .unwrap();
+
+            db_reservation.advance_init().unwrap();
 
             db_reservation.commit();
         }
-        assert!(config.db(&name).is_some());
+        assert!(config.db_initialized(&name).is_some());
         assert_eq!(config.db_names_sorted(), vec![name.clone()]);
         assert!(!config.has_uninitialized_database(&name));
 
@@ -801,14 +850,14 @@ mod test {
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         assert!(
             config
-                .db(&name)
+                .db_initialized(&name)
                 .expect("expected database")
                 .worker_iterations_lifecycle()
                 > 0
         );
         assert!(
             config
-                .db(&name)
+                .db_initialized(&name)
                 .expect("expected database")
                 .worker_iterations_cleanup()
                 > 0
@@ -907,8 +956,14 @@ mod test {
             .await
             .unwrap();
             db_reservation
-                .advance_init(preserved_catalog, catalog, None)
+                .advance_replay(preserved_catalog, catalog, None)
                 .unwrap();
+            assert_eq!(db_reservation.state_code(), DatabaseStateCode::Replay);
+            assert_eq!(db_reservation.db_name(), name);
+            assert_eq!(db_reservation.server_id(), server_id);
+            assert!(db_reservation.rules().is_some());
+
+            db_reservation.advance_init().unwrap();
             assert_eq!(db_reservation.state_code(), DatabaseStateCode::Initialized);
             assert_eq!(db_reservation.db_name(), name);
             assert_eq!(db_reservation.server_id(), server_id);
@@ -916,7 +971,7 @@ mod test {
 
             db_reservation.commit();
         }
-        assert!(config.db(&name).is_some());
+        assert!(config.db_initialized(&name).is_some());
         assert_eq!(config.db_names_sorted(), vec![name.clone()]);
         assert!(!config.has_uninitialized_database(&name));
 
@@ -1029,8 +1084,9 @@ mod test {
             .unwrap();
         db_reservation.advance_rules_loaded(rules).unwrap();
         db_reservation
-            .advance_init(preserved_catalog, catalog, None)
+            .advance_replay(preserved_catalog, catalog, None)
             .unwrap();
+        db_reservation.advance_init().unwrap();
         db_reservation.commit();
 
         // get shutdown token

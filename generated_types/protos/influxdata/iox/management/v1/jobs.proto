@@ -24,6 +24,7 @@ message OperationMetadata {
     WriteChunk write_chunk = 8;
     WipePreservedCatalog wipe_preserved_catalog = 9;
     CompactChunks compact_chunks = 10;
+    PersistChunks persist_chunks = 11;
   }
 }
 
@@ -63,8 +64,23 @@ message WriteChunk {
   uint32 chunk_id = 3;
 }
 
-// Write a chunk from read buffer to object store
+// Compact chunks into a single chunk
 message CompactChunks {
+  // name of the database
+  string db_name = 1;
+
+  // partition key
+  string partition_key = 2;
+
+  // table name
+  string table_name = 4;
+
+  // chunk_id
+  repeated uint32 chunks = 3;
+}
+
+// Split and write chunks to object store
+message PersistChunks {
   // name of the database
   string db_name = 1;
 

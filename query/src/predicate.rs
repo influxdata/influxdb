@@ -333,7 +333,7 @@ impl PredicateBuilder {
             .into_iter()
             .try_for_each::<_, Result<_, DataFusionError>>(|expr| {
                 let mut columns = HashSet::new();
-                utils::expr_to_column_names(&expr, &mut columns)?;
+                utils::expr_to_columns(&expr, &mut columns)?;
 
                 if columns.len() == 1 && Self::primitive_binary_expr(&expr) {
                     pushdown_exprs.push(expr);

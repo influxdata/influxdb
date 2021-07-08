@@ -31,7 +31,7 @@ use uuid::Uuid;
 /// Current version for serialized transactions.
 ///
 /// For breaking changes, this will change.
-pub const TRANSACTION_VERSION: u32 = 6;
+pub const TRANSACTION_VERSION: u32 = 7;
 
 /// File suffix for transaction files in object store.
 pub const TRANSACTION_FILE_SUFFIX: &str = "txn";
@@ -140,6 +140,15 @@ pub enum Error {
     )]
     MetadataExtractFailed {
         source: crate::metadata::Error,
+        path: DirsAndFileName,
+    },
+
+    #[snafu(
+        display("Schema for {:?} does not work with existing schema: {}", path, source),
+        visibility(pub)
+    )]
+    SchemaError {
+        source: Box<dyn std::error::Error + Send + Sync>,
         path: DirsAndFileName,
     },
 

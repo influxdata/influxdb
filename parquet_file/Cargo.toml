@@ -23,6 +23,7 @@ observability_deps = { path = "../observability_deps" }
 parquet = "4.0"
 parquet-format = "2.6"
 parking_lot = "0.11.1"
+persistence_windows = { path = "../persistence_windows" }
 prost = "0.7"
 query = { path = "../query" }
 snafu = "0.6"

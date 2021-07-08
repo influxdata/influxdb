@@ -73,7 +73,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
-use config::DatabaseStateCode;
 use db::load::create_preserved_catalog;
 use init::InitStatus;
 use observability_deps::tracing::{debug, info, warn};
@@ -81,7 +80,10 @@ use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use data_types::{
-    database_rules::DatabaseRules,
+    database_rules::{
+        DatabaseRules, NodeGroup, RoutingRules, Shard, ShardConfig, ShardId, WriteBufferConnection,
+    },
+    database_state::DatabaseStateCode,
     job::Job,
     server_id::ServerId,
     {DatabaseName, DatabaseNameError},
@@ -97,7 +99,6 @@ use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, Tr
 pub use crate::config::RemoteTemplate;
 use crate::config::{object_store_path_for_database_config, Config, GRpcConnectionString};
 use cache_loader_async::cache_api::LoadingCache;
-use data_types::database_rules::{NodeGroup, RoutingRules, Shard, ShardConfig, ShardId};
 pub use db::Db;
 use generated_types::database_rules::encode_database_rules;
 use influxdb_iox_client::{connection::Builder, write};
@@ -196,6 +197,12 @@ pub enum Error {
     #[snafu(display("hard buffer limit reached"))]
     HardLimitReached {},
 
+    #[snafu(display(
+        "Cannot write to database {}, it's configured to only read from the write buffer",
+        db_name
+    ))]
+    WritingOnlyAllowedThroughWriteBuffer { db_name: String },
+
     #[snafu(display("no remote configured for node group: {:?}", node_group))]
     NoRemoteConfigured { node_group: NodeGroup },
 
@@ -216,8 +223,15 @@ pub enum Error {
     #[snafu(display("cannot get id: {}", source))]
     GetIdError { source: crate::init::Error },
 
-    #[snafu(display("cannot create write buffer for writing: {}", source))]
-    CreatingWriteBufferForWriting { source: DatabaseError },
+    #[snafu(display(
+        "cannot create write buffer with config: {:?}, error: {}",
+        config,
+        source
+    ))]
+    CreatingWriteBuffer {
+        config: Option<WriteBufferConnection>,
+        source: DatabaseError,
+    },
 
     #[snafu(display(
         "Invalid database state transition, expected {:?} but got {:?}",
@@ -489,6 +503,15 @@ where
         self.init_status.error_database(db_name)
     }
 
+    /// Current database init state.
+    pub fn database_state(&self, name: &str) -> Option<DatabaseStateCode> {
+        if let Ok(name) = DatabaseName::new(name) {
+            self.config.db_state(&name)
+        } else {
+            None
+        }
+    }
+
     /// Require that server is loaded. Databases are loaded and server is ready to read/write.
     fn require_initialized(&self) -> Result<ServerId> {
         // since a server ID is the pre-requirement for init, check this first
@@ -528,9 +551,18 @@ where
         .await
         .map_err(|e| Box::new(e) as _)
         .context(CannotCreatePreservedCatalog)?;
-        let write_buffer = write_buffer::new(&rules)
-            .map_err(|e| Error::CreatingWriteBufferForWriting { source: e })?;
-        db_reservation.advance_init(preserved_catalog, catalog, write_buffer)?;
+
+        let write_buffer =
+            write_buffer::WriteBufferConfig::new(server_id, &rules).map_err(|e| {
+                Error::CreatingWriteBuffer {
+                    config: rules.write_buffer_connection.clone(),
+                    source: e,
+                }
+            })?;
+        db_reservation.advance_replay(preserved_catalog, catalog, write_buffer)?;
+
+        // no actual replay required
+        db_reservation.advance_init()?;
 
         // ready to commit
         self.persist_database_rules(rules.clone()).await?;
@@ -610,7 +642,7 @@ where
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
         let db = self
             .config
-            .db(&db_name)
+            .db_initialized(&db_name)
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
         // need to split this in two blocks because we cannot hold a lock across an async call.
@@ -735,7 +767,7 @@ where
                 }
             };
         }
-        return NoRemoteReachable { errors }.fail();
+        NoRemoteReachable { errors }.fail()
     }
 
     pub async fn write_entry(&self, db_name: &str, entry_bytes: Vec<u8>) -> Result<()> {
@@ -745,7 +777,7 @@ where
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
         let db = self
             .config
-            .db(&db_name)
+            .db_initialized(&db_name)
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
         let entry = entry_bytes.try_into().context(DecodingEntry)?;
@@ -764,6 +796,11 @@ where
             );
             match e {
                 db::Error::HardLimitReached {} => Error::HardLimitReached {},
+                db::Error::WritingOnlyAllowedThroughWriteBuffer {} => {
+                    Error::WritingOnlyAllowedThroughWriteBuffer {
+                        db_name: db_name.into(),
+                    }
+                }
                 _ => Error::UnknownDatabaseError {
                     source: Box::new(e),
                 },
@@ -782,11 +819,13 @@ where
     }
 
     pub fn db(&self, name: &DatabaseName<'_>) -> Option<Arc<Db>> {
-        self.config.db(name)
+        self.config.db_initialized(name)
     }
 
     pub fn db_rules(&self, name: &DatabaseName<'_>) -> Option<DatabaseRules> {
-        self.config.db(name).map(|d| d.rules.read().clone())
+        self.config
+            .db_initialized(name)
+            .map(|d| d.rules.read().clone())
     }
 
     // Update database rules and save on success.
@@ -853,7 +892,7 @@ where
 
         let db = self
             .config
-            .db(&name)
+            .db_initialized(&name)
             .context(DatabaseNotFound { db_name: &db_name })?;
 
         let chunk = db
@@ -875,7 +914,7 @@ where
         &self,
         db_name: DatabaseName<'static>,
     ) -> Result<TaskTracker<Job>> {
-        if self.config.db(&db_name).is_some() {
+        if self.config.db_initialized(&db_name).is_some() {
             return Err(Error::DatabaseAlreadyExists {
                 db_name: db_name.to_string(),
             });
@@ -1207,7 +1246,7 @@ mod tests {
             },
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
-            write_buffer_connection_string: None,
+            write_buffer_connection: None,
         };
 
         // Create a database
@@ -1299,7 +1338,7 @@ mod tests {
             lifecycle_rules: Default::default(),
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
-            write_buffer_connection_string: None,
+            write_buffer_connection: None,
         };
 
         // Create a database
@@ -1549,8 +1588,8 @@ mod tests {
                 ConnectionManagerError::RemoteServerConnectError {..}
             )
         ));
-        assert_eq!(written_1.load(Ordering::Relaxed), false);
-        assert_eq!(written_2.load(Ordering::Relaxed), false);
+        assert!(!written_1.load(Ordering::Relaxed));
+        assert!(!written_2.load(Ordering::Relaxed));
 
         // We configure the address for the other remote, this time connection will succeed
         // despite the bad remote failing to connect.
@@ -1565,8 +1604,8 @@ mod tests {
                 .await
                 .expect("cannot write lines");
         }
-        assert_eq!(written_1.load(Ordering::Relaxed), true);
-        assert_eq!(written_2.load(Ordering::Relaxed), true);
+        assert!(written_1.load(Ordering::Relaxed));
+        assert!(written_2.load(Ordering::Relaxed));
     }
 
     #[tokio::test]

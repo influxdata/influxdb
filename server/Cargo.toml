@@ -35,6 +35,7 @@ object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.11.1"
 parquet_file = { path = "../parquet_file" }
+persistence_windows = { path = "../persistence_windows" }
 query = { path = "../query" }
 rand = "0.8.3"
 rand_distr = "0.4.0"

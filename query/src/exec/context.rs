@@ -8,8 +8,8 @@ use datafusion::{
     execution::context::{ExecutionContextState, QueryPlanner},
     logical_plan::{LogicalPlan, UserDefinedLogicalNode},
     physical_plan::{
+        coalesce_partitions::CoalescePartitionsExec,
         collect, displayable,
-        merge::MergeExec,
         planner::{DefaultPhysicalPlanner, ExtensionPlanner},
         ExecutionPlan, PhysicalPlanner, SendableRecordBatchStream,
     },
@@ -62,32 +62,42 @@ impl ExtensionPlanner for IOxExtensionPlanner {
     /// Create a physical plan for an extension node
     fn plan_extension(
         &self,
+        planner: &dyn PhysicalPlanner,
         node: &dyn UserDefinedLogicalNode,
-        inputs: &[Arc<dyn ExecutionPlan>],
+        logical_inputs: &[&LogicalPlan],
+        physical_inputs: &[Arc<dyn ExecutionPlan>],
         ctx_state: &ExecutionContextState,
     ) -> Result<Option<Arc<dyn ExecutionPlan>>> {
         let any = node.as_any();
         let plan = if let Some(schema_pivot) = any.downcast_ref::<SchemaPivotNode>() {
-            assert_eq!(inputs.len(), 1, "Inconsistent number of inputs");
+            assert_eq!(physical_inputs.len(), 1, "Inconsistent number of inputs");
             Some(Arc::new(SchemaPivotExec::new(
-                Arc::clone(&inputs[0]),
+                Arc::clone(&physical_inputs[0]),
                 schema_pivot.schema().as_ref().clone().into(),
             )) as Arc<dyn ExecutionPlan>)
         } else if let Some(stream_split) = any.downcast_ref::<StreamSplitNode>() {
-            assert_eq!(inputs.len(), 1, "Inconsistent number of inputs");
-            // It is strange to have to make a new physical planner
-            // (when we are already being called via a planner)
-            let physical_planner = DefaultPhysicalPlanner::default();
-            let split_expr = physical_planner.create_physical_expr(
+            assert_eq!(
+                logical_inputs.len(),
+                1,
+                "Inconsistent number of logical inputs"
+            );
+            assert_eq!(
+                physical_inputs.len(),
+                1,
+                "Inconsistent number of physical inputs"
+            );
+
+            let split_expr = planner.create_physical_expr(
                 stream_split.split_expr(),
-                &inputs[0].schema(),
+                &logical_inputs[0].schema(),
+                &physical_inputs[0].schema(),
                 ctx_state,
             )?;
 
-            Some(
-                Arc::new(StreamSplitExec::new(Arc::clone(&inputs[0]), split_expr))
-                    as Arc<dyn ExecutionPlan>,
-            )
+            Some(Arc::new(StreamSplitExec::new(
+                Arc::clone(&physical_inputs[0]),
+                split_expr,
+            )) as Arc<dyn ExecutionPlan>)
         } else {
             None
         };
@@ -195,18 +205,26 @@ impl IOxExecutionContext {
         &self,
         physical_plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
+        match physical_plan.output_partitioning().partition_count() {
+            0 => unreachable!(),
+            1 => self.execute_partition(physical_plan, 0).await,
+            _ => {
+                // Merge into a single partition
+                self.execute_partition(Arc::new(CoalescePartitionsExec::new(physical_plan)), 0)
+                    .await
+            }
+        }
+    }
+
+    /// Executes a single partition of a physical plan and produces a RecordBatchStream to stream
+    /// over the result that iterates over the results.
+    pub async fn execute_partition(
+        &self,
+        physical_plan: Arc<dyn ExecutionPlan>,
+        partition: usize,
+    ) -> Result<SendableRecordBatchStream> {
         self.exec
-            .spawn(async move {
-                if physical_plan.output_partitioning().partition_count() <= 1 {
-                    physical_plan.execute(0).await
-                } else {
-                    // merge into a single partition
-                    let plan = MergeExec::new(physical_plan);
-                    // MergeExec must produce a single partition
-                    assert_eq!(1, plan.output_partitioning().partition_count());
-                    plan.execute(0).await
-                }
-            })
+            .spawn(async move { physical_plan.execute(partition).await })
             .await
             .map_err(|e| {
                 Error::Execution(format!("Error running IOxExecutionContext::execute: {}", e))

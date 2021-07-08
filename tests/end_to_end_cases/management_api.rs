@@ -1,8 +1,10 @@
-use std::{collections::HashSet, fs::set_permissions, os::unix::fs::PermissionsExt};
+use std::{fs::set_permissions, os::unix::fs::PermissionsExt};
 
 use generated_types::{
     google::protobuf::{Duration, Empty},
-    influxdata::iox::management::v1::{database_rules::RoutingRules, *},
+    influxdata::iox::management::v1::{
+        database_rules::RoutingRules, database_status::DatabaseState, *,
+    },
 };
 use influxdb_iox_client::{management::CreateDatabaseError, operations, write::WriteError};
 
@@ -12,6 +14,7 @@ use super::scenario::{
     create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
 };
 use crate::common::server_fixture::ServerFixture;
+use data_types::database_rules::DEFAULT_MUTABLE_LINGER_SECONDS;
 use std::time::Instant;
 use tonic::Code;
 
@@ -222,7 +225,7 @@ async fn test_create_get_update_database() {
             seconds: 2,
             nanos: 0,
         }),
-        write_buffer_connection_string: "".into(),
+        write_buffer_connection: None,
     };
 
     client
@@ -241,6 +244,10 @@ async fn test_create_get_update_database() {
         ignore_errors: true,
         ..Default::default()
     }));
+    rules.lifecycle_rules = Some(LifecycleRules {
+        mutable_linger_seconds: DEFAULT_MUTABLE_LINGER_SECONDS,
+        ..rules.lifecycle_rules.unwrap()
+    });
 
     let updated_rules = client
         .update_database(rules.clone())
@@ -862,14 +869,34 @@ async fn test_get_server_status_ok() {
         .expect("create database failed");
 
     // databases are listed
+    // output is sorted by db name
+    let (db_name1, db_name2) = if db_name1 < db_name2 {
+        (db_name1, db_name2)
+    } else {
+        (db_name2, db_name1)
+    };
     let status = client.get_server_status().await.unwrap();
-    let names_actual: HashSet<_> = status
+    let names: Vec<_> = status
         .database_statuses
         .iter()
         .map(|db_status| db_status.db_name.clone())
         .collect();
-    let names_expected: HashSet<_> = [db_name1, db_name2].iter().cloned().collect();
-    assert_eq!(names_actual, names_expected);
+    let errors: Vec<_> = status
+        .database_statuses
+        .iter()
+        .map(|db_status| db_status.error.clone())
+        .collect();
+    let states: Vec<_> = status
+        .database_statuses
+        .iter()
+        .map(|db_status| DatabaseState::from_i32(db_status.state).unwrap())
+        .collect();
+    assert_eq!(names, vec![db_name1, db_name2]);
+    assert_eq!(errors, vec![None, None]);
+    assert_eq!(
+        states,
+        vec![DatabaseState::Initialized, DatabaseState::Initialized]
+    );
 }
 
 #[tokio::test]
@@ -894,6 +921,7 @@ async fn test_get_server_status_global_error() {
             let status = client.get_server_status().await.unwrap();
             if let Some(err) = status.error {
                 assert!(dbg!(err.message).starts_with("store error:"));
+                assert!(status.database_statuses.is_empty());
                 return;
             }
 
@@ -930,4 +958,8 @@ async fn test_get_server_status_db_error() {
     assert_eq!(db_status.db_name, "my_db");
     assert!(dbg!(&db_status.error.as_ref().unwrap().message)
         .starts_with("error deserializing database rules from protobuf:"));
+    assert_eq!(
+        DatabaseState::from_i32(db_status.state).unwrap(),
+        DatabaseState::Known
+    );
 }

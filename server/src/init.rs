@@ -1,5 +1,10 @@
 //! Routines to initialize a server.
-use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
+use data_types::{
+    database_rules::{DatabaseRules, WriteBufferConnection},
+    database_state::DatabaseStateCode,
+    server_id::ServerId,
+    DatabaseName,
+};
 use futures::TryStreamExt;
 use generated_types::database_rules::decode_database_rules;
 use internal_types::once::OnceNonZeroU32;
@@ -22,12 +27,10 @@ use std::{
 use tokio::sync::Semaphore;
 
 use crate::{
-    config::{
-        object_store_path_for_database_config, Config, DatabaseHandle, DatabaseStateCode,
-        DB_RULES_FILE_NAME,
-    },
+    config::{object_store_path_for_database_config, Config, DatabaseHandle, DB_RULES_FILE_NAME},
     db::load::load_or_create_preserved_catalog,
-    write_buffer, DatabaseError,
+    write_buffer::WriteBufferConfig,
+    DatabaseError,
 };
 
 const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
@@ -75,8 +78,15 @@ pub enum Error {
         source: data_types::DatabaseNameError,
     },
 
-    #[snafu(display("Cannot create write buffer for writing: {}", source))]
-    CreateWriteBufferForWriting { source: DatabaseError },
+    #[snafu(display(
+        "Cannot create write buffer with config: {:?}, error: {}",
+        config,
+        source
+    ))]
+    CreateWriteBuffer {
+        config: Option<WriteBufferConnection>,
+        source: DatabaseError,
+    },
 
     #[snafu(display(
         "Cannot wipe catalog because DB init progress has already read it: {}",
@@ -520,11 +530,28 @@ impl InitStatus {
                 let rules = handle
                     .rules()
                     .expect("in this state rules should be loaded");
-                let write_buffer =
-                    write_buffer::new(&rules).context(CreateWriteBufferForWriting)?;
+                let write_buffer = WriteBufferConfig::new(handle.server_id(), &rules).context(
+                    CreateWriteBuffer {
+                        config: rules.write_buffer_connection.clone(),
+                    },
+                )?;
 
                 handle
-                    .advance_init(preserved_catalog, catalog, write_buffer)
+                    .advance_replay(preserved_catalog, catalog, write_buffer)
+                    .map_err(Box::new)
+                    .context(InitDbError)?;
+
+                // there is still more work to do for this DB
+                Ok(InitProgress::Unfinished)
+            }
+            DatabaseStateCode::Replay => {
+                let db = handle
+                    .db_any_state()
+                    .expect("DB should be available in this state");
+                db.perform_replay().await;
+
+                handle
+                    .advance_init()
                     .map_err(Box::new)
                     .context(InitDbError)?;
 

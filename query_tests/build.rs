@@ -1,4 +1,4 @@
-//! Finds all .sql files in cases/ and creates corresponding entries in src/cases.rs
+//! Finds all .sql files in `cases/in/` and creates corresponding entries in src/cases.rs
 //! native Rust types.
 
 use std::path::{Path, PathBuf};
@@ -9,7 +9,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 fn main() -> Result<()> {
     // crate root
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let cases = root.join("cases");
+    let cases = root.join("cases").join("in");
 
     let sql_files = find_sql_files(&cases);
 
@@ -19,9 +19,7 @@ fn main() -> Result<()> {
     // Now create the generated sql file
     let output_content = make_cases_rs(&sql_files).join("\n");
     let output_file = root.join("src").join("cases.rs");
-    std::fs::write(&output_file, output_content)
-        .map_err(|e| format!("Error writing to {:?}: {}", output_file, e))
-        .unwrap();
+    write_if_changed(&output_file, &output_content);
 
     Ok(())
 }
@@ -64,7 +62,7 @@ use crate::runner::Runner;"#
 #[tokio::test]
 // Tests from {:?},
 async fn test_cases_{}() {{
-    let input_path = Path::new("cases").join("{}");
+    let input_path = Path::new("cases").join("in").join("{}");
     let mut runner = Runner::new();
     runner
         .run(input_path)
@@ -79,4 +77,25 @@ async fn test_cases_{}() {{
     }
 
     output_lines
+}
+
+/// Write content to file if it is different to the current content.
+///
+/// This prevents us from touching the file and modifying the `mtime` so that Cargo will re-compile the output `.rs`
+/// file every time. Also see [`rust-lang/cargo#6529`](https://github.com/rust-lang/cargo/issues/6529).
+fn write_if_changed(path: &Path, content: &str) {
+    let changed = if !path.exists() {
+        true
+    } else {
+        match std::fs::read_to_string(path) {
+            Ok(old_content) => old_content != content,
+            Err(_) => true,
+        }
+    };
+
+    if changed {
+        std::fs::write(path, content)
+            .map_err(|e| format!("Error writing to {:?}: {}", path, e))
+            .unwrap();
+    }
 }

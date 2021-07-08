@@ -134,19 +134,23 @@ impl ReorgPlanner {
     ///  e | 3000
     ///  c | 4000
     /// ```
-    pub fn split_plan<C>(
+    pub fn split_plan<C, I>(
         &self,
-        chunks: Vec<Arc<C>>,
+        chunks: I,
         output_sort: SortKey<'_>,
         split_time: i64,
-    ) -> Result<LogicalPlan>
+    ) -> Result<(Schema, LogicalPlan)>
     where
         C: QueryChunk + 'static,
+        I: IntoIterator<Item = Arc<C>>,
     {
         let ScanPlan {
             plan_builder,
             provider,
         } = self.scan_and_sort_plan(chunks, output_sort)?;
+
+        // TODO: Set sort key on schema
+        let schema = provider.iox_schema();
 
         // time <= split_time
         let ts_literal = Expr::Literal(ScalarValue::TimestampNanosecond(Some(split_time)));
@@ -159,7 +163,7 @@ impl ReorgPlanner {
         debug!(table_name=provider.table_name(), plan=%plan.display_indent_schema(),
                "created split plan for table");
 
-        Ok(plan)
+        Ok((schema, plan))
     }
 
     /// Creates a scan plan for the set of chunks that:
@@ -188,7 +192,7 @@ impl ReorgPlanner {
         let mut builder = ProviderBuilder::new(table_name);
 
         // There are no predicates in these plans, so no need to prune them
-        builder.add_no_op_pruner();
+        builder = builder.add_no_op_pruner();
 
         for chunk in chunks {
             // check that it is consistent with this table_name
@@ -199,7 +203,7 @@ impl ReorgPlanner {
                 chunk.id(),
             );
 
-            builder
+            builder = builder
                 .add_chunk(chunk)
                 .context(CreatingProvider { table_name })?;
         }
@@ -356,6 +360,7 @@ mod test {
 
     #[tokio::test]
     async fn test_split_plan() {
+        test_helpers::maybe_start_logging();
         // validate that the plumbing is all hooked up. The logic of
         // the operator is tested in its own module.
         let chunks = get_test_chunks().await;
@@ -370,7 +375,7 @@ mod test {
         );
 
         // split on 1000 should have timestamps 1000, 5000, and 7000
-        let split_plan = ReorgPlanner::new()
+        let (_, split_plan) = ReorgPlanner::new()
             .split_plan(chunks, sort_key, 1000)
             .expect("created compact plan");
 

@@ -44,6 +44,17 @@ impl From<Job> for management::operation_metadata::Job {
                 table_name,
                 chunks,
             }),
+            Job::PersistChunks {
+                db_name,
+                partition_key,
+                table_name,
+                chunks,
+            } => Self::PersistChunks(management::PersistChunks {
+                db_name,
+                partition_key,
+                table_name,
+                chunks,
+            }),
         }
     }
 }
@@ -84,6 +95,17 @@ impl From<management::operation_metadata::Job> for Job {
                 table_name,
                 chunks,
             }) => Self::CompactChunks {
+                db_name,
+                partition_key,
+                table_name,
+                chunks,
+            },
+            Job::PersistChunks(management::PersistChunks {
+                db_name,
+                partition_key,
+                table_name,
+                chunks,
+            }) => Self::PersistChunks {
                 db_name,
                 partition_key,
                 table_name,

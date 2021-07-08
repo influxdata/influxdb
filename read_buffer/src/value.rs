@@ -1573,9 +1573,12 @@ impl From<Values<'_>> for arrow::array::ArrayRef {
                     // drop NULL value entry as this is not stored in Arrow's
                     // dictionary values array.
                     assert!(values[0].is_none());
-                    arrow::array::StringArray::from_iter(values.into_iter().skip(1))
+                    values
+                        .into_iter()
+                        .skip(1)
+                        .collect::<arrow::array::StringArray>()
                 } else {
-                    arrow::array::StringArray::from(values)
+                    values.into_iter().collect::<arrow::array::StringArray>()
                 };
 
                 let mut builder = ArrayDataBuilder::new(DataType::Dictionary(

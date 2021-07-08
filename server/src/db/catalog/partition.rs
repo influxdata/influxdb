@@ -2,12 +2,13 @@
 
 use std::{
     collections::{btree_map::Entry, BTreeMap},
+    fmt::Display,
     sync::Arc,
 };
 
 use chrono::{DateTime, Utc};
 
-use data_types::partition_metadata::PartitionSummary;
+use data_types::{chunk_metadata::ChunkLifecycleAction, partition_metadata::PartitionSummary};
 use tracker::RwLock;
 
 use crate::db::catalog::metrics::PartitionMetrics;
@@ -15,10 +16,9 @@ use crate::db::catalog::metrics::PartitionMetrics;
 use super::chunk::{CatalogChunk, ChunkStage};
 use data_types::chunk_metadata::{ChunkAddr, ChunkSummary};
 use internal_types::schema::Schema;
-use lifecycle::ChunkLifecycleAction;
-use mutable_buffer::persistence_windows::PersistenceWindows;
+use observability_deps::tracing::info;
+use persistence_windows::persistence_windows::PersistenceWindows;
 use snafu::Snafu;
-
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("chunk not found: {}", chunk))]
@@ -179,6 +179,7 @@ impl Partition {
             partition_key: Arc::clone(&self.partition_key),
             chunk_id,
         };
+        info!(%addr, row_count=chunk.rows(), "inserting RUB chunk to catalog");
 
         let chunk = Arc::new(self.metrics.new_chunk_lock(CatalogChunk::new_rub_chunk(
             addr,
@@ -306,11 +307,25 @@ impl Partition {
         &self.metrics
     }
 
-    pub fn persistence_windows(&mut self) -> Option<&mut PersistenceWindows> {
+    pub fn persistence_windows(&self) -> Option<&PersistenceWindows> {
+        self.persistence_windows.as_ref()
+    }
+
+    pub fn persistence_windows_mut(&mut self) -> Option<&mut PersistenceWindows> {
         self.persistence_windows.as_mut()
     }
 
     pub fn set_persistence_windows(&mut self, windows: PersistenceWindows) {
         self.persistence_windows = Some(windows);
+    }
+}
+
+impl Display for Partition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Partition {}:{}:{}",
+            self.db_name, self.table_name, self.partition_key
+        )
     }
 }

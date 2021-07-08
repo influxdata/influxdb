@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{fmt::Display, str::FromStr};
 
 use indexmap::{map::Iter, IndexMap};
 use itertools::Itertools;
@@ -130,6 +130,31 @@ impl<'a> SortKey<'a> {
     /// Returns if this sort key is empty
     pub fn is_empty(&self) -> bool {
         self.columns.is_empty()
+    }
+}
+
+// Produces a human-readable representation of a sort key that looks like:
+//
+//  "host, region DESC, env NULLS FIRST, time"
+//
+impl<'a> Display for SortKey<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        for (i, (name, options)) in self.columns.iter().enumerate() {
+            write!(f, "{}", name)?;
+            if options.descending {
+                write!(f, " DESC")?;
+            }
+            if !options.nulls_first {
+                // less common case
+                write!(f, " NULLS LAST")?;
+            }
+            write!(f, ",")?;
+
+            if i < self.columns.len() - 1 {
+                write!(f, " ")?;
+            }
+        }
+        Ok(())
     }
 }
 

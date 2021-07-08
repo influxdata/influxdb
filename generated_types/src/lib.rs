@@ -129,6 +129,7 @@ pub use influxdata::platform::storage::*;
 
 pub mod chunk;
 pub mod database_rules;
+pub mod database_state;
 pub mod google;
 pub mod job;
 

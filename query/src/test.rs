@@ -337,10 +337,10 @@ impl TestChunk {
         };
 
         let mut merger = SchemaMerger::new();
-        merger.merge(&new_column_schema).unwrap();
+        merger = merger.merge(&new_column_schema).unwrap();
 
         if let Some(existing_schema) = self.table_schema.as_ref() {
-            merger
+            merger = merger
                 .merge(existing_schema)
                 .expect("merging was successful");
         }

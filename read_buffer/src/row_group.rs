@@ -369,8 +369,16 @@ impl RowGroup {
                 RowIDsOption::Some(row_ids) => {
                     if result_row_ids.is_empty() {
                         result_row_ids.union(&row_ids)
+                    } else {
+                        result_row_ids.intersect(&row_ids);
                     }
-                    result_row_ids.intersect(&row_ids);
+
+                    // before evaluating the next expression check if we have
+                    // ruled out all rows
+                    if result_row_ids.is_empty() {
+                        return RowIDsOption::None(result_row_ids);
+                    }
+
                     dst = row_ids; // hand buffer back
                 }
 
@@ -383,8 +391,7 @@ impl RowGroup {
         }
 
         if result_row_ids.is_empty() {
-            // All rows matched all predicates because any predicates not
-            // matching any rows would have resulted in an early return.
+            // All rows matched all expressions in the predicate.
             return RowIDsOption::All(result_row_ids);
         }
         RowIDsOption::Some(result_row_ids)
@@ -1405,8 +1412,8 @@ impl TryFrom<&DfExpr> for BinaryExpr {
         match df_expr {
             DfExpr::BinaryExpr { left, op, right } => {
                 match (&**left, &**right) {
-                    (DfExpr::Column(name), DfExpr::Literal(scalar)) => Ok(Self::new(
-                        name,
+                    (DfExpr::Column(c), DfExpr::Literal(scalar)) => Ok(Self::new(
+                        &c.name,
                         Operator::try_from(op)?,
                         Literal::try_from(scalar)?,
                     )),
@@ -2395,6 +2402,22 @@ mod test {
         ));
         assert!(matches!(row_ids, RowIDsOption::None(_)));
 
+        // predicate where both expressions match rows, but not the same rows
+        let row_ids = row_group.row_ids_from_predicate(&Predicate::with_time_range(
+            &[BinaryExpr::from(("region", "=", "west"))], // only matches rows outside of time-range
+            300,
+            301,
+        ));
+        assert!(matches!(row_ids, RowIDsOption::None(_)));
+
+        // predicate where both expressions match rows, but not the same rows
+        let row_ids = row_group.row_ids_from_predicate(&Predicate::with_time_range(
+            &[BinaryExpr::from(("region", "=", "south"))], // only matches rows outside of time-range
+            100,
+            200,
+        ));
+        assert!(matches!(row_ids, RowIDsOption::None(_)));
+
         // Just a column predicate
         let row_ids =
             row_group.row_ids_from_predicate(&col_pred(BinaryExpr::from(("region", "=", "east"))));
@@ -2546,6 +2569,40 @@ POST,west,2
             let results = row_group.read_filter(&cols, &predicates);
             assert_eq!(format!("{:?}", &results), expected);
         }
+    }
+
+    // Test coverage for https://github.com/influxdata/influxdb_iox/issues/1860
+    #[test]
+    fn read_filter_bug_1860() {
+        let mut columns = vec![];
+        let tc = ColumnType::Time(Column::from(&[200_i64, 300, 400, 500, 600][..]));
+        columns.push(("time".to_string(), tc));
+
+        let city = ColumnType::Tag(Column::from(
+            &[Some("Boston"), None, None, Some("NYC"), Some("NYC")][..],
+        ));
+        columns.push(("city".to_string(), city));
+
+        let state = ColumnType::Tag(Column::from(
+            &[Some("MA"), Some("CA"), Some("NY"), Some("NY"), Some("NY")][..],
+        ));
+        columns.push(("state".to_string(), state));
+
+        let borough = ColumnType::Tag(Column::from(
+            &[None, None, None, None, Some("Brooklyn")][..],
+        ));
+        columns.push(("borough".to_string(), borough));
+
+        let temp = ColumnType::Field(Column::from(&[50.4, 79.0, 60.8, 61.0, 61.0][..]));
+        columns.push(("temp".to_string(), temp));
+
+        let row_group = RowGroup::new(5, columns);
+
+        let results = row_group.read_filter(
+            &["state"],
+            &Predicate::with_time_range(&[BinaryExpr::from(("state", "=", "NY"))], 1, 300),
+        );
+        assert!(results.is_empty());
     }
 
     #[test]
@@ -2855,46 +2912,46 @@ west,POST,304,101,203
         let row_group = RowGroup::new(6, columns);
 
         let mut predicate = Predicate::default();
-        assert_eq!(row_group.satisfies_predicate(&predicate), true);
+        assert!(row_group.satisfies_predicate(&predicate));
 
         predicate = Predicate::new(vec![BinaryExpr::from(("region", "=", "east"))]);
-        assert_eq!(row_group.satisfies_predicate(&predicate), true);
+        assert!(row_group.satisfies_predicate(&predicate));
 
         // all expressions satisfied in data
         predicate = Predicate::new(vec![
             BinaryExpr::from(("region", "=", "east")),
             BinaryExpr::from(("method", "!=", "POST")),
         ]);
-        assert_eq!(row_group.satisfies_predicate(&predicate), true);
+        assert!(row_group.satisfies_predicate(&predicate));
 
         // all expressions satisfied in data by all rows
         predicate = Predicate::new(vec![BinaryExpr::from(("method", "=", "GET"))]);
-        assert_eq!(row_group.satisfies_predicate(&predicate), true);
+        assert!(row_group.satisfies_predicate(&predicate));
 
         // one expression satisfied in data but other ruled out via column pruning.
         predicate = Predicate::new(vec![
             BinaryExpr::from(("region", "=", "east")),
             BinaryExpr::from(("method", ">", "GET")),
         ]);
-        assert_eq!(row_group.satisfies_predicate(&predicate), false);
+        assert!(!row_group.satisfies_predicate(&predicate));
 
         // all expressions rules out via column pruning.
         predicate = Predicate::new(vec![
             BinaryExpr::from(("region", ">", "west")),
             BinaryExpr::from(("method", ">", "GET")),
         ]);
-        assert_eq!(row_group.satisfies_predicate(&predicate), false);
+        assert!(!row_group.satisfies_predicate(&predicate));
 
         // column does not exist
         predicate = Predicate::new(vec![BinaryExpr::from(("track", "=", "Jeanette"))]);
-        assert_eq!(row_group.satisfies_predicate(&predicate), false);
+        assert!(!row_group.satisfies_predicate(&predicate));
 
         // one column satisfies expression but other column does not exist
         predicate = Predicate::new(vec![
             BinaryExpr::from(("region", "=", "south")),
             BinaryExpr::from(("track", "=", "Jeanette")),
         ]);
-        assert_eq!(row_group.satisfies_predicate(&predicate), false);
+        assert!(!row_group.satisfies_predicate(&predicate));
     }
 
     #[test]
@@ -3424,8 +3481,10 @@ west,host-c,pro,10,6
         assert_eq!(result, to_map(vec![]));
     }
 
-    use datafusion::logical_plan::*;
-    use datafusion::scalar::ScalarValue;
+    use datafusion::{
+        logical_plan::{col, Expr},
+        scalar::ScalarValue,
+    };
     use std::convert::TryFrom;
 
     #[test]

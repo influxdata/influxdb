@@ -4,8 +4,6 @@
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use datafusion::physical_plan::expressions::Column;
-use datafusion::physical_plan::PhysicalExpr;
 use datafusion::{
     arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::RecordBatch},
     logical_plan::{binary_expr, col, lit, Expr, Operator},
@@ -28,12 +26,6 @@ pub trait AsExpr {
     }
 }
 
-/// Traits to help creating DataFusion [`PhysicalExpr`]s
-pub trait AsPhysicalExpr {
-    /// creates a DataFusion PhysicalExpr
-    fn as_physical_expr(&self) -> Arc<dyn PhysicalExpr>;
-}
-
 impl AsExpr for Arc<str> {
     fn as_expr(&self) -> Expr {
         col(self.as_ref())
@@ -43,18 +35,6 @@ impl AsExpr for Arc<str> {
 impl AsExpr for str {
     fn as_expr(&self) -> Expr {
         col(self)
-    }
-}
-
-impl AsPhysicalExpr for Arc<str> {
-    fn as_physical_expr(&self) -> Arc<dyn PhysicalExpr> {
-        Arc::new(Column::new(self.as_ref()))
-    }
-}
-
-impl AsPhysicalExpr for str {
-    fn as_physical_expr(&self) -> Arc<dyn PhysicalExpr> {
-        Arc::new(Column::new(self))
     }
 }
 

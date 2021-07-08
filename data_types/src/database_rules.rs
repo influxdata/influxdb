@@ -54,8 +54,14 @@ pub struct DatabaseRules {
     /// Defaults to 500 seconds.
     pub worker_cleanup_avg_sleep: Duration,
 
-    /// An optional connection string to a write buffer.
-    pub write_buffer_connection_string: Option<String>,
+    /// An optional connection string to a write buffer for either writing or reading.
+    pub write_buffer_connection: Option<WriteBufferConnection>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum WriteBufferConnection {
+    Writing(String),
+    Reading(String),
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -86,7 +92,7 @@ impl DatabaseRules {
             lifecycle_rules: Default::default(),
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(500),
-            write_buffer_connection_string: None,
+            write_buffer_connection: None,
         }
     }
 
@@ -106,6 +112,7 @@ impl Partitioner for DatabaseRules {
     }
 }
 
+pub const DEFAULT_MUTABLE_LINGER_SECONDS: u32 = 300;
 pub const DEFAULT_WORKER_BACKOFF_MILLIS: u64 = 1_000;
 pub const DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT: u64 = 100;
 pub const DEFAULT_MUB_ROW_THRESHOLD: usize = 100_000;
@@ -121,16 +128,11 @@ pub struct LifecycleRules {
     /// buffer) if the chunk is older than mutable_min_lifetime_seconds
     ///
     /// Represents the chunk transition open -> moving and closed -> moving
-    pub mutable_linger_seconds: Option<NonZeroU32>,
+    pub mutable_linger_seconds: NonZeroU32,
 
     /// A chunk of data within a partition is guaranteed to remain mutable
     /// for at least this number of seconds unless it exceeds the mutable_size_threshold
     pub mutable_minimum_age_seconds: Option<NonZeroU32>,
-
-    /// Once a chunk of data within a partition reaches this number of bytes
-    /// writes outside its keyspace will be directed to a new chunk and this
-    /// chunk will be compacted to the read buffer as soon as possible
-    pub mutable_size_threshold: Option<NonZeroUsize>,
 
     /// Once the total amount of buffered data in memory reaches this size start
     /// dropping data from memory
@@ -177,9 +179,8 @@ impl LifecycleRules {
 impl Default for LifecycleRules {
     fn default() -> Self {
         Self {
-            mutable_linger_seconds: None,
+            mutable_linger_seconds: NonZeroU32::new(DEFAULT_MUTABLE_LINGER_SECONDS).unwrap(),
             mutable_minimum_age_seconds: None,
-            mutable_size_threshold: None,
             buffer_size_soft: None,
             buffer_size_hard: None,
             drop_non_persisted: false,

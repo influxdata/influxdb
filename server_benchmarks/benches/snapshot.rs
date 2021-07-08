@@ -1,5 +1,8 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use entry::{test_helpers::lp_to_entries, Sequence};
+use entry::{
+    test_helpers::{hour_partitioner, lp_to_entries},
+    Sequence,
+};
 use flate2::read::GzDecoder;
 use mutable_buffer::chunk::{ChunkMetrics, MBChunk};
 use std::io::Read;
@@ -20,7 +23,7 @@ fn chunk(count: usize) -> MBChunk {
 
     let sequence = Some(Sequence::new(1, 5));
     for _ in 0..count {
-        for entry in lp_to_entries(&lp) {
+        for entry in lp_to_entries(&lp, &hour_partitioner()) {
             for write in entry.partition_writes().iter().flatten() {
                 for batch in write.table_batches() {
                     chunk.write_table_batch(sequence.as_ref(), batch).unwrap();

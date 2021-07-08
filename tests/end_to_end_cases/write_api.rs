@@ -313,7 +313,7 @@ async fn test_write_routed() {
         .await
         .unwrap_err()
         .to_string()
-        .contains("Table or CTE with name \\\'disk\\\' not found\""));
+        .contains("Table or CTE with name 'disk' not found\""));
 
     let mut query_results = target_2
         .flight_client()
@@ -341,7 +341,7 @@ async fn test_write_routed() {
         .await
         .unwrap_err()
         .to_string()
-        .contains("Table or CTE with name \\\'cpu\\\' not found\""));
+        .contains("Table or CTE with name 'cpu' not found\""));
 
     ////
 
@@ -571,7 +571,7 @@ async fn test_write_routed_no_shard() {
         .await
         .unwrap_err()
         .to_string()
-        .contains("Table or CTE with name \\\'disk\\\' not found\""));
+        .contains("Table or CTE with name 'disk' not found\""));
 
     let mut query_results = target_2
         .flight_client()
@@ -599,7 +599,7 @@ async fn test_write_routed_no_shard() {
         .await
         .unwrap_err()
         .to_string()
-        .contains("Table or CTE with name \\\'cpu\\\' not found\""));
+        .contains("Table or CTE with name 'cpu' not found\""));
 
     // Ensure that target_3 didn't get any writes.
 
@@ -609,7 +609,7 @@ async fn test_write_routed_no_shard() {
         .await
         .unwrap_err()
         .to_string()
-        .contains("Table or CTE with name \\\'cpu\\\' not found\""));
+        .contains("Table or CTE with name 'cpu' not found\""));
 
     assert!(target_3
         .flight_client()
@@ -617,5 +617,5 @@ async fn test_write_routed_no_shard() {
         .await
         .unwrap_err()
         .to_string()
-        .contains("Table or CTE with name \\\'disk\\\' not found\""));
+        .contains("Table or CTE with name 'disk' not found\""));
 }

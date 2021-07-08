@@ -89,7 +89,7 @@ impl Chunk {
     }
 
     /// The total number of row groups in all tables in this chunk.
-    pub(crate) fn row_groups(&self) -> usize {
+    pub fn row_groups(&self) -> usize {
         self.table.row_groups()
     }
 
