@@ -9,7 +9,7 @@ use crate::db::{
 use ::lifecycle::LifecycleWriteGuard;
 
 use chrono::Utc;
-use data_types::job::Job;
+use data_types::{chunk_metadata::ChunkLifecycleAction, job::Job};
 use internal_types::selection::Selection;
 use object_store::path::parsed::DirsAndFileName;
 use observability_deps::tracing::{debug, warn};
@@ -83,7 +83,7 @@ pub fn write_chunk_to_object_store(
             // re-lock
             let guard = chunk.read();
             if matches!(guard.stage(), &ChunkStage::Persisted { .. })
-                || !guard.is_in_lifecycle(::lifecycle::ChunkLifecycleAction::Persisting)
+                || !guard.is_in_lifecycle(ChunkLifecycleAction::Persisting)
             {
                 return Err(Error::CannotWriteChunk {
                     addr: guard.addr().clone(),

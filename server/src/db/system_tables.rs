@@ -1,4 +1,9 @@
-//! Contains implementation of IOx name: (), stats: () system table stats: () stats: ()es (aka tables in the `system` schema)
+//! Contains implementation of IOx system tables:
+//!
+//! system.chunks
+//! system.columns
+//! system.chunk_columns
+//! system.operations
 //!
 //! For example `SELECT * FROM system.chunks`
 
