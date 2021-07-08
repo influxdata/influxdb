@@ -821,43 +821,7 @@ mod test {
         );
         assert_eq!(chunk_ids(&deduplicator.in_chunk_duplicates_chunks), "4");
         assert_eq!(chunk_ids(&deduplicator.no_duplicates_chunks), "1");
-    }
-
-    #[tokio::test]
-    async fn test_set_sort_key_valid_same_order() {
-        // Build the expected schema with sort key
-        let mut sort_key = SortKey::with_capacity(3);
-        sort_key.push("tag1", Default::default());
-        sort_key.push("time", Default::default());
-        sort_key.push("tag2", Default::default());
-
-        let expected_schema = SchemaBuilder::new()
-            .tag("tag1")
-            .timestamp()
-            .tag("tag2")
-            .field("field_int", DataType::Int64)
-            .field("field_float", DataType::Float64)
-            .build_with_sort_key(&sort_key)
-            .unwrap();
-
-        // The same schema without sort key
-        let mut schema = SchemaBuilder::new()
-            .tag("tag1")
-            .timestamp()
-            .tag("tag2")
-            .field("field_int", DataType::Int64)
-            .field("field_float", DataType::Float64)
-            .build()
-            .unwrap();
-
-        schema.set_sort_key(&sort_key);
-
-        assert_eq!(
-            expected_schema, schema,
-            "Schema mismatch \nExpected:\n{:#?}\nActual:\n{:#?}\n",
-            expected_schema, schema
-        );
-    }
+    }    
 
     #[tokio::test]
     async fn sort_planning_one_tag_with_time() {
