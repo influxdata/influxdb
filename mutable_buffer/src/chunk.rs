@@ -272,7 +272,7 @@ impl MBChunk {
 
     /// Validates the schema of the passed in columns, then adds their values to
     /// the associated columns in the table and updates summary statistics.
-    pub fn write_columns(
+    fn write_columns(
         &mut self,
         _sequence: Option<&Sequence>,
         columns: Vec<entry::Column<'_>>,
