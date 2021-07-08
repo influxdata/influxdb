@@ -93,9 +93,6 @@ impl TableSummary {
             + mem::size_of::<Self>() // Add size of this struct that points to
                                      // table and ColumnSummary
     }
-    pub fn has_table(&self, table_name: &str) -> bool {
-        self.name.eq(table_name)
-    }
 
     /// Updates the table summary with combined stats from the other. Counts are
     /// treated as non-overlapping so they're just added together. If the
