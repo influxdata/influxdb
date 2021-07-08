@@ -484,18 +484,7 @@ fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<
         Some(last_write)
             if elapsed_seconds(now, last_write) >= rules.mutable_linger_seconds.get() =>
         {
-            match (
-                rules.mutable_minimum_age_seconds,
-                chunk.time_of_first_write(),
-            ) {
-                (Some(min_age), Some(first_write)) => {
-                    // Chunk can be moved if it is old enough
-                    elapsed_seconds(now, first_write) >= min_age.get()
-                }
-                // If no minimum age set - permit chunk movement
-                (None, _) => true,
-                (_, None) => unreachable!("chunk with last write and no first write"),
-            }
+            true
         }
 
         // Disable movement the chunk is empty, or the linger hasn't expired
@@ -901,33 +890,6 @@ mod tests {
             .with_row_count(DEFAULT_MUB_ROW_THRESHOLD - 1);
         assert!(can_move(&rules, &chunk, from_secs(11)));
 
-        // If mutable_minimum_age_seconds set must also take this into account
-        let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
-            mutable_minimum_age_seconds: Some(NonZeroU32::new(60).unwrap()),
-            ..Default::default()
-        };
-        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer);
-        assert!(!can_move(&rules, &chunk, from_secs(9)));
-        assert!(!can_move(&rules, &chunk, from_secs(11)));
-        assert!(can_move(&rules, &chunk, from_secs(61)));
-
-        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer)
-            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD - 1);
-        assert!(!can_move(&rules, &chunk, from_secs(9)));
-        assert!(!can_move(&rules, &chunk, from_secs(11)));
-        assert!(can_move(&rules, &chunk, from_secs(61)));
-
-        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer)
-            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD + 1);
-        assert!(can_move(&rules, &chunk, from_secs(9)));
-        assert!(can_move(&rules, &chunk, from_secs(11)));
-        assert!(can_move(&rules, &chunk, from_secs(61)));
-
-        let chunk = TestChunk::new(0, Some(0), Some(70), ChunkStorage::OpenMutableBuffer);
-        assert!(!can_move(&rules, &chunk, from_secs(71)));
-        assert!(can_move(&rules, &chunk, from_secs(81)));
-
         // If over the default row count threshold, we should be able to move
         let chunk = TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer)
             .with_row_count(DEFAULT_MUB_ROW_THRESHOLD);
@@ -1081,47 +1043,6 @@ mod tests {
         tokio::time::timeout(Duration::from_millis(1), future)
             .await
             .expect("expect early return due to task completion");
-    }
-
-    #[test]
-    fn test_minimum_age() {
-        let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
-            mutable_minimum_age_seconds: Some(NonZeroU32::new(60).unwrap()),
-            ..Default::default()
-        };
-        let chunks = vec![
-            TestChunk::new(0, Some(40), Some(40), ChunkStorage::OpenMutableBuffer),
-            TestChunk::new(1, Some(0), Some(0), ChunkStorage::OpenMutableBuffer),
-        ];
-
-        let db = TestDb::new(rules, chunks);
-        let mut lifecycle = LifecyclePolicy::new(&db);
-        let partition = Arc::clone(&db.partitions.read()[0]);
-
-        // Expect to move chunk_id=1 first, despite it coming second in
-        // the order, because chunk_id=0 will only become old enough at t=100
-
-        lifecycle.check_for_work(from_secs(80), Instant::now());
-        let chunks = partition.read().chunks.keys().cloned().collect::<Vec<_>>();
-        // Expect chunk 1 to have been compacted into a new chunk 2
-        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![1])]);
-        assert_eq!(chunks, vec![0, 2]);
-
-        lifecycle.check_for_work(from_secs(90), Instant::now());
-        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![1])]);
-
-        lifecycle.check_for_work(from_secs(110), Instant::now());
-        assert_eq!(
-            *db.events.read(),
-            vec![
-                MoverEvents::Compact(vec![1]),
-                MoverEvents::Compact(vec![0, 2])
-            ]
-        );
-
-        assert_eq!(partition.read().chunks.len(), 1);
-        assert_eq!(partition.read().chunks[&3].read().row_count, 20);
     }
 
     #[tokio::test]
@@ -1397,10 +1318,9 @@ mod tests {
     }
 
     #[test]
-    fn test_moves_closed() {
+    fn test_moves_open() {
         let rules = LifecycleRules {
             mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
-            mutable_minimum_age_seconds: Some(NonZeroU32::new(60).unwrap()),
             ..Default::default()
         };
         let chunks = vec![TestChunk::new(
@@ -1413,14 +1333,26 @@ mod tests {
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        // Initially can't move
         lifecycle.check_for_work(from_secs(80), Instant::now());
-        assert_eq!(*db.events.read(), vec![]);
+        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![0])]);
+    }
 
-        db.partitions.read()[0].read().chunks[&0].write().storage =
-            ChunkStorage::ClosedMutableBuffer;
+    #[test]
+    fn test_moves_closed() {
+        let rules = LifecycleRules {
+            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
+            ..Default::default()
+        };
+        let chunks = vec![TestChunk::new(
+            0,
+            Some(40),
+            Some(40),
+            ChunkStorage::ClosedMutableBuffer,
+        )];
 
-        // As soon as closed can move
+        let db = TestDb::new(rules, chunks);
+        let mut lifecycle = LifecyclePolicy::new(&db);
+
         lifecycle.check_for_work(from_secs(80), Instant::now());
         assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![0])]);
     }

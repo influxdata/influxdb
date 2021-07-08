@@ -130,10 +130,6 @@ pub struct LifecycleRules {
     /// Represents the chunk transition open -> moving and closed -> moving
     pub mutable_linger_seconds: NonZeroU32,
 
-    /// A chunk of data within a partition is guaranteed to remain mutable
-    /// for at least this number of seconds unless it exceeds the mutable_size_threshold
-    pub mutable_minimum_age_seconds: Option<NonZeroU32>,
-
     /// Once the total amount of buffered data in memory reaches this size start
     /// dropping data from memory
     pub buffer_size_soft: Option<NonZeroUsize>,
@@ -180,7 +176,6 @@ impl Default for LifecycleRules {
     fn default() -> Self {
         Self {
             mutable_linger_seconds: NonZeroU32::new(DEFAULT_MUTABLE_LINGER_SECONDS).unwrap(),
-            mutable_minimum_age_seconds: None,
             buffer_size_soft: None,
             buffer_size_hard: None,
             drop_non_persisted: false,
