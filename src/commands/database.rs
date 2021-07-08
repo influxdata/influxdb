@@ -83,11 +83,6 @@ struct Create {
     #[structopt(long, default_value = "300")] // 5 minutes
     mutable_linger_seconds: u32,
 
-    /// A chunk of data within a partition is guaranteed to remain mutable
-    /// for at least this number of seconds
-    #[structopt(long, default_value = "0")] // 0 minutes
-    mutable_minimum_age_seconds: u32,
-
     /// Once the total amount of buffered data in memory reaches this size start
     /// dropping data from memory based on the drop_order
     #[structopt(long, default_value = "52428800")] // 52428800 = 50*1024*1024
@@ -186,7 +181,6 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                 name: command.name,
                 lifecycle_rules: Some(LifecycleRules {
                     mutable_linger_seconds: command.mutable_linger_seconds,
-                    mutable_minimum_age_seconds: command.mutable_minimum_age_seconds,
                     buffer_size_soft: command.buffer_size_soft as _,
                     buffer_size_hard: command.buffer_size_hard as _,
                     drop_non_persisted: command.drop_non_persisted,
