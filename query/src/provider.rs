@@ -779,7 +779,7 @@ mod test {
     use arrow::datatypes::DataType;
     use arrow_util::assert_batches_eq;
     use datafusion::physical_plan::collect;
-    use internal_types::schema::{builder::SchemaBuilder, sort::SortKey};
+    use internal_types::schema::{builder::SchemaBuilder};
 
     use crate::{
         test::{raw_data, TestChunk},
