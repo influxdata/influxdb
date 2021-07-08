@@ -1,24 +1,23 @@
 //! The catalog representation of a Partition
 
+use super::chunk::{CatalogChunk, ChunkStage};
+use crate::db::catalog::metrics::PartitionMetrics;
+use chrono::{DateTime, Utc};
+use data_types::{
+    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkSummary},
+    partition_metadata::PartitionSummary,
+};
+use internal_types::schema::Schema;
+use observability_deps::tracing::info;
+use persistence_windows::persistence_windows::PersistenceWindows;
+use snafu::Snafu;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     fmt::Display,
     sync::Arc,
 };
-
-use chrono::{DateTime, Utc};
-
-use data_types::{chunk_metadata::ChunkLifecycleAction, partition_metadata::PartitionSummary};
 use tracker::RwLock;
 
-use crate::db::catalog::metrics::PartitionMetrics;
-
-use super::chunk::{CatalogChunk, ChunkStage};
-use data_types::chunk_metadata::{ChunkAddr, ChunkSummary};
-use internal_types::schema::Schema;
-use observability_deps::tracing::info;
-use persistence_windows::persistence_windows::PersistenceWindows;
-use snafu::Snafu;
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("chunk not found: {}", chunk))]
@@ -34,6 +33,7 @@ pub enum Error {
         action: ChunkLifecycleAction,
     },
 }
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// IOx Catalog Partition

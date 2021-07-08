@@ -1,11 +1,9 @@
-use std::sync::Arc;
-
 use chrono::{DateTime, Utc};
-use snafu::Snafu;
-
-use data_types::chunk_metadata::{ChunkAddr, ChunkLifecycleAction};
 use data_types::{
-    chunk_metadata::{ChunkColumnSummary, ChunkStorage, ChunkSummary, DetailedChunkSummary},
+    chunk_metadata::{
+        ChunkAddr, ChunkColumnSummary, ChunkLifecycleAction, ChunkStorage, ChunkSummary,
+        DetailedChunkSummary,
+    },
     partition_metadata::TableSummary,
 };
 use internal_types::schema::Schema;
@@ -13,6 +11,8 @@ use metrics::{Counter, Histogram, KeyValue};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use parquet_file::chunk::ParquetChunk;
 use read_buffer::RBChunk;
+use snafu::Snafu;
+use std::sync::Arc;
 use tracker::{TaskRegistration, TaskTracker};
 
 #[derive(Debug, Snafu)]

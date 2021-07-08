@@ -1,20 +1,19 @@
-use std::{collections::BTreeSet, sync::Arc};
-
+use crate::{
+    chunk::snapshot::ChunkSnapshot,
+    column::{self, Column},
+};
 use arrow::record_batch::RecordBatch;
-use hashbrown::HashMap;
-use parking_lot::Mutex;
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
-
 use data_types::partition_metadata::{ColumnSummary, InfluxDbType, TableSummary};
 use entry::{Sequence, TableBatch};
+use hashbrown::HashMap;
 use internal_types::{
     schema::{builder::SchemaBuilder, InfluxColumnType, Schema},
     selection::Selection,
 };
 use metrics::GaugeValue;
-
-use crate::column;
-use crate::{chunk::snapshot::ChunkSnapshot, column::Column};
+use parking_lot::Mutex;
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use std::{collections::BTreeSet, sync::Arc};
 
 pub mod snapshot;
 
@@ -367,18 +366,13 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
+    use super::{test_helpers::write_lp_to_chunk, *};
     use arrow::datatypes::DataType as ArrowDataType;
-
-    use entry::test_helpers::lp_to_entry;
-    use internal_types::schema::{InfluxColumnType, InfluxFieldType};
-
-    use super::*;
-    use std::num::NonZeroU64;
-
     use arrow_util::assert_batches_eq;
     use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
-
-    use super::test_helpers::write_lp_to_chunk;
+    use entry::test_helpers::lp_to_entry;
+    use internal_types::schema::{InfluxColumnType, InfluxFieldType};
+    use std::num::NonZeroU64;
 
     #[test]
     fn writes_table_batches() {
