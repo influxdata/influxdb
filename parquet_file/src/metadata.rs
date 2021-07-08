@@ -256,10 +256,10 @@ pub struct IoxMetadata {
     pub creation_timestamp: DateTime<Utc>,
 
     /// Table that holds this parquet file.
-    pub table_name: String,
+    pub table_name: Arc<str>,
 
     /// Partition key of the partition that holds this parquet file.
-    pub partition_key: String,
+    pub partition_key: Arc<str>,
 
     /// Chunk ID.
     pub chunk_id: u32,
@@ -297,6 +297,10 @@ impl IoxMetadata {
             .map_err(|err| Box::new(err) as _)
             .context(IoxMetadataBroken)?;
 
+        // extract strings
+        let table_name = Arc::from(proto_msg.table_name.as_ref());
+        let partition_key = Arc::from(proto_msg.partition_key.as_ref());
+
         // extract partition checkpoint
         let proto_partition_checkpoint =
             proto_msg
@@ -324,8 +328,8 @@ impl IoxMetadata {
             .map_err(|err| Box::new(err) as _)
             .context(IoxMetadataBroken)?;
         let partition_checkpoint = PartitionCheckpoint::new(
-            proto_msg.table_name.clone(),
-            proto_msg.partition_key.clone(),
+            Arc::clone(&table_name),
+            Arc::clone(&partition_key),
             sequencer_numbers,
             min_unpersisted_timestamp,
         );
@@ -345,8 +349,8 @@ impl IoxMetadata {
 
         Ok(Self {
             creation_timestamp,
-            table_name: proto_msg.table_name,
-            partition_key: proto_msg.partition_key,
+            table_name,
+            partition_key,
             chunk_id: proto_msg.chunk_id,
             partition_checkpoint,
             database_checkpoint,
@@ -384,8 +388,8 @@ impl IoxMetadata {
         let proto_msg = proto::IoxMetadata {
             version: METADATA_VERSION,
             creation_timestamp: Some(self.creation_timestamp.into()),
-            table_name: self.table_name.clone(),
-            partition_key: self.partition_key.clone(),
+            table_name: self.table_name.to_string(),
+            partition_key: self.partition_key.to_string(),
             chunk_id: self.chunk_id,
             partition_checkpoint: Some(proto_partition_checkpoint),
             database_checkpoint: Some(proto_database_checkpoint),
@@ -913,14 +917,16 @@ mod tests {
 
     #[test]
     fn test_iox_metadata_from_protobuf_checks_version() {
-        let table_name = "table1";
-        let partition_key = "part1";
-        let (partition_checkpoint, database_checkpoint) =
-            create_partition_and_database_checkpoint(table_name, partition_key);
+        let table_name = Arc::from("table1");
+        let partition_key = Arc::from("part1");
+        let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
+            Arc::clone(&table_name),
+            Arc::clone(&partition_key),
+        );
         let metadata = IoxMetadata {
             creation_timestamp: Utc::now(),
-            table_name: table_name.to_string(),
-            partition_key: partition_key.to_string(),
+            table_name,
+            partition_key,
             chunk_id: 1337,
             partition_checkpoint,
             database_checkpoint,

@@ -1183,7 +1183,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 663;
+        let expected_parquet_size = 655;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -1587,7 +1587,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2149.0)
+            .sample_sum_eq(2141.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1695,7 +1695,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2149.0)
+            .sample_sum_eq(2141.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -1722,7 +1722,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(663.0)
+            .sample_sum_eq(655.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -2108,7 +2108,7 @@ mod tests {
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
-                2147, // size of RB and OS chunks
+                2139, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2151,7 +2151,7 @@ mod tests {
             db.catalog.metrics().memory().read_buffer().get_total(),
             1484
         );
-        assert_eq!(db.catalog.metrics().memory().parquet().get_total(), 663);
+        assert_eq!(db.catalog.metrics().memory().parquet().get_total(), 655);
     }
 
     #[tokio::test]

@@ -33,8 +33,8 @@
 //! #
 //! #     fn get_checkpoint(&self) -> PartitionCheckpoint {
 //! #         PartitionCheckpoint::new(
-//! #             "table".to_string(),
-//! #             "part".to_string(),
+//! #             Arc::from("table"),
+//! #             Arc::from("part"),
 //! #             Default::default(),
 //! #             Utc::now(),
 //! #         )
@@ -111,6 +111,7 @@
 //! use persistence_windows::checkpoint::ReplayPlanner;
 //!
 //! # // mocking for the example below
+//! # use std::sync::Arc;
 //! # use chrono::Utc;
 //! # use persistence_windows::checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder};
 //! #
@@ -119,8 +120,8 @@
 //! # impl File {
 //! #     fn extract_partition_checkpoint(&self) -> PartitionCheckpoint {
 //! #         PartitionCheckpoint::new(
-//! #             "table".to_string(),
-//! #             "part".to_string(),
+//! #             Arc::from("table"),
+//! #             Arc::from("part"),
 //! #             Default::default(),
 //! #             Utc::now(),
 //! #         )
@@ -188,9 +189,12 @@
 //!
 //! // database is now ready for normal playback
 //! ```
-use std::collections::{
-    btree_map::Entry::{Occupied, Vacant},
-    BTreeMap,
+use std::{
+    collections::{
+        btree_map::Entry::{Occupied, Vacant},
+        BTreeMap,
+    },
+    sync::Arc,
 };
 
 use chrono::{DateTime, Utc};
@@ -207,8 +211,8 @@ pub enum Error {
     PartitionCheckpointMinimumBeforeDatabase {
         partition_checkpoint_sequence_number: u64,
         database_checkpoint_sequence_number: u64,
-        table_name: String,
-        partition_key: String,
+        table_name: Arc<str>,
+        partition_key: Arc<str>,
     },
 }
 
@@ -218,10 +222,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartitionCheckpoint {
     /// Table of the partition.
-    table_name: String,
+    table_name: Arc<str>,
 
     /// Partition key.
-    partition_key: String,
+    partition_key: Arc<str>,
 
     /// Maps sequencer_id to the minimum and maximum sequence numbers seen.
     sequencer_numbers: BTreeMap<u32, MinMaxSequence>,
@@ -233,8 +237,8 @@ pub struct PartitionCheckpoint {
 impl PartitionCheckpoint {
     /// Create new checkpoint.
     pub fn new(
-        table_name: String,
-        partition_key: String,
+        table_name: Arc<str>,
+        partition_key: Arc<str>,
         sequencer_numbers: BTreeMap<u32, MinMaxSequence>,
         min_unpersisted_timestamp: DateTime<Utc>,
     ) -> Self {
@@ -247,12 +251,12 @@ impl PartitionCheckpoint {
     }
 
     /// Table of the partition.
-    pub fn table_name(&self) -> &str {
+    pub fn table_name(&self) -> &Arc<str> {
         &self.table_name
     }
 
     /// Partition key.
-    pub fn partition_key(&self) -> &str {
+    pub fn partition_key(&self) -> &Arc<str> {
         &self.partition_key
     }
 
@@ -402,7 +406,7 @@ pub struct ReplayPlanner {
     replay_ranges: BTreeMap<u32, (Option<u64>, Option<u64>)>,
 
     /// Last known partition checkpoint, mapped via table name and partition key.
-    last_partition_checkpoints: BTreeMap<(String, String), PartitionCheckpoint>,
+    last_partition_checkpoints: BTreeMap<(Arc<str>, Arc<str>), PartitionCheckpoint>,
 }
 
 impl ReplayPlanner {
@@ -435,8 +439,8 @@ impl ReplayPlanner {
         }
 
         match self.last_partition_checkpoints.entry((
-            partition_checkpoint.table_name().to_string(),
-            partition_checkpoint.partition_key().to_string(),
+            Arc::clone(partition_checkpoint.table_name()),
+            Arc::clone(partition_checkpoint.partition_key()),
         )) {
             Vacant(v) => {
                 // new partition => insert
@@ -534,7 +538,7 @@ pub struct ReplayPlan {
     replay_ranges: BTreeMap<u32, MinMaxSequence>,
 
     /// Last known partition checkpoint, mapped via table name and partition key.
-    last_partition_checkpoints: BTreeMap<(String, String), PartitionCheckpoint>,
+    last_partition_checkpoints: BTreeMap<(Arc<str>, Arc<str>), PartitionCheckpoint>,
 }
 
 impl ReplayPlan {
@@ -555,7 +559,7 @@ impl ReplayPlan {
         partition_key: &str,
     ) -> Option<&PartitionCheckpoint> {
         self.last_partition_checkpoints
-            .get(&(table_name.to_string(), partition_key.to_string()))
+            .get(&(Arc::from(table_name), Arc::from(partition_key)))
     }
 
     /// Sorted list of sequencer IDs that have to be replayed.
@@ -564,7 +568,7 @@ impl ReplayPlan {
     }
 
     /// Sorted list of partitions (by table name and partition key) that have to be replayed.
-    pub fn partitions(&self) -> Vec<(String, String)> {
+    pub fn partitions(&self) -> Vec<(Arc<str>, Arc<str>)> {
         self.last_partition_checkpoints.keys().cloned().collect()
     }
 }
@@ -584,7 +588,7 @@ mod tests {
 
                 let min_unpersisted_timestamp = DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(0, 0), Utc);
 
-                PartitionCheckpoint::new($table_name.to_string(), $partition_key.to_string(), sequencer_numbers, min_unpersisted_timestamp)
+                PartitionCheckpoint::new(Arc::from($table_name), Arc::from($partition_key), sequencer_numbers, min_unpersisted_timestamp)
             }
         };
     }
@@ -606,8 +610,8 @@ mod tests {
     fn test_partition_checkpoint() {
         let pckpt = part_ckpt!("table_1", "partition_1", {1 => (10, 20), 2 => (5, 15)});
 
-        assert_eq!(pckpt.table_name(), "table_1");
-        assert_eq!(pckpt.partition_key(), "partition_1");
+        assert_eq!(pckpt.table_name().as_ref(), "table_1");
+        assert_eq!(pckpt.partition_key().as_ref(), "partition_1");
         assert_eq!(
             pckpt.sequencer_numbers(1).unwrap(),
             MinMaxSequence::new(10, 20)
@@ -703,8 +707,8 @@ mod tests {
         assert_eq!(
             plan.partitions(),
             vec![
-                ("table_1".to_string(), "partition_1".to_string()),
-                ("table_1".to_string(), "partition_2".to_string())
+                (Arc::from("table_1"), Arc::from("partition_1")),
+                (Arc::from("table_1"), Arc::from("partition_2"))
             ]
         );
         assert_eq!(
