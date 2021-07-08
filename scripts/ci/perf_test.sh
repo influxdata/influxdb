@@ -58,10 +58,10 @@ EOF
 
 # poll for influx service ready
 set +e
-result=$(ssh ubuntu@$ec2_ip "influx ping")
-while [ "$result" != "OK" ]; do
+result=$(ssh ubuntu@$ec2_ip "curl -s -o /dev/null http://localhost:8086/ready -w %{http_code}")
+while [ "$result" != "200" ]; do
   sleep 2
-  result=$(ssh ubuntu@$ec2_ip "influx ping")
+  result=$(ssh ubuntu@$ec2_ip "curl -s -o /dev/null http://localhost:8086/ready -w %{http_code}")
 done
 set -e
 
@@ -69,7 +69,11 @@ set -e
 export INFLUXDB2=true
 export TEST_ORG=example_org
 export TEST_TOKEN=token
-ssh ubuntu@$ec2_ip "influx setup -c default -b benchmark_db -n default -o $TEST_ORG -p thisisnotused -r 0 -t $TEST_TOKEN -u ubuntu --skip-verify --force"
+result=$(ssh ubuntu@$ec2_ip "curl -s -o /dev/null -H \"Content-Type: application/json\" -XPOST -d '{\"username\": \"default\", \"password\": \"thisisnotused\", \"retentionPeriodSeconds\": 0, \"org\": \"$TEST_ORG\", \"bucket\": \"unused_bucket\", \"token\": \"$TEST_TOKEN\"}' http://localhost:8086/api/v2/setup -w %{http_code}")
+if [ "$result" != "201" ]; then
+  echo "Influxdb2 failed to setup correctly"
+  exit 1
+fi
 
 # run tests
 set +x
