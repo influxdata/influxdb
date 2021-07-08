@@ -8,7 +8,7 @@ import (
 const index = `<!DOCTYPE html>
 <html>
   <head>
-    <title>Chronograf API</title>
+    <title>InfluxDB 2 API</title>
     <!-- needed for adaptive design -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <!--

@@ -8,7 +8,6 @@ import (
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
-	"github.com/influxdata/influxdb/v2/chronograf/server"
 	"github.com/influxdata/influxdb/v2/dbrp"
 	"github.com/influxdata/influxdb/v2/http/metric"
 	"github.com/influxdata/influxdb/v2/influxql"
@@ -92,7 +91,6 @@ type APIBackend struct {
 	ScraperTargetStoreService       influxdb.ScraperTargetStoreService
 	SecretService                   influxdb.SecretService
 	LookupService                   influxdb.LookupService
-	ChronografService               *server.Service
 	OrgLookupService                authorizer.OrgIDResolver
 	DocumentService                 influxdb.DocumentService
 	NotificationRuleStore           influxdb.NotificationRuleStore
@@ -141,8 +139,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	checkBackend.CheckService = authorizer.NewCheckService(b.CheckService,
 		b.UserResourceMappingService, b.OrganizationService)
 	h.Mount(prefixChecks, NewCheckHandler(b.Logger, checkBackend))
-
-	h.Mount(prefixChronograf, NewChronografHandler(b.ChronografService, b.HTTPErrorHandler))
 
 	deleteBackend := NewDeleteBackend(b.Logger.With(zap.String("handler", "delete")), b)
 	h.Mount(prefixDelete, NewDeleteHandler(b.Logger, deleteBackend))

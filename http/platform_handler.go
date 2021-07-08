@@ -65,11 +65,10 @@ func (h *PlatformHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Serve the chronograf assets for any basepath that does not start with addressable parts
-	// of the platform API.
+	// Serve the static UI assets for any basepath that does not start with
+	// addressable parts of the platform API.
 	if !strings.HasPrefix(r.URL.Path, "/v1") &&
 		!strings.HasPrefix(r.URL.Path, "/api/v2") &&
-		!strings.HasPrefix(r.URL.Path, "/chronograf/") &&
 		!strings.HasPrefix(r.URL.Path, "/private/") {
 		h.AssetHandler.ServeHTTP(w, r)
 		return

@@ -46,7 +46,7 @@ func TestLauncher_Setup(t *testing.T) {
 	}
 }
 
-// This is to mimic chronograf using cookies as sessions
+// This is to mimic the UI using cookies as sessions
 // rather than authorizations
 func TestLauncher_SetupWithUsers(t *testing.T) {
 	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
