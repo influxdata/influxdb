@@ -2,12 +2,19 @@ use crate::{
     common::server_fixture::ServerFixture,
     end_to_end_cases::scenario::{create_readable_database_plus, rand_name},
 };
-use entry::Entry;
+use arrow_util::assert_batches_sorted_eq;
+use entry::{test_helpers::lp_to_entry, Entry};
+use generated_types::influxdata::iox::management::v1::database_rules::WriteBufferConnection;
+use influxdb_iox_client::write::WriteError;
 use rdkafka::{
+    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
+    client::DefaultClientContext,
     consumer::{Consumer, StreamConsumer},
+    producer::{FutureProducer, FutureRecord},
     ClientConfig, Message, Offset, TopicPartitionList,
 };
 use std::convert::TryFrom;
+use test_helpers::assert_contains;
 
 /// If `TEST_INTEGRATION` and `KAFKA_CONNECT` are set, return the Kafka connection URL to the
 /// caller.
@@ -60,9 +67,9 @@ async fn writes_go_to_kafka() {
     // set up a database with a write buffer pointing at kafka
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
-    let write_buffer_connection_string = kafka_connection.to_string();
+    let write_buffer_connection = WriteBufferConnection::Writing(kafka_connection.to_string());
     create_readable_database_plus(&db_name, server.grpc_channel(), |mut rules| {
-        rules.write_buffer_connection_string = write_buffer_connection_string;
+        rules.write_buffer_connection = Some(write_buffer_connection);
         rules
     })
     .await;
@@ -103,4 +110,141 @@ async fn writes_go_to_kafka() {
     let entry = Entry::try_from(message.payload().unwrap().to_vec()).unwrap();
     let partition_writes = entry.partition_writes().unwrap();
     assert_eq!(partition_writes.len(), 2);
+}
+
+async fn produce_to_kafka_directly(
+    producer: &FutureProducer,
+    lp: &str,
+    topic: &str,
+    partition: Option<i32>,
+) {
+    let entry = lp_to_entry(lp);
+    let mut record: FutureRecord<'_, String, _> = FutureRecord::to(topic).payload(entry.data());
+
+    if let Some(pid) = partition {
+        record = record.partition(pid);
+    }
+
+    producer
+        .send_result(record)
+        .unwrap()
+        .await
+        .unwrap()
+        .unwrap();
+}
+
+#[tokio::test]
+async fn reads_come_from_kafka() {
+    let kafka_connection = maybe_skip_integration!();
+
+    // set up a database to read from Kafka
+    let server = ServerFixture::create_shared().await;
+    let db_name = rand_name();
+    let write_buffer_connection = WriteBufferConnection::Reading(kafka_connection.to_string());
+    create_readable_database_plus(&db_name, server.grpc_channel(), |mut rules| {
+        rules.write_buffer_connection = Some(write_buffer_connection);
+        rules
+    })
+    .await;
+
+    // Common Kafka config
+    let mut cfg = ClientConfig::new();
+    cfg.set("bootstrap.servers", kafka_connection);
+    cfg.set("message.timeout.ms", "5000");
+
+    // Create a partition with 2 topics in Kafka
+    let num_partitions = 2;
+    let admin: AdminClient<DefaultClientContext> = cfg.clone().create().unwrap();
+    let topic = NewTopic::new(&db_name, num_partitions, TopicReplication::Fixed(1));
+    let opts = AdminOptions::default();
+    admin.create_topics(&[topic], &opts).await.unwrap();
+
+    // put some points in Kafka
+    let producer: FutureProducer = cfg.create().unwrap();
+
+    // Kafka partitions must be configured based on the primary key because ordering across Kafka
+    // partitions is undefined, so the upsert semantics would be undefined. Entries that can
+    // potentially be merged must end up in the same Kafka partition. This test follows that
+    // constraint, but doesn't actually encode it.
+
+    // Put some data for `upc,region=west` in partition 0
+    let lp_lines = [
+        "upc,region=west user=23.2 100",
+        "upc,region=west user=21.0 150",
+    ];
+    produce_to_kafka_directly(&producer, &lp_lines.join("\n"), &db_name, Some(0)).await;
+
+    // Put some data for `upc,region=east` in partition 1
+    let lp_lines = [
+        "upc,region=east user=76.2 300",
+        "upc,region=east user=88.7 350",
+    ];
+    produce_to_kafka_directly(&producer, &lp_lines.join("\n"), &db_name, Some(1)).await;
+
+    let check = async {
+        let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
+
+        loop {
+            // query for the data
+            let query_results = server
+                .flight_client()
+                .perform_query(&db_name, "select * from upc")
+                .await;
+
+            if let Ok(mut results) = query_results {
+                let mut batches = Vec::new();
+                while let Some(data) = results.next().await.unwrap() {
+                    batches.push(data);
+                }
+
+                let expected = vec![
+                    "+--------+-------------------------------+------+",
+                    "| region | time                          | user |",
+                    "+--------+-------------------------------+------+",
+                    "| east   | 1970-01-01 00:00:00.000000300 | 76.2 |",
+                    "| east   | 1970-01-01 00:00:00.000000350 | 88.7 |",
+                    "| west   | 1970-01-01 00:00:00.000000100 | 23.2 |",
+                    "| west   | 1970-01-01 00:00:00.000000150 | 21   |",
+                    "+--------+-------------------------------+------+",
+                ];
+                assert_batches_sorted_eq!(&expected, &batches);
+                break;
+            }
+
+            interval.tick().await;
+        }
+    };
+    let check = tokio::time::timeout(std::time::Duration::from_secs(10), check);
+    check.await.unwrap();
+}
+
+#[tokio::test]
+async fn cant_write_to_db_reading_from_kafka() {
+    let kafka_connection = maybe_skip_integration!();
+
+    // set up a database to read from Kafka
+    let server = ServerFixture::create_shared().await;
+    let db_name = rand_name();
+    let write_buffer_connection = WriteBufferConnection::Reading(kafka_connection.to_string());
+    create_readable_database_plus(&db_name, server.grpc_channel(), |mut rules| {
+        rules.write_buffer_connection = Some(write_buffer_connection);
+        rules
+    })
+    .await;
+
+    // Writing to this database is an error; all data comes from Kafka
+    let mut write_client = server.write_client();
+    let err = write_client
+        .write(&db_name, "temp,region=south color=1")
+        .await
+        .expect_err("expected write to fail");
+
+    assert_contains!(
+        err.to_string(),
+        format!(
+            r#"Cannot write to database {}, it's configured to only read from the write buffer"#,
+            db_name
+        )
+    );
+    assert!(matches!(dbg!(err), WriteError::ServerError(_)));
 }

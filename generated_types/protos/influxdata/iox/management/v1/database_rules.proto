@@ -105,8 +105,11 @@ message DatabaseRules {
   // Defaults to 500 seconds.
   google.protobuf.Duration worker_cleanup_avg_sleep = 10;
 
-  // Optionally, the address of the write buffer
-  string write_buffer_connection_string = 11;
+  // Optionally, the address of the write buffer for writing or reading/restoring data
+  oneof write_buffer_connection {
+    string writing = 11;
+    string reading = 12;
+  }
 }
 
 message RoutingConfig {

@@ -80,7 +80,9 @@ use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use data_types::{
-    database_rules::{DatabaseRules, NodeGroup, RoutingRules, Shard, ShardConfig, ShardId},
+    database_rules::{
+        DatabaseRules, NodeGroup, RoutingRules, Shard, ShardConfig, ShardId, WriteBufferConnection,
+    },
     database_state::DatabaseStateCode,
     job::Job,
     server_id::ServerId,
@@ -195,6 +197,12 @@ pub enum Error {
     #[snafu(display("hard buffer limit reached"))]
     HardLimitReached {},
 
+    #[snafu(display(
+        "Cannot write to database {}, it's configured to only read from the write buffer",
+        db_name
+    ))]
+    WritingOnlyAllowedThroughWriteBuffer { db_name: String },
+
     #[snafu(display("no remote configured for node group: {:?}", node_group))]
     NoRemoteConfigured { node_group: NodeGroup },
 
@@ -215,8 +223,15 @@ pub enum Error {
     #[snafu(display("cannot get id: {}", source))]
     GetIdError { source: crate::init::Error },
 
-    #[snafu(display("cannot create write buffer for writing: {}", source))]
-    CreatingWriteBufferForWriting { source: DatabaseError },
+    #[snafu(display(
+        "cannot create write buffer with config: {:?}, error: {}",
+        config,
+        source
+    ))]
+    CreatingWriteBuffer {
+        config: Option<WriteBufferConnection>,
+        source: DatabaseError,
+    },
 
     #[snafu(display(
         "Invalid database state transition, expected {:?} but got {:?}",
@@ -536,8 +551,14 @@ where
         .await
         .map_err(|e| Box::new(e) as _)
         .context(CannotCreatePreservedCatalog)?;
-        let write_buffer = write_buffer::new(&rules)
-            .map_err(|e| Error::CreatingWriteBufferForWriting { source: e })?;
+
+        let write_buffer =
+            write_buffer::WriteBufferConfig::new(server_id, &rules).map_err(|e| {
+                Error::CreatingWriteBuffer {
+                    config: rules.write_buffer_connection.clone(),
+                    source: e,
+                }
+            })?;
         db_reservation.advance_replay(preserved_catalog, catalog, write_buffer)?;
 
         // no actual replay required
@@ -775,6 +796,11 @@ where
             );
             match e {
                 db::Error::HardLimitReached {} => Error::HardLimitReached {},
+                db::Error::WritingOnlyAllowedThroughWriteBuffer {} => {
+                    Error::WritingOnlyAllowedThroughWriteBuffer {
+                        db_name: db_name.into(),
+                    }
+                }
                 _ => Error::UnknownDatabaseError {
                     source: Box::new(e),
                 },
@@ -1220,7 +1246,7 @@ mod tests {
             },
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
-            write_buffer_connection_string: None,
+            write_buffer_connection: None,
         };
 
         // Create a database
@@ -1312,7 +1338,7 @@ mod tests {
             lifecycle_rules: Default::default(),
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
-            write_buffer_connection_string: None,
+            write_buffer_connection: None,
         };
 
         // Create a database

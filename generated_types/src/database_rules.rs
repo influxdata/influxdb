@@ -3,10 +3,12 @@ use std::time::Duration;
 
 use thiserror::Error;
 
-use data_types::database_rules::{DatabaseRules, RoutingConfig, RoutingRules};
+use data_types::database_rules::{
+    DatabaseRules, RoutingConfig, RoutingRules, WriteBufferConnection,
+};
 use data_types::DatabaseName;
 
-use crate::google::{FieldViolation, FieldViolationExt, FromFieldOpt, FromFieldString};
+use crate::google::{FieldViolation, FieldViolationExt, FromFieldOpt};
 use crate::influxdata::iox::management::v1 as management;
 
 mod lifecycle;
@@ -21,9 +23,7 @@ impl From<DatabaseRules> for management::DatabaseRules {
             lifecycle_rules: Some(rules.lifecycle_rules.into()),
             routing_rules: rules.routing_rules.map(Into::into),
             worker_cleanup_avg_sleep: Some(rules.worker_cleanup_avg_sleep.into()),
-            write_buffer_connection_string: rules
-                .write_buffer_connection_string
-                .unwrap_or_default(),
+            write_buffer_connection: rules.write_buffer_connection.map(Into::into),
         }
     }
 }
@@ -54,7 +54,10 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             None => Duration::from_secs(500),
         };
 
-        let write_buffer_connection_string = proto.write_buffer_connection_string.optional();
+        let write_buffer_connection = match proto.write_buffer_connection {
+            Some(c) => Some(c.try_into().field("write_buffer_connection")?),
+            None => None,
+        };
 
         Ok(Self {
             name,
@@ -62,7 +65,7 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             lifecycle_rules,
             routing_rules,
             worker_cleanup_avg_sleep,
-            write_buffer_connection_string,
+            write_buffer_connection,
         })
     }
 }
@@ -139,6 +142,30 @@ pub fn encode_database_rules(
 ) -> Result<(), EncodeError> {
     let encoded: management::DatabaseRules = rules.into();
     Ok(prost::Message::encode(&encoded, bytes)?)
+}
+
+impl From<WriteBufferConnection> for management::database_rules::WriteBufferConnection {
+    fn from(v: WriteBufferConnection) -> Self {
+        match v {
+            WriteBufferConnection::Writing(c) => Self::Writing(c),
+            WriteBufferConnection::Reading(c) => Self::Reading(c),
+        }
+    }
+}
+
+impl TryFrom<management::database_rules::WriteBufferConnection> for WriteBufferConnection {
+    type Error = FieldViolation;
+
+    fn try_from(
+        proto: management::database_rules::WriteBufferConnection,
+    ) -> Result<Self, Self::Error> {
+        use management::database_rules::WriteBufferConnection;
+
+        Ok(match proto {
+            WriteBufferConnection::Writing(c) => Self::Writing(c),
+            WriteBufferConnection::Reading(c) => Self::Reading(c),
+        })
+    }
 }
 
 #[cfg(test)]

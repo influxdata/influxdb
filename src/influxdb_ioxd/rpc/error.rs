@@ -14,7 +14,7 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
             description: "Writer ID must be set".to_string(),
         }
         .into(),
-        Error::ServerNotInitialized{server_id} => tonic::Status::unavailable(
+        Error::ServerNotInitialized{ server_id } => tonic::Status::unavailable(
             format!("Server ID is set ({}) but server is not yet initialized (e.g. DBs and remotes are not loaded). Server is not yet ready to read/write data.", server_id)
         ),
         Error::DatabaseNotFound { db_name } => NotFound {
@@ -38,6 +38,7 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
             description: "hard buffer limit reached".to_string(),
         }
         .into(),
+        source @ Error::WritingOnlyAllowedThroughWriteBuffer { .. } => tonic::Status::failed_precondition(source.to_string()),
         Error::NoRemoteConfigured { node_group } => NotFound {
             resource_type: "remote".to_string(),
             resource_name: format!("{:?}", node_group),

@@ -1,6 +1,8 @@
 //! Routines to initialize a server.
 use data_types::{
-    database_rules::DatabaseRules, database_state::DatabaseStateCode, server_id::ServerId,
+    database_rules::{DatabaseRules, WriteBufferConnection},
+    database_state::DatabaseStateCode,
+    server_id::ServerId,
     DatabaseName,
 };
 use futures::TryStreamExt;
@@ -27,7 +29,8 @@ use tokio::sync::Semaphore;
 use crate::{
     config::{object_store_path_for_database_config, Config, DatabaseHandle, DB_RULES_FILE_NAME},
     db::load::load_or_create_preserved_catalog,
-    write_buffer, DatabaseError,
+    write_buffer::WriteBufferConfig,
+    DatabaseError,
 };
 
 const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
@@ -75,8 +78,15 @@ pub enum Error {
         source: data_types::DatabaseNameError,
     },
 
-    #[snafu(display("Cannot create write buffer for writing: {}", source))]
-    CreateWriteBufferForWriting { source: DatabaseError },
+    #[snafu(display(
+        "Cannot create write buffer with config: {:?}, error: {}",
+        config,
+        source
+    ))]
+    CreateWriteBuffer {
+        config: Option<WriteBufferConnection>,
+        source: DatabaseError,
+    },
 
     #[snafu(display(
         "Cannot wipe catalog because DB init progress has already read it: {}",
@@ -520,8 +530,11 @@ impl InitStatus {
                 let rules = handle
                     .rules()
                     .expect("in this state rules should be loaded");
-                let write_buffer =
-                    write_buffer::new(&rules).context(CreateWriteBufferForWriting)?;
+                let write_buffer = WriteBufferConfig::new(handle.server_id(), &rules).context(
+                    CreateWriteBuffer {
+                        config: rules.write_buffer_connection.clone(),
+                    },
+                )?;
 
                 handle
                     .advance_replay(preserved_catalog, catalog, write_buffer)
