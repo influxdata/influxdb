@@ -73,9 +73,8 @@ pub struct Partition {
 impl Partition {
     /// Create a new partition catalog object.
     ///
-    /// This function is not pub because `Partition`s should be
-    /// created using the interfaces on [`Catalog`](crate::db::catalog::Catalog) and not
-    /// instantiated directly.
+    /// This function is not pub because `Partition`s should be created using the interfaces on
+    /// [`Catalog`](crate::db::catalog::Catalog) and not instantiated directly.
     pub(super) fn new(
         db_name: Arc<str>,
         partition_key: Arc<str>,
@@ -128,8 +127,8 @@ impl Partition {
 
     /// Create a new Chunk in the open state.
     ///
-    /// This will add a new chunk to the catalog and increases the chunk ID counter for that table-partition
-    /// combination.
+    /// This will add a new chunk to the catalog and increases the chunk ID counter for that
+    /// table-partition combination.
     ///
     /// Returns an error if the chunk is empty.
     pub fn create_open_chunk(
@@ -197,8 +196,7 @@ impl Partition {
 
     /// Create new chunk that is only in object store (= parquet file).
     ///
-    /// The table-specific chunk ID counter will be set to
-    /// `max(current, chunk_id + 1)`.
+    /// The table-specific chunk ID counter will be set to `max(current, chunk_id + 1)`.
     ///
     /// Returns the previous chunk with the given chunk_id if any
     pub fn insert_object_store_only_chunk(
@@ -262,7 +260,7 @@ impl Partition {
         self.chunks.remove(&chunk_id);
     }
 
-    /// return the first currently open chunk, if any
+    /// Return the first currently open chunk, if any
     pub fn open_chunk(&self) -> Option<Arc<RwLock<CatalogChunk>>> {
         self.chunks
             .values()
