@@ -7,7 +7,7 @@ use arrow::record_batch::RecordBatch;
 use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
-    io::BufWriter,
+    io::LineWriter,
     io::Write,
     path::{Path, PathBuf},
 };
@@ -97,7 +97,7 @@ impl From<std::io::Error> for Error {
 /// The case runner. It writes its test log output to the `Write`
 /// output stream
 pub struct Runner<W: Write> {
-    log: BufWriter<W>,
+    log: LineWriter<W>,
 }
 
 impl<W: Write> std::fmt::Debug for Runner<W> {
@@ -106,10 +106,25 @@ impl<W: Write> std::fmt::Debug for Runner<W> {
     }
 }
 
-impl Runner<std::io::Stdout> {
+/// Struct that calls println! to print out its data. Used rather than
+/// `std::io::stdout` which is not captured by the result test runner
+/// for some reason. This writer expects to get valid utf8 sequences
+pub struct PrintlnWriter {}
+impl Write for PrintlnWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        println!("{}", String::from_utf8_lossy(buf));
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Runner<PrintlnWriter> {
     /// Create a new runner which writes to std::out
     pub fn new() -> Self {
-        let log = BufWriter::new(std::io::stdout());
+        let log = LineWriter::new(PrintlnWriter {});
         Self { log }
     }
 
@@ -121,7 +136,7 @@ impl Runner<std::io::Stdout> {
 
 impl<W: Write> Runner<W> {
     pub fn new_with_writer(log: W) -> Self {
-        let log = BufWriter::new(log);
+        let log = LineWriter::new(log);
         Self { log }
     }
 
@@ -179,7 +194,7 @@ impl<W: Write> Runner<W> {
             output.append(&mut self.run_query(q, db_setup.as_ref()).await?);
         }
 
-        let mut output_file = BufWriter::new(output_file);
+        let mut output_file = LineWriter::new(output_file);
         for o in &output {
             writeln!(&mut output_file, "{}", o).with_context(|| WritingToOutputFile {
                 output_path: output_path.clone(),
