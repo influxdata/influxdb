@@ -419,11 +419,17 @@ impl CatalogChunk {
     pub fn summary(&self) -> ChunkSummary {
         let (row_count, storage) = self.storage();
 
+        let lifecycle_action = self
+            .lifecycle_action
+            .as_ref()
+            .map(|tracker| *tracker.metadata());
+
         ChunkSummary {
             partition_key: Arc::clone(&self.addr.partition_key),
             table_name: Arc::clone(&self.addr.table_name),
             id: self.addr.chunk_id,
             storage,
+            lifecycle_action,
             estimated_bytes: self.size(),
             row_count,
             time_of_first_write: self.time_of_first_write,

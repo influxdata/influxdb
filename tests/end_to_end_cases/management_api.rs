@@ -269,7 +269,9 @@ async fn test_create_get_update_database() {
 
 #[tokio::test]
 async fn test_chunk_get() {
-    use generated_types::influxdata::iox::management::v1::{Chunk, ChunkStorage};
+    use generated_types::influxdata::iox::management::v1::{
+        Chunk, ChunkLifecycleAction, ChunkStorage,
+    };
 
     let fixture = ServerFixture::create_shared().await;
     let mut management_client = fixture.management_client();
@@ -308,12 +310,15 @@ async fn test_chunk_get() {
 
     let chunks = normalize_chunks(chunks);
 
+    let lifecycle_action = ChunkLifecycleAction::Unspecified.into();
+
     let expected: Vec<Chunk> = vec![
         Chunk {
             partition_key: "cpu".into(),
             table_name: "cpu".into(),
             id: 0,
-            storage: ChunkStorage::OpenMutableBuffer as i32,
+            storage: ChunkStorage::OpenMutableBuffer.into(),
+            lifecycle_action,
             estimated_bytes: 100,
             row_count: 2,
             time_of_first_write: None,
@@ -324,7 +329,8 @@ async fn test_chunk_get() {
             partition_key: "disk".into(),
             table_name: "disk".into(),
             id: 0,
-            storage: ChunkStorage::OpenMutableBuffer as i32,
+            storage: ChunkStorage::OpenMutableBuffer.into(),
+            lifecycle_action,
             estimated_bytes: 82,
             row_count: 1,
             time_of_first_write: None,
@@ -492,7 +498,8 @@ async fn test_list_partition_chunks() {
         partition_key: "cpu".into(),
         table_name: "cpu".into(),
         id: 0,
-        storage: ChunkStorage::OpenMutableBuffer as i32,
+        storage: ChunkStorage::OpenMutableBuffer.into(),
+        lifecycle_action: ChunkLifecycleAction::Unspecified.into(),
         estimated_bytes: 100,
         row_count: 2,
         time_of_first_write: None,
@@ -813,6 +820,7 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
                 table_name,
                 id,
                 storage,
+                lifecycle_action,
                 estimated_bytes,
                 row_count,
                 ..
@@ -822,6 +830,7 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
                 table_name,
                 id,
                 storage,
+                lifecycle_action,
                 estimated_bytes,
                 row_count,
                 time_of_first_write: None,

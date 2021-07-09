@@ -24,6 +24,23 @@ enum ChunkStorage {
   CHUNK_STORAGE_OBJECT_STORE_ONLY = 5;
 }
 
+
+// Is there any lifecycle action currently outstanding for this chunk?
+enum ChunkLifecycleAction {
+  // No lifecycle
+  CHUNK_LIFECYCLE_ACTION_UNSPECIFIED = 0;
+
+  // Chunk is in the process of being moved to the read buffer
+  CHUNK_LIFECYCLE_ACTION_MOVING = 1;
+
+  /// Chunk is in the process of being written to object storage
+  CHUNK_LIFECYCLE_ACTION_PERSISTING = 2;
+
+  /// Chunk is in the process of being compacted
+  CHUNK_LIFECYCLE_ACTION_COMPACTING = 3;
+}
+
+
 // `Chunk` represents part of a partition of data in a database.
 // A chunk can contain one or more tables.
 message Chunk {
@@ -38,6 +55,9 @@ message Chunk {
 
   // Which storage system the chunk is located in
   ChunkStorage storage = 3;
+
+  // Is there any outstanding lifecycle action for this chunk?
+  ChunkLifecycleAction lifecycle_action = 10;
 
   // The total estimated size of this chunk, in bytes
   uint64 estimated_bytes = 4;

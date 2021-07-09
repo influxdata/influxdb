@@ -1,6 +1,6 @@
 use crate::google::{FieldViolation, FromField};
 use crate::influxdata::iox::management::v1 as management;
-use data_types::chunk_metadata::{ChunkStorage, ChunkSummary};
+use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkStorage, ChunkSummary};
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
 
@@ -12,6 +12,7 @@ impl From<ChunkSummary> for management::Chunk {
             table_name,
             id,
             storage,
+            lifecycle_action,
             estimated_bytes,
             row_count,
             time_of_first_write,
@@ -21,6 +22,8 @@ impl From<ChunkSummary> for management::Chunk {
 
         let storage: management::ChunkStorage = storage.into();
         let storage = storage.into(); // convert to i32
+        let lifecycle_action: management::ChunkLifecycleAction = lifecycle_action.into();
+        let lifecycle_action = lifecycle_action.into(); // convert to i32
 
         let estimated_bytes = estimated_bytes as u64;
         let row_count = row_count as u64;
@@ -37,6 +40,7 @@ impl From<ChunkSummary> for management::Chunk {
             table_name,
             id,
             storage,
+            lifecycle_action,
             estimated_bytes,
             row_count,
             time_of_first_write,
@@ -58,6 +62,17 @@ impl From<ChunkStorage> for management::ChunkStorage {
     }
 }
 
+impl From<Option<ChunkLifecycleAction>> for management::ChunkLifecycleAction {
+    fn from(lifecycle_action: Option<ChunkLifecycleAction>) -> Self {
+        match lifecycle_action {
+            Some(ChunkLifecycleAction::Moving) => Self::Moving,
+            Some(ChunkLifecycleAction::Persisting) => Self::Persisting,
+            Some(ChunkLifecycleAction::Compacting) => Self::Compacting,
+            None => Self::Unspecified,
+        }
+    }
+}
+
 /// Conversion code from management API chunk structure
 impl TryFrom<management::Chunk> for ChunkSummary {
     type Error = FieldViolation;
@@ -65,6 +80,7 @@ impl TryFrom<management::Chunk> for ChunkSummary {
     fn try_from(proto: management::Chunk) -> Result<Self, Self::Error> {
         // Use prost enum conversion
         let storage = proto.storage().scope("storage")?;
+        let lifecycle_action = proto.lifecycle_action().scope("lifecycle_action")?;
 
         let time_of_first_write = proto
             .time_of_first_write
@@ -112,6 +128,7 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             table_name,
             id,
             storage,
+            lifecycle_action,
             estimated_bytes,
             row_count,
             time_of_first_write,
@@ -138,6 +155,23 @@ impl TryFrom<management::ChunkStorage> for ChunkStorage {
     }
 }
 
+impl TryFrom<management::ChunkLifecycleAction> for Option<ChunkLifecycleAction> {
+    type Error = FieldViolation;
+
+    fn try_from(proto: management::ChunkLifecycleAction) -> Result<Self, Self::Error> {
+        match proto {
+            management::ChunkLifecycleAction::Moving => Ok(Some(ChunkLifecycleAction::Moving)),
+            management::ChunkLifecycleAction::Persisting => {
+                Ok(Some(ChunkLifecycleAction::Persisting))
+            }
+            management::ChunkLifecycleAction::Compacting => {
+                Ok(Some(ChunkLifecycleAction::Compacting))
+            }
+            management::ChunkLifecycleAction::Unspecified => Ok(None),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -151,6 +185,7 @@ mod test {
             estimated_bytes: 1234,
             row_count: 321,
             storage: management::ChunkStorage::ObjectStoreOnly.into(),
+            lifecycle_action: management::ChunkLifecycleAction::Moving.into(),
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
@@ -164,6 +199,7 @@ mod test {
             estimated_bytes: 1234,
             row_count: 321,
             storage: ChunkStorage::ObjectStoreOnly,
+            lifecycle_action: Some(ChunkLifecycleAction::Moving),
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
@@ -185,6 +221,7 @@ mod test {
             estimated_bytes: 1234,
             row_count: 321,
             storage: ChunkStorage::ObjectStoreOnly,
+            lifecycle_action: Some(ChunkLifecycleAction::Persisting),
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
@@ -199,6 +236,7 @@ mod test {
             estimated_bytes: 1234,
             row_count: 321,
             storage: management::ChunkStorage::ObjectStoreOnly.into(),
+            lifecycle_action: management::ChunkLifecycleAction::Persisting.into(),
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
