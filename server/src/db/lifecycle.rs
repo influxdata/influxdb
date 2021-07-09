@@ -1,24 +1,27 @@
 use std::fmt::Display;
 use std::sync::Arc;
+use std::time::Instant;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 
 use ::lifecycle::LifecycleDb;
 use data_types::chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkStorage};
 use data_types::database_rules::LifecycleRules;
 use data_types::error::ErrorLogger;
 use data_types::job::Job;
-use data_types::partition_metadata::{InfluxDbType, TableSummary};
+use data_types::partition_metadata::{InfluxDbType, Statistics, TableSummary};
 use data_types::DatabaseName;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use hashbrown::HashMap;
+use internal_types::schema::merge::SchemaMerger;
 use internal_types::schema::sort::SortKey;
-use internal_types::schema::TIME_COLUMN_NAME;
+use internal_types::schema::{Schema, TIME_COLUMN_NAME};
 use lifecycle::{
     LifecycleChunk, LifecyclePartition, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
     LockablePartition,
 };
-use observability_deps::tracing::info;
+use observability_deps::tracing::{info, trace};
+use query::QueryChunkMeta;
 use tracker::{RwLock, TaskTracker};
 
 use crate::db::catalog::chunk::CatalogChunk;
@@ -28,12 +31,16 @@ use crate::Db;
 pub(crate) use compact::compact_chunks;
 pub(crate) use error::{Error, Result};
 pub(crate) use move_chunk::move_chunk_to_read_buffer;
+use persistence_windows::persistence_windows::FlushHandle;
 pub(crate) use unload::unload_read_buffer_chunk;
 pub(crate) use write::write_chunk_to_object_store;
+
+use super::DbChunk;
 
 mod compact;
 mod error;
 mod move_chunk;
+mod persist;
 mod unload;
 mod write;
 
@@ -148,27 +155,26 @@ impl LockablePartition for LockableCatalogPartition {
 
     type Chunk = LockableCatalogChunk;
 
+    type PersistHandle = FlushHandle;
+
     type Error = super::lifecycle::Error;
 
-    fn read(&self) -> LifecycleReadGuard<'_, Self::Partition, Self> {
+    fn read(&self) -> LifecycleReadGuard<'_, Partition, Self> {
         LifecycleReadGuard::new(self.clone(), self.partition.as_ref())
     }
 
-    fn write(&self) -> LifecycleWriteGuard<'_, Self::Partition, Self> {
+    fn write(&self) -> LifecycleWriteGuard<'_, Partition, Self> {
         LifecycleWriteGuard::new(self.clone(), self.partition.as_ref())
     }
 
-    fn chunk(
-        s: &LifecycleReadGuard<'_, Self::Partition, Self>,
-        chunk_id: u32,
-    ) -> Option<Self::Chunk> {
+    fn chunk(s: &LifecycleReadGuard<'_, Partition, Self>, chunk_id: u32) -> Option<Self::Chunk> {
         s.chunk(chunk_id).map(|chunk| LockableCatalogChunk {
             db: Arc::clone(&s.data().db),
             chunk: Arc::clone(chunk),
         })
     }
 
-    fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<(u32, Self::Chunk)> {
+    fn chunks(s: &LifecycleReadGuard<'_, Partition, Self>) -> Vec<(u32, Self::Chunk)> {
         s.keyed_chunks()
             .map(|(id, chunk)| {
                 (
@@ -183,12 +189,37 @@ impl LockablePartition for LockableCatalogPartition {
     }
 
     fn compact_chunks(
-        partition: LifecycleWriteGuard<'_, Self::Partition, Self>,
+        partition: LifecycleWriteGuard<'_, Partition, Self>,
         chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, Self::Chunk>>,
     ) -> Result<TaskTracker<Job>, Self::Error> {
         info!(table=%partition.table_name(), partition=%partition.partition_key(), "compacting chunks");
         let (tracker, fut) = compact::compact_chunks(partition, chunks)?;
         let _ = tokio::spawn(async move { fut.await.log_if_error("compacting chunks") });
+        Ok(tracker)
+    }
+
+    fn prepare_persist(
+        partition: &mut LifecycleWriteGuard<'_, Self::Partition, Self>,
+    ) -> Option<(Self::PersistHandle, DateTime<Utc>)> {
+        let window = partition.persistence_windows_mut().unwrap();
+        window.rotate(Instant::now());
+
+        let max_persistable_timestamp = window.max_persistable_timestamp();
+        let handle = window.flush_handle();
+        trace!(?max_persistable_timestamp, ?handle, "preparing for persist");
+        Some((handle?, max_persistable_timestamp?))
+    }
+
+    fn persist_chunks(
+        partition: LifecycleWriteGuard<'_, Partition, Self>,
+        chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, Self::Chunk>>,
+        max_persistable_timestamp: DateTime<Utc>,
+        handle: FlushHandle,
+    ) -> Result<TaskTracker<Job>, Self::Error> {
+        info!(table=%partition.table_name(), partition=%partition.partition_key(), "persisting chunks");
+        let (tracker, fut) =
+            persist::persist_chunks(partition, chunks, max_persistable_timestamp, handle)?;
+        let _ = tokio::spawn(async move { fut.await.log_if_error("persisting chunks") });
         Ok(tracker)
     }
 
@@ -230,6 +261,17 @@ impl LifecyclePartition for Partition {
     fn partition_key(&self) -> &str {
         self.key()
     }
+
+    fn persistable_row_count(&self) -> usize {
+        self.persistence_windows()
+            .map(|w| w.persistable_row_count())
+            .unwrap_or(0)
+    }
+
+    fn minimum_unpersisted_age(&self) -> Option<Instant> {
+        self.persistence_windows()
+            .and_then(|w| w.minimum_unpersisted_age())
+    }
 }
 
 impl LifecycleChunk for CatalogChunk {
@@ -260,6 +302,22 @@ impl LifecycleChunk for CatalogChunk {
 
     fn row_count(&self) -> usize {
         self.storage().0
+    }
+
+    fn min_timestamp(&self) -> DateTime<Utc> {
+        let table_summary = self.table_summary();
+        let col = table_summary
+            .columns
+            .iter()
+            .find(|x| x.name == TIME_COLUMN_NAME)
+            .expect("time column expected");
+
+        let min = match &col.stats {
+            Statistics::I64(stats) => stats.min.expect("time column cannot be empty"),
+            _ => panic!("unexpected time column type"),
+        };
+
+        Utc.timestamp_nanos(min)
     }
 }
 
@@ -319,4 +377,20 @@ async fn collect_rub(
         }
     }
     Ok(())
+}
+
+/// Return the merged schema for the chunks that are being
+/// reorganized.
+///
+/// This is infallable because the schemas of chunks within a
+/// partition are assumed to be compatible because that schema was
+/// enforced as part of writing into the partition
+fn merge_schemas(chunks: &[Arc<DbChunk>]) -> Arc<Schema> {
+    let mut merger = SchemaMerger::new();
+    for db_chunk in chunks {
+        merger = merger
+            .merge(&db_chunk.schema())
+            .expect("schemas compatible");
+    }
+    Arc::new(merger.build())
 }

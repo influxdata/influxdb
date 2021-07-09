@@ -352,8 +352,9 @@ pub async fn create_quickly_persisting_database(
             buffer_size_hard: 10 * 1024 * 1024, // 10MB
             persist: true,
             worker_backoff_millis: 100,
-            persist_row_threshold: 10_000,
             late_arrive_window_seconds,
+            persist_row_threshold: 10_000,
+            persist_age_threshold_seconds: late_arrive_window_seconds,
             ..Default::default()
         }),
         ..Default::default()

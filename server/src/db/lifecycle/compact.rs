@@ -4,7 +4,6 @@ use std::future::Future;
 use std::sync::Arc;
 
 use data_types::job::Job;
-use internal_types::schema::merge::SchemaMerger;
 use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
 use query::exec::ExecutorType;
@@ -17,7 +16,7 @@ use crate::db::catalog::chunk::CatalogChunk;
 use crate::db::catalog::partition::Partition;
 use crate::db::DbChunk;
 
-use super::compute_sort_key;
+use super::{compute_sort_key, merge_schemas};
 use super::{error::Result, LockableCatalogChunk, LockableCatalogPartition};
 use crate::db::lifecycle::collect_rub;
 
@@ -59,19 +58,8 @@ pub(crate) fn compact_chunks(
         })
         .collect::<Result<Vec<_>>>()?;
 
-    // build schema
-    // Note: we only use the merged schema from the to-be-compacted chunks - not the table-wide schema, since we don't
-    // need to bother with other columns (e.g. ones that only exist in other partitions).
-    let mut merger = SchemaMerger::new();
-    for db_chunk in &query_chunks {
-        merger = merger
-            .merge(&db_chunk.schema())
-            .expect("schemas compatible");
-    }
-    let schema = Arc::new(merger.build());
-
     // drop partition lock
-    let partition = partition.unwrap().partition;
+    let partition = partition.into_data().partition;
 
     // create a new read buffer chunk with memory tracking
     let metrics = db
@@ -88,6 +76,14 @@ pub(crate) fn compact_chunks(
     let fut = async move {
         let key = compute_sort_key(query_chunks.iter().map(|x| x.summary()));
         let key_str = format!("\"{}\"", key); // for logging
+
+        // build schema
+        //
+        // Note: we only use the merged schema from the to-be-compacted
+        // chunks - not the table-wide schema, since we don't need to
+        // bother with other columns (e.g. ones that only exist in other
+        // partitions).
+        let schema = merge_schemas(&query_chunks);
 
         // Cannot move query_chunks as the sort key borrows the column names
         let (schema, plan) =
@@ -114,7 +110,7 @@ pub(crate) fn compact_chunks(
         let throughput = (input_rows as u128 * 1_000_000_000) / elapsed.as_nanos();
 
         info!(input_chunks=query_chunks.len(), rub_row_groups=rb_row_groups,
-                input_rows=input_rows, output_rows=guard.table_summary().count(), 
+                input_rows=input_rows, output_rows=guard.table_summary().count(),
                 sort_key=%key_str, compaction_took = ?elapsed, rows_per_sec=?throughput,  "chunk(s) compacted");
 
         Ok(DbChunk::snapshot(&guard))

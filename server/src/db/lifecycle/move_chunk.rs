@@ -44,7 +44,7 @@ pub fn move_chunk_to_read_buffer(
     let query_chunks = vec![db_chunk];
 
     // Drop locks
-    let chunk = guard.unwrap().chunk;
+    let chunk = guard.into_data().chunk;
     let mut rb_chunk = new_rub_chunk(db.as_ref(), &table_summary.name);
 
     let ctx = db.exec.new_context(ExecutorType::Reorg);

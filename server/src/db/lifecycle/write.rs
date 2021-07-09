@@ -58,7 +58,7 @@ pub fn write_chunk_to_object_store(
     debug!(chunk=%guard.addr(), "chunk marked WRITING , loading tables into object store");
 
     // Drop locks
-    let chunk = guard.unwrap().chunk;
+    let chunk = guard.into_data().chunk;
 
     // Create a storage to save data of this chunk
     let storage = Storage::new(Arc::clone(&db.store), db.server_id);
