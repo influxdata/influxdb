@@ -9,6 +9,7 @@
 )]
 
 use dotenv::dotenv;
+use once_cell::sync::Lazy;
 use structopt::StructOpt;
 use tokio::runtime::Runtime;
 
@@ -37,9 +38,18 @@ enum ReturnCode {
     Failure = 1,
 }
 
+static VERSION_STRING: Lazy<String> = Lazy::new(|| {
+    format!(
+        "{}, revision {}",
+        option_env!("CARGO_PKG_VERSION").unwrap_or("UNKNOWN"),
+        option_env!("GIT_HASH").unwrap_or("UNKNOWN")
+    )
+});
+
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "influxdb_iox",
+    version = &VERSION_STRING[..],
     about = "InfluxDB IOx server and command line tools",
     long_about = r#"InfluxDB IOx server and command line tools
 
