@@ -288,12 +288,13 @@ impl IoxMetadata {
         }
 
         // extract creation timestamp
-        let creation_timestamp: DateTime<Utc> =
-            decode_timestamp(proto_msg.creation_timestamp.ok_or_else(|| {
-                Error::IoxMetadataFieldMissing {
-                    field: "creation_timestamp".to_string(),
-                }
-            })?)?;
+        let creation_timestamp: DateTime<Utc> = decode_timestamp(
+            proto_msg
+                .creation_timestamp
+                .context(IoxMetadataFieldMissing {
+                    field: "creation_timestamp",
+                })?,
+        )?;
 
         // extract strings
         let table_name = Arc::from(proto_msg.table_name.as_ref());
@@ -303,8 +304,8 @@ impl IoxMetadata {
         let proto_partition_checkpoint =
             proto_msg
                 .partition_checkpoint
-                .ok_or_else(|| Error::IoxMetadataFieldMissing {
-                    field: "partition_checkpoint".to_string(),
+                .context(IoxMetadataFieldMissing {
+                    field: "partition_checkpoint",
                 })?;
         let sequencer_numbers = proto_partition_checkpoint
             .sequencer_numbers
@@ -320,8 +321,8 @@ impl IoxMetadata {
         let min_unpersisted_timestamp = decode_timestamp(
             proto_partition_checkpoint
                 .min_unpersisted_timestamp
-                .ok_or_else(|| Error::IoxMetadataFieldMissing {
-                    field: "partition_checkpoint.min_unpersisted_timestamp".to_string(),
+                .context(IoxMetadataFieldMissing {
+                    field: "partition_checkpoint.min_unpersisted_timestamp",
                 })?,
         )?;
         let partition_checkpoint = PartitionCheckpoint::new(
@@ -335,8 +336,8 @@ impl IoxMetadata {
         let proto_database_checkpoint =
             proto_msg
                 .database_checkpoint
-                .ok_or_else(|| Error::IoxMetadataFieldMissing {
-                    field: "database_checkpoint".to_string(),
+                .context(IoxMetadataFieldMissing {
+                    field: "database_checkpoint",
                 })?;
         let min_sequencer_numbers = proto_database_checkpoint
             .min_sequencer_numbers
