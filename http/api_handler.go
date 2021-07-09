@@ -8,7 +8,6 @@ import (
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
-	"github.com/influxdata/influxdb/v2/chronograf/server"
 	"github.com/influxdata/influxdb/v2/dbrp"
 	"github.com/influxdata/influxdb/v2/http/metric"
 	"github.com/influxdata/influxdb/v2/influxql"
@@ -19,6 +18,7 @@ import (
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
+	"github.com/influxdata/influxdb/v2/static"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/prometheus/client_golang/prometheus"
@@ -97,7 +97,6 @@ type APIBackend struct {
 	ScraperTargetStoreService       influxdb.ScraperTargetStoreService
 	SecretService                   influxdb.SecretService
 	LookupService                   influxdb.LookupService
-	ChronografService               *server.Service
 	OrgLookupService                authorizer.OrgIDResolver
 	DocumentService                 influxdb.DocumentService
 	NotificationRuleStore           influxdb.NotificationRuleStore
@@ -147,8 +146,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 		b.UserResourceMappingService, b.OrganizationService)
 	h.Mount(prefixChecks, NewCheckHandler(b.Logger, checkBackend))
 
-	h.Mount(prefixChronograf, NewChronografHandler(b.ChronografService, b.HTTPErrorHandler))
-
 	deleteBackend := NewDeleteBackend(b.Logger.With(zap.String("handler", "delete")), b)
 	h.Mount(prefixDelete, NewDeleteHandler(b.Logger, deleteBackend))
 
@@ -180,7 +177,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	sourceBackend.BucketService = authorizer.NewBucketService(b.BucketService)
 	h.Mount(prefixSources, NewSourceHandler(b.Logger, sourceBackend))
 
-	h.Mount("/api/v2/swagger.json", newSwaggerLoader(b.Logger.With(zap.String("service", "swagger-loader")), b.HTTPErrorHandler))
+	h.Mount("/api/v2/swagger.json", static.NewSwaggerHandler())
 
 	taskLogger := b.Logger.With(zap.String("handler", "bucket"))
 	taskBackend := NewTaskBackend(taskLogger, b)

@@ -1,6 +1,8 @@
 package inspect
 
 import (
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/delete_tsm"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/dump_tsi"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/dump_tsm"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/export_index"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/export_lp"
@@ -34,6 +36,8 @@ func NewCommand(v *viper.Viper) (*cobra.Command, error) {
 	base.AddCommand(verify_seriesfile.NewVerifySeriesfileCommand())
 	base.AddCommand(verify_tombstone.NewVerifyTombstoneCommand())
 	base.AddCommand(dump_tsm.NewDumpTSMCommand())
+	base.AddCommand(dump_tsi.NewDumpTSICommand())
+	base.AddCommand(delete_tsm.NewDeleteTSMCommand())
 
 	return base, nil
 }

@@ -24,7 +24,6 @@ import (
 	"github.com/influxdata/influxdb/v2/backup"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/checks"
-	"github.com/influxdata/influxdb/v2/chronograf/server"
 	"github.com/influxdata/influxdb/v2/dashboards"
 	dashboardTransport "github.com/influxdata/influxdb/v2/dashboards/transport"
 	"github.com/influxdata/influxdb/v2/dbrp"
@@ -412,12 +411,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	default:
 		err := fmt.Errorf("unknown secret service %q, expected \"bolt\" or \"vault\"", opts.SecretStore)
 		m.log.Error("Failed setting secret service", zap.Error(err))
-		return err
-	}
-
-	chronografSvc, err := server.NewServiceV2(ctx, m.boltClient.DB())
-	if err != nil {
-		m.log.Error("Failed creating chronograf service", zap.Error(err))
 		return err
 	}
 
@@ -818,7 +811,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		NotificationEndpointService:     notificationEndpointSvc,
 		CheckService:                    checkSvc,
 		ScraperTargetStoreService:       scraperTargetSvc,
-		ChronografService:               chronografSvc,
 		SecretService:                   secretSvc,
 		LookupService:                   resourceResolver,
 		DocumentService:                 m.kvService,

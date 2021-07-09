@@ -7,11 +7,12 @@ import (
 	"github.com/influxdata/influxdb/v2/http/legacy"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/static"
 )
 
 // PlatformHandler is a collection of all the service handlers.
 type PlatformHandler struct {
-	AssetHandler  *AssetHandler
+	AssetHandler  http.Handler
 	DocsHandler   http.HandlerFunc
 	APIHandler    http.Handler
 	LegacyHandler http.Handler
@@ -33,8 +34,7 @@ func NewPlatformHandler(b *APIBackend, opts ...APIHandlerOptFn) *PlatformHandler
 	h.RegisterNoAuthRoute("GET", "/api/v2/setup")
 	h.RegisterNoAuthRoute("GET", "/api/v2/swagger.json")
 
-	assetHandler := NewAssetHandler()
-	assetHandler.Path = b.AssetsPath
+	assetHandler := static.NewAssetHandler(b.AssetsPath)
 
 	wrappedHandler := kithttp.SetCORS(h)
 	wrappedHandler = kithttp.SkipOptions(wrappedHandler)
@@ -65,11 +65,10 @@ func (h *PlatformHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Serve the chronograf assets for any basepath that does not start with addressable parts
-	// of the platform API.
+	// Serve the static UI assets for any basepath that does not start with
+	// addressable parts of the platform API.
 	if !strings.HasPrefix(r.URL.Path, "/v1") &&
 		!strings.HasPrefix(r.URL.Path, "/api/v2") &&
-		!strings.HasPrefix(r.URL.Path, "/chronograf/") &&
 		!strings.HasPrefix(r.URL.Path, "/private/") {
 		h.AssetHandler.ServeHTTP(w, r)
 		return

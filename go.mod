@@ -22,10 +22,6 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/editorconfig-checker/editorconfig-checker v0.0.0-20190819115812-1474bdeaf2a2
 	github.com/elazarl/go-bindata-assetfs v1.0.0
-	github.com/fatih/color v1.9.0
-	github.com/fujiwara/shapeio v1.0.0
-	github.com/getkin/kin-openapi v0.53.0
-	github.com/ghodss/yaml v1.0.0
 	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
 	github.com/glycerine/goconvey v0.0.0-20180728074245-46e3a41ad493 // indirect
 	github.com/go-chi/chi v4.1.0+incompatible
@@ -38,7 +34,7 @@ require (
 	github.com/google/btree v1.0.0
 	github.com/google/go-cmp v0.5.5
 	github.com/google/go-github v17.0.0+incompatible
-	github.com/google/go-jsonnet v0.14.0
+	github.com/google/go-jsonnet v0.17.0
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/google/martian v2.1.1-0.20190517191504-25dcb96d9e51+incompatible // indirect
 	github.com/hashicorp/go-msgpack v0.0.0-20150518234257-fa3f63826f7c // indirect
@@ -47,9 +43,9 @@ require (
 	github.com/hashicorp/vault/api v1.0.2
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/influxdata/cron v0.0.0-20191203200038-ded12750aac6
-	github.com/influxdata/flux v0.119.1
+	github.com/influxdata/flux v0.120.1
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
-	github.com/influxdata/influx-cli/v2 v2.0.0-20210616152201-0ee555c6a73e
+	github.com/influxdata/influx-cli/v2 v2.0.0-20210702141951-3ca681b1dd48
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/pkg-config v0.2.7
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
@@ -58,7 +54,7 @@ require (
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
 	github.com/kevinburke/go-bindata v3.22.0+incompatible
-	github.com/mattn/go-isatty v0.0.12
+	github.com/mattn/go-isatty v0.0.13
 	github.com/mattn/go-sqlite3 v1.14.7
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
 	github.com/mileusna/useragent v0.0.0-20190129205925-3e331f0949a5
@@ -70,7 +66,6 @@ require (
 	github.com/nats-io/nats-streaming-server v0.11.2
 	github.com/nats-io/nkeys v0.0.2 // indirect
 	github.com/nats-io/nuid v1.0.0 // indirect
-	github.com/olekukonko/tablewriter v0.0.4
 	github.com/onsi/ginkgo v1.11.0 // indirect
 	github.com/onsi/gomega v1.8.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0

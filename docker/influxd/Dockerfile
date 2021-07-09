@@ -16,7 +16,7 @@ FROM dependency-base
 
 EXPOSE 8086
 
-COPY influx influxd /usr/bin/
+COPY influxd /usr/bin/
 COPY docker/influxd/entrypoint.sh /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]

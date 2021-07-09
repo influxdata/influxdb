@@ -29,14 +29,18 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21646](https://github.com/influxdata/influxdb/pull/21646): Ported the `influxd inspect verify-tombstone` command from 1.x.
 1. [21761](https://github.com/influxdata/influxdb/pull/21761): Ported the `influxd inspect dump-tsm` command from 1.x.
 1. [21788](https://github.com/influxdata/influxdb/pull/21788): Ported the `influxd inspect report-tsi` command from 1.x.
+1. [21784](https://github.com/influxdata/influxdb/pull/21784): Ported the `influxd inspect dumptsi` command from 1.x.
+1. [21786](https://github.com/influxdata/influxdb/pull/21786): Ported the `influxd inspect deletetsm` command from 1.x.
+1. [21802](https://github.com/influxdata/influxdb/pull/21802): Removed unused `chronograf-migator` package & chronograf API service, and updated various "chronograf" references.
 
 ### Bug Fixes
 
 1. [21610](https://github.com/influxdata/influxdb/pull/21610): Avoid rewriting `fields.idx` unnecessarily.
 1. [21648](https://github.com/influxdata/influxdb/pull/21648): Change static legend's `hide` to `show` to let users decide if they want it.
-1. [21662](https://github.com/influxdata/influxdb/pull/21662): Do not close connection twice in DigestWithOptions
-1. [21691](https://github.com/influxdata/influxdb/pull/21691): Remove incorrect optimization for group-by
-1. [21747](https://github.com/influxdata/influxdb/pull/21747): Rename arm rpms with yum-compatible names
+1. [21662](https://github.com/influxdata/influxdb/pull/21662): Do not close connection twice in DigestWithOptions.
+1. [21691](https://github.com/influxdata/influxdb/pull/21691): Remove incorrect optimization for group-by.
+1. [21747](https://github.com/influxdata/influxdb/pull/21747): Rename arm rpms with yum-compatible names.
+1. [21800](https://github.com/influxdata/influxdb/pull/21800): Return an error instead of panicking when InfluxQL statement rewrites fail.
 
 ## v2.0.7 [2021-06-04]
 
