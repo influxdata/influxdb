@@ -270,21 +270,21 @@ mod test {
     async fn get_test_chunks() -> (Arc<Schema>, Vec<Arc<TestChunk>>) {
         // Chunk 1 with 5 rows of data on 2 tags
         let chunk1 = Arc::new(
-            TestChunk::new(1)
-                .with_time_column_with_stats("t", 5, 7000)
-                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
-                .with_int_field_column("t", "field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_time_column_with_stats(5, 7000)
+                .with_tag_column_with_stats("tag1", "AL", "MT")
+                .with_int_field_column("field_int")
+                .with_five_rows_of_data(),
         );
 
         // Chunk 2 has an extra field, and only 4 fields
         let chunk2 = Arc::new(
-            TestChunk::new(1)
-                .with_time_column_with_stats("t", 5, 7000)
-                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
-                .with_int_field_column("t", "field_int")
-                .with_int_field_column("t", "field_int2")
-                .with_four_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_time_column_with_stats(5, 7000)
+                .with_tag_column_with_stats("tag1", "AL", "MT")
+                .with_int_field_column("field_int")
+                .with_int_field_column("field_int2")
+                .with_four_rows_of_data(),
         );
 
         let expected = vec![

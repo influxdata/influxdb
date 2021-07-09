@@ -143,7 +143,7 @@ pub struct TestChunk {
     predicates: Mutex<Vec<Predicate>>,
 
     /// Table name
-    table_name: Option<String>,
+    table_name: String,
 
     /// Schema of the table
     table_schema: Option<Schema>,
@@ -162,11 +162,16 @@ pub struct TestChunk {
 }
 
 impl TestChunk {
-    pub fn new(id: u32) -> Self {
+    pub fn new(table_name: impl Into<String>) -> Self {
         Self {
-            id,
+            table_name: table_name.into(),
             ..Default::default()
         }
+    }
+
+    pub fn with_id(mut self, id: u32) -> Self {
+        self.id = id;
+        self
     }
 
     /// specify that any call should result in an error with the message
@@ -191,11 +196,6 @@ impl TestChunk {
         }
     }
 
-    /// Register a table with the test chunk and a "dummy" column
-    pub fn with_table(self, table_name: impl Into<String>) -> Self {
-        self.with_tag_column(table_name, "dummy_col")
-    }
-
     /// Set the `may_contain_pk_duplicates` flag
     pub fn with_may_contain_pk_duplicates(mut self, v: bool) -> Self {
         self.may_contain_pk_duplicates = v;
@@ -203,33 +203,26 @@ impl TestChunk {
     }
 
     /// Register an tag column with the test chunk
-    pub fn with_tag_column(
-        self,
-        table_name: impl Into<String>,
-        column_name: impl Into<String>,
-    ) -> Self {
-        let table_name = table_name.into();
+    pub fn with_tag_column(self, column_name: impl Into<String>) -> Self {
         let column_name = column_name.into();
 
         // make a new schema with the specified column and
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new().tag(&column_name).build().unwrap();
 
-        self.add_schema_to_table(table_name, new_column_schema)
+        self.add_schema_to_table(new_column_schema)
     }
 
     /// Register an tag column with the test chunk
     pub fn with_tag_column_with_stats(
         self,
-        table_name: impl Into<String>,
         column_name: impl Into<String>,
         min: &str,
         max: &str,
     ) -> Self {
-        let table_name = table_name.into();
         let column_name = column_name.into();
 
-        let mut new_self = self.with_tag_column(&table_name, &column_name);
+        let mut new_self = self.with_tag_column(&column_name);
 
         // Now, find the appropriate column summary and update the stats
         let column_summary: &mut ColumnSummary = new_self
@@ -251,26 +244,17 @@ impl TestChunk {
     }
 
     /// Register a timestamp column with the test chunk
-    pub fn with_time_column(self, table_name: impl Into<String>) -> Self {
-        let table_name = table_name.into();
-
+    pub fn with_time_column(self) -> Self {
         // make a new schema with the specified column and
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new().timestamp().build().unwrap();
 
-        self.add_schema_to_table(table_name, new_column_schema)
+        self.add_schema_to_table(new_column_schema)
     }
 
     /// Register a timestamp column with the test chunk
-    pub fn with_time_column_with_stats(
-        self,
-        table_name: impl Into<String>,
-        min: i64,
-        max: i64,
-    ) -> Self {
-        let table_name = table_name.into();
-
-        let mut new_self = self.with_time_column(&table_name);
+    pub fn with_time_column_with_stats(self, min: i64, max: i64) -> Self {
+        let mut new_self = self.with_time_column();
 
         // Now, find the appropriate column summary and update the stats
         let column_summary: &mut ColumnSummary = new_self
@@ -292,11 +276,7 @@ impl TestChunk {
     }
 
     /// Register an int field column with the test chunk
-    pub fn with_int_field_column(
-        self,
-        table_name: impl Into<String>,
-        column_name: impl Into<String>,
-    ) -> Self {
+    pub fn with_int_field_column(self, column_name: impl Into<String>) -> Self {
         let column_name = column_name.into();
 
         // make a new schema with the specified column and
@@ -305,20 +285,10 @@ impl TestChunk {
             .field(&column_name, DataType::Int64)
             .build()
             .unwrap();
-        self.add_schema_to_table(table_name, new_column_schema)
+        self.add_schema_to_table(new_column_schema)
     }
 
-    fn add_schema_to_table(
-        mut self,
-        table_name: impl Into<String>,
-        new_column_schema: Schema,
-    ) -> Self {
-        let table_name = table_name.into();
-        if let Some(existing_name) = &self.table_name {
-            assert_eq!(&table_name, existing_name);
-        }
-        self.table_name = Some(table_name.clone());
-
+    fn add_schema_to_table(mut self, new_column_schema: Schema) -> Self {
         // assume the new schema has exactly a single table
         assert_eq!(new_column_schema.len(), 1);
         let (col_type, new_field) = new_column_schema.field(0);
@@ -365,7 +335,7 @@ impl TestChunk {
         let mut table_summary = self
             .table_summary
             .take()
-            .unwrap_or_else(|| TableSummary::new(table_name));
+            .unwrap_or_else(|| TableSummary::new(&self.table_name));
         table_summary.columns.push(column_summary);
         self.table_summary = Some(table_summary);
 
@@ -379,7 +349,7 @@ impl TestChunk {
 
     /// Prepares this chunk to return a specific record batch with one
     /// row of non null data.
-    pub fn with_one_row_of_null_data(mut self, _table_name: impl Into<String>) -> Self {
+    pub fn with_one_row_of_null_data(mut self) -> Self {
         //let table_name = table_name.into();
         let schema = self
             .table_schema
@@ -425,7 +395,7 @@ impl TestChunk {
     ///   "| UT   | RI   | 70        | 1970-01-01 00:00:00.000020    |",
     ///   "+------+------+-----------+-------------------------------+",
     /// Stats(min, max) : tag1(UT, WA), tag2(RI, SC), time(8000, 20000)
-    pub fn with_three_rows_of_data(mut self, _table_name: impl Into<String>) -> Self {
+    pub fn with_three_rows_of_data(mut self) -> Self {
         let schema = self
             .table_schema
             .as_ref()
@@ -489,7 +459,7 @@ impl TestChunk {
     ///   "| VT   | NC   | 50        | 1970-01-01 00:00:00.000210    |", // duplicate of (1)
     ///   "+------+------+-----------+-------------------------------+",
     /// Stats(min, max) : tag1(UT, WA), tag2(RI, SC), time(28000, 220000)
-    pub fn with_four_rows_of_data(mut self, _table_name: impl Into<String>) -> Self {
+    pub fn with_four_rows_of_data(mut self) -> Self {
         let schema = self
             .table_schema
             .as_ref()
@@ -554,7 +524,7 @@ impl TestChunk {
     ///   "| MT   | AL   | 5         | 1970-01-01 00:00:00.000005    |",
     ///   "+------+------+-----------+-------------------------------+",
     /// Stats(min, max) : tag1(AL, MT), tag2(AL, MA), time(5, 7000)
-    pub fn with_five_rows_of_data(mut self, _table_name: impl Into<String>) -> Self {
+    pub fn with_five_rows_of_data(mut self) -> Self {
         let schema = self
             .table_schema
             .as_ref()
@@ -631,7 +601,7 @@ impl TestChunk {
     ///   "| MT   | AL   | 30        | 1970-01-01 00:00:00.000005    |",  // Duplicate with (3)
     ///   "+------+------+-----------+-------------------------------+",
     /// Stats(min, max) : tag1(AL, MT), tag2(AL, MA), time(5, 7000)
-    pub fn with_ten_rows_of_data_some_duplicates(mut self, _table_name: impl Into<String>) -> Self {
+    pub fn with_ten_rows_of_data_some_duplicates(mut self) -> Self {
         //let table_name = table_name.into();
         let schema = self
             .table_schema
@@ -730,7 +700,7 @@ impl QueryChunk for TestChunk {
     }
 
     fn table_name(&self) -> &str {
-        self.table_name.as_deref().unwrap()
+        &self.table_name
     }
 
     fn may_contain_pk_duplicates(&self) -> bool {
@@ -769,17 +739,11 @@ impl QueryChunk for TestChunk {
         }
 
         // otherwise fall back to basic filtering based on table name predicate.
-        let predicate_match = self
-            .table_name
-            .as_ref()
-            .map(|table_name| {
-                if !predicate.should_include_table(&table_name) {
-                    PredicateMatch::Zero
-                } else {
-                    PredicateMatch::Unknown
-                }
-            })
-            .unwrap_or(PredicateMatch::Unknown);
+        let predicate_match = if !predicate.should_include_table(&self.table_name) {
+            PredicateMatch::Zero
+        } else {
+            PredicateMatch::Unknown
+        };
 
         Ok(predicate_match)
     }

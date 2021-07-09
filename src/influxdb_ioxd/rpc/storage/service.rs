@@ -1252,13 +1252,13 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk0 = TestChunk::new(0)
-            .with_predicate_match(PredicateMatch::AtLeastOne)
-            .with_table("h2o");
+        let chunk0 = TestChunk::new("h2o")
+            .with_id(0)
+            .with_predicate_match(PredicateMatch::AtLeastOne);
 
-        let chunk1 = TestChunk::new(1)
-            .with_predicate_match(PredicateMatch::AtLeastOne)
-            .with_table("o2");
+        let chunk1 = TestChunk::new("o2")
+            .with_id(1)
+            .with_predicate_match(PredicateMatch::AtLeastOne);
 
         fixture
             .test_storage
@@ -1346,13 +1346,15 @@ mod tests {
         let partition_id = 1;
 
         // Note multiple tables / measureemnts:
-        let chunk0 = TestChunk::new(0)
-            .with_tag_column("m1", "k1")
-            .with_tag_column("m1", "k2");
+        let chunk0 = TestChunk::new("m1")
+            .with_id(0)
+            .with_tag_column("k1")
+            .with_tag_column("k2");
 
-        let chunk1 = TestChunk::new(1)
-            .with_tag_column("m2", "k3")
-            .with_tag_column("m2", "k4");
+        let chunk1 = TestChunk::new("m2")
+            .with_id(1)
+            .with_tag_column("k3")
+            .with_tag_column("k4");
 
         fixture
             .test_storage
@@ -1414,9 +1416,7 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0)
-            .with_table("my_table")
-            .with_error("Sugar we are going down");
+        let chunk = TestChunk::new("my_table").with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -1458,15 +1458,15 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk0 = TestChunk::new(0)
+        let chunk0 = TestChunk::new("m1")
             // predicate specifies m4, so this is filtered out
-            .with_tag_column("m1", "k0");
+            .with_tag_column("k0");
 
-        let chunk1 = TestChunk::new(1)
-            .with_tag_column("m4", "k1")
-            .with_tag_column("m4", "k2")
-            .with_tag_column("m4", "k3")
-            .with_tag_column("m4", "k4");
+        let chunk1 = TestChunk::new("m4")
+            .with_tag_column("k1")
+            .with_tag_column("k2")
+            .with_tag_column("k3")
+            .with_tag_column("k4");
 
         fixture
             .test_storage
@@ -1540,10 +1540,8 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0)
-            // predicate specifies m4, so this is filtered out
-            .with_table("my_table")
-            .with_error("This is an error");
+        // predicate specifies m4, so this is filtered out
+        let chunk = TestChunk::new("my_table").with_error("This is an error");
 
         fixture
             .test_storage
@@ -1587,10 +1585,10 @@ mod tests {
         let partition_id = 1;
 
         // Add a chunk with a field
-        let chunk = TestChunk::new(0)
-            .with_time_column("TheMeasurement")
-            .with_tag_column("TheMeasurement", "state")
-            .with_one_row_of_null_data("TheMeasurement");
+        let chunk = TestChunk::new("TheMeasurement")
+            .with_time_column()
+            .with_tag_column("state")
+            .with_one_row_of_null_data();
 
         fixture
             .test_storage
@@ -1648,9 +1646,7 @@ mod tests {
             tag_key: [0].into(),
         };
 
-        let chunk = TestChunk::new(0)
-            .with_predicate_match(PredicateMatch::AtLeastOne)
-            .with_table("h2o");
+        let chunk = TestChunk::new("h2o").with_predicate_match(PredicateMatch::AtLeastOne);
 
         fixture
             .test_storage
@@ -1679,11 +1675,11 @@ mod tests {
         let partition_id = 1;
 
         // Add a chunk with a field
-        let chunk = TestChunk::new(0)
-            .with_int_field_column("TheMeasurement", "Field1")
-            .with_time_column("TheMeasurement")
-            .with_tag_column("TheMeasurement", "state")
-            .with_one_row_of_null_data("TheMeasurement");
+        let chunk = TestChunk::new("TheMeasurement")
+            .with_int_field_column("Field1")
+            .with_time_column()
+            .with_tag_column("state")
+            .with_one_row_of_null_data();
 
         fixture
             .test_storage
@@ -1727,9 +1723,7 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0)
-            .with_table("my_table")
-            .with_error("Sugar we are going down");
+        let chunk = TestChunk::new("my_table").with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -1798,10 +1792,10 @@ mod tests {
         let partition_id = 1;
 
         // Add a chunk with a field
-        let chunk = TestChunk::new(0)
-            .with_time_column("TheMeasurement")
-            .with_tag_column("TheMeasurement", "state")
-            .with_one_row_of_null_data("TheMeasurement");
+        let chunk = TestChunk::new("TheMeasurement")
+            .with_time_column()
+            .with_tag_column("state")
+            .with_one_row_of_null_data();
 
         fixture
             .test_storage
@@ -1847,9 +1841,7 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0)
-            .with_table("my_table")
-            .with_error("Sugar we are going down");
+        let chunk = TestChunk::new("my_table").with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -1953,10 +1945,10 @@ mod tests {
         let partition_id = 1;
 
         // Add a chunk with a field
-        let chunk = TestChunk::new(0)
-            .with_time_column("TheMeasurement")
-            .with_tag_column("TheMeasurement", "state")
-            .with_one_row_of_null_data("TheMeasurement");
+        let chunk = TestChunk::new("TheMeasurement")
+            .with_time_column()
+            .with_tag_column("state")
+            .with_one_row_of_null_data();
 
         fixture
             .test_storage
@@ -1999,9 +1991,7 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0)
-            .with_table("my_table")
-            .with_error("Sugar we are going down");
+        let chunk = TestChunk::new("my_table").with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -2041,10 +2031,10 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0)
-            .with_time_column("TheMeasurement")
-            .with_tag_column("TheMeasurement", "state")
-            .with_one_row_of_null_data("TheMeasurement");
+        let chunk = TestChunk::new("TheMeasurement")
+            .with_time_column()
+            .with_tag_column("state")
+            .with_one_row_of_null_data();
 
         fixture
             .test_storage
@@ -2093,9 +2083,7 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0)
-            .with_table("my_table")
-            .with_error("Sugar we are going down");
+        let chunk = TestChunk::new("my_table").with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -2177,10 +2165,10 @@ mod tests {
         let partition_id = 1;
 
         // Add a chunk with a field
-        let chunk = TestChunk::new(0)
-            .with_time_column("TheMeasurement")
-            .with_tag_column("TheMeasurement", "state")
-            .with_one_row_of_null_data("TheMeasurement");
+        let chunk = TestChunk::new("TheMeasurement")
+            .with_time_column()
+            .with_tag_column("state")
+            .with_one_row_of_null_data();
 
         fixture
             .test_storage
@@ -2237,10 +2225,10 @@ mod tests {
         let partition_id = 1;
 
         // Add a chunk with a field
-        let chunk = TestChunk::new(0)
-            .with_time_column("TheMeasurement")
-            .with_tag_column("TheMeasurement", "state")
-            .with_one_row_of_null_data("TheMeasurement");
+        let chunk = TestChunk::new("TheMeasurement")
+            .with_time_column()
+            .with_tag_column("state")
+            .with_one_row_of_null_data();
 
         fixture
             .test_storage
@@ -2305,9 +2293,7 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0)
-            .with_table("my_table")
-            .with_error("Sugar we are going down");
+        let chunk = TestChunk::new("my_table").with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -2363,11 +2349,11 @@ mod tests {
         let partition_id = 1;
 
         // Add a chunk with a field
-        let chunk = TestChunk::new(0)
-            .with_int_field_column("TheMeasurement", "Field1")
-            .with_time_column("TheMeasurement")
-            .with_tag_column("TheMeasurement", "state")
-            .with_one_row_of_null_data("TheMeasurement");
+        let chunk = TestChunk::new("TheMeasurement")
+            .with_int_field_column("Field1")
+            .with_time_column()
+            .with_tag_column("state")
+            .with_one_row_of_null_data();
 
         fixture
             .test_storage
@@ -2413,7 +2399,7 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+        let chunk = TestChunk::new("t").with_error("Sugar we are going down");
 
         fixture
             .test_storage
