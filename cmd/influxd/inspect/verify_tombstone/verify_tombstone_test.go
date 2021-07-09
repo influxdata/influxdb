@@ -3,7 +3,7 @@ package verify_tombstone
 import (
 	"bytes"
 	"encoding/binary"
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 
@@ -21,10 +21,10 @@ const (
 
 // Run tests on a directory with no Tombstone files
 func TestVerifies_InvalidFileType(t *testing.T) {
-	path, err := ioutil.TempDir("", "verify-tombstone")
+	path, err := os.MkdirTemp("", "verify-tombstone")
 	require.NoError(t, err)
 
-	_, err = ioutil.TempFile(path, "verifytombstonetest*"+".txt")
+	_, err = os.CreateTemp(path, "verifytombstonetest*"+".txt")
 	require.NoError(t, err)
 	defer os.RemoveAll(path)
 
@@ -35,7 +35,7 @@ func TestVerifies_InvalidFileType(t *testing.T) {
 	verify.SetOut(b)
 	require.NoError(t, verify.Execute())
 
-	out, err := ioutil.ReadAll(b)
+	out, err := io.ReadAll(b)
 	require.NoError(t, err)
 	require.Contains(t, string(out), "No tombstone files found")
 }
@@ -52,7 +52,7 @@ func TestVerifies_InvalidEmptyFile(t *testing.T) {
 	verify.SetOut(b)
 	require.NoError(t, verify.Execute())
 
-	out, err := ioutil.ReadAll(b)
+	out, err := io.ReadAll(b)
 	require.NoError(t, err)
 	require.Contains(t, string(out), "has no tombstone entries")
 }
@@ -136,10 +136,10 @@ func TestTombstone_VeryVeryVerbose(t *testing.T) {
 func NewTempTombstone(t *testing.T) (string, *os.File) {
 	t.Helper()
 
-	dir, err := ioutil.TempDir("", "verify-tombstone")
+	dir, err := os.MkdirTemp("", "verify-tombstone")
 	require.NoError(t, err)
 
-	file, err := ioutil.TempFile(dir, "verifytombstonetest*"+"."+tsm1.TombstoneFileExtension)
+	file, err := os.CreateTemp(dir, "verifytombstonetest*"+"."+tsm1.TombstoneFileExtension)
 	require.NoError(t, err)
 
 	return dir, file
