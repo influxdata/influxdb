@@ -1874,15 +1874,7 @@ mod tests {
     #[tokio::test]
     async fn init_error_generic() {
         // use an object store that will hopefully fail to read
-        let store = ObjectStore::new_amazon_s3(
-            Some("foo".to_string()),
-            Some("bar".to_string()),
-            "us-east-1".to_string(),
-            "bucket".to_string(),
-            None as Option<String>,
-            None as Option<String>,
-        )
-        .unwrap();
+        let store = ObjectStore::new_failing_store().unwrap();
 
         let manager = TestConnectionManager::new();
         let config = config_with_store(store);

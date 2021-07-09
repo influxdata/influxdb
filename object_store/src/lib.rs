@@ -17,14 +17,26 @@
 //!
 //! Future compatibility will include Azure Blob Storage, Minio, and Ceph.
 
+#[cfg(feature = "aws")]
 mod aws;
+#[cfg(feature = "azure")]
 mod azure;
 mod buffer;
 pub mod disk;
+#[cfg(feature = "gcp")]
 mod gcp;
 pub mod memory;
 pub mod path;
 pub mod throttle;
+
+pub mod dummy;
+
+#[cfg(not(feature = "aws"))]
+use dummy as aws;
+#[cfg(not(feature = "azure"))]
+use dummy as azure;
+#[cfg(not(feature = "gcp"))]
+use dummy as gcp;
 
 use aws::AmazonS3;
 use azure::MicrosoftAzure;
@@ -126,9 +138,16 @@ impl ObjectStore {
         Self(ObjectStoreIntegration::InMemory(in_mem))
     }
 
-    /// Configure throttled in-memory storage.
+    /// For Testing: Configure throttled in-memory storage.
     pub fn new_in_memory_throttled(in_mem_throttled: ThrottledStore<InMemory>) -> Self {
         Self(ObjectStoreIntegration::InMemoryThrottled(in_mem_throttled))
+    }
+
+    /// For Testing: Configure a object store with invalid credentials
+    /// that will always fail on operations (hopefully)
+    pub fn new_failing_store() -> Result<Self> {
+        let s3 = aws::new_failing_s3()?;
+        Ok(Self(ObjectStoreIntegration::AmazonS3(s3)))
     }
 
     /// Configure local file storage.
@@ -497,6 +516,9 @@ pub enum Error {
 
     #[snafu(display("In-memory-based Object Store error: {}", source))]
     InMemoryObjectStoreError { source: memory::Error },
+
+    #[snafu(display("{}", source))]
+    DummyObjectStoreError { source: dummy::Error },
 }
 
 impl From<disk::Error> for Error {
@@ -505,18 +527,21 @@ impl From<disk::Error> for Error {
     }
 }
 
+#[cfg(feature = "gcp")]
 impl From<gcp::Error> for Error {
     fn from(source: gcp::Error) -> Self {
         Self::GcsObjectStoreError { source }
     }
 }
 
+#[cfg(feature = "aws")]
 impl From<aws::Error> for Error {
     fn from(source: aws::Error) -> Self {
         Self::AwsObjectStoreError { source }
     }
 }
 
+#[cfg(feature = "azure")]
 impl From<azure::Error> for Error {
     fn from(source: azure::Error) -> Self {
         Self::AzureObjectStoreError { source }
@@ -526,6 +551,12 @@ impl From<azure::Error> for Error {
 impl From<memory::Error> for Error {
     fn from(source: memory::Error) -> Self {
         Self::InMemoryObjectStoreError { source }
+    }
+}
+
+impl From<dummy::Error> for Error {
+    fn from(source: dummy::Error) -> Self {
+        Self::DummyObjectStoreError { source }
     }
 }
 
@@ -701,6 +732,7 @@ mod tests {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn get_nonexistent_object(
         storage: &ObjectStore,
         location: Option<<ObjectStore as ObjectStoreApi>::Path>,

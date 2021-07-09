@@ -341,6 +341,17 @@ pub(crate) fn new_s3(
     })
 }
 
+pub(crate) fn new_failing_s3() -> Result<AmazonS3> {
+    new_s3(
+        Some("foo"),
+        Some("bar"),
+        "us-east-1",
+        "bucket",
+        None as Option<&str>,
+        None as Option<&str>,
+    )
+}
+
 impl AmazonS3 {
     /// List objects with the given prefix and a set delimiter of `/`. Returns
     /// common prefixes (directories) in addition to object metadata. Optionally
