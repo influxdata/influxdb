@@ -117,16 +117,23 @@ func (report *reportTSI) run() error {
 	// Blocks until all work done.
 	report.calculateCardinalities(report.cardinalityByMeasurement)
 
+	allIDs := make([]uint64, 0, len(report.shardIdxs))
+
+	for id := range report.shardIdxs {
+		allIDs = append(allIDs, id)
+	}
+
 	// Print summary.
-	if err := report.printSummaryByMeasurement(); err != nil {
+	err = report.printSummaryByMeasurement()
+
+	for id := range report.shardIdxs {
+		report.shardIdxs[id].Close()
+	}
+
+	if err != nil {
 		return err
 	}
 
-	allIDs := make([]uint64, 0, len(report.shardIdxs))
-	for id := range report.shardIdxs {
-		allIDs = append(allIDs, id)
-		report.shardIdxs[id].Close()
-	}
 	sort.Slice(allIDs, func(i int, j int) bool { return allIDs[i] < allIDs[j] })
 
 	for _, id := range allIDs {
