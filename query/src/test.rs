@@ -132,8 +132,14 @@ impl QueryDatabase for TestDatabase {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TestChunk {
+    /// Table name
+    table_name: String,
+
+    /// Schema of the table
+    schema: Arc<Schema>,
+
     id: u32,
 
     /// Set the flag if this chunk might contain duplicates
@@ -141,12 +147,6 @@ pub struct TestChunk {
 
     /// A copy of the captured predicates passed
     predicates: Mutex<Vec<Predicate>>,
-
-    /// Table name
-    table_name: String,
-
-    /// Schema of the table
-    schema: Arc<Schema>,
 
     /// RecordBatches that are returned on each request
     table_data: Vec<Arc<RecordBatch>>,
@@ -166,7 +166,13 @@ impl TestChunk {
         Self {
             table_name: table_name.into(),
             schema: Arc::new(SchemaBuilder::new().build().unwrap()),
-            ..Default::default()
+            id: Default::default(),
+            may_contain_pk_duplicates: Default::default(),
+            predicates: Default::default(),
+            table_data: Default::default(),
+            saved_error: Default::default(),
+            predicate_match: Default::default(),
+            table_summary: Default::default(),
         }
     }
 
@@ -323,15 +329,10 @@ impl TestChunk {
 
         let mut merger = SchemaMerger::new();
         merger = merger.merge(&new_column_schema).unwrap();
-
-        if let Some(existing_schema) = self.table_schema.as_ref() {
-            merger = merger
-                .merge(existing_schema)
-                .expect("merging was successful");
-        }
-        let new_schema = merger.build();
-
-        self.table_schema = Some(new_schema);
+        merger = merger
+            .merge(self.schema.as_ref())
+            .expect("merging was successful");
+        self.schema = Arc::new(merger.build());
 
         let mut table_summary = self
             .table_summary
@@ -351,14 +352,9 @@ impl TestChunk {
     /// Prepares this chunk to return a specific record batch with one
     /// row of non null data.
     pub fn with_one_row_of_null_data(mut self) -> Self {
-        //let table_name = table_name.into();
-        let schema = self
-            .table_schema
-            .as_ref()
-            .expect("table must exist in TestChunk");
-
         // create arrays
-        let columns = schema
+        let columns = self
+            .schema
             .iter()
             .map(|(_influxdb_column_type, field)| match field.data_type() {
                 DataType::Int64 => Arc::new(Int64Array::from(vec![1000])) as ArrayRef,
@@ -379,7 +375,8 @@ impl TestChunk {
             })
             .collect::<Vec<_>>();
 
-        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+        let batch =
+            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
         println!("TestChunk batch data: {:#?}", batch);
 
         self.table_data.push(Arc::new(batch));
@@ -397,13 +394,9 @@ impl TestChunk {
     ///   "+------+------+-----------+-------------------------------+",
     /// Stats(min, max) : tag1(UT, WA), tag2(RI, SC), time(8000, 20000)
     pub fn with_three_rows_of_data(mut self) -> Self {
-        let schema = self
-            .table_schema
-            .as_ref()
-            .expect("table must exist in TestChunk");
-
         // create arrays
-        let columns = schema
+        let columns = self
+            .schema
             .iter()
             .map(|(_influxdb_column_type, field)| match field.data_type() {
                 DataType::Int64 => Arc::new(Int64Array::from(vec![1000, 10, 70])) as ArrayRef,
@@ -443,7 +436,8 @@ impl TestChunk {
             })
             .collect::<Vec<_>>();
 
-        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+        let batch =
+            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
 
         self.table_data.push(Arc::new(batch));
         self
@@ -461,13 +455,9 @@ impl TestChunk {
     ///   "+------+------+-----------+-------------------------------+",
     /// Stats(min, max) : tag1(UT, WA), tag2(RI, SC), time(28000, 220000)
     pub fn with_four_rows_of_data(mut self) -> Self {
-        let schema = self
-            .table_schema
-            .as_ref()
-            .expect("table must exist in TestChunk");
-
         // create arrays
-        let columns = schema
+        let columns = self
+            .schema
             .iter()
             .map(|(_influxdb_column_type, field)| match field.data_type() {
                 DataType::Int64 => Arc::new(Int64Array::from(vec![1000, 10, 70, 50])) as ArrayRef,
@@ -507,7 +497,8 @@ impl TestChunk {
             })
             .collect::<Vec<_>>();
 
-        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+        let batch =
+            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
 
         self.table_data.push(Arc::new(batch));
         self
@@ -526,13 +517,9 @@ impl TestChunk {
     ///   "+------+------+-----------+-------------------------------+",
     /// Stats(min, max) : tag1(AL, MT), tag2(AL, MA), time(5, 7000)
     pub fn with_five_rows_of_data(mut self) -> Self {
-        let schema = self
-            .table_schema
-            .as_ref()
-            .expect("table must exist in TestChunk");
-
         // create arrays
-        let columns = schema
+        let columns = self
+            .schema
             .iter()
             .map(|(_influxdb_column_type, field)| match field.data_type() {
                 DataType::Int64 => {
@@ -579,7 +566,8 @@ impl TestChunk {
             })
             .collect::<Vec<_>>();
 
-        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+        let batch =
+            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
 
         self.table_data.push(Arc::new(batch));
         self
@@ -603,14 +591,9 @@ impl TestChunk {
     ///   "+------+------+-----------+-------------------------------+",
     /// Stats(min, max) : tag1(AL, MT), tag2(AL, MA), time(5, 7000)
     pub fn with_ten_rows_of_data_some_duplicates(mut self) -> Self {
-        //let table_name = table_name.into();
-        let schema = self
-            .table_schema
-            .as_ref()
-            .expect("table must exist in TestChunk");
-
         // create arrays
-        let columns = schema
+        let columns = self
+            .schema
             .iter()
             .map(|(_influxdb_column_type, field)| match field.data_type() {
                 DataType::Int64 => Arc::new(Int64Array::from(vec![
@@ -661,35 +644,28 @@ impl TestChunk {
             })
             .collect::<Vec<_>>();
 
-        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+        let batch =
+            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
 
         self.table_data.push(Arc::new(batch));
         self
     }
 
     /// Returns all columns of the table
-    pub fn all_column_names(&self) -> Option<StringSet> {
-        let column_names = self.table_schema.as_ref().map(|schema| {
-            schema
-                .iter()
-                .map(|(_, field)| field.name().to_string())
-                .collect::<StringSet>()
-        });
-
-        column_names
+    pub fn all_column_names(&self) -> StringSet {
+        self.schema
+            .iter()
+            .map(|(_, field)| field.name().to_string())
+            .collect()
     }
 
     /// Returns just the specified columns
-    pub fn specific_column_names_selection(&self, columns: &[&str]) -> Option<StringSet> {
-        let column_names = self.table_schema.as_ref().map(|schema| {
-            schema
-                .iter()
-                .map(|(_, field)| field.name().to_string())
-                .filter(|col| columns.contains(&col.as_str()))
-                .collect::<StringSet>()
-        });
-
-        column_names
+    pub fn specific_column_names_selection(&self, columns: &[&str]) -> StringSet {
+        self.schema
+            .iter()
+            .map(|(_, field)| field.name().to_string())
+            .filter(|col| columns.contains(&col.as_str()))
+            .collect()
     }
 }
 
@@ -774,7 +750,7 @@ impl QueryChunk for TestChunk {
             Selection::Some(cols) => self.specific_column_names_selection(cols),
         };
 
-        Ok(column_names)
+        Ok(Some(column_names))
     }
 }
 
@@ -786,10 +762,7 @@ impl QueryChunkMeta for TestChunk {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        self.table_schema
-            .as_ref()
-            .map(|s| Arc::new(s.clone()))
-            .expect("schema was set")
+        Arc::clone(&self.schema)
     }
 }
 
