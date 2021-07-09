@@ -23,7 +23,7 @@ complicated & dynamically constructed queries, the
 [`Masterminds/squirrel`](https://github.com/Masterminds/squirrel) package is a
 light-weight and robust query builder.
 
-#### Concurrent Access
+### Concurrent Access
 
 An interesting aspect of using the serverless, file-based sqlite database is
 that while it can support multiple concurrent read requests, only a single write
@@ -37,7 +37,7 @@ locks are not obtained in the application code, it is possible that errors will
 be encountered if concurrent write requests hit the database file at the same
 time.
 
-#### Migrations
+### Migrations
 
 A simple migration system is implemented in `migrator.go`. When starting the
 influx daemon, the migrator runs migrations defined in `.sql` files using
@@ -49,7 +49,7 @@ When creating new migrations, follow the file naming convention established by
 existing migration scripts, which should look like `00XX_script_name.sql`, where
 `XX` is the version number.
 
-#### In-Memory Database
+### In-Memory Database
 
 When running `influxd` with the `--store=memory` flag, the database will be
 opened using the `:memory:` path, and the maximum number of open database
@@ -58,7 +58,7 @@ sqlite, each connection would see a completely new database, so using only a
 single connection will ensure that requests to `influxd` will return a
 consistent set of data.
 
-#### Backup & Restore
+### Backup & Restore
 
 Methods for backing up and restoring the sqlite database are available on the
 `SqlStore` struct. These operations make use of the [sqlite backup
@@ -66,7 +66,7 @@ API](https://www.sqlite.org/backup.html) made available by the `go-sqlite3`
 driver. It is possible to restore and backup into sqlite databases either stored
 in memory or on disk.
 
-#### Sqlite Features / Extensions
+### Sqlite Features / Extensions
 
 There are many additional features and extensions available, see [the go-sqlite3
 package docs](https://github.com/mattn/go-sqlite3#feature--extension-list) for
