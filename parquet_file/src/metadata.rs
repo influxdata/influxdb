@@ -252,6 +252,9 @@ pub struct IoxMetadata {
     /// Timestamp when this file was created.
     pub creation_timestamp: DateTime<Utc>,
 
+    pub time_of_first_write: DateTime<Utc>, // TODO: METADATA_VERSION?
+    pub time_of_last_write: DateTime<Utc>,
+
     /// Table that holds this parquet file.
     pub table_name: Arc<str>,
 
@@ -285,13 +288,14 @@ impl IoxMetadata {
         }
 
         // extract creation timestamp
-        let creation_timestamp: DateTime<Utc> = decode_timestamp(
-            proto_msg
-                .creation_timestamp
-                .context(IoxMetadataFieldMissing {
-                    field: "creation_timestamp",
-                })?,
-        )?;
+        let creation_timestamp =
+            decode_timestamp_from_field(proto_msg.creation_timestamp, "creation_timestamp")?;
+        // extract time of first write
+        let time_of_first_write =
+            decode_timestamp_from_field(proto_msg.time_of_first_write, "time_of_first_write")?;
+        // extract time of last write
+        let time_of_last_write =
+            decode_timestamp_from_field(proto_msg.time_of_last_write, "time_of_last_write")?;
 
         // extract strings
         let table_name = Arc::from(proto_msg.table_name.as_ref());
@@ -317,12 +321,9 @@ impl IoxMetadata {
                 }
             })
             .collect::<Result<BTreeMap<u32, OptionalMinMaxSequence>>>()?;
-        let min_unpersisted_timestamp = decode_timestamp(
-            proto_partition_checkpoint
-                .min_unpersisted_timestamp
-                .context(IoxMetadataFieldMissing {
-                    field: "partition_checkpoint.min_unpersisted_timestamp",
-                })?,
+        let min_unpersisted_timestamp = decode_timestamp_from_field(
+            proto_partition_checkpoint.min_unpersisted_timestamp,
+            "partition_checkpoint.min_unpersisted_timestamp",
         )?;
         let partition_checkpoint = PartitionCheckpoint::new(
             Arc::clone(&table_name),
@@ -355,6 +356,8 @@ impl IoxMetadata {
 
         Ok(Self {
             creation_timestamp,
+            time_of_first_write,
+            time_of_last_write,
             table_name,
             partition_key,
             chunk_id: proto_msg.chunk_id,
@@ -407,6 +410,8 @@ impl IoxMetadata {
         let proto_msg = proto::IoxMetadata {
             version: METADATA_VERSION,
             creation_timestamp: Some(encode_timestamp(self.creation_timestamp)),
+            time_of_first_write: Some(encode_timestamp(self.time_of_first_write)),
+            time_of_last_write: Some(encode_timestamp(self.time_of_last_write)),
             table_name: self.table_name.to_string(),
             partition_key: self.partition_key.to_string(),
             chunk_id: self.chunk_id,
@@ -437,6 +442,13 @@ fn decode_timestamp(ts: proto::FixedSizeTimestamp) -> Result<DateTime<Utc>> {
             .context(IoxMetadataBroken)?,
     );
     Ok(chrono::DateTime::<Utc>::from_utc(dt, Utc))
+}
+
+fn decode_timestamp_from_field(
+    value: Option<proto::FixedSizeTimestamp>,
+    field: &'static str,
+) -> Result<DateTime<Utc>> {
+    decode_timestamp(value.context(IoxMetadataFieldMissing { field })?)
 }
 
 /// Parquet metadata with IOx-specific wrapper.
@@ -972,6 +984,8 @@ mod tests {
             chunk_id: 1337,
             partition_checkpoint,
             database_checkpoint,
+            time_of_first_write: Utc::now(),
+            time_of_last_write: Utc::now(),
         };
 
         let proto_bytes = metadata.to_protobuf().unwrap();
@@ -1020,10 +1034,12 @@ mod tests {
                 chunk_id: 1337,
                 partition_checkpoint,
                 database_checkpoint,
+                time_of_first_write: Utc::now(),
+                time_of_last_write: Utc::now(),
             };
 
             let proto_bytes = metadata.to_protobuf().unwrap();
-            assert_eq!(proto_bytes.len(), 56);
+            assert_eq!(proto_bytes.len(), 88);
         }
     }
 }

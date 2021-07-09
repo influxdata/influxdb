@@ -31,6 +31,12 @@ message IoxMetadata {
 
   // Database checkpoint created at the time of the write.
   DatabaseCheckpoint database_checkpoint = 7;
+
+  // Timestamp when this file was first written.
+  FixedSizeTimestamp time_of_first_write = 8;
+
+  // Timestamp when this file was last written.
+  FixedSizeTimestamp time_of_last_write = 9;
 }
 
 // Partition checkpoint.

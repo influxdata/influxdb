@@ -2023,7 +2023,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 647;
+        let expected_parquet_size = 671;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -2471,7 +2471,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2284.0)
+            .sample_sum_eq(2308.0)
             .unwrap();
 
         // while MB and RB chunk are identical, the PQ chunk is a new one (split off)
@@ -2591,7 +2591,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2284.0)
+            .sample_sum_eq(2308.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -2621,7 +2621,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(647.0)
+            .sample_sum_eq(671.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -3219,8 +3219,8 @@ mod tests {
                 2,
                 ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                3260, // size of RB and OS chunks
-                1479, // size of parquet file
+                3284, // size of RB and OS chunks
+                1523, // size of parquet file
                 2,
             ),
             ChunkSummary::new_without_timestamps(
@@ -3248,14 +3248,15 @@ mod tests {
         for (expected_summary, actual_summary) in expected.iter().zip(chunk_summaries.iter()) {
             assert_eq!(
                 expected_summary, actual_summary,
-                "\n\nexpected:\n{:#?}\n\nactual:\n{:#?}\n\n",
-                expected_summary, actual_summary
+                "\n\nexpected item:\n{:#?}\n\nactual item:\n{:#?}\n\n\
+                     all expected:\n{:#?}\n\nall actual:\n{:#?}",
+                expected_summary, actual_summary, expected, chunk_summaries
             );
         }
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2446 + 87);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2434);
-        assert_eq!(db.catalog.metrics().memory().object_store(), 826);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 850);
     }
 
     #[tokio::test]

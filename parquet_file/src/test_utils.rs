@@ -14,7 +14,9 @@ use arrow::{
 use chrono::{TimeZone, Utc};
 use data_types::{
     chunk_metadata::ChunkAddr,
-    partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
+    partition_metadata::{
+        ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummaryAndTimes,
+    },
     server_id::ServerId,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -130,8 +132,12 @@ pub async fn make_chunk_given_record_batch(
     let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
     let storage = Storage::new(Arc::clone(&store), server_id);
 
-    let mut table_summary = TableSummary::new(addr.table_name.to_string());
-    table_summary.columns = column_summaries;
+    let table_summary = TableSummaryAndTimes {
+        name: addr.table_name.to_string(),
+        columns: column_summaries,
+        time_of_first_write: Utc.timestamp(30, 40),
+        time_of_last_write: Utc.timestamp(50, 60),
+    };
     let stream: SendableRecordBatchStream = if record_batches.is_empty() {
         Box::pin(MemoryStream::new_with_schema(
             record_batches,
@@ -151,6 +157,8 @@ pub async fn make_chunk_given_record_batch(
         chunk_id: addr.chunk_id,
         partition_checkpoint,
         database_checkpoint,
+        time_of_first_write: Utc.timestamp(30, 40),
+        time_of_last_write: Utc.timestamp(50, 60),
     };
     let (path, file_size_bytes, parquet_metadata) = storage
         .write_to_object_store(addr.clone(), stream, metadata)

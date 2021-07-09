@@ -336,9 +336,19 @@ impl CatalogChunk {
     ) -> Self {
         assert_eq!(chunk.table_name(), addr.table_name.as_ref());
 
+        let summary = chunk.table_summary();
+        let first_write = summary.time_of_first_write;
+        let last_write = summary.time_of_last_write;
+
+        // this is temporary
+        let table_summary = TableSummary {
+            name: summary.name.clone(),
+            columns: summary.columns.clone(),
+        };
+
         // Cache table summary + schema
         let meta = Arc::new(ChunkMetadata {
-            table_summary: Arc::clone(chunk.table_summary()),
+            table_summary: Arc::new(table_summary),
             schema: chunk.schema(),
         });
 
@@ -354,8 +364,8 @@ impl CatalogChunk {
             lifecycle_action: None,
             metrics,
             access_recorder: Default::default(),
-            time_of_first_write: None,
-            time_of_last_write: None,
+            time_of_first_write: Some(first_write),
+            time_of_last_write: Some(last_write),
             time_closed: None,
         };
         chunk.update_metrics();
