@@ -3,7 +3,6 @@ package verify_seriesfile
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -77,7 +76,7 @@ type Test struct {
 func NewTest(t *testing.T) *Test {
 	t.Helper()
 
-	dir, err := ioutil.TempDir("", "verify-seriesfile-")
+	dir, err := os.MkdirTemp("", "verify-seriesfile-")
 	require.NoError(t, err)
 
 	// create a series file in the directory
