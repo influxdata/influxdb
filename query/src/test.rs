@@ -146,7 +146,7 @@ pub struct TestChunk {
     table_name: String,
 
     /// Schema of the table
-    table_schema: Option<Schema>,
+    schema: Arc<Schema>,
 
     /// RecordBatches that are returned on each request
     table_data: Vec<Arc<RecordBatch>>,
@@ -165,6 +165,7 @@ impl TestChunk {
     pub fn new(table_name: impl Into<String>) -> Self {
         Self {
             table_name: table_name.into(),
+            schema: Arc::new(SchemaBuilder::new().build().unwrap()),
             ..Default::default()
         }
     }
