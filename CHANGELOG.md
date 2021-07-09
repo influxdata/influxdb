@@ -4,6 +4,7 @@
 
 -	[#21707](https://github.com/influxdata/influxdb/pull/21707): chore: add logging to compaction
 -	[#21752](https://github.com/influxdata/influxdb/pull/21752): feat: add total-buffer-bytes config parameter to subscriptions
+-	[#21820](https://github.com/influxdata/influxdb/pull/21820): chore: update flux to v0.120.1
 
 ### Bugfixes
 
