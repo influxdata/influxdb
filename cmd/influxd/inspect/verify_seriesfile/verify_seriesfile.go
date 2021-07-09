@@ -3,7 +3,6 @@ package verify_seriesfile
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -59,7 +58,7 @@ func NewVerifySeriesfileCommand() *cobra.Command {
 				return err
 			}
 
-			dbs, err := ioutil.ReadDir(arguments.dir)
+			dbs, err := os.ReadDir(arguments.dir)
 			if err != nil {
 				return err
 			}
@@ -133,7 +132,7 @@ func (v verify) verifySeriesFile(filePath string) (valid bool, err error) {
 		}
 	}()
 
-	partitionInfos, err := ioutil.ReadDir(filePath)
+	partitionInfos, err := os.ReadDir(filePath)
 	if os.IsNotExist(err) {
 		v.Logger.Error("Series file does not exist")
 		return false, nil
@@ -205,7 +204,7 @@ func (v verify) verifyPartition(partitionPath string) (valid bool, err error) {
 		}
 	}()
 
-	segmentInfos, err := ioutil.ReadDir(partitionPath)
+	segmentInfos, err := os.ReadDir(partitionPath)
 	if err != nil {
 		return false, err
 	}
