@@ -140,6 +140,9 @@ pub struct TestChunk {
     /// Schema of the table
     schema: Arc<Schema>,
 
+    /// Return value for summary()
+    table_summary: TableSummary,
+
     id: u32,
 
     /// Set the flag if this chunk might contain duplicates
@@ -156,23 +159,21 @@ pub struct TestChunk {
 
     /// Return value for apply_predicate, if desired
     predicate_match: Option<PredicateMatch>,
-
-    /// Return value for summary(), if desired
-    table_summary: Option<TableSummary>,
 }
 
 impl TestChunk {
     pub fn new(table_name: impl Into<String>) -> Self {
+        let table_name = table_name.into();
         Self {
-            table_name: table_name.into(),
+            table_name: table_name.clone(),
             schema: Arc::new(SchemaBuilder::new().build().unwrap()),
+            table_summary: TableSummary::new(table_name),
             id: Default::default(),
             may_contain_pk_duplicates: Default::default(),
             predicates: Default::default(),
             table_data: Default::default(),
             saved_error: Default::default(),
             predicate_match: Default::default(),
-            table_summary: Default::default(),
         }
     }
 
@@ -234,8 +235,6 @@ impl TestChunk {
         // Now, find the appropriate column summary and update the stats
         let column_summary: &mut ColumnSummary = new_self
             .table_summary
-            .as_mut()
-            .expect("had table summary")
             .columns
             .iter_mut()
             .find(|c| c.name == column_name)
@@ -266,8 +265,6 @@ impl TestChunk {
         // Now, find the appropriate column summary and update the stats
         let column_summary: &mut ColumnSummary = new_self
             .table_summary
-            .as_mut()
-            .expect("had table summary")
             .columns
             .iter_mut()
             .find(|c| c.name == TIME_COLUMN_NAME)
@@ -334,12 +331,7 @@ impl TestChunk {
             .expect("merging was successful");
         self.schema = Arc::new(merger.build());
 
-        let mut table_summary = self
-            .table_summary
-            .take()
-            .unwrap_or_else(|| TableSummary::new(&self.table_name));
-        table_summary.columns.push(column_summary);
-        self.table_summary = Some(table_summary);
+        self.table_summary.columns.push(column_summary);
 
         self
     }
@@ -756,9 +748,7 @@ impl QueryChunk for TestChunk {
 
 impl QueryChunkMeta for TestChunk {
     fn summary(&self) -> &TableSummary {
-        self.table_summary
-            .as_ref()
-            .expect("Table summary not configured for TestChunk")
+        &self.table_summary
     }
 
     fn schema(&self) -> Arc<Schema> {
