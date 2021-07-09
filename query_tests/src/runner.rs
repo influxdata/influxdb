@@ -294,6 +294,8 @@ impl<W: Write> Runner<W> {
 }
 
 /// Return output path for input path.
+///
+/// This converts `some/prefix/in/foo.sql` (or other file extensions) to `some/prefix/out/foo.out`.
 fn make_output_path(input: &Path) -> Result<PathBuf> {
     let stem = input.file_stem().context(NoFileStem { path: input })?;
 
@@ -306,6 +308,10 @@ fn make_output_path(input: &Path) -> Result<PathBuf> {
     out.push("out");
 
     // set file name and ext
+    // The PathBuf API is somewhat confusing: `set_file_name` will replace the last component (which at this point is
+    // the "out"). However we wanna create a file out of the stem and the extension. So as a somewhat hackish
+    // workaround first push a placeholder that is then replaced.
+    out.push("placeholder");
     out.set_file_name(stem);
     out.set_extension("out");
 
@@ -417,8 +423,11 @@ SELECT * from disk;
         let in_dir = dir.path().join("in");
         std::fs::create_dir(&in_dir).expect("create in-dir");
 
+        let out_dir = dir.path().join("out");
+        std::fs::create_dir(&out_dir).expect("create out-dir");
+
         let mut file = in_dir;
-        file.set_file_name("foo.sql");
+        file.push("foo.sql");
 
         std::fs::write(&file, contents).expect("writing data to temp file");
         (dir, file)

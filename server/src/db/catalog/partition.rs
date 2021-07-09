@@ -166,7 +166,7 @@ impl Partition {
     pub fn create_rub_chunk(
         &mut self,
         chunk: read_buffer::RBChunk,
-        schema: Schema,
+        schema: Arc<Schema>,
     ) -> Arc<RwLock<CatalogChunk>> {
         let chunk_id = self.next_chunk_id;
         assert_ne!(self.next_chunk_id, u32::MAX, "Chunk ID Overflow");

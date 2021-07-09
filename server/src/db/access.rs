@@ -11,16 +11,17 @@ use super::{
 };
 
 use async_trait::async_trait;
-use data_types::{chunk_metadata::ChunkSummary, error::ErrorLogger};
+use data_types::chunk_metadata::ChunkSummary;
 use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     datasource::TableProvider,
 };
+use internal_types::schema::Schema;
 use metrics::{Counter, KeyValue, MetricRegistry};
 use observability_deps::tracing::debug;
 use query::{
     predicate::{Predicate, PredicateBuilder},
-    provider::{self, ChunkPruner, ProviderBuilder},
+    provider::{ChunkPruner, ProviderBuilder},
     QueryChunk, QueryChunkMeta, DEFAULT_SCHEMA,
 };
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
@@ -195,6 +196,13 @@ impl QueryDatabase for QueryCatalogAccess {
     fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>> {
         Ok(self.catalog.chunk_summaries())
     }
+
+    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
+        self.catalog
+            .table(table_name)
+            .ok()
+            .map(|table| Arc::clone(&table.schema().read()))
+    }
 }
 
 // Datafusion catalog provider interface
@@ -249,27 +257,23 @@ impl SchemaProvider for DbSchemaProvider {
 
     /// Create a table provider for the named table
     fn table(&self, table_name: &str) -> Option<Arc<dyn TableProvider>> {
-        let mut builder = ProviderBuilder::new(table_name);
+        let schema = {
+            let table = self.catalog.table(table_name).ok()?;
+            Arc::clone(&table.schema().read())
+        };
+
+        let mut builder = ProviderBuilder::new(table_name, schema);
         builder =
             builder.add_pruner(Arc::clone(&self.chunk_access) as Arc<dyn ChunkPruner<DbChunk>>);
 
         let predicate = PredicateBuilder::new().table(table_name).build();
 
         for chunk in self.chunk_access.candidate_chunks(&predicate) {
-            // This is unfortunate - a table with incompatible chunks ceases to
-            // be visible to the query engine
-            //
-            // It is also potentially ill-formed as continuing to use the builder
-            // after it has errored may not yield entirely sensible results
-            builder = builder
-                .add_chunk(chunk)
-                .log_if_error("Adding chunks to table")
-                .ok()?;
+            builder = builder.add_chunk(chunk);
         }
 
         match builder.build() {
             Ok(provider) => Some(Arc::new(provider)),
-            Err(provider::Error::InternalNoRowsInTable { .. }) => None,
             Err(e) => panic!("unexpected error: {:?}", e),
         }
     }
