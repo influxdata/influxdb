@@ -1,10 +1,7 @@
 use crate::commands::run::{Config, ObjectStore as ObjStoreOpt};
 use futures::{future::FusedFuture, pin_mut, FutureExt, TryStreamExt};
 use hyper::server::conn::AddrIncoming;
-use object_store::{
-    self, aws::AmazonS3, azure::MicrosoftAzure, gcp::GoogleCloudStorage, path::ObjectStorePath,
-    ObjectStore, ObjectStoreApi,
-};
+use object_store::{self, path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use observability_deps::tracing::{self, error, info, warn, Instrument};
 use panic_logging::SendPanicsToTracing;
 use server::{
@@ -69,7 +66,13 @@ pub enum Error {
     // not *parseable* as a rusoto `Region`. The other object store constructors
     // don't return `Result`.
     #[snafu(display("Amazon S3 configuration was invalid: {}", source))]
-    InvalidS3Config { source: object_store::aws::Error },
+    InvalidS3Config { source: object_store::Error },
+
+    #[snafu(display("GCS configuration was invalid: {}", source))]
+    InvalidGCSConfig { source: object_store::Error },
+
+    #[snafu(display("Microsoft Azure configuration was invalid: {}", source))]
+    InvalidAzureConfig { source: object_store::Error },
 
     #[snafu(display("Cannot read from object store: {}", source))]
     CannotReadObjectStore { source: object_store::Error },
@@ -338,9 +341,10 @@ impl TryFrom<&Config> for ObjectStore {
                     config.bucket.as_ref(),
                     config.google_service_account.as_ref(),
                 ) {
-                    (Some(bucket), Some(service_account)) => Ok(Self::new_google_cloud_storage(
-                        GoogleCloudStorage::new(service_account, bucket),
-                    )),
+                    (Some(bucket), Some(service_account)) => {
+                        Self::new_google_cloud_storage(service_account, bucket)
+                            .context(InvalidGCSConfig)
+                    }
                     (bucket, service_account) => {
                         let mut missing_args = vec![];
 
@@ -369,17 +373,15 @@ impl TryFrom<&Config> for ObjectStore {
                     config.aws_session_token.as_ref(),
                 ) {
                     (Some(bucket), key_id, secret_key, region, endpoint, session_token) => {
-                        Ok(Self::new_amazon_s3(
-                            AmazonS3::new(
-                                key_id,
-                                secret_key,
-                                region,
-                                bucket,
-                                endpoint,
-                                session_token,
-                            )
-                            .context(InvalidS3Config)?,
-                        ))
+                        Self::new_amazon_s3(
+                            key_id,
+                            secret_key,
+                            region,
+                            bucket,
+                            endpoint,
+                            session_token,
+                        )
+                        .context(InvalidS3Config)
                     }
                     (bucket, _, _, _, _, _) => {
                         let mut missing_args = vec![];
@@ -403,11 +405,8 @@ impl TryFrom<&Config> for ObjectStore {
                     config.azure_storage_access_key.as_ref(),
                 ) {
                     (Some(bucket), Some(storage_account), Some(access_key)) => {
-                        Ok(Self::new_microsoft_azure(MicrosoftAzure::new(
-                            storage_account,
-                            access_key,
-                            bucket,
-                        )))
+                        Self::new_microsoft_azure(storage_account, access_key, bucket)
+                            .context(InvalidAzureConfig)
                     }
                     (bucket, storage_account, access_key) => {
                         let mut missing_args = vec![];

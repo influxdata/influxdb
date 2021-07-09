@@ -17,11 +17,11 @@
 //!
 //! Future compatibility will include Azure Blob Storage, Minio, and Ceph.
 
-pub mod aws;
-pub mod azure;
+mod aws;
+mod azure;
 mod buffer;
 pub mod disk;
-pub mod gcp;
+mod gcp;
 pub mod memory;
 pub mod path;
 pub mod throttle;
@@ -93,13 +93,32 @@ pub struct ObjectStore(pub ObjectStoreIntegration);
 
 impl ObjectStore {
     /// Configure a connection to Amazon S3.
-    pub fn new_amazon_s3(s3: AmazonS3) -> Self {
-        Self(ObjectStoreIntegration::AmazonS3(s3))
+    pub fn new_amazon_s3(
+        access_key_id: Option<impl Into<String>>,
+        secret_access_key: Option<impl Into<String>>,
+        region: impl Into<String>,
+        bucket_name: impl Into<String>,
+        endpoint: Option<impl Into<String>>,
+        session_token: Option<impl Into<String>>,
+    ) -> Result<Self> {
+        let s3 = aws::new_s3(
+            access_key_id,
+            secret_access_key,
+            region,
+            bucket_name,
+            endpoint,
+            session_token,
+        )?;
+        Ok(Self(ObjectStoreIntegration::AmazonS3(s3)))
     }
 
     /// Configure a connection to Google Cloud Storage.
-    pub fn new_google_cloud_storage(gcs: GoogleCloudStorage) -> Self {
-        Self(ObjectStoreIntegration::GoogleCloudStorage(gcs))
+    pub fn new_google_cloud_storage(
+        service_account_path: impl AsRef<std::ffi::OsStr>,
+        bucket_name: impl Into<String>,
+    ) -> Result<Self> {
+        let gcs = gcp::new_gcs(service_account_path, bucket_name)?;
+        Ok(Self(ObjectStoreIntegration::GoogleCloudStorage(gcs)))
     }
 
     /// Configure in-memory storage.
@@ -118,8 +137,15 @@ impl ObjectStore {
     }
 
     /// Configure a connection to Microsoft Azure Blob store.
-    pub fn new_microsoft_azure(azure: MicrosoftAzure) -> Self {
-        Self(ObjectStoreIntegration::MicrosoftAzure(Box::new(azure)))
+    pub fn new_microsoft_azure(
+        account: impl Into<String>,
+        access_key: impl Into<String>,
+        container_name: impl Into<String>,
+    ) -> Result<Self> {
+        let azure = azure::new_azure(account, access_key, container_name)?;
+        Ok(Self(ObjectStoreIntegration::MicrosoftAzure(Box::new(
+            azure,
+        ))))
     }
 
     /// Create implementation-specific path from parsed representation.

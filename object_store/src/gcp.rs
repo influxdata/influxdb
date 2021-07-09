@@ -251,21 +251,19 @@ impl ObjectStoreApi for GoogleCloudStorage {
     }
 }
 
-impl GoogleCloudStorage {
-    /// Configure a connection to Google Cloud Storage.
-    pub fn new(
-        service_account_path: impl AsRef<std::ffi::OsStr>,
-        bucket_name: impl Into<String>,
-    ) -> Self {
-        // The cloud storage crate currently only supports authentication via
-        // environment variables. Set the environment variable explicitly so
-        // that we can optionally accept command line arguments instead.
-        env::set_var("SERVICE_ACCOUNT", service_account_path);
-        Self {
-            client: Default::default(),
-            bucket_name: bucket_name.into(),
-        }
-    }
+/// Configure a connection to Google Cloud Storage.
+pub fn new_gcs(
+    service_account_path: impl AsRef<std::ffi::OsStr>,
+    bucket_name: impl Into<String>,
+) -> Result<GoogleCloudStorage> {
+    // The cloud storage crate currently only supports authentication via
+    // environment variables. Set the environment variable explicitly so
+    // that we can optionally accept command line arguments instead.
+    env::set_var("SERVICE_ACCOUNT", service_account_path);
+    Ok(GoogleCloudStorage {
+        client: Default::default(),
+        bucket_name: bucket_name.into(),
+    })
 }
 
 #[cfg(test)]
@@ -273,8 +271,7 @@ mod test {
     use super::*;
     use crate::{
         tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
-        Error as ObjectStoreError, GoogleCloudStorage, ObjectStore, ObjectStoreApi,
-        ObjectStorePath,
+        Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
     };
     use bytes::Bytes;
     use std::env;
@@ -334,10 +331,8 @@ mod test {
     #[tokio::test]
     async fn gcs_test() {
         let config = maybe_skip_integration!();
-        let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
-            config.service_account,
-            config.bucket,
-        ));
+        let integration =
+            ObjectStore::new_google_cloud_storage(config.service_account, config.bucket).unwrap();
 
         put_get_delete_list(&integration).await.unwrap();
         list_with_delimiter(&integration).await.unwrap();
@@ -346,10 +341,8 @@ mod test {
     #[tokio::test]
     async fn gcs_test_get_nonexistent_location() {
         let config = maybe_skip_integration!();
-        let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
-            config.service_account,
-            &config.bucket,
-        ));
+        let integration =
+            ObjectStore::new_google_cloud_storage(config.service_account, &config.bucket).unwrap();
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -379,10 +372,8 @@ mod test {
     async fn gcs_test_get_nonexistent_bucket() {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
-        let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
-            config.service_account,
-            &config.bucket,
-        ));
+        let integration =
+            ObjectStore::new_google_cloud_storage(config.service_account, &config.bucket).unwrap();
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -405,10 +396,8 @@ mod test {
     #[tokio::test]
     async fn gcs_test_delete_nonexistent_location() {
         let config = maybe_skip_integration!();
-        let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
-            config.service_account,
-            &config.bucket,
-        ));
+        let integration =
+            ObjectStore::new_google_cloud_storage(config.service_account, &config.bucket).unwrap();
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -436,10 +425,8 @@ mod test {
     async fn gcs_test_delete_nonexistent_bucket() {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
-        let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
-            config.service_account,
-            &config.bucket,
-        ));
+        let integration =
+            ObjectStore::new_google_cloud_storage(config.service_account, &config.bucket).unwrap();
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -467,10 +454,8 @@ mod test {
     async fn gcs_test_put_nonexistent_bucket() {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
-        let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
-            config.service_account,
-            &config.bucket,
-        ));
+        let integration =
+            ObjectStore::new_google_cloud_storage(config.service_account, &config.bucket).unwrap();
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);

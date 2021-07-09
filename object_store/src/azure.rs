@@ -241,41 +241,38 @@ impl ObjectStoreApi for MicrosoftAzure {
     }
 }
 
-impl MicrosoftAzure {
-    /// Configure a connection to container with given name on Microsoft Azure
-    /// Blob store.
-    ///
-    /// The credentials `account` and `access_key` must provide access to the
-    /// store.
-    pub fn new(
-        account: impl Into<String>,
-        access_key: impl Into<String>,
-        container_name: impl Into<String>,
-    ) -> Self {
-        let account = account.into();
-        let access_key = access_key.into();
-        // From https://github.com/Azure/azure-sdk-for-rust/blob/master/sdk/storage/examples/blob_00.rs#L29
-        let http_client: Arc<Box<dyn HttpClient>> = Arc::new(Box::new(reqwest::Client::new()));
+/// Configure a connection to container with given name on Microsoft Azure
+/// Blob store.
+///
+/// The credentials `account` and `access_key` must provide access to the
+/// store.
+pub fn new_azure(
+    account: impl Into<String>,
+    access_key: impl Into<String>,
+    container_name: impl Into<String>,
+) -> Result<MicrosoftAzure> {
+    let account = account.into();
+    let access_key = access_key.into();
+    // From https://github.com/Azure/azure-sdk-for-rust/blob/master/sdk/storage/examples/blob_00.rs#L29
+    let http_client: Arc<Box<dyn HttpClient>> = Arc::new(Box::new(reqwest::Client::new()));
 
-        let storage_account_client =
-            StorageAccountClient::new_access_key(Arc::clone(&http_client), &account, &access_key);
+    let storage_account_client =
+        StorageAccountClient::new_access_key(Arc::clone(&http_client), &account, &access_key);
 
-        let storage_client = storage_account_client.as_storage_client();
+    let storage_client = storage_account_client.as_storage_client();
 
-        let container_name = container_name.into();
+    let container_name = container_name.into();
 
-        let container_client = storage_client.as_container_client(&container_name);
+    let container_client = storage_client.as_container_client(&container_name);
 
-        Self {
-            container_client,
-            container_name,
-        }
-    }
+    Ok(MicrosoftAzure {
+        container_client,
+        container_name,
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::tests::{list_with_delimiter, put_get_delete_list};
     use crate::ObjectStore;
     use std::env;
@@ -341,11 +338,12 @@ mod tests {
     #[tokio::test]
     async fn azure_blob_test() {
         let config = maybe_skip_integration!();
-        let integration = ObjectStore::new_microsoft_azure(MicrosoftAzure::new(
+        let integration = ObjectStore::new_microsoft_azure(
             config.storage_account,
             config.access_key,
             config.bucket,
-        ));
+        )
+        .unwrap();
 
         put_get_delete_list(&integration).await.unwrap();
         list_with_delimiter(&integration).await.unwrap();
