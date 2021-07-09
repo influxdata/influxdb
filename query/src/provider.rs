@@ -262,6 +262,11 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
         // This debug shows the self.arrow_schema() includes all columns in all chunks
         // which means the schema of all chunks are merged before invoking this scan
         trace!("all chunks schema: {:#?}", self.arrow_schema());
+        // However, the schema of each chunk is still in its original form which does not
+        // include the merged columns of other chunks. The code below proves it
+        for chunk in chunks.clone() {
+            trace!("Schema of chunk {}: {:#?}", chunk.id(), chunk.schema());
+        }
 
         let mut deduplicate = Deduplicater::new();
         let plan = deduplicate.build_scan_plan(

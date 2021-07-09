@@ -4,6 +4,8 @@ use indexmap::{map::Iter, IndexMap};
 use itertools::Itertools;
 use snafu::Snafu;
 
+use super::TIME_COLUMN_NAME;
+
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("invalid column sort: {}", value))]
@@ -162,6 +164,23 @@ impl<'a> SortKey<'a> {
     ///   . (a, b, c) does not cover (b, a), (c, a), (c, b), (b, a, c), (b, c, a), (c, a, b), (c, b, a) =>
     ///        super key of (a, b, c) and any of { b, a), (c, a), (c, b), (b, a, c), (b, c, a), (c, a, b), (c, b, a) } is None
     pub fn super_key(key1: &SortKey<'a>, key2: &SortKey<'a>) -> Option<SortKey<'a>> {
+        let super_key = Self::super_key_without_time(key1, key2);
+        if let Some(mut sk) = super_key {
+            // Add time column at the end
+            sk.push(TIME_COLUMN_NAME, Default::default());
+            Some(sk)
+        } else {
+            None
+        }
+    }
+
+    pub fn super_key_without_time(key1: &SortKey<'a>, key2: &SortKey<'a>) -> Option<SortKey<'a>> {
+        // Remove time column because it always the last one and it plays a bit different of other key columns
+        let mut key1 = key1.clone();
+        let mut key2 = key2.clone();
+        key1.columns.shift_remove(TIME_COLUMN_NAME);
+        key2.columns.shift_remove(TIME_COLUMN_NAME);
+
         let (long_key, short_key) = if key1.len() > key2.len() {
             (key1, key2)
         } else {
@@ -174,7 +193,7 @@ impl<'a> SortKey<'a> {
         }
 
         if short_key.is_empty() {
-            return Some(long_key.clone());
+            return Some(long_key);
         }
 
         // Go over short key and check its right-order availability in the long key
@@ -199,7 +218,7 @@ impl<'a> SortKey<'a> {
         }
 
         // Reach here means the long key is the super key of the sort one
-        Some(long_key.clone())
+        Some(long_key)
     }
 }
 
@@ -429,25 +448,25 @@ mod tests {
         );
 
         // super key of (a) and empty is (a)
-        let super_key = SortKey::super_key(&key_a, &key_e).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_a, &key_e).unwrap();
         assert_eq!(super_key, key_a);
-        let super_key = SortKey::super_key(&key_a_2, &key_e).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_a_2, &key_e).unwrap();
         assert_eq!(super_key, key_a_2);
 
         // super key of (a) and (a) is (a)
-        let super_key = SortKey::super_key(&key_a, &key_a).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_a, &key_a).unwrap();
         assert_eq!(super_key, key_a);
-        let super_key = SortKey::super_key(&key_a_2, &key_a_2).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_a_2, &key_a_2).unwrap();
         assert_eq!(super_key, key_a_2);
 
         // super key of (a) and (b) is None
-        let super_key = SortKey::super_key(&key_a, &key_b);
+        let super_key = SortKey::super_key_without_time(&key_a, &key_b);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_a, &key_b_2);
+        let super_key = SortKey::super_key_without_time(&key_a, &key_b_2);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_a_2, &key_b);
+        let super_key = SortKey::super_key_without_time(&key_a_2, &key_b);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_a_2, &key_b_2);
+        let super_key = SortKey::super_key_without_time(&key_a_2, &key_b_2);
         assert_eq!(super_key, None);
 
         // (a,b)
@@ -490,51 +509,51 @@ mod tests {
         );
 
         // super key of (a, b) and empty is (a, b)
-        let super_key = SortKey::super_key(&key_ab, &key_e).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_ab, &key_e).unwrap();
         assert_eq!(super_key, key_ab);
-        let super_key = SortKey::super_key(&key_ab_2, &key_e).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_e).unwrap();
         assert_eq!(super_key, key_ab_2);
 
         // super key of (a, b) and (a) is (a, b)
-        let super_key = SortKey::super_key(&key_ab, &key_a).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_ab, &key_a).unwrap();
         assert_eq!(super_key, key_ab);
-        let super_key = SortKey::super_key(&key_ab_2, &key_a_2).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_a_2).unwrap();
         assert_eq!(super_key, key_ab_2);
         // super key of (a, b) and (a') is None
-        let super_key = SortKey::super_key(&key_ab, &key_a_2);
+        let super_key = SortKey::super_key_without_time(&key_ab, &key_a_2);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_ab_2, &key_a);
+        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_a);
         assert_eq!(super_key, None);
 
         // super key of (a, b) and (b) is (a, b)
-        let super_key = SortKey::super_key(&key_ab, &key_b).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_ab, &key_b).unwrap();
         assert_eq!(super_key, key_ab);
-        let super_key = SortKey::super_key(&key_ab_2, &key_b_2).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_b_2).unwrap();
         assert_eq!(super_key, key_ab_2);
         // super key of (a, b) and (b') is None
-        let super_key = SortKey::super_key(&key_ab, &key_b_2);
+        let super_key = SortKey::super_key_without_time(&key_ab, &key_b_2);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_ab_2, &key_b);
+        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_b);
         assert_eq!(super_key, None);
 
         // super key of (a, b) and (a, b) is (a, b)
-        let super_key = SortKey::super_key(&key_ab, &key_ab).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_ab, &key_ab).unwrap();
         assert_eq!(super_key, key_ab);
-        let super_key = SortKey::super_key(&key_ab_2, &key_ab_2).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_ab_2).unwrap();
         assert_eq!(super_key, key_ab_2);
         // super key of (a, b) and (a',b') is None
-        let super_key = SortKey::super_key(&key_ab, &key_ab_2);
+        let super_key = SortKey::super_key_without_time(&key_ab, &key_ab_2);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_ab_2, &key_ab);
+        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_ab);
         assert_eq!(super_key, None);
         // super key of (a, b) and (b,a) is None
-        let super_key = SortKey::super_key(&key_ab, &key_ba);
+        let super_key = SortKey::super_key_without_time(&key_ab, &key_ba);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_ab, &key_ba_2);
+        let super_key = SortKey::super_key_without_time(&key_ab, &key_ba_2);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_ab_2, &key_ba);
+        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_ba);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_ab_2, &key_ba_2);
+        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_ba_2);
         assert_eq!(super_key, None);
 
         // (a, b, c)
@@ -727,37 +746,113 @@ mod tests {
         );
 
         // super key of (a, b, c) and any of { (a, b), (a, c), (b, c), (a), (b), (c) and empty } is (a, b, c)
-        let super_key = SortKey::super_key(&key_abc_2, &key_e).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_e).unwrap();
         assert_eq!(super_key, key_abc_2);
-        let super_key = SortKey::super_key(&key_abc_2, &key_a_2).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_a_2).unwrap();
         assert_eq!(super_key, key_abc_2);
-        let super_key = SortKey::super_key(&key_abc_2, &key_b_2).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_b_2).unwrap();
         assert_eq!(super_key, key_abc_2);
-        let super_key = SortKey::super_key(&key_abc_2, &key_c_2).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_c_2).unwrap();
         assert_eq!(super_key, key_abc_2);
-        let super_key = SortKey::super_key(&key_abc_2, &key_ab_2).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_ab_2).unwrap();
         assert_eq!(super_key, key_abc_2);
-        let super_key = SortKey::super_key(&key_abc_2, &key_ac_2).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_ac_2).unwrap();
         assert_eq!(super_key, key_abc_2);
-        let super_key = SortKey::super_key(&key_abc_2, &key_bc_2).unwrap();
+        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_bc_2).unwrap();
         assert_eq!(super_key, key_abc_2);
 
         // super key of (a, b, c) and any of { b, a), (c, a), (c, b), (b, a, c), (b, c, a), (c, a, b), (c, b, a) } is None
-        let super_key = SortKey::super_key(&key_abc_2, &key_ba_2);
+        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_ba_2);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_abc_2, &key_ba);
+        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_ba);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_abc_2, &key_ca_2);
+        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_ca_2);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_abc_2, &key_cb_2);
+        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_cb_2);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_abc_2, &key_bac_2);
+        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_bac_2);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_abc_2, &key_bca_2);
+        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_bca_2);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_abc_2, &key_cab_2);
+        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_cab_2);
         assert_eq!(super_key, None);
-        let super_key = SortKey::super_key(&key_abc_2, &key_cba_2);
+        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_cba_2);
+        assert_eq!(super_key, None);
+    }
+
+    #[test]
+    fn test_super_sort_key_with_time() {
+        // Add time column randomly in the sort key nad make sure it is not considered
+
+        // empty key
+        let key_e = SortKey::with_capacity(0);
+
+        // key (a, t) with default sort options (false, true)
+        let mut key_a_t = SortKey::with_capacity(2);
+        key_a_t.push("a", Default::default());
+        key_a_t.push(TIME_COLUMN_NAME, Default::default());
+
+        // key (t, a) with default sort options (false, true)
+        let mut key_t_a = SortKey::with_capacity(2);
+        key_t_a.push(TIME_COLUMN_NAME, Default::default());
+        key_t_a.push("a", Default::default());
+
+        // super key of (a, t) and empty  is (a, t)
+        let super_key = SortKey::super_key(&key_a_t, &key_e).unwrap();
+        assert_eq!(super_key, key_a_t);
+        // super key of (t, a) and empty  is (a, t) - remember t is moved to the end
+        let super_key = SortKey::super_key(&key_t_a, &key_e).unwrap();
+        assert_eq!(super_key, key_a_t);
+
+        // super key of (a, t) and (a)  is (a, t)
+        let mut key_a = SortKey::with_capacity(1);
+        key_a.push("a", Default::default());
+        let super_key = SortKey::super_key(&key_a_t, &key_a).unwrap();
+        assert_eq!(super_key, key_a_t);
+        // super key of (t, a) and (a) is (a, t)
+        let super_key = SortKey::super_key(&key_t_a, &key_a).unwrap();
+        assert_eq!(super_key, key_a_t);
+
+        // super key of (a, t) and (b)  is None
+        let mut key_b = SortKey::with_capacity(1);
+        key_b.push("b", Default::default());
+        let super_key = SortKey::super_key(&key_a_t, &key_b);
+        assert_eq!(super_key, None);
+        // super key of (t, a) and (b)  is None
+        let super_key = SortKey::super_key(&key_t_a, &key_b);
+        assert_eq!(super_key, None);
+
+        // super key of (a, b, c, t) and (b, t, c) is equivalent to
+        // super key of (a, b, c) and (b, c) and should be (a, b, c, t)
+        let mut key_abc_t = SortKey::with_capacity(4);
+        key_abc_t.push("a", Default::default());
+        key_abc_t.push("b", Default::default());
+        key_abc_t.push("c", Default::default());
+        key_abc_t.push(TIME_COLUMN_NAME, Default::default());
+        let mut key_b_t_c = SortKey::with_capacity(3);
+        key_b_t_c.push("b", Default::default());
+        key_b_t_c.push(TIME_COLUMN_NAME, Default::default());
+        key_b_t_c.push("c", Default::default());
+        let super_key = SortKey::super_key(&key_abc_t, &key_b_t_c).unwrap();
+        assert_eq!(super_key, key_abc_t);
+
+        // super key of (t, a, b, c) and (b, t, c) is equivalent to
+        // super key of (a, b, c) and (b, c) and should be (a, b, c, t)
+        let mut key_t_abc = SortKey::with_capacity(4);
+        key_t_abc.push(TIME_COLUMN_NAME, Default::default());
+        key_t_abc.push("a", Default::default());
+        key_t_abc.push("b", Default::default());
+        key_t_abc.push("c", Default::default());
+        let super_key = SortKey::super_key(&key_t_abc, &key_b_t_c).unwrap();
+        assert_eq!(super_key, key_abc_t);
+
+        // super key of (t, a, b, c) and (c, t, b) is equivalent to
+        // super key of (a, b, c) and (c, b) and should be None
+        let mut key_c_t_b = SortKey::with_capacity(3);
+        key_c_t_b.push("c", Default::default());
+        key_c_t_b.push(TIME_COLUMN_NAME, Default::default());
+        key_c_t_b.push("b", Default::default());
+        let super_key = SortKey::super_key(&key_t_abc, &key_c_t_b);
         assert_eq!(super_key, None);
     }
 }
