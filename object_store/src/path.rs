@@ -111,6 +111,12 @@ impl ObjectStorePath for Path {
     }
 }
 
+impl From<&Self> for Path {
+    fn from(path: &Self) -> Self {
+        path.clone()
+    }
+}
+
 impl From<Path> for DirsAndFileName {
     fn from(path: Path) -> Self {
         match path {
