@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"path"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
@@ -71,7 +71,7 @@ cardinality of data within the files, segmented by shard and further by measurem
 // Run executes the command.
 func (report *reportTSI) run() error {
 	// Get all shards from specified bucket
-	dirEntries, err := os.ReadDir(path.Join(report.enginePath, report.bucketId, "autogen"))
+	dirEntries, err := os.ReadDir(filepath.Join(report.enginePath, report.bucketId, "autogen"))
 
 	if err != nil {
 		return err
@@ -92,7 +92,7 @@ func (report *reportTSI) run() error {
 			continue
 		}
 
-		report.shardPaths[uint64(id)] = path.Join(report.enginePath, report.bucketId, "autogen", entry.Name())
+		report.shardPaths[uint64(id)] = filepath.Join(report.enginePath, report.bucketId, "autogen", entry.Name())
 	}
 
 	if len(report.shardPaths) == 0 {
@@ -100,7 +100,7 @@ func (report *reportTSI) run() error {
 		return nil
 	}
 
-	report.sfile = tsdb.NewSeriesFile(path.Join(report.enginePath, report.bucketId, tsdb.SeriesFileDirectory))
+	report.sfile = tsdb.NewSeriesFile(filepath.Join(report.enginePath, report.bucketId, tsdb.SeriesFileDirectory))
 
 	config := logger.NewConfig()
 	newLogger, err := config.New(os.Stderr)
@@ -125,6 +125,7 @@ func (report *reportTSI) run() error {
 	allIDs := make([]uint64, 0, len(report.shardIdxs))
 	for id := range report.shardIdxs {
 		allIDs = append(allIDs, id)
+		report.shardIdxs[id].Close()
 	}
 	sort.Slice(allIDs, func(i int, j int) bool { return allIDs[i] < allIDs[j] })
 
@@ -143,7 +144,7 @@ func (report *reportTSI) calculateCardinalities(fn func(id uint64) error) error 
 	// Get list of shards to work on.
 	shardIDs := make([]uint64, 0, len(report.shardPaths))
 	for id := range report.shardPaths {
-		pth := path.Join(report.shardPaths[id], "index")
+		pth := filepath.Join(report.shardPaths[id], "index")
 
 		report.shardIdxs[id] = tsi1.NewIndex(report.sfile,
 			"",
