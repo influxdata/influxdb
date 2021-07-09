@@ -63,6 +63,9 @@ func (a args) Run(cmd *cobra.Command) error {
 	// Find all WAL files in provided directory
 	files, err := filepath.Glob(path.Join(a.dir, "*."+tsm1.WALFileExtension))
 	if err != nil {
+		return fmt.Errorf("failed to search for WAL files in directory %s: %w", a.dir, err)
+	}
+	if files == nil || len(files) == 0 {
 		return fmt.Errorf("failed to find WAL files in directory %s: %w", a.dir, err)
 	}
 
@@ -70,10 +73,11 @@ func (a args) Run(cmd *cobra.Command) error {
 	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 8, 2, 1, ' ', 0)
 
 	var corruptFiles []string
-	var entriesScanned int
+	var totalEntriesScanned int
 
 	// Scan each WAL file
 	for _, fpath := range files {
+		var entriesScanned int
 		f, err := os.OpenFile(fpath, os.O_RDONLY, 0600)
 		if err != nil {
 			return fmt.Errorf("error opening file %s: %w. Exiting", fpath, err)
@@ -92,19 +96,23 @@ func (a args) Run(cmd *cobra.Command) error {
 				corruptFiles = append(corruptFiles, fpath)
 				break
 			}
-
 		}
 
-		// No corrupted entry found
-		if clean {
+		if entriesScanned == 0 {
+			// No data found in file
+			_, _ = fmt.Fprintf(tw, "no WAL entries found for file %s, skipping", f.Name())
+		} else if clean {
+			// No corrupted entry found
 			_, _ = fmt.Fprintf(tw, "%s: clean\n", fpath)
 		}
+		totalEntriesScanned += entriesScanned
+		_ = tw.Flush()
 	}
 
 	// Print Summary
 	_, _ = fmt.Fprintf(tw, "Results:\n")
 	_, _ = fmt.Fprintf(tw, "  Files checked: %d\n", len(files))
-	_, _ = fmt.Fprintf(tw, "  Total entries checked: %d\n", entriesScanned)
+	_, _ = fmt.Fprintf(tw, "  Total entries checked: %d\n", totalEntriesScanned)
 	_, _ = fmt.Fprintf(tw, "  Corrupt files found: ")
 	if len(corruptFiles) == 0 {
 		_, _ = fmt.Fprintf(tw, "None")
