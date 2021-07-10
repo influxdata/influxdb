@@ -3,7 +3,7 @@ package verify_tsm
 import (
 	"bytes"
 	"encoding/binary"
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 
@@ -21,7 +21,7 @@ func TestInvalidChecksum(t *testing.T) {
 	verify.SetArgs([]string{"--dir", path})
 	require.NoError(t, verify.Execute())
 
-	out, err := ioutil.ReadAll(b)
+	out, err := io.ReadAll(b)
 	require.NoError(t, err)
 	require.Contains(t, string(out), "Broken Blocks: 1 / 1")
 }
@@ -36,7 +36,7 @@ func TestValidChecksum(t *testing.T) {
 	verify.SetArgs([]string{"--dir", path})
 	require.NoError(t, verify.Execute())
 
-	out, err := ioutil.ReadAll(b)
+	out, err := io.ReadAll(b)
 	require.NoError(t, err)
 	require.Contains(t, string(out), "Broken Blocks: 0 / 1")
 }
@@ -61,7 +61,7 @@ func TestValidUTF8(t *testing.T) {
 	verify.SetArgs([]string{"--dir", path, "--check-utf8"})
 	require.NoError(t, verify.Execute())
 
-	out, err := ioutil.ReadAll(b)
+	out, err := io.ReadAll(b)
 	require.NoError(t, err)
 	require.Contains(t, string(out), "Invalid Keys: 0 / 1")
 }
@@ -69,10 +69,10 @@ func TestValidUTF8(t *testing.T) {
 func newUTFTest(t *testing.T, withError bool) string {
 	t.Helper()
 
-	dir, err := ioutil.TempDir("", "verify-tsm")
+	dir, err := os.MkdirTemp("", "verify-tsm")
 	require.NoError(t, err)
 
-	f, err := ioutil.TempFile(dir, "verifytsmtest*"+"."+tsm1.TSMFileExtension)
+	f, err := os.CreateTemp(dir, "verifytsmtest*"+"."+tsm1.TSMFileExtension)
 	require.NoError(t, err)
 
 	w, err := tsm1.NewTSMWriter(f)
@@ -94,10 +94,10 @@ func newUTFTest(t *testing.T, withError bool) string {
 func newChecksumTest(t *testing.T, withError bool) string {
 	t.Helper()
 
-	dir, err := ioutil.TempDir("", "verify-tsm")
+	dir, err := os.MkdirTemp("", "verify-tsm")
 	require.NoError(t, err)
 
-	f, err := ioutil.TempFile(dir, "verifytsmtest*"+"."+tsm1.TSMFileExtension)
+	f, err := os.CreateTemp(dir, "verifytsmtest*"+"."+tsm1.TSMFileExtension)
 	require.NoError(t, err)
 
 	w, err := tsm1.NewTSMWriter(f)

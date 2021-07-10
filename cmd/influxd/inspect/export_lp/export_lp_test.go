@@ -3,7 +3,6 @@ package export_lp
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"sort"
@@ -373,7 +372,7 @@ func makeStringsCorpus(numSeries, numStringsPerSeries int) corpus {
 // writeCorpusToWALFile writes the given corpus as a WAL file, and returns a handle to that file.
 // It is the caller's responsibility to remove the returned temp file.
 func writeCorpusToWALFile(c corpus) (*os.File, error) {
-	walFile, err := ioutil.TempFile("", "export_test_corpus_wal")
+	walFile, err := os.CreateTemp("", "export_test_corpus_wal")
 	if err != nil {
 		return nil, err
 	}
@@ -403,7 +402,7 @@ func writeCorpusToWALFile(c corpus) (*os.File, error) {
 // writeCorpusToTSMFile writes the given corpus as a TSM file, and returns a handle to that file.
 // It is the caller's responsibility to remove the returned temp file.
 func writeCorpusToTSMFile(c corpus) (*os.File, error) {
-	tsmFile, err := ioutil.TempFile("", "export_test_corpus_tsm")
+	tsmFile, err := os.CreateTemp("", "export_test_corpus_tsm")
 	if err != nil {
 		return nil, err
 	}
