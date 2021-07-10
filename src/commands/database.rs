@@ -170,9 +170,11 @@ pub async fn command(url: String, config: Config) -> Result<()> {
     match config.command {
         Command::Create(command) => {
             let mut client = management::Client::new(connection);
+            #[allow(deprecated)]
             let rules = DatabaseRules {
                 name: command.name,
                 lifecycle_rules: Some(LifecycleRules {
+                    mutable_linger_seconds: 0,  // deprecated, not in use
                     buffer_size_soft: command.buffer_size_soft as _,
                     buffer_size_hard: command.buffer_size_hard as _,
                     drop_non_persisted: command.drop_non_persisted,

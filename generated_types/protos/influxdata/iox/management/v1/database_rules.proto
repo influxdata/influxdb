@@ -32,6 +32,8 @@ message PartitionTemplate {
 }
 
 message LifecycleRules {
+  uint32 mutable_linger_seconds = 1 [deprecated = true];
+
   // Once the total amount of buffered data in memory reaches this size start
   // dropping data from memory
   uint64 buffer_size_soft = 4;
