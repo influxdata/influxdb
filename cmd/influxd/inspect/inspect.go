@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/verify_seriesfile"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/verify_tombstone"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/verify_tsm"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/dump_wal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -36,6 +37,7 @@ func NewCommand(v *viper.Viper) (*cobra.Command, error) {
 	base.AddCommand(dump_tsm.NewDumpTSMCommand())
 	base.AddCommand(dump_tsi.NewDumpTSICommand())
 	base.AddCommand(delete_tsm.NewDeleteTSMCommand())
+	base.AddCommand(dump_wal.NewDumpWALCommand())
 
 	return base, nil
 }
