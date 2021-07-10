@@ -208,7 +208,7 @@ impl TestChunk {
         self
     }
 
-    /// Register an tag column with the test chunk
+    /// Register a tag column with the test chunk with default stats
     pub fn with_tag_column(self, column_name: impl Into<String>) -> Self {
         let column_name = column_name.into();
 
@@ -216,10 +216,10 @@ impl TestChunk {
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new().tag(&column_name).build().unwrap();
 
-        self.add_schema_to_table(new_column_schema, None)
+        self.add_schema_to_table(new_column_schema, true, None)
     }
 
-    /// Register an tag column with the test chunk
+    /// Register a tag column with the test chunk
     pub fn with_tag_column_with_stats(
         self,
         column_name: impl Into<String>,
@@ -239,16 +239,16 @@ impl TestChunk {
             ..Default::default()
         });
 
-        self.add_schema_to_table(new_column_schema, Some(stats))
+        self.add_schema_to_table(new_column_schema, true, Some(stats))
     }
 
-    /// Register a timestamp column with the test chunk
+    /// Register a timestamp column with the test chunk with default stats
     pub fn with_time_column(self) -> Self {
         // make a new schema with the specified column and
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new().timestamp().build().unwrap();
 
-        self.add_schema_to_table(new_column_schema, None)
+        self.add_schema_to_table(new_column_schema, true, None)
     }
 
     /// Register a timestamp column with the test chunk
@@ -264,10 +264,10 @@ impl TestChunk {
             ..Default::default()
         });
 
-        self.add_schema_to_table(new_column_schema, Some(stats))
+        self.add_schema_to_table(new_column_schema, true, Some(stats))
     }
 
-    /// Register an int field column with the test chunk
+    /// Register an int field column with the test chunk with default stats
     pub fn with_int_field_column(self, column_name: impl Into<String>) -> Self {
         let column_name = column_name.into();
 
@@ -277,40 +277,21 @@ impl TestChunk {
             .field(&column_name, DataType::Int64)
             .build()
             .unwrap();
-        self.add_schema_to_table(new_column_schema, None)
+        self.add_schema_to_table(new_column_schema, true, None)
     }
 
-    fn add_schema_to_table(mut self, new_column_schema: Schema, stats: Option<Statistics>) -> Self {
+    /// Adds the specified schema and optionally a column summary containing optional stats.
+    /// If `add_column_summary` is false, `stats` is ignored. If `add_column_summary` is true but
+    /// `stats` is `None`, default stats will be added to the column summary.
+    fn add_schema_to_table(
+        mut self,
+        new_column_schema: Schema,
+        add_column_summary: bool,
+        stats: Option<Statistics>,
+    ) -> Self {
         // assume the new schema has exactly a single table
         assert_eq!(new_column_schema.len(), 1);
         let (col_type, new_field) = new_column_schema.field(0);
-
-        let influxdb_type = col_type.map(|t| match t {
-            InfluxColumnType::IOx(_) => todo!(),
-            InfluxColumnType::Tag => InfluxDbType::Tag,
-            InfluxColumnType::Field(_) => InfluxDbType::Field,
-            InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
-        });
-
-        let stats = stats.unwrap_or_else(|| match new_field.data_type() {
-            DataType::Boolean => Statistics::Bool(StatValues::default()),
-            DataType::Int64 => Statistics::I64(StatValues::default()),
-            DataType::UInt64 => Statistics::U64(StatValues::default()),
-            DataType::Utf8 => Statistics::String(StatValues::default()),
-            DataType::Dictionary(_, value_type) => {
-                assert!(matches!(**value_type, DataType::Utf8));
-                Statistics::String(StatValues::default())
-            }
-            DataType::Float64 => Statistics::String(StatValues::default()),
-            DataType::Timestamp(_, _) => Statistics::I64(StatValues::default()),
-            _ => panic!("Unsupported type in TestChunk: {:?}", new_field.data_type()),
-        });
-
-        let column_summary = ColumnSummary {
-            name: new_field.name().clone(),
-            influxdb_type,
-            stats,
-        };
 
         let mut merger = SchemaMerger::new();
         merger = merger.merge(&new_column_schema).unwrap();
@@ -319,7 +300,36 @@ impl TestChunk {
             .expect("merging was successful");
         self.schema = Arc::new(merger.build());
 
-        self.table_summary.columns.push(column_summary);
+        if add_column_summary {
+            let influxdb_type = col_type.map(|t| match t {
+                InfluxColumnType::IOx(_) => todo!(),
+                InfluxColumnType::Tag => InfluxDbType::Tag,
+                InfluxColumnType::Field(_) => InfluxDbType::Field,
+                InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
+            });
+
+            let stats = stats.unwrap_or_else(|| match new_field.data_type() {
+                DataType::Boolean => Statistics::Bool(StatValues::default()),
+                DataType::Int64 => Statistics::I64(StatValues::default()),
+                DataType::UInt64 => Statistics::U64(StatValues::default()),
+                DataType::Utf8 => Statistics::String(StatValues::default()),
+                DataType::Dictionary(_, value_type) => {
+                    assert!(matches!(**value_type, DataType::Utf8));
+                    Statistics::String(StatValues::default())
+                }
+                DataType::Float64 => Statistics::String(StatValues::default()),
+                DataType::Timestamp(_, _) => Statistics::I64(StatValues::default()),
+                _ => panic!("Unsupported type in TestChunk: {:?}", new_field.data_type()),
+            });
+
+            let column_summary = ColumnSummary {
+                name: new_field.name().clone(),
+                influxdb_type,
+                stats,
+            };
+
+            self.table_summary.columns.push(column_summary);
+        }
 
         self
     }
