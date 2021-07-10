@@ -343,7 +343,7 @@ impl TestChunk {
 
     /// Prepares this chunk to return a specific record batch with one
     /// row of non null data.
-    pub fn with_one_row_of_null_data(mut self) -> Self {
+    pub fn with_one_row_of_data(mut self) -> Self {
         // create arrays
         let columns = self
             .schema

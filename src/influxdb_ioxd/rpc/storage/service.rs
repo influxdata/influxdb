@@ -1588,7 +1588,7 @@ mod tests {
         let chunk = TestChunk::new("TheMeasurement")
             .with_time_column()
             .with_tag_column("state")
-            .with_one_row_of_null_data();
+            .with_one_row_of_data();
 
         fixture
             .test_storage
@@ -1679,7 +1679,7 @@ mod tests {
             .with_int_field_column("Field1")
             .with_time_column()
             .with_tag_column("state")
-            .with_one_row_of_null_data();
+            .with_one_row_of_data();
 
         fixture
             .test_storage
@@ -1795,7 +1795,7 @@ mod tests {
         let chunk = TestChunk::new("TheMeasurement")
             .with_time_column()
             .with_tag_column("state")
-            .with_one_row_of_null_data();
+            .with_one_row_of_data();
 
         fixture
             .test_storage
@@ -1948,7 +1948,7 @@ mod tests {
         let chunk = TestChunk::new("TheMeasurement")
             .with_time_column()
             .with_tag_column("state")
-            .with_one_row_of_null_data();
+            .with_one_row_of_data();
 
         fixture
             .test_storage
@@ -2034,7 +2034,7 @@ mod tests {
         let chunk = TestChunk::new("TheMeasurement")
             .with_time_column()
             .with_tag_column("state")
-            .with_one_row_of_null_data();
+            .with_one_row_of_data();
 
         fixture
             .test_storage
@@ -2168,7 +2168,7 @@ mod tests {
         let chunk = TestChunk::new("TheMeasurement")
             .with_time_column()
             .with_tag_column("state")
-            .with_one_row_of_null_data();
+            .with_one_row_of_data();
 
         fixture
             .test_storage
@@ -2228,7 +2228,7 @@ mod tests {
         let chunk = TestChunk::new("TheMeasurement")
             .with_time_column()
             .with_tag_column("state")
-            .with_one_row_of_null_data();
+            .with_one_row_of_data();
 
         fixture
             .test_storage
@@ -2353,7 +2353,7 @@ mod tests {
             .with_int_field_column("Field1")
             .with_time_column()
             .with_tag_column("state")
-            .with_one_row_of_null_data();
+            .with_one_row_of_data();
 
         fixture
             .test_storage
