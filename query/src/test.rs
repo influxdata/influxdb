@@ -21,9 +21,7 @@ use data_types::{
 use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
 use futures::StreamExt;
 use internal_types::{
-    schema::{
-        builder::SchemaBuilder, merge::SchemaMerger, InfluxColumnType, Schema, TIME_COLUMN_NAME,
-    },
+    schema::{builder::SchemaBuilder, merge::SchemaMerger, InfluxColumnType, Schema},
     selection::Selection,
 };
 use parking_lot::Mutex;
@@ -218,7 +216,7 @@ impl TestChunk {
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new().tag(&column_name).build().unwrap();
 
-        self.add_schema_to_table(new_column_schema)
+        self.add_schema_to_table(new_column_schema, None)
     }
 
     /// Register an tag column with the test chunk
@@ -230,23 +228,18 @@ impl TestChunk {
     ) -> Self {
         let column_name = column_name.into();
 
-        let mut new_self = self.with_tag_column(&column_name);
+        // make a new schema with the specified column and
+        // merge it in to any existing schema
+        let new_column_schema = SchemaBuilder::new().tag(&column_name).build().unwrap();
 
-        // Now, find the appropriate column summary and update the stats
-        let column_summary: &mut ColumnSummary = new_self
-            .table_summary
-            .columns
-            .iter_mut()
-            .find(|c| c.name == column_name)
-            .expect("had column");
-
-        column_summary.stats = Statistics::String(StatValues {
+        // Construct stats
+        let stats = Statistics::String(StatValues {
             min: Some(min.to_string()),
             max: Some(max.to_string()),
             ..Default::default()
         });
 
-        new_self
+        self.add_schema_to_table(new_column_schema, Some(stats))
     }
 
     /// Register a timestamp column with the test chunk
@@ -255,28 +248,23 @@ impl TestChunk {
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new().timestamp().build().unwrap();
 
-        self.add_schema_to_table(new_column_schema)
+        self.add_schema_to_table(new_column_schema, None)
     }
 
     /// Register a timestamp column with the test chunk
     pub fn with_time_column_with_stats(self, min: i64, max: i64) -> Self {
-        let mut new_self = self.with_time_column();
+        // make a new schema with the specified column and
+        // merge it in to any existing schema
+        let new_column_schema = SchemaBuilder::new().timestamp().build().unwrap();
 
-        // Now, find the appropriate column summary and update the stats
-        let column_summary: &mut ColumnSummary = new_self
-            .table_summary
-            .columns
-            .iter_mut()
-            .find(|c| c.name == TIME_COLUMN_NAME)
-            .expect("had column");
-
-        column_summary.stats = Statistics::I64(StatValues {
+        // Construct stats
+        let stats = Statistics::I64(StatValues {
             min: Some(min),
             max: Some(max),
             ..Default::default()
         });
 
-        new_self
+        self.add_schema_to_table(new_column_schema, Some(stats))
     }
 
     /// Register an int field column with the test chunk
@@ -289,10 +277,10 @@ impl TestChunk {
             .field(&column_name, DataType::Int64)
             .build()
             .unwrap();
-        self.add_schema_to_table(new_column_schema)
+        self.add_schema_to_table(new_column_schema, None)
     }
 
-    fn add_schema_to_table(mut self, new_column_schema: Schema) -> Self {
+    fn add_schema_to_table(mut self, new_column_schema: Schema, stats: Option<Statistics>) -> Self {
         // assume the new schema has exactly a single table
         assert_eq!(new_column_schema.len(), 1);
         let (col_type, new_field) = new_column_schema.field(0);
@@ -304,7 +292,7 @@ impl TestChunk {
             InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
         });
 
-        let stats = match new_field.data_type() {
+        let stats = stats.unwrap_or_else(|| match new_field.data_type() {
             DataType::Boolean => Statistics::Bool(StatValues::default()),
             DataType::Int64 => Statistics::I64(StatValues::default()),
             DataType::UInt64 => Statistics::U64(StatValues::default()),
@@ -316,7 +304,7 @@ impl TestChunk {
             DataType::Float64 => Statistics::String(StatValues::default()),
             DataType::Timestamp(_, _) => Statistics::I64(StatValues::default()),
             _ => panic!("Unsupported type in TestChunk: {:?}", new_field.data_type()),
-        };
+        });
 
         let column_summary = ColumnSummary {
             name: new_field.name().clone(),
