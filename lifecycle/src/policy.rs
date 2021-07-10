@@ -552,7 +552,7 @@ fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<
 
     match chunk.time_of_last_write() {
         Some(last_write)
-            if elapsed_seconds(now, last_write) >= rules.mutable_linger_seconds.get() =>
+            if elapsed_seconds(now, last_write) >= rules.late_arrive_window_seconds.get() =>
         {
             true
         }
@@ -1031,9 +1031,9 @@ mod tests {
 
     #[test]
     fn test_can_move() {
-        // If only mutable_linger set can move a chunk once passed
+        // If only late_arrival set can move a chunk once passed
         let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
+            late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
         let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer);
@@ -1130,9 +1130,9 @@ mod tests {
     }
 
     #[test]
-    fn test_mutable_linger() {
+    fn test_late_arrival() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
+            late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
         let chunks = vec![
@@ -1176,7 +1176,7 @@ mod tests {
     async fn test_backoff() {
         let mut registry = TaskRegistry::new();
         let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(100).unwrap(),
+            late_arrive_window_seconds: NonZeroU32::new(100).unwrap(),
             ..Default::default()
         };
         let db = TestDb::new(rules, vec![]);
@@ -1320,7 +1320,7 @@ mod tests {
     #[test]
     fn test_compact() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
+            late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
             persist_row_threshold: NonZeroUsize::new(1_000).unwrap(),
             ..Default::default()
         };
@@ -1411,7 +1411,6 @@ mod tests {
     #[test]
     fn test_persist() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             persist: true,
             persist_row_threshold: NonZeroUsize::new(1_000).unwrap(),
             late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
@@ -1439,7 +1438,7 @@ mod tests {
             .with_persistence(1_000, now, from_secs(20)),
             // Writes too old => persist
             TestPartition::new(vec![
-                // Should split open chunks irrespective of mutable_linger_seconds
+                // Should split open chunks
                 TestChunk::new(4, Some(0), Some(20), ChunkStorage::OpenMutableBuffer)
                     .with_min_timestamp(from_secs(10)),
                 TestChunk::new(5, Some(0), Some(0), ChunkStorage::ReadBuffer)
@@ -1508,7 +1507,7 @@ mod tests {
     #[test]
     fn test_moves_open() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
+            late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
         let chunks = vec![TestChunk::new(
@@ -1528,7 +1527,7 @@ mod tests {
     #[test]
     fn test_moves_closed() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
+            late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
         let chunks = vec![TestChunk::new(

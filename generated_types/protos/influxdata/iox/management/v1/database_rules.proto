@@ -32,13 +32,6 @@ message PartitionTemplate {
 }
 
 message LifecycleRules {
-  // A chunk of data within a partition that has been cold for writes for this
-  // many seconds will be frozen and compacted (moved to the read buffer)
-  // if the chunk is older than mutable_min_lifetime_seconds
-  //
-  // Represents the chunk transition open -> moving and closed -> moving
-  uint32 mutable_linger_seconds = 1;
-
   // Once the total amount of buffered data in memory reaches this size start
   // dropping data from memory
   uint64 buffer_size_soft = 4;
@@ -69,7 +62,9 @@ message LifecycleRules {
   // If 0 / absent, this default to 100.
   uint64 catalog_transactions_until_checkpoint = 11;
 
-  // The average timestamp skew across concurrent writers
+  /// Writers will generally have this amount of time to send late arriving writes
+  /// or this could be their clock skew. Once a partition hasn't recieved a write
+  /// for this period of time, it will be compacted and, if set, persisted.
   uint32 late_arrive_window_seconds = 12;
 
   // Maximum number of rows before triggering persistence
