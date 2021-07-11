@@ -276,13 +276,11 @@ where
 
 #[cfg(test)]
 mod test {
-    use data_types::partition_metadata::{
-        ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
-    };
-    use internal_types::schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME};
-    use std::sync::Arc;
-
     use super::*;
+    use crate::{test::TestChunk as TestChunkInner, QueryChunk};
+    use data_types::partition_metadata::TableSummary;
+    use internal_types::schema::Schema;
+    use std::sync::Arc;
 
     #[macro_export]
     macro_rules! assert_groups_eq {
@@ -569,115 +567,71 @@ mod test {
     fn to_string(groups: Vec<Vec<TestChunk>>) -> Vec<String> {
         let mut s = vec![];
         for (idx, group) in groups.iter().enumerate() {
-            let names = group.iter().map(|c| c.name.as_str()).collect::<Vec<_>>();
+            let names = group
+                .iter()
+                .map(|c| c.test_chunk_inner.table_name())
+                .collect::<Vec<_>>();
             s.push(format!("Group {}: [{}]", idx, names.join(", ")));
         }
         s
     }
 
     /// Mocked out prunable provider to use testing overlaps
-    #[derive(Debug, Clone)]
+    #[derive(Debug)]
     struct TestChunk {
-        // The name of this chunk
-        name: String,
-        summary: TableSummary,
-        builder: SchemaBuilder,
-    }
-
-    /// Implementation of creating a new column with statitics for TestChunkMeta
-    macro_rules! make_stats {
-        ($MIN:expr, $MAX:expr, $STAT_TYPE:ident) => {{
-            Statistics::$STAT_TYPE(StatValues {
-                distinct_count: None,
-                min: $MIN,
-                max: $MAX,
-                count: 42,
-            })
-        }};
+        test_chunk_inner: TestChunkInner,
     }
 
     impl TestChunk {
         /// Create a new TestChunk with a specified name
         fn new(name: impl Into<String>) -> Self {
-            let name = name.into();
-            let summary = TableSummary::new(name.clone());
-            let builder = SchemaBuilder::new();
             Self {
-                name,
-                summary,
-                builder,
+                test_chunk_inner: TestChunkInner::new(name),
             }
         }
 
         /// Adds a tag column with the specified min/max values
-        fn with_tag(
-            mut self,
-            name: impl Into<String>,
-            min: Option<&str>,
-            max: Option<&str>,
-        ) -> Self {
-            let min = min.map(|v| v.to_string());
-            let max = max.map(|v| v.to_string());
+        fn with_tag(self, name: impl Into<String>, min: Option<&str>, max: Option<&str>) -> Self {
+            let Self { test_chunk_inner } = self;
 
-            let tag_name = name.into();
-            self.builder.tag(&tag_name);
+            let test_chunk_inner = test_chunk_inner.with_tag_column_with_stats(name, min, max);
 
-            self.summary.columns.push(ColumnSummary {
-                name: tag_name,
-                influxdb_type: Some(InfluxDbType::Tag),
-                stats: make_stats!(min, max, String),
-            });
-            self
+            Self { test_chunk_inner }
         }
 
         /// Adds a timestamp column with the specified min/max values
-        fn with_timestamp(mut self, min: i64, max: i64) -> Self {
-            self.builder.timestamp();
+        fn with_timestamp(self, min: i64, max: i64) -> Self {
+            let Self { test_chunk_inner } = self;
 
-            let min = Some(min);
-            let max = Some(max);
+            let test_chunk_inner =
+                test_chunk_inner.with_time_column_with_stats(Some(min), Some(max));
 
-            self.summary.columns.push(ColumnSummary {
-                name: TIME_COLUMN_NAME.into(),
-                influxdb_type: Some(InfluxDbType::Timestamp),
-                stats: make_stats!(min, max, I64),
-            });
-            self
+            Self { test_chunk_inner }
         }
 
         /// Adds an I64 field column with the specified min/max values
         fn with_int_field(
-            mut self,
+            self,
             name: impl Into<String>,
             min: Option<i64>,
             max: Option<i64>,
         ) -> Self {
-            let field_name = name.into();
-            self.builder
-                .field(&field_name, arrow::datatypes::DataType::Int64);
+            let Self { test_chunk_inner } = self;
 
-            self.summary.columns.push(ColumnSummary {
-                name: field_name,
-                influxdb_type: Some(InfluxDbType::Field),
-                stats: make_stats!(min, max, I64),
-            });
-            self
+            let test_chunk_inner =
+                test_chunk_inner.with_i64_field_column_with_stats(name, min, max);
+
+            Self { test_chunk_inner }
         }
     }
 
     impl QueryChunkMeta for TestChunk {
         fn summary(&self) -> &TableSummary {
-            &self.summary
+            &self.test_chunk_inner.summary()
         }
 
         fn schema(&self) -> Arc<Schema> {
-            let schema = self
-                .builder
-                // need to clone because `build` resets builder state
-                .clone()
-                .build()
-                .expect("created schema");
-            Arc::new(schema)
+            Arc::clone(&self.test_chunk_inner.schema())
         }
     }
 }
