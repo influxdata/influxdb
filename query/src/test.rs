@@ -26,7 +26,7 @@ use internal_types::{
 };
 use parking_lot::Mutex;
 use snafu::Snafu;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, fmt, sync::Arc};
 
 #[derive(Debug, Default)]
 pub struct TestDatabase {
@@ -452,7 +452,7 @@ impl TestChunk {
     /// Adds the specified schema and optionally a column summary containing optional stats.
     /// If `add_column_summary` is false, `stats` is ignored. If `add_column_summary` is true but
     /// `stats` is `None`, default stats will be added to the column summary.
-    pub fn add_schema_to_table(
+    fn add_schema_to_table(
         mut self,
         new_column_schema: Schema,
         add_column_summary: bool,
@@ -825,6 +825,12 @@ impl TestChunk {
             .map(|(_, field)| field.name().to_string())
             .filter(|col| columns.contains(&col.as_str()))
             .collect()
+    }
+}
+
+impl fmt::Display for TestChunk {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.table_name())
     }
 }
 
