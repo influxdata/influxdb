@@ -168,11 +168,10 @@ mod test {
     use std::{cell::RefCell, fmt, sync::Arc};
 
     use arrow::datatypes::DataType;
-    use data_types::partition_metadata::{ColumnSummary, StatValues, Statistics};
     use datafusion::logical_plan::{col, lit};
-    use internal_types::schema::{builder::SchemaBuilder, merge::SchemaMerger, Schema};
+    use internal_types::schema::{builder::SchemaBuilder, Schema};
 
-    use crate::predicate::PredicateBuilder;
+    use crate::{predicate::PredicateBuilder, test::TestChunk, QueryChunk};
 
     #[test]
     fn test_empty() {
@@ -657,7 +656,7 @@ mod test {
     }
 
     fn names(pruned: &[Arc<TestChunkMeta>]) -> Vec<&str> {
-        pruned.iter().map(|p| p.name.as_str()).collect()
+        pruned.iter().map(|p| p.test_chunk.table_name()).collect()
     }
 
     #[derive(Debug, Default)]
@@ -695,49 +694,15 @@ mod test {
         }
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug)]
     struct TestChunkMeta {
-        name: String,
-        summary: TableSummary,
-        schema: Arc<Schema>,
-    }
-
-    /// Implementation of creating a new column with statitics for TestChunkMeta
-    macro_rules! impl_with_column {
-        ($SELF:expr, $COLUMN_NAME:expr, $MIN:expr, $MAX:expr, $DATA_TYPE:ident, $STAT_TYPE:ident) => {{
-            let Self {
-                name,
-                summary,
-                schema,
-            } = $SELF;
-            let column_name = $COLUMN_NAME.into();
-            let new_self = Self {
-                name,
-                schema: Self::add_field_to_schema(&column_name, schema, DataType::$DATA_TYPE),
-                summary: Self::add_column_to_summary(
-                    summary,
-                    column_name,
-                    Statistics::$STAT_TYPE(StatValues {
-                        distinct_count: None,
-                        min: $MIN,
-                        max: $MAX,
-                        count: 42,
-                    }),
-                ),
-            };
-            new_self
-        }};
+        test_chunk: TestChunk,
     }
 
     impl TestChunkMeta {
         fn new(name: impl Into<String>) -> Self {
-            let name = name.into();
-            let summary = TableSummary::new(&name);
-            let schema = Arc::new(SchemaBuilder::new().build().unwrap());
             Self {
-                name,
-                summary,
-                schema,
+                test_chunk: TestChunk::new(name),
             }
         }
 
@@ -748,7 +713,11 @@ mod test {
             min: Option<f64>,
             max: Option<f64>,
         ) -> Self {
-            impl_with_column!(self, column_name, min, max, Float64, F64)
+            let Self { test_chunk } = self;
+
+            let test_chunk = test_chunk.with_f64_field_column_with_stats(column_name, min, max);
+
+            Self { test_chunk }
         }
 
         /// Adds an i64 column named into the schema
@@ -758,22 +727,29 @@ mod test {
             min: Option<i64>,
             max: Option<i64>,
         ) -> Self {
-            impl_with_column!(self, column_name, min, max, Int64, I64)
+            let Self { test_chunk } = self;
+
+            let test_chunk = test_chunk.with_int_field_column_with_stats(column_name, min, max);
+
+            Self { test_chunk }
         }
 
         /// Adds an i64 column named into the schema, but with no stats
-        fn with_i64_column_no_stats(self, column_name: impl AsRef<str>) -> Self {
-            let Self {
-                name,
-                summary,
-                schema,
-            } = self;
-            Self {
-                name,
-                schema: Self::add_field_to_schema(column_name.as_ref(), schema, DataType::Int64),
-                // Note we don't add any stats
-                summary,
-            }
+        fn with_i64_column_no_stats(self, column_name: impl Into<String>) -> Self {
+            let Self { test_chunk } = self;
+
+            let column_name = column_name.into();
+
+            // make a new schema with the specified column and
+            // merge it in to any existing schema
+            let new_column_schema = SchemaBuilder::new()
+                .field(&column_name, DataType::Int64)
+                .build()
+                .unwrap();
+
+            let test_chunk = test_chunk.add_schema_to_table(new_column_schema, false, None);
+
+            Self { test_chunk }
         }
 
         /// Adds an u64 column named into the schema
@@ -783,7 +759,11 @@ mod test {
             min: Option<u64>,
             max: Option<u64>,
         ) -> Self {
-            impl_with_column!(self, column_name, min, max, UInt64, U64)
+            let Self { test_chunk } = self;
+
+            let test_chunk = test_chunk.with_u64_field_column_with_stats(column_name, min, max);
+
+            Self { test_chunk }
         }
 
         /// Adds bool column named into the schema
@@ -793,7 +773,11 @@ mod test {
             min: Option<bool>,
             max: Option<bool>,
         ) -> Self {
-            impl_with_column!(self, column_name, min, max, Boolean, Bool)
+            let Self { test_chunk } = self;
+
+            let test_chunk = test_chunk.with_bool_field_column_with_stats(column_name, min, max);
+
+            Self { test_chunk }
         }
 
         /// Adds a string column named into the schema
@@ -803,59 +787,27 @@ mod test {
             min: Option<&str>,
             max: Option<&str>,
         ) -> Self {
-            let min = min.map(|v| v.to_string());
-            let max = max.map(|v| v.to_string());
-            impl_with_column!(self, column_name, min, max, Utf8, String)
-        }
+            let Self { test_chunk } = self;
 
-        fn add_field_to_schema(
-            column_name: &str,
-            schema: Arc<Schema>,
-            data_type: DataType,
-        ) -> Arc<Schema> {
-            let new_schema = SchemaBuilder::new()
-                .field(column_name, data_type)
-                .build()
-                .expect("built new field schema");
+            let test_chunk = test_chunk.with_string_field_column_with_stats(column_name, min, max);
 
-            let new_schema = SchemaMerger::new()
-                .merge(schema.as_ref())
-                .expect("merged existing schema")
-                .merge(&new_schema)
-                .expect("merged new schema")
-                .build();
-
-            Arc::new(new_schema)
-        }
-
-        fn add_column_to_summary(
-            mut summary: TableSummary,
-            column_name: impl Into<String>,
-            stats: Statistics,
-        ) -> TableSummary {
-            summary.columns.push(ColumnSummary {
-                name: column_name.into(),
-                influxdb_type: None,
-                stats,
-            });
-
-            summary
+            Self { test_chunk }
         }
     }
 
     impl fmt::Display for TestChunkMeta {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "{}", self.name)
+            write!(f, "{}", self.test_chunk.table_name())
         }
     }
 
     impl QueryChunkMeta for TestChunkMeta {
         fn summary(&self) -> &TableSummary {
-            &self.summary
+            &self.test_chunk.summary()
         }
 
         fn schema(&self) -> Arc<Schema> {
-            Arc::clone(&self.schema)
+            Arc::clone(&self.test_chunk.schema())
         }
     }
 }
