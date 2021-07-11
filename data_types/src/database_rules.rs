@@ -147,9 +147,10 @@ pub struct LifecycleRules {
     /// After how many transactions should IOx write a new checkpoint?
     pub catalog_transactions_until_checkpoint: NonZeroU64,
 
-    /// Writers will generally have this amount of time to send late arriving writes
-    /// or this could be their clock skew. Once a partition hasn't recieved a write
-    /// for this period of time, it will be compacted and, if set, persisted.
+    /// Once a partition hasn't received a write for this period of time,
+    /// it will be compacted and, if set, persisted. Writers will generally
+    /// have this amount of time to send late arriving writes or this could
+    /// be their clock skew.
     pub late_arrive_window_seconds: NonZeroU32,
 
     /// Maximum number of rows before triggering persistence

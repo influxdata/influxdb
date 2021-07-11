@@ -101,9 +101,10 @@ struct Create {
     #[structopt(long, default_value = "100", parse(try_from_str))]
     catalog_transactions_until_checkpoint: NonZeroU64,
 
-    /// Writers will generally have this amount of time to send late arriving writes
-    /// or this could be their clock skew. Once a partition hasn't recieved a write
-    /// for this period of time, it will be compacted and, if set, persisted.
+    /// Once a partition hasn't received a write for this period of time,
+    /// it will be compacted and, if set, persisted. Writers will generally
+    /// have this amount of time to send late arriving writes or this could
+    /// be their clock skew.
     #[structopt(long, default_value = "300")]
     late_arrive_window_seconds: u32,
 
