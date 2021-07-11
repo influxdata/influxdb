@@ -280,6 +280,20 @@ impl TestChunk {
         self.add_schema_to_table(new_column_schema, true, None)
     }
 
+    /// Adds an i64 column named into the schema, but with no stats
+    pub fn with_i64_field_column_no_stats(self, column_name: impl Into<String>) -> Self {
+        let column_name = column_name.into();
+
+        // make a new schema with the specified column and
+        // merge it in to any existing schema
+        let new_column_schema = SchemaBuilder::new()
+            .field(&column_name, DataType::Int64)
+            .build()
+            .unwrap();
+
+        self.add_schema_to_table(new_column_schema, false, None)
+    }
+
     pub fn with_i64_field_column_with_stats(
         self,
         column_name: impl Into<String>,

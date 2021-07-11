@@ -167,9 +167,8 @@ mod test {
     use super::*;
     use std::{cell::RefCell, fmt, sync::Arc};
 
-    use arrow::datatypes::DataType;
     use datafusion::logical_plan::{col, lit};
-    use internal_types::schema::{builder::SchemaBuilder, Schema};
+    use internal_types::schema::Schema;
 
     use crate::{predicate::PredicateBuilder, test::TestChunk, QueryChunk};
 
@@ -738,16 +737,7 @@ mod test {
         fn with_i64_column_no_stats(self, column_name: impl Into<String>) -> Self {
             let Self { test_chunk } = self;
 
-            let column_name = column_name.into();
-
-            // make a new schema with the specified column and
-            // merge it in to any existing schema
-            let new_column_schema = SchemaBuilder::new()
-                .field(&column_name, DataType::Int64)
-                .build()
-                .unwrap();
-
-            let test_chunk = test_chunk.add_schema_to_table(new_column_schema, false, None);
+            let test_chunk = test_chunk.with_i64_field_column_no_stats(column_name);
 
             Self { test_chunk }
         }
