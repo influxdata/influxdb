@@ -268,7 +268,7 @@ impl TestChunk {
     }
 
     /// Register an int field column with the test chunk with default stats
-    pub fn with_int_field_column(self, column_name: impl Into<String>) -> Self {
+    pub fn with_i64_field_column(self, column_name: impl Into<String>) -> Self {
         let column_name = column_name.into();
 
         // make a new schema with the specified column and
@@ -280,7 +280,7 @@ impl TestChunk {
         self.add_schema_to_table(new_column_schema, true, None)
     }
 
-    pub fn with_int_field_column_with_stats(
+    pub fn with_i64_field_column_with_stats(
         self,
         column_name: impl Into<String>,
         min: Option<i64>,

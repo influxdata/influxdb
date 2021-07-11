@@ -273,7 +273,7 @@ mod test {
             TestChunk::new("t")
                 .with_time_column_with_stats(Some(5), Some(7000))
                 .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
 
@@ -282,8 +282,8 @@ mod test {
             TestChunk::new("t")
                 .with_time_column_with_stats(Some(5), Some(7000))
                 .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
-                .with_int_field_column("field_int")
-                .with_int_field_column("field_int2")
+                .with_i64_field_column("field_int")
+                .with_i64_field_column("field_int2")
                 .with_four_rows_of_data(),
         );
 

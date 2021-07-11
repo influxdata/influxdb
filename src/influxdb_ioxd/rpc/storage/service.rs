@@ -1676,7 +1676,7 @@ mod tests {
 
         // Add a chunk with a field
         let chunk = TestChunk::new("TheMeasurement")
-            .with_int_field_column("Field1")
+            .with_i64_field_column("Field1")
             .with_time_column()
             .with_tag_column("state")
             .with_one_row_of_data();
@@ -2350,7 +2350,7 @@ mod tests {
 
         // Add a chunk with a field
         let chunk = TestChunk::new("TheMeasurement")
-            .with_int_field_column("Field1")
+            .with_i64_field_column("Field1")
             .with_time_column()
             .with_tag_column("state")
             .with_one_row_of_data();

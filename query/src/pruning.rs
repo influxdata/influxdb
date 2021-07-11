@@ -729,7 +729,7 @@ mod test {
         ) -> Self {
             let Self { test_chunk } = self;
 
-            let test_chunk = test_chunk.with_int_field_column_with_stats(column_name, min, max);
+            let test_chunk = test_chunk.with_i64_field_column_with_stats(column_name, min, max);
 
             Self { test_chunk }
         }

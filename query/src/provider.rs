@@ -813,7 +813,7 @@ mod test {
             TestChunk::new("t")
                 .with_time_column()
                 .with_tag_column("tag1")
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
 
@@ -868,7 +868,7 @@ mod test {
                 .with_time_column()
                 .with_tag_column("tag1")
                 .with_tag_column("tag2")
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
 
@@ -923,7 +923,7 @@ mod test {
                 .with_time_column()
                 .with_tag_column("tag1")
                 .with_tag_column("tag2")
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
 
@@ -961,7 +961,7 @@ mod test {
                 .with_time_column()
                 .with_tag_column("tag1")
                 .with_tag_column("tag2")
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
 
@@ -972,7 +972,7 @@ mod test {
                 .with_time_column()
                 .with_tag_column("tag1")
                 .with_tag_column("tag2")
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
         // Datafusion schema of the chunk
@@ -1031,7 +1031,7 @@ mod test {
                 .with_time_column()
                 .with_tag_column("tag1")
                 .with_tag_column("tag2")
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
 
@@ -1042,7 +1042,7 @@ mod test {
                 .with_time_column()
                 .with_tag_column("tag1")
                 .with_tag_column("tag2")
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
         let chunks = vec![chunk1, chunk2];
@@ -1105,7 +1105,7 @@ mod test {
                 .with_time_column()
                 .with_tag_column("tag1")
                 .with_tag_column("tag2")
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
 
@@ -1115,7 +1115,7 @@ mod test {
                 .with_id(2)
                 .with_time_column()
                 .with_tag_column("tag1")
-                .with_int_field_column("other_field_int")
+                .with_i64_field_column("other_field_int")
                 .with_five_rows_of_data(),
         );
 
@@ -1125,7 +1125,7 @@ mod test {
                 .with_id(3)
                 .with_time_column()
                 .with_tag_column("tag1")
-                .with_int_field_column("other_field_int")
+                .with_i64_field_column("other_field_int")
                 .with_five_rows_of_data(),
         );
 
@@ -1197,7 +1197,7 @@ mod test {
                 .with_time_column()
                 .with_tag_column("tag1")
                 .with_tag_column("tag2")
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
 
@@ -1208,7 +1208,7 @@ mod test {
                 .with_time_column()
                 .with_tag_column("tag3")
                 .with_tag_column("tag1")
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
 
@@ -1218,8 +1218,8 @@ mod test {
                 .with_id(3)
                 .with_time_column()
                 .with_tag_column("tag3")
-                .with_int_field_column("field_int")
-                .with_int_field_column("field_int2")
+                .with_i64_field_column("field_int")
+                .with_i64_field_column("field_int2")
                 .with_five_rows_of_data(),
         );
 
@@ -1297,7 +1297,7 @@ mod test {
             TestChunk::new("t")
                 .with_time_column_with_stats(Some(5), Some(7000))
                 .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
 
@@ -1345,7 +1345,7 @@ mod test {
             TestChunk::new("t")
                 .with_time_column_with_stats(Some(5), Some(7000))
                 .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
                 .with_ten_rows_of_data_some_duplicates(),
         );
@@ -1401,7 +1401,7 @@ mod test {
             TestChunk::new("t")
                 .with_time_column_with_stats(Some(5), Some(7000))
                 .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
                 .with_ten_rows_of_data_some_duplicates(),
         );
@@ -1466,7 +1466,7 @@ mod test {
             TestChunk::new("t")
                 .with_time_column_with_stats(Some(5), Some(7000))
                 .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_ten_rows_of_data_some_duplicates(),
         );
 
@@ -1474,7 +1474,7 @@ mod test {
             TestChunk::new("t")
                 .with_time_column_with_stats(Some(5), Some(7000))
                 .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
 
@@ -1536,7 +1536,7 @@ mod test {
                 .with_id(1)
                 .with_time_column_with_stats(Some(5), Some(7000))
                 .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_ten_rows_of_data_some_duplicates(),
         );
 
@@ -1546,7 +1546,7 @@ mod test {
                 .with_id(2)
                 .with_time_column_with_stats(Some(5), Some(7000))
                 .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
 
@@ -1556,7 +1556,7 @@ mod test {
                 .with_id(3)
                 .with_time_column_with_stats(Some(8000), Some(20000))
                 .with_tag_column_with_stats("tag1", Some("UT"), Some("WA"))
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_three_rows_of_data(),
         );
 
@@ -1566,7 +1566,7 @@ mod test {
                 .with_id(4)
                 .with_time_column_with_stats(Some(28000), Some(220000))
                 .with_tag_column_with_stats("tag1", Some("UT"), Some("WA"))
-                .with_int_field_column("field_int")
+                .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
                 .with_four_rows_of_data(),
         );
