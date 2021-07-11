@@ -223,8 +223,8 @@ impl TestChunk {
     pub fn with_tag_column_with_stats(
         self,
         column_name: impl Into<String>,
-        min: &str,
-        max: &str,
+        min: Option<&str>,
+        max: Option<&str>,
     ) -> Self {
         let column_name = column_name.into();
 
@@ -234,8 +234,8 @@ impl TestChunk {
 
         // Construct stats
         let stats = Statistics::String(StatValues {
-            min: Some(min.to_string()),
-            max: Some(max.to_string()),
+            min: min.map(ToString::to_string),
+            max: max.map(ToString::to_string),
             ..Default::default()
         });
 
@@ -252,15 +252,15 @@ impl TestChunk {
     }
 
     /// Register a timestamp column with the test chunk
-    pub fn with_time_column_with_stats(self, min: i64, max: i64) -> Self {
+    pub fn with_time_column_with_stats(self, min: Option<i64>, max: Option<i64>) -> Self {
         // make a new schema with the specified column and
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new().timestamp().build().unwrap();
 
         // Construct stats
         let stats = Statistics::I64(StatValues {
-            min: Some(min),
-            max: Some(max),
+            min,
+            max,
             ..Default::default()
         });
 

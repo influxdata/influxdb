@@ -271,8 +271,8 @@ mod test {
         // Chunk 1 with 5 rows of data on 2 tags
         let chunk1 = Arc::new(
             TestChunk::new("t")
-                .with_time_column_with_stats(5, 7000)
-                .with_tag_column_with_stats("tag1", "AL", "MT")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
                 .with_int_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -280,8 +280,8 @@ mod test {
         // Chunk 2 has an extra field, and only 4 fields
         let chunk2 = Arc::new(
             TestChunk::new("t")
-                .with_time_column_with_stats(5, 7000)
-                .with_tag_column_with_stats("tag1", "AL", "MT")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
                 .with_int_field_column("field_int")
                 .with_int_field_column("field_int2")
                 .with_four_rows_of_data(),

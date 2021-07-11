@@ -765,31 +765,31 @@ mod test {
         // in the duplicate module
 
         // c1: no overlaps
-        let c1 = Arc::new(
-            TestChunk::new("t")
-                .with_id(1)
-                .with_tag_column_with_stats("tag1", "a", "b"),
-        );
+        let c1 = Arc::new(TestChunk::new("t").with_id(1).with_tag_column_with_stats(
+            "tag1",
+            Some("a"),
+            Some("b"),
+        ));
 
         // c2: over lap with c3
-        let c2 = Arc::new(
-            TestChunk::new("t")
-                .with_id(2)
-                .with_tag_column_with_stats("tag1", "c", "d"),
-        );
+        let c2 = Arc::new(TestChunk::new("t").with_id(2).with_tag_column_with_stats(
+            "tag1",
+            Some("c"),
+            Some("d"),
+        ));
 
         // c3: overlap with c2
-        let c3 = Arc::new(
-            TestChunk::new("t")
-                .with_id(3)
-                .with_tag_column_with_stats("tag1", "c", "d"),
-        );
+        let c3 = Arc::new(TestChunk::new("t").with_id(3).with_tag_column_with_stats(
+            "tag1",
+            Some("c"),
+            Some("d"),
+        ));
 
         // c4: self overlap
         let c4 = Arc::new(
             TestChunk::new("t")
                 .with_id(4)
-                .with_tag_column_with_stats("tag1", "e", "f")
+                .with_tag_column_with_stats("tag1", Some("e"), Some("f"))
                 .with_may_contain_pk_duplicates(true),
         );
 
@@ -1295,8 +1295,8 @@ mod test {
         // Test no duplicate at all
         let chunk = Arc::new(
             TestChunk::new("t")
-                .with_time_column_with_stats(5, 7000)
-                .with_tag_column_with_stats("tag1", "AL", "MT")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
                 .with_int_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -1343,8 +1343,8 @@ mod test {
         // Test one chunk with duplicate within
         let chunk = Arc::new(
             TestChunk::new("t")
-                .with_time_column_with_stats(5, 7000)
-                .with_tag_column_with_stats("tag1", "AL", "MT")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
                 .with_int_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
                 .with_ten_rows_of_data_some_duplicates(),
@@ -1399,8 +1399,8 @@ mod test {
         // Test one chunk with duplicate within
         let chunk = Arc::new(
             TestChunk::new("t")
-                .with_time_column_with_stats(5, 7000)
-                .with_tag_column_with_stats("tag1", "AL", "MT")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
                 .with_int_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
                 .with_ten_rows_of_data_some_duplicates(),
@@ -1464,16 +1464,16 @@ mod test {
         // test overlapped chunks
         let chunk1 = Arc::new(
             TestChunk::new("t")
-                .with_time_column_with_stats(5, 7000)
-                .with_tag_column_with_stats("tag1", "AL", "MT")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
                 .with_int_field_column("field_int")
                 .with_ten_rows_of_data_some_duplicates(),
         );
 
         let chunk2 = Arc::new(
             TestChunk::new("t")
-                .with_time_column_with_stats(5, 7000)
-                .with_tag_column_with_stats("tag1", "AL", "MT")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
                 .with_int_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -1534,8 +1534,8 @@ mod test {
         let chunk1 = Arc::new(
             TestChunk::new("t")
                 .with_id(1)
-                .with_time_column_with_stats(5, 7000)
-                .with_tag_column_with_stats("tag1", "AL", "MT")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
                 .with_int_field_column("field_int")
                 .with_ten_rows_of_data_some_duplicates(),
         );
@@ -1544,8 +1544,8 @@ mod test {
         let chunk2 = Arc::new(
             TestChunk::new("t")
                 .with_id(2)
-                .with_time_column_with_stats(5, 7000)
-                .with_tag_column_with_stats("tag1", "AL", "MT")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
                 .with_int_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -1554,8 +1554,8 @@ mod test {
         let chunk3 = Arc::new(
             TestChunk::new("t")
                 .with_id(3)
-                .with_time_column_with_stats(8000, 20000)
-                .with_tag_column_with_stats("tag1", "UT", "WA")
+                .with_time_column_with_stats(Some(8000), Some(20000))
+                .with_tag_column_with_stats("tag1", Some("UT"), Some("WA"))
                 .with_int_field_column("field_int")
                 .with_three_rows_of_data(),
         );
@@ -1564,8 +1564,8 @@ mod test {
         let chunk4 = Arc::new(
             TestChunk::new("t")
                 .with_id(4)
-                .with_time_column_with_stats(28000, 220000)
-                .with_tag_column_with_stats("tag1", "UT", "WA")
+                .with_time_column_with_stats(Some(28000), Some(220000))
+                .with_tag_column_with_stats("tag1", Some("UT"), Some("WA"))
                 .with_int_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
                 .with_four_rows_of_data(),
