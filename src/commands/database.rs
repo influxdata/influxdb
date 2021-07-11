@@ -74,15 +74,6 @@ pub struct Config {
 struct Create {
     /// The name of the database
     name: String,
-
-    /// A chunk of data within a partition that has been cold for writes for
-    /// this many seconds will be frozen and compacted (moved to the read
-    /// buffer) if the chunk is older than mutable_min_lifetime_seconds
-    ///
-    /// Represents the chunk transition open -> moving and closed -> moving
-    #[structopt(long, default_value = "300")] // 5 minutes
-    mutable_linger_seconds: u32,
-
     /// Once the total amount of buffered data in memory reaches this size start
     /// dropping data from memory based on the drop_order
     #[structopt(long, default_value = "52428800")] // 52428800 = 50*1024*1024
@@ -110,7 +101,10 @@ struct Create {
     #[structopt(long, default_value = "100", parse(try_from_str))]
     catalog_transactions_until_checkpoint: NonZeroU64,
 
-    /// The average timestamp skew across concurrent writers
+    /// Once a partition hasn't received a write for this period of time,
+    /// it will be compacted and, if set, persisted. Writers will generally
+    /// have this amount of time to send late arriving writes or this could
+    /// be their clock skew.
     #[structopt(long, default_value = "300")]
     late_arrive_window_seconds: u32,
 
@@ -177,10 +171,11 @@ pub async fn command(url: String, config: Config) -> Result<()> {
     match config.command {
         Command::Create(command) => {
             let mut client = management::Client::new(connection);
+            #[allow(deprecated)]
             let rules = DatabaseRules {
                 name: command.name,
                 lifecycle_rules: Some(LifecycleRules {
-                    mutable_linger_seconds: command.mutable_linger_seconds,
+                    mutable_linger_seconds: 0,  // deprecated, not in use
                     buffer_size_soft: command.buffer_size_soft as _,
                     buffer_size_hard: command.buffer_size_hard as _,
                     drop_non_persisted: command.drop_non_persisted,
