@@ -709,10 +709,6 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
                 }
             });
         }
-        
-        // // todo:
-        // // If the param sortkey available, use it. Also need to validate it with the chunk's compute_sort_key
-        // let sort_exprs = arrow_pk_sort_exprs(schema.primary_key(), &input.schema());
 
         // Create SortExec operator
         Ok(Arc::new(

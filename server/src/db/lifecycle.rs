@@ -319,35 +319,6 @@ impl LifecycleChunk for CatalogChunk {
     }
 }
 
-// /// Compute a sort key that orders lower cardinality columns first
-// ///
-// /// In the absence of more precise information, this should yield a
-// /// good ordering for RLE compression
-// pub fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -> SortKey<'a> {
-//     let mut cardinalities: HashMap<&str, u64> = Default::default();
-//     for summary in summaries {
-//         for column in &summary.columns {
-//             if column.influxdb_type != Some(InfluxDbType::Tag) {
-//                 continue;
-//             }
-
-//             if let Some(count) = column.stats.distinct_count() {
-//                 *cardinalities.entry(column.name.as_str()).or_default() += count.get()
-//             }
-//         }
-//     }
-
-//     let mut cardinalities: Vec<_> = cardinalities.into_iter().collect();
-//     cardinalities.sort_by_key(|x| x.1);
-
-//     let mut key = SortKey::with_capacity(cardinalities.len() + 1);
-//     for (col, _) in cardinalities {
-//         key.push(col, Default::default())
-//     }
-//     key.push(TIME_COLUMN_NAME, Default::default());
-//     key
-// }
-
 /// Creates a new RUB chunk
 fn new_rub_chunk(db: &Db, table_name: &str) -> read_buffer::RBChunk {
     // create a new read buffer chunk with memory tracking
