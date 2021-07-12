@@ -1,9 +1,15 @@
 use assert_cmd::Command;
-use data_types::job::{Job, Operation};
+use data_types::{
+    chunk_metadata::ChunkStorage,
+    job::{Job, Operation},
+};
 use predicates::prelude::*;
 use test_helpers::make_temp_file;
 
-use crate::common::server_fixture::ServerFixture;
+use crate::{
+    common::server_fixture::ServerFixture,
+    end_to_end_cases::scenario::{create_quickly_persisting_database, wait_for_exact_chunk_states},
+};
 
 use super::scenario::{create_readable_database, rand_name};
 
@@ -671,4 +677,66 @@ fn load_lp(addr: &str, db_name: &str, lp_data: Vec<&str>) {
         .assert()
         .success()
         .stdout(predicate::str::contains("Lines OK"));
+}
+
+#[tokio::test]
+async fn test_unload_partition_chunk() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+
+    create_quickly_persisting_database(&db_name, server_fixture.grpc_channel(), 1).await;
+
+    let lp_data = vec!["cpu,region=west user=23.2 10"];
+    load_lp(addr, &db_name, lp_data);
+
+    wait_for_exact_chunk_states(
+        &server_fixture,
+        &db_name,
+        vec![ChunkStorage::ReadBufferAndObjectStore],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("unload-chunk")
+        .arg(&db_name)
+        .arg("1970-01-01 00:00:00")
+        .arg("cpu")
+        .arg("1")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Ok"));
+}
+
+#[tokio::test]
+async fn test_unload_partition_chunk_error() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+
+    create_readable_database(&db_name, server_fixture.grpc_channel()).await;
+
+    let lp_data = vec!["cpu,region=west user=23.2 100"];
+    load_lp(addr, &db_name, lp_data);
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("unload-chunk")
+        .arg(&db_name)
+        .arg("cpu")
+        .arg("cpu")
+        .arg("0")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("wrong chunk lifecycle"));
 }

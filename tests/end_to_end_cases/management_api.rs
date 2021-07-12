@@ -13,7 +13,10 @@ use test_helpers::assert_contains;
 use super::scenario::{
     create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
 };
-use crate::common::server_fixture::ServerFixture;
+use crate::{
+    common::server_fixture::ServerFixture,
+    end_to_end_cases::scenario::{create_quickly_persisting_database, wait_for_exact_chunk_states},
+};
 use std::time::Instant;
 use tonic::Code;
 
@@ -965,4 +968,56 @@ async fn test_get_server_status_db_error() {
         DatabaseState::from_i32(db_status.state).unwrap(),
         DatabaseState::Known
     );
+}
+
+#[tokio::test]
+async fn test_unload_read_buffer() {
+    use data_types::chunk_metadata::ChunkStorage;
+
+    let fixture = ServerFixture::create_shared().await;
+    let mut write_client = fixture.write_client();
+    let mut management_client = fixture.management_client();
+
+    let db_name = rand_name();
+    create_quickly_persisting_database(&db_name, fixture.grpc_channel(), 1).await;
+
+    let lp_lines: Vec<_> = (0..1_000)
+        .map(|i| format!("data,tag1=val{} x={} {}", i, i * 10, i))
+        .collect();
+
+    let num_lines_written = write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("successful write");
+    assert_eq!(num_lines_written, 1000);
+
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::ReadBufferAndObjectStore],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    let chunk_id = chunks[0].id;
+    let partition_key = &chunks[0].partition_key;
+
+    management_client
+        .unload_partition_chunk(&db_name, "data", &partition_key[..], chunk_id)
+        .await
+        .unwrap();
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    let storage: generated_types::influxdata::iox::management::v1::ChunkStorage =
+        ChunkStorage::ObjectStoreOnly.into();
+    let storage: i32 = storage.into();
+    assert_eq!(chunks[0].storage, storage);
 }
