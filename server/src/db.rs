@@ -954,7 +954,9 @@ mod tests {
             test_helpers::{try_write_lp, write_lp},
         },
         utils::{make_db, TestDb},
-        write_buffer::test_helpers::{MockBufferForReading, MockBufferForWriting},
+        write_buffer::test_helpers::{
+            MockBufferForReading, MockBufferForWriting, MockBufferForWritingThatAlwaysErrors,
+        },
     };
     use ::test_helpers::assert_contains;
     use arrow::record_batch::RecordBatch;
@@ -1051,6 +1053,27 @@ mod tests {
             "+-----+-------------------------------+",
         ];
         assert_batches_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn write_buffer_errors_propagated() {
+        let write_buffer = Arc::new(MockBufferForWritingThatAlwaysErrors {});
+
+        let db = TestDb::builder()
+            .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
+            .build()
+            .await
+            .db;
+
+        let entry = lp_to_entry("cpu bar=1 10");
+
+        let res = db.store_entry(entry).await;
+
+        assert!(
+            matches!(res, Err(Error::WriteBufferWritingError { .. })),
+            "Expected Err(Error::WriteBufferWritingError {{ .. }}), got: {:?}",
+            res
+        );
     }
 
     #[tokio::test]
