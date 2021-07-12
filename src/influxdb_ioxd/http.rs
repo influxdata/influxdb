@@ -72,6 +72,7 @@ impl From<ApiErrorCode> for u32 {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Snafu)]
 pub enum ApplicationError {
     // Internal (unexpected) errors

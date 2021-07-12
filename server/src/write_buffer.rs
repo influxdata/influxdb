@@ -236,6 +236,19 @@ pub mod test_helpers {
         }
     }
 
+    #[derive(Debug, Default)]
+    pub struct MockBufferForWritingThatAlwaysErrors;
+
+    #[async_trait]
+    impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
+        async fn store_entry(&self, _entry: &Entry) -> Result<Sequence, WriteBufferError> {
+            Err(String::from(
+                "Something bad happened on the way to writing an entry in the write buffer",
+            )
+            .into())
+        }
+    }
+
     type MoveableEntries = Arc<Mutex<Vec<Result<SequencedEntry, WriteBufferError>>>>;
     pub struct MockBufferForReading {
         entries: MoveableEntries,
