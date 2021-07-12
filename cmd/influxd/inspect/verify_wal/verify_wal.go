@@ -65,7 +65,7 @@ func (a args) Run(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to search for WAL files in directory %s: %w", a.dir, err)
 	}
-	if files == nil || len(files) == 0 {
+	if len(files) == 0 {
 		return fmt.Errorf("failed to find WAL files in directory %s: %w", a.dir, err)
 	}
 
