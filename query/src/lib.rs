@@ -8,13 +8,14 @@
 )]
 
 use async_trait::async_trait;
-use data_types::{chunk_metadata::ChunkSummary, partition_metadata::TableSummary};
+use data_types::{chunk_metadata::ChunkSummary, partition_metadata::{InfluxDbType, TableSummary}};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, Executor};
-use internal_types::{schema::Schema, selection::Selection};
+use internal_types::{schema::{Schema, TIME_COLUMN_NAME, sort::SortKey}, selection::Selection};
 use predicate::PredicateMatch;
 
 use std::{fmt::Debug, sync::Arc};
+use hashbrown::HashMap;
 
 pub mod exec;
 pub mod frontend;
@@ -135,6 +136,9 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
 
     /// Returns true if data of this chunk is sorted
     fn is_sorted_on_pk(&self) -> bool;
+
+    /// Returns the sort key of the chunk if any
+    fn sort_key(&self) -> Option<SortKey<'_>>;
 }
 
 #[async_trait]
@@ -175,6 +179,36 @@ where
         self.as_ref().schema()
     }
 }
+
+/// Compute a sort key that orders lower cardinality columns first
+///
+/// In the absence of more precise information, this should yield a
+/// good ordering for RLE compression
+pub fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -> SortKey<'a> {
+    let mut cardinalities: HashMap<&str, u64> = Default::default();
+    for summary in summaries {
+        for column in &summary.columns {
+            if column.influxdb_type != Some(InfluxDbType::Tag) {
+                continue;
+            }
+
+            if let Some(count) = column.stats.distinct_count() {
+                *cardinalities.entry(column.name.as_str()).or_default() += count.get()
+            }
+        }
+    }
+
+    let mut cardinalities: Vec<_> = cardinalities.into_iter().collect();
+    cardinalities.sort_by_key(|x| x.1);
+
+    let mut key = SortKey::with_capacity(cardinalities.len() + 1);
+    for (col, _) in cardinalities {
+        key.push(col, Default::default())
+    }
+    key.push(TIME_COLUMN_NAME, Default::default());
+    key
+}
+
 
 // Note: I would like to compile this module only in the 'test' cfg,
 // but when I do so then other modules can not find them. For example:

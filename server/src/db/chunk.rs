@@ -9,7 +9,7 @@ use snafu::{ResultExt, Snafu};
 
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
-use internal_types::{schema::Schema, selection::Selection};
+use internal_types::{schema::{Schema, sort::SortKey}, selection::Selection};
 use mutable_buffer::chunk::snapshot::ChunkSnapshot;
 use object_store::path::Path;
 use observability_deps::tracing::debug;
@@ -438,10 +438,35 @@ impl QueryChunk for DbChunk {
     /// However, since we current sorted data based on their cardinality (see compute_sort_key),
     /// 2 different chunks may be sorted on different order of key columns.
     fn is_sorted_on_pk(&self) -> bool {
-        match &self.state {
-            State::MutableBuffer { .. } => false,
-            State::ReadBuffer { .. } => false,
-            State::ParquetFile { .. } => false,
+        match self.schema().sort_key() {
+            Some(_sort_key) => return true,
+            _ => return false,
+        }
+    }
+
+    /// Returns the sort key of the chunk if any
+    fn sort_key(&self) -> Option<SortKey<'_>> {
+        // Try1
+        // let schema  = self.schema();
+        // schema.sort_key()
+
+        // try 2
+        // let schema_cloned = self.schema().as_ref().clone();
+        // let schema = Arc::new(schema_cloned);
+        // let sort_key = schema.sort_key();
+        // sort_key
+
+        // try3 : still compile error
+        let sort_key = self.schema().sort_key();
+        match sort_key {
+            Some(keys) => {
+                let mut sk = SortKey::with_capacity(keys.len());
+                for (key, options) in keys.iter() {
+                    sk.with_col_opts(key.clone(), options.descending, options.nulls_first);
+                }
+                return Some(sk);
+            }
+            None => None
         }
     }
 }

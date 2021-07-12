@@ -20,6 +20,7 @@ use data_types::{
 };
 use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
 use futures::StreamExt;
+use internal_types::schema::sort::SortKey;
 use internal_types::{
     schema::{builder::SchemaBuilder, merge::SchemaMerger, InfluxColumnType, Schema},
     selection::Selection,
@@ -785,6 +786,11 @@ impl QueryChunk for TestChunk {
     /// Returns true if data of this chunk is sorted
     fn is_sorted_on_pk(&self) -> bool {
         false
+    }
+
+    /// Returns the sort key of the chunk if any
+    fn sort_key(&self) -> Option<SortKey<'_>> {
+        None
     }
 
     fn apply_predicate_to_metadata(&self, predicate: &Predicate) -> Result<PredicateMatch> {

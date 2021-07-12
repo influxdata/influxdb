@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use arrow::{datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
+use arrow::{compute::SortOptions, datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
 use datafusion::{
     datasource::{
         datasource::{Statistics, TableProviderFilterPushDown},
@@ -19,14 +19,10 @@ use datafusion::{
         ExecutionPlan,
     },
 };
-use internal_types::schema::{merge::SchemaMerger, Schema};
+use internal_types::schema::{Schema, merge::SchemaMerger, sort::SortKey};
 use observability_deps::tracing::{debug, trace};
 
-use crate::{
-    predicate::{Predicate, PredicateBuilder},
-    util::arrow_pk_sort_exprs,
-    QueryChunk,
-};
+use crate::{QueryChunk, compute_sort_key, predicate::{Predicate, PredicateBuilder}, util::arrow_pk_sort_exprs};
 
 use snafu::{ResultExt, Snafu};
 
@@ -477,6 +473,9 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let pk_schema = Self::compute_pk_schema(&chunks);
         let input_schema = Self::compute_input_schema(&output_schema, &pk_schema);
 
+        // Compute the output sort key which is the super key of all the key of the chunk base on their data cardinality
+        let output_sort_key = compute_sort_key(chunks.iter().map(|x| x.summary()));
+
         trace!(
             ?output_schema,
             ?pk_schema,
@@ -496,6 +495,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
                     Arc::clone(&input_schema),
                     Arc::clone(&chunk),
                     predicate.clone(),
+                    &output_sort_key
                 )
             })
             .collect();
@@ -554,12 +554,16 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let pk_schema = Self::compute_pk_schema(&[Arc::clone(&chunk)]);
         let input_schema = Self::compute_input_schema(&output_schema, &pk_schema);
 
+        // Compute the output sort key which is the super key of all the key of the chunk base on their data cardinality
+        let output_sort_key = compute_sort_key(vec![chunk.summary()].into_iter());
+
         // Create the 2 bottom nodes IOxReadFilterNode and SortExec
         let plan = Self::build_sort_plan_for_read_filter(
             table_name,
             Arc::clone(&input_schema),
             Arc::clone(&chunk),
             predicate,
+            &output_sort_key
         )?;
 
         // Add DeduplicateExc
@@ -638,6 +642,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         output_schema: Arc<Schema>,
         chunk: Arc<C>, // This chunk is identified having duplicates
         predicate: Predicate,
+        super_sort_key: &SortKey<'_>
     ) -> Result<Arc<dyn ExecutionPlan>> {
         // Create the bottom node IOxReadFilterNode for this chunk
         let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
@@ -648,7 +653,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         ));
 
         // Add the sort operator, SortExec, if needed
-        Self::build_sort_plan(chunk, input)
+        Self::build_sort_plan(chunk, input, super_sort_key)
     }
 
     /// Add SortExec operator on top of the input plan of the given chunk
@@ -656,18 +661,58 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     fn build_sort_plan(
         chunk: Arc<C>,
         input: Arc<dyn ExecutionPlan>,
-        // todo: add a sortkey
+        super_sort_key: &SortKey<'_>
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        // Todo: check there is sort key and it matches with the given one
-        //let sort_key = schema.sort_key();
-        if chunk.is_sorted_on_pk() {
-            return Ok(input);
+
+        // super_sort_key cannot be empty
+        if super_sort_key.is_empty() {
+            panic!("Super sort key is empty");
         }
 
+        // Check to see if the plan is sorted on the subset of the super_sort_key
+        let sort_key =  chunk.sort_key();
+        match sort_key {
+            Some(chunk_sort_key) => {
+                match SortKey::try_merge_key(super_sort_key, &chunk_sort_key) {
+                    Some(merge_key)  => {
+                        if merge_key == *super_sort_key {
+                            // the chunk is already sorted on the subset of the super_sort_key,
+                            // no need to resort it
+                            return Ok(input);
+                        }
+                    },
+                    _ => {}
+                }
+            },
+            _ => {}
+        }
+
+        // Build the chunk's sort key that is a subset of the super_sort_key
+        // 
+        // First get the chunk pk columns
         let schema = chunk.schema();
-        // todo:
-        // If the param sortkey available, use it. Also need to validate it with the chunk's compute_sort_key
-        let sort_exprs = arrow_pk_sort_exprs(schema.primary_key(), &input.schema());
+        let key_columns = schema.primary_key();
+
+        // Now get the key subset of the super key that includes the chunk pk columns
+        let chunk_sort_keys = super_sort_key.sort_columns(key_columns);
+
+        // Build arrow sort expression for the chunk sort key
+        let input_schema = input.schema();
+        let mut sort_exprs = vec![];
+        for (key, options)  in chunk_sort_keys {
+            let expr = physical_col(key, &input_schema).expect("pk in schema");
+            sort_exprs.push(PhysicalSortExpr {
+                expr,
+                options: SortOptions {
+                    descending: options.descending,
+                    nulls_first: options.nulls_first
+                }
+            });
+        }
+        
+        // // todo:
+        // // If the param sortkey available, use it. Also need to validate it with the chunk's compute_sort_key
+        // let sort_exprs = arrow_pk_sort_exprs(schema.primary_key(), &input.schema());
 
         // Create SortExec operator
         Ok(Arc::new(
@@ -761,7 +806,7 @@ mod test {
     use arrow::datatypes::DataType;
     use arrow_util::assert_batches_eq;
     use datafusion::physical_plan::collect;
-    use internal_types::schema::builder::SchemaBuilder;
+    use internal_types::schema::{TIME_COLUMN_NAME, builder::SchemaBuilder};
 
     use crate::{
         test::{raw_data, TestChunk},
@@ -829,6 +874,10 @@ mod test {
                 .with_five_rows_of_data(),
         );
 
+        let sort_key = SortKey::with_capacity(2);
+        sort_key.with_col("tag1");
+        sort_key.with_col(TIME_COLUMN_NAME);
+
         // Datafusion schema of the chunk
         let schema = chunk.schema().as_arrow();
 
@@ -855,7 +904,7 @@ mod test {
         assert_batches_eq!(&expected, &batch);
 
         // Add Sort operator on top of IOx scan
-        let sort_plan = Deduplicater::build_sort_plan(chunk, input);
+        let sort_plan = Deduplicater::build_sort_plan(chunk, input, &sort_key);
         let batch = collect(sort_plan.unwrap()).await.unwrap();
         // data is not sorted on primary key(tag1, tag2, time)
         let expected = vec![
@@ -884,6 +933,11 @@ mod test {
                 .with_five_rows_of_data(),
         );
 
+        let sort_key = SortKey::with_capacity(3);
+        sort_key.with_col("tag1");
+        sort_key.with_col("tag2");
+        sort_key.with_col(TIME_COLUMN_NAME);
+
         // Datafusion schema of the chunk
         let schema = chunk.schema().as_arrow();
 
@@ -910,7 +964,7 @@ mod test {
         assert_batches_eq!(&expected, &batch);
 
         // Add Sort operator on top of IOx scan
-        let sort_plan = Deduplicater::build_sort_plan(chunk, input);
+        let sort_plan = Deduplicater::build_sort_plan(chunk, input, &sort_key);
         let batch = collect(sort_plan.unwrap()).await.unwrap();
         // data is not sorted on primary key(tag1, tag2, time)
         let expected = vec![
@@ -939,6 +993,11 @@ mod test {
                 .with_five_rows_of_data(),
         );
 
+        let sort_key = SortKey::with_capacity(3);
+        sort_key.with_col("tag1");
+        sort_key.with_col("tag2");
+        sort_key.with_col(TIME_COLUMN_NAME);
+
         // Datafusion schema of the chunk
         let schema = chunk.schema();
 
@@ -947,6 +1006,7 @@ mod test {
             schema,
             Arc::clone(&chunk),
             Predicate::default(),
+            &sort_key
         );
         let batch = collect(sort_plan.unwrap()).await.unwrap();
         // data is not sorted on primary key(tag1, tag2, time)
