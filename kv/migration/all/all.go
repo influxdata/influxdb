@@ -37,5 +37,7 @@ var Migrations = [...]migration.Spec{
 	Migration0014_ReindexDBRPs,
 	// record shard group durations in bucket metadata
 	Migration0015_RecordShardGroupDurationsInBucketMetadata,
+	// add annotations notebooks to oper token
+	Migration0016_AddAnnotationsNotebooksToOperToken,
 	// {{ do_not_edit . }}
 }
