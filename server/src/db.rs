@@ -990,8 +990,8 @@ mod tests {
     };
     use tokio_util::sync::CancellationToken;
 
-    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
-    type Result<T, E = Error> = std::result::Result<T, E>;
+    type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
+    type Result<T, E = TestError> = std::result::Result<T, E>;
 
     #[tokio::test]
     async fn write_no_mutable_buffer() {
