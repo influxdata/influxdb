@@ -1165,7 +1165,7 @@ mod tests {
     };
     use influxdb_line_protocol::parse_lines;
     use metrics::MetricRegistry;
-    use object_store::{memory::InMemory, path::ObjectStorePath};
+    use object_store::path::ObjectStorePath;
     use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryDatabase};
 
     use super::*;
@@ -1187,7 +1187,7 @@ mod tests {
     }
 
     fn config_with_metric_registry() -> (metrics::TestMetricRegistry, ServerConfig) {
-        config_with_metric_registry_and_store(ObjectStore::new_in_memory(InMemory::new()))
+        config_with_metric_registry_and_store(ObjectStore::new_in_memory())
     }
 
     fn config() -> ServerConfig {
@@ -1349,7 +1349,7 @@ mod tests {
     async fn load_databases() {
         let temp_dir = TempDir::new().unwrap();
 
-        let store = ObjectStore::new_file(object_store::disk::File::new(temp_dir.path()));
+        let store = ObjectStore::new_file(temp_dir.path());
         let manager = TestConnectionManager::new();
         let config = config_with_store(store);
         let server = Server::new(manager, config);
@@ -1365,7 +1365,7 @@ mod tests {
 
         std::mem::drop(server);
 
-        let store = ObjectStore::new_file(object_store::disk::File::new(temp_dir.path()));
+        let store = ObjectStore::new_file(temp_dir.path());
         let manager = TestConnectionManager::new();
         let config = config_with_store(store);
         let server = Server::new(manager, config);
@@ -1380,7 +1380,7 @@ mod tests {
 
         std::mem::drop(server);
 
-        let store = ObjectStore::new_file(object_store::disk::File::new(temp_dir.path()));
+        let store = ObjectStore::new_file(temp_dir.path());
         store
             .delete(&rules_path)
             .await
@@ -1821,7 +1821,7 @@ mod tests {
     async fn cannot_create_db_until_server_is_initialized() {
         let temp_dir = TempDir::new().unwrap();
 
-        let store = ObjectStore::new_file(object_store::disk::File::new(temp_dir.path()));
+        let store = ObjectStore::new_file(temp_dir.path());
         let manager = TestConnectionManager::new();
         let config = config_with_store(store);
         let server = Server::new(manager, config);
@@ -1887,7 +1887,7 @@ mod tests {
 
     #[tokio::test]
     async fn init_error_database() {
-        let store = ObjectStore::new_in_memory(InMemory::new());
+        let store = ObjectStore::new_in_memory();
         let server_id = ServerId::try_from(1).unwrap();
 
         // Create temporary server to create single database
@@ -1979,7 +1979,7 @@ mod tests {
         let db_name_created = DatabaseName::new("db_created".to_string()).unwrap();
 
         // setup
-        let store = ObjectStore::new_in_memory(InMemory::new());
+        let store = ObjectStore::new_in_memory();
         let server_id = ServerId::try_from(1).unwrap();
 
         // Create temporary server to create existing databases
@@ -2168,7 +2168,7 @@ mod tests {
 
     #[tokio::test]
     async fn cannot_create_db_when_catalog_is_present() {
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let store = Arc::new(ObjectStore::new_in_memory());
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = "my_db";
 

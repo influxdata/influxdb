@@ -1,7 +1,7 @@
 use crate::commands::run::{Config, ObjectStore as ObjStoreOpt};
 use futures::{future::FusedFuture, pin_mut, FutureExt, TryStreamExt};
 use hyper::server::conn::AddrIncoming;
-use object_store::{self, path::ObjectStorePath, ObjectStore, ObjectStoreApi};
+use object_store::{self, path::ObjectStorePath, ObjectStore, ObjectStoreApi, ThrottleConfig};
 use observability_deps::tracing::{self, error, info, warn, Instrument};
 use panic_logging::SendPanicsToTracing;
 use server::{
@@ -311,29 +311,26 @@ impl TryFrom<&Config> for ObjectStore {
 
     fn try_from(config: &Config) -> Result<Self, Self::Error> {
         match config.object_store {
-            Some(ObjStoreOpt::Memory) | None => {
-                Ok(Self::new_in_memory(object_store::memory::InMemory::new()))
-            }
+            Some(ObjStoreOpt::Memory) | None => Ok(Self::new_in_memory()),
             Some(ObjStoreOpt::MemoryThrottled) => {
-                let inner = object_store::memory::InMemory::new();
-                let mut outer = object_store::throttle::ThrottledStore::new(inner);
+                let config = ThrottleConfig {
+                    // for every call: assume a 100ms latency
+                    wait_delete_per_call: Duration::from_millis(100),
+                    wait_get_per_call: Duration::from_millis(100),
+                    wait_list_per_call: Duration::from_millis(100),
+                    wait_list_with_delimiter_per_call: Duration::from_millis(100),
+                    wait_put_per_call: Duration::from_millis(100),
 
-                // for every call: assume a 100ms latency
-                outer.wait_delete_per_call = Duration::from_millis(100);
-                outer.wait_get_per_call = Duration::from_millis(100);
-                outer.wait_list_per_call = Duration::from_millis(100);
-                outer.wait_list_with_delimiter_per_call = Duration::from_millis(100);
-                outer.wait_put_per_call = Duration::from_millis(100);
+                    // for list operations: assume we need 1 call per 1k entries at 100ms
+                    wait_list_per_entry: Duration::from_millis(100) / 1_000,
+                    wait_list_with_delimiter_per_entry: Duration::from_millis(100) / 1_000,
 
-                // for list operations: assume we need 1 call per 1k entries at 100ms
-                outer.wait_list_per_entry = Duration::from_millis(100) / 1_000;
-                outer.wait_list_with_delimiter_per_entry = Duration::from_millis(100) / 1_000;
+                    // for upload/download: assume 1GByte/s
+                    wait_get_per_byte: Duration::from_secs(1) / 1_000_000_000,
+                    wait_put_per_byte: Duration::from_secs(1) / 1_000_000_000,
+                };
 
-                // for upload/download: assume 1GByte/s
-                outer.wait_get_per_byte = Duration::from_secs(1) / 1_000_000_000;
-                outer.wait_put_per_byte = Duration::from_secs(1) / 1_000_000_000;
-
-                Ok(Self::new_in_memory_throttled(outer))
+                Ok(Self::new_in_memory_throttled(config))
             }
 
             Some(ObjStoreOpt::Google) => {
@@ -434,7 +431,7 @@ impl TryFrom<&Config> for ObjectStore {
                 Some(db_dir) => {
                     fs::create_dir_all(db_dir)
                         .context(CreatingDatabaseDirectory { path: db_dir })?;
-                    Ok(Self::new_file(object_store::disk::File::new(&db_dir)))
+                    Ok(Self::new_file(&db_dir))
                 }
                 None => MissingObjectStoreConfig {
                     object_store: ObjStoreOpt::File,

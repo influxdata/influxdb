@@ -22,12 +22,12 @@ mod aws;
 #[cfg(feature = "azure")]
 mod azure;
 mod buffer;
-pub mod disk;
+mod disk;
 #[cfg(feature = "gcp")]
 mod gcp;
-pub mod memory;
+mod memory;
 pub mod path;
-pub mod throttle;
+mod throttle;
 
 pub mod dummy;
 
@@ -46,12 +46,15 @@ use memory::InMemory;
 use path::{parsed::DirsAndFileName, ObjectStorePath};
 use throttle::ThrottledStore;
 
+/// Publically expose throttling configuration
+pub use throttle::ThrottleConfig;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{stream::BoxStream, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use snafu::{ResultExt, Snafu};
-use std::io;
+use std::{io, path::PathBuf};
 
 /// Universal API to multiple object store services.
 #[async_trait]
@@ -134,12 +137,15 @@ impl ObjectStore {
     }
 
     /// Configure in-memory storage.
-    pub fn new_in_memory(in_mem: InMemory) -> Self {
+    pub fn new_in_memory() -> Self {
+        let in_mem = InMemory::new();
         Self(ObjectStoreIntegration::InMemory(in_mem))
     }
 
     /// For Testing: Configure throttled in-memory storage.
-    pub fn new_in_memory_throttled(in_mem_throttled: ThrottledStore<InMemory>) -> Self {
+    pub fn new_in_memory_throttled(config: ThrottleConfig) -> Self {
+        let in_mem = InMemory::new();
+        let in_mem_throttled = ThrottledStore::new(in_mem, config);
         Self(ObjectStoreIntegration::InMemoryThrottled(in_mem_throttled))
     }
 
@@ -150,8 +156,9 @@ impl ObjectStore {
         Ok(Self(ObjectStoreIntegration::AmazonS3(s3)))
     }
 
-    /// Configure local file storage.
-    pub fn new_file(file: File) -> Self {
+    /// Configure local file storage, rooted at `root`
+    pub fn new_file(root: impl Into<PathBuf>) -> Self {
+        let file = File::new(root);
         Self(ObjectStoreIntegration::File(file))
     }
 
