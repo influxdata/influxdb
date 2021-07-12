@@ -228,6 +228,11 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
         // This debug shows the self.arrow_schema() includes all columns in all chunks
         // which means the schema of all chunks are merged before invoking this scan
         trace!("all chunks schema: {:#?}", self.arrow_schema());
+        // However, the schema of each chunk is still in its original form which does not
+        // include the merged columns of other chunks. The code below proves it
+        for chunk in chunks.clone() {
+            trace!("Schema of chunk {}: {:#?}", chunk.id(), chunk.schema());
+        }
 
         let mut deduplicate = Deduplicater::new();
         let plan = deduplicate.build_scan_plan(
@@ -480,6 +485,9 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         );
 
         // Build sort plan for each chunk
+        // todo: compute the chunk sort key and make sure:
+        //       the key columns are the same and if they are sort keys are on different order, need to use the most popular one to reduce resort
+        //       and need to log if they are different
         let sorted_chunk_plans: Result<Vec<Arc<dyn ExecutionPlan>>> = chunks
             .iter()
             .map(|chunk| {
@@ -556,6 +564,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
 
         // Add DeduplicateExc
         // Sort exprs for the deduplication
+        // todo (see todo below)
         let sort_exprs = arrow_pk_sort_exprs(pk_schema.primary_key(), &plan.schema());
         let plan = Self::add_deduplicate_node(sort_exprs, plan);
 
@@ -647,6 +656,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     fn build_sort_plan(
         chunk: Arc<C>,
         input: Arc<dyn ExecutionPlan>,
+        // todo: add a sortkey
     ) -> Result<Arc<dyn ExecutionPlan>> {
         // Todo: check there is sort key and it matches with the given one
         //let sort_key = schema.sort_key();
@@ -655,6 +665,8 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         }
 
         let schema = chunk.schema();
+        // todo:
+        // If the param sortkey available, use it. Also need to validate it with the chunk's compute_sort_key
         let sort_exprs = arrow_pk_sort_exprs(schema.primary_key(), &input.schema());
 
         // Create SortExec operator
