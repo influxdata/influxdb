@@ -1103,7 +1103,7 @@ impl<'c> TransactionHandle<'c> {
     /// Remove a parquet file from the catalog.
     ///
     /// Removing files that do not exist or were already removed will result in an error.
-    pub fn remove_parquet(&mut self, path: &DirsAndFileName) -> Result<()> {
+    pub fn remove_parquet(&mut self, path: &DirsAndFileName) {
         self.transaction
             .as_mut()
             .expect("transaction handle w/o transaction?!")
@@ -1112,8 +1112,6 @@ impl<'c> TransactionHandle<'c> {
                     path: Some(unparse_dirs_and_filename(path)),
                 },
             ));
-
-        Ok(())
     }
 }
 
@@ -2762,7 +2760,7 @@ mod tests {
 
             let path = parsed_path!("test1");
             state.parquet_files.remove(&path);
-            t.remove_parquet(&path).unwrap();
+            t.remove_parquet(&path);
 
             t.commit().await.unwrap();
         }
@@ -2783,7 +2781,7 @@ mod tests {
             let mut t = catalog.open_transaction().await;
 
             t.add_parquet(&parsed_path!("test5"), &metadata1).unwrap();
-            t.remove_parquet(&parsed_path!(["sub1"], "test2")).unwrap();
+            t.remove_parquet(&parsed_path!(["sub1"], "test2"));
 
             // NO commit here!
         }
