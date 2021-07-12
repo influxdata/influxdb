@@ -110,9 +110,6 @@ type Server struct {
 	// httpUseTLS specifies if we should use a TLS connection to the http servers
 	httpUseTLS bool
 
-	// tcpAddr is the host:port combination for the TCP listener that services mux onto
-	tcpAddr string
-
 	config *Config
 }
 
@@ -191,7 +188,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		httpAPIAddr: c.HTTPD.BindAddress,
 		httpUseTLS:  c.HTTPD.HTTPSEnabled,
-		tcpAddr:     bind,
 
 		config: c,
 	}
