@@ -320,10 +320,13 @@ where
                rules_persist_age_threshold_seconds=%rules.persist_age_threshold_seconds.get(),
                "considering for persistence");
 
-        if partition.persistable_row_count() < rules.persist_row_threshold.get()
-            && persistable_age_seconds < rules.persist_age_threshold_seconds.get()
-        {
-            debug!(%db_name, %partition, "partition not eligible for persist");
+        let persistable_row_count = partition.persistable_row_count();
+        if persistable_row_count >= rules.persist_row_threshold.get() {
+            info!(%db_name, %partition, persistable_row_count, "persisting partition as exceeds row threshold");
+        } else if persistable_age_seconds >= rules.persist_age_threshold_seconds.get() {
+            info!(%db_name, %partition, persistable_age_seconds, "persisting partition as exceeds age threshold");
+        } else {
+            debug!(%db_name, %partition, persistable_row_count, "partition not eligible for persist");
             return false;
         }
 
@@ -381,6 +384,11 @@ where
             }
 
             to_persist.push(chunk);
+        }
+
+        if to_persist.is_empty() {
+            info!(%db_name, %partition, "expected to persist but found no eligible chunks");
+            return false;
         }
 
         let chunks = to_persist
