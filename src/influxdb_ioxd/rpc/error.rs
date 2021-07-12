@@ -92,6 +92,15 @@ pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
             description: "Cannot write to database: no mutable buffer configured".to_string(),
         }
         .into(),
+        Error::LifecycleError { source } => PreconditionViolation {
+            category: "chunk".to_string(),
+            subject: "influxdata.com/iox".to_string(),
+            description: format!(
+                "Cannot perform operation due to wrong chunk lifecycle: {}",
+                source
+            ),
+        }
+        .into(),
         Error::CatalogError { source } => default_catalog_error_handler(source),
         error => {
             error!(?error, "Unexpected error");

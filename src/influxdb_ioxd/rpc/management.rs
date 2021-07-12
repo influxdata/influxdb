@@ -363,6 +363,38 @@ where
         Ok(Response::new(ClosePartitionChunkResponse { operation }))
     }
 
+    async fn unload_partition_chunk(
+        &self,
+        request: tonic::Request<UnloadPartitionChunkRequest>,
+    ) -> Result<tonic::Response<UnloadPartitionChunkResponse>, tonic::Status> {
+        let UnloadPartitionChunkRequest {
+            db_name,
+            partition_key,
+            table_name,
+            chunk_id,
+        } = request.into_inner();
+
+        // Validate that the database name is legit
+        let db_name = DatabaseName::new(db_name).field("db_name")?;
+
+        let db = match self.server.db(&db_name) {
+            Some(db) => db,
+            None => {
+                return Err(NotFound {
+                    resource_type: "database".to_string(),
+                    resource_name: db_name.to_string(),
+                    ..Default::default()
+                }
+                .into())
+            }
+        };
+
+        db.unload_read_buffer(&table_name, &partition_key, chunk_id)
+            .map_err(default_db_error_handler)?;
+
+        Ok(Response::new(UnloadPartitionChunkResponse {}))
+    }
+
     async fn set_serving_readiness(
         &self,
         request: Request<SetServingReadinessRequest>,
