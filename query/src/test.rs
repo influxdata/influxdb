@@ -159,6 +159,64 @@ pub struct TestChunk {
     predicate_match: Option<PredicateMatch>,
 }
 
+/// Implements a method for adding a column with default stats
+macro_rules! impl_with_column {
+    ($NAME:ident, $DATA_TYPE:ident) => {
+        pub fn $NAME(self, column_name: impl Into<String>) -> Self {
+            let column_name = column_name.into();
+
+            let new_column_schema = SchemaBuilder::new()
+                .field(&column_name, DataType::$DATA_TYPE)
+                .build()
+                .unwrap();
+            self.add_schema_to_table(new_column_schema, true, None)
+        }
+    };
+}
+
+/// Implements a method for adding a column without any stats
+macro_rules! impl_with_column_no_stats {
+    ($NAME:ident, $DATA_TYPE:ident) => {
+        pub fn $NAME(self, column_name: impl Into<String>) -> Self {
+            let column_name = column_name.into();
+
+            let new_column_schema = SchemaBuilder::new()
+                .field(&column_name, DataType::$DATA_TYPE)
+                .build()
+                .unwrap();
+
+            self.add_schema_to_table(new_column_schema, false, None)
+        }
+    };
+}
+
+/// Implements a method for adding a column with stats that have the specified min and max
+macro_rules! impl_with_column_with_stats {
+    ($NAME:ident, $DATA_TYPE:ident, $RUST_TYPE:ty, $STAT_TYPE:ident) => {
+        pub fn $NAME(
+            self,
+            column_name: impl Into<String>,
+            min: Option<$RUST_TYPE>,
+            max: Option<$RUST_TYPE>,
+        ) -> Self {
+            let column_name = column_name.into();
+
+            let new_column_schema = SchemaBuilder::new()
+                .field(&column_name, DataType::$DATA_TYPE)
+                .build()
+                .unwrap();
+
+            let stats = Statistics::$STAT_TYPE(StatValues {
+                min,
+                max,
+                ..Default::default()
+            });
+
+            self.add_schema_to_table(new_column_schema, true, Some(stats))
+        }
+    };
+}
+
 impl TestChunk {
     pub fn new(table_name: impl Into<String>) -> Self {
         let table_name = table_name.into();
@@ -267,161 +325,21 @@ impl TestChunk {
         self.add_schema_to_table(new_column_schema, true, Some(stats))
     }
 
-    /// Register an int field column with the test chunk with default stats
-    pub fn with_i64_field_column(self, column_name: impl Into<String>) -> Self {
-        let column_name = column_name.into();
+    impl_with_column!(with_i64_field_column, Int64);
+    impl_with_column_no_stats!(with_i64_field_column_no_stats, Int64);
+    impl_with_column_with_stats!(with_i64_field_column_with_stats, Int64, i64, I64);
 
-        // make a new schema with the specified column and
-        // merge it in to any existing schema
-        let new_column_schema = SchemaBuilder::new()
-            .field(&column_name, DataType::Int64)
-            .build()
-            .unwrap();
-        self.add_schema_to_table(new_column_schema, true, None)
-    }
+    impl_with_column!(with_u64_column, UInt64);
+    impl_with_column_no_stats!(with_u64_field_column_no_stats, UInt64);
+    impl_with_column_with_stats!(with_u64_field_column_with_stats, UInt64, u64, U64);
 
-    /// Adds an i64 column named into the schema, but with no stats
-    pub fn with_i64_field_column_no_stats(self, column_name: impl Into<String>) -> Self {
-        let column_name = column_name.into();
+    impl_with_column!(with_f64_field_column, Float64);
+    impl_with_column_no_stats!(with_f64_field_column_no_stats, Float64);
+    impl_with_column_with_stats!(with_f64_field_column_with_stats, Float64, f64, F64);
 
-        // make a new schema with the specified column and
-        // merge it in to any existing schema
-        let new_column_schema = SchemaBuilder::new()
-            .field(&column_name, DataType::Int64)
-            .build()
-            .unwrap();
-
-        self.add_schema_to_table(new_column_schema, false, None)
-    }
-
-    pub fn with_i64_field_column_with_stats(
-        self,
-        column_name: impl Into<String>,
-        min: Option<i64>,
-        max: Option<i64>,
-    ) -> Self {
-        let column_name = column_name.into();
-
-        // make a new schema with the specified column and
-        // merge it in to any existing schema
-        let new_column_schema = SchemaBuilder::new()
-            .field(&column_name, DataType::Int64)
-            .build()
-            .unwrap();
-
-        // Construct stats
-        let stats = Statistics::I64(StatValues {
-            min,
-            max,
-            ..Default::default()
-        });
-
-        self.add_schema_to_table(new_column_schema, true, Some(stats))
-    }
-
-    /// Register a u64 field column with the test chunk with default stats
-    pub fn with_u64_field_column(self, column_name: impl Into<String>) -> Self {
-        let column_name = column_name.into();
-
-        // make a new schema with the specified column and
-        // merge it in to any existing schema
-        let new_column_schema = SchemaBuilder::new()
-            .field(&column_name, DataType::UInt64)
-            .build()
-            .unwrap();
-        self.add_schema_to_table(new_column_schema, true, None)
-    }
-
-    pub fn with_u64_field_column_with_stats(
-        self,
-        column_name: impl Into<String>,
-        min: Option<u64>,
-        max: Option<u64>,
-    ) -> Self {
-        let column_name = column_name.into();
-
-        // make a new schema with the specified column and
-        // merge it in to any existing schema
-        let new_column_schema = SchemaBuilder::new()
-            .field(&column_name, DataType::UInt64)
-            .build()
-            .unwrap();
-
-        // Construct stats
-        let stats = Statistics::U64(StatValues {
-            min,
-            max,
-            ..Default::default()
-        });
-
-        self.add_schema_to_table(new_column_schema, true, Some(stats))
-    }
-
-    /// Register an f64 field column with the test chunk with default stats
-    pub fn with_f64_field_column(self, column_name: impl Into<String>) -> Self {
-        let column_name = column_name.into();
-
-        // make a new schema with the specified column and
-        // merge it in to any existing schema
-        let new_column_schema = SchemaBuilder::new()
-            .field(&column_name, DataType::Float64)
-            .build()
-            .unwrap();
-
-        self.add_schema_to_table(new_column_schema, true, None)
-    }
-
-    /// Register an f64 field column with the test chunk
-    pub fn with_f64_field_column_with_stats(
-        self,
-        column_name: impl Into<String>,
-        min: Option<f64>,
-        max: Option<f64>,
-    ) -> Self {
-        let column_name = column_name.into();
-
-        // make a new schema with the specified column and
-        // merge it in to any existing schema
-        let new_column_schema = SchemaBuilder::new()
-            .field(&column_name, DataType::Float64)
-            .build()
-            .unwrap();
-
-        // Construct stats
-        let stats = Statistics::F64(StatValues {
-            min,
-            max,
-            ..Default::default()
-        });
-
-        self.add_schema_to_table(new_column_schema, true, Some(stats))
-    }
-
-    /// Register a bool field column with the test chunk
-    pub fn with_bool_field_column_with_stats(
-        self,
-        column_name: impl Into<String>,
-        min: Option<bool>,
-        max: Option<bool>,
-    ) -> Self {
-        let column_name = column_name.into();
-
-        // make a new schema with the specified column and
-        // merge it in to any existing schema
-        let new_column_schema = SchemaBuilder::new()
-            .field(&column_name, DataType::Boolean)
-            .build()
-            .unwrap();
-
-        // Construct stats
-        let stats = Statistics::Bool(StatValues {
-            min,
-            max,
-            ..Default::default()
-        });
-
-        self.add_schema_to_table(new_column_schema, true, Some(stats))
-    }
+    impl_with_column!(with_bool_field_column, Boolean);
+    impl_with_column_no_stats!(with_bool_field_column_no_stats, Boolean);
+    impl_with_column_with_stats!(with_bool_field_column_with_stats, Boolean, bool, Bool);
 
     /// Register a string field column with the test chunk
     pub fn with_string_field_column_with_stats(
