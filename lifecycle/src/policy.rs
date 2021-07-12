@@ -896,14 +896,6 @@ mod tests {
             unreachable!()
         }
 
-        fn write_to_object_store(
-            _s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
-        ) -> Result<TaskTracker<Self::Job>, Self::Error> {
-            // Isn't used by the lifecycle policy
-            // TODO: Remove this
-            unreachable!()
-        }
-
         fn unload_read_buffer(
             mut s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
         ) -> Result<(), Self::Error> {

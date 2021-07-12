@@ -93,15 +93,6 @@ impl LockableChunk for LockableCatalogChunk {
         Ok(tracker)
     }
 
-    fn write_to_object_store(
-        s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
-    ) -> Result<TaskTracker<Self::Job>, Self::Error> {
-        info!(chunk=%s.addr(), "writing to object store");
-        let (tracker, fut) = write::write_chunk_to_object_store(s)?;
-        let _ = tokio::spawn(async move { fut.await.log_if_error("writing to object store") });
-        Ok(tracker)
-    }
-
     fn unload_read_buffer(
         s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
     ) -> Result<(), Self::Error> {
