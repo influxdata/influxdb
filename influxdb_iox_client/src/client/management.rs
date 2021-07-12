@@ -249,6 +249,26 @@ pub enum ClosePartitionChunkError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by [`Client::unload_partition_chunk`]
+#[derive(Debug, Error)]
+pub enum UnloadPartitionChunkError {
+    /// Database not found
+    #[error("Not found: {}", .0)]
+    NotFound(String),
+
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
+    /// Server indicated that it is not (yet) available
+    #[error("Cannot perform operation due to wrong chunk lifecycle state: {}", .0.message())]
+    LifecycleError(tonic::Status),
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
 /// Errors returned by [`Client::get_server_status`]
 #[derive(Debug, Error)]
 pub enum GetServerStatusError {
@@ -667,6 +687,40 @@ impl Client {
             .into_inner()
             .operation
             .ok_or(ClosePartitionChunkError::EmptyResponse)?)
+    }
+
+    /// Unload chunk from read buffer but keep it in object store.
+    pub async fn unload_partition_chunk(
+        &mut self,
+        db_name: impl Into<String> + Send,
+        table_name: impl Into<String> + Send,
+        partition_key: impl Into<String> + Send,
+        chunk_id: u32,
+    ) -> Result<(), UnloadPartitionChunkError> {
+        let db_name = db_name.into();
+        let partition_key = partition_key.into();
+        let table_name = table_name.into();
+
+        self.inner
+            .unload_partition_chunk(UnloadPartitionChunkRequest {
+                db_name,
+                partition_key,
+                table_name,
+                chunk_id,
+            })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => {
+                    UnloadPartitionChunkError::NotFound(status.message().to_string())
+                }
+                tonic::Code::Unavailable => UnloadPartitionChunkError::Unavailable(status),
+                tonic::Code::FailedPrecondition => {
+                    UnloadPartitionChunkError::LifecycleError(status)
+                }
+                _ => UnloadPartitionChunkError::ServerError(status),
+            })?;
+
+        Ok(())
     }
 
     /// Wipe potential preserved catalog of an uninitialized database.

@@ -6,7 +6,7 @@ use influxdb_iox_client::{
     connection::Builder,
     management::{
         self, ClosePartitionChunkError, GetPartitionError, ListPartitionChunksError,
-        ListPartitionsError, NewPartitionChunkError,
+        ListPartitionsError, NewPartitionChunkError, UnloadPartitionChunkError
     },
 };
 use std::convert::{TryFrom, TryInto};
@@ -29,6 +29,9 @@ pub enum Error {
 
     #[error("Error closing chunk: {0}")]
     ClosePartitionChunkError(#[from] ClosePartitionChunkError),
+
+    #[error("Error unloading chunk: {0}")]
+    UnloadPartitionChunkError(#[from] UnloadPartitionChunkError),
 
     #[error("Error rendering response as JSON: {0}")]
     WritingJson(#[from] serde_json::Error),
@@ -107,19 +110,42 @@ struct CloseChunk {
     chunk_id: u32,
 }
 
+/// Unload chunk from read buffer but keep it in object store.
+#[derive(Debug, StructOpt)]
+struct UnloadChunk {
+    /// The name of the database
+    db_name: String,
+
+    /// The partition key
+    partition_key: String,
+
+    /// The table name
+    table_name: String,
+
+    /// The chunk id
+    chunk_id: u32,
+}
+
 /// All possible subcommands for partition
 #[derive(Debug, StructOpt)]
 enum Command {
-    // List partitions
+    /// List partitions
     List(List),
-    // Get details about a particular partition
+
+    /// Get details about a particular partition
     Get(Get),
-    // List chunks in a partition
+
+    /// List chunks in a partition
     ListChunks(ListChunks),
-    // Create a new chunk in the partition
+
+    /// Create a new chunk in the partition
     NewChunk(NewChunk),
-    // Close the chunk and move to read buffer
+
+    /// Close the chunk and move to read buffer
     CloseChunk(CloseChunk),
+
+    /// Unload chunk from read buffer but keep it in object store.
+    UnloadChunk(UnloadChunk),
 }
 
 pub async fn command(url: String, config: Config) -> Result<()> {
@@ -197,6 +223,19 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                 .try_into()?;
 
             serde_json::to_writer_pretty(std::io::stdout(), &operation)?;
+        }
+        Command::UnloadChunk(close_chunk) => {
+            let UnloadChunk {
+                db_name,
+                partition_key,
+                table_name,
+                chunk_id,
+            } = close_chunk;
+
+            client
+                .unload_partition_chunk(db_name, table_name, partition_key, chunk_id)
+                .await?;
+            println!("Ok");
         }
     }
 
