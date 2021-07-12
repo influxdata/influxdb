@@ -147,7 +147,7 @@ impl<'a> SortKey<'a> {
         self.columns.is_empty()
     }
 
-    /// Returns the super key of the 2 given keys if one covers the other. Returns None otherwise.
+    /// Returns merge key of the 2 given keys if one covers the other. Returns None otherwise.
     /// Key1 is said to cover key2 if key2 is a subset and in the same order of key1.
     /// Examples:
     ///   . (a) covers empty and (a)  =>
@@ -163,23 +163,33 @@ impl<'a> SortKey<'a> {
     ///        super key of (a, b, c) and any of { (a, b), (a, c), (b, c), (a), (b), (c) and empty } is (a, b, c)
     ///   . (a, b, c) does not cover (b, a), (c, a), (c, b), (b, a, c), (b, c, a), (c, a, b), (c, b, a) =>
     ///        super key of (a, b, c) and any of { b, a), (c, a), (c, b), (b, a, c), (b, c, a), (c, a, b), (c, b, a) } is None
-    pub fn super_key(key1: &SortKey<'a>, key2: &SortKey<'a>) -> Option<SortKey<'a>> {
-        let super_key = Self::super_key_without_time(key1, key2);
-        if let Some(mut sk) = super_key {
-            // Add time column at the end
-            sk.push(TIME_COLUMN_NAME, Default::default());
-            Some(sk)
-        } else {
-            None
+    ///
+    ///  Note that the last column in the sort key must be time
+    pub fn try_merge_key(key1: &SortKey<'a>, key2: &SortKey<'a>) -> Option<SortKey<'a>> {
+        if key1.is_empty() || key2.is_empty() {
+            panic!("Sort key cannot be empty");
         }
-    }
 
-    pub fn super_key_without_time(key1: &SortKey<'a>, key2: &SortKey<'a>) -> Option<SortKey<'a>> {
-        // Remove time column because it always the last one and it plays a bit different of other key columns
-        let mut key1 = key1.clone();
-        let mut key2 = key2.clone();
-        key1.columns.shift_remove(TIME_COLUMN_NAME);
-        key2.columns.shift_remove(TIME_COLUMN_NAME);
+        let key1 = key1.clone();
+        let key2 = key2.clone();
+
+        // Verify if time column in the sort key
+        match key1.columns.get_index_of(TIME_COLUMN_NAME) {
+            None => panic!("Time column is not included in the sort key {:#?}", key1),
+            Some(idx) => {
+                if idx < key1.len() - 1 {
+                    panic!("Time column is not last in the sort key {:#?}", key1)
+                }
+            }
+        }
+        match key2.columns.get_index_of(TIME_COLUMN_NAME) {
+            None => panic!("Time column is not included in the sort key {:#?}", key2),
+            Some(idx) => {
+                if idx < key2.len() - 1 {
+                    panic!("Time column is not last in the sort key {:#?}", key2)
+                }
+            }
+        }
 
         let (long_key, short_key) = if key1.len() > key2.len() {
             (key1, key2)
@@ -187,29 +197,21 @@ impl<'a> SortKey<'a> {
             (key2, key1)
         };
 
-        if long_key.is_empty() && short_key.is_empty() {
-            // They both empty
-            return None;
-        }
-
-        if short_key.is_empty() {
-            return Some(long_key);
-        }
-
         // Go over short key and check its right-order availability in the long key
-        let mut prev_long_idx = 0;
-        let mut first = true;
+        let mut prev_long_idx: Option<usize> = None;
         for (col, sort_options) in &short_key.columns {
             if let Some(long_idx) = long_key.find_index(col, sort_options) {
-                if first {
-                    prev_long_idx = long_idx;
-                    first = false;
-                } else if long_idx > prev_long_idx {
-                    // In the right order, update the current idx
-                    prev_long_idx = long_idx;
-                } else {
-                    // Not in the right order
-                    return None;
+                match prev_long_idx {
+                    None => prev_long_idx = Some(long_idx),
+                    Some(prev_idx) => {
+                        if long_idx > prev_idx {
+                            // In the right order, update the current idx
+                            prev_long_idx = Some(long_idx);
+                        } else {
+                            // Not in the right order
+                            return None;
+                        }
+                    }
                 }
             } else {
                 // Not found
@@ -219,6 +221,22 @@ impl<'a> SortKey<'a> {
 
         // Reach here means the long key is the super key of the sort one
         Some(long_key)
+    }
+
+    /// Helper to insert col with default sort options into sort key
+    pub fn with_col(&mut self, col: &'a str) {
+        self.push(col, Default::default());
+    }
+
+    /// Helper to insert col with specified sort options into sort key
+    pub fn with_col_opts(&mut self, col: &'a str, descending: bool, nulls_first: bool) {
+        self.push(
+            col,
+            SortOptions {
+                descending,
+                nulls_first,
+            },
+        );
     }
 }
 
@@ -322,537 +340,143 @@ mod tests {
     #[test]
     fn test_sort_key_eq() {
         let mut key1 = SortKey::with_capacity(1);
-        key1.push("a", Default::default());
+        key1.with_col("a");
 
         let mut key1_2 = SortKey::with_capacity(2);
-        key1_2.push("a", Default::default());
-        key1_2.push(
-            "b",
-            SortOptions {
-                descending: true,
-                nulls_first: false,
-            },
-        );
+        key1_2.with_col("a");
+        key1_2.with_col_opts("b", true, false);
 
         let key2 = SortKey::with_capacity(2);
 
-        // different capacity
+        // different keys
         assert_ne!(key1, key2);
         assert_ne!(key1_2, key2);
         assert_ne!(key1, key1_2);
 
         let mut key3 = SortKey::with_capacity(1);
-        key3.push("a", Default::default());
+        key3.with_col("a");
 
-        let mut key3_2 = SortKey::with_capacity(1);
-        key3_2.push("a", Default::default());
-        key3_2.push(
-            "b",
-            SortOptions {
-                descending: true,
-                nulls_first: false,
-            },
-        );
+        let mut key3_2 = SortKey::with_capacity(2);
+        key3_2.with_col("a");
+        key3_2.with_col_opts("b", true, false);
 
         // same
         assert_eq!(key1, key3);
         assert_eq!(key1_2, key3_2);
 
         let mut key4 = SortKey::with_capacity(1);
-        key4.push("aa", Default::default());
+        key4.with_col("aa");
 
-        let mut key4_2 = SortKey::with_capacity(1);
-        key4_2.push("aa", Default::default());
-        key4_2.push(
-            "bb",
-            SortOptions {
-                descending: true,
-                nulls_first: false,
-            },
-        );
+        let mut key4_2 = SortKey::with_capacity(2);
+        key4_2.with_col("aa");
+        key4_2.with_col_opts("bb", true, false);
 
         // different key, same value
         assert_ne!(key1, key4);
         assert_ne!(key1_2, key4_2);
 
         let mut key5 = SortKey::with_capacity(1);
-        key5.push(
-            "a",
-            SortOptions {
-                descending: true,
-                nulls_first: true,
-            },
-        );
+        key5.with_col_opts("a", true, true);
 
-        let mut key5_2 = SortKey::with_capacity(1);
-        key5_2.push(
-            "a",
-            SortOptions {
-                descending: true,
-                nulls_first: true,
-            },
-        );
-        key5_2.push(
-            "b",
-            SortOptions {
-                descending: false,
-                nulls_first: true,
-            },
-        );
+        let mut key5_2 = SortKey::with_capacity(2);
+        key5_2.with_col_opts("a", true, true);
+        key5_2.with_col_opts("b", false, true);
 
         // same key, different value
         assert_ne!(key1, key5);
         assert_ne!(key1_2, key5_2);
     }
 
-    ///   . (a) covers empty and (a)  =>
-    ///         . super key of (a) and empty is (a)
-    ///         . super key of (a) and (a)) is (a)
-    ///   . (a, b) covers empty, (a), (b), and (a, b) =>
-    ///         . super key of (a, b) and empty is (a, b)
-    ///         . super key of (a, b) and (a) is (a, b)
-    ///         . super key of (a, b) and (b) is (a, b)
-    ///         . super key of (a, b) and (a, b) is (a, b)
-    ///   . (a, b) does not cover (b, a) => super key of (a, b) and (b, a) is None
-    ///   . (a, b, c) covers (a, b), (a, c), (b, c), (a), (b), (c) and empty =>
-    ///        super key of (a, b, c) and any of { (a, b), (a, c), (b, c), (a), (b), (c) and empty } is (a, b, c)
-    ///   . (a, b, c) does not cover (b, a), (c, a), (c, b), (b, a, c), (b, c, a), (c, a, b), (c, b, a) =>
-    ///        super key of (a, b, c) and any of { b, a), (c, a), (c, b), (b, a, c), (b, c, a), (c, a, b), (c, b, a) } is None
+    // Note that the last column must be TIME_COLUMN_NAME to avoid panicking
     #[test]
     fn test_super_sort_key() {
-        // empty key
-        let key_e = SortKey::with_capacity(0);
         // key (a) with default sort options (false, true)
         let mut key_a = SortKey::with_capacity(1);
-        key_a.push("a", Default::default());
+        let a = TIME_COLUMN_NAME;
+        key_a.with_col(a);
         // key (a) with explicitly defined sort options
         let mut key_a_2 = SortKey::with_capacity(1);
-        key_a_2.push(
-            "a",
-            SortOptions {
-                descending: true,
-                nulls_first: false,
-            },
-        );
-        // key (b) with default sort options (false, true)
-        let mut key_b = SortKey::with_capacity(1);
-        key_b.push("b", Default::default());
-        // key (b) with explicitly defined sort options
-        let mut key_b_2 = SortKey::with_capacity(1);
-        key_b_2.push(
-            "b",
-            SortOptions {
-                descending: false,
-                nulls_first: false,
-            },
-        );
-
-        // super key of (a) and empty is (a)
-        let super_key = SortKey::super_key_without_time(&key_a, &key_e).unwrap();
-        assert_eq!(super_key, key_a);
-        let super_key = SortKey::super_key_without_time(&key_a_2, &key_e).unwrap();
-        assert_eq!(super_key, key_a_2);
+        key_a_2.with_col_opts(a, true, false);
 
         // super key of (a) and (a) is (a)
-        let super_key = SortKey::super_key_without_time(&key_a, &key_a).unwrap();
-        assert_eq!(super_key, key_a);
-        let super_key = SortKey::super_key_without_time(&key_a_2, &key_a_2).unwrap();
-        assert_eq!(super_key, key_a_2);
-
-        // super key of (a) and (b) is None
-        let super_key = SortKey::super_key_without_time(&key_a, &key_b);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_a, &key_b_2);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_a_2, &key_b);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_a_2, &key_b_2);
-        assert_eq!(super_key, None);
+        let merge_key = SortKey::try_merge_key(&key_a, &key_a).unwrap();
+        assert_eq!(merge_key, key_a);
+        let merge_key = SortKey::try_merge_key(&key_a_2, &key_a_2).unwrap();
+        assert_eq!(merge_key, key_a_2);
 
         // (a,b)
+        let b = TIME_COLUMN_NAME;
         let mut key_ab = SortKey::with_capacity(2);
-        key_ab.push("a", Default::default());
-        key_ab.push("b", Default::default());
+        key_ab.with_col("a");
+        key_ab.with_col(b);
         let mut key_ab_2 = SortKey::with_capacity(2);
-        key_ab_2.push(
-            "a",
-            SortOptions {
-                descending: true,
-                nulls_first: false,
-            },
-        );
-        key_ab_2.push(
-            "b",
-            SortOptions {
-                descending: false,
-                nulls_first: false,
-            },
-        );
-        // (b,a)
-        let mut key_ba = SortKey::with_capacity(2);
-        key_ba.push("b", Default::default());
-        key_ba.push("a", Default::default());
-        let mut key_ba_2 = SortKey::with_capacity(2);
-        key_ba_2.push(
-            "b",
-            SortOptions {
-                descending: true,
-                nulls_first: false,
-            },
-        );
-        key_ba_2.push(
-            "a",
-            SortOptions {
-                descending: false,
-                nulls_first: false,
-            },
-        );
-
-        // super key of (a, b) and empty is (a, b)
-        let super_key = SortKey::super_key_without_time(&key_ab, &key_e).unwrap();
-        assert_eq!(super_key, key_ab);
-        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_e).unwrap();
-        assert_eq!(super_key, key_ab_2);
-
-        // super key of (a, b) and (a) is (a, b)
-        let super_key = SortKey::super_key_without_time(&key_ab, &key_a).unwrap();
-        assert_eq!(super_key, key_ab);
-        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_a_2).unwrap();
-        assert_eq!(super_key, key_ab_2);
-        // super key of (a, b) and (a') is None
-        let super_key = SortKey::super_key_without_time(&key_ab, &key_a_2);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_a);
-        assert_eq!(super_key, None);
+        key_ab_2.with_col_opts("a", true, false);
+        key_ab_2.with_col_opts(b, false, false);
+        //(b)
+        let mut key_b = SortKey::with_capacity(1);
+        key_b.with_col(b);
+        let mut key_b_2 = SortKey::with_capacity(1);
+        key_b_2.with_col_opts(b, false, false);
 
         // super key of (a, b) and (b) is (a, b)
-        let super_key = SortKey::super_key_without_time(&key_ab, &key_b).unwrap();
-        assert_eq!(super_key, key_ab);
-        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_b_2).unwrap();
-        assert_eq!(super_key, key_ab_2);
+        let merge_key = SortKey::try_merge_key(&key_ab, &key_b).unwrap();
+        assert_eq!(merge_key, key_ab);
+        let merge_key = SortKey::try_merge_key(&key_ab_2, &key_b_2).unwrap();
+        assert_eq!(merge_key, key_ab_2);
         // super key of (a, b) and (b') is None
-        let super_key = SortKey::super_key_without_time(&key_ab, &key_b_2);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_b);
-        assert_eq!(super_key, None);
+        let merge_key = SortKey::try_merge_key(&key_ab, &key_b_2);
+        assert_eq!(merge_key, None);
+        let merge_key = SortKey::try_merge_key(&key_ab_2, &key_b);
+        assert_eq!(merge_key, None);
 
         // super key of (a, b) and (a, b) is (a, b)
-        let super_key = SortKey::super_key_without_time(&key_ab, &key_ab).unwrap();
-        assert_eq!(super_key, key_ab);
-        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_ab_2).unwrap();
-        assert_eq!(super_key, key_ab_2);
+        let merge_key = SortKey::try_merge_key(&key_ab, &key_ab).unwrap();
+        assert_eq!(merge_key, key_ab);
+        let merge_key = SortKey::try_merge_key(&key_ab_2, &key_ab_2).unwrap();
+        assert_eq!(merge_key, key_ab_2);
         // super key of (a, b) and (a',b') is None
-        let super_key = SortKey::super_key_without_time(&key_ab, &key_ab_2);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_ab);
-        assert_eq!(super_key, None);
-        // super key of (a, b) and (b,a) is None
-        let super_key = SortKey::super_key_without_time(&key_ab, &key_ba);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_ab, &key_ba_2);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_ba);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_ab_2, &key_ba_2);
-        assert_eq!(super_key, None);
+        let merge_key = SortKey::try_merge_key(&key_ab, &key_ab_2);
+        assert_eq!(merge_key, None);
+        let merge_key = SortKey::try_merge_key(&key_ab_2, &key_ab);
+        assert_eq!(merge_key, None);
 
         // (a, b, c)
+        let c = TIME_COLUMN_NAME;
         let mut key_abc_2 = SortKey::with_capacity(3);
-        key_abc_2.push(
-            "a",
-            SortOptions {
-                descending: true,
-                nulls_first: false,
-            },
-        );
-        key_abc_2.push(
-            "b",
-            SortOptions {
-                descending: false,
-                nulls_first: false,
-            },
-        );
-        key_abc_2.push(
-            "c",
-            SortOptions {
-                descending: true,
-                nulls_first: true,
-            },
-        );
+        key_abc_2.with_col_opts("a", true, false);
+        key_abc_2.with_col_opts("b", false, false);
+        key_abc_2.with_col_opts(c, true, true);
+
         //  (c)
         let mut key_c_2 = SortKey::with_capacity(1);
-        key_c_2.push(
-            "c",
-            SortOptions {
-                descending: true,
-                nulls_first: true,
-            },
-        );
+        key_c_2.with_col_opts(c, true, true);
+
         // (a, c)
         let mut key_ac_2 = SortKey::with_capacity(2);
-        key_ac_2.push(
-            "a",
-            SortOptions {
-                descending: true,
-                nulls_first: false,
-            },
-        );
-        key_ac_2.push(
-            "c",
-            SortOptions {
-                descending: true,
-                nulls_first: true,
-            },
-        );
+        key_ac_2.with_col_opts("a", true, false);
+        key_ac_2.with_col_opts(c, true, true);
+
         // (b,c)
         let mut key_bc_2 = SortKey::with_capacity(2);
-        key_bc_2.push(
-            "b",
-            SortOptions {
-                descending: false,
-                nulls_first: false,
-            },
-        );
-        key_bc_2.push(
-            "c",
-            SortOptions {
-                descending: true,
-                nulls_first: true,
-            },
-        );
-        // (c, a)
-        let mut key_ca_2 = SortKey::with_capacity(2);
-        key_ca_2.push(
-            "c",
-            SortOptions {
-                descending: true,
-                nulls_first: true,
-            },
-        );
-        key_ca_2.push(
-            "a",
-            SortOptions {
-                descending: true,
-                nulls_first: false,
-            },
-        );
-        // (c, b)
-        let mut key_cb_2 = SortKey::with_capacity(2);
-        key_cb_2.push(
-            "c",
-            SortOptions {
-                descending: true,
-                nulls_first: true,
-            },
-        );
-        key_cb_2.push(
-            "b",
-            SortOptions {
-                descending: false,
-                nulls_first: false,
-            },
-        );
+        key_bc_2.with_col_opts("b", false, false);
+        key_bc_2.with_col_opts(c, true, true);
+
         // (b,a,c)
         let mut key_bac_2 = SortKey::with_capacity(3);
-        key_bac_2.push(
-            "b",
-            SortOptions {
-                descending: false,
-                nulls_first: false,
-            },
-        );
-        key_bac_2.push(
-            "a",
-            SortOptions {
-                descending: true,
-                nulls_first: false,
-            },
-        );
-        key_bac_2.push(
-            "c",
-            SortOptions {
-                descending: true,
-                nulls_first: true,
-            },
-        );
-        // (b,c,a)
-        let mut key_bca_2 = SortKey::with_capacity(3);
-        key_bca_2.push(
-            "b",
-            SortOptions {
-                descending: false,
-                nulls_first: false,
-            },
-        );
-        key_bca_2.push(
-            "c",
-            SortOptions {
-                descending: true,
-                nulls_first: true,
-            },
-        );
-        key_bca_2.push(
-            "a",
-            SortOptions {
-                descending: true,
-                nulls_first: false,
-            },
-        );
-        // (c,a,b)
-        let mut key_cab_2 = SortKey::with_capacity(3);
-        key_cab_2.push(
-            "c",
-            SortOptions {
-                descending: true,
-                nulls_first: true,
-            },
-        );
-        key_cab_2.push(
-            "a",
-            SortOptions {
-                descending: true,
-                nulls_first: false,
-            },
-        );
-        key_cab_2.push(
-            "b",
-            SortOptions {
-                descending: false,
-                nulls_first: false,
-            },
-        );
-        // (c,b,a)
-        let mut key_cba_2 = SortKey::with_capacity(3);
-        key_cba_2.push(
-            "c",
-            SortOptions {
-                descending: true,
-                nulls_first: true,
-            },
-        );
-        key_cba_2.push(
-            "b",
-            SortOptions {
-                descending: false,
-                nulls_first: false,
-            },
-        );
-        key_cba_2.push(
-            "a",
-            SortOptions {
-                descending: true,
-                nulls_first: false,
-            },
-        );
+        key_bac_2.with_col_opts("b", false, false);
+        key_bac_2.with_col_opts("a", true, false);
+        key_bac_2.with_col_opts(c, true, true);
 
-        // super key of (a, b, c) and any of { (a, b), (a, c), (b, c), (a), (b), (c) and empty } is (a, b, c)
-        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_e).unwrap();
-        assert_eq!(super_key, key_abc_2);
-        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_a_2).unwrap();
-        assert_eq!(super_key, key_abc_2);
-        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_b_2).unwrap();
-        assert_eq!(super_key, key_abc_2);
-        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_c_2).unwrap();
-        assert_eq!(super_key, key_abc_2);
-        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_ab_2).unwrap();
-        assert_eq!(super_key, key_abc_2);
-        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_ac_2).unwrap();
-        assert_eq!(super_key, key_abc_2);
-        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_bc_2).unwrap();
-        assert_eq!(super_key, key_abc_2);
+        // super key of (a, b, c) and any of {  (a, c), (b, c), (a), (b), (c)  } is (a, b, c)
+        let merge_key = SortKey::try_merge_key(&key_abc_2, &key_c_2).unwrap();
+        assert_eq!(merge_key, key_abc_2);
+        let merge_key = SortKey::try_merge_key(&key_abc_2, &key_ac_2).unwrap();
+        assert_eq!(merge_key, key_abc_2);
+        let merge_key = SortKey::try_merge_key(&key_abc_2, &key_bc_2).unwrap();
+        assert_eq!(merge_key, key_abc_2);
 
-        // super key of (a, b, c) and any of { b, a), (c, a), (c, b), (b, a, c), (b, c, a), (c, a, b), (c, b, a) } is None
-        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_ba_2);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_ba);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_ca_2);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_cb_2);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_bac_2);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_bca_2);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_cab_2);
-        assert_eq!(super_key, None);
-        let super_key = SortKey::super_key_without_time(&key_abc_2, &key_cba_2);
-        assert_eq!(super_key, None);
-    }
-
-    #[test]
-    fn test_super_sort_key_with_time() {
-        // Add time column randomly in the sort key nad make sure it is not considered
-
-        // empty key
-        let key_e = SortKey::with_capacity(0);
-
-        // key (a, t) with default sort options (false, true)
-        let mut key_a_t = SortKey::with_capacity(2);
-        key_a_t.push("a", Default::default());
-        key_a_t.push(TIME_COLUMN_NAME, Default::default());
-
-        // key (t, a) with default sort options (false, true)
-        let mut key_t_a = SortKey::with_capacity(2);
-        key_t_a.push(TIME_COLUMN_NAME, Default::default());
-        key_t_a.push("a", Default::default());
-
-        // super key of (a, t) and empty  is (a, t)
-        let super_key = SortKey::super_key(&key_a_t, &key_e).unwrap();
-        assert_eq!(super_key, key_a_t);
-        // super key of (t, a) and empty  is (a, t) - remember t is moved to the end
-        let super_key = SortKey::super_key(&key_t_a, &key_e).unwrap();
-        assert_eq!(super_key, key_a_t);
-
-        // super key of (a, t) and (a)  is (a, t)
-        let mut key_a = SortKey::with_capacity(1);
-        key_a.push("a", Default::default());
-        let super_key = SortKey::super_key(&key_a_t, &key_a).unwrap();
-        assert_eq!(super_key, key_a_t);
-        // super key of (t, a) and (a) is (a, t)
-        let super_key = SortKey::super_key(&key_t_a, &key_a).unwrap();
-        assert_eq!(super_key, key_a_t);
-
-        // super key of (a, t) and (b)  is None
-        let mut key_b = SortKey::with_capacity(1);
-        key_b.push("b", Default::default());
-        let super_key = SortKey::super_key(&key_a_t, &key_b);
-        assert_eq!(super_key, None);
-        // super key of (t, a) and (b)  is None
-        let super_key = SortKey::super_key(&key_t_a, &key_b);
-        assert_eq!(super_key, None);
-
-        // super key of (a, b, c, t) and (b, t, c) is equivalent to
-        // super key of (a, b, c) and (b, c) and should be (a, b, c, t)
-        let mut key_abc_t = SortKey::with_capacity(4);
-        key_abc_t.push("a", Default::default());
-        key_abc_t.push("b", Default::default());
-        key_abc_t.push("c", Default::default());
-        key_abc_t.push(TIME_COLUMN_NAME, Default::default());
-        let mut key_b_t_c = SortKey::with_capacity(3);
-        key_b_t_c.push("b", Default::default());
-        key_b_t_c.push(TIME_COLUMN_NAME, Default::default());
-        key_b_t_c.push("c", Default::default());
-        let super_key = SortKey::super_key(&key_abc_t, &key_b_t_c).unwrap();
-        assert_eq!(super_key, key_abc_t);
-
-        // super key of (t, a, b, c) and (b, t, c) is equivalent to
-        // super key of (a, b, c) and (b, c) and should be (a, b, c, t)
-        let mut key_t_abc = SortKey::with_capacity(4);
-        key_t_abc.push(TIME_COLUMN_NAME, Default::default());
-        key_t_abc.push("a", Default::default());
-        key_t_abc.push("b", Default::default());
-        key_t_abc.push("c", Default::default());
-        let super_key = SortKey::super_key(&key_t_abc, &key_b_t_c).unwrap();
-        assert_eq!(super_key, key_abc_t);
-
-        // super key of (t, a, b, c) and (c, t, b) is equivalent to
-        // super key of (a, b, c) and (c, b) and should be None
-        let mut key_c_t_b = SortKey::with_capacity(3);
-        key_c_t_b.push("c", Default::default());
-        key_c_t_b.push(TIME_COLUMN_NAME, Default::default());
-        key_c_t_b.push("b", Default::default());
-        let super_key = SortKey::super_key(&key_t_abc, &key_c_t_b);
-        assert_eq!(super_key, None);
+        // super key of (a, b, c) and any of (b, a, c) } is None
+        let merge_key = SortKey::try_merge_key(&key_abc_2, &key_bac_2);
+        assert_eq!(merge_key, None);
     }
 }
