@@ -62,6 +62,9 @@ service ManagementService {
   // Close a chunk and move it to the read buffer
   rpc ClosePartitionChunk(ClosePartitionChunkRequest) returns (ClosePartitionChunkResponse);
 
+  // Unload chunk from read buffer but keep it in object store
+  rpc UnloadPartitionChunk(UnloadPartitionChunkRequest) returns (UnloadPartitionChunkResponse);
+
   // Get server status
   rpc GetServerStatus(GetServerStatusRequest) returns (GetServerStatusResponse);
 
@@ -240,6 +243,24 @@ message ClosePartitionChunkRequest {
 message ClosePartitionChunkResponse {
   // The operation that tracks the work for migrating the chunk
   google.longrunning.Operation operation = 1;
+}
+
+// Request to unload chunk from read buffer but keep it in object store
+message UnloadPartitionChunkRequest {
+  // the name of the database
+  string db_name = 1;
+
+  // the partition key
+  string partition_key = 2;
+
+  // the table name
+  string table_name = 4;
+
+  // the chunk id
+  uint32 chunk_id = 3;
+}
+
+message UnloadPartitionChunkResponse {
 }
 
 message GetServerStatusRequest {}
