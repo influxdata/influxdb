@@ -4,14 +4,14 @@ This package provides an HTTP API for interacting with both annotations and
 streams independently. The HTTP handlers are located in the `transport` folder.
 The code for interacting with the sqlite datastore is located in the
 `service.go` file. Definitions for the basic types & interfaces associated with
-annotations and streams used through the platform are located in the top-level
-`influxdb` package, in the `annotation.go` file.
+annotations and streams used throughout the platform are located in the
+top-level `influxdb` package, in the `annotation.go` file.
 
 ### Anatomy
 
-An annotation is, at it's simplest, a textual note on a range of time. The start
-and stop time of that range can be the same point in time, which reprents an
-annotation and a single instance. Annotations can also have "stickers".
+An annotation is, at its simplest, a textual note on a range of time. The start
+and stop time of that range can be the same point in time, which represents an
+annotation at a single instance. Annotations can also have "stickers".
 "Stickers" allow users to "tag" the annotation with further granularity for
 filtering in key-value pairs. Some examples of sticker key-value pairs are:
 `"product: oss"`, `"product: cloud"`, or `"service: tasks"`, but keys and values

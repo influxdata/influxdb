@@ -17,25 +17,25 @@ pointer to the `SqlStore` instance is passed to services which require it as
 part of their initialization.
 
 The [`jmoiron/sqlx`](https://github.com/jmoiron/sqlx) package provides a
-convenient and light-weight means to write and read structs into and out of the
+convenient and lightweight means to write and read structs into and out of the
 database and is sufficient for performing simple, static queries. For more
 complicated & dynamically constructed queries, the
-[`Masterminds/squirrel`](https://github.com/Masterminds/squirrel) package is a
-light-weight and robust query builder.
+[`Masterminds/squirrel`](https://github.com/Masterminds/squirrel) package can be
+used as a query builder.
 
 ### Concurrent Access
 
-An interesting aspect of using the serverless, file-based sqlite database is
-that while it can support multiple concurrent read requests, only a single write
-request can be processed at a time. A traditional RDBMS would manage concurrent
-write requests on the database server, but for this sqlite implementation write
+An interesting aspect of using the file-based sqlite database is that while it
+can support multiple concurrent read requests, only a single write request can
+be processed at a time. A traditional RDBMS would manage concurrent write
+requests on the database server, but for this sqlite implementation write
 requests need to be managed in the application code.
 
 In practice, this means that code intended to mutate the database needs to
-obtain a write lock prior to making queries that would affect a mutation. If
-locks are not obtained in the application code, it is possible that errors will
-be encountered if concurrent write requests hit the database file at the same
-time.
+obtain a write lock prior to making queries that would result in a change to the
+data. If locks are not obtained in the application code, it is possible that
+errors will be encountered if concurrent write requests hit the database file at
+the same time.
 
 ### Migrations
 
@@ -47,7 +47,8 @@ set the `user_version` pragma in the database, and only scripts with a higher
 
 When creating new migrations, follow the file naming convention established by
 existing migration scripts, which should look like `00XX_script_name.sql`, where
-`XX` is the version number.
+`XX` is the version number. New scripts should have the version number
+incremented by 1.
 
 ### In-Memory Database
 

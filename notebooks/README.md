@@ -3,8 +3,9 @@
 This package provides an HTTP API for interacting with InfluxDB notebooks. The
 HTTP handlers are located in the `transport` folder. The code for interacting
 with the sqlite datastore is located in the `service.go` file. Definitions for
-the basic types & interfaces associated with notebooks used through the platform
-are located in the top-level `influxdb` package, in the `notebook.go` file.
+the basic types & interfaces associated with notebooks used throughout the
+platform are located in the top-level `influxdb` package, in the `notebook.go`
+file.
 
 ### Anatomy
 
