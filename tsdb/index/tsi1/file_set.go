@@ -15,14 +15,12 @@ import (
 
 // FileSet represents a collection of files.
 type FileSet struct {
-	sfile *tsdb.SeriesFile
 	files []File
 }
 
 // NewFileSet returns a new instance of FileSet.
-func NewFileSet(sfile *tsdb.SeriesFile, files []File) *FileSet {
+func NewFileSet(files []File) *FileSet {
 	return &FileSet{
-		sfile: sfile,
 		files: files,
 	}
 }
@@ -63,14 +61,10 @@ func (fs *FileSet) Release() {
 	}
 }
 
-// SeriesFile returns the attached series file.
-func (fs *FileSet) SeriesFile() *tsdb.SeriesFile { return fs.sfile }
-
 // PrependLogFile returns a new file set with f added at the beginning.
 // Filters do not need to be rebuilt because log files have no bloom filter.
 func (fs *FileSet) PrependLogFile(f *LogFile) *FileSet {
 	return &FileSet{
-		sfile: fs.sfile,
 		files: append([]File{f}, fs.files...),
 	}
 }

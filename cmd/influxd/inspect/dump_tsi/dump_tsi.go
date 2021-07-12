@@ -211,7 +211,7 @@ func (a *args) readFileSet(sfile *tsdb.SeriesFile) (*tsi1.Index, *tsi1.FileSet, 
 		}
 	}
 
-	fs := tsi1.NewFileSet(sfile, files)
+	fs := tsi1.NewFileSet(files)
 	fs.Retain()
 
 	return nil, fs, nil

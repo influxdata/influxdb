@@ -1089,7 +1089,7 @@ func (i *Index) RetainFileSet() (*FileSet, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
-	fs := NewFileSet(i.sfile, nil)
+	fs := NewFileSet(nil)
 	for _, p := range i.partitions {
 		pfs, err := p.RetainFileSet()
 		if err != nil {
