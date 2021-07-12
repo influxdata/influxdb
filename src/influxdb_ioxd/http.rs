@@ -863,7 +863,7 @@ mod tests {
     use reqwest::{Client, Response};
 
     use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
-    use object_store::{memory::InMemory, ObjectStore};
+    use object_store::ObjectStore;
     use serde::de::DeserializeOwned;
     use server::{db::Db, ConnectionManagerImpl, ServerConfig as AppServerConfig};
 
@@ -872,12 +872,8 @@ mod tests {
         let test_registry = metrics::TestMetricRegistry::new(Arc::clone(&registry));
         (
             test_registry,
-            AppServerConfig::new(
-                Arc::new(ObjectStore::new_in_memory(InMemory::new())),
-                registry,
-                None,
-            )
-            .with_num_worker_threads(1),
+            AppServerConfig::new(Arc::new(ObjectStore::new_in_memory()), registry, None)
+                .with_num_worker_threads(1),
         )
     }
 

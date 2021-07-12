@@ -184,7 +184,7 @@ mod tests {
 
     #[tokio::test]
     async fn in_memory_test() {
-        let integration = ObjectStore::new_in_memory(InMemory::new());
+        let integration = ObjectStore::new_in_memory();
 
         put_get_delete_list(&integration).await.unwrap();
         list_with_delimiter(&integration).await.unwrap();
@@ -192,7 +192,7 @@ mod tests {
 
     #[tokio::test]
     async fn length_mismatch_is_an_error() {
-        let integration = ObjectStore::new_in_memory(InMemory::new());
+        let integration = ObjectStore::new_in_memory();
 
         let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
         let mut location = integration.new_path();
@@ -212,7 +212,7 @@ mod tests {
 
     #[tokio::test]
     async fn unknown_length() {
-        let integration = ObjectStore::new_in_memory(InMemory::new());
+        let integration = ObjectStore::new_in_memory();
 
         let data = Bytes::from("arbitrary data");
         let stream_data = std::io::Result::Ok(data.clone());

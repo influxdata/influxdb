@@ -621,13 +621,13 @@ fn db_name_from_rules_path(path: &Path) -> Result<DatabaseName<'static>> {
 
 #[cfg(test)]
 mod tests {
-    use object_store::{memory::InMemory, path::ObjectStorePath};
+    use object_store::path::ObjectStorePath;
 
     use super::*;
 
     #[tokio::test]
     async fn test_get_database_config_bytes() {
-        let object_store = ObjectStore::new_in_memory(InMemory::new());
+        let object_store = ObjectStore::new_in_memory();
         let mut rules_path = object_store.new_path();
         rules_path.push_all_dirs(&["1", "foo_bar"]);
         rules_path.set_file_name("rules.pb");
