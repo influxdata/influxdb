@@ -765,18 +765,31 @@ mod test {
         // in the duplicate module
 
         // c1: no overlaps
-        let c1 = Arc::new(TestChunk::new(1).with_tag_column_with_stats("t", "tag1", "a", "b"));
+        let c1 = Arc::new(TestChunk::new("t").with_id(1).with_tag_column_with_stats(
+            "tag1",
+            Some("a"),
+            Some("b"),
+        ));
 
         // c2: over lap with c3
-        let c2 = Arc::new(TestChunk::new(2).with_tag_column_with_stats("t", "tag1", "c", "d"));
+        let c2 = Arc::new(TestChunk::new("t").with_id(2).with_tag_column_with_stats(
+            "tag1",
+            Some("c"),
+            Some("d"),
+        ));
 
         // c3: overlap with c2
-        let c3 = Arc::new(TestChunk::new(3).with_tag_column_with_stats("t", "tag1", "c", "d"));
+        let c3 = Arc::new(TestChunk::new("t").with_id(3).with_tag_column_with_stats(
+            "tag1",
+            Some("c"),
+            Some("d"),
+        ));
 
         // c4: self overlap
         let c4 = Arc::new(
-            TestChunk::new(4)
-                .with_tag_column_with_stats("t", "tag1", "e", "f")
+            TestChunk::new("t")
+                .with_id(4)
+                .with_tag_column_with_stats("tag1", Some("e"), Some("f"))
                 .with_may_contain_pk_duplicates(true),
         );
 
@@ -797,11 +810,11 @@ mod test {
     async fn sort_planning_one_tag_with_time() {
         // Chunk 1 with 5 rows of data
         let chunk = Arc::new(
-            TestChunk::new(1)
-                .with_time_column("t")
-                .with_tag_column("t", "tag1")
-                .with_int_field_column("t", "field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data(),
         );
 
         // Datafusion schema of the chunk
@@ -851,12 +864,12 @@ mod test {
     async fn sort_planning_two_tags_with_time() {
         // Chunk 1 with 5 rows of data
         let chunk = Arc::new(
-            TestChunk::new(1)
-                .with_time_column("t")
-                .with_tag_column("t", "tag1")
-                .with_tag_column("t", "tag2")
-                .with_int_field_column("t", "field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data(),
         );
 
         // Datafusion schema of the chunk
@@ -906,12 +919,12 @@ mod test {
     async fn sort_read_filter_plan_for_two_tags_with_time() {
         // Chunk 1 with 5 rows of data
         let chunk = Arc::new(
-            TestChunk::new(1)
-                .with_time_column("t")
-                .with_tag_column("t", "tag1")
-                .with_tag_column("t", "tag2")
-                .with_int_field_column("t", "field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data(),
         );
 
         // Datafusion schema of the chunk
@@ -943,22 +956,24 @@ mod test {
     async fn deduplicate_plan_for_overlapped_chunks() {
         // Chunk 1 with 5 rows of data on 2 tags
         let chunk1 = Arc::new(
-            TestChunk::new(1)
-                .with_time_column("t")
-                .with_tag_column("t", "tag1")
-                .with_tag_column("t", "tag2")
-                .with_int_field_column("t", "field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data(),
         );
 
         // Chunk 2 exactly the same with Chunk 1
         let chunk2 = Arc::new(
-            TestChunk::new(2)
-                .with_time_column("t")
-                .with_tag_column("t", "tag1")
-                .with_tag_column("t", "tag2")
-                .with_int_field_column("t", "field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_id(2)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data(),
         );
         // Datafusion schema of the chunk
         // the same for 2 chunks
@@ -1011,22 +1026,24 @@ mod test {
         // Same two chunks but only select the field and timestamp, not the tag values
         // Chunk 1 with 5 rows of data on 2 tags
         let chunk1 = Arc::new(
-            TestChunk::new(1)
-                .with_time_column("t")
-                .with_tag_column("t", "tag1")
-                .with_tag_column("t", "tag2")
-                .with_int_field_column("t", "field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data(),
         );
 
         // Chunk 2 exactly the same with Chunk 1
         let chunk2 = Arc::new(
-            TestChunk::new(2)
-                .with_time_column("t")
-                .with_tag_column("t", "tag1")
-                .with_tag_column("t", "tag2")
-                .with_int_field_column("t", "field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_id(2)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data(),
         );
         let chunks = vec![chunk1, chunk2];
 
@@ -1083,30 +1100,33 @@ mod test {
         // Chunks with different fields / tags, and select a subset
         // Chunk 1 with 5 rows of data on 2 tags
         let chunk1 = Arc::new(
-            TestChunk::new(1)
-                .with_time_column("t")
-                .with_tag_column("t", "tag1")
-                .with_tag_column("t", "tag2")
-                .with_int_field_column("t", "field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data(),
         );
 
         // Chunk 2 same tags, but different fields
         let chunk2 = Arc::new(
-            TestChunk::new(2)
-                .with_time_column("t")
-                .with_tag_column("t", "tag1")
-                .with_int_field_column("t", "other_field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_id(2)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_i64_field_column("other_field_int")
+                .with_five_rows_of_data(),
         );
 
         // Chunk 3 exactly the same with Chunk 2
         let chunk3 = Arc::new(
-            TestChunk::new(3)
-                .with_time_column("t")
-                .with_tag_column("t", "tag1")
-                .with_int_field_column("t", "other_field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_id(3)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_i64_field_column("other_field_int")
+                .with_five_rows_of_data(),
         );
 
         let chunks = vec![chunk1, chunk2, chunk3];
@@ -1172,32 +1192,35 @@ mod test {
     async fn deduplicate_plan_for_overlapped_chunks_with_different_schemas() {
         // Chunk 1 with 5 rows of data on 2 tags
         let chunk1 = Arc::new(
-            TestChunk::new(1)
-                .with_time_column("t")
-                .with_tag_column("t", "tag1")
-                .with_tag_column("t", "tag2")
-                .with_int_field_column("t", "field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data(),
         );
 
         // Chunk 2 has two different tags
         let chunk2 = Arc::new(
-            TestChunk::new(2)
-                .with_time_column("t")
-                .with_tag_column("t", "tag3")
-                .with_tag_column("t", "tag1")
-                .with_int_field_column("t", "field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_id(2)
+                .with_time_column()
+                .with_tag_column("tag3")
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data(),
         );
 
         // Chunk 3 has just tag3
         let chunk3 = Arc::new(
-            TestChunk::new(3)
-                .with_time_column("t")
-                .with_tag_column("t", "tag3")
-                .with_int_field_column("t", "field_int")
-                .with_int_field_column("t", "field_int2")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_id(3)
+                .with_time_column()
+                .with_tag_column("tag3")
+                .with_i64_field_column("field_int")
+                .with_i64_field_column("field_int2")
+                .with_five_rows_of_data(),
         );
 
         // Requested output schema == the schema for all three
@@ -1271,11 +1294,11 @@ mod test {
     async fn scan_plan_with_one_chunk_no_duplicates() {
         // Test no duplicate at all
         let chunk = Arc::new(
-            TestChunk::new(1)
-                .with_time_column_with_stats("t", 5, 7000)
-                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
-                .with_int_field_column("t", "field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data(),
         );
 
         // Datafusion schema of the chunk
@@ -1319,12 +1342,12 @@ mod test {
     async fn scan_plan_with_one_chunk_with_duplicates() {
         // Test one chunk with duplicate within
         let chunk = Arc::new(
-            TestChunk::new(1)
-                .with_time_column_with_stats("t", 5, 7000)
-                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
-                .with_int_field_column("t", "field_int")
+            TestChunk::new("t")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
+                .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
-                .with_ten_rows_of_data_some_duplicates("t"),
+                .with_ten_rows_of_data_some_duplicates(),
         );
 
         // Datafusion schema of the chunk
@@ -1375,12 +1398,12 @@ mod test {
     async fn scan_plan_with_one_chunk_with_duplicates_subset() {
         // Test one chunk with duplicate within
         let chunk = Arc::new(
-            TestChunk::new(1)
-                .with_time_column_with_stats("t", 5, 7000)
-                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
-                .with_int_field_column("t", "field_int")
+            TestChunk::new("t")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
+                .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
-                .with_ten_rows_of_data_some_duplicates("t"),
+                .with_ten_rows_of_data_some_duplicates(),
         );
 
         let chunks = vec![chunk];
@@ -1440,19 +1463,19 @@ mod test {
     async fn scan_plan_with_two_overlapped_chunks_with_duplicates() {
         // test overlapped chunks
         let chunk1 = Arc::new(
-            TestChunk::new(1)
-                .with_time_column_with_stats("t", 5, 7000)
-                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
-                .with_int_field_column("t", "field_int")
-                .with_ten_rows_of_data_some_duplicates("t"),
+            TestChunk::new("t")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
+                .with_i64_field_column("field_int")
+                .with_ten_rows_of_data_some_duplicates(),
         );
 
         let chunk2 = Arc::new(
-            TestChunk::new(1)
-                .with_time_column_with_stats("t", 5, 7000)
-                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
-                .with_int_field_column("t", "field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data(),
         );
 
         // Datafusion schema of the chunk
@@ -1509,39 +1532,43 @@ mod test {
     async fn scan_plan_with_four_chunks() {
         // This test covers all kind of chunks: overlap, non-overlap without duplicates within, non-overlap with duplicates within
         let chunk1 = Arc::new(
-            TestChunk::new(1)
-                .with_time_column_with_stats("t", 5, 7000)
-                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
-                .with_int_field_column("t", "field_int")
-                .with_ten_rows_of_data_some_duplicates("t"),
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
+                .with_i64_field_column("field_int")
+                .with_ten_rows_of_data_some_duplicates(),
         );
 
         // chunk2 overlaps with chunk 1
         let chunk2 = Arc::new(
-            TestChunk::new(1)
-                .with_time_column_with_stats("t", 5, 7000)
-                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
-                .with_int_field_column("t", "field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_id(2)
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data(),
         );
 
         // chunk3 no overlap, no duplicates within
         let chunk3 = Arc::new(
-            TestChunk::new(1)
-                .with_time_column_with_stats("t", 8000, 20000)
-                .with_tag_column_with_stats("t", "tag1", "UT", "WA")
-                .with_int_field_column("t", "field_int")
-                .with_three_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_id(3)
+                .with_time_column_with_stats(Some(8000), Some(20000))
+                .with_tag_column_with_stats("tag1", Some("UT"), Some("WA"))
+                .with_i64_field_column("field_int")
+                .with_three_rows_of_data(),
         );
 
         // chunk3 no overlap, duplicates within
         let chunk4 = Arc::new(
-            TestChunk::new(1)
-                .with_time_column_with_stats("t", 28000, 220000)
-                .with_tag_column_with_stats("t", "tag1", "UT", "WA")
-                .with_int_field_column("t", "field_int")
+            TestChunk::new("t")
+                .with_id(4)
+                .with_time_column_with_stats(Some(28000), Some(220000))
+                .with_tag_column_with_stats("tag1", Some("UT"), Some("WA"))
+                .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
-                .with_four_rows_of_data("t"),
+                .with_four_rows_of_data(),
         );
 
         // Datafusion schema of the chunk

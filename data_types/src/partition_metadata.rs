@@ -1,12 +1,13 @@
 //! This module contains structs that describe the metadata for a partition
 //! including schema, summary statistics, and file locations in storage.
 
-use std::{borrow::Cow, mem};
-
 use serde::{Deserialize, Serialize};
-use std::borrow::Borrow;
-use std::iter::FromIterator;
-use std::num::NonZeroU64;
+use std::{
+    borrow::{Borrow, Cow},
+    iter::FromIterator,
+    mem,
+    num::NonZeroU64,
+};
 
 /// Describes the aggregated (across all chunks) summary
 /// statistics for each column in a partition
@@ -44,11 +45,7 @@ pub struct PartitionChunkSummary {
 impl FromIterator<Self> for TableSummary {
     fn from_iter<T: IntoIterator<Item = Self>>(iter: T) -> Self {
         let mut iter = iter.into_iter();
-        let first = iter.next().expect("must contain at least one element");
-        let mut s = Self {
-            name: first.name,
-            columns: first.columns,
-        };
+        let mut s = iter.next().expect("must contain at least one element");
 
         for other in iter {
             s.update_from(&other)
