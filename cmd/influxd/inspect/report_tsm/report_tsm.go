@@ -1,6 +1,7 @@
 package report_tsm
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -58,7 +59,7 @@ in the following ways:
 			// Verify if shard dir
 			err := arguments.isShardDir(arguments.dir)
 			if arguments.detailed && err != nil {
-				return fmt.Errorf("--detailed only supported for shard dirs")
+				return errors.New("--detailed only supported for shard dirs")
 			}
 
 			return arguments.Run(cmd)
@@ -74,7 +75,7 @@ in the following ways:
 		panic(err)
 	}
 	dir = filepath.Join(dir, "engine/data")
-	cmd.Flags().StringVarP(&arguments.dir, "data-dir", "", dir, fmt.Sprintf("use provided data directory (defaults to %s).", dir))
+	cmd.Flags().StringVarP(&arguments.dir, "data-dir", "", dir, "use provided data directory")
 
 	return cmd
 }
@@ -82,7 +83,7 @@ in the following ways:
 func (a *args) isShardDir(dir string) error {
 	name := filepath.Base(dir)
 	if id, err := strconv.Atoi(name); err != nil || id < 1 {
-		return fmt.Errorf("not a valid shard dir: %v", dir)
+		return fmt.Errorf("not a valid shard dir: %s", dir)
 	}
 
 	return nil
@@ -112,27 +113,27 @@ func (a *args) Run(cmd *cobra.Command) error {
 	minTime, maxTime := int64(math.MaxInt64), int64(math.MinInt64)
 	var fileCount int
 	if err := a.walkShardDirs(a.dir, func(db, rp, id, path string) error {
-		if a.pattern != "" && strings.Contains(path, a.pattern) {
+		if a.pattern != "" && !strings.Contains(path, a.pattern) {
 			return nil
 		}
 
 		file, err := os.OpenFile(path, os.O_RDONLY, 0600)
 		if err != nil {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "error: %s: %v. Skipping.\n", path, err)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "error opening %q, skipping: %v\n", path, err)
 			return nil
 		}
 
 		loadStart := time.Now()
 		reader, err := tsm1.NewTSMReader(file)
 		if err != nil {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "error: %s: %v. Skipping.\n", file.Name(), err)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "error reading %q, skipping: %v\n", file.Name(), err)
 			return nil
 		}
 		loadTime := time.Since(loadStart)
 		fileCount++
 
-		dbCount := dbCardinalities[db]
-		if dbCount == nil {
+		dbCount, ok := dbCardinalities[db]
+		if !ok {
 			dbCount = newCounterFn()
 			dbCardinalities[db] = dbCount
 		}
@@ -150,23 +151,23 @@ func (a *args) Run(cmd *cobra.Command) error {
 				seriesKey, field := key[:sep], key[sep+4:]
 				measurement, tags := models.ParseKey(seriesKey)
 
-				measCount := measCardinalities[measurement]
-				if measCount == nil {
+				measCount, ok := measCardinalities[measurement]
+				if !ok {
 					measCount = newCounterFn()
 					measCardinalities[measurement] = measCount
 				}
 				measCount.Add(key)
 
-				fieldCount := fieldCardinalities[measurement]
-				if fieldCount == nil {
+				fieldCount, ok := fieldCardinalities[measurement]
+				if !ok {
 					fieldCount = newCounterFn()
 					fieldCardinalities[measurement] = fieldCount
 				}
 				fieldCount.Add(field)
 
 				for _, t := range tags {
-					tagCount := tagCardinalities[string(t.Key)]
-					if tagCount == nil {
+					tagCount, ok := tagCardinalities[string(t.Key)]
+					if !ok {
 						tagCount = newCounterFn()
 						tagCardinalities[string(t.Key)] = tagCount
 					}
@@ -181,7 +182,10 @@ func (a *args) Run(cmd *cobra.Command) error {
 		if maxT > maxTime {
 			maxTime = maxT
 		}
-		_ = reader.Close()
+		err = reader.Close()
+		if err != nil {
+			return fmt.Errorf("failed to close TSM Reader: %v", err)
+		}
 
 		_, _ = fmt.Fprintln(tw, strings.Join([]string{
 			db, rp, id,
@@ -193,16 +197,22 @@ func (a *args) Run(cmd *cobra.Command) error {
 			loadTime.String(),
 		}, "\t"))
 		if a.detailed {
-			_ = tw.Flush()
+			err = tw.Flush()
+			if err != nil {
+				return fmt.Errorf("failed to flush tabwriter: %v", err)
+			}
 		}
 		return nil
 	}); err != nil {
 		return err
 	}
 
-	_ = tw.Flush()
+	err := tw.Flush()
+	if err != nil {
+		return fmt.Errorf("failed to flush tabwriter: %v", err)
+	}
 
-	printArgs{
+	printSummary(cmd, printArgs{
 		fileCount:          fileCount,
 		minTime:            minTime,
 		maxTime:            maxTime,
@@ -213,7 +223,7 @@ func (a *args) Run(cmd *cobra.Command) error {
 		measCardinalities:  measCardinalities,
 		fieldCardinalities: fieldCardinalities,
 		dbCardinalities:    dbCardinalities,
-	}.printSummary(cmd)
+	})
 
 	cmd.Printf("Completed in %s\n", time.Since(start))
 	return nil
@@ -232,7 +242,7 @@ type printArgs struct {
 	dbCardinalities    map[string]counter
 }
 
-func (p printArgs) printSummary(cmd *cobra.Command) {
+func printSummary(cmd *cobra.Command, p printArgs) {
 	cmd.Printf("\nSummary:")
 	cmd.Printf("  Files: %d\n", p.fileCount)
 	cmd.Printf("  Time Range: %s - %s\n",
