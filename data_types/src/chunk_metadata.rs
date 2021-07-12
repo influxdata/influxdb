@@ -63,7 +63,7 @@ impl ChunkStorage {
 }
 
 /// Any lifecycle action currently in progress for this chunk
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ChunkLifecycleAction {
     /// Chunk is in the process of being moved to the read buffer
     Moving,
@@ -106,6 +106,9 @@ pub struct ChunkSummary {
 
     /// How is this chunk stored?
     pub storage: ChunkStorage,
+
+    /// Is there any outstanding lifecycle action for this chunk?
+    pub lifecycle_action: Option<ChunkLifecycleAction>,
 
     /// The total estimated size of this chunk, in bytes
     pub estimated_bytes: usize,
@@ -154,6 +157,7 @@ impl ChunkSummary {
         table_name: Arc<str>,
         id: u32,
         storage: ChunkStorage,
+        lifecycle_action: Option<ChunkLifecycleAction>,
         estimated_bytes: usize,
         row_count: usize,
     ) -> Self {
@@ -162,6 +166,7 @@ impl ChunkSummary {
             table_name,
             id,
             storage,
+            lifecycle_action,
             estimated_bytes,
             row_count,
             time_of_first_write: None,

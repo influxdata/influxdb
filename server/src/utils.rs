@@ -6,7 +6,7 @@ use data_types::{
     server_id::ServerId,
     DatabaseName,
 };
-use object_store::{memory::InMemory, ObjectStore};
+use object_store::ObjectStore;
 use query::{exec::Executor, QueryDatabase};
 
 use crate::{
@@ -54,7 +54,7 @@ impl TestDbBuilder {
             .unwrap_or_else(|| DatabaseName::new("placeholder").unwrap());
         let object_store = self
             .object_store
-            .unwrap_or_else(|| Arc::new(ObjectStore::new_in_memory(InMemory::new())));
+            .unwrap_or_else(|| Arc::new(ObjectStore::new_in_memory()));
 
         let exec = Arc::new(Executor::new(1));
         let metrics_registry = Arc::new(metrics::MetricRegistry::new());

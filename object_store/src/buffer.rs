@@ -14,6 +14,7 @@ use tokio_util::io::{ReaderStream, StreamReader};
 ///
 /// The temporary file will be deleted when the result stream
 /// is dropped.
+#[allow(dead_code)]
 pub async fn slurp_stream_tempfile<S>(bytes: S) -> Result<BufferedStream<File>>
 where
     S: Stream<Item = Result<Bytes>> + Send + Sync,
@@ -121,15 +122,5 @@ mod tests {
                 .unwrap(),
         )
         .await;
-    }
-
-    #[tokio::test]
-    async fn test_slurp_stream_tempfile() {
-        check_stream(slurp_stream_tempfile(test_data()).await.unwrap()).await;
-    }
-
-    #[tokio::test]
-    async fn test_slurp_stream_memory() {
-        check_stream(slurp_stream_memory(test_data()).await.unwrap()).await;
     }
 }

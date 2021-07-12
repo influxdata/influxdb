@@ -196,6 +196,7 @@ fn chunk_summaries_schema() -> SchemaRef {
         Field::new("partition_key", DataType::Utf8, false),
         Field::new("table_name", DataType::Utf8, false),
         Field::new("storage", DataType::Utf8, false),
+        Field::new("lifecycle_action", DataType::Utf8, true),
         Field::new("estimated_bytes", DataType::UInt64, false),
         Field::new("row_count", DataType::UInt64, false),
         Field::new("time_of_first_write", ts.clone(), true),
@@ -217,6 +218,10 @@ fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<
     let storage = chunks
         .iter()
         .map(|c| Some(c.storage.as_str()))
+        .collect::<StringArray>();
+    let lifecycle_action = chunks
+        .iter()
+        .map(|c| c.lifecycle_action.map(|a| a.name()))
         .collect::<StringArray>();
     let estimated_bytes = chunks
         .iter()
@@ -245,10 +250,11 @@ fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<
     RecordBatch::try_new(
         schema,
         vec![
-            Arc::new(id), // as ArrayRef,
+            Arc::new(id),
             Arc::new(partition_key),
             Arc::new(table_name),
             Arc::new(storage),
+            Arc::new(lifecycle_action),
             Arc::new(estimated_bytes),
             Arc::new(row_counts),
             Arc::new(time_of_first_write),
@@ -597,7 +603,7 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use chrono::NaiveDateTime;
     use data_types::{
-        chunk_metadata::{ChunkColumnSummary, ChunkStorage},
+        chunk_metadata::{ChunkColumnSummary, ChunkLifecycleAction, ChunkStorage},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     };
 
@@ -609,6 +615,7 @@ mod tests {
                 table_name: Arc::from("table1"),
                 id: 0,
                 storage: ChunkStorage::OpenMutableBuffer,
+                lifecycle_action: None,
                 estimated_bytes: 23754,
                 row_count: 11,
                 time_of_first_write: Some(DateTime::from_utc(
@@ -623,6 +630,7 @@ mod tests {
                 table_name: Arc::from("table1"),
                 id: 0,
                 storage: ChunkStorage::OpenMutableBuffer,
+                lifecycle_action: Some(ChunkLifecycleAction::Persisting),
                 estimated_bytes: 23454,
                 row_count: 22,
                 time_of_first_write: None,
@@ -635,12 +643,12 @@ mod tests {
         ];
 
         let expected = vec![
-            "+----+---------------+------------+-------------------+-----------------+-----------+---------------------+---------------------+-------------+",
-            "| id | partition_key | table_name | storage           | estimated_bytes | row_count | time_of_first_write | time_of_last_write  | time_closed |",
-            "+----+---------------+------------+-------------------+-----------------+-----------+---------------------+---------------------+-------------+",
-            "| 0  | p1            | table1     | OpenMutableBuffer | 23754           | 11        | 1970-01-01 00:00:10 |                     |             |",
-            "| 0  | p1            | table1     | OpenMutableBuffer | 23454           | 22        |                     | 1970-01-01 00:01:20 |             |",
-            "+----+---------------+------------+-------------------+-----------------+-----------+---------------------+---------------------+-------------+",
+            "+----+---------------+------------+-------------------+------------------------------+-----------------+-----------+---------------------+---------------------+-------------+",
+            "| id | partition_key | table_name | storage           | lifecycle_action             | estimated_bytes | row_count | time_of_first_write | time_of_last_write  | time_closed |",
+            "+----+---------------+------------+-------------------+------------------------------+-----------------+-----------+---------------------+---------------------+-------------+",
+            "| 0  | p1            | table1     | OpenMutableBuffer |                              | 23754           | 11        | 1970-01-01 00:00:10 |                     |             |",
+            "| 0  | p1            | table1     | OpenMutableBuffer | Persisting to Object Storage | 23454           | 22        |                     | 1970-01-01 00:01:20 |             |",
+            "+----+---------------+------------+-------------------+------------------------------+-----------------+-----------+---------------------+---------------------+-------------+",
         ];
 
         let schema = chunk_summaries_schema();
@@ -787,6 +795,8 @@ mod tests {
 
     #[test]
     fn test_assemble_chunk_columns() {
+        let lifecycle_action = None;
+
         let summaries = vec![
             (
                 Arc::new(TableSummary {
@@ -814,6 +824,7 @@ mod tests {
                         table_name: "t1".into(),
                         id: 42,
                         storage: ChunkStorage::ReadBuffer,
+                        lifecycle_action,
                         estimated_bytes: 23754,
                         row_count: 11,
                         time_of_first_write: None,
@@ -847,6 +858,7 @@ mod tests {
                         table_name: "t1".into(),
                         id: 43,
                         storage: ChunkStorage::OpenMutableBuffer,
+                        lifecycle_action,
                         estimated_bytes: 23754,
                         row_count: 11,
                         time_of_first_write: None,
@@ -874,6 +886,7 @@ mod tests {
                         table_name: "t2".into(),
                         id: 44,
                         storage: ChunkStorage::OpenMutableBuffer,
+                        lifecycle_action,
                         estimated_bytes: 23754,
                         row_count: 11,
                         time_of_first_write: None,

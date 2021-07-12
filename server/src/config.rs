@@ -725,7 +725,7 @@ impl<'a> Drop for BlockDatabaseGuard<'a> {
 mod test {
     use std::convert::TryFrom;
 
-    use object_store::{memory::InMemory, ObjectStore, ObjectStoreApi};
+    use object_store::{ObjectStore, ObjectStoreApi};
 
     use crate::db::load::load_or_create_preserved_catalog;
 
@@ -736,7 +736,7 @@ mod test {
     async fn create_db() {
         // setup
         let name = DatabaseName::new("foo").unwrap();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let store = Arc::new(ObjectStore::new_in_memory());
         let exec = Arc::new(Executor::new(1));
         let server_id = ServerId::try_from(1).unwrap();
         let metric_registry = Arc::new(metrics::MetricRegistry::new());
@@ -890,7 +890,7 @@ mod test {
     async fn recover_db() {
         // setup
         let name = DatabaseName::new("foo").unwrap();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let store = Arc::new(ObjectStore::new_in_memory());
         let exec = Arc::new(Executor::new(1));
         let server_id = ServerId::try_from(1).unwrap();
         let metric_registry = Arc::new(metrics::MetricRegistry::new());
@@ -1002,7 +1002,7 @@ mod test {
     async fn block_db() {
         // setup
         let name = DatabaseName::new("foo").unwrap();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let store = Arc::new(ObjectStore::new_in_memory());
         let exec = Arc::new(Executor::new(1));
         let server_id = ServerId::try_from(1).unwrap();
         let metric_registry = Arc::new(metrics::MetricRegistry::new());
@@ -1053,7 +1053,7 @@ mod test {
     async fn test_db_drop() {
         // setup
         let name = DatabaseName::new("foo").unwrap();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let store = Arc::new(ObjectStore::new_in_memory());
         let exec = Arc::new(Executor::new(1));
         let server_id = ServerId::try_from(1).unwrap();
         let metric_registry = Arc::new(metrics::MetricRegistry::new());
@@ -1112,7 +1112,7 @@ mod test {
 
     #[test]
     fn object_store_path_for_database_config() {
-        let storage = ObjectStore::new_in_memory(InMemory::new());
+        let storage = ObjectStore::new_in_memory();
         let mut base_path = storage.new_path();
         base_path.push_dir("1");
 

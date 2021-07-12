@@ -55,6 +55,9 @@ pub trait QueryDatabase: Debug + Send + Sync {
     /// Return the partition keys for data in this DB
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;
 
+    /// Schema for a specific table if the table exists.
+    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>>;
+
     /// Returns a set of chunks within the partition with data that may match
     /// the provided predicate. If possible, chunks which have no rows that can
     /// possibly match the predicate may be omitted.

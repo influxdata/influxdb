@@ -110,6 +110,7 @@ jobs:
       - store_artifacts:
           path: target/doc/
           destination: rustdoc
+
   test:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -190,6 +191,9 @@ jobs:
       - run:
           name: Build benches
           command: cargo test --workspace --benches --no-run
+      - run:
+          name: Build with object store support
+          command: cargo build --features="aws,gcp,azure"
       - cache_save
 
   # Lint protobufs.
@@ -243,7 +247,7 @@ jobs:
       - cache_restore
       - run:
           name: Cargo release build with target arch set for CRoaring
-          command: ROARING_ARCH=x86-64 cargo build --release
+          command: ROARING_ARCH=x86-64 cargo build --release --features="aws,gcp,azure"
       - run: |
           echo sha256sum after build is
           sha256sum target/release/influxdb_iox

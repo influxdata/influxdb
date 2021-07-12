@@ -3,9 +3,8 @@ use std::num::{NonZeroU32, NonZeroU64, NonZeroUsize};
 
 use data_types::database_rules::{
     LifecycleRules, DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT,
-    DEFAULT_LATE_ARRIVE_WINDOW_SECONDS, DEFAULT_MUTABLE_LINGER_SECONDS,
-    DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS, DEFAULT_PERSIST_ROW_THRESHOLD,
-    DEFAULT_WORKER_BACKOFF_MILLIS,
+    DEFAULT_LATE_ARRIVE_WINDOW_SECONDS, DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS,
+    DEFAULT_PERSIST_ROW_THRESHOLD, DEFAULT_WORKER_BACKOFF_MILLIS,
 };
 
 use crate::google::FieldViolation;
@@ -13,12 +12,9 @@ use crate::influxdata::iox::management::v1 as management;
 
 impl From<LifecycleRules> for management::LifecycleRules {
     fn from(config: LifecycleRules) -> Self {
+        #[allow(deprecated)]
         Self {
-            mutable_linger_seconds: config.mutable_linger_seconds.get(),
-            mutable_minimum_age_seconds: config
-                .mutable_minimum_age_seconds
-                .map(Into::into)
-                .unwrap_or_default(),
+            mutable_linger_seconds: 0, // deprecated, not in use.
             buffer_size_soft: config
                 .buffer_size_soft
                 .map(|x| x.get() as u64)
@@ -46,13 +42,6 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
 
     fn try_from(proto: management::LifecycleRules) -> Result<Self, Self::Error> {
         Ok(Self {
-            mutable_linger_seconds: NonZeroU32::new(if proto.mutable_linger_seconds == 0 {
-                DEFAULT_MUTABLE_LINGER_SECONDS
-            } else {
-                proto.mutable_linger_seconds
-            })
-            .unwrap(),
-            mutable_minimum_age_seconds: proto.mutable_minimum_age_seconds.try_into().ok(),
             buffer_size_soft: (proto.buffer_size_soft as usize).try_into().ok(),
             buffer_size_hard: (proto.buffer_size_hard as usize).try_into().ok(),
             drop_non_persisted: proto.drop_non_persisted,
@@ -84,9 +73,10 @@ mod tests {
 
     #[test]
     fn lifecycle_rules() {
+        #[allow(deprecated)]
         let protobuf = management::LifecycleRules {
-            mutable_linger_seconds: 123,
-            mutable_minimum_age_seconds: 5345,
+            // deprecated, not in use.
+            mutable_linger_seconds: 0,
             buffer_size_soft: 353,
             buffer_size_hard: 232,
             drop_non_persisted: true,
@@ -103,14 +93,6 @@ mod tests {
         let back: management::LifecycleRules = config.clone().into();
 
         assert_eq!(
-            config.mutable_linger_seconds.get(),
-            protobuf.mutable_linger_seconds
-        );
-        assert_eq!(
-            config.mutable_minimum_age_seconds.unwrap().get(),
-            protobuf.mutable_minimum_age_seconds
-        );
-        assert_eq!(
             config.buffer_size_soft.unwrap().get(),
             protobuf.buffer_size_soft as usize
         );
@@ -121,11 +103,6 @@ mod tests {
         assert_eq!(config.drop_non_persisted, protobuf.drop_non_persisted);
         assert_eq!(config.immutable, protobuf.immutable);
 
-        assert_eq!(back.mutable_linger_seconds, protobuf.mutable_linger_seconds);
-        assert_eq!(
-            back.mutable_minimum_age_seconds,
-            protobuf.mutable_minimum_age_seconds
-        );
         assert_eq!(back.buffer_size_soft, protobuf.buffer_size_soft);
         assert_eq!(back.buffer_size_hard, protobuf.buffer_size_hard);
         assert_eq!(back.drop_non_persisted, protobuf.drop_non_persisted);

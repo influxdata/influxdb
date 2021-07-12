@@ -1,24 +1,23 @@
 //! The catalog representation of a Partition
 
+use super::chunk::{CatalogChunk, ChunkStage};
+use crate::db::catalog::metrics::PartitionMetrics;
+use chrono::{DateTime, Utc};
+use data_types::{
+    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkSummary},
+    partition_metadata::PartitionSummary,
+};
+use internal_types::schema::Schema;
+use observability_deps::tracing::info;
+use persistence_windows::persistence_windows::PersistenceWindows;
+use snafu::Snafu;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     fmt::Display,
     sync::Arc,
 };
-
-use chrono::{DateTime, Utc};
-
-use data_types::{chunk_metadata::ChunkLifecycleAction, partition_metadata::PartitionSummary};
 use tracker::RwLock;
 
-use crate::db::catalog::metrics::PartitionMetrics;
-
-use super::chunk::{CatalogChunk, ChunkStage};
-use data_types::chunk_metadata::{ChunkAddr, ChunkSummary};
-use internal_types::schema::Schema;
-use observability_deps::tracing::info;
-use persistence_windows::persistence_windows::PersistenceWindows;
-use snafu::Snafu;
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("chunk not found: {}", chunk))]
@@ -34,6 +33,7 @@ pub enum Error {
         action: ChunkLifecycleAction,
     },
 }
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// IOx Catalog Partition
@@ -73,9 +73,8 @@ pub struct Partition {
 impl Partition {
     /// Create a new partition catalog object.
     ///
-    /// This function is not pub because `Partition`s should be
-    /// created using the interfaces on [`Catalog`](crate::db::catalog::Catalog) and not
-    /// instantiated directly.
+    /// This function is not pub because `Partition`s should be created using the interfaces on
+    /// [`Catalog`](crate::db::catalog::Catalog) and not instantiated directly.
     pub(super) fn new(
         db_name: Arc<str>,
         partition_key: Arc<str>,
@@ -128,8 +127,8 @@ impl Partition {
 
     /// Create a new Chunk in the open state.
     ///
-    /// This will add a new chunk to the catalog and increases the chunk ID counter for that table-partition
-    /// combination.
+    /// This will add a new chunk to the catalog and increases the chunk ID counter for that
+    /// table-partition combination.
     ///
     /// Returns an error if the chunk is empty.
     pub fn create_open_chunk(
@@ -167,7 +166,7 @@ impl Partition {
     pub fn create_rub_chunk(
         &mut self,
         chunk: read_buffer::RBChunk,
-        schema: Schema,
+        schema: Arc<Schema>,
     ) -> Arc<RwLock<CatalogChunk>> {
         let chunk_id = self.next_chunk_id;
         assert_ne!(self.next_chunk_id, u32::MAX, "Chunk ID Overflow");
@@ -197,8 +196,7 @@ impl Partition {
 
     /// Create new chunk that is only in object store (= parquet file).
     ///
-    /// The table-specific chunk ID counter will be set to
-    /// `max(current, chunk_id + 1)`.
+    /// The table-specific chunk ID counter will be set to `max(current, chunk_id + 1)`.
     ///
     /// Returns the previous chunk with the given chunk_id if any
     pub fn insert_object_store_only_chunk(
@@ -262,7 +260,7 @@ impl Partition {
         self.chunks.remove(&chunk_id);
     }
 
-    /// return the first currently open chunk, if any
+    /// Return the first currently open chunk, if any
     pub fn open_chunk(&self) -> Option<Arc<RwLock<CatalogChunk>>> {
         self.chunks
             .values()

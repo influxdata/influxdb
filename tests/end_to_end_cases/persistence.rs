@@ -1,12 +1,13 @@
-use std::convert::TryInto;
-
 use itertools::Itertools;
 
 use arrow_util::assert_batches_eq;
-use data_types::chunk_metadata::{ChunkStorage, ChunkSummary};
+use data_types::chunk_metadata::ChunkStorage;
 use influxdb_iox_client::operations;
 
-use crate::common::server_fixture::ServerFixture;
+use crate::{
+    common::server_fixture::ServerFixture,
+    end_to_end_cases::scenario::{list_chunks, wait_for_exact_chunk_states},
+};
 
 use super::scenario::{
     collect_query, create_quickly_persisting_database, create_readable_database, rand_name,
@@ -30,10 +31,10 @@ async fn test_chunk_is_persisted_automatically() {
         .expect("successful write");
     assert_eq!(num_lines_written, 1000);
 
-    wait_for_chunk(
+    wait_for_exact_chunk_states(
         &fixture,
         &db_name,
-        ChunkStorage::ReadBufferAndObjectStore,
+        vec![ChunkStorage::ReadBufferAndObjectStore],
         std::time::Duration::from_secs(5),
     )
     .await;
@@ -50,7 +51,8 @@ async fn test_full_lifecycle() {
     let mut write_client = fixture.write_client();
 
     let db_name = rand_name();
-    create_quickly_persisting_database(&db_name, fixture.grpc_channel(), 100).await;
+    // wait 2 seconds for the data to arrive (to ensure we compact a single chunk)
+    create_quickly_persisting_database(&db_name, fixture.grpc_channel(), 2).await;
 
     // write in enough data to exceed the soft limit (512K) and
     // expect that it compacts, persists and then unloads the data from memory
@@ -84,10 +86,10 @@ async fn test_full_lifecycle() {
         .expect("successful write");
     assert_eq!(num_lines_written, payload_size);
 
-    wait_for_chunk(
+    wait_for_exact_chunk_states(
         &fixture,
         &db_name,
-        ChunkStorage::ObjectStoreOnly,
+        vec![ChunkStorage::ObjectStoreOnly],
         std::time::Duration::from_secs(10),
     )
     .await;
@@ -116,23 +118,26 @@ async fn test_query_chunk_after_restart() {
 
     // create DB and a RB chunk
     create_readable_database(&db_name, fixture.grpc_channel()).await;
-    let chunk_id = create_readbuffer_chunk(&fixture, &db_name).await;
 
-    // enable persistence
+    // enable persistence prior to write
     let mut rules = management_client.get_database(&db_name).await.unwrap();
     rules.lifecycle_rules = Some({
         let mut lifecycle_rules = rules.lifecycle_rules.unwrap();
         lifecycle_rules.persist = true;
         lifecycle_rules.late_arrive_window_seconds = 1;
+        lifecycle_rules.persist_row_threshold = 1;
+        lifecycle_rules.persist_age_threshold_seconds = 1;
         lifecycle_rules
     });
     management_client.update_database(rules).await.unwrap();
 
-    // wait for persistence
-    wait_for_persisted_chunk(
+    create_readbuffer_chunk(&fixture, &db_name).await;
+
+    // wait the chunk to be persisted
+    wait_for_exact_chunk_states(
         &fixture,
         &db_name,
-        chunk_id,
+        vec![ChunkStorage::ReadBufferAndObjectStore],
         std::time::Duration::from_secs(10),
     )
     .await;
@@ -199,7 +204,7 @@ async fn create_readbuffer_chunk(fixture: &ServerFixture, db_name: &str) -> u32 
         .await
         .expect("failed to wait operation");
 
-    // And now the chunk  should be good
+    // And now the chunk should be good
     let mut chunks = list_chunks(fixture, db_name).await;
     chunks.sort_by(|c1, c2| c1.id.cmp(&c2.id));
 
@@ -208,74 +213,6 @@ async fn create_readbuffer_chunk(fixture: &ServerFixture, db_name: &str) -> u32 
     assert_eq!(chunks[0].storage, ChunkStorage::ReadBuffer);
 
     chunk_id
-}
-
-// Wait for the specified chunk to be persisted to object store
-async fn wait_for_persisted_chunk(
-    fixture: &ServerFixture,
-    db_name: &str,
-    chunk_id: u32,
-    wait_time: std::time::Duration,
-) {
-    let t_start = std::time::Instant::now();
-
-    loop {
-        let chunks = list_chunks(fixture, db_name).await;
-
-        let chunk = chunks.iter().find(|chunk| chunk.id == chunk_id).unwrap();
-        if (chunk.storage == ChunkStorage::ReadBufferAndObjectStore)
-            || (chunk.storage == ChunkStorage::ObjectStoreOnly)
-        {
-            return;
-        }
-
-        assert!(t_start.elapsed() < wait_time);
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    }
-}
-
-// Wait for at least one chunk to be in the specified storage state
-async fn wait_for_chunk(
-    fixture: &ServerFixture,
-    db_name: &str,
-    desired_storage: ChunkStorage,
-    wait_time: std::time::Duration,
-) {
-    let t_start = std::time::Instant::now();
-
-    loop {
-        let chunks = list_chunks(fixture, db_name).await;
-
-        if chunks.iter().any(|chunk| chunk.storage == desired_storage) {
-            return;
-        }
-
-        // Log the current status of the chunks
-        for chunk in &chunks {
-            println!(
-                "{:?}: chunk {} partition {} storage: {:?} row_count: {} time_of_last_write: {:?}",
-                (t_start.elapsed()),
-                chunk.id,
-                chunk.partition_key,
-                chunk.storage,
-                chunk.row_count,
-                chunk.time_of_last_write
-            );
-        }
-
-        if t_start.elapsed() >= wait_time {
-            let operations = fixture.operations_client().list_operations().await.unwrap();
-            let mut operations: Vec<_> = operations
-                .into_iter()
-                .map(|x| (x.name().parse::<usize>().unwrap(), x.metadata()))
-                .collect();
-            operations.sort_by_key(|x| x.0);
-
-            panic!("Could not find chunk in desired state {:?} within {:?}.\nChunks were: {:#?}\nOperations were: {:#?}", desired_storage, wait_time, chunks, operations)
-        }
-
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    }
 }
 
 async fn assert_chunk_query_works(fixture: &ServerFixture, db_name: &str) {
@@ -294,12 +231,4 @@ async fn assert_chunk_query_works(fixture: &ServerFixture, db_name: &str) {
     ];
 
     assert_batches_eq!(expected_read_data, &batches);
-}
-
-/// Gets the list of ChunkSummaries from the server
-async fn list_chunks(fixture: &ServerFixture, db_name: &str) -> Vec<ChunkSummary> {
-    let mut management_client = fixture.management_client();
-    let chunks = management_client.list_chunks(db_name).await.unwrap();
-
-    chunks.into_iter().map(|c| c.try_into().unwrap()).collect()
 }

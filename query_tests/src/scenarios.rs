@@ -49,6 +49,7 @@ pub fn get_all_setups() -> &'static HashMap<String, Arc<dyn DbSetup>> {
             register_setup!(TwoMeasurements),
             register_setup!(TwoMeasurementsPredicatePushDown),
             register_setup!(OneMeasurementThreeChunksWithDuplicates),
+            register_setup!(OneMeasurementAllChunksDropped),
         ]
         .into_iter()
         .map(|(name, setup)| (name.to_string(), setup as Arc<dyn DbSetup>))
@@ -674,6 +675,34 @@ pub(crate) async fn make_one_chunk_rub_scenario(
     };
 
     vec![scenario]
+}
+
+/// This creates two chunks but then drops them all. This should keep the tables.
+#[derive(Debug)]
+pub struct OneMeasurementAllChunksDropped {}
+#[async_trait]
+impl DbSetup for OneMeasurementAllChunksDropped {
+    async fn make(&self) -> Vec<DbScenario> {
+        let db = make_db().await.db;
+
+        let partition_key = "1970-01-01T00";
+        let table_name = "h2o";
+
+        let lp_lines = vec!["h2o,state=MA temp=70.4 50"];
+        write_lp(&db, &lp_lines.join("\n")).await;
+        db.rollover_partition(table_name, partition_key)
+            .await
+            .unwrap();
+        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+            .await
+            .unwrap();
+        db.drop_chunk(table_name, partition_key, 0).unwrap();
+
+        vec![DbScenario {
+            scenario_name: "one measurement but all chunks are dropped".into(),
+            db,
+        }]
+    }
 }
 
 /// This function loads one chunk of lp data into different scenarios that simulates

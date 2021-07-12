@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, SamplingMode};
-use object_store::{memory::InMemory, throttle::ThrottledStore, ObjectStore};
+use object_store::{ObjectStore, ThrottleConfig};
 use server::{db::test_helpers::write_lp, utils::TestDb};
 use std::{convert::TryFrom, num::NonZeroU64, sync::Arc, time::Duration};
 use tokio::{
@@ -127,24 +127,24 @@ fn create_lp(n_tags: usize, n_fields: usize) -> String {
 
 /// Create object store with somewhat realistic operation latencies.
 fn create_throttled_store() -> Arc<ObjectStore> {
-    let mut throttled_store = ThrottledStore::<InMemory>::new(InMemory::new());
+    let config = ThrottleConfig {
+        // for every call: assume a 100ms latency
+        wait_delete_per_call: Duration::from_millis(100),
+        wait_get_per_call: Duration::from_millis(100),
+        wait_list_per_call: Duration::from_millis(100),
+        wait_list_with_delimiter_per_call: Duration::from_millis(100),
+        wait_put_per_call: Duration::from_millis(100),
 
-    // for every call: assume a 100ms latency
-    throttled_store.wait_delete_per_call = Duration::from_millis(100);
-    throttled_store.wait_get_per_call = Duration::from_millis(100);
-    throttled_store.wait_list_per_call = Duration::from_millis(100);
-    throttled_store.wait_list_with_delimiter_per_call = Duration::from_millis(100);
-    throttled_store.wait_put_per_call = Duration::from_millis(100);
+        // for list operations: assume we need 1 call per 1k entries at 100ms
+        wait_list_per_entry: Duration::from_millis(100) / 1_000,
+        wait_list_with_delimiter_per_entry: Duration::from_millis(100) / 1_000,
 
-    // for list operations: assume we need 1 call per 1k entries at 100ms
-    throttled_store.wait_list_per_entry = Duration::from_millis(100) / 1_000;
-    throttled_store.wait_list_with_delimiter_per_entry = Duration::from_millis(100) / 1_000;
+        // for upload/download: assume 1GByte/s
+        wait_get_per_byte: Duration::from_secs(1) / 1_000_000_000,
+        wait_put_per_byte: Duration::from_secs(1) / 1_000_000_000,
+    };
 
-    // for upload/download: assume 1GByte/s
-    throttled_store.wait_get_per_byte = Duration::from_secs(1) / 1_000_000_000;
-    throttled_store.wait_put_per_byte = Duration::from_secs(1) / 1_000_000_000;
-
-    Arc::new(ObjectStore::new_in_memory_throttled(throttled_store))
+    Arc::new(ObjectStore::new_in_memory_throttled(config))
 }
 
 criterion_group!(benches, benchmark_catalog_persistence);

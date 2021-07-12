@@ -220,7 +220,6 @@ impl CatalogState for Catalog {
 mod tests {
     use std::convert::TryFrom;
 
-    use object_store::memory::InMemory;
     use parquet_file::catalog::test_helpers::{
         assert_catalog_state_implementation, TestCatalogState,
     };
@@ -231,7 +230,7 @@ mod tests {
 
     #[tokio::test]
     async fn load_or_create_preserved_catalog_recovers_from_error() {
-        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let object_store = Arc::new(ObjectStore::new_in_memory());
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = "preserved_catalog_test";
 

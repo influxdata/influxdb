@@ -26,6 +26,7 @@ use data_types::{
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use entry::{Entry, SequencedEntry};
 use futures::{stream::BoxStream, StreamExt};
+use internal_types::schema::Schema;
 use metrics::KeyValue;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
@@ -772,25 +773,27 @@ impl Db {
                                 "mutable_buffer",
                                 self.metric_labels.clone(),
                             );
-                            let mut mb_chunk = MBChunk::new(
-                                table_batch.name(),
+                            let chunk_result = MBChunk::new(
                                 MutableBufferChunkMetrics::new(
                                     &metrics,
                                     self.catalog.metrics().memory().mutable_buffer(),
                                 ),
-                            );
+                                sequence,
+                                table_batch,
+                            )
+                            .context(WriteEntryInitial { partition_key });
 
-                            if let Err(e) = mb_chunk
-                                .write_table_batch(sequence, table_batch)
-                                .context(WriteEntryInitial { partition_key })
-                            {
-                                if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
-                                    errors.push(e);
+                            match chunk_result {
+                                Ok(mb_chunk) => {
+                                    partition.create_open_chunk(mb_chunk);
                                 }
-                                continue;
+                                Err(e) => {
+                                    if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
+                                        errors.push(e);
+                                    }
+                                    continue;
+                                }
                             }
-
-                            partition.create_open_chunk(mb_chunk);
                         }
                     };
                     partition.update_last_write_at();
@@ -847,6 +850,10 @@ impl QueryDatabase for Db {
 
     fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>> {
         self.catalog_access.chunk_summaries()
+    }
+
+    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
+        self.catalog_access.table_schema(table_name)
     }
 }
 
@@ -962,7 +969,6 @@ mod tests {
     use futures::{stream, StreamExt, TryStreamExt};
     use internal_types::{schema::Schema, selection::Selection};
     use object_store::{
-        memory::InMemory,
         path::{parts::PathPart, ObjectStorePath, Path},
         ObjectStore, ObjectStoreApi,
     };
@@ -978,6 +984,7 @@ mod tests {
         convert::TryFrom,
         iter::Iterator,
         num::{NonZeroU64, NonZeroUsize},
+        ops::Deref,
         str,
         time::{Duration, Instant},
     };
@@ -1719,7 +1726,7 @@ mod tests {
     #[tokio::test]
     async fn write_one_chunk_to_parquet_file() {
         // Test that data can be written into parquet files
-        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let object_store = Arc::new(ObjectStore::new_in_memory());
 
         // Create a DB given a server id, an object store and a db name
         let server_id = ServerId::try_from(10).unwrap();
@@ -1818,7 +1825,7 @@ mod tests {
         // be able to read data from object store
 
         // Create an object store in memory
-        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let object_store = Arc::new(ObjectStore::new_in_memory());
 
         // Create a DB given a server id, an object store and a db name
         let server_id = ServerId::try_from(10).unwrap();
@@ -2191,6 +2198,7 @@ mod tests {
                     table_name,
                     id,
                     storage,
+                    lifecycle_action,
                     estimated_bytes,
                     row_count,
                     ..
@@ -2200,6 +2208,7 @@ mod tests {
                     table_name,
                     id,
                     storage,
+                    lifecycle_action,
                     estimated_bytes,
                     row_count,
                 )
@@ -2230,6 +2239,7 @@ mod tests {
             Arc::from("cpu"),
             0,
             ChunkStorage::OpenMutableBuffer,
+            None,
             70,
             1,
         )];
@@ -2333,12 +2343,15 @@ mod tests {
         let chunk_summaries = db.chunk_summaries().expect("expected summary to return");
         let chunk_summaries = normalize_summaries(chunk_summaries);
 
+        let lifecycle_action = None;
+
         let expected = vec![
             ChunkSummary::new_without_timestamps(
                 Arc::from("1970-01-01T00"),
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
+                lifecycle_action,
                 2139, // size of RB and OS chunks
                 1,
             ),
@@ -2347,6 +2360,7 @@ mod tests {
                 Arc::from("cpu"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
+                lifecycle_action,
                 64,
                 1,
             ),
@@ -2355,6 +2369,7 @@ mod tests {
                 Arc::from("cpu"),
                 0,
                 ChunkStorage::ClosedMutableBuffer,
+                lifecycle_action,
                 2190,
                 1,
             ),
@@ -2363,6 +2378,7 @@ mod tests {
                 Arc::from("cpu"),
                 1,
                 ChunkStorage::OpenMutableBuffer,
+                lifecycle_action,
                 87,
                 1,
             ),
@@ -2625,7 +2641,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn lock_tracker_metrics() {
-        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let object_store = Arc::new(ObjectStore::new_in_memory());
 
         // Create a DB given a server id, an object store and a db name
         let server_id = ServerId::try_from(10).unwrap();
@@ -2765,7 +2781,7 @@ mod tests {
         // Test that parquet data is committed to preserved catalog
 
         // ==================== setup ====================
-        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let object_store = Arc::new(ObjectStore::new_in_memory());
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = "preserved_catalog_test";
 
@@ -2829,16 +2845,9 @@ mod tests {
         assert_eq!(paths_actual, paths_expected);
 
         // ==================== do: remember table schema ====================
-        let mut table_schemas: HashMap<String, Schema> = Default::default();
+        let mut table_schemas: HashMap<String, Arc<Schema>> = Default::default();
         for (table_name, _partition_key, _chunk_id) in &chunks {
-            // TODO: use official `db.table_schema` interface later
-            let schema = db
-                .catalog
-                .table(table_name)
-                .unwrap()
-                .schema()
-                .read()
-                .clone();
+            let schema = db.table_schema(table_name).unwrap();
             table_schemas.insert(table_name.clone(), schema);
         }
 
@@ -2866,16 +2875,9 @@ mod tests {
                 }
             ));
         }
-        for (table_name, schema) in table_schemas {
-            // TODO: use official `db.table_schema` interface later
-            let schema2 = db
-                .catalog
-                .table(table_name)
-                .unwrap()
-                .schema()
-                .read()
-                .clone();
-            assert_eq!(schema2, schema);
+        for (table_name, schema) in &table_schemas {
+            let schema2 = db.table_schema(table_name).unwrap();
+            assert_eq!(schema2.deref(), schema.deref());
         }
 
         // ==================== check: DB still writable ====================
@@ -2887,7 +2889,7 @@ mod tests {
         // Test that stale parquet files are removed from object store
 
         // ==================== setup ====================
-        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let object_store = Arc::new(ObjectStore::new_in_memory());
 
         // ==================== do: create DB ====================
         // Create a DB given a server id, an object store and a db name
@@ -2976,7 +2978,7 @@ mod tests {
         // Test that the preserved catalog creates checkpoints
 
         // ==================== setup ====================
-        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let object_store = Arc::new(ObjectStore::new_in_memory());
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = "preserved_catalog_test";
 

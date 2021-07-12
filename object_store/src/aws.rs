@@ -287,58 +287,72 @@ impl ObjectStoreApi for AmazonS3 {
     }
 }
 
+/// Configure a connection to Amazon S3 using the specified credentials in
+/// the specified Amazon region and bucket.
+///
+/// Note do not expose the AmazonS3::new() function to allow it to be
+/// swapped out when the aws feature is not enabled
+pub(crate) fn new_s3(
+    access_key_id: Option<impl Into<String>>,
+    secret_access_key: Option<impl Into<String>>,
+    region: impl Into<String>,
+    bucket_name: impl Into<String>,
+    endpoint: Option<impl Into<String>>,
+    session_token: Option<impl Into<String>>,
+) -> Result<AmazonS3> {
+    let region = region.into();
+    let region: rusoto_core::Region = match endpoint {
+        None => region.parse().context(InvalidRegion { region })?,
+        Some(endpoint) => rusoto_core::Region::Custom {
+            name: region,
+            endpoint: endpoint.into(),
+        },
+    };
+
+    let http_client = rusoto_core::request::HttpClient::new()
+        .expect("Current implementation of rusoto_core has no way for this to fail");
+
+    let client = match (access_key_id, secret_access_key, session_token) {
+        (Some(access_key_id), Some(secret_access_key), Some(session_token)) => {
+            let credentials_provider = StaticProvider::new(
+                access_key_id.into(),
+                secret_access_key.into(),
+                Some(session_token.into()),
+                None,
+            );
+            rusoto_s3::S3Client::new_with(http_client, credentials_provider, region)
+        }
+        (Some(access_key_id), Some(secret_access_key), None) => {
+            let credentials_provider =
+                StaticProvider::new_minimal(access_key_id.into(), secret_access_key.into());
+            rusoto_s3::S3Client::new_with(http_client, credentials_provider, region)
+        }
+        (None, Some(_), _) => return Err(Error::MissingAccessKey),
+        (Some(_), None, _) => return Err(Error::MissingSecretAccessKey),
+        _ => {
+            let credentials_provider = InstanceMetadataProvider::new();
+            rusoto_s3::S3Client::new_with(http_client, credentials_provider, region)
+        }
+    };
+
+    Ok(AmazonS3 {
+        client,
+        bucket_name: bucket_name.into(),
+    })
+}
+
+pub(crate) fn new_failing_s3() -> Result<AmazonS3> {
+    new_s3(
+        Some("foo"),
+        Some("bar"),
+        "us-east-1",
+        "bucket",
+        None as Option<&str>,
+        None as Option<&str>,
+    )
+}
+
 impl AmazonS3 {
-    /// Configure a connection to Amazon S3 using the specified credentials in
-    /// the specified Amazon region and bucket
-    pub fn new(
-        access_key_id: Option<impl Into<String>>,
-        secret_access_key: Option<impl Into<String>>,
-        region: impl Into<String>,
-        bucket_name: impl Into<String>,
-        endpoint: Option<impl Into<String>>,
-        session_token: Option<impl Into<String>>,
-    ) -> Result<Self> {
-        let region = region.into();
-        let region: rusoto_core::Region = match endpoint {
-            None => region.parse().context(InvalidRegion { region })?,
-            Some(endpoint) => rusoto_core::Region::Custom {
-                name: region,
-                endpoint: endpoint.into(),
-            },
-        };
-
-        let http_client = rusoto_core::request::HttpClient::new()
-            .expect("Current implementation of rusoto_core has no way for this to fail");
-
-        let client = match (access_key_id, secret_access_key, session_token) {
-            (Some(access_key_id), Some(secret_access_key), Some(session_token)) => {
-                let credentials_provider = StaticProvider::new(
-                    access_key_id.into(),
-                    secret_access_key.into(),
-                    Some(session_token.into()),
-                    None,
-                );
-                rusoto_s3::S3Client::new_with(http_client, credentials_provider, region)
-            }
-            (Some(access_key_id), Some(secret_access_key), None) => {
-                let credentials_provider =
-                    StaticProvider::new_minimal(access_key_id.into(), secret_access_key.into());
-                rusoto_s3::S3Client::new_with(http_client, credentials_provider, region)
-            }
-            (None, Some(_), _) => return Err(Error::MissingAccessKey),
-            (Some(_), None, _) => return Err(Error::MissingSecretAccessKey),
-            _ => {
-                let credentials_provider = InstanceMetadataProvider::new();
-                rusoto_s3::S3Client::new_with(http_client, credentials_provider, region)
-            }
-        };
-
-        Ok(Self {
-            client,
-            bucket_name: bucket_name.into(),
-        })
-    }
-
     /// List objects with the given prefix and a set delimiter of `/`. Returns
     /// common prefixes (directories) in addition to object metadata. Optionally
     /// takes a continuation token for paging.
@@ -444,7 +458,7 @@ mod tests {
     use super::*;
     use crate::{
         tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
-        AmazonS3, Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
+        Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
     };
     use bytes::Bytes;
     use std::env;
@@ -539,16 +553,14 @@ mod tests {
     async fn s3_test() {
         let config = maybe_skip_integration!();
         let integration = ObjectStore::new_amazon_s3(
-            AmazonS3::new(
-                Some(config.access_key_id),
-                Some(config.secret_access_key),
-                config.region,
-                config.bucket,
-                config.endpoint,
-                config.token,
-            )
-            .expect("Valid S3 config"),
-        );
+            Some(config.access_key_id),
+            Some(config.secret_access_key),
+            config.region,
+            config.bucket,
+            config.endpoint,
+            config.token,
+        )
+        .expect("Valid S3 config");
 
         check_credentials(put_get_delete_list(&integration).await).unwrap();
         check_credentials(list_with_delimiter(&integration).await).unwrap();
@@ -561,16 +573,14 @@ mod tests {
         config.region = "us-west-1".into();
 
         let integration = ObjectStore::new_amazon_s3(
-            AmazonS3::new(
-                Some(config.access_key_id),
-                Some(config.secret_access_key),
-                config.region,
-                &config.bucket,
-                config.endpoint,
-                config.token,
-            )
-            .expect("Valid S3 config"),
-        );
+            Some(config.access_key_id),
+            Some(config.secret_access_key),
+            config.region,
+            &config.bucket,
+            config.endpoint,
+            config.token,
+        )
+        .expect("Valid S3 config");
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -593,16 +603,14 @@ mod tests {
     async fn s3_test_get_nonexistent_location() {
         let config = maybe_skip_integration!();
         let integration = ObjectStore::new_amazon_s3(
-            AmazonS3::new(
-                Some(config.access_key_id),
-                Some(config.secret_access_key),
-                config.region,
-                &config.bucket,
-                config.endpoint,
-                config.token,
-            )
-            .expect("Valid S3 config"),
-        );
+            Some(config.access_key_id),
+            Some(config.secret_access_key),
+            config.region,
+            &config.bucket,
+            config.endpoint,
+            config.token,
+        )
+        .expect("Valid S3 config");
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -636,16 +644,14 @@ mod tests {
         config.bucket = NON_EXISTENT_NAME.into();
 
         let integration = ObjectStore::new_amazon_s3(
-            AmazonS3::new(
-                Some(config.access_key_id),
-                Some(config.secret_access_key),
-                config.region,
-                &config.bucket,
-                config.endpoint,
-                config.token,
-            )
-            .expect("Valid S3 config"),
-        );
+            Some(config.access_key_id),
+            Some(config.secret_access_key),
+            config.region,
+            &config.bucket,
+            config.endpoint,
+            config.token,
+        )
+        .expect("Valid S3 config");
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -674,16 +680,14 @@ mod tests {
         config.region = "us-west-1".into();
 
         let integration = ObjectStore::new_amazon_s3(
-            AmazonS3::new(
-                Some(config.access_key_id),
-                Some(config.secret_access_key),
-                config.region,
-                &config.bucket,
-                config.endpoint,
-                config.token,
-            )
-            .expect("Valid S3 config"),
-        );
+            Some(config.access_key_id),
+            Some(config.secret_access_key),
+            config.region,
+            &config.bucket,
+            config.endpoint,
+            config.token,
+        )
+        .expect("Valid S3 config");
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -722,16 +726,14 @@ mod tests {
         config.bucket = NON_EXISTENT_NAME.into();
 
         let integration = ObjectStore::new_amazon_s3(
-            AmazonS3::new(
-                Some(config.access_key_id),
-                Some(config.secret_access_key),
-                config.region,
-                &config.bucket,
-                config.endpoint,
-                config.token,
-            )
-            .expect("Valid S3 config"),
-        );
+            Some(config.access_key_id),
+            Some(config.secret_access_key),
+            config.region,
+            &config.bucket,
+            config.endpoint,
+            config.token,
+        )
+        .expect("Valid S3 config");
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -768,16 +770,14 @@ mod tests {
     async fn s3_test_delete_nonexistent_location() {
         let config = maybe_skip_integration!();
         let integration = ObjectStore::new_amazon_s3(
-            AmazonS3::new(
-                Some(config.access_key_id),
-                Some(config.secret_access_key),
-                config.region,
-                config.bucket,
-                config.endpoint,
-                config.token,
-            )
-            .expect("Valid S3 config"),
-        );
+            Some(config.access_key_id),
+            Some(config.secret_access_key),
+            config.region,
+            config.bucket,
+            config.endpoint,
+            config.token,
+        )
+        .expect("Valid S3 config");
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -794,16 +794,14 @@ mod tests {
         config.region = "us-west-1".into();
 
         let integration = ObjectStore::new_amazon_s3(
-            AmazonS3::new(
-                Some(config.access_key_id),
-                Some(config.secret_access_key),
-                config.region,
-                &config.bucket,
-                config.endpoint,
-                config.token,
-            )
-            .expect("Valid S3 config"),
-        );
+            Some(config.access_key_id),
+            Some(config.secret_access_key),
+            config.region,
+            &config.bucket,
+            config.endpoint,
+            config.token,
+        )
+        .expect("Valid S3 config");
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -832,16 +830,14 @@ mod tests {
         config.bucket = NON_EXISTENT_NAME.into();
 
         let integration = ObjectStore::new_amazon_s3(
-            AmazonS3::new(
-                Some(config.access_key_id),
-                Some(config.secret_access_key),
-                config.region,
-                &config.bucket,
-                config.endpoint,
-                config.token,
-            )
-            .expect("Valid S3 config"),
-        );
+            Some(config.access_key_id),
+            Some(config.secret_access_key),
+            config.region,
+            &config.bucket,
+            config.endpoint,
+            config.token,
+        )
+        .expect("Valid S3 config");
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
