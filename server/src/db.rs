@@ -129,6 +129,11 @@ pub enum Error {
     TableBatchSchemaMergeError {
         source: internal_types::schema::merge::Error,
     },
+
+    #[snafu(display("Error while commiting transaction on preserved catalog: {}", source))]
+    CommitError {
+        source: parquet_file::catalog::Error,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -376,10 +381,30 @@ impl Db {
     }
 
     /// Drops the specified chunk from the catalog and all storage systems
-    pub fn drop_chunk(&self, table_name: &str, partition_key: &str, chunk_id: u32) -> Result<()> {
+    pub async fn drop_chunk(
+        &self,
+        table_name: &str,
+        partition_key: &str,
+        chunk_id: u32,
+    ) -> Result<()> {
         debug!(%table_name, %partition_key, %chunk_id, "dropping chunk");
+
         let partition = self.partition(table_name, partition_key)?;
-        partition.write().drop_chunk(chunk_id)?;
+        let mut partition = partition.write();
+
+        let drop_handle = partition.drop_chunk(chunk_id)?;
+        let chunk = drop_handle.chunk();
+        let chunk = chunk.read();
+
+        if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
+            let mut transaction = self.preserved_catalog.open_transaction().await;
+            let path: DirsAndFileName = parquet.path().into();
+            transaction.remove_parquet(&path);
+            transaction.commit().await.context(CommitError)?;
+        }
+
+        drop_handle.execute();
+
         Ok(())
     }
 
@@ -1567,7 +1592,9 @@ mod tests {
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1470).unwrap();
 
         // drop, the chunk from the read buffer
-        db.drop_chunk("cpu", partition_key, mb_chunk.id()).unwrap();
+        db.drop_chunk("cpu", partition_key, mb_chunk.id())
+            .await
+            .unwrap();
         assert_eq!(
             read_buffer_chunk_ids(db.as_ref(), partition_key),
             vec![] as Vec<u32>
@@ -2794,7 +2821,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn write_one_chunk_to_preserved_catalog() {
+    async fn write_to_preserved_catalog() {
         // Test that parquet data is committed to preserved catalog
 
         // ==================== setup ====================
@@ -2826,11 +2853,17 @@ mod tests {
 
         // ==================== do: write data to parquet ====================
         // create two chunks within the same table (to better test "new chunk ID" and "new table" during transaction
-        // replay)
+        // replay as well as dropping the chunk)
         let mut chunks = vec![];
-        for _ in 0..2 {
+        for _ in 0..4 {
             chunks.push(create_parquet_chunk(&db).await);
         }
+
+        // ==================== do: drop last chunk ====================
+        let (table_name, partition_key, chunk_id) = chunks.pop().unwrap();
+        db.drop_chunk(&table_name, &partition_key, chunk_id)
+            .await
+            .unwrap();
 
         // ==================== check: catalog state ====================
         // the preserved catalog should now register a single file
@@ -2881,6 +2914,7 @@ mod tests {
 
         // ==================== check: DB state ====================
         // Re-created DB should have an "object store only"-chunk
+        assert_eq!(chunks.len(), db.chunks(&Default::default()).len());
         for (table_name, partition_key, chunk_id) in &chunks {
             let chunk = db.chunk(table_name, partition_key, *chunk_id).unwrap();
             let chunk = chunk.read();
@@ -2941,6 +2975,7 @@ mod tests {
             }
             if i == 2 {
                 db.drop_chunk(&table_name, &partition_key, chunk_id)
+                    .await
                     .unwrap();
             }
         }
@@ -3144,7 +3179,9 @@ mod tests {
             };
 
             for chunk_id in chunk_ids {
-                db.drop_chunk("my_table", &partition_key, chunk_id).unwrap();
+                db.drop_chunk("my_table", &partition_key, chunk_id)
+                    .await
+                    .unwrap();
             }
         }
 

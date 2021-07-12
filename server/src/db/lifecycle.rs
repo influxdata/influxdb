@@ -233,7 +233,7 @@ impl LockablePartition for LockableCatalogPartition {
         mut s: LifecycleWriteGuard<'_, Self::Partition, Self>,
         chunk_id: u32,
     ) -> Result<(), Self::Error> {
-        s.drop_chunk(chunk_id)?;
+        s.drop_chunk(chunk_id)?.execute();
         Ok(())
     }
 }

@@ -12,7 +12,10 @@ use observability_deps::tracing::info;
 use persistence_windows::persistence_windows::PersistenceWindows;
 use snafu::Snafu;
 use std::{
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{
+        btree_map::{Entry, OccupiedEntry},
+        BTreeMap,
+    },
     fmt::Display,
     sync::Arc,
 };
@@ -202,8 +205,11 @@ impl Partition {
         }
     }
 
-    /// Drop the specified chunk
-    pub fn drop_chunk(&mut self, chunk_id: u32) -> Result<Arc<RwLock<CatalogChunk>>> {
+    /// Get handle to drop the specified chunk.
+    ///
+    /// You MUST call [`DropChunkHandle::execute`] to actually perform the drop operation. Returning successfully from
+    /// this function ([`drop_chunk`](Self::drop_chunk)) only ensure that the drop action COULD be performened w/o errors.
+    pub fn drop_chunk(&mut self, chunk_id: u32) -> Result<DropChunkHandle<'_>> {
         match self.chunks.entry(chunk_id) {
             Entry::Vacant(_) => Err(Error::ChunkNotFound {
                 chunk: ChunkAddr::new(&self.addr, chunk_id),
@@ -218,7 +224,7 @@ impl Partition {
                         });
                     }
                 }
-                Ok(occupied.remove())
+                Ok(DropChunkHandle { occupied })
             }
         }
     }
@@ -283,6 +289,24 @@ impl Partition {
 
     pub fn set_persistence_windows(&mut self, windows: PersistenceWindows) {
         self.persistence_windows = Some(windows);
+    }
+}
+
+/// Handle that allows you to drop chunks w/o errors
+#[derive(Debug)]
+pub struct DropChunkHandle<'a> {
+    occupied: OccupiedEntry<'a, u32, Arc<RwLock<CatalogChunk>>>,
+}
+
+impl<'a> DropChunkHandle<'a> {
+    /// Perform drop operation and return dropped chunk.
+    pub fn execute(self) -> Arc<RwLock<CatalogChunk>> {
+        self.occupied.remove()
+    }
+
+    /// Chunk that can be dropped using this handle.
+    pub fn chunk(&self) -> Arc<RwLock<CatalogChunk>> {
+        Arc::clone(self.occupied.get())
     }
 }
 

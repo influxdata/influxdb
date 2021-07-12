@@ -462,21 +462,21 @@ mod tests {
 
         {
             let mut p2 = p2.write();
-            p2.drop_chunk(0).unwrap();
+            p2.drop_chunk(0).unwrap().execute();
             assert!(p2.chunk(0).is_none()); // chunk is gone
         }
         assert_eq!(chunk_strings(&catalog).len(), 3);
 
         {
             let mut p1 = p1.write();
-            p1.drop_chunk(1).unwrap();
+            p1.drop_chunk(1).unwrap().execute();
             assert!(p1.chunk(1).is_none()); // chunk is gone
         }
         assert_eq!(chunk_strings(&catalog).len(), 2);
 
         {
             let mut p1 = p1.write();
-            p1.drop_chunk(0).unwrap();
+            p1.drop_chunk(0).unwrap().execute();
             assert!(p1.chunk(0).is_none()); // chunk is gone
         }
         assert_eq!(chunk_strings(&catalog).len(), 1);
@@ -508,7 +508,7 @@ mod tests {
 
         {
             let mut p1 = p1.write();
-            p1.drop_chunk(0).unwrap();
+            p1.drop_chunk(0).unwrap().execute();
         }
         assert_eq!(chunk_strings(&catalog), vec!["Chunk p1:table1:1"]);
 
