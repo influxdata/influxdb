@@ -211,11 +211,7 @@ func (p *Partition) Open() error {
 			files = append(files, f)
 		}
 	}
-	fs, err := NewFileSet(p.levels, p.sfile, files)
-	if err != nil {
-		return err
-	}
-	p.fileSet = fs
+	p.fileSet = NewFileSet(files)
 
 	// Set initial sequence number.
 	p.seq = p.fileSet.MaxID()
