@@ -225,8 +225,8 @@ impl Chunk {
     ///
     /// TODO(edd): consider deprecating or changing to return information about
     /// the physical layout of the data in the chunk.
-    pub fn table_summaries(&self) -> Vec<TableSummary> {
-        vec![self.table.table_summary()]
+    pub fn table_summary(&self) -> TableSummary {
+        self.table.table_summary()
     }
 
     /// Returns a schema object for a `read_filter` operation using the provided
@@ -824,62 +824,62 @@ mod test {
         // The row group gets added to the same chunk each time.
         chunk.upsert_table(rb);
 
-        let summaries = chunk.table_summaries();
-        let expected = vec![TableSummary {
-            name: "a_table".into(),
-            columns: vec![
-                ColumnSummary {
-                    name: "active".into(),
-                    influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::Bool(StatValues::new(Some(false), Some(true), 3)),
-                },
-                ColumnSummary {
-                    name: "counter".into(),
-                    influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::U64(StatValues::new(Some(1000), Some(5000), 3)),
-                },
-                ColumnSummary {
-                    name: "env".into(),
-                    influxdb_type: Some(InfluxDbType::Tag),
-                    stats: Statistics::String(StatValues {
-                        min: Some("dev".into()),
-                        max: Some("prod".into()),
-                        count: 3,
-                        distinct_count: Some(NonZeroU64::new(2).unwrap()),
-                    }),
-                },
-                ColumnSummary {
-                    name: "icounter".into(),
-                    influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::I64(StatValues::new(Some(-1000), Some(4000), 3)),
-                },
-                ColumnSummary {
-                    name: "msg".into(),
-                    influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::String(StatValues {
-                        min: Some("msg a".into()),
-                        max: Some("msg b".into()),
-                        count: 3,
-                        distinct_count: Some(NonZeroU64::new(3).unwrap()),
-                    }),
-                },
-                ColumnSummary {
-                    name: "temp".into(),
-                    influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::F64(StatValues::new(Some(10.0), Some(30000.0), 3)),
-                },
-                ColumnSummary {
-                    name: "time".into(),
-                    influxdb_type: Some(InfluxDbType::Timestamp),
-                    stats: Statistics::I64(StatValues::new(Some(3333), Some(11111111), 3)),
-                },
-            ],
-        }];
+        let summary = chunk.table_summary();
+        assert_eq!("a_table", summary.name);
+
+        let column_summaries = summary.columns;
+        let expected_column_summaries = vec![
+            ColumnSummary {
+                name: "active".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::Bool(StatValues::new(Some(false), Some(true), 3)),
+            },
+            ColumnSummary {
+                name: "counter".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::U64(StatValues::new(Some(1000), Some(5000), 3)),
+            },
+            ColumnSummary {
+                name: "env".into(),
+                influxdb_type: Some(InfluxDbType::Tag),
+                stats: Statistics::String(StatValues {
+                    min: Some("dev".into()),
+                    max: Some("prod".into()),
+                    count: 3,
+                    distinct_count: Some(NonZeroU64::new(2).unwrap()),
+                }),
+            },
+            ColumnSummary {
+                name: "icounter".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::I64(StatValues::new(Some(-1000), Some(4000), 3)),
+            },
+            ColumnSummary {
+                name: "msg".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::String(StatValues {
+                    min: Some("msg a".into()),
+                    max: Some("msg b".into()),
+                    count: 3,
+                    distinct_count: Some(NonZeroU64::new(3).unwrap()),
+                }),
+            },
+            ColumnSummary {
+                name: "temp".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::F64(StatValues::new(Some(10.0), Some(30000.0), 3)),
+            },
+            ColumnSummary {
+                name: "time".into(),
+                influxdb_type: Some(InfluxDbType::Timestamp),
+                stats: Statistics::I64(StatValues::new(Some(3333), Some(11111111), 3)),
+            },
+        ];
 
         assert_eq!(
-            expected, summaries,
+            expected_column_summaries, column_summaries,
             "expected:\n{:#?}\n\nactual:{:#?}\n\n",
-            expected, summaries
+            expected_column_summaries, column_summaries
         );
     }
 
