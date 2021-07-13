@@ -1,21 +1,19 @@
+use crate::{
+    column::Statistics,
+    row_group::{ColumnName, Predicate, RowGroup},
+    schema::{AggregateType, ResultSchema},
+    table::{self, Table},
+};
+use arrow::record_batch::RecordBatch;
+use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
+use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
+use metrics::{Gauge, KeyValue};
+use observability_deps::tracing::info;
+use snafu::{ResultExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
     convert::TryFrom,
 };
-
-use metrics::{Gauge, KeyValue};
-use snafu::{ResultExt, Snafu};
-
-use arrow::record_batch::RecordBatch;
-use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
-use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
-use observability_deps::tracing::info;
-
-use crate::row_group::{ColumnName, Predicate};
-use crate::schema::{AggregateType, ResultSchema};
-use crate::table;
-use crate::table::Table;
-use crate::{column::Statistics, row_group::RowGroup};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -435,27 +433,25 @@ impl ChunkMetrics {
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
-
-    use arrow::{
-        array::{
-            ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray,
-            TimestampNanosecondArray, UInt64Array,
-        },
-        datatypes::DataType::{Boolean, Float64, Int64, UInt64, Utf8},
-    };
-    use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
-    use internal_types::schema::builder::SchemaBuilder;
-
     use super::*;
-    use crate::BinaryExpr;
     use crate::{
         row_group::{ColumnType, RowGroup},
         value::Values,
+        BinaryExpr,
     };
-    use arrow::array::DictionaryArray;
-    use arrow::datatypes::Int32Type;
-    use std::num::NonZeroU64;
+    use arrow::{
+        array::{
+            ArrayRef, BinaryArray, BooleanArray, DictionaryArray, Float64Array, Int64Array,
+            StringArray, TimestampNanosecondArray, UInt64Array,
+        },
+        datatypes::{
+            DataType::{Boolean, Float64, Int64, UInt64, Utf8},
+            Int32Type,
+        },
+    };
+    use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
+    use internal_types::schema::builder::SchemaBuilder;
+    use std::{num::NonZeroU64, sync::Arc};
 
     // helper to make the `add_remove_tables` test simpler to read.
     fn gen_recordbatch() -> RecordBatch {

@@ -1,23 +1,17 @@
 //! This module contains the code to compact chunks together
 
-use std::future::Future;
-use std::sync::Arc;
-
+use super::{error::Result, merge_schemas, LockableCatalogChunk, LockableCatalogPartition};
+use crate::db::{
+    catalog::{chunk::CatalogChunk, partition::Partition},
+    lifecycle::{collect_rub, new_rub_chunk},
+    DbChunk,
+};
 use data_types::job::Job;
 use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
-use query::exec::ExecutorType;
-use query::frontend::reorg::ReorgPlanner;
-use query::{compute_sort_key, QueryChunkMeta};
+use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
+use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
-
-use crate::db::catalog::chunk::CatalogChunk;
-use crate::db::catalog::partition::Partition;
-use crate::db::DbChunk;
-
-use super::merge_schemas;
-use super::{error::Result, LockableCatalogChunk, LockableCatalogPartition};
-use crate::db::lifecycle::{collect_rub, new_rub_chunk};
 
 /// Compact the provided chunks into a single chunk,
 /// returning the newly created chunk
@@ -116,8 +110,7 @@ pub(crate) fn compact_chunks(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::test_helpers::write_lp;
-    use crate::utils::make_db;
+    use crate::{db::test_helpers::write_lp, utils::make_db};
     use data_types::chunk_metadata::ChunkStorage;
     use lifecycle::{LockableChunk, LockablePartition};
     use query::QueryDatabase;

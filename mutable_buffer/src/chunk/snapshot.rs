@@ -1,19 +1,16 @@
-use std::collections::BTreeSet;
-use std::sync::Arc;
-
+use super::MBChunk;
 use arrow::record_batch::RecordBatch;
-use snafu::{ResultExt, Snafu};
-
-use data_types::partition_metadata::TableSummary;
-use data_types::timestamp::TimestampRange;
 use data_types::{
     error::ErrorLogger,
-    partition_metadata::{ColumnSummary, Statistics},
+    partition_metadata::{ColumnSummary, Statistics, TableSummary},
+    timestamp::TimestampRange,
 };
-use internal_types::schema::{Schema, TIME_COLUMN_NAME};
-use internal_types::selection::Selection;
-
-use super::MBChunk;
+use internal_types::{
+    schema::{Schema, TIME_COLUMN_NAME},
+    selection::Selection,
+};
+use snafu::{ResultExt, Snafu};
+use std::{collections::BTreeSet, sync::Arc};
 
 #[derive(Debug, Snafu)]
 pub enum Error {

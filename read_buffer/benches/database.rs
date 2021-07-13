@@ -1,13 +1,11 @@
-use std::sync::Arc;
-
-use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
-
 use arrow::{
     array::{ArrayRef, Int64Array, StringArray},
     record_batch::RecordBatch,
 };
+use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use internal_types::schema::builder::SchemaBuilder;
 use read_buffer::{BinaryExpr, ChunkMetrics, Predicate, RBChunk};
+use std::sync::Arc;
 
 const BASE_TIME: i64 = 1351700038292387000_i64;
 const ONE_MS: i64 = 1_000_000;

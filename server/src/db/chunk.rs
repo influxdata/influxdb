@@ -1,10 +1,6 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
+use super::{
+    catalog::chunk::ChunkMetadata, pred::to_read_buffer_predicate, streams::ReadFilterResultsStream,
 };
-
-use snafu::{OptionExt, ResultExt, Snafu};
-
 use data_types::partition_metadata;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
@@ -24,9 +20,10 @@ use query::{
     QueryChunk, QueryChunkMeta,
 };
 use read_buffer::RBChunk;
-
-use super::{
-    catalog::chunk::ChunkMetadata, pred::to_read_buffer_predicate, streams::ReadFilterResultsStream,
+use snafu::{OptionExt, ResultExt, Snafu};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
 };
 
 #[derive(Debug, Snafu)]

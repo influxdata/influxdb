@@ -1,24 +1,18 @@
 //! This module contains the code that splits and persist chunks
 
-use std::future::Future;
-use std::sync::Arc;
-
+use super::{LockableCatalogChunk, LockableCatalogPartition, Result};
+use crate::db::{
+    catalog::{chunk::CatalogChunk, partition::Partition},
+    lifecycle::{collect_rub, merge_schemas, new_rub_chunk, write::write_chunk_to_object_store},
+    DbChunk,
+};
 use data_types::job::Job;
 use lifecycle::{LifecycleWriteGuard, LockableChunk, LockablePartition};
 use observability_deps::tracing::info;
 use persistence_windows::persistence_windows::FlushHandle;
-use query::exec::ExecutorType;
-use query::frontend::reorg::ReorgPlanner;
-use query::{compute_sort_key, QueryChunkMeta};
+use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
+use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
-
-use crate::db::catalog::chunk::CatalogChunk;
-use crate::db::catalog::partition::Partition;
-use crate::db::lifecycle::write::write_chunk_to_object_store;
-use crate::db::lifecycle::{collect_rub, merge_schemas, new_rub_chunk};
-use crate::db::DbChunk;
-
-use super::{LockableCatalogChunk, LockableCatalogPartition, Result};
 
 /// Split and then persist the provided chunks
 ///
