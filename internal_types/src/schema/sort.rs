@@ -147,13 +147,14 @@ impl<'a> SortKey<'a> {
         self.columns.is_empty()
     }
 
-    /// Returns sort keys of the given columns 
-    pub fn sort_columns(&self, select_keys: Vec<&str>) -> Vec<(&str, SortOptions)> {
-        let keys: Vec<(&str, SortOptions)> = self
+    /// Returns sort keys of the given columns
+    pub fn selected_sort_key(&self, select_keys: Vec<&str>) -> SortKey<'a> {
+        //Vec<(&str, SortOptions)> {
+        let keys: IndexMap<&'a str, SortOptions> = self
             .columns
             .iter()
             .filter_map(|(col, options)| {
-                if select_keys.iter().any(|key | key == col) { 
+                if select_keys.iter().any(|key| key == col) {
                     Some((*col, *options))
                 } else {
                     None
@@ -161,7 +162,7 @@ impl<'a> SortKey<'a> {
             })
             .collect();
 
-        keys
+        SortKey { columns: keys }
     }
 
     /// Returns merge key of the 2 given keys if one covers the other. Returns None otherwise.

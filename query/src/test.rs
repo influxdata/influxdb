@@ -793,6 +793,13 @@ impl QueryChunk for TestChunk {
         None
     }
 
+    /// Sets sort key for the schema of this chunk
+    fn set_sort_key(&mut self, sort_key: &SortKey<'_>) {
+        let mut schema_cloned = self.schema.as_ref().clone();
+        schema_cloned.set_sort_key(sort_key);
+        self.schema = Arc::new(schema_cloned);
+    }
+
     fn apply_predicate_to_metadata(&self, predicate: &Predicate) -> Result<PredicateMatch> {
         self.check_error()?;
 

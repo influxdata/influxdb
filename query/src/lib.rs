@@ -8,14 +8,21 @@
 )]
 
 use async_trait::async_trait;
-use data_types::{chunk_metadata::ChunkSummary, partition_metadata::{InfluxDbType, TableSummary}};
+use data_types::{
+    chunk_metadata::ChunkSummary,
+    partition_metadata::{InfluxDbType, TableSummary},
+};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, Executor};
-use internal_types::{schema::{Schema, TIME_COLUMN_NAME, sort::SortKey}, selection::Selection};
+use internal_types::{
+    schema::{sort::SortKey, Schema, TIME_COLUMN_NAME},
+    selection::Selection,
+};
+use observability_deps::tracing::trace;
 use predicate::PredicateMatch;
 
-use std::{fmt::Debug, sync::Arc};
 use hashbrown::HashMap;
+use std::{fmt::Debug, sync::Arc};
 
 pub mod exec;
 pub mod frontend;
@@ -139,6 +146,10 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
 
     /// Returns the sort key of the chunk if any
     fn sort_key(&self) -> Option<SortKey<'_>>;
+    //fn sort_key(&self) -> Option<SortKey>;
+
+    /// Sets sort key for the schema of this chunk
+    fn set_sort_key(&mut self, sort_key: &SortKey<'_>);
 }
 
 #[async_trait]
@@ -192,11 +203,19 @@ pub fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -
                 continue;
             }
 
+            let mut cnt = 0;
             if let Some(count) = column.stats.distinct_count() {
-                *cardinalities.entry(column.name.as_str()).or_default() += count.get()
+                cnt = count.get();
             }
+            *cardinalities.entry(column.name.as_str()).or_default() += cnt;
         }
     }
+
+    trace!(cardinalities=?cardinalities, "cardinalities of of columns to compute sort key");
+    print!(
+        "cardinalities of of columns to compute sort key: {:#?}",
+        cardinalities
+    );
 
     let mut cardinalities: Vec<_> = cardinalities.into_iter().collect();
     cardinalities.sort_by_key(|x| x.1);
@@ -206,9 +225,12 @@ pub fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -
         key.push(col, Default::default())
     }
     key.push(TIME_COLUMN_NAME, Default::default());
+
+    trace!(computed_sort_key=?key, "Value of sort key from compute_sort_key");
+    println!("Value of sort key from compute_sort_key: {:#?}", key);
+
     key
 }
-
 
 // Note: I would like to compile this module only in the 'test' cfg,
 // but when I do so then other modules can not find them. For example:

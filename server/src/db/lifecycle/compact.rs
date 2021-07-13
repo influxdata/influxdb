@@ -8,7 +8,7 @@ use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
 use query::exec::ExecutorType;
 use query::frontend::reorg::ReorgPlanner;
-use query::{QueryChunkMeta, compute_sort_key};
+use query::{compute_sort_key, QueryChunkMeta};
 use read_buffer::{ChunkMetrics, RBChunk};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 

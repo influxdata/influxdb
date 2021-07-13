@@ -10,7 +10,7 @@ use datafusion::{
     optimizer::utils::expr_to_columns,
     physical_plan::expressions::{col as physical_col, PhysicalSortExpr},
 };
-use internal_types::schema::Schema;
+use internal_types::schema::{sort::SortKey, Schema};
 
 /// Create a logical plan that produces the record batch
 pub fn make_scan_plan(batch: RecordBatch) -> std::result::Result<LogicalPlan, DataFusionError> {
@@ -44,6 +44,25 @@ pub fn arrow_pk_sort_exprs(
             options: SortOptions {
                 descending: false,
                 nulls_first: false,
+            },
+        });
+    }
+
+    sort_exprs
+}
+
+pub fn arrow_sort_key_exprs(
+    sort_key: SortKey<'_>,
+    input_schema: &ArrowSchema,
+) -> Vec<PhysicalSortExpr> {
+    let mut sort_exprs = vec![];
+    for (key, options) in sort_key.iter() {
+        let expr = physical_col(key, &input_schema).expect("sort key column in schema");
+        sort_exprs.push(PhysicalSortExpr {
+            expr,
+            options: SortOptions {
+                descending: options.descending,
+                nulls_first: options.nulls_first,
             },
         });
     }
