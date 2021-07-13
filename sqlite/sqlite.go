@@ -278,14 +278,14 @@ func (s *SqlStore) RestoreSqlStore(ctx context.Context, r io.Reader) error {
 // operation, prior to swapping the restored database (or its contents) with the
 // active database.
 func (s *SqlStore) migrateRestored(ctx context.Context, tempFileName string) error {
-	sqlStore, err := NewSqlStore(tempFileName, s.log.With(zap.String("service", "restored sqlite")))
+	restoredSql, err := NewSqlStore(tempFileName, s.log.With(zap.String("service", "restored sqlite")))
 	if err != nil {
 		return err
 	}
-	defer sqlStore.Close()
+	defer restoredSql.Close()
 
 	restoreMigrator := NewMigrator(
-		s,
+		restoredSql,
 		s.log.With(zap.String("service", "sqlite restore migrations")),
 	)
 
