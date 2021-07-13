@@ -599,6 +599,7 @@ impl CatalogChunk {
         match &self.stage {
             ChunkStage::Open { .. } | ChunkStage::Frozen { .. } => {
                 self.set_lifecycle_action(ChunkLifecycleAction::Compacting, registration)?;
+                self.freeze()?;
                 Ok(())
             }
             ChunkStage::Persisted { .. } => {
@@ -856,6 +857,18 @@ mod tests {
             "Internal Error: unexpected chunk state for Chunk('db':'table1':'part1':0) \
             during setting closed. Expected Open or Frozen, got Persisted"
         );
+    }
+
+    #[tokio::test]
+    async fn set_compacting_freezes_chunk() {
+        let mut chunk = make_open_chunk();
+        let registration = TaskRegistration::new();
+
+        assert!(chunk.time_closed.is_none());
+        assert!(matches!(chunk.stage, ChunkStage::Open { .. }));
+        chunk.set_compacting(&registration).unwrap();
+        assert!(chunk.time_closed.is_some());
+        assert!(matches!(chunk.stage, ChunkStage::Frozen { .. }));
     }
 
     #[test]
