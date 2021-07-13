@@ -22,8 +22,6 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/editorconfig-checker/editorconfig-checker v0.0.0-20190819115812-1474bdeaf2a2
 	github.com/elazarl/go-bindata-assetfs v1.0.0
-	github.com/evnix/boltdbweb v0.0.0-20191029203843-5b16e6623bd9 // indirect
-	github.com/gin-gonic/gin v1.7.2 // indirect
 	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
 	github.com/glycerine/goconvey v0.0.0-20180728074245-46e3a41ad493 // indirect
 	github.com/go-chi/chi v4.1.0+incompatible
