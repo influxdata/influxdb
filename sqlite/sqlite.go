@@ -231,38 +231,23 @@ func (s *SqlStore) RestoreSqlStore(ctx context.Context, r io.Reader) error {
 		return err
 	}
 
-	// Close the current DB and run the restore while under lock.
-	s.Mu.Lock()
-	if err := s.runSqlRestore(ctx, tempFileName); err != nil {
-		s.Mu.Unlock()
+	// Run the migrations on the restored database prior to swapping it in.
+	if err := s.migrateRestored(ctx, tempFileName); err != nil {
 		return err
 	}
 
-	// Now that the DB has been re-opened, release the lock so that the migrations
-	// can be run.
-	s.Mu.Unlock()
+	// Use a lock while swapping over to the temporary database.
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 
-	// Run migrations on the restored database. This will catch the restored
-	// database up to the current state expected by the application.
-	restoreMigrator := NewMigrator(
-		s,
-		s.log.With(zap.String("service", "sqlite restore migrations")),
-	)
-
-	return restoreMigrator.Up(ctx, sqliteMigrations.All)
-}
-
-// swapAndOpenRestored is used while restoring a database to close the existing
-// database, restore the backed up database, and then re-open the restored
-// database.
-func (s *SqlStore) runSqlRestore(ctx context.Context, tempFileName string) error {
+	// Close the current DB.
 	if err := s.Close(); err != nil {
 		return err
 	}
 
-	// If we're using a :memory: database, we need to open a new DB (which will be
-	// completely empty), and then use the sqlite backup API to copy the data from
-	// the restored db file into the database.
+	// If we're using a :memory: database, we need to open a new DB (which will be completely empty),
+	// and then use the sqlite backup API to copy the data from the restored db file into the database.
+	// Otherwise, we can just atomically swap the file and re-open the DB.
 	if s.path == InmemPath {
 		if err := s.openDB(); err != nil {
 			return err
@@ -278,14 +263,33 @@ func (s *SqlStore) runSqlRestore(ctx context.Context, tempFileName string) error
 		return backup(ctx, s, tempDB)
 	}
 
-	// If we are using an on-disk database, atomically swap the temporary file
-	// with the current DB file.
+	// Atomically swap the temporary file with the current DB file.
 	if err := fs.RenameFileWithReplacement(tempFileName, s.path); err != nil {
 		return err
 	}
 
-	// Open the restored database.
+	// Reopen the new database file
 	return s.openDB()
+}
+
+// migrateRestored opens the database at the temporary path and applies the
+// migrations to it. The database at the temporary path is closed after the
+// migrations are complete. This should be used as part of the restore
+// operation, prior to swapping the restored database (or its contents) with the
+// active database.
+func (s *SqlStore) migrateRestored(ctx context.Context, tempFileName string) error {
+	sqlStore, err := NewSqlStore(tempFileName, s.log.With(zap.String("service", "restored sqlite")))
+	if err != nil {
+		return err
+	}
+	defer sqlStore.Close()
+
+	restoreMigrator := NewMigrator(
+		s,
+		s.log.With(zap.String("service", "sqlite restore migrations")),
+	)
+
+	return restoreMigrator.Up(ctx, sqliteMigrations.All)
 }
 
 func (s *SqlStore) execTrans(ctx context.Context, stmt string) error {

@@ -233,29 +233,26 @@ func (s *KVStore) Restore(ctx context.Context, r io.Reader) error {
 			return err
 		}
 
+		// Run the migrations on the restored database prior to swapping it in.
+		if err := s.migrateRestored(ctx); err != nil {
+			return err
+		}
+
 		// Swap and reopen under lock.
 		s.mu.Lock()
-		if err := s.swapAndOpenRestored(); err != nil {
-			s.mu.Unlock()
+		defer s.mu.Unlock()
+
+		if err := s.db.Close(); err != nil {
 			return err
 		}
 
-		// Now that the DB has been re-opened, release the lock so that the
-		// migrations can be run.
-		s.mu.Unlock()
-
-		// Run migrations on the restored database. This will catch the restored
-		// database up to the current state expected by the application.
-		restoreMigrator, err := migration.NewMigrator(
-			s.log.With(zap.String("service", "bolt restore migrations")),
-			s,
-			all.Migrations[:]...,
-		)
-		if err != nil {
+		// Atomically swap temporary file with current DB file.
+		if err := fs.RenameFileWithReplacement(s.tempPath(), s.path); err != nil {
 			return err
 		}
 
-		return restoreMigrator.Up(ctx)
+		// Reopen with new database file.
+		return s.openDB()
 	}(); err != nil {
 		os.Remove(s.tempPath()) // clean up on error
 		return err
@@ -263,19 +260,31 @@ func (s *KVStore) Restore(ctx context.Context, r io.Reader) error {
 	return nil
 }
 
-// swapAndOpenRestored is used while restoring a database to close the existing
-// database, replace the existing database with the restored database at the
-// temp path, and then re-open the restored database.
-func (s *KVStore) swapAndOpenRestored() error {
-	if err := s.db.Close(); err != nil {
+// migrateRestored opens the database at the temporary path and applies the
+// migrations to it. The database at the temporary path is closed after the
+// migrations are complete. This should be used as part of the restore
+// operation, prior to swapping the restored database with the active database.
+func (s *KVStore) migrateRestored(ctx context.Context) error {
+	restoredClient := NewClient(s.log.With(zap.String("service", "restored bolt")))
+	restoredClient.Path = s.tempPath()
+	if err := restoredClient.Open(ctx); err != nil {
+		return err
+	}
+	defer restoredClient.Close()
+
+	restoredKV := NewKVStore(s.log.With(zap.String("service", "restored kvstore-bolt")), s.tempPath())
+	restoredKV.WithDB(restoredClient.DB())
+
+	migrator, err := migration.NewMigrator(
+		s.log.With(zap.String("service", "bolt restore migrations")),
+		restoredKV,
+		all.Migrations[:]...,
+	)
+	if err != nil {
 		return err
 	}
 
-	if err := fs.RenameFileWithReplacement(s.tempPath(), s.path); err != nil {
-		return err
-	}
-
-	return s.openDB()
+	return migrator.Up(ctx)
 }
 
 // Tx is a light wrapper around a boltdb transaction. It implements kv.Tx.
