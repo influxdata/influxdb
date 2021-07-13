@@ -40,6 +40,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21691](https://github.com/influxdata/influxdb/pull/21691): Remove incorrect optimization for group-by.
 1. [21747](https://github.com/influxdata/influxdb/pull/21747): Rename arm rpms with yum-compatible names.
 1. [21800](https://github.com/influxdata/influxdb/pull/21800): Return an error instead of panicking when InfluxQL statement rewrites fail.
+1. [21844](https://github.com/influxdata/influxdb/pull/21844): Upgrade to latest version of `influxdata/cron` so that tasks can be created with interval of `every: 1w`.
 
 ## v2.0.7 [2021-06-04]
 
