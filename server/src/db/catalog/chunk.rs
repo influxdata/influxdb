@@ -987,6 +987,32 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_clear_lifecycle_action() {
+        let mut chunk = make_open_chunk();
+        let registration = TaskRegistration::new();
+
+        // clearing w/o any action in-progress works
+        chunk.clear_lifecycle_action().unwrap();
+
+        // set some action
+        chunk
+            .set_lifecycle_action(ChunkLifecycleAction::Moving, &registration)
+            .unwrap();
+
+        // clearing now fails because task is still in progress
+        assert_eq!(
+            chunk.clear_lifecycle_action().unwrap_err().to_string(),
+            "Internal Error: Cannot clear a lifecycle action 'Moving to the Read Buffer' for chunk Chunk('db':'table1':'part1':0) that is still running",
+        );
+
+        // "finish" task
+        registration.into_tracker(1).cancel();
+
+        // clearing works now
+        chunk.clear_lifecycle_action().unwrap();
+    }
+
     fn make_mb_chunk(table_name: &str, sequencer_id: u32) -> MBChunk {
         let entry = lp_to_entry(&format!("{} bar=1 10", table_name));
         let write = entry.partition_writes().unwrap().remove(0);
