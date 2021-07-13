@@ -806,9 +806,9 @@ fn escaped_value<'a>(
 /// potentially-escaped characters. If the character *isn't* escaped,
 /// treat it as a literal character.
 fn escape_or_fallback<'a>(
-    normal: impl Fn(&'a str) -> IResult<&'a str, &'a str>,
+    normal: impl FnMut(&'a str) -> IResult<&'a str, &'a str>,
     escape_char: &'static str,
-    escaped: impl Fn(&'a str) -> IResult<&'a str, &'a str>,
+    escaped: impl FnMut(&'a str) -> IResult<&'a str, &'a str>,
 ) -> impl FnOnce(&'a str) -> IResult<&'a str, EscapedStr<'a>> {
     move |i| {
         let (remaining, s) = escape_or_fallback_inner(normal, escape_char, escaped)(i)?;
@@ -822,10 +822,10 @@ fn escape_or_fallback<'a>(
 }
 
 fn escape_or_fallback_inner<'a, Error>(
-    normal: impl Fn(&'a str) -> IResult<&'a str, &'a str, Error>,
+    mut normal: impl FnMut(&'a str) -> IResult<&'a str, &'a str, Error>,
     escape_char: &'static str,
-    escaped: impl Fn(&'a str) -> IResult<&'a str, &'a str, Error>,
-) -> impl Fn(&'a str) -> IResult<&'a str, EscapedStr<'a>, Error>
+    mut escaped: impl FnMut(&'a str) -> IResult<&'a str, &'a str, Error>,
+) -> impl FnMut(&'a str) -> IResult<&'a str, EscapedStr<'a>, Error>
 where
     Error: nom::error::ParseError<&'a str>,
 {
@@ -887,15 +887,15 @@ where
 /// This is a copied version of nom's `separated_list` that allows
 /// parameterizing the created collection via closures.
 pub fn parameterized_separated_list<I, O, O2, E, F, G, Ret>(
-    sep: G,
-    f: F,
+    mut sep: G,
+    mut f: F,
     cre: impl FnOnce() -> Ret,
     mut add: impl FnMut(&mut Ret, O),
 ) -> impl FnOnce(I) -> IResult<I, Ret, E>
 where
     I: Clone + PartialEq,
-    F: Fn(I) -> IResult<I, O, E>,
-    G: Fn(I) -> IResult<I, O2, E>,
+    F: FnMut(I) -> IResult<I, O, E>,
+    G: FnMut(I) -> IResult<I, O2, E>,
     E: nom::error::ParseError<I>,
 {
     move |mut i: I| {
@@ -951,15 +951,15 @@ where
 }
 
 pub fn parameterized_separated_list1<I, O, O2, E, F, G, Ret>(
-    sep: G,
-    f: F,
+    mut sep: G,
+    mut f: F,
     cre: impl FnOnce() -> Ret,
     mut add: impl FnMut(&mut Ret, O),
 ) -> impl FnOnce(I) -> IResult<I, Ret, E>
 where
     I: Clone + PartialEq,
-    F: Fn(I) -> IResult<I, O, E>,
-    G: Fn(I) -> IResult<I, O2, E>,
+    F: FnMut(I) -> IResult<I, O, E>,
+    G: FnMut(I) -> IResult<I, O2, E>,
     E: nom::error::ParseError<I>,
 {
     move |i| {
@@ -984,10 +984,10 @@ pub fn parse_and_recognize<
     E: nom::error::ParseError<I>,
     F,
 >(
-    parser: F,
-) -> impl Fn(I) -> IResult<I, (I, O), E>
+    mut parser: F,
+) -> impl FnMut(I) -> IResult<I, (I, O), E>
 where
-    F: Fn(I) -> IResult<I, O, E>,
+    F: FnMut(I) -> IResult<I, O, E>,
 {
     move |input: I| {
         let i = input.clone();
@@ -1004,7 +1004,7 @@ where
 /// This is very similar to nom's `map_res`, but creates a
 /// `nom::Err::Failure` instead.
 fn map_fail<'a, R1, R2>(
-    first: impl Fn(&'a str) -> IResult<&'a str, R1>,
+    mut first: impl FnMut(&'a str) -> IResult<&'a str, R1>,
     second: impl FnOnce(R1) -> Result<R2, Error>,
 ) -> impl FnOnce(&'a str) -> IResult<&'a str, R2> {
     move |i| {

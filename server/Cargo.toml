@@ -18,7 +18,7 @@ datafusion_util = { path = "../datafusion_util" }
 entry = { path = "../entry" }
 # See docs/regenerating_flatbuffers.md about updating generated code when updating the
 # version of the flatbuffers crate
-flatbuffers = "0.8"
+flatbuffers = "2"
 futures = "0.3"
 futures-util = { version = "0.3.1" }
 generated_types = { path = "../generated_types" }

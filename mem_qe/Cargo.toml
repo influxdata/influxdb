@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies] # In alphabetical order
 arrow = { version = "4.0", features = ["prettyprint"] }
 chrono = "0.4"
-croaring = "0.4.5"
+croaring = "0.5"
 crossbeam = "0.8"
 env_logger = "0.8"
 human_format = "1.0.3"
