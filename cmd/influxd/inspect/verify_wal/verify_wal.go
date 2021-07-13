@@ -1,7 +1,6 @@
 package verify_wal
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -15,7 +14,8 @@ import (
 )
 
 type args struct {
-	dir string
+	dir     string
+	verbose bool
 }
 
 func NewVerifyWALCommand() *cobra.Command {
@@ -47,17 +47,18 @@ In the summary section, the following is printed:
 		panic(err)
 	}
 	dir = filepath.Join(dir, "engine/wal")
-	cmd.Flags().StringVarP(&arguments.dir, "data-dir", "", dir, fmt.Sprintf("use provided data directory (defaults to %s).", dir))
+	cmd.Flags().StringVar(&arguments.dir, "wal-dir", dir, "use provided WAL directory.")
+	cmd.Flags().BoolVarP(&arguments.verbose, "verbose", "v", false, "enable verbose logging")
 	return cmd
 }
 
 func (a args) Run(cmd *cobra.Command) error {
 	// Verify valid directory
-	dir, err := os.Stat(a.dir)
+	fi, err := os.Stat(a.dir)
 	if err != nil {
-		return fmt.Errorf("failed to get directory from %s", a.dir)
-	} else if !dir.IsDir() {
-		return errors.New("invalid data directory")
+		return fmt.Errorf("failed to stat %q: %w", a.dir, err)
+	} else if !fi.IsDir() {
+		return fmt.Errorf("%q is not a directory", a.dir)
 	}
 
 	// Find all WAL files in provided directory
@@ -66,7 +67,7 @@ func (a args) Run(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to search for WAL files in directory %s: %w", a.dir, err)
 	}
 	if len(files) == 0 {
-		return fmt.Errorf("failed to find WAL files in directory %s: %w", a.dir, err)
+		return fmt.Errorf("no WAL files found in directory %s", a.dir)
 	}
 
 	start := time.Now()
@@ -92,7 +93,7 @@ func (a args) Run(cmd *cobra.Command) error {
 			_, err := reader.Read()
 			if err != nil {
 				clean = false
-				_, _ = fmt.Fprintf(tw, "%s: corrupt entry found at position %d\n", fpath, reader.Count())
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s: corrupt entry found at position %d\n", fpath, reader.Count())
 				corruptFiles = append(corruptFiles, fpath)
 				break
 			}
@@ -100,10 +101,10 @@ func (a args) Run(cmd *cobra.Command) error {
 
 		if entriesScanned == 0 {
 			// No data found in file
-			_, _ = fmt.Fprintf(tw, "no WAL entries found for file %s, skipping", f.Name())
-		} else if clean {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "no WAL entries found for file %s, skipping", f.Name())
+		} else if clean && a.verbose {
 			// No corrupted entry found
-			_, _ = fmt.Fprintf(tw, "%s: clean\n", fpath)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s: clean\n", fpath)
 		}
 		totalEntriesScanned += entriesScanned
 		_ = tw.Flush()

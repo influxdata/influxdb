@@ -11,6 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testInfo struct {
+	t           *testing.T
+	path        string
+	expectedOut string
+	expectErr   bool
+	withStdErr  bool
+}
+
 func TestVerifies_InvalidFileType(t *testing.T) {
 	path, err := os.MkdirTemp("", "verify-wal")
 	require.NoError(t, err)
@@ -19,52 +27,81 @@ func TestVerifies_InvalidFileType(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(path)
 
-	runCommand(t, path, "failed to find WAL files in directory", true)
+	runCommand(testInfo{
+		t:           t,
+		path:        path,
+		expectedOut: "no WAL files found in directory",
+		expectErr:   true,
+	})
 }
 
 func TestVerifies_InvalidNotDir(t *testing.T) {
 	path, file := newTempWALInvalid(t, true)
 	defer os.RemoveAll(path)
 
-	runCommand(t, file.Name(), "invalid data directory", true)
+	runCommand(testInfo{
+		t:           t,
+		path:        file.Name(),
+		expectedOut: "is not a directory",
+		expectErr:   true,
+	})
 }
 
 func TestVerifies_InvalidEmptyFile(t *testing.T) {
 	path, _ := newTempWALInvalid(t, true)
 	defer os.RemoveAll(path)
 
-	runCommand(t, path, "no WAL entries found for file", false)
+	runCommand(testInfo{
+		t:           t,
+		path:        path,
+		expectedOut: "no WAL entries found for file",
+		withStdErr:  true,
+	})
 }
 
 func TestVerifies_Invalid(t *testing.T) {
 	path, _ := newTempWALInvalid(t, false)
 	defer os.RemoveAll(path)
 
-	runCommand(t, path, "corrupt entry found at position", false)
+	runCommand(testInfo{
+		t:           t,
+		path:        path,
+		expectedOut: "corrupt entry found at position",
+		withStdErr:  true,
+	})
 }
 
 func TestVerifies_Valid(t *testing.T) {
 	path := newTempWALValid(t)
 	defer os.RemoveAll(path)
 
-	runCommand(t, path, "clean", false)
+	runCommand(testInfo{
+		t:           t,
+		path:        path,
+		expectedOut: "clean",
+		withStdErr:  true,
+	})
 }
 
-func runCommand(t *testing.T, dir string, expected string, expectErr bool) {
+func runCommand(args testInfo) {
 	verify := NewVerifyWALCommand()
-	verify.SetArgs([]string{"--data-dir", dir})
+	verify.SetArgs([]string{"--wal-dir", args.path, "--verbose"})
 
 	b := bytes.NewBufferString("")
 	verify.SetOut(b)
-	if expectErr {
-		require.Error(t, verify.Execute())
+	if args.withStdErr {
+		verify.SetErr(b)
+	}
+
+	if args.expectErr {
+		require.Error(args.t, verify.Execute())
 	} else {
-		require.NoError(t, verify.Execute())
+		require.NoError(args.t, verify.Execute())
 	}
 
 	out, err := io.ReadAll(b)
-	require.NoError(t, err)
-	require.Contains(t, string(out), expected)
+	require.NoError(args.t, err)
+	require.Contains(args.t, string(out), args.expectedOut)
 }
 
 func newTempWALValid(t *testing.T) string {
