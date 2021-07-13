@@ -203,8 +203,8 @@ pub enum Error {
     ))]
     WritingOnlyAllowedThroughWriteBuffer { db_name: String },
 
-    #[snafu(display("Cannot write to write buffer: {}", source))]
-    WriteBuffer { source: db::Error },
+    #[snafu(display("Cannot write to write buffer, bytes {}: {}", bytes, source))]
+    WriteBuffer { source: db::Error, bytes: u64 },
 
     #[snafu(display("no remote configured for node group: {:?}", node_group))]
     NoRemoteConfigured { node_group: NodeGroup },
@@ -805,7 +805,9 @@ where
                         db_name: db_name.into(),
                     }
                 }
-                db::Error::WriteBufferWritingError { .. } => Error::WriteBuffer { source: e },
+                db::Error::WriteBufferWritingError { .. } => {
+                    Error::WriteBuffer { source: e, bytes }
+                }
                 _ => Error::UnknownDatabaseError {
                     source: Box::new(e),
                 },
