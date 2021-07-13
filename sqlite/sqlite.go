@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
+	sqliteMigrations "github.com/influxdata/influxdb/v2/sqlite/migrations"
 	"github.com/jmoiron/sqlx"
 	"github.com/mattn/go-sqlite3"
 
@@ -230,14 +231,38 @@ func (s *SqlStore) RestoreSqlStore(ctx context.Context, r io.Reader) error {
 		return err
 	}
 
-	// Close the current DB.
+	// Close the current DB and run the restore while under lock.
+	s.Mu.Lock()
+	if err := s.runSqlRestore(ctx, tempFileName); err != nil {
+		s.Mu.Unlock()
+		return err
+	}
+
+	// Now that the DB has been re-opened, release the lock so that the migrations
+	// can be run.
+	s.Mu.Unlock()
+
+	// Run migrations on the restored database. This will catch the restored
+	// database up to the current state expected by the application.
+	restoreMigrator := NewMigrator(
+		s,
+		s.log.With(zap.String("service", "sqlite restore migrations")),
+	)
+
+	return restoreMigrator.Up(ctx, sqliteMigrations.All)
+}
+
+// swapAndOpenRestored is used while restoring a database to close the existing
+// database, restore the backed up database, and then re-open the restored
+// database.
+func (s *SqlStore) runSqlRestore(ctx context.Context, tempFileName string) error {
 	if err := s.Close(); err != nil {
 		return err
 	}
 
-	// If we're using a :memory: database, we need to open a new DB (which will be completely empty),
-	// and then use the sqlite backup API to copy the data from the restored db file into the database.
-	// Otherwise, we can just atomically swap the file and re-open the DB.
+	// If we're using a :memory: database, we need to open a new DB (which will be
+	// completely empty), and then use the sqlite backup API to copy the data from
+	// the restored db file into the database.
 	if s.path == InmemPath {
 		if err := s.openDB(); err != nil {
 			return err
@@ -253,12 +278,13 @@ func (s *SqlStore) RestoreSqlStore(ctx context.Context, r io.Reader) error {
 		return backup(ctx, s, tempDB)
 	}
 
-	// Atomically swap the temporary file with the current DB file.
+	// If we are using an on-disk database, atomically swap the temporary file
+	// with the current DB file.
 	if err := fs.RenameFileWithReplacement(tempFileName, s.path); err != nil {
 		return err
 	}
 
-	// Reopen the new database file
+	// Open the restored database.
 	return s.openDB()
 }
 

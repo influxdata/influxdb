@@ -13,6 +13,8 @@ import (
 
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
 	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
@@ -233,24 +235,47 @@ func (s *KVStore) Restore(ctx context.Context, r io.Reader) error {
 
 		// Swap and reopen under lock.
 		s.mu.Lock()
-		defer s.mu.Unlock()
-
-		if err := s.db.Close(); err != nil {
+		if err := s.swapAndOpenRestored(); err != nil {
+			s.mu.Unlock()
 			return err
 		}
 
-		// Atomically swap temporary file with current DB file.
-		if err := fs.RenameFileWithReplacement(s.tempPath(), s.path); err != nil {
+		// Now that the DB has been re-opened, release the lock so that the
+		// migrations can be run.
+		s.mu.Unlock()
+
+		// Run migrations on the restored database. This will catch the restored
+		// database up to the current state expected by the application.
+		restoreMigrator, err := migration.NewMigrator(
+			s.log.With(zap.String("service", "bolt restore migrations")),
+			s,
+			all.Migrations[:]...,
+		)
+		if err != nil {
 			return err
 		}
 
-		// Reopen with new database file.
-		return s.openDB()
+		return restoreMigrator.Up(ctx)
 	}(); err != nil {
 		os.Remove(s.tempPath()) // clean up on error
 		return err
 	}
 	return nil
+}
+
+// swapAndOpenRestored is used while restoring a database to close the existing
+// database, replace the existing database with the restored database at the
+// temp path, and then re-open the restored database.
+func (s *KVStore) swapAndOpenRestored() error {
+	if err := s.db.Close(); err != nil {
+		return err
+	}
+
+	if err := fs.RenameFileWithReplacement(s.tempPath(), s.path); err != nil {
+		return err
+	}
+
+	return s.openDB()
 }
 
 // Tx is a light wrapper around a boltdb transaction. It implements kv.Tx.
