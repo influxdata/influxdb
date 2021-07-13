@@ -535,6 +535,7 @@ impl InitStatus {
                         config: rules.write_buffer_connection.clone(),
                     },
                 )?;
+                info!(write_buffer_enabled=?write_buffer.is_some(), db_name=rules.db_name(), "write buffer config");
 
                 handle
                     .advance_replay(preserved_catalog, catalog, write_buffer)

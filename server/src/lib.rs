@@ -562,6 +562,7 @@ where
                     source: e,
                 }
             })?;
+        info!(write_buffer_enabled=?write_buffer.is_some(), db_name=rules.db_name(), "write buffer config");
         db_reservation.advance_replay(preserved_catalog, catalog, write_buffer)?;
 
         // no actual replay required
