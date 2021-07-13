@@ -271,18 +271,22 @@ impl Partition {
         self.chunks().map(|x| x.read().summary())
     }
 
+    /// Return reference to partition-specific metrics.
     pub fn metrics(&self) -> &PartitionMetrics {
         &self.metrics
     }
 
+    /// Return immutable reference to current persistence window, if any.
     pub fn persistence_windows(&self) -> Option<&PersistenceWindows> {
         self.persistence_windows.as_ref()
     }
 
+    /// Return mutable reference to current persistence window, if any.
     pub fn persistence_windows_mut(&mut self) -> Option<&mut PersistenceWindows> {
         self.persistence_windows.as_mut()
     }
 
+    /// Set persistence window to new value.
     pub fn set_persistence_windows(&mut self, windows: PersistenceWindows) {
         self.persistence_windows = Some(windows);
     }
