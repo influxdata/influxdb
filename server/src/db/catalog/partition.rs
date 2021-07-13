@@ -9,7 +9,9 @@ use data_types::{
 };
 use internal_types::schema::Schema;
 use observability_deps::tracing::info;
-use persistence_windows::persistence_windows::PersistenceWindows;
+use persistence_windows::{
+    checkpoint::PartitionCheckpoint, persistence_windows::PersistenceWindows,
+};
 use snafu::Snafu;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
@@ -289,6 +291,24 @@ impl Partition {
     /// Set persistence window to new value.
     pub fn set_persistence_windows(&mut self, windows: PersistenceWindows) {
         self.persistence_windows = Some(windows);
+    }
+
+    /// Construct partition checkpoint out of contained persistence window, if any.
+    pub fn partition_checkpoint(&self) -> Option<PartitionCheckpoint> {
+        if let Some(persistence_windows) = self.persistence_windows.as_ref() {
+            if let Some(min_unpersisted_timestamp) =
+                persistence_windows.minimum_unpersisted_timestamp()
+            {
+                return Some(PartitionCheckpoint::new(
+                    Arc::clone(&self.table_name),
+                    Arc::clone(&self.partition_key),
+                    persistence_windows.sequencer_numbers_range(),
+                    min_unpersisted_timestamp,
+                ));
+            }
+        }
+
+        None
     }
 }
 
