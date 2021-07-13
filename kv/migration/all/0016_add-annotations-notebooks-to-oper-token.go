@@ -48,7 +48,7 @@ var Migration0016_AddAnnotationsNotebooksToOperToken = UpOnlyMigration(
 					opTokens = append(opTokens, t)
 				}
 
-				return false, nil
+				return true, nil
 			})
 		}); err != nil {
 			return err

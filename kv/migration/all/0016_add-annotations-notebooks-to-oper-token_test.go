@@ -15,10 +15,8 @@ func TestMigration_AnnotationsNotebooksOperToken(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
-	// Run up to migration 15. Runs up to but not including the specified int, so
-	// to run up to (and including) migration 15 we need to provide 16 as the int
-	// arg.
-	ts := newService(t, ctx, 16)
+	// Run up to migration 15.
+	ts := newService(t, ctx, 15)
 
 	// Auth bucket contains the authorizations AKA tokens
 	authBucket := []byte("authorizationsv1")
@@ -66,21 +64,19 @@ func TestMigration_AnnotationsNotebooksOperToken(t *testing.T) {
 		},
 	}
 
-	err = ts.Store.Update(context.Background(), func(tx kv.Tx) error {
-		bkt, err := tx.Bucket(authBucket)
+	for _, a := range auths {
+		js, err := json.Marshal(a)
+		require.NoError(t, err)
+		idBytes, err := a.ID.Encode()
 		require.NoError(t, err)
 
-		for _, a := range auths {
-			js, err := json.Marshal(a)
+		err = ts.Store.Update(context.Background(), func(tx kv.Tx) error {
+			bkt, err := tx.Bucket(authBucket)
 			require.NoError(t, err)
-
-			idBytes, err := a.ID.Encode()
-			require.NoError(t, err)
-			require.NoError(t, bkt.Put(idBytes, js))
-		}
-		return nil
-	})
-	require.NoError(t, err)
+			return bkt.Put(idBytes, js)
+		})
+		require.NoError(t, err)
+	}
 
 	// Run the migration
 	require.NoError(t, Migration0016_AddAnnotationsNotebooksToOperToken.Up(context.Background(), ts.Store))
@@ -118,7 +114,6 @@ func TestMigration_AnnotationsNotebooksOperToken(t *testing.T) {
 		require.NoError(t, json.Unmarshal(b, &token))
 
 		require.ElementsMatch(t, influxdb.OperPermissions(), token.Permissions)
-
 		return nil
 	})
 	require.NoError(t, err)
