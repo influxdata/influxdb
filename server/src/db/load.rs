@@ -21,7 +21,8 @@ use super::catalog::Catalog;
 ///
 /// If no catalog exists yet, a new one will be created.
 ///
-/// **For now, if the catalog is broken, it will be wiped! (https://github.com/influxdata/influxdb_iox/issues/1522)**
+/// **For now, if the catalog is broken, it will be wiped!**
+/// <https://github.com/influxdata/influxdb_iox/issues/1522>
 pub async fn load_or_create_preserved_catalog(
     db_name: &str,
     object_store: Arc<ObjectStore>,

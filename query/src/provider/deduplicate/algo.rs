@@ -340,7 +340,7 @@ impl RecordBatchDeduplicator {
 
     /// Create a new record batch from offset --> len
     ///
-    /// https://github.com/apache/arrow-rs/issues/460 for adding this upstream
+    /// <https://github.com/apache/arrow-rs/issues/460> for adding this upstream
     fn slice_record_batch(
         batch: &RecordBatch,
         offset: usize,

@@ -23,7 +23,7 @@ service ManagementService {
 
   // Update a database.
   //
-  // Roughly follows the https://google.aip.dev/134 pattern, except we wrap the response
+  // Roughly follows the <https://google.aip.dev/134> pattern, except we wrap the response
   rpc UpdateDatabase(UpdateDatabaseRequest) returns (UpdateDatabaseResponse);
 
   // List chunks available on this database

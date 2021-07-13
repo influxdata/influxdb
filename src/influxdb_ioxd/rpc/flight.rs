@@ -281,7 +281,7 @@ where
 /// into a smaller buffer while we have to copy stuff around anyway.
 ///
 /// See rationale and discussions about future improvements on
-/// https://github.com/influxdata/influxdb_iox/issues/1133
+/// <https://github.com/influxdata/influxdb_iox/issues/1133>
 fn optimize_record_batch(batch: &RecordBatch, schema: SchemaRef) -> Result<RecordBatch, Error> {
     let max_buf_len = batch
         .columns()

@@ -4,7 +4,7 @@
 //! that same service interface or to a remote service. The tonic gRPC client used to talk to the
 //! remote service is provided by the user by implementing the [`Router`] trait for the router service type.
 //! The [`Router`] trait allows the user to provide a different gRPC client per request, or to just
-//! fall-back to serving the request from a local service implementation (without any further gRPC overhead).   
+//! fall-back to serving the request from a local service implementation (without any further gRPC overhead).
 //!
 //! This crate also offers an optional caching [`connection_manager`], which can be useful for
 //! implementing the [`Router`] trait.
@@ -124,7 +124,7 @@
 //!                 self.connection_manager
 //!                     .remote_server(remote_addr.clone())
 //!                     .await?,
-//!             ),         
+//!             ),
 //!         })
 //!     }
 //! }
@@ -166,7 +166,7 @@
 //! # }
 //! ```
 
-#![deny(broken_intra_doc_links, rust_2018_idioms)]
+#![deny(broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,

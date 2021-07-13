@@ -1,13 +1,13 @@
 //! This module contains a pure rust implementation of a parser for InfluxDB
-//! Line Protocol https://v2.docs.influxdata.com/v2.0/reference/syntax/line-protocol/
+//! Line Protocol <https://v2.docs.influxdata.com/v2.0/reference/syntax/line-protocol>
 //!
 //! This implementation is intended to be compatible with the Go implementation,
-//! https://github.com/influxdata/influxdb/blob/217eddc87e14a79b01d0c22994fc139f530094a2/models/points_parser.go
+//! <https://github.com/influxdata/influxdb/blob/217eddc87e14a79b01d0c22994fc139f530094a2/models/points_parser.go>
 //!
 //! However, this implementation uses a nom combinator based parser
 //! rather than attempting to port the imperative Go logic.
 
-#![deny(broken_intra_doc_links, rust_2018_idioms)]
+#![deny(broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,
@@ -332,7 +332,7 @@ pub type FieldSet<'a> = SmallVec<[(EscapedStr<'a>, FieldValue<'a>); 4]>;
 pub type TagSet<'a> = SmallVec<[(EscapedStr<'a>, EscapedStr<'a>); 8]>;
 
 /// Allowed types of Fields in a `ParsedLine`. One of the types described in
-/// https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/#data-types-and-format
+/// <https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/#data-types-and-format>
 #[derive(Debug, Clone, PartialEq)]
 pub enum FieldValue<'a> {
     I64(i64),
@@ -343,7 +343,7 @@ pub enum FieldValue<'a> {
 }
 
 /// Converts FieldValue back to LineProtocol
-/// See https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/
+/// See <https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/>
 /// for more detail.
 impl<'a> Display for FieldValue<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

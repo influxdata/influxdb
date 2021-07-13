@@ -144,7 +144,7 @@ pub struct InitStatus {
 
     /// Automatic wipe-on-error recovery
     ///
-    /// See https://github.com/influxdata/influxdb_iox/issues/1522)
+    /// See <https://github.com/influxdata/influxdb_iox/issues/1522>
     pub(crate) wipe_on_error: AtomicBool,
 }
 
