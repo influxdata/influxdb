@@ -18,7 +18,7 @@
 #   the commit SHA where the `version` metadata was updated to the version of the `flatbuffers`
 #   crate we now want to have in our `Cargo.lock`.
 # - Put that commit SHA in this variable:
-FB_COMMIT="86401e078d0746d2381735415f8c2dfe849f3f52"
+FB_COMMIT="a9a295fecf3fbd5a4f571f53b01f63202a3e2113"
 # - Run this script to regenerate the corresponding Rust code.
 # - Run `cargo test` to make sure everything works as you would expect.
 # - Check in the changes to the generated code along with your changes to the `Cargo.lock` file and

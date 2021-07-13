@@ -133,7 +133,7 @@ dependencies = [
  "cfg_aliases",
  "chrono",
  "csv",
- "flatbuffers",
+ "flatbuffers 0.8.4",
  "hex",
  "indexmap",
  "lazy_static",
@@ -1021,7 +1021,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "data_types",
- "flatbuffers",
+ "flatbuffers 2.0.0",
  "generated_types",
  "influxdb_line_protocol",
  "internal_types",
@@ -1095,6 +1095,17 @@ name = "flatbuffers"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3c502342b7d6d73beb1b8bab39dc01deba0c8ef66f4e6f1eba7c69ee6b38069"
+dependencies = [
+ "bitflags",
+ "smallvec",
+ "thiserror",
+]
+
+[[package]]
+name = "flatbuffers"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef4c5738bcd7fad10315029c50026f83c9da5e4a21f8ed66826f43e0e2bde5f6"
 dependencies = [
  "bitflags",
  "smallvec",
@@ -3771,7 +3782,7 @@ dependencies = [
  "datafusion 0.1.0",
  "datafusion_util",
  "entry",
- "flatbuffers",
+ "flatbuffers 2.0.0",
  "futures",
  "futures-util",
  "generated_types",

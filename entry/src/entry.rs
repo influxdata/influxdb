@@ -123,7 +123,7 @@ fn build_sharded_entry(
     partitions: BTreeMap<String, BTreeMap<&str, Vec<&ParsedLine<'_>>>>,
     default_time: i64,
 ) -> Result<ShardedEntry> {
-    let mut fbb = flatbuffers::FlatBufferBuilder::new_with_capacity(1024);
+    let mut fbb = flatbuffers::FlatBufferBuilder::with_capacity(1024);
 
     let partition_writes = partitions
         .into_iter()
