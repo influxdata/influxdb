@@ -9,7 +9,7 @@ use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 use super::{error::Result, LockableCatalogChunk};
-use crate::db::lifecycle::{collect_rub, new_rub_chunk};
+use crate::db::lifecycle::collect_rub;
 
 /// The implementation for moving a chunk to the read buffer
 ///
@@ -45,7 +45,6 @@ pub fn move_chunk_to_read_buffer(
 
     // Drop locks
     let chunk = guard.into_data().chunk;
-    let mut rb_chunk = new_rub_chunk(db.as_ref(), &table_summary.name);
 
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
@@ -60,7 +59,7 @@ pub fn move_chunk_to_read_buffer(
 
         let physical_plan = ctx.prepare_plan(&plan)?;
         let stream = ctx.execute(physical_plan).await?;
-        collect_rub(stream, &mut rb_chunk).await?;
+        let rb_chunk = collect_rub(stream, db.as_ref(), &table_summary.name).await?;
 
         // Can drop and re-acquire as lifecycle action prevents concurrent modification
         let mut guard = chunk.write();

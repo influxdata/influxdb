@@ -3,7 +3,7 @@
 use super::{error::Result, merge_schemas, LockableCatalogChunk, LockableCatalogPartition};
 use crate::db::{
     catalog::{chunk::CatalogChunk, partition::Partition},
-    lifecycle::{collect_rub, new_rub_chunk},
+    lifecycle::collect_rub,
     DbChunk,
 };
 use data_types::job::Job;
@@ -54,9 +54,6 @@ pub(crate) fn compact_chunks(
     // drop partition lock
     let partition = partition.into_data().partition;
 
-    // create a new read buffer chunk with memory tracking
-    let mut rb_chunk = new_rub_chunk(&db, &table_name);
-
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
     let fut = async move {
@@ -78,7 +75,7 @@ pub(crate) fn compact_chunks(
 
         let physical_plan = ctx.prepare_plan(&plan)?;
         let stream = ctx.execute(physical_plan).await?;
-        collect_rub(stream, &mut rb_chunk).await?;
+        let rb_chunk = collect_rub(stream, &db, &table_name).await?;
         let rb_row_groups = rb_chunk.row_groups();
 
         let new_chunk = {

@@ -328,32 +328,35 @@ impl LifecycleChunk for CatalogChunk {
     }
 }
 
-/// Creates a new RUB chunk
-fn new_rub_chunk(db: &Db, table_name: &str) -> read_buffer::RBChunk {
-    // create a new read buffer chunk with memory tracking
+/// Executes a plan and collects the results into a read buffer chunk
+// This is an async function but has been desugared manually because it's hitting
+// https://github.com/rust-lang/rust/issues/63033
+fn collect_rub(
+    stream: SendableRecordBatchStream,
+    db: &Db,
+    table_name: &str,
+) -> impl futures::Future<Output = Result<read_buffer::RBChunk>> {
+    use futures::{future, TryStreamExt};
+
+    let table_name = table_name.to_string();
     let metrics = db
         .metrics_registry
         .register_domain_with_labels("read_buffer", db.metric_labels.clone());
+    let chunk_metrics = read_buffer::ChunkMetrics::new(&metrics);
 
-    read_buffer::RBChunk::new(table_name, read_buffer::ChunkMetrics::new(&metrics))
-}
+    async {
+        let mut chunk = read_buffer::RBChunk::new(table_name, chunk_metrics);
 
-/// Executes a plan and collects the results into a read buffer chunk
-async fn collect_rub(
-    stream: SendableRecordBatchStream,
-    chunk: &mut read_buffer::RBChunk,
-) -> Result<()> {
-    use futures::{future, TryStreamExt};
+        stream
+            .try_filter(|batch| future::ready(batch.num_rows() > 0))
+            .try_for_each(|batch| {
+                chunk.upsert_table(batch);
+                future::ready(Ok(()))
+            })
+            .await?;
 
-    stream
-        .try_filter(|batch| future::ready(batch.num_rows() > 0))
-        .try_for_each(|batch| {
-            chunk.upsert_table(batch);
-            future::ready(Ok(()))
-        })
-        .await?;
-
-    Ok(())
+        Ok(chunk)
+    }
 }
 
 /// Return the merged schema for the chunks that are being

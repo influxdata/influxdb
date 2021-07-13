@@ -3,7 +3,7 @@
 use super::{LockableCatalogChunk, LockableCatalogPartition, Result};
 use crate::db::{
     catalog::{chunk::CatalogChunk, partition::Partition},
-    lifecycle::{collect_rub, merge_schemas, new_rub_chunk, write::write_chunk_to_object_store},
+    lifecycle::{collect_rub, merge_schemas, write::write_chunk_to_object_store},
     DbChunk,
 };
 use data_types::job::Job;
@@ -58,8 +58,6 @@ pub fn persist_chunks(
 
     // drop partition lock guard
     let partition = partition.into_data().partition;
-    let mut to_persist = new_rub_chunk(db.as_ref(), &table_name);
-    let mut remainder = new_rub_chunk(db.as_ref(), &table_name);
 
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
@@ -88,9 +86,9 @@ pub fn persist_chunks(
         let to_persist_stream = ctx.execute_partition(Arc::clone(&physical_plan), 0).await?;
         let remainder_stream = ctx.execute_partition(physical_plan, 1).await?;
 
-        futures::future::try_join(
-            collect_rub(to_persist_stream, &mut to_persist),
-            collect_rub(remainder_stream, &mut remainder),
+        let (to_persist, remainder) = futures::future::try_join(
+            collect_rub(to_persist_stream, db.as_ref(), &table_name),
+            collect_rub(remainder_stream, db.as_ref(), &table_name),
         )
         .await?;
 
