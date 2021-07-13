@@ -60,7 +60,7 @@ func TestMigration_AnnotationsNotebooksOperToken(t *testing.T) {
 			ID:          id2, // an operator token
 			OrgID:       OrgID,
 			UserID:      UserID,
-			Permissions: permsShouldChange(),
+			Permissions: oldOpPerms(),
 		},
 	}
 
@@ -113,7 +113,7 @@ func TestMigration_AnnotationsNotebooksOperToken(t *testing.T) {
 		var token influxdb.Authorization
 		require.NoError(t, json.Unmarshal(b, &token))
 
-		require.ElementsMatch(t, influxdb.OperPermissions(), token.Permissions)
+		require.ElementsMatch(t, append(oldOpPerms(), extraPerms()...), token.Permissions)
 		return nil
 	})
 	require.NoError(t, err)
@@ -267,20 +267,4 @@ func permsShouldNotChange() []influxdb.Permission {
 			},
 		},
 	}
-}
-
-// This set of permissions should change, since it matches a pre-2.1 operator
-// token.
-func permsShouldChange() []influxdb.Permission {
-	allPerms := influxdb.OperPermissions()
-
-	out := make([]influxdb.Permission, 0, len(allPerms))
-
-	for _, p := range allPerms {
-		if p.Resource.Type != influxdb.NotebooksResourceType && p.Resource.Type != influxdb.AnnotationsResourceType {
-			out = append(out, p)
-		}
-	}
-
-	return out
 }

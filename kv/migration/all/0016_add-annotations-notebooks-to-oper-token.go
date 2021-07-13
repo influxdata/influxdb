@@ -14,8 +14,6 @@ var Migration0016_AddAnnotationsNotebooksToOperToken = UpOnlyMigration(
 	func(ctx context.Context, store kv.SchemaStore) error {
 		authBucket := []byte("authorizationsv1")
 
-		oprPerms := influxdb.OperPermissions()
-
 		// Find the operator token that needs updated
 
 		// There will usually be 1 operator token. If somebody has deleted their
@@ -40,11 +38,9 @@ var Migration0016_AddAnnotationsNotebooksToOperToken = UpOnlyMigration(
 					return false, err
 				}
 
-				// If the permissions list of this token + the extra permissions an
-				// operator token for annotations and notebooks would have matches the
-				// full list of operator permissions for a 2.1 operator token, we must
-				// be dealing with a 2.0.x operator token, so add it to the list.
-				if permListsMatch(oprPerms, append(t.Permissions, extraPerms()...)) {
+				// Add any tokens to the list that match the list of permission from an
+				// "old" operator token
+				if permListsMatch(oldOpPerms(), t.Permissions) {
 					opTokens = append(opTokens, t)
 				}
 
@@ -63,7 +59,7 @@ var Migration0016_AddAnnotationsNotebooksToOperToken = UpOnlyMigration(
 				return err
 			}
 
-			t.Permissions = oprPerms
+			t.Permissions = append(t.Permissions, extraPerms()...)
 
 			v, err := json.Marshal(t)
 			if err != nil {
@@ -89,32 +85,97 @@ var Migration0016_AddAnnotationsNotebooksToOperToken = UpOnlyMigration(
 // extraPerms returns the list of additional permissions that need added for
 // annotations and notebooks.
 func extraPerms() []influxdb.Permission {
-	return []influxdb.Permission{
+	resTypes := []influxdb.Resource{
 		{
-			Action: influxdb.ReadAction,
-			Resource: influxdb.Resource{
-				Type: influxdb.NotebooksResourceType,
-			},
+			Type: influxdb.AnnotationsResourceType,
 		},
 		{
-			Action: influxdb.WriteAction,
-			Resource: influxdb.Resource{
-				Type: influxdb.NotebooksResourceType,
-			},
-		},
-		{
-			Action: influxdb.ReadAction,
-			Resource: influxdb.Resource{
-				Type: influxdb.AnnotationsResourceType,
-			},
-		},
-		{
-			Action: influxdb.WriteAction,
-			Resource: influxdb.Resource{
-				Type: influxdb.AnnotationsResourceType,
-			},
+			Type: influxdb.NotebooksResourceType,
 		},
 	}
+
+	return permListFromResources(resTypes)
+}
+
+// oldOpPerms is the list of permissions from an "old" operator token - prior to
+// the addition of the notebooks an annotations resource type.
+func oldOpPerms() []influxdb.Permission {
+	resTypes := []influxdb.Resource{
+		{
+			Type: influxdb.AuthorizationsResourceType,
+		},
+		{
+			Type: influxdb.BucketsResourceType,
+		},
+		{
+			Type: influxdb.DashboardsResourceType,
+		},
+		{
+			Type: influxdb.OrgsResourceType,
+		},
+		{
+			Type: influxdb.SourcesResourceType,
+		},
+		{
+			Type: influxdb.TasksResourceType,
+		},
+		{
+			Type: influxdb.TelegrafsResourceType,
+		},
+		{
+			Type: influxdb.UsersResourceType,
+		},
+		{
+			Type: influxdb.VariablesResourceType,
+		},
+		{
+			Type: influxdb.ScraperResourceType,
+		},
+		{
+			Type: influxdb.SecretsResourceType,
+		},
+		{
+			Type: influxdb.LabelsResourceType,
+		},
+		{
+			Type: influxdb.ViewsResourceType,
+		},
+		{
+			Type: influxdb.DocumentsResourceType,
+		},
+		{
+			Type: influxdb.NotificationRuleResourceType,
+		},
+		{
+			Type: influxdb.NotificationEndpointResourceType,
+		},
+		{
+			Type: influxdb.ChecksResourceType,
+		},
+		{
+			Type: influxdb.DBRPResourceType,
+		},
+	}
+
+	return permListFromResources(resTypes)
+}
+
+func permListFromResources(l []influxdb.Resource) []influxdb.Permission {
+	output := make([]influxdb.Permission, 0, len(l)*2)
+	for _, r := range l {
+		output = append(output, []influxdb.Permission{
+			{
+				Action:   influxdb.ReadAction,
+				Resource: r,
+			},
+			{
+				Action:   influxdb.WriteAction,
+				Resource: r,
+			},
+		}...)
+	}
+
+	return output
 }
 
 func sortPermList(l []influxdb.Permission) {
