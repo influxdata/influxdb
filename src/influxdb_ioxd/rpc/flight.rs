@@ -191,8 +191,7 @@ where
 
         let options = arrow::ipc::writer::IpcWriteOptions::default();
         let schema = Arc::new(optimize_schema(&physical_plan.schema()));
-        let schema_flight_data =
-            arrow_flight::utils::flight_data_from_arrow_schema(&schema, &options);
+        let schema_flight_data = SchemaAsIpc::new(&schema, &options).into();
 
         let mut flights = vec![schema_flight_data];
 

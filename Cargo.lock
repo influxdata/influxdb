@@ -127,13 +127,13 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 [[package]]
 name = "arrow"
 version = "4.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6f3334cea4f209440350d00ae1dab237ced49d80b664cc4b0e984893d583890"
+source = "git+https://github.com/alamb/arrow-rs.git?branch=alamb/perf_integration#d416e9158275148e2be5e64a1c8a6689c7a83fac"
 dependencies = [
- "cfg_aliases",
+ "bitflags",
  "chrono",
  "csv",
- "flatbuffers 0.8.4",
+ "flatbuffers",
+ "getrandom 0.2.3",
  "hex",
  "indexmap",
  "lazy_static",
@@ -141,7 +141,7 @@ dependencies = [
  "multiversion",
  "num",
  "prettytable-rs",
- "rand 0.7.3",
+ "rand 0.8.4",
  "regex",
  "serde",
  "serde_derive",
@@ -151,12 +151,11 @@ dependencies = [
 [[package]]
 name = "arrow-flight"
 version = "4.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8148336a3dcb02497a7f851e247cfd53d5b669e439b9bcf7d7eb6d8f5c8103b"
+source = "git+https://github.com/alamb/arrow-rs.git?branch=alamb/perf_integration#d416e9158275148e2be5e64a1c8a6689c7a83fac"
 dependencies = [
  "arrow",
+ "base64 0.13.0",
  "bytes",
- "futures",
  "proc-macro2",
  "prost",
  "prost-derive",
@@ -510,12 +509,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "cfg_aliases"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
-
-[[package]]
 name = "chrono"
 version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -848,7 +841,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=75a376f0ff2e8236c07a3b0a16374b7e3855c194#75a376f0ff2e8236c07a3b0a16374b7e3855c194"
+source = "git+https://github.com/alamb/arrow-datafusion.git?branch=alamb/perf_integration_df#9ef4a257cf8b7717df60de56b9e17c6bd7286cd4"
 dependencies = [
  "ahash 0.7.4",
  "arrow",
@@ -1021,7 +1014,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "data_types",
- "flatbuffers 2.0.0",
+ "flatbuffers",
  "generated_types",
  "influxdb_line_protocol",
  "internal_types",
@@ -1089,17 +1082,6 @@ name = "fixedbitset"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37ab347416e802de484e4d03c7316c48f1ecb56574dfd4a46a80f173ce1de04d"
-
-[[package]]
-name = "flatbuffers"
-version = "0.8.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3c502342b7d6d73beb1b8bab39dc01deba0c8ef66f4e6f1eba7c69ee6b38069"
-dependencies = [
- "bitflags",
- "smallvec",
- "thiserror",
-]
 
 [[package]]
 name = "flatbuffers"
@@ -1296,6 +1278,7 @@ dependencies = [
  "futures",
  "google_types",
  "observability_deps",
+ "proc-macro2",
  "prost",
  "prost-build",
  "prost-types",
@@ -2610,8 +2593,7 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "4.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "265044e41d674fad4c7860a3e245e53138e926fe83cad8d45193a7a354c56a54"
+source = "git+https://github.com/alamb/arrow-rs.git?branch=alamb/perf_integration#d416e9158275148e2be5e64a1c8a6689c7a83fac"
 dependencies = [
  "arrow",
  "base64 0.13.0",
@@ -2622,6 +2604,7 @@ dependencies = [
  "lz4",
  "num-bigint 0.4.0",
  "parquet-format",
+ "rand 0.8.4",
  "snap",
  "thrift",
  "zstd",
@@ -2959,9 +2942,9 @@ checksum = "bc881b2c22681370c6a780e47af9840ef841837bc98118431d4e1868bd0c1086"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.24"
+version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e0704ee1a7e00d7bb417d0770ea303c1bccbabf0ef1667dae92b5967f5f8a71"
+checksum = "f0d8caf72986c1a598726adc988bb5984792ef84f5ee5aa50209145ee8077038"
 dependencies = [
  "unicode-xid",
 ]
@@ -3782,7 +3765,7 @@ dependencies = [
  "datafusion 0.1.0",
  "datafusion_util",
  "entry",
- "flatbuffers 2.0.0",
+ "flatbuffers",
  "futures",
  "futures-util",
  "generated_types",
@@ -4111,9 +4094,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.67"
+version = "1.0.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6498a9efc342871f91cc2d0d694c674368b4ceb40f62b65a7a08c3792935e702"
+checksum = "f71489ff30030d2ae598524f61326b902466f72a0fb1a8564c001cc63425bcc7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4984,18 +4967,18 @@ checksum = "4756f7db3f7b5574938c3eb1c117038b8e07f95ee6718c0efad4ac21508f1efd"
 
 [[package]]
 name = "zstd"
-version = "0.8.3+zstd.1.5.0"
+version = "0.9.0+zstd.1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ea7094c7b4a58fbd738eb0d4a2fc7684a0e6949a31597e074ffe20a07cbc2bf"
+checksum = "07749a5dc2cb6b36661290245e350f15ec3bbb304e493db54a1d354480522ccd"
 dependencies = [
  "zstd-safe",
 ]
 
 [[package]]
 name = "zstd-safe"
-version = "4.1.0+zstd.1.5.0"
+version = "4.1.1+zstd.1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d30375f78e185ca4c91930f42ea2c0162f9aa29737032501f93b79266d985ae7"
+checksum = "c91c90f2c593b003603e5e0493c837088df4469da25aafff8bce42ba48caf079"
 dependencies = [
  "libc",
  "zstd-sys",
@@ -5003,9 +4986,9 @@ dependencies = [
 
 [[package]]
 name = "zstd-sys"
-version = "1.6.0+zstd.1.5.0"
+version = "1.6.1+zstd.1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2141bed8922b427761470e6bbfeff255da94fa20b0bbeab0d9297fcaf71e3aa7"
+checksum = "615120c7a2431d16cf1cf979e7fc31ba7a5b5e5707b29c8a99e5dbf8a8392a33"
 dependencies = [
  "cc",
  "libc",
