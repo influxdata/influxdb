@@ -490,19 +490,18 @@ where
     let default_time = Utc::now().timestamp_nanos();
 
     let mut num_fields = 0;
-    let mut num_lines = 0;
 
     let lines = parse_lines(body)
         .inspect(|line| {
             if let Ok(line) = line {
                 num_fields += line.field_set.len();
-                num_lines += 1;
             }
         })
         .collect::<Result<Vec<_>, influxdb_line_protocol::Error>>()
         .context(ParsingLineProtocol)?;
 
-    debug!(num_lines=lines.len(), %db_name, org=%write_info.org, bucket=%write_info.bucket, "inserting lines into database");
+    let num_lines = lines.len();
+    debug!(num_lines, num_fields, body_size=body.len(), %db_name, org=%write_info.org, bucket=%write_info.bucket, "inserting lines into database");
 
     let metric_kv = vec![
         KeyValue::new("org", write_info.org.to_string()),
