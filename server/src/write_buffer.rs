@@ -126,6 +126,7 @@ impl KafkaBufferProducer {
         let mut cfg = ClientConfig::new();
         cfg.set("bootstrap.servers", &conn);
         cfg.set("message.timeout.ms", "5000");
+        cfg.set("max.request.size", "10000000");
 
         let producer: FutureProducer = cfg.create()?;
 
