@@ -9,7 +9,6 @@ use observability_deps::tracing::info;
 use query::exec::ExecutorType;
 use query::frontend::reorg::ReorgPlanner;
 use query::{compute_sort_key, QueryChunkMeta};
-use read_buffer::{ChunkMetrics, RBChunk};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 use crate::db::catalog::chunk::CatalogChunk;
@@ -18,7 +17,7 @@ use crate::db::DbChunk;
 
 use super::merge_schemas;
 use super::{error::Result, LockableCatalogChunk, LockableCatalogPartition};
-use crate::db::lifecycle::collect_rub;
+use crate::db::lifecycle::{collect_rub, new_rub_chunk};
 
 /// Compact the provided chunks into a single chunk,
 /// returning the newly created chunk
@@ -62,11 +61,7 @@ pub(crate) fn compact_chunks(
     let partition = partition.into_data().partition;
 
     // create a new read buffer chunk with memory tracking
-    let metrics = db
-        .metrics_registry
-        .register_domain_with_labels("read_buffer", db.metric_labels.clone());
-
-    let mut rb_chunk = RBChunk::new(&table_name, ChunkMetrics::new(&metrics));
+    let mut rb_chunk = new_rub_chunk(&db, &table_name);
 
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
