@@ -1,6 +1,6 @@
 //!  In memory structures for tracking data ingest and when persistence can or should occur.
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::{btree_map::Entry, BTreeMap, VecDeque},
     time::{Duration, Instant},
 };
 
@@ -27,6 +27,12 @@ pub struct PersistenceWindows {
     open: Option<Window>,
     late_arrival_period: Duration,
     closed_window_period: Duration,
+
+    /// The last last instant passed to PersistenceWindows::add_range
+    last_instant: Instant,
+
+    /// maps sequencer_id to the maximum sequence passed to PersistenceWindows::add_range
+    sequencer_numbers: BTreeMap<u32, u64>,
 }
 
 /// A handle for flushing data from the `PersistenceWindows`
@@ -56,6 +62,8 @@ impl PersistenceWindows {
             open: None,
             late_arrival_period,
             closed_window_period,
+            last_instant: Instant::now(),
+            sequencer_numbers: Default::default(),
         }
     }
 
@@ -79,6 +87,30 @@ impl PersistenceWindows {
         max_time: DateTime<Utc>,
         received_at: Instant,
     ) {
+        assert!(
+            received_at >= self.last_instant,
+            "PersistenceWindows::add_range called out of order"
+        );
+        self.last_instant = received_at;
+
+        if let Some(sequence) = sequence {
+            match self.sequencer_numbers.entry(sequence.id) {
+                Entry::Occupied(mut occupied) => {
+                    assert!(
+                        *occupied.get() < sequence.number,
+                        "sequence number {} for sequencer {} was not greater than previous {}",
+                        sequence.number,
+                        sequence.id,
+                        *occupied.get()
+                    );
+                    *occupied.get_mut() = sequence.number;
+                }
+                Entry::Vacant(vacant) => {
+                    vacant.insert(sequence.number);
+                }
+            }
+        }
+
         self.rotate(received_at);
 
         match self.open.as_mut() {
@@ -983,7 +1015,7 @@ mod tests {
         );
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 9 }),
+            Some(&Sequence { id: 1, number: 10 }),
             17,
             start,
             start + chrono::Duration::seconds(2),

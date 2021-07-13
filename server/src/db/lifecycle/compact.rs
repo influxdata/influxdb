@@ -118,3 +118,56 @@ pub(crate) fn compact_chunks(
 
     Ok((tracker, fut.track(registration)))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::test_helpers::write_lp;
+    use crate::utils::make_db;
+    use data_types::chunk_metadata::ChunkStorage;
+    use lifecycle::{LockableChunk, LockablePartition};
+    use query::QueryDatabase;
+
+    #[tokio::test]
+    async fn test_compact_freeze() {
+        let test_db = make_db().await;
+        let db = test_db.db;
+
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
+        write_lp(db.as_ref(), "cpu,tag1=asfd,tag2=foo bar=2 20").await;
+        write_lp(db.as_ref(), "cpu,tag1=bingo,tag2=foo bar=2 10").await;
+        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 20").await;
+        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 10").await;
+
+        let partition_keys = db.partition_keys().unwrap();
+        assert_eq!(partition_keys.len(), 1);
+
+        let db_partition = db.partition("cpu", &partition_keys[0]).unwrap();
+
+        let partition = LockableCatalogPartition::new(Arc::clone(&db), Arc::clone(&db_partition));
+        let partition = partition.read();
+
+        let chunks = LockablePartition::chunks(&partition);
+        assert_eq!(chunks.len(), 1);
+        let chunk = chunks[0].1.read();
+
+        let (_, fut) = compact_chunks(partition.upgrade(), vec![chunk.upgrade()]).unwrap();
+        // NB: perform the write before spawning the background task that performs the compaction
+        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 40").await;
+        tokio::spawn(fut).await.unwrap().unwrap().unwrap();
+
+        let summaries: Vec<_> = db_partition
+            .read()
+            .chunk_summaries()
+            .map(|summary| (summary.storage, summary.row_count))
+            .collect();
+
+        assert_eq!(
+            summaries,
+            vec![
+                (ChunkStorage::OpenMutableBuffer, 1),
+                (ChunkStorage::ReadBuffer, 5)
+            ]
+        )
+    }
+}
