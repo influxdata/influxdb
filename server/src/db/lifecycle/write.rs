@@ -1,6 +1,10 @@
 //! This module contains the code to write chunks to the object store
 use crate::db::{
-    catalog::chunk::{CatalogChunk, ChunkStage},
+    catalog::{
+        chunk::{CatalogChunk, ChunkStage},
+        partition::Partition,
+        Catalog,
+    },
     checkpoint_data_from_catalog,
     lifecycle::LockableCatalogChunk,
     DbChunk,
@@ -24,8 +28,8 @@ use persistence_windows::checkpoint::{
 };
 use query::QueryChunk;
 use snafu::ResultExt;
-use std::{collections::BTreeMap, future::Future, sync::Arc};
-use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
+use std::{future::Future, sync::Arc};
+use tracker::{RwLock, TaskTracker, TrackedFuture, TrackedFutureExt};
 
 use super::error::{
     CommitError, Error, ParquetChunkError, Result, TransactionError, WritingToObjectStore,
@@ -37,6 +41,8 @@ use super::error::{
 /// The caller can either spawn this future to tokio, or block directly on it
 pub fn write_chunk_to_object_store(
     mut guard: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>,
+    partition_checkpoint: PartitionCheckpoint,
+    database_checkpoint: DatabaseCheckpoint,
 ) -> Result<(
     TaskTracker<Job>,
     TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
@@ -101,11 +107,6 @@ pub fn write_chunk_to_object_store(
             //
             // IMPORTANT: Writing must take place while holding the cleanup lock, otherwise the file might be deleted
             //            between creation and the transaction commit.
-            let (partition_checkpoint, database_checkpoint) =
-                fake_partition_and_database_checkpoint(
-                    Arc::clone(&addr.table_name),
-                    Arc::clone(&addr.partition_key),
-                );
             let metadata = IoxMetadata {
                 creation_timestamp: Utc::now(),
                 table_name: Arc::clone(&addr.table_name),
@@ -189,22 +190,37 @@ pub fn write_chunk_to_object_store(
     Ok((tracker, fut.track(registration)))
 }
 
-/// Fake until we have the split implementation in-place.
-fn fake_partition_and_database_checkpoint(
-    table_name: Arc<str>,
-    partition_key: Arc<str>,
+/// Construct partition and database checkpoint for the given partition in the given catalog.
+pub fn collect_checkpoints(
+    partition: &RwLock<Partition>,
+    partition_key: &str,
+    table_name: &str,
+    catalog: &Catalog,
 ) -> (PartitionCheckpoint, DatabaseCheckpoint) {
-    // create partition checkpoint
-    let sequencer_numbers = BTreeMap::new();
-    let min_unpersisted_timestamp = Utc::now();
-    let partition_checkpoint = PartitionCheckpoint::new(
-        table_name,
-        partition_key,
-        sequencer_numbers,
-        min_unpersisted_timestamp,
-    );
+    // calculate checkpoint
+    let mut checkpoint_builder = {
+        // Record partition checkpoint and then flush persisted data from persistence windows.
+        let partition = partition.read();
+        PersistCheckpointBuilder::new(
+            partition
+                .partition_checkpoint()
+                .expect("persistence window removed"),
+        )
+    };
 
-    // build database checkpoint
-    let builder = PersistCheckpointBuilder::new(partition_checkpoint);
-    builder.build()
+    // collect checkpoints of all other partitions
+    if let Ok(table) = catalog.table(table_name) {
+        for partition in table.partitions() {
+            let partition = partition.read();
+            if partition.key() == partition_key {
+                continue;
+            }
+
+            if let Some(partition_checkpoint) = partition.partition_checkpoint() {
+                checkpoint_builder.register_other_partition(&partition_checkpoint);
+            }
+        }
+    }
+
+    checkpoint_builder.build()
 }

@@ -471,8 +471,15 @@ impl Db {
         chunk_id: u32,
     ) -> Result<Arc<DbChunk>> {
         let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
-        let (_, fut) =
-            lifecycle::write_chunk_to_object_store(chunk.write()).context(LifecycleError)?;
+        let partition = self.partition(table_name, partition_key)?;
+        let (partition_checkpoint, database_checkpoint) =
+            lifecycle::collect_checkpoints(&partition, partition_key, table_name, &self.catalog);
+        let (_, fut) = lifecycle::write_chunk_to_object_store(
+            chunk.write(),
+            partition_checkpoint,
+            database_checkpoint,
+        )
+        .context(LifecycleError)?;
         fut.await.context(TaskCancelled)?.context(LifecycleError)
     }
 
