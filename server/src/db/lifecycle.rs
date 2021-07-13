@@ -262,6 +262,12 @@ impl LifecyclePartition for Partition {
         self.key()
     }
 
+    fn is_persisted(&self) -> bool {
+        self.persistence_windows()
+            .map(|w| w.minimum_unpersisted_age().is_none())
+            .unwrap_or(true)
+    }
+
     fn persistable_row_count(&self) -> usize {
         self.persistence_windows()
             .map(|w| w.persistable_row_count())

@@ -194,6 +194,10 @@ where
 
         // TODO: Encapsulate locking into a CatalogTransaction type
         let partition = partition.read();
+        if partition.is_persisted() {
+            debug!(db_name = %self.db.name(), %partition, "nothing to be compacted for partition");
+            return;
+        }
 
         let mut chunks = LockablePartition::chunks(&partition);
         // Sort by chunk ID to ensure a stable lock order
@@ -298,6 +302,11 @@ where
         // TODO: Encapsulate locking into a CatalogTransaction type
         let partition = partition.read();
 
+        if partition.is_persisted() {
+            debug!(%db_name, %partition, "nothing to persist for partition");
+            return false;
+        }
+
         let persistable_age_seconds = partition
             .minimum_unpersisted_age()
             .and_then(|minimum_unpersisted_age| {
@@ -305,11 +314,10 @@ where
                 // started and this check is done, the duration may be
                 // negative. Skip persistence in this case to avoid
                 // panic in `duration_since`
-                if minimum_unpersisted_age <= now {
-                    Some(now.duration_since(minimum_unpersisted_age).as_secs())
-                } else {
-                    None
-                }
+                Some(
+                    now.checked_duration_since(minimum_unpersisted_age)?
+                        .as_secs(),
+                )
             })
             .unwrap_or_default() as u32;
 
@@ -896,6 +904,10 @@ mod tests {
     impl LifecyclePartition for TestPartition {
         fn partition_key(&self) -> &str {
             "test"
+        }
+
+        fn is_persisted(&self) -> bool {
+            false
         }
 
         fn persistable_row_count(&self) -> usize {

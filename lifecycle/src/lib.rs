@@ -158,6 +158,9 @@ pub trait LockableChunk: Sized {
 pub trait LifecyclePartition {
     fn partition_key(&self) -> &str;
 
+    /// Returns true if all chunks in the partition are persisted.
+    fn is_persisted(&self) -> bool;
+
     /// Returns an approximation of the number of rows that can be persisted
     fn persistable_row_count(&self) -> usize;
 
