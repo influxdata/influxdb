@@ -232,11 +232,13 @@ impl LockablePartition for LockableCatalogPartition {
     }
 
     fn drop_chunk(
-        mut s: LifecycleWriteGuard<'_, Self::Partition, Self>,
-        chunk_id: u32,
-    ) -> Result<(), Self::Error> {
-        s.drop_chunk(chunk_id)?;
-        Ok(())
+        partition: LifecycleWriteGuard<'_, Self::Partition, Self>,
+        chunk: LifecycleWriteGuard<'_, CatalogChunk, Self::Chunk>,
+    ) -> Result<TaskTracker<Job>, Self::Error> {
+        info!(table=%partition.table_name(), partition=%partition.partition_key(), chunk_id=chunk.addr().chunk_id, "drop chunk");
+        let (tracker, fut) = drop::drop_chunk(partition, chunk)?;
+        let _ = tokio::spawn(async move { fut.await.log_if_error("drop chunk") });
+        Ok(tracker)
     }
 }
 
