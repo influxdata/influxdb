@@ -55,6 +55,17 @@ impl From<Job> for management::operation_metadata::Job {
                 table_name,
                 chunks,
             }),
+            Job::DropChunk {
+                db_name,
+                partition_key,
+                table_name,
+                chunk_id,
+            } => Self::DropChunk(management::DropChunk {
+                db_name,
+                partition_key,
+                table_name,
+                chunk_id,
+            }),
         }
     }
 }
@@ -110,6 +121,17 @@ impl From<management::operation_metadata::Job> for Job {
                 partition_key,
                 table_name,
                 chunks,
+            },
+            Job::DropChunk(management::DropChunk {
+                db_name,
+                partition_key,
+                table_name,
+                chunk_id,
+            }) => Self::DropChunk {
+                db_name,
+                partition_key,
+                table_name,
+                chunk_id,
             },
         }
     }

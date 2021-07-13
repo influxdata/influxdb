@@ -25,6 +25,7 @@ message OperationMetadata {
     WipePreservedCatalog wipe_preserved_catalog = 9;
     CompactChunks compact_chunks = 10;
     PersistChunks persist_chunks = 11;
+    DropChunk drop_chunk = 12;
   }
 }
 
@@ -92,6 +93,21 @@ message PersistChunks {
 
   // chunk_id
   repeated uint32 chunks = 3;
+}
+
+// Drop chunk from memory and (if persisted) from object store.
+message DropChunk {
+  // name of the database
+  string db_name = 1;
+
+  // partition key
+  string partition_key = 2;
+
+  // table name
+  string table_name = 4;
+
+  // chunk_id
+  uint32 chunk_id = 3;
 }
 
 // Wipe preserved catalog
