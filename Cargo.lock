@@ -347,9 +347,9 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
 name = "bindgen"
-version = "0.56.0"
+version = "0.58.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2da379dbebc0b76ef63ca68d8fc6e71c0f13e59432e0987e508c1820e6ab5239"
+checksum = "0f8523b410d7187a43085e7e064416ea32ded16bd0a4e6fc025e21616d01258f"
 dependencies = [
  "bitflags",
  "cexpr",
@@ -364,7 +364,7 @@ dependencies = [
  "quote",
  "regex",
  "rustc-hash",
- "shlex",
+ "shlex 1.0.0",
  "which 3.1.1",
 ]
 
@@ -674,9 +674,9 @@ dependencies = [
 
 [[package]]
 name = "croaring"
-version = "0.4.6"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a00d14ad7d8cc067d7a5c93e8563791bfec3f7182361db955530db11d94ed63c"
+checksum = "d5fffa3c1c8bf471bb905eb861e74150373b46ffbcdb15b5bf94043e96052f39"
 dependencies = [
  "byteorder",
  "croaring-sys",
@@ -685,9 +685,9 @@ dependencies = [
 
 [[package]]
 name = "croaring-sys"
-version = "0.4.6"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5d6a46501bb403a61e43bc7cd19977b4f9c54efd703949b00259cc61afb5a86"
+checksum = "9a36c573f6e41b62a80b1b9505618b5a8915ba8d9d25b3c12f2265b9d7f98e27"
 dependencies = [
  "bindgen",
  "cc",
@@ -3454,7 +3454,7 @@ dependencies = [
  "hyper",
  "serde",
  "serde_json",
- "shlex",
+ "shlex 0.1.1",
  "tokio",
  "zeroize",
 ]
@@ -3857,6 +3857,12 @@ name = "shlex"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fdf1b9db47230893d76faad238fd6097fd6d6a9245cd7a4d90dbd639536bbd2"
+
+[[package]]
+name = "shlex"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42a568c8f2cd051a4d283bd6eb0343ac214c1b0f1ac19f93e1175b2dee38c73d"
 
 [[package]]
 name = "signal-hook-registry"
