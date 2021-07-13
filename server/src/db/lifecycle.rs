@@ -340,17 +340,19 @@ fn new_rub_chunk(db: &Db, table_name: &str) -> read_buffer::RBChunk {
 
 /// Executes a plan and collects the results into a read buffer chunk
 async fn collect_rub(
-    mut stream: SendableRecordBatchStream,
+    stream: SendableRecordBatchStream,
     chunk: &mut read_buffer::RBChunk,
 ) -> Result<()> {
-    use futures::StreamExt;
+    use futures::{future, TryStreamExt};
 
-    while let Some(batch) = stream.next().await {
-        let batch = batch?;
-        if batch.num_rows() > 0 {
-            chunk.upsert_table(batch)
-        }
-    }
+    stream
+        .try_filter(|batch| future::ready(batch.num_rows() > 0))
+        .try_for_each(|batch| {
+            chunk.upsert_table(batch);
+            future::ready(Ok(()))
+        })
+        .await?;
+
     Ok(())
 }
 
