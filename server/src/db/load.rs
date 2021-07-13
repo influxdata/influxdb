@@ -202,10 +202,7 @@ impl CatalogState for Catalog {
             }
 
             for chunk_id in to_remove {
-                if let Err(e) = partition
-                    .drop_chunk(chunk_id)
-                    .map(|handle| handle.execute())
-                {
+                if let Err(e) = partition.drop_chunk(chunk_id) {
                     panic!("Chunk is gone while we've had a partition lock: {}", e);
                 }
                 removed_any = true;

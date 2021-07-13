@@ -27,6 +27,7 @@ use crate::db::catalog::partition::Partition;
 use crate::Db;
 
 pub(crate) use compact::compact_chunks;
+pub(crate) use drop::drop_chunk;
 pub(crate) use error::{Error, Result};
 pub(crate) use move_chunk::move_chunk_to_read_buffer;
 use persistence_windows::persistence_windows::FlushHandle;
@@ -36,6 +37,7 @@ pub(crate) use write::write_chunk_to_object_store;
 use super::DbChunk;
 
 mod compact;
+mod drop;
 mod error;
 mod move_chunk;
 mod persist;
@@ -233,7 +235,7 @@ impl LockablePartition for LockableCatalogPartition {
         mut s: LifecycleWriteGuard<'_, Self::Partition, Self>,
         chunk_id: u32,
     ) -> Result<(), Self::Error> {
-        s.drop_chunk(chunk_id)?.execute();
+        s.drop_chunk(chunk_id)?;
         Ok(())
     }
 }

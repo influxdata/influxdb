@@ -129,11 +129,6 @@ pub enum Error {
     TableBatchSchemaMergeError {
         source: internal_types::schema::merge::Error,
     },
-
-    #[snafu(display("Error while commiting transaction on preserved catalog: {}", source))]
-    CommitError {
-        source: parquet_file::catalog::Error,
-    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -382,30 +377,30 @@ impl Db {
 
     /// Drops the specified chunk from the catalog and all storage systems
     pub async fn drop_chunk(
-        &self,
+        self: &Arc<Self>,
         table_name: &str,
         partition_key: &str,
         chunk_id: u32,
     ) -> Result<()> {
-        debug!(%table_name, %partition_key, %chunk_id, "dropping chunk");
+        // Use explict scope to ensure the async generator doesn't
+        // assume the locks have to possibly live across the `await`
+        let fut = {
+            let partition = self.partition(table_name, partition_key)?;
+            let partition = LockableCatalogPartition::new(Arc::clone(&self), partition);
 
-        let partition = self.partition(table_name, partition_key)?;
-        let mut partition = partition.write();
+            // Do lock dance to get a write lock on the partition as well
+            // as on all of the chunks
+            let partition = partition.read();
 
-        let drop_handle = partition.drop_chunk(chunk_id)?;
-        let chunk = drop_handle.chunk();
-        let chunk = chunk.read();
+            let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
+            let partition = partition.upgrade();
 
-        if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
-            let mut transaction = self.preserved_catalog.open_transaction().await;
-            let path: DirsAndFileName = parquet.path().into();
-            transaction.remove_parquet(&path);
-            transaction.commit().await.context(CommitError)?;
-        }
+            let (_, fut) =
+                lifecycle::drop_chunk(partition, chunk.write()).context(LifecycleError)?;
+            fut
+        };
 
-        drop_handle.execute();
-
-        Ok(())
+        fut.await.context(TaskCancelled)?.context(LifecycleError)
     }
 
     /// Copies a chunk in the Closed state into the ReadBuffer from
