@@ -815,6 +815,11 @@ impl CatalogChunk {
         }
     }
 
+    /// Start lifecycle action that should result in the chunk being dropped from memory and (if persisted) from object store.
+    pub fn set_dropping(&mut self, registration: &TaskRegistration) -> Result<()> {
+        self.set_lifecycle_action(ChunkLifecycleAction::Dropping, registration)
+    }
+
     /// Set the chunk's in progress lifecycle action or return an error if already in-progress
     fn set_lifecycle_action(
         &mut self,
@@ -923,6 +928,15 @@ mod tests {
         chunk.set_compacting(&registration).unwrap();
         assert!(chunk.time_closed.is_some());
         assert!(matches!(chunk.stage, ChunkStage::Frozen { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_drop() {
+        let mut chunk = make_open_chunk();
+        let registration = TaskRegistration::new();
+
+        // drop it
+        chunk.set_dropping(&registration).unwrap();
     }
 
     #[test]

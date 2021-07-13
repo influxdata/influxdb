@@ -68,6 +68,7 @@ impl From<Option<ChunkLifecycleAction>> for management::ChunkLifecycleAction {
             Some(ChunkLifecycleAction::Moving) => Self::Moving,
             Some(ChunkLifecycleAction::Persisting) => Self::Persisting,
             Some(ChunkLifecycleAction::Compacting) => Self::Compacting,
+            Some(ChunkLifecycleAction::Dropping) => Self::Dropping,
             None => Self::Unspecified,
         }
     }
@@ -167,6 +168,7 @@ impl TryFrom<management::ChunkLifecycleAction> for Option<ChunkLifecycleAction> 
             management::ChunkLifecycleAction::Compacting => {
                 Ok(Some(ChunkLifecycleAction::Compacting))
             }
+            management::ChunkLifecycleAction::Dropping => Ok(Some(ChunkLifecycleAction::Dropping)),
             management::ChunkLifecycleAction::Unspecified => Ok(None),
         }
     }
