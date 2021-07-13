@@ -1,6 +1,7 @@
 //! This module contains structs that describe the metadata for a partition
 //! including schema, summary statistics, and file locations in storage.
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::{Borrow, Cow},
@@ -51,6 +52,35 @@ impl FromIterator<Self> for TableSummary {
             s.update_from(&other)
         }
         s
+    }
+}
+
+/// Temporary transition struct that has times of first/last write. Will eventually replace
+/// TableSummary entirely.
+#[derive(Debug)]
+pub struct TableSummaryAndTimes {
+    /// Table name
+    pub name: String,
+
+    /// Per column statistics
+    pub columns: Vec<ColumnSummary>,
+
+    /// Time at which the first data was written into this table. Note
+    /// this is not the same as the timestamps on the data itself
+    pub time_of_first_write: DateTime<Utc>,
+
+    /// Most recent time at which data write was initiated into this
+    /// chunk. Note this is not the same as the timestamps on the data
+    /// itself
+    pub time_of_last_write: DateTime<Utc>,
+}
+
+impl From<TableSummaryAndTimes> for TableSummary {
+    fn from(other: TableSummaryAndTimes) -> Self {
+        Self {
+            name: other.name,
+            columns: other.columns,
+        }
     }
 }
 
