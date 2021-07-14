@@ -464,7 +464,7 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 // rollSegment checks if the current segment is due to roll over to a new segment;
 // and if so, opens a new segment file for future writes.
 func (l *WAL) rollSegment() error {
-	if l.currentSegmentWriter == nil || l.currentSegmentWriter.size > DefaultSegmentSize {
+	if l.currentSegmentWriter == nil || l.currentSegmentWriter.size > l.SegmentSize {
 		if err := l.newSegmentFile(); err != nil {
 			// A drop database or RP call could trigger this error if writes were in-flight
 			// when the drop statement executes.
