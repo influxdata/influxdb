@@ -389,7 +389,7 @@ impl Db {
             let partition = LockableCatalogPartition::new(Arc::clone(&self), partition);
 
             // Do lock dance to get a write lock on the partition as well
-            // as on all of the chunks
+            // as on the to-be-dropped chunk.
             let partition = partition.read();
 
             let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
