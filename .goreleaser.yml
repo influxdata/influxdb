@@ -45,6 +45,8 @@ nfpms:
         dst: /etc/logrotate.d/influxdb
       - src: scripts/influxdb2-upgrade.sh
         dst: /usr/share/influxdb/influxdb2-upgrade.sh
+      - src: scripts/influxd-systemd-start.sh
+        dst: /usr/lib/influxdb/scripts/influxd-systemd-start.sh
     scripts:
       preinstall:  "scripts/pre-install.sh"
       postinstall: "scripts/post-install.sh"
