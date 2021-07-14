@@ -2074,8 +2074,8 @@ mod tests {
         assert_eq!(&table_summary.name, "cpu");
         assert_eq!(table_summary.count(), 2);
         let windows = partition.persistence_windows().unwrap();
-        let open_min = windows.open_min_time().unwrap();
-        let open_max = windows.open_max_time().unwrap();
+        let open_min = windows.minimum_unpersisted_timestamp().unwrap();
+        let open_max = windows.maximum_unpersisted_timestamp().unwrap();
         assert_eq!(open_min.timestamp_nanos(), 10);
         assert_eq!(open_max.timestamp_nanos(), 20);
     }
