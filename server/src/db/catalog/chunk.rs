@@ -280,10 +280,7 @@ impl CatalogChunk {
         schema: Arc<Schema>,
         metrics: ChunkMetrics,
     ) -> Self {
-        // TODO: Move RUB to single table (#1295)
-        let summaries = chunk.table_summaries();
-        assert_eq!(summaries.len(), 1);
-        let summary = summaries.into_iter().next().unwrap();
+        let summary = chunk.table_summary();
 
         let stage = ChunkStage::Frozen {
             meta: Arc::new(ChunkMetadata {
