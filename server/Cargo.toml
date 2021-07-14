@@ -39,7 +39,6 @@ persistence_windows = { path = "../persistence_windows" }
 query = { path = "../query" }
 rand = "0.8.3"
 rand_distr = "0.4.0"
-rdkafka = "0.26.0"
 read_buffer = { path = "../read_buffer" }
 serde = "1.0"
 serde_json = "1.0"
@@ -51,6 +50,7 @@ tokio = { version = "1.0", features = ["macros", "time"] }
 tokio-util = { version = "0.6.3" }
 tracker = { path = "../tracker" }
 uuid = { version = "0.8", features = ["serde", "v4"] }
+write_buffer = { path = "../write_buffer" }
 
 [dev-dependencies] # In alphabetical order
 arrow_util = { path = "../arrow_util" }

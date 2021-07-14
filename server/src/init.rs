@@ -25,11 +25,11 @@ use std::{
     },
 };
 use tokio::sync::Semaphore;
+use write_buffer::config::WriteBufferConfig;
 
 use crate::{
     config::{object_store_path_for_database_config, Config, DatabaseHandle, DB_RULES_FILE_NAME},
     db::load::load_or_create_preserved_catalog,
-    write_buffer::WriteBufferConfig,
     DatabaseError,
 };
 
