@@ -1,13 +1,11 @@
 use thiserror::Error;
 
-use self::generated_types::{write_service_client::WriteServiceClient, *};
+use generated_types::influxdata::iox::write::v1 as write;
+use generated_types::influxdata::iox::write::v1::write_service_client::WriteServiceClient;
+use generated_types::influxdata::transfer::column::v1 as write_pb;
+use generated_types::influxdata::transfer::column::v1::write_service_client::WriteServiceClient as PBWriteServiceClient;
 
 use crate::connection::Connection;
-
-/// Re-export generated_types
-pub mod generated_types {
-    pub use generated_types::influxdata::iox::write::v1::*;
-}
 
 /// Errors returned by Client::write_data
 #[derive(Debug, Error)]
@@ -44,13 +42,15 @@ pub enum WriteError {
 #[derive(Debug, Clone)]
 pub struct Client {
     inner: WriteServiceClient<Connection>,
+    inner_pb: PBWriteServiceClient<Connection>,
 }
 
 impl Client {
     /// Creates a new client with the provided connection
     pub fn new(channel: tonic::transport::Channel) -> Self {
         Self {
-            inner: WriteServiceClient::new(channel),
+            inner: WriteServiceClient::new(channel.clone()),
+            inner_pb: PBWriteServiceClient::new(channel),
         }
     }
 
@@ -68,7 +68,7 @@ impl Client {
         let lp_data = lp_data.into();
         let response = self
             .inner
-            .write(WriteRequest { db_name, lp_data })
+            .write(write::WriteRequest { db_name, lp_data })
             .await
             .map_err(WriteError::ServerError)?;
 
@@ -89,7 +89,20 @@ impl Client {
         let db_name = db_name.into();
         let entry = entry.into();
         self.inner
-            .write_entry(WriteEntryRequest { db_name, entry })
+            .write_entry(write::WriteEntryRequest { db_name, entry })
+            .await
+            .map_err(WriteError::ServerError)?;
+
+        Ok(())
+    }
+
+    /// Write a protobuf batch.
+    pub async fn write_pb(
+        &mut self,
+        write_request: write_pb::WriteRequest,
+    ) -> Result<(), WriteError> {
+        self.inner_pb
+            .write(write_request)
             .await
             .map_err(WriteError::ServerError)?;
 

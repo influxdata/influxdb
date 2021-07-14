@@ -345,11 +345,10 @@ pub fn pb_to_entry(database_batch: &pb::DatabaseBatch) -> Result<Entry> {
 
 /// Ensure that line protocol table batches conform to line protocol type constraints.
 fn pb_check_table_batch_column_types(table_batch: &pb::TableBatch) -> Result<()> {
-    let mut iox_column_detected = false;
-    let mut lp_tag_detected = false;
+    let mut iox_column_detected = false; // semantic_type=iox OR (semantic_type=time AND name!=time)
     let mut lp_field_detected = false;
-    let mut time_nontime_detected = false; // type=time AND name!=time
-    let mut time_time_detected = false; // type=time AND name=time
+    let mut lp_tag_detected = false;
+    let mut time_column_detected = false; // semantic_type=time AND name=time
 
     for column in &table_batch.columns {
         match pb::column::SemanticType::from_i32(column.semantic_type).unwrap() {
@@ -364,9 +363,9 @@ fn pb_check_table_batch_column_types(table_batch: &pb::TableBatch) -> Result<()>
             }
             pb::column::SemanticType::Time => {
                 if column.column_name == TIME_COLUMN_NAME {
-                    time_time_detected = true;
+                    time_column_detected = true;
                 } else {
-                    time_nontime_detected = true;
+                    iox_column_detected = true;
                 }
             }
             _ => {
@@ -380,31 +379,23 @@ fn pb_check_table_batch_column_types(table_batch: &pb::TableBatch) -> Result<()>
 
     match (
         iox_column_detected,
-        lp_tag_detected,
         lp_field_detected,
-        time_nontime_detected,
-        time_time_detected,
+        lp_tag_detected,
+        time_column_detected,
     ) {
-        (true, false, false, _, _) => Ok(()), // Expected IOx column set
-        (false, _, true, false, true) => Ok(()), // Expected line protocol column set
-        (true, true, _, _, _) => Err(Error::PBSemanticTypeConflict {
+        (false, true, _, true) => Ok(()), // Expected line protocol column set
+        (_, false, false, _) => Ok(()),   // Expected IOx column set
+        (true, _, true, _) => Err(Error::PBSemanticTypeConflict {
             message: "IOx column incompatible with line protocol tag column".to_string(),
         }),
-        (true, _, true, _, _) => Err(Error::PBSemanticTypeConflict {
+        (true, true, _, _) => Err(Error::PBSemanticTypeConflict {
             message: "IOx column incompatible with line protocol field column".to_string(),
         }),
-        (_, _, true, true, _) => Err(Error::PBSemanticTypeConflict {
-            message: "line protocol field column incompatible with time column not named 'time'"
-                .to_string(),
-        }),
-        (_, _, true, _, false) => Err(Error::PBSemanticTypeConflict {
-            message: "line protocol field column requires time column named 'time'".to_string(),
-        }),
-        (_, true, false, _, _) => Err(Error::PBSemanticTypeConflict {
+        (false, false, true, _) => Err(Error::PBSemanticTypeConflict {
             message: "line protocol tag column requires at least one line protocol field column"
                 .to_string(),
         }),
-        _ => unreachable!(),
+        (false, true, _, false) => Err(Error::TimeColumnMissing),
     }
 }
 
@@ -2631,12 +2622,12 @@ mod tests {
                     },
                     pb::Column {
                         column_name: "mycol1".to_string(),
-                        semantic_type: pb::column::SemanticType::Time as i32,
+                        semantic_type: pb::column::SemanticType::Iox as i32,
                         values: Some(pb::column::Values {
-                            i64_values: vec![3],
+                            i64_values: vec![],
                             f64_values: vec![],
                             u64_values: vec![],
-                            string_values: vec![],
+                            string_values: vec!["three".to_string()],
                             bool_values: vec![],
                             bytes_values: vec![],
                         }),
