@@ -11,7 +11,10 @@ use data_types::database_rules::{LifecycleRules, DEFAULT_MUB_ROW_THRESHOLD};
 use observability_deps::tracing::{debug, info, trace, warn};
 use tracker::TaskTracker;
 
-use crate::{LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk, LockablePartition};
+use crate::{
+    LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk, LockablePartition,
+    PersistHandle,
+};
 
 /// Number of seconds to wait before retying a failed lifecycle action
 pub const LIFECYCLE_ACTION_BACKOFF: Duration = Duration::from_secs(10);
@@ -321,14 +324,14 @@ where
             })
             .unwrap_or_default() as u32;
 
+        let persistable_row_count = partition.persistable_row_count(now);
         debug!(%db_name, %partition,
-               partition_persist_row_count=partition.persistable_row_count(),
+               partition_persist_row_count=persistable_row_count,
                rules_persist_row_count=%rules.persist_row_threshold.get(),
                partition_persistable_age_seconds=persistable_age_seconds,
                rules_persist_age_threshold_seconds=%rules.persist_age_threshold_seconds.get(),
                "considering for persistence");
 
-        let persistable_row_count = partition.persistable_row_count();
         if persistable_row_count >= rules.persist_row_threshold.get() {
             info!(%db_name, %partition, persistable_row_count, "persisting partition as exceeds row threshold");
         } else if persistable_age_seconds >= rules.persist_age_threshold_seconds.get() {
@@ -343,9 +346,7 @@ where
         // Upgrade partition to be able to rotate persistence windows
         let mut partition = partition.upgrade();
 
-        let (persist_handle, max_persistable_timestamp) = match LockablePartition::prepare_persist(
-            &mut partition,
-        ) {
+        let persist_handle = match LockablePartition::prepare_persist(&mut partition, now) {
             Some(x) => x,
             None => {
                 debug!(%db_name, %partition, "no persistable windows or previous outstanding persist");
@@ -375,7 +376,7 @@ where
             // Chunk's data is entirely after the time we are flushing
             // up to, and thus there is reason to include it in the
             // plan
-            if chunk.min_timestamp() > max_persistable_timestamp {
+            if chunk.min_timestamp() > persist_handle.timestamp() {
                 // Can safely ignore chunk
                 debug!(%db_name, %partition, chunk=%chunk.addr(),
                        "chunk does not contain data eligible for persistence");
@@ -404,14 +405,9 @@ where
             .map(|chunk| chunk.upgrade())
             .collect();
 
-        let tracker = LockablePartition::persist_chunks(
-            partition,
-            chunks,
-            max_persistable_timestamp,
-            persist_handle,
-        )
-        .expect("failed to persist chunks")
-        .with_metadata(ChunkLifecycleAction::Persisting);
+        let tracker = LockablePartition::persist_chunks(partition, chunks, persist_handle)
+            .expect("failed to persist chunks")
+            .with_metadata(ChunkLifecycleAction::Persisting);
 
         self.trackers.push(tracker);
         false
@@ -620,7 +616,7 @@ mod tests {
 
     use crate::{
         ChunkLifecycleAction, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
-        LockablePartition,
+        LockablePartition, PersistHandle,
     };
 
     use super::*;
@@ -750,10 +746,21 @@ mod tests {
         chunk: Arc<RwLock<TestChunk>>,
     }
 
+    #[derive(Debug)]
+    struct TestPersistHandle {
+        timestamp: DateTime<Utc>,
+    }
+
+    impl PersistHandle for TestPersistHandle {
+        fn timestamp(&self) -> DateTime<Utc> {
+            self.timestamp
+        }
+    }
+
     impl<'a> LockablePartition for TestLockablePartition<'a> {
         type Partition = TestPartition;
         type Chunk = TestLockableChunk<'a>;
-        type PersistHandle = ();
+        type PersistHandle = TestPersistHandle;
         type Error = Infallible;
 
         fn read(&self) -> LifecycleReadGuard<'_, Self::Partition, Self> {
@@ -818,17 +825,18 @@ mod tests {
 
         fn prepare_persist(
             partition: &mut LifecycleWriteGuard<'_, Self::Partition, Self>,
-        ) -> Option<(Self::PersistHandle, DateTime<Utc>)> {
-            Some(((), partition.max_persistable_timestamp.unwrap()))
+            _now: Instant,
+        ) -> Option<Self::PersistHandle> {
+            Some(TestPersistHandle {
+                timestamp: partition.max_persistable_timestamp.unwrap(),
+            })
         }
 
         fn persist_chunks(
             mut partition: LifecycleWriteGuard<'_, TestPartition, Self>,
             chunks: Vec<LifecycleWriteGuard<'_, TestChunk, Self::Chunk>>,
-            _max_persistable_timestamp: DateTime<Utc>,
-            _handle: Self::PersistHandle,
+            handle: Self::PersistHandle,
         ) -> Result<TaskTracker<()>, Self::Error> {
-            let flush_timestamp = partition.max_persistable_timestamp.unwrap();
             for chunk in &chunks {
                 partition.chunks.remove(&chunk.addr.chunk_id);
             }
@@ -838,7 +846,7 @@ mod tests {
 
             // The remainder left behind after the split
             let new_chunk = TestChunk::new(id, None, None, ChunkStorage::ReadBuffer)
-                .with_min_timestamp(flush_timestamp);
+                .with_min_timestamp(handle.timestamp + chrono::Duration::nanoseconds(1));
 
             partition
                 .chunks
@@ -910,7 +918,7 @@ mod tests {
             false
         }
 
-        fn persistable_row_count(&self) -> usize {
+        fn persistable_row_count(&self, _now: Instant) -> usize {
             self.persistable_row_count
         }
 
