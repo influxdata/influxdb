@@ -1345,7 +1345,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1143)
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1255)
             .unwrap();
 
         db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
@@ -2394,7 +2394,7 @@ mod tests {
                 0,
                 ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
-                2190,
+                2414,
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2416,7 +2416,7 @@ mod tests {
 
         assert_eq!(
             db.catalog.metrics().memory().mutable_buffer().get_total(),
-            64 + 2190 + 87
+            64 + 2414 + 87
         );
         assert_eq!(
             db.catalog.metrics().memory().read_buffer().get_total(),

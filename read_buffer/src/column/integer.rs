@@ -971,13 +971,13 @@ mod test {
 
         // Input data containing NULL will be stored in an Arrow array encoding
         let cases = vec![
-            (vec![None, Some(0_i64)], 344_usize),         // u8 Arrow array
-            (vec![None, Some(-120_i64)], 344),            // i8
-            (vec![None, Some(399_i64)], 344),             // u16
-            (vec![None, Some(-399_i64)], 344),            // i16
-            (vec![None, Some(u32::MAX as i64)], 344),     // u32
-            (vec![None, Some(i32::MIN as i64)], 344),     // i32
-            (vec![None, Some(u32::MAX as i64 + 1)], 344), //u64
+            (vec![None, Some(0_i64)], 400_usize),         // u8 Arrow array
+            (vec![None, Some(-120_i64)], 400),            // i8
+            (vec![None, Some(399_i64)], 400),             // u16
+            (vec![None, Some(-399_i64)], 400),            // i16
+            (vec![None, Some(u32::MAX as i64)], 400),     // u32
+            (vec![None, Some(i32::MIN as i64)], 400),     // i32
+            (vec![None, Some(u32::MAX as i64 + 1)], 400), //u64
         ];
 
         for (case, name) in cases.iter().cloned() {
@@ -1163,10 +1163,10 @@ mod test {
 
         // Input data containing NULL will be stored in an Arrow array encoding
         let cases = vec![
-            (vec![None, Some(0_u64)], 344_usize),
-            (vec![None, Some(399_u64)], 344),
-            (vec![None, Some(u32::MAX as u64)], 344),
-            (vec![None, Some(u64::MAX)], 344),
+            (vec![None, Some(0_u64)], 400_usize),
+            (vec![None, Some(399_u64)], 400),
+            (vec![None, Some(u32::MAX as u64)], 400),
+            (vec![None, Some(u64::MAX)], 400),
         ];
 
         for (case, size) in cases.iter().cloned() {
