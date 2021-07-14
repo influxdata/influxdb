@@ -26,7 +26,7 @@ require (
 	github.com/glycerine/goconvey v0.0.0-20180728074245-46e3a41ad493 // indirect
 	github.com/go-chi/chi v4.1.0+incompatible
 	github.com/go-stack/stack v1.8.0
-	github.com/gogo/protobuf v1.3.1
+	github.com/gogo/protobuf v1.3.2
 	github.com/golang/gddo v0.0.0-20181116215533-9bd4a3295021
 	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.3.3
@@ -45,7 +45,7 @@ require (
 	github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe
 	github.com/influxdata/flux v0.122.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
-	github.com/influxdata/influx-cli/v2 v2.0.0-20210702141951-3ca681b1dd48
+	github.com/influxdata/influx-cli/v2 v2.0.0-20210713195937-a69f06b41b45
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/pkg-config v0.2.7
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
@@ -80,7 +80,6 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.1
 	github.com/stretchr/testify v1.7.0
-	github.com/tcnksm/go-input v0.0.0-20180404061846-548a7d7a8ee8
 	github.com/testcontainers/testcontainers-go v0.0.0-20190108154635-47c0da630f72
 	github.com/tinylib/msgp v1.1.0
 	github.com/tylerb/graceful v1.2.15
@@ -90,7 +89,7 @@ require (
 	github.com/yudai/gojsondiff v1.0.0
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	github.com/yudai/pp v2.0.1+incompatible // indirect
-	go.etcd.io/bbolt v1.3.5
+	go.etcd.io/bbolt v1.3.6
 	go.uber.org/multierr v1.5.0
 	go.uber.org/zap v1.14.1
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad

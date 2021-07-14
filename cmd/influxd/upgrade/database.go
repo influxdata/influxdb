@@ -8,19 +8,17 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/dustin/go-humanize"
+	"github.com/influxdata/influx-cli/v2/clients"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/cmd/internal"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
-	"github.com/tcnksm/go-input"
 	"go.uber.org/zap"
 )
 
 // upgradeDatabases creates databases, buckets, retention policies and shard info according to 1.x meta and copies data
-func upgradeDatabases(ctx context.Context, ui *input.UI, v1 *influxDBv1, v2 *influxDBv2, opts *options, orgID platform.ID, log *zap.Logger) (map[string][]platform.ID, error) {
+func upgradeDatabases(ctx context.Context, cli clients.CLI, v1 *influxDBv1, v2 *influxDBv2, opts *options, orgID platform.ID, log *zap.Logger) (map[string][]platform.ID, error) {
 	v1opts := opts.source
 	v2opts := opts.target
 	db2BucketIds := make(map[string][]platform.ID)
@@ -40,7 +38,7 @@ func upgradeDatabases(ctx context.Context, ui *input.UI, v1 *influxDBv1, v2 *inf
 		log.Info("No database found in the 1.x meta")
 		return db2BucketIds, nil
 	}
-	if err := checkDiskSpace(ui, opts, log); err != nil {
+	if err := checkDiskSpace(cli, opts, log); err != nil {
 		return nil, err
 	}
 
@@ -199,7 +197,7 @@ func upgradeDatabases(ctx context.Context, ui *input.UI, v1 *influxDBv1, v2 *inf
 
 // checkDiskSpace ensures there is enough room at the target path to store
 // a full copy of all V1 data.
-func checkDiskSpace(ui *input.UI, opts *options, log *zap.Logger) error {
+func checkDiskSpace(cli clients.CLI, opts *options, log *zap.Logger) error {
 	log.Info("Checking available disk space")
 
 	size, err := DirSize(opts.source.dataDir)
@@ -227,12 +225,10 @@ func checkDiskSpace(ui *input.UI, opts *options, log *zap.Logger) error {
 		return fmt.Errorf("not enough space on target disk of %s: need %d, available %d", v2dir, size, diskInfo.Free)
 	}
 	if !opts.force {
-		if confirmed := internal.GetConfirm(ui, func() string {
-			return fmt.Sprintf(`Proceeding will copy all V1 data to %q
+		if confirmed := cli.StdIO.GetConfirm(fmt.Sprintf(`Proceeding will copy all V1 data to %q
   Space available: %s
   Space required:  %s
-`, v2dir, freeBytes, requiredBytes)
-		}); !confirmed {
+`, v2dir, freeBytes, requiredBytes)); !confirmed {
 			return errors.New("upgrade was canceled")
 		}
 	}
