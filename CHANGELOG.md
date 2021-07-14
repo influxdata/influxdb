@@ -17,6 +17,7 @@
 -	[#21777](https://github.com/influxdata/influxdb/pull/21777): fix: convert arm arch names for rpms during builds via docker
 -	[#21792](https://github.com/influxdata/influxdb/pull/21792): fix: error instead of panic for statement rewrite failure
 -	[#21795](https://github.com/influxdata/influxdb/pull/21795): fix: show shards gives empty expiry time for inf duration shards
+-	[#21843](https://github.com/influxdata/influxdb/pull/21843): fix: hard limit on field size while parsing line protocol
 
 v1.9.2 [unreleased]
 -	[#21631](https://github.com/influxdata/influxdb/pull/21631): fix: group by returns multiple results per group in some circumstances
