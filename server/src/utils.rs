@@ -1,4 +1,4 @@
-use std::{borrow::Cow, convert::TryFrom, num::NonZeroU64, sync::Arc, time::Duration};
+use std::{borrow::Cow, convert::TryFrom, sync::Arc, time::Duration};
 
 use data_types::{
     chunk_metadata::{ChunkStorage, ChunkSummary},
@@ -8,12 +8,13 @@ use data_types::{
 };
 use object_store::ObjectStore;
 use query::{exec::Executor, QueryDatabase};
+use write_buffer::config::WriteBufferConfig;
 
 use crate::{
     db::{load::load_or_create_preserved_catalog, DatabaseToCommit, Db},
-    write_buffer::WriteBufferConfig,
     JobRegistry,
 };
+use data_types::database_rules::LifecycleRules;
 
 // A wrapper around a Db and a metrics registry allowing for isolated testing
 // of a Db and its metrics.
@@ -36,7 +37,7 @@ pub struct TestDbBuilder {
     db_name: Option<DatabaseName<'static>>,
     worker_cleanup_avg_sleep: Option<Duration>,
     write_buffer: Option<WriteBufferConfig>,
-    catalog_transactions_until_checkpoint: Option<NonZeroU64>,
+    lifecycle_rules: Option<LifecycleRules>,
     partition_template: Option<PartitionTemplate>,
 }
 
@@ -76,10 +77,7 @@ impl TestDbBuilder {
             .worker_cleanup_avg_sleep
             .unwrap_or_else(|| Duration::from_secs(1));
 
-        // enable checkpointing
-        if let Some(v) = self.catalog_transactions_until_checkpoint {
-            rules.lifecycle_rules.catalog_transactions_until_checkpoint = v;
-        }
+        rules.lifecycle_rules = self.lifecycle_rules.unwrap_or_default();
 
         // set partion template
         if let Some(partition_template) = self.partition_template {
@@ -132,8 +130,8 @@ impl TestDbBuilder {
         self
     }
 
-    pub fn catalog_transactions_until_checkpoint(mut self, interval: NonZeroU64) -> Self {
-        self.catalog_transactions_until_checkpoint = Some(interval);
+    pub fn lifecycle_rules(mut self, lifecycle_rules: LifecycleRules) -> Self {
+        self.lifecycle_rules = Some(lifecycle_rules);
         self
     }
 

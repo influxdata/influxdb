@@ -13,7 +13,7 @@ edition = "2018"
 [dependencies] # In alphabetical order
 arrow = { version = "4.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
-croaring = "0.4.5"
+croaring = "0.5"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 either = "1.6.1"

@@ -59,7 +59,7 @@
 //!   └────────────┘  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 //! ```
 
-#![deny(broken_intra_doc_links, rust_2018_idioms)]
+#![deny(broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_debug_implementations,
     clippy::explicit_iter_loop,
@@ -95,6 +95,7 @@ use metrics::{KeyValue, MetricObserverBuilder, MetricRegistry};
 use object_store::{ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, DatabaseStore};
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
+use write_buffer::config::WriteBufferConfig;
 
 pub use crate::config::RemoteTemplate;
 use crate::config::{object_store_path_for_database_config, Config, GRpcConnectionString};
@@ -109,7 +110,6 @@ use std::collections::HashMap;
 mod config;
 pub mod db;
 mod init;
-mod write_buffer;
 
 /// Utility modules used by benchmarks and tests
 pub mod utils;
@@ -202,6 +202,9 @@ pub enum Error {
         db_name
     ))]
     WritingOnlyAllowedThroughWriteBuffer { db_name: String },
+
+    #[snafu(display("Cannot write to write buffer, bytes {}: {}", bytes, source))]
+    WriteBuffer { source: db::Error, bytes: u64 },
 
     #[snafu(display("no remote configured for node group: {:?}", node_group))]
     NoRemoteConfigured { node_group: NodeGroup },
@@ -553,12 +556,11 @@ where
         .context(CannotCreatePreservedCatalog)?;
 
         let write_buffer =
-            write_buffer::WriteBufferConfig::new(server_id, &rules).map_err(|e| {
-                Error::CreatingWriteBuffer {
-                    config: rules.write_buffer_connection.clone(),
-                    source: e,
-                }
+            WriteBufferConfig::new(server_id, &rules).map_err(|e| Error::CreatingWriteBuffer {
+                config: rules.write_buffer_connection.clone(),
+                source: e,
             })?;
+        info!(write_buffer_enabled=?write_buffer.is_some(), db_name=rules.db_name(), "write buffer config");
         db_reservation.advance_replay(preserved_catalog, catalog, write_buffer)?;
 
         // no actual replay required
@@ -800,6 +802,9 @@ where
                     Error::WritingOnlyAllowedThroughWriteBuffer {
                         db_name: db_name.into(),
                     }
+                }
+                db::Error::WriteBufferWritingError { .. } => {
+                    Error::WriteBuffer { source: e, bytes }
                 }
                 _ => Error::UnknownDatabaseError {
                     source: Box::new(e),
@@ -1142,35 +1147,37 @@ impl RemoteServer for RemoteServerImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        collections::BTreeMap,
-        convert::TryFrom,
-        sync::Arc,
-        time::{Duration, Instant},
-    };
-
+    use super::*;
+    use crate::utils::TestDb;
     use arrow::record_batch::RecordBatch;
+    use arrow_util::assert_batches_eq;
     use async_trait::async_trait;
     use bytes::Bytes;
-    use futures::TryStreamExt;
-    use generated_types::database_rules::decode_database_rules;
-    use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
-    use snafu::Snafu;
-    use tokio::task::JoinHandle;
-    use tokio_util::sync::CancellationToken;
-
-    use arrow_util::assert_batches_eq;
     use data_types::database_rules::{
         HashRing, LifecycleRules, PartitionTemplate, ShardConfig, TemplatePart, NO_SHARD_CONFIG,
     };
+    use entry::test_helpers::lp_to_entry;
+    use futures::TryStreamExt;
+    use generated_types::database_rules::decode_database_rules;
     use influxdb_line_protocol::parse_lines;
     use metrics::MetricRegistry;
     use object_store::path::ObjectStorePath;
+    use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
     use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryDatabase};
-
-    use super::*;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use snafu::Snafu;
+    use std::{
+        collections::BTreeMap,
+        convert::TryFrom,
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        },
+        time::{Duration, Instant},
+    };
     use tempfile::TempDir;
+    use tokio::task::JoinHandle;
+    use tokio_util::sync::CancellationToken;
+    use write_buffer::mock::MockBufferForWritingThatAlwaysErrors;
 
     const ARBITRARY_DEFAULT_TIME: i64 = 456;
 
@@ -2193,6 +2200,31 @@ mod tests {
         // creating database will now result in an error
         let err = create_simple_database(&server, db_name).await.unwrap_err();
         assert!(matches!(err, Error::CannotCreatePreservedCatalog { .. }));
+    }
+
+    #[tokio::test]
+    async fn write_buffer_errors_propagate() {
+        let manager = TestConnectionManager::new();
+        let server = Server::new(manager, config());
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server.maybe_initialize_server().await;
+
+        let write_buffer = Arc::new(MockBufferForWritingThatAlwaysErrors {});
+
+        let db = TestDb::builder()
+            .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
+            .build()
+            .await
+            .db;
+
+        let entry = lp_to_entry("cpu bar=1 10");
+
+        let res = server.write_entry_local("arbitrary", &db, entry).await;
+        assert!(
+            matches!(res, Err(Error::WriteBuffer { .. })),
+            "Expected Err(Error::WriteBuffer {{ .. }}), got: {:?}",
+            res
+        );
     }
 
     // run a sql query against the database, returning the results as record batches

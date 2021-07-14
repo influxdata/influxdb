@@ -1,4 +1,4 @@
-#![deny(broken_intra_doc_links, rust_2018_idioms)]
+#![deny(broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,
@@ -45,7 +45,7 @@ pub trait LifecycleDb {
 pub trait LockablePartition: Sized + std::fmt::Display {
     type Partition: LifecyclePartition;
     type Chunk: LockableChunk;
-    type PersistHandle: Send + Sync + 'static;
+    type PersistHandle: PersistHandle + Send + Sync + 'static;
 
     type Error: std::error::Error + Send + Sync;
 
@@ -78,10 +78,12 @@ pub trait LockablePartition: Sized + std::fmt::Display {
     /// Returns None if there is a persistence operation in flight, or
     /// if there are no persistable windows.
     ///
-    /// TODO: This interface is nasty
+    /// `now` is the wall clock time that should be used to compute how long a given
+    /// write has been present in memory
     fn prepare_persist(
         partition: &mut LifecycleWriteGuard<'_, Self::Partition, Self>,
-    ) -> Option<(Self::PersistHandle, DateTime<Utc>)>;
+        now: Instant,
+    ) -> Option<Self::PersistHandle>;
 
     /// Split and persist chunks.
     ///
@@ -97,7 +99,6 @@ pub trait LockablePartition: Sized + std::fmt::Display {
     fn persist_chunks(
         partition: LifecycleWriteGuard<'_, Self::Partition, Self>,
         chunks: Vec<LifecycleWriteGuard<'_, <Self::Chunk as LockableChunk>::Chunk, Self::Chunk>>,
-        max_persistable_timestamp: DateTime<Utc>,
         handle: Self::PersistHandle,
     ) -> Result<TaskTracker<<Self::Chunk as LockableChunk>::Job>, Self::Error>;
 
@@ -158,8 +159,14 @@ pub trait LockableChunk: Sized {
 pub trait LifecyclePartition {
     fn partition_key(&self) -> &str;
 
+    /// Returns true if all chunks in the partition are persisted.
+    fn is_persisted(&self) -> bool;
+
     /// Returns an approximation of the number of rows that can be persisted
-    fn persistable_row_count(&self) -> usize;
+    ///
+    /// `now` is the wall clock time that should be used to compute how long a given
+    /// write has been present in memory
+    fn persistable_row_count(&self, now: Instant) -> usize;
 
     /// Returns the age of the oldest unpersisted write
     fn minimum_unpersisted_age(&self) -> Option<Instant>;
@@ -183,4 +190,11 @@ pub trait LifecycleChunk {
     fn storage(&self) -> ChunkStorage;
 
     fn row_count(&self) -> usize;
+}
+
+/// The trait for a persist handle
+pub trait PersistHandle {
+    /// Any unpersisted chunks containing rows with timestamps less than or equal to this
+    /// must be included in the corresponding `LockablePartition::persist_chunks` call
+    fn timestamp(&self) -> DateTime<Utc>;
 }

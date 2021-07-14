@@ -478,7 +478,7 @@ mod test {
     #[test]
     fn size() {
         let (v, _) = new_encoding(vec![None, None, Some(100), Some(2222)]);
-        assert_eq!(v.size(), 352);
+        assert_eq!(v.size(), 408);
     }
 
     #[test]

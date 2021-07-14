@@ -1,8 +1,7 @@
+use std::convert::{TryFrom, TryInto};
+
 use async_trait::async_trait;
-use data_types::{
-    database_rules::{DatabaseRules, WriteBufferConnection},
-    server_id::ServerId,
-};
+use data_types::server_id::ServerId;
 use entry::{Entry, Sequence, SequencedEntry};
 use futures::{stream::BoxStream, StreamExt};
 use rdkafka::{
@@ -11,65 +10,8 @@ use rdkafka::{
     producer::{FutureProducer, FutureRecord},
     ClientConfig, Message,
 };
-use std::{
-    convert::{TryFrom, TryInto},
-    sync::Arc,
-};
 
-pub type WriteBufferError = Box<dyn std::error::Error + Sync + Send>;
-
-#[derive(Debug)]
-pub enum WriteBufferConfig {
-    Writing(Arc<dyn WriteBufferWriting>),
-    Reading(Arc<dyn WriteBufferReading>),
-}
-
-impl WriteBufferConfig {
-    pub fn new(
-        server_id: ServerId,
-        rules: &DatabaseRules,
-    ) -> Result<Option<Self>, WriteBufferError> {
-        let name = rules.db_name();
-
-        // Right now, the Kafka producer and consumers ar the only production implementations of the
-        // `WriteBufferWriting` and `WriteBufferReading` traits. If/when there are other kinds of
-        // write buffers, additional configuration will be needed to determine what kind of write
-        // buffer to use here.
-        match rules.write_buffer_connection.as_ref() {
-            Some(WriteBufferConnection::Writing(conn)) => {
-                let kafka_buffer = KafkaBufferProducer::new(conn, name)?;
-
-                Ok(Some(Self::Writing(Arc::new(kafka_buffer) as _)))
-            }
-            Some(WriteBufferConnection::Reading(conn)) => {
-                let kafka_buffer = KafkaBufferConsumer::new(conn, server_id, name)?;
-
-                Ok(Some(Self::Reading(Arc::new(kafka_buffer) as _)))
-            }
-            None => Ok(None),
-        }
-    }
-}
-
-/// Writing to a Write Buffer takes an `Entry` and returns `Sequence` data that facilitates reading
-/// entries from the Write Buffer at a later time.
-#[async_trait]
-pub trait WriteBufferWriting: Sync + Send + std::fmt::Debug + 'static {
-    /// Send an `Entry` to the write buffer and return information that can be used to restore
-    /// entries at a later time.
-    async fn store_entry(&self, entry: &Entry) -> Result<Sequence, WriteBufferError>;
-}
-
-/// Produce a stream of `SequencedEntry` that a `Db` can add to the mutable buffer by using
-/// `Db::stream_in_sequenced_entries`.
-pub trait WriteBufferReading: Sync + Send + std::fmt::Debug + 'static {
-    fn stream<'life0, 'async_trait>(
-        &'life0 self,
-    ) -> BoxStream<'async_trait, Result<SequencedEntry, WriteBufferError>>
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait;
-}
+use crate::core::{WriteBufferError, WriteBufferReading, WriteBufferWriting};
 
 pub struct KafkaBufferProducer {
     conn: String,
@@ -126,6 +68,7 @@ impl KafkaBufferProducer {
         let mut cfg = ClientConfig::new();
         cfg.set("bootstrap.servers", &conn);
         cfg.set("message.timeout.ms", "5000");
+        cfg.set("message.max.bytes", "10000000");
 
         let producer: FutureProducer = cfg.create()?;
 
@@ -208,67 +151,5 @@ impl KafkaBufferConsumer {
             database_name,
             consumer,
         })
-    }
-}
-
-#[cfg(test)]
-pub mod test_helpers {
-    use super::*;
-    use futures::stream::{self, StreamExt};
-    use std::sync::{Arc, Mutex};
-
-    #[derive(Debug, Default)]
-    pub struct MockBufferForWriting {
-        pub entries: Arc<Mutex<Vec<Entry>>>,
-    }
-
-    #[async_trait]
-    impl WriteBufferWriting for MockBufferForWriting {
-        async fn store_entry(&self, entry: &Entry) -> Result<Sequence, WriteBufferError> {
-            let mut entries = self.entries.lock().unwrap();
-            let offset = entries.len() as u64;
-            entries.push(entry.clone());
-
-            Ok(Sequence {
-                id: 0,
-                number: offset,
-            })
-        }
-    }
-
-    type MoveableEntries = Arc<Mutex<Vec<Result<SequencedEntry, WriteBufferError>>>>;
-    pub struct MockBufferForReading {
-        entries: MoveableEntries,
-    }
-
-    impl std::fmt::Debug for MockBufferForReading {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.debug_struct("MockBufferForReading").finish()
-        }
-    }
-
-    impl MockBufferForReading {
-        pub fn new(entries: Vec<Result<SequencedEntry, WriteBufferError>>) -> Self {
-            Self {
-                entries: Arc::new(Mutex::new(entries)),
-            }
-        }
-    }
-
-    impl WriteBufferReading for MockBufferForReading {
-        fn stream<'life0, 'async_trait>(
-            &'life0 self,
-        ) -> BoxStream<'async_trait, Result<SequencedEntry, WriteBufferError>>
-        where
-            'life0: 'async_trait,
-            Self: 'async_trait,
-        {
-            // move the entries out of `self` to move them into the stream
-            let entries: Vec<_> = self.entries.lock().unwrap().drain(..).collect();
-
-            stream::iter(entries.into_iter())
-                .chain(stream::pending())
-                .boxed()
-        }
     }
 }

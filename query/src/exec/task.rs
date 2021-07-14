@@ -54,7 +54,7 @@ impl DedicatedExecutor {
     ///
     /// Follows the example from to stack overflow and spawns a new
     /// thread to install a Tokio runtime "context"
-    /// https://stackoverflow.com/questions/62536566
+    /// <https://stackoverflow.com/questions/62536566>
     ///
     /// If you try to do this from a async context you see something like
     /// thread 'plan::stringset::tests::test_builder_plan' panicked at 'Cannot

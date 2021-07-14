@@ -1,4 +1,5 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, SamplingMode};
+use data_types::database_rules::LifecycleRules;
 use object_store::{ObjectStore, ThrottleConfig};
 use server::{db::test_helpers::write_lp, utils::TestDb};
 use std::{convert::TryFrom, num::NonZeroU64, sync::Arc, time::Duration};
@@ -101,7 +102,11 @@ async fn setup(object_store: Arc<ObjectStore>, done: &Mutex<bool>) {
 async fn create_persisted_db(object_store: Arc<ObjectStore>) -> TestDb {
     TestDb::builder()
         .object_store(object_store)
-        .catalog_transactions_until_checkpoint(NonZeroU64::try_from(CHECKPOINT_INTERVAL).unwrap())
+        .lifecycle_rules(LifecycleRules {
+            catalog_transactions_until_checkpoint: NonZeroU64::try_from(CHECKPOINT_INTERVAL)
+                .unwrap(),
+            ..Default::default()
+        })
         .build()
         .await
 }

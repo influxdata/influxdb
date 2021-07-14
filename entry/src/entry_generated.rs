@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 use std::mem;
 
 extern crate flatbuffers;
-use self::flatbuffers::EndianScalar;
+use self::flatbuffers::{EndianScalar, Follow};
 
 #[allow(unused_imports, dead_code)]
 pub mod influxdata {
@@ -13,7 +13,7 @@ pub mod influxdata {
     use std::mem;
 
     extern crate flatbuffers;
-    use self::flatbuffers::EndianScalar;
+    use self::flatbuffers::{EndianScalar, Follow};
     #[allow(unused_imports, dead_code)]
     pub mod iox {
 
@@ -21,7 +21,7 @@ pub mod influxdata {
         use std::mem;
 
         extern crate flatbuffers;
-        use self::flatbuffers::EndianScalar;
+        use self::flatbuffers::{EndianScalar, Follow};
         #[allow(unused_imports, dead_code)]
         pub mod write {
 
@@ -29,7 +29,7 @@ pub mod influxdata {
             use std::mem;
 
             extern crate flatbuffers;
-            use self::flatbuffers::EndianScalar;
+            use self::flatbuffers::{EndianScalar, Follow};
             #[allow(unused_imports, dead_code)]
             pub mod v_1 {
 
@@ -37,7 +37,7 @@ pub mod influxdata {
                 use std::mem;
 
                 extern crate flatbuffers;
-                use self::flatbuffers::EndianScalar;
+                use self::flatbuffers::{EndianScalar, Follow};
 
                 #[deprecated(
                     since = "2.0.0",
@@ -93,7 +93,7 @@ pub mod influxdata {
                     type Inner = Self;
                     #[inline]
                     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-                        let b = flatbuffers::read_scalar_at::<u8>(buf, loc);
+                        let b = unsafe { flatbuffers::read_scalar_at::<u8>(buf, loc) };
                         Self(b)
                     }
                 }
@@ -102,7 +102,9 @@ pub mod influxdata {
                     type Output = Operation;
                     #[inline]
                     fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-                        flatbuffers::emplace_scalar::<u8>(dst, self.0);
+                        unsafe {
+                            flatbuffers::emplace_scalar::<u8>(dst, self.0);
+                        }
                     }
                 }
 
@@ -113,6 +115,7 @@ pub mod influxdata {
                         Self(b)
                     }
                     #[inline]
+                    #[allow(clippy::wrong_self_convention)]
                     fn from_little_endian(self) -> Self {
                         let b = u8::from_le(self.0);
                         Self(b)
@@ -193,7 +196,7 @@ pub mod influxdata {
                     type Inner = Self;
                     #[inline]
                     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-                        let b = flatbuffers::read_scalar_at::<i8>(buf, loc);
+                        let b = unsafe { flatbuffers::read_scalar_at::<i8>(buf, loc) };
                         Self(b)
                     }
                 }
@@ -202,7 +205,9 @@ pub mod influxdata {
                     type Output = LogicalColumnType;
                     #[inline]
                     fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-                        flatbuffers::emplace_scalar::<i8>(dst, self.0);
+                        unsafe {
+                            flatbuffers::emplace_scalar::<i8>(dst, self.0);
+                        }
                     }
                 }
 
@@ -213,6 +218,7 @@ pub mod influxdata {
                         Self(b)
                     }
                     #[inline]
+                    #[allow(clippy::wrong_self_convention)]
                     fn from_little_endian(self) -> Self {
                         let b = i8::from_le(self.0);
                         Self(b)
@@ -307,7 +313,7 @@ pub mod influxdata {
                     type Inner = Self;
                     #[inline]
                     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-                        let b = flatbuffers::read_scalar_at::<u8>(buf, loc);
+                        let b = unsafe { flatbuffers::read_scalar_at::<u8>(buf, loc) };
                         Self(b)
                     }
                 }
@@ -316,7 +322,9 @@ pub mod influxdata {
                     type Output = ColumnValues;
                     #[inline]
                     fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-                        flatbuffers::emplace_scalar::<u8>(dst, self.0);
+                        unsafe {
+                            flatbuffers::emplace_scalar::<u8>(dst, self.0);
+                        }
                     }
                 }
 
@@ -327,6 +335,7 @@ pub mod influxdata {
                         Self(b)
                     }
                     #[inline]
+                    #[allow(clippy::wrong_self_convention)]
                     fn from_little_endian(self) -> Self {
                         let b = u8::from_le(self.0);
                         Self(b)

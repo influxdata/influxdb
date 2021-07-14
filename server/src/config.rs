@@ -11,11 +11,11 @@ use metrics::MetricRegistry;
 use object_store::{path::ObjectStorePath, ObjectStore};
 use parquet_file::catalog::PreservedCatalog;
 use query::exec::Executor;
+use write_buffer::config::WriteBufferConfig;
 
 /// This module contains code for managing the configuration of the server.
 use crate::{
     db::{catalog::Catalog, DatabaseToCommit, Db},
-    write_buffer::WriteBufferConfig,
     Error, JobRegistry, Result,
 };
 use observability_deps::tracing::{self, error, info, warn, Instrument};

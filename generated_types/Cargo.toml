@@ -9,7 +9,7 @@ bytes = { version = "1.0", features = ["serde"] }
 data_types = { path = "../data_types" }
 # See docs/regenerating_flatbuffers.md about updating generated code when updating the
 # version of the flatbuffers crate
-#flatbuffers = "0.8"
+#flatbuffers = "2"
 futures = "0.3"
 google_types = { path = "../google_types" }
 observability_deps = { path = "../observability_deps" }
@@ -22,5 +22,7 @@ thiserror = "1.0.23"
 tonic = "0.4"
 
 [build-dependencies] # In alphabetical order
+# Pin specific version of the tonic-build dependencies to match arrow
+proc-macro2 = "=1.0.27"
 tonic-build = "0.4"
 prost-build = "0.7"

@@ -509,8 +509,8 @@ impl ReplayPlanner {
                     return Err(Error::PartitionCheckpointMinimumBeforeDatabase {
                         partition_checkpoint_sequence_number: min_max.min(),
                         database_checkpoint_sequence_number: database_wide_min_max.min(),
-                        table_name: table_name.clone(),
-                        partition_key: partition_key.clone(),
+                        table_name: Arc::clone(table_name),
+                        partition_key: Arc::clone(partition_key),
                     });
                 }
             }

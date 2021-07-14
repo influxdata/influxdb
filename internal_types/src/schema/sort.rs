@@ -23,7 +23,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Temporary - https://github.com/apache/arrow-rs/pull/425
+/// Temporary - <https://github.com/apache/arrow-rs/pull/425>
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct SortOptions {
     /// Whether to sort in descending order

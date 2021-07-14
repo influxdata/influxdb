@@ -564,7 +564,7 @@ impl TryFrom<ArrowDataType> for IOxValueType {
 }
 
 /// Field value types for InfluxDB 2.0 data model, as defined in
-/// [the documentation]: https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/
+/// [the documentation]: <https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/>
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum InfluxFieldType {
     /// 64-bit floating point number (TDB if NULLs / Nans are allowed)

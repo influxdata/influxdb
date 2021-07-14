@@ -169,7 +169,7 @@ impl IOxExecutionContext {
     /// tables referenced in the SQL have been registered with this context
     pub fn prepare_sql(&mut self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
         debug!(text=%sql, "planning SQL query");
-        let logical_plan = self.inner.sql(sql)?.to_logical_plan();
+        let logical_plan = self.inner.create_logical_plan(sql)?;
         self.prepare_plan(&logical_plan)
     }
 

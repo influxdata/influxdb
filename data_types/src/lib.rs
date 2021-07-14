@@ -2,7 +2,7 @@
 //! servers including replicated data, rules for how data is split up and
 //! queried, and what gets stored in the write buffer database.
 
-#![deny(broken_intra_doc_links, rust_2018_idioms)]
+#![deny(broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_debug_implementations,
     clippy::explicit_iter_loop,

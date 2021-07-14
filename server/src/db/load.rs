@@ -21,7 +21,8 @@ use super::catalog::Catalog;
 ///
 /// If no catalog exists yet, a new one will be created.
 ///
-/// **For now, if the catalog is broken, it will be wiped! (https://github.com/influxdata/influxdb_iox/issues/1522)**
+/// **For now, if the catalog is broken, it will be wiped!**
+/// <https://github.com/influxdata/influxdb_iox/issues/1522>
 pub async fn load_or_create_preserved_catalog(
     db_name: &str,
     object_store: Arc<ObjectStore>,
@@ -154,7 +155,7 @@ impl CatalogState for Catalog {
             .metrics_registry
             .register_domain_with_labels("parquet", self.metric_labels.clone());
 
-        let metrics = ParquetChunkMetrics::new(&metrics, self.metrics().memory().parquet());
+        let metrics = ParquetChunkMetrics::new(&metrics);
         let parquet_chunk = ParquetChunk::new(
             object_store.path_from_dirs_and_filename(info.path.clone()),
             object_store,

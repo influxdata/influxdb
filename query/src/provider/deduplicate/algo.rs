@@ -232,7 +232,7 @@ impl RecordBatchDeduplicator {
             .collect();
 
         // Compute partitions (aka breakpoints between the ranges)
-        let ranges = arrow::compute::lexicographical_partition_ranges(&columns)?;
+        let ranges = arrow::compute::lexicographical_partition_ranges(&columns)?.collect();
 
         Ok(DuplicateRanges {
             is_sort_key,
@@ -340,7 +340,7 @@ impl RecordBatchDeduplicator {
 
     /// Create a new record batch from offset --> len
     ///
-    /// https://github.com/apache/arrow-rs/issues/460 for adding this upstream
+    /// <https://github.com/apache/arrow-rs/issues/460> for adding this upstream
     fn slice_record_batch(
         batch: &RecordBatch,
         offset: usize,

@@ -25,11 +25,11 @@ use std::{
     },
 };
 use tokio::sync::Semaphore;
+use write_buffer::config::WriteBufferConfig;
 
 use crate::{
     config::{object_store_path_for_database_config, Config, DatabaseHandle, DB_RULES_FILE_NAME},
     db::load::load_or_create_preserved_catalog,
-    write_buffer::WriteBufferConfig,
     DatabaseError,
 };
 
@@ -144,7 +144,7 @@ pub struct InitStatus {
 
     /// Automatic wipe-on-error recovery
     ///
-    /// See https://github.com/influxdata/influxdb_iox/issues/1522)
+    /// See <https://github.com/influxdata/influxdb_iox/issues/1522>
     pub(crate) wipe_on_error: AtomicBool,
 }
 
@@ -535,6 +535,7 @@ impl InitStatus {
                         config: rules.write_buffer_connection.clone(),
                     },
                 )?;
+                info!(write_buffer_enabled=?write_buffer.is_some(), db_name=rules.db_name(), "write buffer config");
 
                 handle
                     .advance_replay(preserved_catalog, catalog, write_buffer)

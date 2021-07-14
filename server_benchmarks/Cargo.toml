@@ -15,6 +15,7 @@ arrow_util = { path = "../arrow_util" }
 entry = { path = "../entry" }
 criterion = { version = "0.3.4", features = ["async_tokio"] }
 datafusion = { path = "../datafusion" }
+data_types = { path = "../data_types" }
 flate2 = "1.0.20"
 influxdb_tsm = { path = "../influxdb_tsm" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }

@@ -1,7 +1,7 @@
 //! This module contains lock guards for use in the lifecycle traits
 //!
 //! Specifically they exist to work around a lack of support for generic associated
-//! types within traits. https://github.com/rust-lang/rust/issues/44265
+//! types within traits. <https://github.com/rust-lang/rust/issues/44265>
 //!
 //! ```ignore
 //! trait MyTrait {

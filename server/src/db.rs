@@ -11,7 +11,6 @@ use crate::{
         catalog::{chunk::CatalogChunk, partition::Partition, Catalog, TableNameFilter},
         lifecycle::{LockableCatalogChunk, LockableCatalogPartition},
     },
-    write_buffer::{WriteBufferConfig, WriteBufferError},
     JobRegistry,
 };
 use ::lifecycle::{LockableChunk, LockablePartition};
@@ -49,6 +48,8 @@ use std::{
     },
     time::{Duration, Instant},
 };
+use write_buffer::config::WriteBufferConfig;
+use write_buffer::core::WriteBufferError;
 
 pub mod access;
 pub mod catalog;
@@ -774,10 +775,7 @@ impl Db {
                                 self.metric_labels.clone(),
                             );
                             let chunk_result = MBChunk::new(
-                                MutableBufferChunkMetrics::new(
-                                    &metrics,
-                                    self.catalog.metrics().memory().mutable_buffer(),
-                                ),
+                                MutableBufferChunkMetrics::new(&metrics),
                                 sequence,
                                 table_batch,
                             )
@@ -954,12 +952,12 @@ mod tests {
             test_helpers::{try_write_lp, write_lp},
         },
         utils::{make_db, TestDb},
-        write_buffer::test_helpers::{MockBufferForReading, MockBufferForWriting},
     };
     use ::test_helpers::assert_contains;
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
+    use data_types::database_rules::LifecycleRules;
     use data_types::{
         chunk_metadata::ChunkStorage,
         database_rules::{PartitionTemplate, TemplatePart},
@@ -989,9 +987,12 @@ mod tests {
         time::{Duration, Instant},
     };
     use tokio_util::sync::CancellationToken;
+    use write_buffer::mock::{
+        MockBufferForReading, MockBufferForWriting, MockBufferForWritingThatAlwaysErrors,
+    };
 
-    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
-    type Result<T, E = Error> = std::result::Result<T, E>;
+    type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
+    type Result<T, E = TestError> = std::result::Result<T, E>;
 
     #[tokio::test]
     async fn write_no_mutable_buffer() {
@@ -1051,6 +1052,27 @@ mod tests {
             "+-----+-------------------------------+",
         ];
         assert_batches_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn write_buffer_errors_propagated() {
+        let write_buffer = Arc::new(MockBufferForWritingThatAlwaysErrors {});
+
+        let db = TestDb::builder()
+            .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
+            .build()
+            .await
+            .db;
+
+        let entry = lp_to_entry("cpu bar=1 10");
+
+        let res = db.store_entry(entry).await;
+
+        assert!(
+            matches!(res, Err(Error::WriteBufferWritingError { .. })),
+            "Expected Err(Error::WriteBufferWritingError {{ .. }}), got: {:?}",
+            res
+        );
     }
 
     #[tokio::test]
@@ -1321,7 +1343,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1143)
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1239)
             .unwrap();
 
         db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
@@ -1343,7 +1365,7 @@ mod tests {
 
         // verify chunk size updated (chunk moved from closing to moving to moved)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0).unwrap();
-        let expected_read_buffer_size = 1484;
+        let expected_read_buffer_size = 1468;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -1368,7 +1390,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 655;
+        let expected_parquet_size = 639;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -1542,7 +1564,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated (chunk moved from moved to writing to written)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1486).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1470).unwrap();
 
         // drop, the chunk from the read buffer
         db.drop_chunk("cpu", partition_key, mb_chunk.id()).unwrap();
@@ -1551,8 +1573,8 @@ mod tests {
             vec![] as Vec<u32>
         );
 
-        // verify size is reported until chunk dropped
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1486).unwrap();
+        // verify size is not accounted even though a reference to the RubChunk still exists
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 0).unwrap();
         std::mem::drop(rb_chunk);
 
         // verify chunk size updated (chunk dropped from moved state)
@@ -1671,7 +1693,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3040.0)
+            .sample_sum_eq(3024.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk).await;
@@ -1773,7 +1795,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2141.0)
+            .sample_sum_eq(2109.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1881,7 +1903,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2141.0)
+            .sample_sum_eq(2109.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -1908,7 +1930,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(655.0)
+            .sample_sum_eq(639.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -2051,8 +2073,8 @@ mod tests {
         assert_eq!(&table_summary.name, "cpu");
         assert_eq!(table_summary.count(), 2);
         let windows = partition.persistence_windows().unwrap();
-        let open_min = windows.open_min_time().unwrap();
-        let open_max = windows.open_max_time().unwrap();
+        let open_min = windows.minimum_unpersisted_timestamp().unwrap();
+        let open_max = windows.maximum_unpersisted_timestamp().unwrap();
         assert_eq!(open_min.timestamp_nanos(), 10);
         assert_eq!(open_max.timestamp_nanos(), 20);
     }
@@ -2252,10 +2274,7 @@ mod tests {
             .map(|x| x.estimated_bytes)
             .sum();
 
-        assert_eq!(
-            db.catalog.metrics().memory().mutable_buffer().get_total(),
-            size
-        );
+        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), size);
 
         assert_eq!(
             expected, chunk_summaries,
@@ -2353,7 +2372,7 @@ mod tests {
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                2139, // size of RB and OS chunks
+                2107, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2371,7 +2390,7 @@ mod tests {
                 0,
                 ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
-                2190,
+                2398,
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2392,14 +2411,11 @@ mod tests {
         );
 
         assert_eq!(
-            db.catalog.metrics().memory().mutable_buffer().get_total(),
-            64 + 2190 + 87
+            db.catalog.metrics().memory().mutable_buffer(),
+            64 + 2398 + 87
         );
-        assert_eq!(
-            db.catalog.metrics().memory().read_buffer().get_total(),
-            1484
-        );
-        assert_eq!(db.catalog.metrics().memory().parquet().get_total(), 655);
+        assert_eq!(db.catalog.metrics().memory().read_buffer(), 1468);
+        assert_eq!(db.catalog.metrics().memory().parquet(), 639);
     }
 
     #[tokio::test]
@@ -2989,7 +3005,10 @@ mod tests {
             .object_store(Arc::clone(&object_store))
             .server_id(server_id)
             .db_name(db_name)
-            .catalog_transactions_until_checkpoint(NonZeroU64::try_from(2).unwrap())
+            .lifecycle_rules(LifecycleRules {
+                catalog_transactions_until_checkpoint: NonZeroU64::try_from(2).unwrap(),
+                ..Default::default()
+            })
             .build()
             .await;
         let db = Arc::new(test_db.db);

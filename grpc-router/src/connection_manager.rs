@@ -27,7 +27,8 @@ pub trait ConnectionManager<T, E = Error> {
 ///
 /// It caches connected gRPC clients of type T (not operations performed over the connection).
 /// Each cache access returns a clone of the tonic gRPC client. Cloning clients is cheap
-/// and allows them to communicate through the same channel, see https://docs.rs/tonic/0.4.2/tonic/client/index.html#concurrent-usage
+/// and allows them to communicate through the same channel, see
+/// <https://docs.rs/tonic/0.4.2/tonic/client/index.html#concurrent-usage>
 ///
 /// The `CachingConnectionManager` implements a blocking cache-loading mechanism, that is, it guarantees that once a
 /// connection request for a given connection string is in flight, subsequent cache access requests

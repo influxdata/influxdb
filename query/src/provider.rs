@@ -514,7 +514,9 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let plan = Arc::new(SortPreservingMergeExec::new(
             sort_exprs.clone(),
             Arc::new(plan),
-            1024,
+            // TODO(edd): temp experiment - should wire in `_batch_size` in the
+            // table provider.
+            1024 * 25,
         ));
 
         // Add DeduplicateExc

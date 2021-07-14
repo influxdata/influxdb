@@ -12,12 +12,6 @@
 | logical_plan after simplify_expressions | Sort: #h2o.time ASC NULLS FIRST, #h2o.state ASC NULLS FIRST, #h2o.city ASC NULLS FIRST                                                    |
 |                                         |   Projection: #h2o.time, #h2o.state, #h2o.city, #h2o.min_temp, #h2o.max_temp, #h2o.area                                                   |
 |                                         |     TableScan: h2o projection=Some([0, 1, 2, 3, 4, 5])                                                                                    |
-| logical_plan after projection_push_down | Sort: #h2o.time ASC NULLS FIRST, #h2o.state ASC NULLS FIRST, #h2o.city ASC NULLS FIRST                                                    |
-|                                         |   Projection: #h2o.time, #h2o.state, #h2o.city, #h2o.min_temp, #h2o.max_temp, #h2o.area                                                   |
-|                                         |     TableScan: h2o projection=Some([0, 1, 2, 3, 4, 5])                                                                                    |
-| logical_plan after simplify_expressions | Sort: #h2o.time ASC NULLS FIRST, #h2o.state ASC NULLS FIRST, #h2o.city ASC NULLS FIRST                                                    |
-|                                         |   Projection: #h2o.time, #h2o.state, #h2o.city, #h2o.min_temp, #h2o.max_temp, #h2o.area                                                   |
-|                                         |     TableScan: h2o projection=Some([0, 1, 2, 3, 4, 5])                                                                                    |
 | physical_plan                           | SortExec: [time@0 ASC,state@1 ASC,city@2 ASC]                                                                                             |
 |                                         |   ProjectionExec: expr=[time@5 as time, state@4 as state, city@1 as city, min_temp@3 as min_temp, max_temp@2 as max_temp, area@0 as area] |
 |                                         |     ExecutionPlan(PlaceHolder)                                                                                                            |
@@ -35,10 +29,6 @@
 +-----------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------+
 | logical_plan                            | Projection: #h2o.time, #h2o.state, #h2o.city, #h2o.min_temp, #h2o.max_temp, #h2o.area                                                   |
 |                                         |   TableScan: h2o projection=None                                                                                                        |
-| logical_plan after projection_push_down | Projection: #h2o.time, #h2o.state, #h2o.city, #h2o.min_temp, #h2o.max_temp, #h2o.area                                                   |
-|                                         |   TableScan: h2o projection=Some([0, 1, 2, 3, 4, 5])                                                                                    |
-| logical_plan after simplify_expressions | Projection: #h2o.time, #h2o.state, #h2o.city, #h2o.min_temp, #h2o.max_temp, #h2o.area                                                   |
-|                                         |   TableScan: h2o projection=Some([0, 1, 2, 3, 4, 5])                                                                                    |
 | logical_plan after projection_push_down | Projection: #h2o.time, #h2o.state, #h2o.city, #h2o.min_temp, #h2o.max_temp, #h2o.area                                                   |
 |                                         |   TableScan: h2o projection=Some([0, 1, 2, 3, 4, 5])                                                                                    |
 | logical_plan after simplify_expressions | Projection: #h2o.time, #h2o.state, #h2o.city, #h2o.min_temp, #h2o.max_temp, #h2o.area                                                   |
@@ -62,16 +52,6 @@
 |                                         |     TableScan: h2o projection=None                                            |
 |                                         |   Projection: #h2o.city AS name                                               |
 |                                         |     TableScan: h2o projection=None                                            |
-| logical_plan after projection_push_down | Union                                                                         |
-|                                         |   Projection: #h2o.state AS name                                              |
-|                                         |     TableScan: h2o projection=Some([4])                                       |
-|                                         |   Projection: #h2o.city AS name                                               |
-|                                         |     TableScan: h2o projection=Some([1])                                       |
-| logical_plan after simplify_expressions | Union                                                                         |
-|                                         |   Projection: #h2o.state AS name                                              |
-|                                         |     TableScan: h2o projection=Some([4])                                       |
-|                                         |   Projection: #h2o.city AS name                                               |
-|                                         |     TableScan: h2o projection=Some([1])                                       |
 | logical_plan after projection_push_down | Union                                                                         |
 |                                         |   Projection: #h2o.state AS name                                              |
 |                                         |     TableScan: h2o projection=Some([4])                                       |
