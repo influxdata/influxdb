@@ -14,7 +14,6 @@ impl From<LifecycleRules> for management::LifecycleRules {
     fn from(config: LifecycleRules) -> Self {
         #[allow(deprecated)]
         Self {
-            mutable_linger_seconds: 0, // deprecated, not in use.
             buffer_size_soft: config
                 .buffer_size_soft
                 .map(|x| x.get() as u64)
@@ -75,8 +74,6 @@ mod tests {
     fn lifecycle_rules() {
         #[allow(deprecated)]
         let protobuf = management::LifecycleRules {
-            // deprecated, not in use.
-            mutable_linger_seconds: 0,
             buffer_size_soft: 353,
             buffer_size_hard: 232,
             drop_non_persisted: true,
