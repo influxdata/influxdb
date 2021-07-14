@@ -109,53 +109,7 @@ impl Chunk {
     /// caller does not need to be concerned about the size of the update.
     pub fn upsert_table(&mut self, table_data: RecordBatch) {
         let table_name = self.table.name();
-        // TEMPORARY: print record batch information
-        for (column, field) in table_data
-            .columns()
-            .iter()
-            .zip(table_data.schema().fields())
-        {
-            info!(%table_name, column = %field.name(), rows=column.len(), data_type=%field.data_type(), buffer_size=column.get_buffer_memory_size(), array_size=column.get_array_memory_size(), "column");
-            for (idx, buffer) in column.data().buffers().iter().enumerate() {
-                info!(%table_name, column = %field.name(), len=buffer.len(), capacity=buffer.capacity(), idx, "column data");
-            }
-
-            for (parent_idx, data) in column.data().child_data().iter().enumerate() {
-                for (child_idx, buffer) in data.buffers().iter().enumerate() {
-                    info!(%table_name, column = %field.name(), len=buffer.len(), capacity=buffer.capacity(), parent_idx, child_idx, "column child data");
-                }
-            }
-        }
-
-        // Approximate heap size of record batch.
-        let mub_rb_size = table_data
-            .columns()
-            .iter()
-            .map(|c| c.get_buffer_memory_size())
-            .sum::<usize>();
-        let columns = table_data.num_columns();
-
-        // This call is expensive. Complete it before locking.
-        let now = std::time::Instant::now();
-        let row_group = RowGroup::from(table_data);
-        let compressing_took = now.elapsed();
-
-        let rows = row_group.rows();
-        let rg_size = row_group.size();
-        let mub_rb_comp = format!(
-            "{:.2}%",
-            (1.0 - (rg_size as f64 / mub_rb_size as f64)) * 100.0
-        );
-
-        let raw_size_null = row_group.size_raw(true);
-        let raw_size_no_null = row_group.size_raw(false);
-        let raw_rb_comp = format!(
-            "{:.2}%",
-            (1.0 - (rg_size as f64 / raw_size_null as f64)) * 100.0
-        );
-        let table_name = self.table.name();
-
-        info!(%rows, %columns, rg_size, mub_rb_size, %mub_rb_comp, raw_size_null, raw_size_no_null, %raw_rb_comp, ?table_name, ?compressing_took, "row group added");
+        let row_group = record_batch_to_row_group_with_logging(&table_name, table_data);
 
         self.upsert_table_with_row_group(row_group)
     }
@@ -309,6 +263,57 @@ impl Chunk {
             .column_values(&predicate, columns, dst)
             .context(TableError)
     }
+}
+
+// TEMPORARY: print record batch information
+fn record_batch_to_row_group_with_logging(table_name: &str, table_data: RecordBatch) -> RowGroup {
+    for (column, field) in table_data
+        .columns()
+        .iter()
+        .zip(table_data.schema().fields())
+    {
+        info!(%table_name, column = %field.name(), rows=column.len(), data_type=%field.data_type(), buffer_size=column.get_buffer_memory_size(), array_size=column.get_array_memory_size(), "column");
+        for (idx, buffer) in column.data().buffers().iter().enumerate() {
+            info!(%table_name, column = %field.name(), len=buffer.len(), capacity=buffer.capacity(), idx, "column data");
+        }
+
+        for (parent_idx, data) in column.data().child_data().iter().enumerate() {
+            for (child_idx, buffer) in data.buffers().iter().enumerate() {
+                info!(%table_name, column = %field.name(), len=buffer.len(), capacity=buffer.capacity(), parent_idx, child_idx, "column child data");
+            }
+        }
+    }
+
+    // Approximate heap size of record batch.
+    let mub_rb_size = table_data
+        .columns()
+        .iter()
+        .map(|c| c.get_buffer_memory_size())
+        .sum::<usize>();
+    let columns = table_data.num_columns();
+
+    // This call is expensive. Complete it before locking.
+    let now = std::time::Instant::now();
+    let row_group = RowGroup::from(table_data);
+    let compressing_took = now.elapsed();
+
+    let rows = row_group.rows();
+    let rg_size = row_group.size();
+    let mub_rb_comp = format!(
+        "{:.2}%",
+        (1.0 - (rg_size as f64 / mub_rb_size as f64)) * 100.0
+    );
+
+    let raw_size_null = row_group.size_raw(true);
+    let raw_size_no_null = row_group.size_raw(false);
+    let raw_rb_comp = format!(
+        "{:.2}%",
+        (1.0 - (rg_size as f64 / raw_size_null as f64)) * 100.0
+    );
+
+    info!(%rows, %columns, rg_size, mub_rb_size, %mub_rb_comp, raw_size_null, raw_size_no_null, %raw_rb_comp, ?table_name, ?compressing_took, "row group added");
+
+    row_group
 }
 
 impl std::fmt::Debug for Chunk {
