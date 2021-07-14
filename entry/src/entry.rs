@@ -736,7 +736,7 @@ pub struct ShardedEntry {
 /// Wrapper type for the flatbuffer Entry struct. Has convenience methods for
 /// iterating through the partitioned writes.
 #[self_referencing]
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub struct Entry {
     data: Vec<u8>,
     #[borrows(data)]
@@ -781,6 +781,13 @@ impl TryFrom<Vec<u8>> for Entry {
 impl From<Entry> for Vec<u8> {
     fn from(entry: Entry) -> Self {
         entry.into_heads().data
+    }
+}
+
+impl Clone for Entry {
+    fn clone(&self) -> Self {
+        Self::try_from(self.data().to_vec())
+            .expect("flatbuffer was valid, should not be broken now")
     }
 }
 
@@ -2764,5 +2771,24 @@ mod tests {
             vec![TIME_COLUMN_NAME]
         );
         assert!(schema.sort_key().is_none());
+    }
+
+    #[test]
+    #[allow(clippy::redundant_clone)]
+    fn cloning_issues() {
+        // I have no idea why this was broken, but it panicked because the flatbuffer structure was broken with:
+        //
+        // ```text
+        // thread 'entry::tests::clone' panicked at 'range start index 32696 out of range for slice of length 248',
+        // <HOME>/.cargo/registry/src/github.com-1ecc6299db9ec823/flatbuffers-2.0.0/src/endian_scalar.rs:171:18
+        // ```
+        //
+        // I guess that instead of cloning the decoded flatbuffer and the underlying data, we have to clone the
+        // underlying data and recreate the decoded flatbuffer.
+        let entry = lp_to_entry("cpu x=1 0");
+        let entry_cloned = entry.clone();
+        let entry_cloned_cloned = entry_cloned.clone();
+        drop(entry);
+        format!("{:?}", entry_cloned_cloned);
     }
 }
