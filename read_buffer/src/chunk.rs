@@ -52,14 +52,16 @@ impl Chunk {
     pub fn new(
         table_name: impl Into<String>,
         table_data: RecordBatch,
-        metrics: ChunkMetrics,
+        mut metrics: ChunkMetrics,
     ) -> Self {
-        let mut c = Self {
-            metrics,
-            table: Table::new(table_name.into()),
-        };
-        c.upsert_table(table_data);
-        c
+        let table_name = table_name.into();
+        let row_group = record_batch_to_row_group_with_logging(&table_name, table_data);
+        let storage_statistics = row_group.column_storage_statistics();
+        let table = Table::with_row_group(table_name, row_group);
+
+        metrics.update_column_storage_statistics(&storage_statistics);
+
+        Self { metrics, table }
     }
 
     // Only used in tests and benchmarks
@@ -68,12 +70,10 @@ impl Chunk {
         row_group: RowGroup,
         metrics: ChunkMetrics,
     ) -> Self {
-        let mut c = Self {
+        Self {
             metrics,
-            table: Table::new(table_name.into()),
-        };
-        c.table.add_row_group(row_group);
-        c
+            table: Table::with_row_group(table_name, row_group),
+        }
     }
 
     // The total size taken up by an empty instance of `Chunk`.
@@ -659,9 +659,10 @@ mod test {
         assert_eq!(chunk.row_groups(), 2);
         assert!(chunk.size() > last_chunk_size);
 
-        assert_eq!(
-            String::from_utf8(reg.registry().metrics_as_text()).unwrap(),
-            vec![
+        let actual = String::from_utf8(reg.registry().metrics_as_text()).unwrap();
+        let actual_lines = actual.lines();
+
+        let expected_lines = vec![
                 "# HELP read_buffer_column_bytes The number of bytes used by all columns in the Read Buffer",
         "# TYPE read_buffer_column_bytes gauge",
         r#"read_buffer_column_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 72"#,
@@ -701,9 +702,11 @@ mod test {
         r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 6"#,
         r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
         "",
-            ]
-            .join("\n")
-        );
+            ];
+
+        for (actual_line, &expected_line) in actual_lines.zip(expected_lines.iter()) {
+            assert_eq!(actual_line, expected_line);
+        }
 
         // when the chunk is dropped the metrics are all correctly decreased
         std::mem::drop(chunk);
