@@ -558,7 +558,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let pk_schema = Self::compute_pk_schema(&[Arc::clone(&chunk)]);
         let input_schema = Self::compute_input_schema(&output_schema, &pk_schema);
 
-        // Compute the output sort key which is the super key of all chunks' keys base on their data cardinality
+        // Compute the output sort key for this chunk
         let output_sort_key = compute_sort_key(vec![chunk.summary()].into_iter());
 
         // Create the 2 bottom nodes IOxReadFilterNode and SortExec
@@ -904,7 +904,7 @@ mod test {
         // Add Sort operator on top of IOx scan
         let sort_plan = Deduplicater::build_sort_plan(chunk, input, &sort_key);
         let batch = collect(sort_plan.unwrap()).await.unwrap();
-        // data is not sorted on primary key(tag1, tag2, time)
+        // data is sorted on (tag1, time)
         let expected = vec![
             "+-----------+------+-------------------------------+",
             "| field_int | tag1 | time                          |",
@@ -987,7 +987,7 @@ mod test {
         // Add Sort operator on top of IOx scan
         let sort_plan = Deduplicater::build_sort_plan(chunk, input, &sort_key);
         let batch = collect(sort_plan.unwrap()).await.unwrap();
-        // data is not sorted on primary key based on their stats: (tag1, tag2, time)
+        // with the provider stats, data is sorted on: (tag1, tag2, time)
         let expected = vec![
             "+-----------+------+------+-------------------------------+",
             "| field_int | tag1 | tag2 | time                          |",
@@ -1052,7 +1052,7 @@ mod test {
             &sort_key,
         );
         let batch = collect(sort_plan.unwrap()).await.unwrap();
-        // data is not sorted on primary key(tag1, tag2, time)
+        // with provided stats, data is sorted on (tag1, tag2, time)
         let expected = vec![
             "+-----------+------+------+-------------------------------+",
             "| field_int | tag1 | tag2 | time                          |",
@@ -1106,9 +1106,29 @@ mod test {
         let chunk2 = Arc::new(
             TestChunk::new("t")
                 .with_id(2)
-                .with_time_column()
-                .with_tag_column("tag1")
-                .with_tag_column("tag2")
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    5,
+                    Some(NonZeroU64::new(5).unwrap()),
+                )
+                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
+                // from the one of tag2 to have deterministic column sort order to return
+                // deterministic sorted results
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(2).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag2",
+                    Some("AL"),
+                    Some("MA"),
+                    5,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -1290,15 +1310,12 @@ mod test {
                     5,
                     Some(NonZeroU64::new(5).unwrap()),
                 )
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
-                // from the one of tag2 to have deterministic column sort order to return
-                // deterministic sorted results
                 .with_tag_column_with_full_stats(
                     "tag1",
                     Some("AL"),
                     Some("MT"),
                     5,
-                    Some(NonZeroU64::new(2).unwrap()),
+                    Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_tag_column_with_full_stats(
                     "tag2",
@@ -1385,7 +1402,7 @@ mod test {
             .build()
             .unwrap();
 
-        // With the provided stats, the computed sort key will be (tag1, tag2, time)
+        // With the provided stats, the computed sort key will be (tag2, tag1, time)
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
             Arc::from("t"),
             Arc::new(schema),
@@ -1458,9 +1475,6 @@ mod test {
                     5,
                     Some(NonZeroU64::new(5).unwrap()),
                 )
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
-                // from the one of tag2 to have deterministic column sort order to return
-                // deterministic sorted results
                 .with_tag_column_with_full_stats(
                     "tag3",
                     Some("AL"),
@@ -1473,7 +1487,7 @@ mod test {
                     Some("AL"),
                     Some("MT"),
                     5,
-                    Some(NonZeroU64::new(2).unwrap()),
+                    Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
@@ -1682,7 +1696,7 @@ mod test {
         let plan =
             deduplicator.build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default());
         let batch = collect(plan.unwrap()).await.unwrap();
-        // Data must be sorted and duplicates removed
+        // Data must be sorted on (tag1, time) and duplicates removed
         let expected = vec![
             "+-----------+------+-------------------------------+",
             "| field_int | tag1 | time                          |",
@@ -1852,7 +1866,7 @@ mod test {
         let plan =
             deduplicator.build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default());
         let batch = collect(plan.unwrap()).await.unwrap();
-        // Two overlapped chunks will be sort merged with duplicates removed
+        // Two overlapped chunks will be sort merged on (tag1, time) with duplicates removed
         let expected = vec![
             "+-----------+------+-------------------------------+",
             "| field_int | tag1 | time                          |",
