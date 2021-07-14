@@ -39,6 +39,7 @@ members = [
     "trogging",
     "grpc-router",
     "grpc-router/grpc-router-test-gen",
+    "write_buffer",
 ]
 
 [profile.release]

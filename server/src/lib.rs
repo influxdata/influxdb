@@ -95,6 +95,7 @@ use metrics::{KeyValue, MetricObserverBuilder, MetricRegistry};
 use object_store::{ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, DatabaseStore};
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
+use write_buffer::config::WriteBufferConfig;
 
 pub use crate::config::RemoteTemplate;
 use crate::config::{object_store_path_for_database_config, Config, GRpcConnectionString};
@@ -109,7 +110,6 @@ use std::collections::HashMap;
 mod config;
 pub mod db;
 mod init;
-mod write_buffer;
 
 /// Utility modules used by benchmarks and tests
 pub mod utils;
@@ -556,11 +556,9 @@ where
         .context(CannotCreatePreservedCatalog)?;
 
         let write_buffer =
-            write_buffer::WriteBufferConfig::new(server_id, &rules).map_err(|e| {
-                Error::CreatingWriteBuffer {
-                    config: rules.write_buffer_connection.clone(),
-                    source: e,
-                }
+            WriteBufferConfig::new(server_id, &rules).map_err(|e| Error::CreatingWriteBuffer {
+                config: rules.write_buffer_connection.clone(),
+                source: e,
             })?;
         info!(write_buffer_enabled=?write_buffer.is_some(), db_name=rules.db_name(), "write buffer config");
         db_reservation.advance_replay(preserved_catalog, catalog, write_buffer)?;
@@ -1150,10 +1148,7 @@ impl RemoteServer for RemoteServerImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        utils::TestDb,
-        write_buffer::{test_helpers::MockBufferForWritingThatAlwaysErrors, WriteBufferConfig},
-    };
+    use crate::utils::TestDb;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
     use async_trait::async_trait;
@@ -1182,6 +1177,7 @@ mod tests {
     use tempfile::TempDir;
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
+    use write_buffer::mock::MockBufferForWritingThatAlwaysErrors;
 
     const ARBITRARY_DEFAULT_TIME: i64 = 456;
 

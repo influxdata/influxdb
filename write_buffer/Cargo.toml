@@ -1,0 +1,11 @@
+[package]
+name = "write_buffer"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+async-trait = "0.1"
+data_types = { path = "../data_types" }
+entry = { path = "../entry" }
+futures = "0.3"
+rdkafka = "0.26.0"
