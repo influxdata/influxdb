@@ -21,13 +21,11 @@
 | physical_plan                           | SortExec: [time@0 ASC,state@1 ASC,city@2 ASC]                                                                                             |
 |                                         |   ProjectionExec: expr=[time@5 as time, state@4 as state, city@1 as city, min_temp@3 as min_temp, max_temp@2 as max_temp, area@0 as area] |
 |                                         |     ExecutionPlan(PlaceHolder)                                                                                                            |
-|                                         |       DeduplicateExec: [city@1 ASC NULLS LAST,state@4 ASC NULLS LAST,time@5 ASC NULLS LAST]                                               |
-|                                         |         SortPreservingMergeExec: [city@1 ASC NULLS LAST,state@4 ASC NULLS LAST,time@5 ASC NULLS LAST]                                     |
+|                                         |       DeduplicateExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                                |
+|                                         |         SortPreservingMergeExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                      |
 |                                         |           ExecutionPlan(PlaceHolder)                                                                                                      |
-|                                         |             SortExec: [city@1 ASC NULLS LAST,state@4 ASC NULLS LAST,time@5 ASC NULLS LAST]                                                |
-|                                         |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                             |
-|                                         |             SortExec: [city@1 ASC NULLS LAST,state@4 ASC NULLS LAST,time@5 ASC NULLS LAST]                                                |
-|                                         |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                             |
+|                                         |             IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                               |
+|                                         |             IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                               |
 |                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                                     |
 |                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                                     |
 +-----------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
@@ -47,68 +45,62 @@
 |                                         |   TableScan: h2o projection=Some([0, 1, 2, 3, 4, 5])                                                                                    |
 | physical_plan                           | ProjectionExec: expr=[time@5 as time, state@4 as state, city@1 as city, min_temp@3 as min_temp, max_temp@2 as max_temp, area@0 as area] |
 |                                         |   ExecutionPlan(PlaceHolder)                                                                                                            |
-|                                         |     DeduplicateExec: [city@1 ASC NULLS LAST,state@4 ASC NULLS LAST,time@5 ASC NULLS LAST]                                               |
-|                                         |       SortPreservingMergeExec: [city@1 ASC NULLS LAST,state@4 ASC NULLS LAST,time@5 ASC NULLS LAST]                                     |
+|                                         |     DeduplicateExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                                |
+|                                         |       SortPreservingMergeExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                      |
 |                                         |         ExecutionPlan(PlaceHolder)                                                                                                      |
-|                                         |           SortExec: [city@1 ASC NULLS LAST,state@4 ASC NULLS LAST,time@5 ASC NULLS LAST]                                                |
-|                                         |             IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                             |
-|                                         |           SortExec: [city@1 ASC NULLS LAST,state@4 ASC NULLS LAST,time@5 ASC NULLS LAST]                                                |
-|                                         |             IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                             |
+|                                         |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                               |
+|                                         |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                               |
 |                                         |     IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                                     |
 |                                         |     IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                                     |
 +-----------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: EXPLAIN VERBOSE select state as name from h2o UNION ALL select city as name from h2o;
-+-----------------------------------------+---------------------------------------------------------------------------------------------------------+
-| plan_type                               | plan                                                                                                    |
-+-----------------------------------------+---------------------------------------------------------------------------------------------------------+
-| logical_plan                            | Union                                                                                                   |
-|                                         |   Projection: #h2o.state AS name                                                                        |
-|                                         |     TableScan: h2o projection=None                                                                      |
-|                                         |   Projection: #h2o.city AS name                                                                         |
-|                                         |     TableScan: h2o projection=None                                                                      |
-| logical_plan after projection_push_down | Union                                                                                                   |
-|                                         |   Projection: #h2o.state AS name                                                                        |
-|                                         |     TableScan: h2o projection=Some([4])                                                                 |
-|                                         |   Projection: #h2o.city AS name                                                                         |
-|                                         |     TableScan: h2o projection=Some([1])                                                                 |
-| logical_plan after simplify_expressions | Union                                                                                                   |
-|                                         |   Projection: #h2o.state AS name                                                                        |
-|                                         |     TableScan: h2o projection=Some([4])                                                                 |
-|                                         |   Projection: #h2o.city AS name                                                                         |
-|                                         |     TableScan: h2o projection=Some([1])                                                                 |
-| logical_plan after projection_push_down | Union                                                                                                   |
-|                                         |   Projection: #h2o.state AS name                                                                        |
-|                                         |     TableScan: h2o projection=Some([4])                                                                 |
-|                                         |   Projection: #h2o.city AS name                                                                         |
-|                                         |     TableScan: h2o projection=Some([1])                                                                 |
-| logical_plan after simplify_expressions | Union                                                                                                   |
-|                                         |   Projection: #h2o.state AS name                                                                        |
-|                                         |     TableScan: h2o projection=Some([4])                                                                 |
-|                                         |   Projection: #h2o.city AS name                                                                         |
-|                                         |     TableScan: h2o projection=Some([1])                                                                 |
-| physical_plan                           | ExecutionPlan(PlaceHolder)                                                                              |
-|                                         |   ProjectionExec: expr=[state@0 as name]                                                                |
-|                                         |     ExecutionPlan(PlaceHolder)                                                                          |
-|                                         |       ProjectionExec: expr=[state@1 as state]                                                           |
-|                                         |         DeduplicateExec: [city@0 ASC NULLS LAST,state@1 ASC NULLS LAST,time@2 ASC NULLS LAST]           |
-|                                         |           SortPreservingMergeExec: [city@0 ASC NULLS LAST,state@1 ASC NULLS LAST,time@2 ASC NULLS LAST] |
-|                                         |             ExecutionPlan(PlaceHolder)                                                                  |
-|                                         |               SortExec: [city@0 ASC NULLS LAST,state@1 ASC NULLS LAST,time@2 ASC NULLS LAST]            |
-|                                         |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                         |
-|                                         |               SortExec: [city@0 ASC NULLS LAST,state@1 ASC NULLS LAST,time@2 ASC NULLS LAST]            |
-|                                         |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                         |
-|                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                   |
-|                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                   |
-|                                         |   ProjectionExec: expr=[city@0 as name]                                                                 |
-|                                         |     ExecutionPlan(PlaceHolder)                                                                          |
-|                                         |       ProjectionExec: expr=[city@0 as city]                                                             |
-|                                         |         DeduplicateExec: [city@0 ASC NULLS LAST,state@1 ASC NULLS LAST,time@2 ASC NULLS LAST]           |
-|                                         |           SortPreservingMergeExec: [city@0 ASC NULLS LAST,state@1 ASC NULLS LAST,time@2 ASC NULLS LAST] |
-|                                         |             ExecutionPlan(PlaceHolder)                                                                  |
-|                                         |               SortExec: [city@0 ASC NULLS LAST,state@1 ASC NULLS LAST,time@2 ASC NULLS LAST]            |
-|                                         |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                         |
-|                                         |               SortExec: [city@0 ASC NULLS LAST,state@1 ASC NULLS LAST,time@2 ASC NULLS LAST]            |
-|                                         |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                         |
-|                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                   |
-|                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                   |
-+-----------------------------------------+---------------------------------------------------------------------------------------------------------+
++-----------------------------------------+-------------------------------------------------------------------------------+
+| plan_type                               | plan                                                                          |
++-----------------------------------------+-------------------------------------------------------------------------------+
+| logical_plan                            | Union                                                                         |
+|                                         |   Projection: #h2o.state AS name                                              |
+|                                         |     TableScan: h2o projection=None                                            |
+|                                         |   Projection: #h2o.city AS name                                               |
+|                                         |     TableScan: h2o projection=None                                            |
+| logical_plan after projection_push_down | Union                                                                         |
+|                                         |   Projection: #h2o.state AS name                                              |
+|                                         |     TableScan: h2o projection=Some([4])                                       |
+|                                         |   Projection: #h2o.city AS name                                               |
+|                                         |     TableScan: h2o projection=Some([1])                                       |
+| logical_plan after simplify_expressions | Union                                                                         |
+|                                         |   Projection: #h2o.state AS name                                              |
+|                                         |     TableScan: h2o projection=Some([4])                                       |
+|                                         |   Projection: #h2o.city AS name                                               |
+|                                         |     TableScan: h2o projection=Some([1])                                       |
+| logical_plan after projection_push_down | Union                                                                         |
+|                                         |   Projection: #h2o.state AS name                                              |
+|                                         |     TableScan: h2o projection=Some([4])                                       |
+|                                         |   Projection: #h2o.city AS name                                               |
+|                                         |     TableScan: h2o projection=Some([1])                                       |
+| logical_plan after simplify_expressions | Union                                                                         |
+|                                         |   Projection: #h2o.state AS name                                              |
+|                                         |     TableScan: h2o projection=Some([4])                                       |
+|                                         |   Projection: #h2o.city AS name                                               |
+|                                         |     TableScan: h2o projection=Some([1])                                       |
+| physical_plan                           | ExecutionPlan(PlaceHolder)                                                    |
+|                                         |   ProjectionExec: expr=[state@0 as name]                                      |
+|                                         |     ExecutionPlan(PlaceHolder)                                                |
+|                                         |       ProjectionExec: expr=[state@1 as state]                                 |
+|                                         |         DeduplicateExec: [state@1 ASC,city@0 ASC,time@2 ASC]                  |
+|                                         |           SortPreservingMergeExec: [state@1 ASC,city@0 ASC,time@2 ASC]        |
+|                                         |             ExecutionPlan(PlaceHolder)                                        |
+|                                         |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate |
+|                                         |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate |
+|                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate         |
+|                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate         |
+|                                         |   ProjectionExec: expr=[city@0 as name]                                       |
+|                                         |     ExecutionPlan(PlaceHolder)                                                |
+|                                         |       ProjectionExec: expr=[city@0 as city]                                   |
+|                                         |         DeduplicateExec: [state@1 ASC,city@0 ASC,time@2 ASC]                  |
+|                                         |           SortPreservingMergeExec: [state@1 ASC,city@0 ASC,time@2 ASC]        |
+|                                         |             ExecutionPlan(PlaceHolder)                                        |
+|                                         |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate |
+|                                         |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate |
+|                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate         |
+|                                         |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate         |
++-----------------------------------------+-------------------------------------------------------------------------------+
