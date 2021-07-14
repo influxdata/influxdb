@@ -112,6 +112,18 @@ impl LockableChunk for LockableCatalogChunk {
     }
 }
 
+/// A newtype wrapper around persistence_windows::FlushHandle
+///
+/// Represents the context for flushing data out of the PersistenceWindows
+#[derive(Debug)]
+pub struct CatalogPersistHandle(FlushHandle);
+
+impl lifecycle::PersistHandle for CatalogPersistHandle {
+    fn timestamp(&self) -> DateTime<Utc> {
+        self.0.timestamp()
+    }
+}
+
 ///
 /// A `LockableCatalogPartition` combines a `Partition` with its owning `Db`
 ///
@@ -155,7 +167,7 @@ impl LockablePartition for LockableCatalogPartition {
 
     type Chunk = LockableCatalogChunk;
 
-    type PersistHandle = FlushHandle;
+    type PersistHandle = CatalogPersistHandle;
 
     type Error = super::lifecycle::Error;
 
@@ -200,25 +212,21 @@ impl LockablePartition for LockableCatalogPartition {
 
     fn prepare_persist(
         partition: &mut LifecycleWriteGuard<'_, Self::Partition, Self>,
-    ) -> Option<(Self::PersistHandle, DateTime<Utc>)> {
+        now: Instant,
+    ) -> Option<Self::PersistHandle> {
         let window = partition.persistence_windows_mut().unwrap();
-        window.rotate(Instant::now());
-
-        let max_persistable_timestamp = window.max_persistable_timestamp();
-        let handle = window.flush_handle();
-        trace!(?max_persistable_timestamp, ?handle, "preparing for persist");
-        Some((handle?, max_persistable_timestamp?))
+        let handle = window.flush_handle(now);
+        trace!(?handle, "preparing for persist");
+        Some(CatalogPersistHandle(handle?))
     }
 
     fn persist_chunks(
         partition: LifecycleWriteGuard<'_, Partition, Self>,
         chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, Self::Chunk>>,
-        max_persistable_timestamp: DateTime<Utc>,
-        handle: FlushHandle,
+        handle: Self::PersistHandle,
     ) -> Result<TaskTracker<Job>, Self::Error> {
         info!(table=%partition.table_name(), partition=%partition.partition_key(), "persisting chunks");
-        let (tracker, fut) =
-            persist::persist_chunks(partition, chunks, max_persistable_timestamp, handle)?;
+        let (tracker, fut) = persist::persist_chunks(partition, chunks, handle.0)?;
         let _ = tokio::spawn(async move { fut.await.log_if_error("persisting chunks") });
         Ok(tracker)
     }
@@ -268,9 +276,9 @@ impl LifecyclePartition for Partition {
             .unwrap_or(true)
     }
 
-    fn persistable_row_count(&self) -> usize {
+    fn persistable_row_count(&self, now: Instant) -> usize {
         self.persistence_windows()
-            .map(|w| w.persistable_row_count())
+            .map(|w| w.persistable_row_count(now))
             .unwrap_or(0)
     }
 
