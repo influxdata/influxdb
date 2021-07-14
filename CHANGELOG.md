@@ -15,6 +15,7 @@ v1.9.4 [unreleased]
 -	[#22046](https://github.com/influxdata/influxdb/pull/22046): fix: export example and fix adjacent shards
 -	[#22048](https://github.com/influxdata/influxdb/pull/22048): fix: error instead of panic when enterprise tries to restore with OSS
 -	[#22067](https://github.com/influxdata/influxdb/pull/22067): fix: old tsl files should be compacted without new writes
+-	[#22095](https://github.com/influxdata/influxdb/pull/22095): fix: hard limit on field size while parsing line protocol
 
 
 v1.9.3 [unreleased]

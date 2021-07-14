@@ -8,18 +8,31 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-// FieldValidator should return a PartialWriteError if the point should not be written.
-type FieldValidator interface {
-	Validate(mf *MeasurementFields, point models.Point) error
-}
+const MaxFieldValueLength = 1048576
 
-// defaultFieldValidator ensures that points do not use different types for fields that already exist.
-type defaultFieldValidator struct{}
-
-// Validate will return a PartialWriteError if the point has inconsistent fields.
-func (defaultFieldValidator) Validate(mf *MeasurementFields, point models.Point) error {
+// ValidateFields will return a PartialWriteError if:
+//  - the point has inconsistent fields, or
+//  - the point has fields that are too long
+func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidation bool) error {
+	pointSize := point.StringSize()
 	iter := point.FieldIterator()
 	for iter.Next() {
+		if !skipSizeValidation {
+			// Check for size of field too large. Note it is much cheaper to check the whole point size
+			// than checking the StringValue size (StringValue potentially takes an allocation if it must
+			// unescape the string, and must at least parse the string)
+			if pointSize > MaxFieldValueLength && iter.Type() == models.String {
+				if sz := len(iter.StringValue()); sz > MaxFieldValueLength {
+					return PartialWriteError{
+						Reason: fmt.Sprintf(
+							"input field \"%s\" on measurement \"%s\" is too long, %d > %d",
+							iter.FieldKey(), point.Name(), sz, MaxFieldValueLength),
+						Dropped: 1,
+					}
+				}
+			}
+		}
+
 		// Skip fields name "time", they are illegal.
 		if bytes.Equal(iter.FieldKey(), timeBytes) {
 			continue
