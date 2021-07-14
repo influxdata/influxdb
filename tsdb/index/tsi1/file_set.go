@@ -25,6 +25,14 @@ func NewFileSet(files []File) *FileSet {
 	}
 }
 
+func (fs *FileSet) Clone() *FileSet {
+	fs2 := &FileSet{
+		files: make([]File, len(fs.files)),
+	}
+	copy(fs2.files, fs.files)
+	return fs2
+}
+
 // bytes estimates the memory footprint of this FileSet, in bytes.
 func (fs *FileSet) bytes() int {
 	var b int
