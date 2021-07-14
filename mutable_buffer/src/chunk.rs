@@ -11,7 +11,6 @@ use internal_types::{
     schema::{builder::SchemaBuilder, InfluxColumnType, Schema},
     selection::Selection,
 };
-use metrics::GaugeValue;
 use parking_lot::Mutex;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeSet, sync::Arc};
@@ -48,9 +47,9 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
+#[allow(missing_copy_implementations)]
 pub struct ChunkMetrics {
-    /// keep track of memory used by chunk
-    memory_bytes: GaugeValue,
+    // Placeholder
 }
 
 impl ChunkMetrics {
@@ -59,13 +58,11 @@ impl ChunkMetrics {
     /// will therefore not be visible to other ChunkMetrics instances or metric instruments
     /// created on a metrics domain, and vice versa
     pub fn new_unregistered() -> Self {
-        Self {
-            memory_bytes: GaugeValue::new_unregistered(),
-        }
+        Self {}
     }
 
-    pub fn new(_metrics: &metrics::Domain, memory_bytes: GaugeValue) -> Self {
-        Self { memory_bytes }
+    pub fn new(_metrics: &metrics::Domain) -> Self {
+        Self {}
     }
 }
 
@@ -122,8 +119,6 @@ impl MBChunk {
         let columns = batch.columns();
         chunk.write_columns(sequence, columns)?;
 
-        chunk.metrics.memory_bytes.set(chunk.size());
-
         Ok(chunk)
     }
 
@@ -151,7 +146,6 @@ impl MBChunk {
             .try_lock()
             .expect("concurrent readers/writers to MBChunk") = None;
 
-        self.metrics.memory_bytes.set(self.size());
         self.time_of_last_write = Utc::now();
 
         Ok(())
@@ -165,10 +159,7 @@ impl MBChunk {
             return Arc::clone(snapshot);
         }
 
-        let snapshot = Arc::new(ChunkSnapshot::new(
-            self,
-            self.metrics.memory_bytes.clone_empty(),
-        ));
+        let snapshot = Arc::new(ChunkSnapshot::new(self));
         *guard = Some(Arc::clone(&snapshot));
         snapshot
     }

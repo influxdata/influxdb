@@ -197,6 +197,11 @@ impl PersistenceWindows {
         // Verify no active flush handles
         self.persistable.get_mut()?;
 
+        // Close current open window if any
+        if let Some(open) = self.open.take() {
+            self.closed.push_back(open)
+        }
+
         // Rotate into persistable window
         self.rotate(now);
 
@@ -229,18 +234,19 @@ impl PersistenceWindows {
             persistable.max_time, timestamp,
             "persistable max time doesn't match handle"
         );
-
         // Everything up to and including persistable max time will have been persisted
         let new_min = Utc.timestamp_nanos(persistable.max_time.timestamp_nanos() + 1);
         for w in self.closed.iter_mut().take(closed_count) {
             if w.min_time < new_min {
                 w.min_time = new_min;
                 if w.max_time < new_min {
-                    w.max_time = new_min;
                     w.row_count = 0;
                 }
             }
         }
+
+        // Drop any now empty windows
+        self.closed.retain(|x| x.row_count > 0);
     }
 
     /// Returns an iterator over the windows starting with the oldest
@@ -826,12 +832,16 @@ mod tests {
 
         let flush = w.flush_handle(end_at).unwrap();
         assert_eq!(flush.timestamp(), first_end);
+        assert!(w.open.is_none());
         let flushed_time = flush.timestamp() + chrono::Duration::nanoseconds(1);
 
         w.flush(flush);
         assert!(w.persistable.is_none());
+
         let mins = w.closed[0].sequencer_numbers.clone();
         assert_eq!(mins, w.minimum_unpersisted_sequence().unwrap());
+
+        assert_eq!(w.closed.len(), 2);
 
         // the closed window should have a min time equal to the flush
         let c = &w.closed[0];
@@ -840,10 +850,11 @@ mod tests {
         assert_eq!(c.max_time, second_end);
         assert_eq!(c.created_at, second_created_at);
 
-        // the open window should not have been modified by the flush
-        let c = w.open.as_ref().unwrap();
+        // the open window should have been closed as part of creating the flush
+        // handle and then truncated by the flush timestamp
+        let c = &w.closed[1];
         assert_eq!(c.row_count, 2);
-        assert_eq!(c.min_time, third_start);
+        assert_eq!(c.min_time, flushed_time);
         assert_eq!(c.max_time, third_end);
         assert_eq!(c.created_at, third_created_at);
     }
@@ -907,14 +918,15 @@ mod tests {
         // after flush we should see no more persistable window and the closed windows
         // should have min timestamps equal to the previous flush end.
         let flush = w.flush_handle(end_at).unwrap();
-
         assert_eq!(flush.timestamp(), first_end);
+        assert!(w.open.is_none());
         let flushed_time = flush.timestamp() + chrono::Duration::nanoseconds(1);
-
         w.flush(flush);
         assert!(w.persistable.is_none());
         let mins = w.closed[0].sequencer_numbers.clone();
         assert_eq!(mins, w.minimum_unpersisted_sequence().unwrap());
+
+        assert_eq!(w.closed.len(), 2);
 
         // the closed window should have a min time equal to the flush
         let c = &w.closed[0];
@@ -923,10 +935,11 @@ mod tests {
         assert_eq!(c.max_time, second_end);
         assert_eq!(c.created_at, second_created_at);
 
-        // the open window should not have been modified by the flush
-        let c = w.open.as_ref().unwrap();
+        // the open window should have been closed as part of creating the flush
+        // handle and then truncated by the flush timestamp
+        let c = &w.closed[1];
         assert_eq!(c.row_count, 2);
-        assert_eq!(c.min_time, third_start);
+        assert_eq!(c.min_time, flushed_time);
         assert_eq!(c.max_time, third_end);
         assert_eq!(c.created_at, third_created_at);
     }
@@ -1068,7 +1081,8 @@ mod tests {
 
         let flush_t = flush.timestamp();
 
-        assert_eq!(flush.closed_count, 2);
+        assert!(w.open.is_none());
+        assert_eq!(flush.closed_count, 3);
         assert_eq!(flush_t, start + chrono::Duration::seconds(2));
         let truncated_time = flush_t + chrono::Duration::nanoseconds(1);
 
@@ -1090,25 +1104,31 @@ mod tests {
 
         w.flush(flush);
 
-        assert!(w.persistable.is_none());
-        assert_eq!(w.closed.len(), 4);
+        // Windows from writes at
+        //
+        // - `instant + DEFAULT_CLOSED_WINDOW_PERIOD * 2`
+        // - `instant + DEFAULT_CLOSED_WINDOW_PERIOD * 3`
+        //
+        // have been completely persisted by the flush
 
+        assert!(w.persistable.is_none());
+        assert_eq!(w.closed.len(), 2);
+
+        assert_eq!(
+            w.closed[0].created_at,
+            instant + DEFAULT_CLOSED_WINDOW_PERIOD
+        );
         assert_eq!(w.closed[0].min_time, truncated_time);
         assert_eq!(w.closed[0].max_time, start + chrono::Duration::seconds(4));
         assert_eq!(w.closed[0].row_count, 5);
 
-        assert_eq!(w.closed[1].min_time, truncated_time);
-        assert_eq!(w.closed[1].max_time, truncated_time);
-        assert_eq!(w.closed[1].row_count, 0); // Entirely flushed window
-
-        // Window closed after flush handle - should be left alone
-        assert_eq!(w.closed[2].min_time, start);
-        assert_eq!(w.closed[2].max_time, start + chrono::Duration::seconds(2));
-        assert_eq!(w.closed[2].row_count, 17); // Entirely flushed window
-
         // Window created after flush handle - should be left alone
-        assert_eq!(w.closed[3].min_time, start);
-        assert_eq!(w.closed[3].max_time, start + chrono::Duration::seconds(2));
-        assert_eq!(w.closed[3].row_count, 11);
+        assert_eq!(
+            w.closed[1].created_at,
+            instant + DEFAULT_CLOSED_WINDOW_PERIOD * 4
+        );
+        assert_eq!(w.closed[1].min_time, start);
+        assert_eq!(w.closed[1].max_time, start + chrono::Duration::seconds(2));
+        assert_eq!(w.closed[1].row_count, 11);
     }
 }

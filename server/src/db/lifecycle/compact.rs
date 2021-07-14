@@ -66,10 +66,7 @@ pub(crate) fn compact_chunks(
         .metrics_registry
         .register_domain_with_labels("read_buffer", db.metric_labels.clone());
 
-    let mut rb_chunk = RBChunk::new(
-        &table_name,
-        ChunkMetrics::new(&metrics, db.catalog.metrics().memory().read_buffer()),
-    );
+    let mut rb_chunk = RBChunk::new(&table_name, ChunkMetrics::new(&metrics));
 
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 

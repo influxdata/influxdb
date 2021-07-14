@@ -775,10 +775,7 @@ impl Db {
                                 self.metric_labels.clone(),
                             );
                             let chunk_result = MBChunk::new(
-                                MutableBufferChunkMetrics::new(
-                                    &metrics,
-                                    self.catalog.metrics().memory().mutable_buffer(),
-                                ),
+                                MutableBufferChunkMetrics::new(&metrics),
                                 sequence,
                                 table_batch,
                             )
@@ -960,6 +957,7 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
+    use data_types::database_rules::LifecycleRules;
     use data_types::{
         chunk_metadata::ChunkStorage,
         database_rules::{PartitionTemplate, TemplatePart},
@@ -1345,7 +1343,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1255)
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1239)
             .unwrap();
 
         db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
@@ -1367,7 +1365,7 @@ mod tests {
 
         // verify chunk size updated (chunk moved from closing to moving to moved)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0).unwrap();
-        let expected_read_buffer_size = 1484;
+        let expected_read_buffer_size = 1468;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -1392,7 +1390,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 655;
+        let expected_parquet_size = 639;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -1566,7 +1564,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated (chunk moved from moved to writing to written)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1486).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1470).unwrap();
 
         // drop, the chunk from the read buffer
         db.drop_chunk("cpu", partition_key, mb_chunk.id()).unwrap();
@@ -1575,8 +1573,8 @@ mod tests {
             vec![] as Vec<u32>
         );
 
-        // verify size is reported until chunk dropped
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1486).unwrap();
+        // verify size is not accounted even though a reference to the RubChunk still exists
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 0).unwrap();
         std::mem::drop(rb_chunk);
 
         // verify chunk size updated (chunk dropped from moved state)
@@ -1694,7 +1692,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3042.0)
+            .sample_sum_eq(3026.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk).await;
@@ -1796,7 +1794,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2141.0)
+            .sample_sum_eq(2109.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1904,7 +1902,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2141.0)
+            .sample_sum_eq(2109.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -1931,7 +1929,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(655.0)
+            .sample_sum_eq(639.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -2275,10 +2273,7 @@ mod tests {
             .map(|x| x.estimated_bytes)
             .sum();
 
-        assert_eq!(
-            db.catalog.metrics().memory().mutable_buffer().get_total(),
-            size
-        );
+        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), size);
 
         assert_eq!(
             expected, chunk_summaries,
@@ -2376,7 +2371,7 @@ mod tests {
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                2139, // size of RB and OS chunks
+                2107, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2394,7 +2389,7 @@ mod tests {
                 0,
                 ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
-                2414,
+                2398,
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2415,14 +2410,11 @@ mod tests {
         );
 
         assert_eq!(
-            db.catalog.metrics().memory().mutable_buffer().get_total(),
-            64 + 2414 + 87
+            db.catalog.metrics().memory().mutable_buffer(),
+            64 + 2398 + 87
         );
-        assert_eq!(
-            db.catalog.metrics().memory().read_buffer().get_total(),
-            1484
-        );
-        assert_eq!(db.catalog.metrics().memory().parquet().get_total(), 655);
+        assert_eq!(db.catalog.metrics().memory().read_buffer(), 1468);
+        assert_eq!(db.catalog.metrics().memory().parquet(), 639);
     }
 
     #[tokio::test]
@@ -3012,7 +3004,10 @@ mod tests {
             .object_store(Arc::clone(&object_store))
             .server_id(server_id)
             .db_name(db_name)
-            .catalog_transactions_until_checkpoint(NonZeroU64::try_from(2).unwrap())
+            .lifecycle_rules(LifecycleRules {
+                catalog_transactions_until_checkpoint: NonZeroU64::try_from(2).unwrap(),
+                ..Default::default()
+            })
             .build()
             .await;
         let db = Arc::new(test_db.db);

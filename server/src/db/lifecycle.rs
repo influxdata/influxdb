@@ -371,10 +371,7 @@ fn new_rub_chunk(db: &Db, table_name: &str) -> read_buffer::RBChunk {
         .metrics_registry
         .register_domain_with_labels("read_buffer", db.metric_labels.clone());
 
-    read_buffer::RBChunk::new(
-        table_name,
-        read_buffer::ChunkMetrics::new(&metrics, db.catalog.metrics().memory().read_buffer()),
-    )
+    read_buffer::RBChunk::new(table_name, read_buffer::ChunkMetrics::new(&metrics))
 }
 
 /// Executes a plan and collects the results into a read buffer chunk
