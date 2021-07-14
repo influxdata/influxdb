@@ -82,7 +82,7 @@ func OnboardInitialUser(
 				},
 			},
 			wants: wants{
-				errCode: platform.EEmptyValue,
+				errCode: platform.EUnprocessableEntity,
 			},
 		},
 		{
@@ -101,7 +101,7 @@ func OnboardInitialUser(
 				},
 			},
 			wants: wants{
-				errCode: platform.EEmptyValue,
+				errCode: platform.EUnprocessableEntity,
 			},
 		},
 		{
@@ -120,26 +120,7 @@ func OnboardInitialUser(
 				},
 			},
 			wants: wants{
-				errCode: platform.EEmptyValue,
-			},
-		},
-		{
-			name: "missing password should fail",
-			fields: OnboardingFields{
-				IDGenerator: &loopIDGenerator{
-					s: []string{oneID, twoID, threeID, fourID},
-				},
-				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
-				IsOnboarding:   true,
-			},
-			args: args{
-				request: &platform.OnboardingRequest{
-					User: "admin",
-					Org:  "org1",
-				},
-			},
-			wants: wants{
-				errCode: platform.EEmptyValue,
+				errCode: platform.EUnprocessableEntity,
 			},
 		},
 		{

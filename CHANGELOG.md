@@ -7,6 +7,7 @@
 1. [21851](https://github.com/influxdata/influxdb/pull/21851): Upgrade to latest version of `influxdata/cron` so that tasks can be created with interval of `every: 1w`.
 1. [21859](https://github.com/influxdata/influxdb/pull/21859): Avoid rewriting `fields.idx` unnecessarily.
 1. [21860](https://github.com/influxdata/influxdb/pull/21860): Do not close connection twice in DigestWithOptions.
+1. [21849](https://github.com/influxdata/influxdb/pull/21849): Specify which fields are missing when rejecting an incomplete onboarding request.
 
 ## v2.0.7 [2021-06-04]
 ----------------------

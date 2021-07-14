@@ -34,11 +34,6 @@ var (
 		Msg:  "onboarding has already been completed",
 	}
 
-	ErrOnboardInvalid = &influxdb.Error{
-		Code: influxdb.EEmptyValue,
-		Msg:  "onboard failed, missing value",
-	}
-
 	ErrNotFound = &influxdb.Error{
 		Code: influxdb.ENotFound,
 		Msg:  "not found",
