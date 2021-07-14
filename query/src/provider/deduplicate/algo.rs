@@ -232,7 +232,7 @@ impl RecordBatchDeduplicator {
             .collect();
 
         // Compute partitions (aka breakpoints between the ranges)
-        let ranges = arrow::compute::lexicographical_partition_ranges(&columns)?;
+        let ranges = arrow::compute::lexicographical_partition_ranges(&columns)?.collect();
 
         Ok(DuplicateRanges {
             is_sort_key,

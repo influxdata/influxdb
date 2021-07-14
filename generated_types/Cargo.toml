@@ -22,5 +22,7 @@ thiserror = "1.0.23"
 tonic = "0.4"
 
 [build-dependencies] # In alphabetical order
+# Pin specific version of the tonic-build dependencies to match arrow
+proc-macro2 = "=1.0.27"
 tonic-build = "0.4"
 prost-build = "0.7"
