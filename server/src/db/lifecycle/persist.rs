@@ -6,6 +6,7 @@ use std::sync::Arc;
 use data_types::job::Job;
 use lifecycle::{LifecycleWriteGuard, LockableChunk};
 use observability_deps::tracing::info;
+use persistence_windows::persistence_windows::FlushHandle;
 use query::exec::ExecutorType;
 use query::frontend::reorg::ReorgPlanner;
 use query::QueryChunkMeta;
@@ -19,7 +20,6 @@ use crate::db::lifecycle::{
 use crate::db::DbChunk;
 
 use super::{LockableCatalogChunk, LockableCatalogPartition, Result};
-use persistence_windows::persistence_windows::FlushHandle;
 
 /// Split and then persist the provided chunks
 ///
@@ -155,4 +155,76 @@ pub(super) fn persist_chunks(
     };
 
     Ok((tracker, fut.track(registration)))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::num::{NonZeroU32, NonZeroU64};
+    use std::time::Instant;
+
+    use chrono::{TimeZone, Utc};
+
+    use data_types::database_rules::LifecycleRules;
+    use lifecycle::{LockableChunk, LockablePartition};
+    use query::QueryDatabase;
+
+    use crate::db::test_helpers::write_lp;
+    use crate::utils::TestDb;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_flush_overlapping() {
+        let test_db = TestDb::builder()
+            .lifecycle_rules(LifecycleRules {
+                late_arrive_window_seconds: NonZeroU32::new(1).unwrap(),
+                // Disable lifecycle manager - TODO: Better way to do this, as this will still run the loop once
+                worker_backoff_millis: NonZeroU64::new(u64::MAX).unwrap(),
+                ..Default::default()
+            })
+            .build()
+            .await;
+
+        let db = test_db.db;
+
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
+
+        let partition_keys = db.partition_keys().unwrap();
+        assert_eq!(partition_keys.len(), 1);
+        let db_partition = db.partition("cpu", &partition_keys[0]).unwrap();
+
+        // Wait for the persistence window to be closed
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        write_lp(db.as_ref(), "cpu,tag1=lagged bar=1 10").await;
+
+        let partition = LockableCatalogPartition::new(Arc::clone(&db), Arc::clone(&db_partition));
+        let partition = partition.read();
+
+        let chunks = LockablePartition::chunks(&partition);
+        let chunks: Vec<_> = chunks.iter().map(|x| x.1.read()).collect();
+
+        let mut partition = partition.upgrade();
+
+        let handle = LockablePartition::prepare_persist(&mut partition, Instant::now())
+            .unwrap()
+            .0;
+
+        assert_eq!(handle.timestamp(), Utc.timestamp_nanos(10));
+        let chunks: Vec<_> = chunks.into_iter().map(|x| x.upgrade()).collect();
+
+        persist_chunks(partition, chunks, handle)
+            .unwrap()
+            .1
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert!(db_partition
+            .read()
+            .persistence_windows()
+            .unwrap()
+            .minimum_unpersisted_age()
+            .is_none());
+    }
 }

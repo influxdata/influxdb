@@ -957,6 +957,7 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
+    use data_types::database_rules::LifecycleRules;
     use data_types::{
         chunk_metadata::ChunkStorage,
         database_rules::{PartitionTemplate, TemplatePart},
@@ -3003,7 +3004,10 @@ mod tests {
             .object_store(Arc::clone(&object_store))
             .server_id(server_id)
             .db_name(db_name)
-            .catalog_transactions_until_checkpoint(NonZeroU64::try_from(2).unwrap())
+            .lifecycle_rules(LifecycleRules {
+                catalog_transactions_until_checkpoint: NonZeroU64::try_from(2).unwrap(),
+                ..Default::default()
+            })
             .build()
             .await;
         let db = Arc::new(test_db.db);

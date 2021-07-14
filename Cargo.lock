@@ -3807,6 +3807,7 @@ version = "0.1.0"
 dependencies = [
  "arrow_util",
  "criterion",
+ "data_types",
  "datafusion 0.1.0",
  "entry",
  "flate2",
