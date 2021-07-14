@@ -1833,7 +1833,7 @@ mod tests {
 
         // verify chunk size updated (chunk moved from closing to moving to moved)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0).unwrap();
-        let expected_read_buffer_size = 1613;
+        let expected_read_buffer_size = 1637;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -2050,7 +2050,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated (chunk moved from moved to writing to written)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1613).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1637).unwrap();
 
         // drop, the chunk from the read buffer
         db.drop_chunk("cpu", partition_key, mb_chunk.id())
@@ -2181,7 +2181,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3191.0)
+            .sample_sum_eq(3215.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk).await;
@@ -2291,7 +2291,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2260.0)
+            .sample_sum_eq(2284.0)
             .unwrap();
 
         // while MB and RB chunk are identical, the PQ chunk is a new one (split off)
@@ -2411,7 +2411,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2260.0)
+            .sample_sum_eq(2284.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -2868,8 +2868,8 @@ mod tests {
                 2,
                 ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                3236,
-                1479,
+                3260, // size of RB and OS chunks
+                1479, // size of parquet file
                 2,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2903,7 +2903,7 @@ mod tests {
         }
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2398 + 87);
-        assert_eq!(db.catalog.metrics().memory().read_buffer(), 2410);
+        assert_eq!(db.catalog.metrics().memory().read_buffer(), 2434);
         assert_eq!(db.catalog.metrics().memory().object_store(), 826);
     }
 

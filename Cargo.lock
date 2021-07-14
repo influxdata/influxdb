@@ -3269,6 +3269,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow_util",
+ "chrono",
  "criterion",
  "croaring",
  "data_types",

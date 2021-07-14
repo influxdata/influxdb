@@ -5,7 +5,8 @@ use crate::{
     value::{OwnedValue, Scalar, Value},
 };
 use arrow::record_batch::RecordBatch;
-use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
+use chrono::{DateTime, Utc};
+use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummaryAndTimes};
 use internal_types::selection::Selection;
 use parking_lot::RwLock;
 use snafu::{ensure, Snafu};
@@ -189,7 +190,7 @@ impl Table {
     }
 
     /// Return a summary of all columns in this table
-    pub fn table_summary(&self) -> TableSummary {
+    pub fn table_summary(&self) -> TableSummaryAndTimes {
         self.table_data.read().meta.to_summary(&self.name)
     }
 
@@ -557,15 +558,27 @@ pub struct MetaData {
 
     // The names of the columns for this table in the order they appear.
     column_names: Vec<String>,
+
+    /// Time at which the first data was written into this table. Note
+    /// this is not the same as the timestamps on the data itself
+    time_of_first_write: DateTime<Utc>,
+
+    /// Most recent time at which data write was initiated into this
+    /// chunk. Note this is not the same as the timestamps on the data
+    /// itself
+    time_of_last_write: DateTime<Utc>,
 }
 
 impl MetaData {
     pub fn new(rg: &row_group::RowGroup) -> Self {
+        let now = Utc::now();
         Self {
             rgs_size: rg.size(),
             rows: rg.rows() as u64,
             columns: rg.metadata().columns.clone(),
             column_names: rg.metadata().column_names.clone(),
+            time_of_first_write: now,
+            time_of_last_write: now,
         }
     }
 
@@ -585,6 +598,7 @@ impl MetaData {
 
     /// Create a new `MetaData` by consuming `this` and incorporating `other`.
     pub fn update_with(mut this: Self, rg: &row_group::RowGroup) -> Self {
+        let now = Utc::now();
         let other_meta = rg.metadata();
 
         // first non-empty row group added to the table.
@@ -593,6 +607,8 @@ impl MetaData {
             this.rows = rg.rows() as u64;
             this.columns = other_meta.columns.clone();
             this.column_names = other_meta.column_names.clone();
+            this.time_of_first_write = now;
+            this.time_of_last_write = now;
 
             return this;
         }
@@ -603,9 +619,10 @@ impl MetaData {
         // existing row groups in the table.
         assert_eq!(&this.columns, &other_meta.columns);
 
-        // update size, rows, column ranges, time range
+        // update size, rows, last write, column ranges, time range
         this.rgs_size += rg.size();
         this.rows += rg.rows() as u64;
+        this.time_of_last_write = now;
 
         // Update the table schema using the incoming row group schema
         for (column_name, column_meta) in &other_meta.columns {
@@ -685,7 +702,7 @@ impl MetaData {
         self.column_names.iter().map(|name| name.as_str()).collect()
     }
 
-    pub fn to_summary(&self, table_name: impl Into<String>) -> TableSummary {
+    pub fn to_summary(&self, table_name: impl Into<String>) -> TableSummaryAndTimes {
         use data_types::partition_metadata::{ColumnSummary, StatValues, Statistics};
         let columns = self
             .columns
@@ -749,9 +766,11 @@ impl MetaData {
             })
             .collect();
 
-        TableSummary {
+        TableSummaryAndTimes {
             name: table_name.into(),
             columns,
+            time_of_first_write: self.time_of_first_write,
+            time_of_last_write: self.time_of_last_write,
         }
     }
 
@@ -1002,6 +1021,7 @@ mod test {
 
     #[test]
     fn meta_data_update_with() {
+        let before_creation = Utc::now();
         let columns = vec![
             (
                 "time".to_string(),
@@ -1015,6 +1035,7 @@ mod test {
         let rg = RowGroup::new(3, columns);
 
         let mut meta = MetaData::new(&rg);
+        let after_creation = Utc::now();
         assert_eq!(meta.rows, 3);
         let meta_size = meta.rgs_size;
         assert!(meta_size > 0);
@@ -1025,6 +1046,10 @@ mod test {
                 OwnedValue::String("west".to_owned())
             )
         );
+        let first_write = meta.time_of_first_write;
+        assert_eq!(first_write, meta.time_of_last_write);
+        assert!(before_creation < first_write);
+        assert!(first_write < after_creation);
 
         let columns = vec![
             ("time".to_string(), ColumnType::create_time(&[10, 400])),
@@ -1036,6 +1061,7 @@ mod test {
         let rg = RowGroup::new(2, columns);
 
         meta = MetaData::update_with(meta, &rg);
+        let after_update = Utc::now();
         assert_eq!(meta.rows, 5);
         assert!(meta.rgs_size > meta_size);
         assert_eq!(
@@ -1045,6 +1071,10 @@ mod test {
                 OwnedValue::String("west".to_owned())
             )
         );
+        assert_ne!(meta.time_of_first_write, meta.time_of_last_write);
+        assert_eq!(meta.time_of_first_write, first_write);
+        assert!(after_creation < meta.time_of_last_write);
+        assert!(meta.time_of_last_write < after_update);
     }
 
     #[test]

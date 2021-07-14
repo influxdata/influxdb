@@ -5,7 +5,7 @@ use crate::{
     table::{self, Table},
 };
 use arrow::record_batch::RecordBatch;
-use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
+use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummaryAndTimes};
 use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
 use metrics::{Gauge, KeyValue};
 use observability_deps::tracing::info;
@@ -193,7 +193,7 @@ impl Chunk {
     ///
     /// TODO(edd): consider deprecating or changing to return information about
     /// the physical layout of the data in the chunk.
-    pub fn table_summary(&self) -> TableSummary {
+    pub fn table_summary(&self) -> TableSummaryAndTimes {
         self.table.table_summary()
     }
 
