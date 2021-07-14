@@ -987,7 +987,7 @@ func selectorLastGroups{{.Name}}(ts int64, v {{.Type}}, timestamps []int64, valu
 	index := -1
 
 	for ; i < len(values); i++ {
-		if ts < timestamps[i] {
+		if ts <= timestamps[i] {
 			index = i
 			ts = timestamps[i]
 		}
