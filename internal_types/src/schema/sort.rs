@@ -149,7 +149,6 @@ impl<'a> SortKey<'a> {
 
     /// Returns sort keys of the given columns
     pub fn selected_sort_key(&self, select_keys: Vec<&str>) -> SortKey<'a> {
-        //Vec<(&str, SortOptions)> {
         let keys: IndexMap<&'a str, SortOptions> = self
             .columns
             .iter()

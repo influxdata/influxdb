@@ -295,7 +295,8 @@ impl TestChunk {
         column_name: impl Into<String>,
         min: Option<&str>,
         max: Option<&str>,
-        count: u64, distinct_count: Option<NonZeroU64>
+        count: u64,
+        distinct_count: Option<NonZeroU64>,
     ) -> Self {
         let column_name = column_name.into();
 
@@ -308,7 +309,7 @@ impl TestChunk {
             min: min.map(ToString::to_string),
             max: max.map(ToString::to_string),
             count,
-            distinct_count
+            distinct_count,
         });
 
         self.add_schema_to_table(new_column_schema, true, Some(stats))
@@ -329,7 +330,13 @@ impl TestChunk {
     }
 
     /// Register a timestamp column with full stats with the test chunk
-    pub fn with_time_column_with_full_stats(self, min: Option<i64>, max: Option<i64>, count: u64, distinct_count: Option<NonZeroU64>) -> Self {
+    pub fn with_time_column_with_full_stats(
+        self,
+        min: Option<i64>,
+        max: Option<i64>,
+        count: u64,
+        distinct_count: Option<NonZeroU64>,
+    ) -> Self {
         // make a new schema with the specified column and
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new().timestamp().build().unwrap();

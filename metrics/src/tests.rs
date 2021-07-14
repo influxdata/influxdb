@@ -491,8 +491,6 @@ impl<'a> Histogram<'a> {
     pub fn sample_sum_eq(self, v: f64) -> Result<(), Error> {
         let c = self.c?; // return previous errors
 
-        println!("sample_sum: {}", c.get_sample_sum());
-
         ensure!(
             v == c.get_sample_sum(),
             FailedMetricAssertionError {

@@ -230,10 +230,10 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
         // which means the schema of all chunks are merged before invoking this scan
         trace!("all chunks schema: {:#?}", self.arrow_schema());
         // However, the schema of each chunk is still in its original form which does not
-        // include the merged columns of other chunks. The code below proves it
-        for chunk in chunks.clone() {
-            trace!("Schema of chunk {}: {:#?}", chunk.id(), chunk.schema());
-        }
+        // include the merged columns of other chunks. The code below (put in comments on purpose) proves it
+        // for chunk in chunks.clone() {
+        //     trace!("Schema of chunk {}: {:#?}", chunk.id(), chunk.schema());
+        // }
 
         let mut deduplicate = Deduplicater::new();
         let plan = deduplicate.build_scan_plan(
@@ -478,10 +478,9 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let pk_schema = Self::compute_pk_schema(&chunks);
         let input_schema = Self::compute_input_schema(&output_schema, &pk_schema);
 
-        // Compute the output sort key which is the super key of all the key of the chunk base on their data cardinality
+        // Compute the output sort key which is the super key of chunks' keys base on their data cardinality
         let output_sort_key = compute_sort_key(chunks.iter().map(|x| x.summary()));
         trace!(output_sort_key=?output_sort_key, "Computed the sort key for many chunks in build_deduplicate_plan_for_overlapped_chunks");
-        println!("Computed the sort key for many chunks in build_deduplicate_plan_for_overlapped_chunks: {:#?}", output_sort_key);
 
         trace!(
             ?output_schema,
@@ -491,9 +490,6 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         );
 
         // Build sort plan for each chunk
-        // todo: compute the chunk sort key and make sure:
-        //       the key columns are the same and if they are sort keys are on different order, need to use the most popular one to reduce resort
-        //       and need to log if they are different
         let sorted_chunk_plans: Result<Vec<Arc<dyn ExecutionPlan>>> = chunks
             .iter()
             .map(|chunk| {
@@ -562,7 +558,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let pk_schema = Self::compute_pk_schema(&[Arc::clone(&chunk)]);
         let input_schema = Self::compute_input_schema(&output_schema, &pk_schema);
 
-        // Compute the output sort key which is the super key of all the key of the chunk base on their data cardinality
+        // Compute the output sort key which is the super key of all chunks' keys base on their data cardinality
         let output_sort_key = compute_sort_key(vec![chunk.summary()].into_iter());
 
         // Create the 2 bottom nodes IOxReadFilterNode and SortExec
@@ -578,12 +574,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         // Sort exprs for the deduplication
         let sort_exprs = arrow_sort_key_exprs(output_sort_key, &plan.schema());
 
-        trace!(Sort_Exprs=?sort_exprs, "Sort Expression for the sort operator of chunk {}", chunk.id());
-        println!(
-            "Sort Expression for the sort operator of chunk {}, Sort Exprs: {:#?}",
-            chunk.id(),
-            sort_exprs
-        );
+        trace!(Sort_Exprs=?sort_exprs, chunk_ID=?chunk.id(), "Sort Expression for the sort operator of chunk");
 
         let plan = Self::add_deduplicate_node(sort_exprs, plan);
 
@@ -684,10 +675,6 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         }
 
         trace!(super_sort_key=?super_sort_key, "Super sort key input to build_sort_plan");
-        println!(
-            "Super sort key input to build_sort_plan: {:#?}",
-            super_sort_key
-        );
 
         // Check to see if the plan is sorted on the subset of the super_sort_key
         let sort_key = chunk.sort_key();
@@ -697,10 +684,6 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
                     // the chunk is already sorted on the subset of the super_sort_key,
                     // no need to resort it
                     trace!(ChunkID=?chunk.id(), "Chunk is sorted and no need the sort operator");
-                    println!(
-                        "Chunk is sorted and no need the sort operator, ChunkID={:#?}",
-                        chunk.id()
-                    );
                     return Ok(input);
                 }
             }
@@ -712,27 +695,18 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let schema = chunk.schema();
         let key_columns = schema.primary_key();
         trace!(pk_columns=?key_columns, "PK columns of the chunk that have not been sorted yet");
-        println!(
-            "PK columns of the chunk that have not been sorted yet, pk_columns={:#?}",
-            key_columns
-        );
 
-        // Now get the key subset of the super key that includes the chunk pk columns
+        // Now get the key subset of the super key that includes the chunk's pk columns
         let chunk_sort_key = super_sort_key.selected_sort_key(key_columns);
 
         // Build arrow sort expression for the chunk sort key
         let input_schema = input.schema();
-        //let expr = physical_col(key.as_str(), &input_schema).expect("pk in schema");
         let sort_exprs = arrow_sort_key_exprs(chunk_sort_key, &input_schema);
 
-        trace!(Sort_Exprs=?sort_exprs, "Sort Expression for the sort operator of chunk {}", chunk.id());
-        println!(
-            "Sort Expression for the sort operator of chunk {}, Sort Exprs: {:#?}",
-            chunk.id(),
-            sort_exprs
-        );
+        trace!(Sort_Exprs=?sort_exprs, Chunk_ID=?chunk.id(), "Sort Expression for the sort operator of chunk");
+
         // The chunk must be sorted after this, set sort key for it
-        //chunk.set_sort_key(&chunk_sort_key);
+        // Todo: chunk.set_sort_key(&chunk_sort_key);
 
         // Create SortExec operator
         Ok(Arc::new(
@@ -952,12 +926,29 @@ mod test {
         // Chunk 1 with 5 rows of data
         let chunk = Arc::new(
             TestChunk::new("t")
-                .with_time_column_with_full_stats(Some(5), Some(7000), 5, Some(NonZeroU64::new(5).unwrap()))
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different 
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    5,
+                    Some(NonZeroU64::new(5).unwrap()),
+                )
+                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
                 // from the one of tag2 to have deterministic column sort order to return
                 // deterministic sorted results
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 5, Some(NonZeroU64::new(2).unwrap())) 
-                .with_tag_column_with_full_stats("tag2", Some("AL"), Some("MA"), 5, Some(NonZeroU64::new(3).unwrap()))
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(2).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag2",
+                    Some("AL"),
+                    Some("MA"),
+                    5,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -1018,12 +1009,29 @@ mod test {
         // Chunk 1 with 5 rows of data
         let chunk = Arc::new(
             TestChunk::new("t")
-                .with_time_column_with_full_stats(Some(5), Some(7000), 5, Some(NonZeroU64::new(5).unwrap()))
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different 
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    5,
+                    Some(NonZeroU64::new(5).unwrap()),
+                )
+                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
                 // from the one of tag2 to have deterministic column sort order to return
                 // deterministic sorted results
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 5, Some(NonZeroU64::new(2).unwrap())) 
-                .with_tag_column_with_full_stats("tag2", Some("AL"), Some("MA"), 5, Some(NonZeroU64::new(3).unwrap()))
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(2).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag2",
+                    Some("AL"),
+                    Some("MA"),
+                    5,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -1067,12 +1075,29 @@ mod test {
         let chunk1 = Arc::new(
             TestChunk::new("t")
                 .with_id(1)
-                .with_time_column_with_full_stats(Some(5), Some(7000), 5, Some(NonZeroU64::new(5).unwrap()))
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different 
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    5,
+                    Some(NonZeroU64::new(5).unwrap()),
+                )
+                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
                 // from the one of tag2 to have deterministic column sort order to return
                 // deterministic sorted results
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 5, Some(NonZeroU64::new(2).unwrap())) 
-                .with_tag_column_with_full_stats("tag2", Some("AL"), Some("MA"), 5, Some(NonZeroU64::new(3).unwrap()))
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(2).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag2",
+                    Some("AL"),
+                    Some("MA"),
+                    5,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -1142,12 +1167,29 @@ mod test {
         let chunk1 = Arc::new(
             TestChunk::new("t")
                 .with_id(1)
-                .with_time_column_with_full_stats(Some(5), Some(7000), 5, Some(NonZeroU64::new(5).unwrap()))
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different 
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    5,
+                    Some(NonZeroU64::new(5).unwrap()),
+                )
+                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
                 // from the one of tag2 to have deterministic column sort order to return
                 // deterministic sorted results
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 5, Some(NonZeroU64::new(2).unwrap())) 
-                .with_tag_column_with_full_stats("tag2", Some("AL"), Some("MA"), 5, Some(NonZeroU64::new(3).unwrap()))
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(2).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag2",
+                    Some("AL"),
+                    Some("MA"),
+                    5,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -1156,12 +1198,29 @@ mod test {
         let chunk2 = Arc::new(
             TestChunk::new("t")
                 .with_id(2)
-                .with_time_column_with_full_stats(Some(5), Some(7000), 5, Some(NonZeroU64::new(5).unwrap()))
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different 
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    5,
+                    Some(NonZeroU64::new(5).unwrap()),
+                )
+                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
                 // from the one of tag2 to have deterministic column sort order to return
                 // deterministic sorted results
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 5, Some(NonZeroU64::new(2).unwrap())) 
-                .with_tag_column_with_full_stats("tag2", Some("AL"), Some("MA"), 5, Some(NonZeroU64::new(3).unwrap()))
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(2).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag2",
+                    Some("AL"),
+                    Some("MA"),
+                    5,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -1225,12 +1284,29 @@ mod test {
         let chunk1 = Arc::new(
             TestChunk::new("t")
                 .with_id(1)
-                .with_time_column_with_full_stats(Some(5), Some(7000), 5, Some(NonZeroU64::new(5).unwrap()))
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different 
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    5,
+                    Some(NonZeroU64::new(5).unwrap()),
+                )
+                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
                 // from the one of tag2 to have deterministic column sort order to return
                 // deterministic sorted results
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 5, Some(NonZeroU64::new(2).unwrap())) 
-                .with_tag_column_with_full_stats("tag2", Some("AL"), Some("MA"), 5, Some(NonZeroU64::new(3).unwrap()))
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(2).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag2",
+                    Some("AL"),
+                    Some("MA"),
+                    5,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -1239,8 +1315,19 @@ mod test {
         let chunk2 = Arc::new(
             TestChunk::new("t")
                 .with_id(2)
-                .with_time_column_with_full_stats(Some(5), Some(7000), 5, Some(NonZeroU64::new(5).unwrap()))
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 5, Some(NonZeroU64::new(3).unwrap())) 
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    5,
+                    Some(NonZeroU64::new(5).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("other_field_int")
                 .with_five_rows_of_data(),
         );
@@ -1249,8 +1336,19 @@ mod test {
         let chunk3 = Arc::new(
             TestChunk::new("t")
                 .with_id(3)
-                .with_time_column_with_full_stats(Some(5), Some(7000), 5, Some(NonZeroU64::new(5).unwrap()))
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 5, Some(NonZeroU64::new(3).unwrap())) 
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    5,
+                    Some(NonZeroU64::new(5).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("other_field_int")
                 .with_five_rows_of_data(),
         );
@@ -1323,12 +1421,29 @@ mod test {
         let chunk1 = Arc::new(
             TestChunk::new("t")
                 .with_id(1)
-                .with_time_column_with_full_stats(Some(5), Some(7000), 5, Some(NonZeroU64::new(5).unwrap()))
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different 
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    5,
+                    Some(NonZeroU64::new(5).unwrap()),
+                )
+                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
                 // from the one of tag2 and tag3 to have deterministic column sort order to return
                 // deterministic sorted results
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 5, Some(NonZeroU64::new(2).unwrap())) 
-                .with_tag_column_with_full_stats("tag2", Some("AL"), Some("MA"), 5, Some(NonZeroU64::new(3).unwrap()))
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(2).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag2",
+                    Some("AL"),
+                    Some("MA"),
+                    5,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -1337,12 +1452,29 @@ mod test {
         let chunk2 = Arc::new(
             TestChunk::new("t")
                 .with_id(2)
-                .with_time_column_with_full_stats(Some(5), Some(7000), 5, Some(NonZeroU64::new(5).unwrap()))
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different 
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    5,
+                    Some(NonZeroU64::new(5).unwrap()),
+                )
+                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
                 // from the one of tag2 to have deterministic column sort order to return
                 // deterministic sorted results
-                .with_tag_column_with_full_stats("tag3", Some("AL"), Some("MT"), 5, Some(NonZeroU64::new(3).unwrap()))
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 5, Some(NonZeroU64::new(2).unwrap())) 
+                .with_tag_column_with_full_stats(
+                    "tag3",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(2).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -1351,8 +1483,19 @@ mod test {
         let chunk3 = Arc::new(
             TestChunk::new("t")
                 .with_id(3)
-                .with_time_column_with_full_stats(Some(5), Some(7000), 5, Some(NonZeroU64::new(5).unwrap()))
-                .with_tag_column_with_full_stats("tag3", Some("AL"), Some("MT"), 5, Some(NonZeroU64::new(3).unwrap()))
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    5,
+                    Some(NonZeroU64::new(5).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag3",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_i64_field_column("field_int2")
                 .with_five_rows_of_data(),
@@ -1433,8 +1576,19 @@ mod test {
         // Test no duplicate at all
         let chunk = Arc::new(
             TestChunk::new("t")
-                .with_time_column_with_full_stats(Some(5), Some(7000), 5, Some(NonZeroU64::new(5).unwrap()))
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 5, Some(NonZeroU64::new(3).unwrap())) 
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    5,
+                    Some(NonZeroU64::new(5).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -1483,8 +1637,19 @@ mod test {
         // Test one chunk with duplicate within
         let chunk = Arc::new(
             TestChunk::new("t")
-                .with_time_column_with_full_stats(Some(5), Some(7000), 10, Some(NonZeroU64::new(7).unwrap()))
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 10, Some(NonZeroU64::new(3).unwrap())) 
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    10,
+                    Some(NonZeroU64::new(7).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    10,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
                 .with_ten_rows_of_data_some_duplicates(),
@@ -1541,8 +1706,19 @@ mod test {
         // Test one chunk with duplicate within
         let chunk = Arc::new(
             TestChunk::new("t")
-                .with_time_column_with_full_stats(Some(5), Some(7000), 10, Some(NonZeroU64::new(7).unwrap()))
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 10, Some(NonZeroU64::new(3).unwrap())) 
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    10,
+                    Some(NonZeroU64::new(7).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    10,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
                 .with_ten_rows_of_data_some_duplicates(),
@@ -1608,16 +1784,38 @@ mod test {
         // test overlapped chunks
         let chunk1 = Arc::new(
             TestChunk::new("t")
-            .with_time_column_with_full_stats(Some(5), Some(7000), 10, Some(NonZeroU64::new(7).unwrap()))
-            .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 10, Some(NonZeroU64::new(3).unwrap())) 
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    10,
+                    Some(NonZeroU64::new(7).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    10,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_ten_rows_of_data_some_duplicates(),
         );
 
         let chunk2 = Arc::new(
             TestChunk::new("t")
-                .with_time_column_with_full_stats(Some(5), Some(7000), 5, Some(NonZeroU64::new(5).unwrap()))
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 5, Some(NonZeroU64::new(3).unwrap())) 
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    5,
+                    Some(NonZeroU64::new(5).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -1680,8 +1878,19 @@ mod test {
         let chunk1 = Arc::new(
             TestChunk::new("t")
                 .with_id(1)
-                .with_time_column_with_full_stats(Some(5), Some(7000), 10, Some(NonZeroU64::new(7).unwrap()))
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 10, Some(NonZeroU64::new(3).unwrap()))
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    10,
+                    Some(NonZeroU64::new(7).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    10,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_ten_rows_of_data_some_duplicates(),
         );
@@ -1690,8 +1899,19 @@ mod test {
         let chunk2 = Arc::new(
             TestChunk::new("t")
                 .with_id(2)
-                .with_time_column_with_full_stats(Some(5), Some(7000), 5, Some(NonZeroU64::new(5).unwrap()))
-                .with_tag_column_with_full_stats("tag1", Some("AL"), Some("MT"), 5, Some(NonZeroU64::new(3).unwrap()))
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    5,
+                    Some(NonZeroU64::new(5).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    5,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
@@ -1700,9 +1920,20 @@ mod test {
         let chunk3 = Arc::new(
             TestChunk::new("t")
                 .with_id(3)
-                .with_time_column_with_full_stats(Some(8000), Some(20000), 3, Some(NonZeroU64::new(3).unwrap()))
+                .with_time_column_with_full_stats(
+                    Some(8000),
+                    Some(20000),
+                    3,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 // Actual distinct count of tag1 is 3 but make it 2 to avoid the same stats with time to have a deterministic test results
-                .with_tag_column_with_full_stats("tag1", Some("UT"), Some("WA"), 3, Some(NonZeroU64::new(2).unwrap()))
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("UT"),
+                    Some("WA"),
+                    3,
+                    Some(NonZeroU64::new(2).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_three_rows_of_data(),
         );
@@ -1711,9 +1942,20 @@ mod test {
         let chunk4 = Arc::new(
             TestChunk::new("t")
                 .with_id(4)
-                .with_time_column_with_full_stats(Some(28000), Some(220000), 4, Some(NonZeroU64::new(3).unwrap()))
+                .with_time_column_with_full_stats(
+                    Some(28000),
+                    Some(220000),
+                    4,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
                 // Actual distinct count of tag1 is 3 but make it 2 to avoid the same stats with time to have a deterministic test results
-                .with_tag_column_with_full_stats("tag1", Some("UT"), Some("WA"), 4, Some(NonZeroU64::new(2).unwrap()))
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("UT"),
+                    Some("WA"),
+                    4,
+                    Some(NonZeroU64::new(2).unwrap()),
+                )
                 .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
                 .with_four_rows_of_data(),
