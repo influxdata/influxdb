@@ -9,7 +9,10 @@ use snafu::{ResultExt, Snafu};
 
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
-use internal_types::{schema::Schema, selection::Selection};
+use internal_types::{
+    schema::{sort::SortKey, Schema},
+    selection::Selection,
+};
 use mutable_buffer::chunk::snapshot::ChunkSnapshot;
 use object_store::path::Path;
 use observability_deps::tracing::debug;
@@ -438,11 +441,35 @@ impl QueryChunk for DbChunk {
     /// However, since we current sorted data based on their cardinality (see compute_sort_key),
     /// 2 different chunks may be sorted on different order of key columns.
     fn is_sorted_on_pk(&self) -> bool {
-        match &self.state {
-            State::MutableBuffer { .. } => false,
-            State::ReadBuffer { .. } => false,
-            State::ParquetFile { .. } => false,
-        }
+        self.schema().sort_key().is_some()
+    }
+
+    /// Returns the sort key of the chunk if any
+    fn sort_key(&self) -> Option<SortKey<'_>> {
+        self.meta.schema.sort_key()
+    }
+
+    /// Sets sort key for the schema of this chunk
+    fn set_sort_key(&mut self, _sort_key: &SortKey<'_>) {
+
+        // todo
+        // trace!(sort_key=?sort_key, "Input sort key to set_sort_key");
+
+        // // Update schema of the DBChunk
+        // let mut schema_cloned = self.meta.schema.as_ref().clone();
+        // schema_cloned.set_sort_key(sort_key);
+
+        // self.meta = Arc::new(ChunkMetadata {
+        //     table_summary: Arc::new(self.meta.table_summary.as_ref()),
+        //     schema: Arc::new(schema_cloned)
+        // });
+
+        // Update schema of the chunk itself
+        // match &self.state {
+        //     State::MutableBuffer { chunk, .. } => {}
+        //     State::ReadBuffer { chunk, .. } => {}
+        //     State::ParquetFile { chunk, .. } => {}
+        // }
     }
 }
 

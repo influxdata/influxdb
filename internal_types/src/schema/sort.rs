@@ -147,6 +147,23 @@ impl<'a> SortKey<'a> {
         self.columns.is_empty()
     }
 
+    /// Returns a subset of the sort key that includes only the given columns
+    pub fn selected_sort_key(&self, select_keys: Vec<&str>) -> SortKey<'a> {
+        let keys: IndexMap<&'a str, SortOptions> = self
+            .columns
+            .iter()
+            .filter_map(|(col, options)| {
+                if select_keys.iter().any(|key| key == col) {
+                    Some((*col, *options))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        SortKey { columns: keys }
+    }
+
     /// Returns merge key of the 2 given keys if one covers the other. Returns None otherwise.
     /// Key1 is said to cover key2 if key2 is a subset and in the same order of key1.
     /// Examples:

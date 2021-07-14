@@ -8,7 +8,7 @@ use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
 use query::exec::ExecutorType;
 use query::frontend::reorg::ReorgPlanner;
-use query::QueryChunkMeta;
+use query::{compute_sort_key, QueryChunkMeta};
 use read_buffer::{ChunkMetrics, RBChunk};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
@@ -16,7 +16,7 @@ use crate::db::catalog::chunk::CatalogChunk;
 use crate::db::catalog::partition::Partition;
 use crate::db::DbChunk;
 
-use super::{compute_sort_key, merge_schemas};
+use super::merge_schemas;
 use super::{error::Result, LockableCatalogChunk, LockableCatalogPartition};
 use crate::db::lifecycle::collect_rub;
 

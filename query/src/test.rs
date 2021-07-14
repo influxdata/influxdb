@@ -20,12 +20,14 @@ use data_types::{
 };
 use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
 use futures::StreamExt;
+use internal_types::schema::sort::SortKey;
 use internal_types::{
     schema::{builder::SchemaBuilder, merge::SchemaMerger, InfluxColumnType, Schema},
     selection::Selection,
 };
 use parking_lot::Mutex;
 use snafu::Snafu;
+use std::num::NonZeroU64;
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
 #[derive(Debug, Default)]
@@ -277,12 +279,24 @@ impl TestChunk {
         self.add_schema_to_table(new_column_schema, true, None)
     }
 
-    /// Register a tag column with the test chunk
+    /// Register a tag column with stats with the test chunk
     pub fn with_tag_column_with_stats(
         self,
         column_name: impl Into<String>,
         min: Option<&str>,
         max: Option<&str>,
+    ) -> Self {
+        self.with_tag_column_with_full_stats(column_name, min, max, 0, None)
+    }
+
+    /// Register a tag column with stats with the test chunk
+    pub fn with_tag_column_with_full_stats(
+        self,
+        column_name: impl Into<String>,
+        min: Option<&str>,
+        max: Option<&str>,
+        count: u64,
+        distinct_count: Option<NonZeroU64>,
     ) -> Self {
         let column_name = column_name.into();
 
@@ -294,7 +308,8 @@ impl TestChunk {
         let stats = Statistics::String(StatValues {
             min: min.map(ToString::to_string),
             max: max.map(ToString::to_string),
-            ..Default::default()
+            count,
+            distinct_count,
         });
 
         self.add_schema_to_table(new_column_schema, true, Some(stats))
@@ -311,6 +326,17 @@ impl TestChunk {
 
     /// Register a timestamp column with the test chunk
     pub fn with_time_column_with_stats(self, min: Option<i64>, max: Option<i64>) -> Self {
+        self.with_time_column_with_full_stats(min, max, 0, None)
+    }
+
+    /// Register a timestamp column with full stats with the test chunk
+    pub fn with_time_column_with_full_stats(
+        self,
+        min: Option<i64>,
+        max: Option<i64>,
+        count: u64,
+        distinct_count: Option<NonZeroU64>,
+    ) -> Self {
         // make a new schema with the specified column and
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new().timestamp().build().unwrap();
@@ -319,7 +345,8 @@ impl TestChunk {
         let stats = Statistics::I64(StatValues {
             min,
             max,
-            ..Default::default()
+            count,
+            distinct_count,
         });
 
         self.add_schema_to_table(new_column_schema, true, Some(stats))
@@ -785,6 +812,18 @@ impl QueryChunk for TestChunk {
     /// Returns true if data of this chunk is sorted
     fn is_sorted_on_pk(&self) -> bool {
         false
+    }
+
+    /// Returns the sort key of the chunk if any
+    fn sort_key(&self) -> Option<SortKey<'_>> {
+        None
+    }
+
+    /// Sets sort key for the schema of this chunk
+    fn set_sort_key(&mut self, sort_key: &SortKey<'_>) {
+        let mut schema_cloned = self.schema.as_ref().clone();
+        schema_cloned.set_sort_key(sort_key);
+        self.schema = Arc::new(schema_cloned);
     }
 
     fn apply_predicate_to_metadata(&self, predicate: &Predicate) -> Result<PredicateMatch> {

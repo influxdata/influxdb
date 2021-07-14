@@ -9,13 +9,13 @@ use observability_deps::tracing::info;
 use persistence_windows::persistence_windows::FlushHandle;
 use query::exec::ExecutorType;
 use query::frontend::reorg::ReorgPlanner;
-use query::QueryChunkMeta;
+use query::{compute_sort_key, QueryChunkMeta};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 use crate::db::catalog::chunk::CatalogChunk;
 use crate::db::catalog::partition::Partition;
 use crate::db::lifecycle::{
-    collect_rub, compute_sort_key, merge_schemas, new_rub_chunk, write_chunk_to_object_store,
+    collect_rub, merge_schemas, new_rub_chunk, write_chunk_to_object_store,
 };
 use crate::db::DbChunk;
 

@@ -1664,6 +1664,7 @@ mod tests {
 
         let mb = collect_read_filter(&mb_chunk).await;
 
+        // With the above data, cardinality of tag2 is 2 and tag1 is 5. Hence, RUB is sorted on (tag2, tag1)
         let rb_chunk = db
             .move_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
             .await
@@ -1692,7 +1693,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3026.0)
+            .sample_sum_eq(3024.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk).await;
