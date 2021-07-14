@@ -20,6 +20,7 @@ Because of the version bump to `go`, the macOS build for this release requires a
 1. [21868](https://github.com/influxdata/influxdb/pull/21868): Migrate restored KV snapshots to latest schema before using them.
 1. [21869](https://github.com/influxdata/influxdb/pull/21869): Specify which fields are missing when rejecting an incomplete onboarding request.
 1. [21864](https://github.com/influxdata/influxdb/pull/21864): Systemd unit should block on startup until http endpoint is ready
+1. [21839](https://github.com/influxdata/influxdb/pull/21839): Fix display and parsing of `influxd upgrade` CLI prompts in PowerShell.
 
 ## v2.0.7 [2021-06-04]
 ----------------------
