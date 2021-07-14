@@ -211,13 +211,10 @@ pub fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -
     }
 
     trace!(cardinalities=?cardinalities, "cardinalities of of columns to compute sort key");
-    print!(
-        "cardinalities of of columns to compute sort key: {:#?}",
-        cardinalities
-    );
 
     let mut cardinalities: Vec<_> = cardinalities.into_iter().collect();
-    cardinalities.sort_by_key(|x| x.1);
+    // Sort by (cardinality, column_name) to have deterministic order if same cardinality
+    cardinalities.sort_by_key(|x| (x.1, x.0));
 
     let mut key = SortKey::with_capacity(cardinalities.len() + 1);
     for (col, _) in cardinalities {
@@ -226,7 +223,6 @@ pub fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -
     key.push(TIME_COLUMN_NAME, Default::default());
 
     trace!(computed_sort_key=?key, "Value of sort key from compute_sort_key");
-    println!("Value of sort key from compute_sort_key: {:#?}", key);
 
     key
 }

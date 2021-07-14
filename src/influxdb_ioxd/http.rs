@@ -1123,7 +1123,7 @@ mod tests {
     async fn test_query_json() {
         let (client, server_url) = setup_test_data().await;
 
-        // send a second line of data to demontrate how that works
+        // send a second line of data to demonstrate how that works
         let lp_data =
             "h2o_temperature,location=Boston,state=MA surface_degrees=50.2 1617286224000000000";
 

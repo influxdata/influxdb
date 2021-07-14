@@ -147,7 +147,7 @@ impl<'a> SortKey<'a> {
         self.columns.is_empty()
     }
 
-    /// Returns sort keys of the given columns
+    /// Returns a subset of the sort key that includes only the given columns
     pub fn selected_sort_key(&self, select_keys: Vec<&str>) -> SortKey<'a> {
         let keys: IndexMap<&'a str, SortOptions> = self
             .columns
