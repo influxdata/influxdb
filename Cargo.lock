@@ -3786,7 +3786,6 @@ dependencies = [
  "query",
  "rand 0.8.4",
  "rand_distr",
- "rdkafka",
  "read_buffer",
  "serde",
  "serde_json",
@@ -3799,6 +3798,7 @@ dependencies = [
  "tokio-util",
  "tracker",
  "uuid",
+ "write_buffer",
 ]
 
 [[package]]
@@ -4945,6 +4945,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0120db82e8a1e0b9fb3345a539c478767c0048d842860994d96113d5b667bd69"
 dependencies = [
  "winapi",
+]
+
+[[package]]
+name = "write_buffer"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "data_types",
+ "entry",
+ "futures",
+ "rdkafka",
 ]
 
 [[package]]

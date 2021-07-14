@@ -8,10 +8,10 @@ use data_types::{
 };
 use object_store::ObjectStore;
 use query::{exec::Executor, QueryDatabase};
+use write_buffer::config::WriteBufferConfig;
 
 use crate::{
     db::{load::load_or_create_preserved_catalog, DatabaseToCommit, Db},
-    write_buffer::WriteBufferConfig,
     JobRegistry,
 };
 

@@ -11,7 +11,6 @@ use crate::{
         catalog::{chunk::CatalogChunk, partition::Partition, Catalog, TableNameFilter},
         lifecycle::{LockableCatalogChunk, LockableCatalogPartition},
     },
-    write_buffer::{WriteBufferConfig, WriteBufferError},
     JobRegistry,
 };
 use ::lifecycle::{LockableChunk, LockablePartition};
@@ -49,6 +48,8 @@ use std::{
     },
     time::{Duration, Instant},
 };
+use write_buffer::config::WriteBufferConfig;
+use write_buffer::core::WriteBufferError;
 
 pub mod access;
 pub mod catalog;
@@ -954,9 +955,6 @@ mod tests {
             test_helpers::{try_write_lp, write_lp},
         },
         utils::{make_db, TestDb},
-        write_buffer::test_helpers::{
-            MockBufferForReading, MockBufferForWriting, MockBufferForWritingThatAlwaysErrors,
-        },
     };
     use ::test_helpers::assert_contains;
     use arrow::record_batch::RecordBatch;
@@ -991,6 +989,9 @@ mod tests {
         time::{Duration, Instant},
     };
     use tokio_util::sync::CancellationToken;
+    use write_buffer::mock::{
+        MockBufferForReading, MockBufferForWriting, MockBufferForWritingThatAlwaysErrors,
+    };
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = TestError> = std::result::Result<T, E>;

@@ -8,6 +8,7 @@
     clippy::clone_on_ref_ptr
 )]
 
-pub mod checkpoint;
-pub mod min_max_sequence;
-pub mod persistence_windows;
+pub mod config;
+pub mod core;
+pub mod kafka;
+pub mod mock;
