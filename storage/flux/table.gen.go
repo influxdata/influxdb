@@ -957,7 +957,7 @@ func selectorLastGroupsFloat(ts int64, v float64, timestamps []int64, values []f
 	index := -1
 
 	for ; i < len(values); i++ {
-		if ts < timestamps[i] {
+		if ts <= timestamps[i] {
 			index = i
 			ts = timestamps[i]
 		}
@@ -1941,7 +1941,7 @@ func selectorLastGroupsInteger(ts int64, v int64, timestamps []int64, values []i
 	index := -1
 
 	for ; i < len(values); i++ {
-		if ts < timestamps[i] {
+		if ts <= timestamps[i] {
 			index = i
 			ts = timestamps[i]
 		}
@@ -2922,7 +2922,7 @@ func selectorLastGroupsUnsigned(ts int64, v uint64, timestamps []int64, values [
 	index := -1
 
 	for ; i < len(values); i++ {
-		if ts < timestamps[i] {
+		if ts <= timestamps[i] {
 			index = i
 			ts = timestamps[i]
 		}
@@ -3847,7 +3847,7 @@ func selectorLastGroupsString(ts int64, v string, timestamps []int64, values []s
 	index := -1
 
 	for ; i < len(values); i++ {
-		if ts < timestamps[i] {
+		if ts <= timestamps[i] {
 			index = i
 			ts = timestamps[i]
 		}
@@ -4772,7 +4772,7 @@ func selectorLastGroupsBoolean(ts int64, v bool, timestamps []int64, values []bo
 	index := -1
 
 	for ; i < len(values); i++ {
-		if ts < timestamps[i] {
+		if ts <= timestamps[i] {
 			index = i
 			ts = timestamps[i]
 		}
