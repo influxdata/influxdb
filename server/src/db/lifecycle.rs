@@ -335,8 +335,8 @@ fn collect_rub(
     stream: SendableRecordBatchStream,
     db: &Db,
     table_name: &str,
-) -> impl futures::Future<Output = Result<read_buffer::RBChunk>> {
-    use futures::{future, TryStreamExt};
+) -> impl futures::Future<Output = Result<Option<read_buffer::RBChunk>>> {
+    use futures::{future, StreamExt, TryStreamExt};
 
     let table_name = table_name.to_string();
     let metrics = db
@@ -345,17 +345,23 @@ fn collect_rub(
     let chunk_metrics = read_buffer::ChunkMetrics::new(&metrics);
 
     async {
-        let mut chunk = read_buffer::RBChunk::new(table_name, chunk_metrics);
+        let mut adapted_stream = stream.try_filter(|batch| future::ready(batch.num_rows() > 0));
 
-        stream
-            .try_filter(|batch| future::ready(batch.num_rows() > 0))
+        let first_batch = match adapted_stream.next().await {
+            Some(rb_result) => rb_result?,
+            // At least one RecordBatch is required to create a read_buffer::Chunk
+            None => return Ok(None),
+        };
+        let mut chunk = read_buffer::RBChunk::new(table_name, first_batch, chunk_metrics);
+
+        adapted_stream
             .try_for_each(|batch| {
                 chunk.upsert_table(batch);
                 future::ready(Ok(()))
             })
             .await?;
 
-        Ok(chunk)
+        Ok(Some(chunk))
     }
 }
 

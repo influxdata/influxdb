@@ -17,9 +17,8 @@ const ONE_MS: i64 = 1_000_000;
 pub fn read_filter(c: &mut Criterion) {
     let mut rng = rand::thread_rng();
 
-    let mut chunk = RBChunk::new("table", read_buffer::ChunkMetrics::new_unregistered());
     let row_group = generate_row_group(200_000, &mut rng);
-    read_buffer::benchmarks::upsert_table_with_row_group(&mut chunk, "table", row_group);
+    let chunk = read_buffer::benchmarks::new_from_row_group("table", row_group);
 
     read_filter_no_pred_vary_proj(c, &chunk);
     read_filter_with_pred_vary_proj(c, &chunk);

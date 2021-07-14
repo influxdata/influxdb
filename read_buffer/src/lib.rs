@@ -29,14 +29,10 @@ pub mod benchmarks {
         Column, RowIDs,
     };
     pub use crate::row_group::{ColumnType, RowGroup};
-    use crate::RBChunk;
+    use crate::{ChunkMetrics, RBChunk};
 
     // Allow external benchmarks to use this crate-only test method
-    pub fn upsert_table_with_row_group(
-        chunk: &mut RBChunk,
-        _table_name: impl Into<String>,
-        row_group: RowGroup,
-    ) {
-        chunk.upsert_table_with_row_group(row_group)
+    pub fn new_from_row_group(table_name: impl Into<String>, row_group: RowGroup) -> RBChunk {
+        RBChunk::new_from_row_group(table_name, row_group, ChunkMetrics::new_unregistered())
     }
 }

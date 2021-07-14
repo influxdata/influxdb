@@ -92,8 +92,8 @@ pub fn persist_chunks(
         )
         .await?;
 
-        let persisted_rows = to_persist.rows();
-        let remainder_rows = remainder.rows();
+        let persisted_rows = to_persist.as_ref().map(|p| p.rows()).unwrap_or(0);
+        let remainder_rows = remainder.as_ref().map(|r| r.rows()).unwrap_or(0);
 
         let persist_fut = {
             let partition = LockableCatalogPartition::new(Arc::clone(&db), partition);
@@ -103,11 +103,11 @@ pub fn persist_chunks(
             }
 
             // Upsert remainder to catalog
-            if remainder.rows() > 0 {
+            if let Some(remainder) = remainder {
                 partition_write.create_rub_chunk(remainder, Arc::clone(&schema));
             }
 
-            assert!(to_persist.rows() > 0);
+            let to_persist = to_persist.expect("should be rows to persist");
 
             let to_persist = LockableCatalogChunk {
                 db,

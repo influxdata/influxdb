@@ -12,8 +12,7 @@ const ONE_MS: i64 = 1_000_000;
 
 fn satisfies_predicate(c: &mut Criterion) {
     let rb = generate_row_group(500_000);
-    let mut chunk = RBChunk::new("table_a", ChunkMetrics::new_unregistered());
-    chunk.upsert_table(rb);
+    let chunk = RBChunk::new("table_a", rb, ChunkMetrics::new_unregistered());
 
     // no predicate
     benchmark_satisfies_predicate(

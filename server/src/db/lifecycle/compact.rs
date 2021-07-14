@@ -75,7 +75,9 @@ pub(crate) fn compact_chunks(
 
         let physical_plan = ctx.prepare_plan(&plan)?;
         let stream = ctx.execute(physical_plan).await?;
-        let rb_chunk = collect_rub(stream, &db, &table_name).await?;
+        let rb_chunk = collect_rub(stream, &db, &table_name)
+            .await?
+            .expect("chunk has zero rows");
         let rb_row_groups = rb_chunk.row_groups();
 
         let new_chunk = {

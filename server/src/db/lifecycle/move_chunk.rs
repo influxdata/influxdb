@@ -64,6 +64,9 @@ pub fn move_chunk_to_read_buffer(
         // Can drop and re-acquire as lifecycle action prevents concurrent modification
         let mut guard = chunk.write();
 
+        let rb_chunk =
+            rb_chunk.expect("Chunks moving to the read buffer should have at least one row");
+
         // update the catalog to say we are done processing
         guard
             .set_moved(Arc::new(rb_chunk), schema)

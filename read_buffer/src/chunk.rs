@@ -48,12 +48,32 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    /// Initialises a new `Chunk` with the associated chunk ID.
-    pub fn new(table_name: impl Into<String>, metrics: ChunkMetrics) -> Self {
-        Self {
+    /// Start a new Chunk from the given record batch.
+    pub fn new(
+        table_name: impl Into<String>,
+        table_data: RecordBatch,
+        metrics: ChunkMetrics,
+    ) -> Self {
+        let mut c = Self {
             metrics,
             table: Table::new(table_name.into()),
-        }
+        };
+        c.upsert_table(table_data);
+        c
+    }
+
+    // Only used in tests and benchmarks
+    pub(crate) fn new_from_row_group(
+        table_name: impl Into<String>,
+        row_group: RowGroup,
+        metrics: ChunkMetrics,
+    ) -> Self {
+        let mut c = Self {
+            metrics,
+            table: Table::new(table_name.into()),
+        };
+        c.table.add_row_group(row_group);
+        c
     }
 
     // The total size taken up by an empty instance of `Chunk`.
@@ -625,10 +645,7 @@ mod test {
         let domain =
             registry.register_domain_with_labels("read_buffer", vec![KeyValue::new("db", "mydb")]);
 
-        let mut chunk = Chunk::new("a_table", ChunkMetrics::new(&domain));
-
-        // Add a new table to the chunk.
-        chunk.upsert_table(gen_recordbatch());
+        let mut chunk = Chunk::new("a_table", gen_recordbatch(), ChunkMetrics::new(&domain));
 
         assert_eq!(chunk.rows(), 3);
         assert_eq!(chunk.row_groups(), 1);
@@ -739,10 +756,11 @@ mod test {
 
     #[test]
     fn read_filter_table_schema() {
-        let mut chunk = Chunk::new("a_table", ChunkMetrics::new_unregistered());
-
-        // Add a new table to the chunk.
-        chunk.upsert_table(gen_recordbatch());
+        let chunk = Chunk::new(
+            "a_table",
+            gen_recordbatch(),
+            ChunkMetrics::new_unregistered(),
+        );
         let schema = chunk.read_filter_table_schema(Selection::All).unwrap();
 
         let exp_schema: Arc<Schema> = SchemaBuilder::new()
@@ -778,8 +796,6 @@ mod test {
 
     #[test]
     fn table_summaries() {
-        let mut chunk = Chunk::new("a_table", ChunkMetrics::new_unregistered());
-
         let schema = SchemaBuilder::new()
             .non_null_tag("env")
             .non_null_field("temp", Float64)
@@ -811,7 +827,7 @@ mod test {
         // Add a record batch to a single partition
         let rb = RecordBatch::try_new(schema.into(), data).unwrap();
         // The row group gets added to the same chunk each time.
-        chunk.upsert_table(rb);
+        let chunk = Chunk::new("a_table", rb, ChunkMetrics::new_unregistered());
 
         let summary = chunk.table_summary();
         assert_eq!("a_table", summary.name);
@@ -874,7 +890,7 @@ mod test {
 
     #[test]
     fn read_filter() {
-        let mut chunk = Chunk::new("Coolverine", ChunkMetrics::new_unregistered());
+        let mut chunk: Option<Chunk> = None;
 
         // Add a bunch of row groups to a single table in a single chunk
         for &i in &[100, 200, 300] {
@@ -916,8 +932,22 @@ mod test {
 
             // Add a record batch to a single partition
             let rb = RecordBatch::try_new(schema.into(), data).unwrap();
-            chunk.upsert_table(rb);
+
+            // First time through the loop, create a new Chunk. Other times, upsert into the chunk.
+            match chunk {
+                Some(ref mut c) => c.upsert_table(rb),
+                None => {
+                    chunk = Some(Chunk::new(
+                        "Coolverine",
+                        rb,
+                        ChunkMetrics::new_unregistered(),
+                    ))
+                }
+            }
         }
+
+        // Chunk should be initialized now.
+        let chunk = chunk.unwrap();
 
         // Build the operation equivalent to the following query:
         //
@@ -968,10 +998,11 @@ mod test {
 
     #[test]
     fn could_pass_predicate() {
-        let mut chunk = Chunk::new("a_table", ChunkMetrics::new_unregistered());
-
-        // Add table data to the chunk.
-        chunk.upsert_table(gen_recordbatch());
+        let chunk = Chunk::new(
+            "a_table",
+            gen_recordbatch(),
+            ChunkMetrics::new_unregistered(),
+        );
 
         assert!(
             chunk.could_pass_predicate(Predicate::new(vec![BinaryExpr::from((
@@ -994,8 +1025,7 @@ mod test {
         ];
         let rg = RowGroup::new(6, columns);
 
-        let mut chunk = Chunk::new("table_1", ChunkMetrics::new_unregistered());
-        chunk.table.add_row_group(rg);
+        let chunk = Chunk::new_from_row_group("table_1", rg, ChunkMetrics::new_unregistered());
 
         // No predicate so at least one row matches
         assert!(chunk.satisfies_predicate(&Predicate::default()));
@@ -1021,8 +1051,6 @@ mod test {
 
     #[test]
     fn column_names() {
-        let mut chunk = Chunk::new("Utopia", ChunkMetrics::new_unregistered());
-
         let schema = SchemaBuilder::new()
             .non_null_tag("region")
             .non_null_field("counter", Float64)
@@ -1046,9 +1074,9 @@ mod test {
             Arc::new(Float64Array::from(vec![Some(11.0), None, Some(12.0)])),
         ];
 
-        // Add the above table to the chunk
+        // Create the chunk with the above table
         let rb = RecordBatch::try_new(schema, data).unwrap();
-        chunk.upsert_table(rb);
+        let chunk = Chunk::new("Utopia", rb, ChunkMetrics::new_unregistered());
 
         let result = chunk
             .column_names(Predicate::default(), Selection::All, BTreeSet::new())
@@ -1089,8 +1117,6 @@ mod test {
 
     #[test]
     fn column_values() {
-        let mut chunk = Chunk::new("my_table", ChunkMetrics::new_unregistered());
-
         let schema = SchemaBuilder::new()
             .non_null_tag("region")
             .non_null_tag("env")
@@ -1116,9 +1142,9 @@ mod test {
             )),
         ];
 
-        // Add the above table to a chunk and partition
+        // Create the chunk with the above table
         let rb = RecordBatch::try_new(schema, data).unwrap();
-        chunk.upsert_table(rb);
+        let chunk = Chunk::new("my_table", rb, ChunkMetrics::new_unregistered());
 
         let result = chunk
             .column_values(
