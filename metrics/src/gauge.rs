@@ -207,10 +207,10 @@ impl GaugeValue {
 
     /// Sets the local value for this GaugeValue
     pub fn set(&mut self, new: usize) {
-        if new > self.local {
-            self.inc(new - self.local)
-        } else {
-            self.decr(self.local - new)
+        match new.cmp(&self.local) {
+            std::cmp::Ordering::Less => self.decr(self.local - new),
+            std::cmp::Ordering::Equal => {}
+            std::cmp::Ordering::Greater => self.inc(new - self.local),
         }
     }
 }
