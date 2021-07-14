@@ -238,8 +238,7 @@ impl ChunkMetrics {
 impl CatalogChunk {
     /// Creates a new open chunk from the provided MUB chunk.
     ///
-    /// Panics if the provided chunk is empty, otherwise creates a new open chunk and records a
-    /// write at the current time.
+    /// Panics if the provided chunk is empty, otherwise creates a new open chunk.
     pub(super) fn new_open(
         addr: ChunkAddr,
         chunk: mutable_buffer::chunk::MBChunk,
@@ -256,7 +255,7 @@ impl CatalogChunk {
             .state
             .inc_with_labels(&[KeyValue::new("state", "open")]);
 
-        let mut chunk = Self {
+        Self {
             addr,
             stage,
             lifecycle_action: None,
@@ -264,9 +263,7 @@ impl CatalogChunk {
             time_of_first_write: Some(first_write),
             time_of_last_write: Some(last_write),
             time_closed: None,
-        };
-        chunk.record_write();
-        chunk
+        }
     }
 
     /// Creates a new RUB chunk from the provided RUB chunk and metadata
