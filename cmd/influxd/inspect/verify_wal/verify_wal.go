@@ -3,7 +3,6 @@ package verify_wal
 import (
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"text/tabwriter"
 	"time"
@@ -62,7 +61,7 @@ func (a args) Run(cmd *cobra.Command) error {
 	}
 
 	// Find all WAL files in provided directory
-	files, err := filepath.Glob(path.Join(a.dir, "*."+tsm1.WALFileExtension))
+	files, err := loadFiles(a.dir)
 	if err != nil {
 		return fmt.Errorf("failed to search for WAL files in directory %s: %w", a.dir, err)
 	}
@@ -127,4 +126,17 @@ func (a args) Run(cmd *cobra.Command) error {
 	_ = tw.Flush()
 
 	return nil
+}
+
+func loadFiles(dir string) (files []string, err error) {
+	err = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if filepath.Ext(path) == "."+tsm1.WALFileExtension {
+			files = append(files, path)
+		}
+		return nil
+	})
+	return
 }
