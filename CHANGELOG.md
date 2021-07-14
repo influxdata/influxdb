@@ -1,6 +1,11 @@
 ## v2.0.8 [unreleased]
 ----------------------
 
+### Bug Fixes
+
+1. [XXXXX](https://github.com/influxdata/influxdb/pull/XXXXX): Upgrade to latest version of `influxdata/cron` so that tasks can be created with interval of `every: 1w`.
+
+
 ## v2.0.7 [2021-06-04]
 ----------------------
 

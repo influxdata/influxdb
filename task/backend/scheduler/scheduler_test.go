@@ -61,114 +61,84 @@ func (m *mockSchedulableService) UpdateLastScheduled(ctx context.Context, id ID,
 
 func TestSchedule_Next(t *testing.T) {
 	t.Run("@every fires on appropriate boundaries", func(t *testing.T) {
-		t.Run("@every 1m", func(t *testing.T) {
-			mockTime := clock.NewMock()
-			mockTime.Set(time.Now())
-			c := make(chan time.Time, 100)
-			exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
-				select {
-				case <-ctx.Done():
-					t.Log("ctx done")
-				case c <- scheduledAt:
-				}
-			}}
-			sch, _, err := NewScheduler(
-				exe,
-				&mockSchedulableService{fn: func(ctx context.Context, id ID, t time.Time) error {
-					return nil
-				}},
-				WithTime(mockTime),
-				WithMaxConcurrentWorkers(20))
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer sch.Stop()
-			schedule, ts, err := NewSchedule("@every 1m", mockTime.Now().UTC())
-			if err != nil {
-				t.Fatal(err)
-			}
+		// For these tests, the "timeElapsed" is the amount of time that is
+		// simulated to pass for the purposes of verifying that the task fires the
+		// correct amount of times. It is multiplied by a factor within the tests to
+		// simulated firing multiple times.
+		tests := []struct {
+			name        string // also used as the cron time string
+			timeElapsed time.Duration
+		}{
+			{
+				name:        "@every 1m",
+				timeElapsed: 1 * time.Minute,
+			},
+			{
+				name:        "@every 1h",
+				timeElapsed: 1 * time.Hour,
+			},
+			{
+				name:        "@every 1w",        // regression test for https://github.com/influxdata/influxdb/issues/21842
+				timeElapsed: 7 * 24 * time.Hour, // 1 week
+			},
+		}
 
-			err = sch.Schedule(mockSchedulable{id: 1, schedule: schedule, offset: time.Second, lastScheduled: ts})
-			if err != nil {
-				t.Fatal(err)
-			}
-			go func() {
-				sch.mu.Lock()
-				mockTime.Set(mockTime.Now().UTC().Add(17 * time.Minute))
-				sch.mu.Unlock()
-			}()
-
-			after := time.After(6 * time.Second)
-			oldCheckC := ts
-			for i := 0; i < 16; i++ {
-				select {
-				case checkC := <-c:
-					if checkC.Sub(oldCheckC) != time.Minute {
-						t.Fatalf("task didn't fire on correct interval fired on %s interval", checkC.Sub(oldCheckC))
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				c := make(chan time.Time, 100)
+				exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
+					select {
+					case <-ctx.Done():
+						t.Log("ctx done")
+					case c <- scheduledAt:
 					}
-					if !checkC.Truncate(time.Minute).Equal(checkC) {
-						t.Fatalf("task didn't fire at the correct time boundary")
-					}
-					oldCheckC = checkC
-				case <-after:
-					t.Fatalf("test timed out, only fired %d times but should have fired 16 times", i)
+				}}
+				mockTime := clock.NewMock()
+				mockTime.Set(time.Now())
+				sch, _, err := NewScheduler(
+					exe,
+					&mockSchedulableService{fn: func(ctx context.Context, id ID, t time.Time) error {
+						return nil
+					}},
+					WithTime(mockTime),
+					WithMaxConcurrentWorkers(20))
+				if err != nil {
+					t.Fatal(err)
 				}
-			}
-		})
-		t.Run("@every 1h", func(t *testing.T) {
-			c := make(chan time.Time, 100)
-			exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
-				select {
-				case <-ctx.Done():
-					t.Log("ctx done")
-				case c <- scheduledAt:
+				defer sch.Stop()
+				schedule, ts, err := NewSchedule(tt.name, mockTime.Now().UTC())
+				if err != nil {
+					t.Fatal(err)
 				}
-			}}
-			mockTime := clock.NewMock()
-			mockTime.Set(time.Now())
-			sch, _, err := NewScheduler(
-				exe,
-				&mockSchedulableService{fn: func(ctx context.Context, id ID, t time.Time) error {
-					return nil
-				}},
-				WithTime(mockTime),
-				WithMaxConcurrentWorkers(20))
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer sch.Stop()
-			schedule, ts, err := NewSchedule("@every 1h", mockTime.Now().UTC())
-			if err != nil {
-				t.Fatal(err)
-			}
 
-			err = sch.Schedule(mockSchedulable{id: 1, schedule: schedule, offset: time.Second, lastScheduled: ts})
-			if err != nil {
-				t.Fatal(err)
-			}
-			go func() {
-				sch.mu.Lock()
-				mockTime.Set(mockTime.Now().UTC().Add(17 * time.Hour))
-				sch.mu.Unlock()
-			}()
-
-			after := time.After(6 * time.Second)
-			oldCheckC := ts
-			for i := 0; i < 16; i++ {
-				select {
-				case checkC := <-c:
-					if checkC.Sub(oldCheckC) != time.Hour {
-						t.Fatalf("task didn't fire on correct interval fired on %s interval", checkC.Sub(oldCheckC))
-					}
-					if !checkC.Truncate(time.Hour).Equal(checkC) {
-						t.Fatalf("task didn't fire at the correct time boundary")
-					}
-					oldCheckC = checkC
-				case <-after:
-					t.Fatalf("test timed out, only fired %d times but should have fired 16 times", i)
+				err = sch.Schedule(mockSchedulable{id: 1, schedule: schedule, offset: time.Second, lastScheduled: ts})
+				if err != nil {
+					t.Fatal(err)
 				}
-			}
-		})
+				go func() {
+					sch.mu.Lock()
+					mockTime.Set(mockTime.Now().UTC().Add(17 * tt.timeElapsed))
+					sch.mu.Unlock()
+				}()
+
+				after := time.After(6 * time.Second)
+				oldCheckC := ts
+				for i := 0; i < 16; i++ {
+					select {
+					case checkC := <-c:
+						if checkC.Sub(oldCheckC) != tt.timeElapsed {
+							t.Fatalf("task didn't fire on correct interval fired on %s interval", checkC.Sub(oldCheckC))
+						}
+						if !checkC.Truncate(tt.timeElapsed).Equal(checkC) {
+							t.Fatalf("task didn't fire at the correct time boundary")
+						}
+						oldCheckC = checkC
+					case <-after:
+						t.Fatalf("test timed out, only fired %d times but should have fired 16 times", i)
+					}
+				}
+			})
+		}
 	})
 	t.Run("fires properly with non-mocked time", func(t *testing.T) {
 		now := time.Now()
