@@ -238,31 +238,32 @@ impl ChunkMetrics {
 impl CatalogChunk {
     /// Creates a new open chunk from the provided MUB chunk.
     ///
-    /// Panics if the provided chunk is empty, otherwise creates a new open chunk and records a
-    /// write at the current time.
+    /// Panics if the provided chunk is empty, otherwise creates a new open chunk.
     pub(super) fn new_open(
         addr: ChunkAddr,
         chunk: mutable_buffer::chunk::MBChunk,
         metrics: ChunkMetrics,
     ) -> Self {
         assert_eq!(chunk.table_name(), &addr.table_name);
+
+        let first_write = chunk.table_summary().time_of_first_write;
+        let last_write = chunk.table_summary().time_of_last_write;
+
         let stage = ChunkStage::Open { mb_chunk: chunk };
 
         metrics
             .state
             .inc_with_labels(&[KeyValue::new("state", "open")]);
 
-        let mut chunk = Self {
+        Self {
             addr,
             stage,
             lifecycle_action: None,
             metrics,
-            time_of_first_write: None,
-            time_of_last_write: None,
+            time_of_first_write: Some(first_write),
+            time_of_last_write: Some(last_write),
             time_closed: None,
-        };
-        chunk.record_write();
-        chunk
+        }
     }
 
     /// Creates a new RUB chunk from the provided RUB chunk and metadata
@@ -475,7 +476,7 @@ impl CatalogChunk {
         match &self.stage {
             ChunkStage::Open { mb_chunk, .. } => {
                 // The stats for open chunks change so can't be cached
-                Arc::new(mb_chunk.table_summary())
+                Arc::new(mb_chunk.table_summary().into())
             }
             ChunkStage::Frozen { meta, .. } => Arc::clone(&meta.table_summary),
             ChunkStage::Persisted { meta, .. } => Arc::clone(&meta.table_summary),
@@ -533,7 +534,7 @@ impl CatalogChunk {
 
                 // Cache table summary + schema
                 let metadata = ChunkMetadata {
-                    table_summary: Arc::new(mb_chunk.table_summary()),
+                    table_summary: Arc::new(mb_chunk.table_summary().into()),
                     schema: s.full_schema(),
                 };
 
@@ -836,6 +837,8 @@ mod tests {
         let mb_chunk = make_mb_chunk(&addr.table_name, sequencer_id);
         let chunk = CatalogChunk::new_open(addr, mb_chunk, ChunkMetrics::new_unregistered());
         assert!(matches!(chunk.stage(), &ChunkStage::Open { .. }));
+        assert!(chunk.time_of_first_write.is_some());
+        assert!(chunk.time_of_last_write.is_some());
     }
 
     #[tokio::test]

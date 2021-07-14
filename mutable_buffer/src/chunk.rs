@@ -4,7 +4,7 @@ use crate::{
 };
 use arrow::record_batch::RecordBatch;
 use chrono::{DateTime, Utc};
-use data_types::partition_metadata::{ColumnSummary, InfluxDbType, TableSummary};
+use data_types::partition_metadata::{ColumnSummary, InfluxDbType, TableSummaryAndTimes};
 use entry::{Sequence, TableBatch};
 use hashbrown::HashMap;
 use internal_types::{
@@ -237,7 +237,7 @@ impl MBChunk {
     }
 
     /// Returns a vec of the summary statistics of the tables in this chunk
-    pub fn table_summary(&self) -> TableSummary {
+    pub fn table_summary(&self) -> TableSummaryAndTimes {
         let mut columns: Vec<_> = self
             .columns
             .iter()
@@ -255,9 +255,11 @@ impl MBChunk {
 
         columns.sort_by(|a, b| a.name.cmp(&b.name));
 
-        TableSummary {
+        TableSummaryAndTimes {
             name: self.table_name.to_string(),
             columns,
+            time_of_first_write: self.time_of_first_write,
+            time_of_last_write: self.time_of_last_write,
         }
     }
 
@@ -521,55 +523,50 @@ mod tests {
         assert!(chunk.time_of_first_write < after_write);
 
         let summary = chunk.table_summary();
-
-        assert_eq!(
-            summary,
-            TableSummary {
-                name: "cpu".to_string(),
-                columns: vec![
-                    ColumnSummary {
-                        name: "env".to_string(),
-                        influxdb_type: Some(InfluxDbType::Tag),
-                        stats: Statistics::String(StatValues {
-                            min: Some("prod".to_string()),
-                            max: Some("stage".to_string()),
-                            count: 3,
-                            distinct_count: Some(NonZeroU64::new(3).unwrap())
-                        })
-                    },
-                    ColumnSummary {
-                        name: "host".to_string(),
-                        influxdb_type: Some(InfluxDbType::Tag),
-                        stats: Statistics::String(StatValues {
-                            min: Some("a".to_string()),
-                            max: Some("c".to_string()),
-                            count: 4,
-                            distinct_count: Some(NonZeroU64::new(3).unwrap())
-                        })
-                    },
-                    ColumnSummary {
-                        name: "time".to_string(),
-                        influxdb_type: Some(InfluxDbType::Timestamp),
-                        stats: Statistics::I64(StatValues {
-                            min: Some(1),
-                            max: Some(2),
-                            count: 4,
-                            distinct_count: None
-                        })
-                    },
-                    ColumnSummary {
-                        name: "val".to_string(),
-                        influxdb_type: Some(InfluxDbType::Field),
-                        stats: Statistics::F64(StatValues {
-                            min: Some(2.),
-                            max: Some(23.),
-                            count: 4,
-                            distinct_count: None
-                        })
-                    },
-                ]
-            }
-        )
+        assert_eq!(summary.name, "cpu");
+        let expected_column_summaries = vec![
+            ColumnSummary {
+                name: "env".to_string(),
+                influxdb_type: Some(InfluxDbType::Tag),
+                stats: Statistics::String(StatValues {
+                    min: Some("prod".to_string()),
+                    max: Some("stage".to_string()),
+                    count: 3,
+                    distinct_count: Some(NonZeroU64::new(3).unwrap()),
+                }),
+            },
+            ColumnSummary {
+                name: "host".to_string(),
+                influxdb_type: Some(InfluxDbType::Tag),
+                stats: Statistics::String(StatValues {
+                    min: Some("a".to_string()),
+                    max: Some("c".to_string()),
+                    count: 4,
+                    distinct_count: Some(NonZeroU64::new(3).unwrap()),
+                }),
+            },
+            ColumnSummary {
+                name: "time".to_string(),
+                influxdb_type: Some(InfluxDbType::Timestamp),
+                stats: Statistics::I64(StatValues {
+                    min: Some(1),
+                    max: Some(2),
+                    count: 4,
+                    distinct_count: None,
+                }),
+            },
+            ColumnSummary {
+                name: "val".to_string(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::F64(StatValues {
+                    min: Some(2.),
+                    max: Some(23.),
+                    count: 4,
+                    distinct_count: None,
+                }),
+            },
+        ];
+        assert_eq!(summary.columns, expected_column_summaries);
     }
 
     #[test]
