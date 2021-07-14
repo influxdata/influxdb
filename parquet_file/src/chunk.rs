@@ -14,7 +14,6 @@ use internal_types::{
 use object_store::{path::Path, ObjectStore};
 use query::predicate::Predicate;
 
-use metrics::GaugeValue;
 use std::mem;
 
 #[derive(Debug, Snafu)]
@@ -61,9 +60,9 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
+#[allow(missing_copy_implementations)]
 pub struct ChunkMetrics {
-    /// keep track of memory used by chunk
-    memory_bytes: GaugeValue,
+    // Placeholder
 }
 
 impl ChunkMetrics {
@@ -72,13 +71,11 @@ impl ChunkMetrics {
     /// will therefore not be visible to other ChunkMetrics instances or metric instruments
     /// created on a metrics domain, and vice versa
     pub fn new_unregistered() -> Self {
-        Self {
-            memory_bytes: GaugeValue::new_unregistered(),
-        }
+        Self {}
     }
 
-    pub fn new(_metrics: &metrics::Domain, memory_bytes: GaugeValue) -> Self {
-        Self { memory_bytes }
+    pub fn new(_metrics: &metrics::Domain) -> Self {
+        Self {}
     }
 }
 
@@ -156,7 +153,7 @@ impl ParquetChunk {
     ) -> Self {
         let timestamp_range = extract_range(&table_summary);
 
-        let mut chunk = Self {
+        Self {
             partition_key,
             table_summary,
             schema,
@@ -165,10 +162,7 @@ impl ParquetChunk {
             object_store_path: file_location,
             parquet_metadata,
             metrics,
-        };
-
-        chunk.metrics.memory_bytes.set(chunk.size());
-        chunk
+        }
     }
 
     /// Return the chunk's partition key

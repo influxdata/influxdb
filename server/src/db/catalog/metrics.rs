@@ -8,7 +8,7 @@ pub struct CatalogMetrics {
     /// Metrics domain
     metrics_domain: Arc<metrics::Domain>,
 
-    /// Memory registries
+    /// Catalog memory metrics
     memory_metrics: MemoryMetrics,
 }
 
@@ -58,6 +58,7 @@ impl CatalogMetrics {
 
         TableMetrics {
             metrics_domain: Arc::clone(&self.metrics_domain),
+            memory_metrics: self.memory_metrics.clone_empty(),
             table_lock_tracker,
             partition_lock_tracker,
             chunk_lock_tracker,
@@ -69,6 +70,9 @@ impl CatalogMetrics {
 pub struct TableMetrics {
     /// Metrics domain
     metrics_domain: Arc<metrics::Domain>,
+
+    /// Catalog memory metrics
+    memory_metrics: MemoryMetrics,
 
     /// Lock tracker for table-level locks
     table_lock_tracker: LockTracker,
@@ -92,6 +96,7 @@ impl TableMetrics {
     pub(super) fn new_partition_metrics(&self) -> PartitionMetrics {
         // Lock tracker for chunk-level locks
         PartitionMetrics {
+            memory_metrics: self.memory_metrics.clone_empty(),
             chunk_state: self.metrics_domain.register_counter_metric_with_labels(
                 "chunks",
                 None,
@@ -114,6 +119,9 @@ impl TableMetrics {
 
 #[derive(Debug)]
 pub struct PartitionMetrics {
+    /// Catalog memory metrics
+    memory_metrics: MemoryMetrics,
+
     chunk_state: Counter,
 
     immutable_chunk_size: Histogram,
@@ -131,19 +139,28 @@ impl PartitionMetrics {
         ChunkMetrics {
             state: self.chunk_state.clone(),
             immutable_chunk_size: self.immutable_chunk_size.clone(),
+            memory_metrics: self.memory_metrics.clone_empty(),
         }
     }
 }
 
 #[derive(Debug)]
 pub struct MemoryMetrics {
-    mutable_buffer: GaugeValue,
-    read_buffer: GaugeValue,
-    parquet: GaugeValue,
+    pub(super) mutable_buffer: GaugeValue,
+    pub(super) read_buffer: GaugeValue,
+    pub(super) parquet: GaugeValue,
 }
 
 impl MemoryMetrics {
-    fn new(metrics_domain: &metrics::Domain) -> Self {
+    pub fn new_unregistered() -> Self {
+        Self {
+            mutable_buffer: GaugeValue::new_unregistered(),
+            read_buffer: GaugeValue::new_unregistered(),
+            parquet: GaugeValue::new_unregistered(),
+        }
+    }
+
+    pub fn new(metrics_domain: &metrics::Domain) -> Self {
         let gauge = metrics_domain.register_gauge_metric(
             "chunks_mem_usage",
             Some("bytes"),
@@ -157,19 +174,26 @@ impl MemoryMetrics {
         }
     }
 
+    fn clone_empty(&self) -> Self {
+        Self {
+            mutable_buffer: self.mutable_buffer.clone_empty(),
+            read_buffer: self.read_buffer.clone_empty(),
+            parquet: self.parquet.clone_empty(),
+        }
+    }
     /// Returns the size of the mutable buffer
-    pub fn mutable_buffer(&self) -> GaugeValue {
-        self.mutable_buffer.clone_empty()
+    pub fn mutable_buffer(&self) -> usize {
+        self.mutable_buffer.get_total()
     }
 
     /// Returns the size of the mutable buffer
-    pub fn read_buffer(&self) -> GaugeValue {
-        self.read_buffer.clone_empty()
+    pub fn read_buffer(&self) -> usize {
+        self.read_buffer.get_total()
     }
 
     /// Returns the amount of data in parquet
-    pub fn parquet(&self) -> GaugeValue {
-        self.parquet.clone_empty()
+    pub fn parquet(&self) -> usize {
+        self.parquet.get_total()
     }
 
     /// Total bytes over all registries.

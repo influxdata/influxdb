@@ -148,11 +148,8 @@ impl Partition {
             chunk_id,
         };
 
-        let chunk = Arc::new(self.metrics.new_chunk_lock(CatalogChunk::new_open(
-            addr,
-            chunk,
-            self.metrics.new_chunk_metrics(),
-        )));
+        let chunk = CatalogChunk::new_open(addr, chunk, self.metrics.new_chunk_metrics());
+        let chunk = Arc::new(self.metrics.new_chunk_lock(chunk));
 
         if self.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
             // A fundamental invariant has been violated - abort

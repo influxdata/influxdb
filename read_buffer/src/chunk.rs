@@ -3,7 +3,7 @@ use std::{
     convert::TryFrom,
 };
 
-use metrics::{Gauge, GaugeValue, KeyValue};
+use metrics::{Gauge, KeyValue};
 use snafu::{ResultExt, Snafu};
 
 use arrow::record_batch::RecordBatch;
@@ -99,10 +99,6 @@ impl Chunk {
         let storage_statistics = row_group.column_storage_statistics();
 
         self.table.add_row_group(row_group);
-
-        // Get and set new size of chunk on memory tracker
-        let size = Self::base_size() + self.table.size();
-        self.metrics.memory_bytes.set(size);
 
         // update column metrics associated with column storage
         self.metrics
@@ -325,9 +321,6 @@ impl std::fmt::Debug for Chunk {
 
 #[derive(Debug)]
 pub struct ChunkMetrics {
-    /// keep track of memory used by table data in chunk
-    memory_bytes: GaugeValue,
-
     // This metric tracks the total number of columns in read buffer.
     columns_total: Gauge,
 
@@ -345,9 +338,8 @@ pub struct ChunkMetrics {
 }
 
 impl ChunkMetrics {
-    pub fn new(domain: &metrics::Domain, memory_bytes: GaugeValue) -> Self {
+    pub fn new(domain: &metrics::Domain) -> Self {
         Self {
-            memory_bytes,
             columns_total: domain.register_gauge_metric(
                 "column",
                 Some("total"),
@@ -377,7 +369,6 @@ impl ChunkMetrics {
     /// created on a metrics domain, and vice versa
     pub fn new_unregistered() -> Self {
         Self {
-            memory_bytes: GaugeValue::new_unregistered(),
             columns_total: Gauge::new_unregistered(),
             column_values_total: Gauge::new_unregistered(),
             column_bytes_total: Gauge::new_unregistered(),
@@ -633,10 +624,7 @@ mod test {
         let domain =
             registry.register_domain_with_labels("read_buffer", vec![KeyValue::new("db", "mydb")]);
 
-        let mut chunk = Chunk::new(
-            "a_table",
-            ChunkMetrics::new(&domain, GaugeValue::new_unregistered()),
-        );
+        let mut chunk = Chunk::new("a_table", ChunkMetrics::new(&domain));
 
         // Add a new table to the chunk.
         chunk.upsert_table(gen_recordbatch());
