@@ -651,14 +651,17 @@ impl Db {
             let rules = self.rules.read();
             rules.lifecycle_rules.immutable
         };
+        debug!(%immutable, has_write_buffer=self.write_buffer.is_some(), "storing entry");
 
         match (self.write_buffer.as_ref(), immutable) {
             (Some(WriteBufferConfig::Writing(write_buffer)), true) => {
                 // If only the write buffer is configured, this is passing the data through to
                 // the write buffer, and it's not an error. We ignore the returned metadata; it
                 // will get picked up when data is read from the write buffer.
+
+                // TODO: be smarter than always using sequencer 0
                 let _ = write_buffer
-                    .store_entry(&entry)
+                    .store_entry(&entry, 0)
                     .await
                     .context(WriteBufferWritingError)?;
                 Ok(())
@@ -666,8 +669,10 @@ impl Db {
             (Some(WriteBufferConfig::Writing(write_buffer)), false) => {
                 // If using both write buffer and mutable buffer, we want to wait for the write
                 // buffer to return success before adding the entry to the mutable buffer.
+
+                // TODO: be smarter than always using sequencer 0
                 let sequence = write_buffer
-                    .store_entry(&entry)
+                    .store_entry(&entry, 0)
                     .await
                     .context(WriteBufferWritingError)?;
                 let sequenced_entry = Arc::new(
@@ -1020,6 +1025,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
     use write_buffer::mock::{
         MockBufferForReading, MockBufferForWriting, MockBufferForWritingThatAlwaysErrors,
+        MockBufferSharedState,
     };
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -1042,7 +1048,8 @@ mod tests {
     async fn write_with_write_buffer_no_mutable_buffer() {
         // Writes should be forwarded to the write buffer and *not* rejected if the write buffer is
         // configured and the mutable buffer isn't
-        let write_buffer = Arc::new(MockBufferForWriting::default());
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state.clone()));
         let test_db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
             .build()
@@ -1054,14 +1061,15 @@ mod tests {
         let entry = lp_to_entry("cpu bar=1 10");
         test_db.store_entry(entry).await.unwrap();
 
-        assert_eq!(write_buffer.entries.lock().unwrap().len(), 1);
+        assert_eq!(write_buffer_state.get_messages(0).len(), 1);
     }
 
     #[tokio::test]
     async fn write_to_write_buffer_and_mutable_buffer() {
         // Writes should be forwarded to the write buffer *and* the mutable buffer if both are
         // configured.
-        let write_buffer = Arc::new(MockBufferForWriting::default());
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state.clone()));
         let db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
             .build()
@@ -1071,7 +1079,7 @@ mod tests {
         let entry = lp_to_entry("cpu bar=1 10");
         db.store_entry(entry).await.unwrap();
 
-        assert_eq!(write_buffer.entries.lock().unwrap().len(), 1);
+        assert_eq!(write_buffer_state.get_messages(0).len(), 1);
 
         let batches = run_query(db, "select * from cpu").await;
 
@@ -1109,9 +1117,10 @@ mod tests {
     #[tokio::test]
     async fn read_from_write_buffer_write_to_mutable_buffer() {
         let entry = lp_to_entry("cpu bar=1 10");
-        let write_buffer = Arc::new(MockBufferForReading::new(vec![Ok(
-            SequencedEntry::new_unsequenced(entry),
-        )]));
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        write_buffer_state
+            .push_entry(SequencedEntry::new_from_sequence(Sequence::new(0, 0), entry).unwrap());
+        let write_buffer = Arc::new(MockBufferForReading::new(write_buffer_state));
 
         let db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Reading(Arc::clone(&write_buffer) as _))
@@ -1165,10 +1174,12 @@ mod tests {
 
     #[tokio::test]
     async fn error_converting_data_from_write_buffer_to_sequenced_entry_is_reported() {
-        let write_buffer = Arc::new(MockBufferForReading::new(vec![Err(String::from(
-            "Something bad happened on the way to creating a SequencedEntry",
-        )
-        .into())]));
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        write_buffer_state.push_error(
+            String::from("Something bad happened on the way to creating a SequencedEntry").into(),
+            0,
+        );
+        let write_buffer = Arc::new(MockBufferForReading::new(write_buffer_state));
 
         let test_db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Reading(Arc::clone(&write_buffer) as _))
@@ -2070,7 +2081,8 @@ mod tests {
     async fn write_updates_persistence_windows() {
         // Writes should update the persistence windows when there
         // is a write buffer configured.
-        let write_buffer = Arc::new(MockBufferForWriting::default());
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state));
         let db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
             .build()
@@ -2117,12 +2129,19 @@ mod tests {
         let entry = lp_to_entry("cpu bar=1 10");
         let partition_key = "1970-01-01T00";
 
-        let write_buffer = Arc::new(MockBufferForReading::new(vec![
-            Ok(SequencedEntry::new_from_sequence(Sequence::new(0, 0), entry.clone()).unwrap()),
-            Ok(SequencedEntry::new_from_sequence(Sequence::new(1, 0), entry.clone()).unwrap()),
-            Ok(SequencedEntry::new_from_sequence(Sequence::new(1, 2), entry.clone()).unwrap()),
-            Ok(SequencedEntry::new_from_sequence(Sequence::new(0, 1), entry).unwrap()),
-        ]));
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(2);
+        write_buffer_state.push_entry(
+            SequencedEntry::new_from_sequence(Sequence::new(0, 0), entry.clone()).unwrap(),
+        );
+        write_buffer_state.push_entry(
+            SequencedEntry::new_from_sequence(Sequence::new(1, 0), entry.clone()).unwrap(),
+        );
+        write_buffer_state.push_entry(
+            SequencedEntry::new_from_sequence(Sequence::new(1, 2), entry.clone()).unwrap(),
+        );
+        write_buffer_state
+            .push_entry(SequencedEntry::new_from_sequence(Sequence::new(0, 1), entry).unwrap());
+        let write_buffer = Arc::new(MockBufferForReading::new(write_buffer_state));
 
         let db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Reading(Arc::clone(&write_buffer) as _))
@@ -2244,36 +2263,6 @@ mod tests {
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![1]);
     }
 
-    /// Normalizes a set of ChunkSummaries for comparison by removing timestamps
-    fn normalize_summaries(summaries: Vec<ChunkSummary>) -> Vec<ChunkSummary> {
-        let mut summaries = summaries
-            .into_iter()
-            .map(|summary| {
-                let ChunkSummary {
-                    partition_key,
-                    table_name,
-                    id,
-                    storage,
-                    lifecycle_action,
-                    estimated_bytes,
-                    row_count,
-                    ..
-                } = summary;
-                ChunkSummary::new_without_timestamps(
-                    partition_key,
-                    table_name,
-                    id,
-                    storage,
-                    lifecycle_action,
-                    estimated_bytes,
-                    row_count,
-                )
-            })
-            .collect::<Vec<_>>();
-        summaries.sort_unstable();
-        summaries
-    }
-
     #[tokio::test]
     async fn partition_chunk_summaries() {
         // Test that chunk id listing is hooked up
@@ -2288,7 +2277,7 @@ mod tests {
         print!("Partitions: {:?}", db.partition_keys().unwrap());
 
         let chunk_summaries = db.partition_chunk_summaries("1970-01-05T15");
-        let chunk_summaries = normalize_summaries(chunk_summaries);
+        let chunk_summaries = ChunkSummary::normalize_summaries(chunk_summaries);
 
         let expected = vec![ChunkSummary::new_without_timestamps(
             Arc::from("1970-01-05T15"),
@@ -2296,7 +2285,8 @@ mod tests {
             0,
             ChunkStorage::OpenMutableBuffer,
             None,
-            70,
+            70, // memory_size
+            0,  // os_size
             1,
         )];
 
@@ -2304,7 +2294,7 @@ mod tests {
             .chunk_summaries()
             .unwrap()
             .into_iter()
-            .map(|x| x.estimated_bytes)
+            .map(|x| x.memory_bytes)
             .sum();
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), size);
@@ -2394,7 +2384,7 @@ mod tests {
         write_lp(&db, "cpu bar=1,baz=3,blargh=3 400000000000000").await;
 
         let chunk_summaries = db.chunk_summaries().expect("expected summary to return");
-        let chunk_summaries = normalize_summaries(chunk_summaries);
+        let chunk_summaries = ChunkSummary::normalize_summaries(chunk_summaries);
 
         let lifecycle_action = None;
 
@@ -2406,6 +2396,7 @@ mod tests {
                 ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
                 2115, // size of RB and OS chunks
+                1132, // size of parquet file
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2415,6 +2406,7 @@ mod tests {
                 ChunkStorage::OpenMutableBuffer,
                 lifecycle_action,
                 64,
+                0, // no OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2424,6 +2416,7 @@ mod tests {
                 ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
                 2398,
+                0, // no OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2433,13 +2426,14 @@ mod tests {
                 ChunkStorage::OpenMutableBuffer,
                 lifecycle_action,
                 87,
+                0, // no OS chunks
                 1,
             ),
         ];
 
         assert_eq!(
             expected, chunk_summaries,
-            "expected:\n{:#?}\n\nactual:{:#?}\n\n",
+            "\n\nexpected:\n{:#?}\n\nactual:{:#?}\n\n",
             expected, chunk_summaries
         );
 

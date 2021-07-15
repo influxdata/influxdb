@@ -71,6 +71,7 @@ pub(crate) fn compact_chunks(
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
     let fut = async move {
+        let fut_now = std::time::Instant::now();
         let key = compute_sort_key(query_chunks.iter().map(|x| x.summary()));
         let key_str = format!("\"{}\"", key); // for logging
 
@@ -108,7 +109,8 @@ pub(crate) fn compact_chunks(
 
         info!(input_chunks=query_chunks.len(), rub_row_groups=rb_row_groups,
                 input_rows=input_rows, output_rows=guard.table_summary().count(),
-                sort_key=%key_str, compaction_took = ?elapsed, rows_per_sec=?throughput,  "chunk(s) compacted");
+                sort_key=%key_str, compaction_took = ?elapsed, fut_execution_duration= ?fut_now.elapsed(), 
+                rows_per_sec=?throughput,  "chunk(s) compacted");
 
         Ok(DbChunk::snapshot(&guard))
     };

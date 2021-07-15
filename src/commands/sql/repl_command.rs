@@ -116,7 +116,7 @@ SHOW COLUMNS FROM my_table; ;; Show columns in the table
 SELECT
    partition_key, table_name, storage,
    count(*) as chunk_count,
-   sum(estimated_bytes)/(1024*1024) as size_mb
+   sum(memory_bytes)/(1024*1024) as size_mb
 FROM
   system.chunks
 GROUP BY

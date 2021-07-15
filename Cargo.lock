@@ -841,7 +841,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/alamb/arrow-datafusion.git?branch=alamb/perf_integration_df#9ef4a257cf8b7717df60de56b9e17c6bd7286cd4"
+source = "git+https://github.com/alamb/arrow-datafusion.git?branch=alamb/perf_integration_df_2#d201ebf323a532ac858fe33083639df4a8d321ee"
 dependencies = [
  "ahash 0.7.4",
  "arrow",
@@ -1677,6 +1677,7 @@ dependencies = [
  "tracker",
  "trogging",
  "uuid",
+ "write_buffer",
 ]
 
 [[package]]
@@ -4955,9 +4956,14 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "data_types",
+ "dotenv",
  "entry",
  "futures",
+ "observability_deps",
+ "parking_lot",
  "rdkafka",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
