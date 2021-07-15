@@ -131,7 +131,7 @@ pub mod test_utils {
         assert_eq!(stream_2.next().await.unwrap().unwrap().entry(), &entry_2);
         assert_eq!(stream_1.next().await.unwrap().unwrap().entry(), &entry_3);
 
-        // stream1 is pending again
+        // both streams are pending again
         assert!(stream_1.poll_next_unpin(&mut cx).is_pending());
         assert!(stream_2.poll_next_unpin(&mut cx).is_pending());
     }
