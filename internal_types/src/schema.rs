@@ -255,7 +255,6 @@ impl Schema {
     pub fn is_sorted_on_pk(&self) -> bool {
         if let Some(sort_key) = self.sort_key() {
             let key_columns = self.primary_key();
-
             for key_col in key_columns {
                 if sort_key.get(key_col).is_none() {
                     return false; // pk col is not part of the sort key
@@ -1333,7 +1332,6 @@ mod test {
             .measurement("the_measurement")
             .build_with_sort_key(&sort_key)
             .unwrap();
-
         assert!(schema.is_sorted_on_pk());
 
         // Sort key does not include all pk cols
@@ -1352,7 +1350,6 @@ mod test {
             .measurement("the_measurement")
             .build_with_sort_key(&sort_key)
             .unwrap();
-
         assert!(!schema.is_sorted_on_pk());
 
         // No sort key
@@ -1366,7 +1363,6 @@ mod test {
             .measurement("the_measurement")
             .build()
             .unwrap();
-
         assert!(!schema.is_sorted_on_pk());
 
         // No PK, no sort key
@@ -1391,7 +1387,6 @@ mod test {
             .measurement("the_measurement")
             .build_with_sort_key(&sort_key)
             .unwrap();
-
         assert!(!schema.is_sorted_on_pk());
     }
 }
