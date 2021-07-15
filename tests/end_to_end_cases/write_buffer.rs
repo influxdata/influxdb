@@ -1,6 +1,6 @@
 use crate::{
     common::server_fixture::ServerFixture,
-    end_to_end_cases::scenario::{create_readable_database_plus, rand_name},
+    end_to_end_cases::scenario::{rand_name, DatabaseBuilder},
 };
 use arrow_util::assert_batches_sorted_eq;
 use entry::{test_helpers::lp_to_entry, Entry};
@@ -68,11 +68,11 @@ async fn writes_go_to_kafka() {
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection::Writing(kafka_connection.to_string());
-    create_readable_database_plus(&db_name, server.grpc_channel(), |mut rules| {
-        rules.write_buffer_connection = Some(write_buffer_connection);
-        rules
-    })
-    .await;
+
+    DatabaseBuilder::new(db_name.clone())
+        .write_buffer(write_buffer_connection)
+        .build(server.grpc_channel())
+        .await;
 
     // write some points
     let mut write_client = server.write_client();
@@ -141,11 +141,11 @@ async fn reads_come_from_kafka() {
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection::Reading(kafka_connection.to_string());
-    create_readable_database_plus(&db_name, server.grpc_channel(), |mut rules| {
-        rules.write_buffer_connection = Some(write_buffer_connection);
-        rules
-    })
-    .await;
+
+    DatabaseBuilder::new(db_name.clone())
+        .write_buffer(write_buffer_connection)
+        .build(server.grpc_channel())
+        .await;
 
     // Common Kafka config
     let mut cfg = ClientConfig::new();
@@ -226,11 +226,11 @@ async fn cant_write_to_db_reading_from_kafka() {
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection::Reading(kafka_connection.to_string());
-    create_readable_database_plus(&db_name, server.grpc_channel(), |mut rules| {
-        rules.write_buffer_connection = Some(write_buffer_connection);
-        rules
-    })
-    .await;
+
+    DatabaseBuilder::new(db_name.clone())
+        .write_buffer(write_buffer_connection)
+        .build(server.grpc_channel())
+        .await;
 
     // Writing to this database is an error; all data comes from Kafka
     let mut write_client = server.write_client();

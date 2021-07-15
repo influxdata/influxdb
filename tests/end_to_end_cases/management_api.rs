@@ -15,7 +15,7 @@ use super::scenario::{
 };
 use crate::{
     common::server_fixture::ServerFixture,
-    end_to_end_cases::scenario::{create_quickly_persisting_database, wait_for_exact_chunk_states},
+    end_to_end_cases::scenario::{wait_for_exact_chunk_states, DatabaseBuilder},
 };
 use std::time::Instant;
 use tonic::Code;
@@ -979,7 +979,12 @@ async fn test_unload_read_buffer() {
     let mut management_client = fixture.management_client();
 
     let db_name = rand_name();
-    create_quickly_persisting_database(&db_name, fixture.grpc_channel(), 1).await;
+    DatabaseBuilder::new(db_name.clone())
+        .persist(true)
+        .persist_age_threshold_seconds(1)
+        .late_arrive_window_seconds(1)
+        .build(fixture.grpc_channel())
+        .await;
 
     let lp_lines: Vec<_> = (0..1_000)
         .map(|i| format!("data,tag1=val{} x={} {}", i, i * 10, i))

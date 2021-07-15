@@ -15,8 +15,7 @@ use rand::{
 
 use data_types::{names::org_and_bucket_to_database, DatabaseName};
 use generated_types::google::protobuf::Empty;
-use generated_types::influxdata::iox::management::v1::*;
-use generated_types::{influxdata::iox::management::v1::DatabaseRules, ReadSource, TimestampRange};
+use generated_types::{influxdata::iox::management::v1::*, ReadSource, TimestampRange};
 use influxdb_iox_client::flight::PerformQuery;
 
 use crate::common::server_fixture::ServerFixture;
@@ -287,6 +286,70 @@ pub fn rand_id() -> String {
         .collect()
 }
 
+pub struct DatabaseBuilder {
+    name: String,
+    partition_template: PartitionTemplate,
+    lifecycle_rules: LifecycleRules,
+    write_buffer: Option<database_rules::WriteBufferConnection>,
+}
+
+impl DatabaseBuilder {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            partition_template: PartitionTemplate {
+                parts: vec![partition_template::Part {
+                    part: Some(partition_template::part::Part::Table(Empty {})),
+                }],
+            },
+            lifecycle_rules: LifecycleRules {
+                buffer_size_soft: 512 * 1024,       // 512K
+                buffer_size_hard: 10 * 1024 * 1024, // 10MB
+                worker_backoff_millis: 100,
+                ..Default::default()
+            },
+            write_buffer: None,
+        }
+    }
+
+    pub fn persist(mut self, persist: bool) -> Self {
+        self.lifecycle_rules.persist = persist;
+        self
+    }
+
+    pub fn persist_age_threshold_seconds(mut self, threshold: u32) -> Self {
+        self.lifecycle_rules.persist_age_threshold_seconds = threshold;
+        self
+    }
+
+    pub fn late_arrive_window_seconds(mut self, late_arrive_window_seconds: u32) -> Self {
+        self.lifecycle_rules.late_arrive_window_seconds = late_arrive_window_seconds;
+        self
+    }
+
+    pub fn write_buffer(mut self, write_buffer: database_rules::WriteBufferConnection) -> Self {
+        self.write_buffer = Some(write_buffer);
+        self
+    }
+
+    // Build a database
+    pub async fn build(self, channel: tonic::transport::Channel) {
+        let mut management_client = influxdb_iox_client::management::Client::new(channel);
+
+        management_client
+            .create_database(DatabaseRules {
+                name: self.name,
+                partition_template: Some(self.partition_template),
+                lifecycle_rules: Some(self.lifecycle_rules),
+                worker_cleanup_avg_sleep: None,
+                routing_rules: None,
+                write_buffer_connection: self.write_buffer,
+            })
+            .await
+            .expect("create database failed");
+    }
+}
+
 /// given a channel to talk with the management api, create a new
 /// database with the specified name configured with a 10MB mutable
 /// buffer, partitioned on table
@@ -294,82 +357,10 @@ pub async fn create_readable_database(
     db_name: impl Into<String>,
     channel: tonic::transport::Channel,
 ) {
-    create_readable_database_plus(db_name, channel, std::convert::identity).await
+    DatabaseBuilder::new(db_name.into()).build(channel).await
 }
 
 /// given a channel to talk with the management api, create a new
-/// database with the specified name configured with a 10MB mutable
-/// buffer, partitioned on table
-pub async fn create_readable_database_plus(
-    db_name: impl Into<String>,
-    channel: tonic::transport::Channel,
-    modify_rules: impl FnOnce(DatabaseRules) -> DatabaseRules,
-) {
-    let mut management_client = influxdb_iox_client::management::Client::new(channel);
-
-    let rules = DatabaseRules {
-        name: db_name.into(),
-        partition_template: Some(PartitionTemplate {
-            parts: vec![partition_template::Part {
-                part: Some(partition_template::part::Part::Table(Empty {})),
-            }],
-        }),
-        lifecycle_rules: Some(LifecycleRules {
-            buffer_size_hard: 1024 * 1024,
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    let rules = modify_rules(rules);
-
-    management_client
-        .create_database(rules)
-        .await
-        .expect("create database failed");
-}
-
-/// given a channel to talk with the management api, create a new
-/// database with the specified name that will aggressively try and
-/// persist all data quickly
-pub async fn create_quickly_persisting_database(
-    db_name: impl Into<String>,
-    channel: tonic::transport::Channel,
-    late_arrive_window_seconds: u32,
-) {
-    let db_name = db_name.into();
-
-    let mut management_client = influxdb_iox_client::management::Client::new(channel);
-    let rules = DatabaseRules {
-        name: db_name.clone(),
-        partition_template: Some(PartitionTemplate {
-            parts: vec![partition_template::Part {
-                part: Some(partition_template::part::Part::Time(
-                    "%Y-%m-%d %H:00:00".into(),
-                )),
-            }],
-        }),
-        lifecycle_rules: Some(LifecycleRules {
-            buffer_size_soft: 512 * 1024,       // 512K
-            buffer_size_hard: 10 * 1024 * 1024, // 10MB
-            persist: true,
-            worker_backoff_millis: 100,
-            late_arrive_window_seconds,
-            persist_row_threshold: 10_000,
-            persist_age_threshold_seconds: late_arrive_window_seconds,
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    management_client
-        .create_database(rules.clone())
-        .await
-        .expect("create database failed");
-    println!("Created quickly persisting database {}", db_name);
-}
-
-/// given a channel to talk with the managment api, create a new
 /// database with no mutable buffer configured, no partitioning rules
 pub async fn create_unreadable_database(
     db_name: impl Into<String>,
@@ -388,7 +379,7 @@ pub async fn create_unreadable_database(
         .expect("create database failed");
 }
 
-/// given a channel to talk with the managment api, create a new
+/// given a channel to talk with the management api, create a new
 /// database with the specified name configured with a 10MB mutable
 /// buffer, partitioned on table, with some data written into two partitions
 pub async fn create_two_partition_database(
