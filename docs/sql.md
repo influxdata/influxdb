@@ -86,7 +86,7 @@ OBSERVER;
 Example SQL to show the total estimated storage size by database:
 
 SELECT database_name, storage, count(*) as num_chunks,
-  sum(estimated_bytes)/1024/1024 as estimated_mb
+  sum(memory_bytes)/1024/1024 as estimated_mb
 FROM chunks
 GROUP BY database_name, storage
 ORDER BY estimated_mb desc;
@@ -164,7 +164,7 @@ Here are some interesting reports you can run when in `OBSERVER` mode:
 ```sql
 SELECT
   database_name, count(*) as num_chunks,
-  sum(estimated_bytes)/1024/1024 as estimated_mb
+  sum(memory_bytes)/1024/1024 as estimated_mb
 FROM chunks
 GROUP BY database_name
 ORDER BY estimated_mb desc
@@ -175,7 +175,7 @@ LIMIT 20;
 ```sql
 SELECT
   database_name, storage, count(*) as num_chunks,
-  sum(estimated_bytes)/1024/1024 as estimated_mb
+  sum(memory_bytes)/1024/1024 as estimated_mb
 FROM chunks
 GROUP BY database_name, storage
 ORDER BY estimated_mb desc
@@ -187,7 +187,7 @@ LIMIT 20;
 ```sql
 SELECT
   database_name, table_name, storage, count(*) as num_chunks,
-  sum(estimated_bytes)/1024/1024 as estimated_mb
+  sum(memory_bytes)/1024/1024 as estimated_mb
 FROM chunks
 GROUP BY database_name, table_name, storage
 ORDER BY estimated_mb desc
@@ -217,7 +217,7 @@ LIMIT 20;
 
 ### Time range stored per table
 
-This query provides an estimate, by table, of how long of a time range 
+This query provides an estimate, by table, of how long of a time range
 and the  estimated number of rows per second it holds in IOx
 (the `1,000,000,000` is the conversion from nanoseconds)
 

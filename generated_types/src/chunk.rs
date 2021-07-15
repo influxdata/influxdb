@@ -13,7 +13,8 @@ impl From<ChunkSummary> for management::Chunk {
             id,
             storage,
             lifecycle_action,
-            estimated_bytes,
+            memory_bytes,
+            object_store_bytes,
             row_count,
             time_of_first_write,
             time_of_last_write,
@@ -25,7 +26,8 @@ impl From<ChunkSummary> for management::Chunk {
         let lifecycle_action: management::ChunkLifecycleAction = lifecycle_action.into();
         let lifecycle_action = lifecycle_action.into(); // convert to i32
 
-        let estimated_bytes = estimated_bytes as u64;
+        let memory_bytes = memory_bytes as u64;
+        let object_store_bytes = object_store_bytes as u64;
         let row_count = row_count as u64;
 
         let partition_key = partition_key.to_string();
@@ -41,7 +43,8 @@ impl From<ChunkSummary> for management::Chunk {
             id,
             storage,
             lifecycle_action,
-            estimated_bytes,
+            memory_bytes,
+            object_store_bytes,
             row_count,
             time_of_first_write,
             time_of_last_write,
@@ -114,12 +117,14 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             partition_key,
             table_name,
             id,
-            estimated_bytes,
+            memory_bytes,
+            object_store_bytes,
             row_count,
             ..
         } = proto;
 
-        let estimated_bytes = estimated_bytes as usize;
+        let memory_bytes = memory_bytes as usize;
+        let object_store_bytes = object_store_bytes as usize;
         let row_count = row_count as usize;
         let partition_key = Arc::from(partition_key.as_str());
         let table_name = Arc::from(table_name.as_str());
@@ -130,7 +135,8 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             id,
             storage,
             lifecycle_action,
-            estimated_bytes,
+            memory_bytes,
+            object_store_bytes,
             row_count,
             time_of_first_write,
             time_of_last_write,
@@ -184,7 +190,8 @@ mod test {
             partition_key: "foo".to_string(),
             table_name: "bar".to_string(),
             id: 42,
-            estimated_bytes: 1234,
+            memory_bytes: 1234,
+            object_store_bytes: 567,
             row_count: 321,
             storage: management::ChunkStorage::ObjectStoreOnly.into(),
             lifecycle_action: management::ChunkLifecycleAction::Moving.into(),
@@ -198,7 +205,8 @@ mod test {
             partition_key: Arc::from("foo"),
             table_name: Arc::from("bar"),
             id: 42,
-            estimated_bytes: 1234,
+            memory_bytes: 1234,
+            object_store_bytes: 567,
             row_count: 321,
             storage: ChunkStorage::ObjectStoreOnly,
             lifecycle_action: Some(ChunkLifecycleAction::Moving),
@@ -220,7 +228,8 @@ mod test {
             partition_key: Arc::from("foo"),
             table_name: Arc::from("bar"),
             id: 42,
-            estimated_bytes: 1234,
+            memory_bytes: 1234,
+            object_store_bytes: 567,
             row_count: 321,
             storage: ChunkStorage::ObjectStoreOnly,
             lifecycle_action: Some(ChunkLifecycleAction::Persisting),
@@ -235,7 +244,8 @@ mod test {
             partition_key: "foo".to_string(),
             table_name: "bar".to_string(),
             id: 42,
-            estimated_bytes: 1234,
+            memory_bytes: 1234,
+            object_store_bytes: 567,
             row_count: 321,
             storage: management::ChunkStorage::ObjectStoreOnly.into(),
             lifecycle_action: management::ChunkLifecycleAction::Persisting.into(),

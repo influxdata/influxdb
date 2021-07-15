@@ -265,16 +265,16 @@ async fn sql_select_from_system_chunks() {
     //  test timestamps, etc)
 
     let expected = vec![
-        "+----+---------------+------------+-------------------+-----------------+-----------+",
-        "| id | partition_key | table_name | storage           | estimated_bytes | row_count |",
-        "+----+---------------+------------+-------------------+-----------------+-----------+",
-        "| 0  | 1970-01-01T00 | h2o        | OpenMutableBuffer | 213             | 3         |",
-        "| 0  | 1970-01-01T00 | o2         | OpenMutableBuffer | 177             | 2         |",
-        "+----+---------------+------------+-------------------+-----------------+-----------+",
+        "+----+---------------+------------+-------------------+--------------+-----------+",
+        "| id | partition_key | table_name | storage           | memory_bytes | row_count |",
+        "+----+---------------+------------+-------------------+--------------+-----------+",
+        "| 0  | 1970-01-01T00 | h2o        | OpenMutableBuffer | 213          | 3         |",
+        "| 0  | 1970-01-01T00 | o2         | OpenMutableBuffer | 177          | 2         |",
+        "+----+---------------+------------+-------------------+--------------+-----------+",
     ];
     run_sql_test_case!(
         TwoMeasurementsManyFieldsOneChunk {},
-        "SELECT id, partition_key, table_name, storage, estimated_bytes, row_count from system.chunks",
+        "SELECT id, partition_key, table_name, storage, memory_bytes, row_count from system.chunks",
         &expected
     );
 }
@@ -316,24 +316,24 @@ async fn sql_select_from_system_chunk_columns() {
     // with different chunk configurations.
 
     let expected = vec![
-        "+---------------+----------+------------+-------------+-------------------+-----------+-----------+-----------+-----------------+",
-        "| partition_key | chunk_id | table_name | column_name | storage           | row_count | min_value | max_value | estimated_bytes |",
-        "+---------------+----------+------------+-------------+-------------------+-----------+-----------+-----------+-----------------+",
-        "| 1970-01-01T00 | 0        | h2o        | city        | ReadBuffer        | 2         | Boston    | Boston    | 252             |",
-        "| 1970-01-01T00 | 0        | h2o        | other_temp  | ReadBuffer        | 1         | 70.4      | 70.4      | 425             |",
-        "| 1970-01-01T00 | 0        | h2o        | state       | ReadBuffer        | 2         | MA        | MA        | 240             |",
-        "| 1970-01-01T00 | 0        | h2o        | temp        | ReadBuffer        | 1         | 70.4      | 70.4      | 425             |",
-        "| 1970-01-01T00 | 0        | h2o        | time        | ReadBuffer        | 2         | 50        | 250       | 51              |",
-        "| 1970-01-01T00 | 0        | o2         | city        | OpenMutableBuffer | 1         | Boston    | Boston    | 35              |",
-        "| 1970-01-01T00 | 0        | o2         | reading     | OpenMutableBuffer | 1         | 51        | 51        | 25              |",
-        "| 1970-01-01T00 | 0        | o2         | state       | OpenMutableBuffer | 2         | CA        | MA        | 41              |",
-        "| 1970-01-01T00 | 0        | o2         | temp        | OpenMutableBuffer | 2         | 53.4      | 79        | 25              |",
-        "| 1970-01-01T00 | 0        | o2         | time        | OpenMutableBuffer | 2         | 50        | 300       | 25              |",
-        "| 1970-01-01T00 | 1        | h2o        | city        | OpenMutableBuffer | 1         | Boston    | Boston    | 31              |",
-        "| 1970-01-01T00 | 1        | h2o        | other_temp  | OpenMutableBuffer | 1         | 72.4      | 72.4      | 17              |",
-        "| 1970-01-01T00 | 1        | h2o        | state       | OpenMutableBuffer | 1         | CA        | CA        | 27              |",
-        "| 1970-01-01T00 | 1        | h2o        | time        | OpenMutableBuffer | 1         | 350       | 350       | 17              |",
-        "+---------------+----------+------------+-------------+-------------------+-----------+-----------+-----------+-----------------+",
+        "+---------------+----------+------------+-------------+-------------------+-----------+-----------+-----------+--------------+",
+        "| partition_key | chunk_id | table_name | column_name | storage           | row_count | min_value | max_value | memory_bytes |",
+        "+---------------+----------+------------+-------------+-------------------+-----------+-----------+-----------+--------------+",
+        "| 1970-01-01T00 | 0        | h2o        | city        | ReadBuffer        | 2         | Boston    | Boston    | 252          |",
+        "| 1970-01-01T00 | 0        | h2o        | other_temp  | ReadBuffer        | 1         | 70.4      | 70.4      | 425          |",
+        "| 1970-01-01T00 | 0        | h2o        | state       | ReadBuffer        | 2         | MA        | MA        | 240          |",
+        "| 1970-01-01T00 | 0        | h2o        | temp        | ReadBuffer        | 1         | 70.4      | 70.4      | 425          |",
+        "| 1970-01-01T00 | 0        | h2o        | time        | ReadBuffer        | 2         | 50        | 250       | 51           |",
+        "| 1970-01-01T00 | 0        | o2         | city        | OpenMutableBuffer | 1         | Boston    | Boston    | 35           |",
+        "| 1970-01-01T00 | 0        | o2         | reading     | OpenMutableBuffer | 1         | 51        | 51        | 25           |",
+        "| 1970-01-01T00 | 0        | o2         | state       | OpenMutableBuffer | 2         | CA        | MA        | 41           |",
+        "| 1970-01-01T00 | 0        | o2         | temp        | OpenMutableBuffer | 2         | 53.4      | 79        | 25           |",
+        "| 1970-01-01T00 | 0        | o2         | time        | OpenMutableBuffer | 2         | 50        | 300       | 25           |",
+        "| 1970-01-01T00 | 1        | h2o        | city        | OpenMutableBuffer | 1         | Boston    | Boston    | 31           |",
+        "| 1970-01-01T00 | 1        | h2o        | other_temp  | OpenMutableBuffer | 1         | 72.4      | 72.4      | 17           |",
+        "| 1970-01-01T00 | 1        | h2o        | state       | OpenMutableBuffer | 1         | CA        | CA        | 27           |",
+        "| 1970-01-01T00 | 1        | h2o        | time        | OpenMutableBuffer | 1         | 350       | 350       | 17           |",
+        "+---------------+----------+------------+-------------+-------------------+-----------+-----------+-----------+--------------+",
     ];
     run_sql_test_case!(
         TwoMeasurementsManyFieldsTwoChunks {},

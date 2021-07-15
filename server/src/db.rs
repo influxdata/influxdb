@@ -2262,36 +2262,6 @@ mod tests {
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![1]);
     }
 
-    /// Normalizes a set of ChunkSummaries for comparison by removing timestamps
-    fn normalize_summaries(summaries: Vec<ChunkSummary>) -> Vec<ChunkSummary> {
-        let mut summaries = summaries
-            .into_iter()
-            .map(|summary| {
-                let ChunkSummary {
-                    partition_key,
-                    table_name,
-                    id,
-                    storage,
-                    lifecycle_action,
-                    estimated_bytes,
-                    row_count,
-                    ..
-                } = summary;
-                ChunkSummary::new_without_timestamps(
-                    partition_key,
-                    table_name,
-                    id,
-                    storage,
-                    lifecycle_action,
-                    estimated_bytes,
-                    row_count,
-                )
-            })
-            .collect::<Vec<_>>();
-        summaries.sort_unstable();
-        summaries
-    }
-
     #[tokio::test]
     async fn partition_chunk_summaries() {
         // Test that chunk id listing is hooked up
@@ -2306,7 +2276,7 @@ mod tests {
         print!("Partitions: {:?}", db.partition_keys().unwrap());
 
         let chunk_summaries = db.partition_chunk_summaries("1970-01-05T15");
-        let chunk_summaries = normalize_summaries(chunk_summaries);
+        let chunk_summaries = ChunkSummary::normalize_summaries(chunk_summaries);
 
         let expected = vec![ChunkSummary::new_without_timestamps(
             Arc::from("1970-01-05T15"),
@@ -2314,7 +2284,8 @@ mod tests {
             0,
             ChunkStorage::OpenMutableBuffer,
             None,
-            70,
+            70, // memory_size
+            0,  // os_size
             1,
         )];
 
@@ -2322,7 +2293,7 @@ mod tests {
             .chunk_summaries()
             .unwrap()
             .into_iter()
-            .map(|x| x.estimated_bytes)
+            .map(|x| x.memory_bytes)
             .sum();
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), size);
@@ -2412,7 +2383,7 @@ mod tests {
         write_lp(&db, "cpu bar=1,baz=3,blargh=3 400000000000000").await;
 
         let chunk_summaries = db.chunk_summaries().expect("expected summary to return");
-        let chunk_summaries = normalize_summaries(chunk_summaries);
+        let chunk_summaries = ChunkSummary::normalize_summaries(chunk_summaries);
 
         let lifecycle_action = None;
 
@@ -2424,6 +2395,7 @@ mod tests {
                 ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
                 2115, // size of RB and OS chunks
+                1132, // size of parquet file
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2433,6 +2405,7 @@ mod tests {
                 ChunkStorage::OpenMutableBuffer,
                 lifecycle_action,
                 64,
+                0, // no OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2442,6 +2415,7 @@ mod tests {
                 ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
                 2398,
+                0, // no OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2451,13 +2425,14 @@ mod tests {
                 ChunkStorage::OpenMutableBuffer,
                 lifecycle_action,
                 87,
+                0, // no OS chunks
                 1,
             ),
         ];
 
         assert_eq!(
             expected, chunk_summaries,
-            "expected:\n{:#?}\n\nactual:{:#?}\n\n",
+            "\n\nexpected:\n{:#?}\n\nactual:{:#?}\n\n",
             expected, chunk_summaries
         );
 
