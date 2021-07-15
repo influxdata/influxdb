@@ -4959,6 +4959,7 @@ dependencies = [
  "dotenv",
  "entry",
  "futures",
+ "observability_deps",
  "parking_lot",
  "rdkafka",
  "tokio",

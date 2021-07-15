@@ -651,6 +651,7 @@ impl Db {
             let rules = self.rules.read();
             rules.lifecycle_rules.immutable
         };
+        debug!(%immutable, has_write_buffer=self.write_buffer.is_some(), "storing entry");
 
         match (self.write_buffer.as_ref(), immutable) {
             (Some(WriteBufferConfig::Writing(write_buffer)), true) => {

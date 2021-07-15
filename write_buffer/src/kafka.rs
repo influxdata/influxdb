@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use data_types::server_id::ServerId;
 use entry::{Entry, Sequence, SequencedEntry};
 use futures::{stream::BoxStream, StreamExt};
+use observability_deps::tracing::debug;
 use rdkafka::{
     consumer::{Consumer, StreamConsumer},
     error::KafkaError,
@@ -45,11 +46,15 @@ impl WriteBufferWriting for KafkaBufferProducer {
             .payload(entry.data())
             .partition(partition);
 
+        debug!(db_name=%self.database_name, partition, size=entry.data().len(), "writing to kafka");
+
         let (partition, offset) = self
             .producer
             .send(record, Timeout::Never)
             .await
             .map_err(|(e, _owned_message)| Box::new(e))?;
+
+        debug!(db_name=%self.database_name, %offset, %partition, size=entry.data().len(), "wrote to kafka");
 
         Ok(Sequence {
             id: partition.try_into()?,
