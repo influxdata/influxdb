@@ -2712,6 +2712,7 @@ name = "persistence_windows"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "data_types",
  "entry",
  "internal_types",
  "snafu",

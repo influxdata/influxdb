@@ -1,14 +1,17 @@
 //!  In memory structures for tracking data ingest and when persistence can or should occur.
 use std::{
     collections::{btree_map::Entry, BTreeMap, VecDeque},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
 use chrono::{DateTime, TimeZone, Utc};
 
+use data_types::partition_metadata::PartitionAddr;
 use entry::Sequence;
 use internal_types::guard::{ReadGuard, ReadLock};
 
+use crate::checkpoint::PartitionCheckpoint;
 use crate::min_max_sequence::MinMaxSequence;
 
 const DEFAULT_CLOSED_WINDOW_PERIOD: Duration = Duration::from_secs(30);
@@ -36,6 +39,9 @@ pub struct PersistenceWindows {
     persistable: ReadLock<Option<Window>>,
     closed: VecDeque<Window>,
     open: Option<Window>,
+
+    addr: PartitionAddr,
+
     late_arrival_period: Duration,
     closed_window_period: Duration,
 
@@ -43,7 +49,7 @@ pub struct PersistenceWindows {
     last_instant: Instant,
 
     /// maps sequencer_id to the maximum sequence passed to PersistenceWindows::add_range
-    sequencer_numbers: BTreeMap<u32, u64>,
+    max_sequence_numbers: BTreeMap<u32, u64>,
 }
 
 /// A handle for flushing data from the `PersistenceWindows`
@@ -63,8 +69,14 @@ pub struct FlushHandle {
     /// minimum timestamps truncated on flush
     closed_count: usize,
 
+    /// The address of the partition
+    addr: PartitionAddr,
+
     /// The timestamp to flush
     timestamp: DateTime<Utc>,
+
+    /// The sequence number ranges not including those persisted by this flush
+    sequencer_numbers: BTreeMap<u32, MinMaxSequence>,
 }
 
 impl FlushHandle {
@@ -72,10 +84,21 @@ impl FlushHandle {
     pub fn timestamp(&self) -> DateTime<Utc> {
         self.timestamp
     }
+
+    /// Returns a partition checkpoint that describes the state of this partition
+    /// after the flush
+    pub fn checkpoint(&self) -> PartitionCheckpoint {
+        PartitionCheckpoint::new(
+            Arc::clone(&self.addr.table_name),
+            Arc::clone(&self.addr.partition_key),
+            self.sequencer_numbers.clone(),
+            self.timestamp + chrono::Duration::nanoseconds(1),
+        )
+    }
 }
 
 impl PersistenceWindows {
-    pub fn new(late_arrival_period: Duration) -> Self {
+    pub fn new(addr: PartitionAddr, late_arrival_period: Duration) -> Self {
         let closed_window_period = late_arrival_period.min(DEFAULT_CLOSED_WINDOW_PERIOD);
 
         let late_arrival_seconds = late_arrival_period.as_secs();
@@ -87,10 +110,11 @@ impl PersistenceWindows {
             persistable: ReadLock::new(None),
             closed: VecDeque::with_capacity(closed_window_count as usize),
             open: None,
+            addr,
             late_arrival_period,
             closed_window_period,
             last_instant: Instant::now(),
-            sequencer_numbers: Default::default(),
+            max_sequence_numbers: Default::default(),
         }
     }
 
@@ -121,7 +145,7 @@ impl PersistenceWindows {
         self.last_instant = received_at;
 
         if let Some(sequence) = sequence {
-            match self.sequencer_numbers.entry(sequence.id) {
+            match self.max_sequence_numbers.entry(sequence.id) {
                 Entry::Occupied(mut occupied) => {
                     assert!(
                         *occupied.get() < sequence.number,
@@ -190,6 +214,39 @@ impl PersistenceWindows {
         }
     }
 
+    /// Returns the sequence number range of unpersisted writes described by this instance
+    ///
+    /// Can optionally skip the persistable window if any
+    fn sequence_numbers(&self, skip_persistable: bool) -> BTreeMap<u32, MinMaxSequence> {
+        if self.is_empty() {
+            Default::default()
+        }
+
+        let skip = match skip_persistable {
+            true if self.persistable.is_some() => 1,
+            _ => 0,
+        };
+
+        self.max_sequence_numbers
+            .iter()
+            .filter_map(|(sequencer_id, max_sequence_number)| {
+                // Find first window containing writes from sequencer_id
+                let window = self
+                    .windows()
+                    .skip(skip)
+                    .filter_map(|window| window.sequencer_numbers.get(sequencer_id))
+                    .next()?;
+
+                assert!(window.max() <= *max_sequence_number);
+
+                Some((
+                    *sequencer_id,
+                    MinMaxSequence::new(window.min(), *max_sequence_number),
+                ))
+            })
+            .collect()
+    }
+
     /// Acquire a handle that prevents mutation of the persistable window until dropped
     ///
     /// Returns `None` if there is an outstanding handle
@@ -208,7 +265,9 @@ impl PersistenceWindows {
         Some(FlushHandle {
             guard: self.persistable.lock(),
             closed_count: self.closed.len(),
+            addr: self.addr.clone(),
             timestamp: self.persistable.as_ref()?.max_time,
+            sequencer_numbers: self.sequence_numbers(true),
         })
     }
 
@@ -249,6 +308,19 @@ impl PersistenceWindows {
         self.closed.retain(|x| x.row_count > 0);
     }
 
+    /// Returns a PartitionCheckpoint for the current state of this partition
+    ///
+    /// Returns None if this PersistenceWindows is empty
+    pub fn checkpoint(&self) -> Option<PartitionCheckpoint> {
+        let minimum_unpersisted_timestamp = self.minimum_unpersisted_timestamp()?;
+        Some(PartitionCheckpoint::new(
+            Arc::clone(&self.addr.table_name),
+            Arc::clone(&self.addr.partition_key),
+            self.sequence_numbers(false),
+            minimum_unpersisted_timestamp,
+        ))
+    }
+
     /// Returns an iterator over the windows starting with the oldest
     fn windows(&self) -> impl Iterator<Item = &Window> {
         self.persistable
@@ -261,6 +333,11 @@ impl PersistenceWindows {
     /// Returns the minimum window
     fn minimum_window(&self) -> Option<&Window> {
         self.windows().next()
+    }
+
+    /// Returns true if this PersistenceWindows instance is empty
+    pub fn is_empty(&self) -> bool {
+        self.minimum_window().is_none()
     }
 
     /// Returns the unpersisted sequencer numbers that represent the min
@@ -402,9 +479,20 @@ impl Window {
 mod tests {
     use super::*;
 
+    fn make_windows(late_arrival_period: Duration) -> PersistenceWindows {
+        PersistenceWindows::new(
+            PartitionAddr {
+                db_name: Arc::from("db"),
+                table_name: Arc::from("table_name"),
+                partition_key: Arc::from("partition_key"),
+            },
+            late_arrival_period,
+        )
+    }
+
     #[test]
     fn starts_open_window() {
-        let mut w = PersistenceWindows::new(Duration::from_secs(60));
+        let mut w = make_windows(Duration::from_secs(60));
 
         let i = Instant::now();
         let start_time = Utc::now();
@@ -458,7 +546,7 @@ mod tests {
 
     #[test]
     fn closes_open_window() {
-        let mut w = PersistenceWindows::new(Duration::from_secs(60));
+        let mut w = make_windows(Duration::from_secs(60));
         let created_at = Instant::now();
         let start_time = Utc::now();
         let last_time = Utc::now();
@@ -512,7 +600,7 @@ mod tests {
 
     #[test]
     fn moves_to_persistable() {
-        let mut w = PersistenceWindows::new(Duration::from_secs(120));
+        let mut w = make_windows(Duration::from_secs(120));
         let created_at = Instant::now();
         let start_time = Utc::now();
 
@@ -615,7 +703,7 @@ mod tests {
 
     #[test]
     fn flush_persistable_keeps_open_and_closed() {
-        let mut w = PersistenceWindows::new(Duration::from_secs(120));
+        let mut w = make_windows(Duration::from_secs(120));
 
         // these instants represent when the server received the data. Here we have a window that
         // should be in the persistable group, a closed window, and an open window that is closed on flush.
@@ -694,7 +782,7 @@ mod tests {
 
     #[test]
     fn flush_persistable_overlaps_closed() {
-        let mut w = PersistenceWindows::new(Duration::from_secs(120));
+        let mut w = make_windows(Duration::from_secs(120));
 
         // these instants represent when data is received by the server. Here we have a persistable
         // window followed by two closed windows.
@@ -776,7 +864,7 @@ mod tests {
 
     #[test]
     fn flush_persistable_overlaps_open() {
-        let mut w = PersistenceWindows::new(Duration::from_secs(120));
+        let mut w = make_windows(Duration::from_secs(120));
 
         // these instants represent when data is received by the server. Here we have a persistable
         // window followed by two closed windows.
@@ -861,7 +949,7 @@ mod tests {
 
     #[test]
     fn flush_persistable_overlaps_open_and_closed() {
-        let mut w = PersistenceWindows::new(Duration::from_secs(120));
+        let mut w = make_windows(Duration::from_secs(120));
 
         // these instants represent when data is received by the server. Here we have a persistable
         // window followed by two closed windows.
@@ -946,7 +1034,7 @@ mod tests {
 
     #[test]
     fn test_flush_guard() {
-        let mut w = PersistenceWindows::new(Duration::from_secs(120));
+        let mut w = make_windows(Duration::from_secs(120));
 
         let instant = Instant::now();
         let start = Utc::now();
@@ -993,17 +1081,39 @@ mod tests {
         let flush_t = guard.timestamp();
         assert_eq!(flush_t, start + chrono::Duration::seconds(2));
 
+        // Min time should have been truncated by persist operation to be
+        // 1 nanosecond more than was persisted
+        let truncated_time = flush_t + chrono::Duration::nanoseconds(1);
+
+        // The flush checkpoint should not include the writes being persisted
+        let flush_checkpoint = guard.checkpoint();
+        assert_eq!(
+            flush_checkpoint.sequencer_numbers(1).unwrap(),
+            MinMaxSequence::new(4, 4)
+        );
+        assert_eq!(flush_checkpoint.min_unpersisted_timestamp(), truncated_time);
+
+        // The checkpoint on the partition should include everything
+        let checkpoint = w.checkpoint().unwrap();
+        assert_eq!(
+            checkpoint.sequencer_numbers(1).unwrap(),
+            MinMaxSequence::new(2, 4)
+        );
+        assert_eq!(checkpoint.min_unpersisted_timestamp(), start);
+
         // Flush persistable window
         w.flush(guard);
         assert!(w.persistable.is_none());
+
+        // As there were no writes between creating the flush handle and the flush
+        // the new partition checkpoint should match the persisted one
+        let checkpoint = w.checkpoint().unwrap();
+        assert_eq!(flush_checkpoint, checkpoint);
 
         // This should rotate into persistable
         w.rotate(instant + Duration::from_secs(240));
         assert_eq!(w.persistable.as_ref().unwrap().row_count, 5);
 
-        // Min time should have been truncated by persist operation to be
-        // 1 nanosecond more than was persisted
-        let truncated_time = flush_t + chrono::Duration::nanoseconds(1);
         assert_eq!(w.persistable.as_ref().unwrap().min_time, truncated_time);
 
         let guard = w.flush_handle(instant + Duration::from_secs(240)).unwrap();
@@ -1033,7 +1143,7 @@ mod tests {
 
     #[test]
     fn test_flush_guard_multiple_closed() {
-        let mut w = PersistenceWindows::new(DEFAULT_CLOSED_WINDOW_PERIOD * 3);
+        let mut w = make_windows(DEFAULT_CLOSED_WINDOW_PERIOD * 3);
 
         let instant = Instant::now();
         let start = Utc::now();
@@ -1102,7 +1212,31 @@ mod tests {
         assert_eq!(w.persistable.as_ref().unwrap().row_count, 2);
         assert_eq!(w.closed.len(), 4);
 
+        // The flush checkpoint should not include the latest write nor those being persisted
+        let checkpoint = flush.checkpoint();
+        assert_eq!(
+            checkpoint.sequencer_numbers(1).unwrap(),
+            MinMaxSequence::new(6, 10)
+        );
+        assert_eq!(checkpoint.min_unpersisted_timestamp(), truncated_time);
+
+        // The checkpoint on the partition should include everything
+        let checkpoint = w.checkpoint().unwrap();
+        assert_eq!(
+            checkpoint.sequencer_numbers(1).unwrap(),
+            MinMaxSequence::new(2, 14)
+        );
+        assert_eq!(checkpoint.min_unpersisted_timestamp(), start);
+
         w.flush(flush);
+
+        // The checkpoint after the flush should include the new write
+        let checkpoint = w.checkpoint().unwrap();
+        assert_eq!(
+            checkpoint.sequencer_numbers(1).unwrap(),
+            MinMaxSequence::new(6, 14)
+        );
+        assert_eq!(checkpoint.min_unpersisted_timestamp(), start);
 
         // Windows from writes at
         //

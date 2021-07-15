@@ -830,7 +830,10 @@ impl Db {
                             );
                         }
                         None => {
-                            let mut windows = PersistenceWindows::new(late_arrival_window);
+                            let mut windows = PersistenceWindows::new(
+                                partition.addr().clone(),
+                                late_arrival_window,
+                            );
                             windows.add_range(
                                 sequence,
                                 row_count,
