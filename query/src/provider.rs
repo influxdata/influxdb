@@ -20,7 +20,7 @@ use datafusion::{
     },
 };
 use internal_types::schema::{merge::SchemaMerger, sort::SortKey, Schema};
-use observability_deps::tracing::{debug, trace};
+use observability_deps::tracing::{debug, info, trace};
 
 use crate::{
     compute_sort_key,
@@ -688,7 +688,19 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
                     trace!(ChunkID=?chunk.id(), "Chunk is sorted and no need the sort operator");
                     return Ok(input);
                 }
+            } else {
+                // The chunk is sorted but not on different order with super sort key.
+                // Log it for investigating data set to improve performance further
+                info!(chunk_type=?chunk.chunk_type(),
+                    chunk_ID=?chunk.id(),
+                    chunk_current_sort_order=?chunk_sort_key,
+                    chunk_super_sort_key=?super_sort_key,
+                    "Chunk will get resorted in build_sort_plan due to new cardinality rate between key columns");
             }
+        } else {
+            info!(chunk_type=?chunk.chunk_type(),
+                chunk_ID=?chunk.id(),
+                "Chunk is not yet sorted and will get sorted in build_sort_plan");
         }
 
         // Build the chunk's sort key that is a subset of the super_sort_key
@@ -696,19 +708,21 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         // First get the chunk pk columns
         let schema = chunk.schema();
         let key_columns = schema.primary_key();
-        trace!(pk_columns=?key_columns, "PK columns of the chunk that have not been sorted yet");
 
         // Now get the key subset of the super key that includes the chunk's pk columns
-        let chunk_sort_key = super_sort_key.selected_sort_key(key_columns);
+        let chunk_sort_key = super_sort_key.selected_sort_key(key_columns.clone());
+
+        info!(chunk_type=?chunk.chunk_type(),
+            chunk_ID=?chunk.id(),
+            pk_columns=?key_columns,
+            sort_key=?chunk_sort_key,
+             "Chunk is getting sorted");
 
         // Build arrow sort expression for the chunk sort key
         let input_schema = input.schema();
         let sort_exprs = arrow_sort_key_exprs(chunk_sort_key, &input_schema);
 
         trace!(Sort_Exprs=?sort_exprs, Chunk_ID=?chunk.id(), "Sort Expression for the sort operator of chunk");
-
-        // The chunk must be sorted after this, set sort key for it
-        // Todo: chunk.set_sort_key(&chunk_sort_key);
 
         // Create SortExec operator
         Ok(Arc::new(
@@ -934,15 +948,12 @@ mod test {
                     5,
                     Some(NonZeroU64::new(5).unwrap()),
                 )
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
-                // from the one of tag2 to have deterministic column sort order to return
-                // deterministic sorted results
                 .with_tag_column_with_full_stats(
                     "tag1",
                     Some("AL"),
                     Some("MT"),
                     5,
-                    Some(NonZeroU64::new(2).unwrap()),
+                    Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_tag_column_with_full_stats(
                     "tag2",
@@ -1017,15 +1028,12 @@ mod test {
                     5,
                     Some(NonZeroU64::new(5).unwrap()),
                 )
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
-                // from the one of tag2 to have deterministic column sort order to return
-                // deterministic sorted results
                 .with_tag_column_with_full_stats(
                     "tag1",
                     Some("AL"),
                     Some("MT"),
                     5,
-                    Some(NonZeroU64::new(2).unwrap()),
+                    Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_tag_column_with_full_stats(
                     "tag2",
@@ -1083,15 +1091,12 @@ mod test {
                     5,
                     Some(NonZeroU64::new(5).unwrap()),
                 )
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
-                // from the one of tag2 to have deterministic column sort order to return
-                // deterministic sorted results
                 .with_tag_column_with_full_stats(
                     "tag1",
                     Some("AL"),
                     Some("MT"),
                     5,
-                    Some(NonZeroU64::new(2).unwrap()),
+                    Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_tag_column_with_full_stats(
                     "tag2",
@@ -1114,15 +1119,12 @@ mod test {
                     5,
                     Some(NonZeroU64::new(5).unwrap()),
                 )
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
-                // from the one of tag2 to have deterministic column sort order to return
-                // deterministic sorted results
                 .with_tag_column_with_full_stats(
                     "tag1",
                     Some("AL"),
                     Some("MT"),
                     5,
-                    Some(NonZeroU64::new(2).unwrap()),
+                    Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_tag_column_with_full_stats(
                     "tag2",
@@ -1195,15 +1197,12 @@ mod test {
                     5,
                     Some(NonZeroU64::new(5).unwrap()),
                 )
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
-                // from the one of tag2 to have deterministic column sort order to return
-                // deterministic sorted results
                 .with_tag_column_with_full_stats(
                     "tag1",
                     Some("AL"),
                     Some("MT"),
                     5,
-                    Some(NonZeroU64::new(2).unwrap()),
+                    Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_tag_column_with_full_stats(
                     "tag2",
@@ -1226,15 +1225,12 @@ mod test {
                     5,
                     Some(NonZeroU64::new(5).unwrap()),
                 )
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
-                // from the one of tag2 to have deterministic column sort order to return
-                // deterministic sorted results
                 .with_tag_column_with_full_stats(
                     "tag1",
                     Some("AL"),
                     Some("MT"),
                     5,
-                    Some(NonZeroU64::new(2).unwrap()),
+                    Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_tag_column_with_full_stats(
                     "tag2",
@@ -1446,15 +1442,12 @@ mod test {
                     5,
                     Some(NonZeroU64::new(5).unwrap()),
                 )
-                // Actual distinct count of tag1 is 3 but make it 2 here to have it different
-                // from the one of tag2 and tag3 to have deterministic column sort order to return
-                // deterministic sorted results
                 .with_tag_column_with_full_stats(
                     "tag1",
                     Some("AL"),
                     Some("MT"),
                     5,
-                    Some(NonZeroU64::new(2).unwrap()),
+                    Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_tag_column_with_full_stats(
                     "tag2",
@@ -1942,13 +1935,12 @@ mod test {
                     3,
                     Some(NonZeroU64::new(3).unwrap()),
                 )
-                // Actual distinct count of tag1 is 3 but make it 2 to avoid the same stats with time to have a deterministic test results
                 .with_tag_column_with_full_stats(
                     "tag1",
                     Some("UT"),
                     Some("WA"),
                     3,
-                    Some(NonZeroU64::new(2).unwrap()),
+                    Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_i64_field_column("field_int")
                 .with_three_rows_of_data(),
@@ -1964,13 +1956,12 @@ mod test {
                     4,
                     Some(NonZeroU64::new(3).unwrap()),
                 )
-                // Actual distinct count of tag1 is 3 but make it 2 to avoid the same stats with time to have a deterministic test results
                 .with_tag_column_with_full_stats(
                     "tag1",
                     Some("UT"),
                     Some("WA"),
                     4,
-                    Some(NonZeroU64::new(2).unwrap()),
+                    Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
