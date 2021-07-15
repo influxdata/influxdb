@@ -2894,11 +2894,13 @@ mod tests {
             ),
         ];
 
-        assert_eq!(
-            expected, chunk_summaries,
-            "\n\nexpected:\n{:#?}\n\nactual:{:#?}\n\n",
-            expected, chunk_summaries
-        );
+        for (expected_summary, actual_summary) in expected.iter().zip(chunk_summaries.iter()) {
+            assert_eq!(
+                expected_summary, actual_summary,
+                "\n\nexpected:\n{:#?}\n\nactual:\n{:#?}\n\n",
+                expected_summary, actual_summary
+            );
+        }
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2398 + 87);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2410);
