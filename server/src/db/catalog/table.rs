@@ -1,6 +1,6 @@
 use super::partition::Partition;
 use crate::db::catalog::metrics::TableMetrics;
-use data_types::partition_metadata::PartitionSummary;
+use data_types::partition_metadata::{PartitionAddr, PartitionSummary};
 use hashbrown::HashMap;
 use internal_types::schema::{
     builder::SchemaBuilder,
@@ -78,9 +78,11 @@ impl Table {
                 let partition_key = Arc::from(partition_key.as_ref());
                 let partition_metrics = metrics.new_partition_metrics();
                 let partition = Partition::new(
-                    Arc::clone(&db_name),
-                    Arc::clone(&partition_key),
-                    Arc::clone(&table_name),
+                    PartitionAddr {
+                        db_name: Arc::clone(db_name),
+                        table_name: Arc::clone(table_name),
+                        partition_key: Arc::clone(&partition_key),
+                    },
                     partition_metrics,
                 );
                 let partition = Arc::new(metrics.new_partition_lock(partition));

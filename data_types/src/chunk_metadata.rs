@@ -1,6 +1,7 @@
 //! Module contains a representation of chunk metadata
 use std::sync::Arc;
 
+use crate::partition_metadata::PartitionAddr;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +19,17 @@ pub struct ChunkAddr {
 
     /// The ID of the chunk
     pub chunk_id: u32,
+}
+
+impl ChunkAddr {
+    pub fn new(partition: &PartitionAddr, chunk_id: u32) -> Self {
+        Self {
+            db_name: Arc::clone(&partition.db_name),
+            table_name: Arc::clone(&partition.table_name),
+            partition_key: Arc::clone(&partition.partition_key),
+            chunk_id,
+        }
+    }
 }
 
 impl std::fmt::Display for ChunkAddr {

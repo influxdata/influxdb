@@ -8,7 +8,31 @@ use std::{
     iter::FromIterator,
     mem,
     num::NonZeroU64,
+    sync::Arc,
 };
+
+/// Address of the chunk within the catalog
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PartitionAddr {
+    /// Database name
+    pub db_name: Arc<str>,
+
+    /// What table does the chunk belong to?
+    pub table_name: Arc<str>,
+
+    /// What partition does the chunk belong to?
+    pub partition_key: Arc<str>,
+}
+
+impl std::fmt::Display for PartitionAddr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Partition('{}':'{}':'{}')",
+            self.db_name, self.table_name, self.partition_key
+        )
+    }
+}
 
 /// Describes the aggregated (across all chunks) summary
 /// statistics for each column in a partition
