@@ -552,8 +552,8 @@ impl Table {
 // TODO(edd): reduce owned strings here by, e.g., using references as keys.
 #[derive(Clone, Default)]
 pub struct MetaData {
-    // The total size of the table in bytes.
-    size: usize,
+    // The total size of all row-group data associated with the table in bytes.
+    rgs_size: usize,
 
     // The total number of rows in the table.
     rows: u64,
@@ -570,8 +570,7 @@ pub struct MetaData {
 impl MetaData {
     pub fn new(rg: &row_group::RowGroup) -> Self {
         Self {
-            // This uses RowGroup.size()...
-            size: rg.size(),
+            rgs_size: rg.size(),
             rows: rg.rows() as u64,
             columns: rg.metadata().columns.clone(),
             column_names: rg.metadata().column_names.clone(),
@@ -580,7 +579,7 @@ impl MetaData {
 
     /// Returns the estimated size in bytes of the `MetaData` struct and all of
     /// the row group data associated with a `Table`.
-    pub fn size(&self) -> usize {
+    fn size(&self) -> usize {
         let base_size = std::mem::size_of::<Self>();
         let columns_meta_size = self
             .columns
@@ -589,34 +588,35 @@ impl MetaData {
             .sum::<usize>();
 
         let column_names_size = self.column_names.iter().map(|c| c.len()).sum::<usize>();
-        (base_size + columns_meta_size + column_names_size) + self.size
+        (base_size + columns_meta_size + column_names_size) + self.rgs_size
     }
 
     /// Create a new `MetaData` by consuming `this` and incorporating `other`.
     pub fn update_with(mut this: Self, rg: &row_group::RowGroup) -> Self {
-        let other = rg.metadata();
+        let other_meta = rg.metadata();
 
         // first row group added to the table.
         if this.columns.is_empty() {
-            // ... but this is using RowGroup.metadata().size()!
-            this.size = other.size();
-            this.rows = other.rows as u64;
-            this.columns = other.columns.clone();
-            this.column_names = other.column_names.clone();
+            this.rgs_size = rg.size();
+            this.rows = rg.rows() as u64;
+            this.columns = other_meta.columns.clone();
+            this.column_names = other_meta.column_names.clone();
 
             return this;
         }
 
+        // Subsequent row groups...
+
         // The incoming row group must have exactly the same schema as any
         // existing row groups in the table.
-        assert_eq!(&this.columns, &other.columns);
+        assert_eq!(&this.columns, &other_meta.columns);
 
         // update size, rows, column ranges, time range
-        this.size += rg.size();
-        this.rows += other.rows as u64;
+        this.rgs_size += rg.size();
+        this.rows += rg.rows() as u64;
 
         // Update the table schema using the incoming row group schema
-        for (column_name, column_meta) in &other.columns {
+        for (column_name, column_meta) in &other_meta.columns {
             let (column_range_min, column_range_max) = &column_meta.range;
             let mut curr_meta = this.columns.get_mut(&column_name.to_string()).unwrap();
 
@@ -1024,7 +1024,7 @@ mod test {
 
         let mut meta = MetaData::new(&rg);
         assert_eq!(meta.rows, 3);
-        let meta_size = meta.size;
+        let meta_size = meta.rgs_size;
         assert!(meta_size > 0);
         assert_eq!(
             meta.columns.get("region").unwrap().range,
@@ -1045,7 +1045,7 @@ mod test {
 
         meta = MetaData::update_with(meta, &rg);
         assert_eq!(meta.rows, 5);
-        assert!(meta.size > meta_size);
+        assert!(meta.rgs_size > meta_size);
         assert_eq!(
             meta.columns.get("region").unwrap().range,
             (
@@ -1074,8 +1074,8 @@ mod test {
         let meta_default = MetaData::default();
         let meta_default = MetaData::update_with(meta_default, &rg);
 
-        // The size field is the part that was failing
-        assert_eq!(meta_new.size, meta_default.size);
+        // The rgs_size field is the part that was failing
+        assert_eq!(meta_new.rgs_size, meta_default.rgs_size);
         // The value from the size method should match too
         assert_eq!(meta_new.size(), meta_default.size());
     }
