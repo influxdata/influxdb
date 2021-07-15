@@ -54,7 +54,7 @@ impl WriteBufferWriting for KafkaBufferProducer {
             .await
             .map_err(|(e, _owned_message)| Box::new(e))?;
 
-        debug!(b_name=%self.database_name, %offset, %partition, size=entry.data().len(), "wrote to kafka");
+        debug!(db_name=%self.database_name, %offset, %partition, size=entry.data().len(), "wrote to kafka");
 
         Ok(Sequence {
             id: partition.try_into()?,
