@@ -317,8 +317,18 @@ impl DatabaseBuilder {
         self
     }
 
+    pub fn mub_row_threshold(mut self, threshold: u64) -> Self {
+        self.lifecycle_rules.mub_row_threshold = threshold;
+        self
+    }
+
     pub fn persist_age_threshold_seconds(mut self, threshold: u32) -> Self {
         self.lifecycle_rules.persist_age_threshold_seconds = threshold;
+        self
+    }
+
+    pub fn persist_row_threshold(mut self, threshold: u64) -> Self {
+        self.lifecycle_rules.persist_row_threshold = threshold;
         self
     }
 
