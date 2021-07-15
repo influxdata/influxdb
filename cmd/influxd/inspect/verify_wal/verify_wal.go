@@ -98,12 +98,14 @@ func (a args) Run(cmd *cobra.Command) error {
 			}
 		}
 
-		if entriesScanned == 0 {
-			// No data found in file
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "no WAL entries found for file %s, skipping", f.Name())
-		} else if clean && a.verbose {
-			// No corrupted entry found
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s: clean\n", fpath)
+		if a.verbose {
+			if entriesScanned == 0 {
+				// No data found in file
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s: no WAL entries found\n", f.Name())
+			} else if clean {
+				// No corrupted entry found
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s: clean\n", fpath)
+			}
 		}
 		totalEntriesScanned += entriesScanned
 		_ = tw.Flush()
