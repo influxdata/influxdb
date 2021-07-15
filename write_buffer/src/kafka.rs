@@ -70,6 +70,7 @@ impl KafkaBufferProducer {
         cfg.set("bootstrap.servers", &conn);
         cfg.set("message.timeout.ms", "5000");
         cfg.set("message.max.bytes", "10000000");
+        cfg.set("queue.buffering.max.kbytes", "10485760");
 
         let producer: FutureProducer = cfg.create()?;
 
