@@ -1054,6 +1054,31 @@ mod test {
     }
 
     #[test]
+    fn meta_data_new_or_update_with_same_size() {
+        let columns = vec![
+            (
+                "time".to_string(),
+                ColumnType::create_time(&[100, 200, 300]),
+            ),
+            (
+                "region".to_string(),
+                ColumnType::create_tag(&["west", "west", "north"]),
+            ),
+        ];
+        let rg = RowGroup::new(3, columns);
+
+        let meta_new = MetaData::new(&rg);
+
+        let meta_default = MetaData::default();
+        let meta_default = MetaData::update_with(meta_default, &rg);
+
+        // The size field is the part that was failing
+        assert_eq!(meta_new.size, meta_default.size);
+        // The value from the size method should match too
+        assert_eq!(meta_new.size(), meta_default.size());
+    }
+
+    #[test]
     fn add_remove_row_groups() {
         let tc = ColumnType::Time(Column::from(&[0_i64, 2, 3][..]));
         let columns = vec![("time".to_string(), tc)];
