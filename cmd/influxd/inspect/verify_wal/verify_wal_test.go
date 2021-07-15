@@ -54,7 +54,7 @@ func TestVerifies_InvalidEmptyFile(t *testing.T) {
 	runCommand(testInfo{
 		t:           t,
 		path:        path,
-		expectedOut: "no WAL entries found for file",
+		expectedOut: "no WAL entries found",
 		withStdErr:  true,
 	})
 }
