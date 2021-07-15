@@ -8,6 +8,7 @@ use rdkafka::{
     consumer::{Consumer, StreamConsumer},
     error::KafkaError,
     producer::{FutureProducer, FutureRecord},
+    util::Timeout,
     ClientConfig, Message,
 };
 
@@ -46,9 +47,8 @@ impl WriteBufferWriting for KafkaBufferProducer {
 
         let (partition, offset) = self
             .producer
-            .send_result(record)
-            .map_err(|(e, _future_record)| Box::new(e))?
-            .await?
+            .send(record, Timeout::Never)
+            .await
             .map_err(|(e, _owned_message)| Box::new(e))?;
 
         Ok(Sequence {
@@ -70,6 +70,7 @@ impl KafkaBufferProducer {
         cfg.set("bootstrap.servers", &conn);
         cfg.set("message.timeout.ms", "5000");
         cfg.set("message.max.bytes", "10000000");
+        cfg.set("queue.buffering.max.kbytes", "10485760");
 
         let producer: FutureProducer = cfg.create()?;
 
