@@ -292,7 +292,7 @@ func (a *args) walkShardDirs(root string, fn func(db, rp, id, path string) error
 	}
 
 	var dirs []location
-	if err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	if err := filepath.WalkDir(root, func(path string, info os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
