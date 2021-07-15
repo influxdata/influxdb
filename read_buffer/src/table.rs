@@ -570,6 +570,7 @@ pub struct MetaData {
 impl MetaData {
     pub fn new(rg: &row_group::RowGroup) -> Self {
         Self {
+            // This uses RowGroup.size()...
             size: rg.size(),
             rows: rg.rows() as u64,
             columns: rg.metadata().columns.clone(),
@@ -597,6 +598,7 @@ impl MetaData {
 
         // first row group added to the table.
         if this.columns.is_empty() {
+            // ... but this is using RowGroup.metadata().size()!
             this.size = other.size();
             this.rows = other.rows as u64;
             this.columns = other.columns.clone();
