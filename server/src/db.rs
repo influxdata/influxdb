@@ -31,6 +31,7 @@ use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
+use parquet_file::catalog::CatalogParquetInfo;
 use parquet_file::{
     catalog::{CheckpointData, PreservedCatalog},
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
@@ -899,7 +900,14 @@ pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData 
         let guard = chunk.read();
         if let ChunkStage::Persisted { parquet, .. } = guard.stage() {
             let path: DirsAndFileName = parquet.path().into();
-            files.insert(path, parquet.parquet_metadata());
+
+            let m = CatalogParquetInfo {
+                path: path.clone(),
+                file_size_bytes: parquet.file_size_bytes(),
+                metadata: parquet.parquet_metadata(),
+            };
+
+            files.insert(path, m);
         }
     }
 
@@ -1410,7 +1418,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 639;
+        let expected_parquet_size = 647;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -1817,7 +1825,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2109.0)
+            .sample_sum_eq(2117.0)
             .unwrap();
 
         // it should be the same chunk!
@@ -1925,7 +1933,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2109.0)
+            .sample_sum_eq(2117.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -1952,7 +1960,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(639.0)
+            .sample_sum_eq(647.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -2394,7 +2402,7 @@ mod tests {
                 0,
                 ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                2107, // size of RB and OS chunks
+                2115, // size of RB and OS chunks
                 1,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2437,7 +2445,7 @@ mod tests {
             64 + 2398 + 87
         );
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 1468);
-        assert_eq!(db.catalog.metrics().memory().parquet(), 639);
+        assert_eq!(db.catalog.metrics().memory().parquet(), 647);
     }
 
     #[tokio::test]

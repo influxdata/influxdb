@@ -14,6 +14,7 @@ use internal_types::selection::Selection;
 use object_store::path::parsed::DirsAndFileName;
 use observability_deps::tracing::{debug, warn};
 use parquet_file::{
+    catalog::CatalogParquetInfo,
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
     metadata::IoxMetadata,
     storage::Storage,
@@ -113,7 +114,7 @@ pub fn write_chunk_to_object_store(
                 partition_checkpoint,
                 database_checkpoint,
             };
-            let (path, parquet_metadata) = storage
+            let (path, file_size_bytes, parquet_metadata) = storage
                 .write_to_object_store(addr, stream, metadata)
                 .await
                 .context(WritingToObjectStore)?;
@@ -128,6 +129,7 @@ pub fn write_chunk_to_object_store(
                 ParquetChunk::new(
                     path.clone(),
                     Arc::clone(&db.store),
+                    file_size_bytes,
                     Arc::clone(&parquet_metadata),
                     metrics,
                 )
@@ -141,9 +143,12 @@ pub fn write_chunk_to_object_store(
             //            cleanup lock (see above) it is ensured that the file that we have written is not deleted
             //            in between.
             let mut transaction = db.preserved_catalog.open_transaction().await;
-            transaction
-                .add_parquet(&path, &parquet_metadata)
-                .context(TransactionError)?;
+            let info = CatalogParquetInfo {
+                path,
+                file_size_bytes,
+                metadata: parquet_metadata,
+            };
+            transaction.add_parquet(&info).context(TransactionError)?;
 
             // preserved commit
             let ckpt_handle = transaction.commit().await.context(CommitError)?;

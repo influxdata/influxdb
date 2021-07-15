@@ -159,6 +159,7 @@ impl CatalogState for Catalog {
         let parquet_chunk = ParquetChunk::new(
             object_store.path_from_dirs_and_filename(info.path.clone()),
             object_store,
+            info.file_size_bytes,
             info.metadata,
             metrics,
         )

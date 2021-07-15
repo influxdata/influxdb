@@ -162,7 +162,7 @@ pub async fn make_chunk_given_record_batch(
         partition_checkpoint,
         database_checkpoint,
     };
-    let (path, parquet_metadata) = storage
+    let (path, file_size_bytes, parquet_metadata) = storage
         .write_to_object_store(addr.clone(), stream, metadata)
         .await
         .unwrap();
@@ -173,6 +173,7 @@ pub async fn make_chunk_given_record_batch(
         Arc::new(schema),
         path,
         Arc::clone(&store),
+        file_size_bytes,
         Arc::new(parquet_metadata),
         ChunkMetrics::new_unregistered(),
     )

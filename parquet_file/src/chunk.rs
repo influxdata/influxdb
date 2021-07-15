@@ -102,6 +102,9 @@ pub struct ParquetChunk {
     /// id>/<tablename>.parquet
     object_store_path: Path,
 
+    /// Size of the data, in object store
+    file_size_bytes: usize,
+
     /// Parquet metadata that can be used checkpoint the catalog state.
     parquet_metadata: Arc<IoxParquetMetaData>,
 
@@ -113,6 +116,7 @@ impl ParquetChunk {
     pub fn new(
         file_location: Path,
         store: Arc<ObjectStore>,
+        file_size_bytes: usize,
         parquet_metadata: Arc<IoxParquetMetaData>,
         metrics: ChunkMetrics,
     ) -> Result<Self> {
@@ -136,18 +140,21 @@ impl ParquetChunk {
             schema,
             file_location,
             store,
+            file_size_bytes,
             parquet_metadata,
             metrics,
         ))
     }
 
     /// Creates a new chunk from given parts w/o parsing anything from the provided parquet metadata.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_from_parts(
         partition_key: Arc<str>,
         table_summary: Arc<TableSummary>,
         schema: Arc<Schema>,
         file_location: Path,
         store: Arc<ObjectStore>,
+        file_size_bytes: usize,
         parquet_metadata: Arc<IoxParquetMetaData>,
         metrics: ChunkMetrics,
     ) -> Self {
@@ -160,6 +167,7 @@ impl ParquetChunk {
             timestamp_range,
             object_store: store,
             object_store_path: file_location,
+            file_size_bytes,
             parquet_metadata,
             metrics,
         }
@@ -249,6 +257,11 @@ impl ParquetChunk {
     /// The total number of rows in all row groups in this chunk.
     pub fn rows(&self) -> usize {
         self.parquet_metadata.row_count()
+    }
+
+    /// Size of the parquet file in object store
+    pub fn file_size_bytes(&self) -> usize {
+        self.file_size_bytes
     }
 
     /// Parquet metadata from the underlying file.

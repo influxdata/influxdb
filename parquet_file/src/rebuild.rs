@@ -90,20 +90,11 @@ where
     // create single transaction with all files
     if !files.is_empty() {
         let mut transaction = catalog.open_transaction().await;
-        for (path, parquet_md) in files {
-            let path: DirsAndFileName = path.into();
+        for info in files {
             state
-                .add(
-                    Arc::clone(&object_store),
-                    CatalogParquetInfo {
-                        path: path.clone(),
-                        metadata: Arc::new(parquet_md.clone()),
-                    },
-                )
+                .add(Arc::clone(&object_store), info.clone())
                 .context(FileRecordFailure)?;
-            transaction
-                .add_parquet(&path, &parquet_md)
-                .context(FileRecordFailure)?;
+            transaction.add_parquet(&info).context(FileRecordFailure)?;
         }
         transaction.commit().await.context(CheckpointFailure)?;
     }
@@ -113,26 +104,31 @@ where
 
 /// Collect all files under the given locations.
 ///
-/// Returns a vector of file-metadata tuples.
+/// Returns a vector of (file, size, metadata) tuples.
 ///
 /// The file listing is recursive.
 async fn collect_files(
     object_store: &ObjectStore,
     search_location: &Path,
     ignore_metadata_read_failure: bool,
-) -> Result<Vec<(Path, IoxParquetMetaData)>> {
+) -> Result<Vec<CatalogParquetInfo>> {
     let mut stream = object_store
         .list(Some(search_location))
         .await
         .context(ReadFailure)?;
 
-    let mut files: Vec<(Path, IoxParquetMetaData)> = vec![];
+    let mut files = vec![];
 
     while let Some(paths) = stream.try_next().await.context(ReadFailure)? {
         for path in paths.into_iter().filter(is_parquet) {
             match read_parquet(object_store, &path).await {
-                Ok(parquet_md) => {
-                    files.push((path, parquet_md));
+                Ok((file_size_bytes, metadata)) => {
+                    let path = path.into();
+                    files.push(CatalogParquetInfo {
+                        path,
+                        file_size_bytes,
+                        metadata,
+                    });
                 }
                 Err(e @ Error::MetadataReadFailure { .. }) if ignore_metadata_read_failure => {
                     error!("error while reading metdata from parquet, ignoring: {}", e);
@@ -157,7 +153,10 @@ fn is_parquet(path: &Path) -> bool {
 }
 
 /// Read Parquet and IOx metadata from given path.
-async fn read_parquet(object_store: &ObjectStore, path: &Path) -> Result<IoxParquetMetaData> {
+async fn read_parquet(
+    object_store: &ObjectStore,
+    path: &Path,
+) -> Result<(usize, Arc<IoxParquetMetaData>)> {
     let data = object_store
         .get(path)
         .await
@@ -167,6 +166,8 @@ async fn read_parquet(object_store: &ObjectStore, path: &Path) -> Result<IoxParq
         .await
         .context(ReadFailure)?;
 
+    let file_size_bytes = data.len();
+
     let parquet_metadata = IoxParquetMetaData::from_file_bytes(data)
         .context(MetadataReadFailure { path: path.clone() })?;
 
@@ -175,7 +176,7 @@ async fn read_parquet(object_store: &ObjectStore, path: &Path) -> Result<IoxParq
         .read_iox_metadata()
         .context(MetadataReadFailure { path: path.clone() })?;
 
-    Ok(parquet_metadata)
+    Ok((file_size_bytes, Arc::new(parquet_metadata)))
 }
 
 #[cfg(test)]
@@ -217,19 +218,13 @@ mod tests {
         {
             let mut transaction = catalog.open_transaction().await;
 
-            let (path, md) =
-                create_parquet_file(&object_store, server_id, Arc::clone(&db_name), 0).await;
-            state
-                .parquet_files
-                .insert(path.clone(), Arc::new(md.clone()));
-            transaction.add_parquet(&path, &md).unwrap();
+            let info = create_parquet_file(&object_store, server_id, Arc::clone(&db_name), 0).await;
+            state.parquet_files.insert(info.path.clone(), info.clone());
+            transaction.add_parquet(&info).unwrap();
 
-            let (path, md) =
-                create_parquet_file(&object_store, server_id, Arc::clone(&db_name), 1).await;
-            state
-                .parquet_files
-                .insert(path.clone(), Arc::new(md.clone()));
-            transaction.add_parquet(&path, &md).unwrap();
+            let info = create_parquet_file(&object_store, server_id, Arc::clone(&db_name), 1).await;
+            state.parquet_files.insert(info.path.clone(), info.clone());
+            transaction.add_parquet(&info).unwrap();
 
             transaction.commit().await.unwrap();
         }
@@ -241,12 +236,9 @@ mod tests {
         {
             let mut transaction = catalog.open_transaction().await;
 
-            let (path, md) =
-                create_parquet_file(&object_store, server_id, Arc::clone(&db_name), 2).await;
-            state
-                .parquet_files
-                .insert(path.clone(), Arc::new(md.clone()));
-            transaction.add_parquet(&path, &md).unwrap();
+            let info = create_parquet_file(&object_store, server_id, Arc::clone(&db_name), 2).await;
+            state.parquet_files.insert(info.path.clone(), info.clone());
+            transaction.add_parquet(&info).unwrap();
 
             transaction.commit().await.unwrap();
         }
@@ -464,7 +456,7 @@ mod tests {
         server_id: ServerId,
         db_name: Arc<str>,
         chunk_id: u32,
-    ) -> (DirsAndFileName, IoxParquetMetaData) {
+    ) -> CatalogParquetInfo {
         let table_name = Arc::from("table1");
         let partition_key = Arc::from("part1");
         let (record_batches, _schema, _column_summaries, _num_rows) = make_record_batch("foo");
@@ -483,7 +475,7 @@ mod tests {
             database_checkpoint,
         };
         let stream: SendableRecordBatchStream = Box::pin(MemoryStream::new(record_batches));
-        let (path, parquet_md) = storage
+        let (path, file_size_bytes, metadata) = storage
             .write_to_object_store(
                 ChunkAddr {
                     db_name,
@@ -497,8 +489,11 @@ mod tests {
             .await
             .unwrap();
 
-        let path: DirsAndFileName = path.into();
-        (path, parquet_md)
+        CatalogParquetInfo {
+            path: path.into(),
+            file_size_bytes,
+            metadata: Arc::new(metadata),
+        }
     }
 
     pub async fn create_parquet_file_without_metadata(
