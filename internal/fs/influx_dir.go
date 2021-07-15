@@ -42,7 +42,7 @@ func BoltFile() (string, error) {
 		return "", err
 	}
 	var file string
-	filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
+	filepath.WalkDir(dir, func(p string, info os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

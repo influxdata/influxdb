@@ -39,10 +39,10 @@ func TestVerifies_Invalid(t *testing.T) {
 	test := NewTest(t)
 	defer os.RemoveAll(test.Path)
 
-	require.NoError(t, filepath.Walk(test.Path, func(path string, info os.FileInfo, err error) error {
+	require.NoError(t, filepath.WalkDir(test.Path, func(path string, entry os.DirEntry, err error) error {
 		require.NoError(t, err)
 
-		if info.IsDir() {
+		if entry.IsDir() {
 			return nil
 		}
 

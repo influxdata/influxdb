@@ -48,7 +48,7 @@ type Test struct {
 }
 
 func TestGoldenFiles(t *testing.T) {
-	err := filepath.Walk("./goldenfiles", func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir("./goldenfiles", func(path string, info os.DirEntry, err error) error {
 		if info.IsDir() {
 			return nil
 		}
