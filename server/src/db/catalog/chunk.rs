@@ -817,7 +817,14 @@ impl CatalogChunk {
 
     /// Start lifecycle action that should result in the chunk being dropped from memory and (if persisted) from object store.
     pub fn set_dropping(&mut self, registration: &TaskRegistration) -> Result<()> {
-        self.set_lifecycle_action(ChunkLifecycleAction::Dropping, registration)
+        self.set_lifecycle_action(ChunkLifecycleAction::Dropping, registration)?;
+
+        // set memory metrics to 0 to stop accounting for this chunk within the catalog
+        self.metrics.memory_metrics.mutable_buffer.set(0);
+        self.metrics.memory_metrics.read_buffer.set(0);
+        self.metrics.memory_metrics.parquet.set(0);
+
+        Ok(())
     }
 
     /// Set the chunk's in progress lifecycle action or return an error if already in-progress
@@ -867,7 +874,8 @@ impl CatalogChunk {
                     action: tracker.metadata().name().to_string(),
                 });
             }
-            self.lifecycle_action = None
+            self.lifecycle_action = None;
+            self.update_memory_metrics();
         }
         Ok(())
     }
@@ -933,10 +941,29 @@ mod tests {
     #[tokio::test]
     async fn test_drop() {
         let mut chunk = make_open_chunk();
-        let registration = TaskRegistration::new();
 
-        // drop it
+        // size should not be zero
+        let size_before = chunk.metrics.memory_metrics.total();
+        assert_ne!(size_before, 0);
+
+        // start dropping it
+        let registration = TaskRegistration::new();
         chunk.set_dropping(&registration).unwrap();
+
+        // size should now be reported as zero
+        assert_eq!(chunk.metrics.memory_metrics.total(), 0);
+
+        // if the lifecycle action is cleared, it should reset the size
+        registration.into_tracker(1).cancel();
+        chunk.clear_lifecycle_action().unwrap();
+        assert_eq!(chunk.metrics.memory_metrics.total(), size_before);
+
+        // when the lifecycle action cannot be set (e.g. due to an action already in progress), do NOT zero out the size
+        let registration = TaskRegistration::new();
+        chunk.set_compacting(&registration).unwrap();
+        let size_before = chunk.metrics.memory_metrics.total();
+        chunk.set_dropping(&registration).unwrap_err();
+        assert_eq!(chunk.metrics.memory_metrics.total(), size_before);
     }
 
     #[test]
