@@ -295,20 +295,10 @@ impl Partition {
 
     /// Construct partition checkpoint out of contained persistence window, if any.
     pub fn partition_checkpoint(&self) -> Option<PartitionCheckpoint> {
-        if let Some(persistence_windows) = self.persistence_windows.as_ref() {
-            if let Some(min_unpersisted_timestamp) =
-                persistence_windows.minimum_unpersisted_timestamp()
-            {
-                return Some(PartitionCheckpoint::new(
-                    Arc::clone(&self.table_name),
-                    Arc::clone(&self.partition_key),
-                    persistence_windows.sequencer_numbers_range(),
-                    min_unpersisted_timestamp,
-                ));
-            }
-        }
-
-        None
+        self.persistence_windows
+            .as_ref()
+            .map(|persistence_windows| persistence_windows.checkpoint())
+            .flatten()
     }
 }
 

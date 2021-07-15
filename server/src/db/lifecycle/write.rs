@@ -2,7 +2,6 @@
 use crate::db::{
     catalog::{
         chunk::{CatalogChunk, ChunkStage},
-        partition::Partition,
         Catalog,
     },
     checkpoint_data_from_catalog,
@@ -29,7 +28,7 @@ use persistence_windows::checkpoint::{
 use query::QueryChunk;
 use snafu::ResultExt;
 use std::{future::Future, sync::Arc};
-use tracker::{RwLock, TaskTracker, TrackedFuture, TrackedFutureExt};
+use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 use super::error::{
     CommitError, Error, ParquetChunkError, Result, TransactionError, WritingToObjectStore,
@@ -190,29 +189,23 @@ pub fn write_chunk_to_object_store(
     Ok((tracker, fut.track(registration)))
 }
 
-/// Construct partition and database checkpoint for the given partition in the given catalog.
+/// Construct database checkpoint for the given partition checkpoint in the given catalog.
 pub fn collect_checkpoints(
-    partition: &RwLock<Partition>,
-    partition_key: &str,
-    table_name: &str,
+    partition_checkpoint: PartitionCheckpoint,
     catalog: &Catalog,
 ) -> (PartitionCheckpoint, DatabaseCheckpoint) {
+    // remember partition data
+    let table_name = Arc::clone(partition_checkpoint.table_name());
+    let partition_key = Arc::clone(partition_checkpoint.partition_key());
+
     // calculate checkpoint
-    let mut checkpoint_builder = {
-        // Record partition checkpoint and then flush persisted data from persistence windows.
-        let partition = partition.read();
-        PersistCheckpointBuilder::new(
-            partition
-                .partition_checkpoint()
-                .expect("persistence window removed"),
-        )
-    };
+    let mut checkpoint_builder = PersistCheckpointBuilder::new(partition_checkpoint);
 
     // collect checkpoints of all other partitions
     if let Ok(table) = catalog.table(table_name) {
         for partition in table.partitions() {
             let partition = partition.read();
-            if partition.key() == partition_key {
+            if partition.key() == partition_key.as_ref() {
                 continue;
             }
 

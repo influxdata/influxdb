@@ -39,7 +39,7 @@ use parquet_file::{
 use persistence_windows::persistence_windows::PersistenceWindows;
 use query::{exec::Executor, predicate::Predicate, QueryDatabase};
 use rand_distr::{Distribution, Poisson};
-use snafu::{ensure, ResultExt, Snafu};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     any::Any,
     collections::HashMap,
@@ -129,6 +129,18 @@ pub enum Error {
     #[snafu(display("Table batch has mismatching schema: {}", source))]
     TableBatchSchemaMergeError {
         source: internal_types::schema::merge::Error,
+    },
+
+    #[snafu(display(
+        "Unable to generate partition checkpoint to write {}:{}:{}",
+        table_name,
+        partition_key,
+        chunk_id
+    ))]
+    CannotWriteWithoutCheckpoint {
+        table_name: String,
+        partition_key: String,
+        chunk_id: u32,
     },
 }
 
@@ -471,9 +483,17 @@ impl Db {
         chunk_id: u32,
     ) -> Result<Arc<DbChunk>> {
         let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
-        let partition = self.partition(table_name, partition_key)?;
+        let partition_checkpoint = self
+            .partition(table_name, partition_key)?
+            .read()
+            .partition_checkpoint()
+            .context(CannotWriteWithoutCheckpoint {
+                table_name,
+                partition_key,
+                chunk_id,
+            })?;
         let (partition_checkpoint, database_checkpoint) =
-            lifecycle::collect_checkpoints(&partition, partition_key, table_name, &self.catalog);
+            lifecycle::collect_checkpoints(partition_checkpoint, &self.catalog);
         let (_, fut) = lifecycle::write_chunk_to_object_store(
             chunk.write(),
             partition_checkpoint,

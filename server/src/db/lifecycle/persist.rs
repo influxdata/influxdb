@@ -105,7 +105,7 @@ pub(super) fn persist_chunks(
         let persisted_rows = to_persist.rows();
         let remainder_rows = remainder.rows();
         let (partition_checkpoint, database_checkpoint) =
-            collect_checkpoints(&partition, &partition_key, &table_name, &db.catalog);
+            collect_checkpoints(flush_handle.checkpoint(), &db.catalog);
 
         let persist_fut = {
             let mut partition = partition.write();
