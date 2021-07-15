@@ -1677,6 +1677,7 @@ dependencies = [
  "tracker",
  "trogging",
  "uuid",
+ "write_buffer",
 ]
 
 [[package]]
@@ -4955,9 +4956,13 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "data_types",
+ "dotenv",
  "entry",
  "futures",
+ "parking_lot",
  "rdkafka",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

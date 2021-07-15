@@ -657,8 +657,10 @@ impl Db {
                 // If only the write buffer is configured, this is passing the data through to
                 // the write buffer, and it's not an error. We ignore the returned metadata; it
                 // will get picked up when data is read from the write buffer.
+
+                // TODO: be smarter than always using sequencer 0
                 let _ = write_buffer
-                    .store_entry(&entry)
+                    .store_entry(&entry, 0)
                     .await
                     .context(WriteBufferWritingError)?;
                 Ok(())
@@ -666,8 +668,10 @@ impl Db {
             (Some(WriteBufferConfig::Writing(write_buffer)), false) => {
                 // If using both write buffer and mutable buffer, we want to wait for the write
                 // buffer to return success before adding the entry to the mutable buffer.
+
+                // TODO: be smarter than always using sequencer 0
                 let sequence = write_buffer
-                    .store_entry(&entry)
+                    .store_entry(&entry, 0)
                     .await
                     .context(WriteBufferWritingError)?;
                 let sequenced_entry = Arc::new(
@@ -1020,6 +1024,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
     use write_buffer::mock::{
         MockBufferForReading, MockBufferForWriting, MockBufferForWritingThatAlwaysErrors,
+        MockBufferSharedState,
     };
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -1042,7 +1047,8 @@ mod tests {
     async fn write_with_write_buffer_no_mutable_buffer() {
         // Writes should be forwarded to the write buffer and *not* rejected if the write buffer is
         // configured and the mutable buffer isn't
-        let write_buffer = Arc::new(MockBufferForWriting::default());
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state.clone()));
         let test_db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
             .build()
@@ -1054,14 +1060,15 @@ mod tests {
         let entry = lp_to_entry("cpu bar=1 10");
         test_db.store_entry(entry).await.unwrap();
 
-        assert_eq!(write_buffer.entries.lock().unwrap().len(), 1);
+        assert_eq!(write_buffer_state.get_messages(0).len(), 1);
     }
 
     #[tokio::test]
     async fn write_to_write_buffer_and_mutable_buffer() {
         // Writes should be forwarded to the write buffer *and* the mutable buffer if both are
         // configured.
-        let write_buffer = Arc::new(MockBufferForWriting::default());
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state.clone()));
         let db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
             .build()
@@ -1071,7 +1078,7 @@ mod tests {
         let entry = lp_to_entry("cpu bar=1 10");
         db.store_entry(entry).await.unwrap();
 
-        assert_eq!(write_buffer.entries.lock().unwrap().len(), 1);
+        assert_eq!(write_buffer_state.get_messages(0).len(), 1);
 
         let batches = run_query(db, "select * from cpu").await;
 
@@ -1109,9 +1116,10 @@ mod tests {
     #[tokio::test]
     async fn read_from_write_buffer_write_to_mutable_buffer() {
         let entry = lp_to_entry("cpu bar=1 10");
-        let write_buffer = Arc::new(MockBufferForReading::new(vec![Ok(
-            SequencedEntry::new_unsequenced(entry),
-        )]));
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        write_buffer_state
+            .push_entry(SequencedEntry::new_from_sequence(Sequence::new(0, 0), entry).unwrap());
+        let write_buffer = Arc::new(MockBufferForReading::new(write_buffer_state));
 
         let db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Reading(Arc::clone(&write_buffer) as _))
@@ -1165,10 +1173,12 @@ mod tests {
 
     #[tokio::test]
     async fn error_converting_data_from_write_buffer_to_sequenced_entry_is_reported() {
-        let write_buffer = Arc::new(MockBufferForReading::new(vec![Err(String::from(
-            "Something bad happened on the way to creating a SequencedEntry",
-        )
-        .into())]));
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        write_buffer_state.push_error(
+            String::from("Something bad happened on the way to creating a SequencedEntry").into(),
+            0,
+        );
+        let write_buffer = Arc::new(MockBufferForReading::new(write_buffer_state));
 
         let test_db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Reading(Arc::clone(&write_buffer) as _))
@@ -2070,7 +2080,8 @@ mod tests {
     async fn write_updates_persistence_windows() {
         // Writes should update the persistence windows when there
         // is a write buffer configured.
-        let write_buffer = Arc::new(MockBufferForWriting::default());
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state));
         let db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
             .build()
@@ -2117,12 +2128,19 @@ mod tests {
         let entry = lp_to_entry("cpu bar=1 10");
         let partition_key = "1970-01-01T00";
 
-        let write_buffer = Arc::new(MockBufferForReading::new(vec![
-            Ok(SequencedEntry::new_from_sequence(Sequence::new(0, 0), entry.clone()).unwrap()),
-            Ok(SequencedEntry::new_from_sequence(Sequence::new(1, 0), entry.clone()).unwrap()),
-            Ok(SequencedEntry::new_from_sequence(Sequence::new(1, 2), entry.clone()).unwrap()),
-            Ok(SequencedEntry::new_from_sequence(Sequence::new(0, 1), entry).unwrap()),
-        ]));
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(2);
+        write_buffer_state.push_entry(
+            SequencedEntry::new_from_sequence(Sequence::new(0, 0), entry.clone()).unwrap(),
+        );
+        write_buffer_state.push_entry(
+            SequencedEntry::new_from_sequence(Sequence::new(1, 0), entry.clone()).unwrap(),
+        );
+        write_buffer_state.push_entry(
+            SequencedEntry::new_from_sequence(Sequence::new(1, 2), entry.clone()).unwrap(),
+        );
+        write_buffer_state
+            .push_entry(SequencedEntry::new_from_sequence(Sequence::new(0, 1), entry).unwrap());
+        let write_buffer = Arc::new(MockBufferForReading::new(write_buffer_state));
 
         let db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Reading(Arc::clone(&write_buffer) as _))

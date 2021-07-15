@@ -122,6 +122,7 @@ influxdb_iox_client = { path = "influxdb_iox_client", features = ["flight"] }
 test_helpers = { path = "test_helpers" }
 synchronized-writer = "1"
 parking_lot = "0.11.1"
+write_buffer = { path = "write_buffer" }
 
 # Crates.io dependencies, in alphabetical order
 assert_cmd = "1.0.0"

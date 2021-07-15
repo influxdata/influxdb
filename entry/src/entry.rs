@@ -1716,7 +1716,7 @@ pub enum SequencedEntryError {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SequencedEntry {
     entry: Entry,
     /// The (optional) sequence for this entry.  At the time of
@@ -1774,6 +1774,10 @@ impl SequencedEntry {
 
     pub fn sequence(&self) -> Option<&Sequence> {
         self.sequence.as_ref()
+    }
+
+    pub fn entry(&self) -> &Entry {
+        &self.entry
     }
 }
 
