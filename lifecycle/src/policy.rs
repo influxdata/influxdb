@@ -134,11 +134,13 @@ where
                                 FreeAction::Drop => match chunk.storage() {
                                     ChunkStorage::ReadBuffer
                                     | ChunkStorage::ClosedMutableBuffer => {
-                                        LockablePartition::drop_chunk(
+                                        let tracker = LockablePartition::drop_chunk(
                                             partition.upgrade(),
-                                            candidate.chunk_id,
+                                            chunk.upgrade(),
                                         )
                                         .expect("failed to drop")
+                                        .with_metadata(ChunkLifecycleAction::Dropping);
+                                        self.trackers.push(tracker);
                                     }
                                     storage => warn!(
                                         %db_name,
@@ -858,12 +860,18 @@ mod tests {
         }
 
         fn drop_chunk(
-            mut s: LifecycleWriteGuard<'_, Self::Partition, Self>,
-            chunk_id: u32,
-        ) -> Result<(), Self::Error> {
-            s.chunks.remove(&chunk_id);
-            s.data().db.events.write().push(MoverEvents::Drop(chunk_id));
-            Ok(())
+            mut partition: LifecycleWriteGuard<'_, Self::Partition, Self>,
+            chunk: LifecycleWriteGuard<'_, TestChunk, Self::Chunk>,
+        ) -> Result<TaskTracker<()>, Self::Error> {
+            let chunk_id = chunk.addr().chunk_id;
+            partition.chunks.remove(&chunk_id);
+            partition
+                .data()
+                .db
+                .events
+                .write()
+                .push(MoverEvents::Drop(chunk_id));
+            Ok(TaskTracker::complete(()))
         }
     }
 

@@ -376,11 +376,31 @@ impl Db {
     }
 
     /// Drops the specified chunk from the catalog and all storage systems
-    pub fn drop_chunk(&self, table_name: &str, partition_key: &str, chunk_id: u32) -> Result<()> {
-        debug!(%table_name, %partition_key, %chunk_id, "dropping chunk");
-        let partition = self.partition(table_name, partition_key)?;
-        partition.write().drop_chunk(chunk_id)?;
-        Ok(())
+    pub async fn drop_chunk(
+        self: &Arc<Self>,
+        table_name: &str,
+        partition_key: &str,
+        chunk_id: u32,
+    ) -> Result<()> {
+        // Use explict scope to ensure the async generator doesn't
+        // assume the locks have to possibly live across the `await`
+        let fut = {
+            let partition = self.partition(table_name, partition_key)?;
+            let partition = LockableCatalogPartition::new(Arc::clone(&self), partition);
+
+            // Do lock dance to get a write lock on the partition as well
+            // as on the to-be-dropped chunk.
+            let partition = partition.read();
+
+            let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
+            let partition = partition.upgrade();
+
+            let (_, fut) =
+                lifecycle::drop_chunk(partition, chunk.write()).context(LifecycleError)?;
+            fut
+        };
+
+        fut.await.context(TaskCancelled)?.context(LifecycleError)
     }
 
     /// Copies a chunk in the Closed state into the ReadBuffer from
@@ -1567,7 +1587,9 @@ mod tests {
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1470).unwrap();
 
         // drop, the chunk from the read buffer
-        db.drop_chunk("cpu", partition_key, mb_chunk.id()).unwrap();
+        db.drop_chunk("cpu", partition_key, mb_chunk.id())
+            .await
+            .unwrap();
         assert_eq!(
             read_buffer_chunk_ids(db.as_ref(), partition_key),
             vec![] as Vec<u32>
@@ -2794,7 +2816,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn write_one_chunk_to_preserved_catalog() {
+    async fn write_to_preserved_catalog() {
         // Test that parquet data is committed to preserved catalog
 
         // ==================== setup ====================
@@ -2826,11 +2848,17 @@ mod tests {
 
         // ==================== do: write data to parquet ====================
         // create two chunks within the same table (to better test "new chunk ID" and "new table" during transaction
-        // replay)
+        // replay as well as dropping the chunk)
         let mut chunks = vec![];
-        for _ in 0..2 {
+        for _ in 0..4 {
             chunks.push(create_parquet_chunk(&db).await);
         }
+
+        // ==================== do: drop last chunk ====================
+        let (table_name, partition_key, chunk_id) = chunks.pop().unwrap();
+        db.drop_chunk(&table_name, &partition_key, chunk_id)
+            .await
+            .unwrap();
 
         // ==================== check: catalog state ====================
         // the preserved catalog should now register a single file
@@ -2881,6 +2909,7 @@ mod tests {
 
         // ==================== check: DB state ====================
         // Re-created DB should have an "object store only"-chunk
+        assert_eq!(chunks.len(), db.chunks(&Default::default()).len());
         for (table_name, partition_key, chunk_id) in &chunks {
             let chunk = db.chunk(table_name, partition_key, *chunk_id).unwrap();
             let chunk = chunk.read();
@@ -2941,6 +2970,7 @@ mod tests {
             }
             if i == 2 {
                 db.drop_chunk(&table_name, &partition_key, chunk_id)
+                    .await
                     .unwrap();
             }
         }
@@ -3144,7 +3174,9 @@ mod tests {
             };
 
             for chunk_id in chunk_ids {
-                db.drop_chunk("my_table", &partition_key, chunk_id).unwrap();
+                db.drop_chunk("my_table", &partition_key, chunk_id)
+                    .await
+                    .unwrap();
             }
         }
 

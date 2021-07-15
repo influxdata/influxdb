@@ -38,6 +38,9 @@ enum ChunkLifecycleAction {
 
   /// Chunk is in the process of being compacted
   CHUNK_LIFECYCLE_ACTION_COMPACTING = 3;
+
+  /// Chunk is about to be dropped from memory and (if persisted) from object store.
+  CHUNK_LIFECYCLE_ACTION_DROPPING = 4;
 }
 
 

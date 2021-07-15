@@ -815,6 +815,18 @@ impl CatalogChunk {
         }
     }
 
+    /// Start lifecycle action that should result in the chunk being dropped from memory and (if persisted) from object store.
+    pub fn set_dropping(&mut self, registration: &TaskRegistration) -> Result<()> {
+        self.set_lifecycle_action(ChunkLifecycleAction::Dropping, registration)?;
+
+        // set memory metrics to 0 to stop accounting for this chunk within the catalog
+        self.metrics.memory_metrics.mutable_buffer.set(0);
+        self.metrics.memory_metrics.read_buffer.set(0);
+        self.metrics.memory_metrics.parquet.set(0);
+
+        Ok(())
+    }
+
     /// Set the chunk's in progress lifecycle action or return an error if already in-progress
     fn set_lifecycle_action(
         &mut self,
@@ -862,7 +874,13 @@ impl CatalogChunk {
                     action: tracker.metadata().name().to_string(),
                 });
             }
-            self.lifecycle_action = None
+            self.lifecycle_action = None;
+
+            // Some lifecycle actions (e.g. Drop) modify the memory metrics so that the catalog accounts chunks w/
+            // actions correctly. When clearing out that action, we need to restore the pre-action state. The easiest
+            // (and stateless) way to to do that is just to call the update method. Since clearing lifecycle actions
+            // should be a rather rare event, the cost of this is negligible.
+            self.update_memory_metrics();
         }
         Ok(())
     }
@@ -925,6 +943,34 @@ mod tests {
         assert!(matches!(chunk.stage, ChunkStage::Frozen { .. }));
     }
 
+    #[tokio::test]
+    async fn test_drop() {
+        let mut chunk = make_open_chunk();
+
+        // size should not be zero
+        let size_before = chunk.metrics.memory_metrics.total();
+        assert_ne!(size_before, 0);
+
+        // start dropping it
+        let registration = TaskRegistration::new();
+        chunk.set_dropping(&registration).unwrap();
+
+        // size should now be reported as zero
+        assert_eq!(chunk.metrics.memory_metrics.total(), 0);
+
+        // if the lifecycle action is cleared, it should reset the size
+        registration.into_tracker(1).cancel();
+        chunk.clear_lifecycle_action().unwrap();
+        assert_eq!(chunk.metrics.memory_metrics.total(), size_before);
+
+        // when the lifecycle action cannot be set (e.g. due to an action already in progress), do NOT zero out the size
+        let registration = TaskRegistration::new();
+        chunk.set_compacting(&registration).unwrap();
+        let size_before = chunk.metrics.memory_metrics.total();
+        chunk.set_dropping(&registration).unwrap_err();
+        assert_eq!(chunk.metrics.memory_metrics.total(), size_before);
+    }
+
     #[test]
     fn test_lifecycle_action() {
         let mut chunk = make_open_chunk();
@@ -985,6 +1031,32 @@ mod tests {
             *chunk.lifecycle_action().unwrap().metadata(),
             ChunkLifecycleAction::Compacting
         );
+    }
+
+    #[test]
+    fn test_clear_lifecycle_action() {
+        let mut chunk = make_open_chunk();
+        let registration = TaskRegistration::new();
+
+        // clearing w/o any action in-progress works
+        chunk.clear_lifecycle_action().unwrap();
+
+        // set some action
+        chunk
+            .set_lifecycle_action(ChunkLifecycleAction::Moving, &registration)
+            .unwrap();
+
+        // clearing now fails because task is still in progress
+        assert_eq!(
+            chunk.clear_lifecycle_action().unwrap_err().to_string(),
+            "Internal Error: Cannot clear a lifecycle action 'Moving to the Read Buffer' for chunk Chunk('db':'table1':'part1':0) that is still running",
+        );
+
+        // "finish" task
+        registration.into_tracker(1).cancel();
+
+        // clearing works now
+        chunk.clear_lifecycle_action().unwrap();
     }
 
     fn make_mb_chunk(table_name: &str, sequencer_id: u32) -> MBChunk {

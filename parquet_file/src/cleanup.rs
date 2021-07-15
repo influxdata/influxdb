@@ -218,7 +218,7 @@ mod tests {
             // another ordinary tracked parquet file that was added and removed => keep (for time travel)
             let (path, md) = make_metadata(&object_store, "foo", chunk_addr(2)).await;
             transaction.add_parquet(&path.clone().into(), &md).unwrap();
-            transaction.remove_parquet(&path.clone().into()).unwrap();
+            transaction.remove_parquet(&path.clone().into());
             paths_keep.push(path.display());
 
             // not a parquet file => keep

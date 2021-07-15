@@ -212,10 +212,12 @@ impl Partition {
                 {
                     let chunk = occupied.get().read();
                     if let Some(action) = chunk.lifecycle_action() {
-                        return Err(Error::LifecycleInProgress {
-                            chunk: chunk.addr().clone(),
-                            action: *action.metadata(),
-                        });
+                        if action.metadata() != &ChunkLifecycleAction::Dropping {
+                            return Err(Error::LifecycleInProgress {
+                                chunk: chunk.addr().clone(),
+                                action: *action.metadata(),
+                            });
+                        }
                     }
                 }
                 Ok(occupied.remove())

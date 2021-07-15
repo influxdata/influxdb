@@ -104,9 +104,9 @@ pub trait LockablePartition: Sized + std::fmt::Display {
 
     /// Drops a chunk from the partition
     fn drop_chunk(
-        s: LifecycleWriteGuard<'_, Self::Partition, Self>,
-        chunk_id: u32,
-    ) -> Result<(), Self::Error>;
+        partition: LifecycleWriteGuard<'_, Self::Partition, Self>,
+        chunk: LifecycleWriteGuard<'_, <Self::Chunk as LockableChunk>::Chunk, Self::Chunk>,
+    ) -> Result<TaskTracker<<Self::Chunk as LockableChunk>::Job>, Self::Error>;
 }
 
 /// A `LockableChunk` is a wrapper around a `LifecycleChunk` that allows for

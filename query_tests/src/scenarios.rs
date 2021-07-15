@@ -120,7 +120,7 @@ impl DbSetup for NoData {
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
         // drop chunk 0
-        db.drop_chunk(table_name, partition_key, 0).unwrap();
+        db.drop_chunk(table_name, partition_key, 0).await.unwrap();
 
         assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
         assert_eq!(count_read_buffer_chunks(&db), 0); // nothing after dropping chunk 0
@@ -167,7 +167,7 @@ impl DbSetup for NoData {
         assert_eq!(count_object_store_chunks(&db), 1); // close chunk only
 
         // drop chunk 0
-        db.drop_chunk(table_name, partition_key, 0).unwrap();
+        db.drop_chunk(table_name, partition_key, 0).await.unwrap();
 
         assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 0);
@@ -696,7 +696,7 @@ impl DbSetup for OneMeasurementAllChunksDropped {
         db.move_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
-        db.drop_chunk(table_name, partition_key, 0).unwrap();
+        db.drop_chunk(table_name, partition_key, 0).await.unwrap();
 
         vec![DbScenario {
             scenario_name: "one measurement but all chunks are dropped".into(),
