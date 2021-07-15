@@ -115,6 +115,10 @@ struct Create {
     /// Maximum age of a write before triggering persistence
     #[structopt(long, default_value = "1800")]
     persist_age_threshold_seconds: u32,
+
+    /// Maximum number of rows to buffer in a MUB chunk before compacting it
+    #[structopt(long, default_value = "100000")]
+    mub_row_threshold: u64,
 }
 
 /// Get list of databases
@@ -187,6 +191,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                     late_arrive_window_seconds: command.late_arrive_window_seconds,
                     persist_row_threshold: command.persist_row_threshold,
                     persist_age_threshold_seconds: command.persist_age_threshold_seconds,
+                    mub_row_threshold: command.mub_row_threshold,
                 }),
 
                 // Default to hourly partitions

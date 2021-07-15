@@ -73,6 +73,9 @@ message LifecycleRules {
 
   // Maximum age of a write before triggering persistence
   uint32 persist_age_threshold_seconds = 14;
+
+  // Maximum number of rows to buffer in a MUB chunk before compacting it
+  uint64 mub_row_threshold = 15;
 }
 
 message DatabaseRules {

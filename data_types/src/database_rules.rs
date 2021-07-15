@@ -158,6 +158,9 @@ pub struct LifecycleRules {
 
     /// Maximum age of a write before triggering persistence
     pub persist_age_threshold_seconds: NonZeroU32,
+
+    /// Maximum number of rows to buffer in a MUB chunk before compacting it
+    pub mub_row_threshold: NonZeroUsize,
 }
 
 impl LifecycleRules {
@@ -185,6 +188,7 @@ impl Default for LifecycleRules {
             persist_row_threshold: NonZeroUsize::new(DEFAULT_PERSIST_ROW_THRESHOLD).unwrap(),
             persist_age_threshold_seconds: NonZeroU32::new(DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS)
                 .unwrap(),
+            mub_row_threshold: NonZeroUsize::new(DEFAULT_MUB_ROW_THRESHOLD).unwrap(),
         }
     }
 }

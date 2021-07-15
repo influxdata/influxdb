@@ -7,7 +7,7 @@ use data_types::DatabaseName;
 use futures::future::BoxFuture;
 
 use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkStorage};
-use data_types::database_rules::{LifecycleRules, DEFAULT_MUB_ROW_THRESHOLD};
+use data_types::database_rules::LifecycleRules;
 use observability_deps::tracing::{debug, info, trace, warn};
 use tracker::TaskTracker;
 
@@ -560,7 +560,7 @@ fn elapsed_seconds(a: DateTime<Utc>, b: DateTime<Utc>) -> u32 {
 ///
 /// Note: Does not check the chunk is the correct state
 fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<Utc>) -> bool {
-    if chunk.row_count() >= DEFAULT_MUB_ROW_THRESHOLD {
+    if chunk.row_count() >= rules.mub_row_threshold.get() {
         return true;
     }
 
@@ -1070,6 +1070,7 @@ mod tests {
         // If only late_arrival set can move a chunk once passed
         let rules = LifecycleRules {
             late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
+            mub_row_threshold: NonZeroUsize::new(74).unwrap(),
             ..Default::default()
         };
         let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer);
@@ -1077,18 +1078,18 @@ mod tests {
         assert!(can_move(&rules, &chunk, from_secs(11)));
 
         // can move even if the chunk is small
-        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer)
-            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD - 1);
+        let chunk =
+            TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer).with_row_count(73);
         assert!(can_move(&rules, &chunk, from_secs(11)));
 
-        // If over the default row count threshold, we should be able to move
-        let chunk = TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer)
-            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD);
+        // If over the row count threshold, we should be able to move
+        let chunk =
+            TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer).with_row_count(74);
         assert!(can_move(&rules, &chunk, from_secs(0)));
 
         // If below the default row count threshold, it shouldn't move
-        let chunk = TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer)
-            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD - 1);
+        let chunk =
+            TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer).with_row_count(73);
         assert!(!can_move(&rules, &chunk, from_secs(0)));
     }
 

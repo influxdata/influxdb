@@ -220,6 +220,7 @@ async fn test_create_get_update_database() {
             worker_backoff_millis: 15,
             persist_row_threshold: 342,
             persist_age_threshold_seconds: 700,
+            mub_row_threshold: 1343,
             ..Default::default()
         }),
         routing_rules: None,

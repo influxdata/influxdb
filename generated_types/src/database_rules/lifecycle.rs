@@ -3,8 +3,9 @@ use std::num::{NonZeroU32, NonZeroU64, NonZeroUsize};
 
 use data_types::database_rules::{
     LifecycleRules, DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT,
-    DEFAULT_LATE_ARRIVE_WINDOW_SECONDS, DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS,
-    DEFAULT_PERSIST_ROW_THRESHOLD, DEFAULT_WORKER_BACKOFF_MILLIS,
+    DEFAULT_LATE_ARRIVE_WINDOW_SECONDS, DEFAULT_MUB_ROW_THRESHOLD,
+    DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS, DEFAULT_PERSIST_ROW_THRESHOLD,
+    DEFAULT_WORKER_BACKOFF_MILLIS,
 };
 
 use crate::google::FieldViolation;
@@ -32,6 +33,7 @@ impl From<LifecycleRules> for management::LifecycleRules {
             late_arrive_window_seconds: config.late_arrive_window_seconds.get(),
             persist_row_threshold: config.persist_row_threshold.get() as u64,
             persist_age_threshold_seconds: config.persist_age_threshold_seconds.get(),
+            mub_row_threshold: config.mub_row_threshold.get() as u64,
         }
     }
 }
@@ -62,6 +64,8 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
                 }),
             persist_age_threshold_seconds: NonZeroU32::new(proto.persist_age_threshold_seconds)
                 .unwrap_or_else(|| NonZeroU32::new(DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS).unwrap()),
+            mub_row_threshold: NonZeroUsize::new(proto.mub_row_threshold as usize)
+                .unwrap_or_else(|| NonZeroUsize::new(DEFAULT_MUB_ROW_THRESHOLD).unwrap()),
         })
     }
 }
@@ -84,6 +88,7 @@ mod tests {
             late_arrive_window_seconds: 23,
             persist_row_threshold: 57,
             persist_age_threshold_seconds: 23,
+            mub_row_threshold: 3454,
         };
 
         let config: LifecycleRules = protobuf.clone().try_into().unwrap();
@@ -114,6 +119,7 @@ mod tests {
             back.persist_age_threshold_seconds,
             protobuf.persist_age_threshold_seconds
         );
+        assert_eq!(back.mub_row_threshold, protobuf.mub_row_threshold);
     }
 
     #[test]
