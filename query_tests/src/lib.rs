@@ -1,4 +1,4 @@
-//! This module contains "end-to-end" tests for the query layer.
+//! This module contains "end to end" tests for the query layer.
 //!
 //! These tests consist of loading the same data in several
 //! "scenarios" (different distributions across the Mutable Buffer,
