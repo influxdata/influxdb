@@ -476,7 +476,8 @@ impl CatalogChunk {
             id: self.addr.chunk_id,
             storage,
             lifecycle_action,
-            estimated_bytes: self.size(),
+            memory_bytes: self.memory_bytes(),
+            object_store_bytes: self.object_store_bytes(),
             row_count,
             time_of_first_write: self.time_of_first_write,
             time_of_last_write: self.time_of_last_write,
@@ -491,7 +492,7 @@ impl CatalogChunk {
         fn to_summary(v: (&str, usize)) -> ChunkColumnSummary {
             ChunkColumnSummary {
                 name: v.0.into(),
-                estimated_bytes: v.1,
+                memory_bytes: v.1,
             }
         }
 
@@ -529,7 +530,7 @@ impl CatalogChunk {
     }
 
     /// Returns an approximation of the amount of process memory consumed by the chunk
-    pub fn size(&self) -> usize {
+    pub fn memory_bytes(&self) -> usize {
         match &self.stage {
             ChunkStage::Open { mb_chunk, .. } => mb_chunk.size(),
             ChunkStage::Frozen { representation, .. } => match &representation {
@@ -547,6 +548,15 @@ impl CatalogChunk {
                 }
                 size
             }
+        }
+    }
+
+    /// Returns the number of bytes of object storage consumed by this chunk
+    pub fn object_store_bytes(&self) -> usize {
+        match &self.stage {
+            ChunkStage::Open { .. } => 0,
+            ChunkStage::Frozen { .. } => 0,
+            ChunkStage::Persisted { parquet, .. } => parquet.file_size_bytes(),
         }
     }
 

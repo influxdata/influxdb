@@ -161,16 +161,16 @@ impl Table {
             .iter()
             .flat_map(|rg| rg.column_sizes())
             // combine statistics for columns across row groups
-            .fold(BTreeMap::new(), |mut map, (name, estimated_bytes)| {
+            .fold(BTreeMap::new(), |mut map, (name, memory_bytes)| {
                 let entry = map.entry(name).or_insert(0);
-                *entry += estimated_bytes;
+                *entry += memory_bytes;
                 map
             })
             // Now turn into Vec<ChunkColumnSummary>
             .into_iter()
-            .map(|(name, estimated_bytes)| ChunkColumnSummary {
+            .map(|(name, memory_bytes)| ChunkColumnSummary {
                 name: name.into(),
-                estimated_bytes,
+                memory_bytes,
             })
             .collect()
     }
@@ -1116,11 +1116,11 @@ mod test {
         let expected = vec![
             ChunkColumnSummary {
                 name: "count".into(),
-                estimated_bytes: 110,
+                memory_bytes: 110,
             },
             ChunkColumnSummary {
                 name: "time".into(),
-                estimated_bytes: 107,
+                memory_bytes: 107,
             },
         ];
         assert_eq!(table.column_sizes(), expected);

@@ -126,8 +126,11 @@ pub struct ChunkSummary {
     /// Is there any outstanding lifecycle action for this chunk?
     pub lifecycle_action: Option<ChunkLifecycleAction>,
 
-    /// The total estimated size of this chunk, in bytes
-    pub estimated_bytes: usize,
+    /// The number of bytes used to store this chunk in memory
+    pub memory_bytes: usize,
+
+    /// The number of bytes used to store this chunk in object storage
+    pub object_store_bytes: usize,
 
     /// The total number of rows in this chunk
     pub row_count: usize,
@@ -153,7 +156,7 @@ pub struct ChunkColumnSummary {
     pub name: Arc<str>,
 
     /// Estimated size, in bytes, consumed by this column.
-    pub estimated_bytes: usize,
+    pub memory_bytes: usize,
 }
 
 /// Contains additional per-column details about physical storage of a chunk
@@ -168,13 +171,15 @@ pub struct DetailedChunkSummary {
 
 impl ChunkSummary {
     /// Construct a ChunkSummary that has None for all timestamps
+    #[allow(clippy::too_many_arguments)]
     pub fn new_without_timestamps(
         partition_key: Arc<str>,
         table_name: Arc<str>,
         id: u32,
         storage: ChunkStorage,
         lifecycle_action: Option<ChunkLifecycleAction>,
-        estimated_bytes: usize,
+        memory_bytes: usize,
+        object_store_bytes: usize,
         row_count: usize,
     ) -> Self {
         Self {
@@ -183,11 +188,47 @@ impl ChunkSummary {
             id,
             storage,
             lifecycle_action,
-            estimated_bytes,
+            memory_bytes,
+            object_store_bytes,
             row_count,
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
         }
+    }
+
+    /// Return a new ChunkSummary with None for all timestamps
+    pub fn normalize(self) -> Self {
+        let ChunkSummary {
+            partition_key,
+            table_name,
+            id,
+            storage,
+            lifecycle_action,
+            memory_bytes,
+            object_store_bytes,
+            row_count,
+            ..
+        } = self;
+        Self::new_without_timestamps(
+            partition_key,
+            table_name,
+            id,
+            storage,
+            lifecycle_action,
+            memory_bytes,
+            object_store_bytes,
+            row_count,
+        )
+    }
+
+    /// Normalizes a set of ChunkSummaries for comparison by removing timestamps
+    pub fn normalize_summaries(summaries: Vec<Self>) -> Vec<Self> {
+        let mut summaries = summaries
+            .into_iter()
+            .map(|summary| summary.normalize())
+            .collect::<Vec<_>>();
+        summaries.sort_unstable();
+        summaries
     }
 }

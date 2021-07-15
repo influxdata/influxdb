@@ -62,8 +62,11 @@ message Chunk {
   // Is there any outstanding lifecycle action for this chunk?
   ChunkLifecycleAction lifecycle_action = 10;
 
-  // The total estimated size of this chunk, in bytes
-  uint64 estimated_bytes = 4;
+  // The number of bytes used to store this chunk in memory
+  uint64 memory_bytes = 4;
+
+  // The number of bytes used to store this chunk in object storage
+  uint64 object_store_bytes = 11;
 
   // The number of rows in this chunk
   uint64 row_count = 9;
