@@ -251,6 +251,23 @@ impl Schema {
         self.inner = Arc::new(new_schema);
     }
 
+    /// Returns true of the sort_key include all primary key cols
+    pub fn is_sorted_on_pk(&self) -> bool {
+        if let Some(sort_key) = self.sort_key() {
+            let key_columns = self.primary_key();
+
+            for key_col in key_columns {
+                if sort_key.get(key_col).is_none() {
+                    return false; // pk col is not part of the sort key
+                }
+            }
+            true
+        } else {
+            // not sorted yet
+            false
+        }
+    }
+
     /// Provide a reference to the underlying Arrow Schema object
     pub fn inner(&self) -> &ArrowSchemaRef {
         &self.inner
@@ -1294,5 +1311,87 @@ mod test {
                 column_name
             }
         } if &column_name == "time" ));
+    }
+
+    #[test]
+    fn test_is_sort_on_pk() {
+        // Sort key the same as pk
+        let mut sort_key = SortKey::with_capacity(3);
+        sort_key.with_col("tag4");
+        sort_key.with_col("tag3");
+        sort_key.with_col("tag2");
+        sort_key.with_col("tag1");
+        sort_key.with_col(TIME_COLUMN_NAME);
+
+        let schema = SchemaBuilder::new()
+            .influx_field("the_field", String)
+            .tag("tag1")
+            .tag("tag2")
+            .tag("tag3")
+            .tag("tag4")
+            .timestamp()
+            .measurement("the_measurement")
+            .build_with_sort_key(&sort_key)
+            .unwrap();
+
+        assert!(schema.is_sorted_on_pk());
+
+        // Sort key does not include all pk cols
+        let mut sort_key = SortKey::with_capacity(3);
+        sort_key.with_col("tag3");
+        sort_key.with_col("tag1");
+        sort_key.with_col(TIME_COLUMN_NAME);
+
+        let schema = SchemaBuilder::new()
+            .influx_field("the_field", String)
+            .tag("tag1")
+            .tag("tag2")
+            .tag("tag3")
+            .tag("tag4")
+            .timestamp()
+            .measurement("the_measurement")
+            .build_with_sort_key(&sort_key)
+            .unwrap();
+
+        assert!(!schema.is_sorted_on_pk());
+
+        // No sort key
+        let schema = SchemaBuilder::new()
+            .influx_field("the_field", String)
+            .tag("tag1")
+            .tag("tag2")
+            .tag("tag3")
+            .tag("tag4")
+            .timestamp()
+            .measurement("the_measurement")
+            .build()
+            .unwrap();
+
+        assert!(!schema.is_sorted_on_pk());
+
+        // No PK, no sort key
+        let schema = SchemaBuilder::new()
+            .influx_field("the_field", String)
+            .measurement("the_measurement")
+            .build()
+            .unwrap();
+        assert!(!schema.is_sorted_on_pk());
+
+        // No PK, sort key on non pk
+        let mut sort_key = SortKey::with_capacity(3);
+        sort_key.with_col("the_field");
+
+        let schema = SchemaBuilder::new()
+            .influx_field("the_field", String)
+            .tag("tag1")
+            .tag("tag2")
+            .tag("tag3")
+            .tag("tag4")
+            .timestamp()
+            .measurement("the_measurement")
+            .build_with_sort_key(&sort_key)
+            .unwrap();
+
+        assert!(!schema.is_sorted_on_pk());
     }
 }

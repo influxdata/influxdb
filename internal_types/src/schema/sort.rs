@@ -496,4 +496,66 @@ mod tests {
         let merge_key = SortKey::try_merge_key(&key_abc_2, &key_bac_2);
         assert_eq!(merge_key, None);
     }
+
+    #[test]
+    fn test_selected_sort_key() {
+        let mut sort_key = SortKey::with_capacity(4);
+        sort_key.with_col("a"); // default sort option
+        sort_key.with_col_opts("b", true, false);
+        sort_key.with_col_opts("c", false, false);
+        sort_key.with_col(TIME_COLUMN_NAME);
+
+        // input cols is empty -> nothing selected
+        let cols = vec![];
+        let selected_key = sort_key.selected_sort_key(cols);
+        assert!(selected_key.is_empty());
+
+        // input cols is not part of the key -> nothing selected
+        let cols = vec!["d", "e"];
+        let selected_key = sort_key.selected_sort_key(cols);
+        assert!(selected_key.is_empty());
+
+        // input cols exactly the same and in the same order -> exact sort_key selected
+        let cols = vec!["a", "b", "c", TIME_COLUMN_NAME];
+        let selected_key = sort_key.selected_sort_key(cols);
+        assert_eq!(selected_key, sort_key);
+
+        // input cols exactly the same but in different order -> exact sort_key selected
+        let cols = vec!["c", TIME_COLUMN_NAME, "b", "a"];
+        let selected_key = sort_key.selected_sort_key(cols);
+        assert_eq!(selected_key, sort_key);
+
+        // input cols is subset but in the same order -> subset selected
+        let cols = vec!["a", "b"];
+        let selected_key = sort_key.selected_sort_key(cols);
+        let mut expected_key = SortKey::with_capacity(2);
+        expected_key.with_col("a"); // default sort option
+        expected_key.with_col_opts("b", true, false);
+        assert_eq!(selected_key, expected_key);
+
+        // input cols is subset but in the same order -> subset selected
+        let cols = vec![TIME_COLUMN_NAME];
+        let selected_key = sort_key.selected_sort_key(cols);
+        let mut expected_key = SortKey::with_capacity(1);
+        expected_key.with_col(TIME_COLUMN_NAME);
+        assert_eq!(selected_key, expected_key);
+
+        // input cols is subset but in the same order with gap -> subset selected
+        let cols = vec!["a", "c", TIME_COLUMN_NAME];
+        let selected_key = sort_key.selected_sort_key(cols);
+        let mut expected_key = SortKey::with_capacity(3);
+        expected_key.with_col("a"); // default sort option
+        expected_key.with_col_opts("c", false, false);
+        expected_key.with_col(TIME_COLUMN_NAME);
+        assert_eq!(selected_key, expected_key);
+
+        // input cols is subset but in different order -> subset in the order with sort_key selected
+        let cols = vec![TIME_COLUMN_NAME, "b", "c"];
+        let selected_key = sort_key.selected_sort_key(cols);
+        let mut expected_key = SortKey::with_capacity(3);
+        expected_key.with_col_opts("b", true, false);
+        expected_key.with_col_opts("c", false, false);
+        expected_key.with_col(TIME_COLUMN_NAME);
+        assert_eq!(selected_key, expected_key);
+    }
 }

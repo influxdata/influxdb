@@ -147,8 +147,8 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
     /// Returns the sort key of the chunk if any
     fn sort_key(&self) -> Option<SortKey<'_>>;
 
-    /// Sets sort key for the schema of this chunk
-    fn set_sort_key(&mut self, sort_key: &SortKey<'_>);
+    /// Returns chunk type which is either MUB, RUB, OS
+    fn chunk_type(&self) -> &str;
 }
 
 #[async_trait]
