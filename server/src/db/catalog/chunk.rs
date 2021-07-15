@@ -875,6 +875,11 @@ impl CatalogChunk {
                 });
             }
             self.lifecycle_action = None;
+
+            // Some lifecycle actions (e.g. Drop) modify the memory metrics so that the catalog accounts chunks w/
+            // actions correctly. When clearing out that action, we need to restore the pre-action state. The easiest
+            // (and stateless) way to to do that is just to call the update method. Since clearing lifecycle actions
+            // should be a rather rare event, the cost of this is negligible.
             self.update_memory_metrics();
         }
         Ok(())
