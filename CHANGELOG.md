@@ -45,6 +45,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21844](https://github.com/influxdata/influxdb/pull/21844): Upgrade to latest version of `influxdata/cron` so that tasks can be created with interval of `every: 1w`.
 1. [21849](https://github.com/influxdata/influxdb/pull/21849): Specify which fields are missing when rejecting an incomplete onboarding request.
 1. [21839](https://github.com/influxdata/influxdb/pull/21839): Fix display and parsing of `influxd upgrade` CLI prompts in PowerShell.
+1. [21850](https://github.com/influxdata/influxdb/pull/21850): Systemd unit should block on startup until http endpoint is ready
 
 ## v2.0.7 [2021-06-04]
 
