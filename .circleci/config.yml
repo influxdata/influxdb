@@ -359,7 +359,7 @@ jobs:
 
   jsdeps:
     docker:
-      - image: cimg/go:1.15.6-node
+      - image: cimg/go:1.16.5-node
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -509,7 +509,7 @@ jobs:
 
   influxql_validation:
     docker:
-      - image: cimg/go:1.15.6
+      - image: cimg/go:1.16.5
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
@@ -542,7 +542,7 @@ jobs:
 
   influxql_integration:
     docker:
-      - image: cimg/go:1.15.6
+      - image: cimg/go:1.16.5
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
