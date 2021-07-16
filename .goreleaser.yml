@@ -51,6 +51,8 @@ nfpms:
       postremove: "scripts/post-uninstall.sh"
     conflicts:
       - influxdb
+    recommends:
+      - influx-cli
     overrides:
       rpm:
         replacements:
