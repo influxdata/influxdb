@@ -80,7 +80,7 @@ impl ReorgPlanner {
 
         // Set the sort_key of the schema to the compacted chunk's sort key
         // Try to do this only if the sort key changes so we avoid unnecessary schema copies.
-        trace!(input_schema=?schema, "Setting sort key on schema");
+        trace!(input_schema=?schema, "Setting sort key on schema for compact plan");
         if schema
             .sort_key()
             .map_or(true, |existing_key| existing_key != output_sort)
@@ -89,7 +89,7 @@ impl ReorgPlanner {
             schema_cloned.set_sort_key(&output_sort);
             schema = Arc::new(schema_cloned);
         }
-        trace!(output_schema=?schema, "Setting sort key on schema");
+        trace!(output_schema=?schema, "Setting sort key on schema for compact plan");
 
         let plan = plan_builder.build().context(BuildingPlan)?;
 
@@ -157,10 +157,22 @@ impl ReorgPlanner {
         let ScanPlan {
             plan_builder,
             provider,
-        } = self.scan_and_sort_plan(schema, chunks, output_sort)?;
+        } = self.scan_and_sort_plan(schema, chunks, output_sort.clone())?;
 
-        // TODO: Set sort key on schema
-        let schema = provider.iox_schema();
+        let mut schema = provider.iox_schema();
+
+        // Set output_sort as the sort_key of the schema
+        // Try to do this only if the sort key changes so we avoid unnecessary schema copies.
+        trace!(input_schema=?schema, "Setting sort key on schema for split plan");
+        if schema
+            .sort_key()
+            .map_or(true, |existing_key| existing_key != output_sort)
+        {
+            let mut schema_cloned = schema.as_ref().clone();
+            schema_cloned.set_sort_key(&output_sort);
+            schema = Arc::new(schema_cloned);
+        }
+        trace!(output_schema=?schema, "Setting sort key on schema for split plan");
 
         // time <= split_time
         let ts_literal = Expr::Literal(ScalarValue::TimestampNanosecond(Some(split_time)));
@@ -270,21 +282,21 @@ mod test {
     async fn get_test_chunks() -> (Arc<Schema>, Vec<Arc<TestChunk>>) {
         // Chunk 1 with 5 rows of data on 2 tags
         let chunk1 = Arc::new(
-            TestChunk::new(1)
-                .with_time_column_with_stats("t", 5, 7000)
-                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
-                .with_int_field_column("t", "field_int")
-                .with_five_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data(),
         );
 
         // Chunk 2 has an extra field, and only 4 fields
         let chunk2 = Arc::new(
-            TestChunk::new(1)
-                .with_time_column_with_stats("t", 5, 7000)
-                .with_tag_column_with_stats("t", "tag1", "AL", "MT")
-                .with_int_field_column("t", "field_int")
-                .with_int_field_column("t", "field_int2")
-                .with_four_rows_of_data("t"),
+            TestChunk::new("t")
+                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
+                .with_i64_field_column("field_int")
+                .with_i64_field_column("field_int2")
+                .with_four_rows_of_data(),
         );
 
         let expected = vec![

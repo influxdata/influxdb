@@ -1,4 +1,4 @@
-#![deny(broken_intra_doc_links, rust_2018_idioms)]
+#![deny(broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_debug_implementations,
     clippy::explicit_iter_loop,
@@ -77,7 +77,7 @@ impl MetricRegistry {
     /// Returns the current metrics state, in UTF-8 encoded Prometheus
     /// Exposition Format.
     ///
-    /// https://prometheus.io/docs/instrumenting/exposition_formats/
+    /// <https://prometheus.io/docs/instrumenting/exposition_formats/>
     ///
     /// For example:
     ///
@@ -290,7 +290,7 @@ impl Domain {
     ///
     /// `unit` is optional and will appear in the metric name before a final
     /// `total` suffix. Consider reviewing
-    /// https://prometheus.io/docs/practices/naming/#base-units for appropriate
+    /// <https://prometheus.io/docs/practices/naming/#base-units> for appropriate
     /// units.
     pub fn register_counter_metric(
         &self,
@@ -331,7 +331,7 @@ impl Domain {
     ///
     /// `unit` is required and will appear at the end of the metric name.
     /// Consider reviewing
-    /// https://prometheus.io/docs/practices/naming/#base-units for appropriate
+    /// <https://prometheus.io/docs/practices/naming/#base-units> for appropriate
     /// units. Examples include "bytes", "seconds", "celsius"
     ///
     pub fn register_histogram_metric(
@@ -360,7 +360,7 @@ impl Domain {
     ///
     /// `unit` is optional and will appear in the metric name before a final
     /// `total` suffix. Consider reviewing
-    /// https://prometheus.io/docs/practices/naming/#base-units for appropriate
+    /// <https://prometheus.io/docs/practices/naming/#base-units> for appropriate
     pub fn register_gauge_metric(
         &self,
         name: &str,

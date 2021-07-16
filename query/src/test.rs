@@ -3,35 +3,32 @@
 //!
 //! AKA it is a Mock
 
+use crate::exec::Executor;
+use crate::{
+    exec::stringset::{StringSet, StringSetRef},
+    DatabaseStore, Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
+};
 use arrow::{
     array::{ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray},
     datatypes::{DataType, Int32Type, TimeUnit},
     record_batch::RecordBatch,
 };
+use async_trait::async_trait;
 use data_types::{
     chunk_metadata::ChunkSummary,
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
 };
 use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
 use futures::StreamExt;
-
-use crate::exec::Executor;
-use crate::{
-    exec::stringset::{StringSet, StringSetRef},
-    DatabaseStore, Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
-};
-
+use internal_types::schema::sort::SortKey;
 use internal_types::{
-    schema::{
-        builder::SchemaBuilder, merge::SchemaMerger, InfluxColumnType, Schema, TIME_COLUMN_NAME,
-    },
+    schema::{builder::SchemaBuilder, merge::SchemaMerger, InfluxColumnType, Schema},
     selection::Selection,
 };
-
-use async_trait::async_trait;
 use parking_lot::Mutex;
 use snafu::Snafu;
-use std::{collections::BTreeMap, sync::Arc};
+use std::num::NonZeroU64;
+use std::{collections::BTreeMap, fmt, sync::Arc};
 
 #[derive(Debug, Default)]
 pub struct TestDatabase {
@@ -135,8 +132,17 @@ impl QueryDatabase for TestDatabase {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TestChunk {
+    /// Table name
+    table_name: String,
+
+    /// Schema of the table
+    schema: Arc<Schema>,
+
+    /// Return value for summary()
+    table_summary: TableSummary,
+
     id: u32,
 
     /// Set the flag if this chunk might contain duplicates
@@ -144,12 +150,6 @@ pub struct TestChunk {
 
     /// A copy of the captured predicates passed
     predicates: Mutex<Vec<Predicate>>,
-
-    /// Table name
-    table_name: Option<String>,
-
-    /// Schema of the table
-    table_schema: Option<Schema>,
 
     /// RecordBatches that are returned on each request
     table_data: Vec<Arc<RecordBatch>>,
@@ -159,17 +159,85 @@ pub struct TestChunk {
 
     /// Return value for apply_predicate, if desired
     predicate_match: Option<PredicateMatch>,
+}
 
-    /// Return value for summary(), if desired
-    table_summary: Option<TableSummary>,
+/// Implements a method for adding a column with default stats
+macro_rules! impl_with_column {
+    ($NAME:ident, $DATA_TYPE:ident) => {
+        pub fn $NAME(self, column_name: impl Into<String>) -> Self {
+            let column_name = column_name.into();
+
+            let new_column_schema = SchemaBuilder::new()
+                .field(&column_name, DataType::$DATA_TYPE)
+                .build()
+                .unwrap();
+            self.add_schema_to_table(new_column_schema, true, None)
+        }
+    };
+}
+
+/// Implements a method for adding a column without any stats
+macro_rules! impl_with_column_no_stats {
+    ($NAME:ident, $DATA_TYPE:ident) => {
+        pub fn $NAME(self, column_name: impl Into<String>) -> Self {
+            let column_name = column_name.into();
+
+            let new_column_schema = SchemaBuilder::new()
+                .field(&column_name, DataType::$DATA_TYPE)
+                .build()
+                .unwrap();
+
+            self.add_schema_to_table(new_column_schema, false, None)
+        }
+    };
+}
+
+/// Implements a method for adding a column with stats that have the specified min and max
+macro_rules! impl_with_column_with_stats {
+    ($NAME:ident, $DATA_TYPE:ident, $RUST_TYPE:ty, $STAT_TYPE:ident) => {
+        pub fn $NAME(
+            self,
+            column_name: impl Into<String>,
+            min: Option<$RUST_TYPE>,
+            max: Option<$RUST_TYPE>,
+        ) -> Self {
+            let column_name = column_name.into();
+
+            let new_column_schema = SchemaBuilder::new()
+                .field(&column_name, DataType::$DATA_TYPE)
+                .build()
+                .unwrap();
+
+            let stats = Statistics::$STAT_TYPE(StatValues {
+                min,
+                max,
+                ..Default::default()
+            });
+
+            self.add_schema_to_table(new_column_schema, true, Some(stats))
+        }
+    };
 }
 
 impl TestChunk {
-    pub fn new(id: u32) -> Self {
+    pub fn new(table_name: impl Into<String>) -> Self {
+        let table_name = table_name.into();
         Self {
-            id,
-            ..Default::default()
+            table_name: table_name.clone(),
+            schema: Arc::new(SchemaBuilder::new().build().unwrap()),
+            table_summary: TableSummary::new(table_name),
+            id: Default::default(),
+            may_contain_pk_duplicates: Default::default(),
+            predicates: Default::default(),
+            table_data: Default::default(),
+            saved_error: Default::default(),
+            predicate_match: Default::default(),
         }
+    }
+
+    pub fn with_id(mut self, id: u32) -> Self {
+        self.id = id;
+        self
     }
 
     /// specify that any call should result in an error with the message
@@ -194,183 +262,188 @@ impl TestChunk {
         }
     }
 
-    /// Register a table with the test chunk and a "dummy" column
-    pub fn with_table(self, table_name: impl Into<String>) -> Self {
-        self.with_tag_column(table_name, "dummy_col")
-    }
-
     /// Set the `may_contain_pk_duplicates` flag
     pub fn with_may_contain_pk_duplicates(mut self, v: bool) -> Self {
         self.may_contain_pk_duplicates = v;
         self
     }
 
-    /// Register an tag column with the test chunk
-    pub fn with_tag_column(
-        self,
-        table_name: impl Into<String>,
-        column_name: impl Into<String>,
-    ) -> Self {
-        let table_name = table_name.into();
+    /// Register a tag column with the test chunk with default stats
+    pub fn with_tag_column(self, column_name: impl Into<String>) -> Self {
         let column_name = column_name.into();
 
         // make a new schema with the specified column and
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new().tag(&column_name).build().unwrap();
 
-        self.add_schema_to_table(table_name, new_column_schema)
+        self.add_schema_to_table(new_column_schema, true, None)
     }
 
-    /// Register an tag column with the test chunk
+    /// Register a tag column with stats with the test chunk
     pub fn with_tag_column_with_stats(
         self,
-        table_name: impl Into<String>,
         column_name: impl Into<String>,
-        min: &str,
-        max: &str,
+        min: Option<&str>,
+        max: Option<&str>,
     ) -> Self {
-        let table_name = table_name.into();
-        let column_name = column_name.into();
-
-        let mut new_self = self.with_tag_column(&table_name, &column_name);
-
-        // Now, find the appropriate column summary and update the stats
-        let column_summary: &mut ColumnSummary = new_self
-            .table_summary
-            .as_mut()
-            .expect("had table summary")
-            .columns
-            .iter_mut()
-            .find(|c| c.name == column_name)
-            .expect("had column");
-
-        column_summary.stats = Statistics::String(StatValues {
-            min: Some(min.to_string()),
-            max: Some(max.to_string()),
-            ..Default::default()
-        });
-
-        new_self
+        self.with_tag_column_with_full_stats(column_name, min, max, 0, None)
     }
 
-    /// Register a timestamp column with the test chunk
-    pub fn with_time_column(self, table_name: impl Into<String>) -> Self {
-        let table_name = table_name.into();
+    /// Register a tag column with stats with the test chunk
+    pub fn with_tag_column_with_full_stats(
+        self,
+        column_name: impl Into<String>,
+        min: Option<&str>,
+        max: Option<&str>,
+        count: u64,
+        distinct_count: Option<NonZeroU64>,
+    ) -> Self {
+        let column_name = column_name.into();
 
+        // make a new schema with the specified column and
+        // merge it in to any existing schema
+        let new_column_schema = SchemaBuilder::new().tag(&column_name).build().unwrap();
+
+        // Construct stats
+        let stats = Statistics::String(StatValues {
+            min: min.map(ToString::to_string),
+            max: max.map(ToString::to_string),
+            count,
+            distinct_count,
+        });
+
+        self.add_schema_to_table(new_column_schema, true, Some(stats))
+    }
+
+    /// Register a timestamp column with the test chunk with default stats
+    pub fn with_time_column(self) -> Self {
         // make a new schema with the specified column and
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new().timestamp().build().unwrap();
 
-        self.add_schema_to_table(table_name, new_column_schema)
+        self.add_schema_to_table(new_column_schema, true, None)
     }
 
     /// Register a timestamp column with the test chunk
-    pub fn with_time_column_with_stats(
-        self,
-        table_name: impl Into<String>,
-        min: i64,
-        max: i64,
-    ) -> Self {
-        let table_name = table_name.into();
-
-        let mut new_self = self.with_time_column(&table_name);
-
-        // Now, find the appropriate column summary and update the stats
-        let column_summary: &mut ColumnSummary = new_self
-            .table_summary
-            .as_mut()
-            .expect("had table summary")
-            .columns
-            .iter_mut()
-            .find(|c| c.name == TIME_COLUMN_NAME)
-            .expect("had column");
-
-        column_summary.stats = Statistics::I64(StatValues {
-            min: Some(min),
-            max: Some(max),
-            ..Default::default()
-        });
-
-        new_self
+    pub fn with_time_column_with_stats(self, min: Option<i64>, max: Option<i64>) -> Self {
+        self.with_time_column_with_full_stats(min, max, 0, None)
     }
 
-    /// Register an int field column with the test chunk
-    pub fn with_int_field_column(
+    /// Register a timestamp column with full stats with the test chunk
+    pub fn with_time_column_with_full_stats(
         self,
-        table_name: impl Into<String>,
+        min: Option<i64>,
+        max: Option<i64>,
+        count: u64,
+        distinct_count: Option<NonZeroU64>,
+    ) -> Self {
+        // make a new schema with the specified column and
+        // merge it in to any existing schema
+        let new_column_schema = SchemaBuilder::new().timestamp().build().unwrap();
+
+        // Construct stats
+        let stats = Statistics::I64(StatValues {
+            min,
+            max,
+            count,
+            distinct_count,
+        });
+
+        self.add_schema_to_table(new_column_schema, true, Some(stats))
+    }
+
+    impl_with_column!(with_i64_field_column, Int64);
+    impl_with_column_no_stats!(with_i64_field_column_no_stats, Int64);
+    impl_with_column_with_stats!(with_i64_field_column_with_stats, Int64, i64, I64);
+
+    impl_with_column!(with_u64_column, UInt64);
+    impl_with_column_no_stats!(with_u64_field_column_no_stats, UInt64);
+    impl_with_column_with_stats!(with_u64_field_column_with_stats, UInt64, u64, U64);
+
+    impl_with_column!(with_f64_field_column, Float64);
+    impl_with_column_no_stats!(with_f64_field_column_no_stats, Float64);
+    impl_with_column_with_stats!(with_f64_field_column_with_stats, Float64, f64, F64);
+
+    impl_with_column!(with_bool_field_column, Boolean);
+    impl_with_column_no_stats!(with_bool_field_column_no_stats, Boolean);
+    impl_with_column_with_stats!(with_bool_field_column_with_stats, Boolean, bool, Bool);
+
+    /// Register a string field column with the test chunk
+    pub fn with_string_field_column_with_stats(
+        self,
         column_name: impl Into<String>,
+        min: Option<&str>,
+        max: Option<&str>,
     ) -> Self {
         let column_name = column_name.into();
 
         // make a new schema with the specified column and
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new()
-            .field(&column_name, DataType::Int64)
+            .field(&column_name, DataType::Utf8)
             .build()
             .unwrap();
-        self.add_schema_to_table(table_name, new_column_schema)
+
+        // Construct stats
+        let stats = Statistics::String(StatValues {
+            min: min.map(ToString::to_string),
+            max: max.map(ToString::to_string),
+            ..Default::default()
+        });
+
+        self.add_schema_to_table(new_column_schema, true, Some(stats))
     }
 
+    /// Adds the specified schema and optionally a column summary containing optional stats.
+    /// If `add_column_summary` is false, `stats` is ignored. If `add_column_summary` is true but
+    /// `stats` is `None`, default stats will be added to the column summary.
     fn add_schema_to_table(
         mut self,
-        table_name: impl Into<String>,
         new_column_schema: Schema,
+        add_column_summary: bool,
+        stats: Option<Statistics>,
     ) -> Self {
-        let table_name = table_name.into();
-        if let Some(existing_name) = &self.table_name {
-            assert_eq!(&table_name, existing_name);
-        }
-        self.table_name = Some(table_name.clone());
-
         // assume the new schema has exactly a single table
         assert_eq!(new_column_schema.len(), 1);
         let (col_type, new_field) = new_column_schema.field(0);
 
-        let influxdb_type = col_type.map(|t| match t {
-            InfluxColumnType::IOx(_) => todo!(),
-            InfluxColumnType::Tag => InfluxDbType::Tag,
-            InfluxColumnType::Field(_) => InfluxDbType::Field,
-            InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
-        });
-
-        let stats = match new_field.data_type() {
-            DataType::Boolean => Statistics::Bool(StatValues::default()),
-            DataType::Int64 => Statistics::I64(StatValues::default()),
-            DataType::UInt64 => Statistics::U64(StatValues::default()),
-            DataType::Utf8 => Statistics::String(StatValues::default()),
-            DataType::Dictionary(_, value_type) => {
-                assert!(matches!(**value_type, DataType::Utf8));
-                Statistics::String(StatValues::default())
-            }
-            DataType::Float64 => Statistics::String(StatValues::default()),
-            DataType::Timestamp(_, _) => Statistics::I64(StatValues::default()),
-            _ => panic!("Unsupported type in TestChunk: {:?}", new_field.data_type()),
-        };
-
-        let column_summary = ColumnSummary {
-            name: new_field.name().clone(),
-            influxdb_type,
-            stats,
-        };
-
         let mut merger = SchemaMerger::new();
         merger = merger.merge(&new_column_schema).unwrap();
+        merger = merger
+            .merge(self.schema.as_ref())
+            .expect("merging was successful");
+        self.schema = Arc::new(merger.build());
 
-        if let Some(existing_schema) = self.table_schema.as_ref() {
-            merger = merger
-                .merge(existing_schema)
-                .expect("merging was successful");
+        if add_column_summary {
+            let influxdb_type = col_type.map(|t| match t {
+                InfluxColumnType::IOx(_) => todo!(),
+                InfluxColumnType::Tag => InfluxDbType::Tag,
+                InfluxColumnType::Field(_) => InfluxDbType::Field,
+                InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
+            });
+
+            let stats = stats.unwrap_or_else(|| match new_field.data_type() {
+                DataType::Boolean => Statistics::Bool(StatValues::default()),
+                DataType::Int64 => Statistics::I64(StatValues::default()),
+                DataType::UInt64 => Statistics::U64(StatValues::default()),
+                DataType::Utf8 => Statistics::String(StatValues::default()),
+                DataType::Dictionary(_, value_type) => {
+                    assert!(matches!(**value_type, DataType::Utf8));
+                    Statistics::String(StatValues::default())
+                }
+                DataType::Float64 => Statistics::F64(StatValues::default()),
+                DataType::Timestamp(_, _) => Statistics::I64(StatValues::default()),
+                _ => panic!("Unsupported type in TestChunk: {:?}", new_field.data_type()),
+            });
+
+            let column_summary = ColumnSummary {
+                name: new_field.name().clone(),
+                influxdb_type,
+                stats,
+            };
+
+            self.table_summary.columns.push(column_summary);
         }
-        let new_schema = merger.build();
-
-        self.table_schema = Some(new_schema);
-
-        let mut table_summary = self
-            .table_summary
-            .take()
-            .unwrap_or_else(|| TableSummary::new(table_name));
-        table_summary.columns.push(column_summary);
-        self.table_summary = Some(table_summary);
 
         self
     }
@@ -382,15 +455,10 @@ impl TestChunk {
 
     /// Prepares this chunk to return a specific record batch with one
     /// row of non null data.
-    pub fn with_one_row_of_null_data(mut self, _table_name: impl Into<String>) -> Self {
-        //let table_name = table_name.into();
-        let schema = self
-            .table_schema
-            .as_ref()
-            .expect("table must exist in TestChunk");
-
+    pub fn with_one_row_of_data(mut self) -> Self {
         // create arrays
-        let columns = schema
+        let columns = self
+            .schema
             .iter()
             .map(|(_influxdb_column_type, field)| match field.data_type() {
                 DataType::Int64 => Arc::new(Int64Array::from(vec![1000])) as ArrayRef,
@@ -411,7 +479,8 @@ impl TestChunk {
             })
             .collect::<Vec<_>>();
 
-        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+        let batch =
+            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
         println!("TestChunk batch data: {:#?}", batch);
 
         self.table_data.push(Arc::new(batch));
@@ -428,14 +497,10 @@ impl TestChunk {
     ///   "| UT   | RI   | 70        | 1970-01-01 00:00:00.000020    |",
     ///   "+------+------+-----------+-------------------------------+",
     /// Stats(min, max) : tag1(UT, WA), tag2(RI, SC), time(8000, 20000)
-    pub fn with_three_rows_of_data(mut self, _table_name: impl Into<String>) -> Self {
-        let schema = self
-            .table_schema
-            .as_ref()
-            .expect("table must exist in TestChunk");
-
+    pub fn with_three_rows_of_data(mut self) -> Self {
         // create arrays
-        let columns = schema
+        let columns = self
+            .schema
             .iter()
             .map(|(_influxdb_column_type, field)| match field.data_type() {
                 DataType::Int64 => Arc::new(Int64Array::from(vec![1000, 10, 70])) as ArrayRef,
@@ -475,7 +540,8 @@ impl TestChunk {
             })
             .collect::<Vec<_>>();
 
-        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+        let batch =
+            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
 
         self.table_data.push(Arc::new(batch));
         self
@@ -492,14 +558,10 @@ impl TestChunk {
     ///   "| VT   | NC   | 50        | 1970-01-01 00:00:00.000210    |", // duplicate of (1)
     ///   "+------+------+-----------+-------------------------------+",
     /// Stats(min, max) : tag1(UT, WA), tag2(RI, SC), time(28000, 220000)
-    pub fn with_four_rows_of_data(mut self, _table_name: impl Into<String>) -> Self {
-        let schema = self
-            .table_schema
-            .as_ref()
-            .expect("table must exist in TestChunk");
-
+    pub fn with_four_rows_of_data(mut self) -> Self {
         // create arrays
-        let columns = schema
+        let columns = self
+            .schema
             .iter()
             .map(|(_influxdb_column_type, field)| match field.data_type() {
                 DataType::Int64 => Arc::new(Int64Array::from(vec![1000, 10, 70, 50])) as ArrayRef,
@@ -539,7 +601,8 @@ impl TestChunk {
             })
             .collect::<Vec<_>>();
 
-        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+        let batch =
+            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
 
         self.table_data.push(Arc::new(batch));
         self
@@ -557,14 +620,10 @@ impl TestChunk {
     ///   "| MT   | AL   | 5         | 1970-01-01 00:00:00.000005    |",
     ///   "+------+------+-----------+-------------------------------+",
     /// Stats(min, max) : tag1(AL, MT), tag2(AL, MA), time(5, 7000)
-    pub fn with_five_rows_of_data(mut self, _table_name: impl Into<String>) -> Self {
-        let schema = self
-            .table_schema
-            .as_ref()
-            .expect("table must exist in TestChunk");
-
+    pub fn with_five_rows_of_data(mut self) -> Self {
         // create arrays
-        let columns = schema
+        let columns = self
+            .schema
             .iter()
             .map(|(_influxdb_column_type, field)| match field.data_type() {
                 DataType::Int64 => {
@@ -611,7 +670,8 @@ impl TestChunk {
             })
             .collect::<Vec<_>>();
 
-        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+        let batch =
+            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
 
         self.table_data.push(Arc::new(batch));
         self
@@ -634,15 +694,10 @@ impl TestChunk {
     ///   "| MT   | AL   | 30        | 1970-01-01 00:00:00.000005    |",  // Duplicate with (3)
     ///   "+------+------+-----------+-------------------------------+",
     /// Stats(min, max) : tag1(AL, MT), tag2(AL, MA), time(5, 7000)
-    pub fn with_ten_rows_of_data_some_duplicates(mut self, _table_name: impl Into<String>) -> Self {
-        //let table_name = table_name.into();
-        let schema = self
-            .table_schema
-            .as_ref()
-            .expect("table must exist in TestChunk");
-
+    pub fn with_ten_rows_of_data_some_duplicates(mut self) -> Self {
         // create arrays
-        let columns = schema
+        let columns = self
+            .schema
             .iter()
             .map(|(_influxdb_column_type, field)| match field.data_type() {
                 DataType::Int64 => Arc::new(Int64Array::from(vec![
@@ -693,35 +748,34 @@ impl TestChunk {
             })
             .collect::<Vec<_>>();
 
-        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+        let batch =
+            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
 
         self.table_data.push(Arc::new(batch));
         self
     }
 
     /// Returns all columns of the table
-    pub fn all_column_names(&self) -> Option<StringSet> {
-        let column_names = self.table_schema.as_ref().map(|schema| {
-            schema
-                .iter()
-                .map(|(_, field)| field.name().to_string())
-                .collect::<StringSet>()
-        });
-
-        column_names
+    pub fn all_column_names(&self) -> StringSet {
+        self.schema
+            .iter()
+            .map(|(_, field)| field.name().to_string())
+            .collect()
     }
 
     /// Returns just the specified columns
-    pub fn specific_column_names_selection(&self, columns: &[&str]) -> Option<StringSet> {
-        let column_names = self.table_schema.as_ref().map(|schema| {
-            schema
-                .iter()
-                .map(|(_, field)| field.name().to_string())
-                .filter(|col| columns.contains(&col.as_str()))
-                .collect::<StringSet>()
-        });
+    pub fn specific_column_names_selection(&self, columns: &[&str]) -> StringSet {
+        self.schema
+            .iter()
+            .map(|(_, field)| field.name().to_string())
+            .filter(|col| columns.contains(&col.as_str()))
+            .collect()
+    }
+}
 
-        column_names
+impl fmt::Display for TestChunk {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.table_name())
     }
 }
 
@@ -733,7 +787,7 @@ impl QueryChunk for TestChunk {
     }
 
     fn table_name(&self) -> &str {
-        self.table_name.as_deref().unwrap()
+        &self.table_name
     }
 
     fn may_contain_pk_duplicates(&self) -> bool {
@@ -760,6 +814,15 @@ impl QueryChunk for TestChunk {
         false
     }
 
+    /// Returns the sort key of the chunk if any
+    fn sort_key(&self) -> Option<SortKey<'_>> {
+        None
+    }
+
+    fn chunk_type(&self) -> &str {
+        "Test Chunk"
+    }
+
     fn apply_predicate_to_metadata(&self, predicate: &Predicate) -> Result<PredicateMatch> {
         self.check_error()?;
 
@@ -772,17 +835,11 @@ impl QueryChunk for TestChunk {
         }
 
         // otherwise fall back to basic filtering based on table name predicate.
-        let predicate_match = self
-            .table_name
-            .as_ref()
-            .map(|table_name| {
-                if !predicate.should_include_table(&table_name) {
-                    PredicateMatch::Zero
-                } else {
-                    PredicateMatch::Unknown
-                }
-            })
-            .unwrap_or(PredicateMatch::Unknown);
+        let predicate_match = if !predicate.should_include_table(&self.table_name) {
+            PredicateMatch::Zero
+        } else {
+            PredicateMatch::Unknown
+        };
 
         Ok(predicate_match)
     }
@@ -812,22 +869,17 @@ impl QueryChunk for TestChunk {
             Selection::Some(cols) => self.specific_column_names_selection(cols),
         };
 
-        Ok(column_names)
+        Ok(Some(column_names))
     }
 }
 
 impl QueryChunkMeta for TestChunk {
     fn summary(&self) -> &TableSummary {
-        self.table_summary
-            .as_ref()
-            .expect("Table summary not configured for TestChunk")
+        &self.table_summary
     }
 
     fn schema(&self) -> Arc<Schema> {
-        self.table_schema
-            .as_ref()
-            .map(|s| Arc::new(s.clone()))
-            .expect("schema was set")
+        Arc::clone(&self.schema)
     }
 }
 

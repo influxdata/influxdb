@@ -196,7 +196,9 @@ fn chunk_summaries_schema() -> SchemaRef {
         Field::new("partition_key", DataType::Utf8, false),
         Field::new("table_name", DataType::Utf8, false),
         Field::new("storage", DataType::Utf8, false),
-        Field::new("estimated_bytes", DataType::UInt64, false),
+        Field::new("lifecycle_action", DataType::Utf8, true),
+        Field::new("memory_bytes", DataType::UInt64, false),
+        Field::new("object_store_bytes", DataType::UInt64, false),
         Field::new("row_count", DataType::UInt64, false),
         Field::new("time_of_first_write", ts.clone(), true),
         Field::new("time_of_last_write", ts.clone(), true),
@@ -218,9 +220,17 @@ fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<
         .iter()
         .map(|c| Some(c.storage.as_str()))
         .collect::<StringArray>();
-    let estimated_bytes = chunks
+    let lifecycle_action = chunks
         .iter()
-        .map(|c| Some(c.estimated_bytes as u64))
+        .map(|c| c.lifecycle_action.map(|a| a.name()))
+        .collect::<StringArray>();
+    let memory_bytes = chunks
+        .iter()
+        .map(|c| Some(c.memory_bytes as u64))
+        .collect::<UInt64Array>();
+    let object_store_bytes = chunks
+        .iter()
+        .map(|c| Some(c.object_store_bytes as u64).filter(|&v| v > 0))
         .collect::<UInt64Array>();
     let row_counts = chunks
         .iter()
@@ -245,11 +255,13 @@ fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<
     RecordBatch::try_new(
         schema,
         vec![
-            Arc::new(id), // as ArrayRef,
+            Arc::new(id),
             Arc::new(partition_key),
             Arc::new(table_name),
             Arc::new(storage),
-            Arc::new(estimated_bytes),
+            Arc::new(lifecycle_action),
+            Arc::new(memory_bytes),
+            Arc::new(object_store_bytes),
             Arc::new(row_counts),
             Arc::new(time_of_first_write),
             Arc::new(time_of_last_write),
@@ -374,7 +386,7 @@ fn chunk_columns_schema() -> SchemaRef {
         Field::new("row_count", DataType::UInt64, true),
         Field::new("min_value", DataType::Utf8, true),
         Field::new("max_value", DataType::Utf8, true),
-        Field::new("estimated_bytes", DataType::UInt64, true),
+        Field::new("memory_bytes", DataType::UInt64, true),
     ]))
 }
 
@@ -390,7 +402,7 @@ fn assemble_chunk_columns(
             .map(|column_summary| {
                 (
                     column_summary.name.as_ref(),
-                    column_summary.estimated_bytes as u64,
+                    column_summary.memory_bytes as u64,
                 )
             })
             .collect()
@@ -407,7 +419,7 @@ fn assemble_chunk_columns(
     let mut row_count = UInt64Builder::new(row_estimate);
     let mut min_values = StringBuilder::new(row_estimate);
     let mut max_values = StringBuilder::new(row_estimate);
-    let mut estimated_bytes = UInt64Builder::new(row_estimate);
+    let mut memory_bytes = UInt64Builder::new(row_estimate);
 
     // Note no rows are produced for partitions with no chunks, or
     // tables with no partitions: There are other tables to list tables
@@ -436,7 +448,7 @@ fn assemble_chunk_columns(
 
             let size = column_index.remove(column.name.as_str());
 
-            estimated_bytes.append_option(size)?;
+            memory_bytes.append_option(size)?;
         }
     }
 
@@ -451,7 +463,7 @@ fn assemble_chunk_columns(
             Arc::new(row_count.finish()),
             Arc::new(min_values.finish()),
             Arc::new(max_values.finish()),
-            Arc::new(estimated_bytes.finish()),
+            Arc::new(memory_bytes.finish()),
         ],
     )
 }
@@ -597,7 +609,7 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use chrono::NaiveDateTime;
     use data_types::{
-        chunk_metadata::{ChunkColumnSummary, ChunkStorage},
+        chunk_metadata::{ChunkColumnSummary, ChunkLifecycleAction, ChunkStorage},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     };
 
@@ -609,7 +621,9 @@ mod tests {
                 table_name: Arc::from("table1"),
                 id: 0,
                 storage: ChunkStorage::OpenMutableBuffer,
-                estimated_bytes: 23754,
+                lifecycle_action: None,
+                memory_bytes: 23754,
+                object_store_bytes: 0,
                 row_count: 11,
                 time_of_first_write: Some(DateTime::from_utc(
                     NaiveDateTime::from_timestamp(10, 0),
@@ -621,9 +635,11 @@ mod tests {
             ChunkSummary {
                 partition_key: Arc::from("p1"),
                 table_name: Arc::from("table1"),
-                id: 0,
+                id: 1,
                 storage: ChunkStorage::OpenMutableBuffer,
-                estimated_bytes: 23454,
+                lifecycle_action: Some(ChunkLifecycleAction::Persisting),
+                memory_bytes: 23455,
+                object_store_bytes: 0,
                 row_count: 22,
                 time_of_first_write: None,
                 time_of_last_write: Some(DateTime::from_utc(
@@ -632,15 +648,35 @@ mod tests {
                 )),
                 time_closed: None,
             },
+            ChunkSummary {
+                partition_key: Arc::from("p1"),
+                table_name: Arc::from("table1"),
+                id: 2,
+                storage: ChunkStorage::ObjectStoreOnly,
+                lifecycle_action: None,
+                memory_bytes: 1234,
+                object_store_bytes: 5678,
+                row_count: 33,
+                time_of_first_write: Some(DateTime::from_utc(
+                    NaiveDateTime::from_timestamp(100, 0),
+                    Utc,
+                )),
+                time_of_last_write: Some(DateTime::from_utc(
+                    NaiveDateTime::from_timestamp(200, 0),
+                    Utc,
+                )),
+                time_closed: None,
+            },
         ];
 
         let expected = vec![
-            "+----+---------------+------------+-------------------+-----------------+-----------+---------------------+---------------------+-------------+",
-            "| id | partition_key | table_name | storage           | estimated_bytes | row_count | time_of_first_write | time_of_last_write  | time_closed |",
-            "+----+---------------+------------+-------------------+-----------------+-----------+---------------------+---------------------+-------------+",
-            "| 0  | p1            | table1     | OpenMutableBuffer | 23754           | 11        | 1970-01-01 00:00:10 |                     |             |",
-            "| 0  | p1            | table1     | OpenMutableBuffer | 23454           | 22        |                     | 1970-01-01 00:01:20 |             |",
-            "+----+---------------+------------+-------------------+-----------------+-----------+---------------------+---------------------+-------------+",
+            "+----+---------------+------------+-------------------+------------------------------+--------------+--------------------+-----------+---------------------+---------------------+-------------+",
+            "| id | partition_key | table_name | storage           | lifecycle_action             | memory_bytes | object_store_bytes | row_count | time_of_first_write | time_of_last_write  | time_closed |",
+            "+----+---------------+------------+-------------------+------------------------------+--------------+--------------------+-----------+---------------------+---------------------+-------------+",
+            "| 0  | p1            | table1     | OpenMutableBuffer |                              | 23754        |                    | 11        | 1970-01-01 00:00:10 |                     |             |",
+            "| 1  | p1            | table1     | OpenMutableBuffer | Persisting to Object Storage | 23455        |                    | 22        |                     | 1970-01-01 00:01:20 |             |",
+            "| 2  | p1            | table1     | ObjectStoreOnly   |                              | 1234         | 5678               | 33        | 1970-01-01 00:01:40 | 1970-01-01 00:03:20 |             |",
+            "+----+---------------+------------+-------------------+------------------------------+--------------+--------------------+-----------+---------------------+---------------------+-------------+",
         ];
 
         let schema = chunk_summaries_schema();
@@ -787,6 +823,8 @@ mod tests {
 
     #[test]
     fn test_assemble_chunk_columns() {
+        let lifecycle_action = None;
+
         let summaries = vec![
             (
                 Arc::new(TableSummary {
@@ -814,7 +852,9 @@ mod tests {
                         table_name: "t1".into(),
                         id: 42,
                         storage: ChunkStorage::ReadBuffer,
-                        estimated_bytes: 23754,
+                        lifecycle_action,
+                        memory_bytes: 23754,
+                        object_store_bytes: 0,
                         row_count: 11,
                         time_of_first_write: None,
                         time_of_last_write: None,
@@ -823,11 +863,11 @@ mod tests {
                     columns: vec![
                         ChunkColumnSummary {
                             name: "c1".into(),
-                            estimated_bytes: 11,
+                            memory_bytes: 11,
                         },
                         ChunkColumnSummary {
                             name: "c2".into(),
-                            estimated_bytes: 12,
+                            memory_bytes: 12,
                         },
                     ],
                 },
@@ -847,7 +887,9 @@ mod tests {
                         table_name: "t1".into(),
                         id: 43,
                         storage: ChunkStorage::OpenMutableBuffer,
-                        estimated_bytes: 23754,
+                        lifecycle_action,
+                        memory_bytes: 23754,
+                        object_store_bytes: 0,
                         row_count: 11,
                         time_of_first_write: None,
                         time_of_last_write: None,
@@ -855,7 +897,7 @@ mod tests {
                     },
                     columns: vec![ChunkColumnSummary {
                         name: "c1".into(),
-                        estimated_bytes: 100,
+                        memory_bytes: 100,
                     }],
                 },
             ),
@@ -874,7 +916,9 @@ mod tests {
                         table_name: "t2".into(),
                         id: 44,
                         storage: ChunkStorage::OpenMutableBuffer,
-                        estimated_bytes: 23754,
+                        lifecycle_action,
+                        memory_bytes: 23754,
+                        object_store_bytes: 0,
                         row_count: 11,
                         time_of_first_write: None,
                         time_of_last_write: None,
@@ -882,21 +926,21 @@ mod tests {
                     },
                     columns: vec![ChunkColumnSummary {
                         name: "c3".into(),
-                        estimated_bytes: 200,
+                        memory_bytes: 200,
                     }],
                 },
             ),
         ];
 
         let expected = vec![
-            "+---------------+----------+------------+-------------+-------------------+-----------+-----------+-----------+-----------------+",
-            "| partition_key | chunk_id | table_name | column_name | storage           | row_count | min_value | max_value | estimated_bytes |",
-            "+---------------+----------+------------+-------------+-------------------+-----------+-----------+-----------+-----------------+",
-            "| p1            | 42       | t1         | c1          | ReadBuffer        | 55        | bar       | foo       | 11              |",
-            "| p1            | 42       | t1         | c2          | ReadBuffer        | 66        | 11        | 43        | 12              |",
-            "| p2            | 43       | t1         | c1          | OpenMutableBuffer | 667       | 110       | 430       | 100             |",
-            "| p2            | 44       | t2         | c3          | OpenMutableBuffer | 4         | -1        | 2         | 200             |",
-            "+---------------+----------+------------+-------------+-------------------+-----------+-----------+-----------+-----------------+",
+            "+---------------+----------+------------+-------------+-------------------+-----------+-----------+-----------+--------------+",
+            "| partition_key | chunk_id | table_name | column_name | storage           | row_count | min_value | max_value | memory_bytes |",
+            "+---------------+----------+------------+-------------+-------------------+-----------+-----------+-----------+--------------+",
+            "| p1            | 42       | t1         | c1          | ReadBuffer        | 55        | bar       | foo       | 11           |",
+            "| p1            | 42       | t1         | c2          | ReadBuffer        | 66        | 11        | 43        | 12           |",
+            "| p2            | 43       | t1         | c1          | OpenMutableBuffer | 667       | 110       | 430       | 100          |",
+            "| p2            | 44       | t2         | c3          | OpenMutableBuffer | 4         | -1        | 2         | 200          |",
+            "+---------------+----------+------------+-------------+-------------------+-----------+-----------+-----------+--------------+",
         ];
 
         let batch = assemble_chunk_columns(chunk_columns_schema(), summaries).unwrap();

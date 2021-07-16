@@ -8,19 +8,19 @@ edition = "2018"
 async-trait = "0.1.42"
 # Microsoft Azure Blob storage integration
 # In order to support tokio 1.0 and delimiters, needed to pull in unreleased azure sdk
-azure_core = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "14ff9326bb1ba07f98733a548988eccd4532b945" }
-azure_storage = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "14ff9326bb1ba07f98733a548988eccd4532b945", default-features = false, features = ["table", "blob", "queue"] }
+azure_core = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "14ff9326bb1ba07f98733a548988eccd4532b945", optional = true }
+azure_storage = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "14ff9326bb1ba07f98733a548988eccd4532b945", optional = true, default-features = false, features = ["table", "blob", "queue"] }
 bytes = "1.0"
 chrono = "0.4"
 # Google Cloud Storage integration
-cloud-storage = "0.9.0"
+cloud-storage = {version = "0.9.0", optional = true}
 futures = "0.3"
 itertools = "0.10.1"
 percent-encoding = "2.1"
 # rusoto crates are for Amazon S3 integration
-rusoto_core = "0.46.0"
-rusoto_credential = "0.46.0"
-rusoto_s3 = "0.46.0"
+rusoto_core = { version = "0.46.0", optional = true}
+rusoto_credential = { version = "0.46.0", optional = true}
+rusoto_s3 = { version = "0.46.0", optional = true}
 snafu = { version = "0.6.10", features = ["futures"] }
 tokio = { version = "1.0", features = ["macros", "fs"] }
 # Filesystem integration
@@ -29,6 +29,11 @@ reqwest = "0.11"
 # Filesystem integration
 walkdir = "2"
 tempfile = "3.1.0"
+
+[features]
+azure = ["azure_core", "azure_storage"]
+gcp = ["cloud-storage"]
+aws = ["rusoto_core", "rusoto_credential", "rusoto_s3"]
 
 [dev-dependencies] # In alphabetical order
 dotenv = "0.15.0"

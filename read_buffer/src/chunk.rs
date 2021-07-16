@@ -3,7 +3,7 @@ use std::{
     convert::TryFrom,
 };
 
-use metrics::{Gauge, GaugeValue, KeyValue};
+use metrics::{Gauge, KeyValue};
 use snafu::{ResultExt, Snafu};
 
 use arrow::record_batch::RecordBatch;
@@ -99,10 +99,6 @@ impl Chunk {
         let storage_statistics = row_group.column_storage_statistics();
 
         self.table.add_row_group(row_group);
-
-        // Get and set new size of chunk on memory tracker
-        let size = Self::base_size() + self.table.size();
-        self.metrics.memory_bytes.set(size);
 
         // update column metrics associated with column storage
         self.metrics
@@ -225,8 +221,8 @@ impl Chunk {
     ///
     /// TODO(edd): consider deprecating or changing to return information about
     /// the physical layout of the data in the chunk.
-    pub fn table_summaries(&self) -> Vec<TableSummary> {
-        vec![self.table.table_summary()]
+    pub fn table_summary(&self) -> TableSummary {
+        self.table.table_summary()
     }
 
     /// Returns a schema object for a `read_filter` operation using the provided
@@ -325,9 +321,6 @@ impl std::fmt::Debug for Chunk {
 
 #[derive(Debug)]
 pub struct ChunkMetrics {
-    /// keep track of memory used by table data in chunk
-    memory_bytes: GaugeValue,
-
     // This metric tracks the total number of columns in read buffer.
     columns_total: Gauge,
 
@@ -345,9 +338,8 @@ pub struct ChunkMetrics {
 }
 
 impl ChunkMetrics {
-    pub fn new(domain: &metrics::Domain, memory_bytes: GaugeValue) -> Self {
+    pub fn new(domain: &metrics::Domain) -> Self {
         Self {
-            memory_bytes,
             columns_total: domain.register_gauge_metric(
                 "column",
                 Some("total"),
@@ -377,7 +369,6 @@ impl ChunkMetrics {
     /// created on a metrics domain, and vice versa
     pub fn new_unregistered() -> Self {
         Self {
-            memory_bytes: GaugeValue::new_unregistered(),
             columns_total: Gauge::new_unregistered(),
             column_values_total: Gauge::new_unregistered(),
             column_bytes_total: Gauge::new_unregistered(),
@@ -633,10 +624,7 @@ mod test {
         let domain =
             registry.register_domain_with_labels("read_buffer", vec![KeyValue::new("db", "mydb")]);
 
-        let mut chunk = Chunk::new(
-            "a_table",
-            ChunkMetrics::new(&domain, GaugeValue::new_unregistered()),
-        );
+        let mut chunk = Chunk::new("a_table", ChunkMetrics::new(&domain));
 
         // Add a new table to the chunk.
         chunk.upsert_table(gen_recordbatch());
@@ -659,9 +647,9 @@ mod test {
                 "# HELP read_buffer_column_bytes The number of bytes used by all columns in the Read Buffer",
         "# TYPE read_buffer_column_bytes gauge",
         r#"read_buffer_column_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 72"#,
-        r#"read_buffer_column_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 688"#,
+        r#"read_buffer_column_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 800"#,
         r#"read_buffer_column_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 96"#,
-        r#"read_buffer_column_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 768"#,
+        r#"read_buffer_column_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 672"#,
         r#"read_buffer_column_bytes{db="mydb",encoding="RLE",log_data_type="string"} 500"#,
         "# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer",
         "# TYPE read_buffer_column_raw_bytes gauge",
@@ -824,62 +812,62 @@ mod test {
         // The row group gets added to the same chunk each time.
         chunk.upsert_table(rb);
 
-        let summaries = chunk.table_summaries();
-        let expected = vec![TableSummary {
-            name: "a_table".into(),
-            columns: vec![
-                ColumnSummary {
-                    name: "active".into(),
-                    influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::Bool(StatValues::new(Some(false), Some(true), 3)),
-                },
-                ColumnSummary {
-                    name: "counter".into(),
-                    influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::U64(StatValues::new(Some(1000), Some(5000), 3)),
-                },
-                ColumnSummary {
-                    name: "env".into(),
-                    influxdb_type: Some(InfluxDbType::Tag),
-                    stats: Statistics::String(StatValues {
-                        min: Some("dev".into()),
-                        max: Some("prod".into()),
-                        count: 3,
-                        distinct_count: Some(NonZeroU64::new(2).unwrap()),
-                    }),
-                },
-                ColumnSummary {
-                    name: "icounter".into(),
-                    influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::I64(StatValues::new(Some(-1000), Some(4000), 3)),
-                },
-                ColumnSummary {
-                    name: "msg".into(),
-                    influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::String(StatValues {
-                        min: Some("msg a".into()),
-                        max: Some("msg b".into()),
-                        count: 3,
-                        distinct_count: Some(NonZeroU64::new(3).unwrap()),
-                    }),
-                },
-                ColumnSummary {
-                    name: "temp".into(),
-                    influxdb_type: Some(InfluxDbType::Field),
-                    stats: Statistics::F64(StatValues::new(Some(10.0), Some(30000.0), 3)),
-                },
-                ColumnSummary {
-                    name: "time".into(),
-                    influxdb_type: Some(InfluxDbType::Timestamp),
-                    stats: Statistics::I64(StatValues::new(Some(3333), Some(11111111), 3)),
-                },
-            ],
-        }];
+        let summary = chunk.table_summary();
+        assert_eq!("a_table", summary.name);
+
+        let column_summaries = summary.columns;
+        let expected_column_summaries = vec![
+            ColumnSummary {
+                name: "active".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::Bool(StatValues::new(Some(false), Some(true), 3)),
+            },
+            ColumnSummary {
+                name: "counter".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::U64(StatValues::new(Some(1000), Some(5000), 3)),
+            },
+            ColumnSummary {
+                name: "env".into(),
+                influxdb_type: Some(InfluxDbType::Tag),
+                stats: Statistics::String(StatValues {
+                    min: Some("dev".into()),
+                    max: Some("prod".into()),
+                    count: 3,
+                    distinct_count: Some(NonZeroU64::new(2).unwrap()),
+                }),
+            },
+            ColumnSummary {
+                name: "icounter".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::I64(StatValues::new(Some(-1000), Some(4000), 3)),
+            },
+            ColumnSummary {
+                name: "msg".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::String(StatValues {
+                    min: Some("msg a".into()),
+                    max: Some("msg b".into()),
+                    count: 3,
+                    distinct_count: Some(NonZeroU64::new(3).unwrap()),
+                }),
+            },
+            ColumnSummary {
+                name: "temp".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::F64(StatValues::new(Some(10.0), Some(30000.0), 3)),
+            },
+            ColumnSummary {
+                name: "time".into(),
+                influxdb_type: Some(InfluxDbType::Timestamp),
+                stats: Statistics::I64(StatValues::new(Some(3333), Some(11111111), 3)),
+            },
+        ];
 
         assert_eq!(
-            expected, summaries,
+            expected_column_summaries, column_summaries,
             "expected:\n{:#?}\n\nactual:{:#?}\n\n",
-            expected, summaries
+            expected_column_summaries, column_summaries
         );
     }
 

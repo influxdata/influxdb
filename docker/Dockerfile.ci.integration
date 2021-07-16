@@ -21,4 +21,4 @@ ENV TEST_INTEGRATION=1
 ENV KAFKA_CONNECT=kafka:9092
 
 # Run the integration tests that connect to Kafka that will be running in another container
-CMD ["sh", "-c", "cargo test -p influxdb_iox --test end-to-end write_buffer"]
+CMD ["sh", "-c", "./docker/integration_test.sh"]

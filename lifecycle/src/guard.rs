@@ -1,7 +1,7 @@
 //! This module contains lock guards for use in the lifecycle traits
 //!
 //! Specifically they exist to work around a lack of support for generic associated
-//! types within traits. https://github.com/rust-lang/rust/issues/44265
+//! types within traits. <https://github.com/rust-lang/rust/issues/44265>
 //!
 //! ```ignore
 //! trait MyTrait {
@@ -83,7 +83,7 @@
 //!
 
 use std::{
-    fmt::Debug,
+    fmt::{Debug, Display},
     ops::{Deref, DerefMut},
 };
 
@@ -124,7 +124,7 @@ impl<'a, P, D> LifecycleReadGuard<'a, P, D> {
     }
 
     /// Drops the locks held by this guard and returns the data payload
-    pub fn unwrap(self) -> D {
+    pub fn into_data(self) -> D {
         self.data
     }
 }
@@ -132,6 +132,12 @@ impl<'a, P, D> LifecycleReadGuard<'a, P, D> {
 impl<'a, P, D> Debug for LifecycleReadGuard<'a, P, D> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "LifecycleReadGuard{{..}}")
+    }
+}
+
+impl<'a, P, D: Display> Display for LifecycleReadGuard<'a, P, D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} locked for read", self.data)
     }
 }
 
@@ -168,7 +174,7 @@ impl<'a, P, D> LifecycleWriteGuard<'a, P, D> {
     }
 
     /// Drops the locks held by this guard and returns the data payload
-    pub fn unwrap(self) -> D {
+    pub fn into_data(self) -> D {
         self.data
     }
 }
@@ -176,6 +182,11 @@ impl<'a, P, D> LifecycleWriteGuard<'a, P, D> {
 impl<'a, P, D> Debug for LifecycleWriteGuard<'a, P, D> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "LifecycleWriteGuard{{..}}")
+    }
+}
+impl<'a, P, D: Display> Display for LifecycleWriteGuard<'a, P, D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} locked for write", self.data)
     }
 }
 

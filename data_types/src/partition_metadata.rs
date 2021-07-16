@@ -1,12 +1,38 @@
 //! This module contains structs that describe the metadata for a partition
 //! including schema, summary statistics, and file locations in storage.
 
-use std::{borrow::Cow, mem};
-
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::borrow::Borrow;
-use std::iter::FromIterator;
-use std::num::NonZeroU64;
+use std::{
+    borrow::{Borrow, Cow},
+    iter::FromIterator,
+    mem,
+    num::NonZeroU64,
+    sync::Arc,
+};
+
+/// Address of the chunk within the catalog
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PartitionAddr {
+    /// Database name
+    pub db_name: Arc<str>,
+
+    /// What table does the chunk belong to?
+    pub table_name: Arc<str>,
+
+    /// What partition does the chunk belong to?
+    pub partition_key: Arc<str>,
+}
+
+impl std::fmt::Display for PartitionAddr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Partition('{}':'{}':'{}')",
+            self.db_name, self.table_name, self.partition_key
+        )
+    }
+}
 
 /// Describes the aggregated (across all chunks) summary
 /// statistics for each column in a partition
@@ -44,16 +70,41 @@ pub struct PartitionChunkSummary {
 impl FromIterator<Self> for TableSummary {
     fn from_iter<T: IntoIterator<Item = Self>>(iter: T) -> Self {
         let mut iter = iter.into_iter();
-        let first = iter.next().expect("must contain at least one element");
-        let mut s = Self {
-            name: first.name,
-            columns: first.columns,
-        };
+        let mut s = iter.next().expect("must contain at least one element");
 
         for other in iter {
             s.update_from(&other)
         }
         s
+    }
+}
+
+/// Temporary transition struct that has times of first/last write. Will eventually replace
+/// TableSummary entirely.
+#[derive(Debug)]
+pub struct TableSummaryAndTimes {
+    /// Table name
+    pub name: String,
+
+    /// Per column statistics
+    pub columns: Vec<ColumnSummary>,
+
+    /// Time at which the first data was written into this table. Note
+    /// this is not the same as the timestamps on the data itself
+    pub time_of_first_write: DateTime<Utc>,
+
+    /// Most recent time at which data write was initiated into this
+    /// chunk. Note this is not the same as the timestamps on the data
+    /// itself
+    pub time_of_last_write: DateTime<Utc>,
+}
+
+impl From<TableSummaryAndTimes> for TableSummary {
+    fn from(other: TableSummaryAndTimes) -> Self {
+        Self {
+            name: other.name,
+            columns: other.columns,
+        }
     }
 }
 

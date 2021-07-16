@@ -1,4 +1,4 @@
-#![deny(broken_intra_doc_links, rust_2018_idioms)]
+#![deny(broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_debug_implementations,
     clippy::explicit_iter_loop,
@@ -8,12 +8,20 @@
 )]
 
 use async_trait::async_trait;
-use data_types::{chunk_metadata::ChunkSummary, partition_metadata::TableSummary};
+use data_types::{
+    chunk_metadata::ChunkSummary,
+    partition_metadata::{InfluxDbType, TableSummary},
+};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, Executor};
-use internal_types::{schema::Schema, selection::Selection};
+use internal_types::{
+    schema::{sort::SortKey, Schema, TIME_COLUMN_NAME},
+    selection::Selection,
+};
+use observability_deps::tracing::trace;
 use predicate::PredicateMatch;
 
+use hashbrown::HashMap;
 use std::{fmt::Debug, sync::Arc};
 
 pub mod exec;
@@ -135,6 +143,12 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
 
     /// Returns true if data of this chunk is sorted
     fn is_sorted_on_pk(&self) -> bool;
+
+    /// Returns the sort key of the chunk if any
+    fn sort_key(&self) -> Option<SortKey<'_>>;
+
+    /// Returns chunk type which is either MUB, RUB, OS
+    fn chunk_type(&self) -> &str;
 }
 
 #[async_trait]
@@ -174,6 +188,43 @@ where
     fn schema(&self) -> Arc<Schema> {
         self.as_ref().schema()
     }
+}
+
+/// Compute a sort key that orders lower cardinality columns first
+///
+/// In the absence of more precise information, this should yield a
+/// good ordering for RLE compression
+pub fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -> SortKey<'a> {
+    let mut cardinalities: HashMap<&str, u64> = Default::default();
+    for summary in summaries {
+        for column in &summary.columns {
+            if column.influxdb_type != Some(InfluxDbType::Tag) {
+                continue;
+            }
+
+            let mut cnt = 0;
+            if let Some(count) = column.stats.distinct_count() {
+                cnt = count.get();
+            }
+            *cardinalities.entry(column.name.as_str()).or_default() += cnt;
+        }
+    }
+
+    trace!(cardinalities=?cardinalities, "cardinalities of of columns to compute sort key");
+
+    let mut cardinalities: Vec<_> = cardinalities.into_iter().collect();
+    // Sort by (cardinality, column_name) to have deterministic order if same cardinality
+    cardinalities.sort_by_key(|x| (x.1, x.0));
+
+    let mut key = SortKey::with_capacity(cardinalities.len() + 1);
+    for (col, _) in cardinalities {
+        key.push(col, Default::default())
+    }
+    key.push(TIME_COLUMN_NAME, Default::default());
+
+    trace!(computed_sort_key=?key, "Value of sort key from compute_sort_key");
+
+    key
 }
 
 // Note: I would like to compile this module only in the 'test' cfg,

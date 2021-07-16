@@ -1,3 +1,4 @@
+use crate::db::catalog::metrics::MemoryMetrics;
 use chrono::{DateTime, Utc};
 use data_types::{
     chunk_metadata::{
@@ -9,6 +10,7 @@ use data_types::{
 use internal_types::schema::Schema;
 use metrics::{Counter, Histogram, KeyValue};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
+use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use read_buffer::RBChunk;
 use snafu::Snafu;
@@ -220,6 +222,7 @@ macro_rules! unexpected_state {
 pub struct ChunkMetrics {
     pub(super) state: Counter,
     pub(super) immutable_chunk_size: Histogram,
+    pub(super) memory_metrics: MemoryMetrics,
 }
 
 impl ChunkMetrics {
@@ -231,6 +234,7 @@ impl ChunkMetrics {
         Self {
             state: Counter::new_unregistered(),
             immutable_chunk_size: Histogram::new_unregistered(),
+            memory_metrics: MemoryMetrics::new_unregistered(),
         }
     }
 }
@@ -238,14 +242,17 @@ impl ChunkMetrics {
 impl CatalogChunk {
     /// Creates a new open chunk from the provided MUB chunk.
     ///
-    /// Panics if the provided chunk is empty, otherwise creates a new open chunk and records a
-    /// write at the current time.
+    /// Panics if the provided chunk is empty, otherwise creates a new open chunk.
     pub(super) fn new_open(
         addr: ChunkAddr,
         chunk: mutable_buffer::chunk::MBChunk,
         metrics: ChunkMetrics,
     ) -> Self {
         assert_eq!(chunk.table_name(), &addr.table_name);
+
+        let first_write = chunk.table_summary().time_of_first_write;
+        let last_write = chunk.table_summary().time_of_last_write;
+
         let stage = ChunkStage::Open { mb_chunk: chunk };
 
         metrics
@@ -257,11 +264,11 @@ impl CatalogChunk {
             stage,
             lifecycle_action: None,
             metrics,
-            time_of_first_write: None,
-            time_of_last_write: None,
+            time_of_first_write: Some(first_write),
+            time_of_last_write: Some(last_write),
             time_closed: None,
         };
-        chunk.record_write();
+        chunk.update_memory_metrics();
         chunk
     }
 
@@ -274,10 +281,7 @@ impl CatalogChunk {
         schema: Arc<Schema>,
         metrics: ChunkMetrics,
     ) -> Self {
-        // TODO: Move RUB to single table (#1295)
-        let summaries = chunk.table_summaries();
-        assert_eq!(summaries.len(), 1);
-        let summary = summaries.into_iter().next().unwrap();
+        let summary = chunk.table_summary();
 
         let stage = ChunkStage::Frozen {
             meta: Arc::new(ChunkMetadata {
@@ -300,7 +304,7 @@ impl CatalogChunk {
             time_of_last_write: None,
             time_closed: None,
         };
-        chunk.record_write(); // The creation is considered the first and only "write"
+        chunk.update_memory_metrics();
         chunk
     }
 
@@ -325,7 +329,7 @@ impl CatalogChunk {
             meta,
         };
 
-        Self {
+        let mut chunk = Self {
             addr,
             stage,
             lifecycle_action: None,
@@ -333,7 +337,9 @@ impl CatalogChunk {
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
-        }
+        };
+        chunk.update_memory_metrics();
+        chunk
     }
 
     pub fn addr(&self) -> &ChunkAddr {
@@ -378,13 +384,54 @@ impl CatalogChunk {
         self.time_closed
     }
 
-    /// Update the write timestamps for this chunk
+    /// Updates `self.memory_metrics` to match the contents of `self.stage`
+    fn update_memory_metrics(&mut self) {
+        match &self.stage {
+            ChunkStage::Open { mb_chunk } => {
+                self.metrics
+                    .memory_metrics
+                    .mutable_buffer
+                    .set(mb_chunk.size());
+                self.metrics.memory_metrics.read_buffer.set(0);
+                self.metrics.memory_metrics.parquet.set(0);
+            }
+            ChunkStage::Frozen { representation, .. } => match representation {
+                ChunkStageFrozenRepr::MutableBufferSnapshot(snapshot) => {
+                    self.metrics
+                        .memory_metrics
+                        .mutable_buffer
+                        .set(snapshot.size());
+                    self.metrics.memory_metrics.read_buffer.set(0);
+                    self.metrics.memory_metrics.parquet.set(0);
+                }
+                ChunkStageFrozenRepr::ReadBuffer(rb_chunk) => {
+                    self.metrics.memory_metrics.mutable_buffer.set(0);
+                    self.metrics.memory_metrics.read_buffer.set(rb_chunk.size());
+                    self.metrics.memory_metrics.parquet.set(0);
+                }
+            },
+            ChunkStage::Persisted {
+                parquet,
+                read_buffer,
+                ..
+            } => {
+                let rub_size = read_buffer.as_ref().map(|x| x.size()).unwrap_or(0);
+
+                self.metrics.memory_metrics.mutable_buffer.set(0);
+                self.metrics.memory_metrics.read_buffer.set(rub_size);
+                self.metrics.memory_metrics.parquet.set(parquet.size());
+            }
+        }
+    }
+
+    /// Update the metrics for this chunk
     pub fn record_write(&mut self) {
         let now = Utc::now();
         if self.time_of_first_write.is_none() {
             self.time_of_first_write = Some(now);
         }
         self.time_of_last_write = Some(now);
+        self.update_memory_metrics();
     }
 
     /// Returns the storage and the number of rows
@@ -419,12 +466,19 @@ impl CatalogChunk {
     pub fn summary(&self) -> ChunkSummary {
         let (row_count, storage) = self.storage();
 
+        let lifecycle_action = self
+            .lifecycle_action
+            .as_ref()
+            .map(|tracker| *tracker.metadata());
+
         ChunkSummary {
             partition_key: Arc::clone(&self.addr.partition_key),
             table_name: Arc::clone(&self.addr.table_name),
             id: self.addr.chunk_id,
             storage,
-            estimated_bytes: self.size(),
+            lifecycle_action,
+            memory_bytes: self.memory_bytes(),
+            object_store_bytes: self.object_store_bytes(),
             row_count,
             time_of_first_write: self.time_of_first_write,
             time_of_last_write: self.time_of_last_write,
@@ -439,7 +493,7 @@ impl CatalogChunk {
         fn to_summary(v: (&str, usize)) -> ChunkColumnSummary {
             ChunkColumnSummary {
                 name: v.0.into(),
-                estimated_bytes: v.1,
+                memory_bytes: v.1,
             }
         }
 
@@ -469,7 +523,7 @@ impl CatalogChunk {
         match &self.stage {
             ChunkStage::Open { mb_chunk, .. } => {
                 // The stats for open chunks change so can't be cached
-                Arc::new(mb_chunk.table_summary())
+                Arc::new(mb_chunk.table_summary().into())
             }
             ChunkStage::Frozen { meta, .. } => Arc::clone(&meta.table_summary),
             ChunkStage::Persisted { meta, .. } => Arc::clone(&meta.table_summary),
@@ -477,7 +531,7 @@ impl CatalogChunk {
     }
 
     /// Returns an approximation of the amount of process memory consumed by the chunk
-    pub fn size(&self) -> usize {
+    pub fn memory_bytes(&self) -> usize {
         match &self.stage {
             ChunkStage::Open { mb_chunk, .. } => mb_chunk.size(),
             ChunkStage::Frozen { representation, .. } => match &representation {
@@ -498,6 +552,15 @@ impl CatalogChunk {
         }
     }
 
+    /// Returns the number of bytes of object storage consumed by this chunk
+    pub fn object_store_bytes(&self) -> usize {
+        match &self.stage {
+            ChunkStage::Open { .. } => 0,
+            ChunkStage::Frozen { .. } => 0,
+            ChunkStage::Persisted { parquet, .. } => parquet.file_size_bytes(),
+        }
+    }
+
     /// Returns a mutable reference to the mutable buffer storage for chunks in the Open state
     pub fn mutable_buffer(&mut self) -> Result<&mut MBChunk> {
         match &mut self.stage {
@@ -513,7 +576,9 @@ impl CatalogChunk {
     pub fn freeze(&mut self) -> Result<()> {
         match &self.stage {
             ChunkStage::Open { mb_chunk, .. } => {
+                debug!(%self.addr, row_count=mb_chunk.rows(), "freezing chunk");
                 assert!(self.time_closed.is_none());
+
                 self.time_closed = Some(Utc::now());
                 let s = mb_chunk.snapshot();
                 self.metrics
@@ -527,7 +592,7 @@ impl CatalogChunk {
 
                 // Cache table summary + schema
                 let metadata = ChunkMetadata {
-                    table_summary: Arc::new(mb_chunk.table_summary()),
+                    table_summary: Arc::new(mb_chunk.table_summary().into()),
                     schema: s.full_schema(),
                 };
 
@@ -535,6 +600,8 @@ impl CatalogChunk {
                     representation: ChunkStageFrozenRepr::MutableBufferSnapshot(Arc::clone(&s)),
                     meta: Arc::new(metadata),
                 };
+                self.update_memory_metrics();
+
                 Ok(())
             }
             &ChunkStage::Frozen { .. } => {
@@ -593,6 +660,7 @@ impl CatalogChunk {
         match &self.stage {
             ChunkStage::Open { .. } | ChunkStage::Frozen { .. } => {
                 self.set_lifecycle_action(ChunkLifecycleAction::Compacting, registration)?;
+                self.freeze()?;
                 Ok(())
             }
             ChunkStage::Persisted { .. } => {
@@ -627,6 +695,7 @@ impl CatalogChunk {
                             &[KeyValue::new("state", "moved")],
                         );
                         *representation = ChunkStageFrozenRepr::ReadBuffer(chunk);
+                        self.update_memory_metrics();
                         self.finish_lifecycle_action(ChunkLifecycleAction::Moving)?;
                         Ok(())
                     }
@@ -705,6 +774,7 @@ impl CatalogChunk {
                             parquet: chunk,
                             read_buffer: Some(db),
                         };
+                        self.update_memory_metrics();
                         Ok(())
                     }
                 }
@@ -737,6 +807,8 @@ impl CatalogChunk {
                         &[KeyValue::new("state", "os")],
                     );
 
+                    self.update_memory_metrics();
+
                     Ok(rub_chunk)
                 } else {
                     // TODO: do we really need to error here or should unloading an unloaded chunk
@@ -754,6 +826,18 @@ impl CatalogChunk {
                 unexpected_state!(self, "setting unload", "WrittenToObjectStore", &self.stage)
             }
         }
+    }
+
+    /// Start lifecycle action that should result in the chunk being dropped from memory and (if persisted) from object store.
+    pub fn set_dropping(&mut self, registration: &TaskRegistration) -> Result<()> {
+        self.set_lifecycle_action(ChunkLifecycleAction::Dropping, registration)?;
+
+        // set memory metrics to 0 to stop accounting for this chunk within the catalog
+        self.metrics.memory_metrics.mutable_buffer.set(0);
+        self.metrics.memory_metrics.read_buffer.set(0);
+        self.metrics.memory_metrics.parquet.set(0);
+
+        Ok(())
     }
 
     /// Set the chunk's in progress lifecycle action or return an error if already in-progress
@@ -803,7 +887,13 @@ impl CatalogChunk {
                     action: tracker.metadata().name().to_string(),
                 });
             }
-            self.lifecycle_action = None
+            self.lifecycle_action = None;
+
+            // Some lifecycle actions (e.g. Drop) modify the memory metrics so that the catalog accounts chunks w/
+            // actions correctly. When clearing out that action, we need to restore the pre-action state. The easiest
+            // (and stateless) way to to do that is just to call the update method. Since clearing lifecycle actions
+            // should be a rather rare event, the cost of this is negligible.
+            self.update_memory_metrics();
         }
         Ok(())
     }
@@ -829,6 +919,8 @@ mod tests {
         let mb_chunk = make_mb_chunk(&addr.table_name, sequencer_id);
         let chunk = CatalogChunk::new_open(addr, mb_chunk, ChunkMetrics::new_unregistered());
         assert!(matches!(chunk.stage(), &ChunkStage::Open { .. }));
+        assert!(chunk.time_of_first_write.is_some());
+        assert!(chunk.time_of_last_write.is_some());
     }
 
     #[tokio::test]
@@ -850,6 +942,46 @@ mod tests {
             "Internal Error: unexpected chunk state for Chunk('db':'table1':'part1':0) \
             during setting closed. Expected Open or Frozen, got Persisted"
         );
+    }
+
+    #[tokio::test]
+    async fn set_compacting_freezes_chunk() {
+        let mut chunk = make_open_chunk();
+        let registration = TaskRegistration::new();
+
+        assert!(chunk.time_closed.is_none());
+        assert!(matches!(chunk.stage, ChunkStage::Open { .. }));
+        chunk.set_compacting(&registration).unwrap();
+        assert!(chunk.time_closed.is_some());
+        assert!(matches!(chunk.stage, ChunkStage::Frozen { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_drop() {
+        let mut chunk = make_open_chunk();
+
+        // size should not be zero
+        let size_before = chunk.metrics.memory_metrics.total();
+        assert_ne!(size_before, 0);
+
+        // start dropping it
+        let registration = TaskRegistration::new();
+        chunk.set_dropping(&registration).unwrap();
+
+        // size should now be reported as zero
+        assert_eq!(chunk.metrics.memory_metrics.total(), 0);
+
+        // if the lifecycle action is cleared, it should reset the size
+        registration.into_tracker(1).cancel();
+        chunk.clear_lifecycle_action().unwrap();
+        assert_eq!(chunk.metrics.memory_metrics.total(), size_before);
+
+        // when the lifecycle action cannot be set (e.g. due to an action already in progress), do NOT zero out the size
+        let registration = TaskRegistration::new();
+        chunk.set_compacting(&registration).unwrap();
+        let size_before = chunk.metrics.memory_metrics.total();
+        chunk.set_dropping(&registration).unwrap_err();
+        assert_eq!(chunk.metrics.memory_metrics.total(), size_before);
     }
 
     #[test]
@@ -912,6 +1044,32 @@ mod tests {
             *chunk.lifecycle_action().unwrap().metadata(),
             ChunkLifecycleAction::Compacting
         );
+    }
+
+    #[test]
+    fn test_clear_lifecycle_action() {
+        let mut chunk = make_open_chunk();
+        let registration = TaskRegistration::new();
+
+        // clearing w/o any action in-progress works
+        chunk.clear_lifecycle_action().unwrap();
+
+        // set some action
+        chunk
+            .set_lifecycle_action(ChunkLifecycleAction::Moving, &registration)
+            .unwrap();
+
+        // clearing now fails because task is still in progress
+        assert_eq!(
+            chunk.clear_lifecycle_action().unwrap_err().to_string(),
+            "Internal Error: Cannot clear a lifecycle action 'Moving to the Read Buffer' for chunk Chunk('db':'table1':'part1':0) that is still running",
+        );
+
+        // "finish" task
+        registration.into_tracker(1).cancel();
+
+        // clearing works now
+        chunk.clear_lifecycle_action().unwrap();
     }
 
     fn make_mb_chunk(table_name: &str, sequencer_id: u32) -> MBChunk {

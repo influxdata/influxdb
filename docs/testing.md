@@ -67,7 +67,7 @@ You can then run the tests with `KAFKA_CONNECT=localhost:9093`. To run just the 
 tests, the full command would then be:
 
 ```
-TEST_INTEGRATION=1 KAFKA_CONNECT=localhost:9093 cargo test -p influxdb_iox --test end-to-end write_buffer
+TEST_INTEGRATION=1 KAFKA_CONNECT=localhost:9093 cargo test -p influxdb_iox --test end_to_end write_buffer
 ```
 
 ### Running `cargo test` in a Docker container

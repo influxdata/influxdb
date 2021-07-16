@@ -1,4 +1,6 @@
-/// The minimum and maximum sequence numbers seen for a given sequencer
+/// The minimum and maximum sequence numbers seen for a given sequencer.
+///
+/// **IMPORTANT: These ranges include their start and their end (aka `[start, end]`)!**
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct MinMaxSequence {
     min: u64,

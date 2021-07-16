@@ -158,7 +158,7 @@ mod tests {
 
     use bytes::Bytes;
     use data_types::server_id::ServerId;
-    use object_store::path::{parsed::DirsAndFileName, ObjectStorePath, Path};
+    use object_store::path::{ObjectStorePath, Path};
     use tokio::sync::RwLock;
 
     use super::*;
@@ -211,18 +211,33 @@ mod tests {
             let mut transaction = catalog.open_transaction().await;
 
             // an ordinary tracked parquet file => keep
-            let (path, md) = make_metadata(&object_store, "foo", chunk_addr(1)).await;
-            transaction.add_parquet(&path.clone().into(), &md).unwrap();
-            paths_keep.push(path.display());
+            let (path, metadata) = make_metadata(&object_store, "foo", chunk_addr(1)).await;
+            let metadata = Arc::new(metadata);
+            let path = path.into();
+            let info = CatalogParquetInfo {
+                path,
+                file_size_bytes: 33,
+                metadata,
+            };
+
+            transaction.add_parquet(&info).unwrap();
+            paths_keep.push(info.path.display());
 
             // another ordinary tracked parquet file that was added and removed => keep (for time travel)
-            let (path, md) = make_metadata(&object_store, "foo", chunk_addr(2)).await;
-            transaction.add_parquet(&path.clone().into(), &md).unwrap();
-            transaction.remove_parquet(&path.clone().into()).unwrap();
-            paths_keep.push(path.display());
+            let (path, metadata) = make_metadata(&object_store, "foo", chunk_addr(2)).await;
+            let metadata = Arc::new(metadata);
+            let path = path.into();
+            let info = CatalogParquetInfo {
+                path,
+                file_size_bytes: 33,
+                metadata,
+            };
+            transaction.add_parquet(&info).unwrap();
+            transaction.remove_parquet(&info.path);
+            paths_keep.push(info.path.display());
 
             // not a parquet file => keep
-            let mut path: DirsAndFileName = path.into();
+            let mut path = info.path;
             path.file_name = Some("foo.txt".into());
             let path = object_store.path_from_dirs_and_filename(path);
             create_empty_file(&object_store, &path).await;
@@ -283,13 +298,21 @@ mod tests {
                     let guard = lock.read().await;
                     let (path, md) = make_metadata(&object_store, "foo", chunk_addr(i)).await;
 
+                    let metadata = Arc::new(md);
+                    let path = path.into();
+                    let info = CatalogParquetInfo {
+                        path,
+                        file_size_bytes: 33,
+                        metadata,
+                    };
+
                     let mut transaction = catalog.open_transaction().await;
-                    transaction.add_parquet(&path.clone().into(), &md).unwrap();
+                    transaction.add_parquet(&info).unwrap();
                     transaction.commit().await.unwrap();
 
                     drop(guard);
 
-                    path.display()
+                    info.path.display()
                 },
                 async {
                     let guard = lock.write().await;

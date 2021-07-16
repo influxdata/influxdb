@@ -301,7 +301,7 @@ mod tests {
     #[tokio::test]
     async fn file_test() {
         let root = TempDir::new().unwrap();
-        let integration = ObjectStore::new_file(File::new(root.path()));
+        let integration = ObjectStore::new_file(root.path());
 
         put_get_delete_list(&integration).await.unwrap();
         list_with_delimiter(&integration).await.unwrap();
@@ -310,7 +310,7 @@ mod tests {
     #[tokio::test]
     async fn length_mismatch_is_an_error() {
         let root = TempDir::new().unwrap();
-        let integration = ObjectStore::new_file(File::new(root.path()));
+        let integration = ObjectStore::new_file(root.path());
 
         let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
         let mut location = integration.new_path();
@@ -331,7 +331,7 @@ mod tests {
     #[tokio::test]
     async fn creates_dir_if_not_present() {
         let root = TempDir::new().unwrap();
-        let integration = ObjectStore::new_file(File::new(root.path()));
+        let integration = ObjectStore::new_file(root.path());
 
         let data = Bytes::from("arbitrary data");
         let mut location = integration.new_path();
@@ -361,7 +361,7 @@ mod tests {
     #[tokio::test]
     async fn unknown_length() {
         let root = TempDir::new().unwrap();
-        let integration = ObjectStore::new_file(File::new(root.path()));
+        let integration = ObjectStore::new_file(root.path());
 
         let data = Bytes::from("arbitrary data");
         let stream_data = std::io::Result::Ok(data.clone());

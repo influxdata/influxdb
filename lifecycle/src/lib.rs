@@ -1,4 +1,4 @@
-#![deny(broken_intra_doc_links, rust_2018_idioms)]
+#![deny(broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,
@@ -15,6 +15,7 @@ use data_types::database_rules::LifecycleRules;
 use data_types::DatabaseName;
 pub use guard::*;
 pub use policy::*;
+use std::time::Instant;
 use tracker::TaskTracker;
 
 mod guard;
@@ -41,9 +42,11 @@ pub trait LifecycleDb {
 
 /// A `LockablePartition` is a wrapper around a `LifecyclePartition` that allows
 /// for planning and executing lifecycle actions on the partition
-pub trait LockablePartition: Sized {
+pub trait LockablePartition: Sized + std::fmt::Display {
     type Partition: LifecyclePartition;
     type Chunk: LockableChunk;
+    type PersistHandle: PersistHandle + Send + Sync + 'static;
+
     type Error: std::error::Error + Send + Sync;
 
     /// Acquire a shared read lock on the chunk
@@ -58,7 +61,7 @@ pub trait LockablePartition: Sized {
         chunk_id: u32,
     ) -> Option<Self::Chunk>;
 
-    /// Return a list of lockable chunks - the returned order must be stable
+    /// Return a list of lockable chunks in this partition - the returned order must be stable
     fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<(u32, Self::Chunk)>;
 
     /// Compact chunks into a single read buffer chunk
@@ -69,11 +72,41 @@ pub trait LockablePartition: Sized {
         chunks: Vec<LifecycleWriteGuard<'_, <Self::Chunk as LockableChunk>::Chunk, Self::Chunk>>,
     ) -> Result<TaskTracker<<Self::Chunk as LockableChunk>::Job>, Self::Error>;
 
+    /// Returns a PersistHandle for the provided partition, and the
+    /// timestamp up to which to to flush
+    ///
+    /// Returns None if there is a persistence operation in flight, or
+    /// if there are no persistable windows.
+    ///
+    /// `now` is the wall clock time that should be used to compute how long a given
+    /// write has been present in memory
+    fn prepare_persist(
+        partition: &mut LifecycleWriteGuard<'_, Self::Partition, Self>,
+        now: Instant,
+    ) -> Option<Self::PersistHandle>;
+
+    /// Split and persist chunks.
+    ///
+    /// Combines and deduplicates the data in `chunks` into two new chunks:
+    ///
+    /// 1. A read buffer chunk that contains any rows with timestamps
+    /// prior to `max_persistable_timestamp`
+    ///
+    /// 2. A read buffer chunk (also written to the object store) with
+    /// all other rows
+    ///
+    /// TODO: Encapsulate these locks into a CatalogTransaction object
+    fn persist_chunks(
+        partition: LifecycleWriteGuard<'_, Self::Partition, Self>,
+        chunks: Vec<LifecycleWriteGuard<'_, <Self::Chunk as LockableChunk>::Chunk, Self::Chunk>>,
+        handle: Self::PersistHandle,
+    ) -> Result<TaskTracker<<Self::Chunk as LockableChunk>::Job>, Self::Error>;
+
     /// Drops a chunk from the partition
     fn drop_chunk(
-        s: LifecycleWriteGuard<'_, Self::Partition, Self>,
-        chunk_id: u32,
-    ) -> Result<(), Self::Error>;
+        partition: LifecycleWriteGuard<'_, Self::Partition, Self>,
+        chunk: LifecycleWriteGuard<'_, <Self::Chunk as LockableChunk>::Chunk, Self::Chunk>,
+    ) -> Result<TaskTracker<<Self::Chunk as LockableChunk>::Job>, Self::Error>;
 }
 
 /// A `LockableChunk` is a wrapper around a `LifecycleChunk` that allows for
@@ -98,12 +131,10 @@ pub trait LockableChunk: Sized {
     fn write(&self) -> LifecycleWriteGuard<'_, Self::Chunk, Self>;
 
     /// Starts an operation to move a chunk to the read buffer
+    ///
+    /// TODO: Remove this function from the trait as it is
+    /// not called from the lifecycle manager
     fn move_to_read_buffer(
-        s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
-    ) -> Result<TaskTracker<Self::Job>, Self::Error>;
-
-    /// Starts an operation to write a chunk to the object store
-    fn write_to_object_store(
         s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
     ) -> Result<TaskTracker<Self::Job>, Self::Error>;
 
@@ -119,6 +150,18 @@ pub trait LockableChunk: Sized {
 
 pub trait LifecyclePartition {
     fn partition_key(&self) -> &str;
+
+    /// Returns true if all chunks in the partition are persisted.
+    fn is_persisted(&self) -> bool;
+
+    /// Returns an approximation of the number of rows that can be persisted
+    ///
+    /// `now` is the wall clock time that should be used to compute how long a given
+    /// write has been present in memory
+    fn persistable_row_count(&self, now: Instant) -> usize;
+
+    /// Returns the age of the oldest unpersisted write
+    fn minimum_unpersisted_age(&self) -> Option<Instant>;
 }
 
 /// The lifecycle operates on chunks implementing this trait
@@ -126,6 +169,9 @@ pub trait LifecycleChunk {
     fn lifecycle_action(&self) -> Option<&TaskTracker<ChunkLifecycleAction>>;
 
     fn clear_lifecycle_action(&mut self);
+
+    /// Returns the min timestamp contained within this chunk
+    fn min_timestamp(&self) -> DateTime<Utc>;
 
     fn time_of_first_write(&self) -> Option<DateTime<Utc>>;
 
@@ -136,4 +182,11 @@ pub trait LifecycleChunk {
     fn storage(&self) -> ChunkStorage;
 
     fn row_count(&self) -> usize;
+}
+
+/// The trait for a persist handle
+pub trait PersistHandle {
+    /// Any unpersisted chunks containing rows with timestamps less than or equal to this
+    /// must be included in the corresponding `LockablePartition::persist_chunks` call
+    fn timestamp(&self) -> DateTime<Utc>;
 }

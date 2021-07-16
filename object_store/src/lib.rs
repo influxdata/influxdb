@@ -1,4 +1,4 @@
-#![deny(broken_intra_doc_links, rust_2018_idioms)]
+#![deny(broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,
@@ -17,14 +17,26 @@
 //!
 //! Future compatibility will include Azure Blob Storage, Minio, and Ceph.
 
-pub mod aws;
-pub mod azure;
+#[cfg(feature = "aws")]
+mod aws;
+#[cfg(feature = "azure")]
+mod azure;
 mod buffer;
-pub mod disk;
-pub mod gcp;
-pub mod memory;
+mod disk;
+#[cfg(feature = "gcp")]
+mod gcp;
+mod memory;
 pub mod path;
-pub mod throttle;
+mod throttle;
+
+pub mod dummy;
+
+#[cfg(not(feature = "aws"))]
+use dummy as aws;
+#[cfg(not(feature = "azure"))]
+use dummy as azure;
+#[cfg(not(feature = "gcp"))]
+use dummy as gcp;
 
 use aws::AmazonS3;
 use azure::MicrosoftAzure;
@@ -34,12 +46,15 @@ use memory::InMemory;
 use path::{parsed::DirsAndFileName, ObjectStorePath};
 use throttle::ThrottledStore;
 
+/// Publically expose throttling configuration
+pub use throttle::ThrottleConfig;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{stream::BoxStream, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use snafu::{ResultExt, Snafu};
-use std::io;
+use std::{io, path::PathBuf};
 
 /// Universal API to multiple object store services.
 #[async_trait]
@@ -93,33 +108,70 @@ pub struct ObjectStore(pub ObjectStoreIntegration);
 
 impl ObjectStore {
     /// Configure a connection to Amazon S3.
-    pub fn new_amazon_s3(s3: AmazonS3) -> Self {
-        Self(ObjectStoreIntegration::AmazonS3(s3))
+    pub fn new_amazon_s3(
+        access_key_id: Option<impl Into<String>>,
+        secret_access_key: Option<impl Into<String>>,
+        region: impl Into<String>,
+        bucket_name: impl Into<String>,
+        endpoint: Option<impl Into<String>>,
+        session_token: Option<impl Into<String>>,
+    ) -> Result<Self> {
+        let s3 = aws::new_s3(
+            access_key_id,
+            secret_access_key,
+            region,
+            bucket_name,
+            endpoint,
+            session_token,
+        )?;
+        Ok(Self(ObjectStoreIntegration::AmazonS3(s3)))
     }
 
     /// Configure a connection to Google Cloud Storage.
-    pub fn new_google_cloud_storage(gcs: GoogleCloudStorage) -> Self {
-        Self(ObjectStoreIntegration::GoogleCloudStorage(gcs))
+    pub fn new_google_cloud_storage(
+        service_account_path: impl AsRef<std::ffi::OsStr>,
+        bucket_name: impl Into<String>,
+    ) -> Result<Self> {
+        let gcs = gcp::new_gcs(service_account_path, bucket_name)?;
+        Ok(Self(ObjectStoreIntegration::GoogleCloudStorage(gcs)))
     }
 
     /// Configure in-memory storage.
-    pub fn new_in_memory(in_mem: InMemory) -> Self {
+    pub fn new_in_memory() -> Self {
+        let in_mem = InMemory::new();
         Self(ObjectStoreIntegration::InMemory(in_mem))
     }
 
-    /// Configure throttled in-memory storage.
-    pub fn new_in_memory_throttled(in_mem_throttled: ThrottledStore<InMemory>) -> Self {
+    /// For Testing: Configure throttled in-memory storage.
+    pub fn new_in_memory_throttled(config: ThrottleConfig) -> Self {
+        let in_mem = InMemory::new();
+        let in_mem_throttled = ThrottledStore::new(in_mem, config);
         Self(ObjectStoreIntegration::InMemoryThrottled(in_mem_throttled))
     }
 
-    /// Configure local file storage.
-    pub fn new_file(file: File) -> Self {
+    /// For Testing: Configure a object store with invalid credentials
+    /// that will always fail on operations (hopefully)
+    pub fn new_failing_store() -> Result<Self> {
+        let s3 = aws::new_failing_s3()?;
+        Ok(Self(ObjectStoreIntegration::AmazonS3(s3)))
+    }
+
+    /// Configure local file storage, rooted at `root`
+    pub fn new_file(root: impl Into<PathBuf>) -> Self {
+        let file = File::new(root);
         Self(ObjectStoreIntegration::File(file))
     }
 
     /// Configure a connection to Microsoft Azure Blob store.
-    pub fn new_microsoft_azure(azure: MicrosoftAzure) -> Self {
-        Self(ObjectStoreIntegration::MicrosoftAzure(Box::new(azure)))
+    pub fn new_microsoft_azure(
+        account: impl Into<String>,
+        access_key: impl Into<String>,
+        container_name: impl Into<String>,
+    ) -> Result<Self> {
+        let azure = azure::new_azure(account, access_key, container_name)?;
+        Ok(Self(ObjectStoreIntegration::MicrosoftAzure(Box::new(
+            azure,
+        ))))
     }
 
     /// Create implementation-specific path from parsed representation.
@@ -471,6 +523,9 @@ pub enum Error {
 
     #[snafu(display("In-memory-based Object Store error: {}", source))]
     InMemoryObjectStoreError { source: memory::Error },
+
+    #[snafu(display("{}", source))]
+    DummyObjectStoreError { source: dummy::Error },
 }
 
 impl From<disk::Error> for Error {
@@ -479,18 +534,21 @@ impl From<disk::Error> for Error {
     }
 }
 
+#[cfg(feature = "gcp")]
 impl From<gcp::Error> for Error {
     fn from(source: gcp::Error) -> Self {
         Self::GcsObjectStoreError { source }
     }
 }
 
+#[cfg(feature = "aws")]
 impl From<aws::Error> for Error {
     fn from(source: aws::Error) -> Self {
         Self::AwsObjectStoreError { source }
     }
 }
 
+#[cfg(feature = "azure")]
 impl From<azure::Error> for Error {
     fn from(source: azure::Error) -> Self {
         Self::AzureObjectStoreError { source }
@@ -500,6 +558,12 @@ impl From<azure::Error> for Error {
 impl From<memory::Error> for Error {
     fn from(source: memory::Error) -> Self {
         Self::InMemoryObjectStoreError { source }
+    }
+}
+
+impl From<dummy::Error> for Error {
+    fn from(source: dummy::Error) -> Self {
+        Self::DummyObjectStoreError { source }
     }
 }
 
@@ -675,6 +739,7 @@ mod tests {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn get_nonexistent_object(
         storage: &ObjectStore,
         location: Option<<ObjectStore as ObjectStoreApi>::Path>,

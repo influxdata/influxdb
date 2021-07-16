@@ -1,6 +1,6 @@
 use crate::{
     common::server_fixture::ServerFixture,
-    end_to_end_cases::scenario::{create_readable_database_plus, rand_name},
+    end_to_end_cases::scenario::{rand_name, DatabaseBuilder},
 };
 use arrow_util::assert_batches_sorted_eq;
 use entry::{test_helpers::lp_to_entry, Entry};
@@ -15,64 +15,21 @@ use rdkafka::{
 };
 use std::convert::TryFrom;
 use test_helpers::assert_contains;
-
-/// If `TEST_INTEGRATION` and `KAFKA_CONNECT` are set, return the Kafka connection URL to the
-/// caller.
-///
-/// If `TEST_INTEGRATION` is set but `KAFKA_CONNECT` is not set, fail the tests and provide
-/// guidance for setting `KAFKA_CONNECTION`.
-///
-/// If `TEST_INTEGRATION` is not set, skip the calling test by returning early.
-macro_rules! maybe_skip_integration {
-    () => {{
-        use std::env;
-        dotenv::dotenv().ok();
-
-        match (
-            env::var("TEST_INTEGRATION").is_ok(),
-            env::var("KAFKA_CONNECT").ok(),
-        ) {
-            (true, Some(kafka_connection)) => kafka_connection,
-            (true, None) => {
-                panic!(
-                    "TEST_INTEGRATION is set which requires running integration tests, but \
-                     KAFKA_CONNECT is not set. Please run Kafka, perhaps by using the command \
-                     `docker-compose -f docker/ci-kafka-docker-compose.yml up kafka`, then \
-                     set KAFKA_CONNECT to the host and port where Kafka is accessible. If \
-                     running the `docker-compose` command and the Rust tests on the host, the \
-                     value for `KAFKA_CONNECT` should be `localhost:9093`. If running the Rust \
-                     tests in another container in the `docker-compose` network as on CI, \
-                     `KAFKA_CONNECT` should be `kafka:9092`."
-                )
-            }
-            (false, Some(_)) => {
-                eprintln!("skipping Kafka integration tests - set TEST_INTEGRATION to run");
-                return;
-            }
-            (false, None) => {
-                eprintln!(
-                    "skipping Kafka integration tests - set TEST_INTEGRATION and KAFKA_CONNECT to \
-                    run"
-                );
-                return;
-            }
-        }
-    }};
-}
+use write_buffer::maybe_skip_kafka_integration;
 
 #[tokio::test]
 async fn writes_go_to_kafka() {
-    let kafka_connection = maybe_skip_integration!();
+    let kafka_connection = maybe_skip_kafka_integration!();
 
     // set up a database with a write buffer pointing at kafka
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection::Writing(kafka_connection.to_string());
-    create_readable_database_plus(&db_name, server.grpc_channel(), |mut rules| {
-        rules.write_buffer_connection = Some(write_buffer_connection);
-        rules
-    })
-    .await;
+
+    DatabaseBuilder::new(db_name.clone())
+        .write_buffer(write_buffer_connection)
+        .build(server.grpc_channel())
+        .await;
 
     // write some points
     let mut write_client = server.write_client();
@@ -135,17 +92,17 @@ async fn produce_to_kafka_directly(
 
 #[tokio::test]
 async fn reads_come_from_kafka() {
-    let kafka_connection = maybe_skip_integration!();
+    let kafka_connection = maybe_skip_kafka_integration!();
 
     // set up a database to read from Kafka
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection::Reading(kafka_connection.to_string());
-    create_readable_database_plus(&db_name, server.grpc_channel(), |mut rules| {
-        rules.write_buffer_connection = Some(write_buffer_connection);
-        rules
-    })
-    .await;
+
+    DatabaseBuilder::new(db_name.clone())
+        .write_buffer(write_buffer_connection)
+        .build(server.grpc_channel())
+        .await;
 
     // Common Kafka config
     let mut cfg = ClientConfig::new();
@@ -220,17 +177,17 @@ async fn reads_come_from_kafka() {
 
 #[tokio::test]
 async fn cant_write_to_db_reading_from_kafka() {
-    let kafka_connection = maybe_skip_integration!();
+    let kafka_connection = maybe_skip_kafka_integration!();
 
     // set up a database to read from Kafka
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection::Reading(kafka_connection.to_string());
-    create_readable_database_plus(&db_name, server.grpc_channel(), |mut rules| {
-        rules.write_buffer_connection = Some(write_buffer_connection);
-        rules
-    })
-    .await;
+
+    DatabaseBuilder::new(db_name.clone())
+        .write_buffer(write_buffer_connection)
+        .build(server.grpc_channel())
+        .await;
 
     // Writing to this database is an error; all data comes from Kafka
     let mut write_client = server.write_client();

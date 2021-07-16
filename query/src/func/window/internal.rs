@@ -10,7 +10,7 @@ use std::ops::{Add, Mul};
 
 /// Duration is a vector representing the duration unit components.
 ///
-/// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L18
+/// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L18>
 #[derive(Debug, Clone, Copy)]
 pub struct Duration {
     /// months is the number of months for the duration.
@@ -29,7 +29,7 @@ impl Duration {
     /// Port of values.ConvertDurationNsecs. Creates a Duration that
     /// representing a fixed number of nanoseconds.
     ///
-    /// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L40
+    /// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L40>
     pub fn from_nsecs(v: i64) -> Self {
         let (negative, nsecs) = if v < 0 { (true, -v) } else { (false, v) };
 
@@ -44,7 +44,7 @@ impl Duration {
     /// representing a fixed number of months (which vary in absolute
     /// number of nanoseconds).
     ///
-    /// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L52
+    /// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L52>
     pub fn from_months(v: i64) -> Self {
         let (negative, months) = if v < 0 { (true, -v) } else { (false, v) };
 
@@ -68,7 +68,7 @@ impl Duration {
 
     /// IsZero returns true if this is a zero duration.
     ///
-    /// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L204
+    /// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L204>
     fn is_zero(&self) -> bool {
         self.months == 0 && self.nsecs == 0
     }
@@ -87,7 +87,7 @@ impl Duration {
     /// the only two ways to create a duration in this `impl` ensures
     /// that invariant)
     ///
-    /// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/window.go#L52
+    /// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/window.go#L52>
     fn truncate(&self, t: i64) -> i64 {
         let months = self.months;
         let nsec = self.nsecs;
@@ -111,7 +111,7 @@ impl Mul<i64> for Duration {
     /// Mul will multiply the Duration by a scalar.
     /// This multiplies each component of the vector.
     ///
-    /// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L175
+    /// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L175>
     fn mul(self, rhs: i64) -> Self {
         let mut scale = rhs;
         let mut d = self;
@@ -136,7 +136,7 @@ impl Mul<i64> for Duration {
 /// (which can have year, month, etc. extracted)
 ///
 /// This is roughly equivelnt to ConvertTime
-/// from https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L35-L37
+/// from <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L35-L37>
 fn timestamp_to_datetime(ts: i64) -> DateTime<Utc> {
     let secs = ts / 1_000_000_000;
     let nsec = ts % 1_000_000_000;
@@ -146,7 +146,7 @@ fn timestamp_to_datetime(ts: i64) -> DateTime<Utc> {
     DateTime::from_utc(datetime, Utc)
 }
 
-/// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L491
+/// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L491>
 const LAST_DAYS: [u32; 12] = [
     31, // time.January:   31,
     28, // time.February:  28,
@@ -169,7 +169,7 @@ fn last_day_of_month(month: i32) -> u32 {
 }
 
 // port of fun isLeapYear(year int) bool {
-/// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L506
+/// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L506>
 fn is_leap_year(year: i32) -> bool {
     year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)
 }
@@ -203,7 +203,7 @@ impl Add<Duration> for i64 {
 
     /// Adds a duration to a nanosecond timestamp
     ///
-    /// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L84
+    /// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L84>
     fn add(self, rhs: Duration) -> Self {
         let t = self;
         let d = rhs;
@@ -264,7 +264,7 @@ impl Add<Duration> for i64 {
 
 /// The bounds of a window
 ///
-/// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/bounds.go#L19
+/// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/bounds.go#L19>
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Bounds {
     pub start: i64,
@@ -273,7 +273,7 @@ pub struct Bounds {
 
 /// Represents a window in time
 ///
-/// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/window.go#L11
+/// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/window.go#L11>
 #[derive(Debug, Clone, Copy)]
 pub struct Window {
     every: Duration,
@@ -296,7 +296,7 @@ impl Window {
     /// do not contain time t, the window directly after time t will be
     /// returned.
     ///
-    /// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/window.go#L70
+    /// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/window.go#L70>
     pub fn get_earliest_bounds(&self, t: i64) -> Bounds {
         // translate to not-offset coordinate
         // t = t.Add(w.Offset.Mul(-1))
@@ -317,7 +317,7 @@ impl Window {
 
     /// truncate the time using the duration.
     ///
-    /// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/window.go#L52
+    /// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/window.go#L52>
     fn truncate(&self, t: i64) -> i64 {
         self.every.truncate(t)
     }
@@ -326,7 +326,7 @@ impl Window {
 /// truncateByNsecs will truncate the time to the given number
 /// of nanoseconds.
 ///
-/// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/window.go#L108
+/// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/window.go#L108>
 fn truncate_by_nsecs(t: i64, d: &Duration) -> i64 {
     let dur = d.nanoseconds();
     let mut remainder = t % dur;
@@ -341,7 +341,7 @@ fn truncate_by_nsecs(t: i64, d: &Duration) -> i64 {
 /// truncateByMonths will truncate the time to the given
 /// number of months.
 ///
-/// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/window.go#L119
+/// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/window.go#L119>
 fn truncate_by_months(t: i64, d: &Duration) -> i64 {
     let ts = timestamp_to_datetime(t);
     let (year, month) = (ts.year(), ts.month());

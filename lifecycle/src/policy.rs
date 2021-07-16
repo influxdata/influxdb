@@ -7,11 +7,14 @@ use data_types::DatabaseName;
 use futures::future::BoxFuture;
 
 use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkStorage};
-use data_types::database_rules::{LifecycleRules, DEFAULT_MUB_ROW_THRESHOLD};
-use observability_deps::tracing::{debug, info, warn};
+use data_types::database_rules::LifecycleRules;
+use observability_deps::tracing::{debug, info, trace, warn};
 use tracker::TaskTracker;
 
-use crate::{LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk, LockablePartition};
+use crate::{
+    LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk, LockablePartition,
+    PersistHandle,
+};
 
 /// Number of seconds to wait before retying a failed lifecycle action
 pub const LIFECYCLE_ACTION_BACKOFF: Duration = Duration::from_secs(10);
@@ -121,7 +124,7 @@ where
                                 info!(
                                     %db_name,
                                     chunk_id = candidate.chunk_id,
-                                    partition = partition.partition_key(),
+                                    %partition,
                                     "cannot mutate chunk with in-progress lifecycle action"
                                 );
                                 continue;
@@ -131,16 +134,18 @@ where
                                 FreeAction::Drop => match chunk.storage() {
                                     ChunkStorage::ReadBuffer
                                     | ChunkStorage::ClosedMutableBuffer => {
-                                        LockablePartition::drop_chunk(
+                                        let tracker = LockablePartition::drop_chunk(
                                             partition.upgrade(),
-                                            candidate.chunk_id,
+                                            chunk.upgrade(),
                                         )
                                         .expect("failed to drop")
+                                        .with_metadata(ChunkLifecycleAction::Dropping);
+                                        self.trackers.push(tracker);
                                     }
                                     storage => warn!(
                                         %db_name,
                                         chunk_id = candidate.chunk_id,
-                                        partition = partition.partition_key(),
+                                        %partition,
                                         ?storage,
                                         "unexpected storage for drop"
                                     ),
@@ -153,7 +158,7 @@ where
                                     storage => warn!(
                                         %db_name,
                                         chunk_id = candidate.chunk_id,
-                                        partition = partition.partition_key(),
+                                        %partition,
                                         ?storage,
                                         "unexpected storage for unload"
                                     ),
@@ -163,7 +168,7 @@ where
                         None => info!(
                             %db_name,
                             chunk_id = candidate.chunk_id,
-                            partition = partition.partition_key(),
+                            %partition,
                             "cannot drop chunk that no longer exists on partition"
                         ),
                     }
@@ -194,6 +199,10 @@ where
 
         // TODO: Encapsulate locking into a CatalogTransaction type
         let partition = partition.read();
+        if partition.is_persisted() {
+            debug!(db_name = %self.db.name(), %partition, "nothing to be compacted for partition");
+            return;
+        }
 
         let mut chunks = LockablePartition::chunks(&partition);
         // Sort by chunk ID to ensure a stable lock order
@@ -233,7 +242,7 @@ where
             }
             let has_added_to_compact = to_compact.len() > to_compact_len_before;
             debug!(db_name = %self.db.name(),
-                   partition_key = %partition.partition_key(),
+                   %partition,
                    ?has_added_to_compact,
                    chunk_storage = ?storage,
                    ?has_mub_snapshot,
@@ -258,80 +267,151 @@ where
 
     /// Check persistence
     ///
-    /// Looks for read buffer chunks to persist
+    /// Looks for chunks to combine together in the "persist"
+    /// operation. The "persist" operation combines the data from a
+    /// list chunks and creates two new chunks: one persisted, with
+    /// all data that eligible for persistence, and the second with
+    /// all data that is not yet eligible for persistence (it was
+    /// written to recently)
     ///
-    /// A chunk will be persisted if it has more than `persist_row_threshold` rows
-    /// or it was last written to more than `late_arrive_window_seconds` ago
+    /// A chunk will be chosen for the persist operation if either:
+    ///
+    /// 1. it has more than `persist_row_threshold` rows
+    /// 2. it was last written to more than `late_arrive_window_seconds` ago
+    ///
+    /// Returns true if persistence is being blocked by compaction,
+    /// signaling compaction should be stalled to allow persistence to
+    /// make progress
     ///
     /// Returns a boolean to indicate if it should stall compaction to allow
     /// persistence to make progress
+    ///
+    /// The rationale for stalling compaction until a persist can start:
+    ///
+    /// 1. It is a simple way to ensure a persist can start. Once the
+    /// persist has started (which might also effectively compact
+    /// several chunks as well) then compactions can start again
+    ///
+    /// 2. It is not likely to change the number of compactions
+    /// significantly. Since the policy goal at time of writing is to
+    /// end up with ~ 2 unpersisted chunks at any time, any chunk that
+    /// is persistable is also likely to be one of the ones being
+    /// compacted.
     fn maybe_persist_chunks<P: LockablePartition>(
         &mut self,
         db_name: &DatabaseName<'static>,
         partition: &P,
         rules: &LifecycleRules,
-        now: DateTime<Utc>,
+        now: Instant,
     ) -> bool {
-        // TODO: Use PersistenceWindows, split chunks, etc...
-
-        let row_threshold = rules.persist_row_threshold.get();
-        let late_arrive_window_seconds = rules.late_arrive_window_seconds.get();
-
+        // TODO: Encapsulate locking into a CatalogTransaction type
         let partition = partition.read();
-        let chunks = LockablePartition::chunks(&partition);
 
-        // The candidate RUB chunk to persist
-        let mut persist_candidate = None;
+        if partition.is_persisted() {
+            debug!(%db_name, %partition, "nothing to persist for partition");
+            return false;
+        }
 
-        // If there are other unpersisted chunks in the partition
-        let mut has_other_unpersisted = false;
+        let persistable_age_seconds = partition
+            .minimum_unpersisted_age()
+            .and_then(|minimum_unpersisted_age| {
+                // If writes happened between when the policy loop
+                // started and this check is done, the duration may be
+                // negative. Skip persistence in this case to avoid
+                // panic in `duration_since`
+                Some(
+                    now.checked_duration_since(minimum_unpersisted_age)?
+                        .as_secs(),
+                )
+            })
+            .unwrap_or_default() as u32;
 
+        let persistable_row_count = partition.persistable_row_count(now);
+        debug!(%db_name, %partition,
+               partition_persist_row_count=persistable_row_count,
+               rules_persist_row_count=%rules.persist_row_threshold.get(),
+               partition_persistable_age_seconds=persistable_age_seconds,
+               rules_persist_age_threshold_seconds=%rules.persist_age_threshold_seconds.get(),
+               "considering for persistence");
+
+        if persistable_row_count >= rules.persist_row_threshold.get() {
+            info!(%db_name, %partition, persistable_row_count, "persisting partition as exceeds row threshold");
+        } else if persistable_age_seconds >= rules.persist_age_threshold_seconds.get() {
+            info!(%db_name, %partition, persistable_age_seconds, "persisting partition as exceeds age threshold");
+        } else {
+            debug!(%db_name, %partition, persistable_row_count, "partition not eligible for persist");
+            return false;
+        }
+
+        let mut chunks = LockablePartition::chunks(&partition);
+
+        // Upgrade partition to be able to rotate persistence windows
+        let mut partition = partition.upgrade();
+
+        let persist_handle = match LockablePartition::prepare_persist(&mut partition, now) {
+            Some(x) => x,
+            None => {
+                debug!(%db_name, %partition, "no persistable windows or previous outstanding persist");
+                return false;
+            }
+        };
+
+        // Sort by chunk ID to ensure a stable lock order
+        chunks.sort_by_key(|x| x.0);
+        let mut to_persist = Vec::new();
         for (_, chunk) in &chunks {
             let chunk = chunk.read();
+            trace!(%db_name, %partition, chunk=%chunk.addr(), "considering chunk for persistence");
+
+            // Check if chunk is eligible for persistence
             match chunk.storage() {
-                ChunkStorage::ReadBuffer => {}
-                ChunkStorage::OpenMutableBuffer | ChunkStorage::ClosedMutableBuffer => {
-                    has_other_unpersisted = true;
+                ChunkStorage::OpenMutableBuffer
+                | ChunkStorage::ClosedMutableBuffer
+                | ChunkStorage::ReadBuffer => {}
+                ChunkStorage::ReadBufferAndObjectStore | ChunkStorage::ObjectStoreOnly => {
+                    debug!(%db_name, %partition, chunk=%chunk.addr(), storage=?chunk.storage(),
+                           "chunk not eligible due to storage");
                     continue;
                 }
-                ChunkStorage::ReadBufferAndObjectStore | ChunkStorage::ObjectStoreOnly => continue,
             }
 
-            if chunk.lifecycle_action().is_some() {
+            // Chunk's data is entirely after the time we are flushing
+            // up to, and thus there is reason to include it in the
+            // plan
+            if chunk.min_timestamp() > persist_handle.timestamp() {
+                // Can safely ignore chunk
+                debug!(%db_name, %partition, chunk=%chunk.addr(),
+                       "chunk does not contain data eligible for persistence");
                 continue;
             }
 
-            if persist_candidate.is_some() {
-                debug!(
-                    %db_name,
-                    partition = partition.partition_key(),
-                    "found multiple read buffer chunks"
-                );
-
-                has_other_unpersisted = true;
-                continue;
+            // If the chunk has an outstanding lifecycle action
+            if let Some(action) = chunk.lifecycle_action() {
+                // see if we should stall subsequent pull it is
+                // preventing us from persisting
+                let stall = action.metadata() == &ChunkLifecycleAction::Compacting;
+                info!(%db_name, ?action, chunk=%chunk.addr(), "Chunk to persist has outstanding action");
+                return stall;
             }
 
-            persist_candidate = Some(chunk);
+            to_persist.push(chunk);
         }
 
-        if let Some(chunk) = persist_candidate {
-            let mut should_persist = chunk.row_count() >= row_threshold;
-            if !should_persist && !has_other_unpersisted {
-                if let Some(last_write) = chunk.time_of_last_write() {
-                    should_persist = elapsed_seconds(now, last_write) > late_arrive_window_seconds;
-                }
-            }
-
-            if should_persist {
-                let tracker = LockableChunk::write_to_object_store(chunk.upgrade())
-                    .expect("task preparation failed")
-                    .with_metadata(ChunkLifecycleAction::Persisting);
-
-                self.trackers.push(tracker);
-            }
+        if to_persist.is_empty() {
+            info!(%db_name, %partition, "expected to persist but found no eligible chunks");
+            return false;
         }
 
+        let chunks = to_persist
+            .into_iter()
+            .map(|chunk| chunk.upgrade())
+            .collect();
+
+        let tracker = LockablePartition::persist_chunks(partition, chunks, persist_handle)
+            .expect("failed to persist chunks")
+            .with_metadata(ChunkLifecycleAction::Persisting);
+
+        self.trackers.push(tracker);
         false
     }
 
@@ -356,8 +436,10 @@ where
             let chunk = chunk.read();
             if let Some(lifecycle_action) = chunk.lifecycle_action() {
                 if lifecycle_action.is_complete()
-                    && now.duration_since(lifecycle_action.start_instant())
-                        >= LIFECYCLE_ACTION_BACKOFF
+                    && now
+                        .checked_duration_since(lifecycle_action.start_instant())
+                        .map(|x| x >= LIFECYCLE_ACTION_BACKOFF)
+                        .unwrap_or(false)
                 {
                     info!(%db_name, chunk=%chunk.addr(), action=?lifecycle_action.metadata(), "clearing failed lifecycle action");
                     chunk.upgrade().clear_lifecycle_action();
@@ -386,21 +468,23 @@ where
         for partition in &partitions {
             self.maybe_cleanup_failed(&db_name, partition, now_instant);
 
-            // TODO: Skip partitions with no PersistenceWindows (i.e. fully persisted)
-
             // Persistence cannot split chunks if they are currently being compacted
             //
-            // To avoid compaction "starving" persistence we employ a heavy-handed approach
-            // of temporarily pausing compaction if the criteria for persistence have been
-            // satisfied, but persistence cannot proceed because of in-progress compactions
+            // To avoid compaction "starving" persistence we employ a
+            // heavy-handed approach of temporarily pausing compaction
+            // if the criteria for persistence have been satisfied,
+            // but persistence cannot proceed because of in-progress
+            // compactions
             let stall_compaction = if rules.persist {
-                self.maybe_persist_chunks(&db_name, partition, &rules, now)
+                self.maybe_persist_chunks(&db_name, partition, &rules, now_instant)
             } else {
                 false
             };
 
             if !stall_compaction {
                 self.maybe_compact_chunks(partition, &rules, now);
+            } else {
+                debug!(%db_name, %partition, "stalling compaction to allow persist");
             }
         }
 
@@ -476,13 +560,13 @@ fn elapsed_seconds(a: DateTime<Utc>, b: DateTime<Utc>) -> u32 {
 ///
 /// Note: Does not check the chunk is the correct state
 fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<Utc>) -> bool {
-    if chunk.row_count() >= DEFAULT_MUB_ROW_THRESHOLD {
+    if chunk.row_count() >= rules.mub_row_threshold.get() {
         return true;
     }
 
     match chunk.time_of_last_write() {
         Some(last_write)
-            if elapsed_seconds(now, last_write) >= rules.mutable_linger_seconds.get() =>
+            if elapsed_seconds(now, last_write) >= rules.late_arrive_window_seconds.get() =>
         {
             true
         }
@@ -534,28 +618,50 @@ mod tests {
 
     use crate::{
         ChunkLifecycleAction, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
-        LockablePartition,
+        LockablePartition, PersistHandle,
     };
 
     use super::*;
 
     #[derive(Debug, Eq, PartialEq)]
     enum MoverEvents {
-        Move(u32),
-        Persist(u32),
         Drop(u32),
         Unload(u32),
         Compact(Vec<u32>),
+        Persist(Vec<u32>),
     }
 
+    #[derive(Debug)]
     struct TestPartition {
         chunks: BTreeMap<u32, Arc<RwLock<TestChunk>>>,
+        persistable_row_count: usize,
+        minimum_unpersisted_age: Option<Instant>,
+        max_persistable_timestamp: Option<DateTime<Utc>>,
         next_id: u32,
     }
 
+    impl TestPartition {
+        fn with_persistence(
+            self,
+            persistable_row_count: usize,
+            minimum_unpersisted_age: Instant,
+            max_persistable_timestamp: DateTime<Utc>,
+        ) -> Self {
+            Self {
+                chunks: self.chunks,
+                persistable_row_count,
+                minimum_unpersisted_age: Some(minimum_unpersisted_age),
+                max_persistable_timestamp: Some(max_persistable_timestamp),
+                next_id: self.next_id,
+            }
+        }
+    }
+
+    #[derive(Debug)]
     struct TestChunk {
         addr: ChunkAddr,
         row_count: usize,
+        min_timestamp: Option<DateTime<Utc>>,
         time_of_first_write: Option<DateTime<Utc>>,
         time_of_last_write: Option<DateTime<Utc>>,
         lifecycle_action: Option<TaskTracker<ChunkLifecycleAction>>,
@@ -579,6 +685,7 @@ mod tests {
             Self {
                 addr,
                 row_count: 10,
+                min_timestamp: None,
                 time_of_first_write: time_of_first_write.map(from_secs),
                 time_of_last_write: time_of_last_write.map(from_secs),
                 lifecycle_action: None,
@@ -590,6 +697,7 @@ mod tests {
             Self {
                 addr: self.addr,
                 row_count,
+                min_timestamp: self.min_timestamp,
                 time_of_first_write: self.time_of_first_write,
                 time_of_last_write: self.time_of_last_write,
                 lifecycle_action: self.lifecycle_action,
@@ -601,18 +709,37 @@ mod tests {
             Self {
                 addr: self.addr,
                 row_count: self.row_count,
+                min_timestamp: self.min_timestamp,
                 time_of_first_write: self.time_of_first_write,
                 time_of_last_write: self.time_of_last_write,
                 lifecycle_action: Some(TaskTracker::complete(action)),
                 storage: self.storage,
             }
         }
+
+        fn with_min_timestamp(self, min_timestamp: DateTime<Utc>) -> Self {
+            Self {
+                addr: self.addr,
+                row_count: self.row_count,
+                min_timestamp: Some(min_timestamp),
+                time_of_first_write: self.time_of_first_write,
+                time_of_last_write: self.time_of_last_write,
+                lifecycle_action: self.lifecycle_action,
+                storage: self.storage,
+            }
+        }
     }
 
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
     struct TestLockablePartition<'a> {
         db: &'a TestDb,
         partition: Arc<RwLock<TestPartition>>,
+    }
+
+    impl<'a> std::fmt::Display for TestLockablePartition<'a> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self)
+        }
     }
 
     #[derive(Clone)]
@@ -621,9 +748,21 @@ mod tests {
         chunk: Arc<RwLock<TestChunk>>,
     }
 
+    #[derive(Debug)]
+    struct TestPersistHandle {
+        timestamp: DateTime<Utc>,
+    }
+
+    impl PersistHandle for TestPersistHandle {
+        fn timestamp(&self) -> DateTime<Utc> {
+            self.timestamp
+        }
+    }
+
     impl<'a> LockablePartition for TestLockablePartition<'a> {
         type Partition = TestPartition;
         type Chunk = TestLockableChunk<'a>;
+        type PersistHandle = TestPersistHandle;
         type Error = Infallible;
 
         fn read(&self) -> LifecycleReadGuard<'_, Self::Partition, Self> {
@@ -686,13 +825,53 @@ mod tests {
             Ok(TaskTracker::complete(()))
         }
 
+        fn prepare_persist(
+            partition: &mut LifecycleWriteGuard<'_, Self::Partition, Self>,
+            _now: Instant,
+        ) -> Option<Self::PersistHandle> {
+            Some(TestPersistHandle {
+                timestamp: partition.max_persistable_timestamp.unwrap(),
+            })
+        }
+
+        fn persist_chunks(
+            mut partition: LifecycleWriteGuard<'_, TestPartition, Self>,
+            chunks: Vec<LifecycleWriteGuard<'_, TestChunk, Self::Chunk>>,
+            handle: Self::PersistHandle,
+        ) -> Result<TaskTracker<()>, Self::Error> {
+            for chunk in &chunks {
+                partition.chunks.remove(&chunk.addr.chunk_id);
+            }
+
+            let id = partition.next_id;
+            partition.next_id += 1;
+
+            // The remainder left behind after the split
+            let new_chunk = TestChunk::new(id, None, None, ChunkStorage::ReadBuffer)
+                .with_min_timestamp(handle.timestamp + chrono::Duration::nanoseconds(1));
+
+            partition
+                .chunks
+                .insert(id, Arc::new(RwLock::new(new_chunk)));
+
+            let event = MoverEvents::Persist(chunks.iter().map(|x| x.addr.chunk_id).collect());
+            partition.data().db.events.write().push(event);
+            Ok(TaskTracker::complete(()))
+        }
+
         fn drop_chunk(
-            mut s: LifecycleWriteGuard<'_, Self::Partition, Self>,
-            chunk_id: u32,
-        ) -> Result<(), Self::Error> {
-            s.chunks.remove(&chunk_id);
-            s.data().db.events.write().push(MoverEvents::Drop(chunk_id));
-            Ok(())
+            mut partition: LifecycleWriteGuard<'_, Self::Partition, Self>,
+            chunk: LifecycleWriteGuard<'_, TestChunk, Self::Chunk>,
+        ) -> Result<TaskTracker<()>, Self::Error> {
+            let chunk_id = chunk.addr().chunk_id;
+            partition.chunks.remove(&chunk_id);
+            partition
+                .data()
+                .db
+                .events
+                .write()
+                .push(MoverEvents::Drop(chunk_id));
+            Ok(TaskTracker::complete(()))
         }
     }
 
@@ -710,27 +889,11 @@ mod tests {
         }
 
         fn move_to_read_buffer(
-            mut s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
-        ) -> Result<TaskTracker<()>, Self::Error> {
-            s.storage = ChunkStorage::ReadBuffer;
-            s.data()
-                .db
-                .events
-                .write()
-                .push(MoverEvents::Move(s.addr.chunk_id));
-            Ok(TaskTracker::complete(()))
-        }
-
-        fn write_to_object_store(
-            mut s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
-        ) -> Result<TaskTracker<()>, Self::Error> {
-            s.storage = ChunkStorage::ReadBufferAndObjectStore;
-            s.data()
-                .db
-                .events
-                .write()
-                .push(MoverEvents::Persist(s.addr.chunk_id));
-            Ok(TaskTracker::complete(()))
+            _s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
+        ) -> Result<TaskTracker<Self::Job>, Self::Error> {
+            // Isn't used by the lifecycle policy
+            // TODO: Remove this
+            unreachable!()
         }
 
         fn unload_read_buffer(
@@ -750,6 +913,18 @@ mod tests {
         fn partition_key(&self) -> &str {
             "test"
         }
+
+        fn is_persisted(&self) -> bool {
+            false
+        }
+
+        fn persistable_row_count(&self, _now: Instant) -> usize {
+            self.persistable_row_count
+        }
+
+        fn minimum_unpersisted_age(&self) -> Option<Instant> {
+            self.minimum_unpersisted_age
+        }
     }
 
     impl LifecycleChunk for TestChunk {
@@ -759,6 +934,10 @@ mod tests {
 
         fn clear_lifecycle_action(&mut self) {
             self.lifecycle_action = None
+        }
+
+        fn min_timestamp(&self) -> DateTime<Utc> {
+            self.min_timestamp.unwrap()
         }
 
         fn time_of_first_write(&self) -> Option<DateTime<Utc>> {
@@ -795,12 +974,16 @@ mod tests {
 
             Self {
                 chunks,
+                persistable_row_count: 0,
+                minimum_unpersisted_age: None,
+                max_persistable_timestamp: None,
                 next_id: max_id + 1,
             }
         }
     }
 
     /// A dummy db that is used to test the policy logic
+    #[derive(Debug)]
     struct TestDb {
         rules: LifecycleRules,
         partitions: RwLock<Vec<Arc<RwLock<TestPartition>>>>,
@@ -876,9 +1059,10 @@ mod tests {
 
     #[test]
     fn test_can_move() {
-        // If only mutable_linger set can move a chunk once passed
+        // If only late_arrival set can move a chunk once passed
         let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
+            late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
+            mub_row_threshold: NonZeroUsize::new(74).unwrap(),
             ..Default::default()
         };
         let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer);
@@ -886,18 +1070,18 @@ mod tests {
         assert!(can_move(&rules, &chunk, from_secs(11)));
 
         // can move even if the chunk is small
-        let chunk = TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer)
-            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD - 1);
+        let chunk =
+            TestChunk::new(0, Some(0), Some(0), ChunkStorage::OpenMutableBuffer).with_row_count(73);
         assert!(can_move(&rules, &chunk, from_secs(11)));
 
-        // If over the default row count threshold, we should be able to move
-        let chunk = TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer)
-            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD);
+        // If over the row count threshold, we should be able to move
+        let chunk =
+            TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer).with_row_count(74);
         assert!(can_move(&rules, &chunk, from_secs(0)));
 
         // If below the default row count threshold, it shouldn't move
-        let chunk = TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer)
-            .with_row_count(DEFAULT_MUB_ROW_THRESHOLD - 1);
+        let chunk =
+            TestChunk::new(0, None, None, ChunkStorage::OpenMutableBuffer).with_row_count(73);
         assert!(!can_move(&rules, &chunk, from_secs(0)));
     }
 
@@ -975,9 +1159,9 @@ mod tests {
     }
 
     #[test]
-    fn test_mutable_linger() {
+    fn test_late_arrival() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
+            late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
         let chunks = vec![
@@ -1021,7 +1205,7 @@ mod tests {
     async fn test_backoff() {
         let mut registry = TaskRegistry::new();
         let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(100).unwrap(),
+            late_arrive_window_seconds: NonZeroU32::new(100).unwrap(),
             ..Default::default()
         };
         let db = TestDb::new(rules, vec![]);
@@ -1050,7 +1234,7 @@ mod tests {
         // test that chunk mover can drop non persisted chunks
         // if limit has been exceeded
 
-        // IMPORTANT: the lifecycle rules have the default `persist` flag (false) so NOT
+        // IMPORTANT: the lifecycle rules have the default `persist` flag (false) so NO
         // "write" events will be triggered
         let rules = LifecycleRules {
             buffer_size_soft: Some(NonZeroUsize::new(5).unwrap()),
@@ -1165,7 +1349,7 @@ mod tests {
     #[test]
     fn test_compact() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
+            late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
             persist_row_threshold: NonZeroUsize::new(1_000).unwrap(),
             ..Default::default()
         };
@@ -1256,63 +1440,95 @@ mod tests {
     #[test]
     fn test_persist() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
             persist: true,
             persist_row_threshold: NonZeroUsize::new(1_000).unwrap(),
             late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
+            persist_age_threshold_seconds: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
+        let now = Instant::now();
 
         let partitions = vec![
+            // Insufficient rows and not old enough => don't persist but can compact
             TestPartition::new(vec![
-                // not compacted => cannot write
-                TestChunk::new(0, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer),
-                // not enough rows
-                TestChunk::new(1, Some(0), Some(0), ChunkStorage::ReadBuffer),
-                // already moved
-                TestChunk::new(2, Some(0), Some(0), ChunkStorage::ReadBufferAndObjectStore),
-            ]),
+                TestChunk::new(0, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer)
+                    .with_min_timestamp(from_secs(10)),
+                TestChunk::new(1, Some(0), Some(0), ChunkStorage::ReadBuffer)
+                    .with_min_timestamp(from_secs(5)),
+            ])
+            .with_persistence(10, now, from_secs(20)),
+            // Sufficient rows => persist
             TestPartition::new(vec![
-                TestChunk::new(3, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer)
+                TestChunk::new(2, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer)
+                    .with_min_timestamp(from_secs(10)),
+                TestChunk::new(3, Some(0), Some(0), ChunkStorage::ReadBuffer)
+                    .with_min_timestamp(from_secs(5)),
+            ])
+            .with_persistence(1_000, now, from_secs(20)),
+            // Writes too old => persist
+            TestPartition::new(vec![
+                // Should split open chunks
+                TestChunk::new(4, Some(0), Some(20), ChunkStorage::OpenMutableBuffer)
+                    .with_min_timestamp(from_secs(10)),
+                TestChunk::new(5, Some(0), Some(0), ChunkStorage::ReadBuffer)
+                    .with_min_timestamp(from_secs(5)),
+                TestChunk::new(6, Some(0), Some(0), ChunkStorage::ObjectStoreOnly)
+                    .with_min_timestamp(from_secs(5)),
+            ])
+            .with_persistence(10, now - Duration::from_secs(10), from_secs(20)),
+            // Sufficient rows but conflicting compaction => prevent compaction
+            TestPartition::new(vec![
+                TestChunk::new(7, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer)
+                    .with_min_timestamp(from_secs(10))
                     .with_action(ChunkLifecycleAction::Compacting),
-                // reached row count => write
-                TestChunk::new(4, Some(0), Some(0), ChunkStorage::ReadBuffer).with_row_count(1_000),
-            ]),
+                // This chunk would be a compaction candidate, but we want to persist it
+                TestChunk::new(8, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer)
+                    .with_min_timestamp(from_secs(10)),
+                TestChunk::new(9, Some(0), Some(0), ChunkStorage::ReadBuffer)
+                    .with_min_timestamp(from_secs(5)),
+            ])
+            .with_persistence(1_000, now, from_secs(20)),
+            // Sufficient rows and non-conflicting compaction => persist
             TestPartition::new(vec![
-                TestChunk::new(5, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer)
+                TestChunk::new(10, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer)
+                    .with_min_timestamp(from_secs(21))
                     .with_action(ChunkLifecycleAction::Compacting),
-                // still compacting => cannot write
-                TestChunk::new(6, Some(0), Some(0), ChunkStorage::ReadBuffer)
-                    .with_row_count(1_000)
+                TestChunk::new(11, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer)
+                    .with_min_timestamp(from_secs(10)),
+                TestChunk::new(12, Some(0), Some(0), ChunkStorage::ReadBuffer)
+                    .with_min_timestamp(from_secs(5)),
+            ])
+            .with_persistence(1_000, now, from_secs(20)),
+            // Sufficient rows, non-conflicting compaction and compact-able chunk => persist + compact
+            TestPartition::new(vec![
+                TestChunk::new(13, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer)
+                    .with_min_timestamp(from_secs(21))
                     .with_action(ChunkLifecycleAction::Compacting),
-            ]),
-            TestPartition::new(vec![
-                // chunk cold => write
-                TestChunk::new(7, Some(0), Some(0), ChunkStorage::ReadBuffer).with_row_count(20),
-            ]),
-            TestPartition::new(vec![
-                // reached row count => write
-                TestChunk::new(8, Some(0), Some(0), ChunkStorage::ReadBuffer).with_row_count(1_000),
-                // could persist, but already persisting above
-                TestChunk::new(9, Some(0), Some(0), ChunkStorage::ReadBuffer).with_row_count(1_000),
-            ]),
-            TestPartition::new(vec![
-                // chunk not cold => cannot write
-                TestChunk::new(10, Some(0), Some(11), ChunkStorage::ReadBuffer).with_row_count(20),
-            ]),
+                TestChunk::new(14, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer)
+                    .with_min_timestamp(from_secs(21)),
+                TestChunk::new(15, Some(0), Some(0), ChunkStorage::ClosedMutableBuffer)
+                    .with_min_timestamp(from_secs(10)),
+                TestChunk::new(16, Some(0), Some(0), ChunkStorage::ReadBuffer)
+                    .with_min_timestamp(from_secs(5)),
+            ])
+            .with_persistence(1_000, now, from_secs(20)),
         ];
 
         let db = TestDb::from_partitions(rules, partitions);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        lifecycle.check_for_work(from_secs(20), Instant::now());
+        lifecycle.check_for_work(from_secs(0), now);
         assert_eq!(
             *db.events.read(),
             vec![
                 MoverEvents::Compact(vec![0, 1]),
-                MoverEvents::Persist(4),
-                MoverEvents::Persist(7),
-                MoverEvents::Persist(8),
+                MoverEvents::Persist(vec![2, 3]),
+                MoverEvents::Persist(vec![4, 5]),
+                MoverEvents::Persist(vec![11, 12]),
+                MoverEvents::Persist(vec![15, 16]),
+                // 17 is the resulting chunk from the persist split above
+                // This is "quirk" of TestPartition operations being instantaneous
+                MoverEvents::Compact(vec![14, 17])
             ]
         );
     }
@@ -1320,7 +1536,7 @@ mod tests {
     #[test]
     fn test_moves_open() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
+            late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
         let chunks = vec![TestChunk::new(
@@ -1340,7 +1556,7 @@ mod tests {
     #[test]
     fn test_moves_closed() {
         let rules = LifecycleRules {
-            mutable_linger_seconds: NonZeroU32::new(10).unwrap(),
+            late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
         let chunks = vec![TestChunk::new(

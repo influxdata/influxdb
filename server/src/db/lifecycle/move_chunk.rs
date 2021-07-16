@@ -1,10 +1,10 @@
+use crate::db::catalog::chunk::CatalogChunk;
 pub(crate) use crate::db::chunk::DbChunk;
-use crate::db::{catalog::chunk::CatalogChunk, lifecycle::compute_sort_key};
 use ::lifecycle::LifecycleWriteGuard;
 use data_types::job::Job;
 
 use observability_deps::tracing::{debug, info};
-use query::{exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
+use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
 use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
@@ -44,7 +44,7 @@ pub fn move_chunk_to_read_buffer(
     let query_chunks = vec![db_chunk];
 
     // Drop locks
-    let chunk = guard.unwrap().chunk;
+    let chunk = guard.into_data().chunk;
     let mut rb_chunk = new_rub_chunk(db.as_ref(), &table_summary.name);
 
     let ctx = db.exec.new_context(ExecutorType::Reorg);

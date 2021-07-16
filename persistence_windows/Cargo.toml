@@ -5,6 +5,7 @@ edition = "2018"
 
 [dependencies]
 chrono = "0.4"
+data_types = { path = "../data_types" }
 entry = { path = "../entry" }
 internal_types = { path = "../internal_types" }
 snafu = "0.6.2"

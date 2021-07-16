@@ -112,7 +112,6 @@ impl Partitioner for DatabaseRules {
     }
 }
 
-pub const DEFAULT_MUTABLE_LINGER_SECONDS: u32 = 300;
 pub const DEFAULT_WORKER_BACKOFF_MILLIS: u64 = 1_000;
 pub const DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT: u64 = 100;
 pub const DEFAULT_MUB_ROW_THRESHOLD: usize = 100_000;
@@ -123,13 +122,6 @@ pub const DEFAULT_LATE_ARRIVE_WINDOW_SECONDS: u32 = 5 * 60;
 /// Configures how data automatically flows through the system
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct LifecycleRules {
-    /// A chunk of data within a partition that has been cold for writes for
-    /// this many seconds will be frozen and compacted (moved to the read
-    /// buffer) if the chunk is older than mutable_min_lifetime_seconds
-    ///
-    /// Represents the chunk transition open -> moving and closed -> moving
-    pub mutable_linger_seconds: NonZeroU32,
-
     /// Once the total amount of buffered data in memory reaches this size start
     /// dropping data from memory
     pub buffer_size_soft: Option<NonZeroUsize>,
@@ -155,7 +147,10 @@ pub struct LifecycleRules {
     /// After how many transactions should IOx write a new checkpoint?
     pub catalog_transactions_until_checkpoint: NonZeroU64,
 
-    /// The average timestamp skew across concurrent writers
+    /// Once a partition hasn't received a write for this period of time,
+    /// it will be compacted and, if set, persisted. Writers will generally
+    /// have this amount of time to send late arriving writes or this could
+    /// be their clock skew.
     pub late_arrive_window_seconds: NonZeroU32,
 
     /// Maximum number of rows before triggering persistence
@@ -163,6 +158,9 @@ pub struct LifecycleRules {
 
     /// Maximum age of a write before triggering persistence
     pub persist_age_threshold_seconds: NonZeroU32,
+
+    /// Maximum number of rows to buffer in a MUB chunk before compacting it
+    pub mub_row_threshold: NonZeroUsize,
 }
 
 impl LifecycleRules {
@@ -175,7 +173,6 @@ impl LifecycleRules {
 impl Default for LifecycleRules {
     fn default() -> Self {
         Self {
-            mutable_linger_seconds: NonZeroU32::new(DEFAULT_MUTABLE_LINGER_SECONDS).unwrap(),
             buffer_size_soft: None,
             buffer_size_hard: None,
             drop_non_persisted: false,
@@ -191,6 +188,7 @@ impl Default for LifecycleRules {
             persist_row_threshold: NonZeroUsize::new(DEFAULT_PERSIST_ROW_THRESHOLD).unwrap(),
             persist_age_threshold_seconds: NonZeroU32::new(DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS)
                 .unwrap(),
+            mub_row_threshold: NonZeroUsize::new(DEFAULT_MUB_ROW_THRESHOLD).unwrap(),
         }
     }
 }

@@ -31,7 +31,7 @@ use uuid::Uuid;
 /// Current version for serialized transactions.
 ///
 /// For breaking changes, this will change.
-pub const TRANSACTION_VERSION: u32 = 7;
+pub const TRANSACTION_VERSION: u32 = 8;
 
 /// File suffix for transaction files in object store.
 pub const TRANSACTION_FILE_SUFFIX: &str = "txn";
@@ -193,10 +193,13 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Struct containing all information that a catalog received for a new parquet file.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CatalogParquetInfo {
     /// Full path.
     pub path: DirsAndFileName,
+
+    /// Size of the parquet file, in bytes
+    pub file_size_bytes: usize,
 
     /// Associated parquet metadata.
     pub metadata: Arc<IoxParquetMetaData>,
@@ -818,6 +821,7 @@ impl OpenTransaction {
             }
             proto::transaction::action::Action::AddParquet(a) => {
                 let path = parse_dirs_and_filename(&a.path)?;
+                let file_size_bytes = a.file_size_bytes as usize;
 
                 let metadata =
                     IoxParquetMetaData::from_thrift(&a.metadata).context(MetadataDecodingFailed)?;
@@ -825,7 +829,11 @@ impl OpenTransaction {
 
                 state.add(
                     Arc::clone(object_store),
-                    CatalogParquetInfo { path, metadata },
+                    CatalogParquetInfo {
+                        path,
+                        file_size_bytes,
+                        metadata,
+                    },
                 )?;
             }
             proto::transaction::action::Action::RemoveParquet(a) => {
@@ -956,7 +964,7 @@ pub struct CheckpointData {
     /// List of all Parquet files that are currently (i.e. by the current version) tracked by the catalog.
     ///
     /// If a file was once added but later removed it MUST NOT appear in the result.
-    pub files: HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>,
+    pub files: HashMap<DirsAndFileName, CatalogParquetInfo>,
 }
 
 /// Handle for an open uncommitted transaction.
@@ -1082,11 +1090,13 @@ impl<'c> TransactionHandle<'c> {
     /// Add a new parquet file to the catalog.
     ///
     /// If a file with the same path already exists an error will be returned.
-    pub fn add_parquet(
-        &mut self,
-        path: &DirsAndFileName,
-        metadata: &IoxParquetMetaData,
-    ) -> Result<()> {
+    pub fn add_parquet(&mut self, info: &CatalogParquetInfo) -> Result<()> {
+        let CatalogParquetInfo {
+            path,
+            file_size_bytes,
+            metadata,
+        } = info;
+
         self.transaction
             .as_mut()
             .expect("transaction handle w/o transaction?!")
@@ -1094,6 +1104,7 @@ impl<'c> TransactionHandle<'c> {
                 proto::AddParquet {
                     path: Some(unparse_dirs_and_filename(path)),
                     metadata: metadata.to_thrift().context(MetadataEncodingFailed)?,
+                    file_size_bytes: *file_size_bytes as u64,
                 },
             ));
 
@@ -1103,7 +1114,7 @@ impl<'c> TransactionHandle<'c> {
     /// Remove a parquet file from the catalog.
     ///
     /// Removing files that do not exist or were already removed will result in an error.
-    pub fn remove_parquet(&mut self, path: &DirsAndFileName) -> Result<()> {
+    pub fn remove_parquet(&mut self, path: &DirsAndFileName) {
         self.transaction
             .as_mut()
             .expect("transaction handle w/o transaction?!")
@@ -1112,8 +1123,6 @@ impl<'c> TransactionHandle<'c> {
                     path: Some(unparse_dirs_and_filename(path)),
                 },
             ));
-
-        Ok(())
     }
 }
 
@@ -1174,11 +1183,18 @@ impl<'c> CheckpointHandle<'c> {
         // create transaction to add parquet files
         let actions: Result<Vec<_>, Error> = files
             .into_iter()
-            .map(|(path, metadata)| {
+            .map(|(_, info)| {
+                let CatalogParquetInfo {
+                    file_size_bytes,
+                    metadata,
+                    path,
+                } = info;
+
                 Ok(proto::transaction::Action {
                     action: Some(proto::transaction::action::Action::AddParquet(
                         proto::AddParquet {
                             path: Some(unparse_dirs_and_filename(&path)),
+                            file_size_bytes: file_size_bytes as u64,
                             metadata: metadata.to_thrift().context(MetadataEncodingFailed)?,
                         },
                     )),
@@ -1241,8 +1257,8 @@ pub mod test_helpers {
     /// In-memory catalog state, for testing.
     #[derive(Clone, Debug)]
     pub struct TestCatalogState {
-        /// Map of all parquet files that are currently registered.
-        pub parquet_files: HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>,
+        /// Map of all parquet files that are currently pregistered.
+        pub parquet_files: HashMap<DirsAndFileName, CatalogParquetInfo>,
     }
 
     impl TestCatalogState {
@@ -1264,14 +1280,14 @@ pub mod test_helpers {
         }
 
         fn add(&mut self, _object_store: Arc<ObjectStore>, info: CatalogParquetInfo) -> Result<()> {
-            match self.parquet_files.entry(info.path) {
+            match self.parquet_files.entry(info.path.clone()) {
                 Occupied(o) => {
                     return Err(Error::ParquetFileAlreadyExists {
                         path: o.key().clone(),
                     });
                 }
                 Vacant(v) => {
-                    v.insert(info.metadata);
+                    v.insert(info);
                 }
             }
 
@@ -1352,6 +1368,7 @@ pub mod test_helpers {
                         Arc::clone(&object_store),
                         CatalogParquetInfo {
                             path: path.clone(),
+                            file_size_bytes: 33,
                             metadata: Arc::new(metadata.clone()),
                         },
                     )
@@ -1379,6 +1396,7 @@ pub mod test_helpers {
                     Arc::clone(&object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
+                        file_size_bytes: 33,
                         metadata: Arc::new(metadata),
                     },
                 )
@@ -1398,6 +1416,7 @@ pub mod test_helpers {
                     Arc::clone(&object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
+                        file_size_bytes: 33,
                         metadata: Arc::new(metadata),
                     },
                 )
@@ -1415,6 +1434,7 @@ pub mod test_helpers {
                     Arc::clone(&object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
+                        file_size_bytes: 33,
                         metadata: Arc::new(metadata.clone()),
                     },
                 )
@@ -1425,6 +1445,7 @@ pub mod test_helpers {
                     Arc::clone(&object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
+                        file_size_bytes: 33,
                         metadata: Arc::new(metadata.clone()),
                     },
                 )
@@ -1444,6 +1465,7 @@ pub mod test_helpers {
                     Arc::clone(&object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
+                        file_size_bytes: 33,
                         metadata: Arc::new(metadata),
                     },
                 )
@@ -1463,6 +1485,7 @@ pub mod test_helpers {
                     Arc::clone(&object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
+                        file_size_bytes: 33,
                         metadata: Arc::new(metadata),
                     },
                 )
@@ -1487,6 +1510,7 @@ pub mod test_helpers {
                     Arc::clone(&object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
+                        file_size_bytes: 33,
                         metadata: Arc::new(metadata.clone()),
                     },
                 )
@@ -1502,6 +1526,7 @@ pub mod test_helpers {
                     Arc::clone(&object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
+                        file_size_bytes: 33,
                         metadata: Arc::new(metadata.clone()),
                     },
                 )
@@ -1515,6 +1540,7 @@ pub mod test_helpers {
                     Arc::clone(&object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
+                        file_size_bytes: 33,
                         metadata: Arc::new(metadata),
                     },
                 )
@@ -1557,7 +1583,7 @@ pub mod test_helpers {
         assert_eq!(sorted_keys_actual, sorted_keys_expected);
 
         for k in sorted_keys_actual {
-            let md_actual = &actual_files[&k];
+            let md_actual = &actual_files[&k].metadata;
             let md_expected = &expected_files[&k];
 
             let iox_md_actual = md_actual.read_iox_metadata().unwrap();
@@ -2496,6 +2522,7 @@ mod tests {
         let addr = chunk_addr(1337);
         let db_name = &addr.db_name;
         let (_, metadata) = make_metadata(&object_store, "foo", addr.clone()).await;
+        let metadata = Arc::new(metadata);
 
         // use common test as baseline
         let mut trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
@@ -2526,10 +2553,13 @@ mod tests {
         {
             let mut transaction = catalog.open_transaction().await;
             let path = parsed_path!("last_one");
-            state
-                .parquet_files
-                .insert(path.clone(), Arc::new(metadata.clone()));
-            transaction.add_parquet(&path, &metadata).unwrap();
+            let info = CatalogParquetInfo {
+                path,
+                file_size_bytes: 33,
+                metadata: Arc::clone(&metadata),
+            };
+            state.parquet_files.insert(info.path.clone(), info.clone());
+            transaction.add_parquet(&info).unwrap();
             let ckpt_handle = transaction.commit().await.unwrap();
             ckpt_handle
                 .create_checkpoint(state.checkpoint_data())
@@ -2581,8 +2611,8 @@ mod tests {
     fn get_catalog_parquet_files(state: &TestCatalogState) -> Vec<(String, IoxParquetMetaData)> {
         let mut files: Vec<(String, IoxParquetMetaData)> = state
             .parquet_files
-            .iter()
-            .map(|(path, md)| (path.display(), md.as_ref().clone()))
+            .values()
+            .map(|info| (info.path.display(), info.metadata.as_ref().clone()))
             .collect();
         files.sort_by_key(|(path, _)| path.clone());
         files
@@ -2697,7 +2727,9 @@ mod tests {
 
         // get some test metadata
         let (_, metadata1) = make_metadata(object_store, "foo", chunk_addr(1)).await;
+        let metadata1 = Arc::new(metadata1);
         let (_, metadata2) = make_metadata(object_store, "bar", chunk_addr(1)).await;
+        let metadata2 = Arc::new(metadata2);
 
         // track all the intermediate results
         let mut trace = TestTrace::new();
@@ -2712,28 +2744,40 @@ mod tests {
             let mut t = catalog.open_transaction().await;
 
             let path = parsed_path!("test1");
-            state
-                .parquet_files
-                .insert(path.clone(), Arc::new(metadata1.clone()));
-            t.add_parquet(&path, &metadata1).unwrap();
+            let info = CatalogParquetInfo {
+                path,
+                file_size_bytes: 33,
+                metadata: Arc::clone(&metadata1),
+            };
+            state.parquet_files.insert(info.path.clone(), info.clone());
+            t.add_parquet(&info).unwrap();
 
             let path = parsed_path!(["sub1"], "test1");
-            state
-                .parquet_files
-                .insert(path.clone(), Arc::new(metadata2.clone()));
-            t.add_parquet(&path, &metadata2).unwrap();
+            let info = CatalogParquetInfo {
+                path,
+                file_size_bytes: 33,
+                metadata: Arc::clone(&metadata2),
+            };
+            state.parquet_files.insert(info.path.clone(), info.clone());
+            t.add_parquet(&info).unwrap();
 
             let path = parsed_path!(["sub1"], "test2");
-            state
-                .parquet_files
-                .insert(path.clone(), Arc::new(metadata2.clone()));
-            t.add_parquet(&path, &metadata2).unwrap();
+            let info = CatalogParquetInfo {
+                path,
+                file_size_bytes: 33,
+                metadata: Arc::clone(&metadata2),
+            };
+            state.parquet_files.insert(info.path.clone(), info.clone());
+            t.add_parquet(&info).unwrap();
 
             let path = parsed_path!(["sub2"], "test1");
-            state
-                .parquet_files
-                .insert(path.clone(), Arc::new(metadata1.clone()));
-            t.add_parquet(&path, &metadata1).unwrap();
+            let info = CatalogParquetInfo {
+                path,
+                file_size_bytes: 33,
+                metadata: Arc::clone(&metadata1),
+            };
+            state.parquet_files.insert(info.path.clone(), info.clone());
+            t.add_parquet(&info).unwrap();
 
             t.commit().await.unwrap();
         }
@@ -2741,10 +2785,10 @@ mod tests {
         assert_catalog_parquet_files(
             &state,
             &[
-                ("sub1/test1".to_string(), metadata2.clone()),
-                ("sub1/test2".to_string(), metadata2.clone()),
-                ("sub2/test1".to_string(), metadata1.clone()),
-                ("test1".to_string(), metadata1.clone()),
+                ("sub1/test1".to_string(), metadata2.as_ref().clone()),
+                ("sub1/test2".to_string(), metadata2.as_ref().clone()),
+                ("sub2/test1".to_string(), metadata1.as_ref().clone()),
+                ("test1".to_string(), metadata1.as_ref().clone()),
             ],
         );
         trace.record(&catalog, &state, false);
@@ -2755,14 +2799,17 @@ mod tests {
 
             // "real" modifications
             let path = parsed_path!("test4");
-            state
-                .parquet_files
-                .insert(path.clone(), Arc::new(metadata1.clone()));
-            t.add_parquet(&path, &metadata1).unwrap();
+            let info = CatalogParquetInfo {
+                path,
+                file_size_bytes: 33,
+                metadata: Arc::clone(&metadata1),
+            };
+            state.parquet_files.insert(info.path.clone(), info.clone());
+            t.add_parquet(&info).unwrap();
 
             let path = parsed_path!("test1");
             state.parquet_files.remove(&path);
-            t.remove_parquet(&path).unwrap();
+            t.remove_parquet(&path);
 
             t.commit().await.unwrap();
         }
@@ -2770,10 +2817,10 @@ mod tests {
         assert_catalog_parquet_files(
             &state,
             &[
-                ("sub1/test1".to_string(), metadata2.clone()),
-                ("sub1/test2".to_string(), metadata2.clone()),
-                ("sub2/test1".to_string(), metadata1.clone()),
-                ("test4".to_string(), metadata1.clone()),
+                ("sub1/test1".to_string(), metadata2.as_ref().clone()),
+                ("sub1/test2".to_string(), metadata2.as_ref().clone()),
+                ("sub2/test1".to_string(), metadata1.as_ref().clone()),
+                ("test4".to_string(), metadata1.as_ref().clone()),
             ],
         );
         trace.record(&catalog, &state, false);
@@ -2782,8 +2829,14 @@ mod tests {
         {
             let mut t = catalog.open_transaction().await;
 
-            t.add_parquet(&parsed_path!("test5"), &metadata1).unwrap();
-            t.remove_parquet(&parsed_path!(["sub1"], "test2")).unwrap();
+            let info = CatalogParquetInfo {
+                path: parsed_path!("test5"),
+                file_size_bytes: 33,
+                metadata: Arc::clone(&metadata1),
+            };
+
+            t.add_parquet(&info).unwrap();
+            t.remove_parquet(&parsed_path!(["sub1"], "test2"));
 
             // NO commit here!
         }
@@ -2791,10 +2844,10 @@ mod tests {
         assert_catalog_parquet_files(
             &state,
             &[
-                ("sub1/test1".to_string(), metadata2.clone()),
-                ("sub1/test2".to_string(), metadata2.clone()),
-                ("sub2/test1".to_string(), metadata1.clone()),
-                ("test4".to_string(), metadata1.clone()),
+                ("sub1/test1".to_string(), metadata2.as_ref().clone()),
+                ("sub1/test2".to_string(), metadata2.as_ref().clone()),
+                ("sub2/test1".to_string(), metadata1.as_ref().clone()),
+                ("test4".to_string(), metadata1.as_ref().clone()),
             ],
         );
         trace.record(&catalog, &state, true);

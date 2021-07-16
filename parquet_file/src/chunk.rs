@@ -14,7 +14,6 @@ use internal_types::{
 use object_store::{path::Path, ObjectStore};
 use query::predicate::Predicate;
 
-use metrics::GaugeValue;
 use std::mem;
 
 #[derive(Debug, Snafu)]
@@ -61,9 +60,9 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
+#[allow(missing_copy_implementations)]
 pub struct ChunkMetrics {
-    /// keep track of memory used by chunk
-    memory_bytes: GaugeValue,
+    // Placeholder
 }
 
 impl ChunkMetrics {
@@ -72,13 +71,11 @@ impl ChunkMetrics {
     /// will therefore not be visible to other ChunkMetrics instances or metric instruments
     /// created on a metrics domain, and vice versa
     pub fn new_unregistered() -> Self {
-        Self {
-            memory_bytes: GaugeValue::new_unregistered(),
-        }
+        Self {}
     }
 
-    pub fn new(_metrics: &metrics::Domain, memory_bytes: GaugeValue) -> Self {
-        Self { memory_bytes }
+    pub fn new(_metrics: &metrics::Domain) -> Self {
+        Self {}
     }
 }
 
@@ -105,6 +102,9 @@ pub struct ParquetChunk {
     /// id>/<tablename>.parquet
     object_store_path: Path,
 
+    /// Size of the data, in object store
+    file_size_bytes: usize,
+
     /// Parquet metadata that can be used checkpoint the catalog state.
     parquet_metadata: Arc<IoxParquetMetaData>,
 
@@ -116,6 +116,7 @@ impl ParquetChunk {
     pub fn new(
         file_location: Path,
         store: Arc<ObjectStore>,
+        file_size_bytes: usize,
         parquet_metadata: Arc<IoxParquetMetaData>,
         metrics: ChunkMetrics,
     ) -> Result<Self> {
@@ -139,36 +140,37 @@ impl ParquetChunk {
             schema,
             file_location,
             store,
+            file_size_bytes,
             parquet_metadata,
             metrics,
         ))
     }
 
     /// Creates a new chunk from given parts w/o parsing anything from the provided parquet metadata.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_from_parts(
         partition_key: Arc<str>,
         table_summary: Arc<TableSummary>,
         schema: Arc<Schema>,
         file_location: Path,
         store: Arc<ObjectStore>,
+        file_size_bytes: usize,
         parquet_metadata: Arc<IoxParquetMetaData>,
         metrics: ChunkMetrics,
     ) -> Self {
         let timestamp_range = extract_range(&table_summary);
 
-        let mut chunk = Self {
+        Self {
             partition_key,
             table_summary,
             schema,
             timestamp_range,
             object_store: store,
             object_store_path: file_location,
+            file_size_bytes,
             parquet_metadata,
             metrics,
-        };
-
-        chunk.metrics.memory_bytes.set(chunk.size());
-        chunk
+        }
     }
 
     /// Return the chunk's partition key
@@ -255,6 +257,11 @@ impl ParquetChunk {
     /// The total number of rows in all row groups in this chunk.
     pub fn rows(&self) -> usize {
         self.parquet_metadata.row_count()
+    }
+
+    /// Size of the parquet file in object store
+    pub fn file_size_bytes(&self) -> usize {
+        self.file_size_bytes
     }
 
     /// Parquet metadata from the underlying file.

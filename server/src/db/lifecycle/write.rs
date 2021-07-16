@@ -1,6 +1,10 @@
 //! This module contains the code to write chunks to the object store
 use crate::db::{
-    catalog::chunk::{CatalogChunk, ChunkStage},
+    catalog::{
+        chunk::{CatalogChunk, ChunkStage},
+        partition::Partition,
+        Catalog,
+    },
     checkpoint_data_from_catalog,
     lifecycle::LockableCatalogChunk,
     DbChunk,
@@ -14,34 +18,41 @@ use internal_types::selection::Selection;
 use object_store::path::parsed::DirsAndFileName;
 use observability_deps::tracing::{debug, warn};
 use parquet_file::{
+    catalog::CatalogParquetInfo,
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
     metadata::IoxMetadata,
     storage::Storage,
 };
-use persistence_windows::checkpoint::{
-    DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder,
+use persistence_windows::{
+    checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder},
+    persistence_windows::FlushHandle,
 };
 use query::QueryChunk;
 use snafu::ResultExt;
-use std::{collections::BTreeMap, future::Future, sync::Arc};
+use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
-use super::error::{
-    CommitError, Error, ParquetChunkError, Result, TransactionError, WritingToObjectStore,
+use super::{
+    error::{
+        CommitError, Error, ParquetChunkError, Result, TransactionError, WritingToObjectStore,
+    },
+    LockableCatalogPartition,
 };
 
 /// The implementation for writing a chunk to the object store
 ///
 /// Returns a future registered with the tracker registry, and the corresponding tracker
 /// The caller can either spawn this future to tokio, or block directly on it
-pub fn write_chunk_to_object_store(
-    mut guard: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>,
+pub(super) fn write_chunk_to_object_store(
+    partition: LifecycleWriteGuard<'_, Partition, LockableCatalogPartition>,
+    mut chunk: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>,
+    flush_handle: FlushHandle,
 ) -> Result<(
     TaskTracker<Job>,
     TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
 )> {
-    let db = Arc::clone(&guard.data().db);
-    let addr = guard.addr().clone();
+    let db = Arc::clone(&chunk.data().db);
+    let addr = chunk.addr().clone();
 
     // TODO: Use ChunkAddr within Job
     let (tracker, registration) = db.jobs.register(Job::WriteChunk {
@@ -52,13 +63,14 @@ pub fn write_chunk_to_object_store(
     });
 
     // update the catalog to say we are processing this chunk and
-    guard.set_writing_to_object_store(&registration)?;
-    let db_chunk = DbChunk::snapshot(&*guard);
+    chunk.set_writing_to_object_store(&registration)?;
+    let db_chunk = DbChunk::snapshot(&*chunk);
 
-    debug!(chunk=%guard.addr(), "chunk marked WRITING , loading tables into object store");
+    debug!(chunk=%chunk.addr(), "chunk marked WRITING , loading tables into object store");
 
     // Drop locks
-    let chunk = guard.unwrap().chunk;
+    let chunk = chunk.into_data().chunk;
+    let partition = partition.into_data().partition;
 
     // Create a storage to save data of this chunk
     let storage = Storage::new(Arc::clone(&db.store), db.server_id);
@@ -72,6 +84,9 @@ pub fn write_chunk_to_object_store(
 
     let fut = async move {
         debug!(chunk=%addr, "loading table to object store");
+
+        let (partition_checkpoint, database_checkpoint) =
+            collect_checkpoints(flush_handle.checkpoint(), &db.catalog);
 
         // Get RecordBatchStream of data from the read buffer chunk
         let stream = db_chunk
@@ -100,11 +115,6 @@ pub fn write_chunk_to_object_store(
             //
             // IMPORTANT: Writing must take place while holding the cleanup lock, otherwise the file might be deleted
             //            between creation and the transaction commit.
-            let (partition_checkpoint, database_checkpoint) =
-                fake_partition_and_database_checkpoint(
-                    Arc::clone(&addr.table_name),
-                    Arc::clone(&addr.partition_key),
-                );
             let metadata = IoxMetadata {
                 creation_timestamp: Utc::now(),
                 table_name: Arc::clone(&addr.table_name),
@@ -113,7 +123,7 @@ pub fn write_chunk_to_object_store(
                 partition_checkpoint,
                 database_checkpoint,
             };
-            let (path, parquet_metadata) = storage
+            let (path, file_size_bytes, parquet_metadata) = storage
                 .write_to_object_store(addr, stream, metadata)
                 .await
                 .context(WritingToObjectStore)?;
@@ -123,12 +133,12 @@ pub fn write_chunk_to_object_store(
                 .catalog
                 .metrics_registry
                 .register_domain_with_labels("parquet", db.catalog.metric_labels.clone());
-            let metrics =
-                ParquetChunkMetrics::new(&metrics, db.catalog.metrics().memory().parquet());
+            let metrics = ParquetChunkMetrics::new(&metrics);
             let parquet_chunk = Arc::new(
                 ParquetChunk::new(
                     path.clone(),
                     Arc::clone(&db.store),
+                    file_size_bytes,
                     Arc::clone(&parquet_metadata),
                     metrics,
                 )
@@ -142,9 +152,12 @@ pub fn write_chunk_to_object_store(
             //            cleanup lock (see above) it is ensured that the file that we have written is not deleted
             //            in between.
             let mut transaction = db.preserved_catalog.open_transaction().await;
-            transaction
-                .add_parquet(&path, &parquet_metadata)
-                .context(TransactionError)?;
+            let info = CatalogParquetInfo {
+                path,
+                file_size_bytes,
+                metadata: parquet_metadata,
+            };
+            transaction.add_parquet(&info).context(TransactionError)?;
 
             // preserved commit
             let ckpt_handle = transaction.commit().await.context(CommitError)?;
@@ -177,6 +190,15 @@ pub fn write_chunk_to_object_store(
             }
         }
 
+        {
+            // Flush persisted data from persistence windows
+            let mut partition = partition.write();
+            partition
+                .persistence_windows_mut()
+                .expect("persistence windows removed")
+                .flush(flush_handle);
+        }
+
         // We know this chunk is ParquetFile type
         let chunk = chunk.read();
         Ok(DbChunk::parquet_file_snapshot(&chunk))
@@ -185,22 +207,31 @@ pub fn write_chunk_to_object_store(
     Ok((tracker, fut.track(registration)))
 }
 
-/// Fake until we have the split implementation in-place.
-fn fake_partition_and_database_checkpoint(
-    table_name: Arc<str>,
-    partition_key: Arc<str>,
+/// Construct database checkpoint for the given partition checkpoint in the given catalog.
+fn collect_checkpoints(
+    partition_checkpoint: PartitionCheckpoint,
+    catalog: &Catalog,
 ) -> (PartitionCheckpoint, DatabaseCheckpoint) {
-    // create partition checkpoint
-    let sequencer_numbers = BTreeMap::new();
-    let min_unpersisted_timestamp = Utc::now();
-    let partition_checkpoint = PartitionCheckpoint::new(
-        table_name,
-        partition_key,
-        sequencer_numbers,
-        min_unpersisted_timestamp,
-    );
+    // remember partition data
+    let table_name = Arc::clone(partition_checkpoint.table_name());
+    let partition_key = Arc::clone(partition_checkpoint.partition_key());
 
-    // build database checkpoint
-    let builder = PersistCheckpointBuilder::new(partition_checkpoint);
-    builder.build()
+    // calculate checkpoint
+    let mut checkpoint_builder = PersistCheckpointBuilder::new(partition_checkpoint);
+
+    // collect checkpoints of all other partitions
+    if let Ok(table) = catalog.table(table_name) {
+        for partition in table.partitions() {
+            let partition = partition.read();
+            if partition.key() == partition_key.as_ref() {
+                continue;
+            }
+
+            if let Some(partition_checkpoint) = partition.partition_checkpoint() {
+                checkpoint_builder.register_other_partition(&partition_checkpoint);
+            }
+        }
+    }
+
+    checkpoint_builder.build()
 }

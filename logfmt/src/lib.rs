@@ -1,4 +1,4 @@
-#![deny(broken_intra_doc_links, rust_2018_idioms)]
+#![deny(broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 
 use observability_deps::{
     tracing::{
@@ -17,7 +17,7 @@ use std::{io::Write, time::SystemTime};
 ///
 /// At time of writing, I could find no good existing crate
 ///
-/// https://github.com/mcountryman/logfmt_logger from @mcountryman
+/// <https://github.com/mcountryman/logfmt_logger> from @mcountryman
 /// looked very small and did not (obviously) work with the tracing subscriber
 ///
 /// [logfmt]: https://brandur.org/logfmt

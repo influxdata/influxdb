@@ -41,7 +41,7 @@ use internal_types::schema::TIME_DATA_TYPE;
 /// Returns a DataFusion user defined aggregate function for computing
 /// one field of the first() selector function.
 ///
-/// Note that until https://issues.apache.org/jira/browse/ARROW-10945
+/// Note that until <https://issues.apache.org/jira/browse/ARROW-10945>
 /// is fixed, selector functions must be computed using two separate
 /// function calls, one each for the value and time part
 ///
@@ -71,7 +71,7 @@ pub fn selector_first(data_type: &DataType, output: SelectorOutput) -> Aggregate
 /// Returns a DataFusion user defined aggregate function for computing
 /// one field of the last() selector function.
 ///
-/// Note that until https://issues.apache.org/jira/browse/ARROW-10945
+/// Note that until <https://issues.apache.org/jira/browse/ARROW-10945>
 /// is fixed, selector functions must be computed using two separate
 /// function calls, one each for the value and time part
 ///
@@ -101,7 +101,7 @@ pub fn selector_last(data_type: &DataType, output: SelectorOutput) -> AggregateU
 /// Returns a DataFusion user defined aggregate function for computing
 /// one field of the min() selector function.
 ///
-/// Note that until https://issues.apache.org/jira/browse/ARROW-10945
+/// Note that until <https://issues.apache.org/jira/browse/ARROW-10945>
 /// is fixed, selector functions must be computed using two separate
 /// function calls, one each for the value and time part
 ///
@@ -131,7 +131,7 @@ pub fn selector_min(data_type: &DataType, output: SelectorOutput) -> AggregateUD
 /// Returns a DataFusion user defined aggregate function for computing
 /// one field of the max() selector function.
 ///
-/// Note that until https://issues.apache.org/jira/browse/ARROW-10945
+/// Note that until <https://issues.apache.org/jira/browse/ARROW-10945>
 /// is fixed, selector functions must be computed using two separate
 /// function calls, one each for the value and time part
 ///

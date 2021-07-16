@@ -83,7 +83,7 @@ OBSERVER;
 Example SQL to show the total estimated storage size by database:
 
 SELECT database_name, storage, count(*) as num_chunks,
-  sum(estimated_bytes)/1024/1024 as estimated_mb
+  sum(memory_bytes)/1024/1024 as estimated_mb
 FROM chunks
 GROUP BY database_name, storage
 ORDER BY estimated_mb desc;

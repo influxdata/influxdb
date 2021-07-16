@@ -5,11 +5,13 @@ use crate::db::catalog::metrics::PartitionMetrics;
 use chrono::{DateTime, Utc};
 use data_types::{
     chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkSummary},
-    partition_metadata::PartitionSummary,
+    partition_metadata::{PartitionAddr, PartitionSummary},
 };
 use internal_types::schema::Schema;
 use observability_deps::tracing::info;
-use persistence_windows::persistence_windows::PersistenceWindows;
+use persistence_windows::{
+    checkpoint::PartitionCheckpoint, persistence_windows::PersistenceWindows,
+};
 use snafu::Snafu;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
@@ -41,14 +43,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// A partition contains multiple Chunks for a given table
 #[derive(Debug)]
 pub struct Partition {
-    /// Database name
-    db_name: Arc<str>,
-
-    /// The partition key
-    partition_key: Arc<str>,
-
-    /// The table name
-    table_name: Arc<str>,
+    addr: PartitionAddr,
 
     /// The chunks that make up this partition, indexed by id
     chunks: BTreeMap<u32, Arc<RwLock<CatalogChunk>>>,
@@ -75,17 +70,10 @@ impl Partition {
     ///
     /// This function is not pub because `Partition`s should be created using the interfaces on
     /// [`Catalog`](crate::db::catalog::Catalog) and not instantiated directly.
-    pub(super) fn new(
-        db_name: Arc<str>,
-        partition_key: Arc<str>,
-        table_name: Arc<str>,
-        metrics: PartitionMetrics,
-    ) -> Self {
+    pub(super) fn new(addr: PartitionAddr, metrics: PartitionMetrics) -> Self {
         let now = Utc::now();
         Self {
-            db_name,
-            partition_key,
-            table_name,
+            addr,
             chunks: Default::default(),
             created_at: now,
             last_write_at: now,
@@ -95,19 +83,24 @@ impl Partition {
         }
     }
 
+    /// Return the address of this Partition
+    pub fn addr(&self) -> &PartitionAddr {
+        &self.addr
+    }
+
     /// Return the db name of this Partition
     pub fn db_name(&self) -> &str {
-        &self.db_name
+        &self.addr.db_name
     }
 
     /// Return the partition_key of this Partition
     pub fn key(&self) -> &str {
-        &self.partition_key
+        &self.addr.partition_key
     }
 
     /// Return the table name of this partition
     pub fn table_name(&self) -> &str {
-        &self.table_name
+        &self.addr.table_name
     }
 
     /// Update the last write time to now
@@ -135,24 +128,16 @@ impl Partition {
         &mut self,
         chunk: mutable_buffer::chunk::MBChunk,
     ) -> Arc<RwLock<CatalogChunk>> {
-        assert_eq!(chunk.table_name().as_ref(), self.table_name.as_ref());
+        assert_eq!(chunk.table_name().as_ref(), self.table_name());
 
         let chunk_id = self.next_chunk_id;
         assert_ne!(self.next_chunk_id, u32::MAX, "Chunk ID Overflow");
         self.next_chunk_id += 1;
 
-        let addr = ChunkAddr {
-            db_name: Arc::clone(&self.db_name),
-            table_name: Arc::clone(&self.table_name),
-            partition_key: Arc::clone(&self.partition_key),
-            chunk_id,
-        };
+        let addr = ChunkAddr::new(&self.addr, chunk_id);
 
-        let chunk = Arc::new(self.metrics.new_chunk_lock(CatalogChunk::new_open(
-            addr,
-            chunk,
-            self.metrics.new_chunk_metrics(),
-        )));
+        let chunk = CatalogChunk::new_open(addr, chunk, self.metrics.new_chunk_metrics());
+        let chunk = Arc::new(self.metrics.new_chunk_lock(chunk));
 
         if self.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
             // A fundamental invariant has been violated - abort
@@ -172,12 +157,7 @@ impl Partition {
         assert_ne!(self.next_chunk_id, u32::MAX, "Chunk ID Overflow");
         self.next_chunk_id += 1;
 
-        let addr = ChunkAddr {
-            db_name: Arc::clone(&self.db_name),
-            table_name: Arc::clone(&self.table_name),
-            partition_key: Arc::clone(&self.partition_key),
-            chunk_id,
-        };
+        let addr = ChunkAddr::new(&self.addr, chunk_id);
         info!(%addr, row_count=chunk.rows(), "inserting RUB chunk to catalog");
 
         let chunk = Arc::new(self.metrics.new_chunk_lock(CatalogChunk::new_rub_chunk(
@@ -204,14 +184,9 @@ impl Partition {
         chunk_id: u32,
         chunk: Arc<parquet_file::chunk::ParquetChunk>,
     ) -> Arc<RwLock<CatalogChunk>> {
-        assert_eq!(chunk.table_name(), self.table_name.as_ref());
+        assert_eq!(chunk.table_name(), self.table_name());
 
-        let addr = ChunkAddr {
-            db_name: Arc::clone(&self.db_name),
-            table_name: Arc::clone(&self.table_name),
-            partition_key: Arc::clone(&self.partition_key),
-            chunk_id,
-        };
+        let addr = ChunkAddr::new(&self.addr, chunk_id);
 
         let chunk = Arc::new(
             self.metrics
@@ -233,21 +208,18 @@ impl Partition {
     pub fn drop_chunk(&mut self, chunk_id: u32) -> Result<Arc<RwLock<CatalogChunk>>> {
         match self.chunks.entry(chunk_id) {
             Entry::Vacant(_) => Err(Error::ChunkNotFound {
-                chunk: ChunkAddr {
-                    db_name: Arc::clone(&self.db_name),
-                    table_name: Arc::clone(&self.table_name),
-                    partition_key: Arc::clone(&self.partition_key),
-                    chunk_id,
-                },
+                chunk: ChunkAddr::new(&self.addr, chunk_id),
             }),
             Entry::Occupied(occupied) => {
                 {
                     let chunk = occupied.get().read();
                     if let Some(action) = chunk.lifecycle_action() {
-                        return Err(Error::LifecycleInProgress {
-                            chunk: chunk.addr().clone(),
-                            action: *action.metadata(),
-                        });
+                        if action.metadata() != &ChunkLifecycleAction::Dropping {
+                            return Err(Error::LifecycleInProgress {
+                                chunk: chunk.addr().clone(),
+                                action: *action.metadata(),
+                            });
+                        }
                     }
                 }
                 Ok(occupied.remove())
@@ -289,7 +261,7 @@ impl Partition {
     /// Return a PartitionSummary for this partition
     pub fn summary(&self) -> PartitionSummary {
         PartitionSummary::from_table_summaries(
-            self.partition_key.to_string(),
+            self.addr.partition_key.to_string(),
             self.chunks
                 .values()
                 .map(|x| x.read().table_summary().as_ref().clone()),
@@ -301,29 +273,37 @@ impl Partition {
         self.chunks().map(|x| x.read().summary())
     }
 
+    /// Return reference to partition-specific metrics.
     pub fn metrics(&self) -> &PartitionMetrics {
         &self.metrics
     }
 
+    /// Return immutable reference to current persistence window, if any.
     pub fn persistence_windows(&self) -> Option<&PersistenceWindows> {
         self.persistence_windows.as_ref()
     }
 
+    /// Return mutable reference to current persistence window, if any.
     pub fn persistence_windows_mut(&mut self) -> Option<&mut PersistenceWindows> {
         self.persistence_windows.as_mut()
     }
 
+    /// Set persistence window to new value.
     pub fn set_persistence_windows(&mut self, windows: PersistenceWindows) {
         self.persistence_windows = Some(windows);
+    }
+
+    /// Construct partition checkpoint out of contained persistence window, if any.
+    pub fn partition_checkpoint(&self) -> Option<PartitionCheckpoint> {
+        self.persistence_windows
+            .as_ref()
+            .map(|persistence_windows| persistence_windows.checkpoint())
+            .flatten()
     }
 }
 
 impl Display for Partition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Partition {}:{}:{}",
-            self.db_name, self.table_name, self.partition_key
-        )
+        self.addr.fmt(f)
     }
 }

@@ -35,11 +35,10 @@ pub struct ChunkSnapshot {
     batch: RecordBatch,
     table_name: Arc<str>,
     stats: Vec<ColumnSummary>,
-    memory: metrics::GaugeValue,
 }
 
 impl ChunkSnapshot {
-    pub(crate) fn new(chunk: &MBChunk, memory: metrics::GaugeValue) -> Self {
+    pub(crate) fn new(chunk: &MBChunk) -> Self {
         let schema = chunk
             .schema(Selection::All)
             .log_if_error("ChunkSnapshot getting table schema")
@@ -52,15 +51,12 @@ impl ChunkSnapshot {
 
         let summary = chunk.table_summary();
 
-        let mut s = Self {
+        Self {
             schema: Arc::new(schema),
             batch,
             table_name: Arc::clone(&chunk.table_name),
             stats: summary.columns,
-            memory,
-        };
-        s.memory.set(s.size());
-        s
+        }
     }
 
     /// Return Schema for all columns in this snapshot

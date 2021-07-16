@@ -25,11 +25,11 @@ use std::{
     },
 };
 use tokio::sync::Semaphore;
+use write_buffer::config::WriteBufferConfig;
 
 use crate::{
     config::{object_store_path_for_database_config, Config, DatabaseHandle, DB_RULES_FILE_NAME},
     db::load::load_or_create_preserved_catalog,
-    write_buffer::WriteBufferConfig,
     DatabaseError,
 };
 
@@ -144,7 +144,7 @@ pub struct InitStatus {
 
     /// Automatic wipe-on-error recovery
     ///
-    /// See https://github.com/influxdata/influxdb_iox/issues/1522)
+    /// See <https://github.com/influxdata/influxdb_iox/issues/1522>
     pub(crate) wipe_on_error: AtomicBool,
 }
 
@@ -535,6 +535,7 @@ impl InitStatus {
                         config: rules.write_buffer_connection.clone(),
                     },
                 )?;
+                info!(write_buffer_enabled=?write_buffer.is_some(), db_name=rules.db_name(), "write buffer config");
 
                 handle
                     .advance_replay(preserved_catalog, catalog, write_buffer)
@@ -621,13 +622,13 @@ fn db_name_from_rules_path(path: &Path) -> Result<DatabaseName<'static>> {
 
 #[cfg(test)]
 mod tests {
-    use object_store::{memory::InMemory, path::ObjectStorePath};
+    use object_store::path::ObjectStorePath;
 
     use super::*;
 
     #[tokio::test]
     async fn test_get_database_config_bytes() {
-        let object_store = ObjectStore::new_in_memory(InMemory::new());
+        let object_store = ObjectStore::new_in_memory();
         let mut rules_path = object_store.new_path();
         rules_path.push_all_dirs(&["1", "foo_bar"]);
         rules_path.set_file_name("rules.pb");

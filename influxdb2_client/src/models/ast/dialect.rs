@@ -2,7 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Dialect are options to change the default CSV output format; https://www.w3.org/TR/2015/REC-tabular-metadata-20151217/#dialect-descriptions
+/// Dialect are options to change the default CSV output format;
+/// <https://www.w3.org/TR/2015/REC-tabular-metadata-20151217/#dialect-descriptions>
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Dialect {
@@ -12,7 +13,7 @@ pub struct Dialect {
     /// Separator between cells; the default is ,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delimiter: Option<String>,
-    /// https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns
+    /// <https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub annotations: Option<Annotations>,
     /// Character prefixed to comment strings
@@ -24,13 +25,14 @@ pub struct Dialect {
 }
 
 impl Dialect {
-    /// Dialect are options to change the default CSV output format; https://www.w3.org/TR/2015/REC-tabular-metadata-20151217/#dialect-descriptions
+    /// Dialect are options to change the default CSV output format;
+    /// <https://www.w3.org/TR/2015/REC-tabular-metadata-20151217/#dialect-descriptions>
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-/// https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns
+/// <https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns>
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Annotations {

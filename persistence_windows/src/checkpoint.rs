@@ -27,8 +27,8 @@
 //! #         self.id
 //! #     }
 //! #
-//! #     fn checkpoint_and_split(&mut self) -> PartitionCheckpoint {
-//! #         self.get_checkpoint()
+//! #     fn prepare_persist(&mut self) -> FlushHandle {
+//! #         FlushHandle {}
 //! #     }
 //! #
 //! #     fn get_checkpoint(&self) -> PartitionCheckpoint {
@@ -40,6 +40,20 @@
 //! #         )
 //! #     }
 //! # }
+//! #
+//! # struct FlushHandle {}
+//! #
+//! # impl FlushHandle {
+//! #     fn checkpoint(&self) -> PartitionCheckpoint {
+//! #          PartitionCheckpoint::new(
+//! #             Arc::from("table"),
+//! #             Arc::from("part"),
+//! #             Default::default(),
+//! #             Utc::now(),
+//! #         )
+//! #     }
+//! # }
+//! #
 //! #
 //! # struct Db {
 //! #     partitions: Vec<Arc<RwLock<Partition>>>,
@@ -68,33 +82,27 @@
 //! // get partition write lock
 //! let mut write_guard = to_persist.write().unwrap();
 //!
-//! // get checkpoints BEFORE doing any splits
-//! let partition_checkpoint: PartitionCheckpoint = write_guard.checkpoint_and_split();
-
+//! // prepare the persistence transaction
+//! let handle = write_guard.prepare_persist();
+//!
 //! // remember to-be-persisted partition ID
 //! let id = write_guard.id();
 //!
-//! // drop write guard before we iterate over all partitions
+//! // drop write guard - flush handle ensures the persistence windows
+//! // are protected from modification
 //! std::mem::drop(write_guard);
 //!
-//! // fold in other partitions
-//! let mut builder = PersistCheckpointBuilder::new(partition_checkpoint.clone());
+//! // Perform other operations, e.g. split
+//!
+//! // Compute checkpoint
+//! let mut builder = PersistCheckpointBuilder::new(handle.checkpoint());
 //! for partition in db.partitions() {
 //!     // get read guard
 //!     let read_guard = partition.read().unwrap();
 //!
 //!     // check if this is the partition that we are about to persist
-//!     if read_guard.id() == id {
-//!         // this is the to-be-persisted partition
-//!
-//!         // We don't have to register the partition checkpoint, since this was already done
-//!         // during the `PersistCheckpointBuilder::new` call above. However if we still want
-//!         // to do that, it is important to not register the old (= pre-modification)
-//!         // checkpoint but the new (= post-modification) checkpoint.
-//!         builder.register_other_partition(&partition_checkpoint);
-//!     } else {
+//!     if read_guard.id() != id {
 //!         // this is another partition
-//!
 //!         // fold in checkpoint
 //!         builder.register_other_partition(&read_guard.get_checkpoint());
 //!     }
@@ -333,7 +341,7 @@ impl DatabaseCheckpoint {
 /// Builder that helps with recording checkpoints from persistence windows during the persistence phase.
 #[derive(Debug)]
 pub struct PersistCheckpointBuilder {
-    /// Checkpoint for the to-be-persited partition.
+    /// Checkpoint for the to-be-persisted partition.
     partition_checkpoint: PartitionCheckpoint,
 
     /// Database-wide checkpoint.
@@ -344,7 +352,7 @@ pub struct PersistCheckpointBuilder {
 }
 
 impl PersistCheckpointBuilder {
-    /// Create new builder from the persistence window of the to-be-peristed partition.
+    /// Create new builder from the persistence window of the to-be-persisted partition.
     pub fn new(partition_checkpoint: PartitionCheckpoint) -> Self {
         // database-wide checkpoint also includes the to-be-persisted partition
         let database_checkpoint = DatabaseCheckpoint {
@@ -509,8 +517,8 @@ impl ReplayPlanner {
                     return Err(Error::PartitionCheckpointMinimumBeforeDatabase {
                         partition_checkpoint_sequence_number: min_max.min(),
                         database_checkpoint_sequence_number: database_wide_min_max.min(),
-                        table_name: table_name.clone(),
-                        partition_key: partition_key.clone(),
+                        table_name: Arc::clone(table_name),
+                        partition_key: Arc::clone(partition_key),
                     });
                 }
             }

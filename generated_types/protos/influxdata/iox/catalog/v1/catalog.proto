@@ -25,6 +25,9 @@ message AddParquet {
     // Path of the file within the object store.
     Path path = 1;
 
+    // The total size of the parquet file, in bytes
+    uint64 file_size_bytes = 3;
+
     // [Apache Parquet] metadata encoded using [Apache Thrift].
     //
     // The metadata is encoded using the [Thrift Compact Protocol].

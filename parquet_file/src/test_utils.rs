@@ -21,7 +21,7 @@ use internal_types::{
     schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME},
     selection::Selection,
 };
-use object_store::{memory::InMemory, path::Path, ObjectStore, ObjectStoreApi};
+use object_store::{path::Path, ObjectStore, ObjectStoreApi};
 use parquet::{
     arrow::{ArrowReader, ParquetFileArrowReader},
     file::serialized_reader::{SerializedFileReader, SliceableCursor},
@@ -162,7 +162,7 @@ pub async fn make_chunk_given_record_batch(
         partition_checkpoint,
         database_checkpoint,
     };
-    let (path, parquet_metadata) = storage
+    let (path, file_size_bytes, parquet_metadata) = storage
         .write_to_object_store(addr.clone(), stream, metadata)
         .await
         .unwrap();
@@ -173,6 +173,7 @@ pub async fn make_chunk_given_record_batch(
         Arc::new(schema),
         path,
         Arc::clone(&store),
+        file_size_bytes,
         Arc::new(parquet_metadata),
         ChunkMetrics::new_unregistered(),
     )
@@ -697,7 +698,7 @@ pub fn make_record_batch(
 
 /// Creates new in-memory object store for testing.
 pub fn make_object_store() -> Arc<ObjectStore> {
-    Arc::new(ObjectStore::new_in_memory(InMemory::new()))
+    Arc::new(ObjectStore::new_in_memory())
 }
 
 pub fn read_data_from_parquet_data(schema: SchemaRef, parquet_data: Vec<u8>) -> Vec<RecordBatch> {

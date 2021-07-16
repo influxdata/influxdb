@@ -33,8 +33,14 @@ where
         let db_name = request.db_name;
         let lp_data = request.lp_data;
         let lp_chars = lp_data.len();
+        let mut num_fields = 0;
 
         let lines = parse_lines(&lp_data)
+            .inspect(|line| {
+                if let Ok(line) = line {
+                    num_fields += line.field_set.len();
+                }
+            })
             .collect::<Result<Vec<_>, influxdb_line_protocol::Error>>()
             .map_err(|e| FieldViolation {
                 field: "lp_data".into(),
@@ -42,7 +48,7 @@ where
             })?;
 
         let lp_line_count = lines.len();
-        debug!(%db_name, %lp_chars, lp_line_count, "Writing lines into database");
+        debug!(%db_name, %lp_chars, lp_line_count, body_size=lp_data.len(), num_fields, "Writing lines into database");
 
         self.server
             .write_lines(&db_name, &lines, default_time)

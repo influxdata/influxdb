@@ -13,8 +13,10 @@ use test_helpers::assert_contains;
 use super::scenario::{
     create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
 };
-use crate::common::server_fixture::ServerFixture;
-use data_types::database_rules::DEFAULT_MUTABLE_LINGER_SECONDS;
+use crate::{
+    common::server_fixture::ServerFixture,
+    end_to_end_cases::scenario::{wait_for_exact_chunk_states, DatabaseBuilder},
+};
 use std::time::Instant;
 use tonic::Code;
 
@@ -218,6 +220,7 @@ async fn test_create_get_update_database() {
             worker_backoff_millis: 15,
             persist_row_threshold: 342,
             persist_age_threshold_seconds: 700,
+            mub_row_threshold: 1343,
             ..Default::default()
         }),
         routing_rules: None,
@@ -244,11 +247,6 @@ async fn test_create_get_update_database() {
         ignore_errors: true,
         ..Default::default()
     }));
-    rules.lifecycle_rules = Some(LifecycleRules {
-        mutable_linger_seconds: DEFAULT_MUTABLE_LINGER_SECONDS,
-        ..rules.lifecycle_rules.unwrap()
-    });
-
     let updated_rules = client
         .update_database(rules.clone())
         .await
@@ -269,7 +267,9 @@ async fn test_create_get_update_database() {
 
 #[tokio::test]
 async fn test_chunk_get() {
-    use generated_types::influxdata::iox::management::v1::{Chunk, ChunkStorage};
+    use generated_types::influxdata::iox::management::v1::{
+        Chunk, ChunkLifecycleAction, ChunkStorage,
+    };
 
     let fixture = ServerFixture::create_shared().await;
     let mut management_client = fixture.management_client();
@@ -308,13 +308,17 @@ async fn test_chunk_get() {
 
     let chunks = normalize_chunks(chunks);
 
+    let lifecycle_action = ChunkLifecycleAction::Unspecified.into();
+
     let expected: Vec<Chunk> = vec![
         Chunk {
             partition_key: "cpu".into(),
             table_name: "cpu".into(),
             id: 0,
-            storage: ChunkStorage::OpenMutableBuffer as i32,
-            estimated_bytes: 100,
+            storage: ChunkStorage::OpenMutableBuffer.into(),
+            lifecycle_action,
+            memory_bytes: 100,
+            object_store_bytes: 0,
             row_count: 2,
             time_of_first_write: None,
             time_of_last_write: None,
@@ -324,8 +328,10 @@ async fn test_chunk_get() {
             partition_key: "disk".into(),
             table_name: "disk".into(),
             id: 0,
-            storage: ChunkStorage::OpenMutableBuffer as i32,
-            estimated_bytes: 82,
+            storage: ChunkStorage::OpenMutableBuffer.into(),
+            lifecycle_action,
+            memory_bytes: 82,
+            object_store_bytes: 0,
             row_count: 1,
             time_of_first_write: None,
             time_of_last_write: None,
@@ -492,8 +498,10 @@ async fn test_list_partition_chunks() {
         partition_key: "cpu".into(),
         table_name: "cpu".into(),
         id: 0,
-        storage: ChunkStorage::OpenMutableBuffer as i32,
-        estimated_bytes: 100,
+        storage: ChunkStorage::OpenMutableBuffer.into(),
+        lifecycle_action: ChunkLifecycleAction::Unspecified.into(),
+        memory_bytes: 100,
+        object_store_bytes: 0,
         row_count: 2,
         time_of_first_write: None,
         time_of_last_write: None,
@@ -724,7 +732,7 @@ async fn test_chunk_lifecycle() {
         .create_database(DatabaseRules {
             name: db_name.clone(),
             lifecycle_rules: Some(LifecycleRules {
-                mutable_linger_seconds: 1,
+                late_arrive_window_seconds: 1,
                 ..Default::default()
             }),
             ..Default::default()
@@ -813,7 +821,9 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
                 table_name,
                 id,
                 storage,
-                estimated_bytes,
+                lifecycle_action,
+                memory_bytes,
+                object_store_bytes,
                 row_count,
                 ..
             } = summary;
@@ -822,11 +832,13 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
                 table_name,
                 id,
                 storage,
-                estimated_bytes,
+                lifecycle_action,
                 row_count,
                 time_of_first_write: None,
                 time_of_last_write: None,
                 time_closed: None,
+                memory_bytes,
+                object_store_bytes,
             }
         })
         .collect::<Vec<_>>()
@@ -962,4 +974,61 @@ async fn test_get_server_status_db_error() {
         DatabaseState::from_i32(db_status.state).unwrap(),
         DatabaseState::Known
     );
+}
+
+#[tokio::test]
+async fn test_unload_read_buffer() {
+    use data_types::chunk_metadata::ChunkStorage;
+
+    let fixture = ServerFixture::create_shared().await;
+    let mut write_client = fixture.write_client();
+    let mut management_client = fixture.management_client();
+
+    let db_name = rand_name();
+    DatabaseBuilder::new(db_name.clone())
+        .persist(true)
+        .persist_age_threshold_seconds(1)
+        .late_arrive_window_seconds(1)
+        .build(fixture.grpc_channel())
+        .await;
+
+    let lp_lines: Vec<_> = (0..1_000)
+        .map(|i| format!("data,tag1=val{} x={} {}", i, i * 10, i))
+        .collect();
+
+    let num_lines_written = write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("successful write");
+    assert_eq!(num_lines_written, 1000);
+
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::ReadBufferAndObjectStore],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    let chunk_id = chunks[0].id;
+    let partition_key = &chunks[0].partition_key;
+
+    management_client
+        .unload_partition_chunk(&db_name, "data", &partition_key[..], chunk_id)
+        .await
+        .unwrap();
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    let storage: generated_types::influxdata::iox::management::v1::ChunkStorage =
+        ChunkStorage::ObjectStoreOnly.into();
+    let storage: i32 = storage.into();
+    assert_eq!(chunks[0].storage, storage);
 }

@@ -3,7 +3,7 @@ use std::num::{NonZeroU32, NonZeroU64, NonZeroUsize};
 
 use data_types::database_rules::{
     LifecycleRules, DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT,
-    DEFAULT_LATE_ARRIVE_WINDOW_SECONDS, DEFAULT_MUTABLE_LINGER_SECONDS,
+    DEFAULT_LATE_ARRIVE_WINDOW_SECONDS, DEFAULT_MUB_ROW_THRESHOLD,
     DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS, DEFAULT_PERSIST_ROW_THRESHOLD,
     DEFAULT_WORKER_BACKOFF_MILLIS,
 };
@@ -13,8 +13,8 @@ use crate::influxdata::iox::management::v1 as management;
 
 impl From<LifecycleRules> for management::LifecycleRules {
     fn from(config: LifecycleRules) -> Self {
+        #[allow(deprecated)]
         Self {
-            mutable_linger_seconds: config.mutable_linger_seconds.get(),
             buffer_size_soft: config
                 .buffer_size_soft
                 .map(|x| x.get() as u64)
@@ -33,6 +33,7 @@ impl From<LifecycleRules> for management::LifecycleRules {
             late_arrive_window_seconds: config.late_arrive_window_seconds.get(),
             persist_row_threshold: config.persist_row_threshold.get() as u64,
             persist_age_threshold_seconds: config.persist_age_threshold_seconds.get(),
+            mub_row_threshold: config.mub_row_threshold.get() as u64,
         }
     }
 }
@@ -42,12 +43,6 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
 
     fn try_from(proto: management::LifecycleRules) -> Result<Self, Self::Error> {
         Ok(Self {
-            mutable_linger_seconds: NonZeroU32::new(if proto.mutable_linger_seconds == 0 {
-                DEFAULT_MUTABLE_LINGER_SECONDS
-            } else {
-                proto.mutable_linger_seconds
-            })
-            .unwrap(),
             buffer_size_soft: (proto.buffer_size_soft as usize).try_into().ok(),
             buffer_size_hard: (proto.buffer_size_hard as usize).try_into().ok(),
             drop_non_persisted: proto.drop_non_persisted,
@@ -69,6 +64,8 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
                 }),
             persist_age_threshold_seconds: NonZeroU32::new(proto.persist_age_threshold_seconds)
                 .unwrap_or_else(|| NonZeroU32::new(DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS).unwrap()),
+            mub_row_threshold: NonZeroUsize::new(proto.mub_row_threshold as usize)
+                .unwrap_or_else(|| NonZeroUsize::new(DEFAULT_MUB_ROW_THRESHOLD).unwrap()),
         })
     }
 }
@@ -79,8 +76,8 @@ mod tests {
 
     #[test]
     fn lifecycle_rules() {
+        #[allow(deprecated)]
         let protobuf = management::LifecycleRules {
-            mutable_linger_seconds: 123,
             buffer_size_soft: 353,
             buffer_size_hard: 232,
             drop_non_persisted: true,
@@ -91,15 +88,12 @@ mod tests {
             late_arrive_window_seconds: 23,
             persist_row_threshold: 57,
             persist_age_threshold_seconds: 23,
+            mub_row_threshold: 3454,
         };
 
         let config: LifecycleRules = protobuf.clone().try_into().unwrap();
         let back: management::LifecycleRules = config.clone().into();
 
-        assert_eq!(
-            config.mutable_linger_seconds.get(),
-            protobuf.mutable_linger_seconds
-        );
         assert_eq!(
             config.buffer_size_soft.unwrap().get(),
             protobuf.buffer_size_soft as usize
@@ -111,7 +105,6 @@ mod tests {
         assert_eq!(config.drop_non_persisted, protobuf.drop_non_persisted);
         assert_eq!(config.immutable, protobuf.immutable);
 
-        assert_eq!(back.mutable_linger_seconds, protobuf.mutable_linger_seconds);
         assert_eq!(back.buffer_size_soft, protobuf.buffer_size_soft);
         assert_eq!(back.buffer_size_hard, protobuf.buffer_size_hard);
         assert_eq!(back.drop_non_persisted, protobuf.drop_non_persisted);
@@ -126,6 +119,7 @@ mod tests {
             back.persist_age_threshold_seconds,
             protobuf.persist_age_threshold_seconds
         );
+        assert_eq!(back.mub_row_threshold, protobuf.mub_row_threshold);
     }
 
     #[test]

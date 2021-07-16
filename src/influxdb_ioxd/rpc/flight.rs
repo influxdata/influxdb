@@ -17,7 +17,7 @@ use arrow::{
 use arrow_flight::{
     flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
-    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
+    HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
 use data_types::{DatabaseName, DatabaseNameError};
 use server::{ConnectionManager, Server};
@@ -191,8 +191,7 @@ where
 
         let options = arrow::ipc::writer::IpcWriteOptions::default();
         let schema = Arc::new(optimize_schema(&physical_plan.schema()));
-        let schema_flight_data =
-            arrow_flight::utils::flight_data_from_arrow_schema(&schema, &options);
+        let schema_flight_data = SchemaAsIpc::new(&schema, &options).into();
 
         let mut flights = vec![schema_flight_data];
 
@@ -281,7 +280,7 @@ where
 /// into a smaller buffer while we have to copy stuff around anyway.
 ///
 /// See rationale and discussions about future improvements on
-/// https://github.com/influxdata/influxdb_iox/issues/1133
+/// <https://github.com/influxdata/influxdb_iox/issues/1133>
 fn optimize_record_batch(batch: &RecordBatch, schema: SchemaRef) -> Result<RecordBatch, Error> {
     let max_buf_len = batch
         .columns()

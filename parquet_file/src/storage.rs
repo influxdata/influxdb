@@ -168,23 +168,27 @@ impl Storage {
 
     /// Write the given stream of data of a specified table of
     /// a specified partitioned chunk to a parquet file of this storage
+    ///
+    /// returns the path to which the chunk was written, the size of
+    /// the bytes, and the parquet metadata
     pub async fn write_to_object_store(
         &self,
         chunk_addr: ChunkAddr,
         stream: SendableRecordBatchStream,
         metadata: IoxMetadata,
-    ) -> Result<(Path, IoxParquetMetaData)> {
+    ) -> Result<(Path, usize, IoxParquetMetaData)> {
         // Create full path location of this file in object store
         let path = self.location(&chunk_addr);
 
         let schema = stream.schema();
         let data = Self::parquet_stream_to_bytes(stream, schema, metadata).await?;
         // TODO: make this work w/o cloning the byte vector (https://github.com/influxdata/influxdb_iox/issues/1504)
+        let file_size_bytes = data.len();
         let md =
             IoxParquetMetaData::from_file_bytes(data.clone()).context(ExtractingMetadataFailure)?;
         self.to_object_store(data, &path).await?;
 
-        Ok((path.clone(), md))
+        Ok((path, file_size_bytes, md))
     }
 
     /// Convert the given stream of RecordBatches to bytes
@@ -540,7 +544,7 @@ mod tests {
             database_checkpoint,
         };
 
-        let (path, _) = storage
+        let (path, _file_size_bytes, _metadata) = storage
             .write_to_object_store(
                 ChunkAddr {
                     db_name,

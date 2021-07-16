@@ -1,7 +1,7 @@
 //! This module is a gnarly hack around the fact opentelemetry doesn't currently let you
 //! register an observer multiple times with the same name
 //!
-//! See https://github.com/open-telemetry/opentelemetry-rust/issues/541
+//! See <https://github.com/open-telemetry/opentelemetry-rust/issues/541>
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;

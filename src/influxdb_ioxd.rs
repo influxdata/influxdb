@@ -1,10 +1,7 @@
 use crate::commands::run::{Config, ObjectStore as ObjStoreOpt};
 use futures::{future::FusedFuture, pin_mut, FutureExt, TryStreamExt};
 use hyper::server::conn::AddrIncoming;
-use object_store::{
-    self, aws::AmazonS3, azure::MicrosoftAzure, gcp::GoogleCloudStorage, path::ObjectStorePath,
-    ObjectStore, ObjectStoreApi,
-};
+use object_store::{self, path::ObjectStorePath, ObjectStore, ObjectStoreApi, ThrottleConfig};
 use observability_deps::tracing::{self, error, info, warn, Instrument};
 use panic_logging::SendPanicsToTracing;
 use server::{
@@ -68,8 +65,14 @@ pub enum Error {
     // Creating a new S3 object store can fail if the region is *specified* but
     // not *parseable* as a rusoto `Region`. The other object store constructors
     // don't return `Result`.
-    #[snafu(display("Amazon S3 configuration was invalid: {}", source))]
-    InvalidS3Config { source: object_store::aws::Error },
+    #[snafu(display("Error configuring Amazon S3: {}", source))]
+    InvalidS3Config { source: object_store::Error },
+
+    #[snafu(display("Error configuring GCS: {}", source))]
+    InvalidGCSConfig { source: object_store::Error },
+
+    #[snafu(display("Error configuring Microsoft Azure: {}", source))]
+    InvalidAzureConfig { source: object_store::Error },
 
     #[snafu(display("Cannot read from object store: {}", source))]
     CannotReadObjectStore { source: object_store::Error },
@@ -308,29 +311,26 @@ impl TryFrom<&Config> for ObjectStore {
 
     fn try_from(config: &Config) -> Result<Self, Self::Error> {
         match config.object_store {
-            Some(ObjStoreOpt::Memory) | None => {
-                Ok(Self::new_in_memory(object_store::memory::InMemory::new()))
-            }
+            Some(ObjStoreOpt::Memory) | None => Ok(Self::new_in_memory()),
             Some(ObjStoreOpt::MemoryThrottled) => {
-                let inner = object_store::memory::InMemory::new();
-                let mut outer = object_store::throttle::ThrottledStore::new(inner);
+                let config = ThrottleConfig {
+                    // for every call: assume a 100ms latency
+                    wait_delete_per_call: Duration::from_millis(100),
+                    wait_get_per_call: Duration::from_millis(100),
+                    wait_list_per_call: Duration::from_millis(100),
+                    wait_list_with_delimiter_per_call: Duration::from_millis(100),
+                    wait_put_per_call: Duration::from_millis(100),
 
-                // for every call: assume a 100ms latency
-                outer.wait_delete_per_call = Duration::from_millis(100);
-                outer.wait_get_per_call = Duration::from_millis(100);
-                outer.wait_list_per_call = Duration::from_millis(100);
-                outer.wait_list_with_delimiter_per_call = Duration::from_millis(100);
-                outer.wait_put_per_call = Duration::from_millis(100);
+                    // for list operations: assume we need 1 call per 1k entries at 100ms
+                    wait_list_per_entry: Duration::from_millis(100) / 1_000,
+                    wait_list_with_delimiter_per_entry: Duration::from_millis(100) / 1_000,
 
-                // for list operations: assume we need 1 call per 1k entries at 100ms
-                outer.wait_list_per_entry = Duration::from_millis(100) / 1_000;
-                outer.wait_list_with_delimiter_per_entry = Duration::from_millis(100) / 1_000;
+                    // for upload/download: assume 1GByte/s
+                    wait_get_per_byte: Duration::from_secs(1) / 1_000_000_000,
+                    wait_put_per_byte: Duration::from_secs(1) / 1_000_000_000,
+                };
 
-                // for upload/download: assume 1GByte/s
-                outer.wait_get_per_byte = Duration::from_secs(1) / 1_000_000_000;
-                outer.wait_put_per_byte = Duration::from_secs(1) / 1_000_000_000;
-
-                Ok(Self::new_in_memory_throttled(outer))
+                Ok(Self::new_in_memory_throttled(config))
             }
 
             Some(ObjStoreOpt::Google) => {
@@ -338,9 +338,10 @@ impl TryFrom<&Config> for ObjectStore {
                     config.bucket.as_ref(),
                     config.google_service_account.as_ref(),
                 ) {
-                    (Some(bucket), Some(service_account)) => Ok(Self::new_google_cloud_storage(
-                        GoogleCloudStorage::new(service_account, bucket),
-                    )),
+                    (Some(bucket), Some(service_account)) => {
+                        Self::new_google_cloud_storage(service_account, bucket)
+                            .context(InvalidGCSConfig)
+                    }
                     (bucket, service_account) => {
                         let mut missing_args = vec![];
 
@@ -369,17 +370,15 @@ impl TryFrom<&Config> for ObjectStore {
                     config.aws_session_token.as_ref(),
                 ) {
                     (Some(bucket), key_id, secret_key, region, endpoint, session_token) => {
-                        Ok(Self::new_amazon_s3(
-                            AmazonS3::new(
-                                key_id,
-                                secret_key,
-                                region,
-                                bucket,
-                                endpoint,
-                                session_token,
-                            )
-                            .context(InvalidS3Config)?,
-                        ))
+                        Self::new_amazon_s3(
+                            key_id,
+                            secret_key,
+                            region,
+                            bucket,
+                            endpoint,
+                            session_token,
+                        )
+                        .context(InvalidS3Config)
                     }
                     (bucket, _, _, _, _, _) => {
                         let mut missing_args = vec![];
@@ -403,11 +402,8 @@ impl TryFrom<&Config> for ObjectStore {
                     config.azure_storage_access_key.as_ref(),
                 ) {
                     (Some(bucket), Some(storage_account), Some(access_key)) => {
-                        Ok(Self::new_microsoft_azure(MicrosoftAzure::new(
-                            storage_account,
-                            access_key,
-                            bucket,
-                        )))
+                        Self::new_microsoft_azure(storage_account, access_key, bucket)
+                            .context(InvalidAzureConfig)
                     }
                     (bucket, storage_account, access_key) => {
                         let mut missing_args = vec![];
@@ -435,7 +431,7 @@ impl TryFrom<&Config> for ObjectStore {
                 Some(db_dir) => {
                     fs::create_dir_all(db_dir)
                         .context(CreatingDatabaseDirectory { path: db_dir })?;
-                    Ok(Self::new_file(object_store::disk::File::new(&db_dir)))
+                    Ok(Self::new_file(&db_dir))
                 }
                 None => MissingObjectStoreConfig {
                     object_store: ObjStoreOpt::File,
@@ -479,6 +475,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "aws")]
     fn valid_s3_config() {
         let config = Config::from_iter_safe(&[
             "server",
@@ -514,6 +511,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gcp")]
     fn valid_google_config() {
         let config = Config::from_iter_safe(&[
             "server",
@@ -548,6 +546,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "azure")]
     fn valid_azure_config() {
         let config = Config::from_iter_safe(&[
             "server",

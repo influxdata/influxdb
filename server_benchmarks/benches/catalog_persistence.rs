@@ -1,7 +1,14 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, SamplingMode};
-use object_store::{memory::InMemory, throttle::ThrottledStore, ObjectStore};
+use data_types::database_rules::LifecycleRules;
+use object_store::{ObjectStore, ThrottleConfig};
+use query::QueryChunk;
 use server::{db::test_helpers::write_lp, utils::TestDb};
-use std::{convert::TryFrom, num::NonZeroU64, sync::Arc, time::Duration};
+use std::{
+    convert::TryFrom,
+    num::{NonZeroU32, NonZeroU64},
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tokio::{
     runtime::{Handle, Runtime},
     sync::Mutex,
@@ -49,7 +56,7 @@ fn benchmark_catalog_persistence(c: &mut Criterion) {
                 // test that data is actually loaded
                 let partition_key = "1970-01-01T00";
                 let table_name = "cpu";
-                let chunk_id = 0;
+                let chunk_id = 1;
                 assert!(db
                     .table_summary(table_name, partition_key, chunk_id)
                     .is_some());
@@ -72,23 +79,30 @@ async fn setup(object_store: Arc<ObjectStore>, done: &Mutex<bool>) {
     let lp = create_lp(N_TAGS, N_FIELDS);
     let partition_key = "1970-01-01T00";
 
-    for chunk_id in 0..N_CHUNKS {
+    for _ in 0..N_CHUNKS {
         let table_names = write_lp(&db, &lp).await;
 
         for table_name in &table_names {
-            db.rollover_partition(&table_name, partition_key)
+            let chunk = db
+                .rollover_partition(&table_name, partition_key)
+                .await
+                .unwrap()
+                .unwrap();
+
+            db.move_chunk_to_read_buffer(&table_name, partition_key, chunk.id())
                 .await
                 .unwrap();
 
-            db.move_chunk_to_read_buffer(&table_name, partition_key, chunk_id)
+            let chunk = db
+                .persist_partition(
+                    &table_name,
+                    partition_key,
+                    Instant::now() + Duration::from_secs(1),
+                )
                 .await
                 .unwrap();
 
-            db.write_chunk_to_object_store(&table_name, partition_key, chunk_id)
-                .await
-                .unwrap();
-
-            db.unload_read_buffer(&table_name, partition_key, chunk_id)
+            db.unload_read_buffer(&table_name, partition_key, chunk.id())
                 .unwrap();
         }
     }
@@ -101,7 +115,12 @@ async fn setup(object_store: Arc<ObjectStore>, done: &Mutex<bool>) {
 async fn create_persisted_db(object_store: Arc<ObjectStore>) -> TestDb {
     TestDb::builder()
         .object_store(object_store)
-        .catalog_transactions_until_checkpoint(NonZeroU64::try_from(CHECKPOINT_INTERVAL).unwrap())
+        .lifecycle_rules(LifecycleRules {
+            catalog_transactions_until_checkpoint: NonZeroU64::try_from(CHECKPOINT_INTERVAL)
+                .unwrap(),
+            late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+            ..Default::default()
+        })
         .build()
         .await
 }
@@ -127,24 +146,24 @@ fn create_lp(n_tags: usize, n_fields: usize) -> String {
 
 /// Create object store with somewhat realistic operation latencies.
 fn create_throttled_store() -> Arc<ObjectStore> {
-    let mut throttled_store = ThrottledStore::<InMemory>::new(InMemory::new());
+    let config = ThrottleConfig {
+        // for every call: assume a 100ms latency
+        wait_delete_per_call: Duration::from_millis(100),
+        wait_get_per_call: Duration::from_millis(100),
+        wait_list_per_call: Duration::from_millis(100),
+        wait_list_with_delimiter_per_call: Duration::from_millis(100),
+        wait_put_per_call: Duration::from_millis(100),
 
-    // for every call: assume a 100ms latency
-    throttled_store.wait_delete_per_call = Duration::from_millis(100);
-    throttled_store.wait_get_per_call = Duration::from_millis(100);
-    throttled_store.wait_list_per_call = Duration::from_millis(100);
-    throttled_store.wait_list_with_delimiter_per_call = Duration::from_millis(100);
-    throttled_store.wait_put_per_call = Duration::from_millis(100);
+        // for list operations: assume we need 1 call per 1k entries at 100ms
+        wait_list_per_entry: Duration::from_millis(100) / 1_000,
+        wait_list_with_delimiter_per_entry: Duration::from_millis(100) / 1_000,
 
-    // for list operations: assume we need 1 call per 1k entries at 100ms
-    throttled_store.wait_list_per_entry = Duration::from_millis(100) / 1_000;
-    throttled_store.wait_list_with_delimiter_per_entry = Duration::from_millis(100) / 1_000;
+        // for upload/download: assume 1GByte/s
+        wait_get_per_byte: Duration::from_secs(1) / 1_000_000_000,
+        wait_put_per_byte: Duration::from_secs(1) / 1_000_000_000,
+    };
 
-    // for upload/download: assume 1GByte/s
-    throttled_store.wait_get_per_byte = Duration::from_secs(1) / 1_000_000_000;
-    throttled_store.wait_put_per_byte = Duration::from_secs(1) / 1_000_000_000;
-
-    Arc::new(ObjectStore::new_in_memory_throttled(throttled_store))
+    Arc::new(ObjectStore::new_in_memory_throttled(config))
 }
 
 criterion_group!(benches, benchmark_catalog_persistence);
