@@ -88,7 +88,7 @@
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
 use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use data_types::partition_metadata::{
     ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
 };
@@ -288,14 +288,12 @@ impl IoxMetadata {
         }
 
         // extract creation timestamp
-        let creation_timestamp: DateTime<Utc> = proto_msg
-            .creation_timestamp
-            .ok_or_else(|| Error::IoxMetadataFieldMissing {
-                field: "creation_timestamp".to_string(),
-            })?
-            .try_into()
-            .map_err(|err| Box::new(err) as _)
-            .context(IoxMetadataBroken)?;
+        let creation_timestamp: DateTime<Utc> =
+            decode_timestamp(proto_msg.creation_timestamp.ok_or_else(|| {
+                Error::IoxMetadataFieldMissing {
+                    field: "creation_timestamp".to_string(),
+                }
+            })?)?;
 
         // extract strings
         let table_name = Arc::from(proto_msg.table_name.as_ref());
@@ -319,14 +317,13 @@ impl IoxMetadata {
                 }
             })
             .collect::<Result<BTreeMap<u32, MinMaxSequence>>>()?;
-        let min_unpersisted_timestamp = proto_partition_checkpoint
-            .min_unpersisted_timestamp
-            .ok_or_else(|| Error::IoxMetadataFieldMissing {
-                field: "partition_checkpoint.min_unpersisted_timestamp".to_string(),
-            })?
-            .try_into()
-            .map_err(|err| Box::new(err) as _)
-            .context(IoxMetadataBroken)?;
+        let min_unpersisted_timestamp = decode_timestamp(
+            proto_partition_checkpoint
+                .min_unpersisted_timestamp
+                .ok_or_else(|| Error::IoxMetadataFieldMissing {
+                    field: "partition_checkpoint.min_unpersisted_timestamp".to_string(),
+                })?,
+        )?;
         let partition_checkpoint = PartitionCheckpoint::new(
             Arc::clone(&table_name),
             Arc::clone(&partition_key),
@@ -373,9 +370,9 @@ impl IoxMetadata {
                     )
                 })
                 .collect(),
-            min_unpersisted_timestamp: Some(
-                self.partition_checkpoint.min_unpersisted_timestamp().into(),
-            ),
+            min_unpersisted_timestamp: Some(encode_timestamp(
+                self.partition_checkpoint.min_unpersisted_timestamp(),
+            )),
         };
 
         let proto_database_checkpoint = proto::DatabaseCheckpoint {
@@ -387,7 +384,7 @@ impl IoxMetadata {
 
         let proto_msg = proto::IoxMetadata {
             version: METADATA_VERSION,
-            creation_timestamp: Some(self.creation_timestamp.into()),
+            creation_timestamp: Some(encode_timestamp(self.creation_timestamp)),
             table_name: self.table_name.to_string(),
             partition_key: self.partition_key.to_string(),
             chunk_id: self.chunk_id,
@@ -400,6 +397,24 @@ impl IoxMetadata {
 
         Ok(buf)
     }
+}
+
+fn encode_timestamp(ts: DateTime<Utc>) -> proto::FixedSizeTimestamp {
+    proto::FixedSizeTimestamp {
+        seconds: ts.timestamp(),
+        nanos: ts.timestamp_subsec_nanos() as i32,
+    }
+}
+
+fn decode_timestamp(ts: proto::FixedSizeTimestamp) -> Result<DateTime<Utc>> {
+    let dt = NaiveDateTime::from_timestamp(
+        ts.seconds,
+        ts.nanos
+            .try_into()
+            .map_err(|e| Box::new(e) as _)
+            .context(IoxMetadataBroken)?,
+    );
+    Ok(chrono::DateTime::<Utc>::from_utc(dt, Utc))
 }
 
 /// Parquet metadata with IOx-specific wrapper.
@@ -747,6 +762,7 @@ mod tests {
     use super::*;
 
     use internal_types::schema::TIME_COLUMN_NAME;
+    use persistence_windows::checkpoint::PersistCheckpointBuilder;
 
     use crate::test_utils::{
         chunk_addr, create_partition_and_database_checkpoint, load_parquet_from_store, make_chunk,
@@ -950,5 +966,38 @@ mod tests {
                 METADATA_VERSION
             )
         );
+    }
+
+    #[test]
+    fn test_iox_metadata_to_protobuf_deterministic_size() {
+        // checks that different timestamps do NOT alter the size of the serialized metadata
+        let table_name = Arc::from("table1");
+        let partition_key = Arc::from("part1");
+
+        // try multiple time to provoke an error
+        for _ in 0..100 {
+            // build checkpoints
+            let min_unpersisted_timestamp = Utc::now();
+            let partition_checkpoint = PartitionCheckpoint::new(
+                Arc::clone(&table_name),
+                Arc::clone(&partition_key),
+                Default::default(),
+                min_unpersisted_timestamp,
+            );
+            let builder = PersistCheckpointBuilder::new(partition_checkpoint);
+            let (partition_checkpoint, database_checkpoint) = builder.build();
+
+            let metadata = IoxMetadata {
+                creation_timestamp: Utc::now(),
+                table_name: Arc::clone(&table_name),
+                partition_key: Arc::clone(&partition_key),
+                chunk_id: 1337,
+                partition_checkpoint,
+                database_checkpoint,
+            };
+
+            let proto_bytes = metadata.to_protobuf().unwrap();
+            assert_eq!(proto_bytes.len(), 56);
+        }
     }
 }

@@ -2502,7 +2502,7 @@ mod tests {
                 ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
                 3082,
-                1524,
+                1528,
                 2,
             ),
             ChunkSummary::new_without_timestamps(
