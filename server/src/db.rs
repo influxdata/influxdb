@@ -472,8 +472,12 @@ impl Db {
         fut.await.context(TaskCancelled)?.context(LifecycleError)
     }
 
-    /// Write given table of a given chunk to object store.
-    /// The writing only happen if that chunk already in read buffer
+    /// Persist given partition.
+    ///
+    /// Errors if there is nothing to persist at the moment as per the lifecycle rules. If successful it returns the
+    /// chunk that contains the persisted data.
+    ///
+    /// The `now` timestamp should normally be `Instant::now()` but can be altered for testing.
     pub async fn persist_partition(
         self: &Arc<Self>,
         table_name: &str,
