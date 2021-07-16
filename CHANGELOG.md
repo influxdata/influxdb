@@ -16,6 +16,7 @@ Because of the version bump to `go`, the macOS build for this release requires a
 1. [21859](https://github.com/influxdata/influxdb/pull/21859): Avoid rewriting `fields.idx` unnecessarily.
 1. [21860](https://github.com/influxdata/influxdb/pull/21860): Do not close connection twice in DigestWithOptions.
 1. [21866](https://github.com/influxdata/influxdb/pull/21866): Remove incorrect optimization for group-by.
+1. [21867](https://github.com/influxdata/influxdb/pull/21867): Return an error instead of panicking when InfluxQL statement rewrites fail.
 
 ## v2.0.7 [2021-06-04]
 ----------------------
