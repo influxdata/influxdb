@@ -123,15 +123,15 @@ impl ParquetChunk {
         let iox_md = parquet_metadata
             .read_iox_metadata()
             .context(IoxMetadataReadFailed {
-                path: file_location.clone(),
+                path: &file_location,
             })?;
         let schema = parquet_metadata.read_schema().context(SchemaReadFailed {
-            path: file_location.clone(),
+            path: &file_location,
         })?;
         let table_summary = parquet_metadata
             .read_statistics(&schema, &iox_md.table_name)
             .context(StatisticsReadFailed {
-                path: file_location.clone(),
+                path: &file_location,
             })?;
 
         Ok(Self::new_from_parts(
