@@ -4,7 +4,7 @@ use std::future::Future;
 use std::sync::Arc;
 
 use data_types::job::Job;
-use lifecycle::{LifecycleWriteGuard, LockableChunk};
+use lifecycle::{LifecycleWriteGuard, LockableChunk, LockablePartition};
 use observability_deps::tracing::info;
 use persistence_windows::persistence_windows::FlushHandle;
 use query::exec::ExecutorType;
@@ -14,9 +14,8 @@ use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 use crate::db::catalog::chunk::CatalogChunk;
 use crate::db::catalog::partition::Partition;
-use crate::db::lifecycle::{
-    collect_rub, merge_schemas, new_rub_chunk, write_chunk_to_object_store,
-};
+use crate::db::lifecycle::write::write_chunk_to_object_store;
+use crate::db::lifecycle::{collect_rub, merge_schemas, new_rub_chunk};
 use crate::db::DbChunk;
 
 use super::{LockableCatalogChunk, LockableCatalogPartition, Result};
@@ -24,13 +23,13 @@ use super::{LockableCatalogChunk, LockableCatalogPartition, Result};
 /// Split and then persist the provided chunks
 ///
 /// TODO: Replace low-level locks with transaction object
-pub(super) fn persist_chunks(
+pub fn persist_chunks(
     partition: LifecycleWriteGuard<'_, Partition, LockableCatalogPartition>,
     chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>>,
     flush_handle: FlushHandle,
 ) -> Result<(
     TaskTracker<Job>,
-    TrackedFuture<impl Future<Output = Result<()>> + Send>,
+    TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
 )> {
     let now = std::time::Instant::now(); // time persist duration.
     let db = Arc::clone(&partition.data().db);
@@ -105,41 +104,35 @@ pub(super) fn persist_chunks(
         let remainder_rows = remainder.rows();
 
         let persist_fut = {
-            let mut partition = partition.write();
+            let mut partition_write = partition.write();
             for id in chunk_ids {
-                partition.force_drop_chunk(id)
+                partition_write.force_drop_chunk(id)
             }
 
             // Upsert remainder to catalog
             if remainder.rows() > 0 {
-                partition.create_rub_chunk(remainder, Arc::clone(&schema));
+                partition_write.create_rub_chunk(remainder, Arc::clone(&schema));
             }
 
             assert!(to_persist.rows() > 0);
 
             let to_persist = LockableCatalogChunk {
-                db,
-                chunk: partition.create_rub_chunk(to_persist, schema),
+                db: Arc::clone(&db),
+                chunk: partition_write.create_rub_chunk(to_persist, schema),
             };
             let to_persist = to_persist.write();
 
             // Drop partition lock guard after locking chunk
-            std::mem::drop(partition);
+            std::mem::drop(partition_write);
 
-            write_chunk_to_object_store(to_persist)?.1
+            let partition = LockableCatalogPartition::new(db, partition);
+            let partition = partition.write();
+
+            write_chunk_to_object_store(partition, to_persist, flush_handle)?.1
         };
 
         // Wait for write operation to complete
-        persist_fut.await??;
-
-        {
-            // Flush persisted data from persistence windows
-            let mut partition = partition.write();
-            partition
-                .persistence_windows_mut()
-                .expect("persistence windows removed")
-                .flush(flush_handle);
-        }
+        let persisted_chunk = persist_fut.await??;
 
         let elapsed = now.elapsed();
         // input rows per second
@@ -151,7 +144,7 @@ pub(super) fn persist_chunks(
               ?max_persistable_timestamp,
               rows_per_sec=?throughput,  "chunk(s) persisted");
 
-        Ok(())
+        Ok(persisted_chunk)
     };
 
     Ok((tracker, fut.track(registration)))

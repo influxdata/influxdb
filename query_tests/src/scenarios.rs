@@ -1,8 +1,12 @@
 //! This module contains testing scenarios for Db
 
 use std::collections::HashMap;
+use std::convert::TryFrom;
+use std::num::NonZeroU32;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
+use data_types::database_rules::LifecycleRules;
 use once_cell::sync::OnceCell;
 
 #[allow(unused_imports, dead_code, unused_macros)]
@@ -12,6 +16,7 @@ use async_trait::async_trait;
 
 use server::utils::{
     count_mutable_buffer_chunks, count_object_store_chunks, count_read_buffer_chunks, make_db,
+    TestDb,
 };
 use server::{db::test_helpers::write_lp, Db};
 
@@ -133,7 +138,14 @@ impl DbSetup for NoData {
 
         // Scenario 4: the database has had data loaded into RB & Object Store and then deleted
         //
-        let db = make_db().await.db;
+        let db = TestDb::builder()
+            .lifecycle_rules(LifecycleRules {
+                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+                ..Default::default()
+            })
+            .build()
+            .await
+            .db;
         let data = "cpu,region=west user=23.2 100";
         write_lp(&db, data).await;
         // move data out of open chunk
@@ -158,16 +170,20 @@ impl DbSetup for NoData {
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
         // Now write the data in RB to object store but keep it in RB
-        db.write_chunk_to_object_store("cpu", partition_key, 0)
-            .await
-            .unwrap();
+        db.persist_partition(
+            "cpu",
+            partition_key,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
         // it should be the same chunk!
         assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
         assert_eq!(count_read_buffer_chunks(&db), 1); // closed chunk only
         assert_eq!(count_object_store_chunks(&db), 1); // close chunk only
 
-        // drop chunk 0
-        db.drop_chunk(table_name, partition_key, 0).await.unwrap();
+        // drop chunk 1 (the persisted one)
+        db.drop_chunk(table_name, partition_key, 1).await.unwrap();
 
         assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 0);
@@ -548,7 +564,14 @@ impl DbSetup for TwoMeasurementsManyFieldsLifecycle {
     async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
-        let db = std::sync::Arc::new(make_db().await.db);
+        let db = TestDb::builder()
+            .lifecycle_rules(LifecycleRules {
+                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+                ..Default::default()
+            })
+            .build()
+            .await
+            .db;
 
         write_lp(
             &db,
@@ -573,12 +596,13 @@ impl DbSetup for TwoMeasurementsManyFieldsLifecycle {
         )
         .await;
 
-        db.write_chunk_to_object_store("h2o", partition_key, 0)
-            .await
-            .unwrap();
-
-        let db =
-            std::sync::Arc::try_unwrap(db).expect("All background handles to db should be done");
+        db.persist_partition(
+            "h2o",
+            partition_key,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
 
         vec![DbScenario {
             scenario_name: "Data in parquet, and MUB".into(),
@@ -747,7 +771,14 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     };
 
     // Scenario 4: One closed chunk in both RUb and OS
-    let db = make_db().await.db;
+    let db = TestDb::builder()
+        .lifecycle_rules(LifecycleRules {
+            late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+            ..Default::default()
+        })
+        .build()
+        .await
+        .db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
         db.rollover_partition(&table_name, partition_key)
@@ -757,9 +788,13 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
             .await
             .unwrap();
 
-        db.write_chunk_to_object_store(&table_name, partition_key, 0)
-            .await
-            .unwrap();
+        db.persist_partition(
+            &table_name,
+            partition_key,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
     }
     let scenario4 = DbScenario {
         scenario_name: "Data in both read buffer and object store".into(),
@@ -767,7 +802,14 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     };
 
     // Scenario 5: One closed chunk in OS only
-    let db = make_db().await.db;
+    let db = TestDb::builder()
+        .lifecycle_rules(LifecycleRules {
+            late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+            ..Default::default()
+        })
+        .build()
+        .await
+        .db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
         db.rollover_partition(&table_name, partition_key)
@@ -776,10 +818,14 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
-        db.write_chunk_to_object_store(&table_name, partition_key, 0)
-            .await
-            .unwrap();
-        db.unload_read_buffer(&table_name, partition_key, 0)
+        db.persist_partition(
+            &table_name,
+            partition_key,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
+        db.unload_read_buffer(&table_name, partition_key, 1)
             .unwrap();
     }
     let scenario5 = DbScenario {
@@ -868,34 +914,45 @@ pub async fn make_two_chunk_scenarios(
     };
 
     // in 2 read buffer chunks that also loaded into object store
-    let db = make_db().await.db;
+    let db = TestDb::builder()
+        .lifecycle_rules(LifecycleRules {
+            late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+            ..Default::default()
+        })
+        .build()
+        .await
+        .db;
     let table_names = write_lp(&db, data1).await;
     for table_name in &table_names {
         db.rollover_partition(&table_name, partition_key)
             .await
             .unwrap();
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+            .await
+            .unwrap();
+        db.persist_partition(
+            &table_name,
+            partition_key,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
     }
     let table_names = write_lp(&db, data2).await;
     for table_name in &table_names {
         db.rollover_partition(&table_name, partition_key)
             .await
             .unwrap();
-
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 2)
             .await
             .unwrap();
-
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 1)
-            .await
-            .unwrap();
-
-        db.write_chunk_to_object_store(&table_name, partition_key, 0)
-            .await
-            .unwrap();
-
-        db.write_chunk_to_object_store(&table_name, partition_key, 1)
-            .await
-            .unwrap();
+        db.persist_partition(
+            &table_name,
+            partition_key,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
     }
     let scenario5 = DbScenario {
         scenario_name: "Data in two read buffer chunks and two parquet file chunks".into(),
@@ -903,11 +960,30 @@ pub async fn make_two_chunk_scenarios(
     };
 
     // Scenario 6: Two closed chunk in OS only
-    let db = make_db().await.db;
+    let db = TestDb::builder()
+        .lifecycle_rules(LifecycleRules {
+            late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+            ..Default::default()
+        })
+        .build()
+        .await
+        .db;
     let table_names = write_lp(&db, data1).await;
     for table_name in &table_names {
         db.rollover_partition(&table_name, partition_key)
             .await
+            .unwrap();
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+            .await
+            .unwrap();
+        db.persist_partition(
+            &table_name,
+            partition_key,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
+        db.unload_read_buffer(&table_name, partition_key, 1)
             .unwrap();
     }
     let table_names = write_lp(&db, data2).await;
@@ -915,25 +991,17 @@ pub async fn make_two_chunk_scenarios(
         db.rollover_partition(&table_name, partition_key)
             .await
             .unwrap();
-
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(&table_name, partition_key, 2)
             .await
             .unwrap();
-
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 1)
-            .await
-            .unwrap();
-
-        db.write_chunk_to_object_store(&table_name, partition_key, 0)
-            .await
-            .unwrap();
-
-        db.write_chunk_to_object_store(&table_name, partition_key, 1)
-            .await
-            .unwrap();
-        db.unload_read_buffer(&table_name, partition_key, 0)
-            .unwrap();
-        db.unload_read_buffer(&table_name, partition_key, 1)
+        db.persist_partition(
+            &table_name,
+            partition_key,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
+        db.unload_read_buffer(&table_name, partition_key, 3)
             .unwrap();
     }
     let scenario6 = DbScenario {
@@ -978,9 +1046,13 @@ pub async fn rollover_and_load(db: &Arc<Db>, partition_key: &str, table_name: &s
     db.move_chunk_to_read_buffer(table_name, partition_key, 0)
         .await
         .unwrap();
-    db.write_chunk_to_object_store(table_name, partition_key, 0)
-        .await
-        .unwrap();
+    db.persist_partition(
+        table_name,
+        partition_key,
+        Instant::now() + Duration::from_secs(1),
+    )
+    .await
+    .unwrap();
 }
 
 // This function loads one chunk of lp data into RUB for testing predicate pushdown
@@ -1005,7 +1077,14 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
     };
 
     // Scenario 2: One closed chunk in Parquet only
-    let db = make_db().await.db;
+    let db = TestDb::builder()
+        .lifecycle_rules(LifecycleRules {
+            late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+            ..Default::default()
+        })
+        .build()
+        .await
+        .db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
         db.rollover_partition(&table_name, partition_key)
@@ -1014,10 +1093,14 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
         db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
             .await
             .unwrap();
-        db.write_chunk_to_object_store(&table_name, partition_key, 0)
-            .await
-            .unwrap();
-        db.unload_read_buffer(&table_name, partition_key, 0)
+        db.persist_partition(
+            &table_name,
+            partition_key,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
+        db.unload_read_buffer(&table_name, partition_key, 1)
             .unwrap();
     }
     let scenario2 = DbScenario {

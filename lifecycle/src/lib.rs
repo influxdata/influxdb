@@ -138,14 +138,6 @@ pub trait LockableChunk: Sized {
         s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
     ) -> Result<TaskTracker<Self::Job>, Self::Error>;
 
-    /// Starts an operation to write a chunk to the object store
-    ///
-    /// TODO: Remove this function from the trait as it is
-    /// not called from the lifecycle manager
-    fn write_to_object_store(
-        s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
-    ) -> Result<TaskTracker<Self::Job>, Self::Error>;
-
     /// Remove the copy of the Chunk's data from the read buffer.
     ///
     /// Note that this can only be called for persisted chunks

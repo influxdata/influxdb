@@ -30,9 +30,9 @@ pub(crate) use compact::compact_chunks;
 pub(crate) use drop::drop_chunk;
 pub(crate) use error::{Error, Result};
 pub(crate) use move_chunk::move_chunk_to_read_buffer;
+pub(crate) use persist::persist_chunks;
 use persistence_windows::persistence_windows::FlushHandle;
 pub(crate) use unload::unload_read_buffer_chunk;
-pub(crate) use write::write_chunk_to_object_store;
 
 use super::DbChunk;
 
@@ -90,15 +90,6 @@ impl LockableChunk for LockableCatalogChunk {
         info!(chunk=%s.addr(), "move to read buffer");
         let (tracker, fut) = move_chunk::move_chunk_to_read_buffer(s)?;
         let _ = tokio::spawn(async move { fut.await.log_if_error("move to read buffer") });
-        Ok(tracker)
-    }
-
-    fn write_to_object_store(
-        s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
-    ) -> Result<TaskTracker<Self::Job>, Self::Error> {
-        info!(chunk=%s.addr(), "writing to object store");
-        let (tracker, fut) = write::write_chunk_to_object_store(s)?;
-        let _ = tokio::spawn(async move { fut.await.log_if_error("writing to object store") });
         Ok(tracker)
     }
 

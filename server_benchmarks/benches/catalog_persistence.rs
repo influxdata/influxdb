@@ -1,8 +1,14 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, SamplingMode};
 use data_types::database_rules::LifecycleRules;
 use object_store::{ObjectStore, ThrottleConfig};
+use query::QueryChunk;
 use server::{db::test_helpers::write_lp, utils::TestDb};
-use std::{convert::TryFrom, num::NonZeroU64, sync::Arc, time::Duration};
+use std::{
+    convert::TryFrom,
+    num::{NonZeroU32, NonZeroU64},
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tokio::{
     runtime::{Handle, Runtime},
     sync::Mutex,
@@ -50,7 +56,7 @@ fn benchmark_catalog_persistence(c: &mut Criterion) {
                 // test that data is actually loaded
                 let partition_key = "1970-01-01T00";
                 let table_name = "cpu";
-                let chunk_id = 0;
+                let chunk_id = 1;
                 assert!(db
                     .table_summary(table_name, partition_key, chunk_id)
                     .is_some());
@@ -73,23 +79,30 @@ async fn setup(object_store: Arc<ObjectStore>, done: &Mutex<bool>) {
     let lp = create_lp(N_TAGS, N_FIELDS);
     let partition_key = "1970-01-01T00";
 
-    for chunk_id in 0..N_CHUNKS {
+    for _ in 0..N_CHUNKS {
         let table_names = write_lp(&db, &lp).await;
 
         for table_name in &table_names {
-            db.rollover_partition(&table_name, partition_key)
+            let chunk = db
+                .rollover_partition(&table_name, partition_key)
+                .await
+                .unwrap()
+                .unwrap();
+
+            db.move_chunk_to_read_buffer(&table_name, partition_key, chunk.id())
                 .await
                 .unwrap();
 
-            db.move_chunk_to_read_buffer(&table_name, partition_key, chunk_id)
+            let chunk = db
+                .persist_partition(
+                    &table_name,
+                    partition_key,
+                    Instant::now() + Duration::from_secs(1),
+                )
                 .await
                 .unwrap();
 
-            db.write_chunk_to_object_store(&table_name, partition_key, chunk_id)
-                .await
-                .unwrap();
-
-            db.unload_read_buffer(&table_name, partition_key, chunk_id)
+            db.unload_read_buffer(&table_name, partition_key, chunk.id())
                 .unwrap();
         }
     }
@@ -105,6 +118,7 @@ async fn create_persisted_db(object_store: Arc<ObjectStore>) -> TestDb {
         .lifecycle_rules(LifecycleRules {
             catalog_transactions_until_checkpoint: NonZeroU64::try_from(CHECKPOINT_INTERVAL)
                 .unwrap(),
+            late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
             ..Default::default()
         })
         .build()
