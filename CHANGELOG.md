@@ -1,12 +1,23 @@
 ## v2.0.8 [unreleased]
 ----------------------
 
+### Go Version
+
+This release upgrades the project to `go` version 1.16.
+
+#### Minimum macOS Version
+
+Because of the version bump to `go`, the macOS build for this release requires at least version 10.12 Sierra to run.
+
 ### Bug Fixes
 
-1. [21748](https://github.com/influxdata/influxdb/pull/21748): rename arm rpms with yum-compatible names.
+1. [21748](https://github.com/influxdata/influxdb/pull/21748): Rename arm rpms with yum-compatible names.
 1. [21851](https://github.com/influxdata/influxdb/pull/21851): Upgrade to latest version of `influxdata/cron` so that tasks can be created with interval of `every: 1w`.
 1. [21859](https://github.com/influxdata/influxdb/pull/21859): Avoid rewriting `fields.idx` unnecessarily.
 1. [21860](https://github.com/influxdata/influxdb/pull/21860): Do not close connection twice in DigestWithOptions.
+1. [21866](https://github.com/influxdata/influxdb/pull/21866): Remove incorrect optimization for group-by.
+1. [21867](https://github.com/influxdata/influxdb/pull/21867): Return an error instead of panicking when InfluxQL statement rewrites fail.
+1. [21868](https://github.com/influxdata/influxdb/pull/21868): Migrate restored KV snapshots to latest schema before using them.
 1. [21869](https://github.com/influxdata/influxdb/pull/21869): Specify which fields are missing when rejecting an incomplete onboarding request.
 
 ## v2.0.7 [2021-06-04]
