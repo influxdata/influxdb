@@ -1566,7 +1566,7 @@ impl std::fmt::Display for &MetaData {
 impl MetaData {
     /// Returns the estimated size in bytes of the meta data and all column data
     /// associated with a `RowGroup`.
-    pub fn size(&self) -> usize {
+    fn size(&self) -> usize {
         let base_size = std::mem::size_of::<Self>();
 
         (base_size
