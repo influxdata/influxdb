@@ -9,6 +9,7 @@ description = "Tests of the query engine against different database configuratio
 
 [dependencies]
 async-trait = "0.1"
+data_types = { path = "../data_types" }
 once_cell = { version = "1.4.0", features = ["parking_lot"] }
 query = { path = "../query" }
 server = { path = "../server" }

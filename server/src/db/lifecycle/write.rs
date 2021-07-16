@@ -2,6 +2,7 @@
 use crate::db::{
     catalog::{
         chunk::{CatalogChunk, ChunkStage},
+        partition::Partition,
         Catalog,
     },
     checkpoint_data_from_catalog,
@@ -22,32 +23,36 @@ use parquet_file::{
     metadata::IoxMetadata,
     storage::Storage,
 };
-use persistence_windows::checkpoint::{
-    DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder,
+use persistence_windows::{
+    checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder},
+    persistence_windows::FlushHandle,
 };
 use query::QueryChunk;
 use snafu::ResultExt;
 use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
-use super::error::{
-    CommitError, Error, ParquetChunkError, Result, TransactionError, WritingToObjectStore,
+use super::{
+    error::{
+        CommitError, Error, ParquetChunkError, Result, TransactionError, WritingToObjectStore,
+    },
+    LockableCatalogPartition,
 };
 
 /// The implementation for writing a chunk to the object store
 ///
 /// Returns a future registered with the tracker registry, and the corresponding tracker
 /// The caller can either spawn this future to tokio, or block directly on it
-pub fn write_chunk_to_object_store(
-    mut guard: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>,
-    partition_checkpoint: PartitionCheckpoint,
-    database_checkpoint: DatabaseCheckpoint,
+pub(super) fn write_chunk_to_object_store(
+    partition: LifecycleWriteGuard<'_, Partition, LockableCatalogPartition>,
+    mut chunk: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>,
+    flush_handle: FlushHandle,
 ) -> Result<(
     TaskTracker<Job>,
     TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
 )> {
-    let db = Arc::clone(&guard.data().db);
-    let addr = guard.addr().clone();
+    let db = Arc::clone(&chunk.data().db);
+    let addr = chunk.addr().clone();
 
     // TODO: Use ChunkAddr within Job
     let (tracker, registration) = db.jobs.register(Job::WriteChunk {
@@ -58,13 +63,14 @@ pub fn write_chunk_to_object_store(
     });
 
     // update the catalog to say we are processing this chunk and
-    guard.set_writing_to_object_store(&registration)?;
-    let db_chunk = DbChunk::snapshot(&*guard);
+    chunk.set_writing_to_object_store(&registration)?;
+    let db_chunk = DbChunk::snapshot(&*chunk);
 
-    debug!(chunk=%guard.addr(), "chunk marked WRITING , loading tables into object store");
+    debug!(chunk=%chunk.addr(), "chunk marked WRITING , loading tables into object store");
 
     // Drop locks
-    let chunk = guard.into_data().chunk;
+    let chunk = chunk.into_data().chunk;
+    let partition = partition.into_data().partition;
 
     // Create a storage to save data of this chunk
     let storage = Storage::new(Arc::clone(&db.store), db.server_id);
@@ -78,6 +84,9 @@ pub fn write_chunk_to_object_store(
 
     let fut = async move {
         debug!(chunk=%addr, "loading table to object store");
+
+        let (partition_checkpoint, database_checkpoint) =
+            collect_checkpoints(flush_handle.checkpoint(), &db.catalog);
 
         // Get RecordBatchStream of data from the read buffer chunk
         let stream = db_chunk
@@ -181,6 +190,15 @@ pub fn write_chunk_to_object_store(
             }
         }
 
+        {
+            // Flush persisted data from persistence windows
+            let mut partition = partition.write();
+            partition
+                .persistence_windows_mut()
+                .expect("persistence windows removed")
+                .flush(flush_handle);
+        }
+
         // We know this chunk is ParquetFile type
         let chunk = chunk.read();
         Ok(DbChunk::parquet_file_snapshot(&chunk))
@@ -190,7 +208,7 @@ pub fn write_chunk_to_object_store(
 }
 
 /// Construct database checkpoint for the given partition checkpoint in the given catalog.
-pub fn collect_checkpoints(
+fn collect_checkpoints(
     partition_checkpoint: PartitionCheckpoint,
     catalog: &Catalog,
 ) -> (PartitionCheckpoint, DatabaseCheckpoint) {
