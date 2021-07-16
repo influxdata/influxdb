@@ -87,6 +87,8 @@ elif [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
   chmod 0644 "$PKG_ROOT/usr/lib/influxdb/scripts/init.sh"
   cp /isrc/scripts/influxdb.service "$PKG_ROOT/usr/lib/influxdb/scripts/influxdb.service"
   chmod 0644 "$PKG_ROOT/usr/lib/influxdb/scripts/influxdb.service"
+  cp /isrc/scripts/influxd-systemd-start.sh "$PKG_ROOT/usr/lib/influxdb/scripts/influxd-systemd-start.sh"
+  chmod 0744 "$PKG_ROOT/usr/lib/influxdb/scripts/influxd-systemd-start.sh"
 
   # Copy logrotate script.
   cp /isrc/scripts/logrotate "$PKG_ROOT/etc/logrotate.d/influxdb"
