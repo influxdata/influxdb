@@ -42,7 +42,12 @@ trap "aws --region us-west-2 ec2 terminate-instances --instance-ids $ec2_instanc
 debname=$(find /tmp/workspace/packages/influxdb*amd64.deb)
 base_debname=$(basename $debname)
 source_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+tools_name="influx_tools-${CIRCLE_SHA1}"
 
+echo "$tools_name $CIRCLE_BRANCH $datestring" > latest_${CIRCLE_BRANCH}.txt
+AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} aws --region us-west-2 s3 cp /tmp/workspace/packages/influx_tools  s3://perftest-binaries-influxdb/influx_tools/$tools_name
+AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} aws --region us-west-2 s3 cp latest_${CIRCLE_BRANCH}.txt  s3://perftest-binaries-influxdb/influx_tools/latest_${CIRCLE_BRANCH}.txt
+scp /tmp/workspace/packages/influx_tools ubuntu@$ec2_ip:/home/ubuntu/influx_tools
 scp $debname ubuntu@$ec2_ip:/home/ubuntu/$base_debname
 scp ${source_dir}/run_perftest.sh ubuntu@$ec2_ip:/home/ubuntu/run_perftest.sh
 
@@ -50,6 +55,7 @@ scp ${source_dir}/run_perftest.sh ubuntu@$ec2_ip:/home/ubuntu/run_perftest.sh
 RAMDISK_DIR=/mnt/ramdisk
 ssh ubuntu@$ec2_ip << EOF
 sudo DEBIAN_FRONTEND=noninteractive apt-get install --assume-yes /home/ubuntu/$base_debname
+sudo sed -i 's/# flux-enabled = false/flux-enabled = true/g' /etc/influxdb/influxdb.conf
 sudo systemctl unmask influxdb.service
 sudo systemctl start influxdb
 sudo mkdir -p ${RAMDISK_DIR}

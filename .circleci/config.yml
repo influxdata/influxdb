@@ -49,6 +49,7 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
+            - packages/influx_tools
             - packages/*.deb
 
   perf_test:
