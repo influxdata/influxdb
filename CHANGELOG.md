@@ -6,7 +6,7 @@
 1. [21748](https://github.com/influxdata/influxdb/pull/21748): rename arm rpms with yum-compatible names.
 1. [21851](https://github.com/influxdata/influxdb/pull/21851): Upgrade to latest version of `influxdata/cron` so that tasks can be created with interval of `every: 1w`.
 1. [21859](https://github.com/influxdata/influxdb/pull/21859): Avoid rewriting `fields.idx` unnecessarily.
-1. [21662](https://github.com/influxdata/influxdb/pull/21662): Do not close connection twice in DigestWithOptions.
+1. [21860](https://github.com/influxdata/influxdb/pull/21860): Do not close connection twice in DigestWithOptions.
 
 ## v2.0.7 [2021-06-04]
 ----------------------
