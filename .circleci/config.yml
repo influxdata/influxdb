@@ -661,7 +661,7 @@ jobs:
             - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - run: sudo apt-get update && sudo apt-get install netcat-openbsd
       - run:
-          command: ./bin/linux/influxd --store=memory --e2e-testing=true --feature-flags=communityTemplates=true
+          command: ./dist/influxd_linux_amd64/influxd --store=memory --e2e-testing=true --feature-flags=communityTemplates=true
           background: true
       - run: make e2e
       - store_test_results:
