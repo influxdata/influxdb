@@ -10,6 +10,7 @@ use data_types::{
 use internal_types::schema::Schema;
 use metrics::{Counter, Histogram, KeyValue};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
+use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use read_buffer::RBChunk;
 use snafu::Snafu;
@@ -575,7 +576,9 @@ impl CatalogChunk {
     pub fn freeze(&mut self) -> Result<()> {
         match &self.stage {
             ChunkStage::Open { mb_chunk, .. } => {
+                debug!(%self.addr, row_count=mb_chunk.rows(), "freezing chunk");
                 assert!(self.time_closed.is_none());
+
                 self.time_closed = Some(Utc::now());
                 let s = mb_chunk.snapshot();
                 self.metrics

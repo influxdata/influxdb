@@ -342,6 +342,11 @@ impl DatabaseBuilder {
         self
     }
 
+    pub fn worker_backoff_millis(mut self, millis: u64) -> Self {
+        self.lifecycle_rules.worker_backoff_millis = millis;
+        self
+    }
+
     // Build a database
     pub async fn build(self, channel: tonic::transport::Channel) {
         let mut management_client = influxdb_iox_client::management::Client::new(channel);

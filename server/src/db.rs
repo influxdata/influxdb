@@ -710,6 +710,7 @@ impl Db {
         let immutable = rules.lifecycle_rules.immutable;
         let buffer_size_hard = rules.lifecycle_rules.buffer_size_hard;
         let late_arrival_window = rules.lifecycle_rules.late_arrive_window();
+        let mub_row_threshold = rules.lifecycle_rules.mub_row_threshold;
         std::mem::drop(rules);
 
         // We may have gotten here through `store_entry`, in which case this is checking the
@@ -793,7 +794,13 @@ impl Db {
                                 }
                                 continue;
                             };
+
+                            let should_freeze = mb_chunk.rows() >= mub_row_threshold.get();
+
                             chunk.record_write();
+                            if should_freeze {
+                                chunk.freeze().expect("freeze mub chunk");
+                            }
                         }
                         None => {
                             let metrics = self.metrics_registry.register_domain_with_labels(
@@ -809,7 +816,11 @@ impl Db {
 
                             match chunk_result {
                                 Ok(mb_chunk) => {
-                                    partition.create_open_chunk(mb_chunk);
+                                    let should_freeze = mb_chunk.rows() >= mub_row_threshold.get();
+                                    let chunk = partition.create_open_chunk(mb_chunk);
+                                    if should_freeze {
+                                        chunk.write().freeze().expect("freeze mub chunk");
+                                    }
                                 }
                                 Err(e) => {
                                     if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
