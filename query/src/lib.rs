@@ -1,3 +1,4 @@
+//! Contains the IOx query engine
 #![deny(broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_debug_implementations,
