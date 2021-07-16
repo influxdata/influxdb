@@ -108,3 +108,6 @@ table BytesValues {
 table BytesValue {
   data: [ubyte];
 }
+
+root_type Entry;
+file_identifier "IOxE";
