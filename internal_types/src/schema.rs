@@ -11,7 +11,7 @@ use arrow::datatypes::{
     DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema,
     SchemaRef as ArrowSchemaRef, TimeUnit,
 };
-use snafu::Snafu;
+use snafu::{OptionExt, Snafu};
 
 use crate::{
     schema::sort::{ColumnSort, SortKey},
@@ -395,11 +395,9 @@ impl Schema {
     pub fn compute_select_indicies(&self, columns: &[&str]) -> Result<Vec<usize>> {
         columns
             .iter()
-            .map(|column_name| {
+            .map(|&column_name| {
                 self.find_index_of(column_name)
-                    .ok_or_else(|| Error::ColumnNotFound {
-                        column_name: column_name.to_string(),
-                    })
+                    .context(ColumnNotFound { column_name })
             })
             .collect()
     }

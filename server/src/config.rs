@@ -16,9 +16,12 @@ use write_buffer::config::WriteBufferConfig;
 /// This module contains code for managing the configuration of the server.
 use crate::{
     db::{catalog::Catalog, DatabaseToCommit, Db},
-    Error, JobRegistry, Result,
+    DatabaseAlreadyExists, DatabaseNotFound, DatabaseReserved, Error,
+    InvalidDatabaseStateTransition, JobRegistry, Result, RulesDatabaseNameMismatch,
+    ServerShuttingDown,
 };
 use observability_deps::tracing::{self, error, info, warn, Instrument};
+use snafu::{ensure, OptionExt};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
@@ -85,16 +88,14 @@ impl Config {
         db_name: DatabaseName<'static>,
     ) -> Result<DatabaseHandle<'_>> {
         let mut state = self.state.write().expect("mutex poisoned");
-        if state.reservations.contains(&db_name) {
-            return Err(Error::DatabaseReserved {
-                db_name: db_name.to_string(),
-            });
-        }
-        if state.databases.contains_key(&db_name) {
-            return Err(Error::DatabaseAlreadyExists {
-                db_name: db_name.to_string(),
-            });
-        }
+        ensure!(
+            !state.reservations.contains(&db_name),
+            DatabaseReserved { db_name }
+        );
+        ensure!(
+            !state.databases.contains_key(&db_name),
+            DatabaseAlreadyExists { db_name }
+        );
 
         state.reservations.insert(db_name.clone());
         Ok(DatabaseHandle {
@@ -119,28 +120,23 @@ impl Config {
     /// without initializing it, see [`block_db`](Self::block_db).
     pub(crate) fn recover_db(&self, db_name: DatabaseName<'static>) -> Result<DatabaseHandle<'_>> {
         let mut state = self.state.write().expect("mutex poisoned");
-        if state.reservations.contains(&db_name) {
-            return Err(Error::DatabaseReserved {
-                db_name: db_name.to_string(),
-            });
-        }
+        ensure!(
+            !state.reservations.contains(&db_name),
+            DatabaseReserved { db_name }
+        );
 
-        let db_state =
-            state
-                .databases
-                .get(&db_name)
-                .cloned()
-                .ok_or_else(|| Error::DatabaseNotFound {
-                    db_name: db_name.to_string(),
-                })?;
+        let db_state = state
+            .databases
+            .get(&db_name)
+            .cloned()
+            .context(DatabaseNotFound { db_name: &db_name })?;
 
-        if db_state.is_initialized() {
-            return Err(Error::DatabaseAlreadyExists {
-                db_name: db_name.to_string(),
-            });
-        }
+        ensure!(
+            !db_state.is_initialized(),
+            DatabaseAlreadyExists { db_name }
+        );
 
-        state.reservations.insert(db_name.clone());
+        state.reservations.insert(db_name);
         Ok(DatabaseHandle {
             state: Some(db_state),
             config: &self,
@@ -159,16 +155,14 @@ impl Config {
         db_name: DatabaseName<'static>,
     ) -> Result<BlockDatabaseGuard<'_>> {
         let mut state = self.state.write().expect("mutex poisoned");
-        if state.reservations.contains(&db_name) {
-            return Err(Error::DatabaseReserved {
-                db_name: db_name.to_string(),
-            });
-        }
-        if state.databases.contains_key(&db_name) {
-            return Err(Error::DatabaseAlreadyExists {
-                db_name: db_name.to_string(),
-            });
-        }
+        ensure!(
+            !state.reservations.contains(&db_name),
+            DatabaseReserved { db_name }
+        );
+        ensure!(
+            !state.databases.contains_key(&db_name),
+            DatabaseAlreadyExists { db_name }
+        );
 
         state.reservations.insert(db_name.clone());
         Ok(BlockDatabaseGuard {
@@ -228,9 +222,7 @@ impl Config {
         // TODO: implement for non-initialized databases
         let db = self
             .db_initialized(db_name)
-            .ok_or_else(|| Error::DatabaseNotFound {
-                db_name: db_name.to_string(),
-            })?;
+            .context(DatabaseNotFound { db_name })?;
 
         let mut rules = db.rules.write();
         *rules = update(rules.clone()).map_err(UpdateError::Closure)?;
@@ -600,12 +592,13 @@ impl<'a> DatabaseHandle<'a> {
                 server_id,
                 db_name,
             } => {
-                if db_name != &rules.name {
-                    return Err(Error::RulesDatabaseNameMismatch {
-                        actual: rules.name.to_string(),
-                        expected: db_name.to_string(),
-                    });
-                }
+                ensure!(
+                    db_name == &rules.name,
+                    RulesDatabaseNameMismatch {
+                        actual: rules.name,
+                        expected: db_name,
+                    }
+                );
 
                 self.state = Some(Arc::new(DatabaseState::RulesLoaded {
                     object_store: Arc::clone(&object_store),
@@ -616,10 +609,11 @@ impl<'a> DatabaseHandle<'a> {
 
                 Ok(())
             }
-            state => Err(Error::InvalidDatabaseStateTransition {
+            state => InvalidDatabaseStateTransition {
                 actual: state.code(),
                 expected: DatabaseStateCode::Known,
-            }),
+            }
+            .fail(),
         }
     }
 
@@ -652,10 +646,11 @@ impl<'a> DatabaseHandle<'a> {
 
                 Ok(())
             }
-            state => Err(Error::InvalidDatabaseStateTransition {
+            state => InvalidDatabaseStateTransition {
                 actual: state.code(),
                 expected: DatabaseStateCode::RulesLoaded,
-            }),
+            }
+            .fail(),
         }
     }
 
@@ -665,7 +660,7 @@ impl<'a> DatabaseHandle<'a> {
             DatabaseState::Replay { db } => {
                 if self.config.shutdown.is_cancelled() {
                     error!("server is shutting down");
-                    return Err(Error::ServerShuttingDown);
+                    return ServerShuttingDown.fail();
                 }
 
                 let shutdown = self.config.shutdown.child_token();
@@ -688,10 +683,11 @@ impl<'a> DatabaseHandle<'a> {
 
                 Ok(())
             }
-            state => Err(Error::InvalidDatabaseStateTransition {
+            state => InvalidDatabaseStateTransition {
                 actual: state.code(),
                 expected: DatabaseStateCode::Replay,
-            }),
+            }
+            .fail(),
         }
     }
 }
