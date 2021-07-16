@@ -76,7 +76,7 @@ impl KafkaBufferProducer {
         cfg.set("message.timeout.ms", "5000");
         cfg.set("message.max.bytes", "10000000");
         cfg.set("queue.buffering.max.kbytes", "10485760");
-        cfg.set("request.required.acks", "all");
+        cfg.set("request.required.acks", "all");  // equivalent to acks=-1
 
         let producer: FutureProducer = cfg.create()?;
 
