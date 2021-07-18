@@ -188,6 +188,7 @@ func (p *Partition) Open() error {
 
 	// Open each file in the manifest.
 	var files []File
+	var logFilesToCompact []*LogFile
 	for _, filename := range m.Files {
 		switch filepath.Ext(filename) {
 		case LogFileExt:
@@ -201,6 +202,8 @@ func (p *Partition) Open() error {
 			sz, _ := f.Stat()
 			if p.activeLogFile == nil && sz < p.MaxLogFileSize {
 				p.activeLogFile = f
+			} else {
+				logFilesToCompact = append(logFilesToCompact, f)
 			}
 
 		case IndexFileExt:
@@ -235,6 +238,17 @@ func (p *Partition) Open() error {
 	// Build series existance set.
 	if err := p.buildSeriesSet(); err != nil {
 		return err
+	}
+
+	// compact all non-active log files
+	for _, lf := range logFilesToCompact {
+		p.currentCompactionN++
+		go func(lf *LogFile) {
+			p.compactLogFile(lf)
+			p.mu.Lock()
+			p.currentCompactionN--
+			p.mu.Unlock()
+		}(lf)
 	}
 
 	// Mark opened.
