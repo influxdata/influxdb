@@ -150,6 +150,16 @@ func ApplyEnvOverrides(getenv func(string) string, prefix string, val interface{
 	return applyEnvOverrides(getenv, prefix, reflect.ValueOf(val), "")
 }
 
+func hasPrefix(prefix string) bool {
+	for _, env := range os.Environ() {
+		key := strings.SplitN(env, "=", 2)[0]
+		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.Value, structKey string) error {
 	element := spec
 	// If spec is a named type and is addressable,
@@ -215,11 +225,25 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 			}
 		}
 
+		if i := element.Len(); i > 0 && reflect.ValueOf(getenv).Pointer() == reflect.ValueOf(os.Getenv).Pointer() {
+			for t := element.Index(0).Type(); ; i++ {
+				newPrefix := fmt.Sprintf("%s_%d", prefix, i)
+				if hasPrefix(newPrefix) {
+					// use reflect.New instead of reflect.Zero to make it addressable/settable.
+					v := reflect.New(t).Elem()
+					if err := applyEnvOverrides(getenv, newPrefix, v, structKey); err != nil {
+						return err
+					}
+					element.Set(reflect.Append(element, v))
+				} else {
+					break
+				}
+			}
+		}
+
 		// If the type is s slice but have value not parsed as slice e.g. GRAPHITE_0_TEMPLATES="item1,item2"
 		if element.Len() == 0 && len(value) > 0 {
-			rules := strings.Split(value, ",")
-
-			for _, rule := range rules {
+			for _, rule := range strings.Split(value, ",") {
 				element.Set(reflect.Append(element, reflect.ValueOf(rule)))
 			}
 		}
