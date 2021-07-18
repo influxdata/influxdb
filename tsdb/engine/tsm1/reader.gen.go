@@ -90,40 +90,16 @@ func (t *TSMReader) ReadBooleanArrayBlockAt(entry *IndexEntry, vals *tsdb.Boolea
 	return err
 }
 
-// blockAccessor abstracts a method of accessing blocks from a
-// TSM file.
-type blockAccessor interface {
-	init() (*indirectIndex, error)
-	read(key []byte, timestamp int64) ([]Value, error)
-	readAll(key []byte) ([]Value, error)
-	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
-	readFloatBlock(entry *IndexEntry, values *[]FloatValue) ([]FloatValue, error)
-	readFloatArrayBlock(entry *IndexEntry, values *tsdb.FloatArray) error
-	readIntegerBlock(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error)
-	readIntegerArrayBlock(entry *IndexEntry, values *tsdb.IntegerArray) error
-	readUnsignedBlock(entry *IndexEntry, values *[]UnsignedValue) ([]UnsignedValue, error)
-	readUnsignedArrayBlock(entry *IndexEntry, values *tsdb.UnsignedArray) error
-	readStringBlock(entry *IndexEntry, values *[]StringValue) ([]StringValue, error)
-	readStringArrayBlock(entry *IndexEntry, values *tsdb.StringArray) error
-	readBooleanBlock(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error)
-	readBooleanArrayBlock(entry *IndexEntry, values *tsdb.BooleanArray) error
-	readBytes(entry *IndexEntry, buf []byte) (uint32, []byte, error)
-	rename(path string) error
-	path() string
-	close() error
-	free() error
-}
-
-func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, values *[]FloatValue) ([]FloatValue, error) {
+func (m *accessor) readFloatBlock(entry *IndexEntry, values *[]FloatValue) ([]FloatValue, error) {
 	m.incAccess()
 
 	m.mu.RLock()
-	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+	if int64(m.b.length()) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
 	}
 
-	a, err := DecodeFloatBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	a, err := DecodeFloatBlock(m.b.read(entry.Offset+4, entry.Offset+int64(entry.Size)), values)
 	m.mu.RUnlock()
 
 	if err != nil {
@@ -133,31 +109,31 @@ func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, values *[]FloatValue) (
 	return a, nil
 }
 
-func (m *mmapAccessor) readFloatArrayBlock(entry *IndexEntry, values *tsdb.FloatArray) error {
+func (m *accessor) readFloatArrayBlock(entry *IndexEntry, values *tsdb.FloatArray) error {
 	m.incAccess()
 
 	m.mu.RLock()
-	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+	if int64(m.b.length()) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return ErrTSMClosed
 	}
 
-	err := DecodeFloatArrayBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	err := DecodeFloatArrayBlock(m.b.read(entry.Offset+4, entry.Offset+int64(entry.Size)), values)
 	m.mu.RUnlock()
 
 	return err
 }
 
-func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error) {
+func (m *accessor) readIntegerBlock(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error) {
 	m.incAccess()
 
 	m.mu.RLock()
-	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+	if int64(m.b.length()) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
 	}
 
-	a, err := DecodeIntegerBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	a, err := DecodeIntegerBlock(m.b.read(entry.Offset+4, entry.Offset+int64(entry.Size)), values)
 	m.mu.RUnlock()
 
 	if err != nil {
@@ -167,31 +143,31 @@ func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values *[]IntegerValu
 	return a, nil
 }
 
-func (m *mmapAccessor) readIntegerArrayBlock(entry *IndexEntry, values *tsdb.IntegerArray) error {
+func (m *accessor) readIntegerArrayBlock(entry *IndexEntry, values *tsdb.IntegerArray) error {
 	m.incAccess()
 
 	m.mu.RLock()
-	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+	if int64(m.b.length()) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return ErrTSMClosed
 	}
 
-	err := DecodeIntegerArrayBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	err := DecodeIntegerArrayBlock(m.b.read(entry.Offset+4, entry.Offset+int64(entry.Size)), values)
 	m.mu.RUnlock()
 
 	return err
 }
 
-func (m *mmapAccessor) readUnsignedBlock(entry *IndexEntry, values *[]UnsignedValue) ([]UnsignedValue, error) {
+func (m *accessor) readUnsignedBlock(entry *IndexEntry, values *[]UnsignedValue) ([]UnsignedValue, error) {
 	m.incAccess()
 
 	m.mu.RLock()
-	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+	if int64(m.b.length()) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
 	}
 
-	a, err := DecodeUnsignedBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	a, err := DecodeUnsignedBlock(m.b.read(entry.Offset+4, entry.Offset+int64(entry.Size)), values)
 	m.mu.RUnlock()
 
 	if err != nil {
@@ -201,31 +177,31 @@ func (m *mmapAccessor) readUnsignedBlock(entry *IndexEntry, values *[]UnsignedVa
 	return a, nil
 }
 
-func (m *mmapAccessor) readUnsignedArrayBlock(entry *IndexEntry, values *tsdb.UnsignedArray) error {
+func (m *accessor) readUnsignedArrayBlock(entry *IndexEntry, values *tsdb.UnsignedArray) error {
 	m.incAccess()
 
 	m.mu.RLock()
-	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+	if int64(m.b.length()) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return ErrTSMClosed
 	}
 
-	err := DecodeUnsignedArrayBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	err := DecodeUnsignedArrayBlock(m.b.read(entry.Offset+4, entry.Offset+int64(entry.Size)), values)
 	m.mu.RUnlock()
 
 	return err
 }
 
-func (m *mmapAccessor) readStringBlock(entry *IndexEntry, values *[]StringValue) ([]StringValue, error) {
+func (m *accessor) readStringBlock(entry *IndexEntry, values *[]StringValue) ([]StringValue, error) {
 	m.incAccess()
 
 	m.mu.RLock()
-	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+	if int64(m.b.length()) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
 	}
 
-	a, err := DecodeStringBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	a, err := DecodeStringBlock(m.b.read(entry.Offset+4, entry.Offset+int64(entry.Size)), values)
 	m.mu.RUnlock()
 
 	if err != nil {
@@ -235,31 +211,31 @@ func (m *mmapAccessor) readStringBlock(entry *IndexEntry, values *[]StringValue)
 	return a, nil
 }
 
-func (m *mmapAccessor) readStringArrayBlock(entry *IndexEntry, values *tsdb.StringArray) error {
+func (m *accessor) readStringArrayBlock(entry *IndexEntry, values *tsdb.StringArray) error {
 	m.incAccess()
 
 	m.mu.RLock()
-	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+	if int64(m.b.length()) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return ErrTSMClosed
 	}
 
-	err := DecodeStringArrayBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	err := DecodeStringArrayBlock(m.b.read(entry.Offset+4, entry.Offset+int64(entry.Size)), values)
 	m.mu.RUnlock()
 
 	return err
 }
 
-func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error) {
+func (m *accessor) readBooleanBlock(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error) {
 	m.incAccess()
 
 	m.mu.RLock()
-	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+	if int64(m.b.length()) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
 	}
 
-	a, err := DecodeBooleanBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	a, err := DecodeBooleanBlock(m.b.read(entry.Offset+4, entry.Offset+int64(entry.Size)), values)
 	m.mu.RUnlock()
 
 	if err != nil {
@@ -269,16 +245,16 @@ func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, values *[]BooleanValu
 	return a, nil
 }
 
-func (m *mmapAccessor) readBooleanArrayBlock(entry *IndexEntry, values *tsdb.BooleanArray) error {
+func (m *accessor) readBooleanArrayBlock(entry *IndexEntry, values *tsdb.BooleanArray) error {
 	m.incAccess()
 
 	m.mu.RLock()
-	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+	if int64(m.b.length()) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return ErrTSMClosed
 	}
 
-	err := DecodeBooleanArrayBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	err := DecodeBooleanArrayBlock(m.b.read(entry.Offset+4, entry.Offset+int64(entry.Size)), values)
 	m.mu.RUnlock()
 
 	return err

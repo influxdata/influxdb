@@ -22,35 +22,17 @@ func (t *TSMReader) Read{{.Name}}ArrayBlockAt(entry *IndexEntry, vals *tsdb.{{.N
 }
 {{end}}
 
-// blockAccessor abstracts a method of accessing blocks from a
-// TSM file.
-type blockAccessor interface {
-	init() (*indirectIndex, error)
-	read(key []byte, timestamp int64) ([]Value, error)
-	readAll(key []byte) ([]Value, error)
-	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
-{{- range .}}
-	read{{.Name}}Block(entry *IndexEntry, values *[]{{.Name}}Value) ([]{{.Name}}Value, error)
-	read{{.Name}}ArrayBlock(entry *IndexEntry, values *tsdb.{{.Name}}Array) error
-{{- end}}
-	readBytes(entry *IndexEntry, buf []byte) (uint32, []byte, error)
-	rename(path string) error
-	path() string
-	close() error
-	free() error
-}
-
 {{range .}}
-func (m *mmapAccessor) read{{.Name}}Block(entry *IndexEntry, values *[]{{.Name}}Value) ([]{{.Name}}Value, error) {
+func (m *accessor) read{{.Name}}Block(entry *IndexEntry, values *[]{{.Name}}Value) ([]{{.Name}}Value, error) {
 	m.incAccess()
 
 	m.mu.RLock()
-	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+	if int64(m.b.length()) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
 	}
 
-	a, err := Decode{{.Name}}Block(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	a, err := Decode{{.Name}}Block(m.b.read(entry.Offset+4,entry.Offset+int64(entry.Size)), values)
 	m.mu.RUnlock()
 
 	if err != nil {
@@ -60,16 +42,16 @@ func (m *mmapAccessor) read{{.Name}}Block(entry *IndexEntry, values *[]{{.Name}}
 	return a, nil
 }
 
-func (m *mmapAccessor) read{{.Name}}ArrayBlock(entry *IndexEntry, values *tsdb.{{.Name}}Array) error {
+func (m *accessor) read{{.Name}}ArrayBlock(entry *IndexEntry, values *tsdb.{{.Name}}Array) error {
 	m.incAccess()
 
 	m.mu.RLock()
-	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+	if int64(m.b.length()) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return ErrTSMClosed
 	}
 
-	err := Decode{{.Name}}ArrayBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	err := Decode{{.Name}}ArrayBlock(m.b.read(entry.Offset+4,entry.Offset+int64(entry.Size)), values)
 	m.mu.RUnlock()
 
 	return err

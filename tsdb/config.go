@@ -148,8 +148,15 @@ type Config struct {
 	// TSMWillNeed controls whether we hint to the kernel that we intend to
 	// page in mmap'd sections of TSM files. This setting defaults to off, as it has
 	// been found to be problematic in some cases. It may help users who have
-	// slow disks.
+	// slow disks.  If tsm-use-seek is true, using this option will fadvise instead.
 	TSMWillNeed bool `toml:"tsm-use-madv-willneed"`
+
+	// TSMUseSeek controls how the block accessor reads block data.
+	// If false (the default), mmapped TSM files are used.  If true,
+	// Seek/Read operations are used.  Seek/Read operations are necessary
+	// on 32bit systems with large databases because of the much lower
+	// mmap memory address space limit.
+	TSMUseSeek bool `toml:"tsm-use-seek"`
 }
 
 // NewConfig returns the default configuration for tsdb.
@@ -179,6 +186,7 @@ func NewConfig() Config {
 
 		TraceLoggingEnabled: false,
 		TSMWillNeed:         false,
+		TSMUseSeek:          false,
 	}
 }
 
