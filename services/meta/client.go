@@ -931,14 +931,13 @@ func (c *Client) DropSubscription(database, rp, name string) error {
 // SetData overwrites the underlying data in the meta store.
 func (c *Client) SetData(data *Data) error {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	d := data.Clone()
 
 	if err := c.commit(d); err != nil {
 		return err
 	}
-
-	c.mu.Unlock()
 
 	return nil
 }
