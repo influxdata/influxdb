@@ -1371,6 +1371,7 @@ func TaskToObject(name string, t taskmodel.Task) Object {
 		fieldEvery:       t.Every,
 		fieldOffset:      durToStr(t.Offset),
 		fieldQuery:       strings.TrimSpace(query),
+		fieldStatus:      string(t.Status),
 	})
 	return o
 }
