@@ -58,7 +58,7 @@ func parseFunction(expr *influxql.Call) (*function, error) {
 		default:
 			return nil, fmt.Errorf("expected field argument in %s()", expr.Name)
 		}
-	case "min", "max", "sum", "first", "last", "mean", "median", "difference", "stddev", "spread":
+	case "min", "max", "sum", "first", "last", "mean", "median", "difference", "stddev", "spread", "cumulative_sum":
 		if exp, got := 1, len(expr.Args); exp != got {
 			return nil, fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
 		}
@@ -129,6 +129,21 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 			Call: &ast.CallExpression{
 				Callee: &ast.Identifier{
 					Name: call.Name,
+				},
+			},
+		}
+		cur.value = value
+		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
+	case "cumulative_sum":
+		value, ok := in.Value(call.Args[0])
+		if !ok {
+			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
+		}
+		cur.expr = &ast.PipeExpression{
+			Argument: in.Expr(),
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{
+					Name: "cumulativeSum",
 				},
 			},
 		}
