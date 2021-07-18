@@ -16,6 +16,7 @@ const (
 	PagerDutyType = "pagerduty"
 	HTTPType      = "http"
 	TelegramType  = "telegram"
+	TeamsType     = "teams"
 )
 
 var typeToEndpoint = map[string]func() influxdb.NotificationEndpoint{
@@ -23,6 +24,7 @@ var typeToEndpoint = map[string]func() influxdb.NotificationEndpoint{
 	PagerDutyType: func() influxdb.NotificationEndpoint { return &PagerDuty{} },
 	HTTPType:      func() influxdb.NotificationEndpoint { return &HTTP{} },
 	TelegramType:  func() influxdb.NotificationEndpoint { return &Telegram{} },
+	TeamsType:     func() influxdb.NotificationEndpoint { return &Teams{} },
 }
 
 // UnmarshalJSON will convert the bytes to notification endpoint.
