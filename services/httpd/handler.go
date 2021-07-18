@@ -208,6 +208,10 @@ func NewHandler(c Config) *Handler {
 			"write", // Data-ingest route.
 			"POST", "/api/v2/write", true, writeLogEnabled, h.serveWriteV2,
 		},
+		Route{ // Enable CORS
+			"write-options",
+			"OPTIONS", "/api/v2/write", false, true, h.serveOptions,
+		},
 		Route{
 			"prometheus-write", // Prometheus remote write
 			"POST", "/api/v1/prom/write", false, true, h.servePromWrite,
@@ -232,9 +236,13 @@ func NewHandler(c Config) *Handler {
 			"status-head",
 			"HEAD", "/status", false, true, authWrapper(h.serveStatus),
 		},
-		Route{ // Ping
-			"ping",
+		Route{ // Health
+			"health",
 			"GET", "/health", false, true, authWrapper(h.serveHealth),
+		},
+		Route{ // Enable CORS
+			"health-options",
+			"OPTIONS", "/health", false, true, h.serveOptions,
 		},
 		Route{
 			"prometheus-metrics",
@@ -288,6 +296,10 @@ func NewHandler(c Config) *Handler {
 		"flux-read",
 		"POST", "/api/v2/query", true, true, nil,
 	}
+	fluxRouteCors := Route{
+		"flux-read-options",
+		"OPTIONS", "/api/v2/query", false, true, h.serveOptions,
+	}
 
 	if !c.FluxEnabled {
 		fluxRoute.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
@@ -296,7 +308,7 @@ func NewHandler(c Config) *Handler {
 	} else {
 		fluxRoute.HandlerFunc = h.serveFluxQuery
 	}
-	h.AddRoutes(fluxRoute)
+	h.AddRoutes(fluxRoute, fluxRouteCors)
 
 	return h
 }
@@ -1889,6 +1901,7 @@ func cors(inner http.Handler) http.Handler {
 				`Authorization`,
 				`Content-Length`,
 				`Content-Type`,
+				`User-Agent`,
 				`X-CSRF-Token`,
 				`X-HTTP-Method-Override`,
 			}, ", "))
