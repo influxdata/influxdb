@@ -68,7 +68,7 @@
     clippy::future_not_send
 )]
 
-use std::convert::TryInto;
+use std::convert::{Infallible, TryInto};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -872,8 +872,11 @@ where
 
         for duration in nanos {
             tokio::spawn(
-                tokio::time::sleep(tokio::time::Duration::from_nanos(duration))
-                    .track(registration.clone()),
+                async move {
+                    tokio::time::sleep(tokio::time::Duration::from_nanos(duration)).await;
+                    Ok::<_, Infallible>(())
+                }
+                .track(registration.clone()),
             );
         }
 

@@ -115,16 +115,11 @@ impl Job {
 pub enum OperationStatus {
     /// A task associated with the operation is running
     Running,
-    /// All tasks associated with the operation have finished
-    ///
-    /// Note: This does not indicate success or failure only that
-    /// no tasks associated with the operation are running
-    Complete,
+    /// All tasks associated with the operation have finished successfully
+    Success,
     /// The operation was cancelled and no associated tasks are running
     Cancelled,
     /// An operation error was returned
-    ///
-    /// Note: The tracker system currently will never return this
     Errored,
 }
 
@@ -135,10 +130,18 @@ pub enum OperationStatus {
 pub struct Operation {
     /// ID of the running operation
     pub id: usize,
-    /// Number of subtasks for this operation
-    pub task_count: u64,
-    /// Number of pending tasks for this operation
+    // The total number of created tasks
+    pub total_count: u64,
+    // The number of pending tasks
     pub pending_count: u64,
+    // The number of tasks that completed successfully
+    pub success_count: u64,
+    // The number of tasks that returned an error
+    pub error_count: u64,
+    // The number of tasks that were cancelled
+    pub cancelled_count: u64,
+    // The number of tasks that did not run to completion (e.g. panic)
+    pub dropped_count: u64,
     /// Wall time spent executing this operation
     pub wall_time: std::time::Duration,
     /// CPU time spent executing this operation
