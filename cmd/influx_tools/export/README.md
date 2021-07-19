@@ -84,15 +84,19 @@ the current best method would be exporting in line protocol and re-importing aft
 This example takes many small shards and collapses them to fewer large shards, which can be beneficial
 for TSI index performance.
 
-1) Create collapsedir containing export/import data from all shards:
+The `influx_tools export` and `influx_tools import` tools run as if they were a full data node - to run either, the normal
+data node `influxd` process must be down, and the meta nodes must be running. Ensure any environment
+variables and config file settings for the real `influxd` are reflected in the config file provided to
+`influx_tools`
 
-This can be done on a running backup of the cluster - `influx_tools` needs to be able
-to query the cluster metadata and the on-disk state for a data node. Ensure any environment
-variables and config file settings for the real `influxd` are reflected in the config file
-provided to `./influx_tools`.
+#### Create the export
 
-First do the dry run. The `-duration` must be an *integer multiple* of the shard group duration being
+It is recommended to do this step on a running backup of the cluster rather than the real cluster.
+
+The `-duration` must be an *integer multiple* of the shard group duration being
 collapsed, to avoid overlapping shards and import problems. For example, 4032h = 24*168h = 24 weeks.
+
+It is recommended to run a dry run with `-print-only` before running the real export.
 
 On one of the nodes (of the running backup), bring down the influxd process and run:
 
@@ -123,7 +127,7 @@ Seq #           ID         Start                                End
 2               2          2021-03-08 00:00:00 +0000 UTC        2021-08-23 00:00:00 +0000 UTC
 ```
 
-To run just one of shard collapses, you can run with -range argument, like `-range '0-0'` (the range is inclusive).
+To run just one of shard collapses, use the `-range` argument, like `-range '0-0'` (the range is inclusive).
 The range refers to the output shard sequence numbers (the first column of the second table in the plan output).
 
 Once happy with the plan, run without `-print-only` (make sure to pipe to a file!):
@@ -142,20 +146,45 @@ Seq #           ID              Start                           End
 …
 ```
 
-The import step is next, which requires a period of data unavailability.
+#### Import the previously exported data
+
+Importing the data requires a period of data unavailability.
 
 1) For safety, take a full database backup - see https://docs.influxdata.com/enterprise_influxdb/v1.9/administration/backup-and-restore/
 2) With all nodes running, delete *all* the shards that would overlap with the newly created shard(s):
-    1) The output from the export plan (the ‘ID’ column) gives the shard group id’s
-    2) The influxql `SHOW SHARDS` command gives the shard id’s (`id` column) for the shard group id’s (`shard_group` column)
-    3) The influxql `DROP SHARDS` command is able to drop the old shards
+```
+    i) The output from the export plan (the ‘ID’ column) gives the shard group id’s:
+
+> ./influx_tools export ...
+...
+Seq #           ID              Start                           End
+0               9               2020-05-25 00:00:00 +0000 UTC   2020-06-01 00:00:00 +0000 UTC
+                ^
+                Shard group ID
+
+
+    ii) The 'SHOW SHARDS' command gives the shard id's:
+
+> influx -execute 'show shards'
+name: _internal
+id database  retention_policy shard_group start_time           end_time             expiry_time          owners
+-- --------  ---------------- ----------- ----------           --------             -----------          ------
+1  _internal monitor          1           2021-07-15T00:00:00Z 2021-07-16T00:00:00Z 2021-07-23T00:00:00Z 5
+2  _internal monitor          1           2021-07-15T00:00:00Z 2021-07-16T00:00:00Z 2021-07-23T00:00:00Z 4
+14 _internal monitor          8           2021-07-16T00:00:00Z 2021-07-17T00:00:00Z 2021-07-24T00:00:00Z 5
+15 _internal monitor          8           2021-07-16T00:00:00Z 2021-07-17T00:00:00Z 2021-07-24T00:00:00Z 4
+^                             ^
+Shard id                      Shard group id
+
+    iii) The influxql 'DROP SHARD' command must be used to drop each old shard id to be replaced.
+> influx -execute 'drop shard 14'
+```
+
 3) Take one node down, and use `influx_tools import` on that node to import the data, similar to how `influx_tools export`
    was used on the running backup . Note `-shard-duration` is actually the shard group duration, and `duration`
-   should match the existing time to expiry (default is infinite). If necessary, temporarily update the retention policy
-   to a shard duration matching the one chosen during export (otherwise you will get an error `import: retention policy
-   autogen already exists with different parameters`). E.g. `alter retention policy autogen on collapsedb shard duration 4032h`.
-   **If this is necessary, ensure there are no other writes to the database that would create a new shard during this time.**
-
+   should match the existing time to expiry (default is infinite). If importing to an existing retention policy, it must have a matching
+   shard group duration, shard duration, and replication factor (otherwise you will get an error `import: retention policy
+   autogen already exists with different parameters`). Use `alter retention policy ...` to fix the existing policy if necessary.
 ```sh
 $ ./influx_tools import -config /root/.influxdb/influxdb.conf -database collapsedb -rp autogen -shard-duration 4032h < export.binary
 {"level":"info","ts":1626446664.3253446,"caller":"importer/command.go:64","msg":"import starting"}
