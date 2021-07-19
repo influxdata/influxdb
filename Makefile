@@ -113,8 +113,7 @@ checkgenerate:
 	./etc/checkgenerate.sh
 
 generate: gogo $(SUBDIRS)
-	# FIXME: chronograf/dist fails `go generate` because of something to do with the UI.
-	$(GO_GENERATE) $(shell go list ./... | grep -v chronograf/dist)
+	$(GO_GENERATE) ./...
 
 gogo:
 	go build -o $(GOPATH)/bin/ github.com/gogo/protobuf/protoc-gen-gogo
