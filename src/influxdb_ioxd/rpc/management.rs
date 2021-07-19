@@ -98,7 +98,7 @@ where
 
         match self.server.db_rules(&name) {
             Some(rules) => Ok(Response::new(GetDatabaseResponse {
-                rules: Some(rules.into()),
+                rules: Some(rules.as_ref().clone().into()),
             })),
             None => {
                 return Err(NotFound {
@@ -150,7 +150,7 @@ where
             .map_err(UpdateError::from)?;
 
         Ok(Response::new(UpdateDatabaseResponse {
-            rules: Some(updated_rules.into()),
+            rules: Some(updated_rules.as_ref().clone().into()),
         }))
     }
 

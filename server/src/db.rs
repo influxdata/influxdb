@@ -201,7 +201,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// outside of the Db
 #[derive(Debug)]
 pub struct Db {
-    pub rules: RwLock<DatabaseRules>,
+    rules: RwLock<Arc<DatabaseRules>>,
 
     pub server_id: ServerId, // this is also the Query Server ID
 
@@ -270,7 +270,7 @@ pub(crate) struct DatabaseToCommit {
     pub(crate) exec: Arc<Executor>,
     pub(crate) preserved_catalog: PreservedCatalog,
     pub(crate) catalog: Catalog,
-    pub(crate) rules: DatabaseRules,
+    pub(crate) rules: Arc<DatabaseRules>,
     pub(crate) write_buffer: Option<WriteBufferConfig>,
 }
 
@@ -325,6 +325,22 @@ impl Db {
     /// Return a handle to the executor used to run queries
     pub fn executor(&self) -> Arc<Executor> {
         Arc::clone(&self.exec)
+    }
+
+    /// Return the current database rules
+    pub fn rules(&self) -> Arc<DatabaseRules> {
+        Arc::clone(&*self.rules.read())
+    }
+
+    /// Updates the database rules
+    pub fn update_db_rules<F, E>(&self, update: F) -> Result<Arc<DatabaseRules>, E>
+    where
+        F: FnOnce(DatabaseRules) -> Result<DatabaseRules, E>,
+    {
+        let mut rules = self.rules.write();
+        let new_rules = Arc::new(update(rules.as_ref().clone())?);
+        *rules = Arc::clone(&new_rules);
+        Ok(new_rules)
     }
 
     /// Rolls over the active chunk in the database's specified
@@ -1094,11 +1110,22 @@ mod tests {
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = TestError> = std::result::Result<T, E>;
 
+    async fn immutable_db() -> Arc<Db> {
+        TestDb::builder()
+            .lifecycle_rules(LifecycleRules {
+                immutable: true,
+                ..Default::default()
+            })
+            .build()
+            .await
+            .db
+    }
+
     #[tokio::test]
     async fn write_no_mutable_buffer() {
         // Validate that writes are rejected if there is no mutable buffer
-        let db = make_db().await.db;
-        db.rules.write().lifecycle_rules.immutable = true;
+        let db = immutable_db().await;
+
         let entry = lp_to_entry("cpu bar=1 10");
         let res = db.store_entry(entry).await;
         assert_contains!(
@@ -1115,11 +1142,13 @@ mod tests {
         let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state.clone()));
         let test_db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
+            .lifecycle_rules(LifecycleRules {
+                immutable: true,
+                ..Default::default()
+            })
             .build()
             .await
             .db;
-
-        test_db.rules.write().lifecycle_rules.immutable = true;
 
         let entry = lp_to_entry("cpu bar=1 10");
         test_db.store_entry(entry).await.unwrap();
@@ -1287,8 +1316,7 @@ mod tests {
     #[tokio::test]
     async fn cant_write_when_reading_from_write_buffer() {
         // Validate that writes are rejected if this database is reading from the write buffer
-        let db = make_db().await.db;
-        db.rules.write().lifecycle_rules.immutable = true;
+        let db = immutable_db().await;
         let entry = lp_to_entry("cpu bar=1 10");
         let res = db.store_entry(entry).await;
         assert_contains!(
@@ -2759,8 +2787,14 @@ mod tests {
 
     #[tokio::test]
     async fn write_hard_limit() {
-        let db = Arc::new(make_db().await.db);
-        db.rules.write().lifecycle_rules.buffer_size_hard = Some(NonZeroUsize::new(10).unwrap());
+        let db = TestDb::builder()
+            .lifecycle_rules(LifecycleRules {
+                buffer_size_hard: Some(NonZeroUsize::new(10).unwrap()),
+                ..Default::default()
+            })
+            .build()
+            .await
+            .db;
 
         // inserting first line does not trigger hard buffer limit
         write_lp(db.as_ref(), "cpu bar=1 10").await;

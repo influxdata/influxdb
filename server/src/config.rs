@@ -216,12 +216,12 @@ impl Config {
         names
     }
 
-    /// Update datbase rules of a fully initialized database.
+    /// Update database rules of a fully initialized database.
     pub(crate) fn update_db_rules<F, E>(
         &self,
         db_name: &DatabaseName<'static>,
         update: F,
-    ) -> std::result::Result<DatabaseRules, UpdateError<E>>
+    ) -> std::result::Result<Arc<DatabaseRules>, UpdateError<E>>
     where
         F: FnOnce(DatabaseRules) -> std::result::Result<DatabaseRules, E>,
     {
@@ -232,9 +232,7 @@ impl Config {
                 db_name: db_name.to_string(),
             })?;
 
-        let mut rules = db.rules.write();
-        *rules = update(rules.clone()).map_err(UpdateError::Closure)?;
-        Ok(rules.clone())
+        db.update_db_rules(update).map_err(UpdateError::Closure)
     }
 
     /// Get all registered remote servers.
@@ -408,7 +406,7 @@ enum DatabaseState {
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
         server_id: ServerId,
-        rules: DatabaseRules,
+        rules: Arc<DatabaseRules>,
     },
 
     /// Catalog is loaded but data from sequencers / write buffers is not yet replayed.
@@ -462,8 +460,8 @@ impl DatabaseState {
         match self {
             DatabaseState::Known { db_name, .. } => db_name.clone(),
             DatabaseState::RulesLoaded { rules, .. } => rules.name.clone(),
-            DatabaseState::Replay { db, .. } => db.rules.read().name.clone(),
-            DatabaseState::Initialized { db, .. } => db.rules.read().name.clone(),
+            DatabaseState::Replay { db, .. } => db.rules().name.clone(),
+            DatabaseState::Initialized { db, .. } => db.rules().name.clone(),
         }
     }
 
@@ -485,12 +483,12 @@ impl DatabaseState {
         }
     }
 
-    fn rules(&self) -> Option<DatabaseRules> {
+    fn rules(&self) -> Option<Arc<DatabaseRules>> {
         match self {
             DatabaseState::Known { .. } => None,
-            DatabaseState::RulesLoaded { rules, .. } => Some(rules.clone()),
-            DatabaseState::Replay { db, .. } => Some(db.rules.read().clone()),
-            DatabaseState::Initialized { db, .. } => Some(db.rules.read().clone()),
+            DatabaseState::RulesLoaded { rules, .. } => Some(Arc::clone(&rules)),
+            DatabaseState::Replay { db, .. } => Some(db.rules()),
+            DatabaseState::Initialized { db, .. } => Some(db.rules()),
         }
     }
 }
@@ -564,7 +562,7 @@ impl<'a> DatabaseHandle<'a> {
     }
 
     /// Get rules, if already known in the current state.
-    pub fn rules(&self) -> Option<DatabaseRules> {
+    pub fn rules(&self) -> Option<Arc<DatabaseRules>> {
         self.state().rules()
     }
 
@@ -611,7 +609,7 @@ impl<'a> DatabaseHandle<'a> {
                     object_store: Arc::clone(&object_store),
                     exec: Arc::clone(&exec),
                     server_id: *server_id,
-                    rules,
+                    rules: Arc::new(rules),
                 }));
 
                 Ok(())
@@ -643,7 +641,7 @@ impl<'a> DatabaseHandle<'a> {
                     exec: Arc::clone(&exec),
                     preserved_catalog,
                     catalog,
-                    rules: rules.clone(),
+                    rules: Arc::clone(&rules),
                     write_buffer,
                 };
                 let db = Arc::new(Db::new(database_to_commit, Arc::clone(&self.config.jobs)));
@@ -671,12 +669,12 @@ impl<'a> DatabaseHandle<'a> {
                 let shutdown = self.config.shutdown.child_token();
                 let shutdown_captured = shutdown.clone();
                 let db_captured = Arc::clone(&db);
-                let name_captured = db.rules.read().name.clone();
+                let rules = db.rules();
 
                 let handle = Some(tokio::spawn(async move {
                     db_captured
                         .background_worker(shutdown_captured)
-                        .instrument(tracing::info_span!("db_worker", database=%name_captured))
+                        .instrument(tracing::info_span!("db_worker", database=%rules.name))
                         .await
                 }));
 

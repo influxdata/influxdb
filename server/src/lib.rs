@@ -650,7 +650,7 @@ where
 
         // need to split this in two blocks because we cannot hold a lock across an async call.
         let routing_config_target = {
-            let rules = db.rules.read();
+            let rules = db.rules();
             if let Some(RoutingRules::RoutingConfig(routing_config)) = &rules.routing_rules {
                 let sharded_entries = lines_to_sharded_entries(
                     lines,
@@ -680,7 +680,7 @@ where
         // config is updated, hence it's safe to use after we release the shard config
         // lock.
         let (sharded_entries, shards) = {
-            let rules = db.rules.read();
+            let rules = db.rules();
 
             let shard_config = rules.routing_rules.as_ref().map(|cfg| match cfg {
                 RoutingRules::RoutingConfig(_) => todo!("routing config"),
@@ -828,10 +828,8 @@ where
         self.config.db_initialized(name)
     }
 
-    pub fn db_rules(&self, name: &DatabaseName<'_>) -> Option<DatabaseRules> {
-        self.config
-            .db_initialized(name)
-            .map(|d| d.rules.read().clone())
+    pub fn db_rules(&self, name: &DatabaseName<'_>) -> Option<Arc<DatabaseRules>> {
+        self.config.db_initialized(name).map(|d| d.rules())
     }
 
     // Update database rules and save on success.
@@ -839,7 +837,7 @@ where
         &self,
         db_name: &DatabaseName<'static>,
         update: F,
-    ) -> std::result::Result<DatabaseRules, UpdateError<E>>
+    ) -> std::result::Result<Arc<DatabaseRules>, UpdateError<E>>
     where
         F: FnOnce(DatabaseRules) -> Result<DatabaseRules, E> + Send,
     {
@@ -850,7 +848,9 @@ where
                 crate::config::UpdateError::Closure(e) => UpdateError::Closure(e),
                 crate::config::UpdateError::Update(e) => UpdateError::Update(e),
             })?;
-        self.persist_database_rules(rules.clone()).await?;
+
+        // TODO: Move into DB (#2053)
+        self.persist_database_rules(rules.as_ref().clone()).await?;
         Ok(rules)
     }
 
@@ -1477,6 +1477,7 @@ mod tests {
 
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).unwrap();
+        let rules = db.rules();
 
         let line = "cpu bar=1 10";
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
@@ -1484,7 +1485,7 @@ mod tests {
             &lines,
             ARBITRARY_DEFAULT_TIME,
             NO_SHARD_CONFIG,
-            &*db.rules.read(),
+            rules.as_ref(),
         )
         .expect("sharded entries");
 
@@ -1558,8 +1559,7 @@ mod tests {
 
         let remote_ids = vec![bad_remote_id, good_remote_id_1, good_remote_id_2];
         let db = server.db(&db_name).unwrap();
-        {
-            let mut rules = db.rules.write();
+        db.update_db_rules(|mut rules| {
             let shard_config = ShardConfig {
                 hash_ring: Some(HashRing {
                     shards: vec![TEST_SHARD_ID].into(),
@@ -1573,7 +1573,9 @@ mod tests {
                 ..Default::default()
             };
             rules.routing_rules = Some(RoutingRules::ShardConfig(shard_config));
-        }
+            Ok::<_, Infallible>(rules)
+        })
+        .unwrap();
 
         let line = "cpu bar=1 10";
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
@@ -1793,19 +1795,20 @@ mod tests {
 
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).unwrap();
-        db.rules.write().lifecycle_rules.buffer_size_hard =
-            Some(std::num::NonZeroUsize::new(10).unwrap());
+        let rules = db
+            .update_db_rules(|mut rules| {
+                rules.lifecycle_rules.buffer_size_hard =
+                    Some(std::num::NonZeroUsize::new(10).unwrap());
+                Ok::<_, Infallible>(rules)
+            })
+            .unwrap();
 
         // inserting first line does not trigger hard buffer limit
         let line_1 = "cpu bar=1 10";
         let lines_1: Vec<_> = parse_lines(line_1).map(|l| l.unwrap()).collect();
-        let sharded_entries_1 = lines_to_sharded_entries(
-            &lines_1,
-            ARBITRARY_DEFAULT_TIME,
-            NO_SHARD_CONFIG,
-            &*db.rules.read(),
-        )
-        .expect("first sharded entries");
+        let sharded_entries_1 =
+            lines_to_sharded_entries(&lines_1, ARBITRARY_DEFAULT_TIME, NO_SHARD_CONFIG, &*rules)
+                .expect("first sharded entries");
 
         let entry_1 = &sharded_entries_1[0].entry;
         server
@@ -1820,7 +1823,7 @@ mod tests {
             &lines_2,
             ARBITRARY_DEFAULT_TIME,
             NO_SHARD_CONFIG,
-            &*db.rules.read(),
+            rules.as_ref(),
         )
         .expect("second sharded entries");
         let entry_2 = &sharded_entries_2[0].entry;

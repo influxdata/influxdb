@@ -94,7 +94,7 @@ impl TestDbBuilder {
         }
 
         let database_to_commit = DatabaseToCommit {
-            rules,
+            rules: Arc::new(rules),
             server_id,
             object_store,
             preserved_catalog,
