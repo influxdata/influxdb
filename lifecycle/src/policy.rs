@@ -255,7 +255,6 @@ where
 
         if to_compact.len() >= 2 || has_mub_snapshot {
             // caller's responsibility to determine if we can maybe compact.
-
             assert!(self.active_compactions < rules.max_active_compactions.get() as usize);
 
             // Upgrade partition first
