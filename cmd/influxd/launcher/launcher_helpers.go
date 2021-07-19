@@ -479,13 +479,55 @@ func (tl *TestLauncher) TaskService(tb testing.TB) influxdb.TaskService {
 
 func (tl *TestLauncher) BackupService(tb testing.TB) *clibackup.Client {
 	tb.Helper()
-	return &clibackup.Client{CLI: clients.CLI{}, BackupApi: tl.APIClient(tb).BackupApi}
+	client := tl.APIClient(tb)
+	return &clibackup.Client{
+		CLI:       clients.CLI{},
+		BackupApi: client.BackupApi,
+		HealthApi: &versionAdaptingHealthApi{client.HealthApi},
+	}
 }
 
 func (tl *TestLauncher) RestoreService(tb testing.TB) *clirestore.Client {
 	tb.Helper()
 	client := tl.APIClient(tb)
-	return &clirestore.Client{CLI: clients.CLI{}, RestoreApi: client.RestoreApi, OrganizationsApi: client.OrganizationsApi}
+	return &clirestore.Client{
+		CLI:              clients.CLI{},
+		RestoreApi:       client.RestoreApi,
+		OrganizationsApi: client.OrganizationsApi,
+		BucketsApi:       client.BucketsApi,
+		HealthApi:        &versionAdaptingHealthApi{client.HealthApi},
+	}
+}
+
+// versionAdaptingHealthApi wraps the health API to ensure that versions returned by our health-check
+// are prefixed with '2.0.0'. This is required for the version-detection in our CLI to function properly.
+type versionAdaptingHealthApi struct {
+	underlying api.HealthApi
+}
+
+func (va versionAdaptingHealthApi) GetHealth(ctx context.Context) api.ApiGetHealthRequest {
+	req := va.underlying.GetHealth(ctx)
+	req.ApiService = va
+	return req
+}
+
+var testVersion = "2.0.0-SNAPSHOT"
+
+func (va versionAdaptingHealthApi) GetHealthExecute(req api.ApiGetHealthRequest) (api.HealthCheck, error) {
+	check, err := va.underlying.GetHealthExecute(req)
+	if err != nil {
+		return check, err
+	}
+	check.Version = &testVersion
+	return check, nil
+}
+
+func (va versionAdaptingHealthApi) OnlyOSS() api.HealthApi {
+	return &versionAdaptingHealthApi{va.underlying.OnlyOSS()}
+}
+
+func (va versionAdaptingHealthApi) OnlyCloud() api.HealthApi {
+	return &versionAdaptingHealthApi{va.underlying.OnlyCloud()}
 }
 
 func (tl *TestLauncher) HTTPClient(tb testing.TB) *httpc.Client {
