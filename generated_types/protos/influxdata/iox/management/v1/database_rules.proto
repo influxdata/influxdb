@@ -82,6 +82,13 @@ message LifecycleRules {
   // If 0, compactions are limited to the default number.
   // See data_types::database_rules::DEFAULT_MAX_ACTIVE_COMPACTIONS
   uint32 max_active_compactions = 16;
+
+  // Use up to this amount of space in bytes for caching Parquet files
+  ParquetCacheLimit parquet_cache_limit = 17;
+}
+
+message ParquetCacheLimit {
+  uint64 value = 1;
 }
 
 message DatabaseRules {

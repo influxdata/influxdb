@@ -13,6 +13,7 @@ use influxdb_iox_client::{
     },
     write::{self, WriteError},
 };
+use std::num::NonZeroUsize;
 
 mod catalog;
 mod chunk;
@@ -119,6 +120,10 @@ struct Create {
     /// Maximum number of rows to buffer in a MUB chunk before compacting it
     #[structopt(long, default_value = "100000")]
     mub_row_threshold: u64,
+
+    /// Use up to this amount of space in bytes for caching Parquet files
+    #[structopt(long, parse(try_from_str))]
+    pub parquet_cache_limit: Option<NonZeroUsize>,
 }
 
 /// Get list of databases
@@ -193,6 +198,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                     persist_row_threshold: command.persist_row_threshold,
                     persist_age_threshold_seconds: command.persist_age_threshold_seconds,
                     mub_row_threshold: command.mub_row_threshold,
+                    parquet_cache_limit: command.parquet_cache_limit.map(|l| ParquetCacheLimit{value: l.get() as u64}),
                 }),
 
                 // Default to hourly partitions
