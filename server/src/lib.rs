@@ -555,8 +555,9 @@ where
         .map_err(|e| Box::new(e) as _)
         .context(CannotCreatePreservedCatalog)?;
 
-        let write_buffer =
-            WriteBufferConfig::new(server_id, &rules).map_err(|e| Error::CreatingWriteBuffer {
+        let write_buffer = WriteBufferConfig::new(server_id, &rules)
+            .await
+            .map_err(|e| Error::CreatingWriteBuffer {
                 config: rules.write_buffer_connection.clone(),
                 source: e,
             })?;
