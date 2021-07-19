@@ -2,17 +2,10 @@
 
 use std::{cmp::Ordering, ops::Range, sync::Arc};
 
-use arrow::{
-    array::{ArrayRef, UInt64Array},
-    compute::TakeOptions,
-    error::Result as ArrowResult,
-    record_batch::RecordBatch,
-};
+use arrow::{array::{ArrayRef, UInt64Array}, compute::TakeOptions, datatypes::{DataType, TimeUnit}, error::Result as ArrowResult, record_batch::RecordBatch};
 
 use arrow_util::optimize::optimize_dictionaries;
-use datafusion::physical_plan::{
-    coalesce_batches::concat_batches, expressions::PhysicalSortExpr, PhysicalExpr, SQLMetric,
-};
+use datafusion::physical_plan::{PhysicalExpr, SQLMetric, coalesce_batches::concat_batches, expressions::PhysicalSortExpr};
 use observability_deps::tracing::trace;
 
 // Handles the deduplication across potentially multiple
@@ -65,6 +58,7 @@ impl RecordBatchDeduplicator {
             batch
         };
 
+        trace!("Invoke compute_ranges in Dedupiucate::algo::push");
         let mut dupe_ranges = self.compute_ranges(&batch)?;
 
         // The last partition may span batches so we can't emit it
@@ -199,6 +193,7 @@ impl RecordBatchDeduplicator {
         self.last_batch
             .take()
             .map(|last_batch| {
+                trace!("Invoke compute_ranges in Deduplicate::algo::finish");
                 let dupe_ranges = self.compute_ranges(&last_batch)?;
                 self.output_from_ranges(&last_batch, &dupe_ranges)
             })
@@ -211,8 +206,10 @@ impl RecordBatchDeduplicator {
         // is_sort_key[col_idx] = true if it is present in sort keys
         let mut is_sort_key: Vec<bool> = vec![false; batch.columns().len()];
 
-        // Figure out where the partitions are:
-        let columns: Vec<_> = self
+        // Figure out the columns used to compute the ranges
+        // With the way to build sort key, columns computed below is
+        // the sort key in lowest to highest cardinality plus time column at the end
+        let mut columns: Vec<_> = self
             .sort_keys
             .iter()
             .map(|skey| {
@@ -231,8 +228,32 @@ impl RecordBatchDeduplicator {
             })
             .collect();
 
+        println!("Columns before reversing {:#?}", columns);
+
+        // Now converting the columns order from: lowest cardinality, second lowest, ..., highest cardinality, time
+        // to: highest cardinality, time, second highest cardinality, ...., lowest cardinality
+        //
+        // If the last column is time, swap time with its previous column which is the column with highest cardinality
+        let len = columns.len();
+        if len > 1 { 
+            match columns[len-1].values.data_type() {
+                DataType::Timestamp(TimeUnit::Second, _) => {
+                    columns.swap(len - 2, len - 1 );
+                },
+                _ => {}
+            }
+        } 
+        
+        // Reverse that list
+        let columns: Vec<_> = columns.into_iter().rev().collect();
+        println!("Columns after reversing {:#?}", columns);
+
         // Compute partitions (aka breakpoints between the ranges)
-        let ranges = arrow::compute::lexicographical_partition_ranges(&columns)?.collect();
+        // Each range (or partition) includes a unique sort key value which is 
+        // a unique combination of PK columns. PK columns consist of all tags and the time col.
+        //let ranges = arrow::compute::lexicographical_partition_ranges(&columns)?.collect();
+        let ranges = key_ranges(&columns).collect();
+        println!("Ranges: {:#?}", ranges);
 
         Ok(DuplicateRanges {
             is_sort_key,
