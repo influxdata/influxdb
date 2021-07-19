@@ -8,7 +8,7 @@ use data_types::chunk_metadata::ChunkSummary;
 use data_types::chunk_metadata::DetailedChunkSummary;
 use data_types::partition_metadata::{PartitionSummary, TableSummary};
 use internal_types::schema::Schema;
-use snafu::Snafu;
+use snafu::{OptionExt, Snafu};
 use tracker::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 
 use self::chunk::CatalogChunk;
@@ -135,11 +135,8 @@ impl Catalog {
     /// Get a specific table by name, returning `None` if there is no such table
     pub fn table(&self, table_name: impl AsRef<str>) -> Result<MappedRwLockReadGuard<'_, Table>> {
         let table_name = table_name.as_ref();
-        RwLockReadGuard::try_map(self.tables.read(), |tables| tables.get(table_name)).map_err(
-            |_| Error::TableNotFound {
-                table: table_name.to_string(),
-            },
-        )
+        RwLockReadGuard::try_map(self.tables.read(), |tables| tables.get(table_name))
+            .map_err(|_| TableNotFound { table: table_name }.build())
     }
 
     /// Get a specific partition by name, returning an error if it can't be found
@@ -154,9 +151,9 @@ impl Catalog {
         self.table(table_name)?
             .partition(partition_key)
             .cloned()
-            .ok_or_else(|| Error::PartitionNotFound {
-                partition: partition_key.to_string(),
-                table: table_name.to_string(),
+            .context(PartitionNotFound {
+                partition: partition_key,
+                table: table_name,
             })
     }
 
@@ -174,9 +171,9 @@ impl Catalog {
             .read()
             .chunk(chunk_id)
             .cloned()
-            .ok_or_else(|| Error::ChunkNotFound {
-                partition: partition_key.to_string(),
-                table: table_name.to_string(),
+            .context(ChunkNotFound {
+                partition: partition_key,
+                table: table_name,
                 chunk_id,
             })
     }

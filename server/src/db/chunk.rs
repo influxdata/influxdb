@@ -5,7 +5,7 @@ use std::{
 
 use data_types::partition_metadata;
 use partition_metadata::TableSummary;
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
@@ -417,7 +417,7 @@ impl QueryChunk for DbChunk {
                 // column out to get the set of values.
                 let values = values
                     .remove(column_name)
-                    .ok_or_else(|| Error::ReadBufferError {
+                    .with_context(|| ReadBufferError {
                         chunk_id: self.id(),
                         msg: format!(
                             "failed to find column_name {:?} in results of tag_values",
