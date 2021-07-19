@@ -5,6 +5,7 @@ use std::{fmt, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
 use datafusion::{
+    catalog::catalog::CatalogProvider,
     execution::context::{ExecutionContextState, QueryPlanner},
     logical_plan::{LogicalPlan, UserDefinedLogicalNode},
     physical_plan::{
@@ -105,6 +106,46 @@ impl ExtensionPlanner for IOxExtensionPlanner {
     }
 }
 
+// Configuration for an IOx execution context
+#[derive(Clone)]
+pub struct IOxExecutionConfig {
+    /// Configuration options to pass to DataFusion
+    inner: ExecutionConfig,
+}
+
+impl Default for IOxExecutionConfig {
+    fn default() -> Self {
+        const BATCH_SIZE: usize = 1000;
+
+        // Setup default configuration
+        let inner = ExecutionConfig::new()
+            .with_batch_size(BATCH_SIZE)
+            .create_default_catalog_and_schema(true)
+            .with_information_schema(true)
+            .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA)
+            .with_query_planner(Arc::new(IOxQueryPlanner {}));
+
+        Self { inner }
+    }
+}
+
+impl fmt::Debug for IOxExecutionConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "IOxExecutionConfig ...")
+    }
+}
+
+impl IOxExecutionConfig {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    /// Set execution concurrency
+    pub fn set_concurrency(&mut self, concurrency: usize) {
+        self.inner.concurrency = concurrency;
+    }
+}
+
 /// This is an execution context for planning in IOx.  It wraps a
 /// DataFusion execution context with the information needed for planning.
 ///
@@ -136,21 +177,8 @@ impl fmt::Debug for IOxExecutionContext {
 
 impl IOxExecutionContext {
     /// Create an ExecutionContext suitable for executing DataFusion plans
-    ///
-    /// The config is created with a default catalog and schema, but this
-    /// can be overridden at a later date
-    pub fn new(exec: DedicatedExecutor) -> Self {
-        const BATCH_SIZE: usize = 1000;
-
-        // TBD: Should we be reusing an execution context across all executions?
-        let config = ExecutionConfig::new()
-            .with_batch_size(BATCH_SIZE)
-            .create_default_catalog_and_schema(true)
-            .with_information_schema(true)
-            .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA)
-            .with_query_planner(Arc::new(IOxQueryPlanner {}));
-
-        let inner = ExecutionContext::with_config(config);
+    pub fn new(exec: DedicatedExecutor, config: IOxExecutionConfig) -> Self {
+        let inner = ExecutionContext::with_config(config.inner);
 
         Self { inner, exec }
     }
@@ -160,10 +188,12 @@ impl IOxExecutionContext {
         &self.inner
     }
 
-    /// returns a mutable reference to the inner datafusion execution context
-    pub fn inner_mut(&mut self) -> &mut ExecutionContext {
-        &mut self.inner
+    /// registers a catalog with the inner context
+    pub fn register_catalog(&mut self, name: impl Into<String>, catalog: Arc<dyn CatalogProvider>) {
+        self.inner.register_catalog(name, catalog);
     }
+
+    ///
 
     /// Prepare a SQL statement for execution. This assumes that any
     /// tables referenced in the SQL have been registered with this context

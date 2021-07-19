@@ -87,7 +87,7 @@ impl SqlQueryPlanner {
         executor: &Executor,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let mut ctx = executor.new_context(ExecutorType::Query);
-        ctx.inner_mut().register_catalog(DEFAULT_CATALOG, database);
+        ctx.register_catalog(DEFAULT_CATALOG, database);
         ctx.prepare_sql(query).context(Preparing)
     }
 }
