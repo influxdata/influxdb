@@ -22,7 +22,7 @@ func TestLauncher_Setup(t *testing.T) {
 	l.RunOrFail(t, ctx)
 	defer l.ShutdownOrFail(t, ctx)
 
-	client, err := http.NewHTTPClient(l.URL(), "", false)
+	client, err := http.NewHTTPClient(l.URL().String(), "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestLauncher_SetupWithUsers(t *testing.T) {
 	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
-	r, err := nethttp.NewRequest("POST", l.URL()+"/api/v2/signin", nil)
+	r, err := nethttp.NewRequest("POST", l.URL().String()+"/api/v2/signin", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestLauncher_SetupWithUsers(t *testing.T) {
 		t.Fatalf("unexpected status code: %d, body: %s, headers: %v", resp.StatusCode, body, resp.Header)
 	}
 
-	r, err = nethttp.NewRequest("GET", l.URL()+"/api/v2/users", nil)
+	r, err = nethttp.NewRequest("GET", l.URL().String()+"/api/v2/users", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
