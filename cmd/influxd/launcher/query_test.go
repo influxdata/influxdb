@@ -1197,7 +1197,7 @@ from(bucket: v.bucket)
 			query: `
 from(bucket: v.bucket)
 	|> range(start: 1969-12-31T23:59:59Z, stop: 1970-01-01T00:00:33Z)
-	|> aggregateWindow(every: 10s, fn: last)
+	|> aggregateWindow(every: 10s, fn: last, createEmpty: false)
 `,
 			op: "readWindow(last)",
 			want: `
@@ -1381,7 +1381,7 @@ from(bucket: v.bucket)
 			query: `
 from(bucket: v.bucket)
 	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:02Z)
-	|> aggregateWindow(every: 500ms, fn: first)
+	|> aggregateWindow(every: 500ms, fn: first, createEmpty: false)
 `,
 			op: "readWindow(first)",
 			want: `
@@ -1520,7 +1520,7 @@ from(bucket: v.bucket)
 			query: `
 from(bucket: v.bucket)
 	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:12Z)
-	|> aggregateWindow(every: 3s, fn: min)
+	|> aggregateWindow(every: 3s, fn: min, createEmpty: false)
 `,
 			op: "readWindow(min)",
 			want: `
@@ -1659,7 +1659,7 @@ from(bucket: v.bucket)
 			query: `
 from(bucket: v.bucket)
 	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:12Z)
-	|> aggregateWindow(every: 3s, fn: max)
+	|> aggregateWindow(every: 3s, fn: max, createEmpty: false)
 `,
 			op: "readWindow(max)",
 			want: `
