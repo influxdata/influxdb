@@ -7,7 +7,7 @@ description = "InfluxDB IOx internal types, shared between IOx instances"
 readme = "README.md"
 
 [dependencies]
-arrow = { version = "4.0", features = ["prettyprint"] }
+arrow = { version = "5.0", features = ["prettyprint"] }
 hashbrown = "0.11"
 indexmap = "1.6"
 itertools = "0.10.1"

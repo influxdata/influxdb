@@ -30,6 +30,9 @@ where
     /// The `LifecycleDb` this policy is automating
     db: M,
 
+    /// The current number of active compactions.
+    active_compactions: usize,
+
     /// Background tasks spawned by this `LifecyclePolicy`
     trackers: Vec<TaskTracker<ChunkLifecycleAction>>,
 }
@@ -42,6 +45,7 @@ where
         Self {
             db,
             trackers: vec![],
+            active_compactions: 0,
         }
     }
 
@@ -250,6 +254,9 @@ where
         }
 
         if to_compact.len() >= 2 || has_mub_snapshot {
+            // caller's responsibility to determine if we can maybe compact.
+            assert!(self.active_compactions < rules.max_active_compactions.get() as usize);
+
             // Upgrade partition first
             let partition = partition.upgrade();
             let chunks = to_compact
@@ -261,6 +268,7 @@ where
                 .expect("failed to compact chunks")
                 .with_metadata(ChunkLifecycleAction::Compacting);
 
+            self.active_compactions += 1;
             self.trackers.push(tracker);
         }
     }
@@ -475,17 +483,39 @@ where
             // if the criteria for persistence have been satisfied,
             // but persistence cannot proceed because of in-progress
             // compactions
-            let stall_compaction = if rules.persist {
-                self.maybe_persist_chunks(&db_name, partition, &rules, now_instant)
+            let stall_compaction_persisting = if rules.persist {
+                let persisting =
+                    self.maybe_persist_chunks(&db_name, partition, &rules, now_instant);
+                if persisting {
+                    debug!(%db_name, %partition, reason="persisting", "stalling compaction");
+                }
+                persisting
             } else {
                 false
             };
 
-            if !stall_compaction {
-                self.maybe_compact_chunks(partition, &rules, now);
-            } else {
-                debug!(%db_name, %partition, "stalling compaction to allow persist");
+            // Until we have a more sophisticated compaction policy that can
+            // allocate resources appropriately, we limit the number of
+            // compactions that may run concurrently. Compactions are
+            // completely disabled if max_compactions is Some(0), whilst if
+            // it is None then the compaction limiter is disabled (unlimited
+            // concurrent compactions).
+            let stall_compaction_no_slots = {
+                let max_compactions = self.db.rules().max_active_compactions.get();
+                let slots_full = self.active_compactions >= max_compactions as usize;
+                if slots_full {
+                    debug!(%db_name, %partition, ?max_compactions, reason="slots_full", "stalling compaction");
+                }
+                slots_full
+            };
+
+            // conditions where no compactions will be scheduled.
+            if stall_compaction_persisting || stall_compaction_no_slots {
+                continue;
             }
+
+            // possibly do a compaction
+            self.maybe_compact_chunks(partition, &rules, now);
         }
 
         if let Some(soft_limit) = rules.buffer_size_soft {
@@ -498,7 +528,25 @@ where
         }
 
         // Clear out completed tasks
-        self.trackers.retain(|x| !x.is_complete());
+        let mut completed_compactions = 0;
+        self.trackers.retain(|x| {
+            let completed = x.is_complete();
+            if completed && matches!(x.metadata(), ChunkLifecycleAction::Compacting) {
+                // free up slot for another compaction
+                completed_compactions += 1;
+            }
+
+            !completed
+        });
+
+        // update active compactions
+        if completed_compactions > 0 {
+            debug!(?completed_compactions, active_compactions=?self.active_compactions,
+                max_compactions=?self.db.rules().max_active_compactions, "releasing compaction slots")
+        }
+
+        assert!(completed_compactions <= self.active_compactions);
+        self.active_compactions -= completed_compactions;
 
         let tracker_fut = match self.trackers.is_empty() {
             false => futures::future::Either::Left(futures::future::select_all(
@@ -1435,6 +1483,52 @@ mod tests {
         db.events.write().clear();
         lifecycle.check_for_work(now, Instant::now());
         assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![17, 18])]);
+    }
+
+    #[test]
+    fn test_compaction_limiter() {
+        let rules = LifecycleRules {
+            max_active_compactions: 2.try_into().unwrap(),
+            ..Default::default()
+        };
+
+        let now = from_secs(50);
+        let partitions = vec![
+            TestPartition::new(vec![
+                // closed => can compact
+                TestChunk::new(0, Some(0), Some(20), ChunkStorage::ClosedMutableBuffer),
+                // closed => can compact
+                TestChunk::new(10, Some(0), Some(30), ChunkStorage::ClosedMutableBuffer),
+                // closed => can compact
+                TestChunk::new(12, Some(0), Some(40), ChunkStorage::ClosedMutableBuffer),
+            ]),
+            TestPartition::new(vec![
+                // closed => can compact
+                TestChunk::new(1, Some(0), Some(20), ChunkStorage::ClosedMutableBuffer),
+            ]),
+            TestPartition::new(vec![
+                // closed => can compact
+                TestChunk::new(200, Some(0), Some(10), ChunkStorage::ClosedMutableBuffer),
+            ]),
+        ];
+
+        let db = TestDb::from_partitions(rules, partitions);
+        let mut lifecycle = LifecyclePolicy::new(&db);
+
+        lifecycle.check_for_work(now, Instant::now());
+        assert_eq!(
+            *db.events.read(),
+            vec![
+                MoverEvents::Compact(vec![0, 10, 12]),
+                MoverEvents::Compact(vec![1]),
+            ],
+        );
+
+        db.events.write().clear();
+
+        // Compaction slots freed up, other partition can now compact.
+        lifecycle.check_for_work(now, Instant::now());
+        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![200]),],);
     }
 
     #[test]

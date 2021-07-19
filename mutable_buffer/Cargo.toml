@@ -14,7 +14,7 @@ edition = "2018"
 # 2. Keep change/compile/link time down during development when working on just this crate
 
 [dependencies] # In alphabetical order
-arrow = { version = "4.0", features = ["prettyprint"] }
+arrow = { version = "5.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 chrono = "0.4"

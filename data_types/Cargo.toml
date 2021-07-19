@@ -9,6 +9,7 @@ readme = "README.md"
 [dependencies] # In alphabetical order
 chrono = { version = "0.4", features = ["serde"] }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+num_cpus = "1.13.0"
 percent-encoding = "2.1.0"
 regex = "1.4"
 serde = { version = "1.0", features = ["rc", "derive"] }

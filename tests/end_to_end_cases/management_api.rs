@@ -218,6 +218,7 @@ async fn test_create_get_update_database() {
             catalog_transactions_until_checkpoint: 13,
             late_arrive_window_seconds: 423,
             worker_backoff_millis: 15,
+            max_active_compactions: 8,
             persist_row_threshold: 342,
             persist_age_threshold_seconds: 700,
             mub_row_threshold: 1343,

@@ -104,6 +104,7 @@ pub fn persist_chunks(
         let remainder_rows = remainder.rows();
 
         let persist_fut = {
+            let partition = LockableCatalogPartition::new(Arc::clone(&db), partition);
             let mut partition_write = partition.write();
             for id in chunk_ids {
                 partition_write.force_drop_chunk(id)
@@ -117,18 +118,12 @@ pub fn persist_chunks(
             assert!(to_persist.rows() > 0);
 
             let to_persist = LockableCatalogChunk {
-                db: Arc::clone(&db),
+                db,
                 chunk: partition_write.create_rub_chunk(to_persist, schema),
             };
             let to_persist = to_persist.write();
 
-            // Drop partition lock guard after locking chunk
-            std::mem::drop(partition_write);
-
-            let partition = LockableCatalogPartition::new(db, partition);
-            let partition = partition.write();
-
-            write_chunk_to_object_store(partition, to_persist, flush_handle)?.1
+            write_chunk_to_object_store(partition_write, to_persist, flush_handle)?.1
         };
 
         // Wait for write operation to complete

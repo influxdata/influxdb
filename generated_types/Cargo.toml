@@ -13,6 +13,7 @@ data_types = { path = "../data_types" }
 futures = "0.3"
 google_types = { path = "../google_types" }
 observability_deps = { path = "../observability_deps" }
+num_cpus = "1.13.0"
 prost = "0.7"
 prost-types = "0.7"
 regex = "1.4"
