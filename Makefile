@@ -112,7 +112,19 @@ checktidy:
 checkgenerate:
 	./etc/checkgenerate.sh
 
-generate: $(SUBDIRS)
+generate: gogo $(SUBDIRS)
+	$(GO_GENERATE) \
+		./v1/services/meta \
+		./v1/services/storage \
+		./tsdb \
+		./chronograf/bolt/internal \
+		./storage/reads/datatypes \
+		./influxql/query \
+		./pkg/tracing/wire
+
+gogo:
+	go build -o $(GOPATH)/bin/ github.com/gogo/protobuf/protoc-gen-gogo
+	go build -o $(GOPATH)/bin/ github.com/gogo/protobuf/protoc-gen-gogofaster
 
 test-go:
 	$(GO_TEST) $(GO_TEST_PATHS)
