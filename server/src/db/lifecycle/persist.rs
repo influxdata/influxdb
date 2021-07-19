@@ -6,6 +6,7 @@ use crate::db::{
     lifecycle::{collect_rub, merge_schemas, write::write_chunk_to_object_store},
     DbChunk,
 };
+use chrono::{DateTime, Utc};
 use data_types::job::Job;
 use lifecycle::{LifecycleWriteGuard, LockableChunk, LockablePartition};
 use observability_deps::tracing::info;
@@ -45,6 +46,8 @@ pub fn persist_chunks(
 
     // Mark and snapshot chunks, then drop locks
     let mut input_rows = 0;
+    let mut time_of_first_write: Option<DateTime<Utc>> = None;
+    let mut time_of_last_write: Option<DateTime<Utc>> = None;
     let mut query_chunks = vec![];
     for mut chunk in chunks {
         // Sanity-check
@@ -52,12 +55,28 @@ pub fn persist_chunks(
         assert_eq!(chunk.table_name().as_ref(), table_name.as_str());
 
         input_rows += chunk.table_summary().count();
+
+        time_of_first_write = match (time_of_first_write, chunk.time_of_first_write()) {
+            (Some(prev_first), Some(candidate_first)) => Some(prev_first.min(candidate_first)),
+            (Some(only), None) | (None, Some(only)) => Some(only),
+            (None, None) => None,
+        };
+
+        time_of_last_write = match (time_of_last_write, chunk.time_of_last_write()) {
+            (Some(prev_last), Some(candidate_last)) => Some(prev_last.max(candidate_last)),
+            (Some(only), None) | (None, Some(only)) => Some(only),
+            (None, None) => None,
+        };
+
         chunk.set_writing_to_object_store(&registration)?;
         query_chunks.push(DbChunk::snapshot(&*chunk));
     }
 
     // drop partition lock guard
     let partition = partition.into_data().partition;
+
+    let time_of_first_write = time_of_first_write.expect("Should have had a first write somewhere");
+    let time_of_last_write = time_of_last_write.expect("Should have had a last write somewhere");
 
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
@@ -87,8 +106,20 @@ pub fn persist_chunks(
         let remainder_stream = ctx.execute_partition(physical_plan, 1).await?;
 
         let (to_persist, remainder) = futures::future::try_join(
-            collect_rub(to_persist_stream, db.as_ref(), &table_name),
-            collect_rub(remainder_stream, db.as_ref(), &table_name),
+            collect_rub(
+                to_persist_stream,
+                db.as_ref(),
+                &table_name,
+                time_of_first_write,
+                time_of_last_write,
+            ),
+            collect_rub(
+                remainder_stream,
+                db.as_ref(),
+                &table_name,
+                time_of_first_write,
+                time_of_last_write,
+            ),
         )
         .await?;
 

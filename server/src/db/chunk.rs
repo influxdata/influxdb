@@ -206,6 +206,7 @@ impl DbChunk {
     pub fn time_of_first_write(&self) -> DateTime<Utc> {
         match &self.state {
             State::MutableBuffer { chunk } => chunk.table_summary().time_of_first_write,
+            State::ReadBuffer { chunk, .. } => chunk.table_summary().time_of_first_write,
             _ => unimplemented!(),
         }
     }
@@ -213,6 +214,7 @@ impl DbChunk {
     pub fn time_of_last_write(&self) -> DateTime<Utc> {
         match &self.state {
             State::MutableBuffer { chunk } => chunk.table_summary().time_of_last_write,
+            State::ReadBuffer { chunk, .. } => chunk.table_summary().time_of_last_write,
             _ => unimplemented!(),
         }
     }

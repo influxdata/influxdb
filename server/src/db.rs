@@ -1804,7 +1804,7 @@ mod tests {
         assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
         assert_metric("catalog_loaded_rows", "object_store", 0.0);
 
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1239)
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1287)
             .unwrap();
 
         db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
@@ -2081,7 +2081,9 @@ mod tests {
         let test_db = make_db().await;
         let db = Arc::new(test_db.db);
 
+        let time0 = Utc::now();
         write_lp(db.as_ref(), "cpu bar=1 10").await;
+        let time1 = Utc::now();
 
         let partition_key = "1970-01-01T00";
         let mb_chunk = db
@@ -2094,8 +2096,16 @@ mod tests {
             .await
             .unwrap();
 
+        let first_old_rb_write = old_rb_chunk.time_of_first_write();
+        let last_old_rb_write = old_rb_chunk.time_of_last_write();
+        assert!(time0 < first_old_rb_write);
+        assert_eq!(first_old_rb_write, last_old_rb_write);
+        assert!(first_old_rb_write < time1);
+
         // Put new data into the mutable buffer
+        let time2 = Utc::now();
         write_lp(db.as_ref(), "cpu bar=2 20").await;
+        let time3 = Utc::now();
 
         // now, compact it
         let compacted_rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
@@ -2106,6 +2116,15 @@ mod tests {
             vec![compacted_rb_chunk.id()]
         );
         assert_ne!(old_rb_chunk.id(), compacted_rb_chunk.id());
+
+        // Compacted first/last write times should be the min of the first writes and the max
+        // of the last writes of the compacted chunks
+        let first_compacted_write = compacted_rb_chunk.time_of_first_write();
+        let last_compacted_write = compacted_rb_chunk.time_of_last_write();
+        assert_eq!(first_old_rb_write, first_compacted_write);
+        assert_ne!(last_old_rb_write, last_compacted_write);
+        assert!(time2 < last_compacted_write);
+        assert!(last_compacted_write < time3);
 
         // data should be readable
         let expected = vec![
@@ -2831,13 +2850,16 @@ mod tests {
         let db = make_db().await.db;
 
         // get three chunks: one open, one closed in mb and one close in rb
+        let time0 = Utc::now();
         write_lp(&db, "cpu bar=1 1").await;
+        let time1 = Utc::now();
         db.rollover_partition("cpu", "1970-01-01T00").await.unwrap();
-
+        let time2 = Utc::now();
         write_lp(&db, "cpu bar=1,baz=2 2").await;
         write_lp(&db, "cpu bar=1,baz=2,frob=3 400000000000000").await;
+        let time3 = Utc::now();
 
-        print!("Partitions: {:?}", db.partition_keys().unwrap());
+        println!("Partitions: {:?}", db.partition_keys().unwrap());
 
         db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
             .await
@@ -2851,12 +2873,43 @@ mod tests {
         .await
         .unwrap();
 
-        print!("Partitions2: {:?}", db.partition_keys().unwrap());
+        println!("Partitions2: {:?}", db.partition_keys().unwrap());
 
         db.rollover_partition("cpu", "1970-01-05T15").await.unwrap();
+        let time4 = Utc::now();
         write_lp(&db, "cpu bar=1,baz=3,blargh=3 400000000000000").await;
+        let time5 = Utc::now();
 
-        let chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        chunk_summaries.sort_unstable();
+
+        let rb_chunk_summary = &chunk_summaries[0];
+        assert!(time0 < rb_chunk_summary.time_of_first_write.unwrap());
+        // 2 writes to this chunk so first/last write times should be different
+        assert!(
+            rb_chunk_summary.time_of_first_write.unwrap()
+                < rb_chunk_summary.time_of_last_write.unwrap()
+        );
+        assert!(rb_chunk_summary.time_of_first_write.unwrap() < time1);
+
+        let mub_closed_chunk_summary = &chunk_summaries[1];
+        assert!(time2 < mub_closed_chunk_summary.time_of_first_write.unwrap());
+        // There was only one write to this chunk so the first/last write times should be the same
+        assert_eq!(
+            mub_closed_chunk_summary.time_of_first_write,
+            mub_closed_chunk_summary.time_of_last_write
+        );
+        assert!(mub_closed_chunk_summary.time_of_last_write.unwrap() < time3);
+
+        let mub_open_chunk_summary = &chunk_summaries[2];
+        assert!(time4 < mub_open_chunk_summary.time_of_first_write.unwrap());
+        // There was only one write to this chunk so the first/last write times should be the same
+        assert_eq!(
+            mub_open_chunk_summary.time_of_first_write.unwrap(),
+            mub_open_chunk_summary.time_of_last_write.unwrap()
+        );
+        assert!(mub_open_chunk_summary.time_of_last_write.unwrap() < time5);
+
         let chunk_summaries = ChunkSummary::normalize_summaries(chunk_summaries);
 
         let lifecycle_action = None;
@@ -2878,7 +2931,7 @@ mod tests {
                 0,
                 ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
-                2398,
+                2446,
                 0, // no OS chunks
                 1,
             ),
@@ -2902,7 +2955,7 @@ mod tests {
             );
         }
 
-        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2398 + 87);
+        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2446 + 87);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2434);
         assert_eq!(db.catalog.metrics().memory().object_store(), 826);
     }
