@@ -42,7 +42,6 @@ type Query struct {
 	skip       string
 	skipOthers bool // set to true to only run this test
 	repeat     int
-	once       bool
 }
 
 // Execute runs the command and returns an err if it fails
