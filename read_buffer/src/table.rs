@@ -81,10 +81,11 @@ struct RowGroupData {
 impl Table {
     /// Create a new table with the provided row_group. Creating an empty table is not possible.
     pub fn with_row_group(name: impl Into<String>, rg: RowGroup) -> Self {
+        let now = Utc::now();
         Self {
             name: name.into(),
             table_data: RwLock::new(RowGroupData {
-                meta: Arc::new(MetaData::new(&rg)),
+                meta: Arc::new(MetaData::new(&rg, now, now)),
                 data: vec![Arc::new(rg)],
             }),
         }
@@ -118,7 +119,10 @@ impl Table {
         ensure!(row_groups.data.len() > 1, EmptyTableError);
 
         row_groups.data.remove(position); // removes row group data
-        row_groups.meta = Arc::new(MetaData::from(&row_groups.data)); // rebuild meta
+        row_groups.meta = Arc::new(MetaData::from((
+            row_groups.data.as_ref(),
+            row_groups.meta.as_ref(),
+        ))); // rebuild meta
 
         Ok(())
     }
@@ -570,15 +574,18 @@ pub struct MetaData {
 }
 
 impl MetaData {
-    pub fn new(rg: &row_group::RowGroup) -> Self {
-        let now = Utc::now();
+    pub fn new(
+        rg: &row_group::RowGroup,
+        time_of_first_write: DateTime<Utc>,
+        time_of_last_write: DateTime<Utc>,
+    ) -> Self {
         Self {
             rgs_size: rg.size(),
             rows: rg.rows() as u64,
             columns: rg.metadata().columns.clone(),
             column_names: rg.metadata().column_names.clone(),
-            time_of_first_write: now,
-            time_of_last_write: now,
+            time_of_first_write,
+            time_of_last_write,
         }
     }
 
@@ -779,15 +786,19 @@ impl MetaData {
     }
 }
 
-// Builds new table meta-data from a collection of row groups. Useful for
-// rebuilding state when a row group has been removed from the table.
-impl From<&Vec<Arc<RowGroup>>> for MetaData {
-    fn from(row_groups: &Vec<Arc<RowGroup>>) -> Self {
+// Builds new table meta-data from a collection of row groups and the collection's metadata. Useful
+// for rebuilding state when a row group has been removed from the table.
+impl From<(&[Arc<RowGroup>], &Self)> for MetaData {
+    fn from((row_groups, old_meta): (&[Arc<RowGroup>], &Self)) -> Self {
         if row_groups.is_empty() {
             panic!("row groups required for meta data construction");
         }
 
-        let mut meta = Self::new(&row_groups[0]);
+        let mut meta = Self::new(
+            &row_groups[0],
+            old_meta.time_of_first_write,
+            old_meta.time_of_last_write,
+        );
         for row_group in row_groups.iter().skip(1) {
             meta = Self::update_with(meta, &row_group);
         }
@@ -1033,8 +1044,9 @@ mod test {
             ),
         ];
         let rg = RowGroup::new(3, columns);
+        let now = Utc::now();
 
-        let mut meta = MetaData::new(&rg);
+        let mut meta = MetaData::new(&rg, now, now);
         let after_creation = Utc::now();
         assert_eq!(meta.rows, 3);
         let meta_size = meta.rgs_size;
