@@ -3,7 +3,7 @@ use std::num::{NonZeroU32, NonZeroU64, NonZeroUsize};
 
 use data_types::database_rules::{
     LifecycleRules, DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT,
-    DEFAULT_LATE_ARRIVE_WINDOW_SECONDS, DEFAULT_MAX_ACTIVE_COMPACTIONS, DEFAULT_MUB_ROW_THRESHOLD,
+    DEFAULT_LATE_ARRIVE_WINDOW_SECONDS, DEFAULT_MUB_ROW_THRESHOLD,
     DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS, DEFAULT_PERSIST_ROW_THRESHOLD,
     DEFAULT_WORKER_BACKOFF_MILLIS,
 };
@@ -52,7 +52,7 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
             worker_backoff_millis: NonZeroU64::new(proto.worker_backoff_millis)
                 .unwrap_or_else(|| NonZeroU64::new(DEFAULT_WORKER_BACKOFF_MILLIS).unwrap()),
             max_active_compactions: NonZeroU32::new(proto.max_active_compactions)
-                .unwrap_or_else(|| NonZeroU32::new(DEFAULT_MAX_ACTIVE_COMPACTIONS).unwrap()),
+                .unwrap_or_else(|| NonZeroU32::new(num_cpus::get() as u32).unwrap()), // default to num CPU threads
             catalog_transactions_until_checkpoint: NonZeroU64::new(
                 proto.catalog_transactions_until_checkpoint,
             )

@@ -118,7 +118,6 @@ pub const DEFAULT_MUB_ROW_THRESHOLD: usize = 100_000;
 pub const DEFAULT_PERSIST_ROW_THRESHOLD: usize = 1_000_000;
 pub const DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS: u32 = 30 * 60;
 pub const DEFAULT_LATE_ARRIVE_WINDOW_SECONDS: u32 = 5 * 60;
-pub const DEFAULT_MAX_ACTIVE_COMPACTIONS: u32 = 14;
 
 /// Configures how data automatically flows through the system
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -185,7 +184,7 @@ impl Default for LifecycleRules {
             persist: false,
             immutable: false,
             worker_backoff_millis: NonZeroU64::new(DEFAULT_WORKER_BACKOFF_MILLIS).unwrap(),
-            max_active_compactions: NonZeroU32::new(DEFAULT_MAX_ACTIVE_COMPACTIONS).unwrap(),
+            max_active_compactions: NonZeroU32::new(num_cpus::get() as u32).unwrap(), // defaults to number of CPU threads
             catalog_transactions_until_checkpoint: NonZeroU64::new(
                 DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT,
             )
