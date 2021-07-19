@@ -1,13 +1,7 @@
 //! Tests for the Influx gRPC queries
-use std::{convert::TryFrom, num::NonZeroU32};
-
 use crate::scenarios::*;
 
-use data_types::database_rules::LifecycleRules;
-use server::{
-    db::test_helpers::write_lp,
-    utils::{make_db, TestDb},
-};
+use server::{db::test_helpers::write_lp, utils::make_db};
 
 use arrow::util::pretty::pretty_format_batches;
 use async_trait::async_trait;
@@ -194,14 +188,7 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
             db,
         };
 
-        let db = TestDb::builder()
-            .lifecycle_rules(LifecycleRules {
-                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-                ..Default::default()
-            })
-            .build()
-            .await
-            .db;
+        let db = make_db().await.db;
         let data = lp_lines.join("\n");
         write_lp(&db, &data).await;
         // roll over and load chunks into both RUB and OS

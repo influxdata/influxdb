@@ -1392,13 +1392,7 @@ mod tests {
 
     #[tokio::test]
     async fn metrics_during_rollover() {
-        let test_db = TestDb::builder()
-            .lifecycle_rules(LifecycleRules {
-                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-                ..Default::default()
-            })
-            .build()
-            .await;
+        let test_db = make_db().await;
         let db = test_db.db;
 
         write_lp(db.as_ref(), "cpu bar=1 10").await;
@@ -2454,14 +2448,7 @@ mod tests {
     #[tokio::test]
     async fn chunk_summaries() {
         // Test that chunk id listing is hooked up
-        let db = TestDb::builder()
-            .lifecycle_rules(LifecycleRules {
-                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-                ..Default::default()
-            })
-            .build()
-            .await
-            .db;
+        let db = make_db().await.db;
 
         // get three chunks: one open, one closed in mb and one close in rb
         write_lp(&db, "cpu bar=1 1").await;
@@ -2541,14 +2528,7 @@ mod tests {
     #[tokio::test]
     async fn partition_summaries() {
         // Test that chunk id listing is hooked up
-        let db = TestDb::builder()
-            .lifecycle_rules(LifecycleRules {
-                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-                ..Default::default()
-            })
-            .build()
-            .await
-            .db;
+        let db = make_db().await.db;
 
         write_lp(&db, "cpu bar=1 1").await;
         let chunk_id = db
@@ -2741,14 +2721,7 @@ mod tests {
     #[tokio::test]
     async fn write_chunk_to_object_store_in_background() {
         // Test that data can be written to object store using a background task
-        let db = TestDb::builder()
-            .lifecycle_rules(LifecycleRules {
-                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-                ..Default::default()
-            })
-            .build()
-            .await
-            .db;
+        let db = make_db().await.db;
 
         // create MB partition
         write_lp(db.as_ref(), "cpu bar=1 10").await;
