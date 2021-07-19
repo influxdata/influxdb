@@ -113,14 +113,8 @@ checkgenerate:
 	./etc/checkgenerate.sh
 
 generate: gogo $(SUBDIRS)
-	$(GO_GENERATE) \
-		./v1/services/meta \
-		./v1/services/storage \
-		./tsdb \
-		./chronograf/bolt/internal \
-		./storage/reads/datatypes \
-		./influxql/query \
-		./pkg/tracing/wire
+	# FIXME: chronograf/dist fails `go generate` because of something to do with the UI.
+	$(GO_GENERATE) $(shell go list ./... | grep -v chronograf/dist)
 
 gogo:
 	go build -o $(GOPATH)/bin/ github.com/gogo/protobuf/protoc-gen-gogo
