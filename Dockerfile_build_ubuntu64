@@ -11,6 +11,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     make \
     mercurial \
     pkg-config \
+    protobuf-compiler \
     python \
     python3-pip \
     python3 \
