@@ -126,14 +126,14 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 
 [[package]]
 name = "arrow"
-version = "4.4.0"
-source = "git+https://github.com/alamb/arrow-rs.git?branch=alamb/perf_integration#d416e9158275148e2be5e64a1c8a6689c7a83fac"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06d2bd50fddbdcecd832742b388228eec02eb3aabd33144ef46f6bc5420bf662"
 dependencies = [
  "bitflags",
  "chrono",
  "csv",
  "flatbuffers",
- "getrandom 0.2.3",
  "hex",
  "indexmap",
  "lazy_static",
@@ -150,8 +150,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-flight"
-version = "4.4.0"
-source = "git+https://github.com/alamb/arrow-rs.git?branch=alamb/perf_integration#d416e9158275148e2be5e64a1c8a6689c7a83fac"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "628b4735031e1d5e41c7c1f210ad233ab942adcf155edcba05c3e6d762062349"
 dependencies = [
  "arrow",
  "base64 0.13.0",
@@ -841,7 +842,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/alamb/arrow-datafusion.git?branch=alamb/perf_integration_df_2#d201ebf323a532ac858fe33083639df4a8d321ee"
+source = "git+https://github.com/apache/arrow-datafusion.git#bd3ee23520a3e6f135891ec32d96fcea7ee2bb55"
 dependencies = [
  "ahash 0.7.4",
  "arrow",
@@ -2593,8 +2594,9 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "4.4.0"
-source = "git+https://github.com/alamb/arrow-rs.git?branch=alamb/perf_integration#d416e9158275148e2be5e64a1c8a6689c7a83fac"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9297cb17ef7287f6105685d230abbb2b37247657edf2b4a99271088e7d5b0ddd"
 dependencies = [
  "arrow",
  "base64 0.13.0",
@@ -4980,9 +4982,9 @@ checksum = "b07db065a5cf61a7e4ba64f29e67db906fb1787316516c4e6e5ff0fea1efcd8a"
 
 [[package]]
 name = "zeroize"
-version = "1.3.0"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4756f7db3f7b5574938c3eb1c117038b8e07f95ee6718c0efad4ac21508f1efd"
+checksum = "eeafe61337cb2c879d328b74aa6cd9d794592c82da6be559fdf11493f02a2d18"
 
 [[package]]
 name = "zstd"

@@ -9,4 +9,4 @@ description = "Re-exports datafusion at a specific version"
 
 # Rename to workaround doctest bug
 # Turn off optional datafusion features (function packages)
-upstream = { git = "https://github.com/alamb/arrow-datafusion.git", branch = "alamb/perf_integration_df_2", default-features = false, package = "datafusion" }
+upstream = { git = "https://github.com/apache/arrow-datafusion.git", ref="bd3ee23520a3e6f135891ec32d96fcea7ee2bb55", default-features = false, package = "datafusion" }
