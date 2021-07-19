@@ -140,7 +140,7 @@ fn main() -> Result<(), std::io::Error> {
     // load all environment variables from .env before doing anything
     load_dotenv();
 
-    let config = Config::from_args();
+    let config: Config = StructOpt::from_args();
 
     let tokio_runtime = get_runtime(config.num_threads)?;
     tokio_runtime.block_on(async move {
