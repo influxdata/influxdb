@@ -111,11 +111,28 @@ struct TrackerState {
     pending_futures: AtomicUsize,
     pending_registrations: AtomicUsize,
 
+    ok_futures: AtomicUsize,
+    err_futures: AtomicUsize,
+    cancelled_futures: AtomicUsize,
+
     notify: Notify,
 }
 
+/// Returns a summary of the task execution
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum TaskResult {
+    /// All futures completed successfully
+    Success,
+    /// Some futures were cancelled, and none were dropped or errored
+    Cancelled,
+    /// Some futures were dropped, and none errored
+    Dropped,
+    /// Some futures returned an error
+    Error,
+}
+
 /// The status of the tracked task
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TaskStatus {
     /// More futures can be registered
     Creating,
@@ -141,6 +158,14 @@ pub enum TaskStatus {
     Complete {
         /// The number of created futures
         total_count: usize,
+        /// The number of futures that completed successfully
+        success_count: usize,
+        /// The number of futures that returned an error
+        error_count: usize,
+        /// The number of futures that were aborted
+        cancelled_count: usize,
+        /// The number of futures that were dropped without running to completion (e.g. panic)
+        dropped_count: usize,
         /// The total amount of CPU time spent executing the futures
         cpu_nanos: usize,
         /// The number of nanoseconds between tracker registration and
@@ -169,13 +194,41 @@ impl TaskStatus {
         }
     }
 
-    /// If the job has competed, returns the total amount of wall clock time
+    /// If the job has completed, returns the total amount of wall clock time
     /// spent executing futures
     pub fn wall_nanos(&self) -> Option<usize> {
         match self {
             Self::Creating => None,
             Self::Running { .. } => None,
             Self::Complete { wall_nanos, .. } => Some(*wall_nanos),
+        }
+    }
+
+    /// Returns the result of the job if it has completed, otherwise None
+    pub fn result(&self) -> Option<TaskResult> {
+        match self {
+            TaskStatus::Creating => None,
+            TaskStatus::Running { .. } => None,
+            TaskStatus::Complete {
+                total_count,
+                success_count,
+                error_count,
+                dropped_count,
+                cancelled_count,
+                ..
+            } => {
+                if *error_count != 0 {
+                    Some(TaskResult::Error)
+                } else if *dropped_count != 0 {
+                    Some(TaskResult::Dropped)
+                } else if *cancelled_count != 0 {
+                    Some(TaskResult::Cancelled)
+                } else {
+                    // Sanity check
+                    assert_eq!(total_count, success_count);
+                    Some(TaskResult::Success)
+                }
+            }
         }
     }
 }
@@ -279,11 +332,29 @@ where
                 pending_count: self.state.pending_futures.load(Ordering::Relaxed),
                 cpu_nanos: self.state.cpu_nanos.load(Ordering::Relaxed),
             },
-            (true, true) => TaskStatus::Complete {
-                total_count: self.state.created_futures.load(Ordering::Relaxed),
-                cpu_nanos: self.state.cpu_nanos.load(Ordering::Relaxed),
-                wall_nanos: self.state.wall_nanos.load(Ordering::Relaxed),
-            },
+            (true, true) => {
+                let total_count = self.state.created_futures.load(Ordering::Relaxed);
+                let success_count = self.state.ok_futures.load(Ordering::Relaxed);
+                let error_count = self.state.err_futures.load(Ordering::Relaxed);
+                let cancelled_count = self.state.cancelled_futures.load(Ordering::Relaxed);
+
+                // Failure of this would imply a future reported its completion status multiple
+                // times or a future was created without incrementing created_futures.
+                // Both of these should be impossible
+                let dropped_count = total_count
+                    .checked_sub(success_count + error_count + cancelled_count)
+                    .expect("invalid tracker state");
+
+                TaskStatus::Complete {
+                    total_count,
+                    success_count,
+                    error_count,
+                    cancelled_count,
+                    dropped_count,
+                    cpu_nanos: self.state.cpu_nanos.load(Ordering::Relaxed),
+                    wall_nanos: self.state.wall_nanos.load(Ordering::Relaxed),
+                }
+            }
         }
     }
 
@@ -352,6 +423,9 @@ impl Default for TaskRegistration {
             created_futures: AtomicUsize::new(0),
             pending_futures: AtomicUsize::new(0),
             pending_registrations: AtomicUsize::new(1),
+            ok_futures: AtomicUsize::new(0),
+            err_futures: AtomicUsize::new(0),
+            cancelled_futures: AtomicUsize::new(0),
             notify: Notify::new(),
         });
 
@@ -401,7 +475,17 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
+    use futures::FutureExt;
+    use std::convert::Infallible;
     use tokio::sync::oneshot;
+
+    fn pending() -> futures::future::Pending<Result<(), Infallible>> {
+        futures::future::pending()
+    }
+
+    fn ready_ok() -> futures::future::Ready<Result<(), Infallible>> {
+        futures::future::ready(Ok(()))
+    }
 
     #[tokio::test]
     async fn test_lifecycle() {
@@ -451,7 +535,7 @@ mod tests {
         let (_, registration) = registry.register(());
 
         {
-            let f = futures::future::pending::<()>().track(registration);
+            let f = pending().track(registration);
 
             assert_eq!(registry.running().len(), 1);
 
@@ -467,9 +551,9 @@ mod tests {
         let (_, registration) = registry.register(());
 
         {
-            let f = futures::future::pending::<()>().track(registration.clone());
+            let f = pending().track(registration.clone());
             {
-                let f = futures::future::pending::<()>().track(registration);
+                let f = pending().track(registration);
                 assert_eq!(registry.running().len(), 1);
                 std::mem::drop(f);
             }
@@ -485,7 +569,7 @@ mod tests {
         let mut registry = TaskRegistry::new();
         let (_, registration) = registry.register(());
 
-        let task = tokio::spawn(futures::future::pending::<()>().track(registration));
+        let task = tokio::spawn(pending().track(registration));
 
         let tracked = registry.running();
         assert_eq!(tracked.len(), 1);
@@ -503,7 +587,7 @@ mod tests {
         let (tracker, registration) = registry.register(());
         tracker.cancel();
 
-        let task1 = tokio::spawn(futures::future::pending::<()>().track(registration));
+        let task1 = tokio::spawn(pending().track(registration));
         let result1 = task1.await.unwrap();
 
         assert!(result1.is_err());
@@ -515,8 +599,8 @@ mod tests {
         let mut registry = TaskRegistry::new();
         let (_, registration) = registry.register(());
 
-        let task1 = tokio::spawn(futures::future::pending::<()>().track(registration.clone()));
-        let task2 = tokio::spawn(futures::future::pending::<()>().track(registration));
+        let task1 = tokio::spawn(pending().track(registration.clone()));
+        let task2 = tokio::spawn(pending().track(registration));
 
         let tracked = registry.running();
         assert_eq!(tracked.len(), 1);
@@ -539,11 +623,11 @@ mod tests {
         let (_, registration2) = registry.register(2);
         let (_, registration3) = registry.register(3);
 
-        let task1 = tokio::spawn(futures::future::pending::<()>().track(registration1.clone()));
-        let task2 = tokio::spawn(futures::future::pending::<()>().track(registration1));
-        let task3 = tokio::spawn(futures::future::ready(()).track(registration2.clone()));
-        let task4 = tokio::spawn(futures::future::pending::<()>().track(registration2));
-        let task5 = tokio::spawn(futures::future::pending::<()>().track(registration3));
+        let task1 = tokio::spawn(pending().track(registration1.clone()));
+        let task2 = tokio::spawn(pending().track(registration1));
+        let task3 = tokio::spawn(ready_ok().track(registration2.clone()));
+        let task4 = tokio::spawn(pending().track(registration2));
+        let task5 = tokio::spawn(pending().track(registration3));
 
         let running = sorted(registry.running());
         let tracked = sorted(registry.tracked());
@@ -637,25 +721,25 @@ mod tests {
         let (tracker2, registration2) = registry.register(2);
         let (tracker3, registration3) = registry.register(3);
 
-        let task1 =
-            tokio::spawn(tokio::time::sleep(Duration::from_millis(100)).track(registration1));
-        let task2 = tokio::spawn(
-            async move { std::thread::sleep(Duration::from_millis(100)) }.track(registration2),
-        );
+        let async_task = || async move {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            Ok::<_, Infallible>(())
+        };
 
-        let task3 = tokio::spawn(
-            async move { std::thread::sleep(Duration::from_millis(100)) }
-                .track(registration3.clone()),
-        );
+        let blocking_task = || async move {
+            std::thread::sleep(Duration::from_millis(100));
+            Ok::<_, Infallible>(())
+        };
 
-        let task4 = tokio::spawn(
-            async move { std::thread::sleep(Duration::from_millis(100)) }.track(registration3),
-        );
+        let task1 = tokio::spawn(async_task().track(registration1));
+        let task2 = tokio::spawn(blocking_task().track(registration2));
+        let task3 = tokio::spawn(blocking_task().track(registration3.clone()));
+        let task4 = tokio::spawn(blocking_task().track(registration3));
 
-        task1.await.unwrap().unwrap();
-        task2.await.unwrap().unwrap();
-        task3.await.unwrap().unwrap();
-        task4.await.unwrap().unwrap();
+        task1.await.unwrap().unwrap().unwrap();
+        task2.await.unwrap().unwrap().unwrap();
+        task3.await.unwrap().unwrap().unwrap();
+        task4.await.unwrap().unwrap().unwrap();
 
         let assert_fuzzy = |actual: usize, expected: std::time::Duration| {
             // Number of milliseconds of toleration
@@ -710,8 +794,8 @@ mod tests {
         let mut registry = TaskRegistry::new();
         let (_, registration) = registry.register(());
 
-        let task1 = tokio::spawn(futures::future::ready(()).track(registration.clone()));
-        task1.await.unwrap().unwrap();
+        let task1 = tokio::spawn(ready_ok().track(registration.clone()));
+        task1.await.unwrap().unwrap().unwrap();
 
         let tracked = registry.tracked();
         assert_eq!(tracked.len(), 1);
@@ -721,11 +805,136 @@ mod tests {
         let reclaimed: Vec<_> = registry.reclaim().collect();
         assert_eq!(reclaimed.len(), 0);
 
-        let task2 = tokio::spawn(futures::future::ready(()).track(registration));
-        task2.await.unwrap().unwrap();
+        let task2 = tokio::spawn(ready_ok().track(registration));
+        task2.await.unwrap().unwrap().unwrap();
 
         let reclaimed: Vec<_> = registry.reclaim().collect();
         assert_eq!(reclaimed.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_failure() {
+        let mut registry = TaskRegistry::new();
+        let zero_clocks = |mut status: TaskStatus| {
+            match &mut status {
+                TaskStatus::Creating => {}
+                TaskStatus::Running { cpu_nanos, .. } => {
+                    *cpu_nanos = 0;
+                }
+                TaskStatus::Complete {
+                    wall_nanos,
+                    cpu_nanos,
+                    ..
+                } => {
+                    *wall_nanos = 0;
+                    *cpu_nanos = 0;
+                }
+            }
+            status
+        };
+
+        let (task, registration) = registry.register(());
+        let (sender, receiver) = oneshot::channel();
+        let handle = tokio::spawn(receiver.track(registration));
+
+        sender.send(()).unwrap();
+        handle.await.unwrap().unwrap().unwrap();
+        assert_eq!(task.get_status().result(), Some(TaskResult::Success));
+        assert_eq!(
+            zero_clocks(task.get_status()),
+            TaskStatus::Complete {
+                total_count: 1,
+                success_count: 1,
+                error_count: 0,
+                cancelled_count: 0,
+                dropped_count: 0,
+                cpu_nanos: 0,
+                wall_nanos: 0
+            }
+        );
+
+        let (task, registration) = registry.register(());
+        let (sender, receiver) = oneshot::channel::<()>();
+        let handle = tokio::spawn(receiver.track(registration));
+
+        std::mem::drop(sender);
+        handle.await.unwrap().unwrap().expect_err("expected error");
+        assert_eq!(task.get_status().result(), Some(TaskResult::Error));
+        assert_eq!(
+            zero_clocks(task.get_status()),
+            TaskStatus::Complete {
+                total_count: 1,
+                success_count: 0,
+                error_count: 1,
+                cancelled_count: 0,
+                dropped_count: 0,
+                cpu_nanos: 0,
+                wall_nanos: 0
+            }
+        );
+
+        let (task, registration) = registry.register(());
+        let handle = tokio::spawn(pending().track(registration));
+
+        task.cancel();
+        handle.await.unwrap().expect_err("expected aborted");
+
+        assert_eq!(task.get_status().result(), Some(TaskResult::Cancelled));
+        assert_eq!(
+            zero_clocks(task.get_status()),
+            TaskStatus::Complete {
+                total_count: 1,
+                success_count: 0,
+                error_count: 0,
+                cancelled_count: 1,
+                dropped_count: 0,
+                cpu_nanos: 0,
+                wall_nanos: 0
+            }
+        );
+
+        let (task, registration) = registry.register(());
+        std::mem::drop(pending().track(registration));
+
+        assert_eq!(task.get_status().result(), Some(TaskResult::Dropped));
+        assert_eq!(
+            zero_clocks(task.get_status()),
+            TaskStatus::Complete {
+                total_count: 1,
+                success_count: 0,
+                error_count: 0,
+                cancelled_count: 0,
+                dropped_count: 1,
+                cpu_nanos: 0,
+                wall_nanos: 0
+            }
+        );
+
+        let (task, registration) = registry.register(());
+        let handle = tokio::spawn(
+            async move {
+                tokio::time::sleep(tokio::time::Duration::from_micros(1)).await;
+                panic!("test");
+            }
+            .inspect(|_output: &Result<(), Infallible>| {})
+            .track(registration),
+        );
+
+        handle.await.unwrap_err();
+
+        assert_eq!(task.get_status().result(), Some(TaskResult::Dropped));
+        assert_eq!(
+            zero_clocks(task.get_status()),
+            TaskStatus::Complete {
+                total_count: 1,
+                success_count: 0,
+                error_count: 0,
+                cancelled_count: 0,
+                dropped_count: 1,
+                cpu_nanos: 0,
+                wall_nanos: 0
+            }
+        );
     }
 
     #[tokio::test]
@@ -737,20 +946,10 @@ mod tests {
         let (tracker, registration) = registry.register(());
 
         let (s1, r1) = oneshot::channel();
-        let task1 = tokio::spawn(
-            async move {
-                r1.await.unwrap();
-            }
-            .track(registration.clone()),
-        );
+        let task1 = tokio::spawn(r1.track(registration.clone()));
 
         let (s2, r2) = oneshot::channel();
-        let task2 = tokio::spawn(
-            async move {
-                r2.await.unwrap();
-            }
-            .track(registration.clone()),
-        );
+        let task2 = tokio::spawn(r2.track(registration.clone()));
 
         // This executor goop is necessary to get a future into
         // a state where it is waiting on the Notify resource
@@ -767,7 +966,7 @@ mod tests {
         assert!(matches!(tracker.get_status(), TaskStatus::Creating));
 
         s1.send(()).unwrap();
-        task1.await.unwrap().unwrap();
+        task1.await.unwrap().unwrap().unwrap();
 
         assert!(matches!(tracker.get_status(), TaskStatus::Creating));
 
@@ -775,7 +974,7 @@ mod tests {
         assert_eq!(poll, Poll::Pending);
 
         s2.send(()).unwrap();
-        task2.await.unwrap().unwrap();
+        task2.await.unwrap().unwrap().unwrap();
 
         assert!(matches!(tracker.get_status(), TaskStatus::Creating));
 

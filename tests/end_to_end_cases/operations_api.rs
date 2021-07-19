@@ -40,7 +40,7 @@ async fn test_operations() {
 
     let job = meta.job.expect("expected a job");
 
-    assert_eq!(meta.task_count, 2);
+    assert_eq!(meta.total_count, 2);
     assert_eq!(meta.pending_count, 1);
     assert_eq!(job, operation_metadata::Job::Dummy(Dummy { nanos }));
 
@@ -76,7 +76,8 @@ async fn test_operations() {
     assert!(meta.wall_nanos > 0);
     assert!(meta.cpu_nanos > 0);
     assert_eq!(meta.pending_count, 0);
-    assert_eq!(meta.task_count, 2);
+    assert_eq!(meta.total_count, 2);
+    assert_eq!(meta.cancelled_count, 1);
 
     match waited.result {
         Some(operations::generated_types::operation::Result::Error(status)) => {
