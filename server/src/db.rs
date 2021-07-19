@@ -640,14 +640,15 @@ impl Db {
             // streaming from the write buffer loop
             async {
                 if let Some(WriteBufferConfig::Reading(write_buffer)) = &self.write_buffer {
-                    let wb = Arc::clone(write_buffer);
-                    while !shutdown.is_cancelled() {
-                        tokio::select! {
-                            _ = {
-                                self.stream_in_sequenced_entries(wb.stream())
-                                } => {},
-                            _ = shutdown.cancelled() => break,
-                        }
+                    let mut futures = vec![];
+                    for (_sequencer_id, stream) in write_buffer.streams() {
+                        let fut = self.stream_in_sequenced_entries(stream);
+                        futures.push(fut);
+                    }
+
+                    tokio::select! {
+                        _ = futures::future::join_all(futures) => {},
+                        _ = shutdown.cancelled() => {},
                     }
                 }
             },

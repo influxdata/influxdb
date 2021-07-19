@@ -2,13 +2,10 @@ use std::{collections::BTreeMap, sync::Arc, task::Poll};
 
 use async_trait::async_trait;
 use entry::{Entry, Sequence, SequencedEntry};
-use futures::{
-    stream::{self, BoxStream},
-    StreamExt,
-};
+use futures::{stream, StreamExt};
 use parking_lot::Mutex;
 
-use crate::core::{WriteBufferError, WriteBufferReading, WriteBufferWriting};
+use crate::core::{EntryStream, WriteBufferError, WriteBufferReading, WriteBufferWriting};
 
 type EntryResVec = Vec<Result<SequencedEntry, WriteBufferError>>;
 
@@ -182,22 +179,28 @@ impl std::fmt::Debug for MockBufferForReading {
 }
 
 impl WriteBufferReading for MockBufferForReading {
-    fn stream<'life0, 'async_trait>(
-        &'life0 self,
-    ) -> BoxStream<'async_trait, Result<SequencedEntry, WriteBufferError>>
+    fn streams<'life0, 'async_trait>(&'life0 self) -> Vec<(u32, EntryStream<'async_trait>)>
     where
         'life0: 'async_trait,
         Self: 'async_trait,
     {
-        let state = self.state.clone();
-        let positions = Arc::clone(&self.positions);
+        let sequencer_ids: Vec<_> = {
+            let positions = self.positions.lock();
+            positions.keys().copied().collect()
+        };
 
-        stream::poll_fn(move |_ctx| {
-            let entries = state.entries.lock();
-            let mut positions = positions.lock();
+        let mut streams = vec![];
+        for sequencer_id in sequencer_ids {
+            let state = self.state.clone();
+            let positions = Arc::clone(&self.positions);
 
-            for (sequencer_id, position) in positions.iter_mut() {
-                let entry_vec = entries.get(sequencer_id).unwrap();
+            let stream = stream::poll_fn(move |_ctx| {
+                let entries = state.entries.lock();
+                let mut positions = positions.lock();
+
+                let entry_vec = entries.get(&sequencer_id).unwrap();
+                let position = positions.get_mut(&sequencer_id).unwrap();
+
                 if entry_vec.len() > *position {
                     let entry = match &entry_vec[*position] {
                         Ok(entry) => Ok(entry.clone()),
@@ -206,11 +209,14 @@ impl WriteBufferReading for MockBufferForReading {
                     *position += 1;
                     return Poll::Ready(Some(entry));
                 }
-            }
 
-            Poll::Pending
-        })
-        .boxed()
+                Poll::Pending
+            })
+            .boxed();
+            streams.push((sequencer_id, stream));
+        }
+
+        streams
     }
 }
 
@@ -239,6 +245,7 @@ mod tests {
         state: MockBufferSharedState,
     }
 
+    #[async_trait]
     impl TestContext for MockTestContext {
         type Writing = MockBufferForWriting;
 
@@ -248,7 +255,7 @@ mod tests {
             MockBufferForWriting::new(self.state.clone())
         }
 
-        fn reading(&self) -> Self::Reading {
+        async fn reading(&self) -> Self::Reading {
             MockBufferForReading::new(self.state.clone())
         }
     }

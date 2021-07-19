@@ -99,22 +99,22 @@ async fn reads_come_from_kafka() {
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection::Reading(kafka_connection.to_string());
 
-    DatabaseBuilder::new(db_name.clone())
-        .write_buffer(write_buffer_connection)
-        .build(server.grpc_channel())
-        .await;
-
     // Common Kafka config
     let mut cfg = ClientConfig::new();
     cfg.set("bootstrap.servers", kafka_connection);
     cfg.set("message.timeout.ms", "5000");
 
-    // Create a partition with 2 topics in Kafka
+    // Create a partition with 2 topics in Kafka BEFORE creating the DB
     let num_partitions = 2;
     let admin: AdminClient<DefaultClientContext> = cfg.clone().create().unwrap();
     let topic = NewTopic::new(&db_name, num_partitions, TopicReplication::Fixed(1));
     let opts = AdminOptions::default();
     admin.create_topics(&[topic], &opts).await.unwrap();
+
+    DatabaseBuilder::new(db_name.clone())
+        .write_buffer(write_buffer_connection)
+        .build(server.grpc_channel())
+        .await;
 
     // put some points in Kafka
     let producer: FutureProducer = cfg.create().unwrap();
@@ -150,8 +150,16 @@ async fn reads_come_from_kafka() {
 
             if let Ok(mut results) = query_results {
                 let mut batches = Vec::new();
+                let mut num_rows = 0;
                 while let Some(data) = results.next().await.unwrap() {
+                    num_rows += data.num_rows();
                     batches.push(data);
+                }
+
+                // Since data is streamed using two partitions, only a subset of the data might be present. If that's
+                // the case, ignore that record batch and try again.
+                if num_rows < 4 {
+                    continue;
                 }
 
                 let expected = vec![
