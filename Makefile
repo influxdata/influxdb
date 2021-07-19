@@ -112,12 +112,21 @@ checktidy:
 checkgenerate:
 	./etc/checkgenerate.sh
 
-generate: gogo $(SUBDIRS)
+generate: gogo tmpl stringer goimports $(SUBDIRS)
 	$(GO_GENERATE) ./...
 
 gogo:
 	go build -o $(GOPATH)/bin/ github.com/gogo/protobuf/protoc-gen-gogo
 	go build -o $(GOPATH)/bin/ github.com/gogo/protobuf/protoc-gen-gogofaster
+
+tmpl:
+	go build -o $(GOPATH)/bin/ github.com/benbjohnson/tmpl
+
+stringer:
+	go build -o $(GOPATH)/bin/ golang.org/x/tools/cmd/stringer
+
+goimports:
+	go build -o $(GOPATH)/bin/ golang.org/x/tools/cmd/goimports
 
 test-go:
 	$(GO_TEST) $(GO_TEST_PATHS)
