@@ -530,12 +530,13 @@ where
         // Clear out completed tasks
         let mut completed_compactions = 0;
         self.trackers.retain(|x| {
-            if x.is_complete() && matches!(x.metadata(), ChunkLifecycleAction::Compacting) {
+            let completed = x.is_complete();
+            if completed && matches!(x.metadata(), ChunkLifecycleAction::Compacting) {
                 // free up slot for another compaction
                 completed_compactions += 1;
             }
 
-            !x.is_complete()
+            !completed
         });
 
         // update active compactions
