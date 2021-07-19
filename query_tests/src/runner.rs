@@ -4,12 +4,16 @@ mod parse;
 mod setup;
 
 use arrow::record_batch::RecordBatch;
-use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner};
+use query::{
+    exec::{Executor, ExecutorType},
+    frontend::sql::SqlQueryPlanner,
+};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     io::LineWriter,
     io::Write,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use self::{parse::TestQueries, setup::TestSetup};
@@ -261,7 +265,13 @@ impl<W: Write> Runner<W> {
             writeln!(self.log, "Running scenario '{}'", scenario_name)?;
             writeln!(self.log, "SQL: '{:#?}'", sql)?;
             let planner = SqlQueryPlanner::default();
-            let executor = db.executor();
+            let num_threads = 1;
+            let mut executor = Executor::new(num_threads);
+
+            // hardcode concurrency in tests as by default is is the
+            // number of cores, which varies across machines
+            executor.config_mut().set_concurrency(4);
+            let executor = Arc::new(executor);
 
             let physical_plan = planner
                 .query(db, &sql, executor.as_ref())

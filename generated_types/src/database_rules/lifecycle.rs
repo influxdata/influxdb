@@ -27,6 +27,7 @@ impl From<LifecycleRules> for management::LifecycleRules {
             persist: config.persist,
             immutable: config.immutable,
             worker_backoff_millis: config.worker_backoff_millis.get(),
+            max_active_compactions: config.max_active_compactions.get(),
             catalog_transactions_until_checkpoint: config
                 .catalog_transactions_until_checkpoint
                 .get(),
@@ -50,6 +51,8 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
             immutable: proto.immutable,
             worker_backoff_millis: NonZeroU64::new(proto.worker_backoff_millis)
                 .unwrap_or_else(|| NonZeroU64::new(DEFAULT_WORKER_BACKOFF_MILLIS).unwrap()),
+            max_active_compactions: NonZeroU32::new(proto.max_active_compactions)
+                .unwrap_or_else(|| NonZeroU32::new(num_cpus::get() as u32).unwrap()), // default to num CPU threads
             catalog_transactions_until_checkpoint: NonZeroU64::new(
                 proto.catalog_transactions_until_checkpoint,
             )
@@ -84,6 +87,7 @@ mod tests {
             persist: true,
             immutable: true,
             worker_backoff_millis: 1000,
+            max_active_compactions: 8,
             catalog_transactions_until_checkpoint: 10,
             late_arrive_window_seconds: 23,
             persist_row_threshold: 57,
@@ -110,6 +114,7 @@ mod tests {
         assert_eq!(back.drop_non_persisted, protobuf.drop_non_persisted);
         assert_eq!(back.immutable, protobuf.immutable);
         assert_eq!(back.worker_backoff_millis, protobuf.worker_backoff_millis);
+        assert_eq!(back.max_active_compactions, protobuf.max_active_compactions);
         assert_eq!(
             back.late_arrive_window_seconds,
             protobuf.late_arrive_window_seconds

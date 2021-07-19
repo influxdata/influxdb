@@ -5,7 +5,7 @@ authors = ["Edd Robinson <me@edd.io>"]
 edition = "2018"
 
 [dependencies] # In alphabetical order
-arrow = { version = "4.0", features = ["prettyprint"] }
+arrow = { version = "5.0", features = ["prettyprint"] }
 chrono = "0.4"
 croaring = "0.5"
 crossbeam = "0.8"
@@ -14,7 +14,7 @@ human_format = "1.0.3"
 packers = { path = "../packers" }
 snafu = "0.6.8"
 observability_deps = { path = "../observability_deps" }
-parquet = "4.0"
+parquet = "5.0"
 
 [dev-dependencies] # In alphabetical order
 criterion = "0.3"

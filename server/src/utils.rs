@@ -1,4 +1,4 @@
-use std::{borrow::Cow, convert::TryFrom, sync::Arc, time::Duration};
+use std::{borrow::Cow, convert::TryFrom, num::NonZeroU32, sync::Arc, time::Duration};
 
 use data_types::{
     chunk_metadata::{ChunkStorage, ChunkSummary},
@@ -77,7 +77,11 @@ impl TestDbBuilder {
             .worker_cleanup_avg_sleep
             .unwrap_or_else(|| Duration::from_secs(1));
 
-        rules.lifecycle_rules = self.lifecycle_rules.unwrap_or_default();
+        // default to quick lifecycle rules for faster tests
+        rules.lifecycle_rules = self.lifecycle_rules.unwrap_or_else(|| LifecycleRules {
+            late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+            ..Default::default()
+        });
 
         // set partion template
         if let Some(partition_template) = self.partition_template {
@@ -90,7 +94,7 @@ impl TestDbBuilder {
         }
 
         let database_to_commit = DatabaseToCommit {
-            rules,
+            rules: Arc::new(rules),
             server_id,
             object_store,
             preserved_catalog,

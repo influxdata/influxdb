@@ -144,6 +144,11 @@ pub struct LifecycleRules {
     /// will sleep for this many milliseconds before looking again
     pub worker_backoff_millis: NonZeroU64,
 
+    /// The maximum number of permitted concurrently executing compactions.
+    /// It is not currently possible to set a limit that disables compactions
+    /// entirely, nor is it possible to set an "unlimited" value.
+    pub max_active_compactions: NonZeroU32,
+
     /// After how many transactions should IOx write a new checkpoint?
     pub catalog_transactions_until_checkpoint: NonZeroU64,
 
@@ -179,6 +184,7 @@ impl Default for LifecycleRules {
             persist: false,
             immutable: false,
             worker_backoff_millis: NonZeroU64::new(DEFAULT_WORKER_BACKOFF_MILLIS).unwrap(),
+            max_active_compactions: NonZeroU32::new(num_cpus::get() as u32).unwrap(), // defaults to number of CPU threads
             catalog_transactions_until_checkpoint: NonZeroU64::new(
                 DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT,
             )

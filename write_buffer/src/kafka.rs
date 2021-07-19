@@ -1,19 +1,22 @@
-use std::convert::{TryFrom, TryInto};
+use std::{
+    convert::{TryFrom, TryInto},
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use data_types::server_id::ServerId;
 use entry::{Entry, Sequence, SequencedEntry};
-use futures::{stream::BoxStream, StreamExt};
-use observability_deps::tracing::debug;
+use futures::StreamExt;
+use observability_deps::tracing::{debug, info};
 use rdkafka::{
-    consumer::{Consumer, StreamConsumer},
+    consumer::{BaseConsumer, Consumer, StreamConsumer},
     error::KafkaError,
     producer::{FutureProducer, FutureRecord},
     util::Timeout,
-    ClientConfig, Message,
+    ClientConfig, Message, TopicPartitionList,
 };
 
-use crate::core::{WriteBufferError, WriteBufferReading, WriteBufferWriting};
+use crate::core::{EntryStream, WriteBufferError, WriteBufferReading, WriteBufferWriting};
 
 pub struct KafkaBufferProducer {
     conn: String,
@@ -91,7 +94,7 @@ impl KafkaBufferProducer {
 pub struct KafkaBufferConsumer {
     conn: String,
     database_name: String,
-    consumer: StreamConsumer,
+    consumers: Vec<(u32, StreamConsumer)>,
 }
 
 // Needed because rdkafka's StreamConsumer doesn't impl Debug
@@ -105,34 +108,38 @@ impl std::fmt::Debug for KafkaBufferConsumer {
 }
 
 impl WriteBufferReading for KafkaBufferConsumer {
-    fn stream<'life0, 'async_trait>(
-        &'life0 self,
-    ) -> BoxStream<'async_trait, Result<SequencedEntry, WriteBufferError>>
+    fn streams<'life0, 'async_trait>(&'life0 self) -> Vec<(u32, EntryStream<'async_trait>)>
     where
         'life0: 'async_trait,
         Self: 'async_trait,
     {
-        self.consumer
-            .stream()
-            .map(|message| {
-                let message = message?;
-                let entry = Entry::try_from(message.payload().unwrap().to_vec())?;
-                let sequence = Sequence {
-                    id: message.partition().try_into()?,
-                    number: message.offset().try_into()?,
-                };
+        self.consumers
+            .iter()
+            .map(|(sequencer_id, consumer)| {
+                let stream = consumer
+                    .stream()
+                    .map(|message| {
+                        let message = message?;
+                        let entry = Entry::try_from(message.payload().unwrap().to_vec())?;
+                        let sequence = Sequence {
+                            id: message.partition().try_into()?,
+                            number: message.offset().try_into()?,
+                        };
 
-                Ok(SequencedEntry::new_from_sequence(sequence, entry)?)
+                        Ok(SequencedEntry::new_from_sequence(sequence, entry)?)
+                    })
+                    .boxed();
+                (*sequencer_id, stream)
             })
-            .boxed()
+            .collect()
     }
 }
 
 impl KafkaBufferConsumer {
-    pub fn new(
-        conn: impl Into<String>,
+    pub async fn new(
+        conn: impl Into<String> + Send + Sync,
         server_id: ServerId,
-        database_name: impl Into<String>,
+        database_name: impl Into<String> + Send + Sync,
     ) -> Result<Self, KafkaError> {
         let conn = conn.into();
         let database_name = database_name.into();
@@ -149,16 +156,54 @@ impl KafkaBufferConsumer {
         // When subscribing without a partition offset, start from the smallest offset available.
         cfg.set("auto.offset.reset", "smallest");
 
-        let consumer: StreamConsumer = cfg.create()?;
+        // figure out which partitions exists
+        let partitions = Self::get_partitions(&database_name, &cfg).await?;
+        info!(%database_name, ?partitions, "found Kafka partitions");
 
-        // Subscribe to all partitions of this database's topic.
-        consumer.subscribe(&[&database_name]).unwrap();
+        // setup a single consumer per partition, at least until https://github.com/fede1024/rust-rdkafka/pull/351 is
+        // merged
+        let consumers = partitions
+            .into_iter()
+            .map(|partition| {
+                let consumer: StreamConsumer = cfg.create()?;
+
+                let mut assignment = TopicPartitionList::new();
+                assignment.add_partition(&database_name, partition as i32);
+                consumer.assign(&assignment)?;
+
+                Ok((partition, consumer))
+            })
+            .collect::<Result<Vec<(u32, StreamConsumer)>, KafkaError>>()?;
 
         Ok(Self {
             conn,
             database_name,
-            consumer,
+            consumers,
         })
+    }
+
+    async fn get_partitions(
+        database_name: &str,
+        cfg: &ClientConfig,
+    ) -> Result<Vec<u32>, KafkaError> {
+        let database_name = database_name.to_string();
+        let probe_consumer: BaseConsumer = cfg.create()?;
+
+        let metadata = tokio::task::spawn_blocking(move || {
+            probe_consumer.fetch_metadata(Some(&database_name), Duration::from_secs(60))
+        })
+        .await
+        .expect("subtask failed")?;
+        let topic_metadata = metadata.topics().get(0).expect("requested a single topic");
+
+        let mut partitions: Vec<_> = topic_metadata
+            .partitions()
+            .iter()
+            .map(|partition_metdata| partition_metdata.id().try_into().unwrap())
+            .collect();
+        partitions.sort_unstable();
+
+        Ok(partitions)
     }
 }
 
@@ -273,6 +318,7 @@ mod tests {
         server_id_counter: AtomicU32,
     }
 
+    #[async_trait]
     impl TestContext for KafkaTestContext {
         type Writing = KafkaBufferProducer;
 
@@ -282,10 +328,12 @@ mod tests {
             KafkaBufferProducer::new(&self.conn, &self.database_name).unwrap()
         }
 
-        fn reading(&self) -> Self::Reading {
+        async fn reading(&self) -> Self::Reading {
             let server_id = self.server_id_counter.fetch_add(1, Ordering::SeqCst);
             let server_id = ServerId::try_from(server_id).unwrap();
-            KafkaBufferConsumer::new(&self.conn, server_id, &self.database_name).unwrap()
+            KafkaBufferConsumer::new(&self.conn, server_id, &self.database_name)
+                .await
+                .unwrap()
         }
     }
 

@@ -7,7 +7,7 @@ description = "Apache Arrow utilities"
 
 [dependencies]
 
-arrow = { version = "4.0", features = ["prettyprint"] }
+arrow = { version = "5.0", features = ["prettyprint"] }
 ahash = "0.7.2"
 num-traits = "0.2"
 snafu = "0.6"

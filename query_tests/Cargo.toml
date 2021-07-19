@@ -15,7 +15,7 @@ query = { path = "../query" }
 server = { path = "../server" }
 
 [dev-dependencies]
-arrow = { version = "4.0", features = ["prettyprint"] }
+arrow = { version = "5.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 datafusion = { path = "../datafusion" }
 data_types = { path = "../data_types" }

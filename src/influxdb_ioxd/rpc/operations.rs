@@ -18,7 +18,7 @@ use generated_types::{
     influxdata::iox::management::v1 as management,
     protobuf_type_url,
 };
-use tracker::{TaskId, TaskStatus, TaskTracker};
+use tracker::{TaskId, TaskResult, TaskStatus, TaskTracker};
 
 use server::{ConnectionManager, Server};
 use std::convert::TryInto;
@@ -30,48 +30,44 @@ struct OperationsService<M: ConnectionManager> {
 
 pub fn encode_tracker(tracker: TaskTracker<Job>) -> Result<Operation, tonic::Status> {
     let id = tracker.id();
-    let is_cancelled = tracker.is_cancelled();
     let status = tracker.get_status();
+    let result = status.result();
 
-    let (operation_metadata, is_complete) = match status {
-        TaskStatus::Creating => {
-            let metadata = management::OperationMetadata {
-                job: Some(tracker.metadata().clone().into()),
-                ..Default::default()
-            };
-
-            (metadata, false)
-        }
+    let operation_metadata = match status {
+        TaskStatus::Creating => management::OperationMetadata {
+            job: Some(tracker.metadata().clone().into()),
+            ..Default::default()
+        },
         TaskStatus::Running {
             total_count,
             pending_count,
             cpu_nanos,
-        } => {
-            let metadata = management::OperationMetadata {
-                cpu_nanos: cpu_nanos as _,
-                task_count: total_count as _,
-                pending_count: pending_count as _,
-                job: Some(tracker.metadata().clone().into()),
-                ..Default::default()
-            };
-
-            (metadata, false)
-        }
+        } => management::OperationMetadata {
+            cpu_nanos: cpu_nanos as _,
+            total_count: total_count as _,
+            pending_count: pending_count as _,
+            job: Some(tracker.metadata().clone().into()),
+            ..Default::default()
+        },
         TaskStatus::Complete {
             total_count,
+            success_count,
+            error_count,
+            cancelled_count,
+            dropped_count,
             cpu_nanos,
             wall_nanos,
-        } => {
-            let metadata = management::OperationMetadata {
-                cpu_nanos: cpu_nanos as _,
-                task_count: total_count as _,
-                wall_nanos: wall_nanos as _,
-                job: Some(tracker.metadata().clone().into()),
-                ..Default::default()
-            };
-
-            (metadata, true)
-        }
+        } => management::OperationMetadata {
+            cpu_nanos: cpu_nanos as _,
+            total_count: total_count as _,
+            success_count: success_count as _,
+            error_count: error_count as _,
+            cancelled_count: cancelled_count as _,
+            dropped_count: dropped_count as _,
+            wall_nanos: wall_nanos as _,
+            job: Some(tracker.metadata().clone().into()),
+            ..Default::default()
+        },
     };
 
     let mut buffer = BytesMut::new();
@@ -85,25 +81,33 @@ pub fn encode_tracker(tracker: TaskTracker<Job>) -> Result<Operation, tonic::Sta
         value: buffer.freeze(),
     };
 
-    let result = match (is_complete, is_cancelled) {
-        (true, true) => Some(operation::Result::Error(Status {
+    let result = match result {
+        Some(TaskResult::Success) => Some(operation::Result::Response(Any {
+            type_url: "type.googleapis.com/google.protobuf.Empty".to_string(),
+            value: Default::default(),
+        })),
+        Some(TaskResult::Cancelled) => Some(operation::Result::Error(Status {
             code: tonic::Code::Cancelled as _,
             message: "Job cancelled".to_string(),
             details: vec![],
         })),
-
-        (true, false) => Some(operation::Result::Response(Any {
-            type_url: "type.googleapis.com/google.protobuf.Empty".to_string(),
-            value: Default::default(), // TODO: Verify this is correct
+        Some(TaskResult::Dropped) => Some(operation::Result::Error(Status {
+            code: tonic::Code::Internal as _,
+            message: "Job did not run to completion, possible panic".to_string(),
+            details: vec![],
         })),
-
-        _ => None,
+        Some(TaskResult::Error) => Some(operation::Result::Error(Status {
+            code: tonic::Code::Internal as _,
+            message: "Job returned an error".to_string(),
+            details: vec![],
+        })),
+        None => None,
     };
 
     Ok(Operation {
         name: id.to_string(),
         metadata: Some(metadata),
-        done: is_complete,
+        done: result.is_some(),
         result,
     })
 }

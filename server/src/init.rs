@@ -530,11 +530,11 @@ impl InitStatus {
                 let rules = handle
                     .rules()
                     .expect("in this state rules should be loaded");
-                let write_buffer = WriteBufferConfig::new(handle.server_id(), &rules).context(
-                    CreateWriteBuffer {
+                let write_buffer = WriteBufferConfig::new(handle.server_id(), &rules)
+                    .await
+                    .context(CreateWriteBuffer {
                         config: rules.write_buffer_connection.clone(),
-                    },
-                )?;
+                    })?;
                 info!(write_buffer_enabled=?write_buffer.is_some(), db_name=rules.db_name(), "write buffer config");
 
                 handle

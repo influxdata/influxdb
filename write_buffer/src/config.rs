@@ -17,7 +17,7 @@ pub enum WriteBufferConfig {
 }
 
 impl WriteBufferConfig {
-    pub fn new(
+    pub async fn new(
         server_id: ServerId,
         rules: &DatabaseRules,
     ) -> Result<Option<Self>, WriteBufferError> {
@@ -34,7 +34,7 @@ impl WriteBufferConfig {
                 Ok(Some(Self::Writing(Arc::new(kafka_buffer) as _)))
             }
             Some(WriteBufferConnection::Reading(conn)) => {
-                let kafka_buffer = KafkaBufferConsumer::new(conn, server_id, name)?;
+                let kafka_buffer = KafkaBufferConsumer::new(conn, server_id, name).await?;
 
                 Ok(Some(Self::Reading(Arc::new(kafka_buffer) as _)))
             }

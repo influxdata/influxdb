@@ -10,8 +10,8 @@ format = ["arrow"]
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
-arrow = { version = "4.0", optional = true }
-arrow-flight = { version = "4.0", optional = true}
+arrow = { version = "5.0", optional = true }
+arrow-flight = { version = "5.0", optional = true}
 generated_types = { path = "../generated_types" }
 
 # Crates.io dependencies, in alphabetical order

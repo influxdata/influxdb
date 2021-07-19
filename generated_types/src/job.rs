@@ -157,7 +157,7 @@ impl TryFrom<longrunning::Operation> for data_types::job::Operation {
 
         let status = match &operation.result {
             None => OperationStatus::Running,
-            Some(longrunning::operation::Result::Response(_)) => OperationStatus::Complete,
+            Some(longrunning::operation::Result::Response(_)) => OperationStatus::Success,
             Some(longrunning::operation::Result::Error(status)) => {
                 if status.code == tonic::Code::Cancelled as i32 {
                     OperationStatus::Cancelled
@@ -169,8 +169,12 @@ impl TryFrom<longrunning::Operation> for data_types::job::Operation {
 
         Ok(Self {
             id: operation.name.parse().field("name")?,
-            task_count: meta.task_count,
+            total_count: meta.total_count,
             pending_count: meta.pending_count,
+            success_count: meta.success_count,
+            error_count: meta.error_count,
+            cancelled_count: meta.cancelled_count,
+            dropped_count: meta.dropped_count,
             wall_time: std::time::Duration::from_nanos(meta.wall_nanos),
             cpu_time: std::time::Duration::from_nanos(meta.cpu_nanos),
             job: meta.job.map(Into::into),

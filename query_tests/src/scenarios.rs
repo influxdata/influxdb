@@ -1,12 +1,9 @@
 //! This module contains testing scenarios for Db
 
 use std::collections::HashMap;
-use std::convert::TryFrom;
-use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use data_types::database_rules::LifecycleRules;
 use once_cell::sync::OnceCell;
 
 #[allow(unused_imports, dead_code, unused_macros)]
@@ -16,7 +13,6 @@ use async_trait::async_trait;
 
 use server::utils::{
     count_mutable_buffer_chunks, count_object_store_chunks, count_read_buffer_chunks, make_db,
-    TestDb,
 };
 use server::{db::test_helpers::write_lp, Db};
 
@@ -138,14 +134,7 @@ impl DbSetup for NoData {
 
         // Scenario 4: the database has had data loaded into RB & Object Store and then deleted
         //
-        let db = TestDb::builder()
-            .lifecycle_rules(LifecycleRules {
-                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-                ..Default::default()
-            })
-            .build()
-            .await
-            .db;
+        let db = make_db().await.db;
         let data = "cpu,region=west user=23.2 100";
         write_lp(&db, data).await;
         // move data out of open chunk
@@ -564,14 +553,7 @@ impl DbSetup for TwoMeasurementsManyFieldsLifecycle {
     async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
-        let db = TestDb::builder()
-            .lifecycle_rules(LifecycleRules {
-                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-                ..Default::default()
-            })
-            .build()
-            .await
-            .db;
+        let db = make_db().await.db;
 
         write_lp(
             &db,
@@ -771,14 +753,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     };
 
     // Scenario 4: One closed chunk in both RUb and OS
-    let db = TestDb::builder()
-        .lifecycle_rules(LifecycleRules {
-            late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-            ..Default::default()
-        })
-        .build()
-        .await
-        .db;
+    let db = make_db().await.db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
         db.rollover_partition(&table_name, partition_key)
@@ -802,14 +777,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     };
 
     // Scenario 5: One closed chunk in OS only
-    let db = TestDb::builder()
-        .lifecycle_rules(LifecycleRules {
-            late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-            ..Default::default()
-        })
-        .build()
-        .await
-        .db;
+    let db = make_db().await.db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
         db.rollover_partition(&table_name, partition_key)
@@ -914,14 +882,7 @@ pub async fn make_two_chunk_scenarios(
     };
 
     // in 2 read buffer chunks that also loaded into object store
-    let db = TestDb::builder()
-        .lifecycle_rules(LifecycleRules {
-            late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-            ..Default::default()
-        })
-        .build()
-        .await
-        .db;
+    let db = make_db().await.db;
     let table_names = write_lp(&db, data1).await;
     for table_name in &table_names {
         db.rollover_partition(&table_name, partition_key)
@@ -960,14 +921,7 @@ pub async fn make_two_chunk_scenarios(
     };
 
     // Scenario 6: Two closed chunk in OS only
-    let db = TestDb::builder()
-        .lifecycle_rules(LifecycleRules {
-            late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-            ..Default::default()
-        })
-        .build()
-        .await
-        .db;
+    let db = make_db().await.db;
     let table_names = write_lp(&db, data1).await;
     for table_name in &table_names {
         db.rollover_partition(&table_name, partition_key)
@@ -1077,14 +1031,7 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
     };
 
     // Scenario 2: One closed chunk in Parquet only
-    let db = TestDb::builder()
-        .lifecycle_rules(LifecycleRules {
-            late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-            ..Default::default()
-        })
-        .build()
-        .await
-        .db;
+    let db = make_db().await.db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
         db.rollover_partition(&table_name, partition_key)

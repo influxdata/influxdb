@@ -201,7 +201,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// outside of the Db
 #[derive(Debug)]
 pub struct Db {
-    pub rules: RwLock<DatabaseRules>,
+    rules: RwLock<Arc<DatabaseRules>>,
 
     pub server_id: ServerId, // this is also the Query Server ID
 
@@ -270,7 +270,7 @@ pub(crate) struct DatabaseToCommit {
     pub(crate) exec: Arc<Executor>,
     pub(crate) preserved_catalog: PreservedCatalog,
     pub(crate) catalog: Catalog,
-    pub(crate) rules: DatabaseRules,
+    pub(crate) rules: Arc<DatabaseRules>,
     pub(crate) write_buffer: Option<WriteBufferConfig>,
 }
 
@@ -325,6 +325,22 @@ impl Db {
     /// Return a handle to the executor used to run queries
     pub fn executor(&self) -> Arc<Executor> {
         Arc::clone(&self.exec)
+    }
+
+    /// Return the current database rules
+    pub fn rules(&self) -> Arc<DatabaseRules> {
+        Arc::clone(&*self.rules.read())
+    }
+
+    /// Updates the database rules
+    pub fn update_db_rules<F, E>(&self, update: F) -> Result<Arc<DatabaseRules>, E>
+    where
+        F: FnOnce(DatabaseRules) -> Result<DatabaseRules, E>,
+    {
+        let mut rules = self.rules.write();
+        let new_rules = Arc::new(update(rules.as_ref().clone())?);
+        *rules = Arc::clone(&new_rules);
+        Ok(new_rules)
     }
 
     /// Rolls over the active chunk in the database's specified
@@ -640,14 +656,15 @@ impl Db {
             // streaming from the write buffer loop
             async {
                 if let Some(WriteBufferConfig::Reading(write_buffer)) = &self.write_buffer {
-                    let wb = Arc::clone(write_buffer);
-                    while !shutdown.is_cancelled() {
-                        tokio::select! {
-                            _ = {
-                                self.stream_in_sequenced_entries(wb.stream())
-                                } => {},
-                            _ = shutdown.cancelled() => break,
-                        }
+                    let mut futures = vec![];
+                    for (_sequencer_id, stream) in write_buffer.streams() {
+                        let fut = self.stream_in_sequenced_entries(stream);
+                        futures.push(fut);
+                    }
+
+                    tokio::select! {
+                        _ = futures::future::join_all(futures) => {},
+                        _ = shutdown.cancelled() => {},
                     }
                 }
             },
@@ -1093,11 +1110,22 @@ mod tests {
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = TestError> = std::result::Result<T, E>;
 
+    async fn immutable_db() -> Arc<Db> {
+        TestDb::builder()
+            .lifecycle_rules(LifecycleRules {
+                immutable: true,
+                ..Default::default()
+            })
+            .build()
+            .await
+            .db
+    }
+
     #[tokio::test]
     async fn write_no_mutable_buffer() {
         // Validate that writes are rejected if there is no mutable buffer
-        let db = make_db().await.db;
-        db.rules.write().lifecycle_rules.immutable = true;
+        let db = immutable_db().await;
+
         let entry = lp_to_entry("cpu bar=1 10");
         let res = db.store_entry(entry).await;
         assert_contains!(
@@ -1114,11 +1142,13 @@ mod tests {
         let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state.clone()));
         let test_db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
+            .lifecycle_rules(LifecycleRules {
+                immutable: true,
+                ..Default::default()
+            })
             .build()
             .await
             .db;
-
-        test_db.rules.write().lifecycle_rules.immutable = true;
 
         let entry = lp_to_entry("cpu bar=1 10");
         test_db.store_entry(entry).await.unwrap();
@@ -1286,8 +1316,7 @@ mod tests {
     #[tokio::test]
     async fn cant_write_when_reading_from_write_buffer() {
         // Validate that writes are rejected if this database is reading from the write buffer
-        let db = make_db().await.db;
-        db.rules.write().lifecycle_rules.immutable = true;
+        let db = immutable_db().await;
         let entry = lp_to_entry("cpu bar=1 10");
         let res = db.store_entry(entry).await;
         assert_contains!(
@@ -1392,13 +1421,7 @@ mod tests {
 
     #[tokio::test]
     async fn metrics_during_rollover() {
-        let test_db = TestDb::builder()
-            .lifecycle_rules(LifecycleRules {
-                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-                ..Default::default()
-            })
-            .build()
-            .await;
+        let test_db = make_db().await;
         let db = test_db.db;
 
         write_lp(db.as_ref(), "cpu bar=1 10").await;
@@ -2454,14 +2477,7 @@ mod tests {
     #[tokio::test]
     async fn chunk_summaries() {
         // Test that chunk id listing is hooked up
-        let db = TestDb::builder()
-            .lifecycle_rules(LifecycleRules {
-                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-                ..Default::default()
-            })
-            .build()
-            .await
-            .db;
+        let db = make_db().await.db;
 
         // get three chunks: one open, one closed in mb and one close in rb
         write_lp(&db, "cpu bar=1 1").await;
@@ -2502,7 +2518,7 @@ mod tests {
                 ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
                 3236,
-                1528,
+                1479,
                 2,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2541,14 +2557,7 @@ mod tests {
     #[tokio::test]
     async fn partition_summaries() {
         // Test that chunk id listing is hooked up
-        let db = TestDb::builder()
-            .lifecycle_rules(LifecycleRules {
-                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-                ..Default::default()
-            })
-            .build()
-            .await
-            .db;
+        let db = make_db().await.db;
 
         write_lp(&db, "cpu bar=1 1").await;
         let chunk_id = db
@@ -2741,14 +2750,7 @@ mod tests {
     #[tokio::test]
     async fn write_chunk_to_object_store_in_background() {
         // Test that data can be written to object store using a background task
-        let db = TestDb::builder()
-            .lifecycle_rules(LifecycleRules {
-                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-                ..Default::default()
-            })
-            .build()
-            .await
-            .db;
+        let db = make_db().await.db;
 
         // create MB partition
         write_lp(db.as_ref(), "cpu bar=1 10").await;
@@ -2785,8 +2787,14 @@ mod tests {
 
     #[tokio::test]
     async fn write_hard_limit() {
-        let db = Arc::new(make_db().await.db);
-        db.rules.write().lifecycle_rules.buffer_size_hard = Some(NonZeroUsize::new(10).unwrap());
+        let db = TestDb::builder()
+            .lifecycle_rules(LifecycleRules {
+                buffer_size_hard: Some(NonZeroUsize::new(10).unwrap()),
+                ..Default::default()
+            })
+            .build()
+            .await
+            .db;
 
         // inserting first line does not trigger hard buffer limit
         write_lp(db.as_ref(), "cpu bar=1 10").await;
