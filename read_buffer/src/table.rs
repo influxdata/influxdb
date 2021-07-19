@@ -80,12 +80,16 @@ struct RowGroupData {
 
 impl Table {
     /// Create a new table with the provided row_group. Creating an empty table is not possible.
-    pub fn with_row_group(name: impl Into<String>, rg: RowGroup) -> Self {
-        let now = Utc::now();
+    pub fn with_row_group(
+        name: impl Into<String>,
+        rg: RowGroup,
+        time_of_first_write: DateTime<Utc>,
+        time_of_last_write: DateTime<Utc>,
+    ) -> Self {
         Self {
             name: name.into(),
             table_data: RwLock::new(RowGroupData {
-                meta: Arc::new(MetaData::new(&rg, now, now)),
+                meta: Arc::new(MetaData::new(&rg, time_of_first_write, time_of_last_write)),
                 data: vec![Arc::new(rg)],
             }),
         }
@@ -1030,6 +1034,11 @@ mod test {
     use crate::schema::LogicalDataType;
     use crate::value::{AggregateVec, OwnedValue, Scalar};
 
+    fn table_now(name: impl Into<String>, rg: RowGroup) -> Table {
+        let now = Utc::now();
+        Table::with_row_group(name, rg, now, now)
+    }
+
     #[test]
     fn meta_data_update_with() {
         let before_creation = Utc::now();
@@ -1091,20 +1100,26 @@ mod test {
 
     #[test]
     fn add_remove_row_groups() {
+        let before_creation = Utc::now();
         let tc = ColumnType::Time(Column::from(&[0_i64, 2, 3][..]));
         let columns = vec![("time".to_string(), tc)];
 
         let rg = RowGroup::new(3, columns);
-
-        let mut table = Table::with_row_group("cpu", rg);
+        let mut table = table_now("cpu", rg);
+        let after_creation = Utc::now();
 
         assert_eq!(table.rows(), 3);
+        let first_write = table.table_summary().time_of_first_write;
+        assert_eq!(first_write, table.table_summary().time_of_last_write);
+        assert!(before_creation < first_write);
+        assert!(first_write < after_creation);
 
         // add another row group
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5][..]));
         let columns = vec![("time".to_string(), tc)];
         let rg = RowGroup::new(5, columns);
         table.add_row_group(rg);
+        let after_add_row_group = Utc::now();
 
         assert_eq!(table.rows(), 8);
         assert_eq!(
@@ -1114,6 +1129,13 @@ mod test {
                 OwnedValue::Scalar(Scalar::I64(5))
             )
         );
+        // First write time should be unchanged
+        assert_eq!(first_write, table.table_summary().time_of_first_write);
+        // Last write time should be updated
+        let last_write = table.table_summary().time_of_last_write;
+        assert_ne!(first_write, last_write);
+        assert!(after_creation < last_write);
+        assert!(last_write < after_add_row_group);
 
         // remove the first row group
         table.drop_row_group(0).unwrap();
@@ -1125,6 +1147,9 @@ mod test {
                 OwnedValue::Scalar(Scalar::I64(5))
             )
         );
+        // Write times should be unchanged
+        assert_eq!(first_write, table.table_summary().time_of_first_write);
+        assert_eq!(last_write, table.table_summary().time_of_last_write);
 
         // attempt to remove the last row group.
         table
@@ -1138,7 +1163,7 @@ mod test {
         let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
         let columns = vec![("time".to_string(), tc), ("count".to_string(), fc)];
         let row_group = RowGroup::new(3, columns);
-        let mut table = Table::with_row_group("cpu", row_group);
+        let mut table = table_now("cpu", row_group);
 
         // add another row group
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
@@ -1172,7 +1197,7 @@ mod test {
             ("count".to_string(), fc),
         ];
         let row_group = RowGroup::new(3, columns);
-        let mut table = Table::with_row_group("cpu", row_group);
+        let mut table = table_now("cpu", row_group);
 
         // add another row group
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
@@ -1251,7 +1276,7 @@ mod test {
         ];
 
         let rg = RowGroup::new(6, columns);
-        let mut table = Table::with_row_group("cpu", rg);
+        let mut table = table_now("cpu", rg);
 
         let exp_col_types = vec![
             ("region", LogicalDataType::String),
@@ -1378,7 +1403,7 @@ mod test {
             ),
         ];
         let rg = RowGroup::new(3, columns);
-        let mut table = Table::with_row_group("cpu", rg);
+        let mut table = table_now("cpu", rg);
 
         // Build another row group.
         let columns = vec![
@@ -1520,7 +1545,7 @@ west,host-b,100
         let columns = vec![("time".to_string(), tc), ("region".to_string(), rc)];
 
         let rg = RowGroup::new(3, columns);
-        let mut table = Table::with_row_group("cpu", rg);
+        let mut table = table_now("cpu", rg);
 
         // add another row group
         let tc = ColumnType::Time(Column::from(&[200_i64, 300, 400][..]));
@@ -1592,7 +1617,7 @@ west,host-b,100
         ];
 
         let rg = RowGroup::new(4, columns);
-        let table = Table::with_row_group("cpu", rg);
+        let table = table_now("cpu", rg);
 
         assert_eq!(table.time_range().unwrap(), (-100, 3));
     }

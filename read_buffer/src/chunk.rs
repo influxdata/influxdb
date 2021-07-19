@@ -5,6 +5,7 @@ use crate::{
     table::{self, Table},
 };
 use arrow::record_batch::RecordBatch;
+use chrono::Utc;
 use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummaryAndTimes};
 use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
 use metrics::{Gauge, KeyValue};
@@ -57,7 +58,9 @@ impl Chunk {
         let table_name = table_name.into();
         let row_group = record_batch_to_row_group_with_logging(&table_name, table_data);
         let storage_statistics = row_group.column_storage_statistics();
-        let table = Table::with_row_group(table_name, row_group);
+        let now = Utc::now();
+
+        let table = Table::with_row_group(table_name, row_group, now, now);
 
         metrics.update_column_storage_statistics(&storage_statistics);
 
@@ -70,9 +73,10 @@ impl Chunk {
         row_group: RowGroup,
         metrics: ChunkMetrics,
     ) -> Self {
+        let now = Utc::now();
         Self {
             metrics,
-            table: Table::with_row_group(table_name, row_group),
+            table: Table::with_row_group(table_name, row_group, now, now),
         }
     }
 
