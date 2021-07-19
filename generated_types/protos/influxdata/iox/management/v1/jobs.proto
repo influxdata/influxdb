@@ -8,11 +8,23 @@ message OperationMetadata {
   // How many nanoseconds has it been since the job was submitted
   uint64 wall_nanos = 2;
 
-  // How many total tasks does this job have currently
-  uint64 task_count = 3;
+  // The total number of created tasks
+  uint64 total_count = 3;
 
-  // How many tasks for this job are still pending
+  // The number of pending tasks
   uint64 pending_count = 4;
+
+  // The number of tasks that completed successfully
+  uint64 success_count = 13;
+
+  // The number of tasks that returned an error
+  uint64 error_count = 14;
+
+  // The number of tasks that were cancelled
+  uint64 cancelled_count = 15;
+
+  // The number of tasks that did not run to completion (e.g. panic)
+  uint64 dropped_count = 16;
 
   // What kind of job is it?
   oneof job {

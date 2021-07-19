@@ -24,7 +24,7 @@ async fn test_start_stop() {
     )
     .expect("expected JSON output");
 
-    assert_eq!(stdout.task_count, 1);
+    assert_eq!(stdout.total_count, 1);
     match stdout.job {
         Some(Job::Dummy { nanos }) => assert_eq!(nanos, vec![duration]),
         _ => panic!("expected dummy job got {:?}", stdout.job),
@@ -82,7 +82,8 @@ async fn test_start_stop() {
     .expect("expected JSON output");
 
     assert_eq!(completed.pending_count, 0);
-    assert_eq!(completed.task_count, 1);
+    assert_eq!(completed.total_count, 1);
+    assert_eq!(completed.cancelled_count, 1);
     assert_eq!(completed.status, OperationStatus::Cancelled);
     assert_eq!(&completed.job, &operations[0].job)
 }

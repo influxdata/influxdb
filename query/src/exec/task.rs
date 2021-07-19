@@ -9,6 +9,7 @@ use tracker::{TaskRegistration, TrackedFutureExt};
 use futures::Future;
 
 use observability_deps::tracing::warn;
+use std::convert::Infallible;
 
 /// The type of thing that the dedicated executor runs
 type Task = Pin<Box<dyn Future<Output = ()> + Send>>;
@@ -83,7 +84,13 @@ impl DedicatedExecutor {
                 let registration = TaskRegistration::new();
 
                 while let Ok(task) = rx.recv() {
-                    tokio::task::spawn(task.track(registration.clone()));
+                    tokio::task::spawn(
+                        async move {
+                            task.await;
+                            Ok::<_, Infallible>(())
+                        }
+                        .track(registration.clone()),
+                    );
                 }
 
                 // Wait for all tasks to finish

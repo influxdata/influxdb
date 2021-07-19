@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 /// An extension trait that provides `self.track(registration)` allowing
 /// associating this future with a `TrackerRegistration`
-pub trait TrackedFutureExt: Future {
+pub trait TrackedFutureExt: TryFuture {
     fn track(self, registration: TaskRegistration) -> TrackedFuture<Self>
     where
         Self: Sized,
@@ -28,17 +28,18 @@ pub trait TrackedFutureExt: Future {
         // The future returned by CancellationToken::cancelled borrows the token
         // In order to ensure we get a future with a static lifetime
         // we box them up together and let async work its magic
-        let abort = Box::pin(async move { token.cancelled().await });
+        let cancel = Box::pin(async move { token.cancelled().await });
 
         TrackedFuture {
             inner: self,
-            abort,
+            cancel,
             tracker,
+            complete: false,
         }
     }
 }
 
-impl<T: ?Sized> TrackedFutureExt for T where T: Future {}
+impl<T: ?Sized> TrackedFutureExt for T where T: TryFuture {}
 
 /// The `Future` returned by `TrackedFutureExt::track()`
 /// Unregisters the future from the registered `TrackerRegistry` on drop
@@ -46,36 +47,53 @@ impl<T: ?Sized> TrackedFutureExt for T where T: Future {}
 /// `TrackerRegistry::terminate`
 #[pin_project(PinnedDrop)]
 #[allow(missing_debug_implementations)]
-pub struct TrackedFuture<F: Future> {
+pub struct TrackedFuture<F: TryFuture> {
     #[pin]
     inner: F,
     #[pin]
-    abort: BoxFuture<'static, ()>,
+    cancel: BoxFuture<'static, ()>,
     tracker: Arc<TrackerState>,
+    complete: bool,
 }
 
-impl<F: Future> Future for TrackedFuture<F> {
-    type Output = Result<F::Output, future::Aborted>;
+impl<F: TryFuture> Future for TrackedFuture<F> {
+    type Output = Result<Result<F::Ok, F::Error>, future::Aborted>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if self.as_mut().project().abort.poll(cx).is_ready() {
+        assert!(!self.complete, "It is illegal to poll a completed future");
+        if self.as_mut().project().cancel.poll(cx).is_ready() {
+            *self.as_mut().project().complete = true;
+            self.tracker
+                .cancelled_futures
+                .fetch_add(1, Ordering::Relaxed);
             return Poll::Ready(Err(future::Aborted {}));
         }
 
         let start = Instant::now();
-        let poll = self.as_mut().project().inner.poll(cx);
+        let poll = self.as_mut().project().inner.try_poll(cx);
         let delta = start.elapsed().as_nanos() as usize;
 
         self.tracker.cpu_nanos.fetch_add(delta, Ordering::Relaxed);
 
-        poll.map(Ok)
+        match poll {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(v) => {
+                match v.is_ok() {
+                    true => self.tracker.ok_futures.fetch_add(1, Ordering::Relaxed),
+                    false => self.tracker.err_futures.fetch_add(1, Ordering::Relaxed),
+                };
+
+                *self.as_mut().project().complete = true;
+                Poll::Ready(Ok(v))
+            }
+        }
     }
 }
 
 #[pinned_drop]
-impl<F: Future> PinnedDrop for TrackedFuture<F> {
+impl<F: TryFuture> PinnedDrop for TrackedFuture<F> {
     fn drop(self: Pin<&mut Self>) {
-        let state = &self.project().tracker;
+        let state: &TrackerState = &self.project().tracker;
 
         let wall_nanos = state.start_instant.elapsed().as_nanos() as usize;
 
