@@ -153,21 +153,38 @@ impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
     }
 }
 
+/// Sequencer-specific playback state
+struct PlaybackState {
+    /// Index within the entry vector.
+    vector_index: usize,
+
+    /// Offset within the sequencer IDs.
+    offset: u64,
+}
+
 pub struct MockBufferForReading {
-    state: MockBufferSharedState,
-    positions: Arc<Mutex<BTreeMap<u32, usize>>>,
+    shared_state: MockBufferSharedState,
+    playback_states: Arc<Mutex<BTreeMap<u32, PlaybackState>>>,
 }
 
 impl MockBufferForReading {
     pub fn new(state: MockBufferSharedState) -> Self {
         let n_sequencers = state.entries.lock().len() as u32;
-        let positions: BTreeMap<_, _> = (0..n_sequencers)
-            .map(|sequencer_id| (sequencer_id, 0))
+        let playback_states: BTreeMap<_, _> = (0..n_sequencers)
+            .map(|sequencer_id| {
+                (
+                    sequencer_id,
+                    PlaybackState {
+                        vector_index: 0,
+                        offset: 0,
+                    },
+                )
+            })
             .collect();
 
         Self {
-            state,
-            positions: Arc::new(Mutex::new(positions)),
+            shared_state: state,
+            playback_states: Arc::new(Mutex::new(playback_states)),
         }
     }
 }
@@ -178,38 +195,52 @@ impl std::fmt::Debug for MockBufferForReading {
     }
 }
 
+#[async_trait]
 impl WriteBufferReading for MockBufferForReading {
-    fn streams<'life0, 'async_trait>(&'life0 self) -> Vec<(u32, EntryStream<'async_trait>)>
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
+    fn streams(&self) -> Vec<(u32, EntryStream<'_>)> {
         let sequencer_ids: Vec<_> = {
-            let positions = self.positions.lock();
-            positions.keys().copied().collect()
+            let playback_states = self.playback_states.lock();
+            playback_states.keys().copied().collect()
         };
 
         let mut streams = vec![];
         for sequencer_id in sequencer_ids {
-            let state = self.state.clone();
-            let positions = Arc::clone(&self.positions);
+            let shared_state = self.shared_state.clone();
+            let playback_states = Arc::clone(&self.playback_states);
 
             let stream = stream::poll_fn(move |_ctx| {
-                let entries = state.entries.lock();
-                let mut positions = positions.lock();
+                let entries = shared_state.entries.lock();
+                let mut playback_states = playback_states.lock();
 
                 let entry_vec = entries.get(&sequencer_id).unwrap();
-                let position = positions.get_mut(&sequencer_id).unwrap();
+                let playback_state = playback_states.get_mut(&sequencer_id).unwrap();
 
-                if entry_vec.len() > *position {
-                    let entry = match &entry_vec[*position] {
-                        Ok(entry) => Ok(entry.clone()),
-                        Err(e) => Err(e.to_string().into()),
-                    };
-                    *position += 1;
-                    return Poll::Ready(Some(entry));
+                while entry_vec.len() > playback_state.vector_index {
+                    let entry_result = &entry_vec[playback_state.vector_index];
+
+                    // consume entry
+                    playback_state.vector_index += 1;
+
+                    match entry_result {
+                        Ok(entry) => {
+                            // found an entry => need to check if it is within the offset
+                            let sequence = entry.sequence().unwrap();
+                            if sequence.number >= playback_state.offset {
+                                // within offset => return entry to caller
+                                return Poll::Ready(Some(Ok(entry.clone())));
+                            } else {
+                                // offset is larger then the current entry => ignore entry and try next
+                                continue;
+                            }
+                        }
+                        Err(e) => {
+                            // found an error => return entry to caller
+                            return Poll::Ready(Some(Err(e.to_string().into())));
+                        }
+                    }
                 }
 
+                // we are at the end of the recorded entries => report pending
                 Poll::Pending
             })
             .boxed();
@@ -217,6 +248,19 @@ impl WriteBufferReading for MockBufferForReading {
         }
 
         streams
+    }
+
+    async fn seek(&self, sequencer_id: u32, sequence_number: u64) -> Result<(), WriteBufferError> {
+        let mut playback_states = self.playback_states.lock();
+
+        if let Some(playback_state) = playback_states.get_mut(&sequencer_id) {
+            playback_state.offset = sequence_number;
+
+            // reset position to start since seeking might go backwards
+            playback_state.vector_index = 0;
+        }
+
+        Ok(())
     }
 }
 

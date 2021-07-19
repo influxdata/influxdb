@@ -1,5 +1,7 @@
 use std::{
+    collections::BTreeMap,
     convert::{TryFrom, TryInto},
+    sync::Arc,
     time::Duration,
 };
 
@@ -13,7 +15,7 @@ use rdkafka::{
     error::KafkaError,
     producer::{FutureProducer, FutureRecord},
     util::Timeout,
-    ClientConfig, Message, TopicPartitionList,
+    ClientConfig, Message, Offset, TopicPartitionList,
 };
 
 use crate::core::{EntryStream, WriteBufferError, WriteBufferReading, WriteBufferWriting};
@@ -94,7 +96,7 @@ impl KafkaBufferProducer {
 pub struct KafkaBufferConsumer {
     conn: String,
     database_name: String,
-    consumers: Vec<(u32, StreamConsumer)>,
+    consumers: BTreeMap<u32, Arc<StreamConsumer>>,
 }
 
 // Needed because rdkafka's StreamConsumer doesn't impl Debug
@@ -107,12 +109,9 @@ impl std::fmt::Debug for KafkaBufferConsumer {
     }
 }
 
+#[async_trait]
 impl WriteBufferReading for KafkaBufferConsumer {
-    fn streams<'life0, 'async_trait>(&'life0 self) -> Vec<(u32, EntryStream<'async_trait>)>
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
+    fn streams(&self) -> Vec<(u32, EntryStream<'_>)> {
         self.consumers
             .iter()
             .map(|(sequencer_id, consumer)| {
@@ -132,6 +131,31 @@ impl WriteBufferReading for KafkaBufferConsumer {
                 (*sequencer_id, stream)
             })
             .collect()
+    }
+
+    async fn seek(&self, sequencer_id: u32, sequence_number: u64) -> Result<(), WriteBufferError> {
+        if let Some(consumer) = self.consumers.get(&sequencer_id) {
+            let consumer = Arc::clone(consumer);
+            let database_name = self.database_name.clone();
+            let offset = if sequence_number > 0 {
+                Offset::Offset(sequence_number as i64)
+            } else {
+                Offset::Beginning
+            };
+
+            tokio::task::spawn_blocking(move || {
+                consumer.seek(
+                    &database_name,
+                    sequencer_id as i32,
+                    offset,
+                    Duration::from_secs(60),
+                )
+            })
+            .await
+            .expect("subtask failed")?;
+        }
+
+        Ok(())
     }
 }
 
@@ -169,11 +193,21 @@ impl KafkaBufferConsumer {
 
                 let mut assignment = TopicPartitionList::new();
                 assignment.add_partition(&database_name, partition as i32);
-                consumer.assign(&assignment)?;
 
-                Ok((partition, consumer))
+                // We must set the offset to `Beginning` here to avoid the following error during seek:
+                //     KafkaError (Seek error: Local: Erroneous state)
+                //
+                // Also see:
+                // - https://github.com/Blizzard/node-rdkafka/issues/237
+                // - https://github.com/confluentinc/confluent-kafka-go/issues/121#issuecomment-362308376
+                assignment
+                    .set_partition_offset(&database_name, partition as i32, Offset::Beginning)
+                    .expect("partition was set just before");
+
+                consumer.assign(&assignment)?;
+                Ok((partition, Arc::new(consumer)))
             })
-            .collect::<Result<Vec<(u32, StreamConsumer)>, KafkaError>>()?;
+            .collect::<Result<BTreeMap<u32, Arc<StreamConsumer>>, KafkaError>>()?;
 
         Ok(Self {
             conn,
