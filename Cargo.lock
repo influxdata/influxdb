@@ -824,6 +824,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "influxdb_line_protocol",
+ "num_cpus",
  "observability_deps",
  "percent-encoding",
  "regex",
@@ -1278,6 +1279,7 @@ dependencies = [
  "data_types",
  "futures",
  "google_types",
+ "num_cpus",
  "observability_deps",
  "proc-macro2",
  "prost",

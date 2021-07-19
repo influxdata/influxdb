@@ -76,6 +76,12 @@ message LifecycleRules {
 
   // Maximum number of rows to buffer in a MUB chunk before compacting it
   uint64 mub_row_threshold = 15;
+
+  // The maximum number of concurrent active compactions that can run.
+  //
+  // If 0, compactions are limited to the default number.
+  // See data_types::database_rules::DEFAULT_MAX_ACTIVE_COMPACTIONS
+  uint32 max_active_compactions = 16;
 }
 
 message DatabaseRules {
