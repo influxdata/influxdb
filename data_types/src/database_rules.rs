@@ -118,6 +118,7 @@ pub const DEFAULT_MUB_ROW_THRESHOLD: usize = 100_000;
 pub const DEFAULT_PERSIST_ROW_THRESHOLD: usize = 1_000_000;
 pub const DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS: u32 = 30 * 60;
 pub const DEFAULT_LATE_ARRIVE_WINDOW_SECONDS: u32 = 5 * 60;
+pub const DEFAULT_MAX_ACTIVE_COMPACTIONS: u32 = 14;
 
 /// Configures how data automatically flows through the system
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -143,6 +144,11 @@ pub struct LifecycleRules {
     /// If the background worker doesn't find anything to do it
     /// will sleep for this many milliseconds before looking again
     pub worker_backoff_millis: NonZeroU64,
+
+    /// The maximum number of permitted concurrently executing compactions.
+    /// It is not currently possible to set a limit that disables compactions
+    /// entirely, nor is it possible to set an "unlimited" value.
+    pub max_active_compactions: NonZeroU32,
 
     /// After how many transactions should IOx write a new checkpoint?
     pub catalog_transactions_until_checkpoint: NonZeroU64,
@@ -179,6 +185,7 @@ impl Default for LifecycleRules {
             persist: false,
             immutable: false,
             worker_backoff_millis: NonZeroU64::new(DEFAULT_WORKER_BACKOFF_MILLIS).unwrap(),
+            max_active_compactions: NonZeroU32::new(DEFAULT_MAX_ACTIVE_COMPACTIONS).unwrap(),
             catalog_transactions_until_checkpoint: NonZeroU64::new(
                 DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT,
             )
