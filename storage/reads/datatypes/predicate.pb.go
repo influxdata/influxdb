@@ -10,6 +10,7 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -21,7 +22,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 type Node_Type int32
 
@@ -163,7 +164,7 @@ func (m *Node) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Node.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -189,34 +190,34 @@ type isNode_Value interface {
 }
 
 type Node_StringValue struct {
-	StringValue string `protobuf:"bytes,3,opt,name=string_value,json=stringValue,proto3,oneof"`
+	StringValue string `protobuf:"bytes,3,opt,name=string_value,json=stringValue,proto3,oneof" json:"string_value,omitempty"`
 }
 type Node_BooleanValue struct {
-	BooleanValue bool `protobuf:"varint,4,opt,name=bool_value,json=boolValue,proto3,oneof"`
+	BooleanValue bool `protobuf:"varint,4,opt,name=bool_value,json=boolValue,proto3,oneof" json:"bool_value,omitempty"`
 }
 type Node_IntegerValue struct {
-	IntegerValue int64 `protobuf:"varint,5,opt,name=int_value,json=intValue,proto3,oneof"`
+	IntegerValue int64 `protobuf:"varint,5,opt,name=int_value,json=intValue,proto3,oneof" json:"int_value,omitempty"`
 }
 type Node_UnsignedValue struct {
-	UnsignedValue uint64 `protobuf:"varint,6,opt,name=uint_value,json=uintValue,proto3,oneof"`
+	UnsignedValue uint64 `protobuf:"varint,6,opt,name=uint_value,json=uintValue,proto3,oneof" json:"uint_value,omitempty"`
 }
 type Node_FloatValue struct {
-	FloatValue float64 `protobuf:"fixed64,7,opt,name=float_value,json=floatValue,proto3,oneof"`
+	FloatValue float64 `protobuf:"fixed64,7,opt,name=float_value,json=floatValue,proto3,oneof" json:"float_value,omitempty"`
 }
 type Node_RegexValue struct {
-	RegexValue string `protobuf:"bytes,8,opt,name=regex_value,json=regexValue,proto3,oneof"`
+	RegexValue string `protobuf:"bytes,8,opt,name=regex_value,json=regexValue,proto3,oneof" json:"regex_value,omitempty"`
 }
 type Node_TagRefValue struct {
-	TagRefValue string `protobuf:"bytes,9,opt,name=tag_ref_value,json=tagRefValue,proto3,oneof"`
+	TagRefValue string `protobuf:"bytes,9,opt,name=tag_ref_value,json=tagRefValue,proto3,oneof" json:"tag_ref_value,omitempty"`
 }
 type Node_FieldRefValue struct {
-	FieldRefValue string `protobuf:"bytes,10,opt,name=field_ref_value,json=fieldRefValue,proto3,oneof"`
+	FieldRefValue string `protobuf:"bytes,10,opt,name=field_ref_value,json=fieldRefValue,proto3,oneof" json:"field_ref_value,omitempty"`
 }
 type Node_Logical_ struct {
-	Logical Node_Logical `protobuf:"varint,11,opt,name=logical,proto3,enum=influxdata.platform.storage.Node_Logical,oneof"`
+	Logical Node_Logical `protobuf:"varint,11,opt,name=logical,proto3,enum=influxdata.platform.storage.Node_Logical,oneof" json:"logical,omitempty"`
 }
 type Node_Comparison_ struct {
-	Comparison Node_Comparison `protobuf:"varint,12,opt,name=comparison,proto3,enum=influxdata.platform.storage.Node_Comparison,oneof"`
+	Comparison Node_Comparison `protobuf:"varint,12,opt,name=comparison,proto3,enum=influxdata.platform.storage.Node_Comparison,oneof" json:"comparison,omitempty"`
 }
 
 func (*Node_StringValue) isNode_Value()   {}
@@ -321,9 +322,9 @@ func (m *Node) GetComparison() Node_Comparison {
 	return ComparisonEqual
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*Node) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _Node_OneofMarshaler, _Node_OneofUnmarshaler, _Node_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*Node) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*Node_StringValue)(nil),
 		(*Node_BooleanValue)(nil),
 		(*Node_IntegerValue)(nil),
@@ -335,174 +336,6 @@ func (*Node) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, f
 		(*Node_Logical_)(nil),
 		(*Node_Comparison_)(nil),
 	}
-}
-
-func _Node_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*Node)
-	// value
-	switch x := m.Value.(type) {
-	case *Node_StringValue:
-		_ = b.EncodeVarint(3<<3 | proto.WireBytes)
-		_ = b.EncodeStringBytes(x.StringValue)
-	case *Node_BooleanValue:
-		t := uint64(0)
-		if x.BooleanValue {
-			t = 1
-		}
-		_ = b.EncodeVarint(4<<3 | proto.WireVarint)
-		_ = b.EncodeVarint(t)
-	case *Node_IntegerValue:
-		_ = b.EncodeVarint(5<<3 | proto.WireVarint)
-		_ = b.EncodeVarint(uint64(x.IntegerValue))
-	case *Node_UnsignedValue:
-		_ = b.EncodeVarint(6<<3 | proto.WireVarint)
-		_ = b.EncodeVarint(uint64(x.UnsignedValue))
-	case *Node_FloatValue:
-		_ = b.EncodeVarint(7<<3 | proto.WireFixed64)
-		_ = b.EncodeFixed64(math.Float64bits(x.FloatValue))
-	case *Node_RegexValue:
-		_ = b.EncodeVarint(8<<3 | proto.WireBytes)
-		_ = b.EncodeStringBytes(x.RegexValue)
-	case *Node_TagRefValue:
-		_ = b.EncodeVarint(9<<3 | proto.WireBytes)
-		_ = b.EncodeStringBytes(x.TagRefValue)
-	case *Node_FieldRefValue:
-		_ = b.EncodeVarint(10<<3 | proto.WireBytes)
-		_ = b.EncodeStringBytes(x.FieldRefValue)
-	case *Node_Logical_:
-		_ = b.EncodeVarint(11<<3 | proto.WireVarint)
-		_ = b.EncodeVarint(uint64(x.Logical))
-	case *Node_Comparison_:
-		_ = b.EncodeVarint(12<<3 | proto.WireVarint)
-		_ = b.EncodeVarint(uint64(x.Comparison))
-	case nil:
-	default:
-		return fmt.Errorf("Node.Value has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _Node_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*Node)
-	switch tag {
-	case 3: // value.string_value
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Value = &Node_StringValue{x}
-		return true, err
-	case 4: // value.bool_value
-		if wire != proto.WireVarint {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeVarint()
-		m.Value = &Node_BooleanValue{x != 0}
-		return true, err
-	case 5: // value.int_value
-		if wire != proto.WireVarint {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeVarint()
-		m.Value = &Node_IntegerValue{int64(x)}
-		return true, err
-	case 6: // value.uint_value
-		if wire != proto.WireVarint {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeVarint()
-		m.Value = &Node_UnsignedValue{x}
-		return true, err
-	case 7: // value.float_value
-		if wire != proto.WireFixed64 {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeFixed64()
-		m.Value = &Node_FloatValue{math.Float64frombits(x)}
-		return true, err
-	case 8: // value.regex_value
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Value = &Node_RegexValue{x}
-		return true, err
-	case 9: // value.tag_ref_value
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Value = &Node_TagRefValue{x}
-		return true, err
-	case 10: // value.field_ref_value
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Value = &Node_FieldRefValue{x}
-		return true, err
-	case 11: // value.logical
-		if wire != proto.WireVarint {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeVarint()
-		m.Value = &Node_Logical_{Node_Logical(x)}
-		return true, err
-	case 12: // value.comparison
-		if wire != proto.WireVarint {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeVarint()
-		m.Value = &Node_Comparison_{Node_Comparison(x)}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _Node_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*Node)
-	// value
-	switch x := m.Value.(type) {
-	case *Node_StringValue:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.StringValue)))
-		n += len(x.StringValue)
-	case *Node_BooleanValue:
-		n += 1 // tag and wire
-		n += 1
-	case *Node_IntegerValue:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(x.IntegerValue))
-	case *Node_UnsignedValue:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(x.UnsignedValue))
-	case *Node_FloatValue:
-		n += 1 // tag and wire
-		n += 8
-	case *Node_RegexValue:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.RegexValue)))
-		n += len(x.RegexValue)
-	case *Node_TagRefValue:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.TagRefValue)))
-		n += len(x.TagRefValue)
-	case *Node_FieldRefValue:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.FieldRefValue)))
-		n += len(x.FieldRefValue)
-	case *Node_Logical_:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(x.Logical))
-	case *Node_Comparison_:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(x.Comparison))
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 type Predicate struct {
@@ -523,7 +356,7 @@ func (m *Predicate) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Predicate.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -621,7 +454,7 @@ var fileDescriptor_87cba9804b436f42 = []byte{
 func (m *Node) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -629,121 +462,184 @@ func (m *Node) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Node) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Node) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.NodeType != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintPredicate(dAtA, i, uint64(m.NodeType))
-	}
-	if len(m.Children) > 0 {
-		for _, msg := range m.Children {
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintPredicate(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
+	if m.Value != nil {
+		{
+			size := m.Value.Size()
+			i -= size
+			if _, err := m.Value.MarshalTo(dAtA[i:]); err != nil {
 				return 0, err
 			}
-			i += n
 		}
 	}
-	if m.Value != nil {
-		nn1, err := m.Value.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+	if len(m.Children) > 0 {
+		for iNdEx := len(m.Children) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Children[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintPredicate(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
 		}
-		i += nn1
 	}
-	return i, nil
+	if m.NodeType != 0 {
+		i = encodeVarintPredicate(dAtA, i, uint64(m.NodeType))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *Node_StringValue) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x1a
-	i++
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Node_StringValue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i -= len(m.StringValue)
+	copy(dAtA[i:], m.StringValue)
 	i = encodeVarintPredicate(dAtA, i, uint64(len(m.StringValue)))
-	i += copy(dAtA[i:], m.StringValue)
-	return i, nil
+	i--
+	dAtA[i] = 0x1a
+	return len(dAtA) - i, nil
 }
 func (m *Node_BooleanValue) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x20
-	i++
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Node_BooleanValue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i--
 	if m.BooleanValue {
 		dAtA[i] = 1
 	} else {
 		dAtA[i] = 0
 	}
-	i++
-	return i, nil
+	i--
+	dAtA[i] = 0x20
+	return len(dAtA) - i, nil
 }
 func (m *Node_IntegerValue) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x28
-	i++
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Node_IntegerValue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	i = encodeVarintPredicate(dAtA, i, uint64(m.IntegerValue))
-	return i, nil
+	i--
+	dAtA[i] = 0x28
+	return len(dAtA) - i, nil
 }
 func (m *Node_UnsignedValue) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x30
-	i++
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Node_UnsignedValue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	i = encodeVarintPredicate(dAtA, i, uint64(m.UnsignedValue))
-	return i, nil
+	i--
+	dAtA[i] = 0x30
+	return len(dAtA) - i, nil
 }
 func (m *Node_FloatValue) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x39
-	i++
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Node_FloatValue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i -= 8
 	encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.FloatValue))))
-	i += 8
-	return i, nil
+	i--
+	dAtA[i] = 0x39
+	return len(dAtA) - i, nil
 }
 func (m *Node_RegexValue) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x42
-	i++
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Node_RegexValue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i -= len(m.RegexValue)
+	copy(dAtA[i:], m.RegexValue)
 	i = encodeVarintPredicate(dAtA, i, uint64(len(m.RegexValue)))
-	i += copy(dAtA[i:], m.RegexValue)
-	return i, nil
+	i--
+	dAtA[i] = 0x42
+	return len(dAtA) - i, nil
 }
 func (m *Node_TagRefValue) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x4a
-	i++
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Node_TagRefValue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i -= len(m.TagRefValue)
+	copy(dAtA[i:], m.TagRefValue)
 	i = encodeVarintPredicate(dAtA, i, uint64(len(m.TagRefValue)))
-	i += copy(dAtA[i:], m.TagRefValue)
-	return i, nil
+	i--
+	dAtA[i] = 0x4a
+	return len(dAtA) - i, nil
 }
 func (m *Node_FieldRefValue) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x52
-	i++
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Node_FieldRefValue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i -= len(m.FieldRefValue)
+	copy(dAtA[i:], m.FieldRefValue)
 	i = encodeVarintPredicate(dAtA, i, uint64(len(m.FieldRefValue)))
-	i += copy(dAtA[i:], m.FieldRefValue)
-	return i, nil
+	i--
+	dAtA[i] = 0x52
+	return len(dAtA) - i, nil
 }
 func (m *Node_Logical_) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x58
-	i++
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Node_Logical_) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	i = encodeVarintPredicate(dAtA, i, uint64(m.Logical))
-	return i, nil
+	i--
+	dAtA[i] = 0x58
+	return len(dAtA) - i, nil
 }
 func (m *Node_Comparison_) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x60
-	i++
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Node_Comparison_) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	i = encodeVarintPredicate(dAtA, i, uint64(m.Comparison))
-	return i, nil
+	i--
+	dAtA[i] = 0x60
+	return len(dAtA) - i, nil
 }
 func (m *Predicate) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -751,31 +647,40 @@ func (m *Predicate) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Predicate) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Predicate) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.Root != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintPredicate(dAtA, i, uint64(m.Root.Size()))
-		n2, err := m.Root.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		{
+			size, err := m.Root.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintPredicate(dAtA, i, uint64(size))
 		}
-		i += n2
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintPredicate(dAtA []byte, offset int, v uint64) int {
+	offset -= sovPredicate(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *Node) Size() (n int) {
 	if m == nil {
@@ -906,14 +811,7 @@ func (m *Predicate) Size() (n int) {
 }
 
 func sovPredicate(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozPredicate(x uint64) (n int) {
 	return sovPredicate(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -1246,10 +1144,7 @@ func (m *Node) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthPredicate
 			}
 			if (iNdEx + skippy) > l {
@@ -1335,10 +1230,7 @@ func (m *Predicate) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthPredicate
 			}
 			if (iNdEx + skippy) > l {
@@ -1356,6 +1248,7 @@ func (m *Predicate) Unmarshal(dAtA []byte) error {
 func skipPredicate(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
+	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -1387,10 +1280,8 @@ func skipPredicate(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			return iNdEx, nil
 		case 1:
 			iNdEx += 8
-			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -1411,55 +1302,30 @@ func skipPredicate(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthPredicate
 			}
 			iNdEx += length
-			if iNdEx < 0 {
-				return 0, ErrInvalidLengthPredicate
-			}
-			return iNdEx, nil
 		case 3:
-			for {
-				var innerWire uint64
-				var start int = iNdEx
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return 0, ErrIntOverflowPredicate
-					}
-					if iNdEx >= l {
-						return 0, io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					innerWire |= (uint64(b) & 0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				innerWireType := int(innerWire & 0x7)
-				if innerWireType == 4 {
-					break
-				}
-				next, err := skipPredicate(dAtA[start:])
-				if err != nil {
-					return 0, err
-				}
-				iNdEx = start + next
-				if iNdEx < 0 {
-					return 0, ErrInvalidLengthPredicate
-				}
-			}
-			return iNdEx, nil
+			depth++
 		case 4:
-			return iNdEx, nil
+			if depth == 0 {
+				return 0, ErrUnexpectedEndOfGroupPredicate
+			}
+			depth--
 		case 5:
 			iNdEx += 4
-			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
+		if iNdEx < 0 {
+			return 0, ErrInvalidLengthPredicate
+		}
+		if depth == 0 {
+			return iNdEx, nil
+		}
 	}
-	panic("unreachable")
+	return 0, io.ErrUnexpectedEOF
 }
 
 var (
-	ErrInvalidLengthPredicate = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowPredicate   = fmt.Errorf("proto: integer overflow")
+	ErrInvalidLengthPredicate        = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowPredicate          = fmt.Errorf("proto: integer overflow")
+	ErrUnexpectedEndOfGroupPredicate = fmt.Errorf("proto: unexpected end of group")
 )

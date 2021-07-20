@@ -84,7 +84,6 @@ targets = {
     'influxd' : './cmd/influxd',
     'influx_stress' : './cmd/influx_stress',
     'influx_inspect' : './cmd/influx_inspect',
-    'influx_tsm' : './cmd/influx_tsm',
 }
 
 supported_builds = {
