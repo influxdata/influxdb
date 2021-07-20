@@ -155,7 +155,7 @@ pkg-config:
 	$(GO_INSTALL) github.com/influxdata/pkg-config
 
 clean:
-	$(RM) static/static_gen.go
+	$(RM) -r static/static_gen.go static/data
 	$(RM) -r bin
 	$(RM) -r dist
 
