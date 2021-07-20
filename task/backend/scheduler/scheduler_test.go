@@ -94,7 +94,13 @@ func TestSchedule_Next(t *testing.T) {
 					}
 				}}
 				mockTime := clock.NewMock()
-				mockTime.Set(time.Now())
+				// need to run on a time window which does not include daylight savings
+				// time for testing on systems which do not default to UTC.
+				testTime, err := time.Parse(time.RFC3339, "2020-04-01T00:00:00Z")
+				if err != nil {
+					t.Fatal(err)
+				}
+				mockTime.Set(testTime)
 				sch, _, err := NewScheduler(
 					exe,
 					&mockSchedulableService{fn: func(ctx context.Context, id ID, t time.Time) error {
