@@ -1,7 +1,6 @@
 package upgrade
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -13,6 +12,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influx-cli/v2/clients"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
@@ -22,7 +22,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
-	"github.com/tcnksm/go-input"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
@@ -225,10 +224,8 @@ func TestUpgradeRealDB(t *testing.T) {
 	}
 
 	opts := &options{source: *v1opts, target: *v2opts, force: true}
-	ui := &input.UI{Writer: &bytes.Buffer{}, Reader: &bytes.Buffer{}}
-
 	log := zaptest.NewLogger(t, zaptest.Level(zap.InfoLevel))
-	err = runUpgradeE(ctx, ui, opts, log)
+	err = runUpgradeE(ctx, clients.CLI{}, opts, log)
 	require.NoError(t, err)
 
 	v := viper.New()

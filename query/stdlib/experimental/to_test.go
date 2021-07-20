@@ -3,7 +3,6 @@ package experimental_test
 import (
 	"context"
 	"errors"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/influxdata/flux/querytest"
 	"github.com/influxdata/flux/stdlib/universe"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/query/stdlib/experimental"
@@ -56,7 +56,7 @@ from(bucket:"mydb")
 							ValueColumn: "_value"},
 					},
 					{
-						ID: "experimental-to3",
+						ID: "influxdb-experimental-to3",
 						Spec: &experimental.ToOpSpec{
 							Bucket: "series1",
 							Org:    "fred",
@@ -68,7 +68,7 @@ from(bucket:"mydb")
 				Edges: []flux.Edge{
 					{Parent: "from0", Child: "range1"},
 					{Parent: "range1", Child: "pivot2"},
-					{Parent: "pivot2", Child: "experimental-to3"},
+					{Parent: "pivot2", Child: "influxdb-experimental-to3"},
 				},
 			},
 		},

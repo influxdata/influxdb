@@ -32,11 +32,11 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 		}
 		defer fs.Release()
 
-		itr := fs.SeriesFile().SeriesIDIterator()
+		itr := idx.SeriesFile.SeriesIDIterator()
 		if itr == nil {
 			t.Fatal("expected iterator")
 		}
-		if result := MustReadAllSeriesIDIteratorString(fs.SeriesFile(), itr); !reflect.DeepEqual(result, []string{
+		if result := MustReadAllSeriesIDIteratorString(idx.SeriesFile.SeriesFile, itr); !reflect.DeepEqual(result, []string{
 			"cpu,[{region east}]",
 			"cpu,[{region west}]",
 			"mem,[{region east}]",
@@ -62,12 +62,12 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 		}
 		defer fs.Release()
 
-		itr := fs.SeriesFile().SeriesIDIterator()
+		itr := idx.SeriesFile.SeriesIDIterator()
 		if itr == nil {
 			t.Fatal("expected iterator")
 		}
 
-		if result := MustReadAllSeriesIDIteratorString(fs.SeriesFile(), itr); !reflect.DeepEqual(result, []string{
+		if result := MustReadAllSeriesIDIteratorString(idx.SeriesFile.SeriesFile, itr); !reflect.DeepEqual(result, []string{
 			"cpu,[{region east}]",
 			"cpu,[{region north}]",
 			"cpu,[{region west}]",
@@ -106,7 +106,7 @@ func TestFileSet_MeasurementSeriesIDIterator(t *testing.T) {
 			t.Fatal("expected iterator")
 		}
 
-		if result := MustReadAllSeriesIDIteratorString(fs.SeriesFile(), itr); !reflect.DeepEqual(result, []string{
+		if result := MustReadAllSeriesIDIteratorString(idx.SeriesFile.SeriesFile, itr); !reflect.DeepEqual(result, []string{
 			"cpu,[{region east}]",
 			"cpu,[{region west}]",
 		}) {
@@ -135,7 +135,7 @@ func TestFileSet_MeasurementSeriesIDIterator(t *testing.T) {
 			t.Fatalf("expected iterator")
 		}
 
-		if result := MustReadAllSeriesIDIteratorString(fs.SeriesFile(), itr); !reflect.DeepEqual(result, []string{
+		if result := MustReadAllSeriesIDIteratorString(idx.SeriesFile.SeriesFile, itr); !reflect.DeepEqual(result, []string{
 			"cpu,[{region east}]",
 			"cpu,[{region north}]",
 			"cpu,[{region west}]",

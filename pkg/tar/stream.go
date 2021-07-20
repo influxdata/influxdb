@@ -24,19 +24,23 @@ func Stream(w io.Writer, dir, relativePath string, writeFunc func(f os.FileInfo,
 		writeFunc = StreamFile
 	}
 
-	return filepath.Walk(dir, func(path string, f os.FileInfo, err error) error {
+	return filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Skip adding an entry for the root dir
-		if dir == path && f.IsDir() {
+		if dir == path && entry.IsDir() {
 			return nil
 		}
 
 		// Figure out the the full relative path including any sub-dirs
 		subDir, _ := filepath.Split(path)
 		subDir, err = filepath.Rel(dir, subDir)
+		if err != nil {
+			return err
+		}
+		f, err := entry.Info()
 		if err != nil {
 			return err
 		}

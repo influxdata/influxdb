@@ -151,7 +151,7 @@ func (v *verifyChecksums) run(cmd *cobra.Command, dataPath string, verbose bool)
 }
 
 func (v *verifyTSM) loadFiles(dataPath string) error {
-	err := filepath.Walk(dataPath, func(path string, f os.FileInfo, err error) error {
+	err := filepath.WalkDir(dataPath, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

@@ -3057,6 +3057,42 @@ func TestStorageReader_ReadGroup(t *testing.T) {
 			filter:    getStorageEqPred("t0", "z-9"),
 			want:      static.TableGroup{},
 		},
+		{
+			aggregate: storageflux.FirstKind,
+			want: static.TableGroup {
+				static.StringKey("_measurement", "m0"),
+				static.StringKey("_field", "f0"),
+				static.TimeKey("_start", "2019-11-25T00:00:00Z"),
+				static.TimeKey("_stop", "2019-11-25T00:02:00Z"),
+				static.TableMatrix{
+					static.StringKeys("t0", "a-0", "a-1", "a-2"),
+					{
+						static.Table{
+							static.Times("_time", "2019-11-25T00:00:00Z"),
+							static.Floats("_value", 1),
+						},
+					},
+				},
+			},
+		},
+		{
+			aggregate: storageflux.LastKind,
+			want: static.TableGroup {
+				static.StringKey("_measurement", "m0"),
+				static.StringKey("_field", "f0"),
+				static.TimeKey("_start", "2019-11-25T00:00:00Z"),
+				static.TimeKey("_stop", "2019-11-25T00:02:00Z"),
+				static.TableMatrix{
+					static.StringKeys("t0", "a-0", "a-1", "a-2"),
+					{
+						static.Table{
+							static.Times("_time", "2019-11-25T00:01:50Z"),
+							static.Floats("_value", 4),
+						},
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tt.aggregate, func(t *testing.T) {
 			mem := arrowmem.NewCheckedAllocator(arrowmem.DefaultAllocator)
@@ -3151,10 +3187,48 @@ func TestStorageReader_ReadGroupSelectTags(t *testing.T) {
 				},
 			},
 		},
+		{
+			aggregate: storageflux.FirstKind,
+			want: static.TableGroup{
+				static.TimeKey("_start", "2019-11-25T00:00:00Z"),
+				static.TimeKey("_stop", "2019-11-25T00:02:00Z"),
+				static.TableMatrix{
+					static.StringKeys("t0", "a-0", "a-1", "a-2"),
+					{
+						static.Table{
+							static.Strings("t1", "b-0"),
+							static.Strings("_measurement", "m0"),
+							static.Strings("_field", "f0"),
+							static.Times("_time", "2019-11-25T00:00:00Z"),
+							static.Floats("_value", 1.0),
+						},
+					},
+				},
+			},
+		},
+		{
+			aggregate: storageflux.LastKind,
+			want: static.TableGroup{
+				static.TimeKey("_start", "2019-11-25T00:00:00Z"),
+				static.TimeKey("_stop", "2019-11-25T00:02:00Z"),
+				static.TableMatrix{
+					static.StringKeys("t0", "a-0", "a-1", "a-2"),
+					{
+						static.Table{
+							static.Strings("t1", "b-1"),
+							static.Strings("_measurement", "m0"),
+							static.Strings("_field", "f0"),
+							static.Times("_time", "2019-11-25T00:01:50Z"),
+							static.Floats("_value", 8.0),
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range cases {
-		t.Run("", func(t *testing.T) {
+		t.Run(tt.aggregate, func(t *testing.T) {
 			mem := &memory.Allocator{}
 			got, err := reader.ReadGroup(context.Background(), query.ReadGroupSpec{
 				ReadFilterSpec: query.ReadFilterSpec{

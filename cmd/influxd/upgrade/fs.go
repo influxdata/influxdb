@@ -11,11 +11,15 @@ import (
 // DirSize returns total size in bytes of containing files
 func DirSize(path string) (uint64, error) {
 	var size uint64
-	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(path, func(_ string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
+		if !entry.IsDir() {
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
 			size += uint64(info.Size())
 		}
 		return err

@@ -3,8 +3,10 @@ package tenant
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
@@ -85,8 +87,28 @@ func (s *OnboardService) OnboardInitialUser(ctx context.Context, req *influxdb.O
 
 // onboardUser allows us to onboard new users.
 func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.OnboardingRequest, permFn func(orgID, userID platform.ID) []influxdb.Permission) (*influxdb.OnboardingResults, error) {
-	if req == nil || req.User == "" || req.Org == "" || req.Bucket == "" {
-		return nil, ErrOnboardInvalid
+	if req == nil {
+		return nil, &errors.Error{
+			Code: errors.EEmptyValue,
+			Msg:  "onboarding failed: no request body provided",
+		}
+	}
+
+	var missingFields []string
+	if req.User == "" {
+		missingFields = append(missingFields, "username")
+	}
+	if req.Org == "" {
+		missingFields = append(missingFields, "org")
+	}
+	if req.Bucket == "" {
+		missingFields = append(missingFields, "bucket")
+	}
+	if len(missingFields) > 0 {
+		return nil, &errors.Error{
+			Code: errors.EUnprocessableEntity,
+			Msg:  fmt.Sprintf("onboarding failed: missing required fields [%s]", strings.Join(missingFields, ",")),
+		}
 	}
 
 	result := &influxdb.OnboardingResults{}

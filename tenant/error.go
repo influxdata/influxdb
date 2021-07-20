@@ -34,11 +34,6 @@ var (
 		Msg:  "onboarding has already been completed",
 	}
 
-	ErrOnboardInvalid = &errors.Error{
-		Code: errors.EEmptyValue,
-		Msg:  "onboard failed, missing value",
-	}
-
 	ErrNotFound = &errors.Error{
 		Code: errors.ENotFound,
 		Msg:  "not found",

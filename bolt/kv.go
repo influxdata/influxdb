@@ -13,6 +13,8 @@ import (
 
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
 	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
@@ -231,6 +233,11 @@ func (s *KVStore) Restore(ctx context.Context, r io.Reader) error {
 			return err
 		}
 
+		// Run the migrations on the restored database prior to swapping it in.
+		if err := s.migrateRestored(ctx); err != nil {
+			return err
+		}
+
 		// Swap and reopen under lock.
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -251,6 +258,33 @@ func (s *KVStore) Restore(ctx context.Context, r io.Reader) error {
 		return err
 	}
 	return nil
+}
+
+// migrateRestored opens the database at the temporary path and applies the
+// migrations to it. The database at the temporary path is closed after the
+// migrations are complete. This should be used as part of the restore
+// operation, prior to swapping the restored database with the active database.
+func (s *KVStore) migrateRestored(ctx context.Context) error {
+	restoredClient := NewClient(s.log.With(zap.String("service", "restored bolt")))
+	restoredClient.Path = s.tempPath()
+	if err := restoredClient.Open(ctx); err != nil {
+		return err
+	}
+	defer restoredClient.Close()
+
+	restoredKV := NewKVStore(s.log.With(zap.String("service", "restored kvstore-bolt")), s.tempPath())
+	restoredKV.WithDB(restoredClient.DB())
+
+	migrator, err := migration.NewMigrator(
+		s.log.With(zap.String("service", "bolt restore migrations")),
+		restoredKV,
+		all.Migrations[:]...,
+	)
+	if err != nil {
+		return err
+	}
+
+	return migrator.Up(ctx)
 }
 
 // Tx is a light wrapper around a boltdb transaction. It implements kv.Tx.
