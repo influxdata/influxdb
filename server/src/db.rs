@@ -333,13 +333,40 @@ impl Db {
     }
 
     /// Updates the database rules
-    pub fn update_db_rules<F, E>(&self, update: F) -> Result<Arc<DatabaseRules>, E>
+    pub fn update_rules<F, E>(&self, update: F) -> Result<Arc<DatabaseRules>, E>
     where
         F: FnOnce(DatabaseRules) -> Result<DatabaseRules, E>,
     {
-        let mut rules = self.rules.write();
-        let new_rules = Arc::new(update(rules.as_ref().clone())?);
-        *rules = Arc::clone(&new_rules);
+        let (late_arrive_window_updated, new_rules) = {
+            let mut rules = self.rules.write();
+            info!(db_name=%rules.name,  "updating rules for database");
+            let new_rules = Arc::new(update(rules.as_ref().clone())?);
+            let late_arrive_window_updated = rules.lifecycle_rules.late_arrive_window_seconds
+                != new_rules.lifecycle_rules.late_arrive_window_seconds;
+
+            *rules = Arc::clone(&new_rules);
+            (late_arrive_window_updated, new_rules)
+        };
+
+        if late_arrive_window_updated {
+            // Hold a read lock to prevent concurrent modification and
+            // use values from re-acquired read guard
+            let current = self.rules.read();
+
+            // Update windows
+            let partitions = self.catalog.partitions();
+            for partition in &partitions {
+                let mut partition = partition.write();
+                let addr = partition.addr().clone();
+                if let Some(windows) = partition.persistence_windows_mut() {
+                    info!(partition=%addr, "updating persistence windows");
+                    windows.set_late_arrival_period(Duration::from_secs(
+                        current.lifecycle_rules.late_arrive_window_seconds.get() as u64,
+                    ))
+                }
+            }
+        }
+
         Ok(new_rules)
     }
 

@@ -49,16 +49,43 @@ async fn test_chunk_is_persisted_automatically() {
     assert_eq!(chunks[0].row_count, 1_000);
 }
 
+async fn write_data(
+    write_client: &mut influxdb_iox_client::write::Client,
+    db_name: &str,
+    num_payloads: u64,
+    num_duplicates: u64,
+    payload_size: u64,
+) {
+    let payloads: Vec<_> = (0..num_payloads)
+        .map(|x| {
+            (0..payload_size)
+                .map(|i| format!("data,tag{}=val{} x={} {}", x, i, i * 10, i))
+                .join("\n")
+        })
+        .collect();
+
+    for payload in &payloads {
+        // Writing the same data multiple times should be compacted away
+        for _ in 0..=num_duplicates {
+            let num_lines_written = write_client
+                .write(db_name, payload)
+                .await
+                .expect("successful write");
+            assert_eq!(num_lines_written, payload_size as usize);
+        }
+    }
+}
+
 #[tokio::test]
 async fn test_full_lifecycle() {
     let fixture = ServerFixture::create_shared().await;
     let mut write_client = fixture.write_client();
 
     let num_payloads = 10;
-    let num_duplicates = 2;
+    let num_duplicates = 1;
     let payload_size = 1_000;
 
-    let total_rows = num_payloads * num_duplicates * payload_size;
+    let total_rows = num_payloads * (1 + num_duplicates) * payload_size;
 
     let db_name = rand_name();
     DatabaseBuilder::new(db_name.clone())
@@ -73,24 +100,14 @@ async fn test_full_lifecycle() {
         .build(fixture.grpc_channel())
         .await;
 
-    let payloads: Vec<_> = (0..num_payloads)
-        .map(|x| {
-            (0..payload_size)
-                .map(|i| format!("data,tag{}=val{} x={} {}", x, i, i * 10, i))
-                .join("\n")
-        })
-        .collect();
-
-    for payload in &payloads {
-        // Writing the same data multiple times should be compacted away
-        for _ in 0..num_duplicates {
-            let num_lines_written = write_client
-                .write(&db_name, payload)
-                .await
-                .expect("successful write");
-            assert_eq!(num_lines_written, payload_size as usize);
-        }
-    }
+    write_data(
+        &mut write_client,
+        &db_name,
+        num_payloads,
+        num_duplicates,
+        payload_size,
+    )
+    .await;
 
     wait_for_exact_chunk_states(
         &fixture,
@@ -121,6 +138,58 @@ async fn test_full_lifecycle() {
     let chunks = list_chunks(&fixture, &db_name).await;
     assert_eq!(chunks.len(), 1);
     assert_eq!(chunks[0].row_count, (num_payloads * payload_size) as usize)
+}
+
+#[tokio::test]
+async fn test_update_late_arrival() {
+    let fixture = ServerFixture::create_shared().await;
+    let mut write_client = fixture.write_client();
+
+    let payload_size = 100;
+
+    let db_name = rand_name();
+    DatabaseBuilder::new(db_name.clone())
+        .persist(true)
+        // Don't close MUB automatically
+        .mub_row_threshold(payload_size * 2)
+        .persist_row_threshold(payload_size)
+        .persist_age_threshold_seconds(1000)
+        // Initially set to be a large value
+        .late_arrive_window_seconds(1000)
+        .build(fixture.grpc_channel())
+        .await;
+
+    write_data(&mut write_client, &db_name, 1, 0, payload_size).await;
+
+    let mut management = fixture.management_client();
+
+    let chunks = management.list_chunks(&db_name).await.unwrap();
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(
+        chunks[0].storage,
+        influxdb_iox_client::management::generated_types::ChunkStorage::OpenMutableBuffer as i32
+    );
+
+    let mut rules = management.get_database(&db_name).await.unwrap();
+    rules
+        .lifecycle_rules
+        .as_mut()
+        .unwrap()
+        .late_arrive_window_seconds = 1;
+
+    fixture
+        .management_client()
+        .update_database(rules)
+        .await
+        .unwrap();
+
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::ReadBufferAndObjectStore],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
 }
 
 #[tokio::test]

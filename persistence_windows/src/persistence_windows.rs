@@ -133,6 +133,12 @@ impl PersistenceWindows {
         }
     }
 
+    /// Updates the late arrival period of this `PersistenceWindows` instance
+    pub fn set_late_arrival_period(&mut self, late_arrival_period: Duration) {
+        self.closed_window_period = late_arrival_period.min(DEFAULT_CLOSED_WINDOW_PERIOD);
+        self.late_arrival_period = late_arrival_period;
+    }
+
     /// Updates the windows with the information from a batch of rows from a single sequencer
     /// to the same partition. The min and max times are the times on the row data. The `received_at`
     /// Instant is when the data was received. Taking it in this function is really just about

@@ -1733,7 +1733,7 @@ mod tests {
 
         let remote_ids = vec![bad_remote_id, good_remote_id_1, good_remote_id_2];
         let db = server.db(&db_name).unwrap();
-        db.update_db_rules(|mut rules| {
+        db.update_rules(|mut rules| {
             let shard_config = ShardConfig {
                 hash_ring: Some(HashRing {
                     shards: vec![TEST_SHARD_ID].into(),
@@ -1976,7 +1976,7 @@ mod tests {
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).unwrap();
         let rules = db
-            .update_db_rules(|mut rules| {
+            .update_rules(|mut rules| {
                 rules.lifecycle_rules.buffer_size_hard =
                     Some(std::num::NonZeroUsize::new(10).unwrap());
                 Ok::<_, Infallible>(rules)

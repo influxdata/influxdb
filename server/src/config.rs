@@ -224,7 +224,7 @@ impl Config {
             .db_initialized(db_name)
             .context(DatabaseNotFound { db_name })?;
 
-        db.update_db_rules(update).map_err(UpdateError::Closure)
+        db.update_rules(update).map_err(UpdateError::Closure)
     }
 
     /// Get all registered remote servers.
