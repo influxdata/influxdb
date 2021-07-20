@@ -69,9 +69,6 @@ SOURCES := $(shell find . -name '*.go' -not -name '*_test.go') go.mod go.sum
 # All go source files excluding the vendored sources.
 SOURCES_NO_VENDOR := $(shell find . -path ./vendor -prune -o -name "*.go" -not -name '*_test.go' -print)
 
-# All precanned dashboards
-PRECANNED := $(shell find chronograf/canned -name '*.json')
-
 # List of binary cmds to build
 CMDS := \
 	bin/$(GOOS)/influxd

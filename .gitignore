@@ -40,12 +40,6 @@ test.key
 !/static/data/swagger*.yml
 /static/static_gen.go
 
-# The below files are generated with make generate
-# These are used with the assests go build tag.
-chronograf/canned/bin_gen.go
-chronograf/dist/dist_gen.go
-chronograf/server/swagger_gen.go
-
 # Ignore TSM/TSI testdata binary files
 tsdb/tsi1/testdata
 tsdb/testdata
