@@ -77,7 +77,6 @@ all: generate $(CMDS)
 bin/$(GOOS)/influxd: $(SOURCES)
 	$(GO_BUILD) -o $@ ./cmd/$(shell basename "$@")
 
-# Ease of use build for just the go binary
 influxd: bin/$(GOOS)/influxd
 
 static/data/build: scripts/fetch-ui-assets.sh
@@ -86,6 +85,7 @@ static/data/build: scripts/fetch-ui-assets.sh
 static/data/swagger.json: scripts/fetch-swagger.sh
 	./scripts/fetch-swagger.sh
 
+# static/static_gen.go is the output of go-bindata, embedding all assets used by the UI.
 static/static_gen.go: static/data/build static/data/swagger.json
 	$(GO_GENERATE) ./static
 
@@ -109,8 +109,16 @@ checktidy:
 checkgenerate:
 	./etc/checkgenerate.sh
 
-generate: gogo tmpl stringer goimports static/data/build static/data/swagger.json
-	$(GO_GENERATE) ./...
+# generate-web-assets outputs all the files needed to link the UI to the back-end.
+# Currently, none of these files are tracked by git.
+generate-web-assets: static/static_gen.go
+
+# generate-sources outputs all the Go files generated from protobufs, tmpls, and other tooling.
+# These files are tracked by git; CI will enforce that they are up-to-date.
+generate-sources: gogo tmpl stringer goimports
+	$(GO_GENERATE) ./influxql/... ./models/... ./pkg/... ./storage/... ./tsdb/... ./v1/...
+
+generate: generate-web-assets generate-sources
 
 gogo:
 	$(GO_INSTALL) github.com/gogo/protobuf/protoc-gen-gogo
