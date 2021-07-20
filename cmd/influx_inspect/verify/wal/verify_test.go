@@ -3,7 +3,7 @@ package wal
 import (
 	"bytes"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"os"
 	"testing"
 	"text/tabwriter"
@@ -20,10 +20,10 @@ type testInfo struct {
 }
 
 func TestVerifies_InvalidFileType(t *testing.T) {
-	path, err := os.MkdirTemp("", "verify-wal")
+	path, err := ioutil.TempDir("", "verify-wal")
 	require.NoError(t, err)
 
-	_, err = os.CreateTemp(path, "verifywaltest*"+".txt")
+	_, err = ioutil.TempFile(path, "verifywaltest*"+".txt")
 	require.NoError(t, err)
 	defer os.RemoveAll(path)
 
@@ -98,7 +98,7 @@ func runCommand(t *testing.T, args testInfo) {
 	}
 
 	require.NoError(t, tw.Flush())
-	out, err := io.ReadAll(b)
+	out, err := ioutil.ReadAll(b)
 	require.NoError(t, err)
 	require.Contains(t, string(out), args.expectedOut)
 }
@@ -106,7 +106,7 @@ func runCommand(t *testing.T, args testInfo) {
 func newTempWALValid(t *testing.T) string {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "verify-wal")
+	dir, err := ioutil.TempDir("", "verify-wal")
 	require.NoError(t, err)
 
 	w := tsm1.NewWAL(dir)
@@ -136,10 +136,10 @@ func newTempWALValid(t *testing.T) string {
 func newTempWALInvalid(t *testing.T, empty bool) (string, *os.File) {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "verify-wal")
+	dir, err := ioutil.TempDir("", "verify-wal")
 	require.NoError(t, err)
 
-	file, err := os.CreateTemp(dir, "verifywaltest*."+tsm1.WALFileExtension)
+	file, err := ioutil.TempFile(dir, "verifywaltest*."+tsm1.WALFileExtension)
 	require.NoError(t, err)
 
 	if !empty {
