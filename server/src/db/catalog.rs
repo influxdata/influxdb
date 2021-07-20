@@ -6,7 +6,7 @@ use hashbrown::{HashMap, HashSet};
 
 use data_types::chunk_metadata::ChunkSummary;
 use data_types::chunk_metadata::DetailedChunkSummary;
-use data_types::partition_metadata::{PartitionSummary, TableSummary};
+use data_types::partition_metadata::{PartitionAddr, PartitionSummary, TableSummary};
 use internal_types::schema::Schema;
 use snafu::{OptionExt, Snafu};
 use tracker::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
@@ -15,6 +15,7 @@ use self::chunk::CatalogChunk;
 use self::metrics::CatalogMetrics;
 use self::partition::Partition;
 use self::table::Table;
+use data_types::write_summary::WriteSummary;
 
 pub mod chunk;
 mod metrics;
@@ -223,6 +224,23 @@ impl Catalog {
             .values()
             .flat_map(|table| table.partition_summaries())
             .collect()
+    }
+
+    /// Returns a list of persistence window summaries for each partition
+    pub fn persistence_summaries(&self) -> Vec<(PartitionAddr, WriteSummary)> {
+        let mut summaries = Vec::new();
+        let tables = self.tables.read();
+        for table in tables.values() {
+            for partition in table.partitions() {
+                let partition = partition.read();
+                if let Some(w) = partition.persistence_windows() {
+                    for summary in w.summaries() {
+                        summaries.push((partition.addr().clone(), summary))
+                    }
+                }
+            }
+        }
+        summaries
     }
 
     pub fn chunk_summaries(&self) -> Vec<ChunkSummary> {

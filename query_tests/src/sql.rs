@@ -184,18 +184,19 @@ async fn sql_select_from_information_schema_tables() {
     // validate we have access to information schema for listing table
     // names
     let expected = vec![
-        "+---------------+--------------------+---------------+------------+",
-        "| table_catalog | table_schema       | table_name    | table_type |",
-        "+---------------+--------------------+---------------+------------+",
-        "| public        | information_schema | columns       | VIEW       |",
-        "| public        | information_schema | tables        | VIEW       |",
-        "| public        | iox                | h2o           | BASE TABLE |",
-        "| public        | iox                | o2            | BASE TABLE |",
-        "| public        | system             | chunk_columns | BASE TABLE |",
-        "| public        | system             | chunks        | BASE TABLE |",
-        "| public        | system             | columns       | BASE TABLE |",
-        "| public        | system             | operations    | BASE TABLE |",
-        "+---------------+--------------------+---------------+------------+",
+        "+---------------+--------------------+---------------------+------------+",
+        "| table_catalog | table_schema       | table_name          | table_type |",
+        "+---------------+--------------------+---------------------+------------+",
+        "| public        | information_schema | columns             | VIEW       |",
+        "| public        | information_schema | tables              | VIEW       |",
+        "| public        | iox                | h2o                 | BASE TABLE |",
+        "| public        | iox                | o2                  | BASE TABLE |",
+        "| public        | system             | chunk_columns       | BASE TABLE |",
+        "| public        | system             | chunks              | BASE TABLE |",
+        "| public        | system             | columns             | BASE TABLE |",
+        "| public        | system             | operations          | BASE TABLE |",
+        "| public        | system             | persistence_windows | BASE TABLE |",
+        "+---------------+--------------------+---------------------+------------+",
     ];
     run_sql_test_case!(
         TwoMeasurementsManyFields {},

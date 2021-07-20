@@ -31,6 +31,7 @@ use super::catalog::Catalog;
 mod chunks;
 mod columns;
 mod operations;
+mod persistence;
 
 // The IOx system schema
 pub const SYSTEM_SCHEMA: &str = "system";
@@ -39,12 +40,14 @@ const CHUNKS: &str = "chunks";
 const COLUMNS: &str = "columns";
 const CHUNK_COLUMNS: &str = "chunk_columns";
 const OPERATIONS: &str = "operations";
+const PERSISTENCE_WINDOWS: &str = "persistence_windows";
 
 pub struct SystemSchemaProvider {
     chunks: Arc<dyn TableProvider>,
     columns: Arc<dyn TableProvider>,
     chunk_columns: Arc<dyn TableProvider>,
     operations: Arc<dyn TableProvider>,
+    persistence_windows: Arc<dyn TableProvider>,
 }
 
 impl std::fmt::Debug for SystemSchemaProvider {
@@ -65,16 +68,20 @@ impl SystemSchemaProvider {
             inner: columns::ColumnsTable::new(Arc::clone(&catalog)),
         });
         let chunk_columns = Arc::new(SystemTableProvider {
-            inner: columns::ChunkColumnsTable::new(catalog),
+            inner: columns::ChunkColumnsTable::new(Arc::clone(&catalog)),
         });
         let operations = Arc::new(SystemTableProvider {
             inner: operations::OperationsTable::new(db_name, jobs),
+        });
+        let persistence_windows = Arc::new(SystemTableProvider {
+            inner: persistence::PersistenceWindowsTable::new(catalog),
         });
         Self {
             chunks,
             columns,
             chunk_columns,
             operations,
+            persistence_windows,
         }
     }
 }
@@ -90,6 +97,7 @@ impl SchemaProvider for SystemSchemaProvider {
             COLUMNS.to_string(),
             CHUNK_COLUMNS.to_string(),
             OPERATIONS.to_string(),
+            PERSISTENCE_WINDOWS.to_string(),
         ]
     }
 
@@ -99,6 +107,7 @@ impl SchemaProvider for SystemSchemaProvider {
             COLUMNS => Some(Arc::clone(&self.columns)),
             CHUNK_COLUMNS => Some(Arc::clone(&self.chunk_columns)),
             OPERATIONS => Some(Arc::clone(&self.operations)),
+            PERSISTENCE_WINDOWS => Some(Arc::clone(&self.persistence_windows)),
             _ => None,
         }
     }
