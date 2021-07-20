@@ -167,8 +167,9 @@ pub struct LifecycleRules {
     /// Maximum number of rows to buffer in a MUB chunk before compacting it
     pub mub_row_threshold: NonZeroUsize,
 
-    /// Use up to this amount of space in bytes for caching Parquet files
-    pub parquet_cache_limit: Option<NonZeroUsize>,
+    /// Use up to this amount of space in bytes for caching Parquet files. None
+    /// will disable Parquet file caching.
+    pub parquet_cache_limit: Option<NonZeroU64>,
 }
 
 impl LifecycleRules {
