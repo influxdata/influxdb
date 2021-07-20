@@ -2,6 +2,7 @@
 //! store.
 use crate::{
     buffer::slurp_stream_tempfile,
+    cache::{Cache, LocalFSCache},
     path::{cloud::CloudPath, DELIMITER},
     ListResult, ObjectMeta, ObjectStoreApi,
 };
@@ -284,6 +285,10 @@ impl ObjectStoreApi for AmazonS3 {
 
     async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
         self.list_with_delimiter_and_token(prefix, &None).await
+    }
+
+    fn cache(&self) -> Option<&dyn Cache> {
+        todo!()
     }
 }
 

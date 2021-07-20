@@ -1,7 +1,8 @@
 //! This module contains the IOx implementation for using memory as the object
 //! store.
 use crate::{
-    path::parsed::DirsAndFileName, ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
+    cache::Cache, path::parsed::DirsAndFileName, ListResult, ObjectMeta, ObjectStoreApi,
+    ObjectStorePath,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -152,6 +153,10 @@ impl ObjectStoreApi for InMemory {
             common_prefixes: common_prefixes.into_iter().collect(),
             next_token: None,
         })
+    }
+
+    fn cache(&self) -> Option<&dyn Cache> {
+        todo!()
     }
 }
 

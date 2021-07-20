@@ -29,6 +29,7 @@ mod memory;
 pub mod path;
 mod throttle;
 
+pub mod cache;
 pub mod dummy;
 
 #[cfg(not(feature = "aws"))]
@@ -49,6 +50,7 @@ use throttle::ThrottledStore;
 /// Publically expose throttling configuration
 pub use throttle::ThrottleConfig;
 
+use crate::cache::Cache;
 use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -100,6 +102,9 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
         &self,
         prefix: &Self::Path,
     ) -> Result<ListResult<Self::Path>, Self::Error>;
+
+    /// Return the local filesystem cache, if configured, for this object store.
+    fn cache(&self) -> Option<&dyn Cache>;
 }
 
 /// Universal interface to multiple object store services.
@@ -412,6 +417,10 @@ impl ObjectStoreApi for ObjectStore {
                 .context(AzureObjectStoreError),
             _ => unreachable!(),
         }
+    }
+
+    fn cache(&self) -> Option<&dyn Cache> {
+        todo!()
     }
 }
 

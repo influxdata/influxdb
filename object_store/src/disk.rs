@@ -1,6 +1,8 @@
 //! This module contains the IOx implementation for using local disk as the
 //! object store.
-use crate::{path::file::FilePath, ListResult, ObjectMeta, ObjectStoreApi};
+use crate::cache::Cache;
+use crate::path::Path;
+use crate::{path::file::FilePath, ListResult, ObjectMeta, ObjectStore, ObjectStoreApi};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{
@@ -8,6 +10,7 @@ use futures::{
     Stream, StreamExt, TryStreamExt,
 };
 use snafu::{ensure, futures::TryStreamExt as _, OptionExt, ResultExt, Snafu};
+use std::sync::Arc;
 use std::{collections::BTreeSet, convert::TryFrom, io, path::PathBuf};
 use tokio::fs;
 use tokio_util::codec::{BytesCodec, FramedRead};
@@ -246,6 +249,33 @@ impl ObjectStoreApi for File {
             common_prefixes: common_prefixes.into_iter().collect(),
             objects,
         })
+    }
+
+    fn cache(&self) -> Option<&dyn Cache> {
+        Some(self)
+    }
+}
+
+#[async_trait]
+impl Cache for File {
+    fn evict(&self, _path: &Path) -> crate::cache::Result<()> {
+        todo!()
+    }
+
+    async fn fs_path_or_cache(
+        &self,
+        _path: &Path,
+        _store: Arc<ObjectStore>,
+    ) -> crate::cache::Result<&str> {
+        todo!()
+    }
+
+    fn size(&self) -> u64 {
+        todo!()
+    }
+
+    fn limit(&self) -> u64 {
+        todo!()
     }
 }
 

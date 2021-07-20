@@ -1,6 +1,7 @@
 //! This module contains the IOx implementation for using Azure Blob storage as
 //! the object store.
 use crate::{
+    cache::{Cache, LocalFSCache},
     path::{cloud::CloudPath, DELIMITER},
     ListResult, ObjectMeta, ObjectStoreApi,
 };
@@ -238,6 +239,10 @@ impl ObjectStoreApi for MicrosoftAzure {
             common_prefixes,
             objects,
         })
+    }
+
+    fn cache(&self) -> Option<&dyn Cache> {
+        todo!()
     }
 }
 

@@ -3,7 +3,7 @@
 use async_trait::async_trait;
 use snafu::Snafu;
 
-use crate::{path::cloud::CloudPath, ObjectStoreApi};
+use crate::{cache::Cache, path::cloud::CloudPath, ObjectStoreApi};
 
 /// A specialized `Error` for Azure object store-related errors
 #[derive(Debug, Snafu, Clone)]
@@ -83,6 +83,10 @@ impl ObjectStoreApi for DummyObjectStore {
         _prefix: &Self::Path,
     ) -> crate::Result<crate::ListResult<Self::Path>, Self::Error> {
         NotSupported { name: &self.name }.fail()
+    }
+
+    fn cache(&self) -> Option<&dyn Cache> {
+        todo!()
     }
 }
 

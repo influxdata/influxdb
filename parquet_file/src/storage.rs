@@ -278,6 +278,9 @@ impl Storage {
         // Limit of total rows to read
         let limit: Option<usize> = None; // Todo: this should be a parameter of the function
 
+        // todo(paul): Here is where I'd get the cache from object store. If it has
+        //  one, I'd do the `fs_path_or_cache`. Otherwise, do the temp file like below.
+
         // read parquet file to local file
         let mut temp_file = tempfile::Builder::new()
             .prefix("iox-parquet-cache")
