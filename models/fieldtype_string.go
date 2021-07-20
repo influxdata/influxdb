@@ -4,6 +4,18 @@ package models
 
 import "strconv"
 
+func _() {
+	// An "invalid array index" compiler error signifies that the constant values have changed.
+	// Re-run the stringer command to generate them again.
+	var x [1]struct{}
+	_ = x[Integer-0]
+	_ = x[Float-1]
+	_ = x[Boolean-2]
+	_ = x[String-3]
+	_ = x[Empty-4]
+	_ = x[Unsigned-5]
+}
+
 const _FieldType_name = "IntegerFloatBooleanStringEmptyUnsigned"
 
 var _FieldType_index = [...]uint8{0, 7, 12, 19, 25, 30, 38}
