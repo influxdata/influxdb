@@ -562,7 +562,7 @@ func (s *Store) ShardDigest(id uint64) (io.ReadCloser, int64, error) {
 		return nil, 0, ErrShardNotFound
 	}
 
-	readCloser, size, err, _ := sh.Digest()
+	readCloser, size, _, err := sh.Digest()
 	return readCloser, size, err
 }
 
