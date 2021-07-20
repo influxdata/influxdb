@@ -231,6 +231,14 @@ Possible values (case insensitive):
         default_value = "serving"
     )]
     pub initial_serving_state: ServingReadinessState,
+
+    /// Maximum size of HTTP requests.
+    #[structopt(
+        long = "--max-http-request-size",
+        env = "INFLUXDB_IOX_MAX_HTTP_REQUEST_SIZE",
+        default_value = "10485760" // 10 MiB
+    )]
+    pub max_http_request_size: usize,
 }
 
 pub async fn command(config: Config) -> Result<()> {
