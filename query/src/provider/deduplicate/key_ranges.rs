@@ -40,7 +40,7 @@ use std::ops::Range;
 ///   [5, 6],
 ///   [6, 7],
 ///   [7, 9],  -- 2 rows with same values (5, 15, 2, 1)
-///   [9, 10],
+///   [9, 10]
 
 pub fn key_ranges(columns: &[SortColumn]) -> ArrowResult<impl Iterator<Item = Range<usize>> + '_> {
     KeyRangeIterator::try_new(columns)
