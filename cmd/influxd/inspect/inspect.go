@@ -4,12 +4,12 @@ import (
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/delete_tsm"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/dump_tsi"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/dump_tsm"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/dump_wal"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/export_index"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/export_lp"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/verify_seriesfile"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/verify_tombstone"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/verify_tsm"
-	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/dump_wal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

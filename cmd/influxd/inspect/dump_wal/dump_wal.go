@@ -2,11 +2,12 @@ package dump_wal
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
-	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+	"github.com/spf13/cobra"
 )
 
 type dumpWALCommand struct {
@@ -14,7 +15,7 @@ type dumpWALCommand struct {
 }
 
 func NewDumpWALCommand() *cobra.Command {
-	var  dumpWAL dumpWALCommand
+	var dumpWAL dumpWALCommand
 	cmd := &cobra.Command{
 		Use:   "dump-wal",
 		Short: "Dumps TSM data from WAL files",
@@ -30,8 +31,8 @@ It has two modes of operation, depending on the --find-duplicates flag.
 	* The file name
 	* A list of keys in the file that have duplicate or out of order timestamps
 `,
-		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error{
+		Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
 			return dumpWAL.run(args)
 		},
 	}
