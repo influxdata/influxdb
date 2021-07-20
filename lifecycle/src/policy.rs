@@ -1399,6 +1399,7 @@ mod tests {
         let rules = LifecycleRules {
             late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
             persist_row_threshold: NonZeroUsize::new(1_000).unwrap(),
+            max_active_compactions: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
 
@@ -1538,6 +1539,7 @@ mod tests {
             persist_row_threshold: NonZeroUsize::new(1_000).unwrap(),
             late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
             persist_age_threshold_seconds: NonZeroU32::new(10).unwrap(),
+            max_active_compactions: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
         let now = Instant::now();
