@@ -11,7 +11,6 @@ MAN1_TXT += influxd-run.txt
 MAN1_TXT += influxd-version.txt
 MAN1_TXT += influx.txt
 MAN1_TXT += influx_inspect.txt
-MAN1_TXT += influx_tsm.txt
 
 MAN_TXT = $(MAN1_TXT)
 MAN_XML = $(patsubst %.txt,%.xml,$(MAN_TXT))

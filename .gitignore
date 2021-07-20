@@ -20,10 +20,6 @@ flux.zip
 
 *.test
 
-influx_tsm
-**/influx_tsm
-!**/influx_tsm/
-
 influxd
 **/influxd
 !**/influxd/

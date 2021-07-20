@@ -1,3 +1,6 @@
+v1.9.4 [unreleased]
+-	[#21890](https://github.com/influxdata/influxdb/pull/21890): chore: update protobuf library versions and remove influx_tsm
+
 v1.9.3 [unreleased]
 
 ### Features
