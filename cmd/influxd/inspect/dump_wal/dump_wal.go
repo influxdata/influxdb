@@ -2,7 +2,6 @@ package dump_wal
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/spf13/cobra"
 	"os"
@@ -18,10 +17,9 @@ func NewDumpWALCommand() *cobra.Command {
 	var  dumpWAL dumpWALCommand
 	cmd := &cobra.Command{
 		Use:   "dump-wal",
-		Short: "Dump TSM data from WAL files",
+		Short: "Dumps TSM data from WAL files",
 		Long: `
-This tool dumps data from WAL files for debugging purposes. Given a list of filepath globs 
-(patterns which match to .wal file paths), the tool will parse and print out the entries in each file. 
+This tool dumps data from WAL files for debugging purposes. Given at least one WAL file path as an argument, the tool will parse and print out the entries in each file. 
 It has two modes of operation, depending on the --find-duplicates flag.
 --find-duplicates=false (default): for each file, the following is printed:
 	* The file name
@@ -30,37 +28,34 @@ It has two modes of operation, depending on the --find-duplicates flag.
 		* The formatted entry contents
 --find-duplicates=true: for each file, the following is printed:
 	* The file name
-	* A list of keys in the file that have out of order timestamps
+	* A list of keys in the file that have duplicate or out of order timestamps
 `,
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error{
-			if len(args) == 0{
-				return errors.New("no files provided. aborting")
-			}
-			args = cmd.ValidArgs
 			return dumpWAL.run(args)
 		},
 	}
 
 	cmd.Flags().BoolVarP(&dumpWAL.findDuplicates, "find-duplicates", "", false,
-		"ignore dumping entries; only report keys in the WAL that are out of order")
+		"ignore dumping entries; only report keys in the WAL files that are duplicates or out of order (default false)")
 
 	return cmd
 }
 
 func (dumpWAL *dumpWALCommand) run(args []string) error {
 
-	// Process each TSM WAL file.
+	// Process each WAL file.
 	for _, path := range args {
-		if err := dumpWAL.process(path); err != nil {
+		if err := dumpWAL.processWALFile(path); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (dumpWAL *dumpWALCommand) process(path string) error {
+func (dumpWAL *dumpWALCommand) processWALFile(path string) error {
 	if filepath.Ext(path) != "."+tsm1.WALFileExtension {
-		fmt.Printf("invalid wal filename, skipping %s", path)
+		fmt.Println("invalid wal file path, skipping", path)
 		return nil
 	}
 
@@ -147,6 +142,12 @@ func (dumpWAL *dumpWALCommand) process(path string) error {
 	// Print keys with duplicate or out-of-order points, if requested.
 	if dumpWAL.findDuplicates {
 		keys := make([]string, 0, len(duplicateKeys))
+
+		if len(duplicateKeys) == 0 {
+			fmt.Println("No duplicates or out of order timestamps found")
+			return nil
+		}
+
 		for k := range duplicateKeys {
 			keys = append(keys, k)
 		}
