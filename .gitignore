@@ -16,10 +16,6 @@ cmd/influxd/version.go
 
 *.test
 
-influx_tsm
-**/influx_tsm
-!**/influx_tsm/
-
 influx_stress
 **/influx_stress
 !**/influx_stress/

@@ -1,24 +1,27 @@
-FROM ubuntu:xenial
+FROM ubuntu:focal
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    python-software-properties \
-    software-properties-common \
-    wget \
+    asciidoc \
+    autoconf \
+    build-essential \
+    docbook-xsl \
     git \
-    mercurial \
+    libtool \
     make \
+    mercurial \
+    protobuf-compiler \
+    python \
+    python3-pip \
+    python3 \
+    python3-boto \
+    python3-software-properties \
+    rpm \
     ruby \
     ruby-dev \
-    autoconf \
-    libtool \
-    build-essential \
-    rpm \
-    zip \
-    python \
-    python-boto \
-    asciidoc \
+    software-properties-common \
+    wget \
     xmlto \
-    docbook-xsl
+    zip
 
 RUN gem install fpm
 

@@ -35,7 +35,6 @@ tar xz -C "$GOPATH" -f /influxdb-src.tar.gz
 
 SHA=$(jq -r .sha < "$GOPATH/src/github.com/influxdata/influxdb/.metadata.json")
 
-
 SUFFIX=
 if [ "$CGO_ENABLED" == "0" ]; then
   # Only add the static suffix to the filename when explicitly requested.
@@ -69,7 +68,6 @@ for cmd in \
   influxdb/cmd/influx_stress \
   influxdb/cmd/influx \
   influxdb/cmd/influx_inspect \
-  influxdb/cmd/influx_tsm \
   ; do
     # Build all the binaries into $OUTDIR.
     # Windows binaries will get the .exe suffix as expected.

@@ -91,7 +91,6 @@ targets = {
     'influx_stress' : './cmd/influx_stress',
     'influx_inspect' : './cmd/influx_inspect',
     'influx_tools': './cmd/influx_tools',
-    'influx_tsm' : './cmd/influx_tsm',
 }
 
 supported_builds = {
@@ -171,7 +170,7 @@ def go_get(branch, update=False, no_uncommitted=False):
         return False
     return True
 
-def run_tests(race, parallel, timeout, no_vet, junit=False):
+def run_tests(race, parallel, timeout, no_vet, run_gen, junit=False):
     """Run the Go test suite on binary output.
     """
     logging.info("Starting tests...")
@@ -191,6 +190,17 @@ def run_tests(race, parallel, timeout, no_vet, junit=False):
         logging.error("Code not formatted. Please use 'go fmt ./...' to fix formatting errors.")
         logging.error("{}".format(out))
         return False
+
+    if run_gen:
+        logging.info("Ensuring codegen is up to date ...")
+        out = run("./generate.sh")
+        if len(out) > 0:
+            logging.error("Please use 'go generate ./...' to regenerate generated code.")
+            logging.error("{}".format(out))
+            return False
+    else:
+      logging.info("Skipping codegen check")
+
     if not no_vet:
         logging.info("Running 'go vet'...")
         out = run(go_vet_command)
@@ -798,7 +808,7 @@ def main(args):
             return 1
 
     if args.test:
-        if not run_tests(args.race, args.parallel, args.timeout, args.no_vet, args.junit_report):
+        if not run_tests(args.race, args.parallel, args.timeout, args.no_vet, args.arch == "amd64", args.junit_report):
             return 1
 
     platforms = []
