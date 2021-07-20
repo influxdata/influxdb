@@ -10,6 +10,5 @@
 
 pub mod config;
 pub mod core;
-mod guard;
 pub mod kafka;
 pub mod mock;

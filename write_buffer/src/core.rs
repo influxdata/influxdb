@@ -28,15 +28,15 @@ pub type EntryStream<'a> = BoxStream<'a, Result<SequencedEntry, WriteBufferError
 #[async_trait]
 pub trait WriteBufferReading: Sync + Send + std::fmt::Debug + 'static {
     /// Returns a stream per sequencer.
-    ///
-    /// When calling this method a second time while the streams of the first call are still in use, an error will be returned.
-    fn streams(&self) -> Result<Vec<(u32, EntryStream<'_>)>, WriteBufferError>;
+    fn streams(&mut self) -> Vec<(u32, EntryStream<'_>)>;
 
     /// Seek given sequencer to given sequence number. The next output of related streams will be an entry with at least
     /// the given sequence number (the actual sequence number might be skipped due to "holes" in the stream).
-    ///
-    /// When calling this methods while streams (from [`streams`](Self::streams)) are in use, an error will be returned.
-    async fn seek(&self, sequencer_id: u32, sequence_number: u64) -> Result<(), WriteBufferError>;
+    async fn seek(
+        &mut self,
+        sequencer_id: u32,
+        sequence_number: u64,
+    ) -> Result<(), WriteBufferError>;
 }
 
 pub mod test_utils {
@@ -68,7 +68,6 @@ pub mod test_utils {
         T: TestAdapter,
     {
         test_single_stream_io(&adapter).await;
-        test_multi_stream(&adapter).await;
         test_multi_sequencer_io(&adapter).await;
         test_multi_writer_multi_reader(&adapter).await;
         test_seek(&adapter).await;
@@ -85,9 +84,9 @@ pub mod test_utils {
         let entry_3 = lp_to_entry("upc user=3 300");
 
         let writer = context.writing();
-        let reader = context.reading().await;
+        let mut reader = context.reading().await;
 
-        let mut streams = reader.streams().unwrap();
+        let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
         let (sequencer_id, mut stream) = streams.pop().unwrap();
 
@@ -125,9 +124,9 @@ pub mod test_utils {
         let entry_3 = lp_to_entry("upc user=3 300");
 
         let writer = context.writing();
-        let reader = context.reading().await;
+        let mut reader = context.reading().await;
 
-        let mut streams = reader.streams().unwrap();
+        let mut streams = reader.streams();
         assert_eq!(streams.len(), 2);
         let (sequencer_id_1, mut stream_1) = streams.pop().unwrap();
         let (sequencer_id_2, mut stream_2) = streams.pop().unwrap();
@@ -158,28 +157,6 @@ pub mod test_utils {
         assert!(stream_2.poll_next_unpin(&mut cx).is_pending());
     }
 
-    async fn test_multi_stream<T>(adapter: &T)
-    where
-        T: TestAdapter,
-    {
-        let context = adapter.new_context(2).await;
-        let reader = context.reading().await;
-
-        let mut streams = reader.streams().unwrap();
-        assert_eq!(streams.len(), 2);
-        let (_sequencer_id, stream_1) = streams.pop().unwrap();
-        let (_sequencer_id, stream_2) = streams.pop().unwrap();
-
-        // cannot get another stream while streams are in use
-        assert!(reader.streams().is_err());
-        drop(stream_1);
-        assert!(reader.streams().is_err());
-        drop(stream_2);
-
-        // when all streams are dropped, we can get new ones
-        reader.streams().unwrap();
-    }
-
     async fn test_multi_writer_multi_reader<T>(adapter: &T)
     where
         T: TestAdapter,
@@ -192,8 +169,8 @@ pub mod test_utils {
 
         let writer_1 = context.writing();
         let writer_2 = context.writing();
-        let reader_1 = context.reading().await;
-        let reader_2 = context.reading().await;
+        let mut reader_1 = context.reading().await;
+        let mut reader_2 = context.reading().await;
 
         // TODO: do not hard-code sequencer IDs here but provide a proper interface
         writer_1.store_entry(&entry_east_1, 0).await.unwrap();
@@ -201,12 +178,12 @@ pub mod test_utils {
         writer_2.store_entry(&entry_east_2, 0).await.unwrap();
 
         assert_reader_content(
-            &reader_1,
+            &mut reader_1,
             &[(0, &[&entry_east_1, &entry_east_2]), (1, &[&entry_west_1])],
         )
         .await;
         assert_reader_content(
-            &reader_2,
+            &mut reader_2,
             &[(0, &[&entry_east_1, &entry_east_2]), (1, &[&entry_west_1])],
         )
         .await;
@@ -231,46 +208,52 @@ pub mod test_utils {
         let sequence_number_east_2 = writer.store_entry(&entry_east_2, 0).await.unwrap().number;
         let _sequence_number_west_1 = writer.store_entry(&entry_west_1, 1).await.unwrap().number;
 
-        let reader_1 = context.reading().await;
-        let reader_2 = context.reading().await;
+        let mut reader_1 = context.reading().await;
+        let mut reader_2 = context.reading().await;
 
         // forward seek
         reader_1.seek(0, sequence_number_east_2).await.unwrap();
-        assert_reader_content(&reader_1, &[(0, &[&entry_east_2]), (1, &[&entry_west_1])]).await;
         assert_reader_content(
-            &reader_2,
+            &mut reader_1,
+            &[(0, &[&entry_east_2]), (1, &[&entry_west_1])],
+        )
+        .await;
+        assert_reader_content(
+            &mut reader_2,
             &[(0, &[&entry_east_1, &entry_east_2]), (1, &[&entry_west_1])],
         )
         .await;
 
         // backward seek
         reader_1.seek(0, 0).await.unwrap();
-        assert_reader_content(&reader_1, &[(0, &[&entry_east_1, &entry_east_2]), (1, &[])]).await;
+        assert_reader_content(
+            &mut reader_1,
+            &[(0, &[&entry_east_1, &entry_east_2]), (1, &[])],
+        )
+        .await;
 
         // seek to far end and then at data
         reader_1.seek(0, 1_000_000).await.unwrap();
         let _sequence_number_east_3 = writer.store_entry(&entry_east_3, 0).await.unwrap().number;
-        let mut streams = reader_1.streams().unwrap();
+        let mut streams = reader_1.streams();
         assert_eq!(streams.len(), 2);
         let (_sequencer_id, mut stream_1) = streams.pop().unwrap();
         let (_sequencer_id, mut stream_2) = streams.pop().unwrap();
         assert!(stream_1.poll_next_unpin(&mut cx).is_pending());
         assert!(stream_2.poll_next_unpin(&mut cx).is_pending());
-
-        // seeking while streams are in use is an error
-        reader_1.seek(0, 0).await.unwrap_err();
         drop(stream_1);
         drop(stream_2);
+        drop(streams);
 
         // seeking unknown sequencer is NOT an error
         reader_1.seek(0, 42).await.unwrap();
     }
 
-    async fn assert_reader_content<R>(reader: &R, expected: &[(u32, &[&Entry])])
+    async fn assert_reader_content<R>(reader: &mut R, expected: &[(u32, &[&Entry])])
     where
         R: WriteBufferReading,
     {
-        let mut streams = reader.streams().unwrap();
+        let mut streams = reader.streams();
         assert_eq!(streams.len(), expected.len());
         streams.sort_by_key(|(sequencer_id, _stream)| *sequencer_id);
 

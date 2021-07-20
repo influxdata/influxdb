@@ -18,10 +18,7 @@ use rdkafka::{
     ClientConfig, Message, Offset, TopicPartitionList,
 };
 
-use crate::{
-    core::{EntryStream, WriteBufferError, WriteBufferReading, WriteBufferWriting},
-    guard::Semaphore,
-};
+use crate::core::{EntryStream, WriteBufferError, WriteBufferReading, WriteBufferWriting};
 
 pub struct KafkaBufferProducer {
     conn: String,
@@ -100,7 +97,6 @@ pub struct KafkaBufferConsumer {
     conn: String,
     database_name: String,
     consumers: BTreeMap<u32, Arc<StreamConsumer>>,
-    semaphore: Semaphore,
 }
 
 // Needed because rdkafka's StreamConsumer doesn't impl Debug
@@ -115,23 +111,13 @@ impl std::fmt::Debug for KafkaBufferConsumer {
 
 #[async_trait]
 impl WriteBufferReading for KafkaBufferConsumer {
-    fn streams(&self) -> Result<Vec<(u32, EntryStream<'_>)>, WriteBufferError> {
-        let guard = self
-            .semaphore
-            .guard()
-            .ok_or_else::<WriteBufferError, _>(|| "stream already in use".to_string().into())?;
-
-        let streams: Vec<_> = self
-            .consumers
+    fn streams(&mut self) -> Vec<(u32, EntryStream<'_>)> {
+        self.consumers
             .iter()
             .map(|(sequencer_id, consumer)| {
-                let guard = guard.clone();
-
                 let stream = consumer
                     .stream()
                     .map(move |message| {
-                        guard.use_here();
-
                         let message = message?;
                         let entry = Entry::try_from(message.payload().unwrap().to_vec())?;
                         let sequence = Sequence {
@@ -144,17 +130,14 @@ impl WriteBufferReading for KafkaBufferConsumer {
                     .boxed();
                 (*sequencer_id, stream)
             })
-            .collect();
-
-        Ok(streams)
+            .collect()
     }
 
-    async fn seek(&self, sequencer_id: u32, sequence_number: u64) -> Result<(), WriteBufferError> {
-        let _guard = self
-            .semaphore
-            .guard()
-            .ok_or_else::<WriteBufferError, _>(|| "stream already in use".to_string().into())?;
-
+    async fn seek(
+        &mut self,
+        sequencer_id: u32,
+        sequence_number: u64,
+    ) -> Result<(), WriteBufferError> {
         if let Some(consumer) = self.consumers.get(&sequencer_id) {
             let consumer = Arc::clone(consumer);
             let database_name = self.database_name.clone();
@@ -234,7 +217,6 @@ impl KafkaBufferConsumer {
             conn,
             database_name,
             consumers,
-            semaphore: Semaphore::new(),
         })
     }
 
