@@ -16,7 +16,7 @@ Exactly one of -D or -R must be provided to indicate Debian or RPM packages.
 "
 }
 
-BINS=( influx influxd influx_inspect influx_tsm )
+BINS=( influx influxd influx_inspect )
 
 function testInstalled() {
   if ! command -v "$1" >/dev/null 2>&1 ; then
@@ -48,8 +48,7 @@ function testManpages() {
 
   for p in influxd influxd-backup influxd-config influxd-restore influxd-run influxd-version \
     influx \
-    influx_inspect \
-    influx_tsm ; do
+    influx_inspect ; do
     if ! grep -F "/usr/share/man/man1/$p.1.gz" < "$f" > /dev/null; then
       >&2 echo "Package is missing man page for $p"
       exit 1

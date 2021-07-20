@@ -89,7 +89,6 @@ targets = {
     'influx' : './cmd/influx',
     'influxd' : './cmd/influxd',
     'influx_inspect' : './cmd/influx_inspect',
-    'influx_tsm' : './cmd/influx_tsm',
 }
 
 supported_builds = {
@@ -189,6 +188,14 @@ def run_tests(race, parallel, timeout, no_vet, junit=False):
         logging.error("Code not formatted. Please use 'goimports -w ./' to fix formatting errors.")
         logging.error("{}".format(out))
         return False
+
+    logging.info("Ensuring codegen is up to date ...")
+    out = run("./generate.sh")
+    if len(out) > 0:
+        logging.error("Please use 'go generate ./...' to regenerate generated code.")
+        logging.error("{}".format(out))
+        return False
+
     if not no_vet:
         logging.info("Running 'go vet'...")
         out = run(go_vet_command)

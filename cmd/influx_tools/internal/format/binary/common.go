@@ -1,6 +1,6 @@
 package binary
 
-//go:generate protoc -I$GOPATH/src/github.com/influxdata/influxdb/vendor -I. --gogofaster_out=Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types:. binary.proto
+//go:generate sh -c "protoc -I$(go list -f '{{ .Dir }}' -m github.com/gogo/protobuf) -I. --gogofaster_out=Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types:. binary.proto"
 //go:generate stringer -type=MessageType
 
 import "errors"
