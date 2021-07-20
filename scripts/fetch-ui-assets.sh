@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 
-declare -r SCRIPT_DIR=$(cd $(dirname ${0}) >/dev/null 2>&1 && pwd)
-declare -r ROOT_DIR=$(dirname ${SCRIPT_DIR})
-declare -r STATIC_DIR="$ROOT_DIR/static"
-
 # This script is used to download built UI assets from the "influxdata/ui"
 # repository. The built UI assets are attached to a release in "influxdata/ui",
 # which is linked here.
@@ -17,6 +13,10 @@ declare -r STATIC_DIR="$ROOT_DIR/static"
 # are updated only when a bug fix needs included for the UI of that OSS release.
 
 set -e
+
+declare -r SCRIPT_DIR=$(cd $(dirname ${0}) >/dev/null 2>&1 && pwd)
+declare -r ROOT_DIR=$(dirname ${SCRIPT_DIR})
+declare -r STATIC_DIR="$ROOT_DIR/static"
 
 # Download the SHA256 checksum attached to the release. To verify the integrity
 # of the download, this checksum will be used to check the download tar file
