@@ -3,6 +3,7 @@ v1.8.7 [unreleased]
 
 - [#21749](https://github.com/influxdata/influxdb/pull/21749): fix: rename arm rpms with yum-compatible names
 - [#21775](https://github.com/influxdata/influxdb/pull/21775): fix: convert arm arch names for rpms during builds via docker
+- [#21891](https://github.com/influxdata/influxdb/pull/21891): chore: update protobuf libraries
 
 v1.8.6 [2021-05-20]
 -------------------
