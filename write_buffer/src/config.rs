@@ -13,7 +13,7 @@ use crate::{
 #[derive(Debug)]
 pub enum WriteBufferConfig {
     Writing(Arc<dyn WriteBufferWriting>),
-    Reading(Arc<dyn WriteBufferReading>),
+    Reading(Arc<tokio::sync::Mutex<Box<dyn WriteBufferReading>>>),
 }
 
 impl WriteBufferConfig {
@@ -36,7 +36,9 @@ impl WriteBufferConfig {
             Some(WriteBufferConnection::Reading(conn)) => {
                 let kafka_buffer = KafkaBufferConsumer::new(conn, server_id, name).await?;
 
-                Ok(Some(Self::Reading(Arc::new(kafka_buffer) as _)))
+                Ok(Some(Self::Reading(Arc::new(tokio::sync::Mutex::new(
+                    Box::new(kafka_buffer) as _,
+                )))))
             }
             None => Ok(None),
         }

@@ -656,6 +656,9 @@ impl Db {
             // streaming from the write buffer loop
             async {
                 if let Some(WriteBufferConfig::Reading(write_buffer)) = &self.write_buffer {
+                    let mut write_buffer = write_buffer
+                        .try_lock()
+                        .expect("no streams should exist at this point");
                     let mut futures = vec![];
                     for (_sequencer_id, stream) in write_buffer.streams() {
                         let fut = self.stream_in_sequenced_entries(stream);
@@ -1212,10 +1215,12 @@ mod tests {
         let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
         write_buffer_state
             .push_entry(SequencedEntry::new_from_sequence(Sequence::new(0, 0), entry).unwrap());
-        let write_buffer = Arc::new(MockBufferForReading::new(write_buffer_state));
+        let write_buffer = MockBufferForReading::new(write_buffer_state);
 
         let db = TestDb::builder()
-            .write_buffer(WriteBufferConfig::Reading(Arc::clone(&write_buffer) as _))
+            .write_buffer(WriteBufferConfig::Reading(Arc::new(
+                tokio::sync::Mutex::new(Box::new(write_buffer) as _),
+            )))
             .build()
             .await
             .db;
@@ -1271,10 +1276,12 @@ mod tests {
             String::from("Something bad happened on the way to creating a SequencedEntry").into(),
             0,
         );
-        let write_buffer = Arc::new(MockBufferForReading::new(write_buffer_state));
+        let write_buffer = MockBufferForReading::new(write_buffer_state);
 
         let test_db = TestDb::builder()
-            .write_buffer(WriteBufferConfig::Reading(Arc::clone(&write_buffer) as _))
+            .write_buffer(WriteBufferConfig::Reading(Arc::new(
+                tokio::sync::Mutex::new(Box::new(write_buffer) as _),
+            )))
             .build()
             .await;
 
@@ -2259,10 +2266,12 @@ mod tests {
         );
         write_buffer_state
             .push_entry(SequencedEntry::new_from_sequence(Sequence::new(0, 1), entry).unwrap());
-        let write_buffer = Arc::new(MockBufferForReading::new(write_buffer_state));
+        let write_buffer = MockBufferForReading::new(write_buffer_state);
 
         let db = TestDb::builder()
-            .write_buffer(WriteBufferConfig::Reading(Arc::clone(&write_buffer) as _))
+            .write_buffer(WriteBufferConfig::Reading(Arc::new(
+                tokio::sync::Mutex::new(Box::new(write_buffer) as _),
+            )))
             .build()
             .await
             .db;
