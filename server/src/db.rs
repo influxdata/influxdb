@@ -657,7 +657,10 @@ impl Db {
             async {
                 if let Some(WriteBufferConfig::Reading(write_buffer)) = &self.write_buffer {
                     let mut futures = vec![];
-                    for (_sequencer_id, stream) in write_buffer.streams() {
+                    for (_sequencer_id, stream) in write_buffer
+                        .streams()
+                        .expect("no streams should exist at this point")
+                    {
                         let fut = self.stream_in_sequenced_entries(stream);
                         futures.push(fut);
                     }

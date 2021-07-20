@@ -5,7 +5,10 @@ use entry::{Entry, Sequence, SequencedEntry};
 use futures::{stream, StreamExt};
 use parking_lot::Mutex;
 
-use crate::core::{EntryStream, WriteBufferError, WriteBufferReading, WriteBufferWriting};
+use crate::{
+    core::{EntryStream, WriteBufferError, WriteBufferReading, WriteBufferWriting},
+    guard::Semaphore,
+};
 
 type EntryResVec = Vec<Result<SequencedEntry, WriteBufferError>>;
 
@@ -165,6 +168,7 @@ struct PlaybackState {
 pub struct MockBufferForReading {
     shared_state: MockBufferSharedState,
     playback_states: Arc<Mutex<BTreeMap<u32, PlaybackState>>>,
+    semaphore: Semaphore,
 }
 
 impl MockBufferForReading {
@@ -185,6 +189,7 @@ impl MockBufferForReading {
         Self {
             shared_state: state,
             playback_states: Arc::new(Mutex::new(playback_states)),
+            semaphore: Semaphore::new(),
         }
     }
 }
@@ -197,7 +202,12 @@ impl std::fmt::Debug for MockBufferForReading {
 
 #[async_trait]
 impl WriteBufferReading for MockBufferForReading {
-    fn streams(&self) -> Vec<(u32, EntryStream<'_>)> {
+    fn streams(&self) -> Result<Vec<(u32, EntryStream<'_>)>, WriteBufferError> {
+        let guard = self
+            .semaphore
+            .guard()
+            .ok_or_else::<WriteBufferError, _>(|| "stream already in use".to_string().into())?;
+
         let sequencer_ids: Vec<_> = {
             let playback_states = self.playback_states.lock();
             playback_states.keys().copied().collect()
@@ -207,8 +217,11 @@ impl WriteBufferReading for MockBufferForReading {
         for sequencer_id in sequencer_ids {
             let shared_state = self.shared_state.clone();
             let playback_states = Arc::clone(&self.playback_states);
+            let guard = guard.clone();
 
             let stream = stream::poll_fn(move |_ctx| {
+                guard.use_here();
+
                 let entries = shared_state.entries.lock();
                 let mut playback_states = playback_states.lock();
 
@@ -247,10 +260,15 @@ impl WriteBufferReading for MockBufferForReading {
             streams.push((sequencer_id, stream));
         }
 
-        streams
+        Ok(streams)
     }
 
     async fn seek(&self, sequencer_id: u32, sequence_number: u64) -> Result<(), WriteBufferError> {
+        let _guard = self
+            .semaphore
+            .guard()
+            .ok_or_else::<WriteBufferError, _>(|| "stream already in use".to_string().into())?;
+
         let mut playback_states = self.playback_states.lock();
 
         if let Some(playback_state) = playback_states.get_mut(&sequencer_id) {
