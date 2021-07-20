@@ -9,21 +9,6 @@ use std::cmp::Ordering;
 use std::iter::Iterator;
 use std::ops::Range;
 
-// #[derive(Debug, Snafu)]
-// pub enum Error {
-//     #[snafu(display(
-//         "Sort requires at least one column"
-//     ))]
-//     EmptyColumns {},
-
-//     #[snafu(display(
-//         "Sort columns have different row counts"
-//     ))]
-//     DifferentRowCounts{},
-// }
-
-// pub type Result<T, E = Error> = std::result::Result<T, E>;
-
 /// Given a list of key columns, find partition ranges that would partition
 /// equal values across columns
 ///
@@ -63,16 +48,11 @@ pub fn key_ranges(columns: &[SortColumn]) -> ArrowResult<impl Iterator<Item = Ra
 
 struct KeyRangeIterator<'a> {
     // function to compare values of columns
-    // Todo: this is the same as LexicographicalComparator.
-    // Either use it or make it like https://github.com/apache/arrow-rs/issues/563
     comparator: KeyRangeComparator<'a>,
     // Number of rows of the columns
     num_rows: usize,
     // end index of previous range which will be used as starting index of the next computing range
     start_range_idx: usize,
-    //
-    // current_range_idx: usize,
-    //value_indices: Vec<usize>,
 }
 
 impl<'a> KeyRangeIterator<'a> {
@@ -127,6 +107,8 @@ type KeyRangeCompareItem<'a> = (
     SortOptions,   // sort_option
 );
 
+// Todo: this is the same as LexicographicalComparator.
+// Either use it or make it like https://github.com/apache/arrow-rs/issues/563
 /// A comparator that wraps given array data (columns) and can compare data
 /// at given two indices. The lifetime is the same at the data wrapped.
 pub(super) struct KeyRangeComparator<'a> {

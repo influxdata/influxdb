@@ -68,7 +68,6 @@ impl RecordBatchDeduplicator {
             batch
         };
 
-        trace!("Invoke compute_ranges in Dedupiucate::algo::push");
         let mut dupe_ranges = self.compute_ranges(&batch)?;
 
         // The last partition may span batches so we can't emit it
@@ -203,7 +202,6 @@ impl RecordBatchDeduplicator {
         self.last_batch
             .take()
             .map(|last_batch| {
-                trace!("Invoke compute_ranges in Deduplicate::algo::finish");
                 let dupe_ranges = self.compute_ranges(&last_batch)?;
                 self.output_from_ranges(&last_batch, &dupe_ranges)
             })
@@ -238,8 +236,6 @@ impl RecordBatchDeduplicator {
             })
             .collect();
 
-        println!("Columns before reversing {:#?}", columns);
-
         // Now converting the columns order from: lowest cardinality, second lowest, ..., highest cardinality, time
         // to: highest cardinality, time, second highest cardinality, ...., lowest cardinality
         //
@@ -253,14 +249,12 @@ impl RecordBatchDeduplicator {
 
         // Reverse that list
         let columns: Vec<_> = columns.into_iter().rev().collect();
-        println!("Columns after reversing {:#?}", columns);
 
         // Compute partitions (aka breakpoints between the ranges)
         // Each range (or partition) includes a unique sort key value which is
         // a unique combination of PK columns. PK columns consist of all tags and the time col.
         //let ranges = arrow::compute::lexicographical_partition_ranges(&columns)?.collect();
         let ranges = key_ranges(&columns)?.collect();
-        println!("Ranges: {:#?}", ranges);
 
         Ok(DuplicateRanges {
             is_sort_key,
@@ -782,14 +776,14 @@ mod test {
 
         //fn compute_ranges(&self, batch: &RecordBatch) -> ArrowResult<DuplicateRanges> {
 
-        let mut lowest_cardinality = vec![Some(1); 9]; // 9 first values are all Some(1)
-        lowest_cardinality.push(Some(2)); // Add Some(2)
-        let lowest_cardinality = Arc::new(Int64Array::from(lowest_cardinality)) as ArrayRef;
+        let mut lowest_cardinality = vec![Some("1"); 9]; // 9 first values are all Some(1)
+        lowest_cardinality.push(Some("2")); // Add Some(2)
+        let lowest_cardinality = Arc::new(StringArray::from(lowest_cardinality)) as ArrayRef;
 
-        let mut second_highest_cardinality = vec![Some(1); 7];
-        second_highest_cardinality.append(&mut vec![Some(2); 3]);
+        let mut second_highest_cardinality = vec![Some(1.0); 7];
+        second_highest_cardinality.append(&mut vec![Some(2.0); 3]);
         let second_higest_cardinality =
-            Arc::new(Int64Array::from(second_highest_cardinality)) as ArrayRef;
+            Arc::new(Float64Array::from(second_highest_cardinality)) as ArrayRef;
 
         let mut highest_cardinality = vec![Some(1), Some(1), Some(3), Some(4), Some(4)];
         highest_cardinality.append(&mut vec![Some(5); 5]);
