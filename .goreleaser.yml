@@ -27,7 +27,7 @@ builds:
       - -s -w -X main.version=nightly -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
     binary: influxd
     hooks:
-      pre: make generate
+      pre: make static/static_gen.go
 
 nfpms:
   - id: "influxdb2"

@@ -14,6 +14,10 @@
 
 set -e
 
+declare -r SCRIPT_DIR=$(cd $(dirname ${0}) >/dev/null 2>&1 && pwd)
+declare -r ROOT_DIR=$(dirname ${SCRIPT_DIR})
+declare -r STATIC_DIR="$ROOT_DIR/static"
+
 # Download the SHA256 checksum attached to the release. To verify the integrity
 # of the download, this checksum will be used to check the download tar file
 # containing the built UI assets.
@@ -28,6 +32,6 @@ echo "$(cat sha256.txt)" | sha256sum --check -- \
 
 # Extract the assets and clean up.
 mkdir data
-tar -xzf build.tar.gz -C data
+tar -xzf build.tar.gz -C "$STATIC_DIR/data"
 rm sha256.txt
 rm build.tar.gz

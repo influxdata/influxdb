@@ -7,14 +7,7 @@
 #
 #    * All cmds must be added to this top level Makefile.
 #    * All binaries are placed in ./bin, its recommended to add this directory to your PATH.
-#    * Each package that has a need to run go generate, must have its own Makefile for that purpose.
-#    * All recursive Makefiles must support the all and clean targets
 #
-
-# SUBDIRS are directories that have their own Makefile.
-# It is required that all SUBDIRS have the `all` and `clean` targets.
-SUBDIRS := static storage
-
 export GOPATH=$(shell go env GOPATH)
 export GOOS=$(shell go env GOOS)
 export GOARCH=$(shell go env GOARCH)
@@ -76,12 +69,7 @@ SOURCES_NO_VENDOR := $(shell find . -path ./vendor -prune -o -name "*.go" -not -
 CMDS := \
 	bin/$(GOOS)/influxd
 
-all: $(SUBDIRS) generate $(CMDS)
-
-# Target to build subdirs.
-# Each subdirs must support the `all` target.
-$(SUBDIRS):
-	$(MAKE) -C $@ all
+all: generate $(CMDS)
 
 #
 # Define targets for commands
@@ -91,6 +79,15 @@ bin/$(GOOS)/influxd: $(SOURCES)
 
 # Ease of use build for just the go binary
 influxd: bin/$(GOOS)/influxd
+
+static/data/build: scripts/fetch-ui-assets.sh
+	./scripts/fetch-ui-assets.sh
+
+static/data/swagger.json: scripts/fetch-swagger.sh
+	./scripts/fetch-swagger.sh
+
+static/static_gen.go: static/data/build static/data/swagger.json
+	$(GO_GENERATE) ./static
 
 #
 # Define action only targets
@@ -112,7 +109,7 @@ checktidy:
 checkgenerate:
 	./etc/checkgenerate.sh
 
-generate: gogo tmpl stringer goimports $(SUBDIRS)
+generate: gogo tmpl stringer goimports static/data/build static/data/swagger.json
 	$(GO_GENERATE) ./...
 
 gogo:
