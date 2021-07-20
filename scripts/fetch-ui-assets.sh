@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 # This script is used to download built UI assets from the "influxdata/ui"
 # repository. The built UI assets are attached to a release in "influxdata/ui",
