@@ -96,10 +96,15 @@ func (i *importer) createDatabaseWithRetentionPolicy(rp *meta.RetentionPolicySpe
 }
 
 func (i *importer) StartShardGroup(start int64, end int64) error {
-	existingSg, err := i.MetaClient.NodeShardGroupsByTimeRange(i.db, i.rpi.Name, time.Unix(0, start), time.Unix(0, end))
+	startTime := time.Unix(0, start)
+	endTime := time.Unix(0, end)
+	// Search for non-inclusive end time as shards with end_shard1 == start_shard2 are should not be considered overlapping
+	existingSg, err := i.MetaClient.NodeShardGroupsByTimeRange(i.db, i.rpi.Name, startTime, endTime.Add(-1))
 	if err != nil {
 		return err
 	}
+
+	i.log.Info(fmt.Sprintf("Starting shard group %v-%v with %d existing shard groups", startTime, endTime, len(existingSg)))
 
 	var sgi *meta.ShardGroupInfo
 	var shardID uint64
@@ -109,7 +114,10 @@ func (i *importer) StartShardGroup(start int64, end int64) error {
 	if len(existingSg) > 0 {
 		sgi = &existingSg[0]
 		if len(sgi.Shards) > 1 {
-			return fmt.Errorf("multiple shards for the same owner %v and time range %v to %v", sgi.Shards[0].Owners, start, end)
+			return fmt.Errorf("multiple shards for the same owner %v and time range %v to %v", sgi.Shards[0].Owners, startTime, endTime)
+		}
+		if !sgi.StartTime.Equal(startTime) || !sgi.EndTime.Equal(endTime) {
+			return fmt.Errorf("Shard group time not matching, %v,%v != %v,%v", sgi.StartTime, sgi.EndTime, startTime, endTime)
 		}
 
 		shardID = sgi.Shards[0].ID
@@ -134,7 +142,7 @@ func (i *importer) StartShardGroup(start int64, end int64) error {
 			}
 		}
 	} else {
-		sgi, err = i.MetaClient.CreateShardGroup(i.db, i.rpi.Name, time.Unix(0, start))
+		sgi, err = i.MetaClient.CreateShardGroup(i.db, i.rpi.Name, startTime)
 		if err != nil {
 			return err
 		}
