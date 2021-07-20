@@ -13,7 +13,7 @@
 
 # SUBDIRS are directories that have their own Makefile.
 # It is required that all SUBDIRS have the `all` and `clean` targets.
-SUBDIRS := http ui chronograf storage
+SUBDIRS := http chronograf storage
 
 export GOPATH=$(shell go env GOPATH)
 export GOOS=$(shell go env GOOS)
@@ -69,9 +69,6 @@ SOURCES := $(shell find . -name '*.go' -not -name '*_test.go') go.mod go.sum
 # All go source files excluding the vendored sources.
 SOURCES_NO_VENDOR := $(shell find . -path ./vendor -prune -o -name "*.go" -not -name '*_test.go' -print)
 
-# All assets for chronograf
-UISOURCES := $(shell find ui -type f -not \( -path ui/build/\* -o -path ui/node_modules/\* -o -path ui/.cache/\* -o -name Makefile -prune \) )
-
 # All precanned dashboards
 PRECANNED := $(shell find chronograf/canned -name '*.json')
 
@@ -79,7 +76,11 @@ PRECANNED := $(shell find chronograf/canned -name '*.json')
 CMDS := \
 	bin/$(GOOS)/influxd
 
-all: $(SUBDIRS) generate $(CMDS)
+all: ui/build $(SUBDIRS) generate $(CMDS)
+
+# Target for the build UI assets directory.
+ui/build:
+	scripts/fetch-ui-assets.sh
 
 # Target to build subdirs.
 # Each subdirs must support the `all` target.

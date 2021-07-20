@@ -1,6 +1,6 @@
 UISOURCES := $(shell find . -type f -not \( -path ./build/\* -o -path ./node_modules/\* -o -path ./.cache/\* -o -name Makefile -prune \) )
 
-all: build
+all: e2e
 
 client:
 	yarn generate
@@ -11,9 +11,6 @@ node_modules:
 e2e: node_modules
 	yarn generate
 	yarn test:e2e
-
-build:
-	./fetch_ui_assets.sh
 
 lint: node_modules $(UISOURCES)
 	yarn generate
