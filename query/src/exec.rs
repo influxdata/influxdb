@@ -39,6 +39,7 @@ use crate::plan::{
 };
 
 use self::{
+    context::IOxExecutionConfig,
     split::StreamSplitNode,
     task::{DedicatedExecutor, Error as ExecutorError},
 };
@@ -111,6 +112,9 @@ pub struct Executor {
     /// Executor for running system/reorganization tasks such as
     /// compact
     reorg_exec: DedicatedExecutor,
+
+    /// The default configuration options with which to create contexts
+    config: IOxExecutionConfig,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -128,10 +132,23 @@ impl Executor {
         let query_exec = DedicatedExecutor::new("IOx Query Executor Thread", num_threads);
         let reorg_exec = DedicatedExecutor::new("IOx Reorg Executor Thread", num_threads);
 
+        let config = IOxExecutionConfig::new();
+
         Self {
             query_exec,
             reorg_exec,
+            config,
         }
+    }
+
+    /// returns the config of this executor
+    pub fn config(&self) -> &IOxExecutionConfig {
+        &self.config
+    }
+
+    /// returns a mutable reference to this executor's config
+    pub fn config_mut(&mut self) -> &mut IOxExecutionConfig {
+        &mut self.config
     }
 
     /// Executes this plan on the query pool, and returns the
@@ -289,7 +306,7 @@ impl Executor {
     pub fn new_context(&self, executor_type: ExecutorType) -> IOxExecutionContext {
         let executor = self.executor(executor_type).clone();
 
-        IOxExecutionContext::new(executor)
+        IOxExecutionContext::new(executor, self.config.clone())
     }
 
     /// Return the execution pool  of the specified type
