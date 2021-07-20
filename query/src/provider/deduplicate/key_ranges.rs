@@ -208,7 +208,7 @@ mod test {
         //         9       |          5           |  15  |             2              |            2
         //  The columns are sorted on this sort order:
         //    (Lowest_Cardinality, Second_Highest_Cardinality, Highest_Cardinality, Time)
-        //  But when the key_ranges function is invoked, the input sort order will be
+        //  But when the key_ranges function is invoked, the input columns will be
         //    (Highest_Cardinality, Time, Second_Highest_Cardinality, Lowest_Cardinality)
         // Out put ranges: 8 ranges on their invisible indices
         //   [0, 1],
