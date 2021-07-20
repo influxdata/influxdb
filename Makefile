@@ -113,17 +113,17 @@ generate: gogo tmpl stringer goimports static/data/build static/data/swagger.jso
 	$(GO_GENERATE) ./...
 
 gogo:
-	go build -o $(GOPATH)/bin/ github.com/gogo/protobuf/protoc-gen-gogo
-	go build -o $(GOPATH)/bin/ github.com/gogo/protobuf/protoc-gen-gogofaster
+	$(GO_INSTALL) github.com/gogo/protobuf/protoc-gen-gogo
+	$(GO_INSTALL) github.com/gogo/protobuf/protoc-gen-gogofaster
 
 tmpl:
-	go build -o $(GOPATH)/bin/ github.com/benbjohnson/tmpl
+	$(GO_INSTALL) github.com/benbjohnson/tmpl
 
 stringer:
-	go build -o $(GOPATH)/bin/ golang.org/x/tools/cmd/stringer
+	$(GO_INSTALL) golang.org/x/tools/cmd/stringer
 
 goimports:
-	go build -o $(GOPATH)/bin/ golang.org/x/tools/cmd/goimports
+	$(GO_INSTALL) golang.org/x/tools/cmd/goimports
 
 test-go:
 	$(GO_TEST) $(GO_TEST_PATHS)
@@ -152,10 +152,10 @@ bench:
 build: all
 
 pkg-config:
-	go build -o $(GOPATH)/bin/pkg-config github.com/influxdata/pkg-config
+	$(GO_INSTALL) github.com/influxdata/pkg-config
 
 clean:
-	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
+	$(RM) static/static_gen.go
 	$(RM) -r bin
 	$(RM) -r dist
 
