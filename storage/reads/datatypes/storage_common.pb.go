@@ -3913,10 +3913,7 @@ func (m *ReadFilterRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -4168,10 +4165,7 @@ func (m *ReadGroupRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -4240,10 +4234,7 @@ func (m *Aggregate) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -4361,10 +4352,7 @@ func (m *Tag) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -4448,10 +4436,7 @@ func (m *ReadResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -4746,10 +4731,7 @@ func (m *ReadResponse_Frame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -4863,10 +4845,7 @@ func (m *ReadResponse_GroupFrame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -4969,10 +4948,7 @@ func (m *ReadResponse_SeriesFrame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -5128,10 +5104,7 @@ func (m *ReadResponse_FloatPointsFrame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -5309,10 +5282,7 @@ func (m *ReadResponse_IntegerPointsFrame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -5490,10 +5460,7 @@ func (m *ReadResponse_UnsignedPointsFrame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -5665,10 +5632,7 @@ func (m *ReadResponse_BooleanPointsFrame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -5802,10 +5766,7 @@ func (m *ReadResponse_StringPointsFrame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -5887,10 +5848,7 @@ func (m *Capability) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -6052,7 +6010,7 @@ func (m *CapabilitiesResponse) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthStorageCommon
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -6069,10 +6027,7 @@ func (m *CapabilitiesResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -6160,10 +6115,7 @@ func (m *TimestampRange) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -6318,10 +6270,7 @@ func (m *TagKeysRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -6508,10 +6457,7 @@ func (m *TagValuesRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -6593,10 +6539,7 @@ func (m *StringValuesResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -6751,10 +6694,7 @@ func (m *MeasurementNamesRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -6941,10 +6881,7 @@ func (m *MeasurementTagKeysRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -7163,10 +7100,7 @@ func (m *MeasurementTagValuesRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -7353,10 +7287,7 @@ func (m *MeasurementFieldsRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -7440,10 +7371,7 @@ func (m *MeasurementFieldsResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -7554,10 +7482,7 @@ func (m *MeasurementFieldsResponse_MessageField) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -7820,10 +7745,7 @@ func (m *ReadWindowAggregateRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -7945,10 +7867,7 @@ func (m *Window) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -8056,10 +7975,7 @@ func (m *Duration) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
