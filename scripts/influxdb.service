@@ -13,6 +13,8 @@ EnvironmentFile=-/etc/default/influxdb
 ExecStart=/usr/bin/influxd -config /etc/influxdb/influxdb.conf $INFLUXD_OPTS
 KillMode=control-group
 Restart=on-failure
+Type=forking
+PIDFile=/var/lib/influxdb/influxd.pid
 
 [Install]
 WantedBy=multi-user.target
