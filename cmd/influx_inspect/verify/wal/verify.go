@@ -125,7 +125,7 @@ func (cmd *Command) verifyWAL(tw *tabwriter.Writer, path string, v bool) error {
 }
 
 func loadFiles(dir string) (files []string, err error) {
-	err = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+	err = filepath.Walk(dir, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -135,11 +135,6 @@ func loadFiles(dir string) (files []string, err error) {
 		return nil
 	})
 	return
-}
-
-type walParams struct {
-	dir     string
-	verbose bool
 }
 
 func (cmd *Command) printUsage() {
