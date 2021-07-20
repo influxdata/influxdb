@@ -291,7 +291,7 @@ func (a *args) walkShardDirs(root string, fn func(db, rp, id, path string) error
 		db, rp, id, path string
 	}
 
-	var dirs []location
+	var tsms []location
 	if err := filepath.WalkDir(root, func(path string, info os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -313,7 +313,7 @@ func (a *args) walkShardDirs(root string, fn func(db, rp, id, path string) error
 			}
 			parts := strings.Split(absPath, string(filepath.Separator))
 			db, rp, id := parts[len(parts)-4], parts[len(parts)-3], parts[len(parts)-2]
-			dirs = append(dirs, location{db: db, rp: rp, id: id, path: path})
+			tsms = append(tsms, location{db: db, rp: rp, id: id, path: path})
 			return nil
 		}
 		return nil
@@ -321,13 +321,13 @@ func (a *args) walkShardDirs(root string, fn func(db, rp, id, path string) error
 		return err
 	}
 
-	sort.Slice(dirs, func(i, j int) bool {
-		a, _ := strconv.Atoi(dirs[i].id)
-		b, _ := strconv.Atoi(dirs[j].id)
+	sort.Slice(tsms, func(i, j int) bool {
+		a, _ := strconv.Atoi(tsms[i].id)
+		b, _ := strconv.Atoi(tsms[j].id)
 		return a < b
 	})
 
-	for _, shard := range dirs {
+	for _, shard := range tsms {
 		if err := fn(shard.db, shard.rp, shard.id, shard.path); err != nil {
 			return err
 		}
