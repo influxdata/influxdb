@@ -786,12 +786,12 @@ macro_rules! assert_column_eq {
 
 #[cfg(test)]
 mod test {
+    use arrow::compute::SortOptions;
     use InfluxColumnType::*;
     use InfluxFieldType::*;
 
     use super::{builder::SchemaBuilder, *};
     use crate::schema::merge::SchemaMerger;
-    use crate::schema::sort::SortOptions;
 
     fn make_field(
         name: &str,

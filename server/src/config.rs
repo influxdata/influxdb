@@ -8,7 +8,7 @@ use data_types::{
     DatabaseName,
 };
 use metrics::MetricRegistry;
-use object_store::{path::ObjectStorePath, ObjectStore};
+use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use parquet_file::catalog::PreservedCatalog;
 use query::exec::Executor;
 use write_buffer::config::WriteBufferConfig;
@@ -20,6 +20,7 @@ use crate::{
     InvalidDatabaseStateTransition, JobRegistry, Result, RulesDatabaseNameMismatch,
     ServerShuttingDown,
 };
+use object_store::path::Path;
 use observability_deps::tracing::{self, error, info, warn, Instrument};
 use snafu::{ensure, OptionExt};
 use tokio::task::JoinHandle;
@@ -37,10 +38,14 @@ pub(crate) const DB_RULES_FILE_NAME: &str = "rules.pb";
 /// run to completion if the tokio runtime is dropped
 #[derive(Debug)]
 pub(crate) struct Config {
-    shutdown: CancellationToken,
     jobs: Arc<JobRegistry>,
-    state: RwLock<ConfigState>,
+    object_store: Arc<ObjectStore>,
+    exec: Arc<Executor>,
+    server_id: ServerId,
     metric_registry: Arc<MetricRegistry>,
+
+    shutdown: CancellationToken,
+    state: RwLock<ConfigState>,
 }
 
 pub(crate) enum UpdateError<E> {
@@ -58,14 +63,20 @@ impl Config {
     /// Create new empty config.
     pub(crate) fn new(
         jobs: Arc<JobRegistry>,
+        object_store: Arc<ObjectStore>,
+        exec: Arc<Executor>,
+        server_id: ServerId,
         metric_registry: Arc<MetricRegistry>,
         remote_template: Option<RemoteTemplate>,
     ) -> Self {
         Self {
+            jobs,
+            object_store,
+            exec,
+            server_id,
+            metric_registry,
             shutdown: Default::default(),
             state: RwLock::new(ConfigState::new(remote_template)),
-            jobs,
-            metric_registry,
         }
     }
 
@@ -80,13 +91,7 @@ impl Config {
     /// This only works if the database is not yet known. To recover a database out of an uninitialized state, see
     /// [`recover_db`](Self::recover_db). To do maintainance work on data linked to the database (e.g. the catalog)
     /// without initializing it, see [`block_db`](Self::block_db).
-    pub(crate) fn create_db(
-        &self,
-        object_store: Arc<ObjectStore>,
-        exec: Arc<Executor>,
-        server_id: ServerId,
-        db_name: DatabaseName<'static>,
-    ) -> Result<DatabaseHandle<'_>> {
+    pub(crate) fn create_db(&self, db_name: DatabaseName<'static>) -> Result<DatabaseHandle<'_>> {
         let mut state = self.state.write().expect("mutex poisoned");
         ensure!(
             !state.reservations.contains(&db_name),
@@ -99,12 +104,7 @@ impl Config {
 
         state.reservations.insert(db_name.clone());
         Ok(DatabaseHandle {
-            state: Some(Arc::new(DatabaseState::Known {
-                object_store,
-                exec,
-                server_id,
-                db_name,
-            })),
+            state: Some(Arc::new(DatabaseState::Known { db_name })),
             config: &self,
         })
     }
@@ -116,7 +116,7 @@ impl Config {
     /// While the handle is held, no other operations for the given database can be executed.
     ///
     /// This only works if the database is known but is uninitialized. To create a new database that is not yet known,
-    /// see [`create_db`](Self::create_db). To do maintainance work on data linked to the database (e.g. the catalog)
+    /// see [`create_db`](Self::create_db). To do maintenance work on data linked to the database (e.g. the catalog)
     /// without initializing it, see [`block_db`](Self::block_db).
     pub(crate) fn recover_db(&self, db_name: DatabaseName<'static>) -> Result<DatabaseHandle<'_>> {
         let mut state = self.state.write().expect("mutex poisoned");
@@ -303,6 +303,24 @@ impl Config {
     pub fn metrics_registry(&self) -> Arc<MetricRegistry> {
         Arc::clone(&self.metric_registry)
     }
+
+    /// Returns the object store of this server
+    pub fn object_store(&self) -> Arc<ObjectStore> {
+        Arc::clone(&self.object_store)
+    }
+
+    /// Returns the server id of this server
+    pub fn server_id(&self) -> ServerId {
+        self.server_id
+    }
+
+    /// Base location in object store for this server.
+    pub fn root_path(&self) -> Path {
+        let id = self.server_id.get();
+        let mut path = self.object_store.new_path();
+        path.push_dir(format!("{}", id));
+        path
+    }
 }
 
 /// Get object store path for the database config under the given root (= path under with the server with the current ID
@@ -365,41 +383,14 @@ impl RemoteTemplate {
 }
 
 /// Internal representation of the different database states.
-///
-/// # Shared Data During Transitions
-/// The following elements can safely be shared between states because they won't be poisoned by any half-done
-/// transition (e.g. starting a transition and then failing due to an IO error):
-/// - `object_store`
-/// - `exec`
-///
-/// The following elements can trivially be copied from one state to the next:
-/// - `server_id`
-/// - `db_name`
-///
-/// The following elements MUST be copied from one state to the next because partial modifications are not allowed:
-/// - `rules`
-///
-/// Exceptions to the above rules are the following states:
-/// - [`Replay`](Self::Replay): replaying twice should (apart from some performance penalties) not do much harm
-/// - [`Initialized`](Self::Initialized): the final state is not advanced to anything else
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 enum DatabaseState {
     /// Database is known but nothing is loaded.
-    Known {
-        object_store: Arc<ObjectStore>,
-        exec: Arc<Executor>,
-        server_id: ServerId,
-        db_name: DatabaseName<'static>,
-    },
+    Known { db_name: DatabaseName<'static> },
 
     /// Rules are loaded
-    RulesLoaded {
-        object_store: Arc<ObjectStore>,
-        exec: Arc<Executor>,
-        server_id: ServerId,
-        rules: Arc<DatabaseRules>,
-    },
+    RulesLoaded { rules: Arc<DatabaseRules> },
 
     /// Catalog is loaded but data from sequencers / write buffers is not yet replayed.
     Replay { db: Arc<Db> },
@@ -454,24 +445,6 @@ impl DatabaseState {
             DatabaseState::RulesLoaded { rules, .. } => rules.name.clone(),
             DatabaseState::Replay { db, .. } => db.rules().name.clone(),
             DatabaseState::Initialized { db, .. } => db.rules().name.clone(),
-        }
-    }
-
-    fn object_store(&self) -> Arc<ObjectStore> {
-        match self {
-            DatabaseState::Known { object_store, .. } => Arc::clone(object_store),
-            DatabaseState::RulesLoaded { object_store, .. } => Arc::clone(object_store),
-            DatabaseState::Replay { db, .. } => Arc::clone(&db.store),
-            DatabaseState::Initialized { db, .. } => Arc::clone(&db.store),
-        }
-    }
-
-    fn server_id(&self) -> ServerId {
-        match self {
-            DatabaseState::Known { server_id, .. } => *server_id,
-            DatabaseState::RulesLoaded { server_id, .. } => *server_id,
-            DatabaseState::Replay { db, .. } => db.server_id,
-            DatabaseState::Initialized { db, .. } => db.server_id,
         }
     }
 
@@ -540,12 +513,12 @@ impl<'a> DatabaseHandle<'a> {
 
     /// Get object store.
     pub fn object_store(&self) -> Arc<ObjectStore> {
-        self.state().object_store()
+        Arc::clone(&self.config.object_store)
     }
 
     /// Get server ID.
     pub fn server_id(&self) -> ServerId {
-        self.state().server_id()
+        self.config.server_id
     }
 
     /// Get metrics registry.
@@ -584,12 +557,7 @@ impl<'a> DatabaseHandle<'a> {
     /// Advance database state to [`RulesLoaded`](DatabaseStateCode::RulesLoaded).
     pub fn advance_rules_loaded(&mut self, rules: DatabaseRules) -> Result<()> {
         match self.state().as_ref() {
-            DatabaseState::Known {
-                object_store,
-                exec,
-                server_id,
-                db_name,
-            } => {
+            DatabaseState::Known { db_name } => {
                 ensure!(
                     db_name == &rules.name,
                     RulesDatabaseNameMismatch {
@@ -599,9 +567,6 @@ impl<'a> DatabaseHandle<'a> {
                 );
 
                 self.state = Some(Arc::new(DatabaseState::RulesLoaded {
-                    object_store: Arc::clone(&object_store),
-                    exec: Arc::clone(&exec),
-                    server_id: *server_id,
                     rules: Arc::new(rules),
                 }));
 
@@ -623,16 +588,11 @@ impl<'a> DatabaseHandle<'a> {
         write_buffer: Option<WriteBufferConfig>,
     ) -> Result<()> {
         match self.state().as_ref() {
-            DatabaseState::RulesLoaded {
-                object_store,
-                exec,
-                server_id,
-                rules,
-            } => {
+            DatabaseState::RulesLoaded { rules } => {
                 let database_to_commit = DatabaseToCommit {
-                    server_id: *server_id,
-                    object_store: Arc::clone(&object_store),
-                    exec: Arc::clone(&exec),
+                    server_id: self.config.server_id,
+                    object_store: Arc::clone(&self.config.object_store),
+                    exec: Arc::clone(&self.config.exec),
                     preserved_catalog,
                     catalog,
                     rules: Arc::clone(&rules),
@@ -726,40 +686,32 @@ mod test {
     use super::*;
     use std::num::NonZeroU32;
 
+    fn make_config(remote_template: Option<RemoteTemplate>) -> Config {
+        let store = Arc::new(ObjectStore::new_in_memory());
+        let server_id = ServerId::try_from(1).unwrap();
+        let metric_registry = Arc::new(metrics::MetricRegistry::new());
+        Config::new(
+            Arc::new(JobRegistry::new()),
+            Arc::clone(&store),
+            Arc::new(Executor::new(1)),
+            server_id,
+            Arc::clone(&metric_registry),
+            remote_template,
+        )
+    }
+
     #[tokio::test]
     async fn create_db() {
         // setup
         let name = DatabaseName::new("foo").unwrap();
-        let store = Arc::new(ObjectStore::new_in_memory());
-        let exec = Arc::new(Executor::new(1));
-        let server_id = ServerId::try_from(1).unwrap();
-        let metric_registry = Arc::new(metrics::MetricRegistry::new());
-        let config = Config::new(
-            Arc::new(JobRegistry::new()),
-            Arc::clone(&metric_registry),
-            None,
-        );
+        let config = make_config(None);
         let rules = DatabaseRules::new(name.clone());
 
         // getting handle while DB is reserved => fails
         {
-            let _db_reservation = config
-                .create_db(
-                    Arc::clone(&store),
-                    Arc::clone(&exec),
-                    server_id,
-                    name.clone(),
-                )
-                .unwrap();
+            let _db_reservation = config.create_db(name.clone()).unwrap();
 
-            let err = config
-                .create_db(
-                    Arc::clone(&store),
-                    Arc::clone(&exec),
-                    server_id,
-                    name.clone(),
-                )
-                .unwrap_err();
+            let err = config.create_db(name.clone()).unwrap_err();
             assert!(matches!(err, Error::DatabaseReserved { .. }));
 
             let err = config.block_db(name.clone()).unwrap_err();
@@ -771,14 +723,7 @@ mod test {
 
         // name in rules must match reserved name
         {
-            let mut db_reservation = config
-                .create_db(
-                    Arc::clone(&store),
-                    Arc::clone(&exec),
-                    server_id,
-                    DatabaseName::new("bar").unwrap(),
-                )
-                .unwrap();
+            let mut db_reservation = config.create_db(DatabaseName::new("bar").unwrap()).unwrap();
 
             let err = db_reservation
                 .advance_rules_loaded(rules.clone())
@@ -791,14 +736,7 @@ mod test {
 
         // handle.abort just works (aka does not mess up the transaction afterwards)
         {
-            let db_reservation = config
-                .create_db(
-                    Arc::clone(&store),
-                    Arc::clone(&exec),
-                    server_id,
-                    DatabaseName::new("bar").unwrap(),
-                )
-                .unwrap();
+            let db_reservation = config.create_db(DatabaseName::new("bar").unwrap()).unwrap();
 
             db_reservation.abort();
         }
@@ -808,21 +746,14 @@ mod test {
 
         // create DB successfull
         {
-            let mut db_reservation = config
-                .create_db(
-                    Arc::clone(&store),
-                    Arc::clone(&exec),
-                    server_id,
-                    name.clone(),
-                )
-                .unwrap();
+            let mut db_reservation = config.create_db(name.clone()).unwrap();
 
             db_reservation.advance_rules_loaded(rules).unwrap();
 
             let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
                 &name,
-                Arc::clone(&store),
-                server_id,
+                config.object_store(),
+                config.server_id(),
                 config.metrics_registry(),
                 false,
             )
@@ -862,14 +793,7 @@ mod test {
         assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
 
         // create DB as second time => fail
-        let err = config
-            .create_db(
-                Arc::clone(&store),
-                Arc::clone(&exec),
-                server_id,
-                name.clone(),
-            )
-            .unwrap_err();
+        let err = config.create_db(name.clone()).unwrap_err();
         assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
 
         // block fully initiliazed DB => fail
@@ -884,40 +808,18 @@ mod test {
     async fn recover_db() {
         // setup
         let name = DatabaseName::new("foo").unwrap();
-        let store = Arc::new(ObjectStore::new_in_memory());
-        let exec = Arc::new(Executor::new(1));
-        let server_id = ServerId::try_from(1).unwrap();
-        let metric_registry = Arc::new(metrics::MetricRegistry::new());
-        let config = Config::new(
-            Arc::new(JobRegistry::new()),
-            Arc::clone(&metric_registry),
-            None,
-        );
+        let config = make_config(None);
         let rules = DatabaseRules::new(name.clone());
 
         // create DB but don't continue with rules loaded (e.g. because the rules file is broken)
         {
-            let db_reservation = config
-                .create_db(
-                    Arc::clone(&store),
-                    Arc::clone(&exec),
-                    server_id,
-                    name.clone(),
-                )
-                .unwrap();
+            let db_reservation = config.create_db(name.clone()).unwrap();
             db_reservation.commit();
         }
         assert!(config.has_uninitialized_database(&name));
 
         // create DB while it is uninitialized => fail
-        let err = config
-            .create_db(
-                Arc::clone(&store),
-                Arc::clone(&exec),
-                server_id,
-                name.clone(),
-            )
-            .unwrap_err();
+        let err = config.create_db(name.clone()).unwrap_err();
         assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
 
         // recover an unknown DB => fail
@@ -931,19 +833,19 @@ mod test {
             let mut db_reservation = config.recover_db(name.clone()).unwrap();
             assert_eq!(db_reservation.state_code(), DatabaseStateCode::Known);
             assert_eq!(db_reservation.db_name(), name);
-            assert_eq!(db_reservation.server_id(), server_id);
+            assert_eq!(db_reservation.server_id(), config.server_id());
             assert!(db_reservation.rules().is_none());
 
             db_reservation.advance_rules_loaded(rules).unwrap();
             assert_eq!(db_reservation.state_code(), DatabaseStateCode::RulesLoaded);
             assert_eq!(db_reservation.db_name(), name);
-            assert_eq!(db_reservation.server_id(), server_id);
+            assert_eq!(db_reservation.server_id(), config.server_id());
             assert!(db_reservation.rules().is_some());
 
             let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
                 &name,
-                Arc::clone(&store),
-                server_id,
+                config.object_store(),
+                config.server_id(),
                 config.metrics_registry(),
                 false,
             )
@@ -954,13 +856,13 @@ mod test {
                 .unwrap();
             assert_eq!(db_reservation.state_code(), DatabaseStateCode::Replay);
             assert_eq!(db_reservation.db_name(), name);
-            assert_eq!(db_reservation.server_id(), server_id);
+            assert_eq!(db_reservation.server_id(), config.server_id());
             assert!(db_reservation.rules().is_some());
 
             db_reservation.advance_init().unwrap();
             assert_eq!(db_reservation.state_code(), DatabaseStateCode::Initialized);
             assert_eq!(db_reservation.db_name(), name);
-            assert_eq!(db_reservation.server_id(), server_id);
+            assert_eq!(db_reservation.server_id(), config.server_id());
             assert!(db_reservation.rules().is_some());
 
             db_reservation.commit();
@@ -974,14 +876,7 @@ mod test {
         assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
 
         // create recovered DB => fail
-        let err = config
-            .create_db(
-                Arc::clone(&store),
-                Arc::clone(&exec),
-                server_id,
-                name.clone(),
-            )
-            .unwrap_err();
+        let err = config.create_db(name.clone()).unwrap_err();
         assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
 
         // block recovered DB => fail
@@ -996,28 +891,13 @@ mod test {
     async fn block_db() {
         // setup
         let name = DatabaseName::new("foo").unwrap();
-        let store = Arc::new(ObjectStore::new_in_memory());
-        let exec = Arc::new(Executor::new(1));
-        let server_id = ServerId::try_from(1).unwrap();
-        let metric_registry = Arc::new(metrics::MetricRegistry::new());
-        let config = Config::new(
-            Arc::new(JobRegistry::new()),
-            Arc::clone(&metric_registry),
-            None,
-        );
+        let config = make_config(None);
 
         // block DB
         let handle = config.block_db(name.clone()).unwrap();
 
         // create while blocked => fail
-        let err = config
-            .create_db(
-                Arc::clone(&store),
-                Arc::clone(&exec),
-                server_id,
-                name.clone(),
-            )
-            .unwrap_err();
+        let err = config.create_db(name.clone()).unwrap_err();
         assert!(matches!(err, Error::DatabaseReserved { .. }));
 
         // recover while blocked => fail
@@ -1030,14 +910,7 @@ mod test {
 
         // unblock => DB can be created
         drop(handle);
-        config
-            .create_db(
-                Arc::clone(&store),
-                Arc::clone(&exec),
-                server_id,
-                name.clone(),
-            )
-            .unwrap();
+        config.create_db(name.clone()).unwrap();
 
         // cleanup
         config.drain().await
@@ -1047,20 +920,12 @@ mod test {
     async fn test_db_drop() {
         // setup
         let name = DatabaseName::new("foo").unwrap();
-        let store = Arc::new(ObjectStore::new_in_memory());
-        let exec = Arc::new(Executor::new(1));
-        let server_id = ServerId::try_from(1).unwrap();
-        let metric_registry = Arc::new(metrics::MetricRegistry::new());
-        let config = Config::new(
-            Arc::new(JobRegistry::new()),
-            Arc::clone(&metric_registry),
-            None,
-        );
+        let config = make_config(None);
         let rules = DatabaseRules::new(name.clone());
         let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
             &name,
-            Arc::clone(&store),
-            server_id,
+            config.object_store(),
+            config.server_id(),
             config.metrics_registry(),
             false,
         )
@@ -1068,14 +933,7 @@ mod test {
         .unwrap();
 
         // create DB
-        let mut db_reservation = config
-            .create_db(
-                Arc::clone(&store),
-                Arc::clone(&exec),
-                server_id,
-                name.clone(),
-            )
-            .unwrap();
+        let mut db_reservation = config.create_db(name.clone()).unwrap();
         db_reservation.advance_rules_loaded(rules).unwrap();
         db_reservation
             .advance_replay(preserved_catalog, catalog, None)
@@ -1122,12 +980,7 @@ mod test {
 
     #[test]
     fn resolve_remote() {
-        let metric_registry = Arc::new(metrics::MetricRegistry::new());
-        let config = Config::new(
-            Arc::new(JobRegistry::new()),
-            Arc::clone(&metric_registry),
-            Some(RemoteTemplate::new("http://iox-query-{id}:8082")),
-        );
+        let config = make_config(Some(RemoteTemplate::new("http://iox-query-{id}:8082")));
 
         let server_id = ServerId::new(NonZeroU32::new(42).unwrap());
         let remote = config.resolve_remote(server_id);

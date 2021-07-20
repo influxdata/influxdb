@@ -56,7 +56,7 @@ where
         &self,
         _: Request<GetServerIdRequest>,
     ) -> Result<Response<GetServerIdResponse>, Status> {
-        match self.server.require_id().ok() {
+        match self.server.server_id() {
             Some(id) => Ok(Response::new(GetServerIdResponse { id: id.get_u32() })),
             None => return Err(NotFound::default().into()),
         }
@@ -71,7 +71,7 @@ where
 
         match self.server.set_id(id) {
             Ok(_) => Ok(Response::new(UpdateServerIdResponse {})),
-            Err(e @ Error::SetIdError { .. }) => {
+            Err(e @ Error::IdAlreadySet) => {
                 return Err(FieldViolation {
                     field: "id".to_string(),
                     description: e.to_string(),
@@ -199,15 +199,18 @@ where
         &self,
         _: Request<ListRemotesRequest>,
     ) -> Result<Response<ListRemotesResponse>, Status> {
-        let remotes = self
-            .server
-            .remotes_sorted()
-            .into_iter()
-            .map(|(id, connection_string)| Remote {
-                id: id.get_u32(),
-                connection_string,
-            })
-            .collect();
+        let result = self.server.remotes_sorted();
+        let remotes = match result {
+            Ok(remotes) => remotes
+                .into_iter()
+                .map(|(id, connection_string)| Remote {
+                    id: id.get_u32(),
+                    connection_string,
+                })
+                .collect(),
+            Err(e) => return Err(default_server_error_handler(e)),
+        };
+
         Ok(Response::new(ListRemotesResponse { remotes }))
     }
 
@@ -221,8 +224,16 @@ where
             .ok_or_else(|| FieldViolation::required("remote"))?;
         let remote_id = ServerId::try_from(remote.id)
             .map_err(|_| FieldViolation::required("id").scope("remote"))?;
-        self.server
+
+        let result = self
+            .server
             .update_remote(remote_id, remote.connection_string);
+
+        match result {
+            Ok(_) => {}
+            Err(e) => return Err(default_server_error_handler(e)),
+        }
+
         Ok(Response::new(UpdateRemoteResponse {}))
     }
 
@@ -233,9 +244,12 @@ where
         let request = request.into_inner();
         let remote_id =
             ServerId::try_from(request.id).map_err(|_| FieldViolation::required("id"))?;
-        self.server
-            .delete_remote(remote_id)
-            .ok_or_else(NotFound::default)?;
+
+        match self.server.delete_remote(remote_id) {
+            Ok(Some(_)) => {}
+            Ok(None) => return Err(NotFound::default().into()),
+            Err(e) => return Err(default_server_error_handler(e)),
+        }
 
         Ok(Response::new(DeleteRemoteResponse {}))
     }
@@ -455,7 +469,7 @@ where
 
         let tracker = self
             .server
-            .wipe_preserved_catalog(db_name)
+            .wipe_preserved_catalog(&db_name)
             .map_err(|e| match e {
                 Error::DatabaseAlreadyExists { db_name } => AlreadyExists {
                     resource_type: "database".to_string(),

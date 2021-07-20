@@ -1,5 +1,6 @@
 use std::{fmt::Display, str::FromStr};
 
+use arrow::compute::SortOptions;
 use indexmap::{map::Iter, IndexMap};
 use itertools::Itertools;
 use snafu::Snafu;
@@ -22,24 +23,6 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-/// Temporary - <https://github.com/apache/arrow-rs/pull/425>
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct SortOptions {
-    /// Whether to sort in descending order
-    pub descending: bool,
-    /// Whether to sort nulls first
-    pub nulls_first: bool,
-}
-
-impl Default for SortOptions {
-    fn default() -> Self {
-        Self {
-            descending: false,
-            nulls_first: true,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct ColumnSort {

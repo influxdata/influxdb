@@ -339,21 +339,12 @@ impl RecordBatchDeduplicator {
     }
 
     /// Create a new record batch from offset --> len
-    ///
-    /// <https://github.com/apache/arrow-rs/issues/460> for adding this upstream
     fn slice_record_batch(
         batch: &RecordBatch,
         offset: usize,
         len: usize,
     ) -> ArrowResult<RecordBatch> {
-        let schema = batch.schema();
-        let new_columns: Vec<_> = batch
-            .columns()
-            .iter()
-            .map(|old_column| old_column.slice(offset, len))
-            .collect();
-
-        let batch = RecordBatch::try_new(schema, new_columns)?;
+        let batch = batch.slice(offset, len);
 
         // At time of writing, `concat_batches` concatenates the
         // contents of dictionaries as well; Do a post pass to remove the

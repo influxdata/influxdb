@@ -203,10 +203,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct Db {
     rules: RwLock<Arc<DatabaseRules>>,
 
-    pub server_id: ServerId, // this is also the Query Server ID
+    server_id: ServerId, // this is also the Query Server ID
 
     /// Interface to use for persistence
-    pub store: Arc<ObjectStore>,
+    store: Arc<ObjectStore>,
 
     /// Executor for running queries
     exec: Arc<Executor>,
