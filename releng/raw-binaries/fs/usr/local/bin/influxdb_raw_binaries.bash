@@ -59,8 +59,7 @@ OUTDIR=$(mktemp -d)
 	BINARY_PACKAGES="
 		github.com/influxdata/influxdb/cmd/influxd
 		github.com/influxdata/influxdb/cmd/influx
-		github.com/influxdata/influxdb/cmd/influx_inspect
-		github.com/influxdata/influxdb/cmd/influx_tsm"
+		github.com/influxdata/influxdb/cmd/influx_inspect"
 
 	for cmd in $BINARY_PACKAGES; do
 		export CGO_ENABLED=1
