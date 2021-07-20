@@ -7,9 +7,11 @@ import (
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/dump_wal"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/export_index"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/export_lp"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/report_tsi"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/verify_seriesfile"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/verify_tombstone"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/verify_tsm"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/verify_wal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -30,6 +32,7 @@ func NewCommand(v *viper.Viper) (*cobra.Command, error) {
 		return nil, err
 	}
 	base.AddCommand(exportLp)
+	base.AddCommand(report_tsi.NewReportTSICommand())
 	base.AddCommand(export_index.NewExportIndexCommand())
 	base.AddCommand(verify_tsm.NewTSMVerifyCommand())
 	base.AddCommand(verify_seriesfile.NewVerifySeriesfileCommand())
@@ -38,6 +41,7 @@ func NewCommand(v *viper.Viper) (*cobra.Command, error) {
 	base.AddCommand(dump_tsi.NewDumpTSICommand())
 	base.AddCommand(delete_tsm.NewDeleteTSMCommand())
 	base.AddCommand(dump_wal.NewDumpWALCommand())
+	base.AddCommand(verify_wal.NewVerifyWALCommand())
 
 	return base, nil
 }

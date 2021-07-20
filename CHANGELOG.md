@@ -28,10 +28,12 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21615](https://github.com/influxdata/influxdb/pull/21615): Ported the `influxd inspect verify-tsm` command from 1.x.
 1. [21646](https://github.com/influxdata/influxdb/pull/21646): Ported the `influxd inspect verify-tombstone` command from 1.x.
 1. [21761](https://github.com/influxdata/influxdb/pull/21761): Ported the `influxd inspect dump-tsm` command from 1.x.
+1. [21788](https://github.com/influxdata/influxdb/pull/21788): Ported the `influxd inspect report-tsi` command from 1.x.
 1. [21784](https://github.com/influxdata/influxdb/pull/21784): Ported the `influxd inspect dumptsi` command from 1.x.
 1. [21786](https://github.com/influxdata/influxdb/pull/21786): Ported the `influxd inspect deletetsm` command from 1.x.
 1. [21802](https://github.com/influxdata/influxdb/pull/21802): Removed unused `chronograf-migator` package & chronograf API service, and updated various "chronograf" references.
 1. [21888](https://github.com/influxdata/influxdb/pull/21888/): Ported the `influxd inspect dump-wal` command from 1.x.
+1. [21828](https://github.com/influxdata/influxdb/pull/21828): Added the command `influx inspect verify-wal`.
 
 ### Bug Fixes
 
@@ -41,6 +43,11 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21691](https://github.com/influxdata/influxdb/pull/21691): Remove incorrect optimization for group-by.
 1. [21747](https://github.com/influxdata/influxdb/pull/21747): Rename arm rpms with yum-compatible names.
 1. [21800](https://github.com/influxdata/influxdb/pull/21800): Return an error instead of panicking when InfluxQL statement rewrites fail.
+1. [21840](https://github.com/influxdata/influxdb/pull/21840): Run migrations on restored bolt & SQLite metadata databases as part of the restore process.
+1. [21844](https://github.com/influxdata/influxdb/pull/21844): Upgrade to latest version of `influxdata/cron` so that tasks can be created with interval of `every: 1w`.
+1. [21849](https://github.com/influxdata/influxdb/pull/21849): Specify which fields are missing when rejecting an incomplete onboarding request.
+1. [21839](https://github.com/influxdata/influxdb/pull/21839): Fix display and parsing of `influxd upgrade` CLI prompts in PowerShell.
+1. [21850](https://github.com/influxdata/influxdb/pull/21850): Systemd unit should block on startup until http endpoint is ready
 
 ## v2.0.7 [2021-06-04]
 

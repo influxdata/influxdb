@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
+	sqliteMigrations "github.com/influxdata/influxdb/v2/sqlite/migrations"
 	"github.com/jmoiron/sqlx"
 	"github.com/mattn/go-sqlite3"
 
@@ -230,6 +231,15 @@ func (s *SqlStore) RestoreSqlStore(ctx context.Context, r io.Reader) error {
 		return err
 	}
 
+	// Run the migrations on the restored database prior to swapping it in.
+	if err := s.migrateRestored(ctx, tempFileName); err != nil {
+		return err
+	}
+
+	// Use a lock while swapping over to the temporary database.
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
 	// Close the current DB.
 	if err := s.Close(); err != nil {
 		return err
@@ -260,6 +270,26 @@ func (s *SqlStore) RestoreSqlStore(ctx context.Context, r io.Reader) error {
 
 	// Reopen the new database file
 	return s.openDB()
+}
+
+// migrateRestored opens the database at the temporary path and applies the
+// migrations to it. The database at the temporary path is closed after the
+// migrations are complete. This should be used as part of the restore
+// operation, prior to swapping the restored database (or its contents) with the
+// active database.
+func (s *SqlStore) migrateRestored(ctx context.Context, tempFileName string) error {
+	restoredSql, err := NewSqlStore(tempFileName, s.log.With(zap.String("service", "restored sqlite")))
+	if err != nil {
+		return err
+	}
+	defer restoredSql.Close()
+
+	restoreMigrator := NewMigrator(
+		restoredSql,
+		s.log.With(zap.String("service", "sqlite restore migrations")),
+	)
+
+	return restoreMigrator.Up(ctx, sqliteMigrations.All)
 }
 
 func (s *SqlStore) execTrans(ctx context.Context, stmt string) error {

@@ -59,7 +59,7 @@ func NewVerifyTombstoneCommand() *cobra.Command {
 }
 
 func (v *verifier) loadFiles() error {
-	return filepath.Walk(v.path, func(path string, f os.FileInfo, err error) error {
+	return filepath.WalkDir(v.path, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

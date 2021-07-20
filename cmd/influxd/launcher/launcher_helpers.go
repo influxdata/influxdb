@@ -482,13 +482,23 @@ func (tl *TestLauncher) TaskService(tb testing.TB) taskmodel.TaskService {
 
 func (tl *TestLauncher) BackupService(tb testing.TB) *clibackup.Client {
 	tb.Helper()
-	return &clibackup.Client{CLI: clients.CLI{}, BackupApi: tl.APIClient(tb).BackupApi}
+	client := tl.APIClient(tb)
+	return &clibackup.Client{
+		CLI:       clients.CLI{},
+		BackupApi: client.BackupApi,
+		HealthApi: client.HealthApi,
+	}
 }
 
 func (tl *TestLauncher) RestoreService(tb testing.TB) *clirestore.Client {
 	tb.Helper()
 	client := tl.APIClient(tb)
-	return &clirestore.Client{CLI: clients.CLI{}, RestoreApi: client.RestoreApi, OrganizationsApi: client.OrganizationsApi}
+	return &clirestore.Client{
+		CLI:              clients.CLI{},
+		RestoreApi:       client.RestoreApi,
+		OrganizationsApi: client.OrganizationsApi,
+		HealthApi:        client.HealthApi,
+	}
 }
 
 func (tl *TestLauncher) HTTPClient(tb testing.TB) *httpc.Client {
